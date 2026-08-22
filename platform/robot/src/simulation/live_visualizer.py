@@ -141,6 +141,9 @@ class LiveScenarioVisualizer(Node):
         self._wheel_roll = 0.0
         self._previous_position: tuple[float, float] | None = None
         self._belief_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        # Resolved once, not per tick: load_default() re-reads and re-validates
+        # the TOML, which is not something to do at 20 Hz inside the scan path.
+        self._lidar_sectors = get_tuning(None).lidar_sectors
         self.set_track(track)
 
     def set_belief_frame(
@@ -367,7 +370,7 @@ class LiveScenarioVisualizer(Node):
         msg.angle_increment = (angles[-1] - angles[0]) / max(1, len(angles) - 1)
         msg.range_min = RobotSpecs.LIDAR_MIN_RANGE
         msg.range_max = RobotSpecs.LIDAR_MAX_RANGE
-        sectors = get_tuning().lidar_sectors
+        sectors = self._lidar_sectors
         msg.ranges = [
             math.nan if _is_masked_bearing(angle, sectors) or range_m <= sectors.SELF_DETECTION_THRESHOLD_M else range_m
             for angle, range_m in zip(angles, scan.ranges_m, strict=True)
