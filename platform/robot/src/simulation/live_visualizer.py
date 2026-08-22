@@ -45,6 +45,7 @@ from shared.domain.models import BlockPosition, ParkingLot, SignColor, SignPosit
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import wrap_angle
 from src.ros2.qos import QOS_STREAM
 from src.simulation.kinematics import wheel_poses
@@ -67,6 +68,21 @@ def _yaw_to_quaternion(yaw: float) -> Quaternion:
 
 def _pitch_to_quaternion(pitch: float) -> Quaternion:
     return Quaternion(x=0.0, y=math.sin(pitch / 2.0), z=0.0, w=math.cos(pitch / 2.0))
+
+
+def _is_masked_bearing(angle_rad: float, sectors: object) -> bool:
+    """True where the mount occludes its own sensor, by ANGLE not by range.
+
+    These rays self-collide as a matter of geometry, so whatever range comes
+    back is meaningless regardless of how large it is -- which is exactly why
+    the navigator's own rear-sector read excludes them by bearing rather than
+    filtering on distance. Same two wedges, same config.
+    """
+    degrees = math.degrees(wrap_angle(angle_rad))
+    return (
+        sectors.BLIND_WEDGE_LEFT_MIN_DEG <= degrees <= sectors.BLIND_WEDGE_LEFT_MAX_DEG
+        or sectors.BLIND_WEDGE_RIGHT_MIN_DEG <= degrees <= sectors.BLIND_WEDGE_RIGHT_MAX_DEG
+    )
 
 
 def _wheel_to_quaternion(steer: float, roll: float = 0.0) -> Quaternion:
@@ -328,6 +344,20 @@ class LiveScenarioVisualizer(Node):
         return marker
 
     def _build_laserscan(self, scan: LidarScan, stamp: object) -> LaserScan:
+        """The sweep, with the bearings the mount cannot see blanked out.
+
+        The raycast model casts a full circle from the LIDAR against walls and
+        obstacles; it does not model the chassis occluding its own sensor. So
+        the rear rays come back as clean wall returns where the real C1 sees
+        nothing but its own body — the view claimed sensing the robot does not
+        have, and the rear is now masked EDGE TO EDGE (the ~25 deg slot that
+        used to exist straight back is gone on the current mount).
+
+        Blanked with NaN, which is the LaserScan convention for "no return" and
+        which RViz skips rather than drawing at zero. Masked here rather than in
+        the raycast because this is a display concern: the navigator applies the
+        same wedges itself when it reads a sector.
+        """
         msg = LaserScan()
         msg.header.stamp = stamp
         msg.header.frame_id = TfFrames.BASE_LINK
@@ -337,7 +367,11 @@ class LiveScenarioVisualizer(Node):
         msg.angle_increment = (angles[-1] - angles[0]) / max(1, len(angles) - 1)
         msg.range_min = RobotSpecs.LIDAR_MIN_RANGE
         msg.range_max = RobotSpecs.LIDAR_MAX_RANGE
-        msg.ranges = list(scan.ranges_m)
+        sectors = get_tuning().lidar_sectors
+        msg.ranges = [
+            math.nan if _is_masked_bearing(angle, sectors) or range_m <= sectors.SELF_DETECTION_THRESHOLD_M else range_m
+            for angle, range_m in zip(angles, scan.ranges_m, strict=True)
+        ]
         return msg
 
     def _outer_wall_markers(self) -> list[Marker]:
