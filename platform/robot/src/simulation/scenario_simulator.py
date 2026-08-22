@@ -558,10 +558,36 @@ class ScenarioSimulator:
         ``LiveScenarioVisualizer.set_belief_frame`` -- rather than drawing the
         plan on a track it does not correspond to.
 
+        In blind mode the corridor-width estimate evolves, and the lateral
+        position of the assumed start shifts with it (a narrow corridor's
+        centreline is 20 cm closer to the outer wall than a wide one's). The
+        path is rebuilt from the new widths but stays anchored at the original
+        assumed start, so the visualization frame has to be recomputed from the
+        current belief or the plan drifts 10-20 cm away from the true track.
+
         Equal in a sighted run, which makes the offset identity.
         """
+        believed = self._believed_start
+        if self._width_estimator is not None:
+            # Recompute the assumed-section start from the current width belief.
+            # The original stored start was built with the narrow prior; as the
+            # estimator learns the real layout, the centreline it thinks it is
+            # standing on moves, and so must the frame that draws the plan.
+            assumed = assumed_start_conditions(
+                believed.direction,
+                widths_m=self._width_estimator.widths,
+                section=believed.section,
+                tuning=self._tuning,
+            )
+            believed = _StartConditions(
+                section=believed.section,
+                direction=believed.direction,
+                x=float(assumed[DictKeys.POSITION][DictKeys.X]),
+                y=float(assumed[DictKeys.POSITION][DictKeys.Y]),
+                yaw=float(assumed[DictKeys.YAW]),
+            )
         return (
-            (self._believed_start.x, self._believed_start.y, self._believed_start.yaw),
+            (believed.x, believed.y, believed.yaw),
             (self._start.x, self._start.y, self._start.yaw),
         )
 
