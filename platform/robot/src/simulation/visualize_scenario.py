@@ -17,10 +17,13 @@ need this env, only this script does):
 
     # The catalog scenarios, by index or label — omit --challenge to see both
     # catalogs (Open Challenge then Obstacles Challenge); pass --challenge
-    # open|obstacles to scope to just one:
+    # open|obstacles to scope to just one. The Open Challenge catalog is
+    # generated on demand (640 legal width/section/direction/cell combos);
+    # Obstacles still loads the Go-generated fixtures:
     pixi run -e dev visualize-scenario -- --list
     pixi run -e dev visualize-scenario -- --scenario 0
-    pixi run -e dev visualize-scenario -- --challenge open --scenario go_open_0000
+    pixi run -e dev visualize-scenario -- --challenge open --scenario 123
+    pixi run -e dev visualize-scenario -- --challenge open --scenario open_0123[south/cw]
     pixi run -e dev visualize-scenario -- --challenge obstacles --list
 
     # Step through every catalog scenario, pausing between each. No
@@ -70,6 +73,7 @@ from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_catalog import (
     NamedScenario,
     all_obstacles_demo_scenarios,
+    all_open_scenarios,
     all_test_scenarios,
     find_scenario,
 )
@@ -228,10 +232,10 @@ def _parse_args() -> argparse.Namespace:
 def _catalog(challenge: str | None) -> list[NamedScenario]:
     """Scenarios for the given challenge, or both catalogs (Open then Obstacles) if omitted."""
     if challenge == "open":
-        return all_test_scenarios()
+        return all_open_scenarios()
     if challenge == "obstacles":
         return all_obstacles_demo_scenarios()
-    return all_test_scenarios() + all_obstacles_demo_scenarios()
+    return all_open_scenarios() + all_obstacles_demo_scenarios()
 
 
 def _track_for(metadata: dict[str, Any]) -> TrackModel:
