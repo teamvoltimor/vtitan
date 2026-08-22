@@ -320,6 +320,14 @@ class SignRouter:
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
         self._lap_tick = 0
+        # Sign indices passed on the WRONG side of the corridor. The official
+        # Obstacles rule is absolute: a RED obstacle must be cleared on its
+        # OUTWARD side, a GREEN on its INWARD side. ``_active_sign_candidates``
+        # records here, at the instant a sign is retired as passed, whether the
+        # robot was on the permitted side — see ``_record_pass_side``. The
+        # simulator reads ``wrong_side_violations`` and stops the run, the same
+        # way it stops on a forbidden wall contact.
+        self._wrong_side: set[int] = set()
         # The sign currently being routed around, kept across ticks so the
         # commanded line does not jump between two legal ones mid-pass. See
         # _prefer_committed.
@@ -534,6 +542,45 @@ class SignRouter:
         self._lap_tick = 0
         self._committed = None
         self._commit_yaw.clear()
+
+    @property
+    def wrong_side_violations(self) -> set[int]:
+        """Sign indices retired as passed on the WRONG side of the corridor.
+
+        Emptied by ``reset_for_new_lap`` so each lap is judged independently
+        (a sign avoided correctly on lap 2 after a lap-1 violation is a fresh
+        pass, not a reversal of the earlier miss). The simulator stops the run
+        the moment this is non-empty.
+        """
+        return set(self._wrong_side)
+
+    def _record_pass_side(self, index: int, robot_pos: Waypoint) -> None:
+        """Decide whether ``index`` was cleared on its permitted side.
+
+        The permitted side is absolute, fixed by the corridor geometry and the
+        sign colour — red outward, green inward — and is exactly the lateral
+        direction ``_ROUTING_TABLE`` deforms toward for that colour. The robot's
+        lateral coordinate relative to the sign's is compared against it: same
+        sign ⇒ correct side, opposite sign ⇒ wrong-side pass, recorded in
+        ``_wrong_side``.
+
+        The comparison uses the robot's position at the instant the sign is
+        retired (distance > ``passed_dist``). By then the chassis is ~1.6 m
+        down the corridor axis from the sign, but it is travelling *along* that
+        axis, so its lateral coordinate is the same one it held abeam the sign
+        — which is precisely the choice of side that the pass represents.
+        """
+        sign = self._signs[index]
+        entry = _ROUTING_TABLE.get((self._sign_corridors[index], Direction.CLOCKWISE))
+        if entry is None:
+            return
+        axis, red_mult, green_mult = entry
+        permitted = red_mult if sign.color == SignColor.RED else green_mult
+        robot_lat = robot_pos.x if axis == Axis.X else robot_pos.y
+        sign_lat = sign.x if axis == Axis.X else sign.y
+        side = 0 if robot_lat == sign_lat else (1 if robot_lat > sign_lat else -1)
+        if side != 0 and side != permitted:
+            self._wrong_side.add(index)
 
     def deform_waypoint(
         self,
@@ -783,6 +830,7 @@ class SignRouter:
             if d > self._config.passed_dist:
                 if settled and i in self._engaged:
                     self._passed.add(i)
+                    self._record_pass_side(i, robot_pos)
                     logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
                 continue
             # A sign the robot has already driven past needs no avoidance, and
