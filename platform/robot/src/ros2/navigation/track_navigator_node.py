@@ -24,6 +24,7 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import Direction, NavigatorPhase, ScenarioType, Section
 from shared.domain.models import (
+    CorridorGeometry,
     NavigatorDebugSnapshot,
     Pose,
     ScenarioMetadata,
@@ -340,7 +341,7 @@ class TrackNavigator(Node, ResettableNode):
             stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
             localization=tuning.localization,
         )
-        waypoints = self._plan(self._to_widths_dict())
+        waypoints = self._plan(self._believed_geometry())
 
         self._core_navigator = self._build_core_navigator(
             start_xy=Waypoint(start_x, start_y),
@@ -709,15 +710,15 @@ class TrackNavigator(Node, ResettableNode):
             throttle_duration_sec=5.0,
         )
 
-    def _to_widths_dict(self) -> dict[Section, float]:
-        """Current believed widths as a per-section dict (for _plan)."""
+    def _believed_geometry(self) -> CorridorGeometry:
+        """Current believed corridor geometry (for _plan)."""
         if self._width_estimator:
-            return self._width_estimator.widths
+            return CorridorGeometry.from_width_dict(self._width_estimator.widths)
         g = self._told_geometry
         # Set exactly when not blind (see __init__), which is the only way to
         # reach this branch -- blind means _width_estimator is set instead.
         assert g is not None
-        return g.to_widths_dict()
+        return g
 
     def _commit_direction(self, inferred: Direction, pose: Pose, scan: LidarScan) -> None:
         """Adopt the inferred direction and rebuild everything derived from it.
@@ -904,7 +905,7 @@ class TrackNavigator(Node, ResettableNode):
         # Resync unconditionally: the navigator did not step during the creep,
         # so its waypoint index is still 0 while the robot has driven a metre
         # past it, and it would resume by chasing a waypoint behind itself.
-        self._core_navigator.replace_path(self._plan(self._to_widths_dict()), (pose.x, pose.y), pose.yaw)
+        self._core_navigator.replace_path(self._plan(self._believed_geometry()), (pose.x, pose.y), pose.yaw)
         self.get_logger().info(f"Travel direction inferred from LIDAR: {inferred}")
 
     def _retry_start_measurement(self) -> None:
@@ -964,7 +965,7 @@ class TrackNavigator(Node, ResettableNode):
         # index has to be re-sought against the corrected pose rather than
         # carried over.
         self._core_navigator.replace_path(
-            self._plan(self._to_widths_dict()),
+            self._plan(self._believed_geometry()),
             (measured.x, measured.y),
             pose.yaw,
         )
@@ -974,7 +975,7 @@ class TrackNavigator(Node, ResettableNode):
             f"position estimate corrected from ({pose.x:.2f}, {pose.y:.2f})",
         )
 
-    def _plan(self, widths: dict[Section, float]) -> list[Waypoint]:
+    def _plan(self, geometry: CorridorGeometry) -> list[Waypoint]:
         """Build a one-lap path for the layout the robot believes it is on."""
         # self._metadata is a plain dict (from _load_json, or the assumed-start
         # fallback literal) everywhere else in this class -- never actually a
@@ -986,11 +987,11 @@ class TrackNavigator(Node, ResettableNode):
         # corridor_widths has no default on ScenarioMetadata (deliberately --
         # see its docstring), and a blind run's self._metadata never carries
         # one at all: there is no scenario file to read it from, only the
-        # live width estimate this method receives as `widths`. Validating
+        # live width estimate this method receives as `geometry`. Validating
         # self._metadata as-is therefore raised on every blind run before
         # plan_believed_path ever got a chance to supply the real value --
         # merge it in up front instead of patching it in after.
-        new_widths = corridor_widths_dict_to_model(widths)
+        new_widths = corridor_widths_dict_to_model(geometry.to_widths_dict())
         metadata = ScenarioMetadata.model_validate({**self._metadata, DictKeys.CORRIDOR_WIDTHS: new_widths})
         # direction is a typed kwarg on plan_believed_path, not a raw dict: a
         # past str(self._direction) here type-checked and passed silently while
@@ -1008,7 +1009,7 @@ class TrackNavigator(Node, ResettableNode):
         starting = metadata.starting_conditions
         return plan_believed_path(
             metadata,
-            widths,
+            geometry,
             direction=self._direction,
             believed_section=starting.section,
             believed_position=starting.position,
@@ -1191,7 +1192,7 @@ class TrackNavigator(Node, ResettableNode):
         )
         self._core_navigator.set_travel_direction(self._direction)
         self._core_navigator.replace_path(
-            self._plan(self._to_widths_dict()),
+            self._plan(self._believed_geometry()),
             (self._start_xy.x, self._start_xy.y),
         )
         self._core_navigator.reset()

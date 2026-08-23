@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from shared.config.constants import CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Direction, ScenarioType, Section
-from shared.domain.models import Position2D, ScenarioMetadata, Waypoint
+from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -143,7 +143,7 @@ class ScenarioSimulator:
     reason ``blind`` does.
     """
 
-    def __init__(  # noqa: PLR0915 - constructor wires every subsystem together by design
+    def __init__(
         self,
         metadata: ScenarioMetadata | dict[str, Any],
         num_laps: int = 3,
@@ -231,9 +231,7 @@ class ScenarioSimulator:
         # Open's -- and measured HIGHER, not lower, than the geometry argues
         # for. See WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and
         # why it is compensating for the tracker's outward drift.
-        self._center_bias_m = (
-            None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
-        )
+        self._center_bias_m = None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
@@ -248,9 +246,7 @@ class ScenarioSimulator:
         # with a pillar ends the run. Kept switchable because every figure
         # recorded before 2026-08-01 was measured that way, and comparing
         # against them needs the same rule.
-        self._max_sign_push: float | None = (
-            TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
-        )
+        self._max_sign_push: float | None = TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
         self._sign_push: dict[int, float] = {}
         self._prev_contact_xy: Waypoint = Waypoint(start.x, start.y)
         self._true_geometry = true_geometry
@@ -267,9 +263,7 @@ class ScenarioSimulator:
         self._arc_radius = self._tuning.waypoints.ARC_RADIUS
         self._width_estimator = (
             CorridorWidthEstimator(
-                assumed_width=CorridorDimensions.NARROW
-                if is_open_challenge
-                else CorridorDimensions.OBSTACLES_WIDTH,
+                assumed_width=CorridorDimensions.NARROW if is_open_challenge else CorridorDimensions.OBSTACLES_WIDTH,
                 tuning=self._tuning,
                 # Obstacles corridors are 1.0 m by rule, not by discovery -- a
                 # sign/pillar hugging a wall can otherwise feed the voting a
@@ -306,11 +300,13 @@ class ScenarioSimulator:
         # Provisional until inference settles. Everything built from it -- the
         # path and the lap detector's finish-line normal -- is rebuilt then.
         self._direction = start.direction
-        believed_dict = self._width_estimator.widths if self._width_estimator else true_geometry.to_widths_dict()
+        believed_geometry = (
+            CorridorGeometry.from_width_dict(self._width_estimator.widths) if self._width_estimator else true_geometry
+        )
 
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
         # navigator's waypoint-wrap + LapDetector lap counting.
-        self._waypoints = self._plan(believed_dict)
+        self._waypoints = self._plan(believed_geometry)
 
         signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata.model_dump())
 
@@ -330,7 +326,9 @@ class ScenarioSimulator:
             track=self._track,
             initial_state=AckermannState(x=start.x, y=start.y, yaw=start.yaw),
             believed_start=AckermannState(
-                x=believed_start.x, y=believed_start.y, yaw=believed_start.yaw,
+                x=believed_start.x,
+                y=believed_start.y,
+                yaw=believed_start.yaw,
             ),
             kinematics=kinematics,
             lidar_noise_std=lidar_noise_std,
@@ -351,7 +349,7 @@ class ScenarioSimulator:
         )
         if blind:
             if self._width_estimator:
-                self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed_dict)))
+                self._gateway.set_believed_walls(TrackWalls(believed_geometry))
             else:
                 self._gateway.set_believed_walls(TrackWalls(true_geometry))
 
@@ -384,7 +382,10 @@ class ScenarioSimulator:
         self._park_controller: ParkController | None = None
         if not is_open_challenge and park:
             self._park_controller = park_controller_from_metadata(
-                metadata.model_dump(), believed_start.section, believed_start.direction, tuning=self._tuning,
+                metadata.model_dump(),
+                believed_start.section,
+                believed_start.direction,
+                tuning=self._tuning,
             )
 
         self._navigator = CoreNavigator(
@@ -398,7 +399,7 @@ class ScenarioSimulator:
             direction=self._direction,
         )
 
-    def _plan(self, widths: dict[Section, float]) -> list[Waypoint]:
+    def _plan(self, geometry: CorridorGeometry) -> list[Waypoint]:
         """Build a one-lap path for the layout the robot believes it is on.
 
         The believed start, not the true one: a path is built from where the
@@ -409,7 +410,7 @@ class ScenarioSimulator:
         believed = self._believed_start
         return plan_believed_path(
             self._metadata,
-            widths,
+            geometry,
             direction=self._direction,
             believed_section=believed.section,
             believed_position=Position2D(x=believed.x, y=believed.y),
@@ -454,7 +455,9 @@ class ScenarioSimulator:
                 # line's normal is inverted, so both are rebuilt.
                 self._direction = inferred
                 self._waypoints = self._plan(
-                    self._width_estimator.widths if self._width_estimator else self._true_geometry.to_widths_dict(),
+                    CorridorGeometry.from_width_dict(self._width_estimator.widths)
+                    if self._width_estimator
+                    else self._true_geometry,
                 )
                 self._navigator.replace_lap_detector(
                     LapDetector(
@@ -475,8 +478,12 @@ class ScenarioSimulator:
                         buffered_width,
                     )
                 self._creep_widths.clear()
-                self._waypoints = self._plan(self._width_estimator.widths)
-                self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
+                self._waypoints = self._plan(
+                    CorridorGeometry.from_width_dict(self._width_estimator.widths),
+                )
+                self._gateway.set_believed_walls(
+                    TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths))
+                )
 
             # Resync unconditionally, including when the inference agreed with
             # the provisional direction and the path is unchanged. The
@@ -535,7 +542,7 @@ class ScenarioSimulator:
         if not estimator.observe(section, scan.ranges_m, scan.angles_rad, pose.yaw):
             return False
 
-        believed = estimator.widths
+        believed = CorridorGeometry.from_width_dict(estimator.widths)
         self._waypoints = self._plan(believed)
         self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
         self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
@@ -636,7 +643,7 @@ class ScenarioSimulator:
         router = self._navigator.sign_router
         return router.signs if router else []
 
-    def run(  # noqa: C901 - main control loop; each branch is a distinct tick policy
+    def run(
         self,
         max_steps: int = 4000,
         dt: float = CONTROL_DT,
@@ -702,6 +709,8 @@ class ScenarioSimulator:
         lap_steps: list[int] = []
         terminal_collision = False
         stuck = False
+        pass_side_violation = False
+        violation_signs: list[int] = []
         contacts = ContactTracker(
             dt=dt,
             start_window_s=start_collision_window_s,
@@ -775,6 +784,15 @@ class ScenarioSimulator:
                 terminal_collision = True
                 break
 
+            # Pass-side rule (Obstacles Challenge): a red obstacle must be
+            # cleared OUTWARD and a green INWARD. SignRouter records any sign
+            # retired on the wrong side; that is a scored failure, enforced
+            # exactly like a forbidden wall contact — the run stops here.
+            violation_signs = self._check_pass_side_violation(nav)
+            if violation_signs is not None:
+                pass_side_violation = True
+                break
+
             if nav.laps_completed >= self._num_laps and (
                 self._park_controller is None or self._park_controller.is_done
             ):
@@ -793,9 +811,29 @@ class ScenarioSimulator:
             contacts=contacts,
             metrics=metrics,
             lap_steps=lap_steps,
+            pass_side_violation=pass_side_violation,
+            violation_signs=violation_signs,
         )
 
-    def _score_obstacle_contact(self, surface: ContactSurface, state: AckermannState) -> ContactSurface:
+    def _check_pass_side_violation(self, nav: CoreNavigator) -> list[int] | None:
+        """Return offending sign indices if the run must stop for a wrong-side pass.
+
+        The Obstacles Challenge forbids clearing a red obstacle on its inner
+        side or a green on its outer side. ``SignRouter`` records any sign
+        retired on the wrong side; this surfaces them so ``run`` can terminate
+        the run the same way it does on a forbidden wall contact. Returns
+        ``None`` when no violation has occurred this tick.
+        """
+        router = nav.sign_router
+        if router is None or not router.wrong_side_violations:
+            return None
+        return sorted(router.wrong_side_violations)
+
+    def _score_obstacle_contact(
+        self,
+        surface: ContactSurface,
+        state: AckermannState,
+    ) -> ContactSurface:
         """Downgrade a legal pillar nudge to a non-event, keep an illegal shove.
 
         Touching a pillar does not end an Obstacles round. The pillar may be
@@ -855,6 +893,8 @@ class ScenarioSimulator:
         contacts: ContactTracker,
         metrics: RunMetrics,
         lap_steps: list[int],
+        pass_side_violation: bool = False,
+        violation_signs: list[int] | None = None,
     ) -> SimResult:
         """Assemble the run outcome from the loop's accumulators."""
         gw = self._gateway
@@ -881,6 +921,8 @@ class ScenarioSimulator:
             final_pose=(gw.state.x, gw.state.y, gw.state.yaw),
             lap_step_indices=lap_steps,
             stuck=stuck,
+            pass_side_violation=pass_side_violation,
+            pass_side_violation_signs=violation_signs or [],
         )
 
 
