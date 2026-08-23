@@ -176,3 +176,6 @@ platform/robot/.corpus/
 
 # Landing page
 landing/
+
+# alias scan artifact
+.alias_scan.json
