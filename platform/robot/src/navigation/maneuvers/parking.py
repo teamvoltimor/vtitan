@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Direction, ParkPhase, Section
-from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
+from shared.domain.models import BBox, BlockPosition, ParkingLot, Pose, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
@@ -505,8 +505,8 @@ def _build_zone(
         y_min=y_min,
         y_max=y_max,
         target_yaw=target_yaw,
-        gap_cx=(x_min + x_max) / 2,
-        gap_cy=(y_min + y_max) / 2,
+        gap_cx=BBox(x_min, y_min, x_max, y_max).center.x,
+        gap_cy=BBox(x_min, y_min, x_max, y_max).center.y,
         wall_is_x=wall_is_x,
         wall_coord=wall_coord,
     )
@@ -657,10 +657,8 @@ def _footprint_inside(
     sitting mostly in the corridor, or with its nose through the outer wall, because neither
     the footprint nor the heading enters into it.
     """
-    return all(
-        zone.x_min <= cx <= zone.x_max and zone.y_min <= cy <= zone.y_max
-        for cx, cy in _chassis_corners(rx, ry, robot_yaw)
-    )
+    lot = BBox(zone.x_min, zone.y_min, zone.x_max, zone.y_max)
+    return all(lot.contains(Waypoint(cx, cy)) for cx, cy in _chassis_corners(rx, ry, robot_yaw))
 
 
 def _inside_zone(

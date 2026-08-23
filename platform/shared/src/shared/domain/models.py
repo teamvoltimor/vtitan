@@ -227,6 +227,21 @@ class Bounds:
     x_max: float
     y_max: float
 
+    @property
+    def width(self) -> float:
+        """Return the box width."""
+        return self.x_max - self.x_min
+
+    @property
+    def height(self) -> float:
+        """Return the box height."""
+        return self.y_max - self.y_min
+
+    @property
+    def center(self) -> Waypoint:
+        """Centroid of the box."""
+        return Waypoint((self.x_min + self.x_max) / 2, (self.y_min + self.y_max) / 2)
+
 
 @dataclass(slots=True, frozen=True)
 class InnerBlock(Bounds):
