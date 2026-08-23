@@ -185,6 +185,19 @@ class Lidar(BaseModel):
     centimetres.
     """
 
+    max_range: float
+    """Farthest range the sensor reports (m)."""
+    samples: int
+    """Horizontal sample count of one 360 deg sweep."""
+    update_rate: float
+    """Sweep refresh rate (Hz)."""
+    noise_stddev: float
+    """Per-ray range noise stddev (m)."""
+    diameter: float
+    """Puck diameter (m), matching the lidar_link mesh in wro_robot.urdf.xacro."""
+    height: float
+    """Puck height (m), matching the lidar_link mesh in wro_robot.urdf.xacro."""
+
 
 class Imu(BaseModel):
     """BNO085 mount offset."""
@@ -192,6 +205,16 @@ class Imu(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     mount_z_offset: float
+    update_rate: float
+    """Measurement refresh rate (Hz)."""
+    gyro_noise: float
+    """Gyroscope angular-rate noise stddev (rad/s)."""
+    accel_noise: float
+    """Accelerometer linear-acceleration noise stddev (m/s^2)."""
+    mass: float
+    """Board mass (kg)."""
+    size: tuple[float, float, float]
+    """Board form factor (m): length x width x height."""
 
 
 class Camera(BaseModel):
@@ -202,6 +225,18 @@ class Camera(BaseModel):
     mount_x_offset: float
     mount_z_offset: float
     mount_pitch: float
+    hfov: float
+    """Horizontal field of view (rad)."""
+    width: int
+    """Sensor horizontal resolution (pixels)."""
+    height: int
+    """Sensor vertical resolution (pixels)."""
+    update_rate: float
+    """Frame capture rate (Hz)."""
+    near_clip: float
+    """Rendering near-clip plane (m)."""
+    far_clip: float
+    """Rendering far-clip plane (m)."""
 
 
 _COMPONENT_FACTS: tuple[tuple[str, str, str], ...] = (

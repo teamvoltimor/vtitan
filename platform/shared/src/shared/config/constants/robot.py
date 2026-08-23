@@ -82,16 +82,16 @@ class RobotSpecs:
     floor that nothing read only suggested a near-wall behaviour that did not
     exist."""
 
-    LIDAR_MAX_RANGE: Final[float] = 12.0  # 12m maximum detection range
-    LIDAR_SAMPLES: Final[int] = 500  # Slamtec C1 horizontal samples
-    LIDAR_UPDATE_RATE: Final[float] = 10.0  # 10 Hz scan rate
-    LIDAR_NOISE_STDDEV: Final[float] = 0.03  # 30mm noise
+    LIDAR_MAX_RANGE: Final[float] = _robot.lidar.max_range  # 12m maximum detection range
+    LIDAR_SAMPLES: Final[int] = _robot.lidar.samples  # Slamtec C1 horizontal samples
+    LIDAR_UPDATE_RATE: Final[float] = _robot.lidar.update_rate  # 10 Hz scan rate
+    LIDAR_NOISE_STDDEV: Final[float] = _robot.lidar.noise_stddev  # 30mm noise
     # 55.6mm diameter x 41.3mm height: matches the lidar_link visual/collision mesh already
     # modeled in wro_robot.urdf.xacro (radius=0.0278, length=0.0413) — used here instead of
     # the C1's raw datasheet form factor so the mount-offset derivation below stays
     # self-consistent with the mesh actually rendered in sim.
-    LIDAR_DIAMETER: Final[float] = 0.0556
-    LIDAR_HEIGHT: Final[float] = 0.0413
+    LIDAR_DIAMETER: Final[float] = _robot.lidar.diameter
+    LIDAR_HEIGHT: Final[float] = _robot.lidar.height
     # = LENGTH/2 - LIDAR_DIAMETER/2 = 0.15 - 0.0278: the C1 mounted flush with the front
     # edge, offset back by its own puck radius (same derivation style as the camera mount
     # offset below). Cross-checked against the existing z-mount height (HEIGHT + LIDAR_HEIGHT/2
@@ -163,23 +163,23 @@ class RobotSpecs:
         return math.radians((180.0 if cls.LIDAR_INVERTED else 0.0) + cls.LIDAR_MOUNT_YAW_OFFSET_DEG)
 
     # IMU (Adafruit BNO085)
-    IMU_UPDATE_RATE: Final[float] = 100.0  # 100 Hz update rate
-    IMU_GYRO_NOISE: Final[float] = 0.054  # rad/s gyroscope noise stddev
-    IMU_ACCEL_NOISE: Final[float] = 0.3  # m/s² accelerometer noise stddev
-    IMU_MASS: Final[float] = 0.0025  # 2.5g board mass
-    IMU_SIZE: Final[tuple[float, float, float]] = (0.0256, 0.0227, 0.0046)  # 25.6mm × 22.7mm × 4.6mm
+    IMU_UPDATE_RATE: Final[float] = _robot.imu.update_rate  # 100 Hz update rate
+    IMU_GYRO_NOISE: Final[float] = _robot.imu.gyro_noise  # rad/s gyroscope noise stddev
+    IMU_ACCEL_NOISE: Final[float] = _robot.imu.accel_noise  # m/s² accelerometer noise stddev
+    IMU_MASS: Final[float] = _robot.imu.mass  # 2.5g board mass
+    IMU_SIZE: Final[tuple[float, float, float]] = _robot.imu.size  # 25.6mm × 22.7mm × 4.6mm
     # IMU sits above the chassis floor by this much (matches the long-standing z=0.01 in
     # static_tfs.launch.py / the URDF).
     IMU_MOUNT_Z_OFFSET: Final[float] = _robot.imu.mount_z_offset
 
     # Camera (RPi Camera 3 Wide) — mounted above the LIDAR, angled down (measured 2026-07-11,
     # approximate; see docs/robot-physical-constants.md).
-    CAMERA_HFOV: Final[float] = 1.7802  # 102 degrees horizontal FOV (radians)
-    CAMERA_WIDTH: Final[int] = 1536  # Horizontal resolution (pixels)
-    CAMERA_HEIGHT: Final[int] = 864  # Vertical resolution (pixels)
-    CAMERA_UPDATE_RATE: Final[float] = 30.0  # 30 FPS
-    CAMERA_NEAR_CLIP: Final[float] = 0.05  # 50mm near clip
-    CAMERA_FAR_CLIP: Final[float] = 10.0  # 10m far clip
+    CAMERA_HFOV: Final[float] = _robot.camera.hfov  # 102 degrees horizontal FOV (radians)
+    CAMERA_WIDTH: Final[int] = _robot.camera.width  # Horizontal resolution (pixels)
+    CAMERA_HEIGHT: Final[int] = _robot.camera.height  # Vertical resolution (pixels)
+    CAMERA_UPDATE_RATE: Final[float] = _robot.camera.update_rate  # 30 FPS
+    CAMERA_NEAR_CLIP: Final[float] = _robot.camera.near_clip  # 50mm near clip
+    CAMERA_FAR_CLIP: Final[float] = _robot.camera.far_clip  # 10m far clip
     # Directly over the LIDAR (same x as LIDAR_MOUNT_X_OFFSET), mounted above its top edge
     # (LIDAR z=0.12 + LIDAR_HEIGHT/2 ~= 0.14) with a small mounting-bracket gap. Unlike
     # LIDAR_MOUNT_X_OFFSET, this z isn't derived from a datasheet — it's an estimate pending
