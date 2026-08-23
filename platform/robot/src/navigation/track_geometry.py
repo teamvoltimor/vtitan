@@ -19,37 +19,27 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
-from shared.domain.enums import Section
 from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata, Waypoint
 
 from src.navigation.utils import wrap_angle
+
+if TYPE_CHECKING:
+    from shared.domain.enums import Section
 
 
 def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeometry:
     """Build CorridorGeometry from a per-section width dict.
 
     Needed for blind operation where widths come from CorridorWidthEstimator
-    rather than from scenario metadata.
+    rather than from scenario metadata. Delegates to the model classmethod
+    ``CorridorGeometry.from_width_dict`` (single source of truth for the
+    inner-block geometry).
     """
-    north = widths[Section.NORTH]
-    south = widths[Section.SOUTH]
-    east = widths[Section.EAST]
-    west = widths[Section.WEST]
-    south_y = south
-    north_y = TrackDimensions.MAX_COORD - north
-    west_x = west
-    east_x = TrackDimensions.MAX_COORD - east
-    return CorridorGeometry(
-        north_width_m=north,
-        south_width_m=south,
-        east_width_m=east,
-        west_width_m=west,
-        inner_block=InnerBlock(west_x, south_y, east_x, north_y),
-    )
+    return CorridorGeometry.from_width_dict(widths)
 
 
 def corridor_widths_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> CorridorGeometry:
