@@ -50,14 +50,14 @@ class WaypointController:
 
     def __init__(
         self,
-        max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE,
-        lookahead_short: float = 0.20,
-        lookahead_long: float = 0.40,
-        lookahead_transition: float = 0.30,
-        steer_kp: float = 1.2,
-        max_steering_rate: float = 2.0,
-        waypoint_reached_distance_m: float = 0.01,
-        corner_turn_threshold_rad: float = 0.35,
+        max_steering_angle: float,
+        lookahead_short: float,
+        lookahead_long: float,
+        lookahead_transition: float,
+        steer_kp: float,
+        max_steering_rate: float,
+        waypoint_reached_distance_m: float,
+        corner_turn_threshold_rad: float,
     ):
         """Initialize pure pursuit controller.
 

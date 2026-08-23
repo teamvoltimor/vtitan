@@ -132,11 +132,7 @@ class CoreNavigator:
 
         self._collision_controller = CollisionAvoidanceController.from_tuning(self._tuning)
 
-        self._stuck_detector = StuckDetector(
-            move_threshold=self._tuning.escape.STUCK_MOVE_THRESHOLD,
-            timeout_frames=self._tuning.escape.STUCK_TIMEOUT_FRAMES,
-            confirmation_checks=self._tuning.escape.STUCK_CONFIRMATION_CHECKS,
-        )
+        self._stuck_detector = StuckDetector.from_tuning(self._tuning)
 
         # Full internal state of the most recent step(), for telemetry -- see
         # NavigatorDebugSnapshot's own docstring for why this exists.

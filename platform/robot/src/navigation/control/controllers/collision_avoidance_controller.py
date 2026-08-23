@@ -213,35 +213,36 @@ class CollisionAvoidanceController:
 
     def __init__(
         self,
-        contact_dist: float = 0.10,
-        slow_dist: float = 0.25,
-        fast_dist: float = 1.00,
-        escape_rev_speed: float = -0.20,
-        escape_steer_scale: float = 0.8,
-        stuck_threshold: float = 0.03,
-        path_margin: float = 0.10,
-        k_turn_min_frames: int = 6,
-        k_turn_max_frames: int = 12,
-        side_correction_steer: float = 0.3,
-        side_correction_speed: float = 0.1,
-        side_correction_frames: int = 4,
-        front_half_fov_deg: float = 30.0,
-        threat_half_fov_deg: float = 45.0,
-        self_detection_threshold_m: float = 0.08,
-        min_valid_range_m: float = 0.05,
-        threat_no_detection_range_m: float = 1.0,
-        no_data_range_m: float = 10.0,
-        blind_wedge_left_min_deg: float = -160.0,
-        blind_wedge_left_max_deg: float = -115.0,
-        blind_wedge_right_min_deg: float = 115.0,
-        blind_wedge_right_max_deg: float = 175.0,
+        contact_dist: float,
+        slow_dist: float,
+        fast_dist: float,
+        escape_rev_speed: float,
+        escape_steer_scale: float,
+        stuck_threshold: float,
+        path_margin: float,
+        k_turn_min_frames: int,
+        k_turn_max_frames: int,
+        side_correction_steer: float,
+        side_correction_speed: float,
+        side_correction_frames: int,
+        front_half_fov_deg: float,
+        threat_half_fov_deg: float,
+        self_detection_threshold_m: float,
+        min_valid_range_m: float,
+        threat_no_detection_range_m: float,
+        no_data_range_m: float,
+        blind_wedge_left_min_deg: float,
+        blind_wedge_left_max_deg: float,
+        blind_wedge_right_min_deg: float,
+        blind_wedge_right_max_deg: float,
     ):
         """Initialize collision avoidance controller.
 
-        Defaults mirror ``NavigationTuning``'s ``ClearanceZones``/
-        ``EscapeManeuverParams``/``LidarSectorParams`` defaults; callers
-        wired to a tuning profile (e.g. ``CoreNavigator``) should pass those
-        values explicitly so a loaded profile actually takes effect.
+        Construction is via :meth:`from_tuning` (from a ``NavigationTuning``),
+        which is the single source of truth for these values -- the LIDAR
+        sector parameters in particular reflect the current chassis, whose
+        rear mount no longer leaves a rear sensing slot. Constructing directly
+        is for tests that need to pin a specific value.
 
         Args:
             contact_dist: Critical distance threshold (m)
