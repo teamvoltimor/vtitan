@@ -336,18 +336,10 @@ class SignColor(StrEnum):
     MAGENTA = "magenta"
 
 
-# The class ids the retrained GMR traffic-sign detector emits, in the order the
-# checkpoint itself declares them. Confirmed by running the checkpoint over the
-# per-class image folders: green_prism images predict green, red_prism predict
-# red. This is the single source of truth for that order.
-#
-# Do NOT take it from auto-annotator's data.yaml, which says (red, green,
-# magenta) and is stale -- its `path` points at an archived directory. Consuming
-# the HEF with that order swaps red and green, inverting the WRO pass-side rule
-# on every obstacle, and nothing about it fails loudly.
-#
-# Regenerate after retraining with:
-#   python -c "from shared.domain.models import SignColor; ..."
+# Class ids the retrained GMR detector emits, in the checkpoint's own declared
+# order (confirmed over per-class image folders). Single source of truth: do NOT
+# take this from auto-annotator's data.yaml -- it lists (red, green, magenta) and
+# is stale, which would swap red/green and invert the WRO pass-side rule silently.
 GMR_CLASS_NAMES: dict[int, SignColor] = {
     0: SignColor.GREEN,
     1: SignColor.MAGENTA,
@@ -378,9 +370,6 @@ class ImageRotation(IntEnum):
     CW_90 = 90
     CW_180 = 180
     CW_270 = 270
-
-
-# --- Typed records replacing raw tuples / dicts / lists (audit §7) -----------
 
 
 @dataclass(slots=True, frozen=True)
@@ -580,9 +569,6 @@ class CameraSize:
         return self.height_px
 
 
-# Polish dataclasses
-
-
 @dataclass(slots=True, frozen=True)
 class ParkingLotGeometry:
     """Computed parking lot bounding box and approach corridor."""
@@ -621,14 +607,12 @@ class LoopProgress:
         return (self.distance_m / self.total_distance_m) * 100
 
 
-# Scenario metadata Pydantic models
-# These replace ``dict[str, Any]`` metadata objects that were passed raw across
-# the simulation/navigation boundary.  They match the schema produced by
-# ``simgen`` and ``scenario_builder.py``.
-
-
 class CorridorWidthEntry(BaseModel):
     """Width and type for one side of the track corridor.
+
+    Replaces the raw ``dict[str, Any]`` metadata objects passed across the
+    simulation/navigation boundary; matches the schema produced by ``simgen``
+    and ``scenario_builder.py``.
 
     The two fields have to agree: ``type`` names one of the two legal widths and
     ``width_mm`` states it. The default was ``type="wide"`` with
