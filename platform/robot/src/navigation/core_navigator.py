@@ -55,7 +55,7 @@ def _outgoing_bearing(waypoints: list[Waypoint], index: int) -> float:
     """
     wp0 = waypoints[index]
     wp1 = waypoints[(index + 1) % len(waypoints)]
-    return math.atan2(wp1.y - wp0.y, wp1.x - wp0.x)
+    return wp0.bearing_to(wp1)
 
 
 class CoreNavigator:
@@ -233,7 +233,7 @@ class CoreNavigator:
         self._lane_fingerprint = None
         self._apply_path_wall_budget()
         robot_x, robot_y = robot_xy
-        distances = [math.hypot(wp.x - robot_x, wp.y - robot_y) for wp in waypoints]
+        distances = [wp.distance_to_xy(robot_x, robot_y) for wp in waypoints]
         nearest_index = min(range(len(waypoints)), key=lambda i: distances[i])
 
         if robot_yaw is not None:
@@ -526,7 +526,7 @@ class CoreNavigator:
         # without rear sensing. See _retrace_steer.
         if (
             not self._pose_trail
-            or math.hypot(robot_x - self._pose_trail[-1].x, robot_y - self._pose_trail[-1].y)
+            or self._pose_trail[-1].to_waypoint().distance_to(Waypoint(robot_x, robot_y))
             >= self._tuning.escape.POSE_TRAIL_MIN_STEP_M
         ):
             self._pose_trail.append(Pose(robot_x, robot_y, robot_yaw))
@@ -660,8 +660,8 @@ class CoreNavigator:
         for _ in range(count):
             next_index = self._waypoint_index + 1
             next_wp = self._waypoints[next_index % count]
-            next_closer = math.hypot(next_wp.x - robot_x, next_wp.y - robot_y) < math.hypot(
-                raw_wp.x - robot_x, raw_wp.y - robot_y
+            next_closer = next_wp.distance_to(Waypoint(robot_x, robot_y)) < raw_wp.distance_to(
+                Waypoint(robot_x, robot_y)
             )
             raw_behind = rescue_behind and ((raw_wp.x - robot_x) * cos_yaw + (raw_wp.y - robot_y) * sin_yaw <= 0)
             if not next_closer and not raw_behind:
@@ -728,7 +728,7 @@ class CoreNavigator:
         # point — checking that point would freeze waypoint_index indefinitely
         # while the sign stays engaged, corrupting every later tick's lookahead
         # search with a stale target.
-        dist_to_wp = math.hypot(raw_wp.x - robot_x, raw_wp.y - robot_y)
+        dist_to_wp = raw_wp.distance_to_xy(robot_x, robot_y)
         if dist_to_wp < self._waypoint_threshold:
             self._waypoint_index += 1
             self._debug = self._base_debug(robot_x, robot_y, robot_yaw)
