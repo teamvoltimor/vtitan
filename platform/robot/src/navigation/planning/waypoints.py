@@ -17,6 +17,7 @@ import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.domain.enums import CorridorSide, Direction, Section
 from shared.domain.models import (
+    CorridorGeometry,
     CorridorWidthEntry,
     CorridorWidths,
     PathPlannability,
@@ -252,7 +253,7 @@ def corridor_widths_dict_to_model(widths: dict[Section, float]) -> CorridorWidth
 
 def plan_believed_path(
     metadata: ScenarioMetadata,
-    widths: dict[Section, float],
+    geometry: CorridorGeometry,
     *,
     direction: Direction,
     believed_section: Section,
@@ -280,7 +281,10 @@ def plan_believed_path(
         metadata: Validated scenario metadata; only its ``starting_conditions``
             and structure are used, both re-derived below with the believed
             widths/pose swapped in.
-        widths: Believed corridor width per section (m).
+        geometry: Believed corridor geometry (widths per section, m). The
+            model is the single currency for corridor widths; the legacy
+            ``dict[Section, float]`` form is obtained via
+            ``geometry.to_widths_dict()``.
         direction: Believed travel direction.
         believed_section: Section the robot believes it is standing in.
         believed_position: Position the robot believes it is standing at.
@@ -294,7 +298,7 @@ def plan_believed_path(
     Returns:
         Single-lap ordered list of world-frame Waypoints.
     """
-    new_widths = corridor_widths_dict_to_model(widths)
+    new_widths = corridor_widths_dict_to_model(geometry.to_widths_dict())
     new_starting = metadata.starting_conditions.replanned_at(
         direction=direction,
         section=believed_section,
