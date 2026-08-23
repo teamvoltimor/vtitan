@@ -717,12 +717,7 @@ class TrackNavigator(Node, ResettableNode):
         # Set exactly when not blind (see __init__), which is the only way to
         # reach this branch -- blind means _width_estimator is set instead.
         assert g is not None
-        return {
-            Section.NORTH: g.north_width_m,
-            Section.SOUTH: g.south_width_m,
-            Section.EAST: g.east_width_m,
-            Section.WEST: g.west_width_m,
-        }
+        return g.to_widths_dict()
 
     def _commit_direction(self, inferred: Direction, pose: Pose, scan: LidarScan) -> None:
         """Adopt the inferred direction and rebuild everything derived from it.
