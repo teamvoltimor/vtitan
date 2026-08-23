@@ -177,6 +177,16 @@ class StartingZone(BaseModel):
     spawn_alignment: tuple[str, ...]
 
 
+class Markings(BaseModel):
+    """Corner-line colours and angle painted on the mat."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    orange_color: tuple[float, float, float]
+    blue_color: tuple[float, float, float]
+    angle: int
+
+
 class TrackConstants(BaseModel):
     """Mat geometry constants, loaded from track.toml."""
 
@@ -188,6 +198,7 @@ class TrackConstants(BaseModel):
     sign: Sign
     parking: Parking
     starting_zone: StartingZone
+    markings: Markings
 
     @property
     def cell_centers_along(self) -> tuple[float, float]:

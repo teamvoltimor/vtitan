@@ -129,7 +129,6 @@ indicator_radius = 0.035
 color = [0.5, 0.5, 0.5]
 clockwise_color = [0.2, 0.4, 1.0]
 counterclockwise_color = [0.2, 1.0, 0.4]
-
 # Which edge of its band the chassis is pushed flush against, one per band.
 # "outer" is the band edge nearer the outer wall, "inner" the edge nearer the
 # inner block. The actual spawn offset is derived from this and the chassis
@@ -149,3 +148,10 @@ counterclockwise_color = [0.2, 1.0, 0.4]
 # width. A narrow corridor simply stops after the first two bands, because the
 # third lies under the centre square where it cannot be a start.
 spawn_alignment = ["inner", "outer", "outer"]
+
+[markings]
+# Corner line colours (normalized RGB triples, [0, 1]).
+orange_color = [1.0, 0.4, 0.0]
+blue_color = [0.0, 0.2, 1.0]
+# Corner line half-splay from the bisector (degrees).
+angle = 30

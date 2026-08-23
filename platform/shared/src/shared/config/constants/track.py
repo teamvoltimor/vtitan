@@ -178,14 +178,19 @@ class StartingZoneSpecs:
 
 
 class TrackMarkings:
-    """Corner lines and other track markings."""
+    """Corner lines and other track markings.
+
+    Values are sourced from track.toml's ``[markings]`` table via TrackConstants
+    (shared.config.track_constants) -- the single source of truth, also consumed
+    by the Go simconfig generator.
+    """
 
     # Corner line colors (RGB normalized 0-1)
-    ORANGE_COLOR = (1.0, 0.4, 0.0)  # RGB(255, 102, 0)
-    BLUE_COLOR = (0.0, 0.2, 1.0)  # RGB(0, 51, 255)
+    ORANGE_COLOR = _track.markings.orange_color  # RGB(255, 102, 0)
+    BLUE_COLOR = _track.markings.blue_color  # RGB(0, 51, 255)
 
     # Corner line angle
-    ANGLE = 30  # 30° from corner
+    ANGLE = _track.markings.angle  # 30° from corner
 
 
 class GridSections:
