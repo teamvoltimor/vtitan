@@ -37,10 +37,10 @@ class StuckDetector:
 
     def __init__(
         self,
-        move_threshold: float = 0.03,
-        timeout_frames: int = 40,
-        history_size: int = 60,
-        confirmation_checks: int = 3,
+        move_threshold: float,
+        timeout_frames: int,
+        history_size: int,
+        confirmation_checks: int,
         min_history_for_distance: int | None = None,
         tuning: NavigationTuning | None = None,
     ):
