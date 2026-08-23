@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
     from shared.config.navigation_tuning import NavigationTuning
 
+
 def measure_corridor_width(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],

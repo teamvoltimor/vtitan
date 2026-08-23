@@ -402,20 +402,12 @@ class SignRouterParams(BaseModel):
     RETRACE_DIST_M: float = Field(default=0.25, gt=0.0, validation_alias=_alias("RETRACE_DIST_M"))
     # 55.0 deg is what the previous normalised 1.0 meant at the bench-measured
     # 55 deg road-wheel limit, so this conversion changed no behaviour.
-    RETRACE_STEER_GAIN_DEG: float = Field(
-        default=55.0, ge=0.0, validation_alias=_alias("RETRACE_STEER_GAIN_DEG")
-    )
+    RETRACE_STEER_GAIN_DEG: float = Field(default=55.0, ge=0.0, validation_alias=_alias("RETRACE_STEER_GAIN_DEG"))
     SIGN_CONTACT_EVADE: bool = Field(default=False, validation_alias=_alias("SIGN_CONTACT_EVADE"))
-    SIGN_CONTACT_DIST_M: float = Field(
-        default=0.60, gt=0.0, validation_alias=_alias("SIGN_CONTACT_DIST_M")
-    )
+    SIGN_CONTACT_DIST_M: float = Field(default=0.60, gt=0.0, validation_alias=_alias("SIGN_CONTACT_DIST_M"))
     # 19.25 deg == the previous normalised 0.35 at the 55 deg road-wheel limit.
-    SIGN_CONTACT_STEER_DEG: float = Field(
-        default=19.25, ge=0.0, validation_alias=_alias("SIGN_CONTACT_STEER_DEG")
-    )
-    SIGN_LANE_COMMIT_AHEAD_M: float = Field(
-        default=0.0, ge=0.0, validation_alias=_alias("SIGN_LANE_COMMIT_AHEAD_M")
-    )
+    SIGN_CONTACT_STEER_DEG: float = Field(default=19.25, ge=0.0, validation_alias=_alias("SIGN_CONTACT_STEER_DEG"))
+    SIGN_LANE_COMMIT_AHEAD_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("SIGN_LANE_COMMIT_AHEAD_M"))
     EXPLORE_LAP_SPEED_FRAC: float = Field(
         default=1.0, gt=0.0, le=1.0, validation_alias=_alias("EXPLORE_LAP_SPEED_FRAC")
     )

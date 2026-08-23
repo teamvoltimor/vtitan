@@ -1,0 +1,321 @@
+{
+ "tests/test_constants.py": [
+  {
+   "line": 60,
+   "name": "CORRIDOR_DEPTH_MIDPOINT",
+   "aliases": "TrackDimensions.CENTER_COORD",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 61,
+   "name": "CORRIDOR_DEPTH_MIN",
+   "aliases": "TrackDimensions.CORNER_MIN",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 62,
+   "name": "CORRIDOR_DEPTH_MAX",
+   "aliases": "TrackDimensions.CORNER_MAX",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 64,
+   "name": "CORRIDOR_WIDTH_QUARTER_NORTH",
+   "aliases": "CorridorDimensions.DIVISION_OUTER",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 65,
+   "name": "CORRIDOR_WIDTH_QUARTER_SOUTH",
+   "aliases": "CorridorDimensions.DIVISION_INNER",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 68,
+   "name": "TRACK_CENTER_X",
+   "aliases": "TrackDimensions.CENTER_COORD",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 69,
+   "name": "TRACK_CENTER_Y",
+   "aliases": "TrackDimensions.CENTER_COORD",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 71,
+   "name": "TRACK_CORNER_SOUTH",
+   "aliases": "CorridorDimensions.DIVISION_OUTER",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 74,
+   "name": "TRACK_CORNER_WEST",
+   "aliases": "CorridorDimensions.DIVISION_OUTER",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 77,
+   "name": "INNER_BLOCK_MIN",
+   "aliases": "TrackDimensions.CORNER_MIN",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 78,
+   "name": "INNER_BLOCK_MAX",
+   "aliases": "TrackDimensions.CORNER_MAX",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 109,
+   "name": "ROBOT_CHASSIS_WIDTH",
+   "aliases": "RobotSpecs.WIDTH",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 117,
+   "name": "_START_MID",
+   "aliases": "TrackDimensions.CENTER_COORD",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 129,
+   "name": "YAW_WEST",
+   "aliases": "math.pi",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 150,
+   "name": "TRACK_MODEL_CORRIDOR_WIDTH_WIDE",
+   "aliases": "CorridorDimensions.WIDE",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 172,
+   "name": "_PARK_NEAR",
+   "aliases": "ParkingLotSpecs.WALL_OFFSET",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 276,
+   "name": "PARKING_BLOCK_X",
+   "aliases": "ParkingLotSpecs.WALL_OFFSET",
+   "scope": "module",
+   "kind": "attr"
+  },
+  {
+   "line": 284,
+   "name": "YAW_FULL",
+   "aliases": "math.pi",
+   "scope": "module",
+   "kind": "attr"
+  }
+ ],
+ "tests/unit/test_deviation_recovery.py": [
+  {
+   "line": 36,
+   "name": "pytestmark",
+   "aliases": "pytest.mark.slow",
+   "scope": "module",
+   "kind": "attr"
+  }
+ ],
+ "tests/unit/test_obstacles_challenge_sim.py": [
+  {
+   "line": 66,
+   "name": "pytestmark",
+   "aliases": "pytest.mark.slow",
+   "scope": "module",
+   "kind": "attr"
+  }
+ ],
+ "tests/unit/test_open_challenge_sim.py": [
+  {
+   "line": 52,
+   "name": "pytestmark",
+   "aliases": "pytest.mark.slow",
+   "scope": "module",
+   "kind": "attr"
+  }
+ ],
+ "tests/unit/test_waypoints.py": [
+  {
+   "line": 108,
+   "name": "_NARROW",
+   "aliases": "CorridorDimensions.NARROW",
+   "scope": "class TestCornerArcRadius",
+   "kind": "attr"
+  },
+  {
+   "line": 109,
+   "name": "_WIDE",
+   "aliases": "CorridorDimensions.WIDE",
+   "scope": "class TestCornerArcRadius",
+   "kind": "attr"
+  }
+ ],
+ "src/config/launch_settings.py": [
+  {
+   "line": 190,
+   "name": "laps",
+   "aliases": "CompetitionSpecs.OPEN_CHALLENGE_LAPS",
+   "scope": "class RaceLaunchDefaults",
+   "kind": "attr"
+  }
+ ],
+ "src/navigation/localization.py": [
+  {
+   "line": 31,
+   "name": "_LIDAR_OFFSET_M",
+   "aliases": "RobotSpecs.LIDAR_MOUNT_X_OFFSET",
+   "scope": "module",
+   "kind": "attr"
+  }
+ ],
+ "src/simulation/scenario_result.py": [
+  {
+   "line": 67,
+   "name": "terminal_surface",
+   "aliases": "ContactSurface.NONE",
+   "scope": "class SimResult",
+   "kind": "attr"
+  },
+  {
+   "line": 138,
+   "name": "min_range",
+   "aliases": "math.inf",
+   "scope": "class RunMetrics",
+   "kind": "attr"
+  }
+ ],
+ "src/simulation/simulated_hardware_gateway.py": [
+  {
+   "line": 66,
+   "name": "_LIDAR_OFFSET_M",
+   "aliases": "RobotSpecs.LIDAR_MOUNT_X_OFFSET",
+   "scope": "module",
+   "kind": "attr"
+  }
+ ],
+ "src/vision/hud.py": [
+  {
+   "line": 62,
+   "name": "font_face",
+   "aliases": "cv2.FONT_HERSHEY_DUPLEX",
+   "scope": "class HudConfig",
+   "kind": "attr"
+  }
+ ],
+ "src/navigation/maneuvers/parking.py": [
+  {
+   "line": 143,
+   "name": "phase",
+   "aliases": "ParkPhase.STAGE",
+   "scope": "class ParkCommand",
+   "kind": "attr"
+  }
+ ],
+ "src/hardware/motors/config.py": [
+  {
+   "line": 32,
+   "name": "max_steering_angle",
+   "aliases": "RobotSpecs.SERVO_MAX_ANGLE_DEG",
+   "scope": "class MotorSteeringConfig",
+   "kind": "attr"
+  },
+  {
+   "line": 52,
+   "name": "linkage_ratio",
+   "aliases": "RobotSpecs.LINKAGE_RATIO",
+   "scope": "class MotorSteeringConfig",
+   "kind": "attr"
+  }
+ ],
+ "src/hardware/motors/dc_encoder/config.py": [
+  {
+   "line": 58,
+   "name": "counts_per_rev",
+   "aliases": "DEFAULT_COUNTS_PER_REV",
+   "scope": "class DcMotorPwmConfig",
+   "kind": "pure"
+  },
+  {
+   "line": 63,
+   "name": "max_rpm",
+   "aliases": "DEFAULT_MAX_RPM",
+   "scope": "class DcMotorPwmConfig",
+   "kind": "pure"
+  }
+ ],
+ "scripts/sim/diag_sign_pass.py": [
+  {
+   "line": 77,
+   "name": "best_dist",
+   "aliases": "math.inf",
+   "scope": "class PassRecord",
+   "kind": "attr"
+  },
+  {
+   "line": 78,
+   "name": "lateral",
+   "aliases": "math.nan",
+   "scope": "class PassRecord",
+   "kind": "attr"
+  },
+  {
+   "line": 79,
+   "name": "longitudinal",
+   "aliases": "math.nan",
+   "scope": "class PassRecord",
+   "kind": "attr"
+  },
+  {
+   "line": 80,
+   "name": "yaw_err",
+   "aliases": "math.nan",
+   "scope": "class PassRecord",
+   "kind": "attr"
+  },
+  {
+   "line": 81,
+   "name": "commanded_lat",
+   "aliases": "math.nan",
+   "scope": "class PassRecord",
+   "kind": "attr"
+  }
+ ],
+ "ros2_ws/src/vtitan_state_machine/vtitan_state_machine/state_machine_node.py": [
+  {
+   "line": 101,
+   "name": "_DEFAULT_TARGET_LAPS",
+   "aliases": "CompetitionSpecs.OPEN_CHALLENGE_LAPS",
+   "scope": "module",
+   "kind": "attr"
+  }
+ ],
+ "ros2_ws/src/vtitan_drivers/vtitan_drivers/imu/bno08x/mcp2221/uart_rvc_node.py": [
+  {
+   "line": 4,
+   "name": "IMU_RVCNode",
+   "aliases": "IMU_UART_RVCNode",
+   "scope": "module",
+   "kind": "pure"
+  }
+ ]
+}

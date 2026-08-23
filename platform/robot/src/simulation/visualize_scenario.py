@@ -217,8 +217,7 @@ def _parse_args() -> argparse.Namespace:
         type=float,
         default=5.0,
         metavar="SEC",
-        help="With --recover, how long the robot may stay pinned before the run is "
-        "called a failure (default: 5).",
+        help="With --recover, how long the robot may stay pinned before the run is called a failure (default: 5).",
     )
     parser.add_argument(
         "--metadata-file",

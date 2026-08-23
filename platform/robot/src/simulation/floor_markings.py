@@ -180,7 +180,7 @@ def corner_lines() -> list[CornerLine]:
             lines.append(CornerLine((cx, cy), end, color))
 
     _corner(TrackDimensions.CORNER_MIN, TrackDimensions.CORNER_MIN, -1, -1)  # SW
-    _corner(TrackDimensions.CORNER_MAX, TrackDimensions.CORNER_MIN, 1, -1)   # SE
-    _corner(TrackDimensions.CORNER_MAX, TrackDimensions.CORNER_MAX, 1, 1)    # NE
-    _corner(TrackDimensions.CORNER_MIN, TrackDimensions.CORNER_MAX, -1, 1)   # NW
+    _corner(TrackDimensions.CORNER_MAX, TrackDimensions.CORNER_MIN, 1, -1)  # SE
+    _corner(TrackDimensions.CORNER_MAX, TrackDimensions.CORNER_MAX, 1, 1)  # NE
+    _corner(TrackDimensions.CORNER_MIN, TrackDimensions.CORNER_MAX, -1, 1)  # NW
     return lines

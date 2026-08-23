@@ -60,7 +60,9 @@ class TurnSide(StrEnum):
     RIGHT = "right"
 
 
-def _way_through(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None) -> bool:
+def _way_through(
+    ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None
+) -> bool:
     """Is any bearing in the forward arc still open enough to drive down?
 
     The maximum, over an arc wide enough to contain the corridor's own axis

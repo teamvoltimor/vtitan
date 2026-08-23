@@ -132,7 +132,7 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         if self.driver is not None:
             try:
                 self.driver.close()
-            except Exception as e:  # noqa: BLE001 - cleanup must never fail node teardown
+            except Exception as e:
                 self.get_logger().error(f"Error closing driver: {e}")
             self.driver = None
         self._on_driver_disconnected()

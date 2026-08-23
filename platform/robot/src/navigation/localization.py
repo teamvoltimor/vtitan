@@ -231,7 +231,10 @@ class LidarLocalizer:
         if implied_dist <= self._max_speed_mps * dt:
             return False
         pending = self._pending_jump_xy
-        if pending is not None and math.hypot(best_xy[0] - pending[0], best_xy[1] - pending[1]) <= self._jump_confirm_tolerance:
+        if (
+            pending is not None
+            and math.hypot(best_xy[0] - pending[0], best_xy[1] - pending[1]) <= self._jump_confirm_tolerance
+        ):
             return False
         self._pending_jump_xy = best_xy
         return True

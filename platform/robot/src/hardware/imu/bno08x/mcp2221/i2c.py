@@ -62,7 +62,7 @@ class Driver(BNO08xI2CDriver):
         if self._i2c is not None:
             try:
                 self._i2c.deinit()
-            except Exception:  # noqa: BLE001 - cleanup must never raise
+            except Exception:
                 self.logger.warning("Error during I2C deinit", exc_info=True)
         self._i2c = None
         self._imu = None

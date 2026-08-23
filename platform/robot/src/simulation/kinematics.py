@@ -18,7 +18,7 @@ as fast* as a front-steer car at the same steering angle::
 
     x += v * cos(yaw) * dt
     y += v * sin(yaw) * dt
-    yaw += (v / L_eff) * tan(steer) * dt      # L_eff = wheelbase / (1 + rear_ratio)
+    yaw += (v / L_eff) * tan(steer) * dt  # L_eff = wheelbase / (1 + rear_ratio)
 
 With ``rear_steer_ratio = 1.0`` that is ``wheelbase / 2``. Modelling this as a
 front-steer car (the previous behaviour) made the simulation turn half as
@@ -52,27 +52,28 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class _KinematicsConstants:
-  """Tuning-derived kinematics constants, computed on-demand instead of frozen at module level."""
-  max_steer_rate: float
-  max_accel: float
-  max_speed_mps: float
-  rear_steer_ratio: float
+    """Tuning-derived kinematics constants, computed on-demand instead of frozen at module level."""
 
-  @classmethod
-  def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
-    tuning = get_tuning(tuning)
-    return cls(
-        max_steer_rate=tuning.pursuit.MAX_STEERING_RATE,
-        max_accel=RobotSpecs.MAX_ACCEL_MPS2,
-        max_speed_mps=RobotSpecs.MAX_SPEED_MPS,
-        rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
-    )
+    max_steer_rate: float
+    max_accel: float
+    max_speed_mps: float
+    rear_steer_ratio: float
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
+        tuning = get_tuning(tuning)
+        return cls(
+            max_steer_rate=tuning.pursuit.MAX_STEERING_RATE,
+            max_accel=RobotSpecs.MAX_ACCEL_MPS2,
+            max_speed_mps=RobotSpecs.MAX_SPEED_MPS,
+            rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
+        )
 
 
 class KinematicsContext(TuningContext[_KinematicsConstants]):
-  """Context holding tuning-derived kinematics constants."""
+    """Context holding tuning-derived kinematics constants."""
 
-  _constants_cls = _KinematicsConstants
+    _constants_cls = _KinematicsConstants
 
 
 _DEFAULT_KINEMATICS_CONTEXT = KinematicsContext()

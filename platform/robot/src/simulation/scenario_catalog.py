@@ -141,7 +141,6 @@ class CorridorWidthSet:
         }
 
 
-
 @dataclass(frozen=True, slots=True)
 class OpenChallengeScenarioParams:
     """Parameters that uniquely identify one Open Challenge scenario."""
@@ -196,9 +195,7 @@ class OpenChallengeScenarioSpace:
         Direction.CLOCKWISE,
         Direction.COUNTERCLOCKWISE,
     )
-    _params: tuple[OpenChallengeScenarioParams, ...] = field(
-        init=False, repr=False, compare=False
-    )
+    _params: tuple[OpenChallengeScenarioParams, ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         # Build the deterministic enumeration once.  dataclass(frozen) allows
@@ -247,10 +244,7 @@ def open_scenario_by_index(index: int) -> NamedScenario:
 
 def all_open_scenarios() -> list[NamedScenario]:
     """The complete deterministic Open Challenge catalog."""
-    return [
-        params.to_named_scenario()
-        for params in _OPEN_CHALLENGE_SPACE.all_params()
-    ]
+    return [params.to_named_scenario() for params in _OPEN_CHALLENGE_SPACE.all_params()]
 
 
 def find_scenario(selector: str, scenarios: list[NamedScenario]) -> NamedScenario:

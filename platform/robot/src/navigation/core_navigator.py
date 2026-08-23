@@ -47,8 +47,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
-
 def _outgoing_bearing(waypoints: list[Waypoint], index: int) -> float:
     """Direction the path points at ``index``, toward its next waypoint.
 
@@ -484,7 +482,9 @@ class CoreNavigator:
         """Number of laps confirmed completed so far."""
         return self._laps_completed
 
-    def _base_debug(self, robot_x: float | None, robot_y: float | None, robot_yaw: float | None) -> NavigatorDebugSnapshot:
+    def _base_debug(
+        self, robot_x: float | None, robot_y: float | None, robot_yaw: float | None
+    ) -> NavigatorDebugSnapshot:
         """Fields available on every phase once pose is known.
 
         These form the common prefix every ``step()`` branch's snapshot builds on.
@@ -528,9 +528,11 @@ class CoreNavigator:
         # mid-maneuver, so the trail is a true record of where the chassis has
         # physically been -- which is the entire basis for reversing along it
         # without rear sensing. See _retrace_steer.
-        if not self._pose_trail or math.hypot(
-            robot_x - self._pose_trail[-1].x, robot_y - self._pose_trail[-1].y
-        ) >= self._tuning.escape.POSE_TRAIL_MIN_STEP_M:
+        if (
+            not self._pose_trail
+            or math.hypot(robot_x - self._pose_trail[-1].x, robot_y - self._pose_trail[-1].y)
+            >= self._tuning.escape.POSE_TRAIL_MIN_STEP_M
+        ):
             self._pose_trail.append(Pose(robot_x, robot_y, robot_yaw))
 
         # Continue an in-progress escape maneuver until its latched duration
@@ -665,9 +667,7 @@ class CoreNavigator:
             next_closer = math.hypot(next_wp.x - robot_x, next_wp.y - robot_y) < math.hypot(
                 raw_wp.x - robot_x, raw_wp.y - robot_y
             )
-            raw_behind = rescue_behind and (
-                (raw_wp.x - robot_x) * cos_yaw + (raw_wp.y - robot_y) * sin_yaw <= 0
-            )
+            raw_behind = rescue_behind and ((raw_wp.x - robot_x) * cos_yaw + (raw_wp.y - robot_y) * sin_yaw <= 0)
             if not next_closer and not raw_behind:
                 break
             self._waypoint_index = next_index
@@ -1051,10 +1051,14 @@ class CoreNavigator:
         # real displacement first means a genuinely stuck sequence keeps
         # accumulating toward escalation instead of resetting on every tick
         # that merely classifies as "not critical" for one frame.
-        if self._escape_sequence_start_xy is None or math.hypot(
-            robot_x - self._escape_sequence_start_xy[0],
-            robot_y - self._escape_sequence_start_xy[1],
-        ) >= self._tuning.escape.STUCK_MOVE_THRESHOLD:
+        if (
+            self._escape_sequence_start_xy is None
+            or math.hypot(
+                robot_x - self._escape_sequence_start_xy[0],
+                robot_y - self._escape_sequence_start_xy[1],
+            )
+            >= self._tuning.escape.STUCK_MOVE_THRESHOLD
+        ):
             self._escape_count = 0
             self._escape_sequence_start_xy = None
         self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))

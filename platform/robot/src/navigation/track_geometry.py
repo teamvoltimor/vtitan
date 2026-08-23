@@ -178,9 +178,13 @@ def project_onto_path(waypoints: list[Waypoint], x: float, y: float) -> PathProj
         # rather than reporting a confident zero.
         nearest = min(waypoints, key=lambda w: math.hypot(x - w.x, y - w.y), default=None)
         if nearest is None:
-            return PathProjection(x=x, y=y, distance_m=math.inf, signed_offset_m=math.inf, tangent_rad=0.0, segment_index=0)
+            return PathProjection(
+                x=x, y=y, distance_m=math.inf, signed_offset_m=math.inf, tangent_rad=0.0, segment_index=0
+            )
         away = math.hypot(x - nearest.x, y - nearest.y)
-        return PathProjection(x=nearest.x, y=nearest.y, distance_m=away, signed_offset_m=away, tangent_rad=0.0, segment_index=0)
+        return PathProjection(
+            x=nearest.x, y=nearest.y, distance_m=away, signed_offset_m=away, tangent_rad=0.0, segment_index=0
+        )
     return best
 
 

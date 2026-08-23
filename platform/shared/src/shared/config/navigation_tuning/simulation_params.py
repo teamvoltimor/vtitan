@@ -48,19 +48,11 @@ class SimulationParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    START_COLLISION_WINDOW_S: float = Field(
-        default=2.0, validation_alias=_alias("START_COLLISION_WINDOW_S")
-    )
-    START_COLLISION_GRACE_S: float = Field(
-        default=15.0, validation_alias=_alias("START_COLLISION_GRACE_S")
-    )
-    LIDAR_INVALID_RAY_RATE: float = Field(
-        default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE")
-    )
+    START_COLLISION_WINDOW_S: float = Field(default=2.0, validation_alias=_alias("START_COLLISION_WINDOW_S"))
+    START_COLLISION_GRACE_S: float = Field(default=15.0, validation_alias=_alias("START_COLLISION_GRACE_S"))
+    LIDAR_INVALID_RAY_RATE: float = Field(default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE"))
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
     COLLISION_MARGIN_M: float = Field(default=0.0, validation_alias=_alias("COLLISION_MARGIN_M"))
     AXIS_ALIGN_TOLERANCE: float = Field(default=1e-6, validation_alias=_alias("AXIS_ALIGN_TOLERANCE"))
     NO_PROGRESS_WINDOW_S: float = Field(default=30.0, validation_alias=_alias("NO_PROGRESS_WINDOW_S"))
-    NO_PROGRESS_DISPLACEMENT_M: float = Field(
-        default=0.08, validation_alias=_alias("NO_PROGRESS_DISPLACEMENT_M")
-    )
+    NO_PROGRESS_DISPLACEMENT_M: float = Field(default=0.08, validation_alias=_alias("NO_PROGRESS_DISPLACEMENT_M"))

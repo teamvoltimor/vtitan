@@ -189,8 +189,12 @@ class CorridorFollowerParams(BaseModel):
     TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))
     TURN_OPEN_RANGE_M: float = Field(default=1.00, validation_alias=_alias("TURN_OPEN_RANGE_M"))
     CORNER_LEAK_MARGIN_M: float = Field(default=0.35, validation_alias=_alias("CORNER_LEAK_MARGIN_M"))
-    MIN_FORWARD_CLEARANCE_M: float = Field(default=RobotSpecs.LENGTH, validation_alias=_alias("MIN_FORWARD_CLEARANCE_M"))
-    MIN_REVERSE_CLEARANCE_M: float = Field(default=RobotSpecs.LENGTH, validation_alias=_alias("MIN_REVERSE_CLEARANCE_M"))
+    MIN_FORWARD_CLEARANCE_M: float = Field(
+        default=RobotSpecs.LENGTH, validation_alias=_alias("MIN_FORWARD_CLEARANCE_M")
+    )
+    MIN_REVERSE_CLEARANCE_M: float = Field(
+        default=RobotSpecs.LENGTH, validation_alias=_alias("MIN_REVERSE_CLEARANCE_M")
+    )
 
 
 class DirectionEstimatorParams(BaseModel):

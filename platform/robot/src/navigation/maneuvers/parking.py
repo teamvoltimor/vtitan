@@ -32,61 +32,63 @@ from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
-  _pure_pursuit_steer as _shared_pure_pursuit_steer,
-  clamp as _clamp,
+    _pure_pursuit_steer as _shared_pure_pursuit_steer,
+    clamp as _clamp,
 )
 
 if TYPE_CHECKING:
-  from shared.config.navigation_tuning import NavigationTuning
+    from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class _ParkingConstants:
-  """Tuning-derived parking constants, computed on-demand instead of frozen at module level."""
-  parallel_tolerance_m: float
-  yaw_tolerance: float
-  approach_clearance: float
-  pos_reach_dist_m: float
-  default_max_frames: int
-  saturated_steer_threshold: float
-  saturation_stuck_ticks: int
-  reposition_speed: float
-  reposition_steer_mag: float
-  min_lookahead_dist_m: float
-  wall_standoff_m: float
-  marker_standoff_m: float
+    """Tuning-derived parking constants, computed on-demand instead of frozen at module level."""
 
-  @classmethod
-  def from_tuning(cls, tuning: NavigationTuning) -> _ParkingConstants:
-    """Create from a NavigationTuning instance."""
-    parking_tuning = tuning.parking
-    escape_tuning = tuning.escape
-    parallel_tolerance = parking_tuning.PARALLEL_TOLERANCE_M
-    return cls(
-        parallel_tolerance_m=parallel_tolerance,
-        yaw_tolerance=math.atan2(parallel_tolerance, RobotSpecs.WHEELBASE),
-        approach_clearance=tuning.waypoints.ARC_RADIUS,
-        pos_reach_dist_m=parking_tuning.POS_REACH_DIST_M,
-        default_max_frames=parking_tuning.DEFAULT_MAX_FRAMES,
-        saturated_steer_threshold=parking_tuning.SATURATED_STEER_THRESHOLD,
-        saturation_stuck_ticks=parking_tuning.SATURATION_STUCK_TICKS,
-        reposition_speed=escape_tuning.REV_SPEED,
-        reposition_steer_mag=escape_tuning.rev_steer_norm(),
-        min_lookahead_dist_m=parking_tuning.MIN_LOOKAHEAD_DIST_M,
-        wall_standoff_m=parking_tuning.WALL_STANDOFF_M,
-        marker_standoff_m=parking_tuning.MARKER_STANDOFF_M,
-    )
+    parallel_tolerance_m: float
+    yaw_tolerance: float
+    approach_clearance: float
+    pos_reach_dist_m: float
+    default_max_frames: int
+    saturated_steer_threshold: float
+    saturation_stuck_ticks: int
+    reposition_speed: float
+    reposition_steer_mag: float
+    min_lookahead_dist_m: float
+    wall_standoff_m: float
+    marker_standoff_m: float
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning) -> _ParkingConstants:
+        """Create from a NavigationTuning instance."""
+        parking_tuning = tuning.parking
+        escape_tuning = tuning.escape
+        parallel_tolerance = parking_tuning.PARALLEL_TOLERANCE_M
+        return cls(
+            parallel_tolerance_m=parallel_tolerance,
+            yaw_tolerance=math.atan2(parallel_tolerance, RobotSpecs.WHEELBASE),
+            approach_clearance=tuning.waypoints.ARC_RADIUS,
+            pos_reach_dist_m=parking_tuning.POS_REACH_DIST_M,
+            default_max_frames=parking_tuning.DEFAULT_MAX_FRAMES,
+            saturated_steer_threshold=parking_tuning.SATURATED_STEER_THRESHOLD,
+            saturation_stuck_ticks=parking_tuning.SATURATION_STUCK_TICKS,
+            reposition_speed=escape_tuning.REV_SPEED,
+            reposition_steer_mag=escape_tuning.rev_steer_norm(),
+            min_lookahead_dist_m=parking_tuning.MIN_LOOKAHEAD_DIST_M,
+            wall_standoff_m=parking_tuning.WALL_STANDOFF_M,
+            marker_standoff_m=parking_tuning.MARKER_STANDOFF_M,
+        )
+
 
 class ParkingContext(TuningContext[_ParkingConstants]):
-  """Context holding tuning-derived parking constants, passed to helper functions.
+    """Context holding tuning-derived parking constants, passed to helper functions.
 
-  Eliminates module-level constants by holding them in an instance,
-  which is passed to functions that need them. Enables test-time tuning injection.
-  """
+    Eliminates module-level constants by holding them in an instance,
+    which is passed to functions that need them. Enables test-time tuning injection.
+    """
 
-  _constants_cls = _ParkingConstants
+    _constants_cls = _ParkingConstants
 
 
 _DEFAULT_PARKING_CONTEXT = ParkingContext()
@@ -129,7 +131,6 @@ class ParkZone:
     def bounds_depth(self) -> tuple[float, float]:
         """The lot's extent out from the wall — i.e. the depth the fins span."""
         return (self.x_min, self.x_max) if self.wall_is_x else (self.y_min, self.y_max)
-
 
 
 @dataclass(slots=True)
@@ -213,7 +214,13 @@ class ParkController:
         )
 
     @classmethod
-    def from_tuning(cls, parking_config: ParkingLot, start_section: Section, direction: Direction, tuning: NavigationTuning | None = None) -> ParkController:
+    def from_tuning(
+        cls,
+        parking_config: ParkingLot,
+        start_section: Section,
+        direction: Direction,
+        tuning: NavigationTuning | None = None,
+    ) -> ParkController:
         """Build controller from tuning parameters.
 
         Args:
@@ -584,7 +591,9 @@ def _footprint_breaches_wall(
     """
     for cx, cy in _chassis_corners(rx, ry, robot_yaw):
         coord = cx if zone.wall_is_x else cy
-        if abs(coord - zone.wall_coord) < _DEFAULT_PARKING_CONTEXT.constants.wall_standoff_m and _is_beyond_lot_centre(coord, zone):
+        if abs(coord - zone.wall_coord) < _DEFAULT_PARKING_CONTEXT.constants.wall_standoff_m and _is_beyond_lot_centre(
+            coord, zone
+        ):
             return True
     return False
 

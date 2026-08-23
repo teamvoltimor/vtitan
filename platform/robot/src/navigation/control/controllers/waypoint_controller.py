@@ -366,9 +366,7 @@ class WaypointController:
 
         lookahead = self.select_lookahead(crosstrack_error)
 
-        x_local, y_local = Pose(current_pos[0], current_pos[1], current_yaw).to_local_frame(
-            Waypoint(*target_waypoint)
-        )
+        x_local, y_local = Pose(current_pos[0], current_pos[1], current_yaw).to_local_frame(Waypoint(*target_waypoint))
         distance = math.hypot(x_local, y_local)
 
         if distance < self.waypoint_reached_distance_m:

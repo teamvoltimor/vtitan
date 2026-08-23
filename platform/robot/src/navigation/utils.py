@@ -151,7 +151,9 @@ def _rear_clearance(
     return min(rear) if rear else None
 
 
-def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None) -> float:
+def _forward_clearance(
+    ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None
+) -> float:
     """Min clearance in forward direction.
 
     Uses tuning: lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG, MIN_VALID_RANGE_M
@@ -159,11 +161,7 @@ def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], t
     tuning = get_tuning(tuning)
     arc_rad = math.radians(tuning.lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG)
     min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
-    forward = [
-        r
-        for r, a in zip(ranges_m, angles_rad, strict=False)
-        if abs(wrap_angle(a)) <= arc_rad and r > min_valid
-    ]
+    forward = [r for r, a in zip(ranges_m, angles_rad, strict=False) if abs(wrap_angle(a)) <= arc_rad and r > min_valid]
     return min(forward) if forward else math.inf
 
 
