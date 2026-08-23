@@ -8,16 +8,17 @@ All PWM magic numbers live here as named constants and feed the
 
 from pydantic_settings import SettingsConfigDict
 
+from src.hardware.motors import constants as motor_const
 from src.hardware.motors.dc_encoder.calibration import (
     DEFAULT_COUNTS_PER_REV,
     DEFAULT_MAX_RPM,
 )
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
-DEFAULT_PWMCHIP = 0
+DEFAULT_PWMCHIP = motor_const.DEFAULT_PWMCHIP
 """sysfs PWM controller index (``/sys/class/pwm/pwmchip<N>``)."""
 
-DEFAULT_PWM_CHANNEL = 1
+DEFAULT_PWM_CHANNEL = motor_const.DEFAULT_DC_PWM_CHANNEL
 """Channel within the PWM controller.
 
 The two-channel overlay (``dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4``)
@@ -26,16 +27,13 @@ maps GPIO 12 (the servo, see ``servo/config.py``) to channel 0 and GPIO 13
 to channel 1.
 """
 
-DEFAULT_PWM_FREQUENCY_HZ = 1000
+DEFAULT_PWM_FREQUENCY_HZ = motor_const.DC_PWM_FREQUENCY_HZ
 """H-bridge PWM carrier frequency.
 
 Unlike the servo's 50 Hz pulse-width-encoded position, this is a plain motor
 drive carrier: an L298N/TB6612 switches cleanly well above audible range, so
 1 kHz was picked for headroom rather than measured against a spec limit.
 """
-
-NS_PER_S = 1_000_000_000
-"""Nanoseconds per second -- the sysfs PWM interface works in ns."""
 
 
 class DcMotorPwmConfig(HardwareBaseSettings):
