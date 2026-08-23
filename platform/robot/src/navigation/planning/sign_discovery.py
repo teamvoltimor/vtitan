@@ -110,17 +110,17 @@ def detection_to_observation(
     )
     if world is None:
         return None
-    x1, y1, x2, y2 = det.bbox
+    bbox = det.as_bbox()
     return TrafficSignObservation(
         world_x_m=world[0],
         world_y_m=world[1],
         color=det.class_name,
         confidence=det.confidence,
         detected_at_timestamp=0.0,
-        bbox_xmin=int(x1),
-        bbox_ymin=int(y1),
-        bbox_xmax=int(x2),
-        bbox_ymax=int(y2),
+        bbox_xmin=int(bbox.x_min),
+        bbox_ymin=int(bbox.y_min),
+        bbox_xmax=int(bbox.x_max),
+        bbox_ymax=int(bbox.y_max),
     )
 
 
@@ -162,8 +162,8 @@ def _detection_to_world(
         Estimated world (x, y) of the sign, or None if bbox is too small.
     """
     tuning = get_tuning(tuning)
-    x1, y1, x2, y2 = det.bbox
-    pixel_height = abs(y2 - y1)
+    bbox = det.as_bbox()
+    pixel_height = bbox.height
     if pixel_height < tuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX:
         return None
 
@@ -171,7 +171,7 @@ def _detection_to_world(
     distance = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / pixel_height
 
     # Horizontal angle from image centre.
-    cx = (x1 + x2) / 2.0
+    cx = bbox.center.x
     theta_h = (cx / RobotSpecs.CAMERA_WIDTH - 0.5) * RobotSpecs.CAMERA_HFOV
 
     if lidar_ranges_m and lidar_angles_rad:

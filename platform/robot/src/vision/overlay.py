@@ -43,7 +43,7 @@ def annotate(rgb: np.ndarray, detections: list[Detection]) -> np.ndarray:
     height, width = canvas.shape[:2]
 
     for detection in detections:
-        x1, y1, x2, y2 = (round(v) for v in detection.bbox)
+        x1, y1, x2, y2 = (round(v) for v in detection.as_bbox())
         # Detections are clipped to the frame: a box running off the edge makes
         # cv2 draw nothing at all rather than the visible part.
         x1, x2 = max(0, min(x1, width - 1)), max(0, min(x2, width - 1))
