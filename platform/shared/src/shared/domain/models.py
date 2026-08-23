@@ -21,10 +21,11 @@ from shared.domain.enums import (
     RiskLevel,
     ScenarioType,
     Section,
+    ThreatDirection,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.models import TrafficSignObservation
@@ -44,6 +45,16 @@ class Pose:
     y: float
     yaw: float
 
+    def __iter__(self) -> Iterator[float]:
+        """Iterate ``(x, y, yaw)`` for unpacking at legacy call sites."""
+        yield self.x
+        yield self.y
+        yield self.yaw
+
+    def __sub__(self, other: Pose) -> Pose:
+        """Return the delta pose from ``other`` to this one (same frame)."""
+        return Pose(self.x - other.x, self.y - other.y, self.yaw - other.yaw)
+
     def distance_to(self, other: Pose) -> float:
         """Euclidean distance from this pose to ``other`` (position only)."""
         return math.hypot(self.x - other.x, self.y - other.y)
@@ -59,12 +70,26 @@ class Pose:
         cos_yaw, sin_yaw = math.cos(self.yaw), math.sin(self.yaw)
         return (dx * cos_yaw + dy * sin_yaw, -dx * sin_yaw + dy * cos_yaw)
 
+    def to_waypoint(self) -> Waypoint:
+        """Drop the heading, returning a pure XY :class:`Waypoint`."""
+        return Waypoint(self.x, self.y)
+
     def sensor_origin(self, mount_x_offset: float) -> Waypoint:
         """World position of the LIDAR sensor (mounted ``mount_x_offset`` forward)."""
         return Waypoint(
             self.x + mount_x_offset * math.cos(self.yaw),
             self.y + mount_x_offset * math.sin(self.yaw),
         )
+
+    @classmethod
+    def from_xy_yaw(cls, x: float, y: float, yaw: float = 0.0) -> Pose:
+        """Build a pose from explicit coordinates (mirrors ``Waypoint`` construction)."""
+        return cls(x, y, yaw)
+
+    @classmethod
+    def at_origin(cls, yaw: float = 0.0) -> Pose:
+        """Build a pose at the world origin (audit §12d)."""
+        return cls(0.0, 0.0, yaw)
 
 
 @dataclass(slots=True, frozen=True)
@@ -74,6 +99,15 @@ class Velocity:
     linear: float  # m/s
     angular: float  # rad/s
 
+    @property
+    def magnitude(self) -> float:
+        """Combined speed magnitude (audit §12b)."""
+        return math.hypot(self.linear, self.angular)
+
+    def to_tuple(self) -> tuple[float, float]:
+        """Return ``(linear, angular)`` as a plain tuple (audit §12b)."""
+        return (self.linear, self.angular)
+
 
 @dataclass(slots=True, frozen=True)
 class IMUReading:
@@ -82,6 +116,10 @@ class IMUReading:
     yaw: float
     pitch: float
     roll: float
+
+    def to_tuple(self) -> tuple[float, float, float]:
+        """Return ``(yaw, pitch, roll)`` as a plain tuple (audit §12b)."""
+        return (self.yaw, self.pitch, self.roll)
 
 
 @dataclass(slots=True, frozen=True)
@@ -96,6 +134,14 @@ class Waypoint:
 
     x: float
     y: float
+
+    def distance_to(self, other: Waypoint) -> float:
+        """Euclidean distance from this point to ``other``."""
+        return math.hypot(self.x - other.x, self.y - other.y)
+
+    def to_pose(self, yaw: float = 0.0) -> Pose:
+        """Promote this point to a :class:`Pose` with the given heading."""
+        return Pose(self.x, self.y, yaw)
 
 
 @dataclass(slots=True, frozen=True)
@@ -153,6 +199,16 @@ class Detection:
             lidar_angles_rad,
         )
 
+    @property
+    def center(self) -> Waypoint:
+        """Centroid of the bounding box (audit §12b)."""
+        return Waypoint(self.x, self.y)
+
+    def as_bbox(self) -> BBox:
+        """Return the detection's raw ``bbox`` tuple as a typed :class:`BBox` (audit §12b)."""
+        x_min, y_min, x_max, y_max = self.bbox
+        return BBox(x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max)
+
 
 @dataclass(slots=True, frozen=True)
 class Bounds:
@@ -181,6 +237,26 @@ class LidarClearances:
     left_m: float
     right_m: float
     back_m: float = 0.0
+
+    def any_blocked(self, threshold: float) -> bool:
+        """Return whether any side is closer than ``threshold`` meters (audit §12b)."""
+        return (
+            self.front_m < threshold or self.left_m < threshold or self.right_m < threshold or self.back_m < threshold
+        )
+
+    @property
+    def most_constrained_side(self) -> ThreatDirection:
+        """Return the side with the smallest clearance (audit §12b)."""
+        side, _ = min(
+            (
+                (ThreatDirection.FRONT, self.front_m),
+                (ThreatDirection.LEFT, self.left_m),
+                (ThreatDirection.RIGHT, self.right_m),
+                (ThreatDirection.BACK, self.back_m),
+            ),
+            key=lambda pair: pair[1],
+        )
+        return side
 
 
 @dataclass(slots=True, frozen=True)
@@ -238,6 +314,14 @@ class CorridorGeometry:
                 TrackDimensions.MAX_COORD - north,
             ),
         )
+
+    def width_for(self, section: Section) -> float:
+        """Return the corridor width for ``section`` (audit §12b)."""
+        return self.to_widths_dict()[section]
+
+    def __getitem__(self, section: Section) -> float:
+        """Index the corridor width for ``section`` like a dict (audit §12b)."""
+        return self.width_for(section)
 
 
 @dataclass(slots=True, frozen=True)
@@ -380,6 +464,20 @@ class RGB:
     g: float
     b: float
 
+    def __iter__(self) -> Iterator[float]:
+        """Iterate ``(r, g, b)`` so the triple unpacks like the raw tuple it replaces."""
+        yield self.r
+        yield self.g
+        yield self.b
+
+    def to_tuple(self) -> tuple[float, float, float]:
+        """Return ``(r, g, b)`` as a plain tuple (audit §12b)."""
+        return (self.r, self.g, self.b)
+
+    def to_bgr(self) -> tuple[int, int, int]:
+        """Return ``(b, g, r)`` as ints, the channel order OpenCV expects (audit §12b)."""
+        return (int(self.b), int(self.g), int(self.r))
+
 
 @dataclass(slots=True, frozen=True)
 class BBox:
@@ -399,6 +497,33 @@ class BBox:
     def height(self) -> float:
         """Return the box height."""
         return self.y_max - self.y_min
+
+    @property
+    def center(self) -> Waypoint:
+        """Centroid of the box (audit §12b)."""
+        return Waypoint((self.x_min + self.x_max) / 2, (self.y_min + self.y_max) / 2)
+
+    @property
+    def area(self) -> float:
+        """Area of the box in square units (audit §12b)."""
+        return self.width * self.height
+
+    def __iter__(self) -> Iterator[float]:
+        """Iterate ``(x_min, y_min, x_max, y_max)`` for unpacking (audit §12b)."""
+        yield self.x_min
+        yield self.y_min
+        yield self.x_max
+        yield self.y_max
+
+    def contains(self, point: Waypoint) -> bool:
+        """Return whether ``point`` lies inside the box (audit §12b)."""
+        return self.x_min <= point.x <= self.x_max and self.y_min <= point.y <= self.y_max
+
+    def intersects(self, other: BBox) -> bool:
+        """Return whether this box overlaps ``other`` (audit §12b)."""
+        return not (
+            other.x_max < self.x_min or other.x_min > self.x_max or other.y_max < self.y_min or other.y_min > self.y_max
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -655,6 +780,18 @@ class Position2D(BaseModel):
 
     x: float = 0.0
     y: float = 0.0
+
+    def distance_to(self, other: Position2D) -> float:
+        """Euclidean distance from this point to ``other``."""
+        return math.hypot(self.x - other.x, self.y - other.y)
+
+    def to_waypoint(self) -> Waypoint:
+        """Return a lightweight :class:`Waypoint` with the same coordinates."""
+        return Waypoint(self.x, self.y)
+
+    def to_pose(self, yaw: float = 0.0) -> Pose:
+        """Promote this point to a :class:`Pose` with the given heading."""
+        return Pose(self.x, self.y, yaw)
 
 
 class StartingConditions(BaseModel):
