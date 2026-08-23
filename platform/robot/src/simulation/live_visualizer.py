@@ -589,12 +589,12 @@ class LiveScenarioVisualizer(Node):
         corners close as clean filled 90 deg Ls with no cross. ids 4..7 follow
         the outer walls' 0..3.
         """
-        x_min, y_min, x_max, y_max = track.inner_block_visual
+        block = track.inner_block_visual
         thickness = WallSpecs.THICKNESS
-        cx = (x_min + x_max) / 2.0
-        cy = (y_min + y_max) / 2.0
-        inner_w = x_max - x_min
-        inner_h = y_max - y_min
+        cx, cy = block.center.x, block.center.y
+        inner_w = block.width
+        inner_h = block.height
+        x_min, y_min, x_max, y_max = block.x_min, block.y_min, block.x_max, block.y_max
         # X-running walls: full block width, thickness stepping inward from the
         # top/bottom boundary. They own the four corners.
         along = inner_w

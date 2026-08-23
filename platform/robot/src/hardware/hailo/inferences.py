@@ -7,6 +7,8 @@ import numpy as np
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+from shared.domain.models import BBox
+
 _BATCHED_NMS_TENSOR_NDIM = 4
 """Rank of a Hailo NMS output tensor that still carries its batch dimension."""
 
@@ -134,6 +136,15 @@ class BoundingBox(NamedTuple):
         width = int((xmax - xmin) * img_width)
         height = int((ymax - ymin) * img_height)
         return cls(x=x, y=y, width=width, height=height)
+
+    def to_bbox(self) -> BBox:
+        """Map this pixel-space box to a shared-domain :class:`BBox`.
+
+        The Hailo box stores a top-left ``(x, y)`` origin plus ``width``/``height``,
+        whereas :class:`~shared.domain.models.BBox` is stored as the min/max corners,
+        so the bottom-right corner is reconstructed here.
+        """
+        return BBox(x_min=self.x, y_min=self.y, x_max=self.x + self.width, y_max=self.y + self.height)
 
 
 class YoloDetection(NamedTuple):
