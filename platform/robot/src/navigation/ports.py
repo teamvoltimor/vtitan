@@ -111,7 +111,7 @@ class LidarScan:
 
         Bearings use 0 rad = forward, +pi/2 = left, -pi/2 = right, +/-pi = rear.
         """
-        from src.navigation.control.controllers.collision_avoidance_controller import (  # noqa: PLC0415
+        from src.navigation.control.controllers.collision_avoidance_controller import (
             CollisionAvoidanceController,
         )
 
@@ -132,7 +132,7 @@ class LidarScan:
 
     def sector(self, center_rad: float, half_fov_rad: float, tuning: NavigationTuning | None = None) -> SectorRanges:
         """Build a :class:`SectorRanges` from the rays in ``center ± half_fov``."""
-        from shared.domain.models import SectorRanges  # noqa: PLC0415
+        from shared.domain.models import SectorRanges
 
         tuning = get_tuning(tuning)
         sectors = tuning.lidar_sectors

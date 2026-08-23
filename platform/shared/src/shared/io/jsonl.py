@@ -186,9 +186,7 @@ class JsonlReader:
         Returns:
             List of dicts or validated model instances
         """
-        return list(
-            JsonlReader.iterate(path, model=model, skip_corrupted=skip_corrupted)
-        )
+        return list(JsonlReader.iterate(path, model=model, skip_corrupted=skip_corrupted))
 
     @staticmethod
     def count_lines(path: Path | str) -> int:
@@ -299,9 +297,7 @@ class JsonlValidator:
 
         try:
             with JsonlWriter(output_path) as writer:
-                for item in JsonlReader.iterate(
-                    input_path, model=model, skip_corrupted=True
-                ):
+                for item in JsonlReader.iterate(input_path, model=model, skip_corrupted=True):
                     stats["lines_read"] += 1
                     if isinstance(item, dict):
                         writer.write(item)

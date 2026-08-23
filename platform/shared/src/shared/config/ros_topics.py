@@ -224,9 +224,7 @@ class RosTopicConfig(BaseModel):
     bag_recorder: BagRecorderTopics
     simulation: SimulationTopics
 
-    _default_config_path: ClassVar[Path] = (
-        Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"
-    )
+    _default_config_path: ClassVar[Path] = Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"
     """Path to the checked-in ros_topics.toml file."""
 
     @classmethod

@@ -30,35 +30,36 @@ from src.simulation.vision_emulator import emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
 
 if TYPE_CHECKING:
-  from numpy.random import SeedSequence
-  from shared.config.navigation_tuning import NavigationTuning
+    from numpy.random import SeedSequence
+    from shared.config.navigation_tuning import NavigationTuning
 
-  from src.navigation.planning.sign_router import SignSpec
-  from src.navigation.track_geometry import TrackWalls
+    from src.navigation.planning.sign_router import SignSpec
+    from src.navigation.track_geometry import TrackWalls
 
 
 @dataclass(frozen=True, slots=True)
 class _SimulatorConstants:
-  """Tuning-derived simulator constants, computed on-demand instead of frozen at module level."""
-  control_hz: float
-  control_dt: float
-  lidar_invalid_ray_rate: float
+    """Tuning-derived simulator constants, computed on-demand instead of frozen at module level."""
 
-  @classmethod
-  def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
-    tuning = get_tuning(tuning)
-    control_hz = tuning.control.CONTROL_HZ
-    return cls(
-        control_hz=control_hz,
-        control_dt=1.0 / control_hz,
-        lidar_invalid_ray_rate=tuning.simulation.LIDAR_INVALID_RAY_RATE,
-    )
+    control_hz: float
+    control_dt: float
+    lidar_invalid_ray_rate: float
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
+        tuning = get_tuning(tuning)
+        control_hz = tuning.control.CONTROL_HZ
+        return cls(
+            control_hz=control_hz,
+            control_dt=1.0 / control_hz,
+            lidar_invalid_ray_rate=tuning.simulation.LIDAR_INVALID_RAY_RATE,
+        )
 
 
 class SimulatorContext(TuningContext[_SimulatorConstants]):
-  """Context holding tuning-derived simulator constants."""
+    """Context holding tuning-derived simulator constants."""
 
-  _constants_cls = _SimulatorConstants
+    _constants_cls = _SimulatorConstants
 
 
 _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
@@ -442,9 +443,9 @@ class SimulatedHardwareGateway:
         # it would push the position estimate the wrong way during exactly the
         # manoeuvre -- the escape reverse -- where the robot is already in
         # trouble.
-        self._wheel_distance_m += (self._state.x - prev_x) * math.cos(prev_yaw) + (
-            self._state.y - prev_y
-        ) * math.sin(prev_yaw)
+        self._wheel_distance_m += (self._state.x - prev_x) * math.cos(prev_yaw) + (self._state.y - prev_y) * math.sin(
+            prev_yaw
+        )
 
         settled = self._track.contact_surface(self._state.x, self._state.y, self._state.yaw)
         # With solid walls the refused move names the surface, since the pose
@@ -496,9 +497,7 @@ class SimulatedHardwareGateway:
         # alone would have desynchronised the estimator from its own sensor
         # model: they were consistently wrong with each other, and only the
         # hardware disagreed.
-        sensor = Pose(self._state.x, self._state.y, self._state.yaw).sensor_origin(
-            RobotSpecs.LIDAR_MOUNT_X_OFFSET
-        )
+        sensor = Pose(self._state.x, self._state.y, self._state.yaw).sensor_origin(RobotSpecs.LIDAR_MOUNT_X_OFFSET)
         sensor_x = sensor.x
         sensor_y = sensor.y
         ranges = self._track.raycast_scan(
@@ -535,7 +534,9 @@ class SimulatedHardwareGateway:
         # reference, so without it drift and scale error accumulate for the
         # whole round.
         if self._wall_heading:
-            measured = estimate_yaw_from_walls(self._scan_ranges, self._angles_list, prior_yaw=self._estimator.estimate_pose().yaw)
+            measured = estimate_yaw_from_walls(
+                self._scan_ranges, self._angles_list, prior_yaw=self._estimator.estimate_pose().yaw
+            )
             if measured is not None:
                 self._estimator.correct_yaw(measured)
 
@@ -568,4 +569,3 @@ class SimulatedHardwareGateway:
         acceleration or steering-slew limits bind.
         """
         return self._command
-

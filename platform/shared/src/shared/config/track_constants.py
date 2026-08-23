@@ -221,10 +221,7 @@ class TrackConstants(BaseModel):
         bands = self.corridor.band_widths
         alignment = self.starting_zone.spawn_alignment
         if len(alignment) != len(bands):
-            msg = (
-                f"starting_zone.spawn_alignment has {len(alignment)} entries, "
-                f"want {len(bands)} (one per band)"
-            )
+            msg = f"starting_zone.spawn_alignment has {len(alignment)} entries, want {len(bands)} (one per band)"
             raise ValueError(msg)
 
         half = _dec(chassis_width) / 2
@@ -234,10 +231,7 @@ class TrackConstants(BaseModel):
             band_dec = _dec(band)
             lo, hi = edge, edge + band_dec
             if band < chassis_width:
-                msg = (
-                    f"band {i} is {band} m wide, narrower than the {chassis_width} m "
-                    "chassis, so no start fits in it"
-                )
+                msg = f"band {i} is {band} m wide, narrower than the {chassis_width} m chassis, so no start fits in it"
                 raise ValueError(msg)
             match alignment[i]:
                 case "outer":

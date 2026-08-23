@@ -106,7 +106,7 @@ class Driver(CameraDriver):
         """Start the capture process."""
         cmd = self._command()
         log.info("Starting rpicam-vid", extra={DETAILS_KEY: {"cmd": " ".join(cmd)}})
-        self._process = subprocess.Popen(  # noqa: S603
+        self._process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

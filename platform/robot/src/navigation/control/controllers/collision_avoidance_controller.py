@@ -495,9 +495,9 @@ class CollisionAvoidanceController:
         delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
         min_valid = self_detection_threshold_m if filter_self_detection else min_valid_range_m
         if apply_blind_wedge_mask:
-            in_blind_wedge = (
-                (angles >= blind_wedge_left_min_rad) & (angles <= blind_wedge_left_max_rad)
-            ) | ((angles >= blind_wedge_right_min_rad) & (angles <= blind_wedge_right_max_rad))
+            in_blind_wedge = ((angles >= blind_wedge_left_min_rad) & (angles <= blind_wedge_left_max_rad)) | (
+                (angles >= blind_wedge_right_min_rad) & (angles <= blind_wedge_right_max_rad)
+            )
         else:
             in_blind_wedge = np.zeros(angles.shape, dtype=bool)
         # np.isfinite excludes no-return rays (+inf beyond LIDAR max range):
@@ -506,12 +506,7 @@ class CollisionAvoidanceController:
         # its mean/min/max into inf for every caller -- both the OLED's
         # displayed clearance and detect_threat_direction's real
         # collision-avoidance sectors.
-        mask = (
-            (np.abs(delta) <= half_fov_rad)
-            & (ranges > min_valid)
-            & np.isfinite(ranges)
-            & ~in_blind_wedge
-        )
+        mask = (np.abs(delta) <= half_fov_rad) & (ranges > min_valid) & np.isfinite(ranges) & ~in_blind_wedge
         return np.asarray(ranges[mask])
 
     @staticmethod

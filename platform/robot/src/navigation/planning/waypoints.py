@@ -30,6 +30,7 @@ from src.config.tuning_helpers import get_tuning
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
+
 def validate_path_feasibility(min_corridor_width_m: float, center_bias_m: float) -> PathPlannability:
     """Check whether the chassis fits the narrowest corridor once biased off centre.
 
@@ -180,9 +181,7 @@ def calculate_waypoints(
     # only the distance differs between the challenges, and a zero magnitude
     # makes the side moot anyway.
     bias_magnitude = tuning.waypoints.CENTER_BIAS_M if center_bias_m is None else center_bias_m
-    center_bias_m = bias_magnitude * (
-        1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
-    )
+    center_bias_m = bias_magnitude * (1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0)
 
     min_width_m = min(cw.width_mm for cw in cw_entries.values()) / 1000.0
     feasibility = validate_path_feasibility(min_width_m, center_bias_m)
@@ -364,16 +363,32 @@ def _build_all_segments(
     # CW straight segments. Each end is trimmed by the radius of the corner it
     # runs into, which is why the two bounds no longer share a value.
     east_straight = _straight_waypoints(
-        east_cx, is_x=True, start=north_cy - r_ne, end=south_cy + r_se, count=straight_count,
+        east_cx,
+        is_x=True,
+        start=north_cy - r_ne,
+        end=south_cy + r_se,
+        count=straight_count,
     )
     south_straight = _straight_waypoints(
-        south_cy, is_x=False, start=east_cx - r_se, end=west_cx + r_sw, count=straight_count,
+        south_cy,
+        is_x=False,
+        start=east_cx - r_se,
+        end=west_cx + r_sw,
+        count=straight_count,
     )
     west_straight = _straight_waypoints(
-        west_cx, is_x=True, start=south_cy + r_sw, end=north_cy - r_nw, count=straight_count,
+        west_cx,
+        is_x=True,
+        start=south_cy + r_sw,
+        end=north_cy - r_nw,
+        count=straight_count,
     )
     north_straight = _straight_waypoints(
-        north_cy, is_x=False, start=west_cx + r_nw, end=east_cx - r_ne, count=straight_count,
+        north_cy,
+        is_x=False,
+        start=west_cx + r_nw,
+        end=east_cx - r_ne,
+        count=straight_count,
     )
 
     if direction is Direction.CLOCKWISE:
@@ -471,7 +486,10 @@ def _validate_bounds(waypoints: list[Waypoint]) -> None:
         ):
             msg = f"Generated waypoint ({x:.3f}, {y:.3f}) falls outside the track bounds"
             raise ValueError(msg)
-        if TrackDimensions.CORNER_MIN < x < TrackDimensions.CORNER_MAX and TrackDimensions.CORNER_MIN < y < TrackDimensions.CORNER_MAX:
+        if (
+            TrackDimensions.CORNER_MIN < x < TrackDimensions.CORNER_MAX
+            and TrackDimensions.CORNER_MIN < y < TrackDimensions.CORNER_MAX
+        ):
             msg = f"Generated waypoint ({x:.3f}, {y:.3f}) falls inside the restricted inner square"
             raise ValueError(msg)
 

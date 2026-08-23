@@ -241,7 +241,8 @@ class RaceTracker:
         return LoopProgress(
             lap_number=self.metrics.current_lap,
             waypoint_index=self.metrics.waypoint_index,
-            distance_m=self.metrics.total_distance - (self._lap_start_distance if self._last_pos else self.metrics.total_distance),
+            distance_m=self.metrics.total_distance
+            - (self._lap_start_distance if self._last_pos else self.metrics.total_distance),
             total_distance_m=self.metrics.total_distance,
         )
 

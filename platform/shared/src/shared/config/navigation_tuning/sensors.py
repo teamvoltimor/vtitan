@@ -65,36 +65,20 @@ class LidarSectorParams(BaseModel):
 
     FRONT_HALF_FOV_DEG: float = Field(default=30.0, validation_alias=_alias("FRONT_HALF_FOV_DEG"))
     THREAT_HALF_FOV_DEG: float = Field(default=45.0, validation_alias=_alias("THREAT_HALF_FOV_DEG"))
-    SELF_DETECTION_THRESHOLD_M: float = Field(
-        default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M")
-    )
+    SELF_DETECTION_THRESHOLD_M: float = Field(default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M"))
     MIN_VALID_RANGE_M: float = Field(default=0.05, validation_alias=_alias("MIN_VALID_RANGE_M"))
-    BLIND_WEDGE_LEFT_MIN_DEG: float = Field(
-        default=-180.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MIN_DEG")
-    )
-    BLIND_WEDGE_LEFT_MAX_DEG: float = Field(
-        default=-115.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MAX_DEG")
-    )
-    BLIND_WEDGE_RIGHT_MIN_DEG: float = Field(
-        default=115.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MIN_DEG")
-    )
-    BLIND_WEDGE_RIGHT_MAX_DEG: float = Field(
-        default=180.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MAX_DEG")
-    )
-    THREAT_NO_DETECTION_RANGE_M: float = Field(
-        default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M")
-    )
-    NO_DATA_RANGE_M: float = Field(
-        default=10.0, validation_alias=_alias("NO_DATA_RANGE_M")
-    )
+    BLIND_WEDGE_LEFT_MIN_DEG: float = Field(default=-180.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MIN_DEG"))
+    BLIND_WEDGE_LEFT_MAX_DEG: float = Field(default=-115.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MAX_DEG"))
+    BLIND_WEDGE_RIGHT_MIN_DEG: float = Field(default=115.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MIN_DEG"))
+    BLIND_WEDGE_RIGHT_MAX_DEG: float = Field(default=180.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MAX_DEG"))
+    THREAT_NO_DETECTION_RANGE_M: float = Field(default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M"))
+    NO_DATA_RANGE_M: float = Field(default=10.0, validation_alias=_alias("NO_DATA_RANGE_M"))
     """Fallback range (m) when no valid LIDAR readings are available.
 
     Used as sentinel value in sector computations when all rays are invalid.
     Conservative estimate between min (0.05m) and max (12m) sensor range."""
 
-    DIRECTION_ARC_HALF_FOV_DEG: float = Field(
-        default=8.0, validation_alias=_alias("DIRECTION_ARC_HALF_FOV_DEG")
-    )
+    DIRECTION_ARC_HALF_FOV_DEG: float = Field(default=8.0, validation_alias=_alias("DIRECTION_ARC_HALF_FOV_DEG"))
     """Half-width (deg) of the narrow forward cone src.navigation.utils'
     _forward_clearance uses, consumed by corridor_follower's turn-start gate
     and direction_estimator's corner-detection gate.

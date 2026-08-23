@@ -163,7 +163,7 @@ class Driver(EncodedDriveDriver):
     def connect(self) -> None:
         """Open the H-bridge (hardware PWM + gpiozero direction pins) and encoder."""
         try:
-            from gpiozero import (  # noqa: PLC0415 - lazy: keep module importable without GPIO libs
+            from gpiozero import (
                 DigitalOutputDevice,
                 RotaryEncoder,
             )

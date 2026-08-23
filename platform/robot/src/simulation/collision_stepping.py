@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 from src.navigation.utils import wrap_angle as _wrap_angle
 
 if TYPE_CHECKING:
-  from collections.abc import Callable
+    from collections.abc import Callable
 
-  from src.simulation.kinematics import AckermannState
-  from src.simulation.track_model import ContactSurface, TrackModel
+    from src.simulation.kinematics import AckermannState
+    from src.simulation.track_model import ContactSurface, TrackModel
 
 _MIN_STEP_SCALE = 1e-3
 """Smallest usable fraction of a commanded step.

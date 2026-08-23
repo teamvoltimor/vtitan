@@ -66,9 +66,7 @@ class EscapeManeuverParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    POSE_TRAIL_MIN_STEP_M: float = Field(
-        default=0.01, gt=0.0, validation_alias=_alias("POSE_TRAIL_MIN_STEP_M")
-    )
+    POSE_TRAIL_MIN_STEP_M: float = Field(default=0.01, gt=0.0, validation_alias=_alias("POSE_TRAIL_MIN_STEP_M"))
     POSE_TRAIL_LEN: int = Field(default=128, gt=0, validation_alias=_alias("POSE_TRAIL_LEN"))
     REV_SPEED: float = Field(default=-0.20, validation_alias=_alias("REV_SPEED"))  # Reverse speed
     # 44.0 deg is what the previous normalised 0.8 meant at the bench-measured
@@ -87,17 +85,13 @@ class EscapeManeuverParams(BaseModel):
     STUCK_MOVE_THRESHOLD: float = Field(
         default=0.03, validation_alias=_alias("STUCK_MOVE_THRESHOLD")
     )  # 3cm movement threshold
-    STUCK_TIMEOUT_FRAMES: int = Field(
-        default=40, validation_alias=_alias("STUCK_TIMEOUT_FRAMES")
-    )  # ~2 seconds at 20Hz
+    STUCK_TIMEOUT_FRAMES: int = Field(default=40, validation_alias=_alias("STUCK_TIMEOUT_FRAMES"))  # ~2 seconds at 20Hz
     # 16.5 deg == the previous normalised 0.3 at the 55 deg road-wheel limit.
     SIDE_CORRECTION_STEER_DEG: float = Field(default=16.5, validation_alias=_alias("SIDE_CORRECTION_STEER_DEG"))
     SIDE_CORRECTION_SPEED: float = Field(default=0.1, validation_alias=_alias("SIDE_CORRECTION_SPEED"))
     SIDE_CORRECTION_FRAMES: int = Field(default=4, validation_alias=_alias("SIDE_CORRECTION_FRAMES"))
     ESCALATE_AFTER_ATTEMPTS: int = Field(default=3, validation_alias=_alias("ESCALATE_AFTER_ATTEMPTS"))
-    ESCAPE_SIDE_COMMIT_ATTEMPTS: int = Field(
-        default=2, ge=1, validation_alias=_alias("ESCAPE_SIDE_COMMIT_ATTEMPTS")
-    )
+    ESCAPE_SIDE_COMMIT_ATTEMPTS: int = Field(default=2, ge=1, validation_alias=_alias("ESCAPE_SIDE_COMMIT_ATTEMPTS"))
     MAX_ESCAPE_FRAMES: int = Field(default=20, validation_alias=_alias("MAX_ESCAPE_FRAMES"))
     STUCK_CONFIRMATION_CHECKS: int = Field(default=3, validation_alias=_alias("STUCK_CONFIRMATION_CHECKS"))
     STUCK_ESCALATION_FRAMES_PER_ATTEMPT: int = Field(
@@ -126,6 +120,4 @@ class EscapeManeuverParams(BaseModel):
 
     def side_correction_steer_norm(self) -> float:
         """Side-threat correction steering as a normalised actuator command."""
-        return angle_rad_to_steering_norm(
-            math.radians(self.SIDE_CORRECTION_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE
-        )
+        return angle_rad_to_steering_norm(math.radians(self.SIDE_CORRECTION_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE)

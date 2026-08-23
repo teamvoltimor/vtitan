@@ -102,17 +102,9 @@ class WaypointParams(BaseModel):
     # test_navigation_tuning.py::test_field_defaults_match_shipped_toml enforces it.
     CENTER_BIAS_M: float = Field(default=0.10, validation_alias=_alias("CENTER_BIAS_M"))
     OBSTACLES_CENTER_BIAS_M: float = Field(default=0.15, validation_alias=_alias("OBSTACLES_CENTER_BIAS_M"))
-    CENTER_BIAS_SIDE: CorridorSide = Field(
-        default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE")
-    )
+    CENTER_BIAS_SIDE: CorridorSide = Field(default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE"))
     NUM_INTERMEDIATE_ARC_POINTS: int = Field(default=3, validation_alias=_alias("NUM_INTERMEDIATE_ARC_POINTS"))
     STRAIGHT_WAYPOINT_COUNT: int = Field(default=8, validation_alias=_alias("STRAIGHT_WAYPOINT_COUNT"))
-    MAIN_LOOP_REACHED_DISTANCE_M: float = Field(
-        default=0.20, validation_alias=_alias("MAIN_LOOP_REACHED_DISTANCE_M")
-    )
-    CONTROLLER_REACHED_DISTANCE_M: float = Field(
-        default=0.01, validation_alias=_alias("CONTROLLER_REACHED_DISTANCE_M")
-    )
-    REPLAN_HEADING_TIE_MARGIN_M: float = Field(
-        default=0.15, validation_alias=_alias("REPLAN_HEADING_TIE_MARGIN_M")
-    )
+    MAIN_LOOP_REACHED_DISTANCE_M: float = Field(default=0.20, validation_alias=_alias("MAIN_LOOP_REACHED_DISTANCE_M"))
+    CONTROLLER_REACHED_DISTANCE_M: float = Field(default=0.01, validation_alias=_alias("CONTROLLER_REACHED_DISTANCE_M"))
+    REPLAN_HEADING_TIE_MARGIN_M: float = Field(default=0.15, validation_alias=_alias("REPLAN_HEADING_TIE_MARGIN_M"))

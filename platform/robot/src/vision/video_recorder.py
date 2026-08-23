@@ -149,7 +149,10 @@ class VideoRecorder:
                 # text a fixed, readable size regardless of capture resolution.
                 hud_frame = draw_stats(resized, snapshot.nav_debug, snapshot.active_challenge, config=self._hud_config)
                 hud_frame = draw_radar(
-                    hud_frame, snapshot.scan_ranges, snapshot.scan_angles, config=self._hud_config,
+                    hud_frame,
+                    snapshot.scan_ranges,
+                    snapshot.scan_angles,
+                    config=self._hud_config,
                 )
                 hud_frame = draw_logo(hud_frame, config=self._hud_config)
                 writer.write(hud_frame[:, :, ::-1])  # RGB -> BGR, OpenCV's expected order

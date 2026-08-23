@@ -101,7 +101,12 @@ def detection_to_observation(
         return None
     tuning = get_tuning(tuning)
     world = _detection_to_world(
-        det, (robot_pose.x, robot_pose.y), robot_pose.yaw, tuning, lidar_ranges_m, lidar_angles_rad,
+        det,
+        (robot_pose.x, robot_pose.y),
+        robot_pose.yaw,
+        tuning,
+        lidar_ranges_m,
+        lidar_angles_rad,
     )
     if world is None:
         return None
@@ -190,7 +195,6 @@ def _detection_to_world(
     wx = sensor_x + distance * math.cos(bearing)
     wy = sensor_y + distance * math.sin(bearing)
     return wx, wy
-
 
 
 @dataclass(slots=True)
@@ -360,7 +364,11 @@ class ObservedSignMap:
             self._fold(world, observed_range, obs, robot_corridor)
 
     def _fold(
-        self, world: Waypoint, observed_range: float, obs: TrafficSignObservation, robot_corridor: Section,
+        self,
+        world: Waypoint,
+        observed_range: float,
+        obs: TrafficSignObservation,
+        robot_corridor: Section,
     ) -> None:
         """Merge one projected observation into the nearest track, or start one."""
         track = self._nearest_track(world, robot_corridor)

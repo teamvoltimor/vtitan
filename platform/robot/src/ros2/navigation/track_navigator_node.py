@@ -125,7 +125,7 @@ def _load_json(path: str | Path) -> dict[str, Any]:
 class TrackNavigator(Node, ResettableNode):
     """ROS2 node wrapping the pure Python CoreNavigator."""
 
-    def __init__(  # noqa: PLR0915 - constructor wires every navigation subsystem together
+    def __init__(
         self,
         metadata_path: str | Path | None = None,
         num_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS,
@@ -227,9 +227,7 @@ class TrackNavigator(Node, ResettableNode):
                 ScenarioType.OPEN: NavigationTuning.load_default(challenge=ScenarioType.OPEN),
                 ScenarioType.OBSTACLES: NavigationTuning.load_default(challenge=ScenarioType.OBSTACLES),
             }
-            tuning = self._tuning_by_challenge[
-                ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES
-            ]
+            tuning = self._tuning_by_challenge[ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES]
         else:
             tuning = NavigationTuning.load_default(
                 challenge=ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES,
@@ -330,7 +328,7 @@ class TrackNavigator(Node, ResettableNode):
             if self._width_estimator
             else self._told_geometry
         )
-        assert geometry is not None  # noqa: S101 - either branch above guarantees a value
+        assert geometry is not None
 
         self._gateway = ROS2HardwareGateway(
             self,
@@ -722,7 +720,7 @@ class TrackNavigator(Node, ResettableNode):
         g = self._told_geometry
         # Set exactly when not blind (see __init__), which is the only way to
         # reach this branch -- blind means _width_estimator is set instead.
-        assert g is not None  # noqa: S101 - guaranteed non-None in the non-blind branch
+        assert g is not None
         return {
             Section.NORTH: g.north_width_m,
             Section.SOUTH: g.south_width_m,
@@ -783,7 +781,11 @@ class TrackNavigator(Node, ResettableNode):
         # *now* -- the creep displacement this method used to discard is simply
         # never introduced.
         measured = measure_start_pose(
-            scan.ranges_m, scan.angles_rad, inferred, self._start_section, tuning=self._tuning,
+            scan.ranges_m,
+            scan.angles_rad,
+            inferred,
+            self._start_section,
+            tuning=self._tuning,
         )
         seed_xy = Waypoint(measured.x, measured.y) if measured is not None else self._start_xy
         if measured is None:
@@ -954,7 +956,11 @@ class TrackNavigator(Node, ResettableNode):
             return
 
         measured = measure_start_pose(
-            scan.ranges_m, scan.angles_rad, self._direction, self._start_section, tuning=self._tuning,
+            scan.ranges_m,
+            scan.angles_rad,
+            self._direction,
+            self._start_section,
+            tuning=self._tuning,
         )
         if measured is None:
             return
@@ -967,7 +973,9 @@ class TrackNavigator(Node, ResettableNode):
         # index has to be re-sought against the corrected pose rather than
         # carried over.
         self._core_navigator.replace_path(
-            self._plan(self._to_widths_dict()), (measured.x, measured.y), pose.yaw,
+            self._plan(self._to_widths_dict()),
+            (measured.x, measured.y),
+            pose.yaw,
         )
         self.get_logger().info(
             f"Start pose measured on retry: ({measured.x:.2f}, {measured.y:.2f}), "
@@ -1020,9 +1028,7 @@ class TrackNavigator(Node, ResettableNode):
             # Open's and measured HIGHER than the geometry argues for. See
             # WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and why it
             # is compensating for the tracker's outward drift.
-            center_bias_m=(
-                None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
-            ),
+            center_bias_m=(None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M),
         )
 
     def _update_layout_belief(self) -> bool:
@@ -1156,9 +1162,7 @@ class TrackNavigator(Node, ResettableNode):
             # Mirrors construction: a told direction is still told on the next
             # round, so rebuilding an estimator here would put the creep back
             # for every race after the first.
-            self._direction_estimator = (
-                DirectionEstimator(tuning=self._tuning) if not self._direction_known else None
-            )
+            self._direction_estimator = DirectionEstimator(tuning=self._tuning) if not self._direction_known else None
             self._pending_known_commit = self._direction_known
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
 
@@ -1255,7 +1259,7 @@ class TrackNavigator(Node, ResettableNode):
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:
         """Load a JSON file of {param_name: value} overrides and apply to this node."""
-        import rclpy.parameter as rp  # noqa: PLC0415
+        import rclpy.parameter as rp
 
         try:
             data = _load_json(params_path)

@@ -29,9 +29,7 @@ _LETTERBOX_PAD_VALUE = 114
 # Derived from the one declaration of the detector's class order, rather than
 # restated here -- this map and the driver's id-to-name map drifted apart from
 # it once already, and a mismatch swaps red for green silently.
-DEFAULT_CLASS_TO_COLOR: dict[int, SignColor] = {
-    class_id: SignColor(name) for class_id, name in GMR_CLASS_NAMES.items()
-}
+DEFAULT_CLASS_TO_COLOR: dict[int, SignColor] = {class_id: SignColor(name) for class_id, name in GMR_CLASS_NAMES.items()}
 
 
 class BBoxFormat(Enum):
@@ -156,7 +154,7 @@ class LocalYoloDetector(DetectorBase):
             config: DetectorConfig with model path and class mappings.
                 If None, uses defaults.
         """
-        from ultralytics import YOLO  # noqa: PLC0415
+        from ultralytics import YOLO
 
         if config is None:
             config = DetectorConfig(class_to_color=DEFAULT_CLASS_TO_COLOR)

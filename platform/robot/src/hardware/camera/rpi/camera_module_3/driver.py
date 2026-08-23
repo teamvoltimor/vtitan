@@ -108,9 +108,7 @@ class Config(HardwareBaseSettings):
     )
     """Sensor gain. Only fixed when `exposure_time_us` is also set; otherwise AE is free to adjust it."""
 
-    awb_mode: AwbMode = Field(
-        default=AwbMode.AUTO, validation_alias=AliasChoices("CAMERA_AWB_MODE", "camera_awb_mode")
-    )
+    awb_mode: AwbMode = Field(default=AwbMode.AUTO, validation_alias=AliasChoices("CAMERA_AWB_MODE", "camera_awb_mode"))
     """
     Sign colour classification (red vs green) is threshold-based, so a fixed mode avoids AWB drift shifting hue readings under changing venue lighting.
     """

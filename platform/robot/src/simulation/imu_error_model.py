@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-  import numpy as np
+    import numpy as np
 
 
 @dataclass(frozen=True, slots=True)

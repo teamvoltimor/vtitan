@@ -237,12 +237,24 @@ def _draw_panel(canvas: np.ndarray, rows: list[tuple[str, str]], *, top: bool, l
         if y >= y1:
             break  # panel ran out of room (tiny frame) -- draw what fits, never raise
         cv2.putText(
-            canvas, label, (x0 + config.margin_px, y), config.font_face, config.font_scale, config.label_rgb,
-            config.text_thickness, cv2.LINE_AA,
+            canvas,
+            label,
+            (x0 + config.margin_px, y),
+            config.font_face,
+            config.font_scale,
+            config.label_rgb,
+            config.text_thickness,
+            cv2.LINE_AA,
         )
         cv2.putText(
-            canvas, value, (x0 + value_col_x, y), config.font_face, config.font_scale, config.text_rgb,
-            config.text_thickness, cv2.LINE_AA,
+            canvas,
+            value,
+            (x0 + value_col_x, y),
+            config.font_face,
+            config.font_scale,
+            config.text_rgb,
+            config.text_thickness,
+            cv2.LINE_AA,
         )
 
 
@@ -316,7 +328,9 @@ def draw_radar(
     box_x0, box_y0 = cx - box_extent, cy - box_extent
     bg_box = out[box_y0:height, box_x0:width]
     shaded = np.full_like(bg_box, config.radar_bg_rgb)
-    out[box_y0:height, box_x0:width] = cv2.addWeighted(shaded, config.radar_bg_alpha, bg_box, 1 - config.radar_bg_alpha, 0)
+    out[box_y0:height, box_x0:width] = cv2.addWeighted(
+        shaded, config.radar_bg_alpha, bg_box, 1 - config.radar_bg_alpha, 0
+    )
     cv2.rectangle(out, (box_x0, box_y0), (width - 1, height - 1), config.border_rgb, 1, cv2.LINE_AA)
 
     # Faint crosshair through the centre, clipped to the ring -- a quiet

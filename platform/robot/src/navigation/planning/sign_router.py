@@ -244,7 +244,9 @@ class SignRouterConfig:
         """
         if self.lateral_offset is None:
             tuning = get_tuning(None)
-            default_offset = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
+            default_offset = (
+                _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
+            )
             object.__setattr__(self, "lateral_offset", default_offset)
         if self.activation_dist >= self.passed_dist:
             msg = (
@@ -1088,15 +1090,10 @@ def signs_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> list[Sig
     if isinstance(metadata, ScenarioMetadata):
         return [SignSpec(x=s.x, y=s.y, color=s.color) for s in metadata.sign_positions]
     sign_positions = metadata.get(DictKeys.SIGN_POSITIONS, [])
-    return [
-        SignSpec(x=entry[DictKeys.X], y=entry[DictKeys.Y], color=entry[DictKeys.COLOR])
-        for entry in sign_positions
-    ]
+    return [SignSpec(x=entry[DictKeys.X], y=entry[DictKeys.Y], color=entry[DictKeys.COLOR]) for entry in sign_positions]
 
 
-def _is_squarely_in_corridor(
-    x: float, y: float, corridor: Section, context: SignRouterContext | None = None
-) -> bool:
+def _is_squarely_in_corridor(x: float, y: float, corridor: Section, context: SignRouterContext | None = None) -> bool:
     """True if this waypoint is still a reasonable candidate for straight-corridor deformation.
 
     The deformation model holds the depth axis (whatever value the raw path

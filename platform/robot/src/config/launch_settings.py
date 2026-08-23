@@ -63,6 +63,7 @@ def _default_bag_topics() -> list[str]:
         "/tf_static",
     ]
 
+
 # Separate from config/hardware/ (driver calibration) -- these are
 # launch-time session/routing defaults, a different concern.
 LAUNCH_CONFIG_DIR: Path = ROBOT_ROOT / "config" / "launch"

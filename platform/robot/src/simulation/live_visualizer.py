@@ -505,16 +505,28 @@ class LiveScenarioVisualizer(Node):
         z0, z1 = cz - hz, cz + hz
         # 8 corners: 0-3 bottom (z0), 4-7 top (z1)
         b = [
-            (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
-            (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+            (x0, y0, z0),
+            (x1, y0, z0),
+            (x1, y1, z0),
+            (x0, y1, z0),
+            (x0, y0, z1),
+            (x1, y0, z1),
+            (x1, y1, z1),
+            (x0, y1, z1),
         ]
         tris = [
-            (0, 2, 1), (0, 3, 2),  # bottom (-z)
-            (4, 5, 6), (4, 6, 7),  # top (+z)
-            (0, 4, 7), (0, 7, 3),  # -x
-            (1, 2, 6), (1, 6, 5),  # +x
-            (0, 1, 5), (0, 5, 4),  # -y
-            (3, 6, 2), (3, 7, 6),  # +y
+            (0, 2, 1),
+            (0, 3, 2),  # bottom (-z)
+            (4, 5, 6),
+            (4, 6, 7),  # top (+z)
+            (0, 4, 7),
+            (0, 7, 3),  # -x
+            (1, 2, 6),
+            (1, 6, 5),  # +x
+            (0, 1, 5),
+            (0, 5, 4),  # -y
+            (3, 6, 2),
+            (3, 7, 6),  # +y
         ]
         verts: list[tuple[float, float, float]] = []
         for a, bb, c in tris:
@@ -693,14 +705,10 @@ class LiveScenarioVisualizer(Node):
 
         line_id = base_id + 1
         for division in starting_square_band_divisions(width):
-            markers.append(
-                self._thin_line_marker(line_id, *square.across_line(division), StartingZoneSpecs.COLOR)
-            )
+            markers.append(self._thin_line_marker(line_id, *square.across_line(division), StartingZoneSpecs.COLOR))
             line_id += 1
 
-        markers.append(
-            self._thin_line_marker(line_id, *square.along_line(width), StartingZoneSpecs.COLOR)
-        )
+        markers.append(self._thin_line_marker(line_id, *square.along_line(width), StartingZoneSpecs.COLOR))
 
         return markers
 
@@ -870,12 +878,14 @@ class LiveScenarioVisualizer(Node):
         """
         cam_quat = _pitch_to_quaternion(math.radians(RobotSpecs.CAMERA_MOUNT_PITCH_DEG))
         markers = MarkerArray()
-        markers.markers.extend([
-            self._chassis_marker(),
-            self._robot_lidar_marker(),
-            self._camera_marker(cam_quat),
-            self._camera_facing_marker(cam_quat),
-        ])
+        markers.markers.extend(
+            [
+                self._chassis_marker(),
+                self._robot_lidar_marker(),
+                self._camera_marker(cam_quat),
+                self._camera_facing_marker(cam_quat),
+            ]
+        )
         for index, wheel in enumerate(wheel_poses(steer)):
             markers.markers.append(self._wheel_marker(index, wheel))
             markers.markers.append(self._wheel_spoke_marker(index, wheel))
@@ -959,7 +969,9 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = 2.0 * RobotSpecs.WHEEL_RADIUS  # shaft length: one wheel diameter
         m.scale.y = 0.012  # shaft diameter
         m.scale.z = 0.012  # head diameter
-        color = self._rviz.colors.front_axle_arrow if wheel.name.startswith("front") else self._rviz.colors.rear_axle_arrow
+        color = (
+            self._rviz.colors.front_axle_arrow if wheel.name.startswith("front") else self._rviz.colors.rear_axle_arrow
+        )
         _apply_color(m, color, 1.0)
         return m
 

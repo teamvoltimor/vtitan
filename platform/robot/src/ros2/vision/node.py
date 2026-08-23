@@ -115,7 +115,7 @@ _RUN_PATH_POLL_TIMEOUT_SEC = 3.0
 class VisionNode(Node):
     """ROS2 node that runs YOLO detection on camera images."""
 
-    def __init__(self) -> None:  # noqa: PLR0915 - constructor wires every subsystem together by design
+    def __init__(self) -> None:
         super().__init__("vision_detector")
 
         defaults = Config()
@@ -135,14 +135,16 @@ class VisionNode(Node):
         self._record_video = declare_and_get_bool_param(self, "record_video", defaults.record_video)
         video_width = declare_and_get_int_param(self, "video_width", defaults.video_width)
         capture_dataset_frames = declare_and_get_bool_param(
-            self, "capture_dataset_frames", defaults.capture_dataset_frames,
+            self,
+            "capture_dataset_frames",
+            defaults.capture_dataset_frames,
         )
         capture_interval_s = declare_and_get_float_param(self, "capture_interval_s", defaults.capture_interval_s)
         capture_subdir = declare_and_get_str_param(self, "capture_subdir", defaults.capture_subdir)
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
-        from src.vision.detector import DEFAULT_CLASS_TO_COLOR, DetectorConfig  # noqa: PLC0415
+        from src.vision.detector import DEFAULT_CLASS_TO_COLOR, DetectorConfig
 
         # Take the mapping from the detector rather than restating it: this copy
         # said (red, green, magenta), which is the dataset's stale order and the
@@ -192,10 +194,16 @@ class VisionNode(Node):
             topics_state = topics.state_machine.state
             self.create_subscription(String, topics_state, self._on_robot_state, QOS_LATCHED_STATE)
             self.create_subscription(
-                String, topics.challenge_mode.active, self._on_challenge_mode_active, QOS_LATCHED_STATE,
+                String,
+                topics.challenge_mode.active,
+                self._on_challenge_mode_active,
+                QOS_LATCHED_STATE,
             )
             self.create_subscription(
-                String, topics.bag_recorder.run_path, self._on_run_path, QOS_LATCHED_STATE,
+                String,
+                topics.bag_recorder.run_path,
+                self._on_run_path,
+                QOS_LATCHED_STATE,
             )
             # Plain depth-10 QoS, matching track_navigator_node's
             # /nav_debug publisher exactly (create_publisher(String, ..., 10),
@@ -257,14 +265,14 @@ class VisionNode(Node):
         so the effective threshold was that dataclass's 0.25 default while the
         documented variable only fed a driver path the vision node never calls.
         """
-        from src.vision.detector import DetectorConfig  # noqa: PLC0415
+        from src.vision.detector import DetectorConfig
 
         if backend != "hailo":
             # model_path/class_to_color are always caller-supplied (see class
             # docstring) -- placeholders here since only min_confidence's
             # resolved TOML/env value is wanted.
             return DetectorConfig(model_path="", class_to_color={}).min_confidence
-        from src.hardware.hailo.base import Config as HailoConfig  # noqa: PLC0415
+        from src.hardware.hailo.base import Config as HailoConfig
 
         return HailoConfig().min_confidence
 
@@ -282,7 +290,7 @@ class VisionNode(Node):
         # against the two backends' shared camera.base.Driver ABC instead, so
         # either concrete instance is a valid assignment.
         try:
-            from src.hardware.camera.rpi.camera_module_3.driver import (  # noqa: PLC0415
+            from src.hardware.camera.rpi.camera_module_3.driver import (
                 Config as PicamConfig,
                 Driver as PicamDriver,
             )
@@ -290,7 +298,7 @@ class VisionNode(Node):
             self._camera = PicamDriver(PicamConfig())
             backend = "picamera2"
         except ImportError:
-            from src.hardware.camera.rpicam.driver import (  # noqa: PLC0415
+            from src.hardware.camera.rpicam.driver import (
                 Config as RpicamConfig,
                 Driver as RpicamDriver,
             )
@@ -301,8 +309,7 @@ class VisionNode(Node):
         self._camera.connect()
         size = self._camera.get_resolution()
         self.get_logger().info(
-            f"Camera opened via {backend} at {size.width_px}x{size.height_px}, "
-            f"rotation={size.rotation_deg}",
+            f"Camera opened via {backend} at {size.width_px}x{size.height_px}, rotation={size.rotation_deg}",
         )
         self._timer = self.create_timer(1.0 / max(capture_fps, 1.0), self._capture_once)
 
@@ -310,10 +317,10 @@ class VisionNode(Node):
         """Grab one frame and run the detection/publish path over it."""
         # Only ever scheduled by _start_direct_capture, right after self._camera
         # is set -- guaranteed non-None whenever this timer callback fires.
-        assert self._camera is not None  # noqa: S101 - guaranteed by _start_direct_capture before scheduling
+        assert self._camera is not None
         try:
             frame = self._camera.capture_frame().frame
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             self.get_logger().error(f"Camera capture failed: {err}", throttle_duration_sec=5.0)
             return
         self._process(self._camera.to_rgb(frame))
@@ -389,7 +396,7 @@ class VisionNode(Node):
         See _RUN_PATH_POLL_TIMEOUT_SEC's docstring for why this node must
         never create that directory itself.
         """
-        assert self._run_path is not None  # noqa: S101 - only armed by _maybe_start_recording with a run path set
+        assert self._run_path is not None
         path = Path(self._run_path)
         if path.is_dir():
             self._run_path_poll_timer.cancel()
@@ -436,7 +443,7 @@ class VisionNode(Node):
 
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self.get_logger().error(f"Unexpected error processing image: {e}")
 
     def _process(self, rgb: np.ndarray) -> None:
@@ -493,7 +500,7 @@ class VisionNode(Node):
 
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self.get_logger().error(f"Unexpected error processing image: {e}")
 
     def _build_frame_snapshot(self, annotated: np.ndarray) -> FrameSnapshot:

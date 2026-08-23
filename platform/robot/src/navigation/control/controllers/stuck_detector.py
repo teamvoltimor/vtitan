@@ -71,7 +71,9 @@ class StuckDetector:
         self.timeout_frames = timeout_frames
         self.history_size = history_size
         self.confirmation_checks = confirmation_checks
-        self._min_history_for_distance = min_history_for_distance if min_history_for_distance is not None else tuning.escape.MIN_HISTORY_FOR_DISTANCE
+        self._min_history_for_distance = (
+            min_history_for_distance if min_history_for_distance is not None else tuning.escape.MIN_HISTORY_FOR_DISTANCE
+        )
 
         # Position history
         self.position_history: deque[Waypoint] = deque(maxlen=history_size)
