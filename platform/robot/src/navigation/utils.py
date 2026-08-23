@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
+from shared.domain.models import Pose, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 
@@ -18,7 +19,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
-    from shared.domain.models import Pose, Waypoint
 
 
 def wrap_angle(angle: float) -> float:
@@ -57,7 +57,20 @@ def axis_error_rad(yaw: float) -> float:
 
 def _dist2d(a: Waypoint, b: Waypoint) -> float:
     """Euclidean distance between two points with ``.x``/``.y`` attributes."""
-    return math.hypot(a.x - b.x, a.y - b.y)
+    return a.distance_to(b)
+
+
+def _as_waypoint(point: object) -> Waypoint:
+    """Normalise a trail point to a :class:`Waypoint`.
+
+    Accepts a :class:`Pose`/:class:`Waypoint` (via ``to_waypoint``) or the
+    legacy ``(x, y, yaw)`` tuple the tests still seed, so trail consumers
+    don't care which shape a breadcrumb happens to be.
+    """
+    if isinstance(point, (Pose, Waypoint)):
+        return point.to_waypoint()
+    x, y, *_ = point  # type: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+    return Waypoint(x, y)
 
 
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
@@ -104,7 +117,8 @@ def trail_clearance_behind(
     cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
     reachable = 0.0
     for point in reversed(trail):
-        delta_x, delta_y = point.x - robot_x, point.y - robot_y
+        wp = _as_waypoint(point)
+        delta_x, delta_y = wp.x - robot_x, wp.y - robot_y
         along = delta_x * cos_yaw + delta_y * sin_yaw
         if along > 0.0:
             continue

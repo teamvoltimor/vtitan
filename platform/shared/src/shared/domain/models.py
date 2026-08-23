@@ -139,6 +139,14 @@ class Waypoint:
         """Euclidean distance from this point to ``other``."""
         return math.hypot(self.x - other.x, self.y - other.y)
 
+    def distance_to_xy(self, x: float, y: float) -> float:
+        """Euclidean distance from this point to the raw ``(x, y)`` pair (audit §12b)."""
+        return math.hypot(self.x - x, self.y - y)
+
+    def bearing_to(self, other: Waypoint) -> float:
+        """Bearing (radians, 0 = forward/+pi/2 = left) from this point to ``other`` (audit §12b)."""
+        return math.atan2(other.y - self.y, other.x - self.x)
+
     def to_pose(self, yaw: float = 0.0) -> Pose:
         """Promote this point to a :class:`Pose` with the given heading."""
         return Pose(self.x, self.y, yaw)

@@ -569,7 +569,7 @@ class TrackNavigator(Node, ResettableNode):
                 continue
             if obs.confidence < sign_cfg.MIN_CONFIDENCE:
                 continue
-            dist = math.hypot(obs.world_x_m - pose.x, obs.world_y_m - pose.y)
+            dist = pose.distance_to(Waypoint(obs.world_x_m, obs.world_y_m))
             if dist < nearest_dist:
                 nearest, nearest_dist = obs, dist
         if nearest is None or nearest_dist > sign_cfg.ACTIVATION_DIST_M:

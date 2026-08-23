@@ -46,10 +46,7 @@ def seed_straight_pose_trail(nav: CoreNavigator, length_m: float = 1.0, spacing_
     pose = nav._gateway.pose
     count = int(length_m / spacing_m)
     # Chassis faces +x in all these fixtures (yaw=0), so "behind" is -x.
-    nav._pose_trail.extend(
-        (pose.x - (count - i) * spacing_m, pose.y, pose.yaw) for i in range(count + 1)
-    )
-
+    nav._pose_trail.extend(Pose(pose.x - (count - i) * spacing_m, pose.y, pose.yaw) for i in range(count + 1))
 
 
 @pytest.fixture()
@@ -110,7 +107,9 @@ class TestCriticalEscapeRearGate:
 
         assert gateway.commands, "expected a published command"
         assert gateway.commands[-1].speed_mps >= 0, "must not reverse blind into an unseen rear wall"
-        assert gateway.commands[-1].speed_mps <= tuning.speed.slow_mps(), "degraded path is a capped creep, not full speed"
+        assert gateway.commands[-1].speed_mps <= tuning.speed.slow_mps(), (
+            "degraded path is a capped creep, not full speed"
+        )
 
 
 class TestMappedObstacleEscapeSplit:
@@ -151,7 +150,8 @@ class TestMappedObstacleEscapeSplit:
         ranges = create_scan_with_sectors(front=TestMappedObstacleEscapeSplit._FRONT_RANGE)
         base_x, base_y = TestMappedObstacleEscapeSplit._BASE_X, TestMappedObstacleEscapeSplit._BASE_Y
         gateway = FakeGateway(
-            Pose(x=base_x, y=base_y, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
+            Pose(x=base_x, y=base_y, yaw=0.0),
+            LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
         )
         if mask_radius is not None:
             tuning = override_tuning(tuning, sign_router={"ESCAPE_MASK_RADIUS_M": mask_radius})
@@ -312,9 +312,9 @@ class TestStuckEscapeRearBlocked:
         # Both ends blocked with no rear sensor: the safe recovery is a low-speed
         # forward pivot toward the open side, NOT a frozen hold (which deadlocked
         # into timeouts). It must still never reverse, and must actually steer.
-        assert any(
-            c.speed_mps > 0 and abs(c.steering_norm) > 0.0 for c in gateway.commands
-        ), "should stop-and-steer (forward pivot) when both ends are blocked"
+        assert any(c.speed_mps > 0 and abs(c.steering_norm) > 0.0 for c in gateway.commands), (
+            "should stop-and-steer (forward pivot) when both ends are blocked"
+        )
 
 
 class _StubParkController:

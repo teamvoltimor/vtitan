@@ -279,7 +279,7 @@ class SimulatedHardwareGateway:
         if not self._localize:
             return 0.0
         pose = self._estimator.estimate_pose()
-        return math.hypot(pose.x - self._state.x, pose.y - self._state.y)
+        return pose.distance_to(self._state)
 
     def get_lidar_scan(self) -> LidarScan | None:
         """Return the most recent simulated LIDAR sweep (ranges, robot-frame angles)."""
