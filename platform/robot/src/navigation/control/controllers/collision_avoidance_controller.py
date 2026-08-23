@@ -193,6 +193,22 @@ class EscapeManeuver:
     priority: int = 1
 
 
+@dataclass(frozen=True, slots=True)
+class ParkingGate:
+    """The two clearance numbers the parking maneuver's stop-check needs.
+
+    The parking controller drives laterally into a bay, so a single forward
+    cone is not enough: it must also be stopped before any sideways or
+    slightly-rearward clip (a wall or block edge the narrow forward cone would
+    never see). Those are two different LIDAR queries -- a narrow forward min
+    and a full 360-degree min -- kept together here so the navigator asks for
+    both in one call rather than re-sweeping the same scan twice.
+    """
+
+    forward_m: float
+    sweep_m: float
+
+
 class CollisionAvoidanceController:
     """Manages collision detection and escape maneuver generation.
 
@@ -703,6 +719,34 @@ class CollisionAvoidanceController:
 
         sr = self.sector(lidar_ranges, lidar_angles, center_rad, half_fov_rad)
         return sr.min_range_m if sr.measured else self.no_data_range_m
+
+    def parking_clearances(
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+    ) -> ParkingGate:
+        """Forward and full-sweep clearances for the parking stop-check.
+
+        Returns a :class:`ParkingGate` with:
+
+        * ``forward_m`` -- min over the narrow forward cone
+          (``compute_forward_clearance``), so the staging vector never drives
+          head-on into a wall.
+        * ``sweep_m`` -- min over the entire 360 deg sweep
+          (``compute_min_clearance(half_fov_rad=pi)``), catching any sideways
+          or slightly-rearward clip the narrow cone misses -- parking geometry
+          can strike a wall or block edge from the side, not just in front.
+
+        Both are computed here so the navigator makes one call instead of
+        re-sweeping the same scan for each gate. The two thresholds the caller
+        applies (``CONTACT_DIST`` for forward, ``CONTACT_DIST + WIDTH/2`` for the
+        sweep) stay with the caller, since they belong to the parking maneuver,
+        not to clearance measurement.
+        """
+        return ParkingGate(
+            forward_m=self.compute_forward_clearance(lidar_ranges, lidar_angles),
+            sweep_m=self.compute_min_clearance(lidar_ranges, lidar_angles, half_fov_rad=math.pi),
+        )
 
     def detect_threat_direction(
         self,
