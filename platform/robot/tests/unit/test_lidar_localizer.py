@@ -16,6 +16,7 @@ import time
 import numpy as np
 import pytest
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Section
 
 from src.navigation.localization import LidarLocalizer
@@ -63,7 +64,7 @@ _CORNER_POSES = [
 
 def _localizer_for(widths: dict[Section, float]) -> tuple[LidarLocalizer, TrackWalls]:
     walls = TrackWalls(widths)
-    return LidarLocalizer(walls), walls
+    return LidarLocalizer(walls, LocalizationParams()), walls
 
 
 @pytest.mark.parametrize("x, y, yaw", _STRAIGHT_POSES + _CORNER_POSES)

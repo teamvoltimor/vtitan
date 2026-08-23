@@ -34,6 +34,7 @@ from scripts.bag.diag_localizer_guard_replay import (
     _scan_to_ranges_angles,
 )
 from scripts.common.bag_io import create_bag_parser
+from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
@@ -79,7 +80,7 @@ def _replay(
     per_tick_walls: bool = False,
 ) -> tuple[list[tuple[float, float, float]], float]:
     """Step the localizer through the run with ``yaw_offset`` added to every believed yaw."""
-    localizer = LidarLocalizer(walls)
+    localizer = LidarLocalizer(walls, LocalizationParams())
     pos = seed
     track: list[tuple[float, float, float]] = []
     costs: list[float] = []

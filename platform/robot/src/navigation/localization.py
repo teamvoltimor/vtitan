@@ -24,6 +24,7 @@ import numpy as np
 from shared.config.constants import RobotSpecs
 
 if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
     from shared.config.navigation_tuning.blind_nav import LocalizationParams
 
     from src.navigation.track_geometry import TrackWalls
@@ -34,40 +35,40 @@ class LidarLocalizer:
 
     Args:
         walls: Wall geometry for the current scenario's corridor widths.
-        search_radius_m: Half-width of the initial search window around the
-            prior position (metres). Must comfortably exceed the maximum
-            per-tick displacement so the true position is never outside it.
-        passes: Number of coarse-to-fine grid-search passes.
-        grid_points: Candidates per axis per pass (grid is ``grid_points**2``).
-        max_speed_mps: Upper bound on real motion between ticks, used to
-            reject a candidate that implies impossible speed (see below).
-            Deliberately above the measured real top speed (0.156 m/s, see
-            ``RobotSpecs.MAX_SPEED_MPS``) to leave headroom for a faster
-            drivetrain later without this guard needing to move with it.
-        jump_confirm_tolerance_m: How close two consecutive ticks' rejected
-            candidates must be to count as the same correction confirming
-            itself (see below).
+        params: Tuning-derived search parameters. Construct via
+            :meth:`from_tuning` (from a ``NavigationTuning``) or pass a
+            ``LocalizationParams`` directly; the localizer no longer carries
+            its own copy of these defaults.
     """
 
     def __init__(
         self,
         walls: TrackWalls,
-        search_radius_m: float = 0.15,
-        passes: int = 4,
-        grid_points: int = 5,
-        residual_clip_m: float = 0.25,
-        max_speed_mps: float = 0.25,
-        jump_confirm_tolerance_m: float = 0.05,
+        params: LocalizationParams,
     ) -> None:
         self._walls = walls
-        self._search_radius = search_radius_m
-        self._passes = passes
-        self._grid_points = grid_points
-        self._residual_clip = residual_clip_m
-        self._max_speed_mps = max_speed_mps
-        self._jump_confirm_tolerance = jump_confirm_tolerance_m
+        self._search_radius = params.SEARCH_RADIUS_M
+        self._passes = params.PASSES
+        self._grid_points = params.GRID_POINTS
+        self._residual_clip = params.RESIDUAL_CLIP_M
+        self._max_speed_mps = params.MAX_SPEED_MPS
+        self._jump_confirm_tolerance = params.JUMP_CONFIRM_TOLERANCE_M
         self._last_estimate_time_s: float | None = None
         self._pending_jump_xy: tuple[float, float] | None = None
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning, walls: TrackWalls) -> LidarLocalizer:
+        """Build a localizer from a ``NavigationTuning`` (single source of truth).
+
+        Args:
+            tuning: Navigation tuning instance (usually from ``load_default``).
+            walls: Wall geometry for the current scenario's corridor widths.
+
+        Returns:
+            LidarLocalizer with search parameters taken from
+            ``tuning.localization``.
+        """
+        return cls(walls, tuning.localization)
 
     def reset_tracking(self) -> None:
         """Forget everything carried between ticks, for a re-seeded position.
@@ -249,12 +250,4 @@ def make_localizer(walls: TrackWalls, params: LocalizationParams) -> LidarLocali
     hand-spelling the same 6-field mapping, risking one of the four silently
     drifting from the other three.
     """
-    return LidarLocalizer(
-        walls,
-        search_radius_m=params.SEARCH_RADIUS_M,
-        passes=params.PASSES,
-        grid_points=params.GRID_POINTS,
-        residual_clip_m=params.RESIDUAL_CLIP_M,
-        max_speed_mps=params.MAX_SPEED_MPS,
-        jump_confirm_tolerance_m=params.JUMP_CONFIRM_TOLERANCE_M,
-    )
+    return LidarLocalizer(walls, params)
