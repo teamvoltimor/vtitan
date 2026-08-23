@@ -12,12 +12,13 @@ Example usage:
 
 from __future__ import annotations
 
-import tomllib
 from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
+
+from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
 
 
 class RosMessageType(StrEnum):
@@ -224,7 +225,7 @@ class RosTopicConfig(BaseModel):
     bag_recorder: BagRecorderTopics
     simulation: SimulationTopics
 
-    _default_config_path: ClassVar[Path] = Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"
+    _default_config_path: ClassVar[Path] = SHARED_CONFIG_ROOT / "ros_topics.toml"
     """Path to the checked-in ros_topics.toml file."""
 
     @classmethod
@@ -238,12 +239,4 @@ class RosTopicConfig(BaseModel):
             FileNotFoundError: If ros_topics.toml does not exist.
             ValueError: If TOML is invalid.
         """
-        path = cls._default_config_path
-        if not path.exists():
-            msg = f"ROS topics config not found: {path}"
-            raise FileNotFoundError(msg)
-
-        with path.open("rb") as f:
-            data = tomllib.load(f)
-
-        return cls.model_validate(data)
+        return load_toml_model(cls, cls._default_config_path)

@@ -9,13 +9,16 @@ were never consumed anywhere and have been removed.
 
 from __future__ import annotations
 
-import tomllib
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from pydantic import BaseModel, ConfigDict
 
-DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[4] / "config" / "competition_specs.toml"
+from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "competition_specs.toml"
 
 
 class _CompetitionSpecsModel(BaseModel):
@@ -29,8 +32,7 @@ class _CompetitionSpecsModel(BaseModel):
 
 
 def _load() -> _CompetitionSpecsModel:
-    with DEFAULT_CONFIG_PATH.open("rb") as f:
-        return _CompetitionSpecsModel.model_validate(tomllib.load(f))
+    return load_toml_model(_CompetitionSpecsModel, DEFAULT_CONFIG_PATH)
 
 
 _specs = _load()

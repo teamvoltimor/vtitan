@@ -12,6 +12,8 @@ import cv2
 import numpy as np
 from shared.domain.models import SignColor
 
+from src.vision.hud import _DEFAULT_HUD_CONFIG
+
 if TYPE_CHECKING:
     from shared.domain.models import Detection
 
@@ -23,7 +25,6 @@ _BOX_RGB: dict[SignColor, tuple[int, int, int]] = {
     SignColor.MAGENTA: (255, 80, 255),
 }
 _FALLBACK_RGB = (255, 255, 0)
-_FONT_SCALE = 0.5
 _THICKNESS = 2
 
 
@@ -54,7 +55,7 @@ def annotate(rgb: np.ndarray, detections: list[Detection]) -> np.ndarray:
         cv2.rectangle(canvas, (x1, y1), (x2, y2), colour, _THICKNESS)
 
         label = f"{detection.class_name} {detection.confidence:.2f}"
-        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, _FONT_SCALE, 1)
+        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, _DEFAULT_HUD_CONFIG.font_scale, 1)
         # Put the label inside the box when there is no room above it, so it
         # never lands off-frame for a detection touching the top edge.
         text_y = y1 - baseline if y1 - text_h - baseline >= 0 else y1 + text_h + baseline
@@ -65,6 +66,15 @@ def annotate(rgb: np.ndarray, detections: list[Detection]) -> np.ndarray:
             colour,
             cv2.FILLED,
         )
-        cv2.putText(canvas, label, (x1, text_y), cv2.FONT_HERSHEY_SIMPLEX, _FONT_SCALE, (0, 0, 0), 1, cv2.LINE_AA)
+        cv2.putText(
+            canvas,
+            label,
+            (x1, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            _DEFAULT_HUD_CONFIG.font_scale,
+            (0, 0, 0),
+            1,
+            cv2.LINE_AA,
+        )
 
     return canvas

@@ -27,8 +27,8 @@ from std_msgs.msg import String
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-SETTLE_SEC = 2.0
-REPLY_TIMEOUT_SEC = 5.0
+from common.hardware_defaults import REPLY_TIMEOUT_SEC, SETTLE_SEC
+
 _SUBSCRIPTION_QUEUE_DEPTH = 10
 _SPIN_TIMEOUT_SEC = 0.3
 
@@ -41,7 +41,9 @@ class Injector(Node):
         topics = RosTopicConfig.load_default()
         self._publisher = self.create_publisher(Image, topics.sensors.camera_image_raw, qos_profile_sensor_data)
         self._replies: list[str] = []
-        self.create_subscription(String, topics.sensors.vision_detections, self._on_detections, _SUBSCRIPTION_QUEUE_DEPTH)
+        self.create_subscription(
+            String, topics.sensors.vision_detections, self._on_detections, _SUBSCRIPTION_QUEUE_DEPTH
+        )
 
     def _on_detections(self, msg: String) -> None:
         self._replies.append(msg.data)
