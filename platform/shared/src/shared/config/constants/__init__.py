@@ -24,13 +24,7 @@ from shared.config.constants.identifiers import (
     TfFrames,
 )
 from shared.config.constants.robot import RobotSpecs
-from shared.config.constants.simulation import (
-    CompetitionSpecs,
-    LightingScenarios,
-    LightingSpec,
-    LightingSpecs,
-    ZLayers,
-)
+from shared.config.constants.simulation import CompetitionSpecs
 from shared.config.constants.track import (
     CorridorDimensions,
     GridSections,
@@ -50,9 +44,6 @@ __all__ = [
     "FilePaths",
     "FolderNames",
     "GridSections",
-    "LightingScenarios",
-    "LightingSpec",
-    "LightingSpecs",
     "ModelNames",
     "ParkingLotSpecs",
     "RobotSpecs",
@@ -62,5 +53,4 @@ __all__ = [
     "TrackMarkings",
     "TrafficSignSpecs",
     "WallSpecs",
-    "ZLayers",
 ]

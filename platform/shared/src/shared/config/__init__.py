@@ -14,13 +14,11 @@ Exports:
 from shared.config.constants import (
     CorridorDimensions,
     DictKeys,
-    LightingScenarios,
     ModelNames,
     RobotSpecs,
     TrackDimensions,
     TrafficSignSpecs,
     WallSpecs,
-    ZLayers,
 )
 from shared.config.coordinate_transform import CoordinateTransform
 from shared.config.navigation_tuning import (
@@ -50,7 +48,6 @@ __all__ = [
     "EscapeManeuverParams",
     "HeadingErrorZones",
     "LightingScenario",
-    "LightingScenarios",
     "ModelNames",
     "NavigationTuning",
     "NodeHealth",
@@ -64,5 +61,4 @@ __all__ = [
     "TrackDimensions",
     "TrafficSignSpecs",
     "WallSpecs",
-    "ZLayers",
 ]
