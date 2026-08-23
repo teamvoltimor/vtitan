@@ -1371,15 +1371,11 @@ class CoreNavigator:
         linear = cmd.linear
         scan = self._gateway.get_lidar_scan()
         if scan:
-            # Forward-clearance gate so the staging vector never drives into a wall head-on.
-            fwd = self._collision_controller.compute_forward_clearance(scan.ranges_m, scan.angles_rad)
-            # Full-sweep gate (all 360°) so any maneuver that swings the chassis sideways or
-            # threads a tight gap (ParkController's STAGE arc/reposition, or its ENTER
-            # approach into the block gap) is stopped before ANY-direction clip that the
-            # narrow forward cone alone would never see coming -- parking geometry can clip
-            # a wall or block edge from the side or even slightly behind the direction of
-            # travel, not just from in front.
-            #
+            # One call for both parking stop-check clearances (narrow-forward min
+            # + full 360 deg sweep min) over the same scan.
+            clearances = self._collision_controller.parking_clearances(scan.ranges_m, scan.angles_rad)
+            fwd = clearances.forward_m
+            side = clearances.sweep_m
             # CONTACT_DIST alone isn't a safe threshold here: the chassis extends up to
             # WIDTH/2 (0.10m) or LENGTH/2 (0.15m) from its centre depending on bearing, so a
             # raw range reading of CONTACT_DIST can already mean the footprint edge, not just
@@ -1401,11 +1397,6 @@ class CoreNavigator:
             # a clean park (see ParkController's own max_frames give-up) rather than thread
             # the gap in every case -- a known, documented limitation, not a silent one.
             # Not colliding takes priority over completing the maneuver.
-            side = self._collision_controller.compute_min_clearance(
-                scan.ranges_m,
-                scan.angles_rad,
-                half_fov_rad=math.pi,
-            )
             side_margin = self._tuning.clearance.CONTACT_DIST + RobotSpecs.WIDTH / 2
             if fwd < self._tuning.clearance.CONTACT_DIST or side < side_margin:
                 linear = 0.0

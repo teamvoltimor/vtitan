@@ -573,3 +573,33 @@ class TestClearancesFromScan:
             scan, controller, controller.threat_half_fov_rad, aggregate=ClearanceAggregate.MIN,
         )
         assert threat_direction(c, controller.threat_no_detection_range_m) is ThreatDirection.FRONT
+
+
+class TestParkingGate:
+    """The parking stop-check needs a narrow-forward min AND a full-sweep min."""
+
+    def test_returns_forward_and_sweep_from_one_call(self, controller):
+        ranges = create_numpy_scan()
+        # Close wall dead ahead: catches the forward cone.
+        i = angle_to_index(0.0)
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        # A *closer* wall at 45 deg (between front cone and left sector): only the
+        # full-sweep min should see it -- the 4-sector model would miss it.
+        j = angle_to_index(math.pi / 4)
+        ranges[j - FORWARD_SECTOR_INDICES : j + FORWARD_SECTOR_INDICES] = 0.1
+
+        gate = controller.parking_clearances(ranges, ANGLES_FULL_ROTATION)
+
+        # Forward reflects only the head-on wall (0.3), not the 45 deg one.
+        assert gate.forward_m == pytest.approx(controller.compute_forward_clearance(ranges, ANGLES_FULL_ROTATION))
+        assert gate.forward_m > 0.1
+        # Sweep reflects the nearest of both walls (the 0.1 m 45 deg one).
+        assert gate.sweep_m == pytest.approx(
+            controller.compute_min_clearance(ranges, ANGLES_FULL_ROTATION, half_fov_rad=math.pi),
+        )
+        assert gate.sweep_m < gate.forward_m
+
+    def test_empty_scan_yields_no_data(self, controller):
+        gate = controller.parking_clearances(np.array([]), None)
+        assert gate.forward_m == controller.no_data_range_m
+        assert gate.sweep_m == controller.no_data_range_m
