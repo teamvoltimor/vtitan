@@ -62,11 +62,6 @@ class LidarScan:
         span = f"{min(finite):.2f}..{max(finite):.2f}m" if finite else "no finite returns"
         return f"LidarScan(rays={n}, ranges={span})"
 
-    # --- Query helpers (audit §8a): behaviour lives on the scan. These
-    # delegate to the canonical implementations in ``src.navigation.utils``
-    # (which ``ports`` already imports without a cycle); Phase 3 reroutes the
-    # direct ``_nearest_ray(...)`` etc. call sites to these methods. ---
-
     def nearest_range_to(self, target: float) -> float:
         """Range at the ray whose bearing is closest to ``target`` (radians)."""
         return _nearest_ray(self.ranges_m, self.angles_rad, target)
