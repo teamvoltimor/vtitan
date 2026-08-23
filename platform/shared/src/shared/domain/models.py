@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, field_validator
 
@@ -22,6 +22,12 @@ from shared.domain.enums import (
     ScenarioType,
     Section,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from shared.config.navigation_tuning import NavigationTuning
+    from shared.domain.models import TrafficSignObservation
 
 
 @dataclass(slots=True, frozen=True)
@@ -105,6 +111,48 @@ class Detection:
     height: float
     area: float
 
+    def to_world(
+        self,
+        robot_pose: Pose,
+        tuning: NavigationTuning | None = None,
+        lidar_ranges_m: Sequence[float] | None = None,
+        lidar_angles_rad: Sequence[float] | None = None,
+    ) -> tuple[float, float] | None:
+        """Project this detection to an approximate world (x, y) (audit §8d).
+
+        Delegates to the canonical implementation in
+        ``src.navigation.planning.sign_discovery`` (lazy-imported to avoid a
+        models <-> sign_discovery import cycle).
+        """
+        from src.navigation.planning.sign_discovery import _detection_to_world  # noqa: PLC0415
+
+        return _detection_to_world(
+            self,
+            (robot_pose.x, robot_pose.y),
+            robot_pose.yaw,
+            tuning,
+            lidar_ranges_m,
+            lidar_angles_rad,
+        )
+
+    def to_observation(
+        self,
+        robot_pose: Pose,
+        tuning: NavigationTuning | None = None,
+        lidar_ranges_m: Sequence[float] | None = None,
+        lidar_angles_rad: Sequence[float] | None = None,
+    ) -> TrafficSignObservation | None:
+        """Build a world-coordinate :class:`TrafficSignObservation` (audit §8d)."""
+        from src.navigation.planning.sign_discovery import detection_to_observation  # noqa: PLC0415
+
+        return detection_to_observation(
+            self,
+            robot_pose,
+            tuning,
+            lidar_ranges_m,
+            lidar_angles_rad,
+        )
+
 
 @dataclass(slots=True, frozen=True)
 class Bounds:
@@ -117,13 +165,12 @@ class Bounds:
 
 
 @dataclass(slots=True, frozen=True)
-class InnerBlock:
-    """Bounding box of the track's central obstacle block."""
+class InnerBlock(Bounds):
+    """Bounding box of the track's central obstacle block.
 
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
+    A specialised :class:`Bounds`: identical four-field box, retained as a named
+    subtype so call sites that mean "the inner block" stay explicit (audit §9f).
+    """
 
 
 @dataclass(slots=True, frozen=True)
@@ -164,6 +211,33 @@ class CorridorGeometry:
             Section.EAST: self.east_width_m,
             Section.WEST: self.west_width_m,
         }
+
+    @classmethod
+    def from_width_dict(cls, widths: dict[Section, float]) -> CorridorGeometry:
+        """Build a :class:`CorridorGeometry` from a per-section width dict (audit §8d).
+
+        Mirrors ``corridor_geometry_from_widths`` in ``src.navigation.track_geometry``
+        (kept as a thin delegating wrapper there) but lives on the model so callers
+        don't need the navigation package.
+        """
+        from shared.config.constants import TrackDimensions  # noqa: PLC0415
+
+        north = widths[Section.NORTH]
+        south = widths[Section.SOUTH]
+        east = widths[Section.EAST]
+        west = widths[Section.WEST]
+        return cls(
+            north_width_m=north,
+            south_width_m=south,
+            east_width_m=east,
+            west_width_m=west,
+            inner_block=InnerBlock(
+                west,
+                south,
+                TrackDimensions.MAX_COORD - east,
+                TrackDimensions.MAX_COORD - north,
+            ),
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -729,6 +803,16 @@ class ScenarioMetadata(BaseModel):
         return self.model_copy(
             update={"corridor_widths": corridor_widths, "starting_conditions": starting_conditions},
         )
+
+    def to_corridor_geometry(self) -> CorridorGeometry:
+        """Build :class:`CorridorGeometry` from this scenario's corridor widths (audit §8c).
+
+        Delegates to ``corridor_widths_from_metadata`` in ``src.navigation.track_geometry``
+        (lazy-imported to avoid a models <-> navigation import cycle).
+        """
+        from src.navigation.track_geometry import corridor_widths_from_metadata  # noqa: PLC0415
+
+        return corridor_widths_from_metadata(self)
 
 
 class NavigatorDebugSnapshot(BaseModel):
