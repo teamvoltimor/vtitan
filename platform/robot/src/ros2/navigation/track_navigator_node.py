@@ -22,7 +22,7 @@ from rclpy.node import Node
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.enums import Direction, NavigatorPhase, RobotState, ScenarioType, Section
+from shared.domain.enums import Direction, NavigatorPhase, ScenarioType, Section
 from shared.domain.models import (
     NavigatorDebugSnapshot,
     Pose,
@@ -60,6 +60,7 @@ from src.navigation.utils import _nearest_ray, axis_error_rad, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.params import declare_param
 from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT, QOS_STREAM
+from src.ros2.race_state import RacingState, subscribe_to_race_state
 from src.ros2.resettable_node import ResettableNode
 
 logger = logging.getLogger(__name__)
@@ -373,13 +374,8 @@ class TrackNavigator(Node, ResettableNode):
         # to give. Losing reliability costs nothing here: _publish_state runs
         # every tick of the state machine loop, not only on transitions, so a
         # dropped sample is corrected within one tick.
-        self._racing = False
-        self.create_subscription(
-            String,
-            self._topics.state_machine.state,
-            self._on_robot_state,
-            QOS_LATCHED_STATE,
-        )
+        self._racing_state = RacingState()
+        subscribe_to_race_state(self, self._topics, self._on_robot_state)
 
         # Jumper-resolved challenge, forwarded by state_machine_node once
         # BOOT_CHECK latches it (see the tuning setup above). Only meaningful
@@ -1069,21 +1065,24 @@ class TrackNavigator(Node, ResettableNode):
 
     def _on_robot_state(self, msg: String) -> None:
         """Track whether the state machine says we are racing."""
-        was_racing = self._racing
-        self._racing = msg.data.strip().lower() == RobotState.RACING.value
-        if was_racing and not self._racing:
-            # Left RACING (finished, or E-STOP). Command a stop immediately
-            # rather than waiting for the next control tick.
-            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
-            self.get_logger().info(f"Race state '{msg.data}' - navigator holding, motors stopped")
-        elif not was_racing and self._racing:
-            # This is the one instant the robot is known to be in its
-            # starting pose -- whether that's the very first race, or a
-            # re-run cycled purely from the button (FINISHED -> BOOT_CHECK ->
-            # READY -> RACING, no process restart), so reset() has to run
-            # here every time, not just once at node startup.
-            self.reset()
-            self.get_logger().info("Race started - heading reference zeroed, navigator driving")
+        self._racing_state.update(
+            msg,
+            on_stop=lambda: (
+                # Left RACING (finished, or E-STOP). Command a stop immediately
+                # rather than waiting for the next control tick.
+                self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0)),
+                self.get_logger().info(f"Race state '{msg.data}' - navigator holding, motors stopped"),
+            ),
+            on_start=lambda: (
+                # This is the one instant the robot is known to be in its
+                # starting pose -- whether that's the very first race, or a
+                # re-run cycled purely from the button (FINISHED -> BOOT_CHECK ->
+                # READY -> RACING, no process restart), so reset() has to run
+                # here every time, not just once at node startup.
+                self.reset(),
+                self.get_logger().info("Race started - heading reference zeroed, navigator driving"),
+            ),
+        )
 
     @override
     def reset(self) -> None:
@@ -1206,7 +1205,7 @@ class TrackNavigator(Node, ResettableNode):
         """Execute one control step, or hold the robot stopped when not racing."""
         self._laps_pub.publish(Int32(data=self._core_navigator.laps_completed))
         try:
-            if not self._racing:
+            if not self._racing_state.is_racing:
                 # Keep publishing zeros rather than going silent: ackermann_motor_node
                 # has a 1 s command watchdog, and silence would let it latch a stop
                 # only after that delay.

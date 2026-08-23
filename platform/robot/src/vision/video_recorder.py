@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import cv2
 
-from src.vision.hud import draw_logo, draw_radar, draw_stats
+from src.vision.hud import _DEFAULT_HUD_CONFIG, HudConfig, draw_logo, draw_radar, draw_stats
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -25,20 +25,12 @@ if TYPE_CHECKING:
 
     import numpy as np
 
-    from src.vision.hud import HudConfig
-
 logger = logging.getLogger(__name__)
 
 _QUEUE_MAXSIZE = 3
 """Small on purpose: a full queue means the encoder is genuinely behind, and
 the point is to notice and start dropping quickly, not to buffer minutes of
 frames in memory hoping the encoder catches up."""
-
-_JOIN_TIMEOUT_SEC = 30.0
-"""mp4 finalization (writer.release()) time scales with total frames written,
-not per-frame write time -- a multi-minute recording can take well past 5s to
-finalize on SD-card-class I/O, especially with ros2 bag record writing to the
-same directory concurrently."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,18 +102,19 @@ class VideoRecorder:
         """Signal the encoder thread to finish, drain, and release the writer.
 
         A no-op if not currently recording. Blocks briefly (bounded by
-        ``_JOIN_TIMEOUT_SEC``) for the thread to drain its queue and finalize
+        ``join_timeout_sec``) for the thread to drain its queue and finalize
         the file -- an unfinalized mp4 container can be unplayable.
         """
         if self._thread is None:
             return
+        join_timeout_sec = (self._hud_config or _DEFAULT_HUD_CONFIG).join_timeout_sec
         self._queue.put(None)  # sentinel; a blocking put is fine here, this is not the hot path
-        self._thread.join(timeout=_JOIN_TIMEOUT_SEC)
+        self._thread.join(timeout=join_timeout_sec)
         if self._thread.is_alive():
             logger.error(
                 "Video recorder thread did not finish finalizing within %.0fs -- "
                 "the output file may be missing or unplayable",
-                _JOIN_TIMEOUT_SEC,
+                join_timeout_sec,
             )
         self._thread = None
 

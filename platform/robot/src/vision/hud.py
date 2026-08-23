@@ -113,6 +113,17 @@ class HudConfig(HardwareBaseSettings):
     """Multiplies the mark PNG's own per-pixel alpha -- a light watermark, not
     a solid sticker, so it doesn't compete with the radar for attention."""
 
+    join_timeout_sec: float = 30.0
+    """mp4 finalization (writer.release()) time scales with total frames written,
+    not per-frame write time -- a multi-minute recording can take well past 5s to
+    finalize on SD-card-class I/O, especially with ros2 bag record writing to the
+    same directory concurrently. Bounds VideoRecorder.stop()'s thread-join wait."""
+    run_path_poll_interval_sec: float = 0.1
+    """How often VisionNode polls for bag_recorder_node's run directory to appear."""
+    run_path_poll_timeout_sec: float = 3.0
+    """How long VisionNode polls for the bag run directory before giving up on
+    video for the run -- ros2 bag record creates its output dir asynchronously."""
+
 
 _DEFAULT_HUD_CONFIG = HudConfig()
 _LOGO_PATH = ROBOT_ROOT / "assets" / "vision" / "voltimor-mark.png"

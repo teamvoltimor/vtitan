@@ -26,3 +26,7 @@ max_radar_range_m = 3.0
 logo_size_px = 128
 logo_margin_px = 8
 logo_alpha = 0.85
+
+join_timeout_sec = 30.0
+run_path_poll_interval_sec = 0.1
+run_path_poll_timeout_sec = 3.0

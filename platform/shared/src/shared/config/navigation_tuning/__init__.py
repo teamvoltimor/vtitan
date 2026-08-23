@@ -30,7 +30,6 @@ from __future__ import annotations
 import copy
 import functools
 import json
-import tomllib
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,7 +42,6 @@ except ImportError:  # pragma: no cover - PyYAML is an optional extra
 
 from shared.config._merge import deep_merge
 from shared.config.hardware_profile import profile_dirs
-from shared.domain.enums import ScenarioType
 from shared.config.navigation_tuning.blind_nav import (
     CorridorEstimatorParams,
     CorridorFollowerParams,
@@ -69,6 +67,8 @@ from shared.config.navigation_tuning.sensors import (
 from shared.config.navigation_tuning.signs import SignDiscoveryParams, SignRouterParams
 from shared.config.navigation_tuning.simulation_params import SimulationParams
 from shared.config.navigation_tuning.waypoint import WaypointParams
+from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_merged
+from shared.domain.enums import ScenarioType
 
 __all__ = [
     "DEFAULT_CONFIG_DIR",
@@ -95,16 +95,16 @@ __all__ = [
     "WaypointParams",
 ]
 
-DEFAULT_CONFIG_DIR: Path = Path(__file__).resolve().parents[4] / "config" / "navigation"
+DEFAULT_CONFIG_DIR: Path = SHARED_CONFIG_ROOT / "navigation"
 """platform/shared/config/navigation -- the checked-in per-group TOML tree.
 
-Resolved relative to this module's own location (platform/shared/src/shared/
-config/navigation_tuning/__init__.py) rather than the caller's, since this
-package is the one that actually knows where its own config lives -- callers
-(e.g. CoreNavigator) shouldn't have to know or assume the two are siblings
-under the same platform/ root."""
+Resolved via shared.config.paths (anchored from hardware_profile's fixed depth)
+rather than a fragile ``parents[N]`` relative to this file, so a module
+relocation can't change the resolved root. This package is the one that actually
+knows where its own config lives -- callers (e.g. CoreNavigator) shouldn't have
+to know or assume the two are siblings under the same platform/ root."""
 
-CHALLENGES_ROOT: Path = Path(__file__).resolve().parents[4] / "config" / "navigation-challenges"
+CHALLENGES_ROOT: Path = SHARED_CONFIG_ROOT / "navigation-challenges"
 """platform/shared/config/navigation-challenges -- per-challenge overlay tree.
 
 One ``<challenge>/<subfolder>/<group>.toml`` directory per :class:`ScenarioType`
@@ -127,8 +127,7 @@ def _read_toml_file_cached(path: Path) -> dict[str, object]:
     reference in its output, so returning it directly would let one caller's
     mutation corrupt every other caller's config.
     """
-    with path.open("rb") as f:
-        return tomllib.load(f)
+    return load_toml_merged(path)
 
 
 def _read_toml_cached(path: Path) -> dict[str, object]:

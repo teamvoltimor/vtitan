@@ -31,7 +31,7 @@ from sensor_msgs.msg import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-DISCOVERY_SEC = 3.0
+from common.hardware_defaults import DISCOVERY_SEC
 
 
 class Recorder(Node):

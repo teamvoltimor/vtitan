@@ -12,18 +12,16 @@ reads its own TOML tree.
 from __future__ import annotations
 
 import math
-import tomllib
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
-from shared.config._merge import deep_merge
-from shared.config.hardware_profile import PROFILES_ROOT, active_profiles, profile_dirs
+from shared.config.hardware_profile import PROFILES_ROOT, active_profiles
+from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_merged, profile_overlay_paths
 
-DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[3] / "config" / "robot.toml"
-"""platform/shared/config/robot.toml -- resolved relative to this module's own
-location rather than the caller's, same rationale as NavigationTuning's
-DEFAULT_CONFIG_DIR."""
+DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "robot.toml"
+"""platform/shared/config/robot.toml -- resolved via shared.config.paths rather
+than a fragile ``parents[N]`` relative to this file."""
 
 
 class Chassis(BaseModel):
@@ -318,12 +316,6 @@ class RobotConstants(BaseModel):
         Raises:
             ValueError: If no profile supplied the motor or servo facts.
         """
-        with DEFAULT_CONFIG_PATH.open("rb") as f:
-            data: dict[str, object] = tomllib.load(f)
-        for directory in profile_dirs():
-            overlay_path = directory / "robot.toml"
-            if overlay_path.exists():
-                with overlay_path.open("rb") as f:
-                    data = deep_merge(data, tomllib.load(f))
+        data: dict[str, object] = load_toml_merged(DEFAULT_CONFIG_PATH, overlays=profile_overlay_paths("robot.toml"))
         _require_component_facts(data)
         return cls.model_validate(data)

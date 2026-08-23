@@ -11,16 +11,16 @@ tree.
 
 from __future__ import annotations
 
-import tomllib
 from decimal import Decimal
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[3] / "config" / "track.toml"
-"""platform/shared/config/track.toml -- resolved relative to this module's own
-location rather than the caller's, same rationale as NavigationTuning's
-DEFAULT_CONFIG_DIR."""
+from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
+
+DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "track.toml"
+"""platform/shared/config/track.toml -- resolved via shared.config.paths rather
+than a fragile ``parents[N]`` relative to this file."""
 
 
 def _dec(x: float) -> Decimal:
@@ -258,6 +258,4 @@ class TrackConstants(BaseModel):
     @classmethod
     def load_default(cls) -> TrackConstants:
         """Load from the checked-in ``platform/shared/config/track.toml``."""
-        with DEFAULT_CONFIG_PATH.open("rb") as f:
-            data: dict[str, object] = tomllib.load(f)
-        return cls.model_validate(data)
+        return load_toml_model(cls, DEFAULT_CONFIG_PATH)

@@ -20,7 +20,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, LaserScan
 from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.enums import RobotState, ScenarioType
+from shared.domain.enums import ScenarioType
 from std_msgs.msg import String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
@@ -31,6 +31,7 @@ from src.ros2.params import (
     declare_and_get_str_param,
 )
 from src.ros2.qos import QOS_LATCHED_STATE, QOS_STREAM
+from src.ros2.race_state import RacingState, subscribe_to_race_state
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
     BBOX_KEY,
@@ -43,6 +44,7 @@ from src.ros2.vision.detection_payload_keys import (
 )
 from src.vision import create_detector
 from src.vision.dataset_capture import DatasetFrameCapture
+from src.vision.hud import HudConfig
 from src.vision.overlay import annotate
 from src.vision.video_recorder import FrameSnapshot, VideoRecorder
 
@@ -99,17 +101,6 @@ class Config(HardwareBaseSettings):
     capture_dataset_frames: bool = True
     capture_interval_s: float = 10.0
     capture_subdir: str = "captures"
-
-
-# How long to poll for bag_recorder_node's run directory to actually appear
-# on disk before giving up on video for this run. ros2 bag record creates its
-# output directory itself, asynchronously, sometime after its subprocess
-# starts -- rclpy init + discovery can take real wall-clock time. This node
-# must never create that directory itself: doing so would make the bag
-# process's own `-o <path>` call refuse to start, since rosbag2 requires the
-# output directory not to already exist.
-_RUN_PATH_POLL_INTERVAL_SEC = 0.1
-_RUN_PATH_POLL_TIMEOUT_SEC = 3.0
 
 
 class VisionNode(Node):
@@ -173,13 +164,14 @@ class VisionNode(Node):
         # Per-run annotated video, colocated with that run's mcap bag -- only
         # meaningful in direct-capture mode, since that's the only mode a real
         # race actually runs in. Cheap to construct even when never started.
-        self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps)
+        self._hud_config = HudConfig()
+        self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps, hud_config=self._hud_config)
         self._dataset_capture = (
             DatasetFrameCapture(interval_s=capture_interval_s, subdir=capture_subdir)
             if capture_dataset_frames
             else None
         )
-        self._racing = False
+        self._racing_state = RacingState()
         self._active_challenge: ScenarioType | None = None
         self._run_path: str | None = None
         self._run_path_poll_timer = None
@@ -191,8 +183,7 @@ class VisionNode(Node):
         self._nav_debug: dict | None = None
         self._scan: LaserScan | None = None
         if self._camera_source == "direct":
-            topics_state = topics.state_machine.state
-            self.create_subscription(String, topics_state, self._on_robot_state, QOS_LATCHED_STATE)
+            subscribe_to_race_state(self, topics, self._on_robot_state)
             self.create_subscription(
                 String,
                 topics.challenge_mode.active,
@@ -331,15 +322,18 @@ class VisionNode(Node):
         Same RACING transition track_navigator_node and bag_recorder_node
         already gate on.
         """
-        was_racing = self._racing
-        self._racing = msg.data.strip().lower() == RobotState.RACING.value
-        self.get_logger().info(f"_on_robot_state: {msg.data!r} -> racing={self._racing} (was {was_racing})")
-        if self._racing and not was_racing:
-            self._maybe_start_recording()
-            if self._dataset_capture is not None:
-                self._dataset_capture.reset()
-        elif was_racing and not self._racing:
-            self._stop_recording()
+        was_racing = self._racing_state.is_racing
+        self._racing_state.update(
+            msg,
+            on_start=lambda: (
+                self._maybe_start_recording(),
+                self._dataset_capture.reset() if self._dataset_capture is not None else None,
+            ),
+            on_stop=self._stop_recording,
+        )
+        self.get_logger().info(
+            f"_on_robot_state: {msg.data!r} -> racing={self._racing_state.is_racing} (was {was_racing})"
+        )
 
     def _on_challenge_mode_active(self, msg: String) -> None:
         """Cache the jumper-resolved challenge for the HUD's CHALLENGE line.
@@ -353,8 +347,8 @@ class VisionNode(Node):
     def _on_run_path(self, msg: String) -> None:
         """Cache bag_recorder_node's chosen run directory for this race."""
         self._run_path = msg.data
-        self.get_logger().info(f"_on_run_path: {msg.data!r} (racing={self._racing})")
-        if self._racing:
+        self.get_logger().info(f"_on_run_path: {msg.data!r} (racing={self._racing_state.is_racing})")
+        if self._racing_state.is_racing:
             self._maybe_start_recording()
 
     def _on_nav_debug(self, msg: String) -> None:
@@ -387,14 +381,17 @@ class VisionNode(Node):
         if self._run_path is None:
             return
 
-        self._run_path_poll_deadline = time.monotonic() + _RUN_PATH_POLL_TIMEOUT_SEC
-        self._run_path_poll_timer = self.create_timer(_RUN_PATH_POLL_INTERVAL_SEC, self._poll_for_run_path_dir)
+        self._run_path_poll_deadline = time.monotonic() + self._hud_config.run_path_poll_timeout_sec
+        self._run_path_poll_timer = self.create_timer(
+            self._hud_config.run_path_poll_interval_sec, self._poll_for_run_path_dir
+        )
 
     def _poll_for_run_path_dir(self) -> None:
         """Wait for bag_recorder_node's `ros2 bag record` to create its output directory.
 
-        See _RUN_PATH_POLL_TIMEOUT_SEC's docstring for why this node must
-        never create that directory itself.
+        This node must never create that directory itself: doing so would make
+        the bag process's own `-o <path>` call refuse to start, since rosbag2
+        requires the output directory not to already exist.
         """
         assert self._run_path is not None
         path = Path(self._run_path)
@@ -409,8 +406,8 @@ class VisionNode(Node):
             self._run_path_poll_timer.cancel()
             self._run_path_poll_timer = None
             self.get_logger().warning(
-                f"Bag run directory {path} never appeared within {_RUN_PATH_POLL_TIMEOUT_SEC}s "
-                "- skipping video for this run",
+                f"Bag run directory {path} never appeared within "
+                f"{self._hud_config.run_path_poll_timeout_sec}s - skipping video for this run",
             )
 
     def _stop_recording(self) -> None:
@@ -451,7 +448,7 @@ class VisionNode(Node):
         try:
             detections = self.detector.detect(rgb)
 
-            if self._dataset_capture is not None and self._racing:
+            if self._dataset_capture is not None and self._racing_state.is_racing:
                 self._dataset_capture.maybe_capture(
                     self.get_clock().now().nanoseconds / 1e9,
                     rgb,
