@@ -18,6 +18,11 @@ from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
 from shared.domain.models import NavigatorDebugSnapshot, Pose, Waypoint
 
 from src.config.tuning_helpers import get_tuning
+from src.navigation.clearances import (
+    ClearanceAggregate,
+    clearances_from_scan,
+    threat_direction,
+)
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
     EscapeManeuver,
@@ -31,7 +36,7 @@ from src.navigation.control.controllers import (
 from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
-from src.navigation.ports import DriveCommand
+from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.track_geometry import cross_track_error, path_turn_ahead
 from src.navigation.utils import trail_clearance_behind, wrap_angle
 
@@ -41,7 +46,7 @@ if TYPE_CHECKING:
 
     from src.navigation.maneuvers.parking import ParkController
     from src.navigation.planning.sign_router import SignRouter
-    from src.navigation.ports import HardwareGateway, LidarScan
+    from src.navigation.ports import HardwareGateway
     from src.navigation.race_tracker import LapDetector
 
 logger = logging.getLogger(__name__)
@@ -1001,7 +1006,15 @@ class CoreNavigator:
         # sign cannot trigger one, and steered by the masked scan too: the
         # threat this escape is running from is by construction not the sign.
         if escape_risk == RiskLevel.CRITICAL and scan:
-            threat_dir = self._collision_controller.detect_threat_direction(escape_ranges, scan.angles_rad)
+            escape_clearances = clearances_from_scan(
+                LidarScan(ranges_m=tuple(escape_ranges), angles_rad=scan.angles_rad),
+                self._collision_controller,
+                front_half_fov_rad=self._collision_controller.threat_half_fov_rad,
+                aggregate=ClearanceAggregate.MIN,
+            )
+            threat_dir = threat_direction(
+                escape_clearances, self._collision_controller.threat_no_detection_range_m,
+            )
             maneuver = self._collision_controller.compute_escape_maneuver(
                 escape_risk,
                 threat_dir,

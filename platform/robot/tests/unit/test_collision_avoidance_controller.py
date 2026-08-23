@@ -17,7 +17,11 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RiskLevel, Section, ThreatDirection
 from shared.domain.models import LidarClearances, Pose
 
-from src.navigation.clearances import clearances_from_scan
+from src.navigation.clearances import (
+    ClearanceAggregate,
+    clearances_from_scan,
+    threat_direction,
+)
 from src.navigation.control.controllers.collision_avoidance_controller import (
     CollisionAvoidanceController,
     mask_mapped_obstacles,
@@ -537,3 +541,35 @@ class TestClearancesFromScan:
         assert c.most_constrained_side is ThreatDirection.FRONT
         assert c.front_m < c.left_m
         assert c.front_m < c.right_m
+
+    def test_min_aggregation_matches_threat_sectors(self, controller):
+        """MIN aggregation + threat FOV reproduces detect_threat_direction's sectors."""
+        ranges = create_numpy_scan()
+        i = angle_to_index(math.pi / 2)  # +pi/2 = left
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        c = clearances_from_scan(
+            scan, controller, controller.threat_half_fov_rad, aggregate=ClearanceAggregate.MIN,
+        )
+        # Min-based left sector is the most constrained side.
+        assert c.most_constrained_side is ThreatDirection.LEFT
+        # Matches the controller's own threat-direction classifier directly.
+        assert controller.detect_threat_direction(ranges, ANGLES_FULL_ROTATION) == ThreatDirection.LEFT
+
+    def test_threat_direction_gates_on_no_detection_range(self, controller):
+        # Open scan: nothing within the no-detection range -> NONE.
+        scan = LidarScan(ranges_m=tuple(create_numpy_scan()), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        c = clearances_from_scan(
+            scan, controller, controller.threat_half_fov_rad, aggregate=ClearanceAggregate.MIN,
+        )
+        assert threat_direction(c, controller.threat_no_detection_range_m) is ThreatDirection.NONE
+
+        # A close front wall enters the gate and names the constrained side.
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i] = LIDAR_CLOSE_THREAT
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        c = clearances_from_scan(
+            scan, controller, controller.threat_half_fov_rad, aggregate=ClearanceAggregate.MIN,
+        )
+        assert threat_direction(c, controller.threat_no_detection_range_m) is ThreatDirection.FRONT
