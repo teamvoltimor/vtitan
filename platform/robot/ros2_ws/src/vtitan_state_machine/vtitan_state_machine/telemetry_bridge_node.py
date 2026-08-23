@@ -27,7 +27,9 @@ from shared.domain.models import Detection, LidarClearances, MotorStateSnapshot
 from std_msgs.msg import String
 
 from src.config.tuning_helpers import get_tuning
+from src.navigation.clearances import clearances_from_scan
 from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
+from src.navigation.ports import LidarScan
 from src.ros2.params import (
     declare_and_get_float_param,
     declare_and_get_int_param,
@@ -35,8 +37,8 @@ from src.ros2.params import (
     declare_param,
 )
 from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT, QOS_STREAM
-from src.ros2.wire_models import TelemetrySummaryWire
 from src.ros2.vision.detection_payload_keys import parse_detection
+from src.ros2.wire_models import TelemetrySummaryWire
 from vtitan_state_machine.command_channel import CommandChannel
 from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
 
@@ -208,47 +210,32 @@ docstring for the full history.
 def _lidar_clearances(ranges: list[float], sector_half_fov_rad: float) -> LidarClearances:
     """Directional LIDAR clearances in meters for the OLED's RACING page.
 
-    Reuses CollisionAvoidanceController's real angle-based sector logic
-    (the same one detect_threat_direction/compute_forward_clearance use for
-    actual collision avoidance) instead of the old min-of-raw-index-window
-    approach -- that one had no self-detection filtering and took the single
-    minimum reading in each window, so one stray noisy return (dust, an edge
-    reflection) could dominate the whole sector and made the display jump to
-    a nonsense 2-3cm reading. Mean-over-sector, like
-    compute_forward_clearance, is far less sensitive to a single outlier.
+    Delegates to :func:`clearances_from_scan`, which reuses
+    ``CollisionAvoidanceController``'s real angle-based sector logic (the same
+    one detect_threat_direction/compute_forward_clearance use for actual
+    collision avoidance) instead of the old min-of-raw-index-window approach --
+    that one had no self-detection filtering and took the single minimum reading
+    in each window, so one stray noisy return (dust, an edge reflection) could
+    dominate the whole sector and made the display jump to a nonsense 2-3cm
+    reading. Mean-over-sector, like compute_forward_clearance, is far less
+    sensitive to a single outlier.
 
     ``sector_half_fov_rad`` comes from ``NavigationTuning.lidar_sectors.
     FRONT_HALF_FOV_DEG`` -- that TOML's own header comment says it's "shared
-    by collision avoidance and the OLED", but this function used to read a
-    hardcoded ``radians(30)`` module constant instead, so a tuning change
+    by collision avoidance and the OLED", and now it genuinely is: this function
+    used to read a hardcoded ``radians(30)`` module constant, so a tuning change
     never actually reached the display it names.
 
-    Passes explicit robot-frame angles (raw sweep + _LIDAR_YAW_OFFSET_RAD)
-    rather than lidar_angles=None: the naive synthesized sweep assumed
-    raw index 0 was already robot-front, but the C1's mount offset means
-    it isn't -- previously left the display's front/left/right all
-    rotated 180 deg out from reality (front showing rear's clearance,
-    left and right swapped).
+    The controller is built from tuning at call time so the sector thresholds
+    (self-detection, min-valid range, blind wedges) match collision avoidance
+    exactly, rather than falling back to the staticmethod's independent defaults.
     """
-    if len(ranges) == 0:
-        return LidarClearances(front_m=0.0, left_m=0.0, right_m=0.0)
-
-    ranges_t = tuple(ranges)
-    angles = np.linspace(-math.pi, math.pi, len(ranges), endpoint=False) + _LIDAR_YAW_OFFSET_RAD
-
-    front = CollisionAvoidanceController.sector_ranges(ranges_t, angles, 0.0, sector_half_fov_rad)
-    left = CollisionAvoidanceController.sector_ranges(
-        ranges_t, angles, math.pi / 2, sector_half_fov_rad, filter_self_detection=True,
-    )
-    right = CollisionAvoidanceController.sector_ranges(
-        ranges_t, angles, -math.pi / 2, sector_half_fov_rad, filter_self_detection=True,
-    )
-
-    return LidarClearances(
-        front_m=float(np.mean(front)) if front.size else 0.0,
-        left_m=float(np.mean(left)) if left.size else 0.0,
-        right_m=float(np.mean(right)) if right.size else 0.0,
-    )
+    if not ranges:
+        return LidarClearances(front_m=0.0, left_m=0.0, right_m=0.0, back_m=0.0)
+    angles = tuple(np.linspace(-math.pi, math.pi, len(ranges), endpoint=False) + _LIDAR_YAW_OFFSET_RAD)
+    scan = LidarScan(ranges_m=tuple(ranges), angles_rad=angles)
+    controller = CollisionAvoidanceController.from_tuning(get_tuning(None))
+    return clearances_from_scan(scan, controller, sector_half_fov_rad)
 
 
 def _parse_detections(raw: str) -> list[Detection]:
