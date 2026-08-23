@@ -14,13 +14,15 @@ import math
 import numpy as np
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import RiskLevel, Section
-from shared.domain.models import Pose
+from shared.domain.enums import RiskLevel, Section, ThreatDirection
+from shared.domain.models import LidarClearances, Pose
 
+from src.navigation.clearances import clearances_from_scan
 from src.navigation.control.controllers.collision_avoidance_controller import (
     CollisionAvoidanceController,
     mask_mapped_obstacles,
 )
+from src.navigation.ports import LidarScan
 from tests.fixtures import angle_to_index, create_numpy_scan
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
@@ -497,3 +499,41 @@ class TestMaskMappedObstacles:
         mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
 
         assert ranges[i] == pytest.approx(0.08)
+
+
+class TestLidarClearancesModel:
+    """Exercises the domain helpers on ``LidarClearances`` (audit §12b)."""
+
+    def test_any_blocked_triggers_below_threshold(self):
+        c = LidarClearances(front_m=0.05, left_m=2.0, right_m=2.0, back_m=2.0)
+        assert c.any_blocked(0.1) is True
+        assert c.any_blocked(0.02) is False
+
+    def test_most_constrained_side_picks_smallest(self):
+        c = LidarClearances(front_m=2.0, left_m=0.1, right_m=2.0, back_m=2.0)
+        assert c.most_constrained_side is ThreatDirection.LEFT
+
+        c2 = LidarClearances(front_m=2.0, left_m=2.0, right_m=2.0, back_m=0.0)
+        assert c2.most_constrained_side is ThreatDirection.BACK
+
+
+class TestClearancesFromScan:
+    """The shared factory must build a ``LidarClearances`` from a ``LidarScan``."""
+
+    def test_empty_scan_yields_zeroed_clearances(self, controller):
+        scan = LidarScan(ranges_m=(), angles_rad=())
+        fov = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
+        c = clearances_from_scan(scan, controller, fov)
+        assert (c.front_m, c.left_m, c.right_m, c.back_m) == (0.0, 0.0, 0.0, 0.0)
+
+    def test_front_wall_reports_small_front_clearance(self, controller):
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        fov = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
+        c = clearances_from_scan(scan, controller, fov)
+        # Front is the most constrained side; the others stay open.
+        assert c.most_constrained_side is ThreatDirection.FRONT
+        assert c.front_m < c.left_m
+        assert c.front_m < c.right_m
