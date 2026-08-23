@@ -8,6 +8,7 @@ field is overridable via a ``SERVO_*`` environment variable (e.g.
 
 from pydantic_settings import SettingsConfigDict
 
+from src.hardware.motors import constants as motor_const
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 # Hardware defaults
@@ -26,10 +27,10 @@ DEFAULT_RANGE_DEG = 180.0
 DEFAULT_CENTER_PULSE_US = 1500.0
 """Pulse width (us) for wheels-straight."""
 
-DEFAULT_PWMCHIP = 0
+DEFAULT_PWMCHIP = motor_const.DEFAULT_PWMCHIP
 """sysfs PWM controller index (``/sys/class/pwm/pwmchip<N>``)."""
 
-DEFAULT_PWM_CHANNEL = 0
+DEFAULT_PWM_CHANNEL = motor_const.DEFAULT_SERVO_PWM_CHANNEL
 """Channel within the PWM controller.
 
 With ``dtoverlay=pwm,pin=12,func=4`` the overlay exposes a single channel, so
@@ -38,14 +39,8 @@ second pin to channel 1.
 """
 
 # Control constants
-PWM_FREQUENCY_HZ = 50
+PWM_FREQUENCY_HZ = motor_const.SERVO_PWM_FREQUENCY_HZ
 """Servo PWM carrier frequency."""
-
-US_PER_SECOND = 1_000_000
-"""Microseconds per second, for pulse-width to duty-cycle conversion."""
-
-NS_PER_US = 1_000
-"""Nanoseconds per microsecond -- the sysfs PWM interface works in ns."""
 
 
 class ServoConfig(HardwareBaseSettings):
