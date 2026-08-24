@@ -25,7 +25,7 @@ class _DriverProtocol(Protocol):
         ...
 
 
-class LifecycleHardwareNode(LifecycleNode, ABC):
+class LifecycleHardwareNode[DriverT: _DriverProtocol](LifecycleNode, ABC):
     """Abstract base for hardware driver ROS2 lifecycle nodes.
 
     Hardware connects in ``on_configure()`` and publishing starts in
@@ -34,6 +34,10 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
     lifecycle, ``destroy_node``); subclasses only supply the driver-specific
     parts: ``_create_driver``, ``_configure_driver``, ``publish_imu``, and
     (optionally) ``_on_driver_disconnected`` for extra teardown state.
+
+    Subclasses parametrize the node with their concrete driver type
+    (``class FooNode(LifecycleHardwareNode[FooDriver])``) so ``self.driver``
+    is typed as that driver rather than a bare Protocol.
     """
 
     def __init__(
@@ -61,17 +65,17 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         declare_param(self, "topic", topic_default)
 
         self._message_type = message_type
-        self.driver: _DriverProtocol | None = None
+        self.driver: DriverT | None = None
         self.publisher_: Publisher | None = None
         self.timer: Timer | None = None
         self.frame_id: str = ""
 
     @abstractmethod
-    def _create_driver(self) -> _DriverProtocol:
+    def _create_driver(self) -> DriverT:
         """Instantiate the hardware driver (no I/O yet)."""
 
     @abstractmethod
-    def _configure_driver(self, driver: _DriverProtocol) -> TransitionCallbackReturn:
+    def _configure_driver(self, driver: DriverT) -> TransitionCallbackReturn:
         """Connect/start ``driver``, handling driver-specific failure modes."""
 
     @abstractmethod

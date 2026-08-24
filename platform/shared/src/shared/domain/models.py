@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, ClassVar
 from pydantic import BaseModel, field_validator
 
 from shared.domain.enums import (
+    Axis,
     CorridorWidthType,
     Direction,
     ManeuverType,
@@ -519,7 +520,7 @@ class TravelNormal:
 class RoutingEntry:
     """Sign-routing parameters for a (corridor, direction) pair."""
 
-    axis: object
+    axis: Axis
     red_mult: int
     green_mult: int
 
