@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, field_validator
 
@@ -27,6 +27,39 @@ from shared.domain.enums import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+
+@runtime_checkable
+class XYPoint(Protocol):
+    """Structural interface for any XY world point.
+
+    ``Pose``, ``Waypoint`` and ``Position2D`` all satisfy this without
+    subclassing, so geometry helpers can accept any of them. A point only
+    needs read-only ``.x``/``.y`` attributes and Euclidean ``distance_to``.
+    """
+
+    @property
+    def x(self) -> float:
+        """World X coordinate."""
+        ...
+
+    @property
+    def y(self) -> float:
+        """World Y coordinate."""
+        ...
+
+    def distance_to(self, other: XYPoint) -> float:
+        """Euclidean distance from this point to ``other``."""
+        ...
+
+
+@runtime_checkable
+class Distanceable(XYPoint, Protocol):
+    """An :class:`XYPoint` that can project to the lightweight :class:`Waypoint`."""
+
+    def to_waypoint(self) -> Waypoint:
+        """Project this point to a lightweight :class:`Waypoint`."""
+        ...
 
 
 @dataclass(slots=True, frozen=True)
@@ -53,7 +86,7 @@ class Pose:
         """Return the delta pose from ``other`` to this one (same frame)."""
         return Pose(self.x - other.x, self.y - other.y, self.yaw - other.yaw)
 
-    def distance_to(self, other: Pose) -> float:
+    def distance_to(self, other: XYPoint) -> float:
         """Euclidean distance from this pose to ``other`` (position only)."""
         return math.hypot(self.x - other.x, self.y - other.y)
 
@@ -133,7 +166,7 @@ class Waypoint:
     x: float
     y: float
 
-    def distance_to(self, other: Waypoint) -> float:
+    def distance_to(self, other: XYPoint) -> float:
         """Euclidean distance from this point to ``other``."""
         return math.hypot(self.x - other.x, self.y - other.y)
 
@@ -746,7 +779,7 @@ class Position2D(BaseModel):
     x: float = 0.0
     y: float = 0.0
 
-    def distance_to(self, other: Position2D) -> float:
+    def distance_to(self, other: XYPoint) -> float:
         """Euclidean distance from this point to ``other``."""
         return math.hypot(self.x - other.x, self.y - other.y)
 
