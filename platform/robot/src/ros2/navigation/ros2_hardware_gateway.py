@@ -88,7 +88,7 @@ class ROS2HardwareGateway(HardwareGateway):
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
         self._latest_wheel: WheelOdometry | None = None
-        self._localizer_inputs: tuple[float, float, float] | None = None
+        self._localizer_inputs: LocalizerInputs | None = None
         # Receipt timestamp (seconds) for staleness / dropout detection. LIDAR
         # is the position source (no wheel odometry exists on real hardware),
         # so its staleness gates get_current_pose() too.

@@ -170,7 +170,7 @@ class SimulatedHardwareGateway:
         # ending up in different frames, which is an incoherent state no robot
         # is ever in.
         believed = believed_start or initial_state
-        self._localizer_inputs: tuple[float, float, float] | None = None
+        self._localizer_inputs: LocalizerInputs | None = None
         self._yaw_offset = _wrap_angle(believed.yaw - initial_state.yaw)
         # Seed the estimator where the robot *thinks* it was placed. Offset at a
         # random bearing so the error is not systematically along-track (which
