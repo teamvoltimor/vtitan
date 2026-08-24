@@ -6,14 +6,4 @@ frontend do not import it.
 
 Imports:
     config: Configuration, constants, enums
-    io: JSONL file utilities
 """
-
-from shared.io import JsonlReader, JsonlValidator, JsonlWriter
-
-__all__ = [
-    # I/O Utilities
-    "JsonlReader",
-    "JsonlValidator",
-    "JsonlWriter",
-]

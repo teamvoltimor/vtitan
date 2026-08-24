@@ -8,7 +8,6 @@ Exports:
     - Constants: Physical specifications, track dimensions, lighting configs
     - Enums: Domain types (Section, Direction, RobotState, etc.)
     - Navigation Tuning: Runtime-configurable navigation parameters
-    - Coordinate Transform: Utilities for coordinate space conversions
 """
 
 from shared.config.constants import (
@@ -20,7 +19,6 @@ from shared.config.constants import (
     TrafficSignSpecs,
     WallSpecs,
 )
-from shared.config.coordinate_transform import CoordinateTransform
 from shared.config.navigation_tuning import (
     ClearanceZones,
     EscapeManeuverParams,
@@ -41,7 +39,6 @@ from shared.domain.enums import (
 
 __all__ = [
     "ClearanceZones",
-    "CoordinateTransform",
     "CorridorDimensions",
     "DictKeys",
     "Direction",

@@ -16,28 +16,12 @@ from enum import StrEnum
 from shared.domain.enums import RobotState, ScenarioType, Section
 
 __all__ = [
-    "LidarMetrics",
-    "PathStatus",
     "RobotState",
     "ScenarioType",
     "SensorStatus",
     "StateTransitionReason",
     "SystemStatus",
-    "VisionMetrics",
 ]
-
-
-class PathStatus(StrEnum):
-    """Current state of the navigation path."""
-
-    CLEAR = "CLEAR"
-    """No obstacles detected, clear path."""
-
-    BLOCKED = "BLOCKED"
-    """Path is blocked by obstacles."""
-
-    NARROW = "NARROW"
-    """Path is clear but narrow."""
 
 
 @dataclass(slots=True)
@@ -104,49 +88,6 @@ class RaceStatus:
 
     current_corridor: Section | None = None
     """Active track corridor, or None if unknown."""
-
-
-@dataclass(slots=True)
-class VisionMetrics:
-    """Hailo AI vision metrics."""
-
-    npu_fps: float
-    """NPU inference rate in frames per second."""
-
-    target_confidence: float | None
-    """Confidence score of active target (0.0-1.0)."""
-
-    bbox_x: int | None
-    """Bounding box X coordinate."""
-
-    bbox_y: int | None
-    """Bounding box Y coordinate."""
-
-    bbox_width: int | None
-    """Bounding box width."""
-
-    bbox_height: int | None
-    """Bounding box height."""
-
-    estimated_distance: float | None
-    """Estimated distance to target in meters."""
-
-
-@dataclass(slots=True)
-class LidarMetrics:
-    """LiDAR spatial awareness metrics."""
-
-    front_clearance_cm: float
-    """Front clearance distance in centimeters."""
-
-    left_clearance_cm: float
-    """Left clearance distance in centimeters."""
-
-    right_clearance_cm: float
-    """Right clearance distance in centimeters."""
-
-    path_status: PathStatus
-    """Current path status."""
 
 
 class StateTransitionReason(StrEnum):
