@@ -17,6 +17,7 @@ Geometry recap (WRO 2026, bottom-left origin, 3.0 x 3.0 m track):
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
@@ -42,7 +43,7 @@ def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeome
     return CorridorGeometry.from_width_dict(widths)
 
 
-def corridor_widths_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> CorridorGeometry:
+def corridor_widths_from_metadata(metadata: ScenarioMetadata | Mapping[Any, Any]) -> CorridorGeometry:
     """Extract corridor geometry (widths + inner block) from scenario metadata.
 
     Shared by every consumer that needs to build a :class:`TrackWalls` from a

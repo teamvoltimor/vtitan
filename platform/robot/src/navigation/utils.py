@@ -67,10 +67,15 @@ def _as_waypoint(point: object) -> Waypoint:
     legacy ``(x, y, yaw)`` tuple the tests still seed, so trail consumers
     don't care which shape a breadcrumb happens to be.
     """
-    if isinstance(point, (Pose, Waypoint)):
+    if isinstance(point, Pose):
         return point.to_waypoint()
-    x, y, *_ = point  # type: ignore[reportUnknownVariableType, reportUnknownArgumentType]
-    return Waypoint(x, y)
+    if isinstance(point, Waypoint):
+        return point
+    if isinstance(point, tuple):
+        x, y, *_ = point
+        return Waypoint(float(x), float(y))
+    msg = f"Unsupported trail point type: {type(point).__name__}"
+    raise TypeError(msg)
 
 
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:

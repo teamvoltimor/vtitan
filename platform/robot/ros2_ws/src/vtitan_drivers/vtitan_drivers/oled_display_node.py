@@ -224,7 +224,7 @@ class OLEDDisplayNode(LifecycleNode):
         self.lidar_right: float = 0.0
         self.drive_speed_dps: float = 0.0
         self.steering_position_deg: float = 0.0
-        self.best_detection: tuple[str, float] | None = None
+        self.best_detection: tuple[int | str, float | None] | None = None
         """(class_id, confidence) of the detection scoring highest on
         confidence x bbox area, or None with no current detections."""
 

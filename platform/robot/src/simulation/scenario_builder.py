@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, TrackDimensions
 from shared.config.starting_zone import STARTING_ZONE_LAYOUT
-from shared.domain.enums import CorridorWidthType, Section
+from shared.domain.enums import CorridorWidthType, ScenarioType, Section
 from shared.domain.models import (
     CorridorWidthEntry,
     CorridorWidths,
@@ -110,7 +110,7 @@ def build_open_metadata(
         sx, sy = cells[start_cell % len(cells)]
     return ScenarioMetadata(
         scenario_id=scenario_id,
-        challenge_type="open",
+        challenge_type=ScenarioType.OPEN,
         num_signs=0,
         has_parking_lot=False,
         parking_lot=None,

@@ -544,7 +544,7 @@ class ScenarioSimulator:
 
         believed = CorridorGeometry.from_width_dict(estimator.widths)
         self._waypoints = self._plan(believed)
-        self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
+        self._gateway.set_believed_walls(TrackWalls(believed))
         self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
         return True
 
@@ -710,7 +710,7 @@ class ScenarioSimulator:
         terminal_collision = False
         stuck = False
         pass_side_violation = False
-        violation_signs: list[int] = []
+        violation_signs: list[int] | None = []
         contacts = ContactTracker(
             dt=dt,
             start_window_s=start_collision_window_s,

@@ -26,7 +26,7 @@ def parse_detection(d: dict) -> Detection | None:
     identical copies of this parse.
     """
     try:
-        color = SignColor(d.get(CLASS_NAME_KEY))
+        color = SignColor(str(d.get(CLASS_NAME_KEY)))
     except ValueError:
         return None
     return Detection(

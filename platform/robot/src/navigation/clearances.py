@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import enum
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from shared.domain.enums import ThreatDirection
@@ -90,18 +90,22 @@ def threat_direction(clearances: LidarClearances, no_detection_range_m: float) -
     return ThreatDirection.NONE
 
 
-class CollisionAvoidanceControllerProtocol:
+class CollisionAvoidanceControllerProtocol(Protocol):
     """Structural type for the controller surface :func:`clearances_from_scan` needs."""
 
     def sector_ranges(
         self,
-        lidar_ranges: object,
-        lidar_angles: object,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None,
         center_rad: float,
         half_fov_rad: float,
         filter_self_detection: bool = False,
     ) -> np.ndarray:
         """Return valid ranges within ``center ± half_fov``."""
+        ...
 
-    def compute_rear_clearance(self, lidar_ranges: object, lidar_angles: object) -> float:
+    def compute_rear_clearance(
+        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None
+    ) -> float:
         """Return minimum rear-sector clearance (m), or ``no_data_range_m`` if unseen."""
+        ...

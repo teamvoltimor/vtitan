@@ -122,7 +122,7 @@ class CommandChannel:
             r.raise_for_status()
             robots = r.json()
         except (requests.exceptions.RequestException, ValueError) as exc:
-            self._logger.warning("Could not resolve robot id: %s", exc, throttle_duration_sec=30.0)
+            self._logger.warning(f"Could not resolve robot id: {exc}", throttle_duration_sec=30.0)
             return None
         if not robots:
             self._logger.warning("Backend has no registered robots yet", throttle_duration_sec=30.0)
@@ -137,14 +137,14 @@ class CommandChannel:
                 if self._robot_id is None:
                     self._command_stream_stop.wait(BACKOFF_INITIAL_S)
                     continue
-                self._logger.info("Resolved robot id for command channel: %s", self._robot_id)
+                self._logger.info(f"Resolved robot id for command channel: {self._robot_id}")
 
             try:
                 self._run_command_stream(self._robot_id)
             except grpc.RpcError as exc:
-                self._logger.warning("Command stream error: %s %s", exc.code(), exc.details())
+                self._logger.warning(f"Command stream error: {exc.code()} {exc.details()}")
             except Exception as exc:  # noqa: BLE001
-                self._logger.warning("Command stream error: %s", exc)
+                self._logger.warning(f"Command stream error: {exc}")
 
             if self._command_stream_stop.is_set():
                 return
@@ -159,7 +159,7 @@ class CommandChannel:
             request = commands_pb2.StreamCommandsRequest(robot_id=robot_id)
             if self._last_command_id:
                 request.last_command_id = self._last_command_id
-            self._logger.info("Opening command stream to %s", self._command_channel_target)
+            self._logger.info(f"Opening command stream to {self._command_channel_target}")
             if self._on_state_changed is not None:
                 connected = True
                 self._on_state_changed(connected)
@@ -301,4 +301,4 @@ class CommandChannel:
                 timeout=2.0,
             )
         except grpc.RpcError as exc:
-            self._logger.warning("AckCommand failed: %s %s", exc.code(), exc.details())
+            self._logger.warning(f"AckCommand failed: {exc.code()} {exc.details()}")

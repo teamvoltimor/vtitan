@@ -215,6 +215,8 @@ class ButtonNode(LifecycleNode):
             return
 
         self._was_pressed = True
+        if self.driver is None:
+            return
         thresholds = (
             self.driver.config.button.long_press_threshold_sec,
             self.driver.config.button.shutdown_press_threshold_sec,

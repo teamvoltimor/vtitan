@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Protocol, override
 
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 
@@ -15,6 +15,14 @@ if TYPE_CHECKING:
     from rclpy.lifecycle.publisher import Publisher
     from rclpy.timer import Timer
     from shared.config.constants import TfFrames
+
+
+class _DriverProtocol(Protocol):
+    """Minimal surface the base lifecycle node relies on (teardown only)."""
+
+    def close(self) -> None:
+        """Release the hardware connection."""
+        ...
 
 
 class LifecycleHardwareNode(LifecycleNode, ABC):
@@ -53,17 +61,17 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         declare_param(self, "topic", topic_default)
 
         self._message_type = message_type
-        self.driver: object | None = None
+        self.driver: _DriverProtocol | None = None
         self.publisher_: Publisher | None = None
         self.timer: Timer | None = None
         self.frame_id: str = ""
 
     @abstractmethod
-    def _create_driver(self) -> object:
+    def _create_driver(self) -> _DriverProtocol:
         """Instantiate the hardware driver (no I/O yet)."""
 
     @abstractmethod
-    def _configure_driver(self, driver: object) -> TransitionCallbackReturn:
+    def _configure_driver(self, driver: _DriverProtocol) -> TransitionCallbackReturn:
         """Connect/start ``driver``, handling driver-specific failure modes."""
 
     @abstractmethod
@@ -82,8 +90,9 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         topic = get_str_param(self, "topic")
         self.publisher_ = self.create_lifecycle_publisher(self._message_type, topic, QOS_STREAM)
 
-        self.driver = self._create_driver()
-        return self._configure_driver(self.driver)
+        driver = self._create_driver()
+        self.driver = driver
+        return self._configure_driver(driver)
 
     @override
     def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:

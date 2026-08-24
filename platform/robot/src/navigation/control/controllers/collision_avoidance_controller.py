@@ -9,12 +9,11 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.domain.enums import Direction, ManeuverType, RiskLevel
+from shared.domain.enums import Direction, ManeuverType, RiskLevel, ThreatDirection
 from shared.domain.models import SectorRanges, Waypoint
 
 from src.config.tuning_helpers import get_tuning
@@ -162,16 +161,6 @@ def mask_mapped_obstacles(
     masked = ranges.copy()
     masked[attributed & finite] = np.inf
     return masked
-
-
-class ThreatDirection(StrEnum):
-    """Bearing of the nearest obstacle relative to the robot."""
-
-    FRONT = "front"
-    LEFT = "left"
-    RIGHT = "right"
-    BACK = "back"
-    NONE = "none"
 
 
 @dataclass(slots=True)
@@ -511,7 +500,13 @@ class CollisionAvoidanceController:
         # Wrapped angular distance from the sector centre, in [-pi, pi].
         delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
         min_valid = self_detection_threshold_m if filter_self_detection else min_valid_range_m
-        if apply_blind_wedge_mask:
+        if (
+            apply_blind_wedge_mask
+            and blind_wedge_left_min_rad is not None
+            and blind_wedge_left_max_rad is not None
+            and blind_wedge_right_min_rad is not None
+            and blind_wedge_right_max_rad is not None
+        ):
             in_blind_wedge = ((angles >= blind_wedge_left_min_rad) & (angles <= blind_wedge_left_max_rad)) | (
                 (angles >= blind_wedge_right_min_rad) & (angles <= blind_wedge_right_max_rad)
             )

@@ -87,8 +87,8 @@ def _wedge_median(
     docstring for why a median is used).
     """
     return _wedge_median_impl(
-        ranges,
-        angles,
+        ranges.tolist(),
+        angles.tolist(),
         center_rad,
         half_width_rad,
         min_valid_range_m=RobotSpecs.LIDAR_MIN_RANGE,
