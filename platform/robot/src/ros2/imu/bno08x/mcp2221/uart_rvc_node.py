@@ -7,7 +7,7 @@ package (see button_node.py for the reference implementation).
 
 from __future__ import annotations
 
-from typing import cast, override
+from typing import override
 
 import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
@@ -17,10 +17,10 @@ from shared.config.ros_topics import RosTopicConfig
 
 from src.hardware.exceptions import IMUConnectionError
 from src.hardware.imu.bno08x.mcp2221.uart_rvc import Driver as IMU_UART_RVCDriver
-from src.ros2.hardware_node import LifecycleHardwareNode, _DriverProtocol
+from src.ros2.hardware_node import LifecycleHardwareNode
 
 
-class IMU_UART_RVCNode(LifecycleHardwareNode):
+class IMU_UART_RVCNode(LifecycleHardwareNode[IMU_UART_RVCDriver]):
     """ROS2 lifecycle node publishing IMU data from BNO08x over UART RVC."""
 
     def __init__(self) -> None:
@@ -39,13 +39,12 @@ class IMU_UART_RVCNode(LifecycleHardwareNode):
         return IMU_UART_RVCDriver()
 
     @override
-    def _configure_driver(self, driver: _DriverProtocol) -> TransitionCallbackReturn:
-        imu = cast("IMU_UART_RVCDriver", driver)
+    def _configure_driver(self, driver: IMU_UART_RVCDriver) -> TransitionCallbackReturn:
         self._hardware_ready = False
 
         try:
-            imu.connect()
-            imu.start_polling()
+            driver.connect()
+            driver.start_polling()
             self.get_logger().info("IMU driver connected and polling started.")
             self._hardware_ready = True
         except IMUConnectionError as e:
@@ -70,7 +69,7 @@ class IMU_UART_RVCNode(LifecycleHardwareNode):
         if not self._hardware_ready or self.publisher_ is None or self.driver is None:
             return
 
-        data = cast("IMU_UART_RVCDriver", self.driver).get_data()
+        data = self.driver.get_data()
         if data is None:
             return
 

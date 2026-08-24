@@ -29,13 +29,11 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from enum import StrEnum
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import DictKeys, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
-from shared.domain.enums import Direction, Section
+from shared.domain.enums import Axis, Direction, Section
 from shared.domain.models import RoutingEntry, ScenarioMetadata, SignColor, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
@@ -48,6 +46,8 @@ from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import _dist2d, wrap_angle
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from shared.domain.models import TrafficSignObservation
 
 logger = logging.getLogger(__name__)
@@ -75,13 +75,6 @@ _CHASSIS_HALF_DIAGONAL = chassis_half_diagonal_m()
 # How far behind the robot's own origin a sign may still sit and remain an
 # avoidance candidate. See navigation.geometry.behind_tolerance_m.
 _BEHIND_TOLERANCE = behind_tolerance_m()
-
-
-class Axis(StrEnum):
-    """Which world coordinate a routing-table entry deforms."""
-
-    X = "x"
-    Y = "y"
 
 
 # Per-(corridor, direction) routing table.
@@ -124,8 +117,7 @@ def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int
     entry = _ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
     if entry is None:
         return None
-    axis = cast("Axis", entry.axis)
-    return axis, entry.red_mult if color == SignColor.RED else entry.green_mult
+    return entry.axis, entry.red_mult if color == SignColor.RED else entry.green_mult
 
 
 @dataclass(frozen=True, slots=True)
