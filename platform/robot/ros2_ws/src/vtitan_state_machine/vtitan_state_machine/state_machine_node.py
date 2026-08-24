@@ -267,6 +267,16 @@ class StateMachineNode(Node, ResettableNode):
             self._on_laps_completed,
             QOS_LIVE_READOUT,
         )
+        # Active corridor, published every tick by track_navigator_node's
+        # CoreNavigator (see its _control_loop). Used only to populate
+        # /race_metrics' current_corridor for the OLED CORRIDOR line -- it never
+        # drives state transitions here. Empty until the first sample arrives.
+        self.corridor_sub: Subscription[String] = self.create_subscription(
+            String,
+            self._topics.navigation.current_corridor,
+            self._on_corridor,
+            QOS_LIVE_READOUT,
+        )
 
         # Sensor status tracking
         self.imu_last_msg_time: float | None = None
@@ -357,6 +367,15 @@ class StateMachineNode(Node, ResettableNode):
                 return
             self._lap_count_is_current = True
         self.laps_completed = msg.data
+
+    def _on_corridor(self, msg: String) -> None:
+        """Latest active corridor from track_navigator_node's CoreNavigator.
+
+        Stored verbatim (the Section name string, or "" before the first
+        sample) and forwarded into /race_metrics' current_corridor -- it is
+        display-only here and never gates a state transition.
+        """
+        self.current_corridor = msg.data
 
     def _fetch_ip_address_async(self) -> None:
         """Fetch IP address in background thread without blocking."""

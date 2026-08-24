@@ -24,6 +24,11 @@ system_status = "/system_status"
 # thing that actually detects a lap crossing. state_machine_node subscribes
 # to drive /race_metrics and the FINISHED transition.
 laps_completed = "/race/laps_completed"
+# Active track corridor (Section name string: north/south/east/west) from
+# track_navigator_node's CoreNavigator, so state_machine_node can forward it
+# into /race_metrics for the OLED's CORRIDOR line. BEST_EFFORT; published every
+# control tick, so a dropped sample is corrected within one tick.
+current_corridor = "/race/current_corridor"
 # Full per-tick NavigatorDebugSnapshot (JSON) -- see NavigatorDebugSnapshot's own docstring.
 nav_debug = "/nav_debug"
 
