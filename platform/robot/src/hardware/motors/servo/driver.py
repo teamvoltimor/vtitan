@@ -198,7 +198,7 @@ class Driver(SteeringDriver):
         pulse_us = self._position_to_pulse_us(position)
         if self._pulse_us is None or abs(pulse_us - self._pulse_us) >= _PULSE_EPSILON_US:
             try:
-                (self._channel_dir / "duty_cycle").write_text(str(int(pulse_us * NS_PER_US)))
+                (self._channel_dir / "duty_cycle").write_text(str(int(pulse_us * motor_const.NS_PER_US)))
             except OSError as err:
                 msg = f"PWM duty_cycle write failed: {err}"
                 raise self._fail(msg) from err
