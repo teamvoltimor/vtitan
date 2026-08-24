@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.domain.models import Pose, Waypoint
+from shared.domain.models import Distanceable, Pose, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 
@@ -60,22 +60,18 @@ def _dist2d(a: Waypoint, b: Waypoint) -> float:
     return a.distance_to(b)
 
 
-def _as_waypoint(point: object) -> Waypoint:
+def _as_waypoint(point: Distanceable | tuple[float, float, float]) -> Waypoint:
     """Normalise a trail point to a :class:`Waypoint`.
 
-    Accepts a :class:`Pose`/:class:`Waypoint` (via ``to_waypoint``) or the
-    legacy ``(x, y, yaw)`` tuple the tests still seed, so trail consumers
-    don't care which shape a breadcrumb happens to be.
+    Accepts a :class:`Pose`/:class:`Waypoint`/:class:`Position2D` (anything
+    satisfying ``Distanceable``, via ``to_waypoint``) or the legacy
+    ``(x, y, yaw)`` tuple the tests still seed, so trail consumers don't care
+    which shape a breadcrumb happens to be.
     """
-    if isinstance(point, Pose):
-        return point.to_waypoint()
-    if isinstance(point, Waypoint):
-        return point
     if isinstance(point, tuple):
         x, y, *_ = point
         return Waypoint(float(x), float(y))
-    msg = f"Unsupported trail point type: {type(point).__name__}"
-    raise TypeError(msg)
+    return point.to_waypoint()
 
 
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
