@@ -67,6 +67,17 @@ class SimResult:
     terminal_surface: ContactSurface = ContactSurface.NONE
     """Which surface ended the run, or ``NONE`` if contact did not end it."""
 
+    pass_side_violation: bool = False
+    """A red obstacle was cleared on its inner side, or a green on its outer side.
+
+    The official Obstacles rule is absolute and the simulator enforces it the
+    same way it enforces a forbidden wall contact: the run stops the moment a
+    sign is retired as passed on the wrong side. Recorded separately from
+    ``collided`` so a diagnostic can tell the two failure modes apart."""
+
+    pass_side_violation_signs: list[int] = field(default_factory=list)
+    """Indices (into the scenario's ``sign_positions``) passed on the wrong side."""
+
     lap_step_indices: list[int] = field(default_factory=list)
     parked: bool | None = None
     """``None`` when the scenario has no parking lot; else whether parking finished cleanly
