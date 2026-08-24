@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Self, TypeVar
 
 from pydantic import BaseModel
 
@@ -131,6 +131,6 @@ class TomlLoadableModel(BaseModel):
         return load_toml_merged(cls.default_config_path)
 
     @classmethod
-    def load_default(cls) -> TomlLoadableModel:
+    def load_default(cls) -> Self:
         """Load and validate this model from :attr:`default_config_path`."""
         return cls.model_validate(cls._load_raw())
