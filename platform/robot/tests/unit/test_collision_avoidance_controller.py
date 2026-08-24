@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RiskLevel, Section, ThreatDirection
-from shared.domain.models import LidarClearances, Pose
+from shared.domain.models import LidarClearances, Pose, Waypoint
 
 from src.navigation.clearances import (
     ClearanceAggregate,
@@ -391,7 +391,7 @@ class TestMaskMappedObstacles:
         i = angle_to_index(0.0)
         ranges[i - 4 : i + 4] = 0.08  # inside contact_dist
 
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
 
         assert np.isinf(masked[i]), "a return landing on a mapped sign must be withheld"
 
@@ -402,7 +402,7 @@ class TestMaskMappedObstacles:
         ranges[i - 4 : i + 4] = 0.08
 
         # Mapped sign is off to the side; the forward return belongs to nothing.
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.0, 0.9, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.0, 0.9), Section.SOUTH)], self._MASK_RADIUS)
 
         assert masked[i] == pytest.approx(0.08)
 
@@ -413,7 +413,7 @@ class TestMaskMappedObstacles:
         ranges[i - 4 : i + 4] = 0.08
 
         assert controller.assess_risk(ranges, ANGLES_FULL_ROTATION) == RiskLevel.CRITICAL
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
         assert controller.assess_risk(masked, ANGLES_FULL_ROTATION) == RiskLevel.SAFE
 
     def test_mapped_positions_are_world_frame_not_robot_frame(self):
@@ -431,8 +431,8 @@ class TestMaskMappedObstacles:
         # (1.0, 2.08), NOT at (0.08, 0).
         pose = Pose(1.0, 2.0, math.pi / 2)
 
-        masked_world = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(1.0, 2.08, Section.NORTH)], self._MASK_RADIUS)
-        masked_body = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(0.08, 0.0, Section.NORTH)], self._MASK_RADIUS)
+        masked_world = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(Waypoint(1.0, 2.08), Section.NORTH)], self._MASK_RADIUS)
+        masked_body = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(Waypoint(0.08, 0.0), Section.NORTH)], self._MASK_RADIUS)
 
         assert np.isinf(masked_world[i])
         assert masked_body[i] == pytest.approx(0.08)
@@ -459,7 +459,7 @@ class TestMaskMappedObstacles:
 
         # A "routed sign" whose raw XY coincides with that ray endpoint, but
         # which the router itself placed in the NORTH corridor.
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(1.56, 0.5, Section.NORTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(Waypoint(1.56, 0.5), Section.NORTH)], self._MASK_RADIUS)
 
         assert masked[i] == pytest.approx(0.08), "a same-XY coincidence in a different corridor must not mask"
 
@@ -473,7 +473,7 @@ class TestMaskMappedObstacles:
         ranges = create_numpy_scan()
         ranges[angle_to_index(0.0)] = 0.08
 
-        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], 0.0), ranges)
+        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], 0.0), ranges)
         assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [], self._MASK_RADIUS), ranges)
 
     def test_no_return_rays_stay_infinite_and_never_become_nan(self):
@@ -487,7 +487,7 @@ class TestMaskMappedObstacles:
         ranges = create_numpy_scan()
         ranges[:] = np.inf
 
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
 
         assert np.all(np.isinf(masked))
         assert not np.any(np.isnan(masked))
@@ -500,7 +500,7 @@ class TestMaskMappedObstacles:
         i = angle_to_index(0.0)
         ranges[i] = 0.08
 
-        mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
 
         assert ranges[i] == pytest.approx(0.08)
 

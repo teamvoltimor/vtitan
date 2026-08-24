@@ -529,10 +529,7 @@ def _bearing_error(
     target: Waypoint,
 ) -> float:
     """Signed angle (radians) from the robot's heading to the bearing toward ``target``."""
-    dx = target.x - robot_pose.x
-    dy = target.y - robot_pose.y
-    desired_yaw = math.atan2(dy, dx)
-    return _normalise_angle(desired_yaw - robot_pose.yaw)
+    return _normalise_angle(robot_pose.bearing_to(target.to_pose()) - robot_pose.yaw)
 
 
 # Already defined above via _DEFAULT_PARKING_CONSTANTS

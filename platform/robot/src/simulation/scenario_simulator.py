@@ -869,7 +869,7 @@ class ScenarioSimulator:
             sign = self._track.obstacle_center(index)
             if sign is None:
                 continue
-            to_sign_x, to_sign_y = sign[0] - state.x, sign[1] - state.y
+            to_sign_x, to_sign_y = sign.x - state.x, sign.y - state.y
             norm = math.hypot(to_sign_x, to_sign_y)
             if norm <= 0.0:
                 continue

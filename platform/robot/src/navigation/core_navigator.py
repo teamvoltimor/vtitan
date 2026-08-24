@@ -342,8 +342,8 @@ class CoreNavigator:
         # Half-widths, plus the chassis's own: how close the centres may pass.
         needed = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2
         worst: tuple[float, float] | None = None
-        for sx, sy in router.routed_sign_positions:
-            dx, dy = sx - robot_x, sy - robot_y
+        for wp in router.routed_sign_positions:
+            dx, dy = wp.x - robot_x, wp.y - robot_y
             ahead = dx * cos_yaw + dy * sin_yaw
             if not 0.0 < ahead <= trigger:
                 continue
@@ -780,9 +780,9 @@ class CoreNavigator:
         if self._tuning.sign_router.SIGN_AWARE_LOOKAHEAD and self._sign_router is not None:
             cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
             sign_ahead = any(
-                math.hypot(sx - robot_x, sy - robot_y) < self._tuning.sign_router.ACTIVATION_DIST_M
-                and (sx - robot_x) * cos_yaw + (sy - robot_y) * sin_yaw > 0
-                for sx, sy in self._sign_router.routed_sign_positions
+                math.hypot(wp.x - robot_x, wp.y - robot_y) < self._tuning.sign_router.ACTIVATION_DIST_M
+                and (wp.x - robot_x) * cos_yaw + (wp.y - robot_y) * sin_yaw > 0
+                for wp in self._sign_router.routed_sign_positions
             )
         lookahead_distance = self._waypoint_controller.select_lookahead(crosstrack, turn_ahead, sign_ahead)
         # Full waypoint list, not a slice from _waypoint_index -- select_target_point
@@ -1111,22 +1111,22 @@ class CoreNavigator:
         if target is None:
             return None
         cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
-        dx, dy = target[0] - robot_x, target[1] - robot_y
+        dx, dy = target.x - robot_x, target.y - robot_y
         along = dx * cos_yaw + dy * sin_yaw
         lateral = -dx * sin_yaw + dy * cos_yaw
-        distance = math.hypot(dx, dy)
+        distance = target.distance_to(Waypoint(robot_x, robot_y))
         if distance < self._tuning.escape.POSE_TRAIL_MIN_STEP_M or along > 0.0:
             # Target is not actually behind the chassis -- nothing to retrace.
             return None
         return self._tuning.sign_router.retrace_steer_gain_norm(-lateral / distance)
 
-    def _trail_point_behind(self, robot_x: float, robot_y: float) -> tuple[float, float, float] | None:
+    def _trail_point_behind(self, robot_x: float, robot_y: float) -> Pose | None:
         """The breadcrumb roughly ``RETRACE_DIST_M`` back along the trail."""
         want = self._tuning.sign_router.RETRACE_DIST_M
         travelled = 0.0
         previous = (robot_x, robot_y)
         for point in reversed(self._pose_trail):
-            travelled += math.hypot(point.x - previous[0], point.y - previous[1])
+            travelled += point.distance_to(Waypoint(previous[0], previous[1]))
             previous = (point.x, point.y)
             if travelled >= want:
                 return point

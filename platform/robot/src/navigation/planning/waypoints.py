@@ -352,10 +352,10 @@ def _build_all_segments(
     r_se, r_sw, r_nw, r_ne = (corner_radii[k] for k in ("se", "sw", "nw", "ne"))
 
     # Corner arc ICR positions and arc angle ranges (CW direction)
-    se_icr = (east_cx - r_se, south_cy + r_se)
-    sw_icr = (west_cx + r_sw, south_cy + r_sw)
-    nw_icr = (west_cx + r_nw, north_cy - r_nw)
-    ne_icr = (east_cx - r_ne, north_cy - r_ne)
+    se_icr = Waypoint(east_cx - r_se, south_cy + r_se)
+    sw_icr = Waypoint(west_cx + r_sw, south_cy + r_sw)
+    nw_icr = Waypoint(west_cx + r_nw, north_cy - r_nw)
+    ne_icr = Waypoint(east_cx - r_ne, north_cy - r_ne)
 
     se_cw = _arc_with_endpoints(se_icr, r_se, 0.0, -math.pi / 2, num_intermediate)
     sw_cw = _arc_with_endpoints(sw_icr, r_sw, -math.pi / 2, -math.pi, num_intermediate)
@@ -504,14 +504,14 @@ def _deduplicate_consecutive(
 
 # Geometry helpers
 def _arc_with_endpoints(
-    center: tuple[float, float],
+    center: Waypoint,
     radius: float,
     theta_start: float,
     theta_end: float,
     num_intermediate: int = 3,  # see NavigationTuning.waypoints.NUM_INTERMEDIATE_ARC_POINTS
 ) -> list[Waypoint]:
     """Generate arc points including entry and exit, with intermediate samples."""
-    cx, cy = center
+    cx, cy = center.x, center.y
     entry = Waypoint(
         round(cx + radius * math.cos(theta_start), 3),
         round(cy + radius * math.sin(theta_start), 3),

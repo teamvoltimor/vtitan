@@ -61,7 +61,7 @@ class TestGenerateCornerArc:
 
     def test_corner_arc_radius_appropriate(self) -> None:
         arc = _arc_with_endpoints(
-            center=(1.0, 1.0),
+            center=Waypoint(1.0, 1.0),
             radius=0.45,
             theta_start=0.0,
             theta_end=math.pi / 2,
@@ -75,7 +75,7 @@ class TestGenerateCornerArc:
 
     def test_corner_arc_endpoints(self) -> None:
         arc = _arc_with_endpoints(
-            center=(1.5, 1.5),
+            center=Waypoint(1.5, 1.5),
             radius=0.45,
             theta_start=math.pi,
             theta_end=1.5 * math.pi,

@@ -69,7 +69,7 @@ def _protrusion(x: float, y: float, yaw: float) -> float:
     """Max distance any chassis corner sticks out of the bay rectangle (0 = contained)."""
     x_min, y_min, x_max, y_max = _BAY
     worst = 0.0
-    for cx, cy in _rect_corners(x, y, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH):
+    for cx, cy in ((c.x, c.y) for c in _rect_corners(x, y, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)):
         worst = max(worst, x_min - cx, cx - x_max, y_min - cy, cy - y_max)
     return max(0.0, worst)
 

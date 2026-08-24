@@ -501,7 +501,7 @@ class SignRouter:
         return len(self._signs) - len(self._passed)
 
     @property
-    def routed_sign_positions(self) -> list[tuple[float, float]]:
+    def routed_sign_positions(self) -> list[Waypoint]:
         """World positions of the signs this router still intends to route around.
 
         The reactive collision layer uses this to tell a mapped obstacle it has
@@ -514,10 +514,10 @@ class SignRouter:
         both live in ``_signs`` — but only once ``ObservedSignMap`` has actually
         published them, so an unconfirmed track never suppresses the guard.
         """
-        return [(s.x, s.y) for i, s in enumerate(self._signs) if i not in self._passed]
+        return [Waypoint(s.x, s.y) for i, s in enumerate(self._signs) if i not in self._passed]
 
     @property
-    def routed_sign_positions_by_corridor(self) -> list[tuple[float, float, Section]]:
+    def routed_sign_positions_by_corridor(self) -> list[tuple[Waypoint, Section]]:
         """``routed_sign_positions``, each paired with the sign's own corridor.
 
         For ``mask_mapped_obstacles``'s escape-mask attribution: proximity
@@ -529,7 +529,7 @@ class SignRouter:
         Requiring the ray's own corridor to match this sign's closes that
         gap without needing to know the rotation is even present.
         """
-        return [(s.x, s.y, c) for i, (s, c) in enumerate(self.lane_specs) if i not in self._passed]
+        return [(Waypoint(s.x, s.y), c) for i, (s, c) in enumerate(self.lane_specs) if i not in self._passed]
 
     def reset_for_new_lap(self) -> None:
         """Re-arm every sign so it's routed again on the next lap.
