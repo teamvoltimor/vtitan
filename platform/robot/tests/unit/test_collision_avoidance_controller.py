@@ -22,7 +22,7 @@ from src.navigation.clearances import (
     clearances_from_scan,
     threat_direction,
 )
-from src.navigation.control.controllers.collision_avoidance_controller import (
+from src.navigation.control.controllers.collision_avoidance import (
     CollisionAvoidanceController,
     mask_mapped_obstacles,
 )
