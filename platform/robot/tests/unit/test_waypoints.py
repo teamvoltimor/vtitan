@@ -8,7 +8,7 @@ import pytest
 from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
-from shared.domain.models import Waypoint
+from shared.domain.models import CorridorWidthEntry, CorridorWidths, Waypoint
 
 from src.navigation.planning.waypoints import (
     _arc_with_endpoints,
@@ -221,12 +221,12 @@ def sample_metadata_open():
     return {
         "scenario_id": 0,
         "challenge_type": "open",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "narrow", "width_mm": 600},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
-        },
+        "corridor_widths": CorridorWidths(
+            north=CorridorWidthEntry(type="wide", width_mm=1000),
+            south=CorridorWidthEntry(type="narrow", width_mm=600),
+            east=CorridorWidthEntry(type="wide", width_mm=1000),
+            west=CorridorWidthEntry(type="wide", width_mm=1000),
+        ).model_dump(),
         "starting_conditions": {
             "direction": "clockwise",
             "section": "South",
@@ -242,12 +242,7 @@ def sample_metadata_obstacles():
     return {
         "scenario_id": 1,
         "challenge_type": "obstacles",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "wide", "width_mm": 1000},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
-        },
+        "corridor_widths": CorridorWidths().model_dump(),
         "starting_conditions": {
             "direction": "clockwise",
             "section": "South",

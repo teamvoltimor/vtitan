@@ -19,7 +19,7 @@ import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
-from shared.domain.models import Detection, SignColor, TrafficSignObservation, Waypoint
+from shared.domain.models import BBox, Detection, SignColor, TrafficSignObservation, Waypoint
 
 from src.navigation.planning.sign_discovery import (
     _CAMERA_FOCAL_PX,
@@ -861,16 +861,16 @@ def _detection_at_distance_bearing(
     cx = (theta_h / RobotSpecs.CAMERA_HFOV + 0.5) * RobotSpecs.CAMERA_WIDTH
     cy = RobotSpecs.CAMERA_HEIGHT / 2
     half = pixel_height / 2
-    bbox = (cx - half, cy - half, cx + half, cy + half)
+    box = BBox(cx - half, cy - half, cx + half, cy + half)
     return Detection(
         class_name=color,
         confidence=confidence,
-        bbox=bbox,
+        bbox=tuple(box),
         x=cx,
         y=cy,
-        width=pixel_height,
-        height=pixel_height,
-        area=pixel_height * pixel_height,
+        width=box.width,
+        height=box.height,
+        area=box.area,
     )
 
 
@@ -939,16 +939,16 @@ class TestDetectionToWorld:
 
     def test_bbox_shorter_than_minimum_returns_none(self, router_config):
         tiny_height = _MIN_RELIABLE_BBOX_HEIGHT_PX - 1
-        bbox = (100.0, 100.0, 101.0, 100.0 + tiny_height)
+        box = BBox(100.0, 100.0, 101.0, 100.0 + tiny_height)
         det = Detection(
             class_name="red",
             confidence=0.9,
-            bbox=bbox,
-            x=100.5,
-            y=100.0 + tiny_height / 2,
-            width=1.0,
-            height=tiny_height,
-            area=tiny_height,
+            bbox=tuple(box),
+            x=box.center.x,
+            y=box.center.y,
+            width=box.width,
+            height=box.height,
+            area=box.area,
         )
         assert _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0) is None
 

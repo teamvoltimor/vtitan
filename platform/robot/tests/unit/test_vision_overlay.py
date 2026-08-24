@@ -8,7 +8,7 @@ misleading picture.
 from __future__ import annotations
 
 import numpy as np
-from shared.domain.models import Detection, SignColor
+from shared.domain.models import BBox, Detection, SignColor
 
 from src.vision.overlay import annotate
 
@@ -18,17 +18,16 @@ def _blank(width: int = 200, height: int = 120) -> np.ndarray:
 
 
 def _detection(bbox: tuple[float, float, float, float], colour: SignColor) -> Detection:
-    x1, y1, x2, y2 = bbox
-    w, h = x2 - x1, y2 - y1
+    box = BBox(*bbox)
     return Detection(
         class_name=colour,
         confidence=0.9,
-        bbox=bbox,
-        x=(x1 + x2) / 2,
-        y=(y1 + y2) / 2,
-        width=w,
-        height=h,
-        area=w * h,
+        bbox=tuple(box),
+        x=box.center.x,
+        y=box.center.y,
+        width=box.width,
+        height=box.height,
+        area=box.area,
     )
 
 
