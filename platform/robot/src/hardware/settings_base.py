@@ -78,7 +78,7 @@ class HardwareBaseSettings(BaseSettings):
                 f"{settings_cls.__name__} must declare a 'toml_file' in its model_config to source "
                 "its driver config; refusing to silently run with defaults."
             )
-            raise ValueError(msg)
+            raise TypeError(msg)
         return (
             init_settings,
             env_settings,

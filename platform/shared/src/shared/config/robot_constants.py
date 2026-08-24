@@ -12,10 +12,12 @@ reads its own TOML tree.
 from __future__ import annotations
 
 import math
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from shared.config.hardware_profile import PROFILES_ROOT, active_profiles
 from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel, load_toml_merged, profile_overlay_paths
