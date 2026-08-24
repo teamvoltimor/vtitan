@@ -18,7 +18,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
-from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
+from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
 
 
 class RosMessageType(StrEnum):
@@ -212,7 +212,7 @@ class UiTopics(BaseModel):
     """Live mirror of the OLED panel, published by oled_display_node."""
 
 
-class RosTopicConfig(BaseModel):
+class RosTopicConfig(TomlLoadableModel):
     """ROS2 topic names configuration."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -228,18 +228,5 @@ class RosTopicConfig(BaseModel):
     bag_recorder: BagRecorderTopics
     simulation: SimulationTopics
 
-    _default_config_path: ClassVar[Path] = SHARED_CONFIG_ROOT / "ros_topics.toml"
+    default_config_path: ClassVar[Path] = SHARED_CONFIG_ROOT / "ros_topics.toml"
     """Path to the checked-in ros_topics.toml file."""
-
-    @classmethod
-    def load_default(cls) -> RosTopicConfig:
-        """Load topic configuration from the checked-in ros_topics.toml.
-
-        Returns:
-            RosTopicConfig instance with topic names.
-
-        Raises:
-            FileNotFoundError: If ros_topics.toml does not exist.
-            ValueError: If TOML is invalid.
-        """
-        return load_toml_model(cls, cls._default_config_path)

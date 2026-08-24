@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from shared.config.hardware_profile import PROFILES_ROOT, active_profiles
-from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_merged, profile_overlay_paths
+from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel, load_toml_merged, profile_overlay_paths
 
 DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "robot.toml"
 """platform/shared/config/robot.toml -- resolved via shared.config.paths rather
@@ -286,7 +287,7 @@ def _require_component_facts(data: dict[str, object]) -> None:
     raise ValueError(msg)
 
 
-class RobotConstants(BaseModel):
+class RobotConstants(TomlLoadableModel):
     """Physical constants for the robot chassis, loaded from robot.toml."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -300,9 +301,11 @@ class RobotConstants(BaseModel):
     imu: Imu
     camera: Camera
 
+    default_config_path: ClassVar[Path] = DEFAULT_CONFIG_PATH
+
     @classmethod
-    def load_default(cls) -> RobotConstants:
-        """Load ``platform/shared/config/robot.toml``, with any active hardware profile overlaid.
+    def _load_raw(cls) -> dict[str, object]:
+        """Merge the base robot.toml with any active hardware-profile overlay.
 
         A hardware profile (``VTITAN_HARDWARE_PROFILE``, see
         :mod:`shared.config.hardware_profile`) declares only the keys it
@@ -310,12 +313,12 @@ class RobotConstants(BaseModel):
 
         The base file deliberately does NOT declare the drive motor's ceiling
         or the servo's geometry, so a profile supplying each is REQUIRED and
-        this raises naming what is missing when one is not. See
-        :func:`_require_component_facts`.
+        :func:`_require_component_facts` raises naming what is missing when one
+        is not.
 
         Raises:
             ValueError: If no profile supplied the motor or servo facts.
         """
         data: dict[str, object] = load_toml_merged(DEFAULT_CONFIG_PATH, overlays=profile_overlay_paths("robot.toml"))
         _require_component_facts(data)
-        return cls.model_validate(data)
+        return data

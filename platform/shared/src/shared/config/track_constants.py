@@ -13,10 +13,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
+from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
 
 DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "track.toml"
 """platform/shared/config/track.toml -- resolved via shared.config.paths rather
@@ -187,7 +188,7 @@ class Markings(BaseModel):
     angle: int
 
 
-class TrackConstants(BaseModel):
+class TrackConstants(TomlLoadableModel):
     """Mat geometry constants, loaded from track.toml."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -199,6 +200,8 @@ class TrackConstants(BaseModel):
     parking: Parking
     starting_zone: StartingZone
     markings: Markings
+
+    default_config_path: ClassVar[Path] = DEFAULT_CONFIG_PATH
 
     @property
     def cell_centers_along(self) -> tuple[float, float]:
@@ -254,8 +257,3 @@ class TrackConstants(BaseModel):
                     raise ValueError(msg)
             edge = hi
         return tuple(float(o) for o in offsets)
-
-    @classmethod
-    def load_default(cls) -> TrackConstants:
-        """Load from the checked-in ``platform/shared/config/track.toml``."""
-        return load_toml_model(cls, DEFAULT_CONFIG_PATH)

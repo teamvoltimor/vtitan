@@ -13,7 +13,8 @@ profile-overlay ``deep_merge``) boilerplate scattered across the config models.
 from __future__ import annotations
 
 import tomllib
-from typing import TYPE_CHECKING, Any, TypeVar
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from pydantic import BaseModel
 
@@ -22,7 +23,6 @@ from shared.config.hardware_profile import PROFILES_ROOT, profile_dirs
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-    from pathlib import Path
 
 # Anchored from hardware_profile.py (shared/config/hardware_profile.py) rather
 # than each caller, so module relocations can't change the resolved root.
@@ -107,3 +107,30 @@ def profile_overlay_paths(filename: str) -> Sequence[Path]:
     TOML from every active profile onto the base file.
     """
     return [directory / filename for directory in profile_dirs()]
+
+
+class TomlLoadableModel(BaseModel):
+    """Base for config models loaded from a single checked-in TOML file.
+
+    Collapses the near-identical ``load_default`` classmethod repeated across
+    ``robot_constants`` / ``track_constants`` / ``ros_topics`` (and any future
+    model) onto one shared implementation: a subclass sets
+    :attr:`default_config_path` and inherits ``load_default``.
+
+    Subclasses that must pre-merge profile overlays or otherwise patch the
+    mapping before validation override :meth:`_load_raw` -- the default just
+    opens and parses :attr:`default_config_path` with
+    :func:`load_toml_merged`.
+    """
+
+    default_config_path: ClassVar[Path]
+
+    @classmethod
+    def _load_raw(cls) -> dict[str, Any]:
+        """Return the (merged) TOML mapping to validate against this model."""
+        return load_toml_merged(cls.default_config_path)
+
+    @classmethod
+    def load_default(cls) -> TomlLoadableModel:
+        """Load and validate this model from :attr:`default_config_path`."""
+        return cls.model_validate(cls._load_raw())
