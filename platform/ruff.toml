@@ -248,11 +248,8 @@ select = [
 
 # Rules to ignore
 ignore = [
-    # Conflicts with formatter
-    "W191",    # Tab indentation
-    "E111",    # Indentation
-    "E114",    # Indentation
-    "E117",    # Over-indented
+    # Line length / trailing comma are owned by the formatter; the linter would
+    # otherwise re-flag every pre-format line.
     "E501",    # Line too long (handled by formatter)
     "COM812",  # Trailing comma missing (ruff's own formatter warns this rule fights it)
 
@@ -279,13 +276,8 @@ ignore = [
     "PLR0913", # Too many arguments
 
     # Unicode characters in docstrings and strings (intentional)
-    "RUF001",  # String contains ambiguous Unicode character
     "RUF002",  # Docstring contains ambiguous Unicode character
     "RUF003",  # Comment contains ambiguous Unicode character
-
-    # Module naming (e.g. robot's src/state_machine/types.py intentionally
-    # shadows stdlib `types`)
-    "A005",    # Module shadows a Python standard-library module
 ]
 
 # Rules to treat as fixable
