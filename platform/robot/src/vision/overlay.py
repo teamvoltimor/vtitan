@@ -12,10 +12,10 @@ import cv2
 import numpy as np
 from shared.domain.models import SignColor
 
-from src.vision.hud import _DEFAULT_HUD_CONFIG
-
 if TYPE_CHECKING:
     from shared.domain.models import Detection
+
+    from src.vision.hud import HudConfig
 
 # Box colours in RGB, chosen to read against the prism they outline rather than
 # to match it: an exactly-matching outline is invisible on the object.
@@ -28,12 +28,14 @@ _FALLBACK_RGB = (255, 255, 0)
 _THICKNESS = 2
 
 
-def annotate(rgb: np.ndarray, detections: list[Detection]) -> np.ndarray:
+def annotate(rgb: np.ndarray, detections: list[Detection], *, config: HudConfig) -> np.ndarray:
     """Return a copy of *rgb* with each detection boxed and labelled.
 
     Args:
         rgb: Frame in RGB order, as the detector consumes it.
         detections: Detections whose bboxes are in that frame's pixel space.
+        config: Tuning constants for the HUD (caller-supplied; supplies
+            font_scale for the label text).
 
     Returns:
         A new array; the input is left untouched so the caller can still
@@ -55,7 +57,7 @@ def annotate(rgb: np.ndarray, detections: list[Detection]) -> np.ndarray:
         cv2.rectangle(canvas, (x1, y1), (x2, y2), colour, _THICKNESS)
 
         label = f"{detection.class_name} {detection.confidence:.2f}"
-        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, _DEFAULT_HUD_CONFIG.font_scale, 1)
+        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, config.font_scale, 1)
         # Put the label inside the box when there is no room above it, so it
         # never lands off-frame for a detection touching the top edge.
         text_y = y1 - baseline if y1 - text_h - baseline >= 0 else y1 + text_h + baseline
@@ -71,7 +73,7 @@ def annotate(rgb: np.ndarray, detections: list[Detection]) -> np.ndarray:
             label,
             (x1, text_y),
             cv2.FONT_HERSHEY_SIMPLEX,
-            _DEFAULT_HUD_CONFIG.font_scale,
+            config.font_scale,
             (0, 0, 0),
             1,
             cv2.LINE_AA,

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import cv2
 
-from src.vision.hud import _DEFAULT_HUD_CONFIG, HudConfig, draw_logo, draw_radar, draw_stats
+from src.vision.hud import HudConfig, draw_logo, draw_radar, draw_stats
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -62,7 +62,7 @@ class VideoRecorder:
     thread, so neither cost lands on the caller.
     """
 
-    def __init__(self, video_width: int, fps: float, hud_config: HudConfig | None = None) -> None:
+    def __init__(self, video_width: int, fps: float, hud_config: HudConfig) -> None:
         self._video_width = video_width
         self._fps = fps
         self._hud_config = hud_config
@@ -107,7 +107,7 @@ class VideoRecorder:
         """
         if self._thread is None:
             return
-        join_timeout_sec = (self._hud_config or _DEFAULT_HUD_CONFIG).join_timeout_sec
+        join_timeout_sec = self._hud_config.join_timeout_sec
         self._queue.put(None)  # sentinel; a blocking put is fine here, this is not the hot path
         self._thread.join(timeout=join_timeout_sec)
         if self._thread.is_alive():
