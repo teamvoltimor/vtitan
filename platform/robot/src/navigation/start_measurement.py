@@ -42,6 +42,7 @@ from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.domain.enums import Direction, Section
 
 from src.config.tuning_helpers import get_tuning
+from src.navigation.utils import _wedge_median as _wedge_median_impl
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
@@ -79,21 +80,20 @@ def _wedge_median(
     center_rad: float,
     half_width_rad: float,
 ) -> float | None:
-    """Median valid range in a wedge about ``center_rad``, or None if none are valid.
+    """Median valid LIDAR range in a wedge about ``center_rad``.
 
-    Median rather than mean or minimum: a mean is dragged by the occasional
-    max-range no-return, and a minimum reports whatever speck is nearest rather
-    than the wall the wedge is pointed at.
+    Thin wrapper over :func:`src.navigation.utils._wedge_median` that pins the
+    valid-range window to the LIDAR's own physical bounds (see that function's
+    docstring for why a median is used).
     """
-    delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
-    usable = (
-        (np.abs(delta) <= half_width_rad)
-        & (ranges > RobotSpecs.LIDAR_MIN_RANGE)
-        & (ranges < RobotSpecs.LIDAR_MAX_RANGE * 0.99)
+    return _wedge_median_impl(
+        ranges,
+        angles,
+        center_rad,
+        half_width_rad,
+        min_valid_range_m=RobotSpecs.LIDAR_MIN_RANGE,
+        max_valid_range_m=RobotSpecs.LIDAR_MAX_RANGE * 0.99,
     )
-    if not usable.any():
-        return None
-    return float(np.median(ranges[usable]))
 
 
 def _rotate_into(section: Section, x: float, y: float) -> tuple[float, float]:

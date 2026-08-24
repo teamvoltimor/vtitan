@@ -186,18 +186,23 @@ def _wedge_median(
     half_width_rad: float,
     min_valid_range_m: float = 0.0,
     self_detection_threshold_m: float | None = None,
+    max_valid_range_m: float | None = None,
 ) -> float | None:
     """Median valid range in a wedge about ``center_rad``, or ``None`` if none.
 
     Median rather than mean or minimum: a mean is dragged by the occasional
     max-range no-return, and a minimum reports whatever speck is nearest rather
     than the wall the wedge is pointed at.
+
+    Ranges outside ``[min_valid_range_m, max_valid_range_m]`` are excluded;
+    either bound may be left at its default (no lower / no upper cap).
     """
     valid = [
         r
         for r, a in zip(ranges_m, angles_rad, strict=False)
         if abs(wrap_angle(a - center_rad)) <= half_width_rad
         and r > min_valid_range_m
+        and (max_valid_range_m is None or r < max_valid_range_m)
         and (self_detection_threshold_m is None or r > self_detection_threshold_m)
     ]
     return float(np.median(valid)) if valid else None
