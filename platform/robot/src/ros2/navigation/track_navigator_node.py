@@ -1256,7 +1256,9 @@ class TrackNavigator(Node, ResettableNode):
                 self._latest_debug.start_measured_corridor_width_m = self._measured_start.corridor_width_m
             localizer_inputs = self._gateway.get_localizer_inputs()
             if localizer_inputs is not None:
-                yaw, prior_x, prior_y = localizer_inputs
+                yaw = localizer_inputs.yaw
+                prior_x = localizer_inputs.prior_x
+                prior_y = localizer_inputs.prior_y
                 self._latest_debug.localizer_input_yaw_rad = yaw
                 self._latest_debug.localizer_prior_x = prior_x
                 self._latest_debug.localizer_prior_y = prior_y
