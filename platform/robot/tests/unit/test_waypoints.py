@@ -12,10 +12,8 @@ from shared.domain.models import CorridorWidthEntry, CorridorWidths, Waypoint
 
 from src.navigation.planning.waypoints import (
     _arc_with_endpoints,
-    _build_corridor_order,
     _corner_arc_radius,
     _deduplicate_consecutive,
-    _rotate_to_start,
     _straight_waypoints,
     calculate_waypoints,
     corridor_for_position,
@@ -31,18 +29,17 @@ def tuning():
 class TestOrderSectionsForLaps:
     """Test section ordering for lap-based navigation."""
 
-    def test_clockwise_order(self) -> None:
-        order = _build_corridor_order(Direction.CLOCKWISE)
-        assert order == [Section.EAST, Section.SOUTH, Section.WEST, Section.NORTH]
+    def test_clockwise_order_from_south(self) -> None:
+        order = Section.loop_order(Section.SOUTH, Direction.CLOCKWISE)
+        assert order == [Section.SOUTH, Section.WEST, Section.NORTH, Section.EAST]
 
-    def test_counter_clockwise_order(self) -> None:
-        order = _build_corridor_order(Direction.COUNTERCLOCKWISE)
-        assert order == [Section.EAST, Section.NORTH, Section.WEST, Section.SOUTH]
+    def test_counter_clockwise_order_from_south(self) -> None:
+        order = Section.loop_order(Section.SOUTH, Direction.COUNTERCLOCKWISE)
+        assert order == [Section.SOUTH, Section.EAST, Section.NORTH, Section.WEST]
 
-    def test_rotate_to_start(self) -> None:
-        order = [Section.EAST, Section.SOUTH, Section.WEST, Section.NORTH]
-        rotated = _rotate_to_start(order, Section.WEST)
-        assert rotated == [Section.WEST, Section.NORTH, Section.EAST, Section.SOUTH]
+    def test_loop_order_rotates_to_start(self) -> None:
+        order = Section.loop_order(Section.WEST, Direction.CLOCKWISE)
+        assert order == [Section.WEST, Section.NORTH, Section.EAST, Section.SOUTH]
 
 
 class TestGenerateCorridorWaypoints:

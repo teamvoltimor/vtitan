@@ -224,9 +224,7 @@ def calculate_waypoints(
         tuning,
     )
 
-    order = _build_corridor_order(direction)
-
-    order = _rotate_to_start(order, starting.section)
+    order = Section.loop_order(starting.section, direction)
 
     full_loop = _assemble_loop(order, segments)
     start_x, start_y = starting.position.x, starting.position.y
@@ -409,20 +407,6 @@ def _build_all_segments(
         Section.WEST: list(reversed(west_straight)) + list(reversed(sw_cw)),
         Section.NORTH: list(reversed(north_straight)) + list(reversed(nw_cw)),
     }
-
-
-def _build_corridor_order(direction: Direction) -> list[Section]:
-    if direction is Direction.CLOCKWISE:
-        return [Section.EAST, Section.SOUTH, Section.WEST, Section.NORTH]
-    return [Section.EAST, Section.NORTH, Section.WEST, Section.SOUTH]
-
-
-def _rotate_to_start(order: list[Section], start_section: Section) -> list[Section]:
-    """Rotate the corridor order so start_section comes first."""
-    rotated = list(order)
-    while rotated[0] != start_section:
-        rotated.append(rotated.pop(0))
-    return rotated
 
 
 def _assemble_loop(
