@@ -44,7 +44,6 @@ from shared.config.constants import (
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import Section
 from shared.domain.models import BlockPosition, ParkingLot, SignColor, SignPosition
-from std_msgs.msg import ColorRGBA
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -468,9 +467,12 @@ class LiveScenarioVisualizer(Node):
         return [self._wall_marker(index, *placement) for index, placement in enumerate(placements)]
 
     def _wall_marker(self, index: int, x: float, y: float, size_x: float, size_y: float) -> Marker:
-        # Unlit TRIANGLE_LIST box (see :meth:`_solid_box_marker`) so the wall
-        # keeps its colour at every view angle instead of being shaded by
-        # RViz's single scene light into a darker/brighter shade as you orbit.
+        # CUBE renders reliably in this RViz2 build; TRIANGLE_LIST (and
+        # MESH_RESOURCE on Windows) do not, so the walls vanished when we tried
+        # those. RViz shades CUBE with its single scene light, which only swings
+        # the brightness as you orbit -- acceptable for walls, and the trade is
+        # a marker type that is actually visible. See 1692c8fc (the prior revert
+        # to CUBE for the same reason).
         return self._solid_box_marker(
             "track",
             index,
@@ -483,55 +485,6 @@ class LiveScenarioVisualizer(Node):
             WallSpecs.COLOR,
             1.0,
         )
-
-    @staticmethod
-    def _box_triangles(
-        cx: float,
-        cy: float,
-        cz: float,
-        sx: float,
-        sy: float,
-        sz: float,
-    ) -> list[tuple[float, float, float]]:
-        """The 12 triangles (36 vertices) of an axis-aligned box.
-
-        Wound counter-clockwise so each face normal points outward -- RViz
-        culls back-faces, so a reversed winding would make the box invisible
-        from outside.
-        """
-        hx, hy, hz = sx / 2.0, sy / 2.0, sz / 2.0
-        x0, x1 = cx - hx, cx + hx
-        y0, y1 = cy - hy, cy + hy
-        z0, z1 = cz - hz, cz + hz
-        # 8 corners: 0-3 bottom (z0), 4-7 top (z1)
-        b = [
-            (x0, y0, z0),
-            (x1, y0, z0),
-            (x1, y1, z0),
-            (x0, y1, z0),
-            (x0, y0, z1),
-            (x1, y0, z1),
-            (x1, y1, z1),
-            (x0, y1, z1),
-        ]
-        tris = [
-            (0, 2, 1),
-            (0, 3, 2),  # bottom (-z)
-            (4, 5, 6),
-            (4, 6, 7),  # top (+z)
-            (0, 4, 7),
-            (0, 7, 3),  # -x
-            (1, 2, 6),
-            (1, 6, 5),  # +x
-            (0, 1, 5),
-            (0, 5, 4),  # -y
-            (3, 6, 2),
-            (3, 7, 6),  # +y
-        ]
-        verts: list[tuple[float, float, float]] = []
-        for a, bb, c in tris:
-            verts.extend((b[a], b[bb], b[c]))
-        return verts
 
     def _solid_box_marker(
         self,
@@ -546,28 +499,27 @@ class LiveScenarioVisualizer(Node):
         color: tuple[float, float, float],
         alpha: float,
     ) -> Marker:
-        """An axis-aligned box as an unlit TRIANGLE_LIST marker.
+        """An axis-aligned box as a ``CUBE`` marker.
 
-        RViz shades ``CUBE``/``SPHERE`` primitives with its single directional
-        light, so a box darkens or brightens as you orbit and the colour reads
-        differently at every angle. ``TRIANGLE_LIST`` markers carry per-vertex
-        colour and are drawn with RViz's no-lighting material, so the colour
-        stays constant head-on or edge-on. Used for the floor and the walls,
-        which are large flat surfaces where the shading swing is most visible.
+        Uses the existing ``WallSpecs``/``TrackDimensions`` constants for
+        geometry and ``Rgb`` for colour. ``CUBE`` is the only solid marker type
+        that reliably renders in this RoboStack/Kilted RViz build (see
+        :meth:`_wall_marker`).
         """
         m = Marker()
         m.header.frame_id = TfFrames.MAP
         m.ns = ns
         m.id = marker_id
-        m.type = Marker.TRIANGLE_LIST
+        m.type = Marker.CUBE
         m.action = Marker.ADD
-        for vx, vy, vz in self._box_triangles(cx, cy, cz, sx, sy, sz):
-            p = Point()
-            p.x, p.y, p.z = vx, vy, vz
-            m.points.append(p)
-            c = ColorRGBA()
-            c.r, c.g, c.b, c.a = color[0], color[1], color[2], alpha
-            m.colors.append(c)
+        m.pose.position.x = cx
+        m.pose.position.y = cy
+        m.pose.position.z = cz
+        m.pose.orientation.w = 1.0
+        m.scale.x = sx
+        m.scale.y = sy
+        m.scale.z = sz
+        _apply_color(m, Rgb(r=color[0], g=color[1], b=color[2]), alpha)
         return m
 
     def _inner_block_markers(self, track: TrackModel) -> list[Marker]:

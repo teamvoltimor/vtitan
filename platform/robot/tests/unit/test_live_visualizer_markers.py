@@ -327,9 +327,9 @@ def test_parking_lot_keeps_the_block_yaws():
 def test_floor_marker_is_present_and_white():
     """set_track() publishes an opaque white floor plane before walls/markings.
 
-    The floor is an unlit TRIANGLE_LIST box (constant colour at any view
-    angle), so it carries vertices/per-vertex colours rather than a CUBE
-    scale/pose.
+    The floor is a ``CUBE`` marker -- the only solid marker type that reliably
+    renders in this RoboStack/Kilted RViz build (``TRIANGLE_LIST`` is dropped,
+    see 1692c8fc). It carries a plain colour rather than per-vertex colours.
     """
     init_rclpy_once()
     visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_floor_plane")
@@ -338,13 +338,13 @@ def test_floor_marker_is_present_and_white():
         floor = [m for m in visualizer._cached_track_markers.markers if m.ns == "floor"]
         assert len(floor) == 1
         marker = floor[0]
-        assert marker.type == Marker.TRIANGLE_LIST
-        # 12 triangles * 3 vertices for the box.
-        assert len(marker.points) == 36
-        # All vertices lie below z=0 so line markings render on top.
-        assert all(p.z < 0.0 for p in marker.points)
-        # Every vertex is opaque white.
-        assert all(c.r == c.g == c.b == 1.0 and c.a == 1.0 for c in marker.colors)
+        assert marker.type == Marker.CUBE
+        # Thin slab sitting just below z=0 so line markings render on top.
+        assert marker.scale.z < 0.01
+        assert marker.pose.position.z < 0.0
+        # Opaque white.
+        assert marker.color.r == marker.color.g == marker.color.b == 1.0
+        assert marker.color.a == 1.0
     finally:
         visualizer.destroy_node()
 
