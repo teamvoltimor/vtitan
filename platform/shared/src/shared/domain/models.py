@@ -25,10 +25,7 @@ from shared.domain.enums import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
-
-    from shared.config.navigation_tuning import NavigationTuning
-    from shared.domain.models import TrafficSignObservation
+    from collections.abc import Iterator
 
 
 @dataclass(slots=True, frozen=True)
@@ -165,48 +162,6 @@ class Detection:
     height: float
     area: float
 
-    def to_world(
-        self,
-        robot_pose: Pose,
-        tuning: NavigationTuning | None = None,
-        lidar_ranges_m: Sequence[float] | None = None,
-        lidar_angles_rad: Sequence[float] | None = None,
-    ) -> tuple[float, float] | None:
-        """Project this detection to an approximate world (x, y) (audit §8d).
-
-        Delegates to the canonical implementation in
-        ``src.navigation.planning.sign_discovery`` (lazy-imported to avoid a
-        models <-> sign_discovery import cycle).
-        """
-        from src.navigation.planning.sign_discovery import _detection_to_world  # noqa: PLC0415
-
-        return _detection_to_world(
-            self,
-            (robot_pose.x, robot_pose.y),
-            robot_pose.yaw,
-            tuning,
-            lidar_ranges_m,
-            lidar_angles_rad,
-        )
-
-    def to_observation(
-        self,
-        robot_pose: Pose,
-        tuning: NavigationTuning | None = None,
-        lidar_ranges_m: Sequence[float] | None = None,
-        lidar_angles_rad: Sequence[float] | None = None,
-    ) -> TrafficSignObservation | None:
-        """Build a world-coordinate :class:`TrafficSignObservation` (audit §8d)."""
-        from src.navigation.planning.sign_discovery import detection_to_observation  # noqa: PLC0415
-
-        return detection_to_observation(
-            self,
-            robot_pose,
-            tuning,
-            lidar_ranges_m,
-            lidar_angles_rad,
-        )
-
     @property
     def center(self) -> Waypoint:
         """Centroid of the bounding box (audit §12b)."""
@@ -219,8 +174,8 @@ class Detection:
 
 
 @dataclass(slots=True, frozen=True)
-class Bounds:
-    """A bounding box for collision detection."""
+class BBox:
+    """An axis-aligned bounding box, replacing ``tuple[float, float, float, float]``."""
 
     x_min: float
     y_min: float
@@ -239,8 +194,41 @@ class Bounds:
 
     @property
     def center(self) -> Waypoint:
-        """Centroid of the box."""
+        """Centroid of the box (audit §12b)."""
         return Waypoint((self.x_min + self.x_max) / 2, (self.y_min + self.y_max) / 2)
+
+    @property
+    def area(self) -> float:
+        """Area of the box in square units (audit §12b)."""
+        return self.width * self.height
+
+    def __iter__(self) -> Iterator[float]:
+        """Iterate ``(x_min, y_min, x_max, y_max)`` for unpacking (audit §12b)."""
+        yield self.x_min
+        yield self.y_min
+        yield self.x_max
+        yield self.y_max
+
+    def contains(self, point: Waypoint) -> bool:
+        """Return whether ``point`` lies inside the box (audit §12b)."""
+        return self.x_min <= point.x <= self.x_max and self.y_min <= point.y <= self.y_max
+
+    def intersects(self, other: BBox) -> bool:
+        """Return whether this box overlaps ``other`` (audit §12b)."""
+        return not (
+            other.x_max < self.x_min or other.x_min > self.x_max or other.y_max < self.y_min or other.y_min > self.y_max
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class Bounds(BBox):
+    """A bounding box for collision detection.
+
+    Shares :class:`BBox`'s four corner fields and its geometry helpers
+    (``width``/``height``/``center`` plus ``area``/``contains``/``intersects``);
+    kept as a distinct name because some call sites mean "a collision box"
+    rather than "a vision bounding box" (audit §9f).
+    """
 
 
 @dataclass(slots=True, frozen=True)
@@ -500,53 +488,6 @@ class RGB:
     def to_bgr(self) -> tuple[int, int, int]:
         """Return ``(b, g, r)`` as ints, the channel order OpenCV expects (audit §12b)."""
         return (int(self.b), int(self.g), int(self.r))
-
-
-@dataclass(slots=True, frozen=True)
-class BBox:
-    """An axis-aligned bounding box, replacing ``tuple[float, float, float, float]``."""
-
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
-
-    @property
-    def width(self) -> float:
-        """Return the box width."""
-        return self.x_max - self.x_min
-
-    @property
-    def height(self) -> float:
-        """Return the box height."""
-        return self.y_max - self.y_min
-
-    @property
-    def center(self) -> Waypoint:
-        """Centroid of the box (audit §12b)."""
-        return Waypoint((self.x_min + self.x_max) / 2, (self.y_min + self.y_max) / 2)
-
-    @property
-    def area(self) -> float:
-        """Area of the box in square units (audit §12b)."""
-        return self.width * self.height
-
-    def __iter__(self) -> Iterator[float]:
-        """Iterate ``(x_min, y_min, x_max, y_max)`` for unpacking (audit §12b)."""
-        yield self.x_min
-        yield self.y_min
-        yield self.x_max
-        yield self.y_max
-
-    def contains(self, point: Waypoint) -> bool:
-        """Return whether ``point`` lies inside the box (audit §12b)."""
-        return self.x_min <= point.x <= self.x_max and self.y_min <= point.y <= self.y_max
-
-    def intersects(self, other: BBox) -> bool:
-        """Return whether this box overlaps ``other`` (audit §12b)."""
-        return not (
-            other.x_max < self.x_min or other.x_min > self.x_max or other.y_max < self.y_min or other.y_min > self.y_max
-        )
 
 
 @dataclass(slots=True, frozen=True)
