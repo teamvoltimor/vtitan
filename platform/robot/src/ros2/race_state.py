@@ -30,7 +30,7 @@ def parse_racing(msg: String) -> bool:
     Centralises the ``msg.data.strip().lower() == RobotState.RACING.value``
     parse that used to be duplicated at every ``_on_robot_state`` handler.
     """
-    return msg.data.strip().lower() == RobotState.RACING.value
+    return bool(msg.data.strip().lower() == RobotState.RACING.value)
 
 
 def subscribe_to_race_state(

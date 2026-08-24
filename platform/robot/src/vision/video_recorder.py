@@ -129,9 +129,10 @@ class VideoRecorder:
                 if writer is None:
                     height, width = frame.shape[:2]
                     out_height = round(self._video_width * height / width)
+                    fourcc = getattr(cv2, "VideoWriter_fourcc")  # noqa: B009
                     writer = cv2.VideoWriter(
                         str(path),
-                        cv2.VideoWriter_fourcc(*"mp4v"),
+                        fourcc(*"mp4v"),
                         self._fps,
                         (self._video_width, out_height),
                     )

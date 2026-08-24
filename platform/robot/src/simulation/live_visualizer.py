@@ -27,6 +27,11 @@ import math
 import time
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning.sensors import LidarSectorParams
+
+    from src.navigation.planning.sign_router import SignSpec
+
 import rclpy
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry, Path
@@ -80,7 +85,7 @@ def _pitch_to_quaternion(pitch: float) -> Quaternion:
     return Quaternion(x=0.0, y=math.sin(pitch / 2.0), z=0.0, w=math.cos(pitch / 2.0))
 
 
-def _is_masked_bearing(angle_rad: float, sectors: object) -> bool:
+def _is_masked_bearing(angle_rad: float, sectors: LidarSectorParams) -> bool:
     """True where the mount occludes its own sensor, by ANGLE not by range.
 
     These rays self-collide as a matter of geometry, so whatever range comes
@@ -162,7 +167,7 @@ class LiveScenarioVisualizer(Node):
         self._belief_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
         # Resolved once, not per tick: load_default() re-reads and re-validates
         # the TOML, which is not something to do at 20 Hz inside the scan path.
-        self._lidar_sectors = get_tuning(None).lidar_sectors
+        self._lidar_sectors: LidarSectorParams = get_tuning(None).lidar_sectors
         self._lidar_yaw_offset_rad = RobotSpecs.lidar_yaw_offset_rad()
         self._broadcast_lidar_frame()
         self.set_track(track)
@@ -358,7 +363,7 @@ class LiveScenarioVisualizer(Node):
             markers.markers.append(self._sign_estimate_marker(index, entry[0]))
         self._sign_estimate_pub.publish(markers)
 
-    def _sign_estimate_marker(self, index: int, spec: object) -> Marker:
+    def _sign_estimate_marker(self, index: int, spec: SignSpec) -> Marker:
         """One believed sign, drawn so it cannot be mistaken for the real one.
 
         Deliberately taller and translucent rather than a different colour: the

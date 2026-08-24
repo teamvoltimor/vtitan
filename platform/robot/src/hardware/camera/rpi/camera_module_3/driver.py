@@ -11,6 +11,7 @@ from pydantic_settings import SettingsConfigDict
 from shared.domain.models import CameraSize
 
 from src.hardware.camera.base import (
+    Config as CameraConfig,
     Driver as CameraDriver,
     Frame,
 )
@@ -22,7 +23,7 @@ from src.hardware.camera.rpi.camera_module_3.enums import (
     AwbMode,
     NoiseReductionMode,
 )
-from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.hardware.settings_base import CONFIG_DIR
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY
 
@@ -33,12 +34,12 @@ _COLOUR_NDIM = 3
 _RGBA_CHANNELS = 4
 
 
-class Config(HardwareBaseSettings):
+class Config(CameraConfig):
     """Camera configuration for RPi Camera Module 3.
 
-    Structurally mirrors src.hardware.camera.base.Config's shape (device,
-    width, height, fps) rather than subclassing it -- that base is a plain
-    dataclass, and mixing dataclass/pydantic-settings inheritance is fragile.
+    Extends ``src.hardware.camera.base.Config`` so the shared orientation logic
+    (``resolved_flips`` / ``get_resolution``) comes along; the backend-specific
+    autofocus/exposure/colour fields are added here.
     """
 
     model_config = SettingsConfigDict(
@@ -208,7 +209,8 @@ class Driver(CameraDriver):
 
     def _capture_array(self) -> np.ndarray:
         """Raw array capture used as the streamer's producer callback."""
-        return self.picamera2.capture_array()
+        frame: np.ndarray = self.picamera2.capture_array()
+        return frame
 
     def capture_frame(self) -> Frame:
         """Capture a single frame."""

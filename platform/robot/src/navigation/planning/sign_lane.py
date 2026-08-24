@@ -94,7 +94,7 @@ from itertools import pairwise
 
 from shared.config.constants import TrackDimensions
 from shared.domain.enums import Section
-from shared.domain.models import Waypoint
+from shared.domain.models import SignColor, Waypoint
 
 from src.navigation.planning.sign_router import Axis, SignSpec, clamp_lateral, outward_lateral_axis
 
@@ -227,7 +227,7 @@ def _control_points(
     """
     points: list[tuple[float, float]] = []
     for spec, sign_corridor in signs:
-        rule = outward_lateral_axis(sign_corridor, spec.color)
+        rule = outward_lateral_axis(sign_corridor, SignColor(spec.color))
         if rule is None:
             continue
         _, mult = rule
@@ -307,7 +307,7 @@ def apply_sign_lanes(
         by_corridor.setdefault(entry[1], []).append(entry)
 
     for corridor, corridor_signs in by_corridor.items():
-        rule = outward_lateral_axis(corridor, corridor_signs[0][0].color)
+        rule = outward_lateral_axis(corridor, SignColor(corridor_signs[0][0].color))
         if rule is None:
             continue
         axis, _ = rule

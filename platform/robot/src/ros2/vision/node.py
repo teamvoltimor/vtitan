@@ -17,6 +17,7 @@ from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.timer import Timer  # noqa: TC002
 from sensor_msgs.msg import Image, LaserScan
 from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
@@ -175,7 +176,7 @@ class VisionNode(Node):
         self._racing_state = RacingState()
         self._active_challenge: ScenarioType | None = None
         self._run_path: str | None = None
-        self._run_path_poll_timer = None
+        self._run_path_poll_timer: Timer | None = None
         self._run_path_poll_deadline = 0.0
         # HUD telemetry, cached from /nav_debug and /scan -- both None until
         # each topic's first message arrives, which the HUD must render as
@@ -326,15 +327,18 @@ class VisionNode(Node):
         was_racing = self._racing_state.is_racing
         self._racing_state.update(
             msg,
-            on_start=lambda: (
-                self._maybe_start_recording(),
-                self._dataset_capture.reset() if self._dataset_capture is not None else None,
-            ),
+            on_start=self._on_race_start,
             on_stop=self._stop_recording,
         )
         self.get_logger().info(
             f"_on_robot_state: {msg.data!r} -> racing={self._racing_state.is_racing} (was {was_racing})"
         )
+
+    def _on_race_start(self) -> None:
+        """Arm recording and reset the dataset capture on the RACING-entered edge."""
+        self._maybe_start_recording()
+        if self._dataset_capture is not None:
+            self._dataset_capture.reset()
 
     def _on_challenge_mode_active(self, msg: String) -> None:
         """Cache the jumper-resolved challenge for the HUD's CHALLENGE line.
@@ -395,6 +399,7 @@ class VisionNode(Node):
         requires the output directory not to already exist.
         """
         assert self._run_path is not None
+        assert self._run_path_poll_timer is not None
         path = Path(self._run_path)
         if path.is_dir():
             self._run_path_poll_timer.cancel()

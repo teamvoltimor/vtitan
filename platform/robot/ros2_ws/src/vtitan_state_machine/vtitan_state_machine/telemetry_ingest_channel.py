@@ -66,9 +66,9 @@ def _node_health(node_health: str) -> int:
     dying on an unrecognized status string would drop the whole snapshot.
     """
     try:
-        return types_pb2.NodeHealth.Value(f"NODE_HEALTH_{node_health.upper()}")
+        return int(types_pb2.NodeHealth.Value(f"NODE_HEALTH_{node_health.upper()}"))
     except ValueError:
-        return types_pb2.NODE_HEALTH_UNSPECIFIED
+        return int(types_pb2.NODE_HEALTH_UNSPECIFIED)
 
 
 def _imu_data(imu: _IMUPayload) -> types_pb2.ImuData:
@@ -312,9 +312,9 @@ class TelemetryIngestChannel:
             try:
                 self._run_stream(rpc_name, q)
             except grpc.RpcError as exc:
-                self._logger.warning("%s stream error: %s %s", rpc_name, exc.code(), exc.details())
+                self._logger.warning(f"{rpc_name} stream error: {exc.code()} {exc.details()}")
             except Exception as exc:  # noqa: BLE001
-                self._logger.warning("%s stream error: %s", rpc_name, exc)
+                self._logger.warning(f"{rpc_name} stream error: {exc}")
 
             if self._on_state_changed is not None:
                 connected = False
@@ -330,7 +330,7 @@ class TelemetryIngestChannel:
         try:
             stub = ingest_pb2_grpc.TelemetryIngestServiceStub(channel)
             rpc = getattr(stub, rpc_name)
-            self._logger.info("Opening %s stream to %s", rpc_name, self._backend_target)
+            self._logger.info(f"Opening {rpc_name} stream to {self._backend_target}")
             if self._on_state_changed is not None:
                 connected = True
                 self._on_state_changed(connected)

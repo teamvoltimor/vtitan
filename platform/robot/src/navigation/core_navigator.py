@@ -13,6 +13,8 @@ from collections import deque
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from shared.config.constants import CompetitionSpecs, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
 from shared.domain.models import NavigatorDebugSnapshot, Pose, Waypoint
@@ -713,7 +715,7 @@ class CoreNavigator:
         # down for a sign (raw ``risk`` caps speed below), it just no longer
         # panics at one the planner is already handling. Walls and unmapped
         # returns are untouched in both readings.
-        escape_ranges = scan.ranges_m if scan else None
+        escape_ranges: np.ndarray | tuple[float, ...] | None = scan.ranges_m if scan else None
         escape_risk = risk
         if scan and self._sign_router is not None:
             escape_ranges = mask_mapped_obstacles(
@@ -1005,7 +1007,7 @@ class CoreNavigator:
         # Escape maneuvers if critical — judged on the masked scan, so a mapped
         # sign cannot trigger one, and steered by the masked scan too: the
         # threat this escape is running from is by construction not the sign.
-        if escape_risk == RiskLevel.CRITICAL and scan:
+        if escape_risk == RiskLevel.CRITICAL and scan and escape_ranges is not None:
             escape_clearances = clearances_from_scan(
                 LidarScan(ranges_m=tuple(escape_ranges), angles_rad=scan.angles_rad),
                 self._collision_controller,
@@ -1114,7 +1116,7 @@ class CoreNavigator:
         dx, dy = target.x - robot_x, target.y - robot_y
         along = dx * cos_yaw + dy * sin_yaw
         lateral = -dx * sin_yaw + dy * cos_yaw
-        distance = target.distance_to(Waypoint(robot_x, robot_y))
+        distance = target.to_waypoint().distance_to(Waypoint(robot_x, robot_y))
         if distance < self._tuning.escape.POSE_TRAIL_MIN_STEP_M or along > 0.0:
             # Target is not actually behind the chassis -- nothing to retrace.
             return None
@@ -1126,7 +1128,7 @@ class CoreNavigator:
         travelled = 0.0
         previous = (robot_x, robot_y)
         for point in reversed(self._pose_trail):
-            travelled += point.distance_to(Waypoint(previous[0], previous[1]))
+            travelled += point.to_waypoint().distance_to(Waypoint(previous[0], previous[1]))
             previous = (point.x, point.y)
             if travelled >= want:
                 return point

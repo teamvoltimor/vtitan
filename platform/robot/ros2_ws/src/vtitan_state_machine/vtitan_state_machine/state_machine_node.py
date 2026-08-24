@@ -867,7 +867,7 @@ class StateMachineNode(Node, ResettableNode):
             current_velocity=round(metrics.current_velocity, 2),
             current_steering=round(metrics.current_steering, 2),
             gyro_yaw=round(metrics.gyro_yaw, 2),
-            current_corridor=metrics.current_corridor,
+            current_corridor=metrics.current_corridor or "",
         ).model_dump_json()
         self.metrics_pub.publish(msg)
 

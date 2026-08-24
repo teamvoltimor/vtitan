@@ -578,7 +578,7 @@ class TrackNavigator(Node, ResettableNode):
                 continue
             if obs.confidence < sign_cfg.MIN_CONFIDENCE:
                 continue
-            dist = pose.distance_to(Waypoint(obs.world_x_m, obs.world_y_m))
+            dist = pose.to_waypoint().distance_to(Waypoint(obs.world_x_m, obs.world_y_m))
             if dist < nearest_dist:
                 nearest, nearest_dist = obs, dist
         if nearest is None or nearest_dist > sign_cfg.ACTIVATION_DIST_M:
@@ -1056,7 +1056,9 @@ class TrackNavigator(Node, ResettableNode):
 
         believed = estimator.widths
         self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
-        self._core_navigator.replace_path(self._plan(believed), (pose.x, pose.y))
+        self._core_navigator.replace_path(
+            self._plan(CorridorGeometry.from_width_dict(believed)), (pose.x, pose.y)
+        )
         self.get_logger().info(
             "Layout belief updated: "
             + ", ".join(f"{s.value}={w * 100:.0f}cm" for s, w in sorted(believed.items(), key=lambda kv: kv[0].value)),
@@ -1071,22 +1073,19 @@ class TrackNavigator(Node, ResettableNode):
         """Track whether the state machine says we are racing."""
         self._racing_state.update(
             msg,
-            on_stop=lambda: (
-                # Left RACING (finished, or E-STOP). Command a stop immediately
-                # rather than waiting for the next control tick.
-                self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0)),
-                self.get_logger().info(f"Race state '{msg.data}' - navigator holding, motors stopped"),
-            ),
-            on_start=lambda: (
-                # This is the one instant the robot is known to be in its
-                # starting pose -- whether that's the very first race, or a
-                # re-run cycled purely from the button (FINISHED -> BOOT_CHECK ->
-                # READY -> RACING, no process restart), so reset() has to run
-                # here every time, not just once at node startup.
-                self.reset(),
-                self.get_logger().info("Race started - heading reference zeroed, navigator driving"),
-            ),
+            on_stop=self._hold_motors_on_stop,
+            on_start=self._reset_on_race_start,
         )
+
+    def _hold_motors_on_stop(self) -> None:
+        """Left RACING (finished, or E-STOP). Command a stop immediately."""
+        self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+        self.get_logger().info("Race state left - navigator holding, motors stopped")
+
+    def _reset_on_race_start(self) -> None:
+        """Re-zero heading and navigator state at the one known starting-pose instant."""
+        self.reset()
+        self.get_logger().info("Race started - heading reference zeroed, navigator driving")
 
     @override
     def reset(self) -> None:

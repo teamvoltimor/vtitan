@@ -121,7 +121,7 @@ class CorridorWidthSet:
 
     def width_mm_for(self, section: Section) -> int:
         """Width of the requested corridor."""
-        return getattr(self, f"{section.value.lower()}_mm")
+        return int(getattr(self, f"{section.value.lower()}_mm"))
 
     def is_wide(self, section: Section) -> bool:
         """True if the requested corridor is the wide width."""

@@ -7,7 +7,7 @@ package (see button_node.py for the reference implementation).
 
 from __future__ import annotations
 
-from typing import override
+from typing import cast, override
 
 import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
@@ -16,7 +16,7 @@ from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
 
 from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver
-from src.ros2.hardware_node import LifecycleHardwareNode
+from src.ros2.hardware_node import LifecycleHardwareNode, _DriverProtocol
 
 
 class IMU_I2CNode(LifecycleHardwareNode):
@@ -37,10 +37,11 @@ class IMU_I2CNode(LifecycleHardwareNode):
         return IMU_I2CDriver()
 
     @override
-    def _configure_driver(self, driver: IMU_I2CDriver) -> TransitionCallbackReturn:
+    def _configure_driver(self, driver: _DriverProtocol) -> TransitionCallbackReturn:
+        imu = cast("IMU_I2CDriver", driver)
         try:
-            driver.connect()
-            driver.enable_sensors()
+            imu.connect()
+            imu.enable_sensors()
             self.get_logger().info("IMU driver connected and sensors enabled.")
         except (RuntimeError, OSError) as e:
             self.get_logger().error(f"Failed to initialize IMU driver: {type(e).__name__}: {e}")
@@ -52,8 +53,9 @@ class IMU_I2CNode(LifecycleHardwareNode):
         """Read data from driver and publish as sensor_msgs/Imu."""
         if self.driver is None or self.publisher_ is None:
             return
+        driver = cast("IMU_I2CDriver", self.driver)
         try:
-            data = self.driver.get_all_data()
+            data = driver.get_all_data()
         except (RuntimeError, OSError, ValueError) as e:
             self.get_logger().warning(f"Failed to read IMU data: {type(e).__name__}: {e}")
             return

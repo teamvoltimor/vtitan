@@ -30,7 +30,8 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, cast
 
 from shared.config.constants import DictKeys, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
@@ -123,7 +124,7 @@ def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int
     entry = _ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
     if entry is None:
         return None
-    axis = entry.axis
+    axis = cast("Axis", entry.axis)
     return axis, entry.red_mult if color == SignColor.RED else entry.green_mult
 
 
@@ -710,7 +711,9 @@ class SignRouter:
         # the taper ever binds, so the ramp has nothing to give. Do not re-try
         # it without new information; see docs/sign-avoidance-investigation.md.
         taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
-        effective_offset = self._config.lateral_offset * taper
+        lateral_offset = self._config.lateral_offset
+        assert lateral_offset is not None
+        effective_offset = lateral_offset * taper
 
         deformed = _apply_deformation(
             waypoint,
@@ -1078,7 +1081,7 @@ def _match_detection_to_sign(
     return best_color
 
 
-def signs_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> list[SignSpec]:
+def signs_from_metadata(metadata: ScenarioMetadata | Mapping[Any, Any]) -> list[SignSpec]:
     """Extract sign specs from scenario metadata.
 
     Args:
