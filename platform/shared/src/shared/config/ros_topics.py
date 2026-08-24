@@ -13,10 +13,12 @@ Example usage:
 from __future__ import annotations
 
 from enum import StrEnum
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
 

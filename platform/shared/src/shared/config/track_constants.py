@@ -12,10 +12,12 @@ tree.
 from __future__ import annotations
 
 from decimal import Decimal
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict, model_validator
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
 
