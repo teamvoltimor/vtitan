@@ -1,0 +1,320 @@
+"""LIDAR sector math for collision avoidance.
+
+Pure functions over a scan: synthesize angles when absent, filter by bearing
+window, blind wedges and self-detection, and attribute rays to mapped obstacles
+so the reactive layer can withhold them. No controller state.
+"""
+
+from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING
+
+import numpy as np
+from shared.domain.models import SectorRanges
+
+from src.config.tuning_helpers import get_tuning
+from src.navigation.planning.waypoints import corridor_for_position
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from shared.domain.enums import Section
+    from shared.domain.models import Pose, Waypoint
+
+
+def mask_mapped_obstacles(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    robot_pose: Pose,
+    mapped_xy: Sequence[tuple[Waypoint, Section]],
+    radius_m: float,
+) -> np.ndarray:
+    """Blank the LIDAR returns that land on an obstacle the planner already owns.
+
+    The reactive layer in this module exists for what the planner does *not*
+    know about: walls it is drifting into, and unmapped returns. A traffic sign
+    the ``SignRouter`` is actively routing around is the opposite case -- the
+    planner has a deliberate plan for it, and that plan is to pass it at
+    ``lateral_offset`` centre-to-centre -- a gap narrower than ``contact_dist``
+    once the sign's own half-width is subtracted. So with the raw scan the escape
+    maneuver fires on every single sign pass and reverses the robot out of a gap
+    the planner aimed for on purpose. Measured over the 16 obstacles fixtures,
+    that decides the run before the router's aim can matter at all: every
+    planning-side knob reads flat because the reactive layer overrides it (see
+    ``docs/sign-avoidance-investigation.md``, "The escape layer is the gate").
+
+    So the split is by *provenance*, not by distance: a return attributable to a
+    mapped, actively-routed sign is withheld from the escape trigger, while walls
+    and genuinely unknown returns keep the full guard. This is deliberately
+    narrower than blanking the whole obstacle class from perception
+    (``lidar_sees_obstacles=False``), which is a diagnostic only -- the C1
+    really does see the signs, and an unmapped one must still stop the robot.
+
+    Masked rays are set to ``inf`` rather than dropped, so the returned array
+    stays index-aligned with ``lidar_angles``. ``inf`` is already this module's
+    no-return sentinel: ``sector_ranges`` filters it via ``np.isfinite`` and
+    ``_forward_path_ranges`` rejects it via its lateral-offset test.
+
+    Args:
+        lidar_ranges: Array of LIDAR range measurements.
+        lidar_angles: Per-ray bearings (radians, 0 = forward). Synthesised from a
+            full ``[-pi, pi)`` sweep when omitted, matching the rest of this module.
+        robot_pose: Robot pose in world frame, needed to place each ray's endpoint
+            on the map.
+        mapped_xy: World positions of the mapped obstacles to withhold, each
+            paired with its own corridor
+            (``SignRouter.routed_sign_positions_by_corridor``). A ray is only
+            attributed to a sign if its endpoint is within ``radius_m`` AND
+            ``robot_pose`` itself is currently in that sign's corridor --
+            proximity alone is not trustworthy under a believed pose that is a
+            wrong-but-consistent rigid rotation of the truth (the blind-mode
+            rotational-lock failure), which can reproject a genuinely unmapped
+            obstacle's ray onto a routed sign's coordinates purely by coincidence.
+            Gated on the ROBOT's own corridor rather than the ray endpoint's: a ray
+            endpoint can jitter across a hard corridor boundary between ticks from
+            ordinary LIDAR angle quantisation even when it is legitimately close to
+            a sign just inside that boundary, which would make an endpoint-keyed
+            gate flap; the robot itself is normally well inside a corridor, not
+            standing on its 1.0/2.0 boundary, whenever anything is close enough to
+            mask. See ``_SignTrack.corridor`` for the matching guard on the
+            discovery side.
+        radius_m: How close a ray endpoint must be to a mapped position to count as
+            that obstacle. Must cover the obstacle's own half-diagonal plus
+            localisation and mapping error, but stay well under the distance to the
+            nearest wall behind it -- too large and a wall standing behind a sign
+            is silently masked along with it.
+
+    Returns:
+        A copy of ``lidar_ranges`` with attributed rays set to ``inf``. The input
+        is returned unchanged (as an array) when there is nothing to mask.
+    """
+    ranges = np.asarray(lidar_ranges, dtype=float)
+    if ranges.size == 0 or len(mapped_xy) == 0 or radius_m <= 0.0:
+        return ranges
+
+    if lidar_angles is None:
+        angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+    else:
+        angles = np.asarray(lidar_angles, dtype=float)
+
+    robot_x, robot_y, robot_yaw = robot_pose.x, robot_pose.y, robot_pose.yaw
+    robot_corridor = corridor_for_position(robot_x, robot_y)
+    # Only finite returns have an endpoint to attribute; inf rays are already
+    # no-returns and feeding them through cos/sin yields inf-inf = nan.
+    finite = np.isfinite(ranges)
+    bearings = angles + robot_yaw
+    end_x = robot_x + ranges * np.cos(bearings)
+    end_y = robot_y + ranges * np.sin(bearings)
+
+    attributed = np.zeros(ranges.shape, dtype=bool)
+    for mapped_wp, mapped_corridor in mapped_xy:
+        if mapped_corridor != robot_corridor:
+            continue
+        attributed |= np.hypot(end_x - mapped_wp.x, end_y - mapped_wp.y) < radius_m
+
+    masked = ranges.copy()
+    masked[attributed & finite] = np.inf
+    return masked
+
+
+def _forward_path_ranges(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    path_half_width: float,
+    min_valid_range_m: float,
+) -> np.ndarray:
+    """Ranges of points ahead of the robot inside its driving lane.
+
+    A point at bearing ``theta`` (0 = forward) and range ``r`` sits at lateral
+    offset ``r*sin(theta)`` from the robot's centreline. Only points that are
+    ahead (``cos(theta) > 0``) and within ``path_half_width`` of the centreline
+    are in the robot's path -- the side walls of a corridor are excluded, so a
+    robot driving straight down a narrow corridor is not perpetually flagged just
+    because a wall is 0.2 m off its shoulder.
+    """
+    ranges = np.asarray(lidar_ranges, dtype=float)
+    if ranges.size == 0:
+        return ranges
+
+    if lidar_angles is None:
+        angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+    else:
+        angles = np.asarray(lidar_angles, dtype=float)
+
+    lateral = np.abs(ranges * np.sin(angles))
+    ahead = np.cos(angles) > 0.0
+    mask = ahead & (lateral < path_half_width) & (ranges > min_valid_range_m)
+    return np.asarray(ranges[mask])
+
+
+def sector_ranges(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    center_rad: float,
+    half_fov_rad: float,
+    filter_self_detection: bool = False,
+    self_detection_threshold_m: float | None = None,
+    min_valid_range_m: float | None = None,
+    blind_wedge_left_min_rad: float | None = None,
+    blind_wedge_left_max_rad: float | None = None,
+    blind_wedge_right_min_rad: float | None = None,
+    blind_wedge_right_max_rad: float | None = None,
+    apply_blind_wedge_mask: bool = True,
+) -> np.ndarray:
+    """Valid ranges whose bearing falls within ``center ± half_fov``.
+
+    Bearings come from ``lidar_angles`` (0 rad = forward, +pi/2 = left, -pi/2 =
+    right, +/-pi = rear). When angles are unavailable a full 360 deg scan indexed
+    from ``angle_min = -pi`` is assumed, so every sector helper agrees on which
+    way is forward regardless of the scan's index ordering.
+
+    A staticmethod on purpose: called both as an instance method (which passes its
+    own tuning-sourced thresholds explicitly) and directly as
+    ``CollisionAvoidanceController.sector_ranges(...)`` by external,
+    instance-less callers (e.g. telemetry_bridge_node.py's OLED summary), which
+    fall back to these keyword defaults.
+
+    Args:
+        lidar_ranges: Array of LIDAR range measurements.
+        lidar_angles: Per-ray bearings (radians), or None to synthesise a full
+            ``[-pi, pi)`` sweep.
+        center_rad: Centre bearing of the sector (radians).
+        half_fov_rad: Half-width of the sector (radians).
+        filter_self_detection: Also discard rays no farther than
+            ``self_detection_threshold_m`` -- mount occlusion or cable clutter
+            reflecting the chassis itself, not a real obstacle. Only pass this for
+            side/rear sectors: never for the pure-forward bearing, where a genuine
+            near-contact inside that radius must still register as a threat.
+        self_detection_threshold_m: Threshold used when ``filter_self_detection``
+            is set (m).
+        min_valid_range_m: LIDAR ranges at or below this are treated as invalid
+            (no-return) readings (m), used when ``filter_self_detection`` is not
+            set.
+        blind_wedge_left_min_rad: Start bearing of the left rear blind wedge
+            (radians).
+        blind_wedge_left_max_rad: End bearing of the left rear blind wedge
+            (radians).
+        blind_wedge_right_min_rad: Start bearing of the right rear blind wedge
+            (radians).
+        blind_wedge_right_max_rad: End bearing of the right rear blind wedge
+            (radians). These cover the two rear-corner mount-occlusion wedges
+            measured 2026-08-04, where self-collision reads as a real close range
+            at every distance -- a distance threshold can't separate that from a
+            genuine close obstacle at the same bearing, so this is filtered by
+            angle instead. Always applied (not gated behind ``filter_self_detection``):
+            the pure-forward bearing never overlaps these rear wedges, so there's
+            no case where a real forward contact would be discarded by them.
+        apply_blind_wedge_mask: Set False to skip the wedge exclusion -- used by
+            ``_sector_to_model`` to tell "this bearing is a known blind spot"
+            apart from "genuinely nothing out there" by re-running the same query
+            with the mask lifted.
+    """
+    ranges = np.asarray(lidar_ranges, dtype=float)
+    if ranges.size == 0:
+        return ranges
+
+    if (
+        self_detection_threshold_m is None
+        or min_valid_range_m is None
+        or blind_wedge_left_min_rad is None
+    ):
+        tuning = get_tuning(None)
+        if self_detection_threshold_m is None:
+            self_detection_threshold_m = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M
+        if min_valid_range_m is None:
+            min_valid_range_m = tuning.lidar_sectors.MIN_VALID_RANGE_M
+        if blind_wedge_left_min_rad is None:
+            blind_wedge_left_min_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_LEFT_MIN_DEG)
+            blind_wedge_left_max_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_LEFT_MAX_DEG)
+            blind_wedge_right_min_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MIN_DEG)
+            blind_wedge_right_max_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MAX_DEG)
+
+    if lidar_angles is None:
+        angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+    else:
+        angles = np.asarray(lidar_angles, dtype=float)
+
+    # Wrapped angular distance from the sector centre, in [-pi, pi].
+    delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
+    min_valid = self_detection_threshold_m if filter_self_detection else min_valid_range_m
+    if (
+        apply_blind_wedge_mask
+        and blind_wedge_left_min_rad is not None
+        and blind_wedge_left_max_rad is not None
+        and blind_wedge_right_min_rad is not None
+        and blind_wedge_right_max_rad is not None
+    ):
+        in_blind_wedge = ((angles >= blind_wedge_left_min_rad) & (angles <= blind_wedge_left_max_rad)) | (
+            (angles >= blind_wedge_right_min_rad) & (angles <= blind_wedge_right_max_rad)
+        )
+    else:
+        in_blind_wedge = np.zeros(angles.shape, dtype=bool)
+    # np.isfinite excludes no-return rays (+inf beyond LIDAR max range): ranges >
+    # min_valid alone lets them through (inf > any finite threshold), and a single
+    # stray inf inside a sector's window turns its mean/min/max into inf for every
+    # caller -- both the OLED's displayed clearance and detect_threat_direction's
+    # real collision-avoidance sectors.
+    mask = (np.abs(delta) <= half_fov_rad) & (ranges > min_valid) & np.isfinite(ranges) & ~in_blind_wedge
+    return np.asarray(ranges[mask])
+
+
+def _sector_to_model(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    center_rad: float,
+    half_fov_rad: float,
+    filter_self_detection: bool = False,
+    self_detection_threshold_m: float | None = None,
+    min_valid_range_m: float | None = None,
+    no_data_range_m: float | None = None,
+    blind_wedge_left_min_rad: float | None = None,
+    blind_wedge_left_max_rad: float | None = None,
+    blind_wedge_right_min_rad: float | None = None,
+    blind_wedge_right_max_rad: float | None = None,
+) -> SectorRanges:
+    """Compute aggregate metrics for an angular sector as a SectorRanges."""
+    ranges = sector_ranges(
+        lidar_ranges,
+        lidar_angles,
+        center_rad,
+        half_fov_rad,
+        filter_self_detection,
+        self_detection_threshold_m,
+        min_valid_range_m,
+        blind_wedge_left_min_rad,
+        blind_wedge_left_max_rad,
+        blind_wedge_right_min_rad,
+        blind_wedge_right_max_rad,
+    )
+    if no_data_range_m is None:
+        no_data_range_m = get_tuning(None).lidar_sectors.NO_DATA_RANGE_M
+    wedge_masked = False
+    if ranges.size == 0:
+        # Distinguish "this bearing is a known permanent blind spot" from
+        # "nothing is out there right now": re-run the same sector query with the
+        # wedge exclusion lifted -- if rays appear, every ray this sector could
+        # see was inside a blind wedge, not genuinely absent. Both cases still
+        # report no_data_range_m (a fully-masked sector is no more "definitely
+        # clear" than a fully-empty one), but callers that care (e.g. telemetry)
+        # can check wedge_masked.
+        unmasked = sector_ranges(
+            lidar_ranges,
+            lidar_angles,
+            center_rad,
+            half_fov_rad,
+            filter_self_detection,
+            self_detection_threshold_m,
+            min_valid_range_m,
+            apply_blind_wedge_mask=False,
+        )
+        wedge_masked = unmasked.size > 0
+    return SectorRanges(
+        bearing_rad=center_rad,
+        half_fov_rad=half_fov_rad,
+        mean_range_m=float(np.mean(ranges)) if ranges.size > 0 else no_data_range_m,
+        min_range_m=float(np.min(ranges)) if ranges.size > 0 else no_data_range_m,
+        max_range_m=float(np.max(ranges)) if ranges.size > 0 else no_data_range_m,
+        valid_count=int(ranges.size),
+        wedge_masked=wedge_masked,
+    )

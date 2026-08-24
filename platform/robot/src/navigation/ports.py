@@ -106,11 +106,9 @@ class LidarScan:
 
         Bearings use 0 rad = forward, +pi/2 = left, -pi/2 = right, +/-pi = rear.
         """
-        from src.navigation.control.controllers.collision_avoidance_controller import (
-            CollisionAvoidanceController,
-        )
+        from src.navigation.control.controllers.collision_avoidance import sector_ranges
 
-        return CollisionAvoidanceController.sector_ranges(
+        return sector_ranges(
             self.ranges_m,
             self.angles_rad,
             center_rad,
