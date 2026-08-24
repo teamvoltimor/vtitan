@@ -43,6 +43,51 @@ class Section(FromStringEnum):
         """Return the section name with an initial capital letter."""
         return self.value.capitalize()
 
+    @property
+    def cardinal(self) -> str:
+        """Short cardinal label (N/S/E/W) for display (e.g. the OLED)."""
+        return self.name[0]
+
+    @classmethod
+    def loop_order(cls, start_section: Section, direction: Direction) -> list[Section]:
+        """Corridor traversal order with ``start_section`` first.
+
+        Returns the four corridors in the sequence the robot traverses them,
+        beginning at ``start_section`` (corridor 1) and following ``direction``.
+        The internal absolute order is anchored at EAST (the start/finish line
+        sits on the east side of the mat -- see ``race_tracker.TRAVEL_DIRS``),
+        but that anchor never leaks: callers always pass the *believed* start
+        (measured once known, else ``Section.canonical()``), so the returned
+        order is relative to the robot's actual corner.
+
+        Used to assemble the waypoint loop and as the basis for ``loop_index``.
+        """
+        absolute = (
+            [cls.EAST, cls.SOUTH, cls.WEST, cls.NORTH]
+            if direction is Direction.CLOCKWISE
+            else [cls.EAST, cls.NORTH, cls.WEST, cls.SOUTH]
+        )
+        rotated = list(absolute)
+        while rotated[0] is not start_section:
+            rotated.append(rotated.pop(0))
+        return rotated
+
+    def loop_index(self, start_section: Section, direction: Direction) -> int:
+        """1-based position of this corridor in the loop from the start section.
+
+        The robot's starting corridor is corridor 1; the next one it reaches
+        (per ``loop_order``) is 2, and so on. Used for display (e.g. the OLED's
+        "corridor n/4" line), where a positional index is more meaningful than
+        the cardinal name.
+
+        ``start_section`` and ``direction`` MUST be the robot's *believed* start
+        (the measured start once known, else the assumed one -- e.g.
+        ``Section.canonical()``) -- never a hardcoded corner. Passing an assumed
+        start while the real one differs would number the corridors relative to
+        the wrong corner.
+        """
+        return self.loop_order(start_section, direction).index(self) + 1
+
     @classmethod
     def canonical(cls) -> Section:
         """The section a robot assumes when it hasn't been told which one it is in.
