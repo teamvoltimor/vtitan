@@ -111,6 +111,7 @@ class VisionNode(Node):
 
         defaults = Config()
         topics = RosTopicConfig.load_default()
+        self._topics = topics
         camera_topic = declare_and_get_str_param(self, "camera_topic", defaults.camera_topic)
         detections_topic = declare_and_get_str_param(self, "detections_topic", topics.sensors.vision_detections)
         model_path = declare_and_get_str_param(self, "model_path", defaults.model_path)
@@ -235,7 +236,7 @@ class VisionNode(Node):
         others -- it names one field ("VisionModel") that only this node ever
         sets.
         """
-        topics = RosTopicConfig.load_default()
+        topics = self._topics
         pub = self.create_publisher(DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE)
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -481,7 +482,7 @@ class VisionNode(Node):
             # neither is on during a race by default, so this costs nothing on
             # a normal Open Challenge round.
             if self._annotated_publisher is not None or self._recorder.is_recording:
-                annotated = annotate(rgb, detections)
+                annotated = annotate(rgb, detections, config=self._hud_config)
                 if self._recorder.is_recording:
                     # Every frame, unthrottled -- the debug topic's rate cap
                     # below is for live bandwidth, not for what gets recorded.

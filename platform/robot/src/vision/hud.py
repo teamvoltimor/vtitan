@@ -125,7 +125,6 @@ class HudConfig(HardwareBaseSettings):
     video for the run -- ros2 bag record creates its output dir asynchronously."""
 
 
-_DEFAULT_HUD_CONFIG = HudConfig()
 _LOGO_PATH = ROBOT_ROOT / "assets" / "vision" / "voltimor-mark.png"
 
 
@@ -273,7 +272,8 @@ def draw_stats(
     canvas: np.ndarray,
     nav_debug: dict | None,
     active_challenge: str | None = None,
-    config: HudConfig | None = None,
+    *,
+    config: HudConfig,
 ) -> np.ndarray:
     """Return a copy of *canvas* with status (top-left) and control (top-right) panels.
 
@@ -282,12 +282,12 @@ def draw_stats(
         nav_debug: The latest parsed NavigatorDebugSnapshot JSON, or None before
             the first /nav_debug message arrives.
         active_challenge: "open"/"obstacles"/None, shown on the status panel.
-        config: Tuning constants; defaults to the checked-in config/hardware/vision/hud.toml.
+        config: Tuning constants for the HUD (caller-supplied; the node builds
+            one HudConfig and threads it through, see VisionNode._hud_config).
 
     Returns:
         A new array; the input is left untouched, same contract as overlay.annotate.
     """
-    config = config or _DEFAULT_HUD_CONFIG
     out = np.ascontiguousarray(canvas).copy()
     _draw_panel(out, _status_lines(nav_debug, active_challenge), top=True, left=True, config=config)
     _draw_panel(out, _control_lines(nav_debug), top=True, left=False, config=config)
@@ -299,7 +299,8 @@ def draw_radar(
     ranges_m: Sequence[float] | None,
     angles_rad: Sequence[float] | None,
     max_range_m: float | None = None,
-    config: HudConfig | None = None,
+    *,
+    config: HudConfig,
 ) -> np.ndarray:
     """Return a copy of *canvas* with a small LIDAR radar plot in the bottom-right corner.
 
@@ -315,12 +316,11 @@ def draw_radar(
             for a no-return ray) is clipped to the edge rather than dropped, so
             a wide-open corridor still shows a ring instead of a hole. Defaults
             to config.max_radar_range_m.
-        config: Tuning constants; defaults to the checked-in config/hardware/vision/hud.toml.
+        config: Tuning constants for the HUD (caller-supplied).
 
     Returns:
         A new array; the input is left untouched.
     """
-    config = config or _DEFAULT_HUD_CONFIG
     max_range_m = max_range_m if max_range_m is not None else config.max_radar_range_m
     out = np.ascontiguousarray(canvas).copy()
     height, width = out.shape[:2]
@@ -367,7 +367,7 @@ def draw_radar(
     return out
 
 
-def draw_logo(canvas: np.ndarray, config: HudConfig | None = None) -> np.ndarray:
+def draw_logo(canvas: np.ndarray, *, config: HudConfig) -> np.ndarray:
     """Return a copy of *canvas* with the team mark watermarked into the bottom-left corner.
 
     Purely cosmetic branding, unlike draw_stats/draw_radar's telemetry -- so a
@@ -378,12 +378,11 @@ def draw_logo(canvas: np.ndarray, config: HudConfig | None = None) -> np.ndarray
 
     Args:
         canvas: Frame in RGB order.
-        config: Tuning constants; defaults to the checked-in config/hardware/vision/hud.toml.
+        config: Tuning constants for the HUD (caller-supplied).
 
     Returns:
         A new array; the input is left untouched.
     """
-    config = config or _DEFAULT_HUD_CONFIG
     out = np.ascontiguousarray(canvas).copy()
     if _LOGO_RGBA is None:
         return out
