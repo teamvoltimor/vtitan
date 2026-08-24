@@ -16,15 +16,12 @@ extend = "../ruff.toml"
 # Tests
 "test_*.py" = [
     "S101",
-    "S105",
-    "S106",
     "PLR2004",
     "ANN",
     "D",
     "BLE001",
     "SLF001",
     "ARG002",
-    "C416",
     "B905",
     "PTH123",
     "F841",
@@ -38,24 +35,17 @@ extend = "../ruff.toml"
     "SIM105",
     "SIM108",
     "RUF059",
-    "B007",
-    "TRY300",
-    "FBT001",
-    "FBT002",
     "N801",    # Test classes mirror production CapWords-violating names (e.g. TestIMU_I2CNodeInit)
     "N806",    # Fixtures yield the class itself; tests unpack it into a same-named local
 ]
 "tests/*.py" = [
     "S101",
-    "S105",
-    "S106",
     "PLR2004",
     "ANN",
     "D",
     "BLE001",
     "SLF001",
     "ARG002",
-    "C416",
     "B905",
     "PTH123",
     "F841",
@@ -69,78 +59,26 @@ extend = "../ruff.toml"
     "SIM105",
     "SIM108",
     "RUF059",
-    "B007",
-    "TRY300",
-    "FBT001",
-    "FBT002",
-    "N801",    # Test classes mirror production CapWords-violating names (e.g. TestIMU_I2CNodeInit)
-    "N806",    # Fixtures yield the class itself; tests unpack it into a same-named local
-]
-"*_test.py" = [
-    "S101",
-    "S105",
-    "S106",
-    "PLR2004",
-    "ANN",
-    "D",
-    "BLE001",
-    "SLF001",
-    "ARG002",
-    "C416",
-    "B905",
-    "PTH123",
-    "F841",
-    "PLC0415",
-    "E402",
-    "F401",
-    "S110",
-    "TRY400",
-    "PT006",
-    "PT007",
-    "SIM105",
-    "SIM108",
-    "RUF059",
-    "B007",
-    "TRY300",
-    "FBT001",
-    "FBT002",
     "N801",    # Test classes mirror production CapWords-violating names (e.g. TestIMU_I2CNodeInit)
     "N806",    # Fixtures yield the class itself; tests unpack it into a same-named local
 ]
 "conftest.py" = [
     "F401",
-    "F811",
-    "ARG002",
     "BLE001",
-    "C416",
     "B905",
     "PTH123",
-    "S110",
-    "SIM105",
-    "ANN",
-    "D",
-]
-
-# __init__.py files
-"__init__.py" = [
-    "F401",
-    "F403",
 ]
 
 # Setup and config files
-"setup.py" = ["D", "ANN", "INP001"]
-"config.py" = ["E501"]
-"settings.py" = ["E501"]
+"setup.py" = ["INP001"]
 
 # Scripts
 "scripts/*.py" = [
-    "T20",
     "INP001",
 ]
 
 # Root-level entrypoints (not in a package)
 "main.py" = [
-    "INP001",
     "PLC0415",
 ]
 
