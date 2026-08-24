@@ -99,7 +99,7 @@ def _footprint_contained(x: float, y: float, yaw: float, rect: tuple[float, floa
     x_min, y_min, x_max, y_max = rect
     return all(
         x_min <= cx <= x_max and y_min <= cy <= y_max
-        for cx, cy in _rect_corners(x, y, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
+        for cx, cy in ((c.x, c.y) for c in _rect_corners(x, y, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH))
     )
 
 

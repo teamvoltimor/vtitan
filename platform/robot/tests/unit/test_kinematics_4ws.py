@@ -132,8 +132,8 @@ class TestRotationIsAboutTheChassisCentre:
     def test_the_collision_rectangle_is_centred_on_the_pose(self):
         corners = _rect_corners(0.0, 0.0, 0.0, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
 
-        xs = [x for x, _ in corners]
-        ys = [y for _, y in corners]
+        xs = [c.x for c in corners]
+        ys = [c.y for c in corners]
         assert min(xs) == pytest.approx(-RobotSpecs.LENGTH / 2)
         assert max(xs) == pytest.approx(+RobotSpecs.LENGTH / 2)
         assert min(ys) == pytest.approx(-RobotSpecs.WIDTH / 2)
@@ -150,7 +150,7 @@ class TestRotationIsAboutTheChassisCentre:
         yaw = math.radians(30)
         corners = _rect_corners(0.0, 0.0, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
 
-        lateral = sorted(y for _, y in corners)
+        lateral = sorted(c.y for c in corners)
         assert lateral[0] == pytest.approx(-lateral[-1]), "footprint is not symmetric about the pose"
 
     def test_lateral_half_extent_matches_the_clearance_formula(self):
@@ -162,7 +162,7 @@ class TestRotationIsAboutTheChassisCentre:
         for degrees in (0, 20, 28, 40, 60, 84):
             yaw = math.radians(degrees)
             corners = _rect_corners(0.0, 0.0, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
-            measured = max(y for _, y in corners)
+            measured = max(c.y for c in corners)
             predicted = (RobotSpecs.LENGTH / 2) * abs(math.sin(yaw)) + (RobotSpecs.WIDTH / 2) * abs(math.cos(yaw))
 
             assert measured == pytest.approx(predicted), f"at {degrees} deg"

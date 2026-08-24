@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.domain.models import IMUReading, LocalizerInputs, Pose, TrafficSignObservation
+from shared.domain.models import IMUReading, LocalizerInputs, Pose, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.localization import make_localizer
@@ -366,10 +366,10 @@ class SimulatedHardwareGateway:
         believed = self.get_current_pose()
         return emulate_sign_observations(
             self._signs,
-            (self._state.x, self._state.y),
+            Waypoint(self._state.x, self._state.y),
             self._state.yaw,
             tuning=self.tuning,
-            believed_pos=(believed.x, believed.y) if believed is not None else None,
+            believed_pos=Waypoint(believed.x, believed.y) if believed is not None else None,
             believed_yaw=believed.yaw if believed is not None else None,
         )
 

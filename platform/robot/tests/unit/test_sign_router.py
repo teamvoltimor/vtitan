@@ -396,7 +396,7 @@ class TestRoutedSignPositions:
 
     def test_lists_every_sign_it_still_intends_to_route_around(self, router_config):
         signs = [_sign_at(1.5, 0.4, "red"), _sign_at(2.5, 0.4, "green")]
-        assert _router(signs, router_config).routed_sign_positions == [(1.5, 0.4), (2.5, 0.4)]
+        assert _router(signs, router_config).routed_sign_positions == [Waypoint(1.5, 0.4), Waypoint(2.5, 0.4)]
 
     def test_retired_sign_is_dropped_so_its_guard_comes_back(self, router_config):
         signs = [_sign_at(1.5, 0.4, "red"), _sign_at(2.5, 0.4, "green")]
@@ -415,7 +415,7 @@ class TestRoutedSignPositions:
             corridor=Section.SOUTH,
         )
 
-        assert router.routed_sign_positions == [(2.5, 0.4)]
+        assert router.routed_sign_positions == [Waypoint(2.5, 0.4)]
 
     def test_empty_when_there_are_no_signs(self, router_config):
         assert _router([], router_config).routed_sign_positions == []

@@ -145,7 +145,7 @@ def project_onto_path(waypoints: list[Waypoint], x: float, y: float) -> PathProj
         t = ((x - ax) * abx + (y - ay) * aby) / seg_len_sq
         t = min(1.0, max(0.0, t))
         px, py = ax + t * abx, ay + t * aby
-        dist = math.hypot(x - px, y - py)
+        dist = Waypoint(x, y).distance_to(Waypoint(px, py))
         if dist >= best_dist:
             continue
         best_dist = dist
@@ -229,9 +229,7 @@ def path_turn_ahead(
     for offset in range(count):
         a = waypoints[(start + offset) % count]
         b = waypoints[(start + offset + 1) % count]
-        ax, ay = a.x, a.y
-        bx, by = b.x, b.y
-        seg_len = math.hypot(bx - ax, by - ay)
+        seg_len = a.distance_to(b)
         if seg_len == 0.0:
             continue
         heading = a.bearing_to(b)

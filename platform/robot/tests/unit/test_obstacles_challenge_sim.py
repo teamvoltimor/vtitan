@@ -44,14 +44,13 @@ the absolute rule instead of the travel-relative one.
 
 from __future__ import annotations
 
-from typing import Any
-
 import logging
 import math
 from dataclasses import replace
+from typing import Any
 
 import pytest
-from shared.domain.models import SignColor
+from shared.domain.models import SignColor, Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.simulated_hardware_gateway as gateway_module
@@ -222,7 +221,7 @@ class TestVisionConfirmedSignRouting:
         original_emulate = gateway_module.emulate_sign_observations
 
         def flipped_color_emulate(signs, robot_pos, robot_yaw):
-            detections = original_emulate(signs, robot_pos, robot_yaw)
+            detections = original_emulate(signs, Waypoint(*robot_pos), robot_yaw)
             return [replace(d, color=SignColor.GREEN if d.color == SignColor.RED else SignColor.RED) for d in detections]
 
         monkeypatch.setattr(gateway_module, "emulate_sign_observations", flipped_color_emulate)

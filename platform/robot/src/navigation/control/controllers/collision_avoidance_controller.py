@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from shared.config.constants import RobotSpecs
 from shared.domain.enums import Direction, ManeuverType, RiskLevel
-from shared.domain.models import SectorRanges
+from shared.domain.models import SectorRanges, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.planning.waypoints import corridor_for_position
@@ -70,7 +70,7 @@ def mask_mapped_obstacles(
     lidar_ranges: np.ndarray | tuple[float, ...],
     lidar_angles: np.ndarray | tuple[float, ...] | None,
     robot_pose: Pose,
-    mapped_xy: Sequence[tuple[float, float, Section]],
+    mapped_xy: Sequence[tuple[Waypoint, Section]],
     radius_m: float,
 ) -> np.ndarray:
     """Blank the LIDAR returns that land on an obstacle the planner already owns.
@@ -154,10 +154,10 @@ def mask_mapped_obstacles(
     end_y = robot_y + ranges * np.sin(bearings)
 
     attributed = np.zeros(ranges.shape, dtype=bool)
-    for mapped_x, mapped_y, mapped_corridor in mapped_xy:
+    for mapped_wp, mapped_corridor in mapped_xy:
         if mapped_corridor != robot_corridor:
             continue
-        attributed |= np.hypot(end_x - mapped_x, end_y - mapped_y) < radius_m
+        attributed |= np.hypot(end_x - mapped_wp.x, end_y - mapped_wp.y) < radius_m
 
     masked = ranges.copy()
     masked[attributed & finite] = np.inf

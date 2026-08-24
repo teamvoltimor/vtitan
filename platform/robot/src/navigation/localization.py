@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
+from shared.domain.models import Waypoint
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
@@ -54,7 +55,7 @@ class LidarLocalizer:
         self._max_speed_mps = params.MAX_SPEED_MPS
         self._jump_confirm_tolerance = params.JUMP_CONFIRM_TOLERANCE_M
         self._last_estimate_time_s: float | None = None
-        self._pending_jump_xy: tuple[float, float] | None = None
+        self._pending_jump_xy: Waypoint | None = None
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning, walls: TrackWalls) -> LidarLocalizer:
@@ -191,7 +192,7 @@ class LidarLocalizer:
             self._pending_jump_xy = None
             return prior_xy
 
-        if self._reject_implausible_speed((best_x, best_y), prior_xy, dt):
+        if self._reject_implausible_speed(Waypoint(best_x, best_y), Waypoint(*prior_xy), dt):
             return prior_xy
 
         self._pending_jump_xy = None
@@ -199,8 +200,8 @@ class LidarLocalizer:
 
     def _reject_implausible_speed(
         self,
-        best_xy: tuple[float, float],
-        prior_xy: tuple[float, float],
+        best_xy: Waypoint,
+        prior_xy: Waypoint,
         dt: float | None,
     ) -> bool:
         """Return True when ``best_xy`` implies a physically impossible speed.
@@ -228,14 +229,11 @@ class LidarLocalizer:
         """
         if dt is None or dt <= 0:
             return False
-        implied_dist = math.hypot(best_xy[0] - prior_xy[0], best_xy[1] - prior_xy[1])
+        implied_dist = best_xy.distance_to(prior_xy)
         if implied_dist <= self._max_speed_mps * dt:
             return False
         pending = self._pending_jump_xy
-        if (
-            pending is not None
-            and math.hypot(best_xy[0] - pending[0], best_xy[1] - pending[1]) <= self._jump_confirm_tolerance
-        ):
+        if pending is not None and best_xy.distance_to(pending) <= self._jump_confirm_tolerance:
             return False
         self._pending_jump_xy = best_xy
         return True
