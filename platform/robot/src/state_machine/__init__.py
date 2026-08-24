@@ -2,18 +2,15 @@
 
 from src.state_machine.core import StateMachine, StateTransition
 from src.state_machine.types import (
-    LidarMetrics,
     RaceStatus,
     RobotState,
     ScenarioType,
     SensorStatus,
     StateTransitionReason,
     SystemStatus,
-    VisionMetrics,
 )
 
 __all__ = [
-    "LidarMetrics",
     "RaceStatus",
     "RobotState",
     "ScenarioType",
@@ -22,5 +19,4 @@ __all__ = [
     "StateTransition",
     "StateTransitionReason",
     "SystemStatus",
-    "VisionMetrics",
 ]
