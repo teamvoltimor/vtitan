@@ -405,6 +405,14 @@ class TrackNavigator(Node, ResettableNode):
             self._topics.navigation.laps_completed,
             QOS_LIVE_READOUT,
         )
+        # Active corridor, every tick, for /race_metrics' CORRIDOR line. Same
+        # BEST_EFFORT rationale as /race/laps_completed: this loop must never
+        # block on a publish, and a dropped sample is corrected next tick.
+        self._corridor_pub = self.create_publisher(
+            String,
+            self._topics.navigation.current_corridor,
+            QOS_LIVE_READOUT,
+        )
 
         # Full internal navigation state, every tick, regardless of phase --
         # see NavigatorDebugSnapshot's own docstring. Recorded into every bag
@@ -1200,6 +1208,8 @@ class TrackNavigator(Node, ResettableNode):
     def _control_loop(self) -> None:
         """Execute one control step, or hold the robot stopped when not racing."""
         self._laps_pub.publish(Int32(data=self._core_navigator.laps_completed))
+        corridor = self._core_navigator.current_corridor
+        self._corridor_pub.publish(String(data=corridor.value if corridor is not None else ""))
         try:
             if not self._racing_state.is_racing:
                 # Keep publishing zeros rather than going silent: ackermann_motor_node

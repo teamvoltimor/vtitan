@@ -62,6 +62,9 @@ class NavigationTopics(BaseModel):
     laps_completed: str
     """Lap count from track_navigator_node's CoreNavigator/LapDetector."""
 
+    current_corridor: str
+    """Active track corridor (Section name) from track_navigator_node's CoreNavigator."""
+
     nav_debug: str
     """Full per-tick NavigatorDebugSnapshot (JSON) from track_navigator_node,
     covering both CoreNavigator.step() and the pre-direction-settle blind
