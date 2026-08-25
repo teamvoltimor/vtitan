@@ -54,6 +54,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Axis
 from src.navigation.planning import sign_router as sign_router_module
 from src.navigation.planning.waypoints import corridor_for_position
@@ -196,6 +197,58 @@ def _nearest_on_path(path: list, sign: object) -> tuple[float, float] | None:
     return best
 
 
+_SPEC_MATCH_M = 0.50
+"""Radius for matching a published lane spec to a true sign, for the depth test.
+
+Deliberately NOT the tight ``_SIGN_MATCH_M``: the quantity being measured IS the
+error between the two, so a tight gate would truncate exactly the tail the test
+is about -- the same trap as the pose gate that turned out to select the start
+section. 0.50 m is unambiguous because two signs in one section are always
+1.00 m apart (see the layout invariants in ``sign_lane``), and passes with no
+spec inside it are counted separately rather than dropped silently.
+"""
+
+
+def _spec_depth_error(sim: object, believed_sign: object) -> tuple[float, float] | None:
+    """Signed along-corridor error between the PUBLISHED lane spec and the true sign.
+
+    ``_control_points`` centres each sign's full-offset plateau on the DISCOVERED
+    sign's depth and holds it for ``SIGN_LANE_HOLD_M`` either side. So a plateau
+    is only over the real sign if discovery has its depth right to within that
+    half-width. This measures that directly: if the error routinely exceeds the
+    hold, the lane is centred in the wrong place and the 63% "phased-off" share
+    is a DISCOVERY defect, not a too-narrow plateau -- and widening the hold
+    would paper over it while spending wall clearance.
+    """
+    router = sim.navigator.sign_router  # type: ignore[attr-defined]
+    specs = list(router.lane_specs) if router is not None else []
+    if not specs:
+        return None
+    corridor = corridor_for_position(believed_sign.x, believed_sign.y)  # type: ignore[attr-defined]
+    rule = sign_router_module.outward_lateral_axis(corridor, believed_sign.color)  # type: ignore[attr-defined]
+    if rule is None:
+        return None
+    lateral_axis, _permitted = rule
+    # Depth is the axis the lane does NOT deform: the one it holds the plateau along.
+    def depth_of(x: float, y: float) -> float:
+        return x if lateral_axis == Axis.Y else y
+
+    def lateral_of(x: float, y: float) -> float:
+        return y if lateral_axis == Axis.Y else x
+
+    nearest = min(
+        specs,
+        key=lambda entry: math.hypot(entry[0].x - believed_sign.x, entry[0].y - believed_sign.y),  # type: ignore[attr-defined]
+    )[0]
+    if math.hypot(nearest.x - believed_sign.x, nearest.y - believed_sign.y) > _SPEC_MATCH_M:
+        return math.inf, math.inf
+    # Lateral is signed toward the PERMITTED side, so a systematic bias shows up
+    # as a consistent sign rather than averaging itself away across corridors.
+    depth_err = depth_of(nearest.x, nearest.y) - depth_of(believed_sign.x, believed_sign.y)  # type: ignore[attr-defined]
+    lateral_err = (lateral_of(nearest.x, nearest.y) - lateral_of(believed_sign.x, believed_sign.y)) * _permitted  # type: ignore[attr-defined]
+    return depth_err, lateral_err
+
+
 def _lane_shape(sim: object, believed_sign: object) -> str:
     """Split the lane's missing offset into WHERE it went missing.
 
@@ -237,7 +290,7 @@ def _lane_shape(sim: object, believed_sign: object) -> str:
 
 def _attribute(
     sim: object, sign: object, chassis_wrong: bool, true_pose: tuple[float, float, float]
-) -> tuple[str, float | None, float | None, str | None]:
+) -> tuple[str, float | None, float | None, str | None, float | None]:
     """Bucket one true violation: whose mistake was it?
 
     Splits the plan from the chassis. If the PLANNED line was already on the
@@ -251,14 +304,14 @@ def _attribute(
     """
     moved = _to_belief(sim, sign.x, sign.y, *true_pose)  # type: ignore[attr-defined]
     if moved is None:
-        return "no-pose", None, None, None
+        return "no-pose", None, None, None, None
     believed_sign = _BeliefSign(moved[0], moved[1], sign.color)  # type: ignore[attr-defined]
     plan_point = _nearest_on_path(sim.navigator._waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
     if plan_point is None:
-        return "no-plan", None, None, None
+        return "no-plan", None, None, None, None
     plan_wrong = _side_of(believed_sign, *plan_point)
     if plan_wrong is None:
-        return "no-rule", None, None, None
+        return "no-rule", None, None, None, None
     plan_clearance = _signed_clearance(believed_sign, *plan_point)
     # How much of the lane's specified offset actually reaches the pass. The
     # base path is the same polyline before apply_sign_lanes moved it sideways,
@@ -268,19 +321,20 @@ def _attribute(
     base_clearance = None if base_point is None else _signed_clearance(believed_sign, *base_point)
     delivered = None if base_clearance is None or plan_clearance is None else plan_clearance - base_clearance
     lane_shape = _lane_shape(sim, believed_sign)
+    depth_error = _spec_depth_error(sim, believed_sign)
     if not plan_wrong:
-        return ("plan-ok/chassis-wrong (tracking)" if chassis_wrong else "plan-ok"), plan_clearance, delivered, lane_shape
+        return ("plan-ok/chassis-wrong (tracking)" if chassis_wrong else "plan-ok"), plan_clearance, delivered, lane_shape, depth_error
 
     router = sim.navigator.sign_router  # type: ignore[attr-defined]
     routed = list(router.signs) if router is not None else []
     if not routed:
-        return "plan-wrong/never-routed", plan_clearance, delivered, lane_shape
+        return "plan-wrong/never-routed", plan_clearance, delivered, lane_shape, depth_error
     nearest = min(routed, key=lambda r: math.hypot(r.x - believed_sign.x, r.y - believed_sign.y))
     if math.hypot(nearest.x - believed_sign.x, nearest.y - believed_sign.y) > _SIGN_MATCH_M:
-        return "plan-wrong/never-routed", plan_clearance, delivered, lane_shape
+        return "plan-wrong/never-routed", plan_clearance, delivered, lane_shape, depth_error
     if str(nearest.color) != str(sign.color):  # type: ignore[attr-defined]
-        return "plan-wrong/colour-misread", plan_clearance, delivered, lane_shape
-    return "plan-wrong/colour-ok (routing)", plan_clearance, delivered, lane_shape
+        return "plan-wrong/colour-misread", plan_clearance, delivered, lane_shape, depth_error
+    return "plan-wrong/colour-ok (routing)", plan_clearance, delivered, lane_shape, depth_error
 
 
 _SIGN_MATCH_M = 0.25
@@ -293,6 +347,10 @@ _LANE_SPEC_NEAR_M = 0.1814
 A plan sitting further onto the forbidden side than this is on the wrong side by
 a full lane width -- a lane built the wrong way round rather than one that fell
 short of its offset."""
+
+
+_HOLD_M = NavigationTuning.load_default().sign_router.SIGN_LANE_HOLD_M
+"""Plateau half-width the lane holds full offset over, from the shipped tuning."""
 
 
 _LANE_SPEC_FAR_M = 0.2786
@@ -440,7 +498,7 @@ def _disable_termination() -> None:
     ScenarioSimulator._check_pass_side_violation = lambda self, nav: None  # type: ignore[assignment]  # noqa: ARG005, SLF001
 
 
-def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[float], list, list, list, list, list]:
+def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[float], list, list, list, list, list, list, list]:
     """Run one scenario and cross-tabulate each retirement's two verdicts.
 
     Returns ``(counts, alongs, colour_disagreements)`` where ``counts`` keys
@@ -465,11 +523,23 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     # doing AT that tick. Attribution has to be taken live -- the plan and the
     # router's sign list are rebuilt continuously, so nothing about the moment
     # of the pass survives to the end of the run to be read off afterwards.
-    best: dict[int, tuple[float, str, float, float | None, float | None, str | None]] = {}
+    best: dict[int, tuple[float, str, float, float | None, float | None, str | None, float | None]] = {}
+    # Spec hygiene, sampled at the tick the router holds the most lane specs.
+    # Duplication and corridor mislabelling are INTERNAL to the believed frame,
+    # so unlike a comparison against true positions they are not confounded by
+    # blind's frame rotation.
+    hygiene = {"peak": 0, "mislabelled": 0}
     early_pose_errors: list[float] = []
 
     def _on_step(state, _scan) -> None:  # type: ignore[no-untyped-def]
         true_pose[0] = (state.x, state.y)
+        router_now = sim.navigator.sign_router
+        specs_now = list(router_now.lane_specs) if router_now is not None else []
+        if len(specs_now) > hygiene["peak"]:
+            hygiene["peak"] = len(specs_now)
+            hygiene["mislabelled"] = sum(
+                1 for spec, label in specs_now if corridor_for_position(spec.x, spec.y) != label
+            )
         trail.append((state.x, state.y))
         phases.append(str(getattr(sim.navigator.debug_snapshot, "phase", "unknown")))
         if len(trail) <= _EARLY_WINDOW_TICKS:
@@ -484,10 +554,10 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
             believed = sim.gateway.get_current_pose()
             pose_error = math.inf if believed is None else math.hypot(believed.x - state.x, believed.y - state.y)
             chassis_wrong = bool(_side_of(sign, state.x, state.y))
-            bucket, plan_clearance, delivered, lane_shape = _attribute(
+            bucket, plan_clearance, delivered, lane_shape, depth_error = _attribute(
                 sim, sign, chassis_wrong, (state.x, state.y, state.yaw)
             )
-            best[index] = (distance, bucket, pose_error, plan_clearance, delivered, lane_shape)
+            best[index] = (distance, bucket, pose_error, plan_clearance, delivered, lane_shape, depth_error)
 
     sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
 
@@ -504,6 +574,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     counts["run_truly_violated"] += int(truth_wrong > 0)
     if early_pose_errors:
         _EARLY.append((truth_wrong > 0, statistics.median(early_pose_errors)))
+    hygiene_row = (len(signs), hygiene["peak"], hygiene["mislabelled"], truth_wrong > 0)
 
     # Attribution, restricted to passes where the believed frame nearly
     # coincides with the true one. Outside that gate the router's own output
@@ -511,7 +582,8 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     plan_clearances: list[tuple[str, float]] = []
     deliveries: list[tuple[str, float]] = []
     shapes: list[tuple[str, str]] = []
-    for index, (_distance, bucket, pose_error, plan_clearance, delivered, lane_shape) in best.items():
+    depth_errors: list[tuple[str, float, float]] = []
+    for index, (_distance, bucket, pose_error, plan_clearance, delivered, lane_shape, depth_error) in best.items():
         near_x, near_y = min(trail, key=lambda p: math.hypot(signs[index].x - p[0], signs[index].y - p[1]))
         violated = bool(_side_of(signs[index], near_x, near_y))
         # Delivery is recorded for CLEAN passes too. Attribution runs only on
@@ -523,6 +595,8 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
             deliveries.append((f"{'VIOLATION' if violated else 'clean pass'}: {bucket}", delivered))
         if lane_shape is not None:
             shapes.append((f"{'VIOLATION' if violated else 'clean pass'}", lane_shape))
+        if depth_error is not None:
+            depth_errors.append((lane_shape or "unknown", depth_error[0], depth_error[1]))
         if not violated:
             continue
         counts["attributed_total"] += 1
@@ -538,7 +612,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
         counts[f"bucket::{bucket}"] += 1
         if plan_clearance is not None:
             plan_clearances.append((bucket, plan_clearance))
-    return counts, alongs, list(_VIOLATIONS), list(_EARLY), plan_clearances, deliveries, shapes
+    return counts, alongs, list(_VIOLATIONS), list(_EARLY), plan_clearances, deliveries, shapes, depth_errors, [hygiene_row]
 
 
 def _environment() -> str:
@@ -596,6 +670,8 @@ def main() -> None:
     plan_clearances = [c for r in results for c in r[4]]
     deliveries = [d for r in results for d in r[5]]
     shapes = [sh for r in results for sh in r[6]]
+    depth_errors = [d for r in results for d in r[7]]
+    hygiene_rows = [h for r in results for h in r[8]]
 
     total = counts["retreat"] + counts["pass"]
     arm = "blind+known_start" if args.known_start else "blind"
@@ -647,6 +723,62 @@ def main() -> None:
             total_shape = sum(tally.values())
             detail = "  ".join(f"{k} {v:>4} ({v / total_shape:.0%})" for k, v in tally.most_common())
             print(f"    {outcome:<12} n={total_shape:>4}   {detail}")
+    if depth_errors:
+        finite = [d for _shape, d, _lat in depth_errors if math.isfinite(d)]
+        unmatched = sum(1 for _shape, d, _lat in depth_errors if not math.isfinite(d))
+        print(
+            f"  LANE CENTRING: published spec depth minus TRUE sign depth, against the "
+            f"{_HOLD_M:.2f} m plateau half-width:"
+        )
+        if finite:
+            magnitudes = sorted(abs(d) for d in finite)
+            beyond = sum(1 for m in magnitudes if m > _HOLD_M)
+            print(
+                f"    n={len(finite)}  median |err| {statistics.median(magnitudes):.3f} m  "
+                f"p90 {magnitudes[-max(len(magnitudes) // 10, 1)]:.3f} m  "
+                f"BEYOND the hold {beyond} ({beyond / len(magnitudes):.0%})"
+            )
+            for shape in sorted({sh for sh, d, _lat in depth_errors if math.isfinite(d)}):
+                values = sorted(abs(d) for sh, d, _lat in depth_errors if sh == shape and math.isfinite(d))
+                past = sum(1 for m in values if m > _HOLD_M)
+                print(
+                    f"    {shape:<18} n={len(values):>4}  median |err| {statistics.median(values):.3f} m  "
+                    f"beyond hold {past} ({past / len(values):.0%})"
+                )
+        print(f"    no spec within {_SPEC_MATCH_M:.2f} m of the true sign: {unmatched}")
+    laterals = sorted(lat for _sh, _d, lat in depth_errors if math.isfinite(lat))
+    if laterals:
+        print("  LANE CENTRING, LATERAL axis (spec minus true, + = toward the PERMITTED side):")
+        print(
+            f"    n={len(laterals)}  p10 {laterals[len(laterals) // 10]:+.3f}  "
+            f"median {statistics.median(laterals):+.3f}  p90 {laterals[-max(len(laterals) // 10, 1)]:+.3f}"
+        )
+        print(
+            f"    a consistent + median means the lane is built off a sign the router believes is "
+            f"further toward the permitted side than it truly is, which eats the commanded clearance"
+        )
+    if hygiene_rows:
+        ratios = sorted(peak / true_n for true_n, peak, _bad, _v in hygiene_rows if true_n)
+        dirty = [row for row in hygiene_rows if row[2] > 0]
+        print("  ROUTER SPEC HYGIENE (peak lane specs held, against the true sign count):")
+        print(
+            f"    specs per true sign: median {statistics.median(ratios):.2f}x  "
+            f"p90 {ratios[-max(len(ratios) // 10, 1)]:.2f}x  runs at >1.5x {sum(1 for r in ratios if r > 1.5)}/{len(ratios)}"
+        )
+        print(
+            f"    runs holding a spec whose settled corridor disagrees with its own believed "
+            f"position: {len(dirty)}/{len(hygiene_rows)}"
+        )
+        # Prevalence first, then whether it SELECTS failures -- the base-rate
+        # check every other candidate this session has failed.
+        if dirty and len(dirty) < len(hygiene_rows):
+            clean_rows = [row for row in hygiene_rows if row[2] == 0]
+            bad_rate = sum(1 for row in dirty if row[3]) / len(dirty)
+            clean_rate = sum(1 for row in clean_rows if row[3]) / len(clean_rows)
+            print(
+                f"    runs with a REAL violation: {bad_rate:.0%} of mislabelled runs (n={len(dirty)}) "
+                f"vs {clean_rate:.0%} of clean ones (n={len(clean_rows)})"
+            )
     by_start = {k[len("start::"):]: v for k, v in counts.items() if k.startswith("start::")}
     if by_start:
         print(f"    violations by start section {dict(sorted(by_start.items()))}")
