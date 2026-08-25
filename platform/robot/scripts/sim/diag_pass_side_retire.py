@@ -196,9 +196,48 @@ def _nearest_on_path(path: list, sign: object) -> tuple[float, float] | None:
     return best
 
 
+def _lane_shape(sim: object, believed_sign: object) -> str:
+    """Split the lane's missing offset into WHERE it went missing.
+
+    "18% of spec delivered" covers three defects that live in different code, and
+    the aggregate cannot tell them apart:
+
+    * ``A no-spec`` -- the router never published a lane for this sign, so
+      nothing downstream could apply one.
+    * ``B phased-off`` -- the lane reaches most of its offset somewhere near the
+      sign, just not where the robot is abeam it. ``SIGN_LANE_HOLD_M`` is 0.25 m,
+      so full offset exists over a narrow plateau that the pass can miss.
+    * ``C built-shallow`` -- the lane never reaches its offset anywhere near the
+      sign, so it was clamped or scaled at construction.
+
+    ``apply_sign_lanes`` returns a list of the same length and order as its input
+    (see ``CoreNavigator``'s lane docstring), so lane and base are compared
+    index-wise rather than by projection -- no nearest-point search to get wrong.
+    """
+    router = sim.navigator.sign_router  # type: ignore[attr-defined]
+    specs = list(router.lane_specs) if router is not None else []
+    near_spec = any(
+        math.hypot(spec.x - believed_sign.x, spec.y - believed_sign.y) <= _SIGN_MATCH_M  # type: ignore[attr-defined]
+        for spec, _corridor in specs
+    )
+    if not near_spec:
+        return "A no-spec"
+    lane = sim.navigator._waypoints  # type: ignore[attr-defined]  # noqa: SLF001
+    base = sim.navigator._lane_base_waypoints  # type: ignore[attr-defined]  # noqa: SLF001
+    if len(lane) != len(base):
+        return "unknown"
+    peak = 0.0
+    for lane_wp, base_wp in zip(lane, base, strict=False):
+        if math.hypot(base_wp.x - believed_sign.x, base_wp.y - believed_sign.y) <= _PASSED_NEAR_M:  # type: ignore[attr-defined]
+            peak = max(peak, math.hypot(lane_wp.x - base_wp.x, lane_wp.y - base_wp.y))
+    if peak < _LANE_SPEC_FAR_M / 2:
+        return "C built-shallow"
+    return "B phased-off"
+
+
 def _attribute(
     sim: object, sign: object, chassis_wrong: bool, true_pose: tuple[float, float, float]
-) -> tuple[str, float | None, float | None]:
+) -> tuple[str, float | None, float | None, str | None]:
     """Bucket one true violation: whose mistake was it?
 
     Splits the plan from the chassis. If the PLANNED line was already on the
@@ -212,14 +251,14 @@ def _attribute(
     """
     moved = _to_belief(sim, sign.x, sign.y, *true_pose)  # type: ignore[attr-defined]
     if moved is None:
-        return "no-pose", None, None
+        return "no-pose", None, None, None
     believed_sign = _BeliefSign(moved[0], moved[1], sign.color)  # type: ignore[attr-defined]
     plan_point = _nearest_on_path(sim.navigator._waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
     if plan_point is None:
-        return "no-plan", None, None
+        return "no-plan", None, None, None
     plan_wrong = _side_of(believed_sign, *plan_point)
     if plan_wrong is None:
-        return "no-rule", None, None
+        return "no-rule", None, None, None
     plan_clearance = _signed_clearance(believed_sign, *plan_point)
     # How much of the lane's specified offset actually reaches the pass. The
     # base path is the same polyline before apply_sign_lanes moved it sideways,
@@ -228,19 +267,20 @@ def _attribute(
     base_point = _nearest_on_path(sim.navigator._lane_base_waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
     base_clearance = None if base_point is None else _signed_clearance(believed_sign, *base_point)
     delivered = None if base_clearance is None or plan_clearance is None else plan_clearance - base_clearance
+    lane_shape = _lane_shape(sim, believed_sign)
     if not plan_wrong:
-        return ("plan-ok/chassis-wrong (tracking)" if chassis_wrong else "plan-ok"), plan_clearance, delivered
+        return ("plan-ok/chassis-wrong (tracking)" if chassis_wrong else "plan-ok"), plan_clearance, delivered, lane_shape
 
     router = sim.navigator.sign_router  # type: ignore[attr-defined]
     routed = list(router.signs) if router is not None else []
     if not routed:
-        return "plan-wrong/never-routed", plan_clearance, delivered
+        return "plan-wrong/never-routed", plan_clearance, delivered, lane_shape
     nearest = min(routed, key=lambda r: math.hypot(r.x - believed_sign.x, r.y - believed_sign.y))
     if math.hypot(nearest.x - believed_sign.x, nearest.y - believed_sign.y) > _SIGN_MATCH_M:
-        return "plan-wrong/never-routed", plan_clearance, delivered
+        return "plan-wrong/never-routed", plan_clearance, delivered, lane_shape
     if str(nearest.color) != str(sign.color):  # type: ignore[attr-defined]
-        return "plan-wrong/colour-misread", plan_clearance, delivered
-    return "plan-wrong/colour-ok (routing)", plan_clearance, delivered
+        return "plan-wrong/colour-misread", plan_clearance, delivered, lane_shape
+    return "plan-wrong/colour-ok (routing)", plan_clearance, delivered, lane_shape
 
 
 _SIGN_MATCH_M = 0.25
@@ -400,7 +440,7 @@ def _disable_termination() -> None:
     ScenarioSimulator._check_pass_side_violation = lambda self, nav: None  # type: ignore[assignment]  # noqa: ARG005, SLF001
 
 
-def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[float], list, list, list, list]:
+def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[float], list, list, list, list, list]:
     """Run one scenario and cross-tabulate each retirement's two verdicts.
 
     Returns ``(counts, alongs, colour_disagreements)`` where ``counts`` keys
@@ -425,7 +465,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     # doing AT that tick. Attribution has to be taken live -- the plan and the
     # router's sign list are rebuilt continuously, so nothing about the moment
     # of the pass survives to the end of the run to be read off afterwards.
-    best: dict[int, tuple[float, str, float, float | None, float | None]] = {}
+    best: dict[int, tuple[float, str, float, float | None, float | None, str | None]] = {}
     early_pose_errors: list[float] = []
 
     def _on_step(state, _scan) -> None:  # type: ignore[no-untyped-def]
@@ -444,8 +484,10 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
             believed = sim.gateway.get_current_pose()
             pose_error = math.inf if believed is None else math.hypot(believed.x - state.x, believed.y - state.y)
             chassis_wrong = bool(_side_of(sign, state.x, state.y))
-            bucket, plan_clearance, delivered = _attribute(sim, sign, chassis_wrong, (state.x, state.y, state.yaw))
-            best[index] = (distance, bucket, pose_error, plan_clearance, delivered)
+            bucket, plan_clearance, delivered, lane_shape = _attribute(
+                sim, sign, chassis_wrong, (state.x, state.y, state.yaw)
+            )
+            best[index] = (distance, bucket, pose_error, plan_clearance, delivered, lane_shape)
 
     sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
 
@@ -468,7 +510,8 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     # cannot be matched to a true sign at all (see _POSE_GATE_M).
     plan_clearances: list[tuple[str, float]] = []
     deliveries: list[tuple[str, float]] = []
-    for index, (_distance, bucket, pose_error, plan_clearance, delivered) in best.items():
+    shapes: list[tuple[str, str]] = []
+    for index, (_distance, bucket, pose_error, plan_clearance, delivered, lane_shape) in best.items():
         near_x, near_y = min(trail, key=lambda p: math.hypot(signs[index].x - p[0], signs[index].y - p[1]))
         violated = bool(_side_of(signs[index], near_x, near_y))
         # Delivery is recorded for CLEAN passes too. Attribution runs only on
@@ -478,6 +521,8 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
         # what turns "7% of spec" into a finding or a base rate.
         if delivered is not None:
             deliveries.append((f"{'VIOLATION' if violated else 'clean pass'}: {bucket}", delivered))
+        if lane_shape is not None:
+            shapes.append((f"{'VIOLATION' if violated else 'clean pass'}", lane_shape))
         if not violated:
             continue
         counts["attributed_total"] += 1
@@ -493,7 +538,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
         counts[f"bucket::{bucket}"] += 1
         if plan_clearance is not None:
             plan_clearances.append((bucket, plan_clearance))
-    return counts, alongs, list(_VIOLATIONS), list(_EARLY), plan_clearances, deliveries
+    return counts, alongs, list(_VIOLATIONS), list(_EARLY), plan_clearances, deliveries, shapes
 
 
 def _environment() -> str:
@@ -550,6 +595,7 @@ def main() -> None:
     early = [e for r in results for e in r[3]]
     plan_clearances = [c for r in results for c in r[4]]
     deliveries = [d for r in results for d in r[5]]
+    shapes = [sh for r in results for sh in r[6]]
 
     total = counts["retreat"] + counts["pass"]
     arm = "blind+known_start" if args.known_start else "blind"
@@ -594,6 +640,13 @@ def main() -> None:
                 f"    {name:<38} n={len(values):>4}  median {statistics.median(values):+.3f}  "
                 f"({statistics.median(values) / _LANE_SPEC_FAR_M:>4.0%} of spec)  never-applied (<1 cm) {never}"
             )
+    if shapes:
+        print("  WHERE THE OFFSET GOES (A no lane published / B lane peaks but not at the pass / C lane built shallow):")
+        for outcome in sorted({o for o, _ in shapes}):
+            tally = Counter(sh for o, sh in shapes if o == outcome)
+            total_shape = sum(tally.values())
+            detail = "  ".join(f"{k} {v:>4} ({v / total_shape:.0%})" for k, v in tally.most_common())
+            print(f"    {outcome:<12} n={total_shape:>4}   {detail}")
     by_start = {k[len("start::"):]: v for k, v in counts.items() if k.startswith("start::")}
     if by_start:
         print(f"    violations by start section {dict(sorted(by_start.items()))}")
