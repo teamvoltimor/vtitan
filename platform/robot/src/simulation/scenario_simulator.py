@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
-from shared.domain.enums import Direction, ScenarioType, Section
+from shared.domain.enums import Axis, Direction, ScenarioType, Section
 from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, Waypoint
 
 from src.config.tuning_helpers import get_tuning
@@ -34,8 +34,14 @@ from src.navigation.corridor_estimator import (
 from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
-from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec, signs_from_metadata
-from src.navigation.planning.waypoints import plan_believed_path
+from src.navigation.planning.sign_router import (
+    SignRouter,
+    SignRouterConfig,
+    SignSpec,
+    outward_lateral_axis,
+    signs_from_metadata,
+)
+from src.navigation.planning.waypoints import corridor_for_position, plan_believed_path
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions, start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
@@ -61,6 +67,22 @@ if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
     from src.navigation.ports import LidarScan
+
+
+_PASS_SIDE_ENGAGE_M = 0.60
+"""Range within which the chassis counts as negotiating a sign.
+
+Wide enough to admit a deliberately wide berth -- the sign lane's own spec is
++27.86 cm on the free side -- and far short of the opposite corridor, which is
+metres away, so no sign is ever scored against a pass down the other side of
+the track."""
+
+_PASS_SIDE_CLEAR_M = 0.75
+"""Range beyond which a negotiated sign counts as cleared, and is scored.
+
+Held clear of ``_PASS_SIDE_ENGAGE_M`` on purpose: with one shared threshold a
+chassis hovering at the boundary would score, re-engage and score again. The
+gap is the hysteresis that makes the pass a single event."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +331,18 @@ class ScenarioSimulator:
         self._waypoints = self._plan(believed_geometry)
 
         signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata.model_dump())
+
+        # Ground truth for the pass-side rule, kept by the SIMULATOR rather than
+        # read back off the navigator. Scoring a rule from the robot's own
+        # belief lets better self-deception pass for better driving: measured
+        # 2026-08-24, the router's believed-frame verdict flagged 46% of passes
+        # where the true layout says 21%, and ended 45 of 64 runs where 38
+        # genuinely offended. A judge watches the mat, so this does too.
+        self._true_signs = signs
+        self._pass_side_closest: dict[int, tuple[float, Waypoint]] = {}
+        self._pass_side_engaged: set[int] = set()
+        self._pass_side_scored: set[int] = set()
+        self._pass_side_wrong: list[int] = []
 
         # Where the signs are is drawn at random on the day and no scenario file
         # exists on the mat, so a blind run cannot be handed the sign layout any
@@ -777,6 +811,12 @@ class ScenarioSimulator:
             if nav.laps_completed > prev_laps:
                 lap_steps.append(step)
                 prev_laps = nav.laps_completed
+                # Each lap passes every sign again and is judged on its own, so
+                # a sign cleared correctly on lap 1 must still be scored on lap
+                # 2. Mirrors SignRouter.reset_for_new_lap.
+                self._pass_side_closest.clear()
+                self._pass_side_engaged.clear()
+                self._pass_side_scored.clear()
 
             surface = gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE
             surface = self._score_obstacle_contact(surface, gw.state)
@@ -785,10 +825,10 @@ class ScenarioSimulator:
                 break
 
             # Pass-side rule (Obstacles Challenge): a red obstacle must be
-            # cleared OUTWARD and a green INWARD. SignRouter records any sign
-            # retired on the wrong side; that is a scored failure, enforced
-            # exactly like a forbidden wall contact — the run stops here.
-            violation_signs = self._check_pass_side_violation(nav)
+            # cleared OUTWARD and a green INWARD. Scored from the true layout
+            # against the true pose; that is a scored failure, enforced exactly
+            # like a forbidden wall contact — the run stops here.
+            violation_signs = self._check_pass_side_violation(gw.state)
             if violation_signs is not None:
                 pass_side_violation = True
                 break
@@ -815,19 +855,60 @@ class ScenarioSimulator:
             violation_signs=violation_signs,
         )
 
-    def _check_pass_side_violation(self, nav: CoreNavigator) -> list[int] | None:
+    def _check_pass_side_violation(self, state: AckermannState) -> list[int] | None:
         """Return offending sign indices if the run must stop for a wrong-side pass.
 
         The Obstacles Challenge forbids clearing a red obstacle on its inner
-        side or a green on its outer side. ``SignRouter`` records any sign
-        retired on the wrong side; this surfaces them so ``run`` can terminate
-        the run the same way it does on a forbidden wall contact. Returns
-        ``None`` when no violation has occurred this tick.
+        side or a green on its outer side. Scored here from the TRUE layout and
+        the TRUE pose, the same way ``_classify_collision`` uses true geometry —
+        deliberately not from ``SignRouter.wrong_side_violations``, which is
+        computed in the believed frame from discovered colours and so conflates
+        where the chassis drove with what the robot thinks it saw. That record
+        is still kept; it is a useful measure of discovery quality, and the gap
+        between it and this is exactly that error. It just must not be what
+        ends a run.
+
+        The side is decided at the chassis's CLOSEST APPROACH to each sign, not
+        at whatever instant a distance threshold is crossed: closest approach is
+        where the choice of side is actually made, and measuring anywhere else
+        is the same mistake as reading a pass off a waypoint index instead of
+        the polyline. A sign is scored once it has been approached and then
+        cleared, so a run is never failed for a sign it is still negotiating.
+
+        Returns ``None`` when no violation has occurred this tick.
         """
-        router = nav.sign_router
-        if router is None or not router.wrong_side_violations:
+        if not self._true_signs:
             return None
-        return sorted(router.wrong_side_violations)
+        x, y = state.x, state.y
+        for index, sign in enumerate(self._true_signs):
+            if index in self._pass_side_scored:
+                continue
+            distance = math.hypot(sign.x - x, sign.y - y)
+            if distance <= _PASS_SIDE_ENGAGE_M:
+                self._pass_side_engaged.add(index)
+                closest = self._pass_side_closest.get(index)
+                if closest is None or distance < closest[0]:
+                    self._pass_side_closest[index] = (distance, Waypoint(x, y))
+                continue
+            if index not in self._pass_side_engaged or distance <= _PASS_SIDE_CLEAR_M:
+                continue
+            self._pass_side_scored.add(index)
+            if self._is_wrong_side(sign, self._pass_side_closest[index][1]):
+                self._pass_side_wrong.append(index)
+        return sorted(self._pass_side_wrong) or None
+
+    @staticmethod
+    def _is_wrong_side(sign: SignSpec, chassis: Waypoint) -> bool:
+        """Was ``chassis`` on the forbidden side of ``sign`` — red inward, green outward?"""
+        rule = outward_lateral_axis(corridor_for_position(sign.x, sign.y), sign.color)
+        if rule is None:
+            return False
+        axis, permitted = rule
+        robot_lat = chassis.x if axis == Axis.X else chassis.y
+        sign_lat = sign.x if axis == Axis.X else sign.y
+        if robot_lat == sign_lat:
+            return False
+        return (1 if robot_lat > sign_lat else -1) != permitted
 
     def _score_obstacle_contact(
         self,

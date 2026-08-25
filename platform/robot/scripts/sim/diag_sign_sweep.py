@@ -7,6 +7,14 @@ must always be read together (see
 laps>=3 and timeouts. Tracking collisions alone has already produced one wrong
 conclusion in that log.
 
+``pass-side`` is a FIFTH number that must be read with them. The simulator ends
+a run the moment a sign is retired on its forbidden side (``cef75f2a``), and
+such a run is neither a collision nor a timeout -- before this column existed
+it vanished from every counter and the row read as though the run simply did
+not happen. ``unscored`` guards the same hole generically: if it is non-zero
+the harness cannot account for how those runs ended, and no ratio on the row
+means anything until it is explained.
+
 ``success`` is deliberately not the headline: it also requires ``parked``, and
 parking is independently blocked by chassis-vs-pocket geometry, so it stays
 0/16 regardless of any driving change. ``laps>=3`` is the driving-success
@@ -648,6 +656,27 @@ class ScenarioOutcome:
     collision_kind: CollisionKind
     collision_step: int
     steps: int
+    pass_side_violation: bool = False
+    """The run was ended by a sign passed on the forbidden side.
+
+    A THIRD terminal verdict, added to the simulator by ``cef75f2a`` and
+    invisible to every metric above it: such a run is not ``collided``, not
+    ``timed_out``, and has ``laps`` short of target, so it lands in no counter
+    at all and the RESULT row reads as if nothing happened. That is the same
+    trap as reading collisions alone -- the run failed, on the rule the
+    challenge is actually scored by, and the number has to be on the row.
+    """
+
+    pass_side_signs: tuple[int, ...] = ()
+    """Indices of the signs passed on the wrong side."""
+
+    stuck: bool = False
+    """The simulator's no-progress bailout fired — a FOURTH terminal verdict.
+
+    Found by ``unscored`` after pass-side was added, which is what that column
+    is for: it was the residue left once collisions, timeouts and pass-side
+    were all accounted for."""
+
     uturns: int = 0
     """Heading reversals detected during the run — see ``_UTurnDetector``."""
 
@@ -1021,7 +1050,7 @@ def _sign_mask_attribution(
 
     router = sim.navigator.sign_router
     routed = router.routed_sign_positions if router is not None else []
-    masked = any(math.hypot(rx - struck_x, ry - struck_y) < _SIGN_MATCH_DIST_M for rx, ry in routed)
+    masked = any(math.hypot(wp.x - struck_x, wp.y - struck_y) < _SIGN_MATCH_DIST_M for wp in routed)
 
     color_match = None
     if masked and router is not None:
@@ -1406,6 +1435,9 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         collision_kind=kind,
         collision_step=result.steps,
         steps=result.steps,
+        pass_side_violation=result.pass_side_violation,
+        pass_side_signs=tuple(result.pass_side_violation_signs),
+        stuck=result.stuck,
         uturns=len(uturns.events),
         corner_uturns=uturns.corner_events,
         escape_starts=escapes.starts,
@@ -1481,6 +1513,34 @@ class SweepResult:
     def timeouts(self) -> int:
         """Scenarios that ran out of step budget."""
         return sum(1 for o in self.outcomes if o.timed_out)
+
+    @property
+    def pass_side_violations(self) -> int:
+        """Scenarios ended by passing a sign on the forbidden side."""
+        return sum(1 for o in self.outcomes if o.pass_side_violation)
+
+    @property
+    def stuck(self) -> int:
+        """Scenarios ended by the simulator's no-progress bailout."""
+        return sum(1 for o in self.outcomes if o.stuck)
+
+    @property
+    def unscored(self) -> int:
+        """Runs that ended in none of the reported terminal states.
+
+        A non-zero value means the harness cannot explain how those runs
+        ended, which invalidates every ratio on the row -- read it before
+        anything else.
+        """
+        return sum(
+            1
+            for o in self.outcomes
+            if not o.collided
+            and not o.timed_out
+            and not o.pass_side_violation
+            and not o.stuck
+            and o.laps < CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS
+        )
 
     @property
     def escape_starts(self) -> int:
@@ -1637,6 +1697,9 @@ class SweepResult:
             f"laps>=3 {self.laps_ge_3:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"pass-side {self.pass_side_violations:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"stuck {self.stuck:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"unscored {self.unscored:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)  "
             f"escapes {self.escape_starts:>4} ({self._escapes_per_lap:.2f}/lap, "
             f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)  "
@@ -1655,6 +1718,7 @@ class SweepResult:
         return "\n".join(
             f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
             f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))} "
+            f"pass_side={o.pass_side_violation}{list(o.pass_side_signs) or ''} "
             f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
             f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)} "
             f"color_match={o.sign_color_match} "
@@ -2736,8 +2800,8 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             routed = router.routed_sign_positions
             if not routed:
                 return
-            nearest = min(routed, key=lambda p: math.hypot(p[0] - pose.x, p[1] - pose.y))
-            if math.hypot(nearest[0] - pose.x, nearest[1] - pose.y) > _SIGN_PASS_WINDOW_M:
+            nearest = min(routed, key=lambda p: math.hypot(p.x - pose.x, p.y - pose.y))
+            if math.hypot(nearest.x - pose.x, nearest.y - pose.y) > _SIGN_PASS_WINDOW_M:
                 return
 
             near_abs.append(crosstrack)
@@ -2795,7 +2859,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             struck_middle = _is_middle_sign(struck.x, struck.y)
             bx, by = _into_believed_frame(sim, (struck.x, struck.y), result.final_pose)
             if routed:
-                estimate_err = min(math.hypot(rx - bx, ry - by) for rx, ry in routed)
+                estimate_err = min(math.hypot(wp.x - bx, wp.y - by) for wp in routed)
             # The sign that ended the run is not a pass, and it is the one the
             # control exists to be compared AGAINST -- leaving it in would
             # contaminate the control with the very population it contrasts.
