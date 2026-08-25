@@ -7,6 +7,12 @@ pwm_channel = 1
 
 frequency_hz = 1000
 
-# Encoder calibration + PID gains moved to config/hardware/motors/encoder.toml
+pwm_pin = 13       # L298N ENA
+dir_a_pin = 5      # L298N IN3
+dir_b_pin = 6      # L298N IN4
+# standby_pin is left unset (null) -- L298N has no STBY line. Set it if this
+# is actually a TB6612FNG.
+
+# Encoder calibration + PID gains live in config/hardware/motors/encoder.toml
 # -- the encoder is a separate component from this H-bridge, see
 # src/hardware/motors/encoder/.

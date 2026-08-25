@@ -2,11 +2,40 @@
 # Independent of which H-bridge (l298n/bts7960/...) is turning the shaft this
 # encoder reads.
 
-# Bench-calibrated odometry + drive-motor limits (measured 2026-07-25). See
-# src/hardware/motors/encoder/calibration.py for the derivation; re-measure
-# with scripts/hardware/calibrate_encoder.py if the drivetrain changes.
+pin_a = 16
+pin_b = 20
+
+# REQUIRED, no Python default -- per-motor physical data; a stale fallback
+# would silently misconfigure a different motor rather than erroring at
+# startup (see encoder/config.py). Re-measure with
+# scripts/hardware/calibrate_encoder.py whenever the motor/drivetrain changes.
+#
+# Below: JGB37-520 1590 RPM variant, MEASURED on hardware 2026-07-25 (not
+# derived from the datasheet -- the previous 194.0, 11 PPR x4 quadrature x an
+# assumed ~4.4 gear ratio, made counts_to_distance() over-report by ~3.5x).
+# Calibrated from raw quadrature counts against tape-measured travel, at two
+# duty levels:
+#     1650 counts / 54 cm  -> 672 counts per wheel revolution
+#     2447 counts / 79 cm  -> 681 counts per wheel revolution
+# The two agree to 1.3%, which is the point: wheel slip only ever inflates
+# the count for a given distance, so agreement across speeds means slip is
+# negligible and this is the true geometric ratio. Implies ~15.4:1 gearing
+# (676/44 counts per motor revolution). Do NOT derive counts_per_rev by
+# integrating /motor/drive_speed -- that feedback is exponentially smoothed
+# and rate-derived, and doing so gave answers ~2x wrong.
 counts_per_rev = 676.0
+
+# Maximum achievable WHEEL rpm (2447 counts / 5.11 s). NOT the motor's
+# free-running rpm from the datasheet, which is the wrong quantity twice
+# over: it is the motor shaft rather than the wheel (~15.4:1 apart), and it
+# is the unloaded figure. counts_per_rev counts WHEEL revolutions, so
+# get_rpm() reports wheel rpm, and the PID's feedforward term (1/max_rpm)
+# must be scaled from the same frame or it under-contributes duty by ~37x.
+# Corresponds to ~0.156 m/s; sags with battery charge (0.129 m/s on a tired
+# pack), so commanded speeds should stay below this for the loop to have
+# headroom to correct.
 max_rpm = 42.5
+
 # wheel_diameter_m is not set here -- it derives from RobotSpecs.WHEEL_RADIUS
 # (src/hardware/motors/encoder/calibration.py), not restated as a literal.
 

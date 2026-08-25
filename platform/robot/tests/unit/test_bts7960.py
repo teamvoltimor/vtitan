@@ -22,26 +22,27 @@ class TestBts7960PwmConfig:
         assert config.pwmchip == 0
         assert config.pwm_channel == 1
         assert config.frequency_hz == 1000
+        assert config.pwm_pin == 13
+        assert config.dir_select_pin == 5
+        assert config.r_en_pin == 6
+        assert config.l_en_pin == 26
 
 
 class TestDriver:
     def test_is_drive_driver(self):
-        assert isinstance(
-            Driver(pwm_pin=13, dir_select_pin=5, r_en_pin=6, l_en_pin=26),
-            DriveDriver,
-        )
+        assert isinstance(Driver(), DriveDriver)
 
     def test_run_drive_forward_before_connect_raises(self):
-        driver = Driver(pwm_pin=13, dir_select_pin=5, r_en_pin=6, l_en_pin=26)
+        driver = Driver()
         with pytest.raises(MotorConnectionError):
             driver.run_drive_forward(50)
 
     def test_run_drive_reverse_before_connect_raises(self):
-        driver = Driver(pwm_pin=13, dir_select_pin=5, r_en_pin=6, l_en_pin=26)
+        driver = Driver()
         with pytest.raises(MotorConnectionError):
             driver.run_drive_reverse(50)
 
     def test_no_feedback_of_its_own(self):
-        driver = Driver(pwm_pin=13, dir_select_pin=5, r_en_pin=6, l_en_pin=26)
+        driver = Driver()
         assert driver.get_drive_position() == 0.0
         assert driver.get_drive_speed() == 0.0

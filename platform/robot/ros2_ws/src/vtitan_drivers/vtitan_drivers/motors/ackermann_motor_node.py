@@ -56,11 +56,17 @@ Environment Variables:
     MOTOR_DRIVE__SPEED_SCALE: motor_speed = velocity_m_s * scale
     See src.hardware.motors.config.Config for the full set and defaults.
 
-    L298N drive pins: MOTOR_PWM_PIN (ENA), MOTOR_IN3_PIN, MOTOR_IN4_PIN
-    BTS7960 drive pins: MOTOR_PWM_PIN (shared PWM into the demux),
-        MOTOR_DIR_SELECT_PIN, MOTOR_R_EN_PIN, MOTOR_L_EN_PIN
-        (see docs/bts7960-ibt2-wiring.md)
-    Encoder pins (either H-bridge backend): MOTOR_ENCODER_A_PIN, MOTOR_ENCODER_B_PIN
+    H-bridge/encoder pin numbers are NOT read here -- they live on
+    L298nPwmConfig/Bts7960PwmConfig/EncoderConfig (TOML + env, same pattern
+    as the servo's ServoConfig.gpio_pin):
+        L298N drive pins: config/hardware/motors/l298n.toml
+            (env: L298N_PWM_PWM_PIN, L298N_PWM_DIR_A_PIN, L298N_PWM_DIR_B_PIN)
+        BTS7960 drive pins: config/hardware/motors/bts7960.toml
+            (env: BTS7960_PWM_PWM_PIN, BTS7960_PWM_DIR_SELECT_PIN,
+            BTS7960_PWM_R_EN_PIN, BTS7960_PWM_L_EN_PIN; see
+            docs/bts7960-ibt2-wiring.md)
+        Encoder pins (either H-bridge backend): config/hardware/motors/encoder.toml
+            (env: ENCODER_PIN_A, ENCODER_PIN_B)
     Servo steering: SERVO_* (see src.hardware.motors.servo.config.ServoConfig)
     Build HAT (when selected): MOTOR_STEERING__PORT, MOTOR_DRIVE__PORT, ...
 """
@@ -69,7 +75,6 @@ from __future__ import annotations
 
 import math
 import time
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
 import rclpy
@@ -95,7 +100,7 @@ from src.hardware.motors.enums import (
 )
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
-from src.ros2.params import declare_and_get_int_param, declare_and_get_str_param
+from src.ros2.params import declare_and_get_str_param
 from src.ros2.qos import QOS_STREAM
 
 # .env loading is a side effect of importing src.logger.config -- the
@@ -203,42 +208,6 @@ def _parse_drive_backend(value: str) -> DriveBackend:
         return DriveBackend.L298N
 
 
-@dataclass(frozen=True, slots=True)
-class _L298nPins:
-    """GPIO pin assignment for the L298N/TB6612 drive backend."""
-
-    pwm_pin: int = 13
-    dir_a_pin: int = 5
-    dir_b_pin: int = 6
-
-
-@dataclass(frozen=True, slots=True)
-class _Bts7960Pins:
-    """GPIO pin assignment for the BTS7960/IBT-2 drive backend.
-
-    See ``docs/bts7960-ibt2-wiring.md`` -- ``pwm_pin`` and ``dir_select_pin``
-    feed the external demux, ``r_en_pin``/``l_en_pin`` wire directly to the
-    module and are held ``HIGH`` for the driver's lifetime.
-    """
-
-    pwm_pin: int = 13
-    dir_select_pin: int = 5
-    r_en_pin: int = 6
-    l_en_pin: int = 26
-
-
-@dataclass(frozen=True, slots=True)
-class _EncoderPins:
-    """GPIO pin assignment for the quadrature encoder.
-
-    Wired the same way regardless of which drive H-bridge backend is
-    selected -- the encoder is a separate physical part from the H-bridge.
-    """
-
-    encoder_a_pin: int = 16
-    encoder_b_pin: int = 20
-
-
 class _DriverFactory:
     """Build the steering/drive/encoder drivers for the configured backends.
 
@@ -246,19 +215,17 @@ class _DriverFactory:
     both backends select it the same instance is reused (one GPIO/serial open).
     Driver classes are imported lazily so an unused backend need not be
     installed on the host.
+
+    Pin numbers and PWM wiring are NOT constructor args here -- each backend
+    driver reads them from its own TOML/env-backed config
+    (``L298nPwmConfig``/``Bts7960PwmConfig``/``EncoderConfig``), the same way
+    ``ServoConfig`` already owns the servo's ``gpio_pin``. This factory only
+    owns which backend to build and the software-level ``reversed`` flags
+    (``Config.drive``), which are not wiring facts.
     """
 
-    def __init__(
-        self,
-        config: Config,
-        l298n_pins: _L298nPins | None = None,
-        bts7960_pins: _Bts7960Pins | None = None,
-        encoder_pins: _EncoderPins | None = None,
-    ) -> None:
+    def __init__(self, config: Config) -> None:
         self._config = config
-        self._l298n_pins = l298n_pins or _L298nPins()
-        self._bts7960_pins = bts7960_pins or _Bts7960Pins()
-        self._encoder_pins = encoder_pins or _EncoderPins()
         self._build_hat: CombinedDriver | None = None
 
     def _shared_build_hat(self) -> CombinedDriver:
@@ -290,35 +257,20 @@ class _DriverFactory:
         if backend is DriveBackend.BTS7960:
             from src.hardware.motors.bts7960 import Driver  # noqa: PLC0415 - lazy: only when selected
 
-            pins = self._bts7960_pins
-            return Driver(
-                pwm_pin=pins.pwm_pin,
-                dir_select_pin=pins.dir_select_pin,
-                r_en_pin=pins.r_en_pin,
-                l_en_pin=pins.l_en_pin,
-                invert=self._config.drive.reversed,
-            )
+            return Driver(invert=self._config.drive.reversed)
 
         from src.hardware.motors.l298n import Driver  # noqa: PLC0415 - lazy: only when selected
 
-        pins = self._l298n_pins
-        return Driver(
-            pwm_pin=pins.pwm_pin,
-            dir_a_pin=pins.dir_a_pin,
-            dir_b_pin=pins.dir_b_pin,
-            standby_pin=None,  # L298N has no STBY line
-            invert=self._config.drive.reversed,
-        )
+        return Driver(invert=self._config.drive.reversed)
 
     def encoder(self, backend: DriveBackend) -> QuadratureEncoder | None:
         """Build the drive encoder, unless ``backend`` reports its own feedback (Build HAT)."""
         if backend is DriveBackend.BUILD_HAT:
             return None
-        pins = self._encoder_pins
         encoder_config = EncoderConfig()
         return QuadratureEncoder(
-            pin_a=pins.encoder_a_pin,
-            pin_b=pins.encoder_b_pin,
+            pin_a=encoder_config.pin_a,
+            pin_b=encoder_config.pin_b,
             counts_per_rev=encoder_config.counts_per_rev,
             wheel_diameter_m=DEFAULT_WHEEL_DIAMETER_M,
             # DEFAULT_WHEEL_DIAMETER_M derives from RobotSpecs.WHEEL_RADIUS,
@@ -407,36 +359,16 @@ class AckermannMotorNode(LifecycleNode):
             f"speed_scale={config.drive.speed_scale}",
         )
 
-        # H-bridge + encoder GPIO pin assignment, exposed as ROS2 params. Both
-        # H-bridge backends' pins and the encoder's pins are always declared
-        # (even if only one backend is actually selected), matching how these
-        # params were declared unconditionally before the split.
-        _l298n_defaults = _L298nPins()
-        l298n_pins = _L298nPins(
-            pwm_pin=declare_and_get_int_param(self, "motor_pwm_pin", _l298n_defaults.pwm_pin),
-            dir_a_pin=declare_and_get_int_param(self, "motor_in3_pin", _l298n_defaults.dir_a_pin),
-            dir_b_pin=declare_and_get_int_param(self, "motor_in4_pin", _l298n_defaults.dir_b_pin),
-        )
-        _bts7960_defaults = _Bts7960Pins()
-        bts7960_pins = _Bts7960Pins(
-            pwm_pin=declare_and_get_int_param(self, "motor_pwm_pin", _bts7960_defaults.pwm_pin),
-            dir_select_pin=declare_and_get_int_param(
-                self, "motor_dir_select_pin", _bts7960_defaults.dir_select_pin,
-            ),
-            r_en_pin=declare_and_get_int_param(self, "motor_r_en_pin", _bts7960_defaults.r_en_pin),
-            l_en_pin=declare_and_get_int_param(self, "motor_l_en_pin", _bts7960_defaults.l_en_pin),
-        )
-        _encoder_defaults = _EncoderPins()
-        encoder_pins = _EncoderPins(
-            encoder_a_pin=declare_and_get_int_param(self, "motor_encoder_a_pin", _encoder_defaults.encoder_a_pin),
-            encoder_b_pin=declare_and_get_int_param(self, "motor_encoder_b_pin", _encoder_defaults.encoder_b_pin),
-        )
+        # H-bridge + encoder pin numbers are NOT ROS2 params any more -- they
+        # live on L298nPwmConfig/Bts7960PwmConfig/EncoderConfig
+        # (TOML/env-backed), the same way ServoConfig already owns the
+        # servo's gpio_pin. See _DriverFactory's docstring.
 
         # Motor drivers (steering and drive may be one combined object or two)
         self.steering = None
         self.drive = None
         try:
-            factory = _DriverFactory(config, l298n_pins, bts7960_pins, encoder_pins)
+            factory = _DriverFactory(config)
             steering = factory.steering(self.steering_backend)
             raw_drive = factory.drive(self.drive_backend)
             encoder = factory.encoder(self.drive_backend)

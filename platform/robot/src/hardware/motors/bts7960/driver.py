@@ -36,6 +36,11 @@ logger = logging.getLogger(__name__)
 class Driver(DriveDriver):
     """H-bridge-only drive on Raspberry Pi (lgpio/gpiozero), through the demux.
 
+    All wiring facts (PWM chip/channel/carrier, and pin numbers) come from
+    ``pwm_config`` (``Bts7960PwmConfig``) rather than separate constructor
+    args, so they are TOML/env configurable the same way ``ServoConfig``
+    already is -- see ``config/hardware/motors/bts7960.toml``.
+
     ``dir_select_pin`` feeds the demux's direction input (routes the shared
     PWM to ``RPWM`` when high, ``LPWM`` when low). ``r_en_pin``/``l_en_pin``
     are the module's own per-direction enables, wired directly (not through
@@ -46,15 +51,16 @@ class Driver(DriveDriver):
 
     def __init__(
         self,
-        pwm_pin: int,
-        dir_select_pin: int,
-        r_en_pin: int,
-        l_en_pin: int,
         invert: bool = False,
         pwm_config: Bts7960PwmConfig | None = None,
     ) -> None:
-        self._pins = (pwm_pin, dir_select_pin, r_en_pin, l_en_pin)
         self._pwm_config = pwm_config or Bts7960PwmConfig()
+        self._pins = (
+            self._pwm_config.pwm_pin,
+            self._pwm_config.dir_select_pin,
+            self._pwm_config.r_en_pin,
+            self._pwm_config.l_en_pin,
+        )
         self._period_ns = int(motor_const.NS_PER_S / self._pwm_config.frequency_hz)
         self._channel_dir: Path | None = None
         self._sign = -1.0 if invert else 1.0

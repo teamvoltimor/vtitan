@@ -21,23 +21,27 @@ class TestL298nPwmConfig:
         assert config.pwmchip == 0
         assert config.pwm_channel == 1
         assert config.frequency_hz == 1000
+        assert config.pwm_pin == 13
+        assert config.dir_a_pin == 5
+        assert config.dir_b_pin == 6
+        assert config.standby_pin is None
 
 
 class TestDriver:
     def test_is_drive_driver(self):
-        assert isinstance(Driver(pwm_pin=13, dir_a_pin=5, dir_b_pin=6), DriveDriver)
+        assert isinstance(Driver(), DriveDriver)
 
     def test_run_drive_forward_before_connect_raises(self):
-        driver = Driver(pwm_pin=13, dir_a_pin=5, dir_b_pin=6)
+        driver = Driver()
         with pytest.raises(MotorConnectionError):
             driver.run_drive_forward(50)
 
     def test_run_drive_reverse_before_connect_raises(self):
-        driver = Driver(pwm_pin=13, dir_a_pin=5, dir_b_pin=6)
+        driver = Driver()
         with pytest.raises(MotorConnectionError):
             driver.run_drive_reverse(50)
 
     def test_no_feedback_of_its_own(self):
-        driver = Driver(pwm_pin=13, dir_a_pin=5, dir_b_pin=6)
+        driver = Driver()
         assert driver.get_drive_position() == 0.0
         assert driver.get_drive_speed() == 0.0

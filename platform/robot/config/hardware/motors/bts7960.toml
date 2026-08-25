@@ -8,6 +8,11 @@ pwm_channel = 1
 
 frequency_hz = 1000
 
+pwm_pin = 13          # shared PWM into the demux (same pin the L298N's ENA used)
+dir_select_pin = 5    # demux direction-select input
+r_en_pin = 6          # module R_EN, held HIGH
+l_en_pin = 26         # module L_EN, held HIGH
+
 # Encoder calibration + PID gains live in config/hardware/motors/encoder.toml
 # -- the encoder is a separate component from this H-bridge, see
 # src/hardware/motors/encoder/.
