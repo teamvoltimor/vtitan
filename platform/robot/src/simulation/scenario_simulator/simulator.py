@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
-from shared.domain.enums import Axis, Direction, ScenarioType, Section
-from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, SignColor, Waypoint
+from shared.domain.enums import Direction, ScenarioType, Section
+from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -38,10 +38,9 @@ from src.navigation.planning.sign_router import (
     SignRouter,
     SignRouterConfig,
     SignSpec,
-    outward_lateral_axis,
     signs_from_metadata,
 )
-from src.navigation.planning.waypoints import corridor_for_position, plan_believed_path
+from src.navigation.planning.waypoints import plan_believed_path
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions, start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
@@ -54,6 +53,7 @@ from src.simulation.scenario_result import (
     RunMetrics,
     SimResult,
 )
+from src.simulation.scenario_simulator.scoring import PassSideScorer
 from src.simulation.simulated_hardware_gateway import (
     CONTROL_DT,
     LIDAR_INVALID_RAY_RATE,
@@ -69,22 +69,6 @@ if TYPE_CHECKING:
     from src.navigation.ports import LidarScan
 
 
-_PASS_SIDE_ENGAGE_M = 0.60
-"""Range within which the chassis counts as negotiating a sign.
-
-Wide enough to admit a deliberately wide berth -- the sign lane's own spec is
-+27.86 cm on the free side -- and far short of the opposite corridor, which is
-metres away, so no sign is ever scored against a pass down the other side of
-the track."""
-
-_PASS_SIDE_CLEAR_M = 0.75
-"""Range beyond which a negotiated sign counts as cleared, and is scored.
-
-Held clear of ``_PASS_SIDE_ENGAGE_M`` on purpose: with one shared threshold a
-chassis hovering at the boundary would score, re-engage and score again. The
-gap is the hysteresis that makes the pass a single event."""
-
-
 @dataclass(frozen=True, slots=True)
 class _StartConditions:
     section: Section
@@ -94,7 +78,7 @@ class _StartConditions:
     yaw: float
 
 
-class ScenarioSimulator:
+class ScenarioSimulator(PassSideScorer):
     """Builds and runs a closed-loop Open or Obstacles Challenge simulation from metadata.
 
     Sign routing and parking are wired in exactly like the real ROS2 node
@@ -854,114 +838,6 @@ class ScenarioSimulator:
             pass_side_violation=pass_side_violation,
             violation_signs=violation_signs,
         )
-
-    def _check_pass_side_violation(self, state: AckermannState) -> list[int] | None:
-        """Return offending sign indices if the run must stop for a wrong-side pass.
-
-        The Obstacles Challenge forbids clearing a red obstacle on its inner
-        side or a green on its outer side. Scored here from the TRUE layout and
-        the TRUE pose, the same way ``_classify_collision`` uses true geometry —
-        deliberately not from ``SignRouter.wrong_side_violations``, which is
-        computed in the believed frame from discovered colours and so conflates
-        where the chassis drove with what the robot thinks it saw. That record
-        is still kept; it is a useful measure of discovery quality, and the gap
-        between it and this is exactly that error. It just must not be what
-        ends a run.
-
-        The side is decided at the chassis's CLOSEST APPROACH to each sign, not
-        at whatever instant a distance threshold is crossed: closest approach is
-        where the choice of side is actually made, and measuring anywhere else
-        is the same mistake as reading a pass off a waypoint index instead of
-        the polyline. A sign is scored once it has been approached and then
-        cleared, so a run is never failed for a sign it is still negotiating.
-
-        Returns ``None`` when no violation has occurred this tick.
-        """
-        if not self._true_signs:
-            return None
-        x, y = state.x, state.y
-        for index, sign in enumerate(self._true_signs):
-            if index in self._pass_side_scored:
-                continue
-            distance = math.hypot(sign.x - x, sign.y - y)
-            if distance <= _PASS_SIDE_ENGAGE_M:
-                self._pass_side_engaged.add(index)
-                closest = self._pass_side_closest.get(index)
-                if closest is None or distance < closest[0]:
-                    self._pass_side_closest[index] = (distance, Waypoint(x, y))
-                continue
-            if index not in self._pass_side_engaged or distance <= _PASS_SIDE_CLEAR_M:
-                continue
-            self._pass_side_scored.add(index)
-            if self._is_wrong_side(sign, self._pass_side_closest[index][1]):
-                self._pass_side_wrong.append(index)
-        return sorted(self._pass_side_wrong) or None
-
-    @staticmethod
-    def _is_wrong_side(sign: SignSpec, chassis: Waypoint) -> bool:
-        """Was ``chassis`` on the forbidden side of ``sign`` — red inward, green outward?"""
-        rule = outward_lateral_axis(corridor_for_position(sign.x, sign.y), SignColor(sign.color))
-        if rule is None:
-            return False
-        axis, permitted = rule
-        robot_lat = chassis.x if axis == Axis.X else chassis.y
-        sign_lat = sign.x if axis == Axis.X else sign.y
-        if robot_lat == sign_lat:
-            return False
-        return (1 if robot_lat > sign_lat else -1) != permitted
-
-    def _score_obstacle_contact(
-        self,
-        surface: ContactSurface,
-        state: AckermannState,
-    ) -> ContactSurface:
-        """Downgrade a legal pillar nudge to a non-event, keep an illegal shove.
-
-        Touching a pillar does not end an Obstacles round. The pillar may be
-        moved, and the run stands as long as any corner of it is still inside
-        its 85mm placement circle -- ``TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M``
-        (59.4mm) is the displacement at which that stops being true. Scoring
-        first contact as a crash, which is what the surface alone says, fails
-        runs the judges would pass.
-
-        Displacement ACCUMULATES over the ticks in contact rather than being
-        read off the instantaneous overlap. Overlap depth is bounded by the
-        pillar's own 50mm extent, so a max-overlap model tops out below the
-        59.4mm limit and no run could ever fail it -- a scoring rule that
-        cannot be violated measures nothing. Physically the pillar is shoved
-        ahead of the chassis, so the distance the chassis covers while touching
-        it is what moves it.
-        """
-        # Advance the reference EVERY tick, not only while touching. Updating it
-        # only during contact makes ``moved`` the distance since the last touch,
-        # so a pillar brushed twice a metre apart accumulates that whole metre
-        # of driving as if it had been pushed through it.
-        dx = state.x - self._prev_contact_xy.x
-        dy = state.y - self._prev_contact_xy.y
-        self._prev_contact_xy = Waypoint(state.x, state.y)
-        if surface is not ContactSurface.OBSTACLE or self._max_sign_push is None:
-            return surface
-        for index in self._track.obstacle_displacements(state.x, state.y, state.yaw):
-            # Only the component of travel pointing AT the pillar moves it. The
-            # magnitude of travel does not: a chassis sliding past a pillar it
-            # is brushing covers distance without pushing it anywhere, and
-            # counting that as displacement made a 0.4 s graze -- eight ticks at
-            # the measured 0.156 m/s -- reach the 59.4mm limit on its own.
-            sign = self._track.obstacle_center(index)
-            if sign is None:
-                continue
-            to_sign_x, to_sign_y = sign.x - state.x, sign.y - state.y
-            norm = math.hypot(to_sign_x, to_sign_y)
-            if norm <= 0.0:
-                continue
-            push = (dx * to_sign_x + dy * to_sign_y) / norm
-            if push > 0.0:
-                self._sign_push[index] = self._sign_push.get(index, 0.0) + push
-        if any(push > self._max_sign_push for push in self._sign_push.values()):
-            return surface
-        # Touched, but still inside its circle: not a collision, and not the
-        # controller's cue to run an escape either.
-        return ContactSurface.NONE
 
     def _build_result(
         self,

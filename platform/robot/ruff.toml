@@ -103,6 +103,9 @@ extend = "../ruff.toml"
 # Core navigator step() is complex by design — orchestrates all navigation subsystems
 "src/navigation/core_navigator/**" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
 
+# ScenarioSimulator.run() is complex by design — drives the whole closed-loop tick
+"src/simulation/scenario_simulator/**" = ["C901", "PLR0912", "PLR0915"]
+
 # `assert self.<property> is not None` narrows an internal invariant already
 # enforced by the calling convention (e.g. only reachable after a successful
 # connect()) so mypy can see it too -- not a bypassable security check.
