@@ -36,6 +36,7 @@ import math
 import statistics
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -45,6 +46,7 @@ from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from shared.domain.enums import Axis
 from src.navigation.planning import sign_router as sign_router_module
 from src.navigation.planning.waypoints import corridor_for_position
+from src.navigation.utils import wrap_angle
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 # After the simulator: importing shared.domain.models first hits the
@@ -62,6 +64,9 @@ Wide enough to include a deliberately wide berth (the lane's own spec is
 corridor, which is metres away."""
 
 
+_EARLY: list[tuple[bool, float]] = []
+"""Per-run early-window control: (run had a true violation, median pose error)."""
+
 _VIOLATIONS: list[tuple[str, str, float, bool, str]] = []
 """Per-violation detail from ``_truth_violations``: (colour, corridor, margin
 onto the forbidden side in m, verdict flips under a corridor nudge, navigator
@@ -71,6 +76,129 @@ _CORRIDOR_PROBE_M = 0.10
 """Nudge used to test whether a violation's verdict depends on where the corner
 is drawn. See ``_verdict_is_ambiguous`` for why the naive form of this test --
 asking whether the LABEL is stable -- measures nothing at all."""
+
+
+_EARLY_WINDOW_TICKS = 400
+"""Ticks of the run treated as the "before it diverged" window (20 s at 20 Hz).
+
+The escape<->timeout link stayed circular for a session because a robot that
+is failing escapes more BY DEFINITION, so escape counts measured at the
+failure proved nothing; it broke only when the rate was measured early, before
+runs diverge. Pose error and wrong-side passes are circular in exactly the same
+way -- a robot that has wandered onto the wrong side of a sign is, for that
+reason, somewhere it did not plan to be. Measuring pose error in a window that
+precedes the approaches asks whether it PREDICTS the violation instead."""
+
+def _to_belief(sim: object, x: float, y: float, true_x: float, true_y: float, true_yaw: float) -> tuple[float, float] | None:
+    """Map a TRUE position into the frame the navigator believes it is in.
+
+    Everything the router publishes -- its sign list, its planned polyline --
+    lives in the believed frame, so comparing any of it against a true position
+    mixes two frames. Blind always assumes a SOUTH start, so for the other
+    three start sections the belief frame is rotated by a multiple of 90 deg
+    and the gap is METRES by construction rather than by drift.
+
+    Gating those runs out was tried first and is not the answer: the pose-error
+    gate turned out to select the start section exactly (13 south in, all 31
+    non-south out), so every attribution it produced spoke for a quarter of the
+    corpus. Rotating instead of discarding keeps all four sections, because the
+    offset is a rigid transform and both sides of the comparison move together.
+    """
+    believed = sim.gateway.get_current_pose()  # type: ignore[attr-defined]
+    if believed is None:
+        return None
+    dyaw = wrap_angle(believed.yaw - true_yaw)
+    cos_d, sin_d = math.cos(dyaw), math.sin(dyaw)
+    dx, dy = x - true_x, y - true_y
+    return (believed.x + dx * cos_d - dy * sin_d, believed.y + dx * sin_d + dy * cos_d)
+
+
+@dataclass(frozen=True, slots=True)
+class _BeliefSign:
+    """A true sign rotated into the believed frame, for comparison against the plan."""
+
+    x: float
+    y: float
+    color: object
+
+
+def _side_of(sign: object, x: float, y: float) -> bool | None:
+    """Is ``(x, y)`` on the forbidden side of ``sign``? ``None`` if no rule applies."""
+    rule = sign_router_module.outward_lateral_axis(
+        corridor_for_position(sign.x, sign.y),  # type: ignore[attr-defined]
+        sign.color,  # type: ignore[attr-defined]
+    )
+    if rule is None:
+        return None
+    axis, permitted = rule
+    robot_lat = x if axis == Axis.X else y
+    sign_lat = sign.x if axis == Axis.X else sign.y  # type: ignore[attr-defined]
+    if robot_lat == sign_lat:
+        return False
+    return (1 if robot_lat > sign_lat else -1) != permitted
+
+
+def _nearest_on_path(path: list, sign: object) -> tuple[float, float] | None:
+    """Closest point to ``sign`` on the planned polyline, projected onto segments.
+
+    Segments, not vertices: the planned line passes a sign between waypoints
+    far more often than at one, and reading the plan at its nearest VERTEX is
+    the same measure-at-an-index error that cost this investigation three
+    hypotheses in a day.
+    """
+    if not path or len(path) < 2:
+        return None
+    best: tuple[float, float] | None = None
+    best_d = float("inf")
+    for start, end in zip(path, path[1:], strict=False):
+        vx, vy = end.x - start.x, end.y - start.y
+        span = vx * vx + vy * vy
+        if span <= 0.0:
+            continue
+        t = ((sign.x - start.x) * vx + (sign.y - start.y) * vy) / span  # type: ignore[attr-defined]
+        t = max(0.0, min(1.0, t))
+        px, py = start.x + t * vx, start.y + t * vy
+        d = math.hypot(sign.x - px, sign.y - py)  # type: ignore[attr-defined]
+        if d < best_d:
+            best_d, best = d, (px, py)
+    return best
+
+
+def _attribute(sim: object, sign: object, chassis_wrong: bool, true_pose: tuple[float, float, float]) -> str:
+    """Bucket one true violation: whose mistake was it?
+
+    Splits the plan from the chassis. If the PLANNED line was already on the
+    forbidden side, the robot drove where it meant to and the fault is in
+    routing -- either the colour it believed or the lane it built from it. If
+    the plan was correct and only the chassis ended up wrong, it is tracking.
+    """
+    moved = _to_belief(sim, sign.x, sign.y, *true_pose)  # type: ignore[attr-defined]
+    if moved is None:
+        return "no-pose"
+    believed_sign = _BeliefSign(moved[0], moved[1], sign.color)  # type: ignore[attr-defined]
+    plan_point = _nearest_on_path(sim.navigator._waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
+    if plan_point is None:
+        return "no-plan"
+    plan_wrong = _side_of(believed_sign, *plan_point)
+    if plan_wrong is None:
+        return "no-rule"
+    if not plan_wrong:
+        return "plan-ok/chassis-wrong (tracking)" if chassis_wrong else "plan-ok"
+
+    router = sim.navigator.sign_router  # type: ignore[attr-defined]
+    routed = list(router.signs) if router is not None else []
+    if not routed:
+        return "plan-wrong/never-routed"
+    nearest = min(routed, key=lambda r: math.hypot(r.x - believed_sign.x, r.y - believed_sign.y))
+    if math.hypot(nearest.x - believed_sign.x, nearest.y - believed_sign.y) > _SIGN_MATCH_M:
+        return "plan-wrong/never-routed"
+    if str(nearest.color) != str(sign.color):  # type: ignore[attr-defined]
+        return "plan-wrong/colour-misread"
+    return "plan-wrong/colour-ok (routing)"
+
+
+_SIGN_MATCH_M = 0.25
+"""How close a routed sign must be to a true one to count as the same sign."""
 
 
 def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float) -> bool:
@@ -83,7 +211,7 @@ def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float) -> bool:
     a control that was missing until it was measured.
 
     What matters is whether the instability reaches the answer. A south<->west
-    flip also flips the comparison AXIS (``_ROUTING_TABLE`` gives N/S the Y
+    flip also flips the comparison AXIS (``ROUTING_TABLE`` gives N/S the Y
     axis and E/W the X axis), so it genuinely can. A violation whose verdict
     survives every neighbouring label is one the scorer can be trusted on
     regardless of where the corner is drawn.
@@ -209,7 +337,7 @@ def _disable_termination() -> None:
     ScenarioSimulator._check_pass_side_violation = lambda self, nav: None  # type: ignore[assignment]  # noqa: ARG005, SLF001
 
 
-def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], list[str]]:
+def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], list, list]:
     """Run one scenario and cross-tabulate each retirement's two verdicts.
 
     Returns ``(counts, alongs, colour_disagreements)`` where ``counts`` keys
@@ -223,15 +351,41 @@ def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], l
     true_pose = [(0.0, 0.0)]
     records = _instrument(true_pose)
     _VIOLATIONS.clear()
+    _EARLY.clear()
     trail: list[tuple[float, float]] = []
     phases: list[str] = []
     metadata = ScenarioMetadata.model_validate(json.loads(Path(path_str).read_text()))
     sim = ScenarioSimulator(metadata, num_laps=3, seed=0, blind=True)
 
+    signs = sign_router_module.signs_from_metadata(metadata)
+    # Per sign: the closest approach seen so far, and what the navigator was
+    # doing AT that tick. Attribution has to be taken live -- the plan and the
+    # router's sign list are rebuilt continuously, so nothing about the moment
+    # of the pass survives to the end of the run to be read off afterwards.
+    best: dict[int, tuple[float, str, float]] = {}
+    early_pose_errors: list[float] = []
+
     def _on_step(state, _scan) -> None:  # type: ignore[no-untyped-def]
         true_pose[0] = (state.x, state.y)
         trail.append((state.x, state.y))
         phases.append(str(getattr(sim.navigator.debug_snapshot, "phase", "unknown")))
+        if len(trail) <= _EARLY_WINDOW_TICKS:
+            early = sim.gateway.get_current_pose()
+            if early is not None:
+                early_pose_errors.append(math.hypot(early.x - state.x, early.y - state.y))
+        for index, sign in enumerate(signs):
+            distance = math.hypot(sign.x - state.x, sign.y - state.y)
+            # Only near a pass, so the per-tick cost stays off the hot path.
+            if distance > _PASSED_NEAR_M or distance >= best.get(index, (math.inf,))[0]:
+                continue
+            believed = sim.gateway.get_current_pose()
+            pose_error = math.inf if believed is None else math.hypot(believed.x - state.x, believed.y - state.y)
+            chassis_wrong = bool(_side_of(sign, state.x, state.y))
+            best[index] = (
+                distance,
+                _attribute(sim, sign, chassis_wrong, (state.x, state.y, state.yaw)),
+                pose_error,
+            )
 
     sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
 
@@ -246,7 +400,28 @@ def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], l
     counts["truth_wrong"] += truth_wrong
     counts["run_ended_by_router"] += int(any(v for _a, v, *_ in records))
     counts["run_truly_violated"] += int(truth_wrong > 0)
-    return counts, alongs, list(_VIOLATIONS)
+    if early_pose_errors:
+        _EARLY.append((truth_wrong > 0, statistics.median(early_pose_errors)))
+
+    # Attribution, restricted to passes where the believed frame nearly
+    # coincides with the true one. Outside that gate the router's own output
+    # cannot be matched to a true sign at all (see _POSE_GATE_M).
+    for index, (_distance, bucket, pose_error) in best.items():
+        near_x, near_y = min(trail, key=lambda p: math.hypot(signs[index].x - p[0], signs[index].y - p[1]))
+        if not _side_of(signs[index], near_x, near_y):
+            continue
+        counts["attributed_total"] += 1
+        # Which start sections survive the gate? Blind always assumes a SOUTH
+        # start, so for the other three the belief frame is rotated by a
+        # multiple of 90 deg and the believed-vs-true gap is metres by
+        # construction, not by drift. If the gate is really just selecting
+        # South starts then every bucket below speaks for one quarter of the
+        # corpus, and saying so is the difference between a result and a
+        # sampling artifact.
+        start = str(corridor_for_position(*trail[0])) if trail else "unknown"
+        counts[f"start::{start}"] += 1
+        counts[f"bucket::{bucket}"] += 1
+    return counts, alongs, list(_VIOLATIONS), list(_EARLY)
 
 
 def main() -> None:
@@ -271,6 +446,7 @@ def main() -> None:
         counts.update(result[0])
     alongs = [a for r in results for a in r[1]]
     violations = [v for r in results for v in r[2]]
+    early = [e for r in results for e in r[3]]
 
     total = counts["retreat"] + counts["pass"]
     print(f"scenarios {len(paths)}  retirements {total}")
@@ -290,6 +466,19 @@ def main() -> None:
         print(f"    margin onto forbidden side: p10 {margins[len(margins) // 10]:.3f} m  median {statistics.median(margins):.3f} m  p90 {margins[-max(len(margins) // 10, 1)]:.3f} m")
         print(f"    marginal (<0.05 m) {sum(1 for m in margins if m < 0.05)}   by corridor {dict(Counter(v[1] for v in violations))}   by colour {dict(Counter(v[0] for v in violations))}")
         print(f"    phase at closest approach {dict(Counter(v[4] for v in violations).most_common())}")
+    buckets = {k[len("bucket::"):]: v for k, v in counts.items() if k.startswith("bucket::")}
+    print(f"  attribution (violations {counts['attributed_total']}, all start sections, belief-frame matched):")
+    for name, count in sorted(buckets.items(), key=lambda kv: -kv[1]):
+        print(f"    {name:<38} {count:>4}")
+    by_start = {k[len("start::"):]: v for k, v in counts.items() if k.startswith("start::")}
+    if by_start:
+        print(f"    violations by start section {dict(sorted(by_start.items()))}")
+    offenders = [e for hit, e in early if hit]
+    clean = [e for hit, e in early if not hit]
+    if offenders and clean:
+        print(f"  EARLY-WINDOW CONTROL (median pose error over the first {_EARLY_WINDOW_TICKS} ticks, before the approaches):")
+        print(f"    runs that later violated  n={len(offenders):>3}  median {statistics.median(offenders):.3f} m")
+        print(f"    runs that never violated  n={len(clean):>3}  median {statistics.median(clean):.3f} m")
 
 
 if __name__ == "__main__":
