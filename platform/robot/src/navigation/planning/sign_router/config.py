@@ -1,7 +1,7 @@
 """Sign-router tuning-derived constants and configuration.
 
 Holds ``SignRouterConfig`` (the tuning parameters, validated at construction),
-the tuning-derived ``_SignRouterConstants`` and the ``SignRouterContext`` that
+the tuning-derived ``SignRouterConstants`` and the ``SignRouterContext`` that
 carries them to helper functions. Pure-Python, no ROS2, unit-testable.
 """
 
@@ -24,11 +24,11 @@ if TYPE_CHECKING:
 # waypoint inside the inner square or against a wall for a sign positioned near a
 # corridor edge. See navigation.geometry.chassis_half_diagonal_m for why it's the
 # diagonal, not the half-width.
-_CHASSIS_HALF_DIAGONAL = chassis_half_diagonal_m()
+CHASSIS_HALF_DIAGONAL = chassis_half_diagonal_m()
 
 
 @dataclass(frozen=True, slots=True)
-class _SignRouterConstants:
+class SignRouterConstants:
     """Tuning-derived sign-router constants, computed once per SignRouter instance."""
 
     wall_clearance_margin_m: float
@@ -38,7 +38,8 @@ class _SignRouterConstants:
     pin_heading_guard_rad: float
 
     @classmethod
-    def from_tuning(cls, tuning: NavigationTuning) -> _SignRouterConstants:
+    def from_tuning(cls, tuning: NavigationTuning) -> SignRouterConstants:
+        """Derive the sign-router constants from ``NavigationTuning``."""
         sr = tuning.sign_router
         return cls(
             wall_clearance_margin_m=sr.WALL_CLEARANCE_MARGIN_M,
@@ -49,10 +50,10 @@ class _SignRouterConstants:
         )
 
 
-class SignRouterContext(TuningContext[_SignRouterConstants]):
+class SignRouterContext(TuningContext[SignRouterConstants]):
     """Context holding tuning-derived sign-router constants, passed to helper functions."""
 
-    _constants_cls = _SignRouterConstants
+    _constants_cls = SignRouterConstants
 
 
 _DEFAULT_SIGN_ROUTER_CONTEXT = SignRouterContext()
@@ -144,7 +145,7 @@ class SignRouterConfig:
         if self.lateral_offset is None:
             tuning = get_tuning(None)
             default_offset = (
-                _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
+                CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
             )
             object.__setattr__(self, "lateral_offset", default_offset)
         if self.activation_dist >= self.passed_dist:
@@ -167,7 +168,7 @@ class SignRouterConfig:
         step; see that constant for why it is the diagonal.
         """
         return cls(
-            lateral_offset=_CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
+            lateral_offset=CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
             activation_dist=params.ACTIVATION_DIST_M,
             passed_dist=params.PASSED_DIST_M,
             depth_pin=params.DEPTH_PIN,

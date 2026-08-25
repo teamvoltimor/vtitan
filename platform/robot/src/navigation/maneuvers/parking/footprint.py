@@ -14,13 +14,13 @@ from typing import TYPE_CHECKING
 from shared.config.constants import RobotSpecs
 from shared.domain.models import BBox, Waypoint
 
-from src.navigation.maneuvers.parking.context import _DEFAULT_PARKING_CONTEXT
+from src.navigation.maneuvers.parking.context import DEFAULT_PARKING_CONTEXT
 
 if TYPE_CHECKING:
     from src.navigation.maneuvers.parking.zone import ParkZone
 
 
-def _chassis_corners(
+def chassis_corners(
     rx: float,
     ry: float,
     robot_yaw: float,
@@ -34,13 +34,13 @@ def _chassis_corners(
     ]
 
 
-def _is_beyond_lot_centre(coord: float, zone: ParkZone) -> bool:
+def is_beyond_lot_centre(coord: float, zone: ParkZone) -> bool:
     """Whether ``coord`` lies on the wall side of the lot's midline."""
     centre = zone.gap_cx if zone.wall_is_x else zone.gap_cy
     return coord > centre if zone.wall_coord > centre else coord < centre
 
 
-def _footprint_inside(
+def footprint_inside(
     rx: float,
     ry: float,
     robot_yaw: float,
@@ -56,10 +56,10 @@ def _footprint_inside(
     enters into it.
     """
     lot = BBox(zone.x_min, zone.y_min, zone.x_max, zone.y_max)
-    return all(lot.contains(Waypoint(cx, cy)) for cx, cy in _chassis_corners(rx, ry, robot_yaw))
+    return all(lot.contains(Waypoint(cx, cy)) for cx, cy in chassis_corners(rx, ry, robot_yaw))
 
 
-def _footprint_breaches_wall(
+def footprint_breaches_wall(
     rx: float,
     ry: float,
     robot_yaw: float,
@@ -76,17 +76,17 @@ def _footprint_breaches_wall(
     instead of pushing into the wall. Not colliding takes priority over completing
     the park.
     """
-    for cx, cy in _chassis_corners(rx, ry, robot_yaw):
+    for cx, cy in chassis_corners(rx, ry, robot_yaw):
         coord = cx if zone.wall_is_x else cy
         if (
-            abs(coord - zone.wall_coord) < _DEFAULT_PARKING_CONTEXT.constants.wall_standoff_m
-            and _is_beyond_lot_centre(coord, zone)
+            abs(coord - zone.wall_coord) < DEFAULT_PARKING_CONTEXT.constants.wall_standoff_m
+            and is_beyond_lot_centre(coord, zone)
         ):
             return True
     return False
 
 
-def _footprint_breaches_markers(
+def footprint_breaches_markers(
     rx: float,
     ry: float,
     robot_yaw: float,
@@ -105,10 +105,10 @@ def _footprint_breaches_markers(
     fin territory when it lies within the lot's depth band and at or past a fin's
     inner face.
     """
-    marker_standoff = _DEFAULT_PARKING_CONTEXT.constants.marker_standoff_m
+    marker_standoff = DEFAULT_PARKING_CONTEXT.constants.marker_standoff_m
     depth_min, depth_max = zone.bounds_depth()
     along_min, along_max = zone.bounds_along()
-    for cx, cy in _chassis_corners(rx, ry, robot_yaw):
+    for cx, cy in chassis_corners(rx, ry, robot_yaw):
         along, depth = zone.project(cx, cy)
         if not (depth_min - marker_standoff <= depth <= depth_max + marker_standoff):
             continue  # out in the corridor, past the fins' ends -- nothing to hit

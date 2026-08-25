@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 
-def _normalise_angle(angle: float) -> float:
+def normalise_angle(angle: float) -> float:
     """Wrap an angle into the ``(-pi, pi]`` range."""
     while angle > math.pi:
         angle -= 2 * math.pi

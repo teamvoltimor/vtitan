@@ -60,7 +60,7 @@ class ParkZone:
         return (self.x_min, self.x_max) if self.wall_is_x else (self.y_min, self.y_max)
 
 
-def _build_zone(
+def build_zone(
     b1: BlockPosition,
     b2: BlockPosition,
     section: Section,
@@ -121,7 +121,7 @@ def _build_zone(
     )
 
 
-def _staging_pos(zone: ParkZone, section: Section, context: ParkingContext) -> Waypoint:
+def staging_pos(zone: ParkZone, section: Section, context: ParkingContext) -> Waypoint:
     """Position directly in front of the gap opening, on the track side."""
     clearance = context.constants.approach_clearance
     if section is Section.SOUTH:

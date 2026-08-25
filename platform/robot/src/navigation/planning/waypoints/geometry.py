@@ -12,7 +12,7 @@ import math
 from shared.domain.models import Waypoint
 
 
-def _corner_arc_radius(
+def corner_arc_radius(
     width_entry_m: float, width_exit_m: float, center_bias_m: float, max_radius: float
 ) -> float:
     """Largest arc radius at one corner that costs no clearance to the inner block.
@@ -53,7 +53,7 @@ def _corner_arc_radius(
     return min(max_radius, max(width_entry_m, width_exit_m) / 2 - center_bias_m)
 
 
-def _arc_with_endpoints(
+def arc_with_endpoints(
     center: Waypoint,
     radius: float,
     theta_start: float,
@@ -70,11 +70,11 @@ def _arc_with_endpoints(
         round(cx + radius * math.cos(theta_end), 3),
         round(cy + radius * math.sin(theta_end), 3),
     )
-    intermediates = _arc_intermediate_points(cx, cy, radius, theta_start, theta_end, num_intermediate)
+    intermediates = arc_intermediate_points(cx, cy, radius, theta_start, theta_end, num_intermediate)
     return [entry, *intermediates, exit_pt]
 
 
-def _arc_intermediate_points(
+def arc_intermediate_points(
     cx: float,
     cy: float,
     radius: float,
@@ -96,7 +96,7 @@ def _arc_intermediate_points(
     return points
 
 
-def _straight_waypoints(
+def straight_waypoints(
     fixed_coord: float,
     is_x: bool,
     start: float,

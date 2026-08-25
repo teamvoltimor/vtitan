@@ -209,7 +209,7 @@ def _wedge_median(
     return float(np.median(valid)) if valid else None
 
 
-def _pure_pursuit_steer(
+def pure_pursuit_steer(
     x_local: float, y_local: float, min_lookahead_dist: float, max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE
 ) -> float:
     """Curvature-based pure pursuit steering toward a local-frame target (normalised [-1, 1]).

@@ -60,8 +60,8 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 _APPROACH_TICKS = 60
 """Ticks before the collision to treat as "the fatal approach" (~3 s at 20 Hz)."""
 
-_CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
-_PASS_CLEARANCE = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2
+CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
+_PASS_CLEARANCE = CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2
 """Centre-to-centre lateral separation a mid-turn pass needs (0.205 m)."""
 
 _PAIR = 2

@@ -13,53 +13,51 @@ Pass-side rule:
     - Green obstacle -> robot passes on the INWARD side (toward centre).
 
 The implementation is split into submodules (config/constants, routing table
-+ pure helpers, deformation math, the stateful router); this package
-re-exports the names callers import from ``...planning.sign_router`` -- the
-``_``-prefixed helpers included, since tests and the router reach for them
-directly (matching the ``waypoints`` package convention).
++ pure helpers, deformation math, the stateful router). This package
+re-exports the public names callers import from ``...planning.sign_router``.
 """
 
 from shared.domain.enums import Axis
 
 from src.navigation.planning.sign_discovery import SignSpec
 from src.navigation.planning.sign_router.config import (
-    _CHASSIS_HALF_DIAGONAL,
+    CHASSIS_HALF_DIAGONAL,
     SignRouterConfig,
+    SignRouterConstants,
     SignRouterContext,
-    _SignRouterConstants,
 )
 from src.navigation.planning.sign_router.deformation import (
-    _apply_deformation,
-    _match_detection_to_sign,
-    _pin_depth,
+    apply_deformation,
+    match_detection_to_sign,
+    pin_depth,
 )
 from src.navigation.planning.sign_router.router import (
-    _BEHIND_TOLERANCE,
+    BEHIND_TOLERANCE,
     SignRouter,
 )
 from src.navigation.planning.sign_router.routing import (
-    _ROUTING_TABLE,
-    _is_squarely_in_corridor,
+    ROUTING_TABLE,
     clamp_lateral,
+    is_squarely_in_corridor,
     outward_lateral_axis,
     signs_from_metadata,
 )
 
 __all__ = [
-    "_BEHIND_TOLERANCE",
-    "_CHASSIS_HALF_DIAGONAL",
-    "_ROUTING_TABLE",
+    "BEHIND_TOLERANCE",
+    "CHASSIS_HALF_DIAGONAL",
+    "ROUTING_TABLE",
     "Axis",
     "SignRouter",
     "SignRouterConfig",
+    "SignRouterConstants",
     "SignRouterContext",
     "SignSpec",
-    "_SignRouterConstants",
-    "_apply_deformation",
-    "_is_squarely_in_corridor",
-    "_match_detection_to_sign",
-    "_pin_depth",
+    "apply_deformation",
     "clamp_lateral",
+    "is_squarely_in_corridor",
+    "match_detection_to_sign",
     "outward_lateral_axis",
+    "pin_depth",
     "signs_from_metadata",
 ]

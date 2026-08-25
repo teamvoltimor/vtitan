@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from src.simulation.kinematics import AckermannState
 
 _CHASSIS_HALF_WIDTH = 0.10
-_CHASSIS_HALF_DIAGONAL = math.hypot(0.15, 0.10)
+CHASSIS_HALF_DIAGONAL = math.hypot(0.15, 0.10)
 _SIGN_HALF = 0.025
 
 
@@ -170,7 +170,7 @@ def main() -> None:
         results = list(pool.map(_analyse, range(len(all_obstacles_demo_scenarios()))))
 
     square_need = _CHASSIS_HALF_WIDTH + _SIGN_HALF
-    turning_need = _CHASSIS_HALF_DIAGONAL + _SIGN_HALF
+    turning_need = CHASSIS_HALF_DIAGONAL + _SIGN_HALF
     print(f"lateral needed: square pass {square_need:.3f} m, mid-turn pass {turning_need:.3f} m\n")
 
     tight_square = 0
