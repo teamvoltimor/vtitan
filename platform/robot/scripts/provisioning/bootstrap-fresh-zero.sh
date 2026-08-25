@@ -110,8 +110,10 @@ log "6b/7 Enabling hardware PWM on the servo (GPIO $SERVO_PWM_PIN) and drive mot
 # ALT0 on both pins (GPIO 12 = PWM0, GPIO 13 = PWM1).
 #
 # Two-channel overlay: pin/func is channel 0 (servo), pin2/func2 is channel 1
-# (drive motor). See src/hardware/motors/servo/config.py and
-# src/hardware/motors/dc_encoder/config.py for the pwmchip/channel mapping.
+# (drive motor -- L298N's ENA, or the shared PWM feeding the BTS7960's
+# external demux, see docs/bts7960-ibt2-wiring.md). See
+# src/hardware/motors/servo/config.py and src/hardware/motors/l298n/config.py
+# / src/hardware/motors/bts7960/config.py for the pwmchip/channel mapping.
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sudo sed -i '/^dtoverlay=pwm\(-2chan\)\?\(,\|\$\)/d' /boot/firmware/config.txt
   echo 'dtoverlay=pwm-2chan,pin=$SERVO_PWM_PIN,func=4,pin2=$MOTOR_PWM_PIN,func2=4' | sudo tee -a /boot/firmware/config.txt >/dev/null

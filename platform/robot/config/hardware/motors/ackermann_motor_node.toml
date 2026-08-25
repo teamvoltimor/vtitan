@@ -1,6 +1,6 @@
 # ackermann_motor_node's own publish/diagnostics cadence --
 # vtitan_drivers/vtitan_drivers/motors/ackermann_motor_node.py.
-# Distinct from motors.toml/dc_encoder.toml/servo.toml alongside this file,
+# Distinct from motors.toml/l298n.toml/bts7960.toml/encoder.toml/servo.toml alongside this file,
 # which are driver-level config (offsets, PID gains, pins), not this ROS2
 # node's timer rates. DRIVE_CONTROL_RATE_HZ stays a code constant -- it's the
 # closed-loop PID step rate, safety-relevant and not meant to be casually

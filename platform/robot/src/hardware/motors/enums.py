@@ -2,7 +2,7 @@
 
 Typed backends let the motor node choose actuator drivers from configuration
 without string comparisons. The Build HAT backend is preserved here even though
-the current robot uses the servo + DC-encoder pair, so the LEGO stack can be
+the current robot uses the servo + H-bridge pair, so the LEGO stack can be
 re-selected for steering and/or drive (independently) without code changes.
 """
 
@@ -17,9 +17,16 @@ class SteeringBackend(StrEnum):
 
 
 class DriveBackend(StrEnum):
-    """Drive actuator backend."""
+    """Drive H-bridge backend.
 
-    DC_ENCODER = "dc_encoder"
+    Both L298N and BTS7960 pair with an independently-wired
+    ``src.hardware.motors.encoder`` sensor for closed-loop feedback -- see
+    ``base.py``'s ``ClosedLoopDrive``. Build HAT needs no external encoder;
+    its LEGO motors report their own position/speed.
+    """
+
+    L298N = "l298n"
+    BTS7960 = "bts7960"
     BUILD_HAT = "build_hat"
 
 

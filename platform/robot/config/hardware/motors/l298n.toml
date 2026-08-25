@@ -1,0 +1,12 @@
+# L298N drive H-bridge PWM -- src/hardware/motors/l298n/config.py
+
+pwmchip = 0
+pwm_channel = 1
+# GPIO 13 (the drive motor's PWM pin) is channel 1 under the pwm-2chan
+# overlay; GPIO 12 (the servo) is channel 0. See l298n/config.py.
+
+frequency_hz = 1000
+
+# Encoder calibration + PID gains moved to config/hardware/motors/encoder.toml
+# -- the encoder is a separate component from this H-bridge, see
+# src/hardware/motors/encoder/.

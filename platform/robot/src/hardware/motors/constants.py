@@ -3,7 +3,7 @@
 Holds only the sysfs PWM time-base unit conversions that are pure physical
 facts of the interface (not tunable per deployment). The config-shaped values
 -- PWM chip/channel indices and carrier frequencies -- live on the
-``ServoConfig`` / ``DcMotorPwmConfig`` pydantic models (TOML + env backed), so
+``ServoConfig`` / ``L298nPwmConfig`` / ``Bts7960PwmConfig`` pydantic models (TOML + env backed), so
 they are not duplicated here.
 """
 

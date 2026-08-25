@@ -170,7 +170,7 @@ def main() -> None:
     print(f"\nBest estimate (lowest, least slip): counts_per_rev = {best:.0f}")
     print(f"  currently configured: {args.counts_per_rev_config:.0f}  ({best / args.counts_per_rev_config:.2f}x off)")
     print("=" * 62)
-    print("\nSet DEFAULT_COUNTS_PER_REV in src/hardware/motors/dc_encoder/calibration.py")
+    print("\nSet DEFAULT_COUNTS_PER_REV in src/hardware/motors/encoder/calibration.py")
 
 
 if __name__ == "__main__":

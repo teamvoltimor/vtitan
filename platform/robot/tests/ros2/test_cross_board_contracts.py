@@ -75,6 +75,8 @@ def _make_motor_node():
     ):
         mock_factory_cls.return_value.steering.return_value = mock_steering
         mock_factory_cls.return_value.drive.return_value = mock_drive
+        # No encoder -> node.drive stays the raw mock, unwrapped by ClosedLoopDrive.
+        mock_factory_cls.return_value.encoder.return_value = None
 
         from vtitan_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
@@ -99,7 +101,7 @@ class TestNavigatorToMotorNode:
     )
     def test_drive_command_round_trips_correctly(self, ros_context, speed_mps, steering_norm, monkeypatch):
         monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
-        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
+        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.L298N.value)
 
         nav_node = _make_navigator_host_node()
         gateway = ROS2HardwareGateway(nav_node, 0.0, 0.0, 0.0, _WIDTHS)
@@ -155,7 +157,7 @@ class TestStateMachineStopToMotorNode:
 
     def test_estop_stop_command_stops_the_motors(self, ros_context, monkeypatch):
         monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
-        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
+        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.L298N.value)
 
         from vtitan_state_machine.state_machine_node import StateMachineNode
 

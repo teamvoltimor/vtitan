@@ -5,21 +5,34 @@ Interface segregation (ISP) so each actuator implements only what it can do:
 - ``SteeringDriver``  — front-wheel steering (a 180-deg or 360-deg servo, or a
   geared steering motor). Knows nothing about propulsion.
 - ``DriveDriver``     — rear-wheel propulsion (an open-loop DC motor or a smart
-  motor). Knows nothing about steering.
-- ``EncodedDriveDriver`` — a ``DriveDriver`` that additionally exposes wheel
-  odometry and closed-loop RPM control (a DC motor *with* an encoder).
+  motor, driven through whatever H-bridge is wired up). Knows nothing about
+  steering, and nothing about encoder feedback -- a quadrature encoder is a
+  separate physical part clipped to the motor shaft, not something the
+  H-bridge chip itself provides.
+- ``EncoderSensor``   — a quadrature encoder's counts/RPM/odometry, independent
+  of which ``DriveDriver`` (if any) is turning the shaft it is reading.
+- ``ClosedLoopDrive`` — composes a ``DriveDriver`` + ``EncoderSensor`` + a PID
+  to expose closed-loop RPM control, without either half needing to know about
+  the other.
 
 The legacy combined ``Driver`` (steering + drive in one object, as the LEGO
-Build HAT provides) is retained as an alias so existing adapters keep working.
-A drive-only motor must not be forced to stub out steering, and an
-encoder-equipped motor has a home for its counts — that is the whole point of
-the split, and what lets the navigation/ROS2 stack swap actuators unchanged.
+Build HAT provides) is retained as an alias so existing adapters keep working
+-- the Build HAT's LEGO motors report their own position/speed through the
+Build HAT protocol itself, so they need no external ``EncoderSensor`` and stay
+on ``DriveDriver`` directly. A drive-only motor must not be forced to stub out
+steering, and an encoder-equipped motor has a home for its counts — that is
+the whole point of the split, and what lets the navigation/ROS2 stack swap
+actuators unchanged.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.hardware.motors.encoder.control import PIDController
 
 STEERING_CENTER_DEG = 0.0
 """Absolute steering angle (deg) for wheels-straight, by convention."""
@@ -132,40 +145,151 @@ class DriveDriver(ABC):
         """Get current drive speed in degrees/s."""
 
     @abstractmethod
-    def run_drive_forward(self, speed: int | None = None) -> None:
-        """Run drive motor forward."""
+    def run_drive_forward(self, speed: int | float | None = None) -> None:
+        """Run drive motor forward at ``speed`` percent duty (default backend-chosen).
+
+        Accepts a float as well as an int so a closed loop (``ClosedLoopDrive``)
+        can command sub-percent duty resolution instead of being rounded to
+        whole percent -- the PWM peripheral itself resolves far finer than 1%.
+        """
 
     @abstractmethod
-    def run_drive_reverse(self, speed: int | None = None) -> None:
-        """Run drive motor in reverse."""
+    def run_drive_reverse(self, speed: int | float | None = None) -> None:
+        """Run drive motor in reverse at ``speed`` percent duty (default backend-chosen)."""
 
     @abstractmethod
     def stop_drive(self) -> None:
         """Stop drive motor."""
 
 
-class EncodedDriveDriver(DriveDriver):
-    """A drive motor that also exposes encoder odometry and closed-loop speed."""
+class EncoderSensor(ABC):
+    """A quadrature encoder's counts/RPM/odometry, independent of any drive motor.
+
+    Physically a separate part (clipped to the motor shaft) from whatever
+    H-bridge is turning it, so this makes no assumption about which
+    ``DriveDriver`` (if any) is driving the shaft it reads.
+    """
 
     @abstractmethod
-    def reset_drive_encoder(self) -> None:
+    def connect(self) -> None:
+        """Open the encoder GPIO lines."""
+
+    def disconnect(self) -> None:
+        """Release the encoder GPIO lines. No-op unless a backend needs it."""
+
+    @abstractmethod
+    def reset(self) -> None:
         """Zero the encoder counts."""
 
     @abstractmethod
-    def get_drive_counts(self) -> int:
+    def get_counts(self) -> int:
         """Raw quadrature counts since the last reset."""
 
     @abstractmethod
-    def get_drive_rpm(self) -> float:
-        """Output-shaft speed (signed RPM)."""
+    def get_rpm(self) -> float:
+        """Sample and return output-shaft speed (signed RPM).
+
+        MUTATES internal state -- consumes the counts accrued since the
+        previous call to compute the interval's rate. Call this from exactly
+        one place at a fixed rate (a closed loop); every other consumer must
+        read ``get_last_rpm()`` instead, or two callers sampling at different
+        rates will each steal part of the other's window and both under-read
+        the true speed.
+        """
 
     @abstractmethod
+    def get_last_rpm(self) -> float:
+        """The most recent value ``get_rpm()`` computed, without resampling."""
+
+    @abstractmethod
+    def get_odometry(self) -> DriveOdometry:
+        """Full odometry sample, built from the cached (not resampled) RPM."""
+
+
+class ClosedLoopDrive:
+    """Composes a ``DriveDriver`` + ``EncoderSensor`` + a PID into closed-loop RPM control.
+
+    Neither the drive H-bridge nor the encoder needs to know about the other,
+    or about the PID -- this is the one place that reads the encoder, runs the
+    PID, and commands the drive, so a caller (the ROS2 node) can hold a single
+    object regardless of which H-bridge/encoder pair is behind it.
+    """
+
+    def __init__(self, drive: DriveDriver, encoder: EncoderSensor, pid: PIDController) -> None:
+        self._drive = drive
+        self._encoder = encoder
+        self._pid = pid
+
+    @property
+    def drive(self) -> DriveDriver:
+        """The underlying H-bridge drive."""
+        return self._drive
+
+    @property
+    def encoder(self) -> EncoderSensor:
+        """The underlying encoder."""
+        return self._encoder
+
+    def connect(self) -> None:
+        """Connect both the drive and the encoder."""
+        self._drive.connect()
+        self._encoder.connect()
+
+    def disconnect(self) -> None:
+        """Disconnect both the drive and the encoder."""
+        self._drive.disconnect()
+        self._encoder.disconnect()
+
+    def run_drive_at_rpm(self, rpm: float, dt: float) -> None:
+        """One closed-loop step: PID the drive's duty toward ``rpm`` from encoder feedback.
+
+        Duty is passed through as a float percent (not rounded to an int),
+        so the PID's fine-grained correction is not quantised away by the
+        open-loop percent-based ``run_drive_forward``/``run_drive_reverse``
+        contract.
+        """
+        measured = self._encoder.get_rpm()
+        duty = self._pid.update(rpm, measured, dt=dt)
+        if duty >= 0:
+            self._drive.run_drive_forward(duty * 100.0)
+        else:
+            self._drive.run_drive_reverse(-duty * 100.0)
+
+    def stop_drive(self) -> None:
+        """Stop the drive and clear the PID state."""
+        self._pid.reset()
+        self._drive.stop_drive()
+
+    def reset_drive_encoder(self) -> None:
+        """Zero the encoder counts."""
+        self._encoder.reset()
+
+    def get_drive_counts(self) -> int:
+        """Raw quadrature counts since the last reset."""
+        return self._encoder.get_counts()
+
+    def get_drive_rpm(self) -> float:
+        """Sample and return output-shaft speed (signed RPM). See ``EncoderSensor.get_rpm``."""
+        return self._encoder.get_rpm()
+
     def get_drive_odometry(self) -> DriveOdometry:
         """Full odometry sample."""
+        return self._encoder.get_odometry()
 
-    @abstractmethod
-    def run_drive_at_rpm(self, rpm: float) -> None:
-        """Closed-loop: hold the given output-shaft RPM."""
+    def get_drive_position(self) -> float:
+        """Output-shaft angle in degrees, from the encoder's cached odometry."""
+        return self._encoder.get_odometry().revolutions * 360.0
+
+    def get_drive_speed(self) -> float:
+        """Wheel speed in degrees/s, from the encoder's last SAMPLED (not resampled) estimate.
+
+        Deliberately reads ``get_last_rpm()`` rather than ``get_rpm()`` -- this
+        is polled by the feedback publisher at a different rate than the
+        control loop calls ``run_drive_at_rpm``, and resampling here as well
+        would steal part of each window from the control loop's own sample
+        (see ``EncoderSensor.get_rpm``'s docstring).
+        """
+        return self._encoder.get_last_rpm() / 60.0 * 360.0
 
 
 class Driver(SteeringDriver, DriveDriver, ABC):
@@ -173,5 +297,5 @@ class Driver(SteeringDriver, DriveDriver, ABC):
 
     Retained so existing single-object adapters keep working. New single-purpose
     actuators should implement ``SteeringDriver``, ``DriveDriver`` or
-    ``EncodedDriveDriver`` directly instead of this combined contract.
+    ``DriveDriver``/``EncoderSensor``/``ClosedLoopDrive`` directly instead of this combined contract.
     """

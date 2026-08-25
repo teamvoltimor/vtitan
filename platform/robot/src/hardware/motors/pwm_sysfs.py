@@ -1,6 +1,6 @@
 """Shared kernel hardware-PWM (/sys/class/pwm) export helpers.
 
-Used by servo/driver.py and dc_encoder/driver.py -- both drive their PWM
+Used by servo/driver.py, l298n/driver.py and bts7960/driver.py -- all drive their PWM
 channel through the kernel's **hardware** PWM peripheral via sysfs rather
 than gpiozero's software PWM (see either module's docstring for why the
 hardware peripheral is required). Both used to declare an identical

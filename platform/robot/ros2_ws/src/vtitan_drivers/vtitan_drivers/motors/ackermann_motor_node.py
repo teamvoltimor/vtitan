@@ -3,8 +3,15 @@
 Run on: Raspberry Pi Zero (connected to Raspberry Pi 5 via network)
 
 Steering and drive are independent backends, chosen at runtime:
-    - Default: servo steering + DC-encoder drive (two split-interface drivers).
+    - Default: servo steering + L298N/BTS7960 drive H-bridge, each paired
+      with an independently-wired quadrature encoder
+      (``src.hardware.motors.encoder``) for closed-loop RPM control via
+      ``ClosedLoopDrive``. The encoder is a separate physical part from the
+      H-bridge, so it is wired the same way regardless of which H-bridge is
+      selected.
     - Build HAT: one combined steering+drive object, reused for both sides.
+      Needs no external encoder -- its LEGO motors report their own
+      position/speed through the Build HAT protocol.
 
 Hardware connects in on_configure() and command handling starts in
 on_activate(), matching the driver lifecycle pattern used by every hardware
@@ -39,7 +46,7 @@ Environment Variables:
     ignored; it must be ``MOTOR_DRIVE__REVERSED``.
 
     STEERING_BACKEND: servo | build_hat (default: servo)
-    DRIVE_BACKEND: dc_encoder | build_hat (default: dc_encoder)
+    DRIVE_BACKEND: l298n | bts7960 | build_hat (default: l298n)
     MOTOR_STEERING__OFFSET: Steering center angle offset in degrees
     MOTOR_STEERING__MAX_STEERING_ANGLE: Maximum steering angle in degrees
     MOTOR_STEERING__REVERSED: Invert steering direction
@@ -49,8 +56,11 @@ Environment Variables:
     MOTOR_DRIVE__SPEED_SCALE: motor_speed = velocity_m_s * scale
     See src.hardware.motors.config.Config for the full set and defaults.
 
-    DC-encoder drive pins: MOTOR_PWM_PIN (ENB), MOTOR_IN3_PIN, MOTOR_IN4_PIN,
-        MOTOR_ENCODER_A_PIN, MOTOR_ENCODER_B_PIN
+    L298N drive pins: MOTOR_PWM_PIN (ENA), MOTOR_IN3_PIN, MOTOR_IN4_PIN
+    BTS7960 drive pins: MOTOR_PWM_PIN (shared PWM into the demux),
+        MOTOR_DIR_SELECT_PIN, MOTOR_R_EN_PIN, MOTOR_L_EN_PIN
+        (see docs/bts7960-ibt2-wiring.md)
+    Encoder pins (either H-bridge backend): MOTOR_ENCODER_A_PIN, MOTOR_ENCODER_B_PIN
     Servo steering: SERVO_* (see src.hardware.motors.servo.config.ServoConfig)
     Build HAT (when selected): MOTOR_STEERING__PORT, MOTOR_DRIVE__PORT, ...
 """
@@ -58,6 +68,7 @@ Environment Variables:
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
@@ -72,8 +83,10 @@ from shared.config.constants import RobotSpecs
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32
 
-from src.hardware.motors.base import EncodedDriveDriver
+from src.hardware.motors.base import ClosedLoopDrive
 from src.hardware.motors.config import Config
+from src.hardware.motors.encoder import EncoderConfig, PIDController, QuadratureEncoder
+from src.hardware.motors.encoder.calibration import DEFAULT_WHEEL_DIAMETER_M
 from src.hardware.motors.enums import (
     DRIVE_JOINT,
     STEERING_JOINT,
@@ -86,7 +99,7 @@ from src.ros2.params import declare_and_get_int_param, declare_and_get_str_param
 from src.ros2.qos import QOS_STREAM
 
 # .env loading is a side effect of importing src.logger.config -- the
-# servo/dc_encoder backends (this node's defaults) never import src.logger
+# servo/l298n backends (this node's defaults) never import src.logger
 # themselves (only build_hat's driver does), and even then only inside
 # on_configure()'s try block, well after Config() below would already have
 # run. Trigger it explicitly here so Config() sees MOTOR_STEERING__*/
@@ -114,9 +127,9 @@ class NodeConfig(HardwareBaseSettings):
     """Node-level timing, configurable via config/hardware/motors/ackermann_motor_node.toml.
 
     Matches every hardware driver's Config pattern -- separate from
-    motors.toml/dc_encoder.toml/servo.toml alongside it, which are
-    driver-level config (offsets, PID gains, pins), not this node's timer
-    rates.
+    motors.toml/l298n.toml/bts7960.toml/encoder.toml/servo.toml alongside it,
+    which are driver-level config (offsets, PID gains, pins), not this node's
+    timer rates.
     """
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "motors" / "ackermann_motor_node.toml")
@@ -155,14 +168,21 @@ DIAGNOSTICS_RATE_HZ = _node_config.diagnostics_rate_hz
 DRIVE_CONTROL_RATE_HZ = 50.0
 """Rate of the closed-loop drive step.
 
-Free to change: ``run_drive_at_rpm()`` and ``get_drive_rpm()`` (see
-``dc_encoder/driver.py``'s ``_elapsed()``) measure the real wall-clock
-interval between calls rather than assuming a fixed one, specifically so the
-PID gains and speed estimate stay correct if this rate ever changes. The
-``_NOMINAL_DT_S = 0.02`` constant there is only a one-time seed for the very
-first call, before any interval has been measured yet -- it is not coupled to
-this rate.
+Free to change: ``ClosedLoopDrive.run_drive_at_rpm()`` and
+``QuadratureEncoder.get_rpm()`` both measure the real wall-clock interval
+between calls rather than assuming a fixed one (the node measures its own
+elapsed time for the PID's ``dt``; the encoder measures its own separately
+for the speed estimator's ``dt`` -- see ``encoder/driver.py``'s
+``_elapsed()``), specifically so the PID gains and speed estimate stay
+correct if this rate ever changes.
 """
+
+_NOMINAL_PID_DT_S = 1.0 / DRIVE_CONTROL_RATE_HZ
+"""Assumed PID step on the first closed-loop tick, before a real interval can be measured."""
+
+_MIN_PID_DT_S = 0.001
+_MAX_PID_DT_S = 0.5
+"""Bounds on a measured PID step, so a duplicate call or a stall can't blow up the loop."""
 
 
 
@@ -180,22 +200,47 @@ def _parse_drive_backend(value: str) -> DriveBackend:
     try:
         return DriveBackend(value)
     except ValueError:
-        return DriveBackend.DC_ENCODER
+        return DriveBackend.L298N
 
 
 @dataclass(frozen=True, slots=True)
-class _DcEncoderPins:
-    """GPIO pin assignment for the DC-encoder drive backend (L298N/TB6612)."""
+class _L298nPins:
+    """GPIO pin assignment for the L298N/TB6612 drive backend."""
 
     pwm_pin: int = 13
     dir_a_pin: int = 5
     dir_b_pin: int = 6
+
+
+@dataclass(frozen=True, slots=True)
+class _Bts7960Pins:
+    """GPIO pin assignment for the BTS7960/IBT-2 drive backend.
+
+    See ``docs/bts7960-ibt2-wiring.md`` -- ``pwm_pin`` and ``dir_select_pin``
+    feed the external demux, ``r_en_pin``/``l_en_pin`` wire directly to the
+    module and are held ``HIGH`` for the driver's lifetime.
+    """
+
+    pwm_pin: int = 13
+    dir_select_pin: int = 5
+    r_en_pin: int = 6
+    l_en_pin: int = 26
+
+
+@dataclass(frozen=True, slots=True)
+class _EncoderPins:
+    """GPIO pin assignment for the quadrature encoder.
+
+    Wired the same way regardless of which drive H-bridge backend is
+    selected -- the encoder is a separate physical part from the H-bridge.
+    """
+
     encoder_a_pin: int = 16
     encoder_b_pin: int = 20
 
 
 class _DriverFactory:
-    """Build the steering/drive drivers for the configured backends.
+    """Build the steering/drive/encoder drivers for the configured backends.
 
     The Build HAT driver is a single combined steering+drive object, so when
     both backends select it the same instance is reused (one GPIO/serial open).
@@ -203,9 +248,17 @@ class _DriverFactory:
     installed on the host.
     """
 
-    def __init__(self, config: Config, dc_encoder_pins: _DcEncoderPins | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        l298n_pins: _L298nPins | None = None,
+        bts7960_pins: _Bts7960Pins | None = None,
+        encoder_pins: _EncoderPins | None = None,
+    ) -> None:
         self._config = config
-        self._dc_encoder_pins = dc_encoder_pins or _DcEncoderPins()
+        self._l298n_pins = l298n_pins or _L298nPins()
+        self._bts7960_pins = bts7960_pins or _Bts7960Pins()
+        self._encoder_pins = encoder_pins or _EncoderPins()
         self._build_hat: CombinedDriver | None = None
 
     def _shared_build_hat(self) -> CombinedDriver:
@@ -225,25 +278,52 @@ class _DriverFactory:
         return Driver(ServoConfig())
 
     def drive(self, backend: DriveBackend) -> DriveDriver:
-        """Build the drive driver for ``backend``."""
+        """Build the drive H-bridge driver for ``backend``. Never a ``ClosedLoopDrive``.
+
+        # Direction lives in the driver, not the node: the closed loop runs
+        # PID -> run_drive_forward/reverse() and never passes through the
+        # node, so a negation applied there would be silently skipped (it
+        # was, and the robot drove backwards on the first closed-loop run).
+        """
         if backend is DriveBackend.BUILD_HAT:
             return self._shared_build_hat()  # combined object also satisfies DriveDriver
-        from src.hardware.motors.dc_encoder import Driver  # noqa: PLC0415 - lazy: only when selected
+        if backend is DriveBackend.BTS7960:
+            from src.hardware.motors.bts7960 import Driver  # noqa: PLC0415 - lazy: only when selected
 
-        pins = self._dc_encoder_pins
+            pins = self._bts7960_pins
+            return Driver(
+                pwm_pin=pins.pwm_pin,
+                dir_select_pin=pins.dir_select_pin,
+                r_en_pin=pins.r_en_pin,
+                l_en_pin=pins.l_en_pin,
+                invert=self._config.drive.reversed,
+            )
+
+        from src.hardware.motors.l298n import Driver  # noqa: PLC0415 - lazy: only when selected
+
+        pins = self._l298n_pins
         return Driver(
             pwm_pin=pins.pwm_pin,
             dir_a_pin=pins.dir_a_pin,
             dir_b_pin=pins.dir_b_pin,
-            encoder_a_pin=pins.encoder_a_pin,
-            encoder_b_pin=pins.encoder_b_pin,
             standby_pin=None,  # L298N has no STBY line
-            # Direction lives in the driver, not the node: the closed loop runs
-            # PID -> _set_output() and never passes through the node, so a
-            # negation applied there would be silently skipped (it was, and the
-            # robot drove backwards on the first closed-loop run).
             invert=self._config.drive.reversed,
-            invert_encoder=self._config.drive.encoder_reversed,
+        )
+
+    def encoder(self, backend: DriveBackend) -> QuadratureEncoder | None:
+        """Build the drive encoder, unless ``backend`` reports its own feedback (Build HAT)."""
+        if backend is DriveBackend.BUILD_HAT:
+            return None
+        pins = self._encoder_pins
+        encoder_config = EncoderConfig()
+        return QuadratureEncoder(
+            pin_a=pins.encoder_a_pin,
+            pin_b=pins.encoder_b_pin,
+            counts_per_rev=encoder_config.counts_per_rev,
+            wheel_diameter_m=DEFAULT_WHEEL_DIAMETER_M,
+            # DEFAULT_WHEEL_DIAMETER_M derives from RobotSpecs.WHEEL_RADIUS,
+            # not restated as a config literal -- see encoder/config.py.
+            invert=self._config.drive.encoder_reversed,
         )
 
 
@@ -270,7 +350,7 @@ class AckermannMotorNode(LifecycleNode):
         self.steering_backend: SteeringBackend | None = None
         self.drive_backend: DriveBackend | None = None
         self.steering: SteeringDriver | None = None
-        self.drive: DriveDriver | None = None
+        self.drive: DriveDriver | ClosedLoopDrive | None = None
 
         self.steering_pos_pub: Publisher | None = None
         self.drive_speed_pub: Publisher | None = None
@@ -291,6 +371,11 @@ class AckermannMotorNode(LifecycleNode):
         self.target_wheel_rpm: float = 0.0
         self.current_steering_angle: float = 0.0
         self.last_command_time: float = 0.0
+        # Elapsed-time tracker for the closed-loop PID's dt -- owned by the
+        # node now that ClosedLoopDrive composes a plain DriveDriver + a
+        # separately-timed EncoderSensor, rather than a single object timing
+        # its own PID internally.
+        self._last_pid_time: float | None = None
 
     @override
     def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
@@ -309,7 +394,7 @@ class AckermannMotorNode(LifecycleNode):
             declare_and_get_str_param(self, "steering_backend", "servo"),
         )
         self.drive_backend = _parse_drive_backend(
-            declare_and_get_str_param(self, "drive_backend", "dc_encoder"),
+            declare_and_get_str_param(self, "drive_backend", "l298n"),
         )
 
         self.get_logger().info(
@@ -322,27 +407,55 @@ class AckermannMotorNode(LifecycleNode):
             f"speed_scale={config.drive.speed_scale}",
         )
 
-        # DC-encoder GPIO pin assignment, exposed as ROS2 params.
-        _pin_defaults = _DcEncoderPins()
-        dc_encoder_pins = _DcEncoderPins(
-            pwm_pin=declare_and_get_int_param(self, "motor_pwm_pin", _pin_defaults.pwm_pin),
-            dir_a_pin=declare_and_get_int_param(self, "motor_in3_pin", _pin_defaults.dir_a_pin),
-            dir_b_pin=declare_and_get_int_param(self, "motor_in4_pin", _pin_defaults.dir_b_pin),
-            encoder_a_pin=declare_and_get_int_param(self, "motor_encoder_a_pin", _pin_defaults.encoder_a_pin),
-            encoder_b_pin=declare_and_get_int_param(self, "motor_encoder_b_pin", _pin_defaults.encoder_b_pin),
+        # H-bridge + encoder GPIO pin assignment, exposed as ROS2 params. Both
+        # H-bridge backends' pins and the encoder's pins are always declared
+        # (even if only one backend is actually selected), matching how these
+        # params were declared unconditionally before the split.
+        _l298n_defaults = _L298nPins()
+        l298n_pins = _L298nPins(
+            pwm_pin=declare_and_get_int_param(self, "motor_pwm_pin", _l298n_defaults.pwm_pin),
+            dir_a_pin=declare_and_get_int_param(self, "motor_in3_pin", _l298n_defaults.dir_a_pin),
+            dir_b_pin=declare_and_get_int_param(self, "motor_in4_pin", _l298n_defaults.dir_b_pin),
+        )
+        _bts7960_defaults = _Bts7960Pins()
+        bts7960_pins = _Bts7960Pins(
+            pwm_pin=declare_and_get_int_param(self, "motor_pwm_pin", _bts7960_defaults.pwm_pin),
+            dir_select_pin=declare_and_get_int_param(
+                self, "motor_dir_select_pin", _bts7960_defaults.dir_select_pin,
+            ),
+            r_en_pin=declare_and_get_int_param(self, "motor_r_en_pin", _bts7960_defaults.r_en_pin),
+            l_en_pin=declare_and_get_int_param(self, "motor_l_en_pin", _bts7960_defaults.l_en_pin),
+        )
+        _encoder_defaults = _EncoderPins()
+        encoder_pins = _EncoderPins(
+            encoder_a_pin=declare_and_get_int_param(self, "motor_encoder_a_pin", _encoder_defaults.encoder_a_pin),
+            encoder_b_pin=declare_and_get_int_param(self, "motor_encoder_b_pin", _encoder_defaults.encoder_b_pin),
         )
 
         # Motor drivers (steering and drive may be one combined object or two)
         self.steering = None
         self.drive = None
         try:
-            factory = _DriverFactory(config, dc_encoder_pins)
+            factory = _DriverFactory(config, l298n_pins, bts7960_pins, encoder_pins)
             steering = factory.steering(self.steering_backend)
-            drive = factory.drive(self.drive_backend)
+            raw_drive = factory.drive(self.drive_backend)
+            encoder = factory.encoder(self.drive_backend)
 
             steering.connect()
-            if drive is not steering:  # combined Build HAT: connect once
+            if encoder is not None:
+                encoder_config = EncoderConfig()
+                pid = PIDController(
+                    kp=encoder_config.pid_kp,
+                    ki=encoder_config.pid_ki,
+                    kd=encoder_config.pid_kd,
+                    feedforward=1.0 / encoder_config.max_rpm,
+                )
+                drive: DriveDriver | ClosedLoopDrive = ClosedLoopDrive(raw_drive, encoder, pid)
                 drive.connect()
+            else:
+                drive = raw_drive
+                if drive is not steering:  # combined Build HAT: connect once
+                    drive.connect()
             self.get_logger().info("Motor drivers connected")
 
             # Center steering on startup
@@ -351,8 +464,8 @@ class AckermannMotorNode(LifecycleNode):
 
             self.steering = steering
             self.drive = drive
-            if not isinstance(drive, EncodedDriveDriver):
-                # Build HAT has no encoder counts, so _drive_control_step's
+            if not isinstance(drive, ClosedLoopDrive):
+                # Build HAT has no external encoder, so _drive_control_step's
                 # closed-loop RPM control can't run against it -- warn once at
                 # startup instead of only discovering it as silent no-ops.
                 self.get_logger().warning(
@@ -667,10 +780,11 @@ class AckermannMotorNode(LifecycleNode):
             # Raw quadrature counts. drive_speed above is smoothed and rate-derived,
             # so integrating it to recover distance folds in the estimator's
             # smoothing and sampling interval; the counter is exact and is what
-            # encoder calibration must be measured against. Only dc_encoder
-            # exposes this -- Build HAT is a plain DriveDriver with no encoder
-            # counts, so this field is omitted rather than crashing on it.
-            if isinstance(self.drive, EncodedDriveDriver):
+            # encoder calibration must be measured against. Only a
+            # ClosedLoopDrive (L298N/BTS7960 + encoder) exposes this -- Build
+            # HAT is a plain DriveDriver with no encoder counts, so this field
+            # is omitted rather than crashing on it.
+            if isinstance(self.drive, ClosedLoopDrive):
                 status_msg.values.append(KeyValue(key="encoder_counts", value=str(self.drive.get_drive_counts())))
             status_msg.values.append(KeyValue(key="commanded_speed", value=f"{self.current_speed}"))
             status_msg.values.append(KeyValue(key="commanded_steering", value=f"{self.current_steering_angle:.2f}"))
@@ -692,7 +806,7 @@ class AckermannMotorNode(LifecycleNode):
         """
         if self.drive is None:
             return
-        if not isinstance(self.drive, EncodedDriveDriver):
+        if not isinstance(self.drive, ClosedLoopDrive):
             # Closed-loop RPM control needs encoder feedback -- Build HAT is a
             # plain DriveDriver with no encoder counts, so this backend simply
             # cannot run this loop. Warned about in on_configure(); nothing
@@ -706,7 +820,7 @@ class AckermannMotorNode(LifecycleNode):
                 # at the last moving value.
                 self.drive.get_drive_rpm()
                 return
-            self.drive.run_drive_at_rpm(self.target_wheel_rpm)
+            self.drive.run_drive_at_rpm(self.target_wheel_rpm, dt=self._pid_elapsed())
         except Exception as e:  # noqa: BLE001 - any drive fault must stop the motors
             # RcutilsLogger has no exception() (only debug/info/warning/error/
             # fatal) -- calling it here would raise AttributeError instead of
@@ -714,6 +828,15 @@ class AckermannMotorNode(LifecycleNode):
             self.get_logger().error(f"Closed-loop drive step failed; stopping motors: {type(e).__name__}: {e}")
             self.drive.stop_drive()
             self.target_wheel_rpm = 0.0
+
+    def _pid_elapsed(self) -> float:
+        """Seconds since the last closed-loop PID step, seeding it on first use."""
+        now = time.monotonic()
+        previous = self._last_pid_time
+        self._last_pid_time = now
+        if previous is None:
+            return _NOMINAL_PID_DT_S
+        return min(max(now - previous, _MIN_PID_DT_S), _MAX_PID_DT_S)
 
     def _watchdog_check(self) -> None:
         """Watchdog to stop motors if no commands received recently."""

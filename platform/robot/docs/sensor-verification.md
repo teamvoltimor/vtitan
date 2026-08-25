@@ -559,7 +559,7 @@ At *identical* 100% duty (3.5 m/s commanded, which clamps to the `MOTOR_DRIVE__M
 | Reverse   | 193.7 deg/s | 77.3  | 343.6 | 42.2  | 384 |
 
 The ~143 deg/s gap is >3x either sample's stdev, so it is not measurement noise. It is also **not**
-a software artifact: `SpeedEstimator.update()` (`src/hardware/motors/dc_encoder/control.py`) derives
+a software artifact: `SpeedEstimator.update()` (`src/hardware/motors/encoder/control.py`) derives
 speed from a signed `delta = counts - prev_counts` with no direction-dependent branch. And it is not
 traction/weight-transfer, because the same asymmetry appeared in earlier **off-ground** runs
 (~1.5-1.65x there). Most likely cause is brush timing advance in the brushed DC motor (brushes
@@ -622,8 +622,9 @@ The consequence is that `MOTOR_DRIVE__SPEED_SCALE` (`motor_speed = velocity * 30
 conversion at all -- it claims 100% duty is 3.33 m/s when the robot actually tops out near 0.13 m/s.
 Commanded "m/s" values are therefore meaningless today; anything above ~3.33 simply saturates.
 
-**Not yet done:** closing the loop. `run_drive_at_rpm()` and a `PIDController` already exist in
-`dc_encoder/driver.py` but nothing calls them -- `ackermann_motor_node` uses the open-loop
+**Not yet done at the time of this entry** (closing the loop; since done). `run_drive_at_rpm()` and a
+`PIDController` existed in `dc_encoder/driver.py` (since split into `base.py`'s `ClosedLoopDrive` +
+`encoder/control.py`, 2026-08-25) but at the time nothing called them -- `ackermann_motor_node` used the open-loop
 `run_drive_forward/reverse`. Switching to the closed-loop path would make commands true m/s and
 self-correct for battery droop. Two caveats when that happens: the PID gains
 (`kp=0.002, ki=0.004, ff=1/max_rpm`) have never run on hardware, and both `run_drive_at_rpm()` and
@@ -662,13 +663,14 @@ The single-channel decision above only accounted for PWM *jitter*, which a DC mo
 It didn't account for gpiozero's software PWM being a continuous background thread regardless of
 jitter tolerance -- on the Pi Zero (`LGPIOFactory`), that thread was a real, constant CPU cost, found
 while investigating `ackermann_motor_node` pegging ~80% CPU on an already-overloaded board (only
-153MB free of 415MB, already swapping). The drive motor's PWM pin (GPIO 13, `_DcEncoderPins.pwm_pin`
-in `ackermann_motor_node.py`) is the SoC's other hardware PWM channel (PWM1) alongside the servo's
-GPIO 12 (PWM0), so both now share one `pwm-2chan` overlay:
-`dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4`. `dc_encoder/driver.py`'s H-bridge enable line
-now writes `/sys/class/pwm` the same way the servo driver does (`dc_encoder/config.py` holds
-`pwmchip`/`pwm_channel=1`/`frequency_hz=1000`); direction pins and the quadrature encoder stay on
-gpiozero since those are plain digital I/O with no PWM involved.
+153MB free of 415MB, already swapping). The drive motor's PWM pin (GPIO 13, `_L298nPins.pwm_pin`
+in `ackermann_motor_node.py` at the time -- pin dataclasses were split per-backend 2026-08-25) is the
+SoC's other hardware PWM channel (PWM1) alongside the servo's GPIO 12 (PWM0), so both now share one
+`pwm-2chan` overlay: `dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4`. The H-bridge enable line
+(then `dc_encoder/driver.py`, now `l298n/driver.py`) writes `/sys/class/pwm` the same way the servo
+driver does (`l298n/config.py` holds `pwmchip`/`pwm_channel=1`/`frequency_hz=1000`); direction pins
+stay on gpiozero since those are plain digital I/O with no PWM involved. The quadrature encoder is
+now a separately-wired component (`encoder/driver.py`), unaffected by this section either way.
 
 **Not yet confirmed on hardware** -- this needs a fresh `bootstrap-fresh-zero.sh` run (or a manual
 config.txt edit + reboot) and a re-check of CPU usage and PID behavior on the Zero.

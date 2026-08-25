@@ -1,4 +1,4 @@
-"""DC-encoder drive calibration constants.
+"""Quadrature-encoder calibration constants.
 
 Measured on hardware, not derived from the datasheet -- see
 ``scripts/hardware/calibrate_encoder.py`` if the drivetrain changes.
@@ -36,7 +36,7 @@ DEFAULT_MAX_RPM = 42.5
 Was 1590.0 -- the motor's free-running rpm from the datasheet, which is the
 wrong quantity twice over: it is the motor shaft rather than the wheel (~15.4:1
 apart), and it is the unloaded figure. Since counts_per_rev counts WHEEL
-revolutions, get_drive_rpm() reports wheel rpm, so the PID's feedforward term
+revolutions, get_rpm() reports wheel rpm, so the PID's feedforward term
 (1/max_rpm) was scaled ~37x too small -- it would contribute ~3% duty where
 ~70% is needed to overcome stiction, leaving the integrator to crawl there
 alone.

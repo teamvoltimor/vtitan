@@ -1,7 +1,7 @@
 """Mock-hardware tests for ackermann_motor_node — the real node deployed on the
 
 Raspberry Pi Zero (registered console script, launched by rpi_zero_nodes.launch.py).
-No real servo/dc_encoder/GPIO hardware is touched: the driver factory is mocked
+No real servo/l298n/GPIO hardware is touched: the driver factory is mocked
 so the test exercises the node's actual decode/clamp/watchdog logic against
 fake drivers.
 """
@@ -52,7 +52,7 @@ def _wheel_rpm_for(velocity_mps: float) -> float:
 def ackermann_node_class(monkeypatch):
     """Import AckermannMotorNode with a mocked Config and driver factory."""
     monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
-    monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
+    monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.L298N.value)
 
     # Every numeric field the node reads must be stubbed. A MagicMock left in
     # any of them propagates through the arithmetic and only fails later, at
@@ -75,6 +75,11 @@ def ackermann_node_class(monkeypatch):
     ):
         mock_factory_cls.return_value.steering.return_value = mock_steering
         mock_factory_cls.return_value.drive.return_value = mock_drive
+        # No encoder -> node.drive stays the raw mock, unwrapped by
+        # ClosedLoopDrive, matching this fixture's plain-mock assertions
+        # below (`node.drive is mock_drive`). ClosedLoopDrive composition
+        # itself is covered by base.py/encoder-focused unit tests.
+        mock_factory_cls.return_value.encoder.return_value = None
 
         from vtitan_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
@@ -109,7 +114,7 @@ class TestAckermannMotorNodeInit:
     def test_driver_connect_failure_degrades_safely(self, ros_context, monkeypatch):
         """If the drivers fail to connect, the node must not crash — it disables itself."""
         monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
-        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
+        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.L298N.value)
         mock_config = mock.MagicMock()
         mock_config.steering.offset = 0.0
         mock_config.steering.max_steering_angle = 30.0
@@ -126,6 +131,7 @@ class TestAckermannMotorNodeInit:
         ):
             mock_factory_cls.return_value.steering.return_value = mock_steering
             mock_factory_cls.return_value.drive.return_value = mock.MagicMock()
+            mock_factory_cls.return_value.encoder.return_value = None
 
             from vtitan_drivers.motors.ackermann_motor_node import AckermannMotorNode
 

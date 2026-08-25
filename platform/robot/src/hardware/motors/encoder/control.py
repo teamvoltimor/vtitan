@@ -1,4 +1,4 @@
-"""Pure control primitives for the DC-encoder drive backend.
+"""Pure control primitives for quadrature-encoder feedback and closed-loop speed.
 
 No hardware imports — fully unit-testable on any platform. These convert
 encoder counts to physical quantities and run the closed-loop speed PID.

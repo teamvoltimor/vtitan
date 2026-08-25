@@ -140,7 +140,7 @@ these are the normal case, not a fault worth a line on a 128x64 display.
 
 _DEG_PER_REV = 360.0
 """/motor/drive_speed reports the wheel's angular speed in degrees/s (from real
-encoder feedback, see dc_encoder/driver.py's get_drive_speed()) -- rev/s is
+encoder feedback, see base.py's ClosedLoopDrive.get_drive_speed()) -- rev/s is
 just that divided by 360, with no wheel-radius conversion (and its
 measurement uncertainty) involved at all."""
 

@@ -1,0 +1,13 @@
+# BTS7960/IBT-2 drive H-bridge PWM -- src/hardware/motors/bts7960/config.py
+
+pwmchip = 0
+pwm_channel = 1
+# Same PWM channel the L298N's ENA used (GPIO 13 under the pwm-2chan
+# overlay), now feeding an external demux instead of the H-bridge directly.
+# See docs/bts7960-ibt2-wiring.md.
+
+frequency_hz = 1000
+
+# Encoder calibration + PID gains live in config/hardware/motors/encoder.toml
+# -- the encoder is a separate component from this H-bridge, see
+# src/hardware/motors/encoder/.

@@ -29,7 +29,7 @@ os.environ["ROS_DOMAIN_ID"] = str(1 + _worker_num % 200)
 # Only the BuildHAT motor backend imports it, and only lazily -- see
 # ackermann_motor_node._shared_build_hat, reached solely when
 # STEERING_BACKEND/DRIVE_BACKEND select build_hat. The default backends
-# (servo / dc_encoder) never touch it.
+# (servo / l298n) never touch it.
 #
 # No "buildhat.serinterface" shim any more: the button driver used to do
 # `from buildhat.serinterface import threading` -- an accidental route to the

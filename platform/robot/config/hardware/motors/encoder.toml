@@ -1,17 +1,14 @@
-# DC-encoder drive H-bridge PWM -- src/hardware/motors/dc_encoder/config.py
-
-pwmchip = 0
-pwm_channel = 1
-# GPIO 13 (the drive motor's PWM pin) is channel 1 under the pwm-2chan
-# overlay; GPIO 12 (the servo) is channel 0. See dc_encoder/config.py.
-
-frequency_hz = 1000
+# Quadrature encoder + closed-loop PID -- src/hardware/motors/encoder/config.py
+# Independent of which H-bridge (l298n/bts7960/...) is turning the shaft this
+# encoder reads.
 
 # Bench-calibrated odometry + drive-motor limits (measured 2026-07-25). See
-# src/hardware/motors/dc_encoder/calibration.py for the derivation; re-measure
+# src/hardware/motors/encoder/calibration.py for the derivation; re-measure
 # with scripts/hardware/calibrate_encoder.py if the drivetrain changes.
 counts_per_rev = 676.0
 max_rpm = 42.5
+# wheel_diameter_m is not set here -- it derives from RobotSpecs.WHEEL_RADIUS
+# (src/hardware/motors/encoder/calibration.py), not restated as a literal.
 
 # Closed-loop speed PID gains, tuned on hardware 2026-07-25 against true wheel
 # rpm. Feedforward (1/max_rpm) lands near stiction duty; these gains close the
