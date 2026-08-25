@@ -1132,7 +1132,7 @@ def _lane_is_clamped(spec: Any) -> bool | None:
     worst-case-yaw requirement, well beyond the 6.55 cm p90 crosstrack, so a
     collision at one cannot be explained by plan geometry.
     """
-    corridor = sign_router_module.corridor_for_position(spec.x, spec.y)
+    corridor = corridor_for_position(spec.x, spec.y)
     plateau = _lane_plateau_m(spec, corridor)
     if plateau is None:
         return None
@@ -1253,7 +1253,7 @@ def _outward_pass_offset(
         color = matched_spec.color
         origin_x, origin_y = matched_spec.x, matched_spec.y
     else:
-        corridor = sign_router_module.corridor_for_position(spec.x, spec.y)
+        corridor = corridor_for_position(spec.x, spec.y)
         color = spec.color
         origin_x, origin_y = believed_xy
     rule = sign_router_module.outward_lateral_axis(corridor, color)
