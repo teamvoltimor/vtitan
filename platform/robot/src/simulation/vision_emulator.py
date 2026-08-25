@@ -2,7 +2,7 @@
 
 Inverts the exact pinhole projection ``sign_router._detection_to_world()``
 decodes, so a ``SignRouter`` driven through this emulator exercises the real
-camera-confirmation code path (``_match_detection_to_sign`` /
+camera-confirmation code path (``match_detection_to_sign`` /
 ``_detection_to_world``) instead of always seeing ``detections=None``.
 
 Deliberately simple — a fixed high confidence, no false positives, no wall

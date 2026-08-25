@@ -23,12 +23,12 @@ from shared.domain.models import (
 )
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.planning.waypoints.geometry import _corner_arc_radius
+from src.navigation.planning.waypoints.geometry import corner_arc_radius
 from src.navigation.planning.waypoints.segments import (
-    _assemble_loop,
-    _build_all_segments,
-    _build_waypoint_sequence,
-    _validate_bounds,
+    assemble_loop,
+    build_all_segments,
+    build_waypoint_sequence,
+    validate_bounds,
 )
 
 if TYPE_CHECKING:
@@ -175,7 +175,7 @@ def calculate_waypoints(
     # Each corner is sized by the two corridors it joins, so a narrow-to-narrow
     # corner tightens while the rest keep the configured radius.
     corner_radii = {
-        corner: _corner_arc_radius(entry_w, exit_w, center_bias_m, arc_radius)
+        corner: corner_arc_radius(entry_w, exit_w, center_bias_m, arc_radius)
         for corner, (entry_w, exit_w) in {
             "se": (east_width, south_width),
             "sw": (south_width, west_width),
@@ -184,7 +184,7 @@ def calculate_waypoints(
         }.items()
     }
 
-    segments = _build_all_segments(
+    segments = build_all_segments(
         north_cy,
         south_cy,
         east_cx,
@@ -196,10 +196,10 @@ def calculate_waypoints(
 
     order = Section.loop_order(starting.section, direction)
 
-    full_loop = _assemble_loop(order, segments)
+    full_loop = assemble_loop(order, segments)
     start_x, start_y = starting.position.x, starting.position.y
 
-    waypoints = _build_waypoint_sequence(
+    waypoints = build_waypoint_sequence(
         full_loop,
         segments,
         order,
@@ -208,7 +208,7 @@ def calculate_waypoints(
         num_laps,
         tuning,
     )
-    _validate_bounds(waypoints)
+    validate_bounds(waypoints)
     return waypoints
 
 

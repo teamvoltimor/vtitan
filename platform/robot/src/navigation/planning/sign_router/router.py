@@ -19,11 +19,11 @@ from shared.domain.models import SignColor, Waypoint
 from src.config.tuning_helpers import get_tuning
 from src.navigation.planning.sign_discovery import ObservedSignMap, SignSpec
 from src.navigation.planning.sign_router.config import SignRouterConfig, SignRouterContext
-from src.navigation.planning.sign_router.deformation import _apply_deformation, _match_detection_to_sign
+from src.navigation.planning.sign_router.deformation import apply_deformation, match_detection_to_sign
 from src.navigation.planning.sign_router.routing import (
-    _BEHIND_TOLERANCE,
-    _ROUTING_TABLE,
-    _is_squarely_in_corridor,
+    BEHIND_TOLERANCE,
+    ROUTING_TABLE,
+    is_squarely_in_corridor,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import _dist2d, wrap_angle
@@ -89,7 +89,7 @@ class SignRouter:
         # _prefer_committed.
         self._committed: int | None = None
         # Robot yaw at the tick each sign was first committed to, keyed by sign
-        # index. Lets the depth pin (see _pin_depth) release on heading drift
+        # index. Lets the depth pin (see pin_depth) release on heading drift
         # even when the position-only PIN_CORNER_GUARD still reads squarely in
         # the corridor -- see PIN_HEADING_GUARD.
         self._commit_yaw: dict[int, float] = {}
@@ -316,7 +316,7 @@ class SignRouter:
 
         The permitted side is absolute, fixed by the corridor geometry and the
         sign colour — red outward, green inward — and is exactly the lateral
-        direction ``_ROUTING_TABLE`` deforms toward for that colour. The robot's
+        direction ``ROUTING_TABLE`` deforms toward for that colour. The robot's
         lateral coordinate relative to the sign's is compared against it: same
         sign ⇒ correct side, opposite sign ⇒ wrong-side pass, recorded in
         ``_wrong_side``.
@@ -328,7 +328,7 @@ class SignRouter:
         — which is precisely the choice of side that the pass represents.
         """
         sign = self._signs[index]
-        entry = _ROUTING_TABLE.get((self._sign_corridors[index], Direction.CLOCKWISE))
+        entry = ROUTING_TABLE.get((self._sign_corridors[index], Direction.CLOCKWISE))
         if entry is None:
             return
         axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult
@@ -406,7 +406,7 @@ class SignRouter:
             # vs EAST there and gets assigned NORTH by insertion order, but it's
             # still on the turning arc, not the straight segment this
             # deformation model assumes.
-            if _is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor, self._context):
+            if is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor, self._context):
                 break
         else:
             # No candidate produced an applicable deformation.
@@ -424,7 +424,7 @@ class SignRouter:
 
         # Optionally override color with camera observation.
         if observations:
-            camera_color = _match_detection_to_sign(
+            camera_color = match_detection_to_sign(
                 observations,
                 (sign.x, sign.y),
                 self._config,
@@ -468,7 +468,7 @@ class SignRouter:
         assert lateral_offset is not None
         effective_offset = lateral_offset * taper
 
-        deformed = _apply_deformation(
+        deformed = apply_deformation(
             waypoint,
             sign,
             color,
@@ -544,7 +544,7 @@ class SignRouter:
         for every sign regardless of corridor.
 
         Candidates are additionally restricted to signs not already behind the
-        robot (measured along its heading, with ``_BEHIND_TOLERANCE`` slack so a
+        robot (measured along its heading, with ``BEHIND_TOLERANCE`` slack so a
         sign still alongside the chassis keeps holding the line out). A receding
         sign stays geometrically nearer than the next one for a while, so
         without this the nearest-wins rule below masks the upcoming sign until
@@ -602,7 +602,7 @@ class SignRouter:
             # fully cleared).
             dx, dy = sign.x - robot_pos.x, sign.y - robot_pos.y
             along_track = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
-            if along_track < -_BEHIND_TOLERANCE:
+            if along_track < -BEHIND_TOLERANCE:
                 continue
             same_corridor = self._sign_corridors[i] == corridor
             # A sign in a DIFFERENT corridor than the robot's current label only

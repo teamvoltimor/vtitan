@@ -28,15 +28,15 @@ from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
 from src.config.tuning_helpers import get_tuning
 from src.navigation.maneuvers.parking.context import ParkingContext
 from src.navigation.maneuvers.parking.footprint import (
-    _footprint_breaches_markers,
-    _footprint_breaches_wall,
-    _footprint_inside,
+    footprint_breaches_markers,
+    footprint_breaches_wall,
+    footprint_inside,
 )
-from src.navigation.maneuvers.parking.geometry import _normalise_angle
-from src.navigation.maneuvers.parking.zone import ParkZone, _build_zone, _staging_pos
+from src.navigation.maneuvers.parking.geometry import normalise_angle
+from src.navigation.maneuvers.parking.zone import ParkZone, build_zone, staging_pos
 from src.navigation.utils import (
-    _pure_pursuit_steer as _shared_pure_pursuit_steer,
     clamp as _clamp,
+    pure_pursuit_steer as _shared_pure_pursuit_steer,
 )
 
 if TYPE_CHECKING:
@@ -110,13 +110,13 @@ class ParkController:
         self._reposition_steer = 0.0
         self._saturated_ticks = 0
 
-        self._zone = _build_zone(
+        self._zone = build_zone(
             parking_config.block1_position,
             parking_config.block2_position,
             start_section,
             direction,
         )
-        self._staging = _staging_pos(self._zone, start_section, self._context)
+        self._staging = staging_pos(self._zone, start_section, self._context)
 
         logger.info(
             "ParkController: zone=%s staging=%s section=%s direction=%s",
@@ -177,7 +177,7 @@ class ParkController:
         """Whether the maneuver gave up rather than parking cleanly.
 
         Two ways to give up: exhausting the frame budget, or ENTER reaching the
-        field wall without achieving containment (see ``_footprint_breaches_wall``).
+        field wall without achieving containment (see ``footprint_breaches_wall``).
         Both mean "stopped, not parked", which is the distinction callers actually
         act on.
         """
@@ -229,7 +229,7 @@ class ParkController:
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         # Early exit: if already inside the zone at any phase, we're done.
-        pos_inside, yaw_ok = _inside_zone(robot_pose.x, robot_pose.y, robot_pose.yaw, self._zone, self._context)
+        pos_inside, yaw_ok = inside_zone(robot_pose.x, robot_pose.y, robot_pose.yaw, self._zone, self._context)
         if pos_inside and yaw_ok:
             logger.info("ParkController: DONE -- already inside zone")
             self._phase = ParkPhase.DONE
@@ -278,7 +278,7 @@ class ParkController:
             # rather than trust it.
             return self._start_reposition(robot_pose, target, phase_name, "target behind")
 
-        steer = _pure_pursuit_steer(x_local, y_local, self._context)
+        steer = pure_pursuit_steer(x_local, y_local, self._context)
 
         if abs(steer) >= self._context.constants.saturated_steer_threshold:
             self._saturated_ticks += 1
@@ -303,7 +303,7 @@ class ParkController:
         reason: str,
     ) -> ParkCommand:
         """Latch a reverse-and-reorient recovery burst. See _pursue_with_reposition."""
-        bearing_err = _bearing_error(robot_pose, target)
+        bearing_err = bearing_error(robot_pose, target)
         logger.debug(
             "ParkController: %s reposition (%s, bearing_err=%.1f deg)",
             phase_name,
@@ -344,19 +344,19 @@ class ParkController:
         z = self._zone
         rx, ry, robot_yaw = robot_pose.x, robot_pose.y, robot_pose.yaw
 
-        pos_inside, yaw_ok = _inside_zone(rx, ry, robot_yaw, z, self._context)
+        pos_inside, yaw_ok = inside_zone(rx, ry, robot_yaw, z, self._context)
         if pos_inside and yaw_ok:
             logger.info("ParkController: DONE -- fully inside the lot, wall-parallel")
             self._phase = ParkPhase.DONE
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
-        if _footprint_breaches_wall(rx, ry, robot_yaw, z):
+        if footprint_breaches_wall(rx, ry, robot_yaw, z):
             logger.warning("ParkController: giving up -- footprint reached the field wall without parking")
             self._timed_out = True
             self._phase = ParkPhase.DONE
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
-        if _footprint_breaches_markers(rx, ry, robot_yaw, z):
+        if footprint_breaches_markers(rx, ry, robot_yaw, z):
             logger.warning("ParkController: giving up -- footprint reached a marker fin without parking")
             self._timed_out = True
             self._phase = ParkPhase.DONE
@@ -365,7 +365,7 @@ class ParkController:
         return self._pursue_with_reposition(robot_pose, Waypoint(z.gap_cx, z.gap_cy), ParkPhase.ENTER)
 
 
-def _inside_zone(
+def inside_zone(
     rx: float,
     ry: float,
     robot_yaw: float,
@@ -373,24 +373,24 @@ def _inside_zone(
     context: ParkingContext,
 ) -> tuple[bool, bool]:
     """Return (fully_parked, parallel_ok) per the WRO parking rule."""
-    yaw_err = abs(_normalise_angle(robot_yaw - zone.target_yaw))
-    return _footprint_inside(rx, ry, robot_yaw, zone), yaw_err <= context.constants.yaw_tolerance
+    yaw_err = abs(normalise_angle(robot_yaw - zone.target_yaw))
+    return footprint_inside(rx, ry, robot_yaw, zone), yaw_err <= context.constants.yaw_tolerance
 
 
-def _bearing_error(
+def bearing_error(
     robot_pose: Pose,
     target: Waypoint,
 ) -> float:
     """Signed angle (radians) from the robot's heading to the bearing toward ``target``."""
-    return _normalise_angle(robot_pose.bearing_to(target.to_pose()) - robot_pose.yaw)
+    return normalise_angle(robot_pose.bearing_to(target.to_pose()) - robot_pose.yaw)
 
 
-def _pure_pursuit_steer(x_local: float, y_local: float, context: ParkingContext) -> float:
+def pure_pursuit_steer(x_local: float, y_local: float, context: ParkingContext) -> float:
     """Aim directly at a single fixed target for ``ParkController``.
 
     Unlike ``WaypointController`` (which searches a path for a point at a fixed
     lookahead distance), this supplies its own lookahead floor here rather than at
-    each call site. See ``src.navigation.utils._pure_pursuit_steer`` for the shared
+    each call site. See ``src.navigation.utils.pure_pursuit_steer`` for the shared
     formula and its physical reasoning.
     """
     return _shared_pure_pursuit_steer(x_local, y_local, context.constants.min_lookahead_dist_m)

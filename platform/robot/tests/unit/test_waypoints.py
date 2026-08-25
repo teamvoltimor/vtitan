@@ -11,10 +11,10 @@ from shared.domain.enums import Direction, Section
 from shared.domain.models import CorridorWidthEntry, CorridorWidths, Waypoint
 
 from src.navigation.planning.waypoints import (
-    _arc_with_endpoints,
-    _corner_arc_radius,
-    _deduplicate_consecutive,
-    _straight_waypoints,
+    arc_with_endpoints,
+    corner_arc_radius,
+    deduplicate_consecutive,
+    straight_waypoints,
     calculate_waypoints,
     corridor_for_position,
     validate_path_feasibility,
@@ -46,12 +46,12 @@ class TestGenerateCorridorWaypoints:
     """Test corridor waypoint generation."""
 
     def test_straight_waypoints_x(self) -> None:
-        pts = _straight_waypoints(1.5, is_x=True, start=0.0, end=1.0, count=3)
+        pts = straight_waypoints(1.5, is_x=True, start=0.0, end=1.0, count=3)
         assert len(pts) == 3
         assert pts == [Waypoint(1.5, 0.0), Waypoint(1.5, 0.5), Waypoint(1.5, 1.0)]
 
     def test_straight_waypoints_y(self) -> None:
-        pts = _straight_waypoints(0.5, is_x=False, start=1.0, end=2.0, count=2)
+        pts = straight_waypoints(0.5, is_x=False, start=1.0, end=2.0, count=2)
         assert len(pts) == 2
         assert pts == [Waypoint(1.0, 0.5), Waypoint(2.0, 0.5)]
 
@@ -60,7 +60,7 @@ class TestGenerateCornerArc:
     """Test corner arc waypoint generation."""
 
     def test_corner_arc_radius_appropriate(self) -> None:
-        arc = _arc_with_endpoints(
+        arc = arc_with_endpoints(
             center=Waypoint(1.0, 1.0),
             radius=0.45,
             theta_start=0.0,
@@ -74,7 +74,7 @@ class TestGenerateCornerArc:
             assert dist == pytest.approx(0.45, abs=0.01)
 
     def test_corner_arc_endpoints(self) -> None:
-        arc = _arc_with_endpoints(
+        arc = arc_with_endpoints(
             center=Waypoint(1.5, 1.5),
             radius=0.45,
             theta_start=math.pi,
@@ -113,9 +113,9 @@ class TestCornerArcRadius:
         geometry instead of turning it red.
         """
         narrow_corner = self._NARROW / 2 - self._BIAS
-        assert _corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP) == pytest.approx(narrow_corner)
+        assert corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP) == pytest.approx(narrow_corner)
         for entry, exit_ in ((self._NARROW, self._WIDE), (self._WIDE, self._NARROW), (self._WIDE, self._WIDE)):
-            assert _corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
+            assert corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
                 self._WIDE / 2 - self._BIAS
             )
 
@@ -127,19 +127,19 @@ class TestCornerArcRadius:
         rows), so this holds by construction rather than by coincidence.
         """
         for entry, exit_ in ((self._NARROW, self._WIDE), (self._WIDE, self._NARROW), (self._NARROW, self._NARROW)):
-            assert _corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
-                _corner_arc_radius(exit_, entry, self._BIAS, self._CAP)
+            assert corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
+                corner_arc_radius(exit_, entry, self._BIAS, self._CAP)
             )
 
     def test_never_exceeds_the_configured_cap(self) -> None:
         """A corridor wider than this track can present still respects the cap."""
         oversized = self._WIDE * 4
-        assert _corner_arc_radius(oversized, oversized, self._BIAS, self._CAP) == pytest.approx(self._CAP)
+        assert corner_arc_radius(oversized, oversized, self._BIAS, self._CAP) == pytest.approx(self._CAP)
 
     def test_outward_bias_widens_the_arc(self) -> None:
         """An outward bias leaves more room at the corner, so the arc may open up."""
-        inward = _corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP)
-        outward = _corner_arc_radius(self._NARROW, self._NARROW, -self._BIAS, self._CAP)
+        inward = corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP)
+        outward = corner_arc_radius(self._NARROW, self._NARROW, -self._BIAS, self._CAP)
         assert outward > inward
 
 
@@ -208,7 +208,7 @@ class TestWaypointDeduplication:
             Waypoint(0.5, 0.0),
         ]
 
-        deduped = _deduplicate_consecutive(waypoints)
+        deduped = deduplicate_consecutive(waypoints)
         assert len(deduped) == 2
 
 

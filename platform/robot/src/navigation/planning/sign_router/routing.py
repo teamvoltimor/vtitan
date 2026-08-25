@@ -19,15 +19,15 @@ from shared.domain.models import RoutingEntry, ScenarioMetadata, SignColor
 from src.navigation.geometry import behind_tolerance_m
 from src.navigation.planning.sign_discovery import SignSpec
 from src.navigation.planning.sign_router.config import (
-    _CHASSIS_HALF_DIAGONAL,
     _DEFAULT_SIGN_ROUTER_CONTEXT,
+    CHASSIS_HALF_DIAGONAL,
     SignRouterContext,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-_BEHIND_TOLERANCE = behind_tolerance_m()
+BEHIND_TOLERANCE = behind_tolerance_m()
 
 # Per-(corridor, direction) routing table.
 # axis: Axis.Y means deform the y-coordinate; Axis.X deforms x.
@@ -39,7 +39,7 @@ _BEHIND_TOLERANCE = behind_tolerance_m()
 # world-frame negation of the CCW rows, which instead pinned "red on the
 # robot's right" -- a travel-RELATIVE rule that flips outward/inward between
 # CW and CCW. That was wrong: the official rule is the absolute one above.)
-_ROUTING_TABLE: dict[tuple[Section, Direction], RoutingEntry] = {
+ROUTING_TABLE: dict[tuple[Section, Direction], RoutingEntry] = {
     (Section.SOUTH, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.Y, -1, +1),
     (Section.NORTH, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.Y, +1, -1),
     (Section.EAST, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.X, +1, -1),
@@ -54,7 +54,7 @@ _ROUTING_TABLE: dict[tuple[Section, Direction], RoutingEntry] = {
 def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int] | None:
     """World-frame axis and sign of the pass-side rule for ``corridor``, direction-agnostic.
 
-    The CLOCKWISE and COUNTERCLOCKWISE rows of ``_ROUTING_TABLE`` are identical
+    The CLOCKWISE and COUNTERCLOCKWISE rows of ``ROUTING_TABLE`` are identical
     for every section (see module docstring), so looking the rule up under a fixed
     direction is exactly as correct as knowing the real one. This lets a caller
     that hasn't inferred the travel direction yet -- e.g. ``corridor_follower``
@@ -66,7 +66,7 @@ def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int
         OUTWARD (away from the inner square) for red, INWARD for green. ``None``
         if ``corridor`` has no routing entry.
     """
-    entry = _ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
+    entry = ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
     if entry is None:
         return None
     return entry.axis, entry.red_mult if color == SignColor.RED else entry.green_mult
@@ -96,7 +96,7 @@ def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | 
     first reducing that tracking error.
     """
     context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
-    wall_clearance = _CHASSIS_HALF_DIAGONAL + context.constants.wall_clearance_margin_m
+    wall_clearance = CHASSIS_HALF_DIAGONAL + context.constants.wall_clearance_margin_m
     low_side = corridor in (Section.SOUTH, Section.WEST)
     if low_side:
         value = min(value, TrackDimensions.CORNER_MIN - wall_clearance)
@@ -107,7 +107,7 @@ def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | 
     return value
 
 
-def _is_squarely_in_corridor(x: float, y: float, corridor: Section, context: SignRouterContext | None = None) -> bool:
+def is_squarely_in_corridor(x: float, y: float, corridor: Section, context: SignRouterContext | None = None) -> bool:
     """True if this waypoint is still a reasonable candidate for straight-corridor deformation.
 
     The deformation model holds the depth axis (whatever value the raw path

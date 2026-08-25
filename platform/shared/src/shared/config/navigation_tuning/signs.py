@@ -307,7 +307,7 @@ class SignRouterParams(BaseModel):
             from the last 1.4 m. Only meaningful with ``SIGN_LANE_PLANNER``.
         SIGN_LANE_SUPPRESS_DEFORM: Stop applying the carrot-level
             ``deform_waypoint`` override once the lane planner is placing the
-            path. The two never stacked -- ``_apply_deformation`` REPLACES the
+            path. The two never stacked -- ``apply_deformation`` REPLACES the
             target's lateral coordinate with an absolute value derived from
             the sign, so with a lane in place it re-commands the same line
             rather than adding a second offset -- so this is a question of

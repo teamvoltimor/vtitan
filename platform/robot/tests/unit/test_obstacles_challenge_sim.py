@@ -20,7 +20,7 @@ under-engaged sign vs. never-parked) rather than "which scenario subset"
 failed to keep that isolation.
 
 Multiple real bugs, found via this closed-loop wiring (never exercised by
-``test_sign_router.py``, which only unit-tests ``_apply_deformation`` math in
+``test_sign_router.py``, which only unit-tests ``apply_deformation`` math in
 isolation) plus direct user feedback watching it live in RViz, were fixed in
 ``sign_router.py``/``core_navigator.py``/``scenario_catalog.py`` — see
 ``memory/obstacles_closed_loop_sign_router_bug.md`` for the full history.
@@ -33,7 +33,7 @@ search actually returns (after the search, not before) — deforming a raw-path
 candidate before the search picked from it let the search itself decide
 whether the nudge ever reached steering.
 
-Also fixed: ``_ROUTING_TABLE`` pinned red/green to the robot's OWN left/right
+Also fixed: ``ROUTING_TABLE`` pinned red/green to the robot's OWN left/right
 (travel-relative), which flips outward vs inward between CW and CCW. The
 actual WRO rule is absolute: red is always avoided OUTWARD, green always
 INWARD, regardless of which direction the round is driven. The COUNTERCLOCKWISE
@@ -174,7 +174,7 @@ class TestVisionConfirmedSignRouting:
     """Closed-loop coverage for the camera-detection confirmation path.
 
     Every test above drives ``SignRouter`` with ``detections=None`` (ground
-    truth only) — ``_match_detection_to_sign`` / ``_detection_to_world``, the
+    truth only) — ``match_detection_to_sign`` / ``_detection_to_world``, the
     one part of the stack where a live sensor reading can override
     known-good scenario metadata, was previously never exercised end-to-end
     (review 2026-07-11 §2.2 / recommendation #1). These tests drive the same
@@ -210,7 +210,7 @@ class TestVisionConfirmedSignRouting:
 
         Monkeypatches the vision emulator to report every sign's color
         flipped from its ground-truth metadata color, then spies on
-        ``_apply_deformation`` (the function ``SignRouter.deform_waypoint``
+        ``apply_deformation`` (the function ``SignRouter.deform_waypoint``
         calls with whichever color it decided to use) to prove the flipped
         camera color — not the ground-truth metadata color — is what actually
         drove steering. Closes the review's "no scenario where a wrong/late
@@ -232,18 +232,18 @@ class TestVisionConfirmedSignRouting:
         # call — rather than comparing global color sets — stays correct even
         # when a scenario's two signs have different ground-truth colors.
         used_pairs: list[tuple[str, str]] = []
-        original_apply = sign_router_module._apply_deformation
+        original_apply = sign_router_module.apply_deformation
 
         def spying_apply_deformation(*args, **kwargs):
             # Trailing arguments pass straight through rather than being named:
             # pinning them here is how this spy would go stale the next time
-            # ``_apply_deformation`` grows one (it grew ``robot_pos``), with
+            # ``apply_deformation`` grows one (it grew ``robot_pos``), with
             # nothing failing until the spy is needed.
             sign, color = args[1], args[2]
             used_pairs.append((sign.color, color))
             return original_apply(*args, **kwargs)
 
-        monkeypatch.setattr(sign_router_module, "_apply_deformation", spying_apply_deformation)
+        monkeypatch.setattr(sign_router_module, "apply_deformation", spying_apply_deformation)
 
         result = ScenarioSimulator(
             scenario.metadata,

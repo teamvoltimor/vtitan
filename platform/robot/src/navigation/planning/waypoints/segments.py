@@ -17,13 +17,13 @@ from shared.domain.enums import Direction, Section
 from shared.domain.models import Waypoint
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.planning.waypoints.geometry import _arc_with_endpoints, _straight_waypoints
+from src.navigation.planning.waypoints.geometry import arc_with_endpoints, straight_waypoints
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
 
-def _build_all_segments(
+def build_all_segments(
     north_cy: float,
     south_cy: float,
     east_cx: float,
@@ -63,35 +63,35 @@ def _build_all_segments(
     nw_icr = Waypoint(west_cx + r_nw, north_cy - r_nw)
     ne_icr = Waypoint(east_cx - r_ne, north_cy - r_ne)
 
-    se_cw = _arc_with_endpoints(se_icr, r_se, 0.0, -math.pi / 2, num_intermediate)
-    sw_cw = _arc_with_endpoints(sw_icr, r_sw, -math.pi / 2, -math.pi, num_intermediate)
-    nw_cw = _arc_with_endpoints(nw_icr, r_nw, math.pi, math.pi / 2, num_intermediate)
-    ne_cw = _arc_with_endpoints(ne_icr, r_ne, math.pi / 2, 0.0, num_intermediate)
+    se_cw = arc_with_endpoints(se_icr, r_se, 0.0, -math.pi / 2, num_intermediate)
+    sw_cw = arc_with_endpoints(sw_icr, r_sw, -math.pi / 2, -math.pi, num_intermediate)
+    nw_cw = arc_with_endpoints(nw_icr, r_nw, math.pi, math.pi / 2, num_intermediate)
+    ne_cw = arc_with_endpoints(ne_icr, r_ne, math.pi / 2, 0.0, num_intermediate)
 
     # CW straight segments. Each end is trimmed by the radius of the corner it
     # runs into, which is why the two bounds no longer share a value.
-    east_straight = _straight_waypoints(
+    east_straight = straight_waypoints(
         east_cx,
         is_x=True,
         start=north_cy - r_ne,
         end=south_cy + r_se,
         count=straight_count,
     )
-    south_straight = _straight_waypoints(
+    south_straight = straight_waypoints(
         south_cy,
         is_x=False,
         start=east_cx - r_se,
         end=west_cx + r_sw,
         count=straight_count,
     )
-    west_straight = _straight_waypoints(
+    west_straight = straight_waypoints(
         west_cx,
         is_x=True,
         start=south_cy + r_sw,
         end=north_cy - r_nw,
         count=straight_count,
     )
-    north_straight = _straight_waypoints(
+    north_straight = straight_waypoints(
         north_cy,
         is_x=False,
         start=west_cx + r_nw,
@@ -115,17 +115,18 @@ def _build_all_segments(
     }
 
 
-def _assemble_loop(
+def assemble_loop(
     order: list[Section],
     segments: dict[Section, list[Waypoint]],
 ) -> list[Waypoint]:
+    """Concatenate per-section waypoint lists in the given lap order into one loop."""
     loop: list[Waypoint] = []
     for section in order:
         loop.extend(segments[section])
     return loop
 
 
-def _build_waypoint_sequence(
+def build_waypoint_sequence(
     full_loop: list[Waypoint],
     segments: dict[Section, list[Waypoint]],
     order: list[Section],
@@ -140,10 +141,10 @@ def _build_waypoint_sequence(
     """
     tuning = get_tuning(tuning)
     first_seg = segments[order[0]]
-    start_index = _nearest_waypoint_index(first_seg, start_x, start_y)
+    start_index = nearest_waypoint_index(first_seg, start_x, start_y)
 
     partial_first = first_seg[start_index:]
-    remaining_first_lap = _assemble_loop(order[1:], segments)
+    remaining_first_lap = assemble_loop(order[1:], segments)
     waypoints = partial_first + remaining_first_lap
 
     for _ in range(num_laps - 1):
@@ -153,20 +154,21 @@ def _build_waypoint_sequence(
     if start_index > 0:
         waypoints.extend(first_seg[:start_index])
 
-    return _deduplicate_consecutive(waypoints, tuning)
+    return deduplicate_consecutive(waypoints, tuning)
 
 
-def _nearest_waypoint_index(
+def nearest_waypoint_index(
     waypoints: list[Waypoint],
     x: float,
     y: float,
 ) -> int:
+    """Return the index of the waypoint closest to ``(x, y)``."""
     pts = np.array([(wp.x, wp.y) for wp in waypoints])
     deltas = pts - np.array([x, y])
     return int(np.argmin((deltas**2).sum(axis=1)))
 
 
-def _validate_bounds(waypoints: list[Waypoint]) -> None:
+def validate_bounds(waypoints: list[Waypoint]) -> None:
     """Raise ValueError if generation produced an out-of-bounds waypoint.
 
     Malformed metadata (e.g. mm-vs-m width) can otherwise silently produce
@@ -188,7 +190,7 @@ def _validate_bounds(waypoints: list[Waypoint]) -> None:
             raise ValueError(msg)
 
 
-def _deduplicate_consecutive(
+def deduplicate_consecutive(
     waypoints: list[Waypoint],
     tuning: NavigationTuning | None = None,
 ) -> list[Waypoint]:

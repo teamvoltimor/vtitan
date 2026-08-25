@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from shared.config.constants import CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Axis, Direction, ScenarioType, Section
-from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, Waypoint
+from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, SignColor, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -900,7 +900,7 @@ class ScenarioSimulator:
     @staticmethod
     def _is_wrong_side(sign: SignSpec, chassis: Waypoint) -> bool:
         """Was ``chassis`` on the forbidden side of ``sign`` — red inward, green outward?"""
-        rule = outward_lateral_axis(corridor_for_position(sign.x, sign.y), sign.color)
+        rule = outward_lateral_axis(corridor_for_position(sign.x, sign.y), SignColor(sign.color))
         if rule is None:
             return False
         axis, permitted = rule

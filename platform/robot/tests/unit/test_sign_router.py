@@ -26,16 +26,20 @@ from src.navigation.planning.sign_discovery import (
     _detection_to_world,
 )
 from src.navigation.planning.sign_router import (
-    _CHASSIS_HALF_DIAGONAL,
-    _ROUTING_TABLE,
     SignRouter,
     SignRouterConfig,
     SignRouterContext,
     SignSpec,
-    _apply_deformation,
-    _match_detection_to_sign,
     outward_lateral_axis,
 )
+from src.navigation.planning.sign_router.config import (
+    CHASSIS_HALF_DIAGONAL,
+)
+from src.navigation.planning.sign_router.deformation import (
+    apply_deformation,
+    match_detection_to_sign,
+)
+from src.navigation.planning.sign_router.routing import ROUTING_TABLE
 from src.navigation.planning.waypoints import corridor_for_position
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
@@ -59,7 +63,7 @@ _TUNING = NavigationTuning.load_default()
 _MIN_RELIABLE_BBOX_HEIGHT_PX = _TUNING.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX
 _SIGN_CLEARANCE_MARGIN = _TUNING.sign_router.SIGN_CLEARANCE_MARGIN_M
 _SIGN_LATERAL_OFFSET = SignRouterConfig.from_tuning(_TUNING.sign_router).lateral_offset
-_WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + _TUNING.sign_router.WALL_CLEARANCE_MARGIN_M
+_WALL_CLEARANCE = CHASSIS_HALF_DIAGONAL + _TUNING.sign_router.WALL_CLEARANCE_MARGIN_M
 
 # Robot-to-sign gaps expressed against the configured thresholds instead of as
 # literals. They used to be hardcoded (0.2 to engage, 1.5 to pass) against an
@@ -135,7 +139,7 @@ class TestDeformationDirections:
     def test_offset_side(self, section, direction, color, color_sign, router_config):
         axis, (sx, sy), red_mult = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
-        rx, ry = _apply_deformation((sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
+        rx, ry = apply_deformation((sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
         expected = red_mult * color_sign * SIGN_LATERAL_OFFSET
         # Inner/outer-lane signs cannot always take the full offset — the
         # router clamps clear of the inner square and the outer wall.
@@ -152,7 +156,7 @@ class TestOutwardLateralAxis:
     """Direction-agnostic lookup that lets BLIND_CREEP apply the pass-side
     rule before the travel direction is inferred -- see
     [[sign_router_blind_creep_gap_2026_08_13]]. Must agree with
-    ``_ROUTING_TABLE`` under either direction, since that table's CW/CCW rows
+    ``ROUTING_TABLE`` under either direction, since that table's CW/CCW rows
     are identical by design (see ``TestDeformationDirections``).
     """
 
@@ -160,7 +164,7 @@ class TestOutwardLateralAxis:
     @pytest.mark.parametrize("color", [SignColor.RED, SignColor.GREEN])
     @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
     def test_matches_routing_table_regardless_of_direction(self, section, color, direction):
-        entry = _ROUTING_TABLE[(section, direction)]
+        entry = ROUTING_TABLE[(section, direction)]
         expected_mult = entry.red_mult if color == SignColor.RED else entry.green_mult
         assert outward_lateral_axis(section, color) == (entry.axis, expected_mult)
 
@@ -670,7 +674,7 @@ class TestDepthPinCornerGuard:
         lateral_y = TrackDimensions.CORNER_MIN - 0.05  # still reads as SOUTH laterally
         sign = _sign_at(sign_depth, lateral_y, "red")
 
-        result_x, _ = _apply_deformation(
+        result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
             sign,
             "red",
@@ -694,7 +698,7 @@ class TestDepthPinCornerGuard:
         lateral_y = TrackDimensions.CORNER_MIN - 0.05
         sign = _sign_at(sign_depth, lateral_y, "red")
 
-        result_x, _ = _apply_deformation(
+        result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
             sign,
             "red",
@@ -707,7 +711,7 @@ class TestDepthPinCornerGuard:
         assert result_x == pytest.approx(sign_depth)
 
     def test_guard_off_restores_the_pin_that_cost_11_wall_collisions(self, router_config):
-        """``PIN_CORNER_GUARD=False`` must actually reach ``_pin_depth``.
+        """``PIN_CORNER_GUARD=False`` must actually reach ``pin_depth``.
 
         The pre-guard arm is what the 2026-08-01 attribution was measured
         against, so a sweep that toggles this knob is only worth reading if the
@@ -725,7 +729,7 @@ class TestDepthPinCornerGuard:
             _TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_CORNER_GUARD": False})
         )
 
-        result_x, _ = _apply_deformation(
+        result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
             sign,
             "red",
@@ -767,7 +771,7 @@ class TestDepthPinHeadingGuard:
         sign = _sign_at(sign_depth, lateral_y, "red")
         tuning = self._tuning_with_heading_guard(35.0)
 
-        result_x, _ = _apply_deformation(
+        result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
             sign,
             "red",
@@ -793,7 +797,7 @@ class TestDepthPinHeadingGuard:
         sign = _sign_at(sign_depth, lateral_y, "red")
         tuning = self._tuning_with_heading_guard(35.0)
 
-        result_x, _ = _apply_deformation(
+        result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
             sign,
             "red",
@@ -808,7 +812,7 @@ class TestDepthPinHeadingGuard:
         assert result_x == pytest.approx(sign_depth)
 
     def test_guard_off_ignores_yaw_drift(self, router_config):
-        """``PIN_HEADING_GUARD=False`` must actually reach ``_pin_depth`` --
+        """``PIN_HEADING_GUARD=False`` must actually reach ``pin_depth`` --
         a large yaw_drift must not suppress the pin unless the guard is on.
 
         Explicitly disables the guard rather than relying on the module
@@ -827,7 +831,7 @@ class TestDepthPinHeadingGuard:
             _TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_HEADING_GUARD": False})
         )
 
-        result_x, _ = _apply_deformation(
+        result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
             sign,
             "red",
@@ -844,7 +848,7 @@ class TestDepthPinHeadingGuard:
 
 # Camera-detection confirmation (pinhole projection)
 
-# All direct _detection_to_world / _match_detection_to_sign cases below use a
+# All direct _detection_to_world / match_detection_to_sign cases below use a
 # robot at the origin facing east (yaw=0) unless stated otherwise, so
 # theta_h == bearing and world position == (distance*cos, distance*sin).
 
@@ -1022,11 +1026,11 @@ class TestDetectionToWorldLidarFusion:
 
 
 class TestMatchDetectionToSign:
-    """Pins the confidence/match-distance/class gating in ``_match_detection_to_sign``."""
+    """Pins the confidence/match-distance/class gating in ``match_detection_to_sign``."""
 
     def test_low_confidence_observation_rejected(self, router_config):
         obs = _observation_at(0.5, 0.0, color=SignColor.RED, confidence=0.1)
-        result = _match_detection_to_sign(
+        result = match_detection_to_sign(
             [obs],
             expected_world_pos=(0.5, 0.0),
             config=router_config,
@@ -1035,7 +1039,7 @@ class TestMatchDetectionToSign:
 
     def test_far_match_rejected(self, router_config):
         obs = _observation_at(2.0, 0.0, color=SignColor.RED, confidence=0.9)
-        result = _match_detection_to_sign(
+        result = match_detection_to_sign(
             [obs],
             expected_world_pos=(0.0, 0.0),
             config=router_config,
@@ -1049,7 +1053,7 @@ class TestMatchDetectionToSign:
         far = _observation_at(0.65, 0.0, color=SignColor.RED, confidence=0.9)  # dist 0.15
         candidates = [near, far] if order[0] == "near" else [far, near]
 
-        result = _match_detection_to_sign(
+        result = match_detection_to_sign(
             candidates,
             expected_world_pos=expected,
             config=router_config,
@@ -1082,7 +1086,7 @@ class TestCameraDetectionOverridesGroundTruth:
             observations=[obs],
         )
 
-        expected_if_green = _apply_deformation(
+        expected_if_green = apply_deformation(
             (sx, sy),
             sign,
             "green",
@@ -1090,7 +1094,7 @@ class TestCameraDetectionOverridesGroundTruth:
             Direction.COUNTERCLOCKWISE,
             SIGN_LATERAL_OFFSET,
         )
-        expected_if_red = _apply_deformation(
+        expected_if_red = apply_deformation(
             (sx, sy),
             sign,
             "red",
@@ -1129,7 +1133,7 @@ class TestDeformationClamping:
         # South corridor, sign right at the inner-square boundary (y=1.0):
         # unclamped this deforms to y=1.15 — inside the restricted square.
         sign = _sign_at(1.5, 1.0, "red")
-        wx, wy = _apply_deformation(
+        wx, wy = apply_deformation(
             (1.5, 1.0),
             sign,
             "red",
@@ -1144,7 +1148,7 @@ class TestDeformationClamping:
         # South corridor, sign right at the outer wall (y=0.0): unclamped this
         # deforms to y=-0.15 — beyond the track boundary.
         sign = _sign_at(1.5, 0.0, "green")
-        wx, wy = _apply_deformation(
+        wx, wy = apply_deformation(
             (1.5, 0.0),
             sign,
             "green",
@@ -1160,7 +1164,7 @@ class TestDeformationClamping:
         # EAST/CCW red_mult=-1: unclamped this deforms to x=1.85 — inside the
         # inner square.
         sign = _sign_at(2.0, 1.5, "red")
-        wx, wy = _apply_deformation(
+        wx, wy = apply_deformation(
             (2.0, 1.5),
             sign,
             "red",
@@ -1194,7 +1198,7 @@ class TestPassSideRule:
     inward between CW and CCW, which is not the actual official rule).
     """
 
-    @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
+    @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
     @pytest.mark.parametrize("color", ["red", "green"])
     def test_sign_kept_on_correct_side(self, section, direction, color, router_config):
         # A realistic in-corridor sign position (clear of the inner square, per
@@ -1202,7 +1206,7 @@ class TestPassSideRule:
         # inside the restricted inner square itself, which no real sign ever does.
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
-        wx, wy = _apply_deformation(
+        wx, wy = apply_deformation(
             (sign.x, sign.y),
             sign,
             color,
@@ -1220,7 +1224,7 @@ class TestPassSideRule:
 
 # 7. Minimum edge-to-edge clearance from the sign's own footprint
 
-# The offset is applied from the sign's CENTER (see _apply_deformation), so
+# The offset is applied from the sign's CENTER (see apply_deformation), so
 # both the robot's own half-width and the sign's half-width eat into the
 # nominal lateral_offset before any real gap is left. A flat/undersized
 # lateral_offset can pass every TestPassSideRule case above (correct side)
@@ -1238,11 +1242,11 @@ class TestWrongSidePassDetection:
     instant it is passed. A pass on the permitted side is NOT a violation.
     """
 
-    @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
+    @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
     @pytest.mark.parametrize("color", ["red", "green"])
     def test_correct_side_is_not_a_violation(self, section, direction, color, router_config):
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
-        entry = _ROUTING_TABLE[(section, direction)]
+        entry = ROUTING_TABLE[(section, direction)]
         permitted = entry.red_mult if color == "red" else entry.green_mult
         # Place the robot on the permitted side: the corridor's lateral axis
         # value offset by the permitted direction.
@@ -1256,11 +1260,11 @@ class TestWrongSidePassDetection:
         router._record_pass_side(0, Waypoint(*robot))
         assert router.wrong_side_violations == set(), "permitted side must not violate"
 
-    @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
+    @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
     @pytest.mark.parametrize("color", ["red", "green"])
     def test_wrong_side_is_a_violation(self, section, direction, color, router_config):
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
-        entry = _ROUTING_TABLE[(section, direction)]
+        entry = ROUTING_TABLE[(section, direction)]
         permitted = entry.red_mult if color == "red" else entry.green_mult
         forbidden = -permitted
         if section in (Section.SOUTH, Section.NORTH):

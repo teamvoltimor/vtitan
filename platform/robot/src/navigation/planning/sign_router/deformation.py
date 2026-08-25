@@ -18,9 +18,9 @@ from src.navigation.planning.sign_router.config import (
     SignRouterContext,
 )
 from src.navigation.planning.sign_router.routing import (
-    _ROUTING_TABLE,
-    _is_squarely_in_corridor,
+    ROUTING_TABLE,
     clamp_lateral,
+    is_squarely_in_corridor,
 )
 from src.navigation.utils import _dist2d
 
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from src.navigation.planning.sign_discovery import SignSpec
 
 
-def _apply_deformation(
+def apply_deformation(
     waypoint: tuple[float, float],
     sign: SignSpec,
     color: str,
@@ -78,31 +78,31 @@ def _apply_deformation(
             to the checked-in tuning.
         yaw_drift: Absolute heading change (rad) since the pin engaged on this
             sign; releases the pin past ``PIN_HEADING_GUARD_DEG`` when
-            ``PIN_HEADING_GUARD`` is set. See ``_pin_depth``.
+            ``PIN_HEADING_GUARD`` is set. See ``pin_depth``.
 
     Returns:
         Deformed waypoint (x, y).
     """
-    if (corridor, direction) not in _ROUTING_TABLE:
+    if (corridor, direction) not in ROUTING_TABLE:
         return waypoint
 
-    entry = _ROUTING_TABLE[(corridor, direction)]
+    entry = ROUTING_TABLE[(corridor, direction)]
     axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult
     mult = red_mult if color == SignColor.RED else green_mult
 
     wx, wy = waypoint
     if axis == Axis.Y:
         return (
-            _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
+            pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
             clamp_lateral(sign.y + mult * lateral_offset, corridor, context),
         )
     return (
         clamp_lateral(sign.x + mult * lateral_offset, corridor, context),
-        _pin_depth(wy, sign.y, robot_pos[1] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
+        pin_depth(wy, sign.y, robot_pos[1] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
     )
 
 
-def _pin_depth(
+def pin_depth(
     waypoint_depth: float,
     sign_depth: float,
     robot_depth: float | None,
@@ -119,7 +119,7 @@ def _pin_depth(
     ordinary lookahead resumes -- there is no separate "release" to get wrong, and
     a sign already behind never pulls the target backwards.
 
-    ``deform_waypoint`` only checks ``_is_squarely_in_corridor`` once, upstream,
+    ``deform_waypoint`` only checks ``is_squarely_in_corridor`` once, upstream,
     against the raw (pre-deformation) WAYPOINT -- not against where the robot
     itself actually is. The lookahead target runs 0.2-0.4 m ahead of the robot, so
     the robot can already have curved out of the straight-corridor assumption this
@@ -148,7 +148,7 @@ def _pin_depth(
     context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
     if robot_depth is None or robot_pos is None:
         return waypoint_depth
-    if context.constants.pin_corner_guard and not _is_squarely_in_corridor(
+    if context.constants.pin_corner_guard and not is_squarely_in_corridor(
         robot_pos[0], robot_pos[1], corridor, context
     ):
         return waypoint_depth
@@ -163,7 +163,7 @@ def _pin_depth(
     return waypoint_depth
 
 
-def _match_detection_to_sign(
+def match_detection_to_sign(
     observations: list[TrafficSignObservation],
     expected_world_pos: tuple[float, float],
     config: SignRouterConfig,

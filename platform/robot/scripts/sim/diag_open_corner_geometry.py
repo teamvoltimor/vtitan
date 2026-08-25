@@ -8,7 +8,7 @@ centring cap -- against zero failures at W->W (47 runs), N->W (24) and N->N
 (21). This asks whether the PLAN is already wrong there, before any control or
 sensor error is involved.
 
-The suspicion is ``_corner_arc_radius``:
+The suspicion is ``corner_arc_radius``:
 
     r = min(ARC_RADIUS, max(W_entry, W_exit) / 2 - center_bias_m)
 

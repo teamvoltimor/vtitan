@@ -2294,7 +2294,7 @@ nothing sits near the threshold for it to arbitrate.
 _WIDE_CORNER_MIN_R_M = 0.25
 """Arc radius above which a corner counts as WIDE.
 
-``_corner_arc_radius`` returns ``width/2 - center_bias``, so with the shipped
+``corner_arc_radius`` returns ``width/2 - center_bias``, so with the shipped
 0.15 m obstacles bias the two WRO corridor widths plan 0.35 m (1.0 m) and
 0.15 m (0.6 m). The threshold sits between them rather than on either, so it
 survives a belief that is off by a few centimetres.
@@ -2390,7 +2390,7 @@ class _Approach:
     arc_radius_m: float | None = None
     """Radius of the arc the closest point sits on, when it sits on one.
 
-    A frame-free readout of the believed corridor width: ``_corner_arc_radius``
+    A frame-free readout of the believed corridor width: ``corner_arc_radius``
     returns ``width/2 - center_bias`` until the ``ARC_RADIUS`` cap binds, so the
     radius inverts to the belief without ever naming a section. Taken from the
     UNLANED base path, whose arc vertices lie exactly on their circle -- the
@@ -3016,7 +3016,7 @@ def _report_approach_decomposition(columns: tuple[tuple[str, list[_Approach]], .
 
     ``arc radius`` is the second, and it is the width belief without the frame
     risk of reading a section label under a rotational lock:
-    ``_corner_arc_radius`` returns ``width/2 - center_bias`` until the
+    ``corner_arc_radius`` returns ``width/2 - center_bias`` until the
     ``ARC_RADIUS`` cap binds, so bucketing by radius buckets by belief. A band
     that survives inside every radius bucket is not the width; one that
     disappears is.
@@ -3159,7 +3159,7 @@ def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -
     ``width_errors`` shifts every corridor's believed width by the given
     metres before planning, leaving the signs where they truly are. That is the
     one belief the geometry is most sensitive to: the width sets the centreline
-    AND the corner arc radius (``_corner_arc_radius``, ``w/2 - bias`` until the
+    AND the corner arc radius (``corner_arc_radius``, ``w/2 - bias`` until the
     ``ARC_RADIUS`` cap binds), so it decides where the waypoint grid falls
     relative to a sign's depth.
 
@@ -3766,7 +3766,7 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # The corner dead zone, measured at the tuned activation distance. Tracing
     # the 1.20->1.30 cliff showed deform_waypoint returning the waypoint
     # UNTOUCHED 0.20 m from a sign at grid depth 1.0: the lookahead target had
-    # crossed into the corner, _is_squarely_in_corridor rejected every
+    # crossed into the corner, is_squarely_in_corridor rejected every
     # candidate, and avoidance switched itself off during the final approach.
     # This buffer is how far past the corner span a target may sit and still be
     # deformed, so it is the direct control on that dead zone.
@@ -3924,7 +3924,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("sighted, pin on", park=False, depth_pin=True),
     ],
     # Item 2a: the 11 wall collisions the depth pin introduced (0 -> 11), and
-    # whether the robot-position squareness re-check in `_pin_depth` closes them.
+    # whether the robot-position squareness re-check in `pin_depth` closes them.
     # That re-check landed 2026-08-11 inside an unrelated commit, ten days after
     # the 11 was measured, so nothing here has ever been read against it.
     #

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class _ParkingConstants:
+class ParkingConstants:
     """Tuning-derived parking constants, computed on-demand instead of frozen at module level."""
 
     parallel_tolerance_m: float
@@ -37,7 +37,7 @@ class _ParkingConstants:
     marker_standoff_m: float
 
     @classmethod
-    def from_tuning(cls, tuning: NavigationTuning) -> _ParkingConstants:
+    def from_tuning(cls, tuning: NavigationTuning) -> ParkingConstants:
         """Create from a NavigationTuning instance."""
         parking_tuning = tuning.parking
         escape_tuning = tuning.escape
@@ -58,14 +58,14 @@ class _ParkingConstants:
         )
 
 
-class ParkingContext(TuningContext[_ParkingConstants]):
+class ParkingContext(TuningContext[ParkingConstants]):
     """Context holding tuning-derived parking constants, passed to helper functions.
 
     Eliminates module-level constants by holding them in an instance, which is
     passed to functions that need them. Enables test-time tuning injection.
     """
 
-    _constants_cls = _ParkingConstants
+    _constants_cls = ParkingConstants
 
 
-_DEFAULT_PARKING_CONTEXT = ParkingContext()
+DEFAULT_PARKING_CONTEXT = ParkingContext()
