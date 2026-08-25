@@ -24,7 +24,6 @@ empty grid a DDS discovery problem as well as a missing-config one.)
 from __future__ import annotations
 
 import math
-import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,7 +31,6 @@ if TYPE_CHECKING:
 
     from src.navigation.planning.sign_router import SignSpec
 
-import rclpy
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
@@ -62,70 +60,18 @@ from src.simulation.floor_markings import (
     starting_square_geometry,
 )
 from src.simulation.kinematics import wheel_poses
+from src.simulation.live_visualizer.geometry import (
+    _apply_color,
+    _is_masked_bearing,
+    _pitch_to_quaternion,
+    _wheel_to_quaternion,
+    _yaw_to_quaternion,
+)
 
 if TYPE_CHECKING:
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState, WheelPose
     from src.simulation.track_model import TrackModel
-
-
-def _apply_color(marker: Marker, color: Rgb, alpha: float = 1.0) -> None:
-    """Set a Marker's RGBA from an :class:`Rgb`, avoiding bare-tuple unpacking."""
-    marker.color.r = color.r
-    marker.color.g = color.g
-    marker.color.b = color.b
-    marker.color.a = alpha
-
-
-def _yaw_to_quaternion(yaw: float) -> Quaternion:
-    return Quaternion(x=0.0, y=0.0, z=math.sin(yaw / 2.0), w=math.cos(yaw / 2.0))
-
-
-def _pitch_to_quaternion(pitch: float) -> Quaternion:
-    return Quaternion(x=0.0, y=math.sin(pitch / 2.0), z=0.0, w=math.cos(pitch / 2.0))
-
-
-def _is_masked_bearing(angle_rad: float, sectors: LidarSectorParams) -> bool:
-    """True where the mount occludes its own sensor, by ANGLE not by range.
-
-    These rays self-collide as a matter of geometry, so whatever range comes
-    back is meaningless regardless of how large it is -- which is exactly why
-    the navigator's own rear-sector read excludes them by bearing rather than
-    filtering on distance. Same two wedges, same config.
-    """
-    degrees = math.degrees(wrap_angle(angle_rad))
-    return (
-        sectors.BLIND_WEDGE_LEFT_MIN_DEG <= degrees <= sectors.BLIND_WEDGE_LEFT_MAX_DEG
-        or sectors.BLIND_WEDGE_RIGHT_MIN_DEG <= degrees <= sectors.BLIND_WEDGE_RIGHT_MAX_DEG
-    )
-
-
-def _wheel_to_quaternion(steer: float, roll: float = 0.0) -> Quaternion:
-    """Orient a marker as a road wheel, steered by ``steer`` and rolled by ``roll``.
-
-    A Marker CYLINDER extrudes along its own z, but a wheel's axle is lateral,
-    so this is Rz(steer) * Rx(90deg) * Rz(-roll): the ``rpy="${pi/2} 0 0"`` the
-    URDF applies to its wheel visuals, steered about the world vertical, then
-    spun about the wheel's own axle. That last rotation is post-multiplied
-    because after Rx(90deg) the marker's local z IS the axle.
-
-    ``roll`` is positive rolling forward. It is negated inside because Rx(90deg)
-    lays the axle along -y, so a naive positive rotation would spin the wheel
-    backwards while the robot drove forwards.
-
-    Written out as the closed-form product rather than by composing three
-    Quaternion objects: expanding it collapses to half-angle sums (s =
-    sqrt(2)/2 is Rx(90deg)'s shared term), which is both shorter and cheaper
-    than the general multiply, and matches the two helpers above.
-    """
-    s = math.sqrt(2.0) / 2.0
-    steered, spun = (steer + roll) / 2.0, (steer - roll) / 2.0
-    return Quaternion(
-        x=s * math.cos(steered),
-        y=s * math.sin(steered),
-        z=s * math.sin(spun),
-        w=s * math.cos(spun),
-    )
 
 
 class LiveScenarioVisualizer(Node):
@@ -1000,31 +946,3 @@ class LiveScenarioVisualizer(Node):
         m.scale.z = 0.02  # head diameter
         _apply_color(m, self._rviz.colors.camera_facing, 1.0)
         return m
-
-
-class RealTimePacer:
-    """Sleeps between ticks so a headless-speed loop plays back at wall-clock rate."""
-
-    def __init__(self, dt: float, rate: float = 1.0) -> None:
-        self._tick_budget = dt / rate if rate > 0 else 0.0
-        self._next_tick: float | None = None
-
-    def wait(self) -> None:
-        """Block until the next tick's wall-clock deadline (no-op if unthrottled)."""
-        if self._tick_budget <= 0.0:
-            return
-        now = time.monotonic()
-        if self._next_tick is None:
-            self._next_tick = now
-        self._next_tick += self._tick_budget
-        delay = self._next_tick - now
-        if delay > 0.0:
-            time.sleep(delay)
-        else:
-            self._next_tick = now
-
-
-def init_rclpy_once() -> None:
-    """Initialize rclpy if it hasn't been already (idempotent for script reuse)."""
-    if not rclpy.ok():
-        rclpy.init()
