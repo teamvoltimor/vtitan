@@ -101,7 +101,7 @@ extend = "../ruff.toml"
 "ros2_ws/src/vtitan_state_machine/vtitan_state_machine/telemetry_bridge_node.py" = ["N815"]
 
 # Core navigator step() is complex by design — orchestrates all navigation subsystems
-"src/navigation/core_navigator.py" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
+"src/navigation/core_navigator/**" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
 
 # `assert self.<property> is not None` narrows an internal invariant already
 # enforced by the calling convention (e.g. only reachable after a successful
@@ -109,6 +109,9 @@ extend = "../ruff.toml"
 "src/hardware/display/ssd1306/driver_raw_i2c.py" = ["S101"]
 "src/hardware/hailo/streaming.py" = ["S101"]
 "ros2_ws/src/vtitan_drivers/vtitan_drivers/oled_display_node.py" = ["S101"]
+# `assert lateral_offset is not None` narrows an invariant always set by
+# SignRouterConfig.__post_init__ (and mypy-visible there), not a bypassable check.
+"src/navigation/planning/sign_router/router.py" = ["S101"]
 
 # isort configuration
 [lint.isort]
