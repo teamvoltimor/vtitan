@@ -37,9 +37,11 @@ from src.navigation.planning.sign_router.router import (
 )
 from src.navigation.planning.sign_router.routing import (
     ROUTING_TABLE,
+    candidate_corridors,
     clamp_lateral,
     is_squarely_in_corridor,
     outward_lateral_axis,
+    satisfiable_corridor,
     signs_from_metadata,
 )
 
@@ -54,10 +56,12 @@ __all__ = [
     "SignRouterContext",
     "SignSpec",
     "apply_deformation",
+    "candidate_corridors",
     "clamp_lateral",
     "is_squarely_in_corridor",
     "match_detection_to_sign",
     "outward_lateral_axis",
+    "satisfiable_corridor",
     "pin_depth",
     "signs_from_metadata",
 ]

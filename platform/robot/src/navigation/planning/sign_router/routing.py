@@ -107,6 +107,74 @@ def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | 
     return value
 
 
+def candidate_corridors(x: float, y: float) -> list[Section]:
+    """Corridors a point could plausibly belong to, nearest-face order aside.
+
+    On a straight this is one section. In a CORNER -- both coordinates outside
+    the inner square -- it is the two adjacent faces, which is exactly the
+    ambiguity ``corridor_for_position`` resolves by picking the nearest one.
+    Two-thirds of legal WRO grid positions sit on a corner boundary.
+    """
+    candidates: list[Section] = []
+    if y < TrackDimensions.CORNER_MIN:
+        candidates.append(Section.SOUTH)
+    if y > TrackDimensions.CORNER_MAX:
+        candidates.append(Section.NORTH)
+    if x > TrackDimensions.CORNER_MAX:
+        candidates.append(Section.EAST)
+    if x < TrackDimensions.CORNER_MIN:
+        candidates.append(Section.WEST)
+    return candidates
+
+
+def target_clearance(spec: SignSpec, corridor: Section, lateral_offset: float,
+                     context: SignRouterContext | None = None) -> float | None:
+    """Clearance this corridor's CLAMPED lane target leaves from the sign itself.
+
+    Positive is the permitted side. Negative means the instruction is
+    unsatisfiable: ``clamp_lateral`` has capped the target at the corridor bound
+    and that bound is on the FORBIDDEN side of the sign, so every point of the
+    resulting plateau violates the rule the lane exists to obey.
+    """
+    rule = outward_lateral_axis(corridor, spec.color)
+    if rule is None:
+        return None
+    axis, permitted = rule
+    lateral = spec.y if axis == Axis.Y else spec.x
+    target = clamp_lateral(lateral + permitted * lateral_offset, corridor, context)
+    return (target - lateral) * permitted
+
+
+def satisfiable_corridor(spec: SignSpec, corridor: Section, lateral_offset: float,
+                         context: SignRouterContext | None = None) -> Section:
+    """``corridor``, or the corner's OTHER face when this one cannot be satisfied.
+
+    A sign discovered near a corner diagonal is ambiguous between two faces.
+    Under the wrong one it reads as past that corridor's straight and hard
+    against the inner square, so its clamped target lands on the forbidden side
+    of the sign and the planner lays a line that violates its own rule by
+    construction. Measured blind over the 256 corpus: specs inside their
+    corridor's straight plan wrong-side 5% of the time against 29% for specs
+    past the corner, and EVERY inverted spec (45/45) is satisfiable under the
+    other face, with ~21.7 cm of clearance available there.
+
+    Restricted to ``candidate_corridors`` on purpose. Any section that makes the
+    arithmetic positive would satisfy the check -- including one on the far side
+    of the track -- and that would plant a geometrically absurd lane while
+    scoring well on the metric.
+    """
+    clearance = target_clearance(spec, corridor, lateral_offset, context)
+    if clearance is None or clearance > 0.0:
+        return corridor
+    for alternative in candidate_corridors(spec.x, spec.y):
+        if alternative == corridor:
+            continue
+        other = target_clearance(spec, alternative, lateral_offset, context)
+        if other is not None and other > 0.0:
+            return alternative
+    return corridor
+
+
 def is_squarely_in_corridor(x: float, y: float, corridor: Section, context: SignRouterContext | None = None) -> bool:
     """True if this waypoint is still a reasonable candidate for straight-corridor deformation.
 

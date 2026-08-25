@@ -24,6 +24,7 @@ from src.navigation.planning.sign_router.routing import (
     BEHIND_TOLERANCE,
     ROUTING_TABLE,
     is_squarely_in_corridor,
+    satisfiable_corridor,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import _dist2d, wrap_angle
@@ -72,6 +73,10 @@ class SignRouter:
         # reason the fallback shouldn't use it too.
         self._config = config or SignRouterConfig.from_tuning(get_tuning(tuning).sign_router)
         self._context = SignRouterContext(tuning)
+        # Prefer a corridor whose lane target is actually satisfiable; see
+        # _corridor_for_spec. Read here rather than at each call site so the
+        # per-tick path stays a plain attribute test.
+        self._relabel_unsatisfiable = get_tuning(tuning).sign_router.SIGN_LANE_RELABEL_UNSATISFIABLE
         self._direction = direction
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
@@ -98,7 +103,7 @@ class SignRouter:
         # convention (see _nearest_active_sign). Recomputed per sign rather than
         # once up front, since discovery can both append signs and move an
         # existing one across a corridor boundary as its estimate improves.
-        self._sign_corridors = [corridor_for_position(s.x, s.y) for s in self._signs]
+        self._sign_corridors = [self._corridor_for_spec(s) for s in self._signs]
         # Per-sign "how many ticks running has the estimate wanted to move to a
         # different corridor", keyed by sign index. See _settled_corridor.
         self._corridor_flip_streak: dict[int, tuple[Section, int]] = {}
@@ -160,7 +165,20 @@ class SignRouter:
             spec = track.as_spec()
             if spec != self._signs[index]:
                 self._signs[index] = spec
-                self._sign_corridors[index] = self._settled_corridor(index, spec)
+                self._sign_corridors[index] = self._corridor_for_spec_settled(index, spec)
+
+    def _corridor_for_spec_settled(self, index: int, spec: SignSpec) -> Section:
+        """``_settled_corridor``, then the satisfiability preference on top.
+
+        Order matters: the damping runs first so the flip streak still sees the
+        raw geometric answer, and the relabel only overrides the FINAL choice.
+        Relabelling before damping would feed the streak counter a corridor that
+        ``corridor_for_position`` never proposed.
+        """
+        settled = self._settled_corridor(index, spec)
+        if not self._relabel_unsatisfiable:
+            return settled
+        return satisfiable_corridor(spec, settled, self._config.lateral_offset, self._context)
 
     def _settled_corridor(self, index: int, spec: SignSpec) -> Section:
         """Corridor for a refined sign estimate, held steady against jitter.
@@ -205,6 +223,18 @@ class SignRouter:
             spec.y,
         )
         return fresh
+
+    def _corridor_for_spec(self, spec: SignSpec) -> Section:
+        """Corridor for a sign, preferring one whose lane target is satisfiable.
+
+        Plain ``corridor_for_position`` unless ``SIGN_LANE_RELABEL_UNSATISFIABLE``
+        is set; see ``satisfiable_corridor`` for why the corner tie-break can
+        hand a sign a corridor in which no legal lane exists.
+        """
+        corridor = corridor_for_position(spec.x, spec.y)
+        if not self._relabel_unsatisfiable:
+            return corridor
+        return satisfiable_corridor(spec, corridor, self._config.lateral_offset, self._context)
 
     @property
     def is_discovering(self) -> bool:

@@ -450,6 +450,14 @@ class SweepConfig:
     Only meaningful with ``sign_lane_planner=True``.
     """
 
+    sign_lane_relabel_unsatisfiable: bool | None = None
+    """Override ``SignRouterParams.SIGN_LANE_RELABEL_UNSATISFIABLE`` (default False).
+
+    Moves a sign to the other face of its corner when its clamped lane target
+    lands on the forbidden side of it. 45/45 inverted specs are satisfiable
+    under the other face. Preferred over the skip form, which deletes the lane.
+    """
+
     sign_lane_skip_unsatisfiable: bool | None = None
     """Override ``SignRouterParams.SIGN_LANE_SKIP_UNSATISFIABLE`` (default False).
 
@@ -626,6 +634,7 @@ class SweepConfig:
             SIGN_LANE_RAMP_M=self.sign_lane_ramp,
             SIGN_LANE_HOLD_M=self.sign_lane_hold,
             SIGN_LANE_SKIP_UNSATISFIABLE=self.sign_lane_skip_unsatisfiable,
+            SIGN_LANE_RELABEL_UNSATISFIABLE=self.sign_lane_relabel_unsatisfiable,
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
             SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
             SIGN_LANE_CORNER_ENTRY_M=self.sign_lane_corner_entry,
@@ -3579,6 +3588,12 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     ),
     # Blind on purpose -- unsatisfiable targets come from corner-diagonal
     # DISCOVERIES, so a sighted arm has none (see the dedupe trap).
+    "lane-relabel-unsatisfiable": lambda v: SweepConfig(
+        f"relabel-unsatisfiable {'on' if v else 'off'}",
+        blind=True,
+        sign_lane_planner=True,
+        sign_lane_relabel_unsatisfiable=bool(v),
+    ),
     "lane-skip-unsatisfiable": lambda v: SweepConfig(
         f"skip-unsatisfiable {'on' if v else 'off'}",
         blind=True,

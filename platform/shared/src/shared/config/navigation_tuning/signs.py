@@ -272,6 +272,17 @@ class SignRouterParams(BaseModel):
             sighted at 0.10/0.25/0.40/0.55 -- collisions 56/53/53/62,
             laps>=3 8/11/11/2. Defaults 0.25, a genuine peak rather than a
             flat knob. Only meaningful with ``SIGN_LANE_PLANNER``.
+        SIGN_LANE_RELABEL_UNSATISFIABLE: When a sign's clamped lane target lands
+            on the forbidden side of it, move the sign to the OTHER face of its
+            corner rather than keeping a corridor whose instruction cannot be
+            satisfied. Only the two faces the corner tie-break is choosing
+            between are considered -- any section that makes the arithmetic
+            positive would pass a naive check, including one across the track.
+            Measured blind over the 256 corpus: 29% of specs at a pass are
+            inverted under their settled corridor, and 45/45 of them are
+            satisfiable under the other face with ~21.7 cm available. Preferred
+            over ``SIGN_LANE_SKIP_UNSATISFIABLE``, which fixes the same defect by
+            deleting the lane and costs pass-side 140 -> 155.
         SIGN_LANE_SKIP_UNSATISFIABLE: Drop a sign from the lane profile when its
             own clamped target lands on the FORBIDDEN side of it, instead of
             planning a line that violates the pass-side rule by construction.
@@ -430,6 +441,9 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_SUPPRESS_DEFORM: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_SUPPRESS_DEFORM"))
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
     SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
+    SIGN_LANE_RELABEL_UNSATISFIABLE: bool = Field(
+        default=False, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
+    )
     SIGN_LANE_SKIP_UNSATISFIABLE: bool = Field(
         default=False, validation_alias=_alias("SIGN_LANE_SKIP_UNSATISFIABLE")
     )
