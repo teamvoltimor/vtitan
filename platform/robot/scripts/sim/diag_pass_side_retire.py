@@ -22,9 +22,18 @@ Also carries the checks that qualify that number:
 ``--no-terminate`` lets runs continue past a violation, so the rate is measured
 over the full three laps rather than on a trajectory the verdict truncated.
 
+``--known-start`` is the discriminator for the plan-wrong bucket. Blind seeds
+the believed pose from a fixed SOUTH guess, so three quarters of the corpus
+plan in a frame rotated a multiple of 90 deg from truth. The track is 4-fold
+symmetric and the pass-side rule is rotation-invariant, so that rotation
+*should* be harmless to lane construction; handing the true start back tells
+which it is. If plan-wrong largely vanishes, lane construction mixes the
+believed frame with absolute truth. If it survives, the frame is innocent and
+the fault is in the routing geometry itself.
+
 Usage (from ``platform/robot``, with PYTHONPATH=.)::
 
-    python scripts/sim/diag_pass_side_retire.py --scenarios-dir <dir> [--limit 64] [--no-terminate]
+    python scripts/sim/diag_pass_side_retire.py --scenarios-dir <dir> [--limit 64] [--no-terminate] [--known-start]
 """
 
 from __future__ import annotations
@@ -33,7 +42,9 @@ import argparse
 import json
 import logging
 import math
+import os
 import statistics
+import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -138,6 +149,27 @@ def _side_of(sign: object, x: float, y: float) -> bool | None:
     return (1 if robot_lat > sign_lat else -1) != permitted
 
 
+def _signed_clearance(sign: object, x: float, y: float) -> float | None:
+    """Signed lateral clearance of ``(x, y)`` from ``sign``, + on the permitted side.
+
+    The bucket label says only WHICH side the plan is on. The magnitude says what
+    kind of mistake it is, and the two point at different code: a plan sitting a
+    centimetre over the line is a lane that under-delivered its offset, while one
+    sitting a full lane width onto the forbidden side (spec is +18.14/+27.86 cm)
+    is a lane built on the wrong side to begin with.
+    """
+    rule = sign_router_module.outward_lateral_axis(
+        corridor_for_position(sign.x, sign.y),  # type: ignore[attr-defined]
+        sign.color,  # type: ignore[attr-defined]
+    )
+    if rule is None:
+        return None
+    axis, permitted = rule
+    robot_lat = x if axis == Axis.X else y
+    sign_lat = sign.x if axis == Axis.X else sign.y  # type: ignore[attr-defined]
+    return (robot_lat - sign_lat) * permitted
+
+
 def _nearest_on_path(path: list, sign: object) -> tuple[float, float] | None:
     """Closest point to ``sign`` on the planned polyline, projected onto segments.
 
@@ -164,41 +196,72 @@ def _nearest_on_path(path: list, sign: object) -> tuple[float, float] | None:
     return best
 
 
-def _attribute(sim: object, sign: object, chassis_wrong: bool, true_pose: tuple[float, float, float]) -> str:
+def _attribute(
+    sim: object, sign: object, chassis_wrong: bool, true_pose: tuple[float, float, float]
+) -> tuple[str, float | None, float | None]:
     """Bucket one true violation: whose mistake was it?
 
     Splits the plan from the chassis. If the PLANNED line was already on the
     forbidden side, the robot drove where it meant to and the fault is in
     routing -- either the colour it believed or the lane it built from it. If
     the plan was correct and only the chassis ended up wrong, it is tracking.
+
+    Returns the bucket alongside the plan's own signed clearance from the sign
+    (+ on the permitted side), which separates an inverted lane from an
+    under-delivered one -- see ``_signed_clearance``.
     """
     moved = _to_belief(sim, sign.x, sign.y, *true_pose)  # type: ignore[attr-defined]
     if moved is None:
-        return "no-pose"
+        return "no-pose", None, None
     believed_sign = _BeliefSign(moved[0], moved[1], sign.color)  # type: ignore[attr-defined]
     plan_point = _nearest_on_path(sim.navigator._waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
     if plan_point is None:
-        return "no-plan"
+        return "no-plan", None, None
     plan_wrong = _side_of(believed_sign, *plan_point)
     if plan_wrong is None:
-        return "no-rule"
+        return "no-rule", None, None
+    plan_clearance = _signed_clearance(believed_sign, *plan_point)
+    # How much of the lane's specified offset actually reaches the pass. The
+    # base path is the same polyline before apply_sign_lanes moved it sideways,
+    # so the difference is the delivered offset -- against a spec of 0.2786 m at
+    # the shipped SIGN_LANE_OFFSET_FRAC.
+    base_point = _nearest_on_path(sim.navigator._lane_base_waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
+    base_clearance = None if base_point is None else _signed_clearance(believed_sign, *base_point)
+    delivered = None if base_clearance is None or plan_clearance is None else plan_clearance - base_clearance
     if not plan_wrong:
-        return "plan-ok/chassis-wrong (tracking)" if chassis_wrong else "plan-ok"
+        return ("plan-ok/chassis-wrong (tracking)" if chassis_wrong else "plan-ok"), plan_clearance, delivered
 
     router = sim.navigator.sign_router  # type: ignore[attr-defined]
     routed = list(router.signs) if router is not None else []
     if not routed:
-        return "plan-wrong/never-routed"
+        return "plan-wrong/never-routed", plan_clearance, delivered
     nearest = min(routed, key=lambda r: math.hypot(r.x - believed_sign.x, r.y - believed_sign.y))
     if math.hypot(nearest.x - believed_sign.x, nearest.y - believed_sign.y) > _SIGN_MATCH_M:
-        return "plan-wrong/never-routed"
+        return "plan-wrong/never-routed", plan_clearance, delivered
     if str(nearest.color) != str(sign.color):  # type: ignore[attr-defined]
-        return "plan-wrong/colour-misread"
-    return "plan-wrong/colour-ok (routing)"
+        return "plan-wrong/colour-misread", plan_clearance, delivered
+    return "plan-wrong/colour-ok (routing)", plan_clearance, delivered
 
 
 _SIGN_MATCH_M = 0.25
 """How close a routed sign must be to a true one to count as the same sign."""
+
+
+_LANE_SPEC_NEAR_M = 0.1814
+"""Near edge of the sign-lane spec (+18.14/+27.86 cm off the sign).
+
+A plan sitting further onto the forbidden side than this is on the wrong side by
+a full lane width -- a lane built the wrong way round rather than one that fell
+short of its offset."""
+
+
+_LANE_SPEC_FAR_M = 0.2786
+"""Lateral offset the lane planner asks for at the shipped config.
+
+Read back from ``NavigationTuning.load_default()`` on 2026-08-25 as
+``(chassis_half_diagonal + sign_width/2 + SIGN_CLEARANCE_MARGIN_M) *
+SIGN_LANE_OFFSET_FRAC`` with ``SIGN_LANE_PLANNER`` True -- restated here only as
+the denominator of the delivery ratio."""
 
 
 def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float) -> bool:
@@ -337,14 +400,14 @@ def _disable_termination() -> None:
     ScenarioSimulator._check_pass_side_violation = lambda self, nav: None  # type: ignore[assignment]  # noqa: ARG005, SLF001
 
 
-def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], list, list]:
+def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[float], list, list, list, list]:
     """Run one scenario and cross-tabulate each retirement's two verdicts.
 
     Returns ``(counts, alongs, colour_disagreements)`` where ``counts`` keys
     are ``"<router>/<truth>"`` over ``ok``/``wrong``, plus ``retreat`` and
     ``pass`` for the along-track split.
     """
-    path_str, no_terminate = args_tuple
+    path_str, no_terminate, known_start = args_tuple
     logging.disable(logging.CRITICAL)
     if no_terminate:
         _disable_termination()
@@ -355,14 +418,14 @@ def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], l
     trail: list[tuple[float, float]] = []
     phases: list[str] = []
     metadata = ScenarioMetadata.model_validate(json.loads(Path(path_str).read_text()))
-    sim = ScenarioSimulator(metadata, num_laps=3, seed=0, blind=True)
+    sim = ScenarioSimulator(metadata, num_laps=3, seed=0, blind=True, known_start=known_start)
 
     signs = sign_router_module.signs_from_metadata(metadata)
     # Per sign: the closest approach seen so far, and what the navigator was
     # doing AT that tick. Attribution has to be taken live -- the plan and the
     # router's sign list are rebuilt continuously, so nothing about the moment
     # of the pass survives to the end of the run to be read off afterwards.
-    best: dict[int, tuple[float, str, float]] = {}
+    best: dict[int, tuple[float, str, float, float | None, float | None]] = {}
     early_pose_errors: list[float] = []
 
     def _on_step(state, _scan) -> None:  # type: ignore[no-untyped-def]
@@ -381,11 +444,8 @@ def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], l
             believed = sim.gateway.get_current_pose()
             pose_error = math.inf if believed is None else math.hypot(believed.x - state.x, believed.y - state.y)
             chassis_wrong = bool(_side_of(sign, state.x, state.y))
-            best[index] = (
-                distance,
-                _attribute(sim, sign, chassis_wrong, (state.x, state.y, state.yaw)),
-                pose_error,
-            )
+            bucket, plan_clearance, delivered = _attribute(sim, sign, chassis_wrong, (state.x, state.y, state.yaw))
+            best[index] = (distance, bucket, pose_error, plan_clearance, delivered)
 
     sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
 
@@ -406,9 +466,19 @@ def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], l
     # Attribution, restricted to passes where the believed frame nearly
     # coincides with the true one. Outside that gate the router's own output
     # cannot be matched to a true sign at all (see _POSE_GATE_M).
-    for index, (_distance, bucket, pose_error) in best.items():
+    plan_clearances: list[tuple[str, float]] = []
+    deliveries: list[tuple[str, float]] = []
+    for index, (_distance, bucket, pose_error, plan_clearance, delivered) in best.items():
         near_x, near_y = min(trail, key=lambda p: math.hypot(signs[index].x - p[0], signs[index].y - p[1]))
-        if not _side_of(signs[index], near_x, near_y):
+        violated = bool(_side_of(signs[index], near_x, near_y))
+        # Delivery is recorded for CLEAN passes too. Attribution runs only on
+        # violations, so measuring delivery there alone asks whether the runs
+        # that went wrong had a weak lane -- which is the circularity that kept
+        # the escape<->timeout link alive for a session. The clean column is
+        # what turns "7% of spec" into a finding or a base rate.
+        if delivered is not None:
+            deliveries.append((f"{'VIOLATION' if violated else 'clean pass'}: {bucket}", delivered))
+        if not violated:
             continue
         counts["attributed_total"] += 1
         # Which start sections survive the gate? Blind always assumes a SOUTH
@@ -421,7 +491,33 @@ def _run_one(args_tuple: tuple[str, bool]) -> tuple[Counter[str], list[float], l
         start = str(corridor_for_position(*trail[0])) if trail else "unknown"
         counts[f"start::{start}"] += 1
         counts[f"bucket::{bucket}"] += 1
-    return counts, alongs, list(_VIOLATIONS), list(_EARLY)
+        if plan_clearance is not None:
+            plan_clearances.append((bucket, plan_clearance))
+    return counts, alongs, list(_VIOLATIONS), list(_EARLY), plan_clearances, deliveries
+
+
+def _environment() -> str:
+    """Hardware profile and tree state, stamped on every sweep.
+
+    On 2026-08-25 a 122/68 attribution split reported the day before turned out
+    to be unreproducible from the very commit that reported it -- the same code
+    gives 91/95 -- so the difference was environmental. The worktree it ran in
+    had already been auto-removed, which left no way to recover which profile or
+    working-tree edits produced it, and an unreproducible ratio had by then
+    chosen the investigation's target for a day. A corpus number is not a result
+    unless what produced it is written down beside it.
+    """
+    profile = os.environ.get("VTITAN_HARDWARE_PROFILE", "UNSET")
+    try:
+        revision = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        revision, dirty = "unknown", ""
+    return f"profile={profile}  rev={revision}{'+dirty' if dirty else ''}"
 
 
 def main() -> None:
@@ -435,11 +531,16 @@ def main() -> None:
         action="store_true",
         help="let runs continue past a believed pass-side violation (untruncated truth rate)",
     )
+    parser.add_argument(
+        "--known-start",
+        action="store_true",
+        help="seed the believed pose from the true start, keeping every other blind handicap",
+    )
     args = parser.parse_args()
 
     paths = sorted(Path(args.scenarios_dir).glob("*_metadata.json"))[: args.limit]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        results = list(pool.map(_run_one, [(str(p), args.no_terminate) for p in paths]))
+        results = list(pool.map(_run_one, [(str(p), args.no_terminate, args.known_start) for p in paths]))
 
     counts: Counter[str] = Counter()
     for result in results:
@@ -447,9 +548,13 @@ def main() -> None:
     alongs = [a for r in results for a in r[1]]
     violations = [v for r in results for v in r[2]]
     early = [e for r in results for e in r[3]]
+    plan_clearances = [c for r in results for c in r[4]]
+    deliveries = [d for r in results for d in r[5]]
 
     total = counts["retreat"] + counts["pass"]
-    print(f"scenarios {len(paths)}  retirements {total}")
+    arm = "blind+known_start" if args.known_start else "blind"
+    print(f"scenarios {len(paths)}  retirements {total}  arm {arm}")
+    print(f"  ENV {_environment()}")
     print(f"  along-track: RETREAT (sign ahead) {counts['retreat']:>4}   PASS (sign behind) {counts['pass']:>4}")
     if alongs:
         print(f"    median {statistics.median(alongs):+.2f} m")
@@ -470,6 +575,25 @@ def main() -> None:
     print(f"  attribution (violations {counts['attributed_total']}, all start sections, belief-frame matched):")
     for name, count in sorted(buckets.items(), key=lambda kv: -kv[1]):
         print(f"    {name:<38} {count:>4}")
+    if plan_clearances:
+        print("  PLAN clearance at the pass (+ = permitted side), by bucket:")
+        for name in sorted({b for b, _ in plan_clearances}):
+            values = sorted(c for b, c in plan_clearances if b == name)
+            inverted = sum(1 for c in values if c <= -_LANE_SPEC_NEAR_M)
+            print(
+                f"    {name:<38} n={len(values):>4}  p10 {values[len(values) // 10]:+.3f}  "
+                f"median {statistics.median(values):+.3f}  p90 {values[-max(len(values) // 10, 1)]:+.3f}  "
+                f"beyond -{_LANE_SPEC_NEAR_M:.2f} m {inverted}"
+            )
+    if deliveries:
+        print(f"  LANE DELIVERY at the pass (lane path minus base path, spec {_LANE_SPEC_FAR_M:.4f} m):")
+        for name in sorted({b for b, _ in deliveries}):
+            values = sorted(d for b, d in deliveries if b == name)
+            never = sum(1 for d in values if abs(d) < 0.01)
+            print(
+                f"    {name:<38} n={len(values):>4}  median {statistics.median(values):+.3f}  "
+                f"({statistics.median(values) / _LANE_SPEC_FAR_M:>4.0%} of spec)  never-applied (<1 cm) {never}"
+            )
     by_start = {k[len("start::"):]: v for k, v in counts.items() if k.startswith("start::")}
     if by_start:
         print(f"    violations by start section {dict(sorted(by_start.items()))}")
