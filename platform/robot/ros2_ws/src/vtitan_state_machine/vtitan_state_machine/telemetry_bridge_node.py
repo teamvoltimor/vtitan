@@ -28,7 +28,7 @@ from std_msgs.msg import String
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.clearances import clearances_from_scan
-from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
+from src.navigation.control.controllers.collision_avoidance import CollisionAvoidanceController
 from src.navigation.ports import LidarScan
 from src.ros2.params import (
     declare_and_get_float_param,
