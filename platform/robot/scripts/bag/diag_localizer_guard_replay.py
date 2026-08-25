@@ -42,6 +42,7 @@ import numpy as np
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Section
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
@@ -134,7 +135,7 @@ def _grid_search_costs(
     angles: np.ndarray,
 ) -> tuple[float, float, float, float]:
     """Replicate LidarLocalizer's exact search, returning (x, y, best_cost, second_cost)."""
-    localizer = LidarLocalizer(walls)
+    localizer = LidarLocalizer(walls, LocalizationParams())
     best_x, best_y = prior_xy
     radius = localizer._search_radius  # noqa: SLF001 - diagnostic replay of internal state
     n = localizer._grid_points  # noqa: SLF001

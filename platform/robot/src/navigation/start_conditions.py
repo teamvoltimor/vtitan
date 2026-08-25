@@ -83,8 +83,8 @@ def start_pose(
         Section.EAST: (east_cx, _TRACK_CENTER),
         Section.WEST: (west_cx, _TRACK_CENTER),
     }[section]
-    nx, ny = TRAVEL_DIRS[(section, direction)]
-    return center[0], center[1], math.atan2(ny, nx)
+    normal = TRAVEL_DIRS[(section, direction)]
+    return center[0], center[1], math.atan2(normal.ny, normal.nx)
 
 
 def assumed_start_conditions(

@@ -93,8 +93,8 @@ from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
-_PASS_CLEARANCE = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2
+CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
+_PASS_CLEARANCE = CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2
 """Centre-to-centre separation a mid-turn pass needs.
 
 The yawed figure deliberately, not the aligned one: a target closer than this
@@ -231,7 +231,7 @@ class Approach:
 
     Pure pursuit converts lateral error into heading change by aiming at a point
     AHEAD; the conversion weakens as that lead shrinks and is meaningless once
-    the target is abeam. ``_pin_depth`` deliberately holds the commanded point
+    the target is abeam. ``pin_depth`` deliberately holds the commanded point
     level with the sign, so this is where to look for a target that stopped
     leading -- a chassis chasing sideways cannot close cross-track error however
     much runway is left.
@@ -474,7 +474,7 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
             # Along-track lead of the commanded target, in the chassis frame. Pure
             # pursuit converts lateral error into heading change only while it has
             # something AHEAD to aim at; a target gone abeam (lead -> 0) leaves the
-            # controller chasing sideways, which is what _pin_depth risks by holding
+            # controller chasing sideways, which is what pin_depth risks by holding
             # the commanded point level with the sign.
             dx = result[0] - robot_pos[0]
             dy = result[1] - robot_pos[1]
@@ -531,7 +531,7 @@ def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, A
     if not kind.startswith("A-"):
         return Verdict(kind, label)
 
-    routing = sign_router_module._ROUTING_TABLE.get((last["corridors"][last["committed"]], last["direction"]))  # noqa: SLF001
+    routing = sign_router_module.ROUTING_TABLE.get((last["corridors"][last["committed"]], last["direction"]))  # noqa: SLF001
     if routing is None:
         return Verdict(kind, label)
     axis = 1 if routing[0] == "y" else 0
@@ -692,7 +692,7 @@ def _label(last: dict[str, Any]) -> str:
     # clearance still measured >0.205 m once the lookahead was folded in, so
     # every run classified as ``A-lag`` and the clamp looked exonerated when it
     # is in fact saturated at half of all legal sign/colour combinations.
-    routing = sign_router_module._ROUTING_TABLE.get((last["corridors"][committed], last["direction"]))  # noqa: SLF001
+    routing = sign_router_module.ROUTING_TABLE.get((last["corridors"][committed], last["direction"]))  # noqa: SLF001
     if routing is None:
         return "A-other"
     axis = 1 if routing[0] == "y" else 0
@@ -785,7 +785,7 @@ def _report_approach(tracked: list[Verdict]) -> None:
             _report_convergence(subset, frame, indent="      ")
 
     # Can pure pursuit act at all? It needs a target AHEAD to turn lateral error
-    # into heading; _pin_depth holds the commanded point level with the sign.
+    # into heading; pin_depth holds the commanded point level with the sign.
     print(f"\n  target LEAD at engage:             median {1000 * median([a.lead_start_m for a in runs]):.0f} mm")
     print(f"  target LEAD at impact:             median {1000 * median([a.lead_end_m for a in runs]):.0f} mm")
     abeam = [a.abeam_fraction for a in runs]

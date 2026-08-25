@@ -101,21 +101,26 @@ def detection_to_observation(
         return None
     tuning = get_tuning(tuning)
     world = _detection_to_world(
-        det, (robot_pose.x, robot_pose.y), robot_pose.yaw, tuning, lidar_ranges_m, lidar_angles_rad,
+        det,
+        (robot_pose.x, robot_pose.y),
+        robot_pose.yaw,
+        tuning,
+        lidar_ranges_m,
+        lidar_angles_rad,
     )
     if world is None:
         return None
-    x1, y1, x2, y2 = det.bbox
+    bbox = det.as_bbox()
     return TrafficSignObservation(
         world_x_m=world[0],
         world_y_m=world[1],
         color=det.class_name,
         confidence=det.confidence,
         detected_at_timestamp=0.0,
-        bbox_xmin=int(x1),
-        bbox_ymin=int(y1),
-        bbox_xmax=int(x2),
-        bbox_ymax=int(y2),
+        bbox_xmin=int(bbox.x_min),
+        bbox_ymin=int(bbox.y_min),
+        bbox_xmax=int(bbox.x_max),
+        bbox_ymax=int(bbox.y_max),
     )
 
 
@@ -157,8 +162,8 @@ def _detection_to_world(
         Estimated world (x, y) of the sign, or None if bbox is too small.
     """
     tuning = get_tuning(tuning)
-    x1, y1, x2, y2 = det.bbox
-    pixel_height = abs(y2 - y1)
+    bbox = det.as_bbox()
+    pixel_height = bbox.height
     if pixel_height < tuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX:
         return None
 
@@ -166,7 +171,7 @@ def _detection_to_world(
     distance = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / pixel_height
 
     # Horizontal angle from image centre.
-    cx = (x1 + x2) / 2.0
+    cx = bbox.center.x
     theta_h = (cx / RobotSpecs.CAMERA_WIDTH - 0.5) * RobotSpecs.CAMERA_HFOV
 
     if lidar_ranges_m and lidar_angles_rad:
@@ -174,11 +179,22 @@ def _detection_to_world(
         if tuning.lidar_sectors.MIN_VALID_RANGE_M < lidar_range < RobotSpecs.CAMERA_FAR_CLIP:
             distance = lidar_range
 
+    # Project from where the SENSOR is, not from the body centre. `distance` is
+    # measured by the camera or the C1, and both sit 0.1222 m forward of centre
+    # (robot.toml's [camera]/[lidar] mount_x_offset -- equal today, so the
+    # bearing lookup above can treat them as coincident in the ground plane).
+    # Starting the ray at the chassis origin therefore lands every sign short by
+    # that offset, pulling the estimate ~12 cm toward the robot along its
+    # heading. localization.py took this same correction on 2026-08-21, where
+    # casting predicted rays from the centre was biasing the pose fit along the
+    # corridor axis; this consumer was missed then. Visible in RViz as sign
+    # estimates sitting 10-20 cm off the drawn signs.
+    sensor_x = robot_pos[0] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(robot_yaw)
+    sensor_y = robot_pos[1] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(robot_yaw)
     bearing = robot_yaw + theta_h
-    wx = robot_pos[0] + distance * math.cos(bearing)
-    wy = robot_pos[1] + distance * math.sin(bearing)
+    wx = sensor_x + distance * math.cos(bearing)
+    wy = sensor_y + distance * math.sin(bearing)
     return wx, wy
-
 
 
 @dataclass(slots=True)
@@ -348,7 +364,11 @@ class ObservedSignMap:
             self._fold(world, observed_range, obs, robot_corridor)
 
     def _fold(
-        self, world: Waypoint, observed_range: float, obs: TrafficSignObservation, robot_corridor: Section,
+        self,
+        world: Waypoint,
+        observed_range: float,
+        obs: TrafficSignObservation,
+        robot_corridor: Section,
     ) -> None:
         """Merge one projected observation into the nearest track, or start one."""
         track = self._nearest_track(world, robot_corridor)

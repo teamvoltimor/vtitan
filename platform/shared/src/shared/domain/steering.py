@@ -20,6 +20,11 @@ STEERING_NORM_MIN: Final[float] = -1.0
 STEERING_NORM_MAX: Final[float] = 1.0
 
 
+def clamp_norm(steering_norm: float) -> float:
+    """Clamp a normalised steering command into the valid ``[-1, 1]`` contract."""
+    return max(STEERING_NORM_MIN, min(STEERING_NORM_MAX, steering_norm))
+
+
 def steering_norm_to_angle_rad(steering_norm: float, max_steering_angle: float) -> float:
     """Decode a normalised steering command into a physical front-wheel angle.
 
@@ -31,8 +36,7 @@ def steering_norm_to_angle_rad(steering_norm: float, max_steering_angle: float) 
     Returns:
         Front-wheel steering angle in radians, ``+`` = left (counter-clockwise).
     """
-    clamped = max(STEERING_NORM_MIN, min(STEERING_NORM_MAX, steering_norm))
-    return clamped * max_steering_angle
+    return clamp_norm(steering_norm) * max_steering_angle
 
 
 def angle_rad_to_steering_norm(angle_rad: float, max_steering_angle: float) -> float:
@@ -50,4 +54,4 @@ def angle_rad_to_steering_norm(angle_rad: float, max_steering_angle: float) -> f
     """
     if max_steering_angle <= 0.0:
         return 0.0
-    return max(STEERING_NORM_MIN, min(STEERING_NORM_MAX, angle_rad / max_steering_angle))
+    return clamp_norm(angle_rad / max_steering_angle)

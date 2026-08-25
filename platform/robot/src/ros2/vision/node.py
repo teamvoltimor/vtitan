@@ -17,9 +17,11 @@ from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.timer import Timer  # noqa: TC002
 from sensor_msgs.msg import Image, LaserScan
+from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.enums import RobotState, ScenarioType
+from shared.domain.enums import ScenarioType
 from std_msgs.msg import String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
@@ -30,6 +32,7 @@ from src.ros2.params import (
     declare_and_get_str_param,
 )
 from src.ros2.qos import QOS_LATCHED_STATE, QOS_STREAM
+from src.ros2.race_state import RacingState, subscribe_to_race_state
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
     BBOX_KEY,
@@ -42,6 +45,7 @@ from src.ros2.vision.detection_payload_keys import (
 )
 from src.vision import create_detector
 from src.vision.dataset_capture import DatasetFrameCapture
+from src.vision.hud import HudConfig
 from src.vision.overlay import annotate
 from src.vision.video_recorder import FrameSnapshot, VideoRecorder
 
@@ -100,25 +104,15 @@ class Config(HardwareBaseSettings):
     capture_subdir: str = "captures"
 
 
-# How long to poll for bag_recorder_node's run directory to actually appear
-# on disk before giving up on video for this run. ros2 bag record creates its
-# output directory itself, asynchronously, sometime after its subprocess
-# starts -- rclpy init + discovery can take real wall-clock time. This node
-# must never create that directory itself: doing so would make the bag
-# process's own `-o <path>` call refuse to start, since rosbag2 requires the
-# output directory not to already exist.
-_RUN_PATH_POLL_INTERVAL_SEC = 0.1
-_RUN_PATH_POLL_TIMEOUT_SEC = 3.0
-
-
 class VisionNode(Node):
     """ROS2 node that runs YOLO detection on camera images."""
 
-    def __init__(self) -> None:  # noqa: PLR0915 - constructor wires every subsystem together by design
+    def __init__(self) -> None:
         super().__init__("vision_detector")
 
         defaults = Config()
         topics = RosTopicConfig.load_default()
+        self._topics = topics
         camera_topic = declare_and_get_str_param(self, "camera_topic", defaults.camera_topic)
         detections_topic = declare_and_get_str_param(self, "detections_topic", topics.sensors.vision_detections)
         model_path = declare_and_get_str_param(self, "model_path", defaults.model_path)
@@ -134,14 +128,16 @@ class VisionNode(Node):
         self._record_video = declare_and_get_bool_param(self, "record_video", defaults.record_video)
         video_width = declare_and_get_int_param(self, "video_width", defaults.video_width)
         capture_dataset_frames = declare_and_get_bool_param(
-            self, "capture_dataset_frames", defaults.capture_dataset_frames,
+            self,
+            "capture_dataset_frames",
+            defaults.capture_dataset_frames,
         )
         capture_interval_s = declare_and_get_float_param(self, "capture_interval_s", defaults.capture_interval_s)
         capture_subdir = declare_and_get_str_param(self, "capture_subdir", defaults.capture_subdir)
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
-        from src.vision.detector import DEFAULT_CLASS_TO_COLOR, DetectorConfig  # noqa: PLC0415
+        from src.vision.detector import DEFAULT_CLASS_TO_COLOR, DetectorConfig
 
         # Take the mapping from the detector rather than restating it: this copy
         # said (red, green, magenta), which is the dataset's stale order and the
@@ -170,16 +166,17 @@ class VisionNode(Node):
         # Per-run annotated video, colocated with that run's mcap bag -- only
         # meaningful in direct-capture mode, since that's the only mode a real
         # race actually runs in. Cheap to construct even when never started.
-        self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps)
+        self._hud_config = HudConfig()
+        self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps, hud_config=self._hud_config)
         self._dataset_capture = (
             DatasetFrameCapture(interval_s=capture_interval_s, subdir=capture_subdir)
             if capture_dataset_frames
             else None
         )
-        self._racing = False
+        self._racing_state = RacingState()
         self._active_challenge: ScenarioType | None = None
         self._run_path: str | None = None
-        self._run_path_poll_timer = None
+        self._run_path_poll_timer: Timer | None = None
         self._run_path_poll_deadline = 0.0
         # HUD telemetry, cached from /nav_debug and /scan -- both None until
         # each topic's first message arrives, which the HUD must render as
@@ -188,13 +185,18 @@ class VisionNode(Node):
         self._nav_debug: dict | None = None
         self._scan: LaserScan | None = None
         if self._camera_source == "direct":
-            topics_state = topics.state_machine.state
-            self.create_subscription(String, topics_state, self._on_robot_state, QOS_LATCHED_STATE)
+            subscribe_to_race_state(self, topics, self._on_robot_state)
             self.create_subscription(
-                String, topics.challenge_mode.active, self._on_challenge_mode_active, QOS_LATCHED_STATE,
+                String,
+                topics.challenge_mode.active,
+                self._on_challenge_mode_active,
+                QOS_LATCHED_STATE,
             )
             self.create_subscription(
-                String, topics.bag_recorder.run_path, self._on_run_path, QOS_LATCHED_STATE,
+                String,
+                topics.bag_recorder.run_path,
+                self._on_run_path,
+                QOS_LATCHED_STATE,
             )
             # Plain depth-10 QoS, matching track_navigator_node's
             # /nav_debug publisher exactly (create_publisher(String, ..., 10),
@@ -235,7 +237,7 @@ class VisionNode(Node):
         others -- it names one field ("VisionModel") that only this node ever
         sets.
         """
-        topics = RosTopicConfig.load_default()
+        topics = self._topics
         pub = self.create_publisher(DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE)
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -256,14 +258,14 @@ class VisionNode(Node):
         so the effective threshold was that dataclass's 0.25 default while the
         documented variable only fed a driver path the vision node never calls.
         """
-        from src.vision.detector import DetectorConfig  # noqa: PLC0415
+        from src.vision.detector import DetectorConfig
 
         if backend != "hailo":
             # model_path/class_to_color are always caller-supplied (see class
             # docstring) -- placeholders here since only min_confidence's
             # resolved TOML/env value is wanted.
             return DetectorConfig(model_path="", class_to_color={}).min_confidence
-        from src.hardware.hailo.base import Config as HailoConfig  # noqa: PLC0415
+        from src.hardware.hailo.base import Config as HailoConfig
 
         return HailoConfig().min_confidence
 
@@ -281,7 +283,7 @@ class VisionNode(Node):
         # against the two backends' shared camera.base.Driver ABC instead, so
         # either concrete instance is a valid assignment.
         try:
-            from src.hardware.camera.rpi.camera_module_3.driver import (  # noqa: PLC0415
+            from src.hardware.camera.rpi.camera_module_3.driver import (
                 Config as PicamConfig,
                 Driver as PicamDriver,
             )
@@ -289,7 +291,7 @@ class VisionNode(Node):
             self._camera = PicamDriver(PicamConfig())
             backend = "picamera2"
         except ImportError:
-            from src.hardware.camera.rpicam.driver import (  # noqa: PLC0415
+            from src.hardware.camera.rpicam.driver import (
                 Config as RpicamConfig,
                 Driver as RpicamDriver,
             )
@@ -300,8 +302,7 @@ class VisionNode(Node):
         self._camera.connect()
         size = self._camera.get_resolution()
         self.get_logger().info(
-            f"Camera opened via {backend} at {size.width_px}x{size.height_px}, "
-            f"rotation={size.rotation_deg}",
+            f"Camera opened via {backend} at {size.width_px}x{size.height_px}, rotation={size.rotation_deg}",
         )
         self._timer = self.create_timer(1.0 / max(capture_fps, 1.0), self._capture_once)
 
@@ -309,10 +310,10 @@ class VisionNode(Node):
         """Grab one frame and run the detection/publish path over it."""
         # Only ever scheduled by _start_direct_capture, right after self._camera
         # is set -- guaranteed non-None whenever this timer callback fires.
-        assert self._camera is not None  # noqa: S101 - guaranteed by _start_direct_capture before scheduling
+        assert self._camera is not None
         try:
             frame = self._camera.capture_frame().frame
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             self.get_logger().error(f"Camera capture failed: {err}", throttle_duration_sec=5.0)
             return
         self._process(self._camera.to_rgb(frame))
@@ -323,15 +324,21 @@ class VisionNode(Node):
         Same RACING transition track_navigator_node and bag_recorder_node
         already gate on.
         """
-        was_racing = self._racing
-        self._racing = msg.data.strip().lower() == RobotState.RACING.value
-        self.get_logger().info(f"_on_robot_state: {msg.data!r} -> racing={self._racing} (was {was_racing})")
-        if self._racing and not was_racing:
-            self._maybe_start_recording()
-            if self._dataset_capture is not None:
-                self._dataset_capture.reset()
-        elif was_racing and not self._racing:
-            self._stop_recording()
+        was_racing = self._racing_state.is_racing
+        self._racing_state.update(
+            msg,
+            on_start=self._on_race_start,
+            on_stop=self._stop_recording,
+        )
+        self.get_logger().info(
+            f"_on_robot_state: {msg.data!r} -> racing={self._racing_state.is_racing} (was {was_racing})"
+        )
+
+    def _on_race_start(self) -> None:
+        """Arm recording and reset the dataset capture on the RACING-entered edge."""
+        self._maybe_start_recording()
+        if self._dataset_capture is not None:
+            self._dataset_capture.reset()
 
     def _on_challenge_mode_active(self, msg: String) -> None:
         """Cache the jumper-resolved challenge for the HUD's CHALLENGE line.
@@ -345,8 +352,8 @@ class VisionNode(Node):
     def _on_run_path(self, msg: String) -> None:
         """Cache bag_recorder_node's chosen run directory for this race."""
         self._run_path = msg.data
-        self.get_logger().info(f"_on_run_path: {msg.data!r} (racing={self._racing})")
-        if self._racing:
+        self.get_logger().info(f"_on_run_path: {msg.data!r} (racing={self._racing_state.is_racing})")
+        if self._racing_state.is_racing:
             self._maybe_start_recording()
 
     def _on_nav_debug(self, msg: String) -> None:
@@ -379,16 +386,20 @@ class VisionNode(Node):
         if self._run_path is None:
             return
 
-        self._run_path_poll_deadline = time.monotonic() + _RUN_PATH_POLL_TIMEOUT_SEC
-        self._run_path_poll_timer = self.create_timer(_RUN_PATH_POLL_INTERVAL_SEC, self._poll_for_run_path_dir)
+        self._run_path_poll_deadline = time.monotonic() + self._hud_config.run_path_poll_timeout_sec
+        self._run_path_poll_timer = self.create_timer(
+            self._hud_config.run_path_poll_interval_sec, self._poll_for_run_path_dir
+        )
 
     def _poll_for_run_path_dir(self) -> None:
         """Wait for bag_recorder_node's `ros2 bag record` to create its output directory.
 
-        See _RUN_PATH_POLL_TIMEOUT_SEC's docstring for why this node must
-        never create that directory itself.
+        This node must never create that directory itself: doing so would make
+        the bag process's own `-o <path>` call refuse to start, since rosbag2
+        requires the output directory not to already exist.
         """
-        assert self._run_path is not None  # noqa: S101 - only armed by _maybe_start_recording with a run path set
+        assert self._run_path is not None
+        assert self._run_path_poll_timer is not None
         path = Path(self._run_path)
         if path.is_dir():
             self._run_path_poll_timer.cancel()
@@ -401,8 +412,8 @@ class VisionNode(Node):
             self._run_path_poll_timer.cancel()
             self._run_path_poll_timer = None
             self.get_logger().warning(
-                f"Bag run directory {path} never appeared within {_RUN_PATH_POLL_TIMEOUT_SEC}s "
-                "- skipping video for this run",
+                f"Bag run directory {path} never appeared within "
+                f"{self._hud_config.run_path_poll_timeout_sec}s - skipping video for this run",
             )
 
     def _stop_recording(self) -> None:
@@ -435,7 +446,7 @@ class VisionNode(Node):
 
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self.get_logger().error(f"Unexpected error processing image: {e}")
 
     def _process(self, rgb: np.ndarray) -> None:
@@ -443,7 +454,7 @@ class VisionNode(Node):
         try:
             detections = self.detector.detect(rgb)
 
-            if self._dataset_capture is not None and self._racing:
+            if self._dataset_capture is not None and self._racing_state.is_racing:
                 self._dataset_capture.maybe_capture(
                     self.get_clock().now().nanoseconds / 1e9,
                     rgb,
@@ -476,7 +487,7 @@ class VisionNode(Node):
             # neither is on during a race by default, so this costs nothing on
             # a normal Open Challenge round.
             if self._annotated_publisher is not None or self._recorder.is_recording:
-                annotated = annotate(rgb, detections)
+                annotated = annotate(rgb, detections, config=self._hud_config)
                 if self._recorder.is_recording:
                     # Every frame, unthrottled -- the debug topic's rate cap
                     # below is for live bandwidth, not for what gets recorded.
@@ -492,7 +503,7 @@ class VisionNode(Node):
 
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self.get_logger().error(f"Unexpected error processing image: {e}")
 
     def _build_frame_snapshot(self, annotated: np.ndarray) -> FrameSnapshot:
@@ -542,7 +553,7 @@ class VisionNode(Node):
         """Wrap an RGB array as a sensor_msgs/Image."""
         msg = Image()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "camera_link"
+        msg.header.frame_id = TfFrames.CAMERA_LINK
         msg.height, msg.width = rgb.shape[:2]
         msg.encoding = "rgb8"
         msg.is_bigendian = 0

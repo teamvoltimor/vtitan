@@ -12,6 +12,7 @@ from typing import override
 import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
 from sensor_msgs.msg import Imu
+from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
 
 from src.hardware.exceptions import IMUConnectionError
@@ -19,7 +20,7 @@ from src.hardware.imu.bno08x.mcp2221.uart_rvc import Driver as IMU_UART_RVCDrive
 from src.ros2.hardware_node import LifecycleHardwareNode
 
 
-class IMU_UART_RVCNode(LifecycleHardwareNode):
+class IMU_UART_RVCNode(LifecycleHardwareNode[IMU_UART_RVCDriver]):
     """ROS2 lifecycle node publishing IMU data from BNO08x over UART RVC."""
 
     def __init__(self) -> None:
@@ -29,7 +30,7 @@ class IMU_UART_RVCNode(LifecycleHardwareNode):
             Imu,
             publish_rate_default=100.0,
             topic_default=RosTopicConfig.load_default().sensors.imu,
-            frame_id_default="imu_link",
+            frame_id_default=TfFrames.IMU_LINK,
         )
         self._hardware_ready = False
 

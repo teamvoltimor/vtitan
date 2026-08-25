@@ -57,31 +57,32 @@ _QUARTER = math.pi / 2
 
 @dataclass(frozen=True, slots=True)
 class _WallHeadingConstants:
-  """Tuning-derived wall heading constants, computed on-demand instead of frozen at module level."""
-  min_concentration: float
-  baseline_rays: int
-  max_segment_jump_m: float
-  min_segment_m: float
-  near_max_range_m: float
-  min_returns: int
+    """Tuning-derived wall heading constants, computed on-demand instead of frozen at module level."""
 
-  @classmethod
-  def from_tuning(cls, tuning: NavigationTuning) -> _WallHeadingConstants:
-    wh = tuning.wall_heading
-    return cls(
-        min_concentration=wh.MIN_CONCENTRATION,
-        baseline_rays=wh.BASELINE_RAYS,
-        max_segment_jump_m=wh.MAX_SEGMENT_JUMP_M,
-        min_segment_m=wh.MIN_SEGMENT_M,
-        near_max_range_m=wh.NEAR_MAX_RANGE_M,
-        min_returns=wh.MIN_RETURNS,
-    )
+    min_concentration: float
+    baseline_rays: int
+    max_segment_jump_m: float
+    min_segment_m: float
+    near_max_range_m: float
+    min_returns: int
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning) -> _WallHeadingConstants:
+        wh = tuning.wall_heading
+        return cls(
+            min_concentration=wh.MIN_CONCENTRATION,
+            baseline_rays=wh.BASELINE_RAYS,
+            max_segment_jump_m=wh.MAX_SEGMENT_JUMP_M,
+            min_segment_m=wh.MIN_SEGMENT_M,
+            near_max_range_m=wh.NEAR_MAX_RANGE_M,
+            min_returns=wh.MIN_RETURNS,
+        )
 
 
 class WallHeadingContext(TuningContext[_WallHeadingConstants]):
-  """Context holding tuning-derived wall-heading constants."""
+    """Context holding tuning-derived wall-heading constants."""
 
-  _constants_cls = _WallHeadingConstants
+    _constants_cls = _WallHeadingConstants
 
 
 _DEFAULT_WALL_HEADING_CONTEXT = WallHeadingContext()

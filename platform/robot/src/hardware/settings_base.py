@@ -74,7 +74,11 @@ class HardwareBaseSettings(BaseSettings):
             base_toml = Path(base_toml)
             toml_files = [base_toml, *_profile_overlay_paths(base_toml)]
         else:
-            toml_files = base_toml
+            msg = (
+                f"{settings_cls.__name__} must declare a 'toml_file' in its model_config to source "
+                "its driver config; refusing to silently run with defaults."
+            )
+            raise TypeError(msg)
         return (
             init_settings,
             env_settings,

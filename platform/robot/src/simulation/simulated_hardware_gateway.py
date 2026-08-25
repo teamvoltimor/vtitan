@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.domain.models import IMUReading, Pose, TrafficSignObservation
+from shared.domain.models import IMUReading, LocalizerInputs, Pose, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.localization import make_localizer
@@ -30,46 +30,39 @@ from src.simulation.vision_emulator import emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
 
 if TYPE_CHECKING:
-  from numpy.random import SeedSequence
-  from shared.config.navigation_tuning import NavigationTuning
+    from numpy.random import SeedSequence
+    from shared.config.navigation_tuning import NavigationTuning
 
-  from src.navigation.planning.sign_router import SignSpec
-  from src.navigation.track_geometry import TrackWalls
+    from src.navigation.planning.sign_router import SignSpec
+    from src.navigation.track_geometry import TrackWalls
 
 
 @dataclass(frozen=True, slots=True)
 class _SimulatorConstants:
-  """Tuning-derived simulator constants, computed on-demand instead of frozen at module level."""
-  control_hz: float
-  control_dt: float
-  lidar_invalid_ray_rate: float
+    """Tuning-derived simulator constants, computed on-demand instead of frozen at module level."""
 
-  @classmethod
-  def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
-    tuning = get_tuning(tuning)
-    control_hz = tuning.control.CONTROL_HZ
-    return cls(
-        control_hz=control_hz,
-        control_dt=1.0 / control_hz,
-        lidar_invalid_ray_rate=tuning.simulation.LIDAR_INVALID_RAY_RATE,
-    )
+    control_hz: float
+    control_dt: float
+    lidar_invalid_ray_rate: float
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
+        tuning = get_tuning(tuning)
+        control_hz = tuning.control.CONTROL_HZ
+        return cls(
+            control_hz=control_hz,
+            control_dt=1.0 / control_hz,
+            lidar_invalid_ray_rate=tuning.simulation.LIDAR_INVALID_RAY_RATE,
+        )
 
 
 class SimulatorContext(TuningContext[_SimulatorConstants]):
-  """Context holding tuning-derived simulator constants."""
+    """Context holding tuning-derived simulator constants."""
 
-  _constants_cls = _SimulatorConstants
+    _constants_cls = _SimulatorConstants
 
 
 _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
-
-_LIDAR_OFFSET_M = RobotSpecs.LIDAR_MOUNT_X_OFFSET
-"""Forward distance from the chassis centre to the LIDAR (m).
-
-Same value `navigation.localization` predicts with -- the sensor model and the
-estimator that inverts it have to agree, or the localizer is matching scans
-against geometry the simulator never produced.
-"""
 
 # Backward-compatible exports for existing imports.
 CONTROL_DT = _DEFAULT_SIMULATOR_CONTEXT.constants.control_dt
@@ -177,7 +170,7 @@ class SimulatedHardwareGateway:
         # ending up in different frames, which is an incoherent state no robot
         # is ever in.
         believed = believed_start or initial_state
-        self._localizer_inputs: tuple[float, float, float] | None = None
+        self._localizer_inputs: LocalizerInputs | None = None
         self._yaw_offset = _wrap_angle(believed.yaw - initial_state.yaw)
         # Seed the estimator where the robot *thinks* it was placed. Offset at a
         # random bearing so the error is not systematically along-track (which
@@ -286,7 +279,7 @@ class SimulatedHardwareGateway:
         if not self._localize:
             return 0.0
         pose = self._estimator.estimate_pose()
-        return math.hypot(pose.x - self._state.x, pose.y - self._state.y)
+        return pose.to_waypoint().distance_to(Waypoint(self._state.x, self._state.y))
 
     def get_lidar_scan(self) -> LidarScan | None:
         """Return the most recent simulated LIDAR sweep (ranges, robot-frame angles)."""
@@ -373,10 +366,10 @@ class SimulatedHardwareGateway:
         believed = self.get_current_pose()
         return emulate_sign_observations(
             self._signs,
-            (self._state.x, self._state.y),
+            Waypoint(self._state.x, self._state.y),
             self._state.yaw,
             tuning=self.tuning,
-            believed_pos=(believed.x, believed.y) if believed is not None else None,
+            believed_pos=Waypoint(believed.x, believed.y) if believed is not None else None,
             believed_yaw=believed.yaw if believed is not None else None,
         )
 
@@ -450,9 +443,9 @@ class SimulatedHardwareGateway:
         # it would push the position estimate the wrong way during exactly the
         # manoeuvre -- the escape reverse -- where the robot is already in
         # trouble.
-        self._wheel_distance_m += (self._state.x - prev_x) * math.cos(prev_yaw) + (
-            self._state.y - prev_y
-        ) * math.sin(prev_yaw)
+        self._wheel_distance_m += (self._state.x - prev_x) * math.cos(prev_yaw) + (self._state.y - prev_y) * math.sin(
+            prev_yaw
+        )
 
         settled = self._track.contact_surface(self._state.x, self._state.y, self._state.yaw)
         # With solid walls the refused move names the surface, since the pose
@@ -504,8 +497,9 @@ class SimulatedHardwareGateway:
         # alone would have desynchronised the estimator from its own sensor
         # model: they were consistently wrong with each other, and only the
         # hardware disagreed.
-        sensor_x = self._state.x + _LIDAR_OFFSET_M * math.cos(self._state.yaw)
-        sensor_y = self._state.y + _LIDAR_OFFSET_M * math.sin(self._state.yaw)
+        sensor = Pose(self._state.x, self._state.y, self._state.yaw).sensor_origin(RobotSpecs.LIDAR_MOUNT_X_OFFSET)
+        sensor_x = sensor.x
+        sensor_y = sensor.y
         ranges = self._track.raycast_scan(
             sensor_x,
             sensor_y,
@@ -540,12 +534,14 @@ class SimulatedHardwareGateway:
         # reference, so without it drift and scale error accumulate for the
         # whole round.
         if self._wall_heading:
-            measured = estimate_yaw_from_walls(self._scan_ranges, self._angles_list, prior_yaw=self._estimator.estimate_pose().yaw)
+            measured = estimate_yaw_from_walls(
+                self._scan_ranges, self._angles_list, prior_yaw=self._estimator.estimate_pose().yaw
+            )
             if measured is not None:
                 self._estimator.correct_yaw(measured)
 
         prior = self._estimator.estimate_pose()
-        self._localizer_inputs = (prior.yaw, prior.x, prior.y)
+        self._localizer_inputs = LocalizerInputs(prior.yaw, prior.x, prior.y)
         est_x, est_y = self._localizer.estimate_position(
             (prior.x, prior.y),
             prior.yaw,
@@ -555,7 +551,7 @@ class SimulatedHardwareGateway:
         )
         self._estimator.update_position(est_x, est_y)
 
-    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+    def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
         return self._localizer_inputs
 
@@ -573,4 +569,3 @@ class SimulatedHardwareGateway:
         acceleration or steering-slew limits bind.
         """
         return self._command
-

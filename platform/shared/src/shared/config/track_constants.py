@@ -11,16 +11,19 @@ tree.
 
 from __future__ import annotations
 
-import tomllib
 from decimal import Decimal
-from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[3] / "config" / "track.toml"
-"""platform/shared/config/track.toml -- resolved relative to this module's own
-location rather than the caller's, same rationale as NavigationTuning's
-DEFAULT_CONFIG_DIR."""
+if TYPE_CHECKING:
+    from pathlib import Path
+
+from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
+
+DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "track.toml"
+"""platform/shared/config/track.toml -- resolved via shared.config.paths rather
+than a fragile ``parents[N]`` relative to this file."""
 
 
 def _dec(x: float) -> Decimal:
@@ -177,7 +180,17 @@ class StartingZone(BaseModel):
     spawn_alignment: tuple[str, ...]
 
 
-class TrackConstants(BaseModel):
+class Markings(BaseModel):
+    """Corner-line colours and angle painted on the mat."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    orange_color: tuple[float, float, float]
+    blue_color: tuple[float, float, float]
+    angle: int
+
+
+class TrackConstants(TomlLoadableModel):
     """Mat geometry constants, loaded from track.toml."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -188,6 +201,9 @@ class TrackConstants(BaseModel):
     sign: Sign
     parking: Parking
     starting_zone: StartingZone
+    markings: Markings
+
+    default_config_path: ClassVar[Path] = DEFAULT_CONFIG_PATH
 
     @property
     def cell_centers_along(self) -> tuple[float, float]:
@@ -221,10 +237,7 @@ class TrackConstants(BaseModel):
         bands = self.corridor.band_widths
         alignment = self.starting_zone.spawn_alignment
         if len(alignment) != len(bands):
-            msg = (
-                f"starting_zone.spawn_alignment has {len(alignment)} entries, "
-                f"want {len(bands)} (one per band)"
-            )
+            msg = f"starting_zone.spawn_alignment has {len(alignment)} entries, want {len(bands)} (one per band)"
             raise ValueError(msg)
 
         half = _dec(chassis_width) / 2
@@ -234,10 +247,7 @@ class TrackConstants(BaseModel):
             band_dec = _dec(band)
             lo, hi = edge, edge + band_dec
             if band < chassis_width:
-                msg = (
-                    f"band {i} is {band} m wide, narrower than the {chassis_width} m "
-                    "chassis, so no start fits in it"
-                )
+                msg = f"band {i} is {band} m wide, narrower than the {chassis_width} m chassis, so no start fits in it"
                 raise ValueError(msg)
             match alignment[i]:
                 case "outer":
@@ -249,10 +259,3 @@ class TrackConstants(BaseModel):
                     raise ValueError(msg)
             edge = hi
         return tuple(float(o) for o in offsets)
-
-    @classmethod
-    def load_default(cls) -> TrackConstants:
-        """Load from the checked-in ``platform/shared/config/track.toml``."""
-        with DEFAULT_CONFIG_PATH.open("rb") as f:
-            data: dict[str, object] = tomllib.load(f)
-        return cls.model_validate(data)

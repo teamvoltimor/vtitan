@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from shared.config.constants import CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Direction, ScenarioType, Section
-from shared.domain.models import Position2D, ScenarioMetadata, Waypoint
+from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -34,10 +34,15 @@ from src.navigation.corridor_estimator import (
 from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
-from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec, signs_from_metadata
+from src.navigation.planning.sign_router import (
+    SignRouter,
+    SignRouterConfig,
+    SignSpec,
+    signs_from_metadata,
+)
 from src.navigation.planning.waypoints import plan_believed_path
 from src.navigation.race_tracker import LapDetector
-from src.navigation.start_conditions import assumed_start_conditions
+from src.navigation.start_conditions import assumed_start_conditions, start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.simulation.imu_error_model import SensorErrors
 from src.simulation.kinematics import AckermannKinematics, AckermannState
@@ -48,6 +53,7 @@ from src.simulation.scenario_result import (
     RunMetrics,
     SimResult,
 )
+from src.simulation.scenario_simulator.scoring import PassSideScorer
 from src.simulation.simulated_hardware_gateway import (
     CONTROL_DT,
     LIDAR_INVALID_RAY_RATE,
@@ -72,7 +78,7 @@ class _StartConditions:
     yaw: float
 
 
-class ScenarioSimulator:
+class ScenarioSimulator(PassSideScorer):
     """Builds and runs a closed-loop Open or Obstacles Challenge simulation from metadata.
 
     Sign routing and parking are wired in exactly like the real ROS2 node
@@ -100,12 +106,17 @@ class ScenarioSimulator:
 
     ``blind`` is on by default too, for the same reason: a round the robot
     drives knowing the corridor widths is not the round it will actually be
-    given. Note what blind still does *not* withhold — the start pose and
-    section come from the scenario, so the robot always begins knowing exactly
-    where it is standing. Real hardware has no such luxury: it falls back to
-    ``assumed_start_conditions``, a fixed guess, and on 2026-08-01 that gap is
-    what a full afternoon of on-track debugging turned out to be chasing. Use
-    ``sensor_errors`` to close it; see below.
+    given. It withholds the start pose as well — see ``known_start`` below,
+    which is the arm that hands it back. A blind run seeds the BELIEVED start
+    from ``assumed_start_conditions`` (a fixed guess, always SOUTH) while the
+    chassis is physically placed at the scenario's true start, exactly as
+    hardware behaves. On 2026-08-01 that gap is what a full afternoon of
+    on-track debugging turned out to be chasing.
+
+    What blind does NOT withhold is error in the placement itself: the believed
+    start is a fixed guess, not a *perturbed* one, so the robot is wrong in a
+    known, repeatable way rather than an unpredictable one. Use
+    ``sensor_errors`` to close that; see below.
 
     ``blind=True`` withholds the *layout*. Normally the
     corridor widths in the metadata reach the robot twice over — the planned
@@ -138,7 +149,7 @@ class ScenarioSimulator:
     reason ``blind`` does.
     """
 
-    def __init__(  # noqa: PLR0915 - constructor wires every subsystem together by design
+    def __init__(
         self,
         metadata: ScenarioMetadata | dict[str, Any],
         num_laps: int = 3,
@@ -169,6 +180,12 @@ class ScenarioSimulator:
         # Sensor error is only observable through the estimate, so it implies
         # localization for the same reason blind mode does: on ground-truth pose
         # a mis-seeded estimator is never consulted and the run is unaffected.
+        #
+        # Read the polarity carefully -- the name invites the opposite reading.
+        # use_lidar_localization=True is the HARDER condition (the robot works
+        # out where it is); False hands it ground truth and is the easier
+        # control arm. Either of blind or sensor_errors forces it True, so
+        # passing False alongside them is silently ignored rather than honoured.
         self._errors = sensor_errors or SensorErrors()
         use_lidar_localization = use_lidar_localization or blind or self._errors.any_error
 
@@ -220,9 +237,7 @@ class ScenarioSimulator:
         # Open's -- and measured HIGHER, not lower, than the geometry argues
         # for. See WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and
         # why it is compensating for the tracker's outward drift.
-        self._center_bias_m = (
-            None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
-        )
+        self._center_bias_m = None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
@@ -237,9 +252,7 @@ class ScenarioSimulator:
         # with a pillar ends the run. Kept switchable because every figure
         # recorded before 2026-08-01 was measured that way, and comparing
         # against them needs the same rule.
-        self._max_sign_push: float | None = (
-            TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
-        )
+        self._max_sign_push: float | None = TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
         self._sign_push: dict[int, float] = {}
         self._prev_contact_xy: Waypoint = Waypoint(start.x, start.y)
         self._true_geometry = true_geometry
@@ -256,9 +269,7 @@ class ScenarioSimulator:
         self._arc_radius = self._tuning.waypoints.ARC_RADIUS
         self._width_estimator = (
             CorridorWidthEstimator(
-                assumed_width=CorridorDimensions.NARROW
-                if is_open_challenge
-                else CorridorDimensions.OBSTACLES_WIDTH,
+                assumed_width=CorridorDimensions.NARROW if is_open_challenge else CorridorDimensions.OBSTACLES_WIDTH,
                 tuning=self._tuning,
                 # Obstacles corridors are 1.0 m by rule, not by discovery -- a
                 # sign/pillar hugging a wall can otherwise feed the voting a
@@ -295,13 +306,27 @@ class ScenarioSimulator:
         # Provisional until inference settles. Everything built from it -- the
         # path and the lap detector's finish-line normal -- is rebuilt then.
         self._direction = start.direction
-        believed_dict = self._width_estimator.widths if self._width_estimator else true_geometry.to_widths_dict()
+        believed_geometry = (
+            CorridorGeometry.from_width_dict(self._width_estimator.widths) if self._width_estimator else true_geometry
+        )
 
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
         # navigator's waypoint-wrap + LapDetector lap counting.
-        self._waypoints = self._plan(believed_dict)
+        self._waypoints = self._plan(believed_geometry)
 
         signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata.model_dump())
+
+        # Ground truth for the pass-side rule, kept by the SIMULATOR rather than
+        # read back off the navigator. Scoring a rule from the robot's own
+        # belief lets better self-deception pass for better driving: measured
+        # 2026-08-24, the router's believed-frame verdict flagged 46% of passes
+        # where the true layout says 21%, and ended 45 of 64 runs where 38
+        # genuinely offended. A judge watches the mat, so this does too.
+        self._true_signs = signs
+        self._pass_side_closest: dict[int, tuple[float, Waypoint]] = {}
+        self._pass_side_engaged: set[int] = set()
+        self._pass_side_scored: set[int] = set()
+        self._pass_side_wrong: list[int] = []
 
         # Where the signs are is drawn at random on the day and no scenario file
         # exists on the mat, so a blind run cannot be handed the sign layout any
@@ -319,7 +344,9 @@ class ScenarioSimulator:
             track=self._track,
             initial_state=AckermannState(x=start.x, y=start.y, yaw=start.yaw),
             believed_start=AckermannState(
-                x=believed_start.x, y=believed_start.y, yaw=believed_start.yaw,
+                x=believed_start.x,
+                y=believed_start.y,
+                yaw=believed_start.yaw,
             ),
             kinematics=kinematics,
             lidar_noise_std=lidar_noise_std,
@@ -340,7 +367,7 @@ class ScenarioSimulator:
         )
         if blind:
             if self._width_estimator:
-                self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed_dict)))
+                self._gateway.set_believed_walls(TrackWalls(believed_geometry))
             else:
                 self._gateway.set_believed_walls(TrackWalls(true_geometry))
 
@@ -373,7 +400,10 @@ class ScenarioSimulator:
         self._park_controller: ParkController | None = None
         if not is_open_challenge and park:
             self._park_controller = park_controller_from_metadata(
-                metadata.model_dump(), believed_start.section, believed_start.direction, tuning=self._tuning,
+                metadata.model_dump(),
+                believed_start.section,
+                believed_start.direction,
+                tuning=self._tuning,
             )
 
         self._navigator = CoreNavigator(
@@ -387,7 +417,7 @@ class ScenarioSimulator:
             direction=self._direction,
         )
 
-    def _plan(self, widths: dict[Section, float]) -> list[Waypoint]:
+    def _plan(self, geometry: CorridorGeometry) -> list[Waypoint]:
         """Build a one-lap path for the layout the robot believes it is on.
 
         The believed start, not the true one: a path is built from where the
@@ -398,7 +428,7 @@ class ScenarioSimulator:
         believed = self._believed_start
         return plan_believed_path(
             self._metadata,
-            widths,
+            geometry,
             direction=self._direction,
             believed_section=believed.section,
             believed_position=Position2D(x=believed.x, y=believed.y),
@@ -443,7 +473,9 @@ class ScenarioSimulator:
                 # line's normal is inverted, so both are rebuilt.
                 self._direction = inferred
                 self._waypoints = self._plan(
-                    self._width_estimator.widths if self._width_estimator else self._true_geometry.to_widths_dict(),
+                    CorridorGeometry.from_width_dict(self._width_estimator.widths)
+                    if self._width_estimator
+                    else self._true_geometry,
                 )
                 self._navigator.replace_lap_detector(
                     LapDetector(
@@ -464,8 +496,12 @@ class ScenarioSimulator:
                         buffered_width,
                     )
                 self._creep_widths.clear()
-                self._waypoints = self._plan(self._width_estimator.widths)
-                self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
+                self._waypoints = self._plan(
+                    CorridorGeometry.from_width_dict(self._width_estimator.widths),
+                )
+                self._gateway.set_believed_walls(
+                    TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths))
+                )
 
             # Resync unconditionally, including when the inference agreed with
             # the provisional direction and the path is unchanged. The
@@ -524,9 +560,9 @@ class ScenarioSimulator:
         if not estimator.observe(section, scan.ranges_m, scan.angles_rad, pose.yaw):
             return False
 
-        believed = estimator.widths
+        believed = CorridorGeometry.from_width_dict(estimator.widths)
         self._waypoints = self._plan(believed)
-        self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
+        self._gateway.set_believed_walls(TrackWalls(believed))
         self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
         return True
 
@@ -534,6 +570,60 @@ class ScenarioSimulator:
     def believed_widths(self) -> dict[Section, float] | None:
         """What the robot currently thinks the layout is, or ``None`` if told."""
         return self._width_estimator.widths if self._width_estimator else None
+
+    @property
+    def belief_offset_poses(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """``(believed_start, true_start)`` as ``(x, y, yaw)``, for visualization.
+
+        These two differ only in a blind run, where the believed start is
+        ``assumed_start_conditions``' fixed SOUTH guess and the chassis is
+        placed at the scenario's true start. Everything the navigator plans is
+        expressed against the first; the track it is actually driving is the
+        second. Exposed so a viewer can show one over the other -- see
+        ``LiveScenarioVisualizer.set_belief_frame`` -- rather than drawing the
+        plan on a track it does not correspond to.
+
+        The poses used here are the **corridor-centreline** poses, not the
+        starting-zone poses stored in ``_believed_start`` / ``_start``. The
+        planned path is a centreline racing line; aligning the frame by the
+        starting-zone position instead shoves the whole drawn path into the
+        starting zone, which is why the robot looked like it was driving
+        alongside its own plan even though it was tracking the true centreline
+        accurately.
+
+        In blind mode the corridor-width estimate evolves, so the lateral
+        position of the believed centreline shifts and the frame has to be
+        recomputed from the current belief.
+
+        Equal in a sighted run, which makes the offset identity.
+        """
+        believed_widths = (
+            self._width_estimator.widths if self._width_estimator else self._true_geometry.to_widths_dict()
+        )
+        bx, by, byaw = _centreline_pose(
+            self._believed_start.section, self._believed_start.direction, believed_widths, self._tuning
+        )
+        believed = _StartConditions(
+            section=self._believed_start.section,
+            direction=self._believed_start.direction,
+            x=bx,
+            y=by,
+            yaw=byaw,
+        )
+        tx, ty, tyaw = _centreline_pose(
+            self._start.section, self._start.direction, self._true_geometry.to_widths_dict(), self._tuning
+        )
+        true = _StartConditions(
+            section=self._start.section,
+            direction=self._start.direction,
+            x=tx,
+            y=ty,
+            yaw=tyaw,
+        )
+        return (
+            (believed.x, believed.y, believed.yaw),
+            (true.x, true.y, true.yaw),
+        )
 
     @property
     def track(self) -> TrackModel:
@@ -571,7 +661,7 @@ class ScenarioSimulator:
         router = self._navigator.sign_router
         return router.signs if router else []
 
-    def run(  # noqa: C901 - main control loop; each branch is a distinct tick policy
+    def run(
         self,
         max_steps: int = 4000,
         dt: float = CONTROL_DT,
@@ -637,6 +727,8 @@ class ScenarioSimulator:
         lap_steps: list[int] = []
         terminal_collision = False
         stuck = False
+        pass_side_violation = False
+        violation_signs: list[int] | None = []
         contacts = ContactTracker(
             dt=dt,
             start_window_s=start_collision_window_s,
@@ -703,11 +795,26 @@ class ScenarioSimulator:
             if nav.laps_completed > prev_laps:
                 lap_steps.append(step)
                 prev_laps = nav.laps_completed
+                # Each lap passes every sign again and is judged on its own, so
+                # a sign cleared correctly on lap 1 must still be scored on lap
+                # 2. Mirrors SignRouter.reset_for_new_lap.
+                self._pass_side_closest.clear()
+                self._pass_side_engaged.clear()
+                self._pass_side_scored.clear()
 
             surface = gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE
             surface = self._score_obstacle_contact(surface, gw.state)
             if contacts.update(step, surface):
                 terminal_collision = True
+                break
+
+            # Pass-side rule (Obstacles Challenge): a red obstacle must be
+            # cleared OUTWARD and a green INWARD. Scored from the true layout
+            # against the true pose; that is a scored failure, enforced exactly
+            # like a forbidden wall contact — the run stops here.
+            violation_signs = self._check_pass_side_violation(gw.state)
+            if violation_signs is not None:
+                pass_side_violation = True
                 break
 
             if nav.laps_completed >= self._num_laps and (
@@ -728,56 +835,9 @@ class ScenarioSimulator:
             contacts=contacts,
             metrics=metrics,
             lap_steps=lap_steps,
+            pass_side_violation=pass_side_violation,
+            violation_signs=violation_signs,
         )
-
-    def _score_obstacle_contact(self, surface: ContactSurface, state: AckermannState) -> ContactSurface:
-        """Downgrade a legal pillar nudge to a non-event, keep an illegal shove.
-
-        Touching a pillar does not end an Obstacles round. The pillar may be
-        moved, and the run stands as long as any corner of it is still inside
-        its 85mm placement circle -- ``TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M``
-        (59.4mm) is the displacement at which that stops being true. Scoring
-        first contact as a crash, which is what the surface alone says, fails
-        runs the judges would pass.
-
-        Displacement ACCUMULATES over the ticks in contact rather than being
-        read off the instantaneous overlap. Overlap depth is bounded by the
-        pillar's own 50mm extent, so a max-overlap model tops out below the
-        59.4mm limit and no run could ever fail it -- a scoring rule that
-        cannot be violated measures nothing. Physically the pillar is shoved
-        ahead of the chassis, so the distance the chassis covers while touching
-        it is what moves it.
-        """
-        # Advance the reference EVERY tick, not only while touching. Updating it
-        # only during contact makes ``moved`` the distance since the last touch,
-        # so a pillar brushed twice a metre apart accumulates that whole metre
-        # of driving as if it had been pushed through it.
-        dx = state.x - self._prev_contact_xy.x
-        dy = state.y - self._prev_contact_xy.y
-        self._prev_contact_xy = Waypoint(state.x, state.y)
-        if surface is not ContactSurface.OBSTACLE or self._max_sign_push is None:
-            return surface
-        for index in self._track.obstacle_displacements(state.x, state.y, state.yaw):
-            # Only the component of travel pointing AT the pillar moves it. The
-            # magnitude of travel does not: a chassis sliding past a pillar it
-            # is brushing covers distance without pushing it anywhere, and
-            # counting that as displacement made a 0.4 s graze -- eight ticks at
-            # the measured 0.156 m/s -- reach the 59.4mm limit on its own.
-            sign = self._track.obstacle_center(index)
-            if sign is None:
-                continue
-            to_sign_x, to_sign_y = sign[0] - state.x, sign[1] - state.y
-            norm = math.hypot(to_sign_x, to_sign_y)
-            if norm <= 0.0:
-                continue
-            push = (dx * to_sign_x + dy * to_sign_y) / norm
-            if push > 0.0:
-                self._sign_push[index] = self._sign_push.get(index, 0.0) + push
-        if any(push > self._max_sign_push for push in self._sign_push.values()):
-            return surface
-        # Touched, but still inside its circle: not a collision, and not the
-        # controller's cue to run an escape either.
-        return ContactSurface.NONE
 
     def _build_result(
         self,
@@ -790,6 +850,8 @@ class ScenarioSimulator:
         contacts: ContactTracker,
         metrics: RunMetrics,
         lap_steps: list[int],
+        pass_side_violation: bool = False,
+        violation_signs: list[int] | None = None,
     ) -> SimResult:
         """Assemble the run outcome from the loop's accumulators."""
         gw = self._gateway
@@ -816,6 +878,8 @@ class ScenarioSimulator:
             final_pose=(gw.state.x, gw.state.y, gw.state.yaw),
             lap_step_indices=lap_steps,
             stuck=stuck,
+            pass_side_violation=pass_side_violation,
+            pass_side_violation_signs=violation_signs or [],
         )
 
 
@@ -839,3 +903,20 @@ def _start_conditions(metadata: ScenarioMetadata) -> _StartConditions:
         y=float(sc.position.y),
         yaw=float(sc.yaw),
     )
+
+
+def _centreline_pose(
+    section: Section,
+    direction: Direction,
+    widths_m: dict[Section, float],
+    tuning: NavigationTuning | None,
+) -> tuple[float, float, float]:
+    """Centreline pose for a section/direction/width set.
+
+    ``start_pose`` returns the biased corridor centreline, which is what the
+    planned path is built from. Using it for the visualization frame aligns the
+    drawn plan with the track centreline rather than with the starting-zone
+    cell the robot happens to be placed in.
+    """
+    by_name = {s.value.lower(): w for s, w in widths_m.items()}
+    return start_pose(section, direction, by_name, tuning)

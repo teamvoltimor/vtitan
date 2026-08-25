@@ -22,6 +22,7 @@ from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.ros_topics import RosMessageType, RosTopicConfig
 from shared.domain.enums import ScenarioType, Section
+from shared.domain.models import CorridorWidths
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
@@ -68,12 +69,7 @@ def _obstacles_metadata(*, with_parking: bool) -> dict:
     metadata = {
         "scenario_id": 1,
         "challenge_type": "obstacles",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "wide", "width_mm": 1000},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
-        },
+        "corridor_widths": CorridorWidths().model_dump(),
         "starting_conditions": {
             "direction": "clockwise",
             "section": "South",

@@ -15,6 +15,8 @@ import numpy as np
 
 from src.vision.hud import HudConfig, _fmt_heading_deg, draw_logo, draw_radar, draw_stats
 
+_HUD = HudConfig()
+
 
 def _blank(width: int = 640, height: int = 360) -> np.ndarray:
     return np.zeros((height, width, 3), dtype=np.uint8)
@@ -50,28 +52,28 @@ class TestHeadingFromPoseYaw:
 
 class TestDrawStats:
     def test_draws_something_for_populated_telemetry(self) -> None:
-        out = draw_stats(_blank(), _NAV_DEBUG, "obstacles")
+        out = draw_stats(_blank(), _NAV_DEBUG, "obstacles", config=_HUD)
         assert out.any()
 
     def test_leaves_the_input_untouched(self) -> None:
         frame = _blank()
-        draw_stats(frame, _NAV_DEBUG, "obstacles")
+        draw_stats(frame, _NAV_DEBUG, "obstacles", config=_HUD)
         assert not frame.any()
 
     def test_none_nav_debug_still_draws_a_panel_not_a_crash(self) -> None:
         """Before the first /nav_debug message arrives -- every real race's first tick."""
-        out = draw_stats(_blank(), None, None)
+        out = draw_stats(_blank(), None, None, config=_HUD)
         assert out.any()
 
     def test_a_field_missing_from_this_phase_does_not_crash(self) -> None:
         """crosstrack_error_m is only set on the normal_drive phase -- see
         NavigatorDebugSnapshot's own docstring. Must render, not raise."""
-        out = draw_stats(_blank(), {"phase": "escape", "crosstrack_error_m": None}, "obstacles")
+        out = draw_stats(_blank(), {"phase": "escape", "crosstrack_error_m": None}, "obstacles", config=_HUD)
         assert out.any()
 
     def test_status_panel_is_top_left_and_control_panel_is_top_right(self) -> None:
         frame = _blank(width=640, height=360)
-        out = draw_stats(frame, _NAV_DEBUG, "obstacles")
+        out = draw_stats(frame, _NAV_DEBUG, "obstacles", config=_HUD)
         top_left = out[:60, :150]
         top_right = out[:60, -150:]
         bottom_half = out[200:, :]
@@ -87,21 +89,21 @@ class TestDrawStats:
 
 class TestDrawRadar:
     def test_no_scan_draws_the_ring_but_no_points(self) -> None:
-        out = draw_radar(_blank(), None, None)
+        out = draw_radar(_blank(), None, None, config=_HUD)
         assert out.any(), "the background/ring must still draw"
 
     def test_empty_scan_does_not_raise(self) -> None:
-        out = draw_radar(_blank(), [], [])
+        out = draw_radar(_blank(), [], [], config=_HUD)
         assert out.any()
 
     def test_leaves_the_input_untouched(self) -> None:
         frame = _blank()
-        draw_radar(frame, [1.0], [0.0])
+        draw_radar(frame, [1.0], [0.0], config=_HUD)
         assert not frame.any()
 
     def test_nan_and_inf_ranges_are_handled_not_raised(self) -> None:
         """A real LaserScan can carry both for a no-return ray."""
-        out = draw_radar(_blank(), [float("nan"), float("inf"), 1.0], [0.0, math.pi / 2, math.pi], max_range_m=3.0)
+        out = draw_radar(_blank(), [float("nan"), float("inf"), 1.0], [0.0, math.pi / 2, math.pi], max_range_m=3.0, config=_HUD)
         assert out.any()
 
     def test_radar_lands_in_the_bottom_right(self) -> None:
@@ -110,7 +112,7 @@ class TestDrawRadar:
         # not an arbitrary small canvas, since radar_radius_px is tuned for
         # this scale.
         frame = _blank(width=1536, height=864)
-        out = draw_radar(frame, [1.0] * 8, [i * math.pi / 4 for i in range(8)], max_range_m=3.0)
+        out = draw_radar(frame, [1.0] * 8, [i * math.pi / 4 for i in range(8)], max_range_m=3.0, config=_HUD)
         top_half = out[:432, :]
         bottom_left = out[432:, :768]
         bottom_right = out[432:, 768:]
@@ -119,7 +121,7 @@ class TestDrawRadar:
         assert bottom_right.any()
 
     def test_too_small_a_frame_skips_the_radar_instead_of_raising(self) -> None:
-        out = draw_radar(_blank(width=20, height=20), [1.0], [0.0])
+        out = draw_radar(_blank(width=20, height=20), [1.0], [0.0], config=_HUD)
         assert out is not None  # must not raise; drawing nothing is the correct behaviour here
 
 
@@ -130,29 +132,29 @@ class TestDrawLogo:
 
     def test_draws_something_in_the_bottom_left(self) -> None:
         frame = _blank(width=640, height=360)
-        out = draw_logo(frame)
+        out = draw_logo(frame, config=_HUD)
         bottom_left = out[300:, :60]
         assert bottom_left.any()
 
     def test_leaves_the_input_untouched(self) -> None:
         frame = _blank()
-        draw_logo(frame)
+        draw_logo(frame, config=_HUD)
         assert not frame.any()
 
     def test_does_not_land_in_the_other_three_corners(self) -> None:
         frame = _blank(width=640, height=360)
-        out = draw_logo(frame)
+        out = draw_logo(frame, config=_HUD)
         assert not out[:60, :150].any(), "top-left is the status panel's territory"
         assert not out[:60, -150:].any(), "top-right is the control panel's territory"
         assert not out[200:, -200:].any(), "bottom-right is the radar's territory"
 
     def test_too_small_a_frame_skips_the_logo_instead_of_raising(self) -> None:
-        out = draw_logo(_blank(width=10, height=10))
+        out = draw_logo(_blank(width=10, height=10), config=_HUD)
         assert out is not None  # must not raise; drawing nothing is the correct behaviour here
 
     def test_missing_asset_skips_the_logo_instead_of_raising(self, monkeypatch) -> None:
         """A fresh checkout that hasn't pulled the binary asset yet must still record."""
         monkeypatch.setattr("src.vision.hud._LOGO_RGBA", None)
-        out = draw_logo(_blank())
+        out = draw_logo(_blank(), config=_HUD)
         assert out is not None
         assert not out.any()

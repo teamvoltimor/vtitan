@@ -55,7 +55,32 @@ narrow_turn_clearance_m = 0.40
 # wall.
 #
 # Sitting off-centre for one metre costs nothing. Oscillating costs the round.
-centering_gain_deg_per_m = 44.0
+#
+# Zero since 2026-08-22, which is that argument carried to its conclusion: the
+# creep does not need to centre at all. It exists so the direction estimator can
+# settle, and centring is what stops it settling. Traced on a failing scenario:
+# starting 0.303 m from the OUTER wall of a 1.0 m corridor, the ~0.2 m lateral
+# correction swung the heading 0 -> 32 deg and crossed the estimator's 25 deg
+# alignment gate at t~=4.0s -- one second before the corridor end arrived. The
+# robot reached the corner already forbidden to look, never settled, never got a
+# plan, and sat there until the no-progress bailout. A passing run held 6-8 deg
+# flat and voted the instant a side opened.
+#
+# The failure is confined to that one placement -- wide corridor, outermost
+# start band -- where 11 of 32 scenarios failed while all other 96 passed; the
+# same band in a 0.6 m corridor starts near-centred (0.303/0.297) and never
+# failed. Since the start cell is drawn on the day, that was ~6.9% of all legal
+# starts never leaving the square.
+#
+# Measured at 0.0, holding HEADING_GAIN: blind 128-scenario sweep 11 failures ->
+# 0 (128/128), creep 6.7s -> 3.4s, turn-1 reversing 3.9% -> 0%. Full 57-case
+# suite 17 -> 15 failures, stuck runs 6 -> 0, 10% faster overall; the 15 that
+# remain are timeouts on the retired 0.156 m/s chassis, not driving failures.
+#
+# Kept as a zeroed gain rather than deleted code: the centring branch is still
+# the right shape if a future chassis needs it, and MAX_CENTERING_STEER_DEG
+# still clamps the heading term that replaced it.
+centering_gain_deg_per_m = 0.0
 
 # Road-wheel steering angle per unit of heading error against the corridor
 # axis -- DIMENSIONLESS, since both sides are angles, which is why this one

@@ -6,8 +6,10 @@ than a redundant string-alias class here.
 
 from __future__ import annotations
 
+from enum import StrEnum
 
-class FilePaths:
+
+class FilePaths(StrEnum):
     """Default file paths and templates."""
 
     BASE_WORLD_TEMPLATE = "worlds/wro_track_2026.sdf"
@@ -16,23 +18,54 @@ class FilePaths:
     METADATA_SUFFIX = "_metadata.json"
 
 
-class TfFrames:
-    """TF frame names shared across launch files and nodes.
+class TfFrames(StrEnum):
+    """TF frame names shared across launch files, nodes and the simulator.
 
     These are structural frames tied to the URDF/Gazebo model, not
     user-tunable config -- but they ARE a cross-file contract: lidar_launch's
     ``frame_id`` must match static_tfs.launch.py's ``lidar_link`` child frame,
     and both must match the URDF. Keep them here so the launch files can't
     drift apart (the drift that a comment in lidar_launch.py used to warn about).
+
+    A ``StrEnum`` rather than a bare class of constants so a frame can be
+    accepted in a signature as ``TfFrames`` and still be assigned straight to a
+    ``std_msgs/Header.frame_id`` or handed to a launch argument -- members are
+    real ``str`` instances and serialize over CDR as their plain value.
     """
+
+    MAP = "map"
+    """World-fixed frame. In simulation the ground-truth pose is published
+    directly against it; on hardware nothing publishes it without SLAM, which is
+    why the saved RViz config's Fixed Frame has to be changed to ``base_link``
+    for real-robot topic testing."""
+
+    ODOM = "odom"
+
+    BELIEF = "belief"
+    """Where the robot THINKS the world is, as a frame.
+
+    Simulation-only. A blind run seeds the believed start from
+    ``assumed_start_conditions``, which always guesses SOUTH, while the chassis
+    is placed at the scenario's true start -- so the robot's whole plan lives in
+    a frame rotated from ``map`` by the section-relabelling angle (NORTH start
+    reads 180 deg, EAST 90, WEST -90). Publishing beliefs against this frame
+    instead of ``map``, with one transform carrying the offset, lets RViz draw
+    them over the real track without anything rewriting the robot's numbers.
+    Identity whenever the belief is correct, so sighted runs are unaffected."""
+
+    BASE_FOOTPRINT = "base_footprint"
+    """The URDF's ground-plane root: ``base_link`` sits one wheel radius above
+    it. Note the live visualizer does NOT reproduce that offset -- it treats
+    ``base_link`` as the ground plane, so its chassis marker runs 0..HEIGHT."""
 
     BASE_LINK = "base_link"
     LIDAR_LINK = "lidar_link"
     CAMERA_LINK = "camera_link"
     IMU_LINK = "imu_link"
+    OLED_DISPLAY = "oled_display"
 
 
-class DictKeys:
+class DictKeys(StrEnum):
     """Dictionary keys used throughout the codebase for type safety."""
 
     # Corridor width dictionary keys
@@ -95,7 +128,7 @@ class DictKeys:
     Z_SIGN = "z_sign"
 
 
-class ModelNames:
+class ModelNames(StrEnum):
     """Gazebo model name prefixes and identifiers."""
 
     # Wall models
@@ -120,7 +153,7 @@ class ModelNames:
     AMBIENT_LIGHT = "ambient_light"
 
 
-class FileExtensions:
+class FileExtensions(StrEnum):
     """File extensions for world and metadata files."""
 
     SDF = ".sdf"
@@ -131,7 +164,7 @@ class FileExtensions:
     JPG = ".jpg"
 
 
-class FolderNames:
+class FolderNames(StrEnum):
     """Folder names for output organization."""
 
     SCENARIOS = "scenarios"

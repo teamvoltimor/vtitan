@@ -154,6 +154,9 @@ dmypy.json
 .claude/
 CLAUDE.md
 
+# OpenCode
+opencode.json
+
 # Internal programs configuration
 .rsk/
 
@@ -166,5 +169,13 @@ platform/robot/vision-*.mp4
 # Pinned-seed sweep corpus (task gen:corpus) — regenerated, never committed.
 platform/robot/.corpus/
 
+# Captured stdout of the scripts/sim/diag_*.py sweeps. Each file is one run's
+# tables under one profile, kept only to diff the next run against; a sweep is
+# reproducible from its script, seed and profile, so none of it is history.
+.diag/
+
 # Landing page
 landing/
+
+# alias scan artifact
+.alias_scan.json

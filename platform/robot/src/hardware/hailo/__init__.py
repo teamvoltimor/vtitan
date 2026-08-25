@@ -31,7 +31,7 @@ __all__ = [
 def __getattr__(name: str) -> object:
     """Import the camera-dependent exports only when they are asked for."""
     if name == "StreamingDriver":
-        from src.hardware.hailo.streaming import StreamingDriver  # noqa: PLC0415
+        from src.hardware.hailo.streaming import StreamingDriver
 
         return StreamingDriver
     msg = f"module {__name__!r} has no attribute {name!r}"

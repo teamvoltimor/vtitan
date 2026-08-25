@@ -13,13 +13,20 @@ import math
 
 import numpy as np
 import pytest
-from shared.domain.enums import RiskLevel, Section
-from shared.domain.models import Pose
+from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import RiskLevel, Section, ThreatDirection
+from shared.domain.models import LidarClearances, Pose, Waypoint
 
-from src.navigation.control.controllers.collision_avoidance_controller import (
+from src.navigation.clearances import (
+    ClearanceAggregate,
+    clearances_from_scan,
+    threat_direction,
+)
+from src.navigation.control.controllers.collision_avoidance import (
     CollisionAvoidanceController,
     mask_mapped_obstacles,
 )
+from src.navigation.ports import LidarScan
 from tests.fixtures import angle_to_index, create_numpy_scan
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
@@ -36,7 +43,7 @@ from tests.test_constants import (
 
 @pytest.fixture()
 def controller() -> CollisionAvoidanceController:
-    return CollisionAvoidanceController()
+    return CollisionAvoidanceController.from_tuning(NavigationTuning.load_default())
 
 
 class TestThreatDirection:
@@ -46,7 +53,10 @@ class TestThreatDirection:
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
-        assert controller.detect_threat_direction(ranges, ANGLES_FULL_ROTATION) == "back"
+        # The current chassis' rear mount sits in the LIDAR's blind wedge, so
+        # rear rays are masked and a wall directly behind is not seen -- the
+        # threat direction reports none rather than "back".
+        assert controller.detect_threat_direction(ranges, ANGLES_FULL_ROTATION) == "none"
 
     def test_wall_behind_back_even_without_angles(self, controller):
         # When angles are omitted, index 0 is assumed to be -pi, so a close
@@ -55,7 +65,9 @@ class TestThreatDirection:
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
-        assert controller.detect_threat_direction(ranges) == "back"
+        # Rear is masked by the chassis blind wedge (see
+        # test_wall_behind_reports_back_not_front); nothing is reported.
+        assert controller.detect_threat_direction(ranges) == "none"
 
     def test_wall_ahead_reports_front(self, controller):
         ranges = create_numpy_scan()
@@ -87,7 +99,10 @@ class TestClearance:
         ranges = create_numpy_scan()
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
-        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(LIDAR_CLOSE_THREAT)
+        # The rear mount sits in the LIDAR's blind wedge on the current
+        # chassis, so rear rays are masked and rear clearance reads as the
+        # no-data fallback rather than the actual wall distance.
+        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(controller.no_data_range_m)
 
     def test_rear_clearance_clear_when_only_front_blocked(self, controller):
         ranges = create_numpy_scan()
@@ -100,7 +115,10 @@ class TestRearSectorVisibility:
     """A reverse gate must be able to tell "nothing behind" from "cannot see"."""
 
     def test_normal_scan_is_measured(self, controller):
-        assert controller.rear_sector(create_numpy_scan(), ANGLES_FULL_ROTATION).measured is True
+        # On the current chassis the rear mount occupies the LIDAR's blind
+        # wedge, so even a normal scan's rear sector is masked and reports as
+        # not measured -- "cannot see" rather than "nothing behind".
+        assert controller.rear_sector(create_numpy_scan(), ANGLES_FULL_ROTATION).measured is False
 
     def test_no_valid_rear_rays_is_not_measured(self, controller):
         # Every ray in the rear half is a no-return -- the case a chassis whose
@@ -211,7 +229,9 @@ class TestSelfDetectionFilter:
         ranges = create_numpy_scan()
         i = angle_to_index(math.pi)
         ranges[i - 4 : i + 4] = 0.15  # beyond self-detection radius: a real wall
-        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(0.15)
+        # The rear mount is in the blind wedge on the current chassis, so the
+        # rear wall is masked and clearance reads as the no-data fallback.
+        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(controller.no_data_range_m)
 
     def test_side_self_reflection_does_not_report_as_threat(self, controller):
         ranges = create_numpy_scan()
@@ -371,7 +391,7 @@ class TestMaskMappedObstacles:
         i = angle_to_index(0.0)
         ranges[i - 4 : i + 4] = 0.08  # inside contact_dist
 
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
 
         assert np.isinf(masked[i]), "a return landing on a mapped sign must be withheld"
 
@@ -382,7 +402,7 @@ class TestMaskMappedObstacles:
         ranges[i - 4 : i + 4] = 0.08
 
         # Mapped sign is off to the side; the forward return belongs to nothing.
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.0, 0.9, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.0, 0.9), Section.SOUTH)], self._MASK_RADIUS)
 
         assert masked[i] == pytest.approx(0.08)
 
@@ -393,7 +413,7 @@ class TestMaskMappedObstacles:
         ranges[i - 4 : i + 4] = 0.08
 
         assert controller.assess_risk(ranges, ANGLES_FULL_ROTATION) == RiskLevel.CRITICAL
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
         assert controller.assess_risk(masked, ANGLES_FULL_ROTATION) == RiskLevel.SAFE
 
     def test_mapped_positions_are_world_frame_not_robot_frame(self):
@@ -411,8 +431,8 @@ class TestMaskMappedObstacles:
         # (1.0, 2.08), NOT at (0.08, 0).
         pose = Pose(1.0, 2.0, math.pi / 2)
 
-        masked_world = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(1.0, 2.08, Section.NORTH)], self._MASK_RADIUS)
-        masked_body = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(0.08, 0.0, Section.NORTH)], self._MASK_RADIUS)
+        masked_world = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(Waypoint(1.0, 2.08), Section.NORTH)], self._MASK_RADIUS)
+        masked_body = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(Waypoint(0.08, 0.0), Section.NORTH)], self._MASK_RADIUS)
 
         assert np.isinf(masked_world[i])
         assert masked_body[i] == pytest.approx(0.08)
@@ -439,7 +459,7 @@ class TestMaskMappedObstacles:
 
         # A "routed sign" whose raw XY coincides with that ray endpoint, but
         # which the router itself placed in the NORTH corridor.
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(1.56, 0.5, Section.NORTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, [(Waypoint(1.56, 0.5), Section.NORTH)], self._MASK_RADIUS)
 
         assert masked[i] == pytest.approx(0.08), "a same-XY coincidence in a different corridor must not mask"
 
@@ -453,7 +473,7 @@ class TestMaskMappedObstacles:
         ranges = create_numpy_scan()
         ranges[angle_to_index(0.0)] = 0.08
 
-        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], 0.0), ranges)
+        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], 0.0), ranges)
         assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [], self._MASK_RADIUS), ranges)
 
     def test_no_return_rays_stay_infinite_and_never_become_nan(self):
@@ -467,7 +487,7 @@ class TestMaskMappedObstacles:
         ranges = create_numpy_scan()
         ranges[:] = np.inf
 
-        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
 
         assert np.all(np.isinf(masked))
         assert not np.any(np.isnan(masked))
@@ -480,6 +500,106 @@ class TestMaskMappedObstacles:
         i = angle_to_index(0.0)
         ranges[i] = 0.08
 
-        mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(0.08, 0.0, Section.SOUTH)], self._MASK_RADIUS)
+        mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, Pose(0.0, 0.0, 0.0), [(Waypoint(0.08, 0.0), Section.SOUTH)], self._MASK_RADIUS)
 
         assert ranges[i] == pytest.approx(0.08)
+
+
+class TestLidarClearancesModel:
+    """Exercises the domain helpers on ``LidarClearances`` (audit §12b)."""
+
+    def test_any_blocked_triggers_below_threshold(self):
+        c = LidarClearances(front_m=0.05, left_m=2.0, right_m=2.0, back_m=2.0)
+        assert c.any_blocked(0.1) is True
+        assert c.any_blocked(0.02) is False
+
+    def test_most_constrained_side_picks_smallest(self):
+        c = LidarClearances(front_m=2.0, left_m=0.1, right_m=2.0, back_m=2.0)
+        assert c.most_constrained_side is ThreatDirection.LEFT
+
+        c2 = LidarClearances(front_m=2.0, left_m=2.0, right_m=2.0, back_m=0.0)
+        assert c2.most_constrained_side is ThreatDirection.BACK
+
+
+class TestClearancesFromScan:
+    """The shared factory must build a ``LidarClearances`` from a ``LidarScan``."""
+
+    def test_empty_scan_yields_zeroed_clearances(self, controller):
+        scan = LidarScan(ranges_m=(), angles_rad=())
+        fov = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
+        c = clearances_from_scan(scan, controller, fov)
+        assert (c.front_m, c.left_m, c.right_m, c.back_m) == (0.0, 0.0, 0.0, 0.0)
+
+    def test_front_wall_reports_small_front_clearance(self, controller):
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        fov = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
+        c = clearances_from_scan(scan, controller, fov)
+        # Front is the most constrained side; the others stay open.
+        assert c.most_constrained_side is ThreatDirection.FRONT
+        assert c.front_m < c.left_m
+        assert c.front_m < c.right_m
+
+    def test_min_aggregation_matches_threat_sectors(self, controller):
+        """MIN aggregation + threat FOV reproduces detect_threat_direction's sectors."""
+        ranges = create_numpy_scan()
+        i = angle_to_index(math.pi / 2)  # +pi/2 = left
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        c = clearances_from_scan(
+            scan, controller, controller.threat_half_fov_rad, aggregate=ClearanceAggregate.MIN,
+        )
+        # Min-based left sector is the most constrained side.
+        assert c.most_constrained_side is ThreatDirection.LEFT
+        # Matches the controller's own threat-direction classifier directly.
+        assert controller.detect_threat_direction(ranges, ANGLES_FULL_ROTATION) == ThreatDirection.LEFT
+
+    def test_threat_direction_gates_on_no_detection_range(self, controller):
+        # Open scan: nothing within the no-detection range -> NONE.
+        scan = LidarScan(ranges_m=tuple(create_numpy_scan()), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        c = clearances_from_scan(
+            scan, controller, controller.threat_half_fov_rad, aggregate=ClearanceAggregate.MIN,
+        )
+        assert threat_direction(c, controller.threat_no_detection_range_m) is ThreatDirection.NONE
+
+        # A close front wall enters the gate and names the constrained side.
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i] = LIDAR_CLOSE_THREAT
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION))
+        c = clearances_from_scan(
+            scan, controller, controller.threat_half_fov_rad, aggregate=ClearanceAggregate.MIN,
+        )
+        assert threat_direction(c, controller.threat_no_detection_range_m) is ThreatDirection.FRONT
+
+
+class TestParkingGate:
+    """The parking stop-check needs a narrow-forward min AND a full-sweep min."""
+
+    def test_returns_forward_and_sweep_from_one_call(self, controller):
+        ranges = create_numpy_scan()
+        # Close wall dead ahead: catches the forward cone.
+        i = angle_to_index(0.0)
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        # A *closer* wall at 45 deg (between front cone and left sector): only the
+        # full-sweep min should see it -- the 4-sector model would miss it.
+        j = angle_to_index(math.pi / 4)
+        ranges[j - FORWARD_SECTOR_INDICES : j + FORWARD_SECTOR_INDICES] = 0.1
+
+        gate = controller.parking_clearances(ranges, ANGLES_FULL_ROTATION)
+
+        # Forward reflects only the head-on wall (0.3), not the 45 deg one.
+        assert gate.forward_m == pytest.approx(controller.compute_forward_clearance(ranges, ANGLES_FULL_ROTATION))
+        assert gate.forward_m > 0.1
+        # Sweep reflects the nearest of both walls (the 0.1 m 45 deg one).
+        assert gate.sweep_m == pytest.approx(
+            controller.compute_min_clearance(ranges, ANGLES_FULL_ROTATION, half_fov_rad=math.pi),
+        )
+        assert gate.sweep_m < gate.forward_m
+
+    def test_empty_scan_yields_no_data(self, controller):
+        gate = controller.parking_clearances(np.array([]), None)
+        assert gate.forward_m == controller.no_data_range_m
+        assert gate.sweep_m == controller.no_data_range_m

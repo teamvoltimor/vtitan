@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 from shared.domain.enums import Direction, Section
-from shared.domain.models import LoopProgress, Waypoint
+from shared.domain.models import LoopProgress, TravelNormal, Waypoint
 
 from src.logger.constants import DETAILS_KEY
 
@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 # Used by LapDetector as the finish-line normal, and by
 # ``corridor_estimator.section_from_heading`` — for a fixed travel direction all
 # four vectors are distinct, so a heading identifies the corridor outright.
-TRAVEL_DIRS: dict[tuple[Section, Direction], tuple[float, float]] = {
-    (Section.SOUTH, Direction.CLOCKWISE): (-1.0, 0.0),
-    (Section.NORTH, Direction.CLOCKWISE): (1.0, 0.0),
-    (Section.EAST, Direction.CLOCKWISE): (0.0, -1.0),
-    (Section.WEST, Direction.CLOCKWISE): (0.0, 1.0),
-    (Section.SOUTH, Direction.COUNTERCLOCKWISE): (1.0, 0.0),
-    (Section.NORTH, Direction.COUNTERCLOCKWISE): (-1.0, 0.0),
-    (Section.EAST, Direction.COUNTERCLOCKWISE): (0.0, 1.0),
-    (Section.WEST, Direction.COUNTERCLOCKWISE): (0.0, -1.0),
+TRAVEL_DIRS: dict[tuple[Section, Direction], TravelNormal] = {
+    (Section.SOUTH, Direction.CLOCKWISE): TravelNormal(-1.0, 0.0),
+    (Section.NORTH, Direction.CLOCKWISE): TravelNormal(1.0, 0.0),
+    (Section.EAST, Direction.CLOCKWISE): TravelNormal(0.0, -1.0),
+    (Section.WEST, Direction.CLOCKWISE): TravelNormal(0.0, 1.0),
+    (Section.SOUTH, Direction.COUNTERCLOCKWISE): TravelNormal(1.0, 0.0),
+    (Section.NORTH, Direction.COUNTERCLOCKWISE): TravelNormal(-1.0, 0.0),
+    (Section.EAST, Direction.COUNTERCLOCKWISE): TravelNormal(0.0, 1.0),
+    (Section.WEST, Direction.COUNTERCLOCKWISE): TravelNormal(0.0, -1.0),
 }
 
 
@@ -60,7 +60,7 @@ class LapDetector:
         direction: Direction,
     ) -> None:
         self._origin: Waypoint = start_pos
-        self._normal: tuple[float, float] = TRAVEL_DIRS[(start_section, direction)]
+        self._normal: TravelNormal = TRAVEL_DIRS[(start_section, direction)]
         self._start_section = start_section
         self._prev_dot: float | None = None
         self._waypoint_pending: bool = False
@@ -83,7 +83,7 @@ class LapDetector:
         Returns:
             True if a confirmed lap was just completed; False otherwise.
         """
-        nx, ny = self._normal
+        nx, ny = self._normal.nx, self._normal.ny
         dot = (robot_pos.x - self._origin.x) * nx + (robot_pos.y - self._origin.y) * ny
 
         geometric_cross = (
@@ -241,7 +241,8 @@ class RaceTracker:
         return LoopProgress(
             lap_number=self.metrics.current_lap,
             waypoint_index=self.metrics.waypoint_index,
-            distance_m=self.metrics.total_distance - (self._lap_start_distance if self._last_pos else self.metrics.total_distance),
+            distance_m=self.metrics.total_distance
+            - (self._lap_start_distance if self._last_pos else self.metrics.total_distance),
             total_distance_m=self.metrics.total_distance,
         )
 

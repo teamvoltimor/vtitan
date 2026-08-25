@@ -113,8 +113,18 @@ class HudConfig(HardwareBaseSettings):
     """Multiplies the mark PNG's own per-pixel alpha -- a light watermark, not
     a solid sticker, so it doesn't compete with the radar for attention."""
 
+    join_timeout_sec: float = 30.0
+    """mp4 finalization (writer.release()) time scales with total frames written,
+    not per-frame write time -- a multi-minute recording can take well past 5s to
+    finalize on SD-card-class I/O, especially with ros2 bag record writing to the
+    same directory concurrently. Bounds VideoRecorder.stop()'s thread-join wait."""
+    run_path_poll_interval_sec: float = 0.1
+    """How often VisionNode polls for bag_recorder_node's run directory to appear."""
+    run_path_poll_timeout_sec: float = 3.0
+    """How long VisionNode polls for the bag run directory before giving up on
+    video for the run -- ros2 bag record creates its output dir asynchronously."""
 
-_DEFAULT_HUD_CONFIG = HudConfig()
+
 _LOGO_PATH = ROBOT_ROOT / "assets" / "vision" / "voltimor-mark.png"
 
 
@@ -237,12 +247,24 @@ def _draw_panel(canvas: np.ndarray, rows: list[tuple[str, str]], *, top: bool, l
         if y >= y1:
             break  # panel ran out of room (tiny frame) -- draw what fits, never raise
         cv2.putText(
-            canvas, label, (x0 + config.margin_px, y), config.font_face, config.font_scale, config.label_rgb,
-            config.text_thickness, cv2.LINE_AA,
+            canvas,
+            label,
+            (x0 + config.margin_px, y),
+            config.font_face,
+            config.font_scale,
+            config.label_rgb,
+            config.text_thickness,
+            cv2.LINE_AA,
         )
         cv2.putText(
-            canvas, value, (x0 + value_col_x, y), config.font_face, config.font_scale, config.text_rgb,
-            config.text_thickness, cv2.LINE_AA,
+            canvas,
+            value,
+            (x0 + value_col_x, y),
+            config.font_face,
+            config.font_scale,
+            config.text_rgb,
+            config.text_thickness,
+            cv2.LINE_AA,
         )
 
 
@@ -250,7 +272,8 @@ def draw_stats(
     canvas: np.ndarray,
     nav_debug: dict | None,
     active_challenge: str | None = None,
-    config: HudConfig | None = None,
+    *,
+    config: HudConfig,
 ) -> np.ndarray:
     """Return a copy of *canvas* with status (top-left) and control (top-right) panels.
 
@@ -259,12 +282,12 @@ def draw_stats(
         nav_debug: The latest parsed NavigatorDebugSnapshot JSON, or None before
             the first /nav_debug message arrives.
         active_challenge: "open"/"obstacles"/None, shown on the status panel.
-        config: Tuning constants; defaults to the checked-in config/hardware/vision/hud.toml.
+        config: Tuning constants for the HUD (caller-supplied; the node builds
+            one HudConfig and threads it through, see VisionNode._hud_config).
 
     Returns:
         A new array; the input is left untouched, same contract as overlay.annotate.
     """
-    config = config or _DEFAULT_HUD_CONFIG
     out = np.ascontiguousarray(canvas).copy()
     _draw_panel(out, _status_lines(nav_debug, active_challenge), top=True, left=True, config=config)
     _draw_panel(out, _control_lines(nav_debug), top=True, left=False, config=config)
@@ -276,7 +299,8 @@ def draw_radar(
     ranges_m: Sequence[float] | None,
     angles_rad: Sequence[float] | None,
     max_range_m: float | None = None,
-    config: HudConfig | None = None,
+    *,
+    config: HudConfig,
 ) -> np.ndarray:
     """Return a copy of *canvas* with a small LIDAR radar plot in the bottom-right corner.
 
@@ -292,12 +316,11 @@ def draw_radar(
             for a no-return ray) is clipped to the edge rather than dropped, so
             a wide-open corridor still shows a ring instead of a hole. Defaults
             to config.max_radar_range_m.
-        config: Tuning constants; defaults to the checked-in config/hardware/vision/hud.toml.
+        config: Tuning constants for the HUD (caller-supplied).
 
     Returns:
         A new array; the input is left untouched.
     """
-    config = config or _DEFAULT_HUD_CONFIG
     max_range_m = max_range_m if max_range_m is not None else config.max_radar_range_m
     out = np.ascontiguousarray(canvas).copy()
     height, width = out.shape[:2]
@@ -316,7 +339,9 @@ def draw_radar(
     box_x0, box_y0 = cx - box_extent, cy - box_extent
     bg_box = out[box_y0:height, box_x0:width]
     shaded = np.full_like(bg_box, config.radar_bg_rgb)
-    out[box_y0:height, box_x0:width] = cv2.addWeighted(shaded, config.radar_bg_alpha, bg_box, 1 - config.radar_bg_alpha, 0)
+    out[box_y0:height, box_x0:width] = cv2.addWeighted(
+        shaded, config.radar_bg_alpha, bg_box, 1 - config.radar_bg_alpha, 0
+    )
     cv2.rectangle(out, (box_x0, box_y0), (width - 1, height - 1), config.border_rgb, 1, cv2.LINE_AA)
 
     # Faint crosshair through the centre, clipped to the ring -- a quiet
@@ -342,7 +367,7 @@ def draw_radar(
     return out
 
 
-def draw_logo(canvas: np.ndarray, config: HudConfig | None = None) -> np.ndarray:
+def draw_logo(canvas: np.ndarray, *, config: HudConfig) -> np.ndarray:
     """Return a copy of *canvas* with the team mark watermarked into the bottom-left corner.
 
     Purely cosmetic branding, unlike draw_stats/draw_radar's telemetry -- so a
@@ -353,12 +378,11 @@ def draw_logo(canvas: np.ndarray, config: HudConfig | None = None) -> np.ndarray
 
     Args:
         canvas: Frame in RGB order.
-        config: Tuning constants; defaults to the checked-in config/hardware/vision/hud.toml.
+        config: Tuning constants for the HUD (caller-supplied).
 
     Returns:
         A new array; the input is left untouched.
     """
-    config = config or _DEFAULT_HUD_CONFIG
     out = np.ascontiguousarray(canvas).copy()
     if _LOGO_RGBA is None:
         return out

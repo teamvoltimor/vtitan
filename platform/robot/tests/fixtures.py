@@ -11,11 +11,22 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.domain.models import BlockPosition, Detection, IMUReading, ParkingLot, Pose, Waypoint
 
 from src.simulation.kinematics import AckermannState
-from tests.test_constants import ANGLES_FULL_ROTATION, NUM_RAYS
+from tests.test_constants import (
+    ANGLES_FULL_ROTATION,
+    NUM_RAYS,
+    PARKING_EAST_BLOCK1,
+    PARKING_EAST_BLOCK2,
+    PARKING_NORTH_BLOCK1,
+    PARKING_NORTH_BLOCK2,
+    PARKING_SOUTH_BLOCK1,
+    PARKING_SOUTH_BLOCK2,
+    PARKING_WEST_BLOCK1,
+    PARKING_WEST_BLOCK2,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -299,11 +310,12 @@ class TrackPositionFixtures:
 
 
 class ParkingLotFixtures:
-    """Predefined parking lot configurations for test scenarios."""
+    """Predefined parking lot configurations for test scenarios.
 
-    _PARK_A = 1.00  # First block position along corridor
-    _PARK_B = _PARK_A + ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH
-    _PARK_FAR = TrackDimensions.MAX_COORD - ParkingLotSpecs.WALL_OFFSET
+    Block positions are sourced from ``tests.test_constants`` (PARKING_*_BLOCK1/2)
+    so the lot geometry has a single source of truth alongside the raw tuples used
+    directly by parking tests.
+    """
 
     @staticmethod
     def create(section: Section, block1_x: float, block1_y: float, block2_x: float, block2_y: float) -> ParkingLot:  # noqa: ARG004 - section names the corridor but the lot layout is section-independent
@@ -314,36 +326,31 @@ class ParkingLotFixtures:
         )
 
     @staticmethod
+    def _lot(b1: tuple[float, float], b2: tuple[float, float]) -> ParkingLot:
+        return ParkingLot(
+            block1_position=BlockPosition(x=b1[0], y=b1[1]),
+            block2_position=BlockPosition(x=b2[0], y=b2[1]),
+        )
+
+    @staticmethod
     def south() -> ParkingLot:
         """Standard parking lot in the South section."""
-        return ParkingLot(
-            block1_position=BlockPosition(x=ParkingLotFixtures._PARK_A, y=ParkingLotSpecs.WALL_OFFSET),
-            block2_position=BlockPosition(x=ParkingLotFixtures._PARK_B, y=ParkingLotSpecs.WALL_OFFSET),
-        )
+        return ParkingLotFixtures._lot(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2)
 
     @staticmethod
     def north() -> ParkingLot:
         """Standard parking lot in the North section."""
-        return ParkingLot(
-            block1_position=BlockPosition(x=ParkingLotFixtures._PARK_A, y=ParkingLotFixtures._PARK_FAR),
-            block2_position=BlockPosition(x=ParkingLotFixtures._PARK_B, y=ParkingLotFixtures._PARK_FAR),
-        )
+        return ParkingLotFixtures._lot(PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2)
 
     @staticmethod
     def east() -> ParkingLot:
         """Standard parking lot in the East section."""
-        return ParkingLot(
-            block1_position=BlockPosition(x=ParkingLotFixtures._PARK_FAR, y=ParkingLotFixtures._PARK_A),
-            block2_position=BlockPosition(x=ParkingLotFixtures._PARK_FAR, y=ParkingLotFixtures._PARK_B),
-        )
+        return ParkingLotFixtures._lot(PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2)
 
     @staticmethod
     def west() -> ParkingLot:
         """Standard parking lot in the West section."""
-        return ParkingLot(
-            block1_position=BlockPosition(x=ParkingLotSpecs.WALL_OFFSET, y=ParkingLotFixtures._PARK_A),
-            block2_position=BlockPosition(x=ParkingLotSpecs.WALL_OFFSET, y=ParkingLotFixtures._PARK_B),
-        )
+        return ParkingLotFixtures._lot(PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2)
 
 
 # Helpers for numpy-based LIDAR scans (e.g., collision avoidance controller tests)

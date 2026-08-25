@@ -2,7 +2,7 @@
 
 Inverts the exact pinhole projection ``sign_router._detection_to_world()``
 decodes, so a ``SignRouter`` driven through this emulator exercises the real
-camera-confirmation code path (``_match_detection_to_sign`` /
+camera-confirmation code path (``match_detection_to_sign`` /
 ``_detection_to_world``) instead of always seeing ``detections=None``.
 
 Deliberately simple — a fixed high confidence, no false positives, no wall
@@ -17,7 +17,7 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
-from shared.domain.models import SignColor, TrafficSignObservation
+from shared.domain.models import SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import wrap_angle as _wrap_angle
@@ -30,11 +30,11 @@ if TYPE_CHECKING:
 
 def emulate_sign_observations(
     signs: list[SignSpec],
-    robot_pos: tuple[float, float],
+    robot_pos: Waypoint,
     robot_yaw: float,
     max_range: float = RobotSpecs.CAMERA_FAR_CLIP,
     tuning: NavigationTuning | None = None,
-    believed_pos: tuple[float, float] | None = None,
+    believed_pos: Waypoint | None = None,
     believed_yaw: float | None = None,
 ) -> list[TrafficSignObservation]:
     """Return synthetic ``TrafficSignObservation``s for every in-frame sign.
@@ -83,13 +83,12 @@ def emulate_sign_observations(
     report_yaw = robot_yaw if believed_yaw is None else believed_yaw
     observations: list[TrafficSignObservation] = []
     for sign in signs:
-        dx = sign.x - robot_pos[0]
-        dy = sign.y - robot_pos[1]
-        distance = math.hypot(dx, dy)
+        sign_pos = Waypoint(sign.x, sign.y)
+        distance = robot_pos.distance_to(sign_pos)
         if distance <= 0.0 or distance > max_range:
             continue
 
-        bearing = math.atan2(dy, dx)
+        bearing = robot_pos.bearing_to(sign_pos)
         theta_h = _wrap_angle(bearing - robot_yaw)
         if abs(theta_h) > RobotSpecs.CAMERA_HFOV / 2:
             continue
@@ -100,8 +99,8 @@ def emulate_sign_observations(
         report_bearing = report_yaw + theta_h
         observations.append(
             TrafficSignObservation(
-                world_x_m=report_pos[0] + distance * math.cos(report_bearing),
-                world_y_m=report_pos[1] + distance * math.sin(report_bearing),
+                world_x_m=report_pos.x + distance * math.cos(report_bearing),
+                world_y_m=report_pos.y + distance * math.sin(report_bearing),
                 color=SignColor.RED if sign.color == "red" else SignColor.GREEN,
                 confidence=detection_confidence,
                 detected_at_timestamp=0.0,

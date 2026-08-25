@@ -41,6 +41,7 @@ from shared.config.constants import (
     TrafficSignSpecs,
     WallSpecs,
 )
+from shared.domain.models import Bounds, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.track_geometry import TrackWalls
@@ -83,13 +84,13 @@ class _Box:
     x_max: float
     y_max: float
 
-    def corners(self) -> list[tuple[float, float]]:
+    def corners(self) -> list[Waypoint]:
         """Return the four box corners (CCW from bottom-left)."""
         return [
-            (self.x_min, self.y_min),
-            (self.x_max, self.y_min),
-            (self.x_max, self.y_max),
-            (self.x_min, self.y_max),
+            Waypoint(self.x_min, self.y_min),
+            Waypoint(self.x_max, self.y_min),
+            Waypoint(self.x_max, self.y_max),
+            Waypoint(self.x_min, self.y_max),
         ]
 
 
@@ -308,8 +309,8 @@ class TrackModel:
 
         # Outer boundary: every corner must stay inside the collision box.
         ob = self._outer_collision
-        for cx, cy in corners:
-            if cx < ob.x_min or cx > ob.x_max or cy < ob.y_min or cy > ob.y_max:
+        for corner in corners:
+            if corner.x < ob.x_min or corner.x > ob.x_max or corner.y < ob.y_min or corner.y > ob.y_max:
                 return ContactSurface.OUTER_WALL
 
         # Inner block: oriented footprint must not overlap the keep-out box.
@@ -348,7 +349,7 @@ class TrackModel:
                 depths[i] = depth
         return depths
 
-    def obstacle_center(self, index: int) -> tuple[float, float] | None:
+    def obstacle_center(self, index: int) -> Waypoint | None:
         """Centre of the indexed obstacle, or ``None`` if there is no such box.
 
         Needed to tell a push from a slide: only the component of chassis travel
@@ -357,7 +358,7 @@ class TrackModel:
         if index < 0 or index >= len(self._obstacle_boxes):
             return None
         box = self._obstacle_boxes[index]
-        return ((box.x_min + box.x_max) / 2.0, (box.y_min + box.y_max) / 2.0)
+        return Waypoint((box.x_min + box.x_max) / 2.0, (box.y_min + box.y_max) / 2.0)
 
     # Geometry helpers exposed for tests / planners
 
@@ -370,10 +371,10 @@ class TrackModel:
         return self._walls.point_in_free_space(x, y, clearance)
 
     @property
-    def inner_block_visual(self) -> tuple[float, float, float, float]:
+    def inner_block_visual(self) -> Bounds:
         """Inner-block visual bounds ``(x_min, y_min, x_max, y_max)`` in metres."""
         iv = self._inner_visual
-        return (iv.x_min, iv.y_min, iv.x_max, iv.y_max)
+        return Bounds(iv.x_min, iv.y_min, iv.x_max, iv.y_max)
 
 
 def _raycast_box(
@@ -416,17 +417,17 @@ def _rect_corners(
     yaw: float,
     length: float,
     width: float,
-) -> list[tuple[float, float]]:
+) -> list[Waypoint]:
     """Four corners of an oriented rectangle centred at (cx, cy)."""
     hl, hw = length / 2.0, width / 2.0
     cos_y, sin_y = np.cos(yaw), np.sin(yaw)
     local = ((hl, hw), (hl, -hw), (-hl, -hw), (-hl, hw))
-    return [(cx + lx * cos_y - ly * sin_y, cy + lx * sin_y + ly * cos_y) for lx, ly in local]
+    return [Waypoint(cx + lx * cos_y - ly * sin_y, cy + lx * sin_y + ly * cos_y) for lx, ly in local]
 
 
 def _convex_overlap(
-    poly_a: list[tuple[float, float]],
-    poly_b: list[tuple[float, float]],
+    poly_a: list[Waypoint],
+    poly_b: list[Waypoint],
     yaw: float,
 ) -> bool:
     """Separating-axis test between two convex polygons (rect vs AABB).
@@ -441,16 +442,16 @@ def _convex_overlap(
         (0.0, 1.0),
     )
     for ax, ay in axes:
-        a_proj = [px * ax + py * ay for px, py in poly_a]
-        b_proj = [px * ax + py * ay for px, py in poly_b]
+        a_proj = [px.x * ax + px.y * ay for px in poly_a]
+        b_proj = [px.x * ax + px.y * ay for px in poly_b]
         if max(a_proj) < min(b_proj) or max(b_proj) < min(a_proj):
             return False  # found a separating axis -> no overlap
     return True
 
 
 def _convex_penetration(
-    poly_a: list[tuple[float, float]],
-    poly_b: list[tuple[float, float]],
+    poly_a: list[Waypoint],
+    poly_b: list[Waypoint],
     yaw: float,
 ) -> float:
     """How deeply two overlapping convex polygons intrude, in metres.
@@ -473,8 +474,8 @@ def _convex_penetration(
     )
     smallest = math.inf
     for ax, ay in axes:
-        a_proj = [px * ax + py * ay for px, py in poly_a]
-        b_proj = [px * ax + py * ay for px, py in poly_b]
+        a_proj = [px.x * ax + px.y * ay for px in poly_a]
+        b_proj = [px.x * ax + px.y * ay for px in poly_b]
         overlap = min(max(a_proj), max(b_proj)) - max(min(a_proj), min(b_proj))
         if overlap <= 0.0:
             return 0.0

@@ -8,8 +8,19 @@ self_detection_threshold_m = 0.08  # chassis/cable self-reflection floor
 min_valid_range_m = 0.05           # no-return / invalid reading floor -- matches RobotSpecs.LIDAR_MIN_RANGE (Slamtec C1's real rated minimum); readings below this are physically below what the sensor can validly report
 threat_no_detection_range_m = 1.0  # beyond this, a sector's nearest reading isn't a threat
 no_data_range_m = 10.0             # sentinel when a sector has no valid rays at all
-blind_wedge_left_min_deg = -160.0  # rear-left mount occlusion, measured 2026-08-04 -- see LidarSectorParams docstring
+# Rear occlusion. Measured 2026-08-04 against a real bag as -160..-115 and
+# 115..175, which left a ~25 deg slot straight back -- the mount's only rear
+# vision, and what every reverse gate was implicitly relying on.
+#
+# The slot is GONE on the current build (2026-08-22), so the two wedges now
+# meet at 180 and the rear is fully masked. This is the whole switch: the
+# reverse gates already branch on whether the rear sector was MEASURED rather
+# than on a distance, so closing the gap here disables reversing on sensed
+# clearance without touching any of that logic. Restoring a rear slot is the
+# same edit backwards -- widen the gap to whatever the new mount can see and
+# the existing paths start using it again.
+blind_wedge_left_min_deg = -180.0
 blind_wedge_left_max_deg = -115.0
-blind_wedge_right_min_deg = 115.0  # rear-right mount occlusion -- wider than the left wedge, mount isn't symmetric
-blind_wedge_right_max_deg = 175.0
+blind_wedge_right_min_deg = 115.0
+blind_wedge_right_max_deg = 180.0
 direction_arc_half_fov_deg = 8.0   # src.navigation.utils' corner-detection cone -- NOT front_half_fov_deg, see the field's docstring

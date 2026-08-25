@@ -1,47 +1,29 @@
-"""WRO 2026 traffic-sign routing for obstacles challenge.
+"""The ``SignRouter`` class: stateful per-tick sign-avoidance router.
 
-Computes lateral waypoint deformations so the robot avoids a red obstacle on
-its OUTWARD side (toward the outer wall) and a green obstacle on its INWARD
-side (toward the inner square) — an absolute rule tied to the track geometry,
-not the travel direction: it holds identically whether the round is run
-clockwise or counterclockwise.
-
-Pure Python — no ROS2 dependencies. Designed to be unit-tested independently.
-
-Pass-side rule:
-    - Red obstacle   → robot passes on the OUTWARD side (away from centre).
-    - Green obstacle → robot passes on the INWARD side (toward centre).
-
-Pinned by ``TestPassSideRule`` in ``tests/unit/test_sign_router.py``: for
-every (section, direction) the deformed waypoint moves outward for red and
-inward for green.
-
-The deformation is still keyed by (Section, Direction) because the AXIS and
-WORLD-FRAME SIGN of "outward" both depend on which corridor is being driven,
-but — unlike an earlier version of this table — the CLOCKWISE and
-COUNTERCLOCKWISE rows for a given section are now IDENTICAL, not negations of
-each other: outward/inward is a fixed property of the corridor, independent
-of which way the robot is circling it.
+Holds the discovered sign list, engagement/passed bookkeeping, and the
+per-tick ``deform_waypoint`` entry point. The pure pieces it calls live in
+``config``, ``routing`` and ``deformation``; this module owns only state and
+orchestration.
 """
 
 from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
-from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from shared.config.constants import DictKeys, TrackDimensions, TrafficSignSpecs
-from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
-from shared.domain.enums import Direction, Section
-from shared.domain.models import ScenarioMetadata, SignColor, Waypoint
+from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams
+from shared.domain.enums import Axis, Direction, Section
+from shared.domain.models import SignColor, Waypoint
 
-from src.config.tuning_helpers import TuningContext, get_tuning
-from src.navigation.geometry import behind_tolerance_m, chassis_half_diagonal_m
-from src.navigation.planning.sign_discovery import (
-    ObservedSignMap,
-    SignSpec,
+from src.config.tuning_helpers import get_tuning
+from src.navigation.planning.sign_discovery import ObservedSignMap, SignSpec
+from src.navigation.planning.sign_router.config import SignRouterConfig, SignRouterContext
+from src.navigation.planning.sign_router.deformation import apply_deformation, match_detection_to_sign
+from src.navigation.planning.sign_router.routing import (
+    BEHIND_TOLERANCE,
+    ROUTING_TABLE,
+    is_squarely_in_corridor,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import _dist2d, wrap_angle
@@ -50,232 +32,6 @@ if TYPE_CHECKING:
     from shared.domain.models import TrafficSignObservation
 
 logger = logging.getLogger(__name__)
-
-# Re-exported from sign_discovery, which owns the projection primitives this
-# module routes on top of. Kept importable from here because that is where
-# every caller and test already reaches for them.
-__all__ = [
-    "Axis",
-    "SignRouter",
-    "SignRouterConfig",
-    "SignSpec",
-    "clamp_lateral",
-    "outward_lateral_axis",
-    "signs_from_metadata",
-]
-
-# How far a deformed waypoint must stay clear of the restricted inner square
-# and the outer wall (WP-1). An unclamped deformation can otherwise place the
-# waypoint inside the inner square or against a wall for a sign positioned near
-# a corridor edge. See navigation.geometry.chassis_half_diagonal_m for why it's
-# the diagonal, not the half-width.
-_CHASSIS_HALF_DIAGONAL = chassis_half_diagonal_m()
-
-# How far behind the robot's own origin a sign may still sit and remain an
-# avoidance candidate. See navigation.geometry.behind_tolerance_m.
-_BEHIND_TOLERANCE = behind_tolerance_m()
-
-
-class Axis(StrEnum):
-    """Which world coordinate a routing-table entry deforms."""
-
-    X = "x"
-    Y = "y"
-
-
-# Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
-# axis: Axis.Y means deform the y-coordinate; Axis.X deforms x.
-# red_mult / green_mult: +1 or -1 multiplier applied to the LATERAL offset,
-# chosen so red always moves the deformed waypoint OUTWARD (away from the
-# inner square) and green always moves it INWARD — identically for CW and
-# CCW, since outward/inward is a fixed property of the corridor, not the
-# travel direction. (An earlier version of this table made the CW rows the
-# world-frame negation of the CCW rows, which instead pinned "red on the
-# robot's right" — a travel-RELATIVE rule that flips outward/inward between
-# CW and CCW. That was wrong: the official rule is the absolute one above.)
-_ROUTING_TABLE: dict[tuple[Section, Direction], tuple[Axis, int, int]] = {
-    (Section.SOUTH, Direction.COUNTERCLOCKWISE): (Axis.Y, -1, +1),
-    (Section.NORTH, Direction.COUNTERCLOCKWISE): (Axis.Y, +1, -1),
-    (Section.EAST, Direction.COUNTERCLOCKWISE): (Axis.X, +1, -1),
-    (Section.WEST, Direction.COUNTERCLOCKWISE): (Axis.X, -1, +1),
-    (Section.SOUTH, Direction.CLOCKWISE): (Axis.Y, -1, +1),
-    (Section.NORTH, Direction.CLOCKWISE): (Axis.Y, +1, -1),
-    (Section.EAST, Direction.CLOCKWISE): (Axis.X, +1, -1),
-    (Section.WEST, Direction.CLOCKWISE): (Axis.X, -1, +1),
-}
-
-
-def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int] | None:
-    """World-frame axis and sign of the pass-side rule for ``corridor``, direction-agnostic.
-
-    The CLOCKWISE and COUNTERCLOCKWISE rows of ``_ROUTING_TABLE`` are
-    identical for every section (see module docstring), so looking the rule
-    up under a fixed direction is exactly as correct as knowing the real one.
-    This lets a caller that hasn't inferred the travel direction yet -- e.g.
-    ``corridor_follower`` during BLIND_CREEP -- still apply "red outward,
-    green inward" instead of falling back to generic obstacle avoidance.
-
-    Returns:
-        ``(axis, multiplier)`` where a positive multiplier along ``axis``
-        points OUTWARD (away from the inner square) for red, INWARD for
-        green. ``None`` if ``corridor`` has no routing entry.
-    """
-    entry = _ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
-    if entry is None:
-        return None
-    axis, red_mult, green_mult = entry
-    return axis, red_mult if color == SignColor.RED else green_mult
-
-
-@dataclass(frozen=True, slots=True)
-class _SignRouterConstants:
-    """Tuning-derived sign-router constants, computed once per SignRouter instance."""
-
-    wall_clearance_margin_m: float
-    deform_depth_buffer_m: float
-    pin_corner_guard: bool
-    pin_heading_guard: bool
-    pin_heading_guard_rad: float
-
-    @classmethod
-    def from_tuning(cls, tuning: NavigationTuning) -> _SignRouterConstants:
-        sr = tuning.sign_router
-        return cls(
-            wall_clearance_margin_m=sr.WALL_CLEARANCE_MARGIN_M,
-            deform_depth_buffer_m=sr.DEFORM_DEPTH_BUFFER_M,
-            pin_corner_guard=sr.PIN_CORNER_GUARD,
-            pin_heading_guard=sr.PIN_HEADING_GUARD,
-            pin_heading_guard_rad=math.radians(sr.PIN_HEADING_GUARD_DEG),
-        )
-
-
-class SignRouterContext(TuningContext[_SignRouterConstants]):
-    """Context holding tuning-derived sign-router constants, passed to helper functions."""
-
-    _constants_cls = _SignRouterConstants
-
-
-_DEFAULT_SIGN_ROUTER_CONTEXT = SignRouterContext()
-
-
-@dataclass(frozen=True)
-class SignRouterConfig:
-    """Tuning parameters for the sign router."""
-
-    lateral_offset: float | None = None
-    """Metres of lateral deformation perpendicular to the corridor."""
-
-    activation_dist: float = 1.40
-    """Deformation activates when robot is within this distance of a sign (m)."""
-
-    passed_dist: float = 1.60
-    """Sign is marked as passed once robot moves further than this from it (m)."""
-
-    depth_pin: bool = True
-    """Hold the commanded point abeam the sign instead of letting it recede.
-
-    ``False`` restores the plain lookahead depth, which is the arm every figure
-    recorded before the pin was measured against. Both arms belong in ONE
-    harness invocation: this lives in the router, so measuring it by editing
-    between two runs mixes old and new code across a warm process pool -- which
-    is exactly how the pin's own effect was first mistaken for a classifier fix.
-    """
-
-    detection_match_dist: float = 0.30
-    """Max world-frame distance to associate a camera detection with an expected sign (m)."""
-
-    min_confidence: float = 0.25
-    """Minimum detection confidence to accept a camera-based color update."""
-
-    commit_hysteresis: bool = False
-    """Hold the engaged sign across ticks instead of re-racing every tick.
-
-    Matches signs/sign_router.toml's default -- was True here, contradicting
-    the TOML's False, so a bare ``SignRouterConfig()`` (only reachable now if
-    a caller constructs one directly rather than via ``from_tuning()``)
-    silently re-enabled hysteresis the config file disables.
-    """
-
-    corridor_flip_ticks: int = 1
-    """Consecutive ticks a refined sign estimate must agree on a NEW corridor
-    before its label moves there. A sign's corridor picks which world axis its
-    deformation treats as lateral, so on a corner boundary — where two-thirds
-    of legal WRO grid positions sit — millimetres of estimate jitter otherwise
-    swing the commanded waypoint between two orthogonal axes every tick.
-
-    Matches signs/sign_router.toml's default of 1, which leaves the mechanism
-    inert: the oscillation is real and traced, but damping it measured flat over
-    the corpus and cost a few new wall strikes. See that file for the numbers."""
-
-    settle_ticks: int = 150
-    """Ticks since this lap started (~7.5s at the standard 20Hz control loop)
-    before a sign may be engaged/passed at all. Right after spawn (or a lap
-    boundary), the robot can briefly swing toward a corridor it hasn't
-    actually reached yet while settling onto its planned route — if that
-    swing grazes a not-yet-really-encountered sign's activation radius, it
-    gets engaged and then marked passed as the robot continues on its real
-    route away from it, retiring the sign before its genuine pass ever
-    happens. Deferring bookkeeping (not candidate selection — a sign already
-    in the robot's actual corridor still deforms normally) for this settle
-    window prevents that incidental graze from ever registering."""
-
-    def __post_init__(self) -> None:
-        """Compute derived tuning values and validate the configuration.
-
-        ``_active_sign_candidates`` engages a sign once it is nearer than
-        ``activation_dist`` and retires it once it is further than
-        ``passed_dist``, in that order, on the same tick. So with
-        ``activation_dist >= passed_dist`` every sign entering the activation
-        radius is engaged and marked passed in the same breath, from a metre
-        away, and stays retired for the rest of the run — deformation never
-        fires at the real pass and the robot drives straight into it.
-
-        Measured: at ``activation_dist`` 1.30 against the shipped
-        ``passed_dist`` 1.20, the corpus goes from 209 collisions to 256/256
-        with not one lap completed. Nothing failed, nothing logged; avoidance
-        simply stopped existing. That is the worst shape a config error can
-        take in a safety path, so it is an error rather than a clamp: silently
-        repairing it would hide that the tuning being run is not the tuning
-        that was asked for.
-
-        This is the same defect ``settle_ticks`` guards from the other
-        direction — there an incidental spawn-time graze retires a sign early;
-        here the thresholds themselves do it, on every sign.
-        """
-        if self.lateral_offset is None:
-            tuning = get_tuning(None)
-            default_offset = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
-            object.__setattr__(self, "lateral_offset", default_offset)
-        if self.activation_dist >= self.passed_dist:
-            msg = (
-                f"activation_dist ({self.activation_dist}) must be < passed_dist "
-                f"({self.passed_dist}): a sign would be engaged and marked passed on the "
-                f"same tick, permanently retiring it before its real pass and disabling "
-                f"sign avoidance for the whole run."
-            )
-            raise ValueError(msg)
-
-    @classmethod
-    def from_tuning(cls, params: SignRouterParams) -> SignRouterConfig:
-        """Build from NavigationTuning's SignRouterParams group.
-
-        ``lateral_offset`` isn't a raw tunable in ``SignRouterParams`` -- only
-        its safety-margin component is (``SIGN_CLEARANCE_MARGIN_M``), so this
-        recomputes the same derivation ``_SIGN_LATERAL_OFFSET`` uses at module
-        scope: chassis half-DIAGONAL + sign half-width + margin. Keep the two
-        in step; see that constant for why it is the diagonal.
-        """
-        return cls(
-            lateral_offset=_CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
-            activation_dist=params.ACTIVATION_DIST_M,
-            passed_dist=params.PASSED_DIST_M,
-            depth_pin=params.DEPTH_PIN,
-            detection_match_dist=params.DETECTION_MATCH_DIST_M,
-            min_confidence=params.MIN_CONFIDENCE,
-            settle_ticks=params.SETTLE_TICKS,
-            commit_hysteresis=params.COMMIT_HYSTERESIS,
-            corridor_flip_ticks=params.CORRIDOR_FLIP_TICKS,
-        )
 
 
 class SignRouter:
@@ -320,12 +76,20 @@ class SignRouter:
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
         self._lap_tick = 0
+        # Sign indices passed on the WRONG side of the corridor. The official
+        # Obstacles rule is absolute: a RED obstacle must be cleared on its
+        # OUTWARD side, a GREEN on its INWARD side. ``_active_sign_candidates``
+        # records here, at the instant a sign is retired as passed, whether the
+        # robot was on the permitted side — see ``_record_pass_side``. The
+        # simulator reads ``wrong_side_violations`` and stops the run, the same
+        # way it stops on a forbidden wall contact.
+        self._wrong_side: set[int] = set()
         # The sign currently being routed around, kept across ticks so the
         # commanded line does not jump between two legal ones mid-pass. See
         # _prefer_committed.
         self._committed: int | None = None
         # Robot yaw at the tick each sign was first committed to, keyed by sign
-        # index. Lets the depth pin (see _pin_depth) release on heading drift
+        # index. Lets the depth pin (see pin_depth) release on heading drift
         # even when the position-only PIN_CORNER_GUARD still reads squarely in
         # the corridor -- see PIN_HEADING_GUARD.
         self._commit_yaw: dict[int, float] = {}
@@ -491,7 +255,7 @@ class SignRouter:
         return len(self._signs) - len(self._passed)
 
     @property
-    def routed_sign_positions(self) -> list[tuple[float, float]]:
+    def routed_sign_positions(self) -> list[Waypoint]:
         """World positions of the signs this router still intends to route around.
 
         The reactive collision layer uses this to tell a mapped obstacle it has
@@ -504,10 +268,10 @@ class SignRouter:
         both live in ``_signs`` — but only once ``ObservedSignMap`` has actually
         published them, so an unconfirmed track never suppresses the guard.
         """
-        return [(s.x, s.y) for i, s in enumerate(self._signs) if i not in self._passed]
+        return [Waypoint(s.x, s.y) for i, s in enumerate(self._signs) if i not in self._passed]
 
     @property
-    def routed_sign_positions_by_corridor(self) -> list[tuple[float, float, Section]]:
+    def routed_sign_positions_by_corridor(self) -> list[tuple[Waypoint, Section]]:
         """``routed_sign_positions``, each paired with the sign's own corridor.
 
         For ``mask_mapped_obstacles``'s escape-mask attribution: proximity
@@ -519,7 +283,7 @@ class SignRouter:
         Requiring the ray's own corridor to match this sign's closes that
         gap without needing to know the rotation is even present.
         """
-        return [(s.x, s.y, c) for i, (s, c) in enumerate(self.lane_specs) if i not in self._passed]
+        return [(Waypoint(s.x, s.y), c) for i, (s, c) in enumerate(self.lane_specs) if i not in self._passed]
 
     def reset_for_new_lap(self) -> None:
         """Re-arm every sign so it's routed again on the next lap.
@@ -534,6 +298,46 @@ class SignRouter:
         self._lap_tick = 0
         self._committed = None
         self._commit_yaw.clear()
+        self._wrong_side.clear()
+
+    @property
+    def wrong_side_violations(self) -> set[int]:
+        """Sign indices retired as passed on the WRONG side of the corridor.
+
+        Emptied by ``reset_for_new_lap`` so each lap is judged independently
+        (a sign avoided correctly on lap 2 after a lap-1 violation is a fresh
+        pass, not a reversal of the earlier miss). The simulator stops the run
+        the moment this is non-empty.
+        """
+        return set(self._wrong_side)
+
+    def _record_pass_side(self, index: int, robot_pos: Waypoint) -> None:
+        """Decide whether ``index`` was cleared on its permitted side.
+
+        The permitted side is absolute, fixed by the corridor geometry and the
+        sign colour — red outward, green inward — and is exactly the lateral
+        direction ``ROUTING_TABLE`` deforms toward for that colour. The robot's
+        lateral coordinate relative to the sign's is compared against it: same
+        sign ⇒ correct side, opposite sign ⇒ wrong-side pass, recorded in
+        ``_wrong_side``.
+
+        The comparison uses the robot's position at the instant the sign is
+        retired (distance > ``passed_dist``). By then the chassis is ~1.6 m
+        down the corridor axis from the sign, but it is travelling *along* that
+        axis, so its lateral coordinate is the same one it held abeam the sign
+        — which is precisely the choice of side that the pass represents.
+        """
+        sign = self._signs[index]
+        entry = ROUTING_TABLE.get((self._sign_corridors[index], Direction.CLOCKWISE))
+        if entry is None:
+            return
+        axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult
+        permitted = red_mult if sign.color == SignColor.RED else green_mult
+        robot_lat = robot_pos.x if axis == Axis.X else robot_pos.y
+        sign_lat = sign.x if axis == Axis.X else sign.y
+        side = 0 if robot_lat == sign_lat else (1 if robot_lat > sign_lat else -1)
+        if side != 0 and side not in (0, permitted):
+            self._wrong_side.add(index)
 
     def deform_waypoint(
         self,
@@ -602,7 +406,7 @@ class SignRouter:
             # vs EAST there and gets assigned NORTH by insertion order, but it's
             # still on the turning arc, not the straight segment this
             # deformation model assumes.
-            if _is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor, self._context):
+            if is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor, self._context):
                 break
         else:
             # No candidate produced an applicable deformation.
@@ -620,7 +424,7 @@ class SignRouter:
 
         # Optionally override color with camera observation.
         if observations:
-            camera_color = _match_detection_to_sign(
+            camera_color = match_detection_to_sign(
                 observations,
                 (sign.x, sign.y),
                 self._config,
@@ -660,9 +464,11 @@ class SignRouter:
         # the taper ever binds, so the ramp has nothing to give. Do not re-try
         # it without new information; see docs/sign-avoidance-investigation.md.
         taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
-        effective_offset = self._config.lateral_offset * taper
+        lateral_offset = self._config.lateral_offset
+        assert lateral_offset is not None
+        effective_offset = lateral_offset * taper
 
-        deformed = _apply_deformation(
+        deformed = apply_deformation(
             waypoint,
             sign,
             color,
@@ -738,7 +544,7 @@ class SignRouter:
         for every sign regardless of corridor.
 
         Candidates are additionally restricted to signs not already behind the
-        robot (measured along its heading, with ``_BEHIND_TOLERANCE`` slack so a
+        robot (measured along its heading, with ``BEHIND_TOLERANCE`` slack so a
         sign still alongside the chassis keeps holding the line out). A receding
         sign stays geometrically nearer than the next one for a while, so
         without this the nearest-wins rule below masks the upcoming sign until
@@ -783,6 +589,7 @@ class SignRouter:
             if d > self._config.passed_dist:
                 if settled and i in self._engaged:
                     self._passed.add(i)
+                    self._record_pass_side(i, robot_pos)
                     logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
                 continue
             # A sign the robot has already driven past needs no avoidance, and
@@ -795,7 +602,7 @@ class SignRouter:
             # fully cleared).
             dx, dy = sign.x - robot_pos.x, sign.y - robot_pos.y
             along_track = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
-            if along_track < -_BEHIND_TOLERANCE:
+            if along_track < -BEHIND_TOLERANCE:
                 continue
             same_corridor = self._sign_corridors[i] == corridor
             # A sign in a DIFFERENT corridor than the robot's current label only
@@ -816,269 +623,3 @@ class SignRouter:
 
         candidates.sort(key=lambda entry: entry[1])
         return candidates
-
-
-def _apply_deformation(
-    waypoint: tuple[float, float],
-    sign: SignSpec,
-    color: str,
-    corridor: Section,
-    direction: Direction,
-    lateral_offset: float,
-    robot_pos: tuple[float, float] | None = None,
-    context: SignRouterContext | None = None,
-    yaw_drift: float | None = None,
-) -> tuple[float, float]:
-    """Compute the laterally deformed waypoint for a given sign and corridor.
-
-    The result is clamped so it can't land inside the restricted inner square
-    or beyond the outer wall (WP-1) — a sign positioned near a corridor edge
-    would otherwise deform the waypoint straight into a hazard.
-
-    Only the LATERAL coordinate carries the avoidance; the depth coordinate is
-    whatever the lookahead search picked, which sits 0.2-0.4 m further along
-    the corridor every tick. Passing that through unchanged is what makes the
-    offset arrive late: the commanded point holds a constant lateral value but
-    keeps receding, so the slope the chassis must follow to reach it flattens
-    tick by tick and the lateral error is only ever asymptotically closed --
-    traced on go_obstacles_0000, the chassis needed 0.324 m of lateral travel
-    over the 0.42 m of runway left and achieved 0.163 m of it, arriving level
-    with the pillar still half a chassis width inside the line it was given.
-    Ramping to full offset sooner does NOT fix that lag -- measured and
-    rejected, see the taper comment in ``deform_waypoint`` -- because the target
-    the offset is attached to is the thing running away.
-
-    So while the sign lies between the robot and the lookahead point, pin the
-    depth coordinate to the SIGN's own depth. The commanded point stops
-    receding and becomes a fixed gate abeam the pillar, which the chassis has
-    to be on by the time it gets there. ``robot_pos`` is optional so callers
-    testing the pure pass-side mapping can keep asking for it alone.
-
-    Args:
-        waypoint: Original target waypoint (x, y).
-        sign: Traffic sign spec (position + color).
-        color: Effective sign color (may be camera-confirmed).
-        corridor: Current track section.
-        direction: Travel direction (CW/CCW) — selects the pass-side mapping.
-        lateral_offset: Lateral deformation magnitude (m).
-        robot_pos: Current robot position (x, y); enables the depth pin.
-        context: Tuning-derived constants for the wall-clearance clamp.
-            Defaults to the checked-in tuning.
-        yaw_drift: Absolute heading change (rad) since the pin engaged on this
-            sign; releases the pin past ``PIN_HEADING_GUARD_DEG`` when
-            ``PIN_HEADING_GUARD`` is set. See ``_pin_depth``.
-
-    Returns:
-        Deformed waypoint (x, y).
-    """
-    if (corridor, direction) not in _ROUTING_TABLE:
-        return waypoint
-
-    axis, red_mult, green_mult = _ROUTING_TABLE[(corridor, direction)]
-    mult = red_mult if color == SignColor.RED else green_mult
-
-    wx, wy = waypoint
-    if axis == Axis.Y:
-        return (
-            _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
-            clamp_lateral(sign.y + mult * lateral_offset, corridor, context),
-        )
-    return (
-        clamp_lateral(sign.x + mult * lateral_offset, corridor, context),
-        _pin_depth(wy, sign.y, robot_pos[1] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
-    )
-
-
-def _pin_depth(
-    waypoint_depth: float,
-    sign_depth: float,
-    robot_depth: float | None,
-    robot_pos: tuple[float, float] | None,
-    corridor: Section,
-    context: SignRouterContext | None = None,
-    yaw_drift: float | None = None,
-) -> float:
-    """Hold the commanded point abeam the sign instead of letting it recede.
-
-    Applies only while the sign is genuinely between the chassis and the
-    lookahead point, in whichever direction the robot is travelling along the
-    corridor. Once the robot is level with the sign the condition lapses on its
-    own and the ordinary lookahead resumes -- there is no separate "release"
-    to get wrong, and a sign already behind never pulls the target backwards.
-
-    ``deform_waypoint`` only checks ``_is_squarely_in_corridor`` once, upstream,
-    against the raw (pre-deformation) WAYPOINT -- not against where the robot
-    itself actually is. The lookahead target runs 0.2-0.4 m ahead of the robot,
-    so the robot can already have curved out of the straight-corridor
-    assumption this pin depends on (e.g. mid corner-arc) while the waypoint
-    still reads as squarely in the corridor. Pinning to the sign's depth in
-    that state drove the commanded point into a wall -- measured as 11 wall
-    collisions with the pin on against 0 with it off, all corner-adjacent.
-    Re-checking squareness here, against the robot's own real (x, y), closes
-    that gap: the pin only fires when both ends of its own logic actually hold.
-
-    That re-check rode in on an unrelated commit ten days after the 11 was
-    measured and was never attributed on its own, so it carries its own toggle
-    (``PIN_CORNER_GUARD``) -- both arms belong in one harness invocation.
-
-    ``PIN_CORNER_GUARD`` re-checks the robot's POSITION but not its HEADING.
-    Traced on go_obstacles_0049 (subset64, sighted): the robot entered a
-    corner turn -- yaw rotating 67 deg to 127 deg over 46 ticks -- while its
-    raw waypoint position still read squarely in the corridor the whole time,
-    so the position guard never released the pin. The commanded point stayed
-    frozen abeam a sign for 2.3 s while the chassis was actually mid-turn,
-    steering saturated chasing it, and the chassis crashed into a wall.
-    ``PIN_HEADING_GUARD`` releases the pin once the robot's heading has
-    drifted more than ``PIN_HEADING_GUARD_DEG`` from where it stood when the
-    pin first engaged on this sign, which is what the position check misses.
-    """
-    context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
-    if robot_depth is None or robot_pos is None:
-        return waypoint_depth
-    if context.constants.pin_corner_guard and not _is_squarely_in_corridor(
-        robot_pos[0], robot_pos[1], corridor, context
-    ):
-        return waypoint_depth
-    if (
-        context.constants.pin_heading_guard
-        and yaw_drift is not None
-        and yaw_drift > context.constants.pin_heading_guard_rad
-    ):
-        return waypoint_depth
-    if min(robot_depth, waypoint_depth) < sign_depth < max(robot_depth, waypoint_depth):
-        return sign_depth
-    return waypoint_depth
-
-
-def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | None = None) -> float:
-    """Clamp a deformed lateral coordinate clear of the inner square and outer wall.
-
-    SOUTH/WEST corridors border the inner square on their high side (the
-    coordinate must stay below ``CORNER_MIN``); NORTH/EAST border it on their
-    low side (must stay above ``CORNER_MAX``). Every corridor is also bounded
-    on its outer side by the track wall.
-
-    This clamp is asymmetric by nature and that is deliberate but NOT free:
-    it keeps the full boundary clearance and hands whatever squeeze remains
-    entirely to the sign. On 646 of the corpus's 1282 signs it binds, and the
-    resulting lane clears its sign only within +/-28.2 deg of the corridor
-    axis (the simulator collides via exact SAT on the oriented chassis, so
-    clearance is yaw-dependent -- do not model it as a flat half-diagonal
-    threshold).
-
-    Rebalancing it has been measured and REFUTED. A ``pass_lateral`` that
-    interpolated a squeezed plateau toward the midpoint of its free gap --
-    the maximin placement, clear of both sides at every yaw -- moved the sign
-    column exactly as predicted (199 collisions to 168) and the wall column
-    far more (3 to 61), for 229/256 against a 202/256 baseline; swept at
-    0.25/0.40/0.55/0.70 it was worse at every value. See ``sign_lane``'s
-    module docstring for why (3.1 cm of adjustable range against a 6.3-6.6 cm
-    crosstrack shortfall) and ``66fa5f2e`` for the reverted implementation.
-    Do not re-try a placement change here without first reducing that
-    tracking error.
-    """
-    context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
-    wall_clearance = _CHASSIS_HALF_DIAGONAL + context.constants.wall_clearance_margin_m
-    low_side = corridor in (Section.SOUTH, Section.WEST)
-    if low_side:
-        value = min(value, TrackDimensions.CORNER_MIN - wall_clearance)
-        value = max(value, TrackDimensions.MIN_COORD + wall_clearance)
-    else:
-        value = max(value, TrackDimensions.CORNER_MAX + wall_clearance)
-        value = min(value, TrackDimensions.MAX_COORD - wall_clearance)
-    return value
-
-
-def _match_detection_to_sign(
-    observations: list[TrafficSignObservation],
-    expected_world_pos: tuple[float, float],
-    config: SignRouterConfig,
-) -> SignColor | None:
-    """Try to confirm sign color using world-coordinate observations.
-
-    Matches each observation against the expected sign world position.
-    TrafficSignObservation already carries world coordinates, so no
-    pixel-to-world projection is needed.
-
-    Args:
-        observations: Current frame observations.
-        expected_world_pos: Expected (x, y) world position of the sign.
-        config: Router config (confidence threshold, match distance).
-
-    Returns:
-        Confirmed SignColor, or None if no confident match.
-    """
-    best_match_dist = float("inf")
-    best_color: SignColor | None = None
-
-    for obs in observations:
-        if obs.confidence < config.min_confidence:
-            continue
-        if obs.color not in (SignColor.RED, SignColor.GREEN):
-            continue
-
-        world = (obs.world_x_m, obs.world_y_m)
-        d = _dist2d(Waypoint(*world), Waypoint(*expected_world_pos))
-        if d < config.detection_match_dist and d < best_match_dist:
-            best_match_dist = d
-            best_color = obs.color
-
-    return best_color
-
-
-def signs_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> list[SignSpec]:
-    """Extract sign specs from scenario metadata.
-
-    Args:
-        metadata: Scenario metadata (Pydantic model or coercible dict).
-
-    Returns:
-        List of SignSpec for all signs in the scenario.
-    """
-    if isinstance(metadata, ScenarioMetadata):
-        return [SignSpec(x=s.x, y=s.y, color=s.color) for s in metadata.sign_positions]
-    sign_positions = metadata.get(DictKeys.SIGN_POSITIONS, [])
-    return [
-        SignSpec(x=entry[DictKeys.X], y=entry[DictKeys.Y], color=entry[DictKeys.COLOR])
-        for entry in sign_positions
-    ]
-
-
-def _is_squarely_in_corridor(
-    x: float, y: float, corridor: Section, context: SignRouterContext | None = None
-) -> bool:
-    """True if this waypoint is still a reasonable candidate for straight-corridor deformation.
-
-    The deformation model holds the depth axis (whatever value the raw path
-    already gives it) and overrides only the lateral axis with a value derived
-    from the sign's position, then clamps that result into the corridor's own
-    free-space band. Two independent checks:
-
-    * Lateral axis (the one being overridden) must still read as this
-      corridor, not already the opposite wall.
-    * Depth axis (held, never touched) must stay within
-      ``DEFORM_DEPTH_BUFFER_M`` of the inner square's own span — not the exact
-      ``[CORNER_MIN, CORNER_MAX]`` window ``corridor_for_position()`` uses for
-      its own robot-position classification, which is far too strict here: the
-      lookahead target runs 0.2-0.4m ahead of the robot, so it's often already
-      past that window well before the robot itself is anywhere near a corner,
-      and requiring it anyway silently killed deformation through most of a
-      sign's real engagement. But with no depth check at all, deformation can
-      keep firing long after the robot has geometrically left this corridor
-      for the next one, building up an offset that snaps back hard once the
-      sign finally disengages by corridor mismatch — this buffer catches that
-      case without reintroducing the original over-strict cutoff.
-    """
-    context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
-    deform_depth_buffer = context.constants.deform_depth_buffer_m
-    depth_min = TrackDimensions.CORNER_MIN - deform_depth_buffer
-    depth_max = TrackDimensions.CORNER_MAX + deform_depth_buffer
-    if corridor is Section.SOUTH:
-        return y < TrackDimensions.CORNER_MIN and depth_min <= x <= depth_max
-    if corridor is Section.NORTH:
-        return y > TrackDimensions.CORNER_MAX and depth_min <= x <= depth_max
-    if corridor is Section.EAST:
-        return x > TrackDimensions.CORNER_MAX and depth_min <= y <= depth_max
-    if corridor is Section.WEST:
-        return x < TrackDimensions.CORNER_MIN and depth_min <= y <= depth_max
-    return False

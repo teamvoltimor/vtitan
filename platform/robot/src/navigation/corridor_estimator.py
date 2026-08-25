@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
     from shared.config.navigation_tuning import NavigationTuning
 
+
 def measure_corridor_width(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
@@ -129,7 +130,7 @@ def section_from_heading(yaw: float, direction: Direction) -> Section:
     heading = (math.cos(yaw), math.sin(yaw))
     return max(
         (s for (s, d) in TRAVEL_DIRS if d == direction),
-        key=lambda s: heading[0] * TRAVEL_DIRS[(s, direction)][0] + heading[1] * TRAVEL_DIRS[(s, direction)][1],
+        key=lambda s: heading[0] * TRAVEL_DIRS[(s, direction)].nx + heading[1] * TRAVEL_DIRS[(s, direction)].ny,
     )
 
 

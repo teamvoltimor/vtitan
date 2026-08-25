@@ -17,42 +17,33 @@ Geometry recap (WRO 2026, bottom-left origin, 3.0 x 3.0 m track):
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
-from shared.domain.enums import Section
 from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata, Waypoint
 
 from src.navigation.utils import wrap_angle
+
+if TYPE_CHECKING:
+    from shared.domain.enums import Section
 
 
 def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeometry:
     """Build CorridorGeometry from a per-section width dict.
 
     Needed for blind operation where widths come from CorridorWidthEstimator
-    rather than from scenario metadata.
+    rather than from scenario metadata. Delegates to the model classmethod
+    ``CorridorGeometry.from_width_dict`` (single source of truth for the
+    inner-block geometry).
     """
-    north = widths[Section.NORTH]
-    south = widths[Section.SOUTH]
-    east = widths[Section.EAST]
-    west = widths[Section.WEST]
-    south_y = south
-    north_y = TrackDimensions.MAX_COORD - north
-    west_x = west
-    east_x = TrackDimensions.MAX_COORD - east
-    return CorridorGeometry(
-        north_width_m=north,
-        south_width_m=south,
-        east_width_m=east,
-        west_width_m=west,
-        inner_block=InnerBlock(west_x, south_y, east_x, north_y),
-    )
+    return CorridorGeometry.from_width_dict(widths)
 
 
-def corridor_widths_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> CorridorGeometry:
+def corridor_widths_from_metadata(metadata: ScenarioMetadata | Mapping[Any, Any]) -> CorridorGeometry:
     """Extract corridor geometry (widths + inner block) from scenario metadata.
 
     Shared by every consumer that needs to build a :class:`TrackWalls` from a
@@ -155,7 +146,7 @@ def project_onto_path(waypoints: list[Waypoint], x: float, y: float) -> PathProj
         t = ((x - ax) * abx + (y - ay) * aby) / seg_len_sq
         t = min(1.0, max(0.0, t))
         px, py = ax + t * abx, ay + t * aby
-        dist = math.hypot(x - px, y - py)
+        dist = Waypoint(x, y).distance_to(Waypoint(px, py))
         if dist >= best_dist:
             continue
         best_dist = dist
@@ -176,11 +167,15 @@ def project_onto_path(waypoints: list[Waypoint], x: float, y: float) -> PathProj
         # frame, so fall back to the nearest waypoint and leave the offset
         # unsigned. Keeps ``cross_track_error`` meaningful on a degenerate path
         # rather than reporting a confident zero.
-        nearest = min(waypoints, key=lambda w: math.hypot(x - w.x, y - w.y), default=None)
+        nearest = min(waypoints, key=lambda w: w.distance_to(Waypoint(x, y)), default=None)
         if nearest is None:
-            return PathProjection(x=x, y=y, distance_m=math.inf, signed_offset_m=math.inf, tangent_rad=0.0, segment_index=0)
-        away = math.hypot(x - nearest.x, y - nearest.y)
-        return PathProjection(x=nearest.x, y=nearest.y, distance_m=away, signed_offset_m=away, tangent_rad=0.0, segment_index=0)
+            return PathProjection(
+                x=x, y=y, distance_m=math.inf, signed_offset_m=math.inf, tangent_rad=0.0, segment_index=0
+            )
+        away = nearest.distance_to(Waypoint(x, y))
+        return PathProjection(
+            x=nearest.x, y=nearest.y, distance_m=away, signed_offset_m=away, tangent_rad=0.0, segment_index=0
+        )
     return best
 
 
@@ -235,12 +230,10 @@ def path_turn_ahead(
     for offset in range(count):
         a = waypoints[(start + offset) % count]
         b = waypoints[(start + offset + 1) % count]
-        ax, ay = a.x, a.y
-        bx, by = b.x, b.y
-        seg_len = math.hypot(bx - ax, by - ay)
+        seg_len = a.distance_to(b)
         if seg_len == 0.0:
             continue
-        heading = math.atan2(by - ay, bx - ax)
+        heading = a.bearing_to(b)
         if first_heading is None:
             first_heading = heading
         last_heading = heading

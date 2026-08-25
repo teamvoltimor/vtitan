@@ -8,15 +8,13 @@ import pytest
 from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
-from shared.domain.models import Waypoint
+from shared.domain.models import CorridorWidthEntry, CorridorWidths, Waypoint
 
 from src.navigation.planning.waypoints import (
-    _arc_with_endpoints,
-    _build_corridor_order,
-    _corner_arc_radius,
-    _deduplicate_consecutive,
-    _rotate_to_start,
-    _straight_waypoints,
+    arc_with_endpoints,
+    corner_arc_radius,
+    deduplicate_consecutive,
+    straight_waypoints,
     calculate_waypoints,
     corridor_for_position,
     validate_path_feasibility,
@@ -31,30 +29,29 @@ def tuning():
 class TestOrderSectionsForLaps:
     """Test section ordering for lap-based navigation."""
 
-    def test_clockwise_order(self) -> None:
-        order = _build_corridor_order(Direction.CLOCKWISE)
-        assert order == [Section.EAST, Section.SOUTH, Section.WEST, Section.NORTH]
+    def test_clockwise_order_from_south(self) -> None:
+        order = Section.loop_order(Section.SOUTH, Direction.CLOCKWISE)
+        assert order == [Section.SOUTH, Section.WEST, Section.NORTH, Section.EAST]
 
-    def test_counter_clockwise_order(self) -> None:
-        order = _build_corridor_order(Direction.COUNTERCLOCKWISE)
-        assert order == [Section.EAST, Section.NORTH, Section.WEST, Section.SOUTH]
+    def test_counter_clockwise_order_from_south(self) -> None:
+        order = Section.loop_order(Section.SOUTH, Direction.COUNTERCLOCKWISE)
+        assert order == [Section.SOUTH, Section.EAST, Section.NORTH, Section.WEST]
 
-    def test_rotate_to_start(self) -> None:
-        order = [Section.EAST, Section.SOUTH, Section.WEST, Section.NORTH]
-        rotated = _rotate_to_start(order, Section.WEST)
-        assert rotated == [Section.WEST, Section.NORTH, Section.EAST, Section.SOUTH]
+    def test_loop_order_rotates_to_start(self) -> None:
+        order = Section.loop_order(Section.WEST, Direction.CLOCKWISE)
+        assert order == [Section.WEST, Section.NORTH, Section.EAST, Section.SOUTH]
 
 
 class TestGenerateCorridorWaypoints:
     """Test corridor waypoint generation."""
 
     def test_straight_waypoints_x(self) -> None:
-        pts = _straight_waypoints(1.5, is_x=True, start=0.0, end=1.0, count=3)
+        pts = straight_waypoints(1.5, is_x=True, start=0.0, end=1.0, count=3)
         assert len(pts) == 3
         assert pts == [Waypoint(1.5, 0.0), Waypoint(1.5, 0.5), Waypoint(1.5, 1.0)]
 
     def test_straight_waypoints_y(self) -> None:
-        pts = _straight_waypoints(0.5, is_x=False, start=1.0, end=2.0, count=2)
+        pts = straight_waypoints(0.5, is_x=False, start=1.0, end=2.0, count=2)
         assert len(pts) == 2
         assert pts == [Waypoint(1.0, 0.5), Waypoint(2.0, 0.5)]
 
@@ -63,8 +60,8 @@ class TestGenerateCornerArc:
     """Test corner arc waypoint generation."""
 
     def test_corner_arc_radius_appropriate(self) -> None:
-        arc = _arc_with_endpoints(
-            center=(1.0, 1.0),
+        arc = arc_with_endpoints(
+            center=Waypoint(1.0, 1.0),
             radius=0.45,
             theta_start=0.0,
             theta_end=math.pi / 2,
@@ -77,8 +74,8 @@ class TestGenerateCornerArc:
             assert dist == pytest.approx(0.45, abs=0.01)
 
     def test_corner_arc_endpoints(self) -> None:
-        arc = _arc_with_endpoints(
-            center=(1.5, 1.5),
+        arc = arc_with_endpoints(
+            center=Waypoint(1.5, 1.5),
             radius=0.45,
             theta_start=math.pi,
             theta_end=1.5 * math.pi,
@@ -116,9 +113,9 @@ class TestCornerArcRadius:
         geometry instead of turning it red.
         """
         narrow_corner = self._NARROW / 2 - self._BIAS
-        assert _corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP) == pytest.approx(narrow_corner)
+        assert corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP) == pytest.approx(narrow_corner)
         for entry, exit_ in ((self._NARROW, self._WIDE), (self._WIDE, self._NARROW), (self._WIDE, self._WIDE)):
-            assert _corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
+            assert corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
                 self._WIDE / 2 - self._BIAS
             )
 
@@ -130,19 +127,19 @@ class TestCornerArcRadius:
         rows), so this holds by construction rather than by coincidence.
         """
         for entry, exit_ in ((self._NARROW, self._WIDE), (self._WIDE, self._NARROW), (self._NARROW, self._NARROW)):
-            assert _corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
-                _corner_arc_radius(exit_, entry, self._BIAS, self._CAP)
+            assert corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
+                corner_arc_radius(exit_, entry, self._BIAS, self._CAP)
             )
 
     def test_never_exceeds_the_configured_cap(self) -> None:
         """A corridor wider than this track can present still respects the cap."""
         oversized = self._WIDE * 4
-        assert _corner_arc_radius(oversized, oversized, self._BIAS, self._CAP) == pytest.approx(self._CAP)
+        assert corner_arc_radius(oversized, oversized, self._BIAS, self._CAP) == pytest.approx(self._CAP)
 
     def test_outward_bias_widens_the_arc(self) -> None:
         """An outward bias leaves more room at the corner, so the arc may open up."""
-        inward = _corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP)
-        outward = _corner_arc_radius(self._NARROW, self._NARROW, -self._BIAS, self._CAP)
+        inward = corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP)
+        outward = corner_arc_radius(self._NARROW, self._NARROW, -self._BIAS, self._CAP)
         assert outward > inward
 
 
@@ -211,7 +208,7 @@ class TestWaypointDeduplication:
             Waypoint(0.5, 0.0),
         ]
 
-        deduped = _deduplicate_consecutive(waypoints)
+        deduped = deduplicate_consecutive(waypoints)
         assert len(deduped) == 2
 
 
@@ -221,12 +218,12 @@ def sample_metadata_open():
     return {
         "scenario_id": 0,
         "challenge_type": "open",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "narrow", "width_mm": 600},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
-        },
+        "corridor_widths": CorridorWidths(
+            north=CorridorWidthEntry(type="wide", width_mm=1000),
+            south=CorridorWidthEntry(type="narrow", width_mm=600),
+            east=CorridorWidthEntry(type="wide", width_mm=1000),
+            west=CorridorWidthEntry(type="wide", width_mm=1000),
+        ).model_dump(),
         "starting_conditions": {
             "direction": "clockwise",
             "section": "South",
@@ -242,12 +239,7 @@ def sample_metadata_obstacles():
     return {
         "scenario_id": 1,
         "challenge_type": "obstacles",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "wide", "width_mm": 1000},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
-        },
+        "corridor_widths": CorridorWidths().model_dump(),
         "starting_conditions": {
             "direction": "clockwise",
             "section": "South",

@@ -39,7 +39,7 @@ from scripts.common.motor_hold import publish_hold
 
 STEERING_TOLERANCE_DEG = 1.0
 DRIVE_MOVING_THRESHOLD_DEG_S = 5.0
-SETTLE_TIMEOUT_S = 2.0
+from scripts.common.hardware_defaults import SETTLE_TIMEOUT_S
 
 
 def _wait_for_condition(
@@ -229,7 +229,9 @@ def main() -> None:
         drive_samples.append((time.monotonic(), msg.data))
 
     topics = RosTopicConfig.load_default()
-    node.create_subscription(Float32, topics.actuators.steering_position, lambda m: latest.__setitem__("steering", m.data), 10)
+    node.create_subscription(
+        Float32, topics.actuators.steering_position, lambda m: latest.__setitem__("steering", m.data), 10
+    )
     node.create_subscription(Float32, topics.actuators.drive_speed, _on_drive, 10)
     pub = node.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, 10)
     time.sleep(0.5)  # let discovery/matching settle before the first publish

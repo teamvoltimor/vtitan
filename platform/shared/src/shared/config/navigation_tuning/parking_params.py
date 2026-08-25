@@ -35,9 +35,7 @@ class ParkingParams(BaseModel):
     PARALLEL_TOLERANCE_M: float = Field(default=0.02, validation_alias=_alias("PARALLEL_TOLERANCE_M"))
     POS_REACH_DIST_M: float = Field(default=0.04, validation_alias=_alias("POS_REACH_DIST_M"))
     DEFAULT_MAX_FRAMES: int = Field(default=400, validation_alias=_alias("DEFAULT_MAX_FRAMES"))
-    SATURATED_STEER_THRESHOLD: float = Field(
-        default=0.999, validation_alias=_alias("SATURATED_STEER_THRESHOLD")
-    )
+    SATURATED_STEER_THRESHOLD: float = Field(default=0.999, validation_alias=_alias("SATURATED_STEER_THRESHOLD"))
     SATURATION_STUCK_TICKS: int = Field(default=20, validation_alias=_alias("SATURATION_STUCK_TICKS"))
     SPEED: float = Field(default=0.12, validation_alias=_alias("SPEED"))
     MIN_LOOKAHEAD_DIST_M: float = Field(default=0.02, validation_alias=_alias("MIN_LOOKAHEAD_DIST_M"))

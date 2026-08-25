@@ -42,6 +42,7 @@ import logging
 from typing import TYPE_CHECKING, override
 
 from src.hardware.exceptions import MotorConnectionError
+from src.hardware.motors import constants as motor_const
 from src.hardware.motors.base import (
     DEFAULT_STEERING_SPEED,
     STEERING_CENTER_DEG,
@@ -52,11 +53,7 @@ from src.hardware.motors.pwm_sysfs import (
     SYSFS_PWM_ROOT,
     wait_for_pwm_channel_writable,
 )
-from src.hardware.motors.servo.config import (
-    NS_PER_US,
-    US_PER_SECOND,
-    ServoConfig,
-)
+from src.hardware.motors.servo.config import ServoConfig
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -86,7 +83,7 @@ class Driver(SteeringDriver):
         self._config = config or ServoConfig()
         # One PWM frame in nanoseconds (20 ms at 50 Hz), from the configured
         # carrier frequency rather than a module literal.
-        self._period_ns = int(US_PER_SECOND / self._config.pwm_frequency_hz) * NS_PER_US
+        self._period_ns = int(motor_const.US_PER_SECOND / self._config.pwm_frequency_hz) * motor_const.NS_PER_US
         self._position = STEERING_CENTER_DEG
         self._channel_dir: Path | None = None
         self._pulse_us: float | None = None
@@ -201,7 +198,7 @@ class Driver(SteeringDriver):
         pulse_us = self._position_to_pulse_us(position)
         if self._pulse_us is None or abs(pulse_us - self._pulse_us) >= _PULSE_EPSILON_US:
             try:
-                (self._channel_dir / "duty_cycle").write_text(str(int(pulse_us * NS_PER_US)))
+                (self._channel_dir / "duty_cycle").write_text(str(int(pulse_us * motor_const.NS_PER_US)))
             except OSError as err:
                 msg = f"PWM duty_cycle write failed: {err}"
                 raise self._fail(msg) from err

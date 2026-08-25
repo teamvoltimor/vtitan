@@ -28,7 +28,8 @@ from std_msgs.msg import String
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-DISCOVERY_SEC = 3.0
+from common.hardware_defaults import DISCOVERY_SEC
+
 # Frame width the detector works in, used to say left/centre/right.
 _FRAME_WIDTH = 640.0
 

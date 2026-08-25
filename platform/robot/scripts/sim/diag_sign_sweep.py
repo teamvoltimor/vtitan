@@ -7,6 +7,14 @@ must always be read together (see
 laps>=3 and timeouts. Tracking collisions alone has already produced one wrong
 conclusion in that log.
 
+``pass-side`` is a FIFTH number that must be read with them. The simulator ends
+a run the moment a sign is retired on its forbidden side (``cef75f2a``), and
+such a run is neither a collision nor a timeout -- before this column existed
+it vanished from every counter and the row read as though the run simply did
+not happen. ``unscored`` guards the same hole generically: if it is non-zero
+the harness cannot account for how those runs ended, and no ratio on the row
+means anything until it is explained.
+
 ``success`` is deliberately not the headline: it also requires ``parked``, and
 parking is independently blocked by chassis-vs-pocket geometry, so it stays
 0/16 regardless of any driving change. ``laps>=3`` is the driving-success
@@ -648,6 +656,27 @@ class ScenarioOutcome:
     collision_kind: CollisionKind
     collision_step: int
     steps: int
+    pass_side_violation: bool = False
+    """The run was ended by a sign passed on the forbidden side.
+
+    A THIRD terminal verdict, added to the simulator by ``cef75f2a`` and
+    invisible to every metric above it: such a run is not ``collided``, not
+    ``timed_out``, and has ``laps`` short of target, so it lands in no counter
+    at all and the RESULT row reads as if nothing happened. That is the same
+    trap as reading collisions alone -- the run failed, on the rule the
+    challenge is actually scored by, and the number has to be on the row.
+    """
+
+    pass_side_signs: tuple[int, ...] = ()
+    """Indices of the signs passed on the wrong side."""
+
+    stuck: bool = False
+    """The simulator's no-progress bailout fired — a FOURTH terminal verdict.
+
+    Found by ``unscored`` after pass-side was added, which is what that column
+    is for: it was the residue left once collisions, timeouts and pass-side
+    were all accounted for."""
+
     uturns: int = 0
     """Heading reversals detected during the run — see ``_UTurnDetector``."""
 
@@ -1021,7 +1050,7 @@ def _sign_mask_attribution(
 
     router = sim.navigator.sign_router
     routed = router.routed_sign_positions if router is not None else []
-    masked = any(math.hypot(rx - struck_x, ry - struck_y) < _SIGN_MATCH_DIST_M for rx, ry in routed)
+    masked = any(math.hypot(wp.x - struck_x, wp.y - struck_y) < _SIGN_MATCH_DIST_M for wp in routed)
 
     color_match = None
     if masked and router is not None:
@@ -1406,6 +1435,9 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         collision_kind=kind,
         collision_step=result.steps,
         steps=result.steps,
+        pass_side_violation=result.pass_side_violation,
+        pass_side_signs=tuple(result.pass_side_violation_signs),
+        stuck=result.stuck,
         uturns=len(uturns.events),
         corner_uturns=uturns.corner_events,
         escape_starts=escapes.starts,
@@ -1481,6 +1513,34 @@ class SweepResult:
     def timeouts(self) -> int:
         """Scenarios that ran out of step budget."""
         return sum(1 for o in self.outcomes if o.timed_out)
+
+    @property
+    def pass_side_violations(self) -> int:
+        """Scenarios ended by passing a sign on the forbidden side."""
+        return sum(1 for o in self.outcomes if o.pass_side_violation)
+
+    @property
+    def stuck(self) -> int:
+        """Scenarios ended by the simulator's no-progress bailout."""
+        return sum(1 for o in self.outcomes if o.stuck)
+
+    @property
+    def unscored(self) -> int:
+        """Runs that ended in none of the reported terminal states.
+
+        A non-zero value means the harness cannot explain how those runs
+        ended, which invalidates every ratio on the row -- read it before
+        anything else.
+        """
+        return sum(
+            1
+            for o in self.outcomes
+            if not o.collided
+            and not o.timed_out
+            and not o.pass_side_violation
+            and not o.stuck
+            and o.laps < CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS
+        )
 
     @property
     def escape_starts(self) -> int:
@@ -1637,6 +1697,9 @@ class SweepResult:
             f"laps>=3 {self.laps_ge_3:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"pass-side {self.pass_side_violations:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"stuck {self.stuck:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"unscored {self.unscored:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)  "
             f"escapes {self.escape_starts:>4} ({self._escapes_per_lap:.2f}/lap, "
             f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)  "
@@ -1655,6 +1718,7 @@ class SweepResult:
         return "\n".join(
             f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
             f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))} "
+            f"pass_side={o.pass_side_violation}{list(o.pass_side_signs) or ''} "
             f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
             f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)} "
             f"color_match={o.sign_color_match} "
@@ -2230,7 +2294,7 @@ nothing sits near the threshold for it to arbitrate.
 _WIDE_CORNER_MIN_R_M = 0.25
 """Arc radius above which a corner counts as WIDE.
 
-``_corner_arc_radius`` returns ``width/2 - center_bias``, so with the shipped
+``corner_arc_radius`` returns ``width/2 - center_bias``, so with the shipped
 0.15 m obstacles bias the two WRO corridor widths plan 0.35 m (1.0 m) and
 0.15 m (0.6 m). The threshold sits between them rather than on either, so it
 survives a belief that is off by a few centimetres.
@@ -2266,6 +2330,21 @@ class _Approach:
 
     gap_m: float
     """Along-path metres from the laned waypoint to the closest approach."""
+
+    clearance_m: float
+    """Metres from the sign to the plan, in the plane, at that closest point.
+
+    The absolute quantity ``delivered_frac`` cannot express. A fraction of the
+    plateau says how much of the lane arrived, not how much room is left: a sign
+    whose plateau was never large reads the same +0.00x whether the plan misses
+    it by 20 cm or grazes it by 5. Both live on one object so the on-arc
+    population that PASSES and the one that COLLIDES can be separated by the
+    room the plan actually leaves, at the point where the chassis passes.
+
+    Unsigned, and taken from the plan the navigator holds rather than the driven
+    track, so tracking error is not in it -- this is the room the PLAN leaves,
+    and the chassis then spends some of it.
+    """
 
     in_corner_box: bool
     """``_in_corner_zone``: both coordinates outside the inner square.
@@ -2311,7 +2390,7 @@ class _Approach:
     arc_radius_m: float | None = None
     """Radius of the arc the closest point sits on, when it sits on one.
 
-    A frame-free readout of the believed corridor width: ``_corner_arc_radius``
+    A frame-free readout of the believed corridor width: ``corner_arc_radius``
     returns ``width/2 - center_bias`` until the ``ARC_RADIUS`` cap binds, so the
     radius inverts to the belief without ever naming a section. Taken from the
     UNLANED base path, whose arc vertices lie exactly on their circle -- the
@@ -2418,7 +2497,7 @@ def _approach_offset(
     """
     if closest is None or waypoint_index is None or not plan or waypoint_index >= len(plan):
         return None
-    _, hit_x, hit_y, segment = closest
+    clearance, hit_x, hit_y, segment = closest
     if segment >= len(plan):
         return None
     # Cumulative once rather than `_path_station_m` per lookup: the bend scan
@@ -2448,6 +2527,7 @@ def _approach_offset(
             radius = _circumradius(base[segment - 1], base[segment], base[segment + 1])
     return _Approach(
         gap_m=gap,
+        clearance_m=clearance,
         in_corner_box=_in_corner_zone(hit_x, hit_y),
         on_arc=on_arc,
         bend_gap_m=bend_gap,
@@ -2720,8 +2800,8 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             routed = router.routed_sign_positions
             if not routed:
                 return
-            nearest = min(routed, key=lambda p: math.hypot(p[0] - pose.x, p[1] - pose.y))
-            if math.hypot(nearest[0] - pose.x, nearest[1] - pose.y) > _SIGN_PASS_WINDOW_M:
+            nearest = min(routed, key=lambda p: math.hypot(p.x - pose.x, p.y - pose.y))
+            if math.hypot(nearest.x - pose.x, nearest.y - pose.y) > _SIGN_PASS_WINDOW_M:
                 return
 
             near_abs.append(crosstrack)
@@ -2779,7 +2859,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             struck_middle = _is_middle_sign(struck.x, struck.y)
             bx, by = _into_believed_frame(sim, (struck.x, struck.y), result.final_pose)
             if routed:
-                estimate_err = min(math.hypot(rx - bx, ry - by) for rx, ry in routed)
+                estimate_err = min(math.hypot(wp.x - bx, wp.y - by) for wp in routed)
             # The sign that ended the run is not a pass, and it is the one the
             # control exists to be compared AGAINST -- leaving it in would
             # contaminate the control with the very population it contrasts.
@@ -2936,7 +3016,7 @@ def _report_approach_decomposition(columns: tuple[tuple[str, list[_Approach]], .
 
     ``arc radius`` is the second, and it is the width belief without the frame
     risk of reading a section label under a rotational lock:
-    ``_corner_arc_radius`` returns ``width/2 - center_bias`` until the
+    ``corner_arc_radius`` returns ``width/2 - center_bias`` until the
     ``ARC_RADIUS`` cap binds, so bucketing by radius buckets by belief. A band
     that survives inside every radius bucket is not the width; one that
     disappears is.
@@ -3050,11 +3130,18 @@ def _report_entry_split(columns: tuple[tuple[str, list[_Approach]], ...]) -> Non
             if not sub:
                 continue
             delivered = [a.delivered_frac for a in sub]
+            room = [a.clearance_m for a in sub]
             print(
                 f"LANE-SPLIT {label:<11} {'ON ARC ' if on_arc else 'straight':<9} "
                 f"n={len(sub):>5}  delivered median {percentile(delivered, 0.5):+5.2f}x  "
                 f"p10 {percentile(delivered, 0.1):+5.2f}x  "
-                f"approach median {percentile([a.gap_m for a in sub], 0.5) * 100:6.2f}cm",
+                f"approach median {percentile([a.gap_m for a in sub], 0.5) * 100:6.2f}cm  "
+                # The absolute reading the fraction cannot give. p10 as well as
+                # the median because a collision is decided in the tail: half the
+                # population clearing 20 cm says nothing about the tenth that
+                # clears 2, and it is that tenth the chassis crashes in.
+                f"clearance median {percentile(room, 0.5) * 100:6.2f}cm  "
+                f"p10 {percentile(room, 0.1):6.4f}m",
                 flush=True,
             )
 
@@ -3072,7 +3159,7 @@ def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -
     ``width_errors`` shifts every corridor's believed width by the given
     metres before planning, leaving the signs where they truly are. That is the
     one belief the geometry is most sensitive to: the width sets the centreline
-    AND the corner arc radius (``_corner_arc_radius``, ``w/2 - bias`` until the
+    AND the corner arc radius (``corner_arc_radius``, ``w/2 - bias`` until the
     ``ARC_RADIUS`` cap binds), so it decides where the waypoint grid falls
     relative to a sign's depth.
 
@@ -3679,7 +3766,7 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # The corner dead zone, measured at the tuned activation distance. Tracing
     # the 1.20->1.30 cliff showed deform_waypoint returning the waypoint
     # UNTOUCHED 0.20 m from a sign at grid depth 1.0: the lookahead target had
-    # crossed into the corner, _is_squarely_in_corridor rejected every
+    # crossed into the corner, is_squarely_in_corridor rejected every
     # candidate, and avoidance switched itself off during the final approach.
     # This buffer is how far past the corner span a target may sit and still be
     # deformed, so it is the direct control on that dead zone.
@@ -3837,7 +3924,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("sighted, pin on", park=False, depth_pin=True),
     ],
     # Item 2a: the 11 wall collisions the depth pin introduced (0 -> 11), and
-    # whether the robot-position squareness re-check in `_pin_depth` closes them.
+    # whether the robot-position squareness re-check in `pin_depth` closes them.
     # That re-check landed 2026-08-11 inside an unrelated commit, ten days after
     # the 11 was measured, so nothing here has ever been read against it.
     #

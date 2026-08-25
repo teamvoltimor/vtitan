@@ -66,7 +66,9 @@ def _jobs(requested: int) -> int:
     return requested or max(1, (os.cpu_count() or 4) - _SPARE_CORES)
 
 
-def _build_path(width_m: float, direction: str, section: str, laps: int, arc_radius: float | None) -> list[tuple[float, float]]:
+def _build_path(
+    width_m: float, direction: str, section: str, laps: int, arc_radius: float | None
+) -> list[tuple[float, float]]:
     """Build the full multi-lap waypoint path for a uniform corridor-width belief."""
     tuning = NavigationTuning.load_default()
     widths = CorridorWidths(**{s.value: CorridorWidthEntry(width_mm=round(width_m * 1000)) for s in Section})
@@ -95,7 +97,9 @@ def _idx_of(path: list[tuple[float, float]]) -> dict[tuple[float, float], int]:
     return {(round(x, 2), round(y, 2)): i for i, (x, y) in enumerate(path)}
 
 
-def _replay_and_compare(bag_dir: Path, width_m: float, arc: float | None, direction: str, section: str, laps: int) -> None:
+def _replay_and_compare(
+    bag_dir: Path, width_m: float, arc: float | None, direction: str, section: str, laps: int
+) -> None:
     """Default mode: build one path, replay select_target_point, report match/mismatch (tmp_replay_sel.py)."""
     path = _build_path(width_m, direction, section, laps, arc)
     ctrl = WaypointController.from_tuning(NavigationTuning.load_default())
@@ -119,14 +123,16 @@ def _replay_and_compare(bag_dir: Path, width_m: float, arc: float | None, direct
         else:
             mismatch += 1
             if len(examples) < _MAX_MISMATCH_EXAMPLES:
-                examples.append((
-                    t,
-                    s.waypoint_index,
-                    (round(s.pose_x, 2), round(s.pose_y, 2), round(s.pose_yaw, 2)),
-                    s.lookahead_distance_m,
-                    f"logged {logged[0]:.2f},{logged[1]:.2f} (idx {idx_of.get((round(logged[0], 2), round(logged[1], 2)), '?')})",
-                    f"replay {got[0]:.2f},{got[1]:.2f} (idx {idx_of.get((round(got[0], 2), round(got[1], 2)), '?')})",
-                ))
+                examples.append(
+                    (
+                        t,
+                        s.waypoint_index,
+                        (round(s.pose_x, 2), round(s.pose_y, 2), round(s.pose_yaw, 2)),
+                        s.lookahead_distance_m,
+                        f"logged {logged[0]:.2f},{logged[1]:.2f} (idx {idx_of.get((round(logged[0], 2), round(logged[1], 2)), '?')})",
+                        f"replay {got[0]:.2f},{got[1]:.2f} (idx {idx_of.get((round(got[0], 2), round(got[1], 2)), '?')})",
+                    )
+                )
 
     print(f"selection replay: match {match}  mismatch {mismatch}")
     print(f"logged waypoint_index values: {logged_idx_seen.most_common(6)}")
@@ -134,7 +140,9 @@ def _replay_and_compare(bag_dir: Path, width_m: float, arc: float | None, direct
         print(" ", e)
 
 
-def _candidate_scan(bag_dir: Path, width_m: float, arc: float | None, direction: str, section: str, laps: int, tick: int) -> None:
+def _candidate_scan(
+    bag_dir: Path, width_m: float, arc: float | None, direction: str, section: str, laps: int, tick: int
+) -> None:
     """Per-tick SKIP/RETURN reasoning trace through the forward candidate search (tmp_probe_tick.py)."""
     path = _build_path(width_m, direction, section, laps, arc)
     n = len(path)
@@ -182,10 +190,9 @@ def _candidate_scan(bag_dir: Path, width_m: float, arc: float | None, direction:
     print(f"LOGGED target: ({s.steer_target_x:.2f},{s.steer_target_y:.2f}) idx={target_idx}")
 
 
-# --- --solve-rotation: parallel width x arc grid, then parallel rotation-index search. ---
-
-
-def _grid_worker(payload: tuple[float, float, str, str, int, list[tuple[float, float]]]) -> tuple[float, float, int, int, list[tuple[float, float]]]:
+def _grid_worker(
+    payload: tuple[float, float, str, str, int, list[tuple[float, float]]],
+) -> tuple[float, float, int, int, list[tuple[float, float]]]:
     """Build one (width, arc) path and count how many logged targets it covers. Module-level so it can be pickled."""
     width, arc, direction, section, laps, logged_points = payload
     path = _build_path(width, direction, section, laps, arc)
@@ -194,7 +201,9 @@ def _grid_worker(payload: tuple[float, float, str, str, int, list[tuple[float, f
     return width, arc, covered, len(path), path
 
 
-def _rotation_worker(payload: tuple[int, list[tuple[float, float]], list[tuple[float, float, float, int, float, float, float]]]) -> tuple[int, int]:
+def _rotation_worker(
+    payload: tuple[int, list[tuple[float, float]], list[tuple[float, float, float, int, float, float, float]]],
+) -> tuple[int, int]:
     """Count matches for one rotation index k. Module-level so it can be pickled."""
     k, path, nd_primitive = payload
     ctrl = WaypointController.from_tuning(NavigationTuning.load_default())
@@ -207,7 +216,9 @@ def _rotation_worker(payload: tuple[int, list[tuple[float, float]], list[tuple[f
     return k, match
 
 
-def _solve_rotation(bag_dir: Path, direction: str, section: str, laps: int, widths: list[float], arcs: list[float], jobs: int) -> None:
+def _solve_rotation(
+    bag_dir: Path, direction: str, section: str, laps: int, widths: list[float], arcs: list[float], jobs: int
+) -> None:
     """Brute-force (width, arc, rotation) calibration against the bag (tmp_solve_idx.py), parallelized."""
     nd = _usable_rows(bag_dir)
     print(f"normal_drive ticks usable: {len(nd)}")
@@ -234,7 +245,10 @@ def _solve_rotation(bag_dir: Path, direction: str, section: str, laps: int, widt
     print(f"\nbest path: width={best_width} arc={best_arc} len={len(best_path)}")
 
     n = len(best_path)
-    nd_primitive = [(s.pose_x, s.pose_y, s.pose_yaw, s.waypoint_index, s.lookahead_distance_m, s.steer_target_x, s.steer_target_y) for _, s in nd]
+    nd_primitive = [
+        (s.pose_x, s.pose_y, s.pose_yaw, s.waypoint_index, s.lookahead_distance_m, s.steer_target_x, s.steer_target_y)
+        for _, s in nd
+    ]
     rotation_payloads = [(k, best_path, nd_primitive) for k in range(n)]
     rotation_results: list[tuple[int, int]] = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -250,10 +264,9 @@ def _solve_rotation(bag_dir: Path, direction: str, section: str, laps: int, widt
     )
 
 
-# --- --try-reversed: parallel 3-way path-variant search. ---
-
-
-def _variant_worker(payload: tuple[str, list[tuple[float, float]], int, list[tuple[float, float, float, int, float, float, float]]]) -> tuple[str, int, int]:
+def _variant_worker(
+    payload: tuple[str, list[tuple[float, float]], int, list[tuple[float, float, float, int, float, float, float]]],
+) -> tuple[str, int, int]:
     """Best rotation match for one path variant. Module-level so it can be pickled."""
     name, path, k, nd_primitive = payload
     ctrl = WaypointController.from_tuning(NavigationTuning.load_default())
@@ -276,7 +289,10 @@ def _try_reversed(bag_dir: Path, width_m: float, arc: float | None, section: str
     if not nd:
         print("no usable normal_drive ticks")
         return
-    nd_primitive = [(s.pose_x, s.pose_y, s.pose_yaw, s.waypoint_index, s.lookahead_distance_m, s.steer_target_x, s.steer_target_y) for _, s in nd]
+    nd_primitive = [
+        (s.pose_x, s.pose_y, s.pose_yaw, s.waypoint_index, s.lookahead_distance_m, s.steer_target_x, s.steer_target_y)
+        for _, s in nd
+    ]
 
     print(f"cw[0..3]  = {[(round(x, 2), round(y, 2)) for x, y in cw[:4]]}")
     print(f"ccw[0..3] = {[(round(x, 2), round(y, 2)) for x, y in ccw[:4]]}")
@@ -313,17 +329,37 @@ def main() -> None:
         default=CorridorDimensions.NARROW,
         help=f"uniform corridor width (m) for the reconstructed path (default: track.toml narrow width, {CorridorDimensions.NARROW} m)",
     )
-    parser.add_argument("--arc", type=float, default=None, help="corner arc radius ceiling (m); default is NavigationTuning's own default")
+    parser.add_argument(
+        "--arc",
+        type=float,
+        default=None,
+        help="corner arc radius ceiling (m); default is NavigationTuning's own default",
+    )
     parser.add_argument("--direction", choices=("clockwise", "counterclockwise"), default="clockwise")
     parser.add_argument("--section", choices=("north", "south", "east", "west"), default="south")
     parser.add_argument("--laps", type=int, default=1)
-    parser.add_argument("--candidate-scan", action="store_true", help="per-tick SKIP/RETURN reasoning trace (tmp_probe_tick.py)")
-    parser.add_argument("--tick", type=int, default=0, help="which usable tick to trace in detail under --candidate-scan")
-    parser.add_argument("--solve-rotation", action="store_true", help="brute-force width/arc/rotation calibration (tmp_solve_idx.py)")
-    parser.add_argument("--widths", type=str, default="0.60,0.70,0.80,0.90,1.00", help="comma-separated width grid for --solve-rotation")
+    parser.add_argument(
+        "--candidate-scan", action="store_true", help="per-tick SKIP/RETURN reasoning trace (tmp_probe_tick.py)"
+    )
+    parser.add_argument(
+        "--tick", type=int, default=0, help="which usable tick to trace in detail under --candidate-scan"
+    )
+    parser.add_argument(
+        "--solve-rotation", action="store_true", help="brute-force width/arc/rotation calibration (tmp_solve_idx.py)"
+    )
+    parser.add_argument(
+        "--widths", type=str, default="0.60,0.70,0.80,0.90,1.00", help="comma-separated width grid for --solve-rotation"
+    )
     parser.add_argument("--arcs", type=str, default="0.25,0.45", help="comma-separated arc grid for --solve-rotation")
-    parser.add_argument("--try-reversed", action="store_true", help="test CW/CCW/reversed-path hypotheses (tmp_reversed.py)")
-    parser.add_argument("--jobs", type=int, default=0, help="worker processes for the brute-force searches; 0 picks cores minus a couple")
+    parser.add_argument(
+        "--try-reversed", action="store_true", help="test CW/CCW/reversed-path hypotheses (tmp_reversed.py)"
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        help="worker processes for the brute-force searches; 0 picks cores minus a couple",
+    )
     args = parser.parse_args()
 
     if args.candidate_scan:

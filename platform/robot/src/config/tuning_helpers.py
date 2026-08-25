@@ -7,7 +7,7 @@ across every navigation/simulation component that accepts an optional
 
 from __future__ import annotations
 
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol, Self
 
 from shared.config.navigation_tuning import NavigationTuning
 
@@ -19,7 +19,7 @@ def get_tuning(tuning: NavigationTuning | None) -> NavigationTuning:
 
 class _ConstantsFromTuning(Protocol):
     @classmethod
-    def from_tuning(cls, tuning: NavigationTuning) -> _ConstantsFromTuning: ...
+    def from_tuning(cls, tuning: NavigationTuning) -> Self: ...
 
 
 class TuningContext[C: _ConstantsFromTuning]:
@@ -35,7 +35,7 @@ class TuningContext[C: _ConstantsFromTuning]:
             _constants_cls = _FooConstants
     """
 
-    _constants_cls: ClassVar[type]
+    _constants_cls: ClassVar[type[C]]
 
     def __init__(self, tuning: NavigationTuning | None = None) -> None:
         self.tuning = get_tuning(tuning)

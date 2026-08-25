@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from pydantic_settings import SettingsConfigDict
 from shared.domain.enums import GMR_CLASS_NAMES
-from shared.domain.models import Detection, SignColor
+from shared.domain.models import BBox, Detection, SignColor
 
 from src.hardware.hailo.inferences import iter_nms_by_class
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
@@ -29,9 +29,7 @@ _LETTERBOX_PAD_VALUE = 114
 # Derived from the one declaration of the detector's class order, rather than
 # restated here -- this map and the driver's id-to-name map drifted apart from
 # it once already, and a mismatch swaps red for green silently.
-DEFAULT_CLASS_TO_COLOR: dict[int, SignColor] = {
-    class_id: SignColor(name) for class_id, name in GMR_CLASS_NAMES.items()
-}
+DEFAULT_CLASS_TO_COLOR: dict[int, SignColor] = {class_id: SignColor(name) for class_id, name in GMR_CLASS_NAMES.items()}
 
 
 class BBoxFormat(Enum):
@@ -87,20 +85,21 @@ def _detection_from_bbox(color: SignColor, bbox: tuple[float, float, float, floa
     """Build a Detection from a raw (x1, y1, x2, y2) bbox and its detected color.
 
     Shared by both detector backends so the bbox-center/width/height/area
-    derivation exists in exactly one place.
+    derivation exists in exactly one place. The values are derived from a
+    typed :class:`~shared.domain.models.BBox` so they cannot drift from the
+    box geometry.
     """
-    x1, y1, x2, y2 = bbox
-    w = x2 - x1
-    h = y2 - y1
+    box = BBox(x_min=bbox[0], y_min=bbox[1], x_max=bbox[2], y_max=bbox[3])
+    center = box.center
     return Detection(
         class_name=color,
         confidence=confidence,
         bbox=bbox,
-        x=(x1 + x2) / 2,
-        y=(y1 + y2) / 2,
-        width=w,
-        height=h,
-        area=w * h,
+        x=center.x,
+        y=center.y,
+        width=box.width,
+        height=box.height,
+        area=box.area,
     )
 
 
@@ -156,7 +155,7 @@ class LocalYoloDetector(DetectorBase):
             config: DetectorConfig with model path and class mappings.
                 If None, uses defaults.
         """
-        from ultralytics import YOLO  # noqa: PLC0415
+        from ultralytics import YOLO
 
         if config is None:
             config = DetectorConfig(class_to_color=DEFAULT_CLASS_TO_COLOR)

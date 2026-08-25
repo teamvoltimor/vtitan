@@ -5,17 +5,16 @@ from __future__ import annotations
 import math
 
 import pytest
+from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation.control.controllers.waypoint_controller import WaypointController
 
 
 def _make_controller(**overrides) -> WaypointController:
-    kwargs = {
-        "max_steering_angle": 0.5236,
-        "max_steering_rate": 2.0,
-    }
-    kwargs.update(overrides)
-    return WaypointController(**kwargs)
+    controller = WaypointController.from_tuning(NavigationTuning.load_default())
+    for key, value in overrides.items():
+        setattr(controller, key, value)
+    return controller
 
 
 def test_large_angle_error_is_rate_limited_across_ticks():

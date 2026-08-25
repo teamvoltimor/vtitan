@@ -42,7 +42,7 @@ _CONFIDENCE = 0.25
 def _observe(sign_map: ObservedSignMap, signs: list[SignSpec], robot_pos, robot_yaw, times: int = 1) -> None:
     """Feed ``times`` identical frames of emulated observations into the map."""
     for _ in range(times):
-        sign_map.observe(emulate_sign_observations(signs, robot_pos, robot_yaw), Waypoint(*robot_pos))
+        sign_map.observe(emulate_sign_observations(signs, Waypoint(*robot_pos), robot_yaw), Waypoint(*robot_pos))
 
 
 def _publish(sign_map: ObservedSignMap) -> list[SignSpec]:
@@ -193,7 +193,7 @@ class TestColorVote:
         sign = SignSpec(1.0, 0.4, "red")
         pose, yaw = (1.0, 1.0), -math.pi / 2
 
-        truthful = emulate_sign_observations([sign], pose, yaw)
+        truthful = emulate_sign_observations([sign], Waypoint(*pose), yaw)
         flipped = [replace(o, color=SignColor.GREEN) for o in truthful]
 
         for _ in range(4):

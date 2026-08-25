@@ -24,7 +24,7 @@ import math
 import pytest
 from shared.config.constants import RobotSpecs
 
-from src.simulation.kinematics import AckermannKinematics, AckermannState
+from src.simulation.kinematics import AckermannKinematics, AckermannState, wheel_poses
 from src.simulation.track_model import _rect_corners
 
 _DT = 0.05
@@ -84,14 +84,56 @@ class TestCounterPhaseDoublesTheYawRate:
         assert RobotSpecs.REAR_STEER_RATIO == 1.0
 
 
+class TestWheelPosesShowTheCounterPhase:
+    """``wheel_poses`` exists so RViz can draw what this file asserts.
+
+    Until 2026-08-22 the live visualizer drew the robot as a single rigid box,
+    so the property this whole module is about -- the two axles turning against
+    each other -- was the one thing you could not see while watching a run.
+    """
+
+    def test_the_axles_steer_in_opposite_directions(self):
+        front_left, front_right, rear_left, rear_right = wheel_poses(math.radians(20))
+
+        assert front_left.steer == pytest.approx(math.radians(20))
+        assert rear_left.steer == pytest.approx(-math.radians(20))
+        assert front_right.steer == pytest.approx(front_left.steer), "one servo per axle"
+        assert rear_right.steer == pytest.approx(rear_left.steer), "one servo per axle"
+
+    def test_the_rear_angle_scales_with_the_ratio(self):
+        for ratio in (0.0, 0.5, 1.0):
+            *_, rear_left, _ = wheel_poses(math.radians(20), rear_steer_ratio=ratio)
+            assert rear_left.steer == pytest.approx(-math.radians(20) * ratio), f"ratio={ratio}"
+
+    def test_the_wheels_sit_on_the_measured_axle_geometry(self):
+        """Straight from robot.toml, and centre-referenced like AckermannState."""
+        front_left, front_right, rear_left, rear_right = wheel_poses(0.0)
+
+        assert front_left.x == pytest.approx(+RobotSpecs.WHEELBASE / 2)
+        assert rear_left.x == pytest.approx(-RobotSpecs.WHEELBASE / 2)
+        assert front_left.y == pytest.approx(+RobotSpecs.TRACK_WIDTH / 2)
+        assert front_right.y == pytest.approx(-RobotSpecs.TRACK_WIDTH / 2)
+        assert rear_right.y == pytest.approx(-RobotSpecs.TRACK_WIDTH / 2)
+        assert all(w.steer == 0.0 for w in (front_left, front_right, rear_left, rear_right))
+
+    def test_the_names_match_the_urdf_links(self):
+        """So the marker view and wro_robot.urdf.xacro can be lined up by eye."""
+        assert [w.name for w in wheel_poses(0.0)] == [
+            "front_left_wheel",
+            "front_right_wheel",
+            "rear_left_wheel",
+            "rear_right_wheel",
+        ]
+
+
 class TestRotationIsAboutTheChassisCentre:
     """Why (x, y) is the centre, and why the tail swings as far as the nose."""
 
     def test_the_collision_rectangle_is_centred_on_the_pose(self):
         corners = _rect_corners(0.0, 0.0, 0.0, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
 
-        xs = [x for x, _ in corners]
-        ys = [y for _, y in corners]
+        xs = [c.x for c in corners]
+        ys = [c.y for c in corners]
         assert min(xs) == pytest.approx(-RobotSpecs.LENGTH / 2)
         assert max(xs) == pytest.approx(+RobotSpecs.LENGTH / 2)
         assert min(ys) == pytest.approx(-RobotSpecs.WIDTH / 2)
@@ -108,7 +150,7 @@ class TestRotationIsAboutTheChassisCentre:
         yaw = math.radians(30)
         corners = _rect_corners(0.0, 0.0, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
 
-        lateral = sorted(y for _, y in corners)
+        lateral = sorted(c.y for c in corners)
         assert lateral[0] == pytest.approx(-lateral[-1]), "footprint is not symmetric about the pose"
 
     def test_lateral_half_extent_matches_the_clearance_formula(self):
@@ -120,7 +162,7 @@ class TestRotationIsAboutTheChassisCentre:
         for degrees in (0, 20, 28, 40, 60, 84):
             yaw = math.radians(degrees)
             corners = _rect_corners(0.0, 0.0, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
-            measured = max(y for _, y in corners)
+            measured = max(c.y for c in corners)
             predicted = (RobotSpecs.LENGTH / 2) * abs(math.sin(yaw)) + (RobotSpecs.WIDTH / 2) * abs(math.cos(yaw))
 
             assert measured == pytest.approx(predicted), f"at {degrees} deg"

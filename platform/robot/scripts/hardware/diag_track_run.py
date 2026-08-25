@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
+from common.hardware_defaults import DISCOVERY_SEC, ESTOP_SETTLE_SEC
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
@@ -46,10 +47,8 @@ _STEERING_BIAS_THRESHOLD_RAD = 0.02
 _SAMPLES_TO_DISPLAY_STEERING = 12
 _SAMPLES_TO_DISPLAY_CLEARANCES = 8
 _BAR_SCALE_FACTOR = 20
-_DISCOVERY_SETTLE_TIME_S = 3.0
 _SPIN_TIMEOUT_DISCOVERY_S = 0.1
 _SPIN_TIMEOUT_RUN_S = 0.05
-_ESTOP_SETTLE_TIME_S = 2.0
 _DEFAULT_RUN_SECONDS = 20.0
 
 
@@ -158,7 +157,7 @@ def main() -> None:
     try:
         # Let discovery settle before pressing anything, or the start event is
         # published into a graph the state machine has not joined yet.
-        deadline = time.monotonic() + _DISCOVERY_SETTLE_TIME_S
+        deadline = time.monotonic() + DISCOVERY_SEC
         while time.monotonic() < deadline:
             rclpy.spin_once(probe, timeout_sec=_SPIN_TIMEOUT_DISCOVERY_S)
 
@@ -170,7 +169,7 @@ def main() -> None:
         # Always, even if the run looked fine: nothing here should be able to
         # leave the robot driving once this script exits.
         probe.press("long_press")
-        deadline = time.monotonic() + _ESTOP_SETTLE_TIME_S
+        deadline = time.monotonic() + ESTOP_SETTLE_SEC
         while time.monotonic() < deadline:
             rclpy.spin_once(probe, timeout_sec=_SPIN_TIMEOUT_RUN_S)
     finally:

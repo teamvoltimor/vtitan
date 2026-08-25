@@ -18,6 +18,19 @@ class EscapeManeuverParams(BaseModel):
     (K-turn, slalom) to clear obstacles and resume navigation.
 
     Attributes:
+        POSE_TRAIL_MIN_STEP_M: Spacing between recorded breadcrumbs on the
+            pose trail a retrace-reverse follows. Thins a stationary or
+            creeping robot's trail, which would otherwise fill the buffer with
+            one position, without dropping resolution on a moving one. Note
+            this is a distance-per-tick threshold and so interacts with speed:
+            at 0.156 m/s and 20 Hz the chassis advances ~0.008 m per tick and
+            the thinning bites, while at 0.234 m/s it advances ~0.012 m and
+            nothing is thinned at all. A module constant until 2026-08-22,
+            which meant the interaction was invisible and the value could not
+            be moved with the profile that changed the speed
+        POSE_TRAIL_LEN: Breadcrumbs kept, oldest evicted first. ~1.3 m of
+            travel at the default spacing, comfortably more than any retrace
+            distance worth driving
         REV_SPEED: Reverse speed during escapes (m/s, negative)
         REV_STEER_DEG: Road-wheel steering angle held while reversing out.
             Named ``REV_STEERING_SCALE`` until 2026-08-21, which was doubly
@@ -53,6 +66,8 @@ class EscapeManeuverParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    POSE_TRAIL_MIN_STEP_M: float = Field(default=0.01, gt=0.0, validation_alias=_alias("POSE_TRAIL_MIN_STEP_M"))
+    POSE_TRAIL_LEN: int = Field(default=128, gt=0, validation_alias=_alias("POSE_TRAIL_LEN"))
     REV_SPEED: float = Field(default=-0.20, validation_alias=_alias("REV_SPEED"))  # Reverse speed
     # 44.0 deg is what the previous normalised 0.8 meant at the bench-measured
     # 55 deg road-wheel limit, so this conversion changed no behaviour.
@@ -70,17 +85,13 @@ class EscapeManeuverParams(BaseModel):
     STUCK_MOVE_THRESHOLD: float = Field(
         default=0.03, validation_alias=_alias("STUCK_MOVE_THRESHOLD")
     )  # 3cm movement threshold
-    STUCK_TIMEOUT_FRAMES: int = Field(
-        default=40, validation_alias=_alias("STUCK_TIMEOUT_FRAMES")
-    )  # ~2 seconds at 20Hz
+    STUCK_TIMEOUT_FRAMES: int = Field(default=40, validation_alias=_alias("STUCK_TIMEOUT_FRAMES"))  # ~2 seconds at 20Hz
     # 16.5 deg == the previous normalised 0.3 at the 55 deg road-wheel limit.
     SIDE_CORRECTION_STEER_DEG: float = Field(default=16.5, validation_alias=_alias("SIDE_CORRECTION_STEER_DEG"))
     SIDE_CORRECTION_SPEED: float = Field(default=0.1, validation_alias=_alias("SIDE_CORRECTION_SPEED"))
     SIDE_CORRECTION_FRAMES: int = Field(default=4, validation_alias=_alias("SIDE_CORRECTION_FRAMES"))
     ESCALATE_AFTER_ATTEMPTS: int = Field(default=3, validation_alias=_alias("ESCALATE_AFTER_ATTEMPTS"))
-    ESCAPE_SIDE_COMMIT_ATTEMPTS: int = Field(
-        default=2, ge=1, validation_alias=_alias("ESCAPE_SIDE_COMMIT_ATTEMPTS")
-    )
+    ESCAPE_SIDE_COMMIT_ATTEMPTS: int = Field(default=2, ge=1, validation_alias=_alias("ESCAPE_SIDE_COMMIT_ATTEMPTS"))
     MAX_ESCAPE_FRAMES: int = Field(default=20, validation_alias=_alias("MAX_ESCAPE_FRAMES"))
     STUCK_CONFIRMATION_CHECKS: int = Field(default=3, validation_alias=_alias("STUCK_CONFIRMATION_CHECKS"))
     STUCK_ESCALATION_FRAMES_PER_ATTEMPT: int = Field(
@@ -109,6 +120,4 @@ class EscapeManeuverParams(BaseModel):
 
     def side_correction_steer_norm(self) -> float:
         """Side-threat correction steering as a normalised actuator command."""
-        return angle_rad_to_steering_norm(
-            math.radians(self.SIDE_CORRECTION_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE
-        )
+        return angle_rad_to_steering_norm(math.radians(self.SIDE_CORRECTION_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE)

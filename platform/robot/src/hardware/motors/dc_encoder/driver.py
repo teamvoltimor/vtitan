@@ -24,11 +24,12 @@ import time
 from typing import TYPE_CHECKING
 
 from src.hardware.exceptions import MotorConnectionError
+from src.hardware.motors import constants as motor_const
 from src.hardware.motors.base import DriveOdometry, EncodedDriveDriver
 from src.hardware.motors.dc_encoder.calibration import (
     DEFAULT_WHEEL_DIAMETER_M,
 )
-from src.hardware.motors.dc_encoder.config import NS_PER_S, DcMotorPwmConfig
+from src.hardware.motors.dc_encoder.config import DcMotorPwmConfig
 from src.hardware.motors.dc_encoder.control import (
     PIDController,
     SpeedEstimator,
@@ -82,7 +83,7 @@ class Driver(EncodedDriveDriver):
         self._pins = (pwm_pin, dir_a_pin, dir_b_pin, encoder_a_pin, encoder_b_pin)
         self._standby_pin = standby_pin
         self._pwm_config = pwm_config or DcMotorPwmConfig()
-        self._period_ns = int(NS_PER_S / self._pwm_config.frequency_hz)
+        self._period_ns = int(motor_const.NS_PER_S / self._pwm_config.frequency_hz)
         self._channel_dir: Path | None = None
         # Calibration values default from the driver's config file
         # (dc_encoder.toml) rather than module literals; an explicit arg still
@@ -163,7 +164,7 @@ class Driver(EncodedDriveDriver):
     def connect(self) -> None:
         """Open the H-bridge (hardware PWM + gpiozero direction pins) and encoder."""
         try:
-            from gpiozero import (  # noqa: PLC0415 - lazy: keep module importable without GPIO libs
+            from gpiozero import (
                 DigitalOutputDevice,
                 RotaryEncoder,
             )

@@ -12,12 +12,15 @@ Example usage:
 
 from __future__ import annotations
 
-import tomllib
 from enum import StrEnum
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
 
 
 class RosMessageType(StrEnum):
@@ -60,6 +63,9 @@ class NavigationTopics(BaseModel):
 
     laps_completed: str
     """Lap count from track_navigator_node's CoreNavigator/LapDetector."""
+
+    current_corridor: str
+    """Active track corridor (Section name) from track_navigator_node's CoreNavigator."""
 
     nav_debug: str
     """Full per-tick NavigatorDebugSnapshot (JSON) from track_navigator_node,
@@ -174,6 +180,15 @@ class SimulationTopics(BaseModel):
     is the point -- the gap between them is a real failure mode.
     """
 
+    robot_model: str
+    """Chassis, sensor mounts and the four road wheels (MarkerArray, base_link).
+
+    Its own topic rather than part of ``track`` because the wheels carry the
+    live steering angle: they change every tick, whereas the track markers are
+    cached and re-sent about once a second behind a leading DELETEALL that
+    would erase them.
+    """
+
 
 class ButtonTopics(BaseModel):
     """Physical button topics."""
@@ -199,7 +214,7 @@ class UiTopics(BaseModel):
     """Live mirror of the OLED panel, published by oled_display_node."""
 
 
-class RosTopicConfig(BaseModel):
+class RosTopicConfig(TomlLoadableModel):
     """ROS2 topic names configuration."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -215,28 +230,5 @@ class RosTopicConfig(BaseModel):
     bag_recorder: BagRecorderTopics
     simulation: SimulationTopics
 
-    _default_config_path: ClassVar[Path] = (
-        Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"
-    )
+    default_config_path: ClassVar[Path] = SHARED_CONFIG_ROOT / "ros_topics.toml"
     """Path to the checked-in ros_topics.toml file."""
-
-    @classmethod
-    def load_default(cls) -> RosTopicConfig:
-        """Load topic configuration from the checked-in ros_topics.toml.
-
-        Returns:
-            RosTopicConfig instance with topic names.
-
-        Raises:
-            FileNotFoundError: If ros_topics.toml does not exist.
-            ValueError: If TOML is invalid.
-        """
-        path = cls._default_config_path
-        if not path.exists():
-            msg = f"ROS topics config not found: {path}"
-            raise FileNotFoundError(msg)
-
-        with path.open("rb") as f:
-            data = tomllib.load(f)
-
-        return cls.model_validate(data)

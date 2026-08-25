@@ -12,18 +12,19 @@ reads its own TOML tree.
 from __future__ import annotations
 
 import math
-import tomllib
-from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
-from shared.config._merge import deep_merge
-from shared.config.hardware_profile import PROFILES_ROOT, active_profiles, profile_dirs
+if TYPE_CHECKING:
+    from pathlib import Path
 
-DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[3] / "config" / "robot.toml"
-"""platform/shared/config/robot.toml -- resolved relative to this module's own
-location rather than the caller's, same rationale as NavigationTuning's
-DEFAULT_CONFIG_DIR."""
+from shared.config.hardware_profile import PROFILES_ROOT, active_profiles
+from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel, load_toml_merged, profile_overlay_paths
+
+DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "robot.toml"
+"""platform/shared/config/robot.toml -- resolved via shared.config.paths rather
+than a fragile ``parents[N]`` relative to this file."""
 
 
 class Chassis(BaseModel):
@@ -185,6 +186,19 @@ class Lidar(BaseModel):
     centimetres.
     """
 
+    max_range: float
+    """Farthest range the sensor reports (m)."""
+    samples: int
+    """Horizontal sample count of one 360 deg sweep."""
+    update_rate: float
+    """Sweep refresh rate (Hz)."""
+    noise_stddev: float
+    """Per-ray range noise stddev (m)."""
+    diameter: float
+    """Puck diameter (m), matching the lidar_link mesh in wro_robot.urdf.xacro."""
+    height: float
+    """Puck height (m), matching the lidar_link mesh in wro_robot.urdf.xacro."""
+
 
 class Imu(BaseModel):
     """BNO085 mount offset."""
@@ -192,6 +206,16 @@ class Imu(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     mount_z_offset: float
+    update_rate: float
+    """Measurement refresh rate (Hz)."""
+    gyro_noise: float
+    """Gyroscope angular-rate noise stddev (rad/s)."""
+    accel_noise: float
+    """Accelerometer linear-acceleration noise stddev (m/s^2)."""
+    mass: float
+    """Board mass (kg)."""
+    size: tuple[float, float, float]
+    """Board form factor (m): length x width x height."""
 
 
 class Camera(BaseModel):
@@ -202,6 +226,18 @@ class Camera(BaseModel):
     mount_x_offset: float
     mount_z_offset: float
     mount_pitch: float
+    hfov: float
+    """Horizontal field of view (rad)."""
+    width: int
+    """Sensor horizontal resolution (pixels)."""
+    height: int
+    """Sensor vertical resolution (pixels)."""
+    update_rate: float
+    """Frame capture rate (Hz)."""
+    near_clip: float
+    """Rendering near-clip plane (m)."""
+    far_clip: float
+    """Rendering far-clip plane (m)."""
 
 
 _COMPONENT_FACTS: tuple[tuple[str, str, str], ...] = (
@@ -253,7 +289,7 @@ def _require_component_facts(data: dict[str, object]) -> None:
     raise ValueError(msg)
 
 
-class RobotConstants(BaseModel):
+class RobotConstants(TomlLoadableModel):
     """Physical constants for the robot chassis, loaded from robot.toml."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -267,9 +303,11 @@ class RobotConstants(BaseModel):
     imu: Imu
     camera: Camera
 
+    default_config_path: ClassVar[Path] = DEFAULT_CONFIG_PATH
+
     @classmethod
-    def load_default(cls) -> RobotConstants:
-        """Load ``platform/shared/config/robot.toml``, with any active hardware profile overlaid.
+    def _load_raw(cls) -> dict[str, object]:
+        """Merge the base robot.toml with any active hardware-profile overlay.
 
         A hardware profile (``VTITAN_HARDWARE_PROFILE``, see
         :mod:`shared.config.hardware_profile`) declares only the keys it
@@ -277,18 +315,12 @@ class RobotConstants(BaseModel):
 
         The base file deliberately does NOT declare the drive motor's ceiling
         or the servo's geometry, so a profile supplying each is REQUIRED and
-        this raises naming what is missing when one is not. See
-        :func:`_require_component_facts`.
+        :func:`_require_component_facts` raises naming what is missing when one
+        is not.
 
         Raises:
             ValueError: If no profile supplied the motor or servo facts.
         """
-        with DEFAULT_CONFIG_PATH.open("rb") as f:
-            data: dict[str, object] = tomllib.load(f)
-        for directory in profile_dirs():
-            overlay_path = directory / "robot.toml"
-            if overlay_path.exists():
-                with overlay_path.open("rb") as f:
-                    data = deep_merge(data, tomllib.load(f))
+        data: dict[str, object] = load_toml_merged(DEFAULT_CONFIG_PATH, overlays=profile_overlay_paths("robot.toml"))
         _require_component_facts(data)
-        return cls.model_validate(data)
+        return data

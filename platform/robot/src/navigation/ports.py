@@ -21,8 +21,23 @@ from typing import TYPE_CHECKING, Protocol
 import numpy as np
 from shared.config.constants import RobotSpecs
 
+from src.config.tuning_helpers import get_tuning
+from src.navigation.utils import (
+    _forward_clearance,
+    _nearest_ray,
+    _rear_clearance,
+    _wedge_median,
+)
+
 if TYPE_CHECKING:
-    from shared.domain.models import IMUReading, Pose, TrafficSignObservation
+    from shared.config.navigation_tuning import NavigationTuning
+    from shared.domain.models import (
+        IMUReading,
+        LocalizerInputs,
+        Pose,
+        SectorRanges,
+        TrafficSignObservation,
+    )
 
     from src.navigation.track_geometry import TrackWalls
 
@@ -46,6 +61,103 @@ class LidarScan:
         finite = [r for r in self.ranges_m if math.isfinite(r)]
         span = f"{min(finite):.2f}..{max(finite):.2f}m" if finite else "no finite returns"
         return f"LidarScan(rays={n}, ranges={span})"
+
+    def nearest_range_to(self, target: float) -> float:
+        """Range at the ray whose bearing is closest to ``target`` (radians)."""
+        return _nearest_ray(self.ranges_m, self.angles_rad, target)
+
+    def forward_clearance(self, tuning: NavigationTuning | None = None) -> float:
+        """Minimum clearance in the forward arc (inf when no valid ray)."""
+        return _forward_clearance(self.ranges_m, self.angles_rad, tuning)
+
+    def rear_clearance(self, tuning: NavigationTuning | None = None) -> float | None:
+        """Minimum clearance in the rear sector, or ``None`` when unseen."""
+        return _rear_clearance(self.ranges_m, self.angles_rad, tuning)
+
+    def wedge_median(
+        self,
+        center_rad: float,
+        half_width_rad: float,
+        min_valid_range_m: float = 0.0,
+        self_detection_threshold_m: float | None = None,
+    ) -> float | None:
+        """Median range within a bearing wedge, or ``None`` when empty."""
+        return _wedge_median(
+            self.ranges_m,
+            self.angles_rad,
+            center_rad,
+            half_width_rad,
+            min_valid_range_m,
+            self_detection_threshold_m,
+        )
+
+    def sector_ranges(
+        self,
+        center_rad: float,
+        half_fov_rad: float,
+        filter_self_detection: bool = False,
+        self_detection_threshold_m: float | None = None,
+        min_valid_range_m: float | None = None,
+        blind_wedge_left: tuple[float, float] | None = None,
+        blind_wedge_right: tuple[float, float] | None = None,
+        apply_blind_wedge_mask: bool = True,
+    ) -> np.ndarray:
+        """Valid ranges whose bearing falls within ``center ± half_fov``.
+
+        Bearings use 0 rad = forward, +pi/2 = left, -pi/2 = right, +/-pi = rear.
+        """
+        from src.navigation.control.controllers.collision_avoidance import sector_ranges
+
+        return sector_ranges(
+            self.ranges_m,
+            self.angles_rad,
+            center_rad,
+            half_fov_rad,
+            filter_self_detection=filter_self_detection,
+            self_detection_threshold_m=self_detection_threshold_m,
+            min_valid_range_m=min_valid_range_m,
+            blind_wedge_left_min_rad=blind_wedge_left[0] if blind_wedge_left else None,
+            blind_wedge_left_max_rad=blind_wedge_left[1] if blind_wedge_left else None,
+            blind_wedge_right_min_rad=blind_wedge_right[0] if blind_wedge_right else None,
+            blind_wedge_right_max_rad=blind_wedge_right[1] if blind_wedge_right else None,
+            apply_blind_wedge_mask=apply_blind_wedge_mask,
+        )
+
+    def sector(self, center_rad: float, half_fov_rad: float, tuning: NavigationTuning | None = None) -> SectorRanges:
+        """Build a :class:`SectorRanges` from the rays in ``center ± half_fov``."""
+        from shared.domain.models import SectorRanges
+
+        tuning = get_tuning(tuning)
+        sectors = tuning.lidar_sectors
+        blind_left = (math.radians(sectors.BLIND_WEDGE_LEFT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_LEFT_MAX_DEG))
+        blind_right = (math.radians(sectors.BLIND_WEDGE_RIGHT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_RIGHT_MAX_DEG))
+        valid = self.sector_ranges(
+            center_rad,
+            half_fov_rad,
+            filter_self_detection=True,
+            self_detection_threshold_m=sectors.SELF_DETECTION_THRESHOLD_M,
+            min_valid_range_m=sectors.MIN_VALID_RANGE_M,
+            blind_wedge_left=blind_left,
+            blind_wedge_right=blind_right,
+        )
+        valid_list = valid.tolist()
+        if valid_list:
+            return SectorRanges(
+                bearing_rad=center_rad,
+                half_fov_rad=half_fov_rad,
+                mean_range_m=float(np.mean(valid_list)),
+                min_range_m=float(np.min(valid_list)),
+                max_range_m=float(np.max(valid_list)),
+                valid_count=len(valid_list),
+            )
+        return SectorRanges(
+            bearing_rad=center_rad,
+            half_fov_rad=half_fov_rad,
+            mean_range_m=math.inf,
+            min_range_m=math.inf,
+            max_range_m=math.inf,
+            valid_count=0,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,7 +223,7 @@ class HardwareGateway(Protocol):
     def get_vision_detections(self) -> list[TrafficSignObservation]:
         """Get the latest sign observations from the camera."""
 
-    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+    def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) last handed to the LIDAR localizer.
 
         Diagnostic only. The localizer solves for position alone and trusts

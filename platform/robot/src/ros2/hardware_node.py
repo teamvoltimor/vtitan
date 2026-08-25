@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Protocol, override
 
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 
@@ -14,9 +14,18 @@ if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
     from rclpy.lifecycle.publisher import Publisher
     from rclpy.timer import Timer
+    from shared.config.constants import TfFrames
 
 
-class LifecycleHardwareNode(LifecycleNode, ABC):
+class _DriverProtocol(Protocol):
+    """Minimal surface the base lifecycle node relies on (teardown only)."""
+
+    def close(self) -> None:
+        """Release the hardware connection."""
+        ...
+
+
+class LifecycleHardwareNode[DriverT: _DriverProtocol](LifecycleNode, ABC):
     """Abstract base for hardware driver ROS2 lifecycle nodes.
 
     Hardware connects in ``on_configure()`` and publishing starts in
@@ -25,6 +34,10 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
     lifecycle, ``destroy_node``); subclasses only supply the driver-specific
     parts: ``_create_driver``, ``_configure_driver``, ``publish_imu``, and
     (optionally) ``_on_driver_disconnected`` for extra teardown state.
+
+    Subclasses parametrize the node with their concrete driver type
+    (``class FooNode(LifecycleHardwareNode[FooDriver])``) so ``self.driver``
+    is typed as that driver rather than a bare Protocol.
     """
 
     def __init__(
@@ -34,28 +47,35 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         *,
         publish_rate_default: float,
         topic_default: str,
-        frame_id_default: str,
+        frame_id_default: TfFrames,
     ) -> None:
         """Construct the node (unconfigured -- no hardware I/O yet)."""
         super().__init__(node_name)
         self.get_logger().info(f"{node_name} constructed (unconfigured)")
 
         declare_param(self, "publish_rate", publish_rate_default)
-        declare_param(self, "frame_id", frame_id_default)
+        # str(), and only here: rclpy stores a declared parameter's default
+        # object as-is, so handing it a TfFrames member makes
+        # get_parameter_value().string_value hand back the ENUM rather than the
+        # plain str a ROS string parameter is defined to hold. Assigning a
+        # StrEnum straight to a message frame_id is fine (it serializes as its
+        # value) -- it is the parameter round trip that has to be narrowed, so
+        # the conversion lives at that one boundary instead of at every caller.
+        declare_param(self, "frame_id", str(frame_id_default))
         declare_param(self, "topic", topic_default)
 
         self._message_type = message_type
-        self.driver: object | None = None
+        self.driver: DriverT | None = None
         self.publisher_: Publisher | None = None
         self.timer: Timer | None = None
         self.frame_id: str = ""
 
     @abstractmethod
-    def _create_driver(self) -> object:
+    def _create_driver(self) -> DriverT:
         """Instantiate the hardware driver (no I/O yet)."""
 
     @abstractmethod
-    def _configure_driver(self, driver: object) -> TransitionCallbackReturn:
+    def _configure_driver(self, driver: DriverT) -> TransitionCallbackReturn:
         """Connect/start ``driver``, handling driver-specific failure modes."""
 
     @abstractmethod
@@ -74,8 +94,9 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         topic = get_str_param(self, "topic")
         self.publisher_ = self.create_lifecycle_publisher(self._message_type, topic, QOS_STREAM)
 
-        self.driver = self._create_driver()
-        return self._configure_driver(self.driver)
+        driver = self._create_driver()
+        self.driver = driver
+        return self._configure_driver(driver)
 
     @override
     def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
@@ -124,7 +145,7 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         if self.driver is not None:
             try:
                 self.driver.close()
-            except Exception as e:  # noqa: BLE001 - cleanup must never fail node teardown
+            except Exception as e:
                 self.get_logger().error(f"Error closing driver: {e}")
             self.driver = None
         self._on_driver_disconnected()

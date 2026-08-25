@@ -82,24 +82,24 @@ class NoiseReductionMode(StrEnum):
         return _NOISE_REDUCTION_MODE_VALUES[self]
 
 
-_AF_MODE_VALUES = {
+_AF_MODE_VALUES: dict[AfMode, int] = {
     AfMode.MANUAL: lc_controls.AfModeEnum.Manual,
     AfMode.AUTO: lc_controls.AfModeEnum.Auto,
     AfMode.CONTINUOUS: lc_controls.AfModeEnum.Continuous,
 }
 
-_AF_SPEED_VALUES = {
+_AF_SPEED_VALUES: dict[AfSpeed, int] = {
     AfSpeed.NORMAL: lc_controls.AfSpeedEnum.Normal,
     AfSpeed.FAST: lc_controls.AfSpeedEnum.Fast,
 }
 
-_AE_EXPOSURE_MODE_VALUES = {
+_AE_EXPOSURE_MODE_VALUES: dict[AeExposureMode, int] = {
     AeExposureMode.NORMAL: lc_controls.AeExposureModeEnum.Normal,
     AeExposureMode.SHORT: lc_controls.AeExposureModeEnum.Short,
     AeExposureMode.LONG: lc_controls.AeExposureModeEnum.Long,
 }
 
-_AWB_MODE_VALUES = {
+_AWB_MODE_VALUES: dict[AwbMode, int] = {
     AwbMode.AUTO: lc_controls.AwbModeEnum.Auto,
     AwbMode.TUNGSTEN: lc_controls.AwbModeEnum.Tungsten,
     AwbMode.FLUORESCENT: lc_controls.AwbModeEnum.Fluorescent,
@@ -108,7 +108,7 @@ _AWB_MODE_VALUES = {
     AwbMode.CLOUDY: lc_controls.AwbModeEnum.Cloudy,
 }
 
-_NOISE_REDUCTION_MODE_VALUES = {
+_NOISE_REDUCTION_MODE_VALUES: dict[NoiseReductionMode, int] = {
     NoiseReductionMode.OFF: lc_controls.draft.NoiseReductionModeEnum.Off,
     NoiseReductionMode.FAST: lc_controls.draft.NoiseReductionModeEnum.Fast,
     NoiseReductionMode.HIGH_QUALITY: lc_controls.draft.NoiseReductionModeEnum.HighQuality,

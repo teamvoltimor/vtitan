@@ -22,8 +22,9 @@ from rclpy.node import Node
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.enums import Direction, NavigatorPhase, RobotState, ScenarioType, Section
+from shared.domain.enums import Direction, NavigatorPhase, ScenarioType, Section
 from shared.domain.models import (
+    CorridorGeometry,
     NavigatorDebugSnapshot,
     Pose,
     ScenarioMetadata,
@@ -60,6 +61,7 @@ from src.navigation.utils import _nearest_ray, axis_error_rad, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.params import declare_param
 from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT, QOS_STREAM
+from src.ros2.race_state import RacingState, subscribe_to_race_state
 from src.ros2.resettable_node import ResettableNode
 
 logger = logging.getLogger(__name__)
@@ -125,7 +127,7 @@ def _load_json(path: str | Path) -> dict[str, Any]:
 class TrackNavigator(Node, ResettableNode):
     """ROS2 node wrapping the pure Python CoreNavigator."""
 
-    def __init__(  # noqa: PLR0915 - constructor wires every navigation subsystem together
+    def __init__(
         self,
         metadata_path: str | Path | None = None,
         num_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS,
@@ -227,9 +229,7 @@ class TrackNavigator(Node, ResettableNode):
                 ScenarioType.OPEN: NavigationTuning.load_default(challenge=ScenarioType.OPEN),
                 ScenarioType.OBSTACLES: NavigationTuning.load_default(challenge=ScenarioType.OBSTACLES),
             }
-            tuning = self._tuning_by_challenge[
-                ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES
-            ]
+            tuning = self._tuning_by_challenge[ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES]
         else:
             tuning = NavigationTuning.load_default(
                 challenge=ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES,
@@ -330,7 +330,7 @@ class TrackNavigator(Node, ResettableNode):
             if self._width_estimator
             else self._told_geometry
         )
-        assert geometry is not None  # noqa: S101 - either branch above guarantees a value
+        assert geometry is not None
 
         self._gateway = ROS2HardwareGateway(
             self,
@@ -341,7 +341,7 @@ class TrackNavigator(Node, ResettableNode):
             stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
             localization=tuning.localization,
         )
-        waypoints = self._plan(self._to_widths_dict())
+        waypoints = self._plan(self._believed_geometry())
 
         self._core_navigator = self._build_core_navigator(
             start_xy=Waypoint(start_x, start_y),
@@ -375,13 +375,8 @@ class TrackNavigator(Node, ResettableNode):
         # to give. Losing reliability costs nothing here: _publish_state runs
         # every tick of the state machine loop, not only on transitions, so a
         # dropped sample is corrected within one tick.
-        self._racing = False
-        self.create_subscription(
-            String,
-            self._topics.state_machine.state,
-            self._on_robot_state,
-            QOS_LATCHED_STATE,
-        )
+        self._racing_state = RacingState()
+        subscribe_to_race_state(self, self._topics, self._on_robot_state)
 
         # Jumper-resolved challenge, forwarded by state_machine_node once
         # BOOT_CHECK latches it (see the tuning setup above). Only meaningful
@@ -408,6 +403,14 @@ class TrackNavigator(Node, ResettableNode):
         self._laps_pub = self.create_publisher(
             Int32,
             self._topics.navigation.laps_completed,
+            QOS_LIVE_READOUT,
+        )
+        # Active corridor, every tick, for /race_metrics' CORRIDOR line. Same
+        # BEST_EFFORT rationale as /race/laps_completed: this loop must never
+        # block on a publish, and a dropped sample is corrected next tick.
+        self._corridor_pub = self.create_publisher(
+            String,
+            self._topics.navigation.current_corridor,
             QOS_LIVE_READOUT,
         )
 
@@ -575,7 +578,7 @@ class TrackNavigator(Node, ResettableNode):
                 continue
             if obs.confidence < sign_cfg.MIN_CONFIDENCE:
                 continue
-            dist = math.hypot(obs.world_x_m - pose.x, obs.world_y_m - pose.y)
+            dist = pose.to_waypoint().distance_to(Waypoint(obs.world_x_m, obs.world_y_m))
             if dist < nearest_dist:
                 nearest, nearest_dist = obs, dist
         if nearest is None or nearest_dist > sign_cfg.ACTIVATION_DIST_M:
@@ -715,20 +718,15 @@ class TrackNavigator(Node, ResettableNode):
             throttle_duration_sec=5.0,
         )
 
-    def _to_widths_dict(self) -> dict[Section, float]:
-        """Current believed widths as a per-section dict (for _plan)."""
+    def _believed_geometry(self) -> CorridorGeometry:
+        """Current believed corridor geometry (for _plan)."""
         if self._width_estimator:
-            return self._width_estimator.widths
+            return CorridorGeometry.from_width_dict(self._width_estimator.widths)
         g = self._told_geometry
         # Set exactly when not blind (see __init__), which is the only way to
         # reach this branch -- blind means _width_estimator is set instead.
-        assert g is not None  # noqa: S101 - guaranteed non-None in the non-blind branch
-        return {
-            Section.NORTH: g.north_width_m,
-            Section.SOUTH: g.south_width_m,
-            Section.EAST: g.east_width_m,
-            Section.WEST: g.west_width_m,
-        }
+        assert g is not None
+        return g
 
     def _commit_direction(self, inferred: Direction, pose: Pose, scan: LidarScan) -> None:
         """Adopt the inferred direction and rebuild everything derived from it.
@@ -753,8 +751,10 @@ class TrackNavigator(Node, ResettableNode):
         # the only other place those yaws are consumed, did not.
         heading_delta = 0.0
         if changed:
-            old_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, previous)][::-1])
-            new_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, inferred)][::-1])
+            old_normal = TRAVEL_DIRS[(self._start_section, previous)]
+            new_normal = TRAVEL_DIRS[(self._start_section, inferred)]
+            old_yaw = math.atan2(old_normal.ny, old_normal.nx)
+            new_yaw = math.atan2(new_normal.ny, new_normal.nx)
             heading_delta = wrap_angle(new_yaw - old_yaw)
         if self._width_estimator is not None:
             for buffered_yaw, buffered_width in self._creep_widths:
@@ -781,7 +781,11 @@ class TrackNavigator(Node, ResettableNode):
         # *now* -- the creep displacement this method used to discard is simply
         # never introduced.
         measured = measure_start_pose(
-            scan.ranges_m, scan.angles_rad, inferred, self._start_section, tuning=self._tuning,
+            scan.ranges_m,
+            scan.angles_rad,
+            inferred,
+            self._start_section,
+            tuning=self._tuning,
         )
         seed_xy = Waypoint(measured.x, measured.y) if measured is not None else self._start_xy
         if measured is None:
@@ -909,7 +913,7 @@ class TrackNavigator(Node, ResettableNode):
         # Resync unconditionally: the navigator did not step during the creep,
         # so its waypoint index is still 0 while the robot has driven a metre
         # past it, and it would resume by chasing a waypoint behind itself.
-        self._core_navigator.replace_path(self._plan(self._to_widths_dict()), (pose.x, pose.y), pose.yaw)
+        self._core_navigator.replace_path(self._plan(self._believed_geometry()), (pose.x, pose.y), pose.yaw)
         self.get_logger().info(f"Travel direction inferred from LIDAR: {inferred}")
 
     def _retry_start_measurement(self) -> None:
@@ -947,12 +951,16 @@ class TrackNavigator(Node, ResettableNode):
         # mat's centre. Comparing against the corridor's travel bearing is what
         # tells the two apart.
         travel = TRAVEL_DIRS[(self._start_section, self._direction)]
-        misalignment = abs(wrap_angle(pose.yaw - math.atan2(travel[1], travel[0])))
+        misalignment = abs(wrap_angle(pose.yaw - math.atan2(travel.ny, travel.nx)))
         if misalignment > math.radians(self._tuning.start_measurement.RETRY_ALIGN_TOLERANCE_DEG):
             return
 
         measured = measure_start_pose(
-            scan.ranges_m, scan.angles_rad, self._direction, self._start_section, tuning=self._tuning,
+            scan.ranges_m,
+            scan.angles_rad,
+            self._direction,
+            self._start_section,
+            tuning=self._tuning,
         )
         if measured is None:
             return
@@ -965,7 +973,9 @@ class TrackNavigator(Node, ResettableNode):
         # index has to be re-sought against the corrected pose rather than
         # carried over.
         self._core_navigator.replace_path(
-            self._plan(self._to_widths_dict()), (measured.x, measured.y), pose.yaw,
+            self._plan(self._believed_geometry()),
+            (measured.x, measured.y),
+            pose.yaw,
         )
         self.get_logger().info(
             f"Start pose measured on retry: ({measured.x:.2f}, {measured.y:.2f}), "
@@ -973,7 +983,7 @@ class TrackNavigator(Node, ResettableNode):
             f"position estimate corrected from ({pose.x:.2f}, {pose.y:.2f})",
         )
 
-    def _plan(self, widths: dict[Section, float]) -> list[Waypoint]:
+    def _plan(self, geometry: CorridorGeometry) -> list[Waypoint]:
         """Build a one-lap path for the layout the robot believes it is on."""
         # self._metadata is a plain dict (from _load_json, or the assumed-start
         # fallback literal) everywhere else in this class -- never actually a
@@ -985,11 +995,11 @@ class TrackNavigator(Node, ResettableNode):
         # corridor_widths has no default on ScenarioMetadata (deliberately --
         # see its docstring), and a blind run's self._metadata never carries
         # one at all: there is no scenario file to read it from, only the
-        # live width estimate this method receives as `widths`. Validating
+        # live width estimate this method receives as `geometry`. Validating
         # self._metadata as-is therefore raised on every blind run before
         # plan_believed_path ever got a chance to supply the real value --
         # merge it in up front instead of patching it in after.
-        new_widths = corridor_widths_dict_to_model(widths)
+        new_widths = corridor_widths_dict_to_model(geometry.to_widths_dict())
         metadata = ScenarioMetadata.model_validate({**self._metadata, DictKeys.CORRIDOR_WIDTHS: new_widths})
         # direction is a typed kwarg on plan_believed_path, not a raw dict: a
         # past str(self._direction) here type-checked and passed silently while
@@ -1007,7 +1017,7 @@ class TrackNavigator(Node, ResettableNode):
         starting = metadata.starting_conditions
         return plan_believed_path(
             metadata,
-            widths,
+            geometry,
             direction=self._direction,
             believed_section=starting.section,
             believed_position=starting.position,
@@ -1018,9 +1028,7 @@ class TrackNavigator(Node, ResettableNode):
             # Open's and measured HIGHER than the geometry argues for. See
             # WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and why it
             # is compensating for the tracker's outward drift.
-            center_bias_m=(
-                None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
-            ),
+            center_bias_m=(None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M),
         )
 
     def _update_layout_belief(self) -> bool:
@@ -1048,7 +1056,9 @@ class TrackNavigator(Node, ResettableNode):
 
         believed = estimator.widths
         self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
-        self._core_navigator.replace_path(self._plan(believed), (pose.x, pose.y))
+        self._core_navigator.replace_path(
+            self._plan(CorridorGeometry.from_width_dict(believed)), (pose.x, pose.y)
+        )
         self.get_logger().info(
             "Layout belief updated: "
             + ", ".join(f"{s.value}={w * 100:.0f}cm" for s, w in sorted(believed.items(), key=lambda kv: kv[0].value)),
@@ -1061,21 +1071,21 @@ class TrackNavigator(Node, ResettableNode):
 
     def _on_robot_state(self, msg: String) -> None:
         """Track whether the state machine says we are racing."""
-        was_racing = self._racing
-        self._racing = msg.data.strip().lower() == RobotState.RACING.value
-        if was_racing and not self._racing:
-            # Left RACING (finished, or E-STOP). Command a stop immediately
-            # rather than waiting for the next control tick.
-            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
-            self.get_logger().info(f"Race state '{msg.data}' - navigator holding, motors stopped")
-        elif not was_racing and self._racing:
-            # This is the one instant the robot is known to be in its
-            # starting pose -- whether that's the very first race, or a
-            # re-run cycled purely from the button (FINISHED -> BOOT_CHECK ->
-            # READY -> RACING, no process restart), so reset() has to run
-            # here every time, not just once at node startup.
-            self.reset()
-            self.get_logger().info("Race started - heading reference zeroed, navigator driving")
+        self._racing_state.update(
+            msg,
+            on_stop=self._hold_motors_on_stop,
+            on_start=self._reset_on_race_start,
+        )
+
+    def _hold_motors_on_stop(self) -> None:
+        """Left RACING (finished, or E-STOP). Command a stop immediately."""
+        self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+        self.get_logger().info("Race state left - navigator holding, motors stopped")
+
+    def _reset_on_race_start(self) -> None:
+        """Re-zero heading and navigator state at the one known starting-pose instant."""
+        self.reset()
+        self.get_logger().info("Race started - heading reference zeroed, navigator driving")
 
     @override
     def reset(self) -> None:
@@ -1154,9 +1164,7 @@ class TrackNavigator(Node, ResettableNode):
             # Mirrors construction: a told direction is still told on the next
             # round, so rebuilding an estimator here would put the creep back
             # for every race after the first.
-            self._direction_estimator = (
-                DirectionEstimator(tuning=self._tuning) if not self._direction_known else None
-            )
+            self._direction_estimator = DirectionEstimator(tuning=self._tuning) if not self._direction_known else None
             self._pending_known_commit = self._direction_known
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
 
@@ -1191,7 +1199,7 @@ class TrackNavigator(Node, ResettableNode):
         )
         self._core_navigator.set_travel_direction(self._direction)
         self._core_navigator.replace_path(
-            self._plan(self._to_widths_dict()),
+            self._plan(self._believed_geometry()),
             (self._start_xy.x, self._start_xy.y),
         )
         self._core_navigator.reset()
@@ -1199,8 +1207,10 @@ class TrackNavigator(Node, ResettableNode):
     def _control_loop(self) -> None:
         """Execute one control step, or hold the robot stopped when not racing."""
         self._laps_pub.publish(Int32(data=self._core_navigator.laps_completed))
+        corridor = self._core_navigator.current_corridor
+        self._corridor_pub.publish(String(data=corridor.value if corridor is not None else ""))
         try:
-            if not self._racing:
+            if not self._racing_state.is_racing:
                 # Keep publishing zeros rather than going silent: ackermann_motor_node
                 # has a 1 s command watchdog, and silence would let it latch a stop
                 # only after that delay.
@@ -1245,7 +1255,9 @@ class TrackNavigator(Node, ResettableNode):
                 self._latest_debug.start_measured_corridor_width_m = self._measured_start.corridor_width_m
             localizer_inputs = self._gateway.get_localizer_inputs()
             if localizer_inputs is not None:
-                yaw, prior_x, prior_y = localizer_inputs
+                yaw = localizer_inputs.yaw
+                prior_x = localizer_inputs.prior_x
+                prior_y = localizer_inputs.prior_y
                 self._latest_debug.localizer_input_yaw_rad = yaw
                 self._latest_debug.localizer_prior_x = prior_x
                 self._latest_debug.localizer_prior_y = prior_y
@@ -1253,7 +1265,7 @@ class TrackNavigator(Node, ResettableNode):
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:
         """Load a JSON file of {param_name: value} overrides and apply to this node."""
-        import rclpy.parameter as rp  # noqa: PLC0415
+        import rclpy.parameter as rp
 
         try:
             data = _load_json(params_path)

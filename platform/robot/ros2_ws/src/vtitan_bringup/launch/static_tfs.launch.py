@@ -40,8 +40,8 @@ def _static_tf(
     y: float,
     z: float,
     yaw_rad: float,
-    frame_id: str,
-    child_frame_id: str,
+    frame_id: TfFrames,
+    child_frame_id: TfFrames,
     pitch_rad: float = 0.0,
 ) -> Node:
     return Node(
@@ -61,10 +61,14 @@ def _static_tf(
             str(pitch_rad),
             "--roll",
             "0",
+            # str() like the numeric arguments above: launch substitutes every
+            # entry in this list, and TfFrames is a StrEnum, so what reaches
+            # static_transform_publisher should be the bare frame name and
+            # nothing that merely compares equal to it.
             "--frame-id",
-            frame_id,
+            str(frame_id),
             "--child-frame-id",
-            child_frame_id,
+            str(child_frame_id),
         ],
         output="screen",
     )

@@ -4,10 +4,9 @@ Drives the exact same ``ScenarioSimulator`` + real ``CoreNavigator`` the
 headless test battery (``tests/unit/test_open_challenge_sim.py``) runs, but
 paces it to wall-clock speed and publishes pose/LIDAR/track to ROS2 for RViz.
 
-Launch RViz from this same pixi environment — ``task sim:navigate:rviz``
-(pre-configured with TF/LaserScan/Odometry/track displays) — not
-``task sim:rviz``, which starts a *separate* pixi/ROS2 install under
-gazebo/runtime and may fail to discover these topics over DDS.
+Launch RViz with ``task sim:navigate:rviz`` (pre-configured with
+TF/LaserScan/Odometry/track/robot-model displays), not ``task sim:rviz``, which
+loads no saved config and so comes up as an empty grid.
 
 Usage (from platform/robot, in the pixi ``dev`` env — headless tests never
 need this env, only this script does):
@@ -18,10 +17,13 @@ need this env, only this script does):
 
     # The catalog scenarios, by index or label — omit --challenge to see both
     # catalogs (Open Challenge then Obstacles Challenge); pass --challenge
-    # open|obstacles to scope to just one:
+    # open|obstacles to scope to just one. The Open Challenge catalog is
+    # generated on demand (640 legal width/section/direction/cell combos);
+    # Obstacles still loads the Go-generated fixtures:
     pixi run -e dev visualize-scenario -- --list
     pixi run -e dev visualize-scenario -- --scenario 0
-    pixi run -e dev visualize-scenario -- --challenge open --scenario go_open_0000
+    pixi run -e dev visualize-scenario -- --challenge open --scenario 123
+    pixi run -e dev visualize-scenario -- --challenge open --scenario open_0123[south/cw]
     pixi run -e dev visualize-scenario -- --challenge obstacles --list
 
     # Step through every catalog scenario, pausing between each. No
@@ -58,6 +60,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shared.domain.enums import Direction, Section
+from shared.domain.models import ParkingLot, SignPosition
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.imu_error_model import SensorErrors
@@ -70,6 +73,7 @@ from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_catalog import (
     NamedScenario,
     all_obstacles_demo_scenarios,
+    all_open_scenarios,
     all_test_scenarios,
     find_scenario,
 )
@@ -213,8 +217,7 @@ def _parse_args() -> argparse.Namespace:
         type=float,
         default=5.0,
         metavar="SEC",
-        help="With --recover, how long the robot may stay pinned before the run is "
-        "called a failure (default: 5).",
+        help="With --recover, how long the robot may stay pinned before the run is called a failure (default: 5).",
     )
     parser.add_argument(
         "--metadata-file",
@@ -228,10 +231,10 @@ def _parse_args() -> argparse.Namespace:
 def _catalog(challenge: str | None) -> list[NamedScenario]:
     """Scenarios for the given challenge, or both catalogs (Open then Obstacles) if omitted."""
     if challenge == "open":
-        return all_test_scenarios()
+        return all_open_scenarios()
     if challenge == "obstacles":
         return all_obstacles_demo_scenarios()
-    return all_test_scenarios() + all_obstacles_demo_scenarios()
+    return all_open_scenarios() + all_obstacles_demo_scenarios()
 
 
 def _track_for(metadata: dict[str, Any]) -> TrackModel:
@@ -240,10 +243,19 @@ def _track_for(metadata: dict[str, Any]) -> TrackModel:
 
 
 def _set_track(visualizer: LiveScenarioVisualizer, metadata: dict[str, Any], track: TrackModel) -> None:
+    """Validate the raw metadata into models, then hand those to the visualizer.
+
+    This is the one place scenario JSON crosses into the drawing code, so it is
+    where the shape gets checked. Passing the dicts through unvalidated is what
+    let whole-number coordinates reach a Point field as ``int`` and serialize
+    to a near-zero subnormal -- a sign drawn inside a wall, with nothing
+    anywhere raising.
+    """
+    parking_lot = metadata.get("parking_lot")
     visualizer.set_track(
         track,
-        sign_positions=metadata["sign_positions"],
-        parking_lot=metadata.get("parking_lot"),
+        sign_positions=[SignPosition.model_validate(sign) for sign in metadata["sign_positions"]],
+        parking_lot=ParkingLot.model_validate(parking_lot) if parking_lot is not None else None,
     )
 
 
@@ -309,6 +321,12 @@ def _run_one(
         solid_walls=opts.recover,
     )
     _set_track(visualizer, scenario.metadata, sim.track)
+    # Blind seeds the believed start from a fixed SOUTH guess, so on any
+    # scenario that does not actually start there the robot's whole plan lives
+    # in a frame rotated by the section-relabelling angle. Registering the
+    # offset lets RViz draw the plan over the real track; without it, a WEST
+    # start (e.g. go_obstacles_0002) shows a path square to the layout.
+    visualizer.set_belief_frame(*sim.belief_offset_poses)
     pacer = RealTimePacer(dt=CONTROL_DT, rate=opts.rate)
 
     def on_step(state: AckermannState, scan: LidarScan | None) -> None:
@@ -317,6 +335,12 @@ def _run_one(
         # metadata: under Obstacles the planned polyline IS the avoidance
         # manoeuvre, and blind runs route around discovery estimates that can
         # sit somewhere other than the true signs already on /sim/track.
+        #
+        # Refresh the belief frame every tick: in blind mode the corridor-width
+        # estimate evolves, and the lateral position of the assumed start shifts
+        # with it. Recomputing the transform keeps the drawn plan over the real
+        # track instead of letting it drift 10-20 cm behind the estimate.
+        visualizer.set_belief_frame(*sim.belief_offset_poses)
         visualizer.publish_belief(sim.navigator)
         pacer.wait()
 
@@ -348,9 +372,9 @@ def _run_and_visualize(scenario: NamedScenario, opts: _RunOptions) -> None:
     visualizer = LiveScenarioVisualizer(scenario_track)
     _set_track(visualizer, scenario.metadata, scenario_track)
     logger.info(
-        "Publishing /sim/odom, /scan, /sim/track, /sim/plan, /sim/sign_estimates — "
-        "run `task sim:navigate:rviz` in another terminal to watch "
-        "(NOT `task sim:rviz`: bare RViz in a separate ROS2 install, empty track). "
+        "Publishing /sim/odom, /scan, /sim/track, /sim/robot_model, /sim/plan, "
+        "/sim/sign_estimates — run `task sim:navigate:rviz` in another terminal to watch "
+        "(NOT `task sim:rviz`: bare RViz, no saved config, so it comes up empty). "
         "`task sim:navigate:visualize:all` does both in one command.",
     )
     result = _run_one(scenario, visualizer, opts)

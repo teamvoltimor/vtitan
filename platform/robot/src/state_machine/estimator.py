@@ -24,21 +24,22 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class _EstimatorConstants:
-  """Tuning-derived state estimator constants, computed on-demand instead of frozen at module level."""
-  yaw_correction_gain: float
+    """Tuning-derived state estimator constants, computed on-demand instead of frozen at module level."""
 
-  @classmethod
-  def from_tuning(cls, tuning: NavigationTuning | None = None) -> _EstimatorConstants:
-    tuning = get_tuning(tuning)
-    return cls(
-        yaw_correction_gain=tuning.state_estimator.YAW_CORRECTION_GAIN,
-    )
+    yaw_correction_gain: float
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning | None = None) -> _EstimatorConstants:
+        tuning = get_tuning(tuning)
+        return cls(
+            yaw_correction_gain=tuning.state_estimator.YAW_CORRECTION_GAIN,
+        )
 
 
 class EstimatorContext(TuningContext[_EstimatorConstants]):
-  """Context holding tuning-derived state estimator constants."""
+    """Context holding tuning-derived state estimator constants."""
 
-  _constants_cls = _EstimatorConstants
+    _constants_cls = _EstimatorConstants
 
 
 _DEFAULT_ESTIMATOR_CONTEXT = EstimatorContext()
@@ -47,7 +48,14 @@ _DEFAULT_ESTIMATOR_CONTEXT = EstimatorContext()
 class StateEstimator:
     """Combines IMU heading and LIDAR-fixed position into a world-frame Pose."""
 
-    def __init__(self, start_x: float, start_y: float, start_yaw: float, tuning: NavigationTuning | None = None, context: EstimatorContext | None = None) -> None:
+    def __init__(
+        self,
+        start_x: float,
+        start_y: float,
+        start_yaw: float,
+        tuning: NavigationTuning | None = None,
+        context: EstimatorContext | None = None,
+    ) -> None:
         """Initialize the state estimator.
 
         Args:

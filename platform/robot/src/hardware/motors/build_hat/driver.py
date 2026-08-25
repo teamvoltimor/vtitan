@@ -228,7 +228,9 @@ class Driver(MotorDriver):
         self.move_steering_to(self.config.steering.center_angle, speed=self.config.steering.centering_speed)
 
     @override
-    def move_steering_to_right_from_center(self, position: float, speed: int = 20) -> None:  # 20 from DEFAULT_STEERING_SPEED
+    def move_steering_to_right_from_center(
+        self, position: float, speed: int = 20
+    ) -> None:  # 20 from DEFAULT_STEERING_SPEED
         """Move steering to right relative position in degrees from center position."""
         self.logger.info("Moving steering right", extra={DETAILS_KEY: {"relative_position": position, "speed": speed}})
         position = self._clamp_position(position)

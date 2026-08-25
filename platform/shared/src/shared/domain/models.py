@@ -5,13 +5,15 @@ Replaces dictionaries and raw tuples with type-safe domain objects.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, field_validator
 
 from shared.domain.enums import (
+    Axis,
     CorridorWidthType,
     Direction,
     ManeuverType,
@@ -20,7 +22,44 @@ from shared.domain.enums import (
     RiskLevel,
     ScenarioType,
     Section,
+    ThreatDirection,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+
+@runtime_checkable
+class XYPoint(Protocol):
+    """Structural interface for any XY world point.
+
+    ``Pose``, ``Waypoint`` and ``Position2D`` all satisfy this without
+    subclassing, so geometry helpers can accept any of them. A point only
+    needs read-only ``.x``/``.y`` attributes and Euclidean ``distance_to``.
+    """
+
+    @property
+    def x(self) -> float:
+        """World X coordinate."""
+        ...
+
+    @property
+    def y(self) -> float:
+        """World Y coordinate."""
+        ...
+
+    def distance_to(self, other: XYPoint) -> float:
+        """Euclidean distance from this point to ``other``."""
+        ...
+
+
+@runtime_checkable
+class Distanceable(XYPoint, Protocol):
+    """An :class:`XYPoint` that can project to the lightweight :class:`Waypoint`."""
+
+    def to_waypoint(self) -> Waypoint:
+        """Project this point to a lightweight :class:`Waypoint`."""
+        ...
 
 
 @dataclass(slots=True, frozen=True)
@@ -37,6 +76,52 @@ class Pose:
     y: float
     yaw: float
 
+    def __iter__(self) -> Iterator[float]:
+        """Iterate ``(x, y, yaw)`` for unpacking at legacy call sites."""
+        yield self.x
+        yield self.y
+        yield self.yaw
+
+    def __sub__(self, other: Pose) -> Pose:
+        """Return the delta pose from ``other`` to this one (same frame)."""
+        return Pose(self.x - other.x, self.y - other.y, self.yaw - other.yaw)
+
+    def distance_to(self, other: XYPoint) -> float:
+        """Euclidean distance from this pose to ``other`` (position only)."""
+        return math.hypot(self.x - other.x, self.y - other.y)
+
+    def bearing_to(self, other: Pose) -> float:
+        """Bearing (radians, 0 = forward/+pi/2 = left) from this pose to ``other``."""
+        return math.atan2(other.y - self.y, other.x - self.x)
+
+    def to_local_frame(self, target: Waypoint) -> tuple[float, float]:
+        """Rotate ``target`` into this pose's local frame (x forward, y left)."""
+        dx = target.x - self.x
+        dy = target.y - self.y
+        cos_yaw, sin_yaw = math.cos(self.yaw), math.sin(self.yaw)
+        return (dx * cos_yaw + dy * sin_yaw, -dx * sin_yaw + dy * cos_yaw)
+
+    def to_waypoint(self) -> Waypoint:
+        """Drop the heading, returning a pure XY :class:`Waypoint`."""
+        return Waypoint(self.x, self.y)
+
+    def sensor_origin(self, mount_x_offset: float) -> Waypoint:
+        """World position of the LIDAR sensor (mounted ``mount_x_offset`` forward)."""
+        return Waypoint(
+            self.x + mount_x_offset * math.cos(self.yaw),
+            self.y + mount_x_offset * math.sin(self.yaw),
+        )
+
+    @classmethod
+    def from_xy_yaw(cls, x: float, y: float, yaw: float = 0.0) -> Pose:
+        """Build a pose from explicit coordinates (mirrors ``Waypoint`` construction)."""
+        return cls(x, y, yaw)
+
+    @classmethod
+    def at_origin(cls, yaw: float = 0.0) -> Pose:
+        """Build a pose at the world origin (audit §12d)."""
+        return cls(0.0, 0.0, yaw)
+
 
 @dataclass(slots=True, frozen=True)
 class Velocity:
@@ -44,6 +129,15 @@ class Velocity:
 
     linear: float  # m/s
     angular: float  # rad/s
+
+    @property
+    def magnitude(self) -> float:
+        """Combined speed magnitude (audit §12b)."""
+        return math.hypot(self.linear, self.angular)
+
+    def to_tuple(self) -> tuple[float, float]:
+        """Return ``(linear, angular)`` as a plain tuple (audit §12b)."""
+        return (self.linear, self.angular)
 
 
 @dataclass(slots=True, frozen=True)
@@ -53,6 +147,10 @@ class IMUReading:
     yaw: float
     pitch: float
     roll: float
+
+    def to_tuple(self) -> tuple[float, float, float]:
+        """Return ``(yaw, pitch, roll)`` as a plain tuple (audit §12b)."""
+        return (self.yaw, self.pitch, self.roll)
 
 
 @dataclass(slots=True, frozen=True)
@@ -68,6 +166,22 @@ class Waypoint:
     x: float
     y: float
 
+    def distance_to(self, other: XYPoint) -> float:
+        """Euclidean distance from this point to ``other``."""
+        return math.hypot(self.x - other.x, self.y - other.y)
+
+    def distance_to_xy(self, x: float, y: float) -> float:
+        """Euclidean distance from this point to the raw ``(x, y)`` pair (audit §12b)."""
+        return math.hypot(self.x - x, self.y - y)
+
+    def bearing_to(self, other: Waypoint) -> float:
+        """Bearing (radians, 0 = forward/+pi/2 = left) from this point to ``other`` (audit §12b)."""
+        return math.atan2(other.y - self.y, other.x - self.x)
+
+    def to_pose(self, yaw: float = 0.0) -> Pose:
+        """Promote this point to a :class:`Pose` with the given heading."""
+        return Pose(self.x, self.y, yaw)
+
 
 @dataclass(slots=True, frozen=True)
 class Detection:
@@ -82,25 +196,82 @@ class Detection:
     height: float
     area: float
 
+    @property
+    def center(self) -> Waypoint:
+        """Centroid of the bounding box (audit §12b)."""
+        return Waypoint(self.x, self.y)
+
+    def as_bbox(self) -> BBox:
+        """Return the detection's raw ``bbox`` tuple as a typed :class:`BBox` (audit §12b)."""
+        x_min, y_min, x_max, y_max = self.bbox
+        return BBox(x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max)
+
 
 @dataclass(slots=True, frozen=True)
-class Bounds:
-    """A bounding box for collision detection."""
+class BBox:
+    """An axis-aligned bounding box, replacing ``tuple[float, float, float, float]``."""
 
     x_min: float
     y_min: float
     x_max: float
     y_max: float
 
+    @property
+    def width(self) -> float:
+        """Return the box width."""
+        return self.x_max - self.x_min
+
+    @property
+    def height(self) -> float:
+        """Return the box height."""
+        return self.y_max - self.y_min
+
+    @property
+    def center(self) -> Waypoint:
+        """Centroid of the box (audit §12b)."""
+        return Waypoint((self.x_min + self.x_max) / 2, (self.y_min + self.y_max) / 2)
+
+    @property
+    def area(self) -> float:
+        """Area of the box in square units (audit §12b)."""
+        return self.width * self.height
+
+    def __iter__(self) -> Iterator[float]:
+        """Iterate ``(x_min, y_min, x_max, y_max)`` for unpacking (audit §12b)."""
+        yield self.x_min
+        yield self.y_min
+        yield self.x_max
+        yield self.y_max
+
+    def contains(self, point: Waypoint) -> bool:
+        """Return whether ``point`` lies inside the box (audit §12b)."""
+        return self.x_min <= point.x <= self.x_max and self.y_min <= point.y <= self.y_max
+
+    def intersects(self, other: BBox) -> bool:
+        """Return whether this box overlaps ``other`` (audit §12b)."""
+        return not (
+            other.x_max < self.x_min or other.x_min > self.x_max or other.y_max < self.y_min or other.y_min > self.y_max
+        )
+
 
 @dataclass(slots=True, frozen=True)
-class InnerBlock:
-    """Bounding box of the track's central obstacle block."""
+class Bounds(BBox):
+    """A bounding box for collision detection.
 
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
+    Shares :class:`BBox`'s four corner fields and its geometry helpers
+    (``width``/``height``/``center`` plus ``area``/``contains``/``intersects``);
+    kept as a distinct name because some call sites mean "a collision box"
+    rather than "a vision bounding box" (audit §9f).
+    """
+
+
+@dataclass(slots=True, frozen=True)
+class InnerBlock(Bounds):
+    """Bounding box of the track's central obstacle block.
+
+    A specialised :class:`Bounds`: identical four-field box, retained as a named
+    subtype so call sites that mean "the inner block" stay explicit (audit §9f).
+    """
 
 
 @dataclass(slots=True, frozen=True)
@@ -111,6 +282,26 @@ class LidarClearances:
     left_m: float
     right_m: float
     back_m: float = 0.0
+
+    def any_blocked(self, threshold: float) -> bool:
+        """Return whether any side is closer than ``threshold`` meters (audit §12b)."""
+        return (
+            self.front_m < threshold or self.left_m < threshold or self.right_m < threshold or self.back_m < threshold
+        )
+
+    @property
+    def most_constrained_side(self) -> ThreatDirection:
+        """Return the side with the smallest clearance (audit §12b)."""
+        side, _ = min(
+            (
+                (ThreatDirection.FRONT, self.front_m),
+                (ThreatDirection.LEFT, self.left_m),
+                (ThreatDirection.RIGHT, self.right_m),
+                (ThreatDirection.BACK, self.back_m),
+            ),
+            key=lambda pair: pair[1],
+        )
+        return side
 
 
 @dataclass(slots=True, frozen=True)
@@ -141,6 +332,41 @@ class CorridorGeometry:
             Section.EAST: self.east_width_m,
             Section.WEST: self.west_width_m,
         }
+
+    @classmethod
+    def from_width_dict(cls, widths: dict[Section, float]) -> CorridorGeometry:
+        """Build a :class:`CorridorGeometry` from a per-section width dict (audit §8d).
+
+        Mirrors ``corridor_geometry_from_widths`` in ``src.navigation.track_geometry``
+        (kept as a thin delegating wrapper there) but lives on the model so callers
+        don't need the navigation package.
+        """
+        from shared.config.constants import TrackDimensions  # noqa: PLC0415
+
+        north = widths[Section.NORTH]
+        south = widths[Section.SOUTH]
+        east = widths[Section.EAST]
+        west = widths[Section.WEST]
+        return cls(
+            north_width_m=north,
+            south_width_m=south,
+            east_width_m=east,
+            west_width_m=west,
+            inner_block=InnerBlock(
+                west,
+                south,
+                TrackDimensions.MAX_COORD - east,
+                TrackDimensions.MAX_COORD - north,
+            ),
+        )
+
+    def width_for(self, section: Section) -> float:
+        """Return the corridor width for ``section`` (audit §12b)."""
+        return self.to_widths_dict()[section]
+
+    def __getitem__(self, section: Section) -> float:
+        """Index the corridor width for ``section`` like a dict (audit §12b)."""
+        return self.width_for(section)
 
 
 @dataclass(slots=True, frozen=True)
@@ -239,6 +465,17 @@ class SignColor(StrEnum):
     MAGENTA = "magenta"
 
 
+# Class ids the retrained GMR detector emits, in the checkpoint's own declared
+# order (confirmed over per-class image folders). Single source of truth: do NOT
+# take this from auto-annotator's data.yaml -- it lists (red, green, magenta) and
+# is stale, which would swap red/green and invert the WRO pass-side rule silently.
+GMR_CLASS_NAMES: dict[int, SignColor] = {
+    0: SignColor.GREEN,
+    1: SignColor.MAGENTA,
+    2: SignColor.RED,
+}
+
+
 @dataclass(slots=True, frozen=True)
 class TrafficSignObservation:
     """Single traffic sign detection with world pose and confidence."""
@@ -265,6 +502,172 @@ class ImageRotation(IntEnum):
 
 
 @dataclass(slots=True, frozen=True)
+class RGB:
+    """An RGB color triple, replacing ambiguous ``tuple[float, float, float]``."""
+
+    r: float
+    g: float
+    b: float
+
+    def __iter__(self) -> Iterator[float]:
+        """Iterate ``(r, g, b)`` so the triple unpacks like the raw tuple it replaces."""
+        yield self.r
+        yield self.g
+        yield self.b
+
+    def to_tuple(self) -> tuple[float, float, float]:
+        """Return ``(r, g, b)`` as a plain tuple (audit §12b)."""
+        return (self.r, self.g, self.b)
+
+    def to_bgr(self) -> tuple[int, int, int]:
+        """Return ``(b, g, r)`` as ints, the channel order OpenCV expects (audit §12b)."""
+        return (int(self.b), int(self.g), int(self.r))
+
+
+@dataclass(slots=True, frozen=True)
+class LineSegment:
+    """A 2D line segment between two points."""
+
+    start: Waypoint
+    end: Waypoint
+
+
+@dataclass(slots=True, frozen=True)
+class Vertex3D:
+    """A 3D vertex (meters)."""
+
+    x: float
+    y: float
+    z: float
+
+
+@dataclass(slots=True, frozen=True)
+class TravelNormal:
+    """Unit traversal normal for a (section, direction) finish-line crossing."""
+
+    nx: float
+    ny: float
+
+
+@dataclass(slots=True, frozen=True)
+class RoutingEntry:
+    """Sign-routing parameters for a (corridor, direction) pair."""
+
+    axis: Axis
+    red_mult: int
+    green_mult: int
+
+
+@dataclass(slots=True, frozen=True)
+class LocalizerInputs:
+    """Inputs the localizer uses to seed/refine its pose estimate."""
+
+    yaw: float
+    prior_x: float
+    prior_y: float
+
+
+@dataclass(slots=True, frozen=True)
+class LaneCoord:
+    """A (lateral, depth) coordinate within a sign lane."""
+
+    lateral: float
+    depth: float
+
+
+@dataclass(slots=True, frozen=True)
+class DepthSpan:
+    """A (low, high) depth window along a lane."""
+
+    low: float
+    high: float
+
+
+@dataclass(slots=True, frozen=True)
+class CornerRadii:
+    """Per-corner turn radii keyed by section (audit §7b)."""
+
+    south: float
+    north: float
+    east: float
+    west: float
+
+    def for_section(self, section: Section) -> float:
+        """Return the radius for the given ``section`` corner."""
+        return getattr(self, section.value)
+
+
+@dataclass(slots=True, frozen=True)
+class VoteTally:
+    """Direction-estimator vote counts (audit §7b)."""
+
+    cw: int
+    ccw: int
+
+
+@dataclass(slots=True, frozen=True)
+class CreepWidthSample:
+    """A single (yaw, width_m) creep-width measurement (audit §7c)."""
+
+    yaw: float
+    width_m: float
+
+
+@dataclass(slots=True, frozen=True)
+class SignedCorridor:
+    """A sign spec paired with the section it was observed in (audit §7c)."""
+
+    sign: object
+    section: Section
+
+
+@dataclass(slots=True, frozen=True)
+class RoutedSignPosition:
+    """A sign position resolved to world coordinates within a section (audit §7c)."""
+
+    x: float
+    y: float
+    section: Section
+
+
+@dataclass(slots=True, frozen=True)
+class Candidate:
+    """A (index, distance) candidate used in sign routing (audit §7c)."""
+
+    index: int
+    dist: float
+
+
+@dataclass(slots=True, frozen=True)
+class CellPoint:
+    """A (along, across) grid cell coordinate (audit §7c)."""
+
+    along: float
+    across: float
+
+
+@dataclass(slots=True, frozen=True)
+class GroupSpec:
+    """A navigation-tuning group descriptor (audit §9b)."""
+
+    name: str
+    model: type
+    subfolder: str
+
+
+@dataclass(slots=True, frozen=True)
+class RaceSummary:
+    """Aggregated race metrics, replacing the raw ``dict`` from ``get_race_summary``."""
+
+    total_time_s: float
+    laps_completed: int
+    best_lap_s: float | None
+    avg_lap_s: float | None
+    max_speed_mps: float
+    min_clearance_m: float
+
+
+@dataclass(slots=True, frozen=True)
 class CameraSize:
     """Camera image resolution and orientation metadata."""
 
@@ -287,9 +690,6 @@ class CameraSize:
         if self.rotation_deg in (ImageRotation.CW_90, ImageRotation.CW_270):
             return self.width_px
         return self.height_px
-
-
-# Polish dataclasses
 
 
 @dataclass(slots=True, frozen=True)
@@ -330,14 +730,12 @@ class LoopProgress:
         return (self.distance_m / self.total_distance_m) * 100
 
 
-# Scenario metadata Pydantic models
-# These replace ``dict[str, Any]`` metadata objects that were passed raw across
-# the simulation/navigation boundary.  They match the schema produced by
-# ``simgen`` and ``scenario_builder.py``.
-
-
 class CorridorWidthEntry(BaseModel):
     """Width and type for one side of the track corridor.
+
+    Replaces the raw ``dict[str, Any]`` metadata objects passed across the
+    simulation/navigation boundary; matches the schema produced by ``simgen``
+    and ``scenario_builder.py``.
 
     The two fields have to agree: ``type`` names one of the two legal widths and
     ``width_mm`` states it. The default was ``type="wide"`` with
@@ -380,6 +778,18 @@ class Position2D(BaseModel):
 
     x: float = 0.0
     y: float = 0.0
+
+    def distance_to(self, other: XYPoint) -> float:
+        """Euclidean distance from this point to ``other``."""
+        return math.hypot(self.x - other.x, self.y - other.y)
+
+    def to_waypoint(self) -> Waypoint:
+        """Return a lightweight :class:`Waypoint` with the same coordinates."""
+        return Waypoint(self.x, self.y)
+
+    def to_pose(self, yaw: float = 0.0) -> Pose:
+        """Promote this point to a :class:`Pose` with the given heading."""
+        return Pose(self.x, self.y, yaw)
 
 
 class StartingConditions(BaseModel):
@@ -467,6 +877,14 @@ class ParkingLot(BaseModel):
     block1_position: BlockPosition
     block2_position: BlockPosition
 
+    # simgen emits these (randomize.go picks 0 or pi/2 per block) and the SDF
+    # generator orients the real blocks by them, but the model dropped them, so
+    # anything reading the lot through here saw both blocks axis-aligned. The
+    # bay is a slot between two long blocks -- their orientation is what makes
+    # it a slot rather than a gap.
+    block1_yaw: float = 0.0
+    block2_yaw: float = 0.0
+
 
 class ScenarioMetadata(BaseModel):
     """Full scenario description for Open and Obstacles challenges.
@@ -504,6 +922,16 @@ class ScenarioMetadata(BaseModel):
         return self.model_copy(
             update={"corridor_widths": corridor_widths, "starting_conditions": starting_conditions},
         )
+
+    def to_corridor_geometry(self) -> CorridorGeometry:
+        """Build :class:`CorridorGeometry` from this scenario's corridor widths (audit §8c).
+
+        Delegates to ``corridor_widths_from_metadata`` in ``src.navigation.track_geometry``
+        (lazy-imported to avoid a models <-> navigation import cycle).
+        """
+        from src.navigation.track_geometry import corridor_widths_from_metadata  # noqa: PLC0415
+
+        return corridor_widths_from_metadata(self)
 
 
 class NavigatorDebugSnapshot(BaseModel):

@@ -37,10 +37,10 @@ class StuckDetector:
 
     def __init__(
         self,
-        move_threshold: float = 0.03,
-        timeout_frames: int = 40,
-        history_size: int = 60,
-        confirmation_checks: int = 3,
+        move_threshold: float,
+        timeout_frames: int,
+        history_size: int,
+        confirmation_checks: int,
         min_history_for_distance: int | None = None,
         tuning: NavigationTuning | None = None,
     ):
@@ -71,7 +71,9 @@ class StuckDetector:
         self.timeout_frames = timeout_frames
         self.history_size = history_size
         self.confirmation_checks = confirmation_checks
-        self._min_history_for_distance = min_history_for_distance if min_history_for_distance is not None else tuning.escape.MIN_HISTORY_FOR_DISTANCE
+        self._min_history_for_distance = (
+            min_history_for_distance if min_history_for_distance is not None else tuning.escape.MIN_HISTORY_FOR_DISTANCE
+        )
 
         # Position history
         self.position_history: deque[Waypoint] = deque(maxlen=history_size)

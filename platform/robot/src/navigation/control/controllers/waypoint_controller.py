@@ -13,10 +13,10 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
-from shared.domain.models import Waypoint
+from shared.domain.models import Pose, Waypoint
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.utils import _local_frame, _pure_pursuit_steer
+from src.navigation.utils import pure_pursuit_steer
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
@@ -50,14 +50,14 @@ class WaypointController:
 
     def __init__(
         self,
-        max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE,
-        lookahead_short: float = 0.20,
-        lookahead_long: float = 0.40,
-        lookahead_transition: float = 0.30,
-        steer_kp: float = 1.2,
-        max_steering_rate: float = 2.0,
-        waypoint_reached_distance_m: float = 0.01,
-        corner_turn_threshold_rad: float = 0.35,
+        max_steering_angle: float,
+        lookahead_short: float,
+        lookahead_long: float,
+        lookahead_transition: float,
+        steer_kp: float,
+        max_steering_rate: float,
+        waypoint_reached_distance_m: float,
+        corner_turn_threshold_rad: float,
     ):
         """Initialize pure pursuit controller.
 
@@ -328,7 +328,7 @@ class WaypointController:
     ) -> tuple[float, float, float]:
         """Compute steering angle, lookahead, and heading error for the next control step.
 
-        Curvature-based pure pursuit (see ``src.navigation.utils._pure_pursuit_steer``
+        Curvature-based pure pursuit (see ``src.navigation.utils.pure_pursuit_steer``
         for the formula and its physical reasoning), not a gain on heading error.
         A bare ``steer_kp * angle_error`` P-term has no physical units, so it
         silently absorbs whatever the plant does -- this chassis was modelled as
@@ -366,7 +366,7 @@ class WaypointController:
 
         lookahead = self.select_lookahead(crosstrack_error)
 
-        x_local, y_local = _local_frame(Waypoint(*current_pos), current_yaw, Waypoint(*target_waypoint))
+        x_local, y_local = Pose(current_pos[0], current_pos[1], current_yaw).to_local_frame(Waypoint(*target_waypoint))
         distance = math.hypot(x_local, y_local)
 
         if distance < self.waypoint_reached_distance_m:
@@ -375,12 +375,12 @@ class WaypointController:
         angle_error = math.atan2(y_local, x_local)
 
         if x_local > 0:
-            steering_normalized_raw = _pure_pursuit_steer(
+            steering_normalized_raw = pure_pursuit_steer(
                 x_local, y_local, self.waypoint_reached_distance_m, self.max_steering_angle
             )
         else:
             # Target behind the robot: the curvature formula is only valid for a
-            # roughly-forward target (see _pure_pursuit_steer). Saturate toward
+            # roughly-forward target (see pure_pursuit_steer). Saturate toward
             # whichever side it's on instead of trusting a formula that can look
             # plausible while actually steering away from the target.
             steering_normalized_raw = 1.0 if y_local >= 0 else -1.0

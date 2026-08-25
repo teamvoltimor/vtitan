@@ -1,8 +1,8 @@
 """Unit tests for ParkController (CR-02).
 
 Verifies:
-- _build_zone produces correct bounding box and target yaw for all sections.
-- _inside_zone correctly classifies positions and yaws.
+- build_zone produces correct bounding box and target yaw for all sections.
+- inside_zone correctly classifies positions and yaws.
 - Controller from 4 approach poses terminates done with robot inside zone.
 - The maneuver never enters the inner keep-out square at any tick, including from
   degenerate approach poses (target behind the robot / inside its turning radius) that
@@ -24,10 +24,10 @@ from shared.domain.models import BlockPosition, ParkingLot, Pose
 from src.navigation.maneuvers.parking import (
     ParkController,
     ParkingContext,
-    _build_zone,
-    _inside_zone,
-    _normalise_angle,
-    _staging_pos,
+    build_zone,
+    inside_zone,
+    normalise_angle,
+    staging_pos,
 )
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
@@ -64,7 +64,7 @@ class TestBuildZone:
 
     def _zone_south(self):
         lot = _SOUTH_CFG
-        return _build_zone(
+        return build_zone(
             lot.block1_position,
             lot.block2_position,
             Section.SOUTH,
@@ -115,8 +115,8 @@ class TestBuildZone:
         ParkingLotSpecs.LENGTH deep and the chassis is RobotSpecs.LENGTH long, so a
         perpendicular pose protrudes by the difference no matter how well it is driven.
         """
-        z = _build_zone(lot.block1_position, lot.block2_position, section, direction)
-        assert _normalise_angle(z.target_yaw - expected_yaw) == pytest.approx(0.0, abs=1e-9)
+        z = build_zone(lot.block1_position, lot.block2_position, section, direction)
+        assert normalise_angle(z.target_yaw - expected_yaw) == pytest.approx(0.0, abs=1e-9)
 
     def test_target_yaw_is_never_perpendicular_to_the_wall(self):
         """Regression guard for the pre-2026-07-25 nose-in geometry."""
@@ -127,9 +127,9 @@ class TestBuildZone:
             (Section.WEST, _WEST_CFG),
         ):
             for direction in (Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE):
-                z = _build_zone(lot.block1_position, lot.block2_position, section, direction)
+                z = build_zone(lot.block1_position, lot.block2_position, section, direction)
                 wall_normal = math.pi / 2 if section in (Section.SOUTH, Section.NORTH) else 0.0
-                err = abs(_normalise_angle(z.target_yaw - wall_normal))
+                err = abs(normalise_angle(z.target_yaw - wall_normal))
                 assert min(err, abs(math.pi - err)) > math.radians(45)
 
 
@@ -138,7 +138,7 @@ class TestBuildZone:
 
 class TestInsideZone:
     def _zone(self, direction=Direction.COUNTERCLOCKWISE):
-        return _build_zone(_bp(*PARKING_SOUTH_BLOCK1), _bp(*PARKING_SOUTH_BLOCK2), Section.SOUTH, direction)
+        return build_zone(_bp(*PARKING_SOUTH_BLOCK1), _bp(*PARKING_SOUTH_BLOCK2), Section.SOUTH, direction)
 
     def _bay_centre(self, z):
         return z.gap_cx, z.gap_cy
@@ -146,7 +146,7 @@ class TestInsideZone:
     def test_perfectly_placed_footprint_is_parked(self):
         z = self._zone()
         cx, cy = self._bay_centre(z)
-        pos_ok, yaw_ok = _inside_zone(cx, cy, z.target_yaw, z, _PARKING_CONTEXT)
+        pos_ok, yaw_ok = inside_zone(cx, cy, z.target_yaw, z, _PARKING_CONTEXT)
         assert pos_ok
         assert yaw_ok
 
@@ -158,19 +158,19 @@ class TestInsideZone:
         """
         z = self._zone()
         cx, cy = self._bay_centre(z)
-        pos_ok, _ = _inside_zone(cx, cy, z.target_yaw + math.pi / 2, z, _PARKING_CONTEXT)
+        pos_ok, _ = inside_zone(cx, cy, z.target_yaw + math.pi / 2, z, _PARKING_CONTEXT)
         assert not pos_ok
 
     def test_nose_through_the_outer_wall_is_not_parked(self):
         z = self._zone()
         cx, _ = self._bay_centre(z)
-        pos_ok, _ = _inside_zone(cx, 0.02, z.target_yaw + math.pi / 2, z, _PARKING_CONTEXT)
+        pos_ok, _ = inside_zone(cx, 0.02, z.target_yaw + math.pi / 2, z, _PARKING_CONTEXT)
         assert not pos_ok
 
     def test_outside_along_the_wall_is_not_parked(self):
         z = self._zone()
         _, cy = self._bay_centre(z)
-        pos_ok, _ = _inside_zone(z.x_min - 0.30, cy, z.target_yaw, z, _PARKING_CONTEXT)
+        pos_ok, _ = inside_zone(z.x_min - 0.30, cy, z.target_yaw, z, _PARKING_CONTEXT)
         assert not pos_ok
 
     def test_parallel_tolerance_follows_the_two_wheel_rule(self):
@@ -178,8 +178,8 @@ class TestInsideZone:
         z = self._zone()
         cx, cy = self._bay_centre(z)
         limit = math.atan2(0.02, RobotSpecs.WHEELBASE)
-        _, just_inside = _inside_zone(cx, cy, z.target_yaw + limit * 0.9, z, _PARKING_CONTEXT)
-        _, just_outside = _inside_zone(cx, cy, z.target_yaw + limit * 1.1, z, _PARKING_CONTEXT)
+        _, just_inside = inside_zone(cx, cy, z.target_yaw + limit * 0.9, z, _PARKING_CONTEXT)
+        _, just_outside = inside_zone(cx, cy, z.target_yaw + limit * 1.1, z, _PARKING_CONTEXT)
         assert just_inside
         assert not just_outside
 
@@ -269,7 +269,7 @@ def _simulate_park(
     hits: set[str] = set()
 
     def _finish(stopped: bool, steps: int) -> ParkRun:
-        pos_ok, yaw_ok = _inside_zone(state.x, state.y, state.yaw, ctrl.zone, _PARKING_CONTEXT)
+        pos_ok, yaw_ok = inside_zone(state.x, state.y, state.yaw, ctrl.zone, _PARKING_CONTEXT)
         return ParkRun(
             stopped=stopped,
             parked=stopped and not ctrl.is_timed_out and pos_ok and yaw_ok,
@@ -296,7 +296,7 @@ def _simulate_park(
 # 4 canonical approach poses for SOUTH section
 # Approach from north, heading south (robot falls toward the gap). Positions must stay
 # north of the staging point (gap_y=0.10 + _APPROACH_CLEARANCE=0.45 -> staging_y=0.67, see
-# ParkController._staging_pos) so "approach from north" is still literally true, and south
+# ParkController.staging_pos) so "approach from north" is still literally true, and south
 # of CORNER_MIN=1.0 with real margin for the chassis's own half-length (0.15m) -- these
 # were recalibrated for the corrected chassis dims (2026-07-11); the old values (y up to
 # 0.90, staging at the old, smaller 0.25m clearance) put some poses south of the new
@@ -360,8 +360,8 @@ for _section, _cfg in (
     (Section.EAST, _EAST_CFG),
     (Section.WEST, _WEST_CFG),
 ):
-    _zone = _build_zone(_cfg.block1_position, _cfg.block2_position, _section, Direction.COUNTERCLOCKWISE)
-    _staging = _staging_pos(_zone, _section, _PARKING_CONTEXT)
+    _zone = build_zone(_cfg.block1_position, _cfg.block2_position, _section, Direction.COUNTERCLOCKWISE)
+    _staging = staging_pos(_zone, _section, _PARKING_CONTEXT)
     if _section in (Section.SOUTH, Section.NORTH):
         _sign = 1.0 if _section is Section.SOUTH else -1.0
         _pos = (_staging.x + 0.15, _staging.y + _sign * -0.02)

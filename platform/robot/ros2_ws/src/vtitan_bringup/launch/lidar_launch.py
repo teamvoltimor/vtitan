@@ -34,7 +34,9 @@ def generate_launch_description() -> LaunchDescription:
                         "serial_port": LaunchConfiguration("serial_port"),
                         "serial_baudrate": _lidar_defaults.serial_baudrate,
                         # Shared with static_tfs.launch.py via TfFrames -- must stay in sync.
-                        "frame_id": TfFrames.LIDAR_LINK,
+                        # str(): this is a ROS string parameter, and TfFrames is a
+                        # StrEnum, so pass the value rather than the member.
+                        "frame_id": str(TfFrames.LIDAR_LINK),
                         # Single source of truth: RobotSpecs.LIDAR_INVERTED (robot.toml's
                         # [lidar].inverted). Never hardcode this separately from the
                         # 180deg yaw rotation ros2_hardware_gateway.py and
