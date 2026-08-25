@@ -42,15 +42,15 @@ class Bts7960PwmConfig(HardwareBaseSettings):
     not by this value.
     """
 
-    dir_select_pin: int = 5
+    dir_select_pin: int = 26
     """BCM pin feeding the demux's direction-select input.
 
     See ``docs/bts7960-ibt2-wiring.md``: HIGH routes the shared PWM to
     ``RPWM`` (forward), LOW to ``LPWM`` (reverse).
     """
 
-    r_en_pin: int = 6
+    r_en_pin: int = 5
     """BCM pin wired directly to the module's ``R_EN``, held HIGH for the driver's lifetime."""
 
-    l_en_pin: int = 26
+    l_en_pin: int = 6
     """BCM pin wired directly to the module's ``L_EN``, held HIGH for the driver's lifetime."""

@@ -31,12 +31,25 @@ LPWM = PWM AND NOT dir
 |---|---|---|
 | Servo PWM | GPIO12 (hw PWM0) | Unchanged from the L298N setup |
 | Shared drive PWM | GPIO13 (hw PWM1) | Same channel the L298N's `ENA` used; now feeds the demux instead of the H-bridge directly |
-| Direction-select | 1 digital GPIO | Demux's `dir` input |
-| `R_EN` | 1 digital GPIO | Tied `HIGH` for the driver's lifetime (see `Driver.connect`) |
-| `L_EN` | 1 digital GPIO | Tied `HIGH` for the driver's lifetime |
+| Direction-select | GPIO26 | Demux's `dir` input |
+| `R_EN` | GPIO5 | Tied `HIGH` for the driver's lifetime (see `Driver.connect`) |
+| `L_EN` | GPIO6 | Tied `HIGH` for the driver's lifetime |
 | Demux `RPWM` out | IBT-2 `RPWM` | |
 | Demux `LPWM` out | IBT-2 `LPWM` | |
 
 `R_EN`/`L_EN` are wired directly to the Pi (not through the demux) and simply
 held high -- the demux is what actually gates which direction receives PWM at
-any given moment, not these enable pins.
+any given moment, not these enable pins. Defaults live on `Bts7960PwmConfig`
+(`config/hardware/motors/bts7960.toml`) -- override there or via
+`BTS7960_PWM_*` env vars if wired differently.
+
+## Not wired: current-sense (`R_IS`/`L_IS`)
+
+The IBT-2 module also exposes `R_IS`/`L_IS` -- analog voltages proportional
+to each half-bridge's motor current, useful for stall/overcurrent detection.
+These are **not connected or read** by this driver: they're analog, and the
+Pi has no built-in ADC, so reading them needs an external ADC chip (e.g. an
+MCP3008 over SPI, or ADS1115 over I2C) between the module and the Pi. No such
+converter is on hand as of this writing -- if one is added later, it's a new
+sensor input path (and a new ADC driver module), not a `Bts7960PwmConfig`
+field.

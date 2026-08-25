@@ -23,9 +23,9 @@ class TestBts7960PwmConfig:
         assert config.pwm_channel == 1
         assert config.frequency_hz == 1000
         assert config.pwm_pin == 13
-        assert config.dir_select_pin == 5
-        assert config.r_en_pin == 6
-        assert config.l_en_pin == 26
+        assert config.dir_select_pin == 26
+        assert config.r_en_pin == 5
+        assert config.l_en_pin == 6
 
 
 class TestDriver:
