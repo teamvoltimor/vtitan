@@ -119,6 +119,14 @@ class SignLaneParams:
     hold_m: float
     """Along-corridor half-width of the full-offset hold around a sign (m)."""
 
+    skip_unsatisfiable: bool = False
+    """Drop a sign whose clamped target is on the FORBIDDEN side of it.
+
+    Such a sign cannot be satisfied by any lane geometry -- the instruction
+    itself violates the rule -- so the choice is between planning a violating
+    line and planning none. See ``SIGN_LANE_SKIP_UNSATISFIABLE``.
+    """
+
     corner_entry_m: float = 0.0
     """How far past the corridor's straight the lane may extend, into the
     corner arcs either side (m). ``0.0`` confines it to the straight.
@@ -233,6 +241,12 @@ def _control_points(
         _, mult = rule
         sign_lateral, sign_depth = _axis_coords(Waypoint(spec.x, spec.y), axis)
         target = clamp_lateral(sign_lateral + mult * params.lateral_offset, corridor)
+        if params.skip_unsatisfiable and (target - sign_lateral) * mult <= 0.0:
+            # The clamp put this sign's own target on the forbidden side of it,
+            # so every point of its plateau would violate the rule it exists to
+            # obey. Emit nothing rather than a line that is wrong by
+            # construction; the corridor's other signs still get their plateaux.
+            continue
         points.append((sign_depth - params.hold_m, target))
         points.append((sign_depth + params.hold_m, target))
 

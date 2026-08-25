@@ -272,6 +272,22 @@ class SignRouterParams(BaseModel):
             sighted at 0.10/0.25/0.40/0.55 -- collisions 56/53/53/62,
             laps>=3 8/11/11/2. Defaults 0.25, a genuine peak rather than a
             flat knob. Only meaningful with ``SIGN_LANE_PLANNER``.
+        SIGN_LANE_SKIP_UNSATISFIABLE: Drop a sign from the lane profile when its
+            own clamped target lands on the FORBIDDEN side of it, instead of
+            planning a line that violates the pass-side rule by construction.
+            A sign discovered near the corner diagonal is ambiguous between two
+            corridors; under either label it reads as past that corridor's
+            straight and hard against the inner square, so ``clamp_lateral``
+            caps the target at the corridor bound -- which for such a sign is
+            the wrong side of the sign itself. Traced on a green WEST spec at
+            x=0.993: the lane wants 1.272, the clamp gives 0.781, i.e. 0.212 m
+            the wrong side. Measured 2026-08-25 over the 256 corpus, blind:
+            specs INSIDE their corridor's straight plan wrong-side 5% of the
+            time (n=722), specs PAST the corner 29% (n=635), and 635/1357
+            passes involve one. Defaults ``False``: planning no lane also
+            removes avoidance geometry, so read the SIGN column against the
+            WALL column before shipping it. Only meaningful with
+            ``SIGN_LANE_PLANNER``.
         SIGN_LANE_CORNER_ENTRY_M: How far past a corridor's straight the lane
             may extend into the corner arcs either side (m), used as
             transition runway. ``0.0`` confines it to the straight. Measured
@@ -414,6 +430,9 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_SUPPRESS_DEFORM: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_SUPPRESS_DEFORM"))
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
     SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
+    SIGN_LANE_SKIP_UNSATISFIABLE: bool = Field(
+        default=False, validation_alias=_alias("SIGN_LANE_SKIP_UNSATISFIABLE")
+    )
     SIGN_LANE_OFFSET_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("SIGN_LANE_OFFSET_FRAC"))
     SIGN_LANE_CORNER_ENTRY_M: float = Field(default=0.50, ge=0.0, validation_alias=_alias("SIGN_LANE_CORNER_ENTRY_M"))
     SIGN_DEFORM_SPEED_THRESHOLD_M: float = Field(default=0.02, validation_alias=_alias("SIGN_DEFORM_SPEED_THRESHOLD_M"))

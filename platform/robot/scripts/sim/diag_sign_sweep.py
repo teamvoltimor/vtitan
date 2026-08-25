@@ -450,6 +450,15 @@ class SweepConfig:
     Only meaningful with ``sign_lane_planner=True``.
     """
 
+    sign_lane_skip_unsatisfiable: bool | None = None
+    """Override ``SignRouterParams.SIGN_LANE_SKIP_UNSATISFIABLE`` (default False).
+
+    Drops a sign from the lane profile when its own clamped target lands on the
+    forbidden side of it. Corner-diagonal specs plan wrong-side 29% of the time
+    against 5% for specs inside their corridor's straight. Read SIGN against
+    WALL: planning no lane also removes avoidance geometry.
+    """
+
     sign_lane_offset_frac: float | None = None
     """Override ``SignRouterParams.SIGN_LANE_OFFSET_FRAC`` (default 1.0).
 
@@ -616,6 +625,7 @@ class SweepConfig:
             SIGN_CONTACT_STEER=self.sign_contact_steer,
             SIGN_LANE_RAMP_M=self.sign_lane_ramp,
             SIGN_LANE_HOLD_M=self.sign_lane_hold,
+            SIGN_LANE_SKIP_UNSATISFIABLE=self.sign_lane_skip_unsatisfiable,
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
             SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
             SIGN_LANE_CORNER_ENTRY_M=self.sign_lane_corner_entry,
@@ -3566,6 +3576,14 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         f"lane ramp {v:{_FORMAT_2F}}",
         sign_lane_planner=True,
         sign_lane_ramp=v,
+    ),
+    # Blind on purpose -- unsatisfiable targets come from corner-diagonal
+    # DISCOVERIES, so a sighted arm has none (see the dedupe trap).
+    "lane-skip-unsatisfiable": lambda v: SweepConfig(
+        f"skip-unsatisfiable {'on' if v else 'off'}",
+        blind=True,
+        sign_lane_planner=True,
+        sign_lane_skip_unsatisfiable=bool(v),
     ),
     "lane-hold": lambda v: SweepConfig(
         f"lane hold {v:{_FORMAT_2F}}",

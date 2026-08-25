@@ -303,6 +303,7 @@ class CoreNavigator(EscapeRecovery):
                 * sr.SIGN_LANE_OFFSET_FRAC,
                 ramp_m=sr.SIGN_LANE_RAMP_M,
                 hold_m=sr.SIGN_LANE_HOLD_M,
+                skip_unsatisfiable=sr.SIGN_LANE_SKIP_UNSATISFIABLE,
                 corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
             ),
         )
