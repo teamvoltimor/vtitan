@@ -450,6 +450,13 @@ class SweepConfig:
     Only meaningful with ``sign_lane_planner=True``.
     """
 
+    sign_lane_split_overlap: bool | None = None
+    """Override ``SignRouterParams.SIGN_LANE_SPLIT_OVERLAP`` (default False).
+
+    Splits overlapping plateaux at their midpoint. A plan governed by another
+    spec's plateau is wrong-side 58% of the time against a 13% base rate.
+    """
+
     sign_lane_relabel_unsatisfiable: bool | None = None
     """Override ``SignRouterParams.SIGN_LANE_RELABEL_UNSATISFIABLE`` (default False).
 
@@ -635,6 +642,7 @@ class SweepConfig:
             SIGN_LANE_HOLD_M=self.sign_lane_hold,
             SIGN_LANE_SKIP_UNSATISFIABLE=self.sign_lane_skip_unsatisfiable,
             SIGN_LANE_RELABEL_UNSATISFIABLE=self.sign_lane_relabel_unsatisfiable,
+            SIGN_LANE_SPLIT_OVERLAP=self.sign_lane_split_overlap,
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
             SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
             SIGN_LANE_CORNER_ENTRY_M=self.sign_lane_corner_entry,
@@ -3601,6 +3609,12 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     ),
     # Blind on purpose -- unsatisfiable targets come from corner-diagonal
     # DISCOVERIES, so a sighted arm has none (see the dedupe trap).
+    "lane-split-overlap": lambda v: SweepConfig(
+        f"split-overlap {'on' if v else 'off'}",
+        blind=True,
+        sign_lane_planner=True,
+        sign_lane_split_overlap=bool(v),
+    ),
     "lane-relabel-unsatisfiable": lambda v: SweepConfig(
         f"relabel-unsatisfiable {'on' if v else 'off'}",
         blind=True,

@@ -272,6 +272,18 @@ class SignRouterParams(BaseModel):
             sighted at 0.10/0.25/0.40/0.55 -- collisions 56/53/53/62,
             laps>=3 8/11/11/2. Defaults 0.25, a genuine peak rather than a
             flat knob. Only meaningful with ``SIGN_LANE_PLANNER``.
+        SIGN_LANE_SPLIT_OVERLAP: Give each sign a flat hold over the stretch
+            where it is actually passed, by splitting overlapping plateaux at
+            their midpoint instead of letting one dip through another. A plateau
+            nested inside another puts a HOLE in the enclosing sign's hold
+            window, and the plan passes that sign on the dip. Measured blind over
+            the 256 corpus: a plan governed by ANOTHER spec's plateau is
+            wrong-side 58% of the time against a 13% base rate (4.3x), and
+            single-spec corridors NEVER fail (0/60). Legal WRO geometry cannot
+            overlap -- a section holds at most two signs, 1.00 m apart, against a
+            0.50 m plateau -- so every overlap is a discovery artifact of the
+            measured 2.50x spec duplication. Only meaningful with
+            ``SIGN_LANE_PLANNER``.
         SIGN_LANE_RELABEL_UNSATISFIABLE: When a sign's clamped lane target lands
             on the forbidden side of it, move the sign to the OTHER face of its
             corner rather than keeping a corridor whose instruction cannot be
@@ -453,6 +465,9 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_SUPPRESS_DEFORM: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_SUPPRESS_DEFORM"))
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
     SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
+    SIGN_LANE_SPLIT_OVERLAP: bool = Field(
+        default=False, validation_alias=_alias("SIGN_LANE_SPLIT_OVERLAP")
+    )
     SIGN_LANE_RELABEL_UNSATISFIABLE: bool = Field(
         default=True, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
     )

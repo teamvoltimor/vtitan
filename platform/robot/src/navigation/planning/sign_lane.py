@@ -119,6 +119,14 @@ class SignLaneParams:
     hold_m: float
     """Along-corridor half-width of the full-offset hold around a sign (m)."""
 
+    split_overlap: bool = False
+    """Split overlapping plateaux at their midpoint instead of letting one dip through another.
+
+    Legal WRO geometry never overlaps -- a section holds at most two signs, 1.00 m
+    apart, against a 0.50 m plateau -- so an overlap is always a DISCOVERY
+    artifact. See ``SIGN_LANE_SPLIT_OVERLAP``.
+    """
+
     skip_unsatisfiable: bool = False
     """Drop a sign whose clamped target is on the FORBIDDEN side of it.
 
@@ -233,7 +241,7 @@ def _control_points(
     so the lane has a full metre to cross the corridor rather than the 0.50 m
     an earlier version of this comment wrongly assumed.
     """
-    points: list[tuple[float, float]] = []
+    plateaux: list[tuple[float, float]] = []
     for spec, sign_corridor in signs:
         rule = outward_lateral_axis(sign_corridor, SignColor(spec.color))
         if rule is None:
@@ -247,8 +255,38 @@ def _control_points(
             # obey. Emit nothing rather than a line that is wrong by
             # construction; the corridor's other signs still get their plateaux.
             continue
-        points.append((sign_depth - params.hold_m, target))
-        points.append((sign_depth + params.hold_m, target))
+        plateaux.append((sign_depth, target))
+
+    if not plateaux:
+        return []
+
+    points: list[tuple[float, float]] = []
+    plateaux.sort(key=lambda entry: entry[0])
+    for index, (sign_depth, target) in enumerate(plateaux):
+        low = sign_depth - params.hold_m
+        high = sign_depth + params.hold_m
+        if params.split_overlap:
+            # A plateau nested inside another one puts a HOLE in the enclosing
+            # sign's hold window: the profile dips to the neighbour's target
+            # exactly where the robot is abeam this sign. Traced on a WEST
+            # corridor holding three specs -- our plateau ran 2.15..2.65 at
+            # lateral 0.781 while a neighbour's endpoints sat inside it at 2.22
+            # and 2.24 at 0.325, and the plan passed the sign on that dip.
+            #
+            # Legal WRO geometry cannot produce this: a section holds at most
+            # two signs and they sit 1.00 m apart, against a 0.50 m plateau. The
+            # overlaps come from DISCOVERY emitting several specs per physical
+            # sign (measured 2.50x). Splitting the overlap at the midpoint gives
+            # each sign the half nearer itself, so every sign keeps a flat hold
+            # over the stretch where it is actually passed.
+            if index > 0:
+                low = max(low, (plateaux[index - 1][0] + sign_depth) / 2.0)
+            if index + 1 < len(plateaux):
+                high = min(high, (sign_depth + plateaux[index + 1][0]) / 2.0)
+            if high < low:
+                low = high = sign_depth
+        points.append((low, target))
+        points.append((high, target))
 
     if not points:
         return []

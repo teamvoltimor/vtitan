@@ -424,6 +424,30 @@ def _spec_frame_clearance(sim: object) -> list[tuple]:
         # dose-response came out non-monotonic.
         spec_depth = spec.x if lateral_axis == Axis.Y else spec.y
         inside_straight = TrackDimensions.CORNER_MIN <= spec_depth <= TrackDimensions.CORNER_MAX
+        # Did SIGN_LANE_RELABEL_UNSATISFIABLE move this spec off the face
+        # corridor_for_position picked? If relabelled specs are over-represented
+        # among what is still wrong, the relabel is incomplete -- it takes the
+        # other face when the first is unsatisfiable without checking the new
+        # face is otherwise sane.
+        relabelled = corridor_for_position(spec.x, spec.y) != corridor
+        # Whose plateau governs the point where the plan passes THIS sign?
+        # _control_points emits one plateau per spec in the corridor and
+        # interpolates between them, so a sign can be passed on a stretch the
+        # profile is holding for a NEIGHBOUR. That is the precise form of the
+        # interleaving seen in the traced dump (plateau endpoints at 2.14 /
+        # 2.22 / 2.24 for three different specs), and unlike "corridor holds
+        # opposite colours" it also catches same-coloured neighbours.
+        plan_depth_axis = point[0] if lateral_axis == Axis.Y else point[1]
+        nearest_spec = min(
+            (entry for entry in router.lane_specs if entry[1] == corridor),
+            key=lambda entry: abs(
+                (entry[0].x if lateral_axis == Axis.Y else entry[0].y) - plan_depth_axis
+            ),
+            default=None,
+        )
+        governed_by_other = nearest_spec is not None and (
+            abs(nearest_spec[0].x - spec.x) > 1e-6 or abs(nearest_spec[0].y - spec.y) > 1e-6
+        )
         # Does the CLAMPED target itself sit on the forbidden side of this spec?
         # Traced on a green WEST spec at x=0.993: the clamp caps the target at
         # 0.781, which is 0.212 m the wrong side of the sign. No lane geometry
@@ -444,6 +468,9 @@ def _spec_frame_clearance(sim: object) -> list[tuple]:
                 abs(target - (sign_lateral + permitted * _LANE_SPEC_FAR_M)) > 1e-3,
                 inside_straight,
                 target_wrong_side,
+                relabelled,
+                governed_by_other,
+                len(same_corridor),
             )
         )
     return rows
@@ -1067,7 +1094,9 @@ def main() -> None:
             print(f"  TAIL CONDITIONING ({len(wrong)} wrong-side of its own spec vs {len(right)} correct):")
             for name, index in (("plan point INSIDE the lane span (depth)", 3), ("clamp binds", 7), ("corridor holds opposite colours", 6),
                 ("spec INSIDE the corridor straight", 8),
-                ("clamped TARGET on the forbidden side", 9)):
+                ("clamped TARGET on the forbidden side", 9),
+                ("spec was RELABELLED", 10),
+                ("plan governed by ANOTHER spec's plateau", 11)):
                 wrong_rate = sum(1 for row in wrong if row[index]) / len(wrong)
                 right_rate = sum(1 for row in right if row[index]) / len(right)
                 lift = wrong_rate / right_rate if right_rate else float("inf")
@@ -1078,6 +1107,20 @@ def main() -> None:
             # Dose-response, not a median split: a 0.40-vs-0.06 m median gap can
             # be produced by one over-represented cluster. If the rate climbs
             # with distance from the boundary the population is real.
+            for name, index in (("relabelled", 10),):
+                sub = [row for row in spec_rows if row[index]]
+                if sub:
+                    bad = sum(1 for row in sub if row[0] < 0)
+                    print(f"    {name + ' specs':<34} n={len(sub):>5}  wrong {bad:>4} ({bad / len(sub):>5.0%})")
+                rest = [row for row in spec_rows if not row[index]]
+                if rest:
+                    bad = sum(1 for row in rest if row[0] < 0)
+                    print(f"    {'not ' + name:<34} n={len(rest):>5}  wrong {bad:>4} ({bad / len(rest):>5.0%})")
+            print("    wrong-side rate by specs held in the corridor:")
+            for count in sorted({row[12] for row in spec_rows}):
+                sub = [row for row in spec_rows if row[12] == count]
+                bad = sum(1 for row in sub if row[0] < 0)
+                print(f"      {count} spec(s)   n={len(sub):>5}  wrong {bad:>4} ({bad / len(sub):>5.0%})")
             inside = [row for row in spec_rows if row[8]]
             outside = [row for row in spec_rows if not row[8]]
             for name, rows in (("spec inside the straight", inside), ("spec PAST the corner", outside)):
