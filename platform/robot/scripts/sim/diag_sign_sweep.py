@@ -533,6 +533,17 @@ class SweepConfig:
     already lost most of it.
     """
 
+    association_dist: float | None = None
+    """Override ``SignDiscoveryParams.ASSOCIATION_DIST_M`` (default 0.25 m).
+
+    How far an observation may sit from an existing track and still be folded
+    into it rather than starting a new one. Too tight and ONE physical sign
+    becomes several tracks -- measured 2.50x as many lane specs as true signs,
+    with 47% of them past a corner where the WRO layout guarantees no sign sits.
+    Safe up to ~0.50 m: two real signs in a section are always 1.00 m apart, so
+    below half that no merge can join distinct signs.
+    """
+
     min_hits: int | None = None
     """Override ``SignDiscoveryParams.MIN_HITS`` (default 3).
 
@@ -660,6 +671,7 @@ class SweepConfig:
             base.sign_discovery,
             MAX_INGEST_RANGE_M=self.ingest_range,
             MIN_HITS=self.min_hits,
+            ASSOCIATION_DIST_M=self.association_dist,
         )
         return replace(
             base,
@@ -3609,6 +3621,14 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     ),
     # Blind on purpose -- unsatisfiable targets come from corner-diagonal
     # DISCOVERIES, so a sighted arm has none (see the dedupe trap).
+    # Discovery association radius. BLIND only -- a sighted run has no
+    # discovery at all, so every arm would measure identical.
+    "assoc-dist": lambda v: SweepConfig(
+        f"assoc dist {v:{_FORMAT_2F}}",
+        blind=True,
+        sign_lane_planner=True,
+        association_dist=v,
+    ),
     "lane-split-overlap": lambda v: SweepConfig(
         f"split-overlap {'on' if v else 'off'}",
         blind=True,
