@@ -280,7 +280,7 @@ build-ws = "colcon build --symlink-install --merge-install --base-paths ros2_ws/
 # rotation is exactly the bug found and fixed 2026-08-02 (stale inverted:=true stacked
 # with an already-correct raw scan, and separately a stale 180deg stacked on an
 # already-correct inverted:=false, at different points the same day).
-run-lidar = "bash -c '. ros2_ws/install/setup.bash && INVERTED=$(python3 -c \"from shared.config.constants import RobotSpecs; print(str(RobotSpecs.LIDAR_INVERTED).lower())\") && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=$INVERTED'"
+run-lidar = "bash -c '. ros2_ws/install/setup.bash && INVERTED=$(python3 -c \"from dotenv import load_dotenv; load_dotenv(); from shared.config.constants import RobotSpecs; print(str(RobotSpecs.LIDAR_INVERTED).lower())\") && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=$INVERTED'"
 
 # Run ON Pi 5 -- one-shot setup for a freshly-flashed Pi Zero (SSH trust,
 # .env, pixi CLI, I2C, systemd unit). Idempotent, safe to re-run. See
