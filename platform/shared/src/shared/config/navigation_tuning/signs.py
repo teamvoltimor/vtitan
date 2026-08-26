@@ -282,7 +282,18 @@ class SignRouterParams(BaseModel):
             single-spec corridors NEVER fail (0/60). Legal WRO geometry cannot
             overlap -- a section holds at most two signs, 1.00 m apart, against a
             0.50 m plateau -- so every overlap is a discovery artifact of the
-            measured 2.50x spec duplication. Only meaningful with
+            measured 2.50x spec duplication.
+
+            REFUTED and defaults ``False``. Blind, 256 corpus, on top of the
+            shipped relabel: pass-side does fall 121 -> 110, but every other
+            column loses -- collisions 94 -> 106, laps>=1 74 -> 68, laps>=3
+            42 -> 40, in-time 29 -> 27 -- and laps driven FALL 229 -> 210, so
+            there is no survivorship excuse: sign collisions per lap rise
+            0.336 -> 0.410 (+22%) and total per lap 0.410 -> 0.505 (+23%). The
+            4.3x lift the conditioner showed was CORRELATION: it marks crowded
+            corridors, which fail for reasons the profile shape does not
+            capture, and splitting the plateaux makes the lane switch targets
+            sooner and drives the chassis into more signs. Only meaningful with
             ``SIGN_LANE_PLANNER``.
         SIGN_LANE_RELABEL_UNSATISFIABLE: When a sign's clamped lane target lands
             on the forbidden side of it, move the sign to the OTHER face of its
