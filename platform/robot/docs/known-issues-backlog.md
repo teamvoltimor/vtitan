@@ -32,9 +32,16 @@ LIDAR coupling change, unrelated to LIDAR code):
 - `test_obstacles_challenge_sim.py` -- 5 failures across
   `TestObstaclesDemoScenariosRun` (3) and `TestVisionConfirmedSignRouting` (2).
 - `test_open_challenge_sim.py::TestThreeLapSolvability::test_symmetric_narrow_all_starts[0]`.
-- `test_sensor_errors.py::TestStartPlacement::test_placement_error_is_absent_by_default` --
-  traced to `simulated_hardware_gateway.py`'s `position_error_m`, modified in separate
-  pre-existing uncommitted branch work predating this session.
+- ~~`test_sensor_errors.py::TestStartPlacement::test_placement_error_is_absent_by_default`~~ --
+  FIXED 2026-08-26. The earlier note blaming `simulated_hardware_gateway.py`'s
+  `position_error_m` was wrong, and so was the worry the name invites: the simulator injects
+  **no** unchosen start-placement error. `SensorErrors()` defaults `start_pos_error_m` to 0.0
+  and the estimator is seeded exactly at the believed start. The 3.1mm the test saw was blind
+  mode's own belief displacement -- blind seeds from the all-narrow prior at (1.50, 0.40), so
+  the wide-corridor scenario this test builds starts 20cm from truth by design, and 3.1mm is
+  the localizer's scan-match residual after absorbing it. The test measured blind mode, not
+  the error model. Fixed by pinning `known_start=True` across `TestStartPlacement`, which
+  removes the belief displacement and leaves the configured error as the only variable.
 
 ## Sustained full-lock steering / U-turn oscillation -- ROOT-CAUSED 2026-08-03
 

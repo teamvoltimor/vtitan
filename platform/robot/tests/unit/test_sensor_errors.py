@@ -28,6 +28,7 @@ def _sim(
     *,
     blind: bool = True,
     wall_heading: bool = False,
+    known_start: bool = False,
 ) -> ScenarioSimulator:
     """A scenario with the wall-heading correction off by default.
 
@@ -44,6 +45,7 @@ def _sim(
         blind=blind,
         sensor_errors=errors,
         wall_heading=wall_heading,
+        known_start=known_start,
     )
 
 
@@ -141,16 +143,25 @@ class TestStartPlacement:
     The localizer absorbs it on the first scan match. What matters is not the
     error but whether it lands inside the localizer's basin — see
     :meth:`test_placement_error_beyond_the_basin_never_recovers`.
+
+    All of these pass ``known_start=True``, which is what makes them a test of
+    the *error model* rather than of blind mode. Blind mode displaces the whole
+    belief frame on its own: it seeds the estimator from the all-narrow prior at
+    (1.50, 0.40), so on a wide corridor the robot starts 20cm from truth by
+    design, before any ``SensorErrors`` is applied. That displacement is
+    deliberate and is covered by the blind-navigation tests; leaving it in here
+    means a configured error of zero still reads as the localizer's residual
+    after absorbing 20cm, and the axis under test never gets isolated.
     """
 
     def test_placement_error_is_absent_by_default(self) -> None:
-        sim = _sim(SensorErrors())
+        sim = _sim(SensorErrors(), known_start=True)
         assert sim.gateway.position_error_m == pytest.approx(0.0, abs=1e-9)
 
     @pytest.mark.parametrize("error_m", [0.05, 0.10, 0.20, 0.40])
     def test_placement_error_is_absorbed_by_the_first_second(self, error_m: float) -> None:
         """A hand placement anywhere in the starting zone is recovered immediately."""
-        sim = _sim(SensorErrors(start_pos_error_m=error_m))
+        sim = _sim(SensorErrors(start_pos_error_m=error_m), known_start=True)
         for _ in range(20):
             sim.gateway.advance(_DT)
         assert sim.gateway.position_error_m < 0.05
@@ -164,7 +175,7 @@ class TestStartPlacement:
         but it is the difference between "converges" and "converges from
         anywhere", and only the first is true.
         """
-        sim = _sim(SensorErrors(start_pos_error_m=1.0))
+        sim = _sim(SensorErrors(start_pos_error_m=1.0), known_start=True)
         for _ in range(20):
             sim.gateway.advance(_DT)
         assert sim.gateway.position_error_m > 0.5
