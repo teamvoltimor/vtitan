@@ -1724,8 +1724,21 @@ class SweepResult:
             f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)  "
             f"sign-mask (masked {self.sign_collisions_masked:>{_RESULT_METRIC_WIDTH}} unmasked {self.sign_collisions_unmasked:>{_RESULT_METRIC_WIDTH}})  "
             f"masked-color (wrong {self.sign_collisions_wrong_color:>{_RESULT_METRIC_WIDTH}} right {self.sign_collisions_right_color:>{_RESULT_METRIC_WIDTH}})  "
-            f"lane-clamp (clamped {cb:>{_RESULT_METRIC_WIDTH}}b/{cm}m free {fb:>{_RESULT_METRIC_WIDTH}}b/{fm}m)"
+            f"lane-clamp (clamped {cb:>{_RESULT_METRIC_WIDTH}}b/{cm}m free {fb:>{_RESULT_METRIC_WIDTH}}b/{fm}m)  "
+            f"laps-driven {self.laps_driven:>5.1f} (sign {self._sign_collisions_per_lap:.3f}/lap)"
         )
+
+    @property
+    def _sign_collisions_per_lap(self) -> float:
+        """Sign collisions per lap actually driven.
+
+        The raw sign column cannot be compared across arms that differ in how
+        far runs get: a change that keeps runs alive longer exposes them to more
+        signs and raises the count without making any single encounter more
+        dangerous. Signs per lap is fixed by the WRO layout, so per-lap is a
+        fair per-encounter proxy.
+        """
+        return self.kind(CollisionKind.SIGN) / self.laps_driven if self.laps_driven else 0.0
 
     @property
     def _escapes_per_lap(self) -> float:
