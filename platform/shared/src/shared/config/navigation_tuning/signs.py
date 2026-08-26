@@ -280,9 +280,21 @@ class SignRouterParams(BaseModel):
             positive would pass a naive check, including one across the track.
             Measured blind over the 256 corpus: 29% of specs at a pass are
             inverted under their settled corridor, and 45/45 of them are
-            satisfiable under the other face with ~21.7 cm available. Preferred
-            over ``SIGN_LANE_SKIP_UNSATISFIABLE``, which fixes the same defect by
-            deleting the lane and costs pass-side 140 -> 155.
+            satisfiable under the other face with ~21.7 cm available.
+
+            Defaults ``True`` (2026-08-25), the first sign lever to clear a bar
+            set BEFORE the run -- pass-side 140 -> 121, laps>=3 33 -> 42, in-time
+            24 -> 29, lane delivery +0.15x -> +0.97x. The raw sign-collision
+            column rises 60 -> 77, which is mostly survivorship: laps driven rise
+            196 -> 229, so per lap it is 0.306 -> 0.336 (+10%) while wall falls
+            0.138 -> 0.074 (-46%) and TOTAL collisions per lap fall 0.444 ->
+            0.410. Read the raw sign column against laps-driven, never alone.
+
+            UNVALIDATED ON HARDWARE. The tracking half of these numbers sits on
+            top of a ~1.42x understeer the sim does not model.
+
+            Preferred over ``SIGN_LANE_SKIP_UNSATISFIABLE``, which fixes the same
+            defect by deleting the lane and costs pass-side 140 -> 155.
         SIGN_LANE_SKIP_UNSATISFIABLE: Drop a sign from the lane profile when its
             own clamped target lands on the FORBIDDEN side of it, instead of
             planning a line that violates the pass-side rule by construction.
@@ -442,7 +454,7 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
     SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
     SIGN_LANE_RELABEL_UNSATISFIABLE: bool = Field(
-        default=False, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
+        default=True, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
     )
     SIGN_LANE_SKIP_UNSATISFIABLE: bool = Field(
         default=False, validation_alias=_alias("SIGN_LANE_SKIP_UNSATISFIABLE")

@@ -15,9 +15,10 @@ from launch import LaunchDescription
 from launch.actions import OpaqueFunction
 from launch_ros.actions import Node
 
-from src.config.launch_settings import RpiZeroLaunchDefaults
+from src.config.launch_settings import MotorBackendLaunchSettings, RpiZeroLaunchDefaults
 
 _rpi_zero_defaults = RpiZeroLaunchDefaults()
+_motor_backend_settings = MotorBackendLaunchSettings()
 
 
 def _launch_setup(_context, *_args, **_kwargs) -> list[Node]:
@@ -26,6 +27,7 @@ def _launch_setup(_context, *_args, **_kwargs) -> list[Node]:
         executable="ackermann_motor_node",
         name="ackermann_motor_node",
         output="screen",
+        parameters=[_motor_backend_settings.as_node_parameters()],
         respawn=True,
         respawn_delay=_rpi_zero_defaults.respawn_delay,
     )

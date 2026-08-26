@@ -26,9 +26,10 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from src.config.launch_settings import StateMachineLaunchDefaults
+from src.config.launch_settings import MotorBackendLaunchSettings, StateMachineLaunchDefaults
 
 _state_machine_defaults = StateMachineLaunchDefaults()
+_motor_backend_settings = MotorBackendLaunchSettings()
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -93,7 +94,10 @@ def generate_launch_description() -> LaunchDescription:
         executable="ackermann_motor_node",
         name="ackermann_motors",
         output="screen",
-        parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
+        parameters=[
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
+            _motor_backend_settings.as_node_parameters(),
+        ],
         respawn=True,
         respawn_delay=_state_machine_defaults.respawn_delay,
     )

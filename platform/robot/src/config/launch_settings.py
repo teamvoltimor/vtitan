@@ -86,6 +86,29 @@ class VisionLaunchSettings(BaseSettings):
     imagery on the wire that a race doesn't need."""
 
 
+class MotorBackendLaunchSettings(BaseSettings):
+    """Steering/drive backend selection for ackermann_motor_node.
+
+    Field names map to the STEERING_BACKEND/DRIVE_BACKEND env vars documented
+    in ackermann_motor_node.py's own docstring and .env.example -- no prefix,
+    same convention as VisionLaunchSettings. Fed straight into the node's
+    ``steering_backend``/``drive_backend`` ROS2 params, since no
+    ``ros2 launch key:=value`` layer exists for these today.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="")
+
+    steering_backend: str = "servo"
+    drive_backend: str = "l298n"
+
+    def as_node_parameters(self) -> dict[str, str]:
+        """Dict of parameters to pass to ackermann_motor_node."""
+        return {
+            "steering_backend": self.steering_backend,
+            "drive_backend": self.drive_backend,
+        }
+
+
 class TelemetryBridgeLaunchSettings(BaseSettings):
     """Overrides for telemetry_bridge_node, wherever it's launched from.
 
