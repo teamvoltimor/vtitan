@@ -1,17 +1,25 @@
 # BTS7960/IBT-2 drive H-bridge PWM -- src/hardware/motors/bts7960/config.py
+#
+# Independent RPWM/LPWM (not a shared signal) -- see
+# docs/bts7960-ibt2-wiring.md for why tying them together only ever produces
+# Fast Brake / Coast, never actual drive.
 
 pwmchip = 0
 pwm_channel = 1
 # Same PWM channel the L298N's ENA used (GPIO 13 under the pwm-2chan
-# overlay), now feeding an external demux instead of the H-bridge directly.
-# See docs/bts7960-ibt2-wiring.md.
+# overlay), now feeding RPWM only.
 
 frequency_hz = 1000
 
-pwm_pin = 13          # shared PWM into the demux (same pin the L298N's ENA used)
-dir_select_pin = 26   # demux direction-select input
-r_en_pin = 5          # module R_EN, held HIGH
-l_en_pin = 6          # module L_EN, held HIGH
+forward_pwm_pin = 13   # RPWM, hardware PWM (forward -- the frequent, performance-critical direction)
+reverse_pwm_pin = 26   # LPWM, software PWM (reverse -- parking/recovery only, tolerates the jitter)
+
+# Held permanently HIGH at connect() -- these gate the module's
+# overcurrent/thermal protection, not direction. Physical BCM number vs the
+# module's own R_EN/L_EN silkscreen doesn't matter now that both are always
+# HIGH (it mattered under the old shared-PWM/EN-toggle design; see git log).
+r_en_pin = 6
+l_en_pin = 5
 
 # Encoder calibration + PID gains live in config/hardware/motors/encoder.toml
 # -- the encoder is a separate component from this H-bridge, see

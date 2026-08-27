@@ -2,8 +2,8 @@
 
 ``Driver`` only imports ``gpiozero`` lazily inside ``connect()``, so these
 tests exercise everything reachable without it: config defaults and the
-not-connected guard on ``run_drive_forward``/``run_drive_reverse``. Assumes
-the external demux described in docs/bts7960-ibt2-wiring.md.
+not-connected guard on ``run_drive_forward``/``run_drive_reverse``. See
+docs/bts7960-ibt2-wiring.md for the independent-RPWM/LPWM wiring.
 """
 
 from __future__ import annotations
@@ -22,10 +22,10 @@ class TestBts7960PwmConfig:
         assert config.pwmchip == 0
         assert config.pwm_channel == 1
         assert config.frequency_hz == 1000
-        assert config.pwm_pin == 13
-        assert config.dir_select_pin == 26
-        assert config.r_en_pin == 5
-        assert config.l_en_pin == 6
+        assert config.forward_pwm_pin == 13
+        assert config.reverse_pwm_pin == 26
+        assert config.r_en_pin == 6
+        assert config.l_en_pin == 5
 
 
 class TestDriver:

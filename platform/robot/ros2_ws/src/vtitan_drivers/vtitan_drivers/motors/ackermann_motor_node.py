@@ -62,7 +62,7 @@ Environment Variables:
         L298N drive pins: config/hardware/motors/l298n.toml
             (env: L298N_PWM_PWM_PIN, L298N_PWM_DIR_A_PIN, L298N_PWM_DIR_B_PIN)
         BTS7960 drive pins: config/hardware/motors/bts7960.toml
-            (env: BTS7960_PWM_PWM_PIN, BTS7960_PWM_DIR_SELECT_PIN,
+            (env: BTS7960_PWM_FORWARD_PWM_PIN, BTS7960_PWM_REVERSE_PWM_PIN,
             BTS7960_PWM_R_EN_PIN, BTS7960_PWM_L_EN_PIN; see
             docs/bts7960-ibt2-wiring.md)
         Encoder pins (either H-bridge backend): config/hardware/motors/encoder.toml
