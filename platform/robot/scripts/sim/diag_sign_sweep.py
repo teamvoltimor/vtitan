@@ -4144,6 +4144,34 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     "blind-arc": [
         SweepConfig("blind, shipped defaults (lane ON)", blind=True),
     ],
+    # The two arms `yaw-screen` picked out, on a FULL scorecard. That screen
+    # reports sign-collisions ONLY, and a single column has produced a wrong
+    # conclusion here twice -- SKIP_UNSATISFIABLE and SPLIT_OVERLAP each cleared
+    # one and lost everything else.
+    #
+    # It also refuted the premise they were screened under. Pass yaw is
+    # corner-concentrated (boundary 16.03 deg vs middle 6.46), but REDUCING it
+    # buys nothing: the lookahead arm cut yaw 16.03 -> 13.43 and path-heading
+    # 10.20 -> 8.21 while sign-collisions moved 103 -> 101. These two cut
+    # collisions (103 -> 86 and -> 88) while leaving yaw alone or slightly
+    # worse, so whatever they do, it is not via pass yaw. Do not re-derive the
+    # corner-exit story from the yaw correlation -- arc radius is refuted
+    # outright (102 vs 103 at r=0.35).
+    #
+    # steer-rate raises a demand the real actuator has to meet, and the ~1.42x
+    # understeer is invisible here, so treat a win as sim-only until a round
+    # says otherwise. sign-aware speed slows within 1.40 m of EVERY sign, so
+    # in-time is the column it is most likely to lose on.
+    "corner-exit": [
+        SweepConfig("shipped", blind=True, sign_lane_planner=True),
+        SweepConfig(
+            "steer-rate 1.5x",
+            blind=True,
+            sign_lane_planner=True,
+            max_steering_rate=NavigationTuning.load_default().pursuit.MAX_STEERING_RATE * 1.5,
+        ),
+        SweepConfig("sign-aware speed", blind=True, sign_lane_planner=True, sign_aware_speed=True),
+    ],
     "lane": [
         SweepConfig("sighted, lane planner OFF (pre-2026-08-17 shipped)", sign_lane_planner=False),
         SweepConfig("sighted, lane ON, override suppressed (default)", sign_lane_planner=True),
