@@ -24,9 +24,13 @@ reversed = false
 # genuinely differs.
 
 [drive]
-reversed = true
-# true on the real robot: the drive motor's leads are wired to the L298N
-# such that a positive motor_speed spins it backwards. Verified 2026-07-25.
+reversed = false
+# false on the real robot as of the BTS7960 rewire (independent RPWM/LPWM,
+# corrected R_EN/L_EN pins -- see docs/bts7960-ibt2-wiring.md): verified on
+# hardware 2026-08-27 that a positive commanded speed already drives
+# backward, so reversed=true would double-negate it. The previous `true`
+# value (verified 2026-07-25) was correct for the retired L298N wiring; the
+# BTS7960 swap flipped the physical polarity sense as a side effect.
 
 encoder_reversed = true
 # true on the real robot, independent of `reversed`: the motor leads and the
