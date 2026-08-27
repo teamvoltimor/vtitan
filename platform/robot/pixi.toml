@@ -341,3 +341,13 @@ setup-joystick = "bash scripts/setup-joystick.sh"
 # The `--` gives bash -c a placeholder $0 so "$@" inside the script
 # correctly expands to everything after it.
 test-motors = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/test_motors.py \"$@\"' --", env = { PYTHONPATH = "." } }
+
+# Run ON the Pi Zero directly (NOT Pi 5 -- unlike test-motors above, this
+# talks to the BTS7960/servo objects directly, not over ROS2/DDS), with
+# vtitan-pi-zero.service stopped first (it holds the same GPIO/PWM lines).
+# Sweeps raw H-bridge duty fractions and the servo's full pulse-width range,
+# bypassing the closed-loop PID entirely -- see scripts/hardware/
+# sweep_open_loop.py's docstring for why (encoder.toml's counts_per_rev/
+# max_rpm are calibrated against the retired motor). No ros2_ws sourcing
+# needed since this never touches ROS2.
+sweep-open-loop = { cmd = "python3 scripts/hardware/sweep_open_loop.py", env = { PYTHONPATH = "." } }

@@ -12,12 +12,16 @@ raw duty X actually produce" without assuming that calibration at all --
 exactly what's needed to characterize a new motor before recalibrating it.
 
 Run ON the Pi Zero directly (needs exclusive GPIO/PWM access -- the same
-pins ackermann_motor_node's driver holds):
+pins ackermann_motor_node's driver holds), or via `task robot:sweep-open-loop`:
     sudo systemctl stop vtitan-pi-zero.service
     cd platform/robot
-    set -a && source .env && set +a
-    PYTHONPATH="." ~/.pixi/bin/pixi run -e dev python3 scripts/hardware/sweep_open_loop.py
+    PYTHONPATH="." ~/.pixi/bin/pixi run -e dev sweep-open-loop
     sudo systemctl start vtitan-pi-zero.service
+
+Loads .env itself (load_dotenv() below) rather than relying on the caller
+to `source .env` first -- the exact class of bug fixed in `097ab6cf` for
+run-lidar's RobotSpecs read (Config()/EncoderConfig()/ServoConfig() below
+need VTITAN_HARDWARE_PROFILE etc. from it).
 
 The script itself checks whether vtitan-pi-zero.service is active and
 refuses to run if so, rather than fighting it for the same sysfs/GPIO
@@ -41,12 +45,21 @@ import subprocess
 import sys
 import time
 
-from src.hardware.motors.bts7960 import Driver as Bts7960Driver
-from src.hardware.motors.config import Config
-from src.hardware.motors.encoder import EncoderConfig, QuadratureEncoder
-from src.hardware.motors.encoder.calibration import DEFAULT_WHEEL_DIAMETER_M
-from src.hardware.motors.servo import Driver as ServoDriver
-from src.hardware.motors.servo.config import ServoConfig
+from dotenv import load_dotenv
+
+# Must run before any src.hardware.motors.* import: those transitively import
+# shared.config.constants.RobotSpecs, which reads VTITAN_HARDWARE_PROFILE at
+# MODULE IMPORT TIME (a top-level statement in shared/config/constants/
+# _shared.py, not inside a function) -- the same class of bug fixed in
+# `097ab6cf` for run-lidar. Calling load_dotenv() any later is too late.
+load_dotenv()
+
+from src.hardware.motors.bts7960 import Driver as Bts7960Driver  # noqa: E402 - see load_dotenv() note above
+from src.hardware.motors.config import Config  # noqa: E402
+from src.hardware.motors.encoder import EncoderConfig, QuadratureEncoder  # noqa: E402
+from src.hardware.motors.encoder.calibration import DEFAULT_WHEEL_DIAMETER_M  # noqa: E402
+from src.hardware.motors.servo import Driver as ServoDriver  # noqa: E402
+from src.hardware.motors.servo.config import ServoConfig  # noqa: E402
 
 SERVICE_NAME = "vtitan-pi-zero.service"
 SETTLE_S = 0.5

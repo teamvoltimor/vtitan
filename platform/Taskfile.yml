@@ -163,6 +163,7 @@ tasks:
           task robot:drive          Switch control mode (ACTION=navigation|controller) — run on Pi 5
           task robot:reset-motors   Zero drive speed + recenter steering (run after robot:drive switches)
           task robot:test-motors    Hardware smoke test: steering range + drive pulse, checks real feedback — run on Pi 5
+          task robot:sweep-open-loop Open-loop H-bridge duty + servo range sweep, bypasses the closed-loop PID — run ON THE PI ZERO, service stopped first
           task robot:joystick-setup Pair a Bluetooth joystick (e.g. 8BitDo Ultimate 2) — run on Pi 5, once
           task robot:diagrams       Render docs/diagrams/{common,open,obstacles}/mermaid/*.mmd to matching png/ folders (requires mermaid-cli)
 
@@ -1136,6 +1137,23 @@ tasks:
     dir: robot
     cmds:
       - pixi run -e dev test-motors -- {{.CLI_ARGS}}
+
+  robot:sweep-open-loop:
+    desc: >-
+      Open-loop H-bridge duty + servo range sweep — run ON THE PI ZERO
+      directly (not Pi 5: this talks to the BTS7960/servo objects directly,
+      not over ROS2/DDS). Stop vtitan-pi-zero.service first, it holds the
+      same GPIO/PWM lines (usage: sudo systemctl stop vtitan-pi-zero.service
+      && task robot:sweep-open-loop -- [--yes] [--skip-drive] [--skip-servo]
+      [--skip-reverse] [--duty-fractions 0.1,0.2,...] [--servo-steps 5]).
+      Unlike test-motors, bypasses ackermann_motor_node's closed-loop PID
+      entirely, so it answers "what does raw duty X produce" without relying
+      on encoder.toml's counts_per_rev/max_rpm (calibrated against the
+      retired motor, not trustworthy for a new one). See
+      scripts/hardware/sweep_open_loop.py --help for every option.
+    dir: robot
+    cmds:
+      - pixi run -e dev sweep-open-loop -- {{.CLI_ARGS}}
 
   robot:joystick-setup:
     desc: >-
