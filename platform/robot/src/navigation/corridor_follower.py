@@ -191,6 +191,26 @@ def follow_corridor(
                 speed_mps=-speed_mps * reverse_scale,
                 steering_norm=-steering,
             )
+        # Rear unreadable, which on this mount is ALWAYS -- there is no rear
+        # slot, so holding here is not a pause, it is a permanent stop. Nothing
+        # can clear it either: the direction estimator never settles because the
+        # robot never moves, so `_resolve_direction` keeps short-circuiting and
+        # `CoreNavigator.step` is never reached, which means the stuck detector
+        # never runs and no escape is ever considered.
+        #
+        # Measured 2026-08-27: a robot started INSIDE the parking bay -- a legal
+        # start -- sat at exactly 0.00 m for the whole run, 8/8 scenarios. Front
+        # was 0.05-0.19 m against a parking fin while BOTH sides read 12.0 m.
+        # There was an open corridor either side and the robot could see it.
+        #
+        # So pivot toward it instead, which is the same answer escape_recovery
+        # already reached for this rear-free chassis (see its both-blocked
+        # branch): creep forward under full lock and let the nose swing out.
+        # Gated on the side being genuinely open, so a true dead end -- boxed on
+        # three sides with nowhere to pivot to -- still holds, and the safety
+        # this branch exists for is preserved.
+        if max(left, right) > turn_clearance:
+            return DriveCommand(speed_mps=speed_mps * corner_scale, steering_norm=steering)
         return DriveCommand(speed_mps=0.0, steering_norm=steering)
 
     if forward < turn_clearance and not _way_through(ranges_m, angles_rad, tuning):
