@@ -47,6 +47,23 @@ Restart=on-failure
 RestartSec=3
 ExecStop=/usr/bin/kill -SIGINT $MAINPID
 TimeoutStopSec=5
+# Runs after the main process exits, for ANY reason -- clean stop, timeout
+# escalation, or a crash/OOM-kill -- which a plain ExecStop cannot cover.
+# LPWM/R_EN/L_EN (BTS7960 drive H-bridge) are plain GPIOs that gpiozero
+# releases the instant this process's file descriptors close; released, they
+# float and the module's 3.3V<->5V logic-level shifter's onboard ~10kOhm
+# pull-up (confirmed with a multimeter) pulls them HIGH -- which drove the
+# motor at full speed in reverse on a plain `systemctl stop`, confirmed on
+# hardware 2026-08-27 (see docs/bts7960-ibt2-wiring.md). This re-drives them
+# low within systemd's own reaction time instead of leaving them floating
+# until the next boot's connect() call, which can be 10+ seconds away.
+# Pin numbers must stay in sync with config/hardware/motors/bts7960.toml's
+# reverse_pwm_pin/r_en_pin/l_en_pin. Guarded on DRIVE_BACKEND so this is a
+# no-op on L298N/Build HAT deployments, where these pins may be unused or
+# wired to something else entirely. Does NOT cover a raw power loss/kernel
+# panic that bypasses systemd entirely -- only a physical pull-down resistor
+# on LPWM closes that gap (not yet installed as of 2026-08-27).
+ExecStopPost=/bin/sh -c '[ "$DRIVE_BACKEND" = "bts7960" ] && /usr/bin/pinctrl set 5,6,26 op dl || true'
 
 [Install]
 WantedBy=multi-user.target
