@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""Open-loop hardware characterization: raw H-bridge duty sweep + full servo range.
+
+Unlike test_motors.py, which commands /ackermann_cmd over ROS2 and goes
+through ackermann_motor_node's closed-loop PID, this drives the BTS7960 and
+servo objects DIRECTLY at raw duty fractions / absolute angles -- no ROS2, no
+PID, no m/s. That matters specifically because the closed loop's
+target_wheel_rpm math depends on encoder.toml's counts_per_rev/max_rpm, which
+are calibrated against the RETIRED motor and are not trustworthy for a new
+one (see EncoderConfig.max_duty's docstring). This script answers "what does
+raw duty X actually produce" without assuming that calibration at all --
+exactly what's needed to characterize a new motor before recalibrating it.
+
+Run ON the Pi Zero directly (needs exclusive GPIO/PWM access -- the same
+pins ackermann_motor_node's driver holds):
+    sudo systemctl stop vtitan-pi-zero.service
+    cd platform/robot
+    set -a && source .env && set +a
+    PYTHONPATH="." ~/.pixi/bin/pixi run -e dev python3 scripts/hardware/sweep_open_loop.py
+    sudo systemctl start vtitan-pi-zero.service
+
+The script itself checks whether vtitan-pi-zero.service is active and
+refuses to run if so, rather than fighting it for the same sysfs/GPIO
+handles (see docs/bts7960-ibt2-wiring.md for what shared PWM state produces
+if two processes write to it at once).
+
+Usage:
+    python3 scripts/hardware/sweep_open_loop.py                        # full sweep, asks to confirm
+    python3 scripts/hardware/sweep_open_loop.py --yes
+    python3 scripts/hardware/sweep_open_loop.py --skip-drive            # servo sweep only
+    python3 scripts/hardware/sweep_open_loop.py --skip-servo            # drive sweep only
+    python3 scripts/hardware/sweep_open_loop.py --duty-fractions 0.1,0.2,0.3,0.5,0.7,1.0
+    python3 scripts/hardware/sweep_open_loop.py --servo-steps 9         # -max..+max in 9 steps
+"""
+
+from __future__ import annotations
+
+import argparse
+import statistics
+import subprocess
+import sys
+import time
+
+from src.hardware.motors.bts7960 import Driver as Bts7960Driver
+from src.hardware.motors.config import Config
+from src.hardware.motors.encoder import EncoderConfig, QuadratureEncoder
+from src.hardware.motors.encoder.calibration import DEFAULT_WHEEL_DIAMETER_M
+from src.hardware.motors.servo import Driver as ServoDriver
+from src.hardware.motors.servo.config import ServoConfig
+
+SERVICE_NAME = "vtitan-pi-zero.service"
+SETTLE_S = 0.5
+"""Pause after commanding a new duty/angle, before sampling -- lets the PWM
+carrier and any mechanical inertia settle before the sample window starts."""
+
+
+def _service_is_active() -> bool:
+    result = subprocess.run(
+        ["systemctl", "is-active", SERVICE_NAME],  # noqa: S607 - fixed, no user input
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() == "active"
+
+
+def rpm_to_mps(rpm: float) -> float:
+    """Wheel rpm -> linear m/s, using the same wheel diameter the encoder/odometry use."""
+    return abs(rpm) / 60.0 * 3.14159265358979 * DEFAULT_WHEEL_DIAMETER_M
+
+
+def sweep_drive(
+    driver: Bts7960Driver,
+    encoder: QuadratureEncoder,
+    fractions: list[float],
+    hold_s: float,
+    reverse: bool,
+) -> list[tuple[float, float, float]]:
+    """Command each duty fraction in turn, sample the encoder, report mean rpm/m/s.
+
+    Returns a list of (fraction, mean_rpm, mean_mps) tuples. Zero is skipped
+    on purpose -- it is not a meaningful duty to hold, and stop_drive() is
+    called between every step regardless.
+    """
+    direction = "REVERSE" if reverse else "FORWARD"
+    results = []
+    for frac in fractions:
+        if frac <= 0:
+            continue
+        if reverse:
+            driver.run_drive_reverse(frac * 100.0)
+        else:
+            driver.run_drive_forward(frac * 100.0)
+        time.sleep(SETTLE_S)
+
+        samples = []
+        deadline = time.monotonic() + hold_s
+        last = time.monotonic()
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            dt = now - last
+            last = now
+            if dt > 0:
+                samples.append(encoder.get_rpm())
+            time.sleep(0.05)
+
+        driver.stop_drive()
+        time.sleep(0.5)  # coast to a stop before the next step
+
+        mean_rpm = statistics.fmean(samples) if samples else 0.0
+        mean_mps = rpm_to_mps(mean_rpm)
+        print(
+            f"  [{direction}] duty={frac:.2f} -> mean {mean_rpm:+.1f} rpm "
+            f"({mean_mps:.4f} m/s), n={len(samples)}",
+        )
+        results.append((frac, mean_rpm, mean_mps))
+    return results
+
+
+def sweep_servo(driver: ServoDriver, servo_config: ServoConfig, steps: int) -> None:
+    """Sweep the servo across its full commanded range in `steps`, centre to centre.
+
+    No encoder feedback exists for the servo -- this is a range-of-motion/
+    binding check, not a speed measurement. Reports the driver's own
+    get_steering_position() read-back (last commanded value, not sensed).
+    """
+    max_angle = servo_config.range_deg / 2.0
+    print(f"\n=== Servo sweep: -{max_angle:.1f} deg .. +{max_angle:.1f} deg, {steps} steps ===")
+    angles = [-max_angle + 2 * max_angle * i / (steps - 1) for i in range(steps)]
+    for angle in [0.0, *angles, 0.0]:
+        driver.move_steering_to(angle)
+        time.sleep(SETTLE_S + 0.3)
+        readback = driver.get_steering_position()
+        print(f"  commanded={angle:+.1f} deg -> readback={readback:+.1f} deg")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--skip-drive", action="store_true")
+    parser.add_argument("--skip-servo", action="store_true")
+    parser.add_argument("--skip-reverse", action="store_true", help="Drive sweep: forward only")
+    parser.add_argument(
+        "--duty-fractions",
+        type=str,
+        default="0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0",
+        help="Comma-separated duty fractions (0-1) to sweep, ascending",
+    )
+    parser.add_argument("--hold-s", type=float, default=2.0, help="Seconds to hold + sample each duty step")
+    parser.add_argument("--servo-steps", type=int, default=5, help="Number of servo positions across its full range")
+    parser.add_argument("--yes", "-y", action="store_true", help="Skip the drive-test confirmation prompt")
+    args = parser.parse_args()
+
+    if _service_is_active():
+        print(
+            f"ERROR: {SERVICE_NAME} is active and already holds these GPIO/PWM lines. "
+            f"Stop it first: sudo systemctl stop {SERVICE_NAME}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    fractions = sorted({float(v) for v in args.duty_fractions.split(",")})
+
+    if not args.skip_servo:
+        servo_config = ServoConfig()
+        servo = ServoDriver(servo_config)
+        servo.connect()
+        try:
+            sweep_servo(servo, servo_config, args.servo_steps)
+        finally:
+            servo.disconnect()
+
+    if not args.skip_drive:
+        if not args.yes:
+            reply = input(
+                "\nThe drive sweep will spin the wheels across increasing duty, up to 100%. "
+                "Confirm the robot is on a stand / wheels are clear, then type 'yes' to continue: ",
+            )
+            if reply.strip().lower() != "yes":
+                print("Drive sweep skipped (not confirmed).")
+                return
+
+        config = Config()  # type: ignore[call-arg]
+        encoder_config = EncoderConfig()
+        drive = Bts7960Driver(invert=config.drive.reversed)
+        encoder = QuadratureEncoder(
+            pin_a=encoder_config.pin_a,
+            pin_b=encoder_config.pin_b,
+            counts_per_rev=encoder_config.counts_per_rev,
+            wheel_diameter_m=DEFAULT_WHEEL_DIAMETER_M,
+            invert=config.drive.encoder_reversed,
+        )
+        drive.connect()
+        encoder.connect()
+        try:
+            print(f"\n=== Drive duty sweep: {fractions} ===")
+            print("(reported m/s assumes counts_per_rev/wheel_diameter are correct; rpm is the raw ground truth)")
+            forward_results = sweep_drive(drive, encoder, fractions, args.hold_s, reverse=False)
+            reverse_results = []
+            if not args.skip_reverse:
+                reverse_results = sweep_drive(drive, encoder, fractions, args.hold_s, reverse=True)
+
+            print("\n=== Summary ===")
+            for frac, rpm, mps in forward_results:
+                print(f"  FORWARD duty={frac:.2f}: {rpm:+.1f} rpm, {mps:.4f} m/s")
+            for frac, rpm, mps in reverse_results:
+                print(f"  REVERSE duty={frac:.2f}: {rpm:+.1f} rpm, {mps:.4f} m/s")
+        finally:
+            drive.stop_drive()
+            drive.disconnect()
+            encoder.disconnect()
+
+
+if __name__ == "__main__":
+    main()
