@@ -318,6 +318,43 @@ class SignRouterParams(BaseModel):
 
             Preferred over ``SIGN_LANE_SKIP_UNSATISFIABLE``, which fixes the same
             defect by deleting the lane and costs pass-side 140 -> 155.
+
+        SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR: Resolve a corner sign by which face
+            its DEPTH lies along, rather than which face is nearest. See
+            ``depth_consistent_corridor``. Upstream of
+            ``SIGN_LANE_RELABEL_UNSATISFIABLE``: that one repairs a lane target
+            already computed on the wrong axis, this one stops the axis being
+            chosen wrongly, and the relabel still runs on top.
+
+            Measured 2026-08-26 blind over the 256 corpus with the belief offset
+            removed, so it is the tie-break and not localization: 42.1% of
+            published specs are filed against the perpendicular face, giving a
+            "distance past the corner" of exactly 0.40 m (x568) or 0.60 m (x483)
+            -- the lateral offsets a sign may take. Confined to boundary signs
+            (44.9% at depth 1.00, 44.8% at 2.00, 0 of 153 mid-straight), which is
+            an unresolved exact tie rather than noise. That 42% is measured AFTER
+            the relabel, which writes the same ``_sign_corridors``, so the
+            shipped knob is not already collecting it.
+
+            Defaults ``True`` (2026-08-26) on a bar set before the run. Corpus
+            A/B, off arm = then-shipped: pass-side 121 -> 73 (-40%), laps>=3
+            42 -> 56, in-time 29 -> 40, timeouts flat at 10. Raw collisions
+            94 -> 127 and raw sign 77 -> 103 are SURVIVORSHIP -- laps driven rise
+            229 -> 301, so sign per lap is 0.336 -> 0.342 and total per lap
+            0.410 -> 0.422, both flat. Read the raw column against laps driven or
+            this reads as a 35% regression.
+
+            Costs, not hidden: stuck 5 -> 10, total collisions per lap +2.9%, and
+            pass-side 73/256 is still 28% of runs -- improved, not solved.
+
+            Mechanism confirmed on an INDEPENDENT metric, not on the objective
+            the fix minimizes. Depth-violation collapsing to ~0 proves nothing
+            (that is what is being optimized); instead, with the belief offset
+            removed, the share of specs whose assigned axis disagrees with the
+            layout invariant goes 42.1% -> 0.0% (0/2777, every depth bucket).
+
+            UNVALIDATED ON HARDWARE, like the relabel: the ~1.42x understeer is
+            invisible in sim, and the laps-driven gain is where that would bite.
         SIGN_LANE_SKIP_UNSATISFIABLE: Drop a sign from the lane profile when its
             own clamped target lands on the FORBIDDEN side of it, instead of
             planning a line that violates the pass-side rule by construction.
@@ -481,6 +518,9 @@ class SignRouterParams(BaseModel):
     )
     SIGN_LANE_RELABEL_UNSATISFIABLE: bool = Field(
         default=True, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
+    )
+    SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR: bool = Field(
+        default=True, validation_alias=_alias("SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR")
     )
     SIGN_LANE_SKIP_UNSATISFIABLE: bool = Field(
         default=False, validation_alias=_alias("SIGN_LANE_SKIP_UNSATISFIABLE")

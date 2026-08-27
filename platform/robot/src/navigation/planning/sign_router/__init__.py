@@ -41,6 +41,7 @@ from src.navigation.planning.sign_router.routing import (
     clamp_lateral,
     is_squarely_in_corridor,
     outward_lateral_axis,
+    depth_consistent_corridor,
     satisfiable_corridor,
     signs_from_metadata,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "is_squarely_in_corridor",
     "match_detection_to_sign",
     "outward_lateral_axis",
+    "depth_consistent_corridor",
     "satisfiable_corridor",
     "pin_depth",
     "signs_from_metadata",

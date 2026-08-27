@@ -23,6 +23,7 @@ from src.navigation.planning.sign_router.deformation import apply_deformation, m
 from src.navigation.planning.sign_router.routing import (
     BEHIND_TOLERANCE,
     ROUTING_TABLE,
+    depth_consistent_corridor,
     is_squarely_in_corridor,
     satisfiable_corridor,
 )
@@ -77,6 +78,9 @@ class SignRouter:
         # _corridor_for_spec. Read here rather than at each call site so the
         # per-tick path stays a plain attribute test.
         self._relabel_unsatisfiable = get_tuning(tuning).sign_router.SIGN_LANE_RELABEL_UNSATISFIABLE
+        # Decide a corner sign's face on depth rather than proximity; see
+        # _geometric_corridor. Same reason for reading it once here.
+        self._depth_consistent_corridor = get_tuning(tuning).sign_router.SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR
         self._direction = direction
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
@@ -148,7 +152,7 @@ class SignRouter:
             track.published_index = len(self._signs)
             spec = track.as_spec()
             self._signs.append(spec)
-            self._sign_corridors.append(corridor_for_position(spec.x, spec.y))
+            self._sign_corridors.append(self._geometric_corridor(spec))
             logger.info(
                 "Discovered %s sign %d at (%.2f, %.2f) from %d detections",
                 spec.color,
@@ -200,7 +204,7 @@ class SignRouter:
         the corridor you want to keep can make that corridor *less* likely, and
         there is no usable distance-to-decision-surface to threshold on.
         """
-        fresh = corridor_for_position(spec.x, spec.y)
+        fresh = self._geometric_corridor(spec)
         current = self._sign_corridors[index]
         if fresh == current:
             self._corridor_flip_streak.pop(index, None)
@@ -230,11 +234,22 @@ class SignRouter:
         Plain ``corridor_for_position`` unless ``SIGN_LANE_RELABEL_UNSATISFIABLE``
         is set; see ``satisfiable_corridor`` for why the corner tie-break can
         hand a sign a corridor in which no legal lane exists.
+
+        ``SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR`` runs first when set, because it
+        fixes the tie-break itself rather than repairing what the tie-break
+        produced -- the relabel then applies to an already-sane corridor.
         """
-        corridor = corridor_for_position(spec.x, spec.y)
+        corridor = self._geometric_corridor(spec)
         if not self._relabel_unsatisfiable:
             return corridor
         return satisfiable_corridor(spec, corridor, self._config.lateral_offset, self._context)
+
+    def _geometric_corridor(self, spec: SignSpec) -> Section:
+        """Corner tie-break for a sign, on depth rather than nearest face."""
+        corridor = corridor_for_position(spec.x, spec.y)
+        if not self._depth_consistent_corridor:
+            return corridor
+        return depth_consistent_corridor(spec.x, spec.y, corridor)
 
     @property
     def is_discovering(self) -> bool:

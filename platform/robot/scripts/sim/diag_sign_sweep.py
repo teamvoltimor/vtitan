@@ -468,6 +468,15 @@ class SweepConfig:
     spec's plateau is wrong-side 58% of the time against a 13% base rate.
     """
 
+    sign_lane_depth_consistent_corridor: bool | None = None
+    """Override ``SignRouterParams.SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR`` (default False).
+
+    Decides a corner sign's face by which straight its DEPTH lies along instead
+    of which face is nearest. Upstream of the relabel: measured 2026-08-26,
+    42.1% of published specs are filed on the perpendicular face even after the
+    relabel has run, confined to boundary signs (0 of 153 mid-straight).
+    """
+
     sign_lane_relabel_unsatisfiable: bool | None = None
     """Override ``SignRouterParams.SIGN_LANE_RELABEL_UNSATISFIABLE`` (default False).
 
@@ -664,6 +673,7 @@ class SweepConfig:
             SIGN_LANE_HOLD_M=self.sign_lane_hold,
             SIGN_LANE_SKIP_UNSATISFIABLE=self.sign_lane_skip_unsatisfiable,
             SIGN_LANE_RELABEL_UNSATISFIABLE=self.sign_lane_relabel_unsatisfiable,
+            SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR=self.sign_lane_depth_consistent_corridor,
             SIGN_LANE_SPLIT_OVERLAP=self.sign_lane_split_overlap,
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
             SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
@@ -3652,6 +3662,14 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         sign_lane_planner=True,
         sign_lane_relabel_unsatisfiable=bool(v),
     ),
+    # A/B for the corner tie-break itself. Run `lane-depth-corridor 0 1`: the
+    # off arm is the shipped configuration, so the pair is the whole claim.
+    "lane-depth-corridor": lambda v: SweepConfig(
+        f"depth-consistent-corridor {'on' if v else 'off'}",
+        blind=True,
+        sign_lane_planner=True,
+        sign_lane_depth_consistent_corridor=bool(v),
+    ),
     "lane-skip-unsatisfiable": lambda v: SweepConfig(
         f"skip-unsatisfiable {'on' if v else 'off'}",
         blind=True,
@@ -4434,6 +4452,14 @@ def report_spec_validity(workers: int, scenarios_dir: str | None) -> None:
     base = replace(SweepConfig("x", blind=True), scenarios_dir=scenarios_dir)
     _spec_validity_arm("blind, shipped defaults", base, workers)
     _spec_validity_arm("blind + known_start (belief offset removed)", replace(base, known_start=True), workers)
+    # Mechanism check for SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR: the scorecard
+    # says it helps, this says whether it helps for the stated reason. If the
+    # wrong-axis share does not collapse, the gain came from somewhere else.
+    _spec_validity_arm(
+        "blind + depth-consistent corridor",
+        replace(base, sign_lane_depth_consistent_corridor=True),
+        workers,
+    )
 
 
 MODES = (

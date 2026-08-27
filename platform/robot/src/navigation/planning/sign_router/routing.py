@@ -127,6 +127,51 @@ def candidate_corridors(x: float, y: float) -> list[Section]:
     return candidates
 
 
+def _depth_violation(x: float, y: float, corridor: Section) -> float:
+    """How far outside its corridor's straight this point's DEPTH falls.
+
+    Zero anywhere along the straight. The along-corridor axis is x for
+    SOUTH/NORTH and y for EAST/WEST -- the axis ``outward_lateral_axis`` does
+    NOT use, since lateral and depth are perpendicular by definition.
+    """
+    depth = x if corridor in (Section.SOUTH, Section.NORTH) else y
+    return max(0.0, TrackDimensions.CORNER_MIN - depth, depth - TrackDimensions.CORNER_MAX)
+
+
+def depth_consistent_corridor(x: float, y: float, fallback: Section) -> Section:
+    """The candidate face whose straight this point actually lies along.
+
+    ``corridor_for_position`` resolves a corner by NEAREST FACE, which is the
+    wrong axis to decide it on. A sign at depth exactly 2.00 -- and 1211 of 1282
+    corpus signs sit at depth 1.00 or 2.00, right where the corner arc meets the
+    straight -- needs only a millimetre of estimate error to tip past
+    ``CORNER_MAX``. It is then millimetres from the perpendicular face and 0.6 m
+    from its own, so nearest-face hands it the perpendicular one. There the
+    sign's LATERAL offset becomes its depth, the lane target is computed on the
+    wrong axis, and ``clamp_lateral`` clamps against the wrong bound.
+
+    Measured 2026-08-26 over the 256 corpus with the belief offset removed, so
+    this is the tie-break and not localization: 42.1% of published specs are
+    filed against the perpendicular face, and the resulting "distance past the
+    corner" is not a distribution but two spikes at 0.40 m (x568) and 0.60 m
+    (x483) -- exactly the lateral offsets signs are allowed to take. Confined to
+    boundary signs: 44.9% at depth 1.00 and 44.8% at 2.00 against 0 of 153
+    mid-straight signs, which is what an unresolved exact tie looks like.
+
+    Deciding on depth instead makes the tie answerable, because 0.40 m is not a
+    legal depth: the winner is simply the candidate least outside its own
+    straight. Ties keep ``fallback`` so a genuine diagonal is left where
+    ``corridor_for_position`` put it.
+    """
+    candidates = candidate_corridors(x, y)
+    if len(candidates) < 2:
+        return fallback
+    best = min(candidates, key=lambda section: _depth_violation(x, y, section))
+    if _depth_violation(x, y, best) < _depth_violation(x, y, fallback):
+        return best
+    return fallback
+
+
 def target_clearance(spec: SignSpec, corridor: Section, lateral_offset: float,
                      context: SignRouterContext | None = None) -> float | None:
     """Clearance this corridor's CLAMPED lane target leaves from the sign itself.

@@ -39,7 +39,7 @@ from src.navigation.planning.sign_router.deformation import (
     apply_deformation,
     match_detection_to_sign,
 )
-from src.navigation.planning.sign_router.routing import ROUTING_TABLE
+from src.navigation.planning.sign_router.routing import ROUTING_TABLE, depth_consistent_corridor
 from src.navigation.planning.waypoints import corridor_for_position
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
@@ -103,6 +103,19 @@ def _router(signs: list[SignSpec], config: SignRouterConfig) -> SignRouter:
 
 def _sign_at(x: float, y: float, color: str) -> SignSpec:
     return SignSpec(x=x, y=y, color=color)
+
+
+def _shipped_corridor(x: float, y: float) -> Section:
+    """Corridor a sign is filed under by the SHIPPED assignment rule.
+
+    Mirrors ``SignRouter._geometric_corridor``. Reads the knob rather than
+    assuming its value, so a test that pins what the damping sees keeps
+    describing the configuration that actually ships.
+    """
+    fallback = corridor_for_position(x, y)
+    if not _TUNING.sign_router.SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR:
+        return fallback
+    return depth_consistent_corridor(x, y, fallback)
 
 
 # 1. Deformation direction per corridor x color x travel direction
@@ -1303,6 +1316,22 @@ class TestSignCorridorHysteresis:
 
     _EAST_SIDE = (2.40, 1.997)
     _NORTH_SIDE = (2.40, 2.003)
+    """The traced pair. These NO LONGER straddle a corridor under the shipped
+    rule -- see ``test_the_traced_flip_no_longer_happens_at_all``. x=2.40 is a
+    lateral value and y~2.00 a depth value, so both points are EAST signs and
+    the NORTH label the old nearest-face rule produced was the misfile that
+    ``SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR`` removes. Kept to pin that."""
+
+    _DIAG_EAST = (2.010, 2.003)
+    _DIAG_NORTH = (2.003, 2.010)
+    """A TRUE corner diagonal, which is what the damping is actually for.
+
+    Both coordinates sit outside the inner square, so neither axis carries a
+    legal depth and the depth rule cannot break the tie -- whichever coordinate
+    is fractionally less far out wins, and millimetres of jitter still swing the
+    label between two orthogonal lateral axes. Unlike the traced pair, no
+    corridor assignment can be called correct here, so the hysteresis is the
+    only thing standing between jitter and an oscillating lateral axis."""
 
     _FLIP_TICKS = 5
     """Set explicitly: the shipped default is 1, which leaves the mechanism
@@ -1322,13 +1351,13 @@ class TestSignCorridorHysteresis:
         return _router([_sign_at(x, y, "red")], config)
 
     def test_boundary_jitter_never_moves_the_corridor(self, damped_config):
-        router = self._router_with_sign(damped_config, *self._EAST_SIDE)
+        router = self._router_with_sign(damped_config, *self._DIAG_EAST)
         assert router._sign_corridors[0] == Section.EAST
 
         # Twenty ticks of dither -- a full second at 20Hz, far longer than any
         # real approach spends abeam a sign.
         for tick in range(20):
-            x, y = self._NORTH_SIDE if tick % 2 == 0 else self._EAST_SIDE
+            x, y = self._DIAG_NORTH if tick % 2 == 0 else self._DIAG_EAST
             settled = router._settled_corridor(0, _sign_at(x, y, "red"))
             assert settled == Section.EAST, f"corridor flipped on tick {tick}"
 
@@ -1336,9 +1365,9 @@ class TestSignCorridorHysteresis:
         """The label must still follow an estimate that genuinely improves --
         holding it forever would be its own bug, just a quieter one.
         """
-        router = self._router_with_sign(damped_config, *self._EAST_SIDE)
+        router = self._router_with_sign(damped_config, *self._DIAG_EAST)
 
-        moved = _sign_at(*self._NORTH_SIDE, "red")
+        moved = _sign_at(*self._DIAG_NORTH, "red")
         for _ in range(self._FLIP_TICKS - 1):
             assert router._settled_corridor(0, moved) == Section.EAST
         assert router._settled_corridor(0, moved) == Section.NORTH
@@ -1347,9 +1376,9 @@ class TestSignCorridorHysteresis:
         """One dissenting tick restarts the count, so dither that happens to
         favour the new corridor overall still never accumulates a flip.
         """
-        router = self._router_with_sign(damped_config, *self._EAST_SIDE)
-        north = _sign_at(*self._NORTH_SIDE, "red")
-        east = _sign_at(*self._EAST_SIDE, "red")
+        router = self._router_with_sign(damped_config, *self._DIAG_EAST)
+        north = _sign_at(*self._DIAG_NORTH, "red")
+        east = _sign_at(*self._DIAG_EAST, "red")
 
         for _ in range(self._FLIP_TICKS * 3):
             for _ in range(self._FLIP_TICKS - 1):
@@ -1361,18 +1390,38 @@ class TestSignCorridorHysteresis:
         baseline arm depends on that staying true.
         """
         assert router_config.corridor_flip_ticks == 1
-        router = self._router_with_sign(router_config, *self._EAST_SIDE)
-        assert router._settled_corridor(0, _sign_at(*self._NORTH_SIDE, "red")) == Section.NORTH
+        router = self._router_with_sign(router_config, *self._DIAG_EAST)
+        assert router._settled_corridor(0, _sign_at(*self._DIAG_NORTH, "red")) == Section.NORTH
 
-    def test_the_traced_positions_really_do_straddle_a_corridor_boundary(self):
+    def test_the_diagonal_positions_really_do_straddle_a_corridor_boundary(self):
         """Guard the premise, not just the fix.
 
         If the track geometry ever moves and these two points stop landing in
         different corridors, every assertion above would still pass while
-        testing nothing at all.
+        testing nothing at all. Asserted through the SHIPPED assignment rule,
+        which is what the damping above actually sees.
+        """
+        assert _shipped_corridor(*self._DIAG_EAST) == Section.EAST
+        assert _shipped_corridor(*self._DIAG_NORTH) == Section.NORTH
+
+    def test_the_traced_flip_no_longer_happens_at_all(self):
+        """The traced oscillation is gone at the source, not merely damped.
+
+        ``_EAST_SIDE``/``_NORTH_SIDE`` are the positions that flipped EAST/NORTH
+        on every tick of an approach in ``go_obstacles_0000``. Nearest-face put
+        them in different corridors -- that is what the damping was built for --
+        but only one of those answers was ever right: x=2.40 is a LATERAL value
+        and y~2.00 a DEPTH value, so both points describe an EAST sign, and the
+        NORTH label was a misfile onto the perpendicular face. Under
+        ``SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR`` the label does not move, so
+        there is no flip left to damp.
         """
         assert corridor_for_position(*self._EAST_SIDE) == Section.EAST
-        assert corridor_for_position(*self._NORTH_SIDE) == Section.NORTH
+        assert corridor_for_position(*self._NORTH_SIDE) == Section.NORTH, "premise: nearest-face disagreed"
+        # The RULE, not the shipped default, so this still states what the rule
+        # does if the knob is ever revisited.
+        for point in (self._EAST_SIDE, self._NORTH_SIDE):
+            assert depth_consistent_corridor(*point, corridor_for_position(*point)) == Section.EAST
 
 
 class TestMinimumClearance:

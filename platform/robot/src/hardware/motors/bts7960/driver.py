@@ -1,18 +1,31 @@
 """Hardware BTS7960 (IBT-2 module) H-bridge drive driver.
 
-``Driver`` targets a BTS7960/IBT-2 module through an external 2:1 demux
-(``RPWM = PWM AND dir``, ``LPWM = PWM AND NOT dir``; see
-``docs/bts7960-ibt2-wiring.md``) rather than driving ``RPWM``/``LPWM``
-directly -- the Pi Zero 2 W's SoC has exactly 2 hardware-PWM engines, both
-already claimed by the servo and this driver's own shared channel, so there
-is no 3rd channel available for a second, independent PWM input. GPIO
-libraries are imported lazily inside ``connect`` so this module imports
-cleanly on dev machines without ``lgpio``/``gpiozero``.
+``Driver`` targets a BTS7960/IBT-2 module the way every reference wiring for
+this chip does: genuinely independent ``RPWM``/``LPWM`` signals, with
+``R_EN``/``L_EN`` held permanently HIGH and direction selected entirely by
+which PWM channel carries a nonzero duty (the other held at 0). See
+``docs/bts7960-ibt2-wiring.md``.
+
+An earlier revision of this driver shared ONE PWM signal into both
+``RPWM``/``LPWM`` and toggled ``R_EN``/``L_EN`` to pick a side, on the
+(wrong) assumption that a disabled side's half-bridge would ignore its PWM
+input entirely. It doesn't: per the chip's own truth table, RPWM=LPWM=HIGH
+is "Fast Brake" and RPWM=LPWM=LOW is "Coast" -- our shared-signal wiring
+alternated between exactly those two braking states every PWM cycle,
+regardless of R_EN/L_EN, and never actually drove the motor. The module
+itself was very likely fine the whole time.
+
+``forward_pwm_pin`` rides the Pi's one free hardware-PWM engine (RPWM,
+forward -- the overwhelmingly more frequent, performance-critical
+direction). ``reverse_pwm_pin`` rides software PWM via gpiozero (LPWM,
+reverse -- used only for parking/recovery, tolerant of the mild jitter
+software PWM carries on this board). GPIO libraries are imported lazily
+inside ``connect`` so this module imports cleanly on dev machines without
+``lgpio``/``gpiozero``.
 
 This driver has no encoder feedback of its own -- see ``l298n/driver.py``'s
 docstring and ``base.py``'s ``ClosedLoopDrive`` for why that's a separate
-component. Same reasoning for driving the shared PWM channel through the
-kernel's hardware PWM peripheral rather than gpiozero's software PWM.
+component.
 """
 
 from __future__ import annotations
@@ -34,19 +47,16 @@ logger = logging.getLogger(__name__)
 
 
 class Driver(DriveDriver):
-    """H-bridge-only drive on Raspberry Pi (lgpio/gpiozero), through the demux.
+    """H-bridge-only drive on Raspberry Pi (lgpio/gpiozero), independent RPWM/LPWM.
 
     All wiring facts (PWM chip/channel/carrier, and pin numbers) come from
     ``pwm_config`` (``Bts7960PwmConfig``) rather than separate constructor
     args, so they are TOML/env configurable the same way ``ServoConfig``
     already is -- see ``config/hardware/motors/bts7960.toml``.
 
-    ``dir_select_pin`` feeds the demux's direction input (routes the shared
-    PWM to ``RPWM`` when high, ``LPWM`` when low). ``r_en_pin``/``l_en_pin``
-    are the module's own per-direction enables, wired directly (not through
-    the demux) and simply held ``HIGH`` for the driver's lifetime -- the
-    demux, not these pins, is what gates which direction actually receives
-    PWM at any moment.
+    ``r_en_pin``/``l_en_pin`` are set HIGH once at :meth:`connect` and never
+    touched again -- they gate the module's overcurrent/thermal protection,
+    not direction.
     """
 
     def __init__(
@@ -56,15 +66,15 @@ class Driver(DriveDriver):
     ) -> None:
         self._pwm_config = pwm_config or Bts7960PwmConfig()
         self._pins = (
-            self._pwm_config.pwm_pin,
-            self._pwm_config.dir_select_pin,
+            self._pwm_config.forward_pwm_pin,
+            self._pwm_config.reverse_pwm_pin,
             self._pwm_config.r_en_pin,
             self._pwm_config.l_en_pin,
         )
         self._period_ns = int(motor_const.NS_PER_S / self._pwm_config.frequency_hz)
         self._channel_dir: Path | None = None
         self._sign = -1.0 if invert else 1.0
-        self._dir_select = None
+        self._reverse_pwm = None
         self._r_en = None
         self._l_en = None
 
@@ -76,7 +86,7 @@ class Driver(DriveDriver):
         return SYSFS_PWM_ROOT / f"pwmchip{self._pwm_config.pwmchip}"
 
     def _export_channel(self) -> Path:
-        """Export the PWM channel and wait for it to become writable."""
+        """Export the forward (RPWM) hardware-PWM channel and wait for it to become writable."""
         chip = self._chip_dir
         if not chip.is_dir():
             msg = (
@@ -106,22 +116,26 @@ class Driver(DriveDriver):
         raise self._fail(msg)
 
     def connect(self) -> None:
-        """Open the H-bridge (hardware PWM + gpiozero direction-select/enable pins)."""
+        """Open the H-bridge: RPWM hardware PWM, LPWM software PWM, EN pins latched HIGH."""
         try:
-            from gpiozero import DigitalOutputDevice
+            from gpiozero import DigitalOutputDevice, PWMOutputDevice
         except ImportError as err:
             raise MotorConnectionError(
                 [str(p) for p in self._pins],
                 "gpiozero/lgpio not available (Pi 5 hardware only)",
             ) from err
 
-        _, dir_select_pin, r_en_pin, l_en_pin = self._pins
+        _, reverse_pwm_pin, r_en_pin, l_en_pin = self._pins
         try:
-            self._dir_select = DigitalOutputDevice(dir_select_pin)
-            self._r_en = DigitalOutputDevice(r_en_pin)
-            self._l_en = DigitalOutputDevice(l_en_pin)
-            self._r_en.on()
-            self._l_en.on()
+            # HIGH for the driver's lifetime -- these gate the module's
+            # protection circuitry, not direction (see module docstring).
+            self._r_en = DigitalOutputDevice(r_en_pin, initial_value=True)
+            self._l_en = DigitalOutputDevice(l_en_pin, initial_value=True)
+            self._reverse_pwm = PWMOutputDevice(
+                reverse_pwm_pin,
+                frequency=self._pwm_config.frequency_hz,
+                initial_value=0,
+            )
         except Exception as err:  # gpiozero raises GPIOZeroError/OSError families
             raise MotorConnectionError(
                 [str(p) for p in self._pins],
@@ -141,36 +155,49 @@ class Driver(DriveDriver):
             raise self._fail(msg) from err
         self._channel_dir = channel_dir
 
-        logger.info("BTS7960 driver connected on pins %s (PWM %s)", self._pins, channel_dir)
+        logger.info(
+            "BTS7960 driver connected: RPWM hw-PWM %s, LPWM sw-PWM GPIO%d, EN pins %s",
+            channel_dir,
+            reverse_pwm_pin,
+            (r_en_pin, l_en_pin),
+        )
 
     def disconnect(self) -> None:
-        """Stop the drive, release the PWM channel, and close the GPIO lines."""
+        """Stop the drive, release both PWM channels, and close the EN GPIO lines."""
         self.stop_drive()
         if self._channel_dir is not None:
             try:
                 (self._channel_dir / "enable").write_text("0")
             except OSError:
-                logger.warning("Failed to disable drive PWM on disconnect", exc_info=True)
+                logger.warning("Failed to disable forward PWM on disconnect", exc_info=True)
             self._channel_dir = None
-        for device in (self._dir_select, self._r_en, self._l_en):
+        if self._reverse_pwm is not None:
+            self._reverse_pwm.close()
+            self._reverse_pwm = None
+        for device in (self._r_en, self._l_en):
             if device is not None:
                 device.close()
-        self._dir_select = None
         self._r_en = None
         self._l_en = None
 
     def _set_output(self, duty: float) -> None:
-        """Drive the H-bridge (through the demux) from a signed duty in [-1, 1]."""
+        """Drive the H-bridge from a signed duty in [-1, 1].
+
+        Positive -> RPWM (forward, hardware PWM) carries the duty, LPWM held
+        at 0. Negative -> LPWM (reverse, software PWM) carries the duty,
+        RPWM held at 0. Never both nonzero at once -- that's Fast Brake, not
+        drive (see module docstring).
+        """
         signed = self._sign * clamp(duty, -1.0, 1.0)
-        if self._dir_select is None or self._channel_dir is None:
+        if self._reverse_pwm is None or self._channel_dir is None:
             raise MotorConnectionError([str(p) for p in self._pins], "driver not connected")
-        # dir_select HIGH -> demux routes PWM to RPWM (forward); LOW -> LPWM.
-        if signed >= 0:
-            self._dir_select.on()
-        else:
-            self._dir_select.off()
         try:
-            (self._channel_dir / "duty_cycle").write_text(str(int(abs(signed) * self._period_ns)))
+            if signed >= 0:
+                self._reverse_pwm.value = 0
+                (self._channel_dir / "duty_cycle").write_text(str(int(signed * self._period_ns)))
+            else:
+                (self._channel_dir / "duty_cycle").write_text("0")
+                self._reverse_pwm.value = -signed
         except OSError as err:
             msg = f"PWM duty_cycle write failed: {err}"
             raise self._fail(msg) from err
@@ -184,12 +211,14 @@ class Driver(DriveDriver):
         self._set_output(-(50 if speed is None else speed) / 100.0)
 
     def stop_drive(self) -> None:
-        """Stop the drive."""
+        """Stop the drive (both channels to 0 duty)."""
         if self._channel_dir is not None:
             try:
                 (self._channel_dir / "duty_cycle").write_text("0")
             except OSError:
-                logger.warning("Failed to zero drive PWM duty on stop", exc_info=True)
+                logger.warning("Failed to zero forward PWM duty on stop", exc_info=True)
+        if self._reverse_pwm is not None:
+            self._reverse_pwm.value = 0
 
     def get_drive_position(self) -> float:
         """No feedback of its own -- see ``ClosedLoopDrive`` for encoder-backed position."""
