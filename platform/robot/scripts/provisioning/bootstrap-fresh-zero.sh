@@ -125,16 +125,31 @@ ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   echo 'dtoverlay=pwm-2chan,pin=$SERVO_PWM_PIN,func=4,pin2=$MOTOR_PWM_PIN,func2=4' | sudo tee -a /boot/firmware/config.txt >/dev/null
 "
 
-log "6b2/7 Pulling the servo and BTS7960 lines LOW from the earliest point of boot"
-# Before the overlay above (or any userspace driver) claims these pins, they
-# are undefined/floating inputs. A level-shifted logic buffer downstream can
-# read a floating HIGH, driving the motor at full speed or snapping the servo
-# to an extreme with no software running yet -- confirmed on hardware
-# 2026-08-27. gpio=...=pd in config.txt is a firmware-stage setting, applied
-# before the kernel or the pwm-2chan overlay, so it covers that whole window.
+log "6b2/7 Actively driving the BTS7960 LPWM/R_EN/L_EN lines LOW from the earliest point of boot"
+# LPWM/R_EN/L_EN are plain GPIOs -- nothing claims them until Python's
+# ackermann_motor_node connect() runs, which can be many seconds after boot
+# (waiting on the whole pixi/ROS2 launch). Until then they are undefined
+# floating inputs. The BTS7960 sits behind a 3.3V<->5V logic-level shifter
+# whose channels carry their own onboard ~10kOhm pull-ups (confirmed with a
+# multimeter 2026-08-27), which comfortably overpowers the SoC's own ~50kOhm
+# internal pull -- so a *passive* `gpio=...=pd` (input + pull-down) does NOT
+# work here: it was tried and measured to still read HIGH. What DOES work is
+# `op,dl` -- configuring the pin as an ACTIVE OUTPUT driven low, whose
+# few-ohm drive impedance trivially beats the shifter's 10kOhm pull-up.
+# Confirmed on hardware: with the systemd service disabled (so nothing but
+# firmware/kernel touched these pins), a fresh boot showed all three
+# reading driven LOW; re-enabling the service afterward let
+# ackermann_motor_node's gpiozero calls claim the same pins with no
+# conflict (`op,dl` is a plain output level, not a persistent kernel
+# resource claim like a devicetree gpio-hog would be).
+#
+# RPWM/servo (13/12) are excluded here: the pwm-2chan overlay below claims
+# them for hardware PWM during early kernel boot already, well before this
+# window matters, and driving them from config.txt as well would just be
+# redundant with the overlay's own pin takeover.
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
-  sudo sed -i '/^gpio=.*=pd\$/d' /boot/firmware/config.txt
-  echo 'gpio=$MOTOR_L_EN_PIN,$MOTOR_R_EN_PIN,$SERVO_PWM_PIN,$MOTOR_PWM_PIN,$MOTOR_REVERSE_PIN=pd' | sudo tee -a /boot/firmware/config.txt >/dev/null
+  sudo sed -i '/^gpio=.*=\(pd\|op,dl\)\$/d' /boot/firmware/config.txt
+  echo 'gpio=$MOTOR_L_EN_PIN,$MOTOR_R_EN_PIN,$MOTOR_REVERSE_PIN=op,dl' | sudo tee -a /boot/firmware/config.txt >/dev/null
 "
 
 log "6c/7 Configuring the USB-gadget (Ethernet-over-USB) link to Pi 5"
