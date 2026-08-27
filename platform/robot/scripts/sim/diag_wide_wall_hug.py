@@ -37,26 +37,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.domain.enums import Direction, Section
 
+from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.tables import print_table
 from src.simulation.imu_error_model import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 _STARTS = list(product(Section, Direction))
-
-_REAL_ERRORS = SensorErrors(
-    # Post-626a011 the start pose is measured off the scan rather than assumed,
-    # and landed within 3.6-4.8 cm on all three real bags -- so this is the
-    # residual that survives the measurement, not the old assumption's 0.35-0.80 m.
-    start_pos_error_m=0.05,
-    yaw_bias_rad=0.03,
-    imu_drift_rad_per_s=0.000145,  # BNO085's quoted 0.5 deg/min
-    gyro_scale_error=0.005,
-    imu_noise_rad=0.005,
-)
-"""Perturbations sized from the real hardware, for asking whether the wall-hug
-becomes a failure once the pose is not perfect."""
-
 
 @dataclass(frozen=True, slots=True)
 class _WideWallResult:
@@ -78,7 +65,7 @@ def _run(args: tuple[int, int, bool]) -> _WideWallResult:
     result = ScenarioSimulator(
         meta,
         num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
-        sensor_errors=_REAL_ERRORS if with_errors else SensorErrors(),
+        sensor_errors=REAL_SENSOR_ERRORS if with_errors else SensorErrors(),
     ).run()
     label = f"{section.value:>5}/{'CW' if direction is Direction.CLOCKWISE else 'CCW':<3}"
     return _WideWallResult(

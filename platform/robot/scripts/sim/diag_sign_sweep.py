@@ -75,6 +75,7 @@ from shared.domain.models import (
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
+from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.provenance import environment as _provenance
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
@@ -288,6 +289,21 @@ class SweepConfig:
     Expressed as the TOTAL because that is the quantity the geometry arguments
     in the investigation doc are written in, but the tunable is the MARGIN, so
     :meth:`tuning` subtracts the chassis half-diagonal before applying it.
+    """
+
+    real_sensor_errors: bool = False
+    """Perturb the estimate the way the real robot's sensors do.
+
+    Every corpus number this script has ever produced was measured on PERFECT
+    sensing -- no IMU drift, no yaw bias, no gyro scale error, no noise, no
+    placement residual -- because ``sensor_errors`` was never passed at all.
+    That is the last flag still defaulting to the easy side, and it flatters
+    exactly the kind of change that leans on a clean pose.
+
+    Uses ``REAL_SENSOR_ERRORS``, sized from three real bags rather than
+    invented, so a result here is about the hardware's actual error budget.
+    Note it forces LIDAR localization on (any sensor error does), which blind
+    already does, so this is not a second change smuggled in alongside.
     """
 
     known_start: bool = False
@@ -1437,6 +1453,8 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
             tuning=config.tuning(),
             blind=config.blind,
             park=config.park,
+            known_start=config.known_start,
+            sensor_errors=REAL_SENSOR_ERRORS if config.real_sensor_errors else None,
         )
         uturns = _UTurnDetector()
         escapes = _EscapeTracker(sim.navigator)
@@ -4162,6 +4180,26 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # understeer is invisible here, so treat a win as sim-only until a round
     # says otherwise. sign-aware speed slows within 1.40 m of EVERY sign, so
     # in-time is the column it is most likely to lose on.
+    # Does the shipped corner tie-break survive the sensors the robot has?
+    #
+    # Every corpus number behind SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR was taken
+    # on PERFECT sensing, because this script never passed sensor_errors at all.
+    # The fix decides a corner by which face a sign's DEPTH lies along, and it
+    # reads that depth through the pose estimate -- so a yaw bias or a drifting
+    # IMU attacks the input the whole mechanism rests on. A 0.03 rad bias at
+    # 1.5 m is ~4.5 cm of lateral error, against corner geometry where the
+    # decision turns on millimetres of overshoot.
+    #
+    # Four arms, not two: the fix has to be judged against ITS OWN control under
+    # the same sensing, or the sensor cost and the fix's gain are read off the
+    # same number. Perfect-sensing arms reproduce the shipped baseline as a
+    # check that nothing else moved.
+    "sensor-real": [
+        SweepConfig("perfect sensing, depth OFF", blind=True, sign_lane_depth_consistent_corridor=False),
+        SweepConfig("perfect sensing, depth ON", blind=True, sign_lane_depth_consistent_corridor=True),
+        SweepConfig("REAL sensor errors, depth OFF", blind=True, sign_lane_depth_consistent_corridor=False, real_sensor_errors=True),
+        SweepConfig("REAL sensor errors, depth ON", blind=True, sign_lane_depth_consistent_corridor=True, real_sensor_errors=True),
+    ],
     "corner-exit": [
         SweepConfig("shipped", blind=True, sign_lane_planner=True),
         SweepConfig(
