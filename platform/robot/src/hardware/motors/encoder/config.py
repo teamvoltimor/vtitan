@@ -51,3 +51,12 @@ class EncoderConfig(HardwareBaseSettings):
 
     pid_kd: float = 0.0
     """Closed-loop speed PID derivative gain (unused)."""
+
+    max_duty: float = 1.0
+    """Ceiling on the closed-loop PID's output magnitude (fraction, 0-1), fed
+    into ``PIDController(output_min=-max_duty, output_max=max_duty)``. Default
+    1.0 is full duty (no extra cap beyond the PID's own [-1, 1] range).
+    Lowering this caps the actual PWM duty the drive can ever be commanded to,
+    independent of ``counts_per_rev``/``max_rpm``/the drivetrain's
+    ``max_speed_mps`` -- useful as an immediate hardware safety cap after a
+    motor swap, before the encoder is recalibrated for the new motor."""

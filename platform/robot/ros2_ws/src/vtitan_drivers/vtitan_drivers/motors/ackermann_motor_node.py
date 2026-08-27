@@ -381,6 +381,8 @@ class AckermannMotorNode(LifecycleNode):
                     ki=encoder_config.pid_ki,
                     kd=encoder_config.pid_kd,
                     feedforward=1.0 / encoder_config.max_rpm,
+                    output_min=-encoder_config.max_duty,
+                    output_max=encoder_config.max_duty,
                 )
                 drive: DriveDriver | ClosedLoopDrive = ClosedLoopDrive(raw_drive, encoder, pid)
                 drive.connect()

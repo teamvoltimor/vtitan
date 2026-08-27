@@ -45,3 +45,13 @@ max_rpm = 42.5
 pid_kp = 0.010
 pid_ki = 0.020
 pid_kd = 0.0
+
+max_duty = 0.5
+# Safety cap after the 2026-08-27 motor swap: on hardware the new motor felt
+# roughly 1 m/s, far above what counts_per_rev/max_rpm/the PID gains above
+# were calibrated for (all measured against the RETIRED motor, 2026-07-25).
+# Capping duty at 50% here is deliberately independent of those stale
+# numbers -- it limits the actual PWM output regardless of what the encoder
+# math thinks the target rpm should be. Raise/remove once the encoder is
+# properly recalibrated (scripts/hardware/calibrate_encoder.py) for the new
+# motor and a real max_rpm is known.
