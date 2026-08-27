@@ -319,6 +319,19 @@ class SignRouterParams(BaseModel):
             Preferred over ``SIGN_LANE_SKIP_UNSATISFIABLE``, which fixes the same
             defect by deleting the lane and costs pass-side 140 -> 155.
 
+            NOW INERT (2026-08-26), subsumed by
+            ``SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR``. A target was unsatisfiable
+            because the sign had been filed on the perpendicular face; fixing the
+            face upstream leaves nothing for this to repair. On/off over the 256
+            corpus is bit-identical -- every column, laps-driven 301.0 and
+            escapes 4210 included -- so it never fires under the shipped config.
+
+            Kept ``True`` deliberately rather than deleted: "inert on this corpus"
+            is not "inert", and the numbers above are simulation only. It stays a
+            cheap backstop for geometry the corpus does not contain. Do not read
+            its 140 -> 121 gain as live -- that was earned in the regime the depth
+            rule removed.
+
         SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR: Resolve a corner sign by which face
             its DEPTH lies along, rather than which face is nearest. See
             ``depth_consistent_corridor``. Upstream of
