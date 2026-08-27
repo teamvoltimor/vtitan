@@ -2889,7 +2889,9 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             # Classified from the BELIEVED position, which is the frame this
             # whole callback works in -- and at 0.5 cm of estimate error the
             # depth it lands on is the true one anyway.
-            (yaw_middle if _is_middle_sign(*nearest) else yaw_boundary).append(yaw_deg)
+            # nearest is a Waypoint, which is not iterable -- `*nearest` raised
+            # TypeError and had taken this whole mode out of service.
+            (yaw_middle if _is_middle_sign(nearest.x, nearest.y) else yaw_boundary).append(yaw_deg)
             # Reaching past the public snapshot for the path (see `plan`
             # above): it carries the magnitude but not the projection, and both
             # remaining questions need the projection -- which side of the path
@@ -2910,7 +2912,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             # A chassis angled to its own path is lagging the turn, which
             # speed and steering rate CAN fix.
             heading = abs(math.degrees(wrap_angle(pose.yaw - proj.tangent_rad)))
-            (head_middle if _is_middle_sign(*nearest) else head_boundary).append(heading)
+            (head_middle if _is_middle_sign(nearest.x, nearest.y) else head_boundary).append(heading)
 
         result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
     finally:
