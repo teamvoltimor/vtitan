@@ -357,8 +357,16 @@ class SignRouterParams(BaseModel):
             0.410 -> 0.422, both flat. Read the raw column against laps driven or
             this reads as a 35% regression.
 
-            Costs, not hidden: stuck 5 -> 10, total collisions per lap +2.9%, and
+            Costs, not hidden: total collisions per lap +2.9%, 12 scenarios that
+            reached 3 laps no longer do (26 others start to, for the +14), and
             pass-side 73/256 is still 28% of runs -- improved, not solved.
+
+            The stuck column moves 5 -> 10 and that one is NOT a cost: all 8
+            newly-stuck runs were already failures, six of them at 0 laps, each
+            previously ending in a sign collision or a terminal wrong-side pass.
+            They now survive past that point and wedge later instead, so the
+            failure MODE changed and the outcome did not. Three stopped being
+            stuck, for net +5.
 
             Mechanism confirmed on an INDEPENDENT metric, not on the objective
             the fix minimizes. Depth-violation collapsing to ~0 proves nothing

@@ -1792,6 +1792,12 @@ class SweepResult:
             f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
             f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))} "
             f"pass_side={o.pass_side_violation}{list(o.pass_side_signs) or ''} "
+            # Both terminal states, and neither is inferable from the rest of
+            # the row: a run that ends without collision, without finishing and
+            # without timing out is stuck OR pass-side-terminated, and those
+            # want different fixes. Attributing the 2026-08-26 stuck move (5 ->
+            # 10) needed a second sweep purely because this was absent.
+            f"stuck={o.stuck} timed_out={o.timed_out} "
             f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
             f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)} "
             f"color_match={o.sign_color_match} "
