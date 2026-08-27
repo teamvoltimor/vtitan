@@ -75,6 +75,7 @@ from shared.domain.models import (
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
+from scripts.common.provenance import environment as _provenance
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
 from src.navigation.geometry import chassis_half_diagonal_m
@@ -287,6 +288,16 @@ class SweepConfig:
     Expressed as the TOTAL because that is the quantity the geometry arguments
     in the investigation doc are written in, but the tunable is the MARGIN, so
     :meth:`tuning` subtracts the chassis half-diagonal before applying it.
+    """
+
+    known_start: bool = False
+    """Seed the believed pose from ground truth instead of the assumed start.
+
+    Only meaningful alongside ``blind``. Blind otherwise assumes the canonical
+    South start, so a run beginning anywhere else carries a rigid belief offset
+    (measured p50 1.58 m over the corpus) for its whole length. This isolates
+    that offset without making the run sighted: the layout and the sign
+    positions are still withheld and still have to be discovered.
     """
 
     blind: bool = False
@@ -4211,7 +4222,229 @@ _YAW_SCREEN_ARMS = [
     SweepConfig("arc 0.45", blind=True, sign_lane_planner=True, arc_radius=0.45),
 ]
 
-MODES = ("crosstrack", "sign-crosstrack", "yaw-screen", "lane-geometry", *_FIXED_MODES, *_SWEPT_MODES)
+_TRUE_DEPTHS_M = (1.0, 1.5, 2.0)
+"""The only along-corridor depths a WRO sign ever takes.
+
+Measured over all 256 corpus scenarios (1282 signs): 604 at 1.00, 71 at 1.50,
+607 at 2.00, nothing else. Lateral is disjoint from this -- only 0.40/0.60 near
+and 2.40/2.60 far -- which is what makes a sign's own axis decidable without
+consulting the corridor classifier.
+"""
+
+_DEPTH_TOL_M = 0.05
+"""Slack when testing a true coordinate against ``_TRUE_DEPTHS_M``.
+
+The gap between the depth set and the lateral set is 0.40 m, so anything well
+under that separates them; this only has to absorb float noise.
+"""
+
+
+def _spec_depth(x: float, y: float, corridor: Section) -> float:
+    """Along-corridor coordinate of a spec assigned to ``corridor``."""
+    return x if corridor in (Section.SOUTH, Section.NORTH) else y
+
+
+def _run_spec_validity(args: tuple[int, SweepConfig]) -> list[tuple[float, float, float, float, float, float]]:
+    """Every sign spec discovery publishes, recorded at the tick it appears.
+
+    Answers whether the "specs past the corner cannot be real" reading holds.
+    That reading came from ``inside_straight`` (``CORNER_MIN <= depth <=
+    CORNER_MAX``), and the measured layout puts 1211 of 1282 signs at depth
+    EXACTLY 1.00 or 2.00 -- the interval's own bounds. So 94.5% of signs sit on
+    a knife edge where any displacement decides the verdict, and the share
+    landing "past the corner" says nothing on its own. The magnitude does:
+    a millimetre of overshoot is that knife edge, a metre is real displacement.
+
+    Recorded per published spec: believed-frame depth, how far past the nearest
+    corner bound it sits (0.0 when inside), the belief offset at that tick, and
+    how close the spec lands to a REAL sign once mapped back to the true frame.
+
+    That last one is approximate and deliberately secondary. ``_fold`` keeps the
+    CLOSEST-RANGE observation's position outright rather than averaging, so a
+    spec's coordinates were computed through the belief offset of whichever
+    earlier tick won -- not the offset at publication, which is what is
+    available here. Overshoot is the primary reading precisely because it needs
+    no frame conversion at all.
+    """
+    index, config = args
+    scenario = _scenarios(config)[index]
+    metadata = scenario.metadata
+    restore = _apply_patches(config, metadata)
+    records: list[tuple[float, float, float, float, float, float]] = []
+    try:
+        sim = ScenarioSimulator(
+            metadata,
+            num_laps=scenario.laps,
+            seed=scenario.seed,
+            tuning=config.tuning(),
+            blind=config.blind,
+            park=config.park,
+            known_start=config.known_start,
+        )
+        true_signs = sign_router_module.signs_from_metadata(metadata)
+        published = [0]
+
+        def _on_step(state: AckermannState, _scan: LidarScan) -> None:
+            router = sim.navigator.sign_router
+            if router is None:
+                return
+            specs = router.lane_specs
+            if len(specs) <= published[0]:
+                return
+            believed = sim.gateway.get_current_pose()
+            for spec, corridor in specs[published[0] :]:
+                depth = _spec_depth(spec.x, spec.y, corridor)
+                overshoot = max(
+                    0.0,
+                    TrackDimensions.CORNER_MIN - depth,
+                    depth - TrackDimensions.CORNER_MAX,
+                )
+                offset, match = math.nan, math.nan
+                if believed is not None:
+                    offset = math.hypot(believed.x - state.x, believed.y - state.y)
+                    # Inverse of _into_believed_frame: rotate the spec back by
+                    # the believed-vs-true yaw gap about the robot.
+                    dyaw = wrap_angle(believed.yaw - state.yaw)
+                    cos_d, sin_d = math.cos(-dyaw), math.sin(-dyaw)
+                    dx, dy = spec.x - believed.x, spec.y - believed.y
+                    tx = state.x + dx * cos_d - dy * sin_d
+                    ty = state.y + dx * sin_d + dy * cos_d
+                    if true_signs:
+                        match = min(math.hypot(s.x - tx, s.y - ty) for s in true_signs)
+                # Was the spec filed on the axis the sign actually runs along?
+                #
+                # NOT `corridor_for_position(spec) != corridor` -- that is the
+                # function the router derives `corridor` from, so it returns 0%
+                # by construction. (Measured 0/2458, and it is a tautology, not
+                # a result; the same circular test wasted a day on 2026-08-25.)
+                #
+                # The layout invariant decides it independently: along-corridor
+                # depth is only ever 1.00/1.50/2.00 and lateral only ever
+                # 0.40/0.60/2.40/2.60, so whichever TRUE axis carries a depth
+                # value is the axis the sign's corridor runs along. Corners are
+                # empty, so the two sets never both match.
+                mismatch, true_depth = math.nan, math.nan
+                if believed is not None and true_signs:
+                    near = min(true_signs, key=lambda s: math.hypot(s.x - tx, s.y - ty))
+                    x_is_depth = any(abs(near.x - d) < _DEPTH_TOL_M for d in _TRUE_DEPTHS_M)
+                    y_is_depth = any(abs(near.y - d) < _DEPTH_TOL_M for d in _TRUE_DEPTHS_M)
+                    if x_is_depth != y_is_depth:
+                        filed_along_x = corridor in (Section.SOUTH, Section.NORTH)
+                        mismatch = float(filed_along_x != x_is_depth)
+                        # The sign's OWN depth, on whichever axis really carries
+                        # it. Splits a misfile that only hits section-boundary
+                        # signs (1.00/2.00 -- genuinely two-faced, since the
+                        # boundary is where the corner arc meets the straight)
+                        # from one that also hits mid-straight signs at 1.50,
+                        # which are not ambiguous and have no excuse.
+                        true_depth = near.x if x_is_depth else near.y
+                records.append((depth, overshoot, offset, match, mismatch, true_depth))
+            published[0] = len(specs)
+
+        sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
+    finally:
+        for module, name, value in restore:
+            setattr(module, name, value)
+    return records
+
+
+def _spec_validity_arm(label: str, config: SweepConfig, workers: int) -> None:
+    """Run one arm and print its readings."""
+    count = len(_scenarios(config))
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        batches = list(pool.map(_run_spec_validity, [(i, config) for i in range(count)]))
+    rows = [row for batch in batches for row in batch]
+    print(f"\n--- {label} ---")
+    if not rows:
+        print("no specs published")
+        return
+
+    past = [r for r in rows if r[1] > 0.0]
+    overshoots = sorted(r[1] for r in past)
+    offsets = [r[2] for r in rows if not math.isnan(r[2])]
+    matches = [r[3] for r in rows if not math.isnan(r[3])]
+    print(f"scenarios={count}  published specs={len(rows)}")
+    print(f"past a corner bound: {len(past)}/{len(rows)} = {100 * len(past) / len(rows):.1f}%")
+    if overshoots:
+        print(
+            "  overshoot past the bound (m): "
+            f"p50={percentile(overshoots, 0.5):.4f} "
+            f"p90={percentile(overshoots, 0.9):.4f} "
+            f"max={overshoots[-1]:.4f}"
+        )
+        # The discriminator. Knife-edge means the predicate manufactured the
+        # finding; a decimetre-plus tail means the specs really are displaced.
+        for edge in (0.01, 0.05, 0.10, 0.25, 0.50):
+            share = sum(1 for v in overshoots if v <= edge) / len(overshoots)
+            print(f"    within {edge:.2f} m of the bound: {100 * share:.1f}%")
+        # Signs sit 0.10 m off a centreline, so reading lateral as depth yields
+        # 0.4 or 0.6 and nothing else. Two spikes there means the overshoot is
+        # an axis artifact of corridor assignment, not a position at all.
+        buckets: dict[float, int] = {}
+        for value in overshoots:
+            buckets[round(value, 1)] = buckets.get(round(value, 1), 0) + 1
+        spread = "  ".join(f"{k:.1f}m x{v}" for k, v in sorted(buckets.items()))
+        print(f"    overshoot rounded to 0.1 m: {spread}")
+        scored_past = [r for r in past if not math.isnan(r[4])]
+        if scored_past:
+            bad = sum(1 for r in scored_past if r[4] > 0.5)
+            print(
+                f"    filed on the WRONG AXIS (vs layout invariant): {bad}/{len(scored_past)} "
+                f"= {100 * bad / len(scored_past):.1f}%"
+            )
+    scored = [r for r in rows if not math.isnan(r[4])]
+    if scored:
+        bad_all = sum(1 for r in scored if r[4] > 0.5)
+        print(f"  wrong axis, all specs: {bad_all}/{len(scored)} = {100 * bad_all / len(scored):.1f}%")
+        for depth_value in _TRUE_DEPTHS_M:
+            at_depth = [r for r in scored if abs(r[5] - depth_value) < _DEPTH_TOL_M]
+            if not at_depth:
+                continue
+            bad = sum(1 for r in at_depth if r[4] > 0.5)
+            kind = "boundary" if depth_value in (1.0, 2.0) else "mid-straight"
+            print(
+                f"    true depth {depth_value:.2f} ({kind}): {bad}/{len(at_depth)} "
+                f"= {100 * bad / len(at_depth):.1f}% wrong axis"
+            )
+    if offsets:
+        print(
+            "  belief offset at publication (m): "
+            f"p50={percentile(offsets, 0.5):.3f} p90={percentile(offsets, 0.9):.3f}"
+        )
+    if matches:
+        print(
+            "  distance to nearest REAL sign, true frame (m, approx): "
+            f"p50={percentile(matches, 0.5):.3f} p90={percentile(matches, 0.9):.3f}"
+        )
+        for edge in (0.10, 0.30, 1.00):
+            share = sum(1 for v in matches if v <= edge) / len(matches)
+            print(f"    within {edge:.2f} m of a real sign: {100 * share:.1f}%")
+
+
+def report_spec_validity(workers: int, scenarios_dir: str | None) -> None:
+    """Is a spec past the corner impossible, or a real sign seen from a displaced frame?
+
+    Two arms, because either reading alone is unfalsifiable. The shipped arm
+    carries blind's rigid belief offset; the ``known_start`` arm removes only
+    that offset and keeps the layout and signs withheld. If overshoot collapses
+    between them, "past the corner" was a property of comparing believed
+    coordinates against FIXED nominal bounds -- not evidence about the spec.
+    """
+    print(_provenance())
+    base = replace(SweepConfig("x", blind=True), scenarios_dir=scenarios_dir)
+    _spec_validity_arm("blind, shipped defaults", base, workers)
+    _spec_validity_arm("blind + known_start (belief offset removed)", replace(base, known_start=True), workers)
+
+
+MODES = (
+    "crosstrack",
+    "sign-crosstrack",
+    "yaw-screen",
+    "lane-geometry",
+    "spec-validity",
+    *_FIXED_MODES,
+    *_SWEPT_MODES,
+)
 
 
 def _build_configs(mode: str, values: list[float]) -> list[SweepConfig]:
@@ -4249,6 +4482,10 @@ def main() -> None:
     scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
     if args.mode == "lane-geometry":
         report_lane_geometry(scenarios_dir, args.values)
+        return
+
+    if args.mode == "spec-validity":
+        report_spec_validity(args.workers, scenarios_dir)
         return
 
     if args.mode in ("sign-crosstrack", "yaw-screen"):

@@ -42,9 +42,7 @@ import argparse
 import json
 import logging
 import math
-import os
 import statistics
-import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -53,6 +51,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.common.provenance import environment
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from shared.config.constants import TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
@@ -867,28 +866,6 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     return counts, alongs, list(_VIOLATIONS), list(_EARLY), plan_clearances, deliveries, shapes, depth_errors, [hygiene_row], plateaux, shift_refs, spec_rows
 
 
-def _environment() -> str:
-    """Hardware profile and tree state, stamped on every sweep.
-
-    On 2026-08-25 a 122/68 attribution split reported the day before turned out
-    to be unreproducible from the very commit that reported it -- the same code
-    gives 91/95 -- so the difference was environmental. The worktree it ran in
-    had already been auto-removed, which left no way to recover which profile or
-    working-tree edits produced it, and an unreproducible ratio had by then
-    chosen the investigation's target for a day. A corpus number is not a result
-    unless what produced it is written down beside it.
-    """
-    profile = os.environ.get("VTITAN_HARDWARE_PROFILE", "UNSET")
-    try:
-        revision = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
-        ).stdout.strip()
-        dirty = subprocess.run(
-            ["git", "status", "--porcelain"], capture_output=True, text=True, check=True
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        revision, dirty = "unknown", ""
-    return f"profile={profile}  rev={revision}{'+dirty' if dirty else ''}"
 
 
 def main() -> None:
@@ -931,7 +908,7 @@ def main() -> None:
     total = counts["retreat"] + counts["pass"]
     arm = "blind+known_start" if args.known_start else "blind"
     print(f"scenarios {len(paths)}  retirements {total}  arm {arm}")
-    print(f"  ENV {_environment()}")
+    print(f"  ENV {environment()}")
     print(f"  along-track: RETREAT (sign ahead) {counts['retreat']:>4}   PASS (sign behind) {counts['pass']:>4}")
     if alongs:
         print(f"    median {statistics.median(alongs):+.2f} m")
