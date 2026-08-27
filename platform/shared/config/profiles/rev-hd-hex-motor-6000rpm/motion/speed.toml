@@ -20,7 +20,7 @@
 # different gearbox has a different stiction threshold.
 min_mps = 0.0499
 
-max_mps = 0.234
+max_mps = 0.50
 
 # REPRODUCED, NOT ARGUED -- and the first tier to re-tune.
 #
@@ -30,11 +30,16 @@ max_mps = 0.234
 # covers 6.2 cm. At 0.1521 it covers 9.3 cm -- 90% of the margin, on a budget
 # written for 60%.
 #
-# Left at the value the old fraction ladder produced so the component-profile
-# migration stays measurable as a no-op. Lowering it toward 0.1014 is a
-# separate, attributable change.
+# Left UNCHANGED across the 2026-08-27 motor-speed revision below: this is a
+# servo-slew/geometry constant, not a fraction of top speed, so a faster
+# motor does not by itself justify moving it. Lowering it toward 0.1014 is
+# still a separate, attributable change.
 creep_mps = 0.1521
 
-slow_mps = 0.1755
-medium_mps = 0.1989
-fast_mps = 0.234
+# slow/medium/fast set as fractions (30%/40%/50%) of robot.toml's
+# max_speed_mps (2026-08-27, NOT bench-measured -- see that file's comment).
+# Provisional pending a real measurement; re-derive these once it lands
+# rather than leaving them stale against a corrected ceiling.
+slow_mps = 0.30
+medium_mps = 0.40
+fast_mps = 0.50

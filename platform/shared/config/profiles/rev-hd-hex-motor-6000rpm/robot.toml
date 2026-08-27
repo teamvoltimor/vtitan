@@ -21,12 +21,13 @@
 #     impossible" plausibility bound. Against 0.234 it has 6.8% headroom, down
 #     from 60% against 0.156. That guard is what rejects the scan-match snap
 #     that root-caused the CCW corner failures; it needs raising with this.
-max_speed_mps = 0.234
-# STILL UNVERIFIED, and now suspected to be a significant UNDERESTIMATE: on
-# hardware 2026-08-27 the driver felt roughly 1 m/s, not 0.234. Left as-is
-# rather than guessing a replacement number -- this value only feeds
-# navigation/simulation/localization (not the raw /ackermann_cmd path used for
-# manual hardware testing), and the actual safety measure taken instead was a
-# 50% max-duty-cycle cap on the closed-loop PID output (see PIDController
-# construction in ackermann_motor_node.py). Bench-measure this properly
-# (timed over a known distance, under load) before trusting it for anything.
+max_speed_mps = 1.0
+# NOT BENCH-MEASURED -- a rough feel-based estimate from hardware 2026-08-27
+# (previous 0.234 scaled guess was a significant underestimate). Bench-measure
+# properly (timed over a known distance, under load, the same way 0.156 was
+# for the retired motor) before trusting this for anything beyond a rough
+# ceiling. motion/speed.toml's tiers are now set as fractions of THIS number
+# (fast=50%, medium=40%, slow=30%) pending that real measurement -- re-derive
+# them once max_speed_mps is properly known, don't just leave them stale
+# against a corrected ceiling. localization.MAX_SPEED_MPS's headroom margin
+# (see the old comment this replaced) needs re-checking against this too.
