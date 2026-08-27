@@ -53,6 +53,12 @@ SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
 # resulting pwmchip channels (0 = SERVO_PWM_PIN, 1 = MOTOR_PWM_PIN).
 SERVO_PWM_PIN="${SERVO_PWM_PIN:-12}"
 MOTOR_PWM_PIN="${MOTOR_PWM_PIN:-13}"
+# BTS7960 lines not covered by the PWM overlay above -- LPWM rides software
+# PWM, R_EN/L_EN are plain digital outputs. Must match reverse_pwm_pin/
+# r_en_pin/l_en_pin in config/hardware/motors/bts7960.toml.
+MOTOR_REVERSE_PIN="${MOTOR_REVERSE_PIN:-26}"
+MOTOR_R_EN_PIN="${MOTOR_R_EN_PIN:-6}"
+MOTOR_L_EN_PIN="${MOTOR_L_EN_PIN:-5}"
 # USB-gadget link addressing. Fixed MACs so NetworkManager sees the same device
 # across reboots; the .1/.2 split matches ZERO_HOST's default above.
 ZERO_USB_IP="${ZERO_USB_IP:-192.168.250.1}"
@@ -117,6 +123,18 @@ log "6b/7 Enabling hardware PWM on the servo (GPIO $SERVO_PWM_PIN) and drive mot
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sudo sed -i '/^dtoverlay=pwm\(-2chan\)\?\(,\|\$\)/d' /boot/firmware/config.txt
   echo 'dtoverlay=pwm-2chan,pin=$SERVO_PWM_PIN,func=4,pin2=$MOTOR_PWM_PIN,func2=4' | sudo tee -a /boot/firmware/config.txt >/dev/null
+"
+
+log "6b2/7 Pulling the servo and BTS7960 lines LOW from the earliest point of boot"
+# Before the overlay above (or any userspace driver) claims these pins, they
+# are undefined/floating inputs. A level-shifted logic buffer downstream can
+# read a floating HIGH, driving the motor at full speed or snapping the servo
+# to an extreme with no software running yet -- confirmed on hardware
+# 2026-08-27. gpio=...=pd in config.txt is a firmware-stage setting, applied
+# before the kernel or the pwm-2chan overlay, so it covers that whole window.
+ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
+  sudo sed -i '/^gpio=.*=pd\$/d' /boot/firmware/config.txt
+  echo 'gpio=$MOTOR_L_EN_PIN,$MOTOR_R_EN_PIN,$SERVO_PWM_PIN,$MOTOR_PWM_PIN,$MOTOR_REVERSE_PIN=pd' | sudo tee -a /boot/firmware/config.txt >/dev/null
 "
 
 log "6c/7 Configuring the USB-gadget (Ethernet-over-USB) link to Pi 5"
