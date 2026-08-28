@@ -1167,8 +1167,8 @@ tasks:
     cmds:
       - |
         sudo systemctl stop vtitan-pi-zero.service
-        trap 'sudo systemctl start vtitan-pi-zero.service' EXIT
-        pixi run -e dev sweep-open-loop -- {{.CLI_ARGS}}
+        trap 'sudo pinctrl set 5,6,26 op dl; sudo systemctl start vtitan-pi-zero.service' EXIT
+        ~/.pixi/bin/pixi run -e dev sweep-open-loop -- {{.CLI_ARGS}}
 
   robot:joystick-setup:
     desc: >-
