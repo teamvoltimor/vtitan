@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Open-loop hardware characterization: raw H-bridge duty sweep + full servo range.
+"""Open-loop hardware characterization: raw H-bridge duty sweep, full servo
+range, and start/stop dynamics (step response).
 
 Unlike test_motors.py, which commands /ackermann_cmd over ROS2 and goes
 through ackermann_motor_node's closed-loop PID, this drives the BTS7960 and
@@ -40,6 +41,16 @@ Usage:
     python3 scripts/hardware/sweep_open_loop.py --skip-servo            # drive sweep only
     python3 scripts/hardware/sweep_open_loop.py --duty-fractions 0.1,0.2,0.3,0.5,0.7,1.0
     python3 scripts/hardware/sweep_open_loop.py --servo-steps 9         # -max..+max in 9 steps
+
+Start/stop dynamics (0 -> duty -> stop, both directions, runs by default
+alongside the duty sweep unless --skip-step): samples the encoder
+continuously through the ramp-up AND the post-stop coast-down (not just a
+discarded-then-averaged steady-state window like sweep_drive() above), and
+reports rise time (10/50/90% of steady-state), an R^2 linearity check on the
+10-90% rise window, and settling time back under 10% after stop_drive().
+    python3 scripts/hardware/sweep_open_loop.py --skip-servo --duty-fractions 1.0   # duty sweep is a single point; step response still runs
+    python3 scripts/hardware/sweep_open_loop.py --skip-servo --step-duty 0.5 --step-hold-s 4 --step-coast-s 4
+    python3 scripts/hardware/sweep_open_loop.py --skip-servo --skip-step   # duty sweep only, no step response
 """
 
 from __future__ import annotations
@@ -135,6 +146,120 @@ def sweep_drive(
     return results
 
 
+def _linear_fit_r2(points: list[tuple[float, float]]) -> float:
+    """Least-squares R^2 of a straight-line fit to (t, rpm) points.
+
+    Pure stdlib, no numpy dependency -- this is a hardware probe script, and
+    every other one in this directory sticks to `statistics` only. Returns
+    0.0 for fewer than 2 points (can't fit a line) rather than raising.
+    """
+    n = len(points)
+    if n < 2:
+        return 0.0
+    ts = [t for t, _ in points]
+    rpms = [r for _, r in points]
+    t_mean = statistics.fmean(ts)
+    r_mean = statistics.fmean(rpms)
+    ss_t = sum((t - t_mean) ** 2 for t in ts)
+    if ss_t == 0:
+        return 0.0
+    slope = sum((t - t_mean) * (r - r_mean) for t, r in zip(ts, rpms, strict=True)) / ss_t
+    intercept = r_mean - slope * t_mean
+    ss_res = sum((r - (slope * t + intercept)) ** 2 for t, r in points)
+    ss_tot = sum((r - r_mean) ** 2 for r in rpms)
+    if ss_tot == 0:
+        return 1.0
+    return 1.0 - ss_res / ss_tot
+
+
+def _time_to_threshold(samples: list[tuple[float, float]], steady_abs: float, frac: float, after_t: float = 0.0) -> float | None:
+    """First timestamp (relative to `after_t`) where |rpm| crosses `frac` of `steady_abs`.
+
+    Returns None if the threshold is never crossed in the given samples.
+    """
+    target = steady_abs * frac
+    for t, rpm in samples:
+        if t < after_t:
+            continue
+        if abs(rpm) >= target:
+            return t - after_t
+    return None
+
+
+def step_response(
+    driver: Bts7960Driver,
+    encoder: QuadratureEncoder,
+    duty: float,
+    hold_s: float,
+    coast_s: float,
+    reverse: bool,
+) -> list[tuple[float, float]]:
+    """Command a single duty step, sample continuously through the ramp-up AND
+    the stop/coast-down, and report rise/settling times + a linearity check.
+
+    Unlike sweep_drive() (which discards the ramp-up and reports only the
+    steady-state mean per duty level), this KEEPS the full time series so the
+    start/stop dynamics are visible -- how long 0 -> steady-state actually
+    takes, whether that ramp is linear (R^2 of a straight-line fit), and how
+    long the coast-down after stop_drive() takes to settle back near zero.
+
+    Returns the full (t, rpm) sample list, t=0 at the moment the duty command
+    was issued, so a caller can plot/inspect it directly.
+    """
+    direction = "REVERSE" if reverse else "FORWARD"
+    print(f"\n=== Step response [{direction}]: duty={duty:.2f}, hold={hold_s}s, coast={coast_s}s ===")
+
+    samples: list[tuple[float, float]] = []
+    t0 = time.monotonic()
+    if reverse:
+        driver.run_drive_reverse(duty * 100.0)
+    else:
+        driver.run_drive_forward(duty * 100.0)
+
+    while (t := time.monotonic() - t0) < hold_s:
+        samples.append((t, encoder.get_rpm()))
+        time.sleep(0.02)
+
+    t_stop = time.monotonic() - t0
+    driver.stop_drive()
+
+    coast_deadline = time.monotonic() + coast_s
+    while time.monotonic() < coast_deadline:
+        samples.append((time.monotonic() - t0, encoder.get_rpm()))
+        time.sleep(0.02)
+
+    # Steady-state estimate: mean of the last 20% of the hold window, right
+    # before the stop command -- the most settled part of the ramp.
+    steady_window = [(t, r) for t, r in samples if t_stop * 0.8 <= t < t_stop]
+    steady_rpm = statistics.fmean(r for _, r in steady_window) if steady_window else 0.0
+    steady_abs = abs(steady_rpm)
+
+    rise_10 = _time_to_threshold(samples, steady_abs, 0.10)
+    rise_50 = _time_to_threshold(samples, steady_abs, 0.50)
+    rise_90 = _time_to_threshold(samples, steady_abs, 0.90)
+
+    # Linearity of the rise: fit only the 10%-90% window, not the flat
+    # steady-state tail that would drag R^2 toward "not linear" for a
+    # response that ramps linearly and then plateaus (expected, not a fault).
+    rise_window = [(t, r) for t, r in samples if rise_10 is not None and rise_90 is not None and rise_10 <= t <= rise_90]
+    rise_r2 = _linear_fit_r2(rise_window)
+
+    settle_10 = _time_to_threshold(samples, steady_abs, 0.10, after_t=t_stop)
+
+    print(f"  steady-state: {steady_rpm:+.1f} rpm ({rpm_to_mps(steady_rpm):.4f} m/s)")
+    print(
+        f"  rise time: 10%={_fmt_s(rise_10)}, 50%={_fmt_s(rise_50)}, 90%={_fmt_s(rise_90)} "
+        f"(from command onset)",
+    )
+    print(f"  rise linearity (10-90% window): R^2={rise_r2:.3f} ({'linear' if rise_r2 >= 0.95 else 'NOT linear'})")
+    print(f"  settling time after stop_drive(): {_fmt_s(settle_10)} to fall back under 10% of steady-state")
+    return samples
+
+
+def _fmt_s(value: float | None) -> str:
+    return "never" if value is None else f"{value * 1000:.0f}ms"
+
+
 def sweep_servo(driver: ServoDriver, servo_config: ServoConfig, steps: int) -> None:
     """Sweep the servo across its full commanded range in `steps`, centre to centre.
 
@@ -166,6 +291,24 @@ def main() -> None:
     parser.add_argument("--hold-s", type=float, default=2.0, help="Seconds to hold + sample each duty step")
     parser.add_argument("--servo-steps", type=int, default=5, help="Number of servo positions across its full range")
     parser.add_argument("--yes", "-y", action="store_true", help="Skip the drive-test confirmation prompt")
+    parser.add_argument(
+        "--skip-step",
+        action="store_true",
+        help="Skip the start/stop dynamics (step response) measurement",
+    )
+    parser.add_argument(
+        "--step-duty",
+        type=float,
+        default=1.0,
+        help="Duty fraction (0-1) for the step-response measurement (default 1.0 = full duty, 0 -> max)",
+    )
+    parser.add_argument("--step-hold-s", type=float, default=3.0, help="Seconds to hold the step duty before stopping")
+    parser.add_argument(
+        "--step-coast-s",
+        type=float,
+        default=3.0,
+        help="Seconds to keep sampling after stop_drive(), to capture the coast-down",
+    )
     args = parser.parse_args()
 
     if _service_is_active():
@@ -222,6 +365,11 @@ def main() -> None:
                 print(f"  FORWARD duty={frac:.2f}: {rpm:+.1f} rpm, {mps:.4f} m/s")
             for frac, rpm, mps in reverse_results:
                 print(f"  REVERSE duty={frac:.2f}: {rpm:+.1f} rpm, {mps:.4f} m/s")
+
+            if not args.skip_step:
+                step_response(drive, encoder, args.step_duty, args.step_hold_s, args.step_coast_s, reverse=False)
+                if not args.skip_reverse:
+                    step_response(drive, encoder, args.step_duty, args.step_hold_s, args.step_coast_s, reverse=True)
         finally:
             drive.stop_drive()
             drive.disconnect()
