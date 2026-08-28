@@ -1079,13 +1079,13 @@ tasks:
       - pixi run fetch-lidar-driver
 
   robot:run:
-    desc: "Run a single robot node (usage: task robot:run NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator) — requires build-ws first (lidar also needs fetch-lidar-driver)"
+    desc: "Run a single robot node (usage: task robot:run NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator -- [extra ros2 args]) — requires build-ws first (lidar also needs fetch-lidar-driver). NODE=motor requires DRIVE_BACKEND/STEERING_BACKEND set (e.g. via .env) — standalone `ros2 run` has no launch file to source them from and errors loudly rather than guessing."
     dir: robot
     requires:
       vars:
         - NODE
     cmds:
-      - pixi run run-{{.NODE}}
+      - pixi run run-{{.NODE}} -- {{.CLI_ARGS}}
 
   robot:launch:
     desc: >-

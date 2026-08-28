@@ -176,18 +176,33 @@ sim-bridge = "gz sim -r empty.sdf"
 # Wrapped in `bash -c` because pixi's built-in cross-platform task shell has
 # no sourcing support at all (neither bash's "source" nor POSIX "."), so it
 # can't apply ros2_ws/install/setup.bash's env side effects on its own.
-run-imu-i2c        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers bno08x_i2c_node'", env = { PYTHONPATH = "." } }
-run-imu-rvc        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers bno08x_uart_rvc_node'", env = { PYTHONPATH = "." } }
-run-state-machine  = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_state_machine state_machine_node'", env = { PYTHONPATH = "." } }
-run-oled           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers oled_display_node'", env = { PYTHONPATH = "." } }
-run-motor          = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers ackermann_motor_node'", env = { PYTHONPATH = "." } }
-run-joy-teleop     = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers joy_teleop_node'", env = { PYTHONPATH = "." } }
-run-telemetry      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_state_machine telemetry_bridge_node'", env = { PYTHONPATH = "." } }
-run-vision         = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_vision vision_node'", env = { PYTHONPATH = "." } }
-run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_navigation track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json'", env = { PYTHONPATH = "." } }
+# `"$@"' --` on every entry forwards trailing `pixi run <task> ...` args into
+# the wrapped command (e.g. `--ros-args --log-level debug`) -- without it,
+# `bash -c 'script' extra args` treats `extra`/`args` as bash's own
+# positional params ($1/$2), NOT as part of `script`, so they're silently
+# dropped. Found 2026-08-28 while trying to pass `-p drive_backend:=...` to
+# run-motor for bench debugging; test-motors/calibrate-encoder already had
+# the fix, this file's other entries didn't.
+run-imu-i2c        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers bno08x_i2c_node \"$@\"' --", env = { PYTHONPATH = "." } }
+run-imu-rvc        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers bno08x_uart_rvc_node \"$@\"' --", env = { PYTHONPATH = "." } }
+run-state-machine  = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_state_machine state_machine_node \"$@\"' --", env = { PYTHONPATH = "." } }
+run-oled           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers oled_display_node \"$@\"' --", env = { PYTHONPATH = "." } }
+# -p drive_backend/-p steering_backend: standalone `ros2 run` (unlike the
+# systemd-managed launch files, which pass these from DRIVE_BACKEND/
+# STEERING_BACKEND via MotorBackendLaunchSettings) has no other way to learn
+# the backend and silently falls back to the code default (l298n/servo) --
+# confirmed on hardware 2026-08-28: running this task on BTS7960-wired
+# hardware without overriding it applied L298N-shaped signals over pins the
+# BTS7960 now owns. Required (":?"), not defaulted, so an unset .env fails
+# loudly here instead of guessing.
+run-motor          = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers ackermann_motor_node --ros-args -p drive_backend:=${DRIVE_BACKEND:?set DRIVE_BACKEND in .env} -p steering_backend:=${STEERING_BACKEND:?set STEERING_BACKEND in .env} \"$@\"' --", env = { PYTHONPATH = "." } }
+run-joy-teleop     = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers joy_teleop_node \"$@\"' --", env = { PYTHONPATH = "." } }
+run-telemetry      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_state_machine telemetry_bridge_node \"$@\"' --", env = { PYTHONPATH = "." } }
+run-vision         = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_vision vision_node \"$@\"' --", env = { PYTHONPATH = "." } }
+run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_navigation track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json \"$@\"' --", env = { PYTHONPATH = "." } }
 
 # ROS2 launch files (compose multiple nodes — requires build-ws first)
-launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py'", env = { PYTHONPATH = "." } }
+launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
 # Bench-testing variant: bypasses state_machine_node's IMU/LiDAR/Hailo/jumper
 # readiness checks (see rpi5_nodes.launch.py's is_simulation argument), for
 # hardware that isn't fully assembled yet. Never used by the boot-time
@@ -195,17 +210,17 @@ launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 
 # this launches the same node set (state_machine/imu/vision/telemetry) and
 # will collide with the systemd-managed instance otherwise. Restart the
 # service when done (`sudo systemctl start vtitan-pi5.service`).
-launch-rpi5-bench       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py is_simulation:=true'", env = { PYTHONPATH = "." } }
-launch-rpi-zero        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi_zero_nodes.launch.py'", env = { PYTHONPATH = "." } }
+launch-rpi5-bench       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py is_simulation:=true \"$@\"' --", env = { PYTHONPATH = "." } }
+launch-rpi-zero        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi_zero_nodes.launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
 # No metadata argument: that is competition mode, where the navigator estimates
 # the layout from LIDAR instead of reading a scenario file. Pass metadata:=...
 # by hand when reproducing a known layout in testing.
-launch-race            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup race.launch.py'", env = { PYTHONPATH = "." } }
-launch-state-machine   = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup wro_state_machine_launch.py'", env = { PYTHONPATH = "." } }
-launch-telemetry       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup telemetry_bridge_launch.py'", env = { PYTHONPATH = "." } }
-launch-simulator       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup simulator.launch.py'", env = { PYTHONPATH = "." } }
-launch-lidar           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup lidar_launch.py'", env = { PYTHONPATH = "." } }
-launch-joy-teleop      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup joy_teleop_launch.py'", env = { PYTHONPATH = "." } }
+launch-race            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup race.launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
+launch-state-machine   = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup wro_state_machine_launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
+launch-telemetry       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup telemetry_bridge_launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
+launch-simulator       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup simulator.launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
+launch-lidar           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup lidar_launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
+launch-joy-teleop      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup joy_teleop_launch.py \"$@\"' --", env = { PYTHONPATH = "." } }
 
 # Control mode switching -- exactly one of these should be running on the Pi
 # 5 at a time (both publish to /ackermann_cmd; nothing arbitrates between
@@ -223,7 +238,7 @@ drive-mode             = { cmd = "bash -c '. ros2_ws/install/setup.bash && case 
 # switching modes (or after Ctrl+C'ing either drive-* task) instead of
 # waiting on ackermann_motor_node's 1s watchdog, which stops the drive motor
 # but never recenters steering. See scripts/hardware/reset_motors.py.
-reset-motors           = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/reset_motors.py'", env = { PYTHONPATH = "." } }
+reset-motors           = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/reset_motors.py \"$@\"' --", env = { PYTHONPATH = "." } }
 
 # Fetch the third-party Slamtec LIDAR driver into the workspace (idempotent).
 # Required before build-ws if you intend to use run-lidar / launch-lidar.
