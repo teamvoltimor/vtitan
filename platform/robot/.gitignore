@@ -4,6 +4,13 @@ log/
 build/
 build-zero/
 
+# One-generation rollback backups left by deploy-dev-env-to-zero.sh's atomic
+# swap on the Zero (ros2_ws/{build,install} renamed here with a timestamp
+# suffix before the new build takes their place) -- expected to exist, not
+# stray cruft, but still a build artifact rather than something to track.
+build_old_*/
+install_old_*/
+
 # Third-party ROS2 LIDAR driver, fetched via `pixi run fetch-lidar-driver` (not vendored)
 ros2_ws/src/sllidar_ros2/
 
