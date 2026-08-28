@@ -7,13 +7,15 @@ smoothed RPM feedback (as an earlier ad-hoc test did) folds in the estimator's
 exponential smoothing and the sampling interval, on top of the real error.
 ``get_drive_counts()`` is the hardware counter, with none of that.
 
-Why it matters: counts_per_rev is currently 194 (assumed 11 PPR x4 quadrature
-x 4.4 gear). Paired with the measured 70 mm wheel that implies 22.0 cm of
-travel per reported revolution, but the robot actually covers ~11.9 cm, so
-counts_to_distance() over-reports by ~1.85x. That is harmless while nothing
-consumes distance_m, but becomes a real error the moment the drive loop closes
-on m/s -- run_drive_at_rpm() measures its feedback through the same constant,
-so the loop would converge to a speed that is wrong by the same factor.
+Why it matters: counts_per_rev/max_rpm are per-motor physical facts, not
+generic constants (see EncoderConfig's docstring). The shipped 676.0 was
+measured on hardware 2026-07-25 against the now-RETIRED drive motor (it
+itself replaced an earlier 194.0 that over-reported distance by ~3.5x) --
+after the 2026-08-27 motor swap it is not trustworthy for the new one, which
+is exactly why this needs re-running. Getting it wrong is not harmless: the
+drive loop closes on m/s through this same constant (run_drive_at_rpm()
+measures its feedback through it), so the loop converges to a speed wrong by
+the same factor as any stale calibration.
 
 Wheel slip is the one contaminant left, and it only ever inflates the count for
 a given distance -- so every reading is an UPPER bound on the true ratio, and
@@ -50,6 +52,7 @@ from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32
 
 from scripts.common.motor_hold import publish_hold
+from src.hardware.motors.encoder import EncoderConfig
 
 
 class _Probe(Node):
@@ -102,8 +105,16 @@ def main() -> None:
         default=2.0 * RobotSpecs.WHEEL_RADIUS,
         help="Measured wheel diameter",
     )
-    parser.add_argument("--counts-per-rev-config", type=float, default=194.0, help="Value currently in the driver")
+    parser.add_argument(
+        "--counts-per-rev-config",
+        type=float,
+        default=None,
+        help="Value to compare against as 'currently configured' -- defaults to the live "
+        "encoder.toml value (EncoderConfig().counts_per_rev), not a restated literal",
+    )
     args = parser.parse_args()
+    if args.counts_per_rev_config is None:
+        args.counts_per_rev_config = EncoderConfig().counts_per_rev
 
     circumference_m = math.pi * args.wheel_diameter_m
     print(f"Wheel {args.wheel_diameter_m * 1000:.0f} mm -> circumference {circumference_m * 100:.2f} cm")
