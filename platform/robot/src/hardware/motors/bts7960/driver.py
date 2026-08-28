@@ -117,7 +117,22 @@ class Driver(DriveDriver):
         raise self._fail(msg)
 
     def connect(self) -> None:
-        """Open the H-bridge: RPWM hardware PWM, LPWM software PWM, EN pins latched HIGH."""
+        """Open the H-bridge: RPWM hardware PWM, LPWM software PWM, EN pins latched HIGH.
+
+        Both PWM channels are fully claimed and confirmed at 0 duty BEFORE
+        R_EN/L_EN ever go HIGH -- confirmed on hardware 2026-08-28 (brief,
+        real motor kicks on both a cold boot and a warm reconnect) that the
+        previous ordering (EN pins HIGH first, PWM channels claimed after)
+        left a window where the bridge was already enabled while LPWM's
+        electrical state was whatever gpiozero's claim-then-set-0 sequence
+        transiently left it at -- gpiozero requesting a GPIO line can
+        release/reclaim it, which the level shifter's onboard pull-up reads
+        as a brief HIGH the same way the disconnect()-side gap did (see
+        _force_gpio_low() below). RPWM is included here too even though it's
+        kernel-claimed by the pwm-2chan overlay before Python ever runs --
+        its duty is not otherwise confirmed zero on a fresh boot, so treat
+        it the same way rather than relying on the overlay's default.
+        """
         try:
             from gpiozero import DigitalOutputDevice, PWMOutputDevice
         except ImportError as err:
@@ -127,27 +142,13 @@ class Driver(DriveDriver):
             ) from err
 
         _, reverse_pwm_pin, r_en_pin, l_en_pin = self._pins
-        try:
-            # HIGH for the driver's lifetime -- these gate the module's
-            # protection circuitry, not direction (see module docstring).
-            self._r_en = DigitalOutputDevice(r_en_pin, initial_value=True)
-            self._l_en = DigitalOutputDevice(l_en_pin, initial_value=True)
-            self._reverse_pwm = PWMOutputDevice(
-                reverse_pwm_pin,
-                frequency=self._pwm_config.frequency_hz,
-                initial_value=0,
-            )
-        except Exception as err:  # gpiozero raises GPIOZeroError/OSError families
-            raise MotorConnectionError(
-                [str(p) for p in self._pins],
-                f"GPIO init failed: {type(err).__name__}",
-            ) from err
 
         channel_dir = self._export_channel()
         try:
-            # Order matters: duty_cycle may never exceed period, so a stale
-            # larger duty from a previous run would make the period write
-            # fail. Zero the duty first, then set the frame, then enable.
+            # Order matters within this block too: duty_cycle may never
+            # exceed period, so a stale larger duty from a previous run
+            # would make the period write fail. Zero the duty first, then
+            # set the frame, then enable -- all still with R_EN/L_EN LOW.
             (channel_dir / "duty_cycle").write_text("0")
             (channel_dir / "period").write_text(str(self._period_ns))
             (channel_dir / "enable").write_text("1")
@@ -155,6 +156,24 @@ class Driver(DriveDriver):
             msg = f"PWM init failed: {err}"
             raise self._fail(msg) from err
         self._channel_dir = channel_dir
+
+        try:
+            self._reverse_pwm = PWMOutputDevice(
+                reverse_pwm_pin,
+                frequency=self._pwm_config.frequency_hz,
+                initial_value=0,
+            )
+            # HIGH for the driver's lifetime -- these gate the module's
+            # protection circuitry, not direction (see module docstring).
+            # Asserted LAST, only once both PWM channels are confirmed at 0
+            # duty above -- see this method's docstring.
+            self._r_en = DigitalOutputDevice(r_en_pin, initial_value=True)
+            self._l_en = DigitalOutputDevice(l_en_pin, initial_value=True)
+        except Exception as err:  # gpiozero raises GPIOZeroError/OSError families
+            raise MotorConnectionError(
+                [str(p) for p in self._pins],
+                f"GPIO init failed: {type(err).__name__}",
+            ) from err
 
         logger.info(
             "BTS7960 driver connected: RPWM hw-PWM %s, LPWM sw-PWM GPIO%d, EN pins %s",
@@ -177,6 +196,12 @@ class Driver(DriveDriver):
             self._reverse_pwm = None
         for device in (self._r_en, self._l_en):
             if device is not None:
+                # Explicitly LOW before close(), not just closed straight
+                # from HIGH -- narrows (does not eliminate) the float
+                # window close() itself still opens; see _force_gpio_low()
+                # below for why close() can't be avoided or made atomic
+                # with the pinctrl re-assert.
+                device.off()
                 device.close()
         self._r_en = None
         self._l_en = None
