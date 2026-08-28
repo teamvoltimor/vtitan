@@ -29,17 +29,27 @@ import math
 import statistics
 import time
 
-import rclpy
-from ackermann_msgs.msg import AckermannDriveStamped
-from rclpy.node import Node
-from shared.config.ros_topics import RosTopicConfig
-from std_msgs.msg import Float32
+from dotenv import load_dotenv
 
-from scripts.common.motor_hold import publish_hold
+# Must run before any shared.config import: shared.config.ros_topics
+# transitively imports shared.config.constants.RobotSpecs, which reads
+# VTITAN_HARDWARE_PROFILE at MODULE IMPORT TIME (a top-level statement in
+# shared/config/constants/_shared.py, not inside a function) -- the same
+# class of bug fixed in `097ab6cf` for run-lidar and in sweep_open_loop.py.
+# Calling load_dotenv() any later is too late.
+load_dotenv()
+
+import rclpy  # noqa: E402 - see load_dotenv() note above
+from ackermann_msgs.msg import AckermannDriveStamped  # noqa: E402
+from rclpy.node import Node  # noqa: E402
+from shared.config.ros_topics import RosTopicConfig  # noqa: E402
+from std_msgs.msg import Float32  # noqa: E402
+
+from scripts.common.motor_hold import publish_hold  # noqa: E402
 
 STEERING_TOLERANCE_DEG = 1.0
 DRIVE_MOVING_THRESHOLD_DEG_S = 5.0
-from scripts.common.hardware_defaults import SETTLE_TIMEOUT_S
+from scripts.common.hardware_defaults import SETTLE_TIMEOUT_S  # noqa: E402
 
 
 def _wait_for_condition(

@@ -17,12 +17,22 @@ Usage:
 
 from __future__ import annotations
 
-import rclpy
-from ackermann_msgs.msg import AckermannDriveStamped
-from rclpy.node import Node
-from shared.config.ros_topics import RosTopicConfig
+from dotenv import load_dotenv
 
-from scripts.common.motor_hold import publish_hold
+# Must run before any shared.config import: shared.config.ros_topics
+# transitively imports shared.config.constants.RobotSpecs, which reads
+# VTITAN_HARDWARE_PROFILE at MODULE IMPORT TIME (a top-level statement in
+# shared/config/constants/_shared.py, not inside a function) -- the same
+# class of bug fixed in `097ab6cf` for run-lidar and in sweep_open_loop.py.
+# Calling load_dotenv() any later is too late.
+load_dotenv()
+
+import rclpy  # noqa: E402 - see load_dotenv() note above
+from ackermann_msgs.msg import AckermannDriveStamped  # noqa: E402
+from rclpy.node import Node  # noqa: E402
+from shared.config.ros_topics import RosTopicConfig  # noqa: E402
+
+from scripts.common.motor_hold import publish_hold  # noqa: E402
 
 # Repeated for a short window (not one-shot) so the command lands even if
 # discovery/matching between this short-lived process and

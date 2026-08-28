@@ -43,16 +43,26 @@ import statistics
 import sys
 import time
 
-import rclpy
-from ackermann_msgs.msg import AckermannDriveStamped
-from diagnostic_msgs.msg import DiagnosticStatus
-from rclpy.node import Node
-from shared.config.constants import RobotSpecs
-from shared.config.ros_topics import RosTopicConfig
-from std_msgs.msg import Float32
+from dotenv import load_dotenv
 
-from scripts.common.motor_hold import publish_hold
-from src.hardware.motors.encoder import EncoderConfig
+# Must run before any shared.config/src.hardware.motors import: both
+# transitively import shared.config.constants.RobotSpecs, which reads
+# VTITAN_HARDWARE_PROFILE at MODULE IMPORT TIME (a top-level statement in
+# shared/config/constants/_shared.py, not inside a function) -- the same
+# class of bug fixed in `097ab6cf` for run-lidar and in sweep_open_loop.py.
+# Calling load_dotenv() any later is too late.
+load_dotenv()
+
+import rclpy  # noqa: E402 - see load_dotenv() note above
+from ackermann_msgs.msg import AckermannDriveStamped  # noqa: E402
+from diagnostic_msgs.msg import DiagnosticStatus  # noqa: E402
+from rclpy.node import Node  # noqa: E402
+from shared.config.constants import RobotSpecs  # noqa: E402
+from shared.config.ros_topics import RosTopicConfig  # noqa: E402
+from std_msgs.msg import Float32  # noqa: E402
+
+from scripts.common.motor_hold import publish_hold  # noqa: E402
+from src.hardware.motors.encoder import EncoderConfig  # noqa: E402
 
 
 class _Probe(Node):
