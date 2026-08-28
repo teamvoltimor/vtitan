@@ -48,8 +48,11 @@ continuously through the ramp-up AND the post-stop coast-down (not just a
 discarded-then-averaged steady-state window like sweep_drive() above), and
 reports rise time (10/50/90% of steady-state), an R^2 linearity check on the
 10-90% rise window, and settling time back under 10% after stop_drive().
+Also prints a live rpm/m/s readout every --step-progress-s during the hold
+and coast, so a long --step-hold-s isn't silent.
     python3 scripts/hardware/sweep_open_loop.py --skip-servo --duty-fractions 1.0   # duty sweep is a single point; step response still runs
     python3 scripts/hardware/sweep_open_loop.py --skip-servo --step-duty 0.5 --step-hold-s 4 --step-coast-s 4
+    python3 scripts/hardware/sweep_open_loop.py --skip-servo --skip-reverse --step-duty 1.0 --step-hold-s 60 --step-progress-s 2
     python3 scripts/hardware/sweep_open_loop.py --skip-servo --skip-step   # duty sweep only, no step response
 """
 
@@ -193,6 +196,7 @@ def step_response(
     hold_s: float,
     coast_s: float,
     reverse: bool,
+    progress_interval_s: float = 1.0,
 ) -> list[tuple[float, float]]:
     """Command a single duty step, sample continuously through the ramp-up AND
     the stop/coast-down, and report rise/settling times + a linearity check.
@@ -203,6 +207,10 @@ def step_response(
     takes, whether that ramp is linear (R^2 of a straight-line fit), and how
     long the coast-down after stop_drive() takes to settle back near zero.
 
+    Prints a live rpm/m/s readout every `progress_interval_s` during both the
+    hold and the coast-down -- a multi-minute --step-hold-s would otherwise
+    sit silent with no sign it's still running.
+
     Returns the full (t, rpm) sample list, t=0 at the moment the duty command
     was issued, so a caller can plot/inspect it directly.
     """
@@ -211,21 +219,33 @@ def step_response(
 
     samples: list[tuple[float, float]] = []
     t0 = time.monotonic()
+    next_progress = progress_interval_s
     if reverse:
         driver.run_drive_reverse(duty * 100.0)
     else:
         driver.run_drive_forward(duty * 100.0)
 
     while (t := time.monotonic() - t0) < hold_s:
-        samples.append((t, encoder.get_rpm()))
+        rpm = encoder.get_rpm()
+        samples.append((t, rpm))
+        if t >= next_progress:
+            print(f"  t={t:5.1f}s [hold]  {rpm:+7.1f} rpm  ({rpm_to_mps(rpm):.4f} m/s)")
+            next_progress += progress_interval_s
         time.sleep(0.02)
 
     t_stop = time.monotonic() - t0
     driver.stop_drive()
+    print(f"  t={t_stop:5.1f}s [stop_drive() issued]")
 
+    next_progress = t_stop + progress_interval_s
     coast_deadline = time.monotonic() + coast_s
     while time.monotonic() < coast_deadline:
-        samples.append((time.monotonic() - t0, encoder.get_rpm()))
+        t = time.monotonic() - t0
+        rpm = encoder.get_rpm()
+        samples.append((t, rpm))
+        if t >= next_progress:
+            print(f"  t={t:5.1f}s [coast] {rpm:+7.1f} rpm  ({rpm_to_mps(rpm):.4f} m/s)")
+            next_progress += progress_interval_s
         time.sleep(0.02)
 
     # Steady-state estimate: mean of the last 20% of the hold window, right
@@ -309,6 +329,12 @@ def main() -> None:
         default=3.0,
         help="Seconds to keep sampling after stop_drive(), to capture the coast-down",
     )
+    parser.add_argument(
+        "--step-progress-s",
+        type=float,
+        default=1.0,
+        help="Live rpm/m/s readout interval during a step-response hold/coast (for long --step-hold-s runs)",
+    )
     args = parser.parse_args()
 
     if _service_is_active():
@@ -367,9 +393,15 @@ def main() -> None:
                 print(f"  REVERSE duty={frac:.2f}: {rpm:+.1f} rpm, {mps:.4f} m/s")
 
             if not args.skip_step:
-                step_response(drive, encoder, args.step_duty, args.step_hold_s, args.step_coast_s, reverse=False)
+                step_response(
+                    drive, encoder, args.step_duty, args.step_hold_s, args.step_coast_s,
+                    reverse=False, progress_interval_s=args.step_progress_s,
+                )
                 if not args.skip_reverse:
-                    step_response(drive, encoder, args.step_duty, args.step_hold_s, args.step_coast_s, reverse=True)
+                    step_response(
+                        drive, encoder, args.step_duty, args.step_hold_s, args.step_coast_s,
+                        reverse=True, progress_interval_s=args.step_progress_s,
+                    )
         finally:
             drive.stop_drive()
             drive.disconnect()
