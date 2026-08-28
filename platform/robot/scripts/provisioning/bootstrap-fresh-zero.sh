@@ -188,6 +188,8 @@ log "7/7 Templating and installing the systemd service unit (left DISABLED)"
 ZERO_HOME="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" 'echo $HOME')"
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sed -e 's|__TARGET_USER__|$ZERO_USER|g' -e 's|__TARGET_HOME__|$ZERO_HOME|g' \
+    -e 's|__MOTOR_L_EN_PIN__|$MOTOR_L_EN_PIN|g' -e 's|__MOTOR_R_EN_PIN__|$MOTOR_R_EN_PIN|g' \
+    -e 's|__MOTOR_REVERSE_PIN__|$MOTOR_REVERSE_PIN|g' \
     ~/vtitan/platform/robot/systemd/vtitan-pi-zero.service \
     | sudo tee /etc/systemd/system/vtitan-pi-zero.service >/dev/null
   sudo systemctl daemon-reload

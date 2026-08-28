@@ -57,13 +57,18 @@ TimeoutStopSec=5
 # hardware 2026-08-27 (see docs/bts7960-ibt2-wiring.md). This re-drives them
 # low within systemd's own reaction time instead of leaving them floating
 # until the next boot's connect() call, which can be 10+ seconds away.
-# Pin numbers must stay in sync with config/hardware/motors/bts7960.toml's
-# reverse_pwm_pin/r_en_pin/l_en_pin. Guarded on DRIVE_BACKEND so this is a
-# no-op on L298N/Build HAT deployments, where these pins may be unused or
-# wired to something else entirely. Does NOT cover a raw power loss/kernel
-# panic that bypasses systemd entirely -- only a physical pull-down resistor
-# on LPWM closes that gap (not yet installed as of 2026-08-27).
-ExecStopPost=/bin/sh -c '[ "$DRIVE_BACKEND" = "bts7960" ] && /usr/bin/pinctrl set 5,6,26 op dl || true'
+# __MOTOR_L_EN_PIN__/__MOTOR_R_EN_PIN__/__MOTOR_REVERSE_PIN__ are templated by
+# bootstrap-fresh-zero.sh from the same MOTOR_L_EN_PIN/MOTOR_R_EN_PIN/
+# MOTOR_REVERSE_PIN shell vars it uses for config.txt's gpio=...=op,dl line --
+# both must match config/hardware/motors/bts7960.toml's l_en_pin/r_en_pin/
+# reverse_pwm_pin, or a future rewire silently re-drives the WRONG (now
+# unused) pins low here while leaving the real ones unprotected. Guarded on
+# DRIVE_BACKEND so this is a no-op on L298N/Build HAT deployments, where
+# these pins may be unused or wired to something else entirely. Does NOT
+# cover a raw power loss/kernel panic that bypasses systemd entirely -- only
+# a physical pull-down resistor on LPWM closes that gap (not yet installed
+# as of 2026-08-27).
+ExecStopPost=/bin/sh -c '[ "$DRIVE_BACKEND" = "bts7960" ] && /usr/bin/pinctrl set __MOTOR_L_EN_PIN__,__MOTOR_R_EN_PIN__,__MOTOR_REVERSE_PIN__ op dl || true'
 
 [Install]
 WantedBy=multi-user.target
