@@ -34,7 +34,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from shared.config.ros_topics import RosTopicConfig
 
-from src.ros2.qos import QOS_STREAM
+from src.ros2.qos import QOS_ACKERMANN_CMD, QOS_STREAM
 from src.teleop.config import Config
 from src.teleop.mapping import compute_command
 
@@ -66,7 +66,7 @@ class JoyTeleopNode(Node):
 
         topics = RosTopicConfig.load_default()
         self.joy_sub: Subscription = self.create_subscription(Joy, topics.sensors.joy, self._joy_callback, QOS_STREAM)
-        self.cmd_pub: Publisher = self.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, QOS_STREAM)
+        self.cmd_pub: Publisher = self.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, QOS_ACKERMANN_CMD)
         self.publish_timer: Timer = self.create_timer(1.0 / self.config.publish_rate_hz, self._publish_command)
 
     def _joy_callback(self, msg: Joy) -> None:

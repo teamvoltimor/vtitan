@@ -39,9 +39,8 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
-from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CompetitionSpecs
 from shared.config.ros_topics import RosTopicConfig
@@ -49,7 +48,13 @@ from std_msgs.msg import Bool, Float32, Int32, String
 
 from src.hardware.settings_base import CONFIG_DIR, SAFE_SHUTDOWN_BOTH_SCRIPT, HardwareBaseSettings
 from src.ros2.params import declare_and_get_bool_param, declare_and_get_float_param, declare_and_get_int_param
-from src.ros2.qos import QOS_LATCHED_STATE, QOS_LATCHED_STATE_RELIABLE, QOS_LIVE_READOUT, QOS_STREAM
+from src.ros2.qos import (
+    QOS_ACKERMANN_CMD,
+    QOS_LATCHED_STATE,
+    QOS_LATCHED_STATE_RELIABLE,
+    QOS_LIVE_READOUT,
+    QOS_STREAM,
+)
 from src.ros2.resettable_node import ResettableNode
 from src.ros2.wire_models import RaceMetricsWire
 from src.state_machine import (
@@ -77,13 +82,6 @@ from src.state_machine import (
 # of _state_machine_loop (publisher_rate_hz, not just on transitions), so a
 # single dropped sample is corrected within one tick, not lost until the
 # next real transition.
-
-# Reliable + 200 ms deadline for motor commands — missed deadlines surface as warnings.
-_QOS_ACKERMANN = QoSProfile(
-    depth=10,
-    reliability=QoSReliabilityPolicy.RELIABLE,
-    deadline=Duration(nanoseconds=200_000_000),
-)
 
 if TYPE_CHECKING:
     from rclpy.publisher import Publisher
@@ -193,7 +191,7 @@ class StateMachineNode(Node, ResettableNode):
         self.ackermann_pub: Publisher[AckermannDriveStamped] = self.create_publisher(
             AckermannDriveStamped,
             self._topics.commands.ackermann_cmd,
-            _QOS_ACKERMANN,
+            QOS_ACKERMANN_CMD,
         )
         self.diagnostics_pub: Publisher[DiagnosticArray] = self.create_publisher(
             DiagnosticArray,
@@ -224,7 +222,7 @@ class StateMachineNode(Node, ResettableNode):
             AckermannDriveStamped,
             self._topics.commands.ackermann_cmd,
             self._ackermann_callback,
-            _QOS_ACKERMANN,
+            QOS_ACKERMANN_CMD,
         )
 
         # Subscribers — sensor topics use qos_profile_sensor_data (BEST_EFFORT +

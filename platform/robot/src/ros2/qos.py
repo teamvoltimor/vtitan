@@ -9,6 +9,7 @@ explanatory comment; a single shared constant means there is only one place
 to get it right.
 """
 
+from rclpy.duration import Duration
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 
 # TRANSIENT_LOCAL so a late subscriber (e.g. the OLED, which restarts
@@ -48,3 +49,19 @@ QOS_LIVE_READOUT = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFF
 # depth=1): those are latched/low-rate, this is for a plain stream where a
 # dropped sample under backpressure is acceptable.
 QOS_STREAM = QoSProfile(depth=10)
+
+# Reliable + 200ms deadline, for every publisher/subscriber pair on
+# /ackermann_cmd. DEADLINE is a two-sided QoS policy: a subscriber that
+# requests one (state_machine_node's echo-back to /race_metrics) rejects any
+# publisher that doesn't offer a deadline at least as tight -- DDS calls that
+# an incompatible match and delivers nothing between that pair, silently.
+# ros2_hardware_gateway.py's real drive-command publisher used to offer
+# QOS_STREAM's Infinite deadline against that subscription's 200ms request,
+# so state_machine_node never actually received live driving commands (see
+# git log for the incident). Every node that publishes OR subscribes to
+# /ackermann_cmd must use this profile, not construct its own.
+QOS_ACKERMANN_CMD = QoSProfile(
+    depth=10,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+    deadline=Duration(nanoseconds=200_000_000),
+)

@@ -34,7 +34,7 @@ from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_wid
 from src.navigation.utils import clamp
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.ros2.params import declare_and_get_str_param
-from src.ros2.qos import QOS_STREAM
+from src.ros2.qos import QOS_ACKERMANN_CMD, QOS_STREAM
 from src.ros2.vision.detection_payload_keys import parse_detection
 from src.state_machine.estimator import StateEstimator
 
@@ -101,7 +101,7 @@ class ROS2HardwareGateway(HardwareGateway):
         self._drive_publisher = node.create_publisher(
             AckermannDriveStamped,
             declare_and_get_str_param(node, "ackermann_cmd_topic", topics.commands.ackermann_cmd),
-            QOS_STREAM,
+            QOS_ACKERMANN_CMD,
         )
 
         # Subscribers

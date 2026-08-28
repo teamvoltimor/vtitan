@@ -63,6 +63,7 @@ from std_msgs.msg import Float32  # noqa: E402
 
 from scripts.common.motor_hold import publish_hold  # noqa: E402
 from src.hardware.motors.encoder import EncoderConfig  # noqa: E402
+from src.ros2.qos import QOS_ACKERMANN_CMD  # noqa: E402
 
 
 class _Probe(Node):
@@ -73,7 +74,7 @@ class _Probe(Node):
         self.counts: int | None = None
         self.speed_samples: list[float] = []
         topics = RosTopicConfig.load_default()
-        self.pub = self.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, 10)
+        self.pub = self.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, QOS_ACKERMANN_CMD)
         # Raw counts ride on /motor/status rather than a topic of their own.
         self.create_subscription(DiagnosticStatus, topics.actuators.status, self._on_status, 10)
         self.create_subscription(Float32, topics.actuators.drive_speed, self._on_speed, 10)

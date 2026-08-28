@@ -46,6 +46,7 @@ from shared.config.ros_topics import RosTopicConfig  # noqa: E402
 from std_msgs.msg import Float32  # noqa: E402
 
 from scripts.common.motor_hold import publish_hold  # noqa: E402
+from src.ros2.qos import QOS_ACKERMANN_CMD  # noqa: E402
 
 STEERING_TOLERANCE_DEG = 1.0
 DRIVE_MOVING_THRESHOLD_DEG_S = 5.0
@@ -243,7 +244,7 @@ def main() -> None:
         Float32, topics.actuators.steering_position, lambda m: latest.__setitem__("steering", m.data), 10
     )
     node.create_subscription(Float32, topics.actuators.drive_speed, _on_drive, 10)
-    pub = node.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, 10)
+    pub = node.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, QOS_ACKERMANN_CMD)
     time.sleep(0.5)  # let discovery/matching settle before the first publish
 
     steering_passed = run_steering_test(node, pub, latest, args.steering_angle_deg)
