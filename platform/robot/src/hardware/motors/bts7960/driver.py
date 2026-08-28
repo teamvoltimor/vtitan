@@ -31,6 +31,7 @@ component.
 from __future__ import annotations
 
 import logging
+import subprocess
 from typing import TYPE_CHECKING
 
 from src.hardware.exceptions import MotorConnectionError
@@ -179,6 +180,28 @@ class Driver(DriveDriver):
                 device.close()
         self._r_en = None
         self._l_en = None
+        self._force_gpio_low()
+
+    def _force_gpio_low(self) -> None:
+        """Re-drive LPWM/R_EN/L_EN low after gpiozero releases them.
+
+        Released, these float, and the level shifter's onboard pull-up
+        drives them HIGH -- full-speed reverse on the BTS7960, confirmed on
+        hardware. gpiozero's own close() above cannot prevent this: closing
+        a device un-claims the GPIO line entirely rather than leaving it
+        driven at its last value. ``pinctrl`` programs the line's output
+        state directly in the SoC's GPIO controller (not through a
+        held-open handle), so -- like the boot-time ``config.txt``
+        ``gpio=...,dl`` line and the systemd unit's ``ExecStopPost`` this
+        mirrors -- it persists after this process exits, closing the
+        floating window regardless of which caller (this driver, a bench
+        script, a test) triggered the disconnect.
+        """
+        pins = f"{self._pwm_config.l_en_pin},{self._pwm_config.r_en_pin},{self._pwm_config.reverse_pwm_pin}"
+        try:
+            subprocess.run(["pinctrl", "set", pins, "op", "dl"], check=False)  # noqa: S607 - fixed, no user input
+        except OSError:
+            logger.warning("Failed to force GPIO low via pinctrl on disconnect", exc_info=True)
 
     def _set_output(self, duty: float) -> None:
         """Drive the H-bridge from a signed duty in [-1, 1].
