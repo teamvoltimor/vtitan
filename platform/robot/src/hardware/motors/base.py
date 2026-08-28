@@ -27,9 +27,12 @@ actuators unchanged.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.hardware.motors.encoder.control import PIDController
@@ -250,6 +253,7 @@ class ClosedLoopDrive:
         """
         measured = self._encoder.get_rpm()
         duty = self._pid.update(rpm, measured, dt=dt)
+        logger.debug(f"PID step: target_rpm={rpm:.1f} measured_rpm={measured:.1f} duty={duty:.3f}")
         if duty >= 0:
             self._drive.run_drive_forward(duty * 100.0)
         else:

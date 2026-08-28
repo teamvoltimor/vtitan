@@ -10,48 +10,72 @@ pin_b = 20
 # startup (see encoder/config.py). Re-measure with
 # scripts/hardware/calibrate_encoder.py whenever the motor/drivetrain changes.
 #
-# Below: JGB37-520 1590 RPM variant, MEASURED on hardware 2026-07-25 (not
-# derived from the datasheet -- the previous 194.0, 11 PPR x4 quadrature x an
-# assumed ~4.4 gear ratio, made counts_to_distance() over-report by ~3.5x).
-# Calibrated from raw quadrature counts against tape-measured travel, at two
-# duty levels:
-#     1650 counts / 54 cm  -> 672 counts per wheel revolution
-#     2447 counts / 79 cm  -> 681 counts per wheel revolution
-# The two agree to 1.3%, which is the point: wheel slip only ever inflates
-# the count for a given distance, so agreement across speeds means slip is
-# negligible and this is the true geometric ratio. Implies ~15.4:1 gearing
-# (676/44 counts per motor revolution). Do NOT derive counts_per_rev by
-# integrating /motor/drive_speed -- that feedback is exponentially smoothed
-# and rate-derived, and doing so gave answers ~2x wrong.
-counts_per_rev = 676.0
+# PROVISIONAL, 2026-08-28: the 676.0 below (JGB37-520, MEASURED 2026-07-25)
+# is for the RETIRED drive motor and is stale for the new one. Re-derived
+# from bench data instead of raw counts -- test_motors.py drive holds at
+# several commanded speeds, each held 3s and tape-measured, forward AND
+# reverse:
+#     commanded 0.025 m/s -> 61cm  real -> 0.203 m/s real  -> cpr ~83
+#     commanded 0.050 m/s -> 115-118cm real -> ~0.385 m/s real -> cpr ~88
+#     commanded -0.050 m/s -> 115-118cm real -> ~0.385 m/s real -> cpr ~88
+# Using target_rpm/measured_rpm convergence at steady state:
+# cpr_true = cpr_old * (commanded / real_speed). The 0.025/0.05 points agree
+# to ~6% and forward/reverse agree to ~3%, so this is a solid estimate even
+# though (unlike the 676.0 above) it wasn't derived from raw counts directly
+# -- re-verify with scripts/hardware/calibrate_encoder.py when convenient.
+# Do NOT derive counts_per_rev by integrating /motor/drive_speed the OTHER
+# way (naive distance/count ratio without the target/measured convergence
+# reasoning above) -- that feedback is exponentially smoothed and
+# rate-derived, and doing so gave answers ~2x wrong for the old motor too.
+counts_per_rev = 86.0
 
-# Maximum achievable WHEEL rpm (2447 counts / 5.11 s). NOT the motor's
-# free-running rpm from the datasheet, which is the wrong quantity twice
-# over: it is the motor shaft rather than the wheel (~15.4:1 apart), and it
-# is the unloaded figure. counts_per_rev counts WHEEL revolutions, so
-# get_rpm() reports wheel rpm, and the PID's feedforward term (1/max_rpm)
-# must be scaled from the same frame or it under-contributes duty by ~37x.
-# Corresponds to ~0.156 m/s; sags with battery charge (0.129 m/s on a tired
-# pack), so commanded speeds should stay below this for the loop to have
-# headroom to correct.
-max_rpm = 42.5
+# Maximum achievable WHEEL rpm. PROVISIONAL, 2026-08-28, same bench session
+# as counts_per_rev above: commanded 0.1 m/s converged to ~0.45 m/s real
+# (measured 135cm over 3s) with max_duty capped at 0.5 -- 0.05 m/s and
+# 0.1 m/s commanded produced nearly the same real speed (0.385 vs 0.45 m/s),
+# which is the signature of the PID saturating at max_duty rather than
+# still tracking the setpoint. So ~0.45 m/s / 123 rpm is the max reachable
+# at the CURRENT 50% duty cap, not the motor's true 100%-duty max (which
+# felt like ~1 m/s by hand and remains unmeasured -- see max_duty below).
+# counts_per_rev counts WHEEL revolutions, so get_rpm() reports wheel rpm,
+# and the PID's feedforward term (1/max_rpm) must be scaled from the same
+# frame or it under/over-contributes duty.
+max_rpm = 123.0
 
 # wheel_diameter_m is not set here -- it derives from RobotSpecs.WHEEL_RADIUS
 # (src/hardware/motors/encoder/calibration.py), not restated as a literal.
 
-# Closed-loop speed PID gains, tuned on hardware 2026-07-25 against true wheel
-# rpm. Feedforward (1/max_rpm) lands near stiction duty; these gains close the
-# remainder without overshoot.
-pid_kp = 0.010
-pid_ki = 0.020
+# Closed-loop speed PID gains. Originally tuned on hardware 2026-07-25
+# against true wheel rpm for the RETIRED motor (0.010/0.020). PROVISIONAL
+# RESCALE 2026-08-28: get_rpm() = (counts/dt)/counts_per_rev*60, so dropping
+# counts_per_rev 676->86 (see above, ~7.9x) makes measured_rpm ~7.9x MORE
+# sensitive per unit of real wheel motion -- confirmed on hardware via debug
+# telemetry (base.py's "PID step" log): with the recalibrated
+# counts_per_rev but the OLD 0.010/0.020 gains still in place, a 0.05 m/s
+# hold oscillated visibly (measured_rpm swinging ~2->21.5rpm around a
+# 13.6rpm target, duty swinging ~0.15->0.31 in response -- stdev on the
+# drive-speed feedback jumped from ~5 to 25 deg/s vs the same test under the
+# old calibration). Divided both gains by that same ~7.9x (rounded to 8, a
+# clean number given this whole rescale is already provisional) to hold the
+# effective open-loop gain roughly constant: 0.010/8 = 0.00125,
+# 0.020/8 = 0.0025.
+# NOT YET VERIFIED LIVE (2026-08-28) -- battery/motor power was disconnected
+# for the rest of that bench session, so this is a reasoned correction from
+# the scale-change math above, not a re-tune confirmed against real
+# convergence behavior. Re-run the same debug-telemetry drive hold
+# (LOG_LEVEL=DEBUG, watch base.py's "PID step" lines for oscillation) once
+# power is back, before trusting this for anything beyond bench holds.
+pid_kp = 0.00125
+pid_ki = 0.0025
 pid_kd = 0.0
 
 max_duty = 0.5
 # Safety cap after the 2026-08-27 motor swap: on hardware the new motor felt
-# roughly 1 m/s, far above what counts_per_rev/max_rpm/the PID gains above
-# were calibrated for (all measured against the RETIRED motor, 2026-07-25).
-# Capping duty at 50% here is deliberately independent of those stale
-# numbers -- it limits the actual PWM output regardless of what the encoder
-# math thinks the target rpm should be. Raise/remove once the encoder is
-# properly recalibrated (scripts/hardware/calibrate_encoder.py) for the new
-# motor and a real max_rpm is known.
+# roughly 1 m/s, close to double the ~0.45 m/s max_rpm above reflects at
+# this same 50% cap. counts_per_rev/max_rpm/pid_kp/pid_ki are now re-derived
+# for the new motor (2026-08-28, see above) but only up to this cap -- true
+# 100%-duty behavior is still unmeasured, so keep this cap independent of
+# that math rather than trusting max_rpm to bound duty on its own. Raise/
+# remove max_duty once scripts/hardware/calibrate_encoder.py confirms a true
+# 100%-duty max_rpm and the rescaled PID gains above are verified live
+# (still outstanding as of 2026-08-28 -- see their own comment).
