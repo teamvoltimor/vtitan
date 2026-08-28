@@ -163,6 +163,7 @@ tasks:
           task robot:drive          Switch control mode (ACTION=navigation|controller) — run on Pi 5
           task robot:reset-motors   Zero drive speed + recenter steering (run after robot:drive switches)
           task robot:test-motors    Hardware smoke test: steering range + drive pulse, checks real feedback — run on Pi 5
+          task robot:calibrate-encoder Interactive counts_per_rev calibration against a tape-measured distance — run on Pi 5
           task robot:sweep-open-loop Open-loop H-bridge duty + servo range sweep, bypasses the closed-loop PID — run ON THE PI ZERO, service stopped first
           task robot:joystick-setup Pair a Bluetooth joystick (e.g. 8BitDo Ultimate 2) — run on Pi 5, once
           task robot:diagrams       Render docs/diagrams/{common,open,obstacles}/mermaid/*.mmd to matching png/ folders (requires mermaid-cli)
@@ -1137,6 +1138,18 @@ tasks:
     dir: robot
     cmds:
       - pixi run -e dev test-motors -- {{.CLI_ARGS}}
+
+  robot:calibrate-encoder:
+    desc: >-
+      Interactive counts_per_rev calibration against a real tape-measured
+      distance — run ON Pi 5 (usage: task robot:calibrate-encoder -- [--speed
+      3.0] [--duration-s 5.0] [--runs 2]). Drives a commanded distance, then
+      asks you to type in what you actually measured with a tape; compares
+      against the live encoder.toml value. Needed after any drive-motor swap
+      -- see scripts/hardware/calibrate_encoder.py --help for every option.
+    dir: robot
+    cmds:
+      - pixi run -e dev calibrate-encoder -- {{.CLI_ARGS}}
 
   robot:sweep-open-loop:
     desc: >-

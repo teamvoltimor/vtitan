@@ -351,3 +351,11 @@ test-motors = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/
 # max_rpm are calibrated against the retired motor). No ros2_ws sourcing
 # needed since this never touches ROS2.
 sweep-open-loop = { cmd = "python3 scripts/hardware/sweep_open_loop.py", env = { PYTHONPATH = "." } }
+
+# Run ON Pi 5 -- interactive counts_per_rev calibration against a real,
+# tape-measured distance (see scripts/hardware/calibrate_encoder.py's
+# docstring). Commands over /ackermann_cmd like test-motors above, so the
+# same "$@" + trailing -- trick is needed for extra args (e.g. --speed,
+# --duration-s, --runs) to reach the script instead of being swallowed by
+# bash -c's own positional params.
+calibrate-encoder = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/calibrate_encoder.py \"$@\"' --", env = { PYTHONPATH = "." } }
