@@ -19,6 +19,13 @@ vars:
   PROFILE: 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm
   PYTHON: uv
   ROS2: pixi
+  # Full path to pixi on the Pi 5 / Pi Zero specifically -- bare `pixi` only
+  # resolves under an interactive login shell (.bashrc adds ~/.pixi/bin to
+  # PATH); a one-shot `ssh host "task robot:..."` gets the minimal
+  # non-interactive PATH and fails with "pixi: not found". Every robot:*
+  # task that runs directly ON a Pi (not on a dev machine, where pixi lives
+  # wherever it was installed) should use {{.ROBOT_PIXI}}, not a bare `pixi`.
+  ROBOT_PIXI: ~/.pixi/bin/pixi
   SCENARIOS: 10
   CHALLENGE: open
   OUTPUT_DIR: ./gazebo/generator/training_data
@@ -1122,7 +1129,7 @@ tasks:
     desc: Zero the drive command and recenter steering immediately (run after robot:drive switches modes, or after Ctrl+C)
     dir: robot
     cmds:
-      - pixi run reset-motors
+      - '{{.ROBOT_PIXI}} run reset-motors'
 
   robot:test-motors:
     desc: >-
@@ -1137,7 +1144,7 @@ tasks:
       every option.
     dir: robot
     cmds:
-      - pixi run -e dev test-motors -- {{.CLI_ARGS}}
+      - '{{.ROBOT_PIXI}} run -e dev test-motors -- {{.CLI_ARGS}}'
 
   robot:calibrate-encoder:
     desc: >-
@@ -1149,7 +1156,7 @@ tasks:
       -- see scripts/hardware/calibrate_encoder.py --help for every option.
     dir: robot
     cmds:
-      - pixi run -e dev calibrate-encoder -- {{.CLI_ARGS}}
+      - '{{.ROBOT_PIXI}} run -e dev calibrate-encoder -- {{.CLI_ARGS}}'
 
   robot:sweep-open-loop:
     desc: >-
@@ -1168,7 +1175,7 @@ tasks:
       - |
         sudo systemctl stop vtitan-pi-zero.service
         trap 'sudo pinctrl set 5,6,26 op dl; sudo systemctl start vtitan-pi-zero.service' EXIT
-        ~/.pixi/bin/pixi run -e dev sweep-open-loop -- {{.CLI_ARGS}}
+        {{.ROBOT_PIXI}} run -e dev sweep-open-loop -- {{.CLI_ARGS}}
 
   robot:joystick-setup:
     desc: >-
