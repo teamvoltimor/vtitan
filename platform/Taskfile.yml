@@ -1142,18 +1142,20 @@ tasks:
     desc: >-
       Open-loop H-bridge duty + servo range sweep — run ON THE PI ZERO
       directly (not Pi 5: this talks to the BTS7960/servo objects directly,
-      not over ROS2/DDS). Stop vtitan-pi-zero.service first, it holds the
-      same GPIO/PWM lines (usage: sudo systemctl stop vtitan-pi-zero.service
-      && task robot:sweep-open-loop -- [--yes] [--skip-drive] [--skip-servo]
-      [--skip-reverse] [--duty-fractions 0.1,0.2,...] [--servo-steps 5]).
-      Unlike test-motors, bypasses ackermann_motor_node's closed-loop PID
-      entirely, so it answers "what does raw duty X produce" without relying
-      on encoder.toml's counts_per_rev/max_rpm (calibrated against the
-      retired motor, not trustworthy for a new one). See
-      scripts/hardware/sweep_open_loop.py --help for every option.
+      not over ROS2/DDS). Usage: task robot:sweep-open-loop -- [--yes]
+      [--skip-drive] [--skip-servo] [--skip-reverse] [--duty-fractions
+      0.1,0.2,...] [--servo-steps 5]. Unlike test-motors, bypasses
+      ackermann_motor_node's closed-loop PID entirely, so it answers "what
+      does raw duty X produce" without relying on encoder.toml's
+      counts_per_rev/max_rpm (calibrated against the retired motor, not
+      trustworthy for a new one). See scripts/hardware/sweep_open_loop.py
+      --help for every option.
     dir: robot
     cmds:
-      - pixi run -e dev sweep-open-loop -- {{.CLI_ARGS}}
+      - |
+        sudo systemctl stop vtitan-pi-zero.service
+        trap 'sudo systemctl start vtitan-pi-zero.service' EXIT
+        pixi run -e dev sweep-open-loop -- {{.CLI_ARGS}}
 
   robot:joystick-setup:
     desc: >-

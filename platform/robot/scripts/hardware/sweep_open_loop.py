@@ -12,7 +12,10 @@ raw duty X actually produce" without assuming that calibration at all --
 exactly what's needed to characterize a new motor before recalibrating it.
 
 Run ON the Pi Zero directly (needs exclusive GPIO/PWM access -- the same
-pins ackermann_motor_node's driver holds), or via `task robot:sweep-open-loop`:
+pins ackermann_motor_node's driver holds). Preferred: `task
+robot:sweep-open-loop -- [args]`, which stops vtitan-pi-zero.service first
+and restarts it afterward (even on failure/Ctrl-C, via a shell trap) so the
+service is never left down by an interrupted run. Manual equivalent:
     sudo systemctl stop vtitan-pi-zero.service
     cd platform/robot
     PYTHONPATH="." ~/.pixi/bin/pixi run -e dev sweep-open-loop
@@ -23,10 +26,12 @@ to `source .env` first -- the exact class of bug fixed in `097ab6cf` for
 run-lidar's RobotSpecs read (Config()/EncoderConfig()/ServoConfig() below
 need VTITAN_HARDWARE_PROFILE etc. from it).
 
-The script itself checks whether vtitan-pi-zero.service is active and
-refuses to run if so, rather than fighting it for the same sysfs/GPIO
-handles (see docs/bts7960-ibt2-wiring.md for what shared PWM state produces
-if two processes write to it at once).
+The script itself ALSO checks whether vtitan-pi-zero.service is active and
+refuses to run if so -- a safety net for anyone invoking the raw pixi task
+or this file directly, bypassing the Taskfile wrapper above, rather than
+fighting the service for the same sysfs/GPIO handles (see
+docs/bts7960-ibt2-wiring.md for what shared PWM state produces if two
+processes write to it at once).
 
 Usage:
     python3 scripts/hardware/sweep_open_loop.py                        # full sweep, asks to confirm
