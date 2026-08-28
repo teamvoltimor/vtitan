@@ -3,8 +3,9 @@
 
 Drives the robot around the WRO track using alternating forward and turning
 phases.  Designed to work alongside the static training camera at the
-starting position.  Steering angles are sent via ``angular.z`` following
-the Ackermann convention.
+starting position.  Publishes AckermannDriveStamped on /ackermann_cmd, same
+as every other drive-command source (ackermann_motor_node's own subscription
+and state_machine_node's echo-back both expect this type).
 
 Usage:
     python3 simple_robot_driver.py --direction clockwise --duration 30
@@ -18,12 +19,12 @@ import time
 from typing import Literal
 
 import rclpy
-from geometry_msgs.msg import Twist
+from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from shared.config.ros_topics import RosTopicConfig
 
 from src.ros2.params import declare_and_get_str_param
-from src.ros2.qos import QOS_STREAM
+from src.ros2.qos import QOS_ACKERMANN_CMD
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +65,18 @@ class SimpleRobotDriver(Node):
         # Single source of truth for the drive command topic: Ackermann, not the
         # pre-Ackermann cmd_vel name that used to dead-end commands at a topic
         # nothing subscribes to.
-        cmd_vel_topic = declare_and_get_str_param(
+        ackermann_cmd_topic = declare_and_get_str_param(
             self,
             "cmd_vel_topic",
             RosTopicConfig.load_default().commands.ackermann_cmd,
         )
 
-        self._vel_publisher = self.create_publisher(Twist, cmd_vel_topic, QOS_STREAM)
+        # AckermannDriveStamped, not geometry_msgs/Twist -- the topic name was
+        # migrated to /ackermann_cmd but the message type never was, so this
+        # never actually matched ackermann_motor_node's subscription (DDS
+        # requires matching types, not just matching topic names -- confirmed
+        # this publisher had zero subscribers on real hardware).
+        self._drive_publisher = self.create_publisher(AckermannDriveStamped, ackermann_cmd_topic, QOS_ACKERMANN_CMD)
 
         self._forward_speed: float = 0.3  # m/s
         self._state: Literal["forward", "turning"] = "forward"
@@ -90,29 +96,29 @@ class SimpleRobotDriver(Node):
             self.shutdown_requested = True
             return
 
-        vel_msg = Twist()
+        drive_msg = AckermannDriveStamped()
         self._state_timer += _LOOP_PERIOD
 
         if self._state == "forward":
-            vel_msg.linear.x = self._forward_speed
-            vel_msg.angular.z = 0.0
+            drive_msg.drive.speed = self._forward_speed
+            drive_msg.drive.steering_angle = 0.0
             if self._state_timer >= _FORWARD_PHASE_DURATION:
                 self._state = "turning"
                 self._state_timer = 0.0
 
         else:  # turning
-            vel_msg.linear.x = self._forward_speed * _TURNING_SPEED_FRACTION
-            # Ackermann convention: negative angular.z steers right (CW).
-            vel_msg.angular.z = -_STEERING_ANGLE if self._direction == "clockwise" else _STEERING_ANGLE
+            drive_msg.drive.speed = self._forward_speed * _TURNING_SPEED_FRACTION
+            # Positive steering_angle steers left; negative steers right (CW).
+            drive_msg.drive.steering_angle = -_STEERING_ANGLE if self._direction == "clockwise" else _STEERING_ANGLE
             if self._state_timer >= _TURNING_PHASE_DURATION:
                 self._state = "forward"
                 self._state_timer = 0.0
 
-        self._vel_publisher.publish(vel_msg)
+        self._drive_publisher.publish(drive_msg)
 
     def _stop_robot(self) -> None:
         """Publish a zero-velocity command."""
-        self._vel_publisher.publish(Twist())
+        self._drive_publisher.publish(AckermannDriveStamped())
 
 
 def main() -> None:
