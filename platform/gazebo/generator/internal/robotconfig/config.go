@@ -167,7 +167,7 @@ func Load(basePath string, profileNames ...string) (*Config, error) {
 }
 
 // ParseProfileNames splits a comma-separated profile-list flag value (e.g.
-// "servo270" or "servo270,other") into ordered, trimmed, non-empty names.
+// "270deg-hiwonder-35kg" or "270deg-hiwonder-35kg,other") into ordered, trimmed, non-empty names.
 // Mirrors shared.config.hardware_profile.active_profiles on the Python side.
 func ParseProfileNames(raw string) []string {
 	var names []string

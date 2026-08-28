@@ -526,7 +526,7 @@ tasks:
       - "{{.SIMGEN}} generate-track --output {{.BASE_WORLD}}"
 
   gen:robot-constants:
-    desc: "Regenerate robot physical constants (Go/xacro) from shared/config/robot.toml, optionally overlaying a hardware profile (usage: task gen:robot-constants PROFILE=servo270)"
+    desc: "Regenerate robot physical constants (Go/xacro) from shared/config/robot.toml, optionally overlaying a hardware profile (usage: task gen:robot-constants PROFILE=270deg-hiwonder-35kg)"
     deps: [simgen:build]
     cmds:
       - "{{.SIMGEN}} generate-robot-constants{{if .PROFILE}} --profile {{.PROFILE}}{{end}}"

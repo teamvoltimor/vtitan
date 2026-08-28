@@ -205,7 +205,7 @@ func generateRobotConstantsCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&config, "config", "./shared/config/robot.toml", "Path to robot.toml source of truth (base)")
 	cmd.Flags().StringVar(&profile, "profile", "",
-		"Comma-separated hardware profile names to overlay onto --config, in order (e.g. servo270)")
+		"Comma-separated hardware profile names to overlay onto --config, in order (e.g. 270deg-hiwonder-35kg)")
 	cmd.Flags().StringVar(&goOutput, "go-output",
 		"./gazebo/generator/internal/simconfig/robot_constants.gen.go", "Go const block output path")
 	cmd.Flags().StringVar(&xacroOutput, "xacro-output",
