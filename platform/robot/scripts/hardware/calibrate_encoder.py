@@ -11,11 +11,14 @@ Why it matters: counts_per_rev/max_rpm are per-motor physical facts, not
 generic constants (see EncoderConfig's docstring). The shipped 676.0 was
 measured on hardware 2026-07-25 against the now-RETIRED drive motor (it
 itself replaced an earlier 194.0 that over-reported distance by ~3.5x) --
-after the 2026-08-27 motor swap it is not trustworthy for the new one, which
-is exactly why this needs re-running. Getting it wrong is not harmless: the
-drive loop closes on m/s through this same constant (run_drive_at_rpm()
-measures its feedback through it), so the loop converges to a speed wrong by
-the same factor as any stale calibration.
+after the 2026-08-27 motor swap it was not trustworthy for the new one.
+The current 86.0 (2026-08-28) is a PROVISIONAL re-derivation from bench
+timing data (test_motors.py drive holds + tape measurement, see
+encoder.toml's own comment), not from this script's raw counts -- running
+THIS script is exactly how to replace it with an authoritative number.
+Getting it wrong is not harmless: the drive loop closes on m/s through this
+same constant (run_drive_at_rpm() measures its feedback through it), so the
+loop converges to a speed wrong by the same factor as any stale calibration.
 
 Wheel slip is the one contaminant left, and it only ever inflates the count for
 a given distance -- so every reading is an UPPER bound on the true ratio, and
@@ -29,7 +32,7 @@ Run ON Pi 5 (it publishes to /ackermann_cmd like any other controller):
 
     cd ~/vtitan/platform/robot
     . ros2_ws/install/setup.bash
-    python3 scripts/hardware/calibrate_encoder.py --speed 3.0 --duration-s 5.0
+    python3 scripts/hardware/calibrate_encoder.py --speed 0.05 --duration-s 5.0
 
 Mark the robot's start position, let it run, then measure how far it actually
 travelled and type that in. Repeat with --speed at a couple of values.
@@ -107,7 +110,14 @@ class _Probe(Node):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--speed", type=float, default=3.0, help="Commanded speed (current fake m/s units)")
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=0.05,
+        help="Commanded m/s. Old default (3.0) was calibrated-era leftover, far above anything "
+        "the new motor has been confirmed to track cleanly -- see encoder.toml's bench data "
+        "(2026-08-28) for the range that's actually been tested (0.015-0.1 m/s forward).",
+    )
     parser.add_argument("--duration-s", type=float, default=5.0)
     parser.add_argument("--runs", type=int, default=2)
     parser.add_argument(

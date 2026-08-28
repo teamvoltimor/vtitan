@@ -1150,7 +1150,7 @@ tasks:
     desc: >-
       Interactive counts_per_rev calibration against a real tape-measured
       distance — run ON Pi 5 (usage: task robot:calibrate-encoder -- [--speed
-      3.0] [--duration-s 5.0] [--runs 2]). Drives a commanded distance, then
+      0.05] [--duration-s 5.0] [--runs 2]). Drives a commanded distance, then
       asks you to type in what you actually measured with a tape; compares
       against the live encoder.toml value. Needed after any drive-motor swap
       -- see scripts/hardware/calibrate_encoder.py --help for every option.
