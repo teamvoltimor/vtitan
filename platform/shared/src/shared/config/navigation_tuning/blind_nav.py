@@ -267,9 +267,24 @@ class LocalizationParams(BaseModel):
             function (outlier rejection).
         MAX_SPEED_MPS: Upper bound on real motion between ticks, used to
             reject a candidate that implies impossible speed. Deliberately
-            above the measured real top speed (0.156 m/s, see
-            RobotSpecs.MAX_SPEED_MPS) to leave headroom for a faster
+            above the measured real top speed to leave headroom for a faster
             drivetrain later without this guard needing to move with it.
+
+            That headroom was NOT enough. 0.25 was sized against the retired
+            motor's 0.156 m/s; the current drivetrain measured ~0.58 m/s at
+            max_duty=0.5 and ~0.9 m/s open-loop (2026-08-29 bench), so the
+            guard sat BELOW the robot's real operating speed and silently
+            froze pose whenever it drove quickly -- returning the prior
+            position instead of the LIDAR match.
+
+            The cost was not only bad localization. Pose was being used as the
+            INDEPENDENT check on encoder distance, and on run_20260829_003233
+            the two agreed to 0.5% (28.46 m encoder vs 28.62 m pose). Both
+            were under-reporting -- the encoder because counts_per_rev was too
+            high, pose because fast updates were discarded -- and the apparent
+            agreement was taken as confirmation that the encoder was correct.
+            Two measurements suppressed in the same direction are not
+            corroboration. Raise this whenever the drivetrain gets faster.
         JUMP_CONFIRM_TOLERANCE_M: How close two consecutive ticks' rejected
             candidates must be to count as the same correction confirming
             itself (see LidarLocalizer._reject_implausible_speed).
@@ -281,7 +296,7 @@ class LocalizationParams(BaseModel):
     PASSES: int = Field(default=4, validation_alias=_alias("PASSES"))
     GRID_POINTS: int = Field(default=5, validation_alias=_alias("GRID_POINTS"))
     RESIDUAL_CLIP_M: float = Field(default=0.25, validation_alias=_alias("RESIDUAL_CLIP_M"))
-    MAX_SPEED_MPS: float = Field(default=0.25, validation_alias=_alias("MAX_SPEED_MPS"))
+    MAX_SPEED_MPS: float = Field(default=0.60, validation_alias=_alias("MAX_SPEED_MPS"))
     JUMP_CONFIRM_TOLERANCE_M: float = Field(default=0.05, validation_alias=_alias("JUMP_CONFIRM_TOLERANCE_M"))
 
 

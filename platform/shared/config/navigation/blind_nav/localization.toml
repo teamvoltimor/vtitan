@@ -6,5 +6,19 @@ search_radius_m = 0.15   # half-width of the initial pose search window
 passes = 4                # coarse-to-fine grid-search passes
 grid_points = 5           # candidates per axis per search pass
 residual_clip_m = 0.25    # per-ray residual clipping distance (outlier rejection)
-max_speed_mps = 0.25             # implausible-jump speed bound, headroom above the measured 0.156 m/s drivetrain ceiling
+# Implausible-jump speed bound: a LIDAR pose update implying more than this is
+# DISCARDED and the prior pose is kept.
+#
+# Was 0.25, sized against the RETIRED motor's 0.156 m/s ceiling. The current
+# drivetrain measured ~0.58 m/s at max_duty=0.5 and ~0.9 m/s open-loop
+# (2026-08-29 bench), so the gate sat BELOW the speeds the robot actually
+# reaches and silently froze pose whenever it went quickly.
+#
+# That is not just a localization bug, it invalidated a measurement: pose was
+# used as the independent check on encoder distance, and on run_20260829_003233
+# the two agreed to 0.5% (28.46 m encoder vs 28.62 m pose). Both were
+# under-reporting -- the encoder because counts_per_rev was too high, pose
+# because updates past 0.25 m/s were being thrown away. Two suppressed
+# measurements agreeing is not corroboration.
+max_speed_mps = 0.60             # ~1.5x headroom over the measured 0.4 m/s closed-loop ceiling
 jump_confirm_tolerance_m = 0.05  # how close two consecutive rejected candidates must be to confirm a real correction

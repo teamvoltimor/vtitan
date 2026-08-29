@@ -27,7 +27,35 @@ pin_b = 20
 # way (naive distance/count ratio without the target/measured convergence
 # reasoning above) -- that feedback is exponentially smoothed and
 # rate-derived, and doing so gave answers ~2x wrong for the old motor too.
-counts_per_rev = 86.0
+#
+# REVISED 2026-08-29 from 86.0, by the SAME method with better conditioning.
+# The 86 above came from 3-SECOND holds -- after the ~1 s spin-up that is only
+# ~2 s of steady travel, so ramp and coast dominate the tape distance. Repeating
+# it with long holds gives a different answer:
+#
+#   commanded 0.1 m/s, five runs of 6/8/10/12/16 s, each tape-measured:
+#     ratio(tape / encoder-accounted distance) = 1.390 1.490 1.422 1.414 1.476
+#     mean 1.438, stdev 0.043 (3%)  ->  cpr = 86 / 1.438 = 59.8
+#
+# Robust across a battery swap mid-session (old pack mean 1.434, fresh 1.445),
+# so it is not a supply artifact. Wheel diameter confirmed at 7 cm with a ruler,
+# so this is the encoder constant and not the geometry.
+#
+# Higher-speed runs read 1.54-1.76 rather than 1.44, because at 0.4-0.5 m/s
+# momentum overcomes the stiff drivetrain and real coast inflates the distance.
+# The 0.1 m/s set is the clean one: the wheels cannot be pushed by hand, so at
+# creep there is effectively no roll-out.
+#
+# PROVISIONAL, NOT LIVE-VERIFIED. The apparent contradiction with track bags
+# (encoder 28.46 m vs LIDAR pose 28.62 m on run_20260829_003233, agreeing to
+# 0.5%) is NOT evidence against this: localization.toml's max_speed_mps was
+# 0.25, so pose updates implying more than that were discarded outright. Both
+# measures were suppressed in the same direction. That gate is raised to 0.60
+# in the same commit -- without it, the next run cannot test this value either.
+#
+# The run that decides it: compare encoder distance against pose on one lap.
+# If 60 is right they agree; if 86 was right the encoder reads ~1.43x pose.
+counts_per_rev = 60.0
 
 # Maximum achievable WHEEL rpm AT 100% DUTY. counts_per_rev counts WHEEL
 # revolutions, so get_rpm() reports wheel rpm, and the PID's feedforward term
