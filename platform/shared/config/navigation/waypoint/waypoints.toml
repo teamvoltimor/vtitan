@@ -4,15 +4,26 @@
 
 # Ceiling on the corner arc radius (m), NOT the radius itself. Each corner sizes
 # its own arc from the two corridors it joins -- max(W_entry, W_exit)/2 minus
-# center_bias_m, see waypoints._corner_arc_radius -- which returns this value for
-# every corner type except narrow-to-narrow. That one comes out at 0.25 and
-# doubles its clearance to the inner block; at a flat 0.45 the arc bulged past
-# the centreline and left 0.070 m of chassis margin where 0.153 m was available.
+# that corridor's center bias, see waypoints.corner_arc_radius.
+#
+# ON THIS TRACK THE CEILING NEVER BINDS. Verified 2026-08-29 by running the real
+# corner_arc_radius, not by reading this comment, which had drifted: it still
+# described the 0.05-bias era, where wide corners hit this 0.45 cap and a
+# narrow-to-narrow corner came out at 0.25. With the shipped biases (0.10 wide /
+# 0.0 narrow) and the rule widths 0.6/1.0 the arcs are:
+#     narrow -> narrow   0.6/2 - 0.0  = 0.30 m   (demands 17.6 deg)
+#     anything -> wide   1.0/2 - 0.10 = 0.40 m   (demands 13.4 deg)
+# Both are below 0.45, so lowering this only starts to matter below 0.40, and
+# only for wide corners until it goes below 0.30.
 #
 # Do not "fix" a clearance problem by lowering this. Clearance is flat below the
 # per-corner value, so a smaller radius buys nothing and costs lap length
 # (dP/dr = 2*pi - 8, so a WIDER arc is a SHORTER lap). Measured: dropping this to
 # 0.30 globally cost +5.8 s across 24 scenarios and changed no verdict.
+#
+# Lowering it IS the lever for sharper corners, and the only one -- the bias
+# cannot do it, since reducing the bias widens the arc. That trade is lap time
+# for steering angle, priced by the dP/dr above.
 #
 # Must exceed the Ackermann minimum turning radius (~0.034m: WHEELBASE=0.19m /
 # tan(MAX_STEERING_ANGLE=1.2252rad), reduced further by counter-phase steering).
@@ -41,8 +52,44 @@ dedupe_distance_m = 0.001
 # at 0.16 m median, so this is NOT margin to spend freely: it is already below
 # the tracking error, and the only reason to go further would be a measurement
 # of real crosstrack against this geometry.
-center_bias_m = 0.10
+# Applies to WIDE corridors only, i.e. those above narrow_width_threshold_m.
+# Named wide_ rather than left bare when the narrow/wide split landed
+# 2026-08-29: a bare center_bias_m reads as "the" bias and would have kept
+# reading that way after the split, hiding a behaviour change behind a name.
+wide_center_bias_m = 0.10
+
+# Shared by wide_center_bias_m and narrow_center_bias_m -- only the distance
+# varies with corridor width, never the side.
 center_bias_side = "inner"
+
+# The same shift for NARROW corridors (at or below narrow_width_threshold_m).
+# 0.0 plans them down the true centreline.
+#
+# Split from wide_center_bias_m 2026-08-29. The same absolute shift costs a much
+# larger FRACTION of a 0.6 m corridor than of a 1.0 m one, so one value has to
+# be safe narrow and therefore gives up lap time wide. The comment above named
+# the condition for revisiting it -- "a measurement of real crosstrack against
+# this geometry" -- and run_20260829_020308 supplied it: over 3 hardware laps
+# the narrowest quartile ran a median 0.113 m and p05 0.069 m from the INNER
+# wall against 0.435 m from the outer. That is ~0.17 m off centre where 0.10 m
+# was planned: tracking error ADDS to the commanded bias instead of averaging
+# out, so the narrow corridor was spending margin twice.
+#
+# Read this together with arc_radius above: corner_arc_radius is
+# max(W_entry, W_exit)/2 - center_bias, so dropping the narrow bias to 0
+# WIDENS the narrow-to-narrow arc (0.20 -> 0.30 m) and makes that corner
+# demand LESS steering (25.4 -> 17.6 deg at L_eff=0.095). Separation and
+# corner sharpness are the same knob pulling opposite ways; a sharper corner
+# needs the radius pushed below the clearance-preserving max, which is a
+# different change and costs lap length.
+narrow_center_bias_m = 0.0
+
+# Corridor width (m) at or below which narrow_center_bias_m applies. Midway
+# between the rule widths CorridorDimensions.NARROW (0.6) and .WIDE (1.0), so
+# both classify with maximum room for width-estimation error either side. A
+# threshold and not an interpolation: the rules only present those two widths,
+# so interpolating would invent behaviour for widths the track cannot have.
+narrow_width_threshold_m = 0.8
 
 # Number of intermediate sample points per corner arc.
 num_intermediate_arc_points = 3

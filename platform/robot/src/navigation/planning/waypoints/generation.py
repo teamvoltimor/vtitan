@@ -35,6 +35,45 @@ if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
 
+def center_bias_for_corridor(
+    width_m: float,
+    tuning: NavigationTuning,
+    override_m: float | None = None,
+) -> float:
+    """Signed centreline shift for ONE corridor, positive toward the inner block.
+
+    Narrow corridors take ``NARROW_CENTER_BIAS_M`` and wide ones
+    ``WIDE_CENTER_BIAS_M``, split at ``NARROW_WIDTH_THRESHOLD_M``. The same absolute
+    shift spends a much larger fraction of a narrow corridor's margin than of a
+    wide one's, so a single value is either unsafe narrow or slow wide.
+
+    ``override_m`` (the Obstacles Challenge's ``OBSTACLES_CENTER_BIAS_M``)
+    applies UNIFORMLY, ignoring the split. Obstacles corridors are all 1.0 m by
+    rule, so there is no narrow case for it to describe, and letting the
+    threshold reinterpret an explicitly-passed magnitude would silently change
+    a value that was swept and measured as one number.
+
+    The SIDE always comes from tuning: only the distance varies here, and a
+    zero magnitude makes the side moot anyway.
+
+    Args:
+        width_m: This corridor's width (m).
+        tuning: Tuning profile supplying the two magnitudes and the threshold.
+        override_m: Explicit magnitude that replaces both, applied uniformly.
+
+    Returns:
+        Signed shift (m); positive toward the inner block.
+    """
+    params = tuning.waypoints
+    if override_m is not None:
+        magnitude = override_m
+    elif width_m <= params.NARROW_WIDTH_THRESHOLD_M:
+        magnitude = params.NARROW_CENTER_BIAS_M
+    else:
+        magnitude = params.WIDE_CENTER_BIAS_M
+    return magnitude * (1.0 if params.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0)
+
+
 def validate_path_feasibility(min_corridor_width_m: float, center_bias_m: float) -> PathPlannability:
     """Check whether the chassis fits the narrowest corridor once biased off centre.
 
@@ -122,7 +161,8 @@ def calculate_waypoints(
         ValueError: If a generated or deformed waypoint would fall outside the
             track or inside the restricted inner square.
 
-    Uses tuning: waypoints.ARC_RADIUS, CENTER_BIAS_M, CENTER_BIAS_SIDE
+    Uses tuning: waypoints.ARC_RADIUS, WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
+    NARROW_WIDTH_THRESHOLD_M, CENTER_BIAS_SIDE
     """
     tuning = get_tuning(tuning)
     if not isinstance(metadata, ScenarioMetadata):
@@ -146,16 +186,12 @@ def calculate_waypoints(
         Section.EAST: corridor_widths.east,
         Section.WEST: corridor_widths.west,
     }
-    # Derive center bias from tuning (positive toward inner block). An explicit
-    # magnitude overrides the tuning default so the Obstacles Challenge can plan
-    # down the middle without changing Open's value. The SIDE still comes from
-    # tuning: only the distance differs between the challenges, and a zero
-    # magnitude makes the side moot anyway.
-    bias_magnitude = tuning.waypoints.CENTER_BIAS_M if center_bias_m is None else center_bias_m
-    center_bias_m = bias_magnitude * (1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0)
-
     min_width_m = min(cw.width_mm for cw in cw_entries.values()) / 1000.0
-    feasibility = validate_path_feasibility(min_width_m, center_bias_m)
+    # The narrowest corridor is the one that can fail to fit, and it is also the
+    # one carrying the narrow bias, so score feasibility with ITS bias rather
+    # than a single track-wide figure -- the wide value would overstate what the
+    # narrow corridor actually spends.
+    feasibility = validate_path_feasibility(min_width_m, center_bias_for_corridor(min_width_m, tuning, center_bias_m))
     if not feasibility.is_feasible:
         raise ValueError(feasibility.reason)
 
@@ -165,17 +201,38 @@ def calculate_waypoints(
     east_width = widths[Section.EAST]
     west_width = widths[Section.WEST]
 
+    # Each corridor takes the bias for ITS OWN width (see
+    # center_bias_for_corridor): narrow ones are planned centred, wide ones keep
+    # the inner racing line. An explicit magnitude still overrides both
+    # uniformly, which is how the Obstacles Challenge plans down the middle
+    # without touching Open's values.
+    north_bias = center_bias_for_corridor(north_width, tuning, center_bias_m)
+    south_bias = center_bias_for_corridor(south_width, tuning, center_bias_m)
+    east_bias = center_bias_for_corridor(east_width, tuning, center_bias_m)
+    west_bias = center_bias_for_corridor(west_width, tuning, center_bias_m)
+
     # Signs put the bias toward the inner block on every side: north and east
     # corridors have the block below/left of them, south and west above/right.
-    north_cy = TrackDimensions.MAX_COORD - north_width / 2 - center_bias_m
-    south_cy = south_width / 2 + center_bias_m
-    east_cx = TrackDimensions.MAX_COORD - east_width / 2 - center_bias_m
-    west_cx = west_width / 2 + center_bias_m
+    north_cy = TrackDimensions.MAX_COORD - north_width / 2 - north_bias
+    south_cy = south_width / 2 + south_bias
+    east_cx = TrackDimensions.MAX_COORD - east_width / 2 - east_bias
+    west_cx = west_width / 2 + west_bias
 
     # Each corner is sized by the two corridors it joins, so a narrow-to-narrow
     # corner tightens while the rest keep the configured radius.
+    #
+    # The bias passed is the WIDER corridor's, because corner_arc_radius is
+    # tangent to that corridor's centreline (it takes max(entry, exit)) and the
+    # radius has to preserve the clearance THAT straight has. Passing the
+    # narrow side's bias would size the arc against a centreline it is not
+    # tangent to -- the same class of error the max/min choice already guards.
     corner_radii = {
-        corner: corner_arc_radius(entry_w, exit_w, center_bias_m, arc_radius)
+        corner: corner_arc_radius(
+            entry_w,
+            exit_w,
+            center_bias_for_corridor(max(entry_w, exit_w), tuning, center_bias_m),
+            arc_radius,
+        )
         for corner, (entry_w, exit_w) in {
             "se": (east_width, south_width),
             "sw": (south_width, west_width),

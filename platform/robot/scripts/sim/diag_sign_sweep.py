@@ -187,6 +187,11 @@ _PASSED_DIST_FOR_PROFILE = 0.24
 # received, and the accessors clamp anything above the ceiling anyway.
 _SPEED_FOR_PROFILE = 0.156
 
+# The implausible-jump guard as a MULTIPLE of the commanded top speed. Taken
+# from the shipped pair (localization 0.25 against the measured 0.156 m/s
+# ceiling) so a swept arm reproduces the same margin rather than inventing one.
+_JUMP_GUARD_HEADROOM = 0.25 / 0.156
+
 
 class CollisionKind(StrEnum):
     """Categorization of what obstacle the chassis collided with."""
@@ -212,6 +217,28 @@ class SweepConfig:
     lookahead_long: float | None = None
     fast_mps: float | None = None
     """Override ``SpeedParams.FAST_MPS``, in ABSOLUTE m/s."""
+
+    max_mps: float | None = None
+    """Override ``SpeedParams.MAX_MPS``, in ABSOLUTE m/s.
+
+    Must move with ``fast_mps``. ``CoreNavigator`` clamps the selected tier to
+    ``speed.max_mps()`` before commanding it, so raising FAST alone above MAX
+    produces an arm that is SILENTLY IDENTICAL to the one at MAX -- a clean
+    no-change result that reads as evidence and is not. The shipped profile has
+    MAX at 0.50, so every ``speed`` value above that was inert until this field
+    existed.
+    """
+
+    localization_max_speed: float | None = None
+    """Override ``LocalizationParams.MAX_SPEED_MPS`` -- the implausible-jump guard.
+
+    Not a speed tier. ``LidarLocalizer`` rejects a scan-match correction whose
+    implied displacement exceeds ``MAX_SPEED_MPS * dt``, so a guard set below
+    the commanded tier rejects HONEST motion and the arm measures the guard
+    rather than the speed. The shipped 0.25 was sized against the retired
+    motor's measured 0.156 m/s ceiling (1.6x headroom) and was never raised
+    with the 2026-08-27 profile, leaving it at HALF the commanded FAST of 0.50.
+    """
 
     creep_mps: float | None = None
     """Override ``SpeedParams.CREEP_MPS``, in ABSOLUTE m/s.
@@ -593,7 +620,8 @@ class SweepConfig:
     """Override ``WaypointParams.OBSTACLES_CENTER_BIAS_M`` (default 0.0, centred).
 
     How far the planned centreline sits toward the INNER block on Obstacles.
-    Open keeps its own ``CENTER_BIAS_M`` regardless. Centred is the right
+    Open keeps its own ``WIDE_CENTER_BIAS_M``/``NARROW_CENTER_BIAS_M``
+    regardless. Centred is the right
     answer geometrically -- all Obstacles corridors are 1.0 m and signs sit
     0.10 m either side of centre, so 0.0 leaves symmetric room -- but the
     chassis is documented to drift OUTWARD while tracking
@@ -659,7 +687,8 @@ class SweepConfig:
             STEER_KP=self.steer_kp,
             MAX_STEERING_RATE=self.max_steering_rate,
         )
-        speed = _with(base.speed, FAST_MPS=self.fast_mps, CREEP_MPS=self.creep_mps)
+        speed = _with(base.speed, FAST_MPS=self.fast_mps, MAX_MPS=self.max_mps, CREEP_MPS=self.creep_mps)
+        localization = _with(base.localization, MAX_SPEED_MPS=self.localization_max_speed)
         waypoints = _with(
             base.waypoints,
             ARC_RADIUS=self.arc_radius,
@@ -714,6 +743,7 @@ class SweepConfig:
             base,
             pursuit=pursuit,
             speed=speed,
+            localization=localization,
             waypoints=waypoints,
             sign_router=sign_router,
             sign_discovery=sign_discovery,
@@ -3831,7 +3861,29 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         sign_lane_planner=True,
         wall_clearance=v,
     ),
-    "speed": lambda v: SweepConfig(f"fast_mps {v:{_FORMAT_3F}}", fast_mps=v),
+    # Moves the whole ENVELOPE, not just the tier, because two other values
+    # bind above the shipped 0.50 and would each silently swallow the arm:
+    #
+    #   * speed.MAX_MPS -- CoreNavigator clamps the selected tier to it, so
+    #     `speed 0.6` without this was byte-identical to `speed 0.5`.
+    #   * localization.MAX_SPEED_MPS -- the implausible-jump guard, shipped at
+    #     0.25 against the RETIRED motor's measured 0.156 m/s. Left alone, every
+    #     arm above 0.25 measures how often honest motion is rejected as a
+    #     scan-match snap, which is not what this mode is asking.
+    #
+    # The guard keeps its shipped 1.6x headroom over the commanded tier
+    # (0.25 / 0.156) so it stays a guard rather than becoming a second variable.
+    #
+    # The tiers BELOW fast (creep/slow/medium) deliberately do not move: creep
+    # is a servo-slew budget in centimetres of travel, not a fraction of top
+    # speed, so scaling it would confound this with a change the geometry does
+    # not justify.
+    "speed": lambda v: SweepConfig(
+        f"fast_mps {v:{_FORMAT_3F}}",
+        fast_mps=v,
+        max_mps=v,
+        localization_max_speed=v * _JUMP_GUARD_HEADROOM,
+    ),
     # The one knob mechanically coupled to a hardware speed profile. It is in
     # rad/SECOND, so a faster profile leaves the steering actuator exactly as
     # quick while giving it less distance to act over. Sweep it alongside

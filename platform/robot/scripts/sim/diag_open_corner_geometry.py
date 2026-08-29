@@ -158,7 +158,10 @@ def main() -> None:
     half_width = RobotSpecs.WIDTH / 2.0
     print(
         f"chassis half-width {half_width:.3f} m, ARC_RADIUS {tuning.waypoints.ARC_RADIUS}, "
-        f"CENTER_BIAS_M {tuning.waypoints.CENTER_BIAS_M} ({tuning.waypoints.CENTER_BIAS_SIDE})\n",
+        f"WIDE_CENTER_BIAS_M {tuning.waypoints.WIDE_CENTER_BIAS_M} / "
+        f"NARROW_CENTER_BIAS_M {tuning.waypoints.NARROW_CENTER_BIAS_M} "
+        f"below {tuning.waypoints.NARROW_WIDTH_THRESHOLD_M} m "
+        f"({tuning.waypoints.CENTER_BIAS_SIDE})\n",
         flush=True,
     )
 

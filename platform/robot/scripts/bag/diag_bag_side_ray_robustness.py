@@ -214,7 +214,7 @@ def _centre_offset(bag_dir: Path, window_deg: float) -> None:
 
     half_width = math.radians(window_deg)
     tuning = NavigationTuning.load_default()
-    intended = tuning.waypoints.CENTER_BIAS_M
+    intended = tuning.waypoints.WIDE_CENTER_BIAS_M
     row_times = [t for t, _ in rows]
     samples: dict[tuple[str, str], list[tuple[float, float, float, float]]] = {}
     rejected: Counter[str] = Counter()

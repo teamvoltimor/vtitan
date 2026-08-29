@@ -368,7 +368,8 @@ def apply_sign_lanes(
         if not indices:
             continue
         # The corridor's own centreline as PLANNED, which already carries
-        # CENTER_BIAS_M and this scenario's estimated corridor width -- taking
+        # whichever center bias its width selected, and this scenario's
+        # estimated corridor width -- taking
         # it from the waypoints rather than recomputing it keeps the lane's
         # ramp endpoints on the path the tracker would otherwise follow, so the
         # transform is continuous at both ends by construction.

@@ -330,7 +330,8 @@ class TestFieldDefaultsMatchShippedToml:
 
     Nothing keeps them in step, and nothing fails when they part: a bare
     ``NavigationTuning()`` simply plans a different car than the checked-in
-    config does. ``CENTER_BIAS_M`` had drifted to 0.05 against the TOML's 0.10 --
+    config does. ``WIDE_CENTER_BIAS_M`` (then named ``CENTER_BIAS_M``) had
+    drifted to 0.05 against the TOML's 0.10 --
     half the commanded offset from the corridor centreline -- and every
     diagnostic that builds tuning bare (``diag_sign_sweep.tuning()`` among them)
     measured at the drifted value without any signal that it had.

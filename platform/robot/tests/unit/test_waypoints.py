@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
 from shared.config.constants import CorridorDimensions, RobotSpecs
@@ -318,15 +319,44 @@ class TestCenterBiasOverride:
         Guards the derivation itself: if the override were applied with the
         wrong sign or skipped ``CENTER_BIAS_SIDE``, this is where it shows,
         rather than as a silently shifted path in one challenge only.
+
+        The override is UNIFORM while the default is per-corridor-width, so the
+        two are only comparable when both magnitudes are the same -- that is
+        what ``flat`` sets up. Comparing against the shipped tuning instead
+        would fail for a legitimate reason (narrow corridors take 0.0) and
+        stop testing the sign/side derivation this exists for.
         """
-        implicit = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
+        flat = replace(
+            tuning,
+            waypoints=tuning.waypoints.model_copy(
+                update={"NARROW_CENTER_BIAS_M": tuning.waypoints.WIDE_CENTER_BIAS_M}
+            ),
+        )
+        implicit = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=flat)
         explicit = calculate_waypoints(
             sample_metadata_open,
             num_laps=1,
-            tuning=tuning,
-            center_bias_m=tuning.waypoints.CENTER_BIAS_M,
+            tuning=flat,
+            center_bias_m=flat.waypoints.WIDE_CENTER_BIAS_M,
         )
         assert explicit == implicit
+
+    def test_narrow_corridors_take_the_narrow_bias(self, sample_metadata_open, tuning) -> None:
+        """The narrow/wide split must actually reach the planned path.
+
+        Guards the wiring rather than the geometry: if ``calculate_waypoints``
+        regressed to applying one magnitude to all four corridors, moving only
+        the NARROW value would stop moving the path and this fails.
+        """
+        shifted_narrow = replace(
+            tuning,
+            waypoints=tuning.waypoints.model_copy(
+                update={"NARROW_CENTER_BIAS_M": tuning.waypoints.NARROW_CENTER_BIAS_M + 0.05}
+            ),
+        )
+        assert calculate_waypoints(
+            sample_metadata_open, num_laps=1, tuning=shifted_narrow
+        ) != calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
 
     def test_a_different_value_actually_moves_the_path(self, sample_metadata_open, tuning) -> None:
         """Regression guard for the override: without this the tests above pass on a no-op."""
@@ -335,6 +365,6 @@ class TestCenterBiasOverride:
             sample_metadata_open,
             num_laps=1,
             tuning=tuning,
-            center_bias_m=tuning.waypoints.CENTER_BIAS_M + 0.05,
+            center_bias_m=tuning.waypoints.WIDE_CENTER_BIAS_M + 0.05,
         )
         assert shifted != implicit

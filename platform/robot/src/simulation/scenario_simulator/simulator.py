@@ -218,12 +218,35 @@ class ScenarioSimulator(PassSideScorer):
         #
         # Assigned before the blind branch below, which reads it.
         self._tuning = get_tuning(tuning)
+        challenge = metadata.challenge_type
+        is_open_challenge = challenge == ScenarioType.OPEN
+        # Obstacles carries its own centreline bias, tuned separately from
+        # Open's -- and measured HIGHER, not lower, than the geometry argues
+        # for. See WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and
+        # why it is compensating for the tracker's outward drift.
+        #
+        self._center_bias_m = None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
+        # Hoisted above the blind branch below, which reads the challenge too.
+        #
+        # The ASSUMED START uses a different bias from the PLAN, and only on
+        # Obstacles. Open passes None and so takes the narrow/wide split, which
+        # is what its planner now does -- a blind Open robot assumes all-narrow
+        # corridors, plans them centred, and must assume a start on that same
+        # centreline. Obstacles instead pins the pre-split WIDE magnitude, so
+        # the split cannot move its assumed pose at all: verified 2026-08-29,
+        # its failure set is identical with and without the split, over a
+        # matched sweep of the same seven test modules at the same worker count.
+        # Its assumed start therefore does not sit on its own planned line,
+        # which uses OBSTACLES_CENTER_BIAS_M -- a pre-existing inconsistency,
+        # left alone rather than fixed in passing, since that is a separately
+        # swept value and moving it is its own measurement.
+        assumed_bias_m = None if is_open_challenge else self._tuning.waypoints.WIDE_CENTER_BIAS_M
         believed_start = start
         if blind and not known_start:
             # No widths passed, so it falls back to the all-narrow prior --
             # which is exactly what the hardware does at startup, before any
             # corridor has been measured.
-            assumed = assumed_start_conditions(start.direction, tuning=self._tuning)
+            assumed = assumed_start_conditions(start.direction, tuning=self._tuning, center_bias_m=assumed_bias_m)
             believed_start = _StartConditions(
                 section=Section.from_string(assumed[DictKeys.SECTION]),
                 direction=start.direction,
@@ -231,13 +254,6 @@ class ScenarioSimulator(PassSideScorer):
                 y=float(assumed[DictKeys.POSITION][DictKeys.Y]),
                 yaw=float(assumed[DictKeys.YAW]),
             )
-        challenge = metadata.challenge_type
-        is_open_challenge = challenge == ScenarioType.OPEN
-        # Obstacles carries its own centreline bias, tuned separately from
-        # Open's -- and measured HIGHER, not lower, than the geometry argues
-        # for. See WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and
-        # why it is compensating for the tracker's outward drift.
-        self._center_bias_m = None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the

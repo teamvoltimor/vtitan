@@ -18,10 +18,15 @@ class WaypointParams(BaseModel):
             assertion in ``calculate_waypoints``.
         DEDUPE_DISTANCE_M: Distance below which consecutive generated
             waypoints are treated as duplicates and merged.
-        CENTER_BIAS_M: How far (m) to shift corridor centreline waypoints off
-            centre. Magnitude only -- which side it shifts toward is
-            CENTER_BIAS_SIDE, so the two can be tuned independently and a
-            side can be A/B'd without touching the distance.
+        WIDE_CENTER_BIAS_M: How far (m) to shift corridor centreline waypoints
+            off centre, for corridors ABOVE NARROW_WIDTH_THRESHOLD_M.
+            Magnitude only -- which side it shifts toward is CENTER_BIAS_SIDE,
+            so the two can be tuned independently and a side can be A/B'd
+            without touching the distance.
+            Named WIDE_ rather than left bare since the 2026-08-29 narrow/wide
+            split: a bare CENTER_BIAS_M read as "the" bias at every call site
+            and would silently keep meaning that after the split, which is
+            exactly the kind of name that hides a behaviour change.
         OBSTACLES_CENTER_BIAS_M: The same shift, for the Obstacles Challenge.
             Defaults 0.15 -- MORE inner bias than Open's 0.10, which is the
             opposite of what the geometry argues for. Read the measurement
@@ -49,10 +54,43 @@ class WaypointParams(BaseModel):
             downward, toward the geometric answer) if the outward drift is ever
             fixed. It is not evidence the drift is acceptable.
             Kept as its own field rather than a challenge branch on
-            ``CENTER_BIAS_M`` so Open's value can still be tuned without
+            ``WIDE_CENTER_BIAS_M`` so Open's value can still be tuned without
             touching Obstacles, matching how ``CorridorDimensions``
             already carries a separate ``OBSTACLES_WIDTH``.
-        CENTER_BIAS_SIDE: Which boundary CENTER_BIAS_M shifts the path toward.
+        NARROW_CENTER_BIAS_M: The same shift, for corridors at or below
+            NARROW_WIDTH_THRESHOLD_M. Defaults 0.0 -- narrow corridors are
+            planned down the true centreline while wide ones keep
+            WIDE_CENTER_BIAS_M's inner racing line.
+            Why split: the bias budget is ``width/2 - RobotSpecs.WIDTH/2``, so
+            the same absolute shift costs a far larger FRACTION of a 0.6 m
+            corridor than of a 1.0 m one. A single value has to be safe in the
+            narrow case and therefore leaves lap time on the table in the wide
+            one. Measured on run_20260829_020308 (3 laps, hardware): in the
+            narrowest quartile the chassis ran a median 0.113 m and a p05 of
+            0.069 m from the INNER wall against 0.435 m from the outer -- i.e.
+            ~0.17 m off centre where 0.10 m was planned, because tracking error
+            adds to the commanded bias rather than averaging out. The shipped
+            WIDE_CENTER_BIAS_M comment already named this the condition for
+            revisiting it ("the only reason to go further would be a
+            measurement of real crosstrack against this geometry"); this is
+            that measurement.
+            NOT free: ``corner_arc_radius`` is ``max(W_entry, W_exit)/2 -
+            center_bias``, so removing the bias WIDENS a narrow-to-narrow
+            corner's arc (0.20 -> 0.30 m here) and makes it demand LESS
+            steering, not more. Separation and corner sharpness are coupled
+            through this one number and cannot both be raised by tuning it.
+        NARROW_WIDTH_THRESHOLD_M: Corridor width (m) at or below which
+            NARROW_CENTER_BIAS_M applies instead of WIDE_CENTER_BIAS_M. Defaults
+            0.8, midway between the rule widths in
+            ``CorridorDimensions.NARROW`` (0.6) and ``.WIDE`` (1.0), so it
+            classifies both cleanly with the most room for measurement error
+            on either side. A threshold rather than a smooth interpolation
+            because the rules only ever present those two widths -- an
+            interpolation would invent behaviour for widths the track cannot
+            have.
+        CENTER_BIAS_SIDE: Which boundary the bias magnitudes shift the path
+            toward. Shared by WIDE_CENTER_BIAS_M and NARROW_CENTER_BIAS_M --
+            only the distance varies with width, never the side.
             Was fixed at OUTER and spelled into the constant's own name
             (OUTER_WALL_BIAS), which made the preference an assumption of the
             code rather than a setting. Clearance is symmetric either way --
@@ -100,7 +138,14 @@ class WaypointParams(BaseModel):
     # every diagnostic that builds tuning bare (diag_sign_sweep.tuning() among
     # them) just quietly measured a different car. Keep in step with the TOML;
     # test_navigation_tuning.py::test_field_defaults_match_shipped_toml enforces it.
-    CENTER_BIAS_M: float = Field(default=0.10, validation_alias=_alias("CENTER_BIAS_M"))
+    WIDE_CENTER_BIAS_M: float = Field(default=0.10, validation_alias=_alias("WIDE_CENTER_BIAS_M"))
+    NARROW_CENTER_BIAS_M: float = Field(default=0.0, validation_alias=_alias("NARROW_CENTER_BIAS_M"))
+    # 0.8 = midway between CorridorDimensions.NARROW (0.6) and .WIDE (1.0).
+    # Spelled as a literal rather than computed from them for the same reason
+    # every other default here is: this class is a second, independent copy of
+    # the shipped TOML, and test_field_defaults_match_shipped_toml compares the
+    # two directly.
+    NARROW_WIDTH_THRESHOLD_M: float = Field(default=0.8, validation_alias=_alias("NARROW_WIDTH_THRESHOLD_M"))
     OBSTACLES_CENTER_BIAS_M: float = Field(default=0.15, validation_alias=_alias("OBSTACLES_CENTER_BIAS_M"))
     CENTER_BIAS_SIDE: CorridorSide = Field(default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE"))
     NUM_INTERMEDIATE_ARC_POINTS: int = Field(default=3, validation_alias=_alias("NUM_INTERMEDIATE_ARC_POINTS"))

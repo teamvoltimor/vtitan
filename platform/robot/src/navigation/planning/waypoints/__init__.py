@@ -9,6 +9,7 @@ package re-exports the names callers import from ``...planning.waypoints``.
 from src.navigation.planning.waypoints.classification import corridor_for_position
 from src.navigation.planning.waypoints.generation import (
     calculate_waypoints,
+    center_bias_for_corridor,
     corridor_widths_dict_to_model,
     plan_believed_path,
     validate_path_feasibility,
@@ -35,6 +36,7 @@ __all__ = [
     "build_all_segments",
     "build_waypoint_sequence",
     "calculate_waypoints",
+    "center_bias_for_corridor",
     "corner_arc_radius",
     "corridor_for_position",
     "corridor_widths_dict_to_model",
