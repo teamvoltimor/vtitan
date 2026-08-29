@@ -5,195 +5,31 @@
 pin_a = 16
 pin_b = 20
 
-# REQUIRED, no Python default -- per-motor physical data; a stale fallback
-# would silently misconfigure a different motor rather than erroring at
-# startup (see encoder/config.py). Re-measure with
-# scripts/hardware/calibrate_encoder.py whenever the motor/drivetrain changes.
+# counts_per_rev, max_rpm, feedforward_deadband_duty, and pid_kp/pid_ki/pid_kd
+# are deliberately NOT set here. They are per-motor bench calibration and
+# used to all live in this one flat file, which meant switching
+# VTITAN_HARDWARE_PROFILE between drive motors silently kept whichever
+# motor's numbers happened to be here last -- the REV HD Hex 6000rpm figures
+# would have applied unchanged to the retired 1500rpm motor if it were ever
+# reconnected without anyone noticing.
 #
-# PROVISIONAL, 2026-08-28: the 676.0 below (JGB37-520, MEASURED 2026-07-25)
-# is for the RETIRED drive motor and is stale for the new one. Re-derived
-# from bench data instead of raw counts -- test_motors.py drive holds at
-# several commanded speeds, each held 3s and tape-measured, forward AND
-# reverse:
-#     commanded 0.025 m/s -> 61cm  real -> 0.203 m/s real  -> cpr ~83
-#     commanded 0.050 m/s -> 115-118cm real -> ~0.385 m/s real -> cpr ~88
-#     commanded -0.050 m/s -> 115-118cm real -> ~0.385 m/s real -> cpr ~88
-# Using target_rpm/measured_rpm convergence at steady state:
-# cpr_true = cpr_old * (commanded / real_speed). The 0.025/0.05 points agree
-# to ~6% and forward/reverse agree to ~3%, so this is a solid estimate even
-# though (unlike the 676.0 above) it wasn't derived from raw counts directly
-# -- re-verify with scripts/hardware/calibrate_encoder.py when convenient.
-# Do NOT derive counts_per_rev by integrating /motor/drive_speed the OTHER
-# way (naive distance/count ratio without the target/measured convergence
-# reasoning above) -- that feedback is exponentially smoothed and
-# rate-derived, and doing so gave answers ~2x wrong for the old motor too.
-#
-# REVISED 2026-08-29 from 86.0, by the SAME method with better conditioning.
-# The 86 above came from 3-SECOND holds -- after the ~1 s spin-up that is only
-# ~2 s of steady travel, so ramp and coast dominate the tape distance. Repeating
-# it with long holds gives a different answer:
-#
-#   commanded 0.1 m/s, five runs of 6/8/10/12/16 s, each tape-measured:
-#     ratio(tape / encoder-accounted distance) = 1.390 1.490 1.422 1.414 1.476
-#     mean 1.438, stdev 0.043 (3%)  ->  cpr = 86 / 1.438 = 59.8
-#
-# Robust across a battery swap mid-session (old pack mean 1.434, fresh 1.445),
-# so it is not a supply artifact. Wheel diameter confirmed at 7 cm with a ruler,
-# so this is the encoder constant and not the geometry.
-#
-# Higher-speed runs read 1.54-1.76 rather than 1.44, because at 0.4-0.5 m/s
-# momentum overcomes the stiff drivetrain and real coast inflates the distance.
-# The 0.1 m/s set is the clean one: the wheels cannot be pushed by hand, so at
-# creep there is effectively no roll-out.
-#
-# LIVE-VERIFIED 2026-08-29 on two consecutive clean 3-lap runs:
-#
-#   run_20260829_130309  encoder 32.14 m | pose 30.46 m | ratio 1.055
-#   run_20260829_130018  encoder 32.10 m | pose 30.03 m | ratio 1.069
-#
-# If 86 had been right the encoder would read ~1.43x pose. It reads ~1.06, and
-# the residual is the expected sign and size for a 1 s-decimated pose path
-# chording across corner arcs. Commanded vs achieved also closed: 32.36 m
-# commanded against 32.14 m encoder (0.7%), where the robot had previously been
-# delivering ~44% more than asked.
-#
-# Both were the first 3-lap runs of the session; before this the robot could not
-# finish two. The chain: cpr too high -> encoder under-reads -> loop drives 1.44x
-# fast -> FAST needs duty 0.514 against a 0.50 cap -> saturation -> lap-2
-# collapse. Fixing this one constant removed all of it; fast_mps and max_duty
-# were never the problem.
-#
-# The earlier apparent contradiction (encoder 28.46 m vs pose 28.62 m on
-# run_20260829_003233, agreeing to 0.5%) was an artifact: localization.toml's
-# max_speed_mps was 0.25, so pose updates above that were discarded while the
-# encoder under-read. Two measurements suppressed in the same direction. That
-# gate went to 0.60 in the same commit, which is what made this testable.
-counts_per_rev = 60.0
-
-# Maximum achievable WHEEL rpm AT 100% DUTY. counts_per_rev counts WHEEL
-# revolutions, so get_rpm() reports wheel rpm, and the PID's feedforward term
-# (1/max_rpm) must be scaled from the same frame or it under/over-contributes
-# duty.
-#
-# The 100%-duty frame is not incidental, it is what the feedforward REQUIRES:
-# PIDController computes `feedforward * setpoint` with feedforward = 1/max_rpm,
-# so the term it contributes IS the duty fraction `setpoint_rpm / max_rpm`.
-# Feeding it an rpm ceiling measured at some LOWER duty cap makes every
-# feedforward request proportionally too hot.
-#
-# REVISED 2026-08-29 from 123.0, which was exactly that error. The 123 came
-# from the 2026-08-28 bench session and is accurately labelled there as "the
-# max reachable at the CURRENT 50% duty cap" -- a 50%-duty measurement used in
-# a 100%-duty slot, so the feedforward over-commanded by the ratio between
-# them.
-#
-# WHAT THIS FIXES, precisely -- it is a SATURATION bug, not a speed-error one.
-# The feedforward contributes duty = setpoint_rpm/max_rpm, so at 123 the
-# medium and fast tiers asked for more duty than max_duty=0.5 allows before
-# the PID contributed anything at all:
-#     cmd 0.24 m/s -> 65.5 rpm -> ff duty 0.532  CLAMPED at 0.50
-#     cmd 0.28 m/s -> 76.4 rpm -> ff duty 0.621  CLAMPED at 0.50
-# A clamped feedforward leaves the loop with zero authority: it cannot trim
-# down (already at the ceiling) and the integral cannot help. Replaying the
-# real PIDController+SpeedEstimator against a first-order plant confirms it --
-# at cmd 0.24 the old value settles at 1.33x setpoint with stdev 0.0 (the
-# signature of a rail), where 175 settles at 1.01x. Below ~0.22 m/s the old
-# value was NOT saturated and the loop did converge, so this changes little
-# there.
-#
-# 175 puts every tier except fast_mps (0.35 -> ff 0.546, still clamped) inside
-# the duty budget. Raising max_duty is the separate fix for that tier.
-#
-# Now the MEASURED physical ceiling, 2026-08-29 bench, loaded, at cpr=60:
-#     rpm = 434.6*duty - 86.7   (R^2 0.9999, points at duty 0.5/0.75/0.9)
-#     => deadband at duty 0.200, and 348 rpm at duty 1.0 = 1.28 m/s
-#
-# Raised 175 -> 348 TOGETHER WITH feedforward_deadband_duty below, and the two
-# must move together. 175 was not the physical ceiling; it was an effective
-# feedforward gain that happened to compensate for the deadband the old
-# proportional-only feedforward could not express. Setting 348 without the
-# deadband term makes the feedforward under-command everywhere:
-#
-#     tier     true duty   ff@175   ff@348   ff@348+deadband
-#     CREEP      0.295      0.237    0.119        0.295
-#     SLOW       0.325      0.312    0.157        0.325
-#     MEDIUM     0.375      0.437    0.220        0.375
-#     FAST       0.419      0.546    0.275        0.419
-#     mean |ff - true|:      0.065    0.161        0.000
-#
-# LIVE-VERIFIED 2026-08-29, run_20260829_140424 -- 3 clean laps:
-#
-#     config                        laps  time     cmd      enc    enc/cmd
-#     175, no deadband (baseline)    3   142.3s   32.36m  32.14m   0.993
-#     348 + deadband 0.20 (this)     3   132.5s   30.50m  31.16m   1.022
-#
-# Faster over a shorter commanded path, and still tracking to ~2%. That 2.2%
-# over-delivery works out to ~0.003 duty of excess feedforward at a typical
-# 55 rpm setpoint, i.e. the true deadband is ~0.197 rather than 0.200 -- close
-# enough that fitting it further is not worth a hardware session.
-#
-# WARNING, cost an aborted revert: this MUST be judged with the wheels LOADED.
-# Tested on a stand it reads as a 35% overshoot (135% of setpoint at 0.15 m/s,
-# 117% at 0.30), because the feedforward is calibrated for the loaded curve
-# (rpm = 434.6*duty - 86.7) while unloaded the same duty gives far more rpm
-# (rpm = 661.8*duty - 121.0). On the floor the same config tracks to 2%.
-#
-# pid_kp/pid_ki below still carry an unverified ~8x rescale, and that is now the
-# last unverified thing in this loop -- change it alone and re-run.
-#
-# Do NOT justify a future change to this value with commanded-vs-achieved
-# speed derived from nav_debug pose path length. That measure accumulates
-# localization jitter and over-reads badly: on run_20260829_003233 it gave
-# 31.57m against 28.63m commanded (an apparent 1.10x, and ~1.4x in some speed
-# buckets) which evaporates under decimation -- the same path decimated to a
-# ~1s step gives 28.7m, i.e. a true ratio of ~1.00. That run tracked its
-# commanded speed correctly on aggregate; there was no over-delivery to fix.
-max_rpm = 348.0
-
-# Duty below which the motor does not turn at all. The speed PID's feedforward
-# is `offset + slope * setpoint_rpm`, and this is the offset; the slope is
-# (1 - this) / max_rpm. Measured with max_rpm above, same bench run.
-#
-# 0.0 (the code default) restores the old proportional-only feedforward, which
-# is the safe thing to try if a run regresses. Deliberately NOT applied to a
-# zero setpoint -- otherwise a commanded stop would hold 0.2 duty and the
-# chassis would creep instead of stopping.
-feedforward_deadband_duty = 0.20
+# Split 2026-08-29 into per-motor profile overlays instead:
+#   profiles/generic-motor-1500rpm/encoder.toml   (retired motor, pre-2026-08-27)
+#   profiles/rev-hd-hex-motor-6000rpm/encoder.toml (current motor)
+# See settings_base.py's docstring for how profile overlays are resolved.
+# counts_per_rev/max_rpm have no Python default specifically so a missing
+# overlay (no motor profile active, or a new motor with no profile yet)
+# fails loudly at startup instead of silently reusing a stale value.
 
 # wheel_diameter_m is not set here -- it derives from RobotSpecs.WHEEL_RADIUS
 # (src/hardware/motors/encoder/calibration.py), not restated as a literal.
 
-# Closed-loop speed PID gains. Originally tuned on hardware 2026-07-25
-# against true wheel rpm for the RETIRED motor (0.010/0.020). PROVISIONAL
-# RESCALE 2026-08-28: get_rpm() = (counts/dt)/counts_per_rev*60, so dropping
-# counts_per_rev 676->86 (see above, ~7.9x) makes measured_rpm ~7.9x MORE
-# sensitive per unit of real wheel motion -- confirmed on hardware via debug
-# telemetry (base.py's "PID step" log): with the recalibrated
-# counts_per_rev but the OLD 0.010/0.020 gains still in place, a 0.05 m/s
-# hold oscillated visibly (measured_rpm swinging ~2->21.5rpm around a
-# 13.6rpm target, duty swinging ~0.15->0.31 in response -- stdev on the
-# drive-speed feedback jumped from ~5 to 25 deg/s vs the same test under the
-# old calibration). Divided both gains by that same ~7.9x (rounded to 8, a
-# clean number given this whole rescale is already provisional) to hold the
-# effective open-loop gain roughly constant: 0.010/8 = 0.00125,
-# 0.020/8 = 0.0025.
-# NOT YET VERIFIED LIVE (2026-08-28) -- battery/motor power was disconnected
-# for the rest of that bench session, so this is a reasoned correction from
-# the scale-change math above, not a re-tune confirmed against real
-# convergence behavior. Re-run the same debug-telemetry drive hold
-# (LOG_LEVEL=DEBUG, watch base.py's "PID step" lines for oscillation) once
-# power is back, before trusting this for anything beyond bench holds.
-pid_kp = 0.00125
-pid_ki = 0.0025
-pid_kd = 0.0
-
 max_duty = 0.5
-# Safety cap after the 2026-08-27 motor swap: on hardware the new motor felt
-# roughly 1 m/s, close to double the ~0.45 m/s max_rpm above reflects at
-# this same 50% cap. counts_per_rev/max_rpm/pid_kp/pid_ki are now re-derived
-# for the new motor (2026-08-28, see above) but only up to this cap -- true
-# 100%-duty behavior is still unmeasured, so keep this cap independent of
-# that math rather than trusting max_rpm to bound duty on its own. Raise/
-# remove max_duty once scripts/hardware/calibrate_encoder.py confirms a true
-# 100%-duty max_rpm and the rescaled PID gains above are verified live
-# (still outstanding as of 2026-08-28 -- see their own comment).
+# Blanket safety cap on the closed-loop PID's output magnitude, shared across
+# motor profiles rather than duplicated in each -- both the retired and
+# current motor profiles are within it. Originally added after the
+# 2026-08-27 motor swap (the new motor felt roughly 1 m/s by hand, well
+# above what was calibrated at the time); still in effect because true
+# 100%-duty behaviour for the current motor and its PID gain rescale are
+# not yet both verified live -- see the rev-hd-hex-motor-6000rpm profile's
+# own notes. Raise/remove once they are.

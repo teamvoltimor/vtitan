@@ -1,0 +1,44 @@
+# Encoder/PID calibration for the RETIRED JGB37-520 1590 RPM drive motor,
+# in service until the 2026-08-27 motor swap to the REV HD Hex 6000rpm.
+#
+# This is a profile overlay specifically so re-selecting this motor (if it
+# is ever reconnected) can't silently inherit the REV motor's numbers from
+# the base encoder.toml -- see that file's own note. Restored verbatim from
+# the last commit before the swap (fe07b2cf^), not re-derived.
+
+# MEASURED on hardware 2026-07-25 from raw quadrature counts against
+# tape-measured travel, at two duty levels:
+#     1650 counts / 54 cm  -> 672 counts per wheel revolution
+#     2447 counts / 79 cm  -> 681 counts per wheel revolution
+# The two agree to 1.3%, which is the point: wheel slip only ever inflates
+# the count for a given distance, so agreement across speeds means slip is
+# negligible and this is the true geometric ratio. Implies ~15.4:1 gearing
+# (676/44 counts per motor revolution). Do NOT derive counts_per_rev by
+# integrating /motor/drive_speed -- that feedback is exponentially smoothed
+# and rate-derived, and doing so gave answers ~2x wrong.
+counts_per_rev = 676.0
+
+# Maximum achievable WHEEL rpm (2447 counts / 5.11 s). NOT the motor's
+# free-running rpm from the datasheet, which is the wrong quantity twice
+# over: it is the motor shaft rather than the wheel (~15.4:1 apart), and it
+# is the unloaded figure. counts_per_rev counts WHEEL revolutions, so
+# get_rpm() reports wheel rpm, and the PID's feedforward term (1/max_rpm)
+# must be scaled from the same frame or it under-contributes duty by ~37x.
+# Corresponds to ~0.156 m/s; sags with battery charge (0.129 m/s on a tired
+# pack), so commanded speeds should stay below this for the loop to have
+# headroom to correct. See this profile's own robot.toml drivetrain note.
+max_rpm = 42.5
+
+# Closed-loop speed PID gains, tuned on hardware 2026-07-25 against true
+# wheel rpm. Feedforward (1/max_rpm) lands near stiction duty; these gains
+# close the remainder without overshoot.
+pid_kp = 0.010
+pid_ki = 0.020
+pid_kd = 0.0
+
+# feedforward_deadband_duty intentionally left unset (defaults to 0.0,
+# proportional-only feedforward): this motor was never bench-characterized
+# for an affine deadband term, only the REV HD Hex 6000rpm motor has been.
+
+# max_duty not set here -- the base encoder.toml's 0.5 safety cap applies
+# regardless of which motor profile is active.
