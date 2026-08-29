@@ -189,6 +189,98 @@ class CorridorFollowerParams(BaseModel):
     TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))
     TURN_OPEN_RANGE_M: float = Field(default=1.00, validation_alias=_alias("TURN_OPEN_RANGE_M"))
     CORNER_LEAK_MARGIN_M: float = Field(default=0.35, validation_alias=_alias("CORNER_LEAK_MARGIN_M"))
+    BAY_EXIT_REVERSE_M: float = Field(default=0.05, validation_alias=_alias("BAY_EXIT_REVERSE_M"))
+    """How far to back straight out of the parking pocket before turning.
+
+    The lot is 0.45 m along the wall against a 0.30 m chassis, so a centred
+    placement has ~7.5 cm of slack at each end. This stays inside that with
+    margin for an off-centre placement.
+
+    Bounded by GEOMETRY at the top end, because there is no rear sensing on this
+    mount -- backing until something appears is not an option here. Do not raise
+    it toward 0.075 to buy a wider turn: the slack is only that large when the
+    robot is exactly centred, and it is placed by hand.
+
+    The exact value IS measured, and it is sharp. Swept on 16 scenarios after
+    the 2026-08-29 kinematics calibration (``diag_bay_start.py``): 0.06 collides
+    16/16 at 0.14 m, 0.05 travels a 1.10 m median with zero collisions, 0.04
+    gives 1.02 m. 0.06 was the shipped default and was fitted against the
+    pre-calibration simulator, which cornered 1.83x harder than the car -- one
+    centimetre either side of this value is the difference between hitting a fin
+    and not. Re-sweep after any change to ``yaw_gain`` or the wheel angle.
+
+    This does NOT make the in-bay start work: every point in the sweep still
+    ends stuck with 0 laps. It only stops the exit from being a collision.
+    """
+
+    BAY_EXIT_STEER_NORM: float = Field(default=1.0, validation_alias=_alias("BAY_EXIT_STEER_NORM"))
+    """Steering magnitude for the swing out of the pocket, 0..1 of full lock.
+
+    Was hardcoded at full lock. That is the worst available command here, and
+    the geometry says so: at ``max_wheel_angle_deg`` the counter-phase 4WS
+    turning radius is ``(wheelbase/2) / tan(angle)`` -- 8 mm at the shipped
+    85 deg -- so the chassis spins about its own centre. The pocket is 0.20 m
+    deep and the chassis diagonal is 0.357 m, so rotating in place is not
+    something the pocket has room for. What is needed is TRANSLATION out of the
+    opening, which is a wider arc, not a tighter one.
+
+    Kept as a tuning field rather than a constant because the radius it implies
+    depends on ``max_wheel_angle_deg``, which is NOT BENCH-VERIFIED (the servo
+    profile's own comment records the previous estimate being wrong by 1.28x).
+    A value tuned in sim against 85 deg does not transfer if the real lock is
+    nearer 30 deg, where the same command gives a 0.165 m radius instead of
+    8 mm. Re-sweep this once the wheel angle is measured.
+
+    MEASURED INERT 2026-08-29, and left at full lock for that reason. Swept over
+    0.2/0.4/0.6/0.7/1.0 against every reverse distance after the kinematics
+    calibration: 0.4, 0.7 and 1.0 produce byte-identical distances, collisions
+    and stuck counts. The reasoning above about turning radius is sound and the
+    outcome still does not depend on it, so something downstream saturates
+    before this reaches the wheels -- do not tune it expecting an effect, and do
+    not trust it as an explanation for a change in behaviour, until that is
+    found. ``BAY_EXIT_REVERSE_M`` is the only knob of the three that moves the
+    result at all.
+    """
+
+    BAY_EXIT_REVERSE_STEER_NORM: float = Field(
+        default=0.0, validation_alias=_alias("BAY_EXIT_REVERSE_STEER_NORM")
+    )
+    """Steering magnitude DURING the reverse leg out of the pocket, 0..1.
+
+    0.0 backs straight, and 0.0 is what wins. The reasoning below argued the
+    opposite and was refuted on 2026-08-29 once the simulator stopped cornering
+    1.83x harder than the car: every non-zero value collapses to 0.02 m and
+    stuck -- worse than the collision it was meant to avoid, and worse at 0.5
+    than the straight reverse at every reverse distance swept. It is kept as a
+    field, at 0.0, so the refutation stays recorded rather than being silently
+    deleted along with the knob.
+
+    The argument it was introduced on: the pocket opens SIDEWAYS, so a straight
+    reverse buys room ahead of the nose and nothing on the axis that matters,
+    and the following forward swing then drives into the front fin before the
+    wheels have finished slewing to lock.
+
+    Non-zero backs on a curve, applied with the sign INVERTED the way
+    ``follow_corridor``'s reverse branch already does -- reversing swings the
+    nose away from the steer direction, so steering toward the wall walks the
+    nose out toward the open corridor. That gains lateral offset without any
+    forward travel, which is the whole difficulty here. Plausible, and measurably
+    not what happens.
+    """
+
+    BAY_WALL_CLEARANCE_M: float = Field(default=0.20, validation_alias=_alias("BAY_WALL_CLEARANCE_M"))
+    """How close a side ray has to be to count as "hard against the outer wall".
+
+    Only used to recognise a start INSIDE the parking bay, where the direction
+    is readable off the geometry without moving -- see
+    ``_direction_from_parking_bay``. The lot is 0.20 m deep and the chassis
+    0.194 m wide, so centred in the pocket the wall ray is ~0.10 m; 0.20 leaves
+    room for an off-centre hand placement without reaching the ~0.5 m a
+    corridor wall sits at when the robot is merely close to one.
+
+    Paired with ``TURN_CLEARANCE_M`` on the opposite side, so the test is
+    "pinned one side, open the other", not "near a wall".
+    """
     MIN_FORWARD_CLEARANCE_M: float = Field(
         default=RobotSpecs.LENGTH, validation_alias=_alias("MIN_FORWARD_CLEARANCE_M")
     )

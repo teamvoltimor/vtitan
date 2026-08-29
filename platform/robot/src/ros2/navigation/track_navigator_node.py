@@ -42,7 +42,7 @@ from src.navigation.corridor_estimator import (
     section_from_heading,
 )
 from src.navigation.corridor_follower import TurnSide, follow_corridor
-from src.navigation.direction_estimator import DirectionEstimator
+from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import (
     Axis,
@@ -625,7 +625,14 @@ class TrackNavigator(Node, ResettableNode):
             if m is not None:
                 self._creep_widths.append((pose.yaw, m.width_m))
 
-        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
+        # Conclusive on its own, so it settles the estimator rather than
+        # voting; the block below then runs unchanged.
+        boxed = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
+        if boxed is not None:
+            logger.info("direction settled from parking-bay geometry: %s", boxed.value)
+            estimator.settle(boxed)
+
+        if boxed is not None or estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
             inferred = estimator.direction
             if inferred is not None:
                 self._commit_direction(inferred, pose, scan)

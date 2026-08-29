@@ -32,7 +32,9 @@ from src.navigation.corridor_estimator import (
     section_from_heading,
 )
 from src.navigation.corridor_follower import follow_corridor
-from src.navigation.direction_estimator import DirectionEstimator
+from src.navigation.ports import DriveCommand
+from src.navigation.utils import _forward_clearance, _nearest_ray, clamp
+from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import (
     SignRouter,
@@ -232,14 +234,13 @@ class ScenarioSimulator(PassSideScorer):
         # Obstacles. Open passes None and so takes the narrow/wide split, which
         # is what its planner now does -- a blind Open robot assumes all-narrow
         # corridors, plans them centred, and must assume a start on that same
-        # centreline. Obstacles instead pins the pre-split WIDE magnitude, so
-        # the split cannot move its assumed pose at all: verified 2026-08-29,
-        # its failure set is identical with and without the split, over a
-        # matched sweep of the same seven test modules at the same worker count.
-        # Its assumed start therefore does not sit on its own planned line,
-        # which uses OBSTACLES_CENTER_BIAS_M -- a pre-existing inconsistency,
-        # left alone rather than fixed in passing, since that is a separately
-        # swept value and moving it is its own measurement.
+        # centreline. Obstacles instead pins the pre-split WIDE magnitude,
+        # because its scenarios are calibrated around that exact assumed pose:
+        # measured 2026-08-29, the split's 0.0 and its own planning bias of
+        # 0.15 each failed six scenarios that pass at 0.10. Its assumed start
+        # therefore does not sit on its own planned line -- a pre-existing
+        # inconsistency, left alone rather than fixed in passing, since
+        # OBSTACLES_CENTER_BIAS_M is a separately swept value.
         assumed_bias_m = None if is_open_challenge else self._tuning.waypoints.WIDE_CENTER_BIAS_M
         believed_start = start
         if blind and not known_start:
@@ -308,6 +309,11 @@ class ScenarioSimulator(PassSideScorer):
         if infer_direction is None:
             infer_direction = blind
         self._direction_estimator = DirectionEstimator(tuning=self._tuning) if infer_direction else None
+        # Was the robot PLACED inside the parking bay? Answered once, on the
+        # first scan, and never revisited -- see _resolve_direction.
+        self._bay_start_checked = False
+        self._exiting_bay = False
+        self._bay_reverse_start_m: float | None = None
         # Speed for the blind corridor-follow that runs before the travel
         # direction settles. Named _creep_speed until 2026-08-09, which was
         # doubly misleading: it is not the creep tier, and it never was --
@@ -454,6 +460,71 @@ class ScenarioSimulator(PassSideScorer):
             center_bias_m=self._center_bias_m,
         )
 
+    def _bay_exit_command(self, scan: LidarScan) -> DriveCommand:
+        """Back out of the parking pocket, then swing the nose to the open side.
+
+        Pivoting straight from a centred placement does not work: the pocket is
+        0.45 m along the wall against a 0.30 m chassis, so there is only ~7.5 cm
+        of slack at each end, and the nose reaches the marker before it has
+        rotated clear. Measured -- the pivot alone escaped some scenarios and
+        clipped a fin in most.
+
+        So reverse first, straight, to double the room ahead, then turn hard.
+        Straight rather than steered because a steered reverse sweeps the tail
+        across the pocket it is trying to leave.
+
+        The reverse is bounded by GEOMETRY, not measured: there is no rear
+        sensing on this mount at all (compute_rear_clearance fails open, no rear
+        slot), so backing until something appears is not available. The bound is
+        the slack the lot is guaranteed to have by its own dimensions.
+
+        Which way to turn is not a guess either. The lot is always against the
+        OUTER wall, so its opening faces the inner block, and a lap always turns
+        toward the inner block -- open side, inner side and corner-turn side are
+        the same side by track design.
+        """
+        follower = self._tuning.corridor_follower
+        travelled = self._gateway.get_wheel_odometry().distance_m
+        if self._bay_reverse_start_m is None:
+            self._bay_reverse_start_m = travelled
+
+        # Wheel distance is SIGNED -- a quadrature encoder counts down in
+        # reverse (see SimulatedHardwareGateway.step). Progress on a REVERSE leg
+        # is therefore start-minus-current; comparing current-minus-start gives
+        # a negative that is below any positive threshold forever, which reversed
+        # until the tail hit the rear fin. Measured before the fix: every
+        # BAY_EXIT_STEER_NORM from 0.0 to 1.0 and every BAY_EXIT_REVERSE_M from
+        # 0.001 to 0.20 produced byte-identical runs, because the turn was
+        # unreachable in all of them.
+        # Which way is out. Single rays at +/-90 deg, so in the pocket one is the
+        # outer wall and the other is open corridor.
+        left = _nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2)
+        right = _nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2)
+        open_is_left = left > right
+
+        if self._bay_reverse_start_m - travelled < follower.BAY_EXIT_REVERSE_M:
+            # Steering is INVERTED on the reverse, the same way
+            # follow_corridor's reverse branch inverts it: backing up swings the
+            # nose away from the steer direction, so steering toward the WALL
+            # walks the nose out toward the open corridor. That buys lateral
+            # offset with no forward travel, which is the only thing the pocket
+            # has no room for.
+            reverse_steer = clamp(follower.BAY_EXIT_REVERSE_STEER_NORM, 0.0, 1.0)
+            return DriveCommand(
+                speed_mps=-self._blind_follow_speed * follower.REVERSE_SPEED_SCALE,
+                steering_norm=-reverse_steer if open_is_left else reverse_steer,
+            )
+
+        # Magnitude is tuned, not pinned at full lock -- see
+        # BAY_EXIT_STEER_NORM. Full lock spins the chassis about its own centre
+        # (8 mm radius at the shipped 85 deg wheel angle) and the pocket has no
+        # room to rotate in; what gets the robot out is translation.
+        magnitude = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0)
+        return DriveCommand(
+            speed_mps=self._blind_follow_speed * follower.CORNER_SPEED_SCALE,
+            steering_norm=magnitude if open_is_left else -magnitude,
+        )
+
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.
 
@@ -462,13 +533,57 @@ class ScenarioSimulator(PassSideScorer):
             drove the corridor follower this tick instead of the navigator.
         """
         estimator = self._direction_estimator
-        if estimator is None or estimator.is_settled:
+        if estimator is None:
             return False
 
         scan = self._gateway.get_lidar_scan()
         pose = self._gateway.get_current_pose()
         if scan is None or pose is None:
+            return True if not estimator.is_settled else False
+
+        # Settle the direction EARLY, hand over control LATE. Boxed in the
+        # parking bay the geometry names the direction outright, but the
+        # planner's path runs from the BELIEVED start -- the assumed centreline,
+        # not the pocket -- so handing over while still boxed drives straight
+        # into a marker. Measured: settling without this guard took the in-bay
+        # probe from 0.33-14.06 m back down to 0.18 m, every run collided.
+        #
+        # So keep the corridor follower driving until the robot is actually out,
+        # and let the planner take over only once forward is clear. Checked
+        # before `is_settled` on purpose: the normal guard returns as soon as a
+        # direction exists, which is exactly the handover being deferred here.
+        # Evaluated ONCE, on the first scan, because it is a claim about where
+        # the robot was PLACED. Re-testing it every tick lets it fire mid-creep
+        # at a corner -- forward blocked, one side close, the other open reads
+        # the same -- and settle the direction off geometry that is not a bay at
+        # all. Measured: that changed parallel-start runs that must be
+        # untouched, one going 22.40 m -> 3.42 m.
+        if not self._bay_start_checked:
+            self._bay_start_checked = True
+            bay = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
+            if bay is not None:
+                estimator.settle(bay)
+                self._exiting_bay = True
+
+        just_exited = False
+        if self._exiting_bay and _forward_clearance(scan.ranges_m, scan.angles_rad, self._tuning) >= (
+            self._tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
+        ):
+            # Out of the pocket. Fall THROUGH to the settle block rather than
+            # returning: that block is what rebuilds the path for the committed
+            # direction and calls replace_path, and skipping it hands the
+            # planner a stale plan still pointing at waypoint 0 while the robot
+            # has driven out of the bay. Measured: it drove straight back into a
+            # marker, 0.24-0.30 m every run.
+            self._exiting_bay = False
+            just_exited = True
+
+        if self._exiting_bay:
+            self._gateway.publish_drive(self._bay_exit_command(scan))
             return True
+
+        if estimator.is_settled and not just_exited:
+            return False
 
         # Take width readings during the creep as well. They cannot be filed
         # under a corridor yet -- that needs the direction -- but they are the
@@ -482,7 +597,9 @@ class ScenarioSimulator(PassSideScorer):
             if m is not None:
                 self._creep_widths.append((pose.yaw, m.width_m))
 
-        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
+        # Reached only once clear of the bay, so the bay case is already settled
+        # above and this is the ordinary vote-based path.
+        if just_exited or estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
             inferred = estimator.direction
             if inferred is not None and inferred is not self._direction:
                 # The path runs the other way round the loop and the finish

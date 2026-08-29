@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 from shared.domain.enums import Direction
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.utils import _nearest_ray, axis_error_rad
+from src.navigation.utils import _forward_clearance, _nearest_ray, axis_error_rad
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -148,6 +148,23 @@ class DirectionEstimator:
         """
         return dict(self._votes)
 
+    def settle(self, direction: Direction) -> None:
+        """Adopt ``direction`` outright, without accumulating votes.
+
+        For evidence that is conclusive on its own rather than statistical --
+        currently only :func:`direction_from_parking_bay`, where the track's
+        design fixes the answer and no number of further scans could improve on
+        it. Votes exist because a corridor scan is ambiguous; this is the case
+        where it is not.
+
+        Deliberately not a general escape hatch: settling wrongly is worse than
+        settling late, and a confidently wrong direction is a known failure mode
+        (see cw_direction_inference_failure_2026_08_06). Ignores a second call
+        so a bootstrap can never overwrite a direction already committed.
+        """
+        if self._settled is None:
+            self._settled = direction
+
     def observe(
         self,
         ranges_m: Sequence[float],
@@ -167,3 +184,43 @@ class DirectionEstimator:
             return False
         self._settled = inferred
         return True
+
+
+def direction_from_parking_bay(
+    ranges_m: Sequence[float],
+    angles_rad: Sequence[float],
+    tuning: NavigationTuning | None = None,
+) -> Direction | None:
+    """Travel direction read straight off a start inside the parking bay.
+
+    The lot is always against the OUTER wall, so its opening necessarily faces
+    the inner block -- and a lap always turns toward the inner block. Open side,
+    inner side and corner-turn side are therefore the same side by track design,
+    which makes the direction readable without moving: inner on the left is
+    counterclockwise, on the right is clockwise. Checked against every corpus
+    scenario, 256/256.
+
+    This is the one place the estimator's usual difficulty is inverted. From the
+    corridor centreline both sides are walls at comparable ranges, which is why
+    it has a history of failing to settle; boxed in the bay the robot sits
+    ~0.10 m off the outer wall with metres of open corridor opposite, so the
+    asymmetry is enormous and names the answer.
+
+    Worth having because the alternative is a deadlock, not a delay: nothing
+    moves until the direction settles and nothing settles until the robot moves,
+    so ``_resolve_direction`` short-circuits every tick, ``CoreNavigator.step``
+    never runs, the stuck detector never updates, and no escape is considered.
+
+    Returns ``None`` unless the scan really is the boxed-in case -- forward
+    blocked, hard against something on one side, wide open on the other -- so an
+    ordinary start on the centreline never reaches it and the estimator is left
+    to do its normal job.
+    """
+    follower = get_tuning(tuning).corridor_follower
+    if _forward_clearance(ranges_m, angles_rad, tuning) >= follower.MIN_FORWARD_CLEARANCE_M:
+        return None
+    left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
+    right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
+    if min(left, right) > follower.BAY_WALL_CLEARANCE_M or max(left, right) <= follower.TURN_CLEARANCE_M:
+        return None
+    return Direction.COUNTERCLOCKWISE if left > right else Direction.CLOCKWISE
