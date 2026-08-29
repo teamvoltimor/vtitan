@@ -380,7 +380,12 @@ class AckermannMotorNode(LifecycleNode):
                     kp=encoder_config.pid_kp,
                     ki=encoder_config.pid_ki,
                     kd=encoder_config.pid_kd,
-                    feedforward=1.0 / encoder_config.max_rpm,
+                    # Affine, not proportional: duty is `deadband + rpm/slope`
+                    # on a real drivetrain, and slope is (1 - deadband)/max_rpm
+                    # rather than 1/max_rpm. With deadband 0 this reduces to the
+                    # original 1/max_rpm exactly. See EncoderConfig.
+                    feedforward=(1.0 - encoder_config.feedforward_deadband_duty) / encoder_config.max_rpm,
+                    feedforward_offset=encoder_config.feedforward_deadband_duty,
                     output_min=-encoder_config.max_duty,
                     output_max=encoder_config.max_duty,
                 )

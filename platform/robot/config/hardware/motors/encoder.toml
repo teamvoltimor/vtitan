@@ -104,35 +104,28 @@ counts_per_rev = 60.0
 # 175 puts every tier except fast_mps (0.35 -> ff 0.546, still clamped) inside
 # the duty budget. Raising max_duty is the separate fix for that tier.
 #
-# NOT the physical 100%-duty rpm, and DELIBERATELY SO -- do not "correct" it.
+# Now the MEASURED physical ceiling, 2026-08-29 bench, loaded, at cpr=60:
+#     rpm = 434.6*duty - 86.7   (R^2 0.9999, points at duty 0.5/0.75/0.9)
+#     => deadband at duty 0.200, and 348 rpm at duty 1.0 = 1.28 m/s
 #
-# The physical value IS now measured: 2026-08-29 bench, loaded, at cpr=60,
-#     rpm = 434.6*duty - 86.7   (R^2 0.9999, deadband at duty 0.200)
-#     => 348 rpm at 100% duty = 1.28 m/s
+# Raised 175 -> 348 TOGETHER WITH feedforward_deadband_duty below, and the two
+# must move together. 175 was not the physical ceiling; it was an effective
+# feedforward gain that happened to compensate for the deadband the old
+# proportional-only feedforward could not express. Setting 348 without the
+# deadband term makes the feedforward under-command everywhere:
 #
-# But the feedforward is `duty = rpm / max_rpm`, a line through the ORIGIN,
-# while the real relation has that 0.200 deadband. Setting max_rpm to the true
-# 348 makes the feedforward under-command across the whole ladder and dumps the
-# difference on the integrator:
+#     tier     true duty   ff@175   ff@348   ff@348+deadband
+#     CREEP      0.295      0.237    0.119        0.295
+#     SLOW       0.325      0.312    0.157        0.325
+#     MEDIUM     0.375      0.437    0.220        0.375
+#     FAST       0.419      0.546    0.275        0.419
+#     mean |ff - true|:      0.065    0.161        0.000
 #
-#     tier     true duty   ff@175   ff@348
-#     CREEP      0.295      0.237    0.119
-#     SLOW       0.325      0.312    0.157
-#     MEDIUM     0.375      0.437    0.220
-#     FAST       0.419      0.546    0.275
-#     mean |ff - true|:      0.065    0.161
-#
-# The best through-origin fit over the shipped tier range is 192, and 175 sits
-# near it. So this field is functioning as an EFFECTIVE FEEDFORWARD GAIN that
-# compensates for the missing deadband -- not as the physical ceiling its name
-# claims. Two clean 3-lap runs (run_20260829_1300xx) were driven with 175.
-#
-# The real fix is to give the feedforward the deadband it lacks
-# (duty = 0.200 + rpm/434.6), after which max_rpm can be the honest 348. Until
-# then, changing this to 348 is a REGRESSION, not a correction.
-#
-# It also interacts with pid_kp/pid_ki below, whose ~8x rescale is still
-# unverified -- change THIS alone and re-run, or neither result is attributable.
+# NOT LIVE-VERIFIED. The two clean 3-lap runs (run_20260829_1300xx) were driven
+# with 175 and no deadband term; this is expected to be better but has not been
+# run. It also interacts with pid_kp/pid_ki below, whose ~8x rescale is still
+# unverified -- if this run disappoints, revert THIS pair before touching those,
+# or neither result is attributable.
 #
 # Do NOT justify a future change to this value with commanded-vs-achieved
 # speed derived from nav_debug pose path length. That measure accumulates
@@ -141,7 +134,17 @@ counts_per_rev = 60.0
 # buckets) which evaporates under decimation -- the same path decimated to a
 # ~1s step gives 28.7m, i.e. a true ratio of ~1.00. That run tracked its
 # commanded speed correctly on aggregate; there was no over-delivery to fix.
-max_rpm = 175.0
+max_rpm = 348.0
+
+# Duty below which the motor does not turn at all. The speed PID's feedforward
+# is `offset + slope * setpoint_rpm`, and this is the offset; the slope is
+# (1 - this) / max_rpm. Measured with max_rpm above, same bench run.
+#
+# 0.0 (the code default) restores the old proportional-only feedforward, which
+# is the safe thing to try if a run regresses. Deliberately NOT applied to a
+# zero setpoint -- otherwise a commanded stop would hold 0.2 duty and the
+# chassis would creep instead of stopping.
+feedforward_deadband_duty = 0.20
 
 # wheel_diameter_m is not set here -- it derives from RobotSpecs.WHEEL_RADIUS
 # (src/hardware/motors/encoder/calibration.py), not restated as a literal.

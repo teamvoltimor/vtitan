@@ -39,9 +39,32 @@ class EncoderConfig(HardwareBaseSettings):
     with scripts/hardware/calibrate_encoder.py whenever the motor changes."""
 
     max_rpm: float
-    """Maximum achievable wheel rpm. A hard physical ceiling, not a tuning
-    knob: the speed PID's feedforward (1/max_rpm) and the rpm clamp both
-    scale from it. REQUIRED, no default -- same reasoning as counts_per_rev."""
+    """Maximum achievable wheel rpm at 100% duty. A hard physical ceiling, not
+    a tuning knob: the rpm clamp and the speed PID's feedforward slope both
+    scale from it. REQUIRED, no default -- same reasoning as counts_per_rev.
+
+    The feedforward slope is ``(1 - feedforward_deadband_duty) / max_rpm``, NOT
+    ``1 / max_rpm``. Duty is affine in rpm, not proportional -- see
+    feedforward_deadband_duty."""
+
+    feedforward_deadband_duty: float = 0.0
+    """Duty below which the motor does not turn at all, as a fraction (0-1).
+
+    The speed PID's feedforward is ``offset + slope * setpoint_rpm``, and this
+    is the offset. Without it the feedforward is a line through the origin
+    while the real drivetrain is not, so it under-commands at every speed and
+    the integrator absorbs the difference.
+
+    Measured 2026-08-29 on this chassis, loaded, at counts_per_rev=60:
+
+        rpm = 434.6 * duty - 86.7      (R^2 0.9999, 3 points 0.5/0.75/0.9)
+        -> deadband at duty 0.200, and max_rpm 348 at duty 1.0
+
+    Defaults 0.0 so an unconfigured motor keeps the old proportional-only
+    behaviour rather than silently gaining an offset it was never tuned with.
+
+    Not applied to a zero setpoint -- see PIDController._feed_forward_for, or
+    a commanded stop would hold the deadband duty and the chassis would creep."""
 
     pid_kp: float = 0.010
     """Closed-loop speed PID proportional gain, tuned on hardware 2026-07-25."""

@@ -112,6 +112,39 @@ class TestPIDController:
         with pytest.raises(ValueError, match="dt"):
             pid.update(1.0, 0.0, dt=0.0)
 
+    def test_feedforward_offset_is_not_applied_to_a_stop(self):
+        """A commanded stop must ask for zero duty, not the deadband duty.
+
+        The offset exists because the drivetrain will not turn below ~0.2 duty.
+        Applying it unconditionally would mean stop_drive() holds 0.2 duty and
+        the chassis creeps -- a stop that does not stop.
+        """
+        pid = PIDController(kp=0.0, ki=0.0, feedforward=0.001, feedforward_offset=0.2)
+        assert pid.update(setpoint=0.0, measurement=0.0, dt=0.1) == pytest.approx(0.0)
+
+    def test_feedforward_offset_follows_the_setpoint_sign(self):
+        """One unsigned config value has to serve both directions.
+
+        Reverse needs -0.2, not +0.2; a fixed positive offset would fight the
+        controller on every backward move (escape manoeuvres, bay exit).
+        """
+        pid = PIDController(kp=0.0, ki=0.0, feedforward=0.001, feedforward_offset=0.2)
+        forward = pid.update(setpoint=50.0, measurement=50.0, dt=0.1)
+        pid.reset()
+        reverse = pid.update(setpoint=-50.0, measurement=-50.0, dt=0.1)
+        assert forward == pytest.approx(0.25)
+        assert reverse == pytest.approx(-0.25)
+
+    def test_zero_offset_reproduces_the_proportional_feedforward(self):
+        """The escape hatch: deadband 0.0 must behave exactly as before, so a
+        regression can be backed out from config without a code change."""
+        affine = PIDController(kp=0.0, ki=0.0, feedforward=0.002, feedforward_offset=0.0)
+        assert affine.update(setpoint=100.0, measurement=100.0, dt=0.1) == pytest.approx(0.2)
+
+    def test_rejects_a_negative_offset(self):
+        with pytest.raises(ValueError, match="feedforward_offset"):
+            PIDController(kp=1.0, ki=1.0, feedforward_offset=-0.1)
+
     def test_anti_windup_recovers_immediately(self):
         # Saturate for many ticks, then remove the error; the output must not
         # stay railed (the integrator never wound up while saturated).

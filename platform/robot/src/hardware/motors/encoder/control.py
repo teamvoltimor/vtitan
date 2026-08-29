@@ -104,7 +104,10 @@ class PIDController:
     """Clamped PI(D) controller with back-calculation anti-windup.
 
     Pure function of (setpoint, measurement, dt). An optional feed-forward term
-    proportional to the setpoint gives the integrator less work to do.
+    gives the integrator less work to do. It is AFFINE, not proportional --
+    ``offset + gain * setpoint`` -- because a real drivetrain has a duty
+    deadband below which the motor does not turn, so the duty a given rpm needs
+    does not pass through the origin. See :meth:`_feed_forward_for`.
     """
 
     def __init__(
@@ -116,9 +119,13 @@ class PIDController:
         output_min: float = -1.0,
         output_max: float = 1.0,
         feedforward: float = 0.0,
+        feedforward_offset: float = 0.0,
     ) -> None:
         if output_min >= output_max:
             msg = "output_min must be < output_max"
+            raise ValueError(msg)
+        if feedforward_offset < 0.0:
+            msg = "feedforward_offset must be >= 0 (its sign follows the setpoint)"
             raise ValueError(msg)
         self._kp = kp
         self._ki = ki
@@ -126,6 +133,7 @@ class PIDController:
         self._output_min = output_min
         self._output_max = output_max
         self._feedforward = feedforward
+        self._feedforward_offset = feedforward_offset
         self._integral = 0.0
         self._prev_error: float | None = None
 
@@ -133,6 +141,29 @@ class PIDController:
         """Clear integral and derivative state."""
         self._integral = 0.0
         self._prev_error = None
+
+    def _feed_forward_for(self, setpoint: float) -> float:
+        """Open-loop duty estimate for ``setpoint``, as offset + gain * setpoint.
+
+        The offset exists because a real drivetrain has a DEADBAND: below some
+        duty the motor does not turn at all, so duty is affine in rpm rather
+        than proportional to it. Measured 2026-08-29 on this chassis, loaded:
+
+            rpm = 434.6 * duty - 86.7    ->    duty = 0.200 + rpm / 434.6
+
+        A pure ``gain * setpoint`` term cannot represent that, and the error it
+        leaves is what the integrator has to absorb on every tick.
+
+        Returns 0.0 for a zero setpoint rather than the offset. Without that,
+        commanding a stop would still ask for the deadband duty and the chassis
+        would creep -- and ``stop_drive()`` would not stop it.
+
+        The offset is unsigned in config and takes the setpoint's sign here, so
+        one value serves both directions instead of the caller managing it.
+        """
+        if setpoint == 0.0:
+            return 0.0
+        return math.copysign(self._feedforward_offset, setpoint) + self._feedforward * setpoint
 
     def update(self, setpoint: float, measurement: float, dt: float) -> float:
         """Compute the clamped control output for one tick."""
@@ -147,7 +178,7 @@ class PIDController:
             derivative = self._kd * (error - self._prev_error) / dt
         self._prev_error = error
 
-        feedforward = self._feedforward * setpoint
+        feedforward = self._feed_forward_for(setpoint)
         integral_candidate = self._integral + error * dt
         raw = proportional + self._ki * integral_candidate + derivative + feedforward
 
