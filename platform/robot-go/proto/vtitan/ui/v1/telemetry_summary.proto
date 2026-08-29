@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package vtitan.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1";
+
+// TelemetrySummary is the low-rate LIDAR/yaw/detection readout the OLED
+// needs, field-for-field matching internal/telemetry/diag.TelemetrySummary
+// (which itself matches TelemetrySummaryWire,
+// platform/robot/src/ros2/wire_models.py, and telemetry_bridge_node.py's
+// `_publish_ui_summary`). Published on the `vtitan.ui.v1.telemetry_summary`
+// NATS subject.
+message TelemetrySummary {
+  google.protobuf.Timestamp stamp = 1;
+
+  // best_detection_class_id/best_detection_confidence are only meaningful
+  // when has_best_detection is true -- mirrors
+  // diag.TelemetrySummary.HasBestDetection replacing the Python side's
+  // `class_id, confidence = None, None` sentinel, since proto3 has no
+  // built-in optional-scalar distinction here either (no "presence"
+  // tracking requested for this message, matching the existing Go type).
+  string best_detection_class_id = 2;
+  double best_detection_confidence = 3;
+  bool has_best_detection = 4;
+
+  // Mean LIDAR range in cm, front/left/right sectors. 0 when no scan has
+  // been received yet, matching diag.TelemetrySummary's zero-value default.
+  double lidar_front_cm = 5;
+  double lidar_left_cm = 6;
+  double lidar_right_cm = 7;
+
+  // Yaw extracted from the latest IMU orientation quaternion, in degrees.
+  // 0 when no IMU reading has been received yet.
+  double gyro_yaw_deg = 8;
+}

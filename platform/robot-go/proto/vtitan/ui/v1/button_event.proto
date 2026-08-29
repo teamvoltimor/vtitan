@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package vtitan.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1";
+
+// ButtonEvent is one debounced button transition, matching
+// internal/driver/button.Event (the Go analog of
+// platform/robot/src/hardware/button/event.py's ButtonEvent). Published on
+// the `vtitan.ui.v1.button_event` NATS subject by cmd/pi-zero's physical
+// button driver, and by anything (e.g. a future backend-command dispatcher)
+// synthesizing a button press remotely -- both producers publish to the
+// same subject so a consumer (the state machine) treats a physical and a
+// synthetic press identically, exactly as command_channel.py's
+// `_dispatch_button_event` does today by publishing onto the same
+// `/button/event` topic the physical driver uses.
+message ButtonEvent {
+  google.protobuf.Timestamp stamp = 1;
+
+  // Kind mirrors internal/driver/button.Kind exactly (see that type's doc
+  // comment for what triggers each value).
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_PRESSED = 1;
+    KIND_LONG_PRESS = 2;
+    KIND_SHUTDOWN_PRESS = 3;
+    KIND_SHORT_PRESS = 4;
+    KIND_RELEASED = 5;
+  }
+  Kind kind = 2;
+
+  // How long the button had been held, in seconds, at the moment this
+  // event fired. Zero for KIND_PRESSED, matching Event.HeldSec.
+  double held_sec = 3;
+}
