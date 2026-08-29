@@ -36,10 +36,16 @@ max_mps = 0.50
 # still a separate, attributable change.
 creep_mps = 0.1521
 
-# slow/medium/fast set as fractions (30%/40%/50%) of robot.toml's
-# max_speed_mps (2026-08-27, NOT bench-measured -- see that file's comment).
-# Provisional pending a real measurement; re-derive these once it lands
-# rather than leaving them stale against a corrected ceiling.
-slow_mps = 0.30
-medium_mps = 0.40
-fast_mps = 0.50
+# PROVISIONAL, 2026-08-28: lowered from the previous 0.30/0.40/0.50 (30/40/50%
+# of robot.toml's unmeasured max_speed_mps=1.0 guess). Real confirmed ceiling
+# at the current max_duty=0.5 safety cap is ~0.45 m/s (tape+stopwatch bench
+# data, see memory/motor_servo_bench_session_2026_08_28.md) -- the old fast
+# tier (0.50) asked for more than that, so the PID would have railed at
+# max_duty instead of actually closing the loop. These values stay
+# comfortably under 0.45 so the PID has real authority to converge instead of
+# saturating. Not a final tune -- re-derive once max_duty is raised and a
+# real 100%-duty max_rpm is bench-measured (see that memory file's open
+# items).
+slow_mps = 0.20
+medium_mps = 0.28
+fast_mps = 0.35
