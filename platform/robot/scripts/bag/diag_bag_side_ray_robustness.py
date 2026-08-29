@@ -50,7 +50,7 @@ from typing import TYPE_CHECKING
 
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
-from shared.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.bag_io import Topics, create_bag_parser, open_reader, read_bag
@@ -79,9 +79,22 @@ _MAT_CENTRE_Y = 1.5
 _ALIGN_TOLERANCE_RAD = math.radians(10.0)
 """Beyond this off-axis angle the +/-90 deg rays stop being a wall measurement.
 
-Also the corner filter: the chassis is only this square to the corridor on a
-straight, so gating on it drops turns without needing to know where the
-corners are."""
+NOT a corner filter by itself: the chassis reads square to the corridor axis
+well before a turn (see ``_MIN_CORNER_DISTANCE_M``), so this alone still lets
+corner-arc ticks through."""
+_MIN_CORNER_DISTANCE_M = 0.5
+"""Reject ticks this close to either end of the corridor along the travel axis.
+
+Measured live on run_20260829_140424 (see memory
+narrow_corridor_bias_split_verified_centerline_2026_08_29.md): without this
+gate, ``actual``/``planned`` read a spurious ~0.10m inward bias on every
+corridor, because ``CORNER_PREVIEW_DISTANCE_M`` (0.80m) plus the narrow
+corner arc radius (~0.20-0.30m) let the pure-pursuit lookahead target sit on
+curved arc geometry while the chassis itself was still square enough to pass
+``_ALIGN_TOLERANCE_RAD``. Excluding ticks within 0.5m of a corner collapsed
+that to within +/-0.02m and stayed flat out to a 1.3m margin -- not a
+gradual effect, a hard corner-vs-straight split, so 0.5m is a real boundary
+rather than an arbitrary buffer."""
 _MIN_PLAUSIBLE_WIDTH_M = 0.40
 _MAX_PLAUSIBLE_WIDTH_M = 1.30
 """The mat's corridors are 0.60 or 1.00 m. Anything outside this bracket is a
@@ -156,6 +169,15 @@ def _offset_sample(
     misalign = abs(abs(wrap_angle(to_centre - snap.pose_yaw)) - math.pi / 2)
     if misalign > _ALIGN_TOLERANCE_RAD:
         return "chassis not square to corridor (corner/turn)"
+
+    # Distance to the nearest corridor end along the travel axis: whichever of
+    # x/y dominates the heading is the "along corridor" coordinate. A square
+    # chassis can still be sitting on curved corner-arc geometry (see
+    # _MIN_CORNER_DISTANCE_M), so this is a second, independent corner gate.
+    cos_yaw, sin_yaw = math.cos(snap.pose_yaw), math.sin(snap.pose_yaw)
+    along = snap.pose_x if abs(cos_yaw) > abs(sin_yaw) else snap.pose_y
+    if min(along, TrackDimensions.MAX_COORD - along) < _MIN_CORNER_DISTANCE_M:
+        return "within corner-arc geometry (not a true straight)"
 
     left = _windowed(scan.ranges_m, scan.angles_rad, math.pi / 2, half_width)
     right = _windowed(scan.ranges_m, scan.angles_rad, -math.pi / 2, half_width)
