@@ -31,10 +31,21 @@ func TestSpeedToNormalized(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := motor.SpeedToNormalized(tt.in); math.Abs(got-tt.want) > speedTolerance {
+			got := motor.SpeedToNormalized(tt.in, motor.DefaultSpeedScalePercentPerMPS)
+			if math.Abs(got-tt.want) > speedTolerance {
 				t.Errorf("SpeedToNormalized(%v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSpeedToNormalized_CustomScale(t *testing.T) {
+	t.Parallel()
+
+	got := motor.SpeedToNormalized(2.0, 10.0)
+	want := 0.2
+	if math.Abs(got-want) > speedTolerance {
+		t.Errorf("SpeedToNormalized(2.0, 10.0) = %v, want %v", got, want)
 	}
 }
 

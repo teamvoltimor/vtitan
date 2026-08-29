@@ -41,6 +41,7 @@ type cliConfig struct {
 
 	motorCommandTimeout time.Duration
 	motorInvert         bool
+	configRoot          string
 
 	buttonLine   int
 	buttonPullUp bool
@@ -107,6 +108,9 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		"safety-stop the drive if no AckermannCmd arrives within this duration")
 	flags.BoolVar(&cfg.motorInvert, "motor-invert", false,
 		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed")
+	flags.StringVar(&cfg.configRoot, "config-root", "",
+		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
+			"empty uses motor.DefaultSpeedScalePercentPerMPS")
 
 	flags.IntVar(&cfg.buttonLine, "button-line", defaultButtonLine, "button GPIO line offset")
 	flags.BoolVar(&cfg.buttonPullUp, "button-pull-up", defaultButtonPullUp,
@@ -304,7 +308,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		return err //nolint:wrapcheck // New already wraps with "supervise: ..." context
 	}
 
-	mLoop := motor.NewLoop(logger, motorDrv, motorStatusPub)
+	mLoop := motor.NewLoop(logger, motorDrv, motorStatusPub, motor.SpeedScaleFor(logger, cfg.configRoot))
 
 	logger.Info("pi-zero: connected", "nats_url", cfg.natsURL)
 	if err = supervisor.RunAll(ctx,

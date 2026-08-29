@@ -36,6 +36,7 @@ type cliConfig struct {
 	nodeName       string
 	commandTimeout time.Duration
 	invert         bool
+	configRoot     string
 }
 
 // exit codes: 0 means motor-node ran and shut down cleanly (including via
@@ -70,6 +71,9 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		&cfg.invert, "invert", false,
 		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed",
 	)
+	flags.StringVar(&cfg.configRoot, "config-root", "",
+		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
+			"empty uses motor.DefaultSpeedScalePercentPerMPS")
 
 	return cmd
 }
@@ -117,7 +121,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	pub := nats.NewPublisher[*actuationv1.MotorStatus](conn, actuationv1.MotorStatusSubject)
 
 	logger.Info("motor-node: connected", "nats_url", cfg.natsURL, "command_timeout", cfg.commandTimeout)
-	loop := motor.NewLoop(logger, drv, pub)
+	loop := motor.NewLoop(logger, drv, pub, motor.SpeedScaleFor(logger, cfg.configRoot))
 	if err = loop.Run(ctx, sub, cfg.commandTimeout); err != nil {
 		return fmt.Errorf("motor-node: %w", err)
 	}

@@ -35,10 +35,9 @@ type Config struct {
 	// matching LidarSectorsTuning.FRONT_HALF_FOV_DEG.
 	FrontHalfFOVRad float64
 	// LidarYawOffsetRad rotates raw scan bearings into the robot frame (0
-	// rad = forward), matching RobotSpecs.lidar_yaw_offset_rad(). That
-	// value is hardware-profile-dependent in Python (mount orientation +
-	// inversion flag); until internal/config/profile is wired up, this
-	// defaults to 0 and must be supplied by the caller for a real robot.
+	// rad = forward), matching RobotSpecs.lidar_yaw_offset_rad(). Defaults
+	// to 0 (upright mount, no residual offset); a caller with real
+	// hardware-profile data should use LidarYawOffsetRadFor instead.
 	LidarYawOffsetRad float64
 	// MinValidRangeM is the lower bound below which a range reading is
 	// treated as invalid/no-return, matching LidarSectorsTuning.MIN_VALID_RANGE_M.
@@ -83,7 +82,8 @@ const (
 
 // DefaultConfig returns a Config seeded with LidarSectorsTuning's shipped
 // defaults, blind wedges disabled (see AngleWedge) and LidarYawOffsetRad
-// left at 0 (hardware-profile-dependent, not yet ported).
+// left at 0 (see LidarYawOffsetRadFor for the hardware-profile-driven
+// value).
 func DefaultConfig() Config {
 	return Config{
 		FrontHalfFOVRad:         DefaultFrontHalfFOVRad,

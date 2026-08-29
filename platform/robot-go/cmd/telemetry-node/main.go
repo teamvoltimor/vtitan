@@ -39,9 +39,10 @@ import (
 
 // cliConfig holds every flag telemetry-node accepts.
 type cliConfig struct {
-	natsURL  string
-	nodeName string
-	rateHz   float64
+	natsURL    string
+	nodeName   string
+	rateHz     float64
+	configRoot string
 }
 
 // natsSource implements diag.Source by caching the latest message received
@@ -87,6 +88,9 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
 	flags.StringVar(&cfg.nodeName, "name", "telemetry-node", "NATS client name, visible in nats-server's connz output")
 	flags.Float64Var(&cfg.rateHz, "rate-hz", defaultRateHz, "TelemetrySummary publish rate")
+	flags.StringVar(&cfg.configRoot, "config-root", "",
+		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
+			"empty uses a zero LIDAR yaw offset")
 
 	return cmd
 }
@@ -189,7 +193,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	pub := nats.NewPublisher[*uiv1.TelemetrySummary](conn, uiv1.TelemetrySummarySubject)
 
 	source := &natsSource{}
-	aggregator := diag.NewAggregator(source, diag.DefaultConfig())
+	aggCfg := diag.DefaultConfig()
+	aggCfg.LidarYawOffsetRad = diag.LidarYawOffsetRadFor(logger, cfg.configRoot)
+	aggregator := diag.NewAggregator(source, aggCfg)
 
 	logger.Info("telemetry-node: connected", "nats_url", cfg.natsURL, "rate_hz", cfg.rateHz)
 

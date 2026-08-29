@@ -18,9 +18,10 @@ import (
 // (last-command time, currently-applied duty, whether the watchdog has
 // already safety-stopped).
 type Loop struct {
-	logger *slog.Logger
-	drv    *motordriver.Driver
-	pub    *nats.Publisher[*actuationv1.MotorStatus]
+	logger                  *slog.Logger
+	drv                     *motordriver.Driver
+	pub                     *nats.Publisher[*actuationv1.MotorStatus]
+	speedScalePercentPerMPS float64
 
 	lastCmdAt   time.Time
 	currentDuty float64
@@ -30,15 +31,14 @@ type Loop struct {
 // FrameID is the frame_id every MotorStatus this package publishes carries.
 const FrameID = "base_link"
 
-// SpeedScalePercentPerMPS converts a commanded AckermannCmd.speed [m/s]
-// into a motor duty percentage, matching motors.toml's `drive.speed_scale`
-// (motor_speed = velocity_m_s * scale) — see
-// platform/robot/config/hardware/motors/motors.toml. Restated here as a
-// literal rather than read from a shared loader because
-// internal/config/profile (the planned Go equivalent of that TOML file's
-// per-component profile loading) doesn't exist yet; migrate this constant
-// there once it does.
-const SpeedScalePercentPerMPS = 30.0
+// DefaultSpeedScalePercentPerMPS converts a commanded AckermannCmd.speed
+// [m/s] into a motor duty percentage, matching motors.toml's
+// `drive.speed_scale` (motor_speed = velocity_m_s * scale) — see
+// platform/robot/config/hardware/motors/motors.toml. A caller with real
+// hardware-profile data should load profile.MotorsConfig instead
+// (internal/config/profile) and pass its Drive.SpeedScale to NewLoop; this
+// is the fallback for callers that don't.
+const DefaultSpeedScalePercentPerMPS = 30.0
 
 // MaxDutyPercent is motors.toml's `drive.max_speed`/`min_speed` magnitude:
 // motor duty percentage is clamped to [-100, 100].
@@ -60,9 +60,9 @@ const watchdogPollInterval = 50 * time.Millisecond
 
 // SpeedToNormalized converts an AckermannCmd's speed [m/s] into the signed
 // duty fraction [-1, 1] motor.Actuator.SetSpeed expects, per
-// SpeedScalePercentPerMPS.
-func SpeedToNormalized(speedMPS float32) float64 {
-	percent := float64(speedMPS) * SpeedScalePercentPerMPS
+// scalePercentPerMPS (see DefaultSpeedScalePercentPerMPS).
+func SpeedToNormalized(speedMPS float32, scalePercentPerMPS float64) float64 {
+	percent := float64(speedMPS) * scalePercentPerMPS
 	clamped := min(max(percent, -MaxDutyPercent), MaxDutyPercent)
 	return clamped / MaxDutyPercent
 }
@@ -90,9 +90,23 @@ func StatusFor(dutyFraction float64, commandAge time.Duration, setSpeedErr error
 	}
 }
 
-// NewLoop builds a Loop over an already-connected drv and pub.
-func NewLoop(logger *slog.Logger, drv *motordriver.Driver, pub *nats.Publisher[*actuationv1.MotorStatus]) *Loop {
-	return &Loop{logger: logger, drv: drv, pub: pub, lastCmdAt: time.Now(), stopped: true}
+// NewLoop builds a Loop over an already-connected drv and pub, converting
+// commanded speeds using speedScalePercentPerMPS (see
+// DefaultSpeedScalePercentPerMPS).
+func NewLoop(
+	logger *slog.Logger,
+	drv *motordriver.Driver,
+	pub *nats.Publisher[*actuationv1.MotorStatus],
+	speedScalePercentPerMPS float64,
+) *Loop {
+	return &Loop{
+		logger:                  logger,
+		drv:                     drv,
+		pub:                     pub,
+		speedScalePercentPerMPS: speedScalePercentPerMPS,
+		lastCmdAt:               time.Now(),
+		stopped:                 true,
+	}
 }
 
 // Run applies each incoming AckermannCmd and enforces the command-deadline
@@ -142,7 +156,7 @@ func (l *Loop) Run(
 // applyCommand drives cmd's speed and publishes the resulting MotorStatus.
 func (l *Loop) applyCommand(ctx context.Context, cmd *actuationv1.AckermannCmd) {
 	l.lastCmdAt = time.Now()
-	l.currentDuty = SpeedToNormalized(cmd.GetSpeed())
+	l.currentDuty = SpeedToNormalized(cmd.GetSpeed(), l.speedScalePercentPerMPS)
 	l.stopped = false
 
 	setErr := l.drv.SetSpeed(ctx, l.currentDuty)
