@@ -21,11 +21,11 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
 	motordriver "github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
+	nodebutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/button"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/supervise"
 
@@ -124,37 +124,6 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-// buttonKindToProto maps internal/driver/button.Kind onto its wire
-// counterpart -- an explicit switch rather than a numeric cast, since
-// ButtonEvent_Kind's zero value is KIND_UNSPECIFIED (not KIND_PRESSED), so
-// the two enums' ordinals don't line up.
-func buttonKindToProto(kind button.Kind) uiv1.ButtonEvent_Kind {
-	switch kind {
-	case button.KindPressed:
-		return uiv1.ButtonEvent_KIND_PRESSED
-	case button.KindLongPress:
-		return uiv1.ButtonEvent_KIND_LONG_PRESS
-	case button.KindShutdownPress:
-		return uiv1.ButtonEvent_KIND_SHUTDOWN_PRESS
-	case button.KindShortPress:
-		return uiv1.ButtonEvent_KIND_SHORT_PRESS
-	case button.KindReleased:
-		return uiv1.ButtonEvent_KIND_RELEASED
-	default:
-		return uiv1.ButtonEvent_KIND_UNSPECIFIED
-	}
-}
-
-// buttonEventMessageFor converts a decoded button.Event into the
-// ButtonEvent message to publish.
-func buttonEventMessageFor(event button.Event) *uiv1.ButtonEvent {
-	return &uiv1.ButtonEvent{
-		Stamp:   timestamppb.Now(),
-		Kind:    buttonKindToProto(event.Kind),
-		HeldSec: event.HeldSec,
-	}
-}
-
 // buttonLoop publishes every debounced button event drv produces, until ctx
 // is done or Read returns a non-cancellation error.
 func buttonLoop(
@@ -171,7 +140,7 @@ func buttonLoop(
 			}
 			return err //nolint:wrapcheck // Read already wraps with "button: ..." context
 		}
-		if pubErr := pub.Publish(buttonEventMessageFor(event)); pubErr != nil {
+		if pubErr := pub.Publish(nodebutton.EventMessageFor(event)); pubErr != nil {
 			logger.Error("pi-zero: publishing ButtonEvent", "error", pubErr)
 		}
 	}
