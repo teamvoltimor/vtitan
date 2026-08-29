@@ -163,6 +163,23 @@ class Drivetrain(BaseModel):
     max_accel_mps2: float
     rear_steer_ratio: float
 
+    speed_response_tau_s: float
+    """First-order lag between a commanded speed and the achieved one (s).
+
+    Separate from ``max_accel_mps2`` because they are different failures: a
+    clamp bounds how fast speed may change, a lag says every change arrives
+    late regardless of size. The 2026-08-29 bag shows this drivetrain obeying
+    the second, so modelling it as the first (the simulator's behaviour until
+    then) reaches commanded speed far too early.
+    """
+
+    yaw_gain: float
+    """Fraction of the modelled yaw rate the chassis actually delivers.
+
+    The kinematic model is zero-slip; real tyres are not. Measured, not
+    assumed -- see the ``[drivetrain]`` comment in ``robot.toml``.
+    """
+
 
 class Lidar(BaseModel):
     """Slamtec C1 mount offset, orientation, and measurement floor."""
@@ -242,13 +259,15 @@ class Camera(BaseModel):
 
 _COMPONENT_FACTS: tuple[tuple[str, str, str], ...] = (
     ("drivetrain", "max_speed_mps", "a drive motor"),
+    ("drivetrain", "max_accel_mps2", "a drive motor"),
+    ("drivetrain", "speed_response_tau_s", "a drive motor"),
     ("steering", "servo_max_angle_deg", "a steering servo"),
     ("steering", "max_wheel_angle_deg", "a steering servo"),
 )
 """Keys the base config refuses to guess, and the component that supplies each.
 
 The base ``robot.toml`` describes the chassis, which does not change when a
-motor or servo is swapped. These three do change, so requiring them from a
+motor or servo is swapped. These all do change, so requiring them from a
 named profile is what stops a run from silently modelling whichever hardware
 happened to be checked in -- the failure mode that put a night of motor tests
 on the wrong ceiling, undetectable from behaviour alone."""

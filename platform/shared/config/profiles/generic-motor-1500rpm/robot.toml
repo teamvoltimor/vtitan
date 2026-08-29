@@ -16,3 +16,14 @@
 # priced in -- so this motor cannot finish narrow corridors at any control
 # quality).
 max_speed_mps = 0.156
+
+# Physical acceleration ceiling (m/s^2). The single shared value that lived in
+# the base robot.toml until 2026-08-29, restated here unchanged: this motor is
+# retired and was never measured against it.
+max_accel_mps2 = 2.0
+# First-order drivetrain lag (seconds). NEVER MEASURED on this motor -- no bag
+# of it survives with a trustworthy encoder (counts_per_rev was wrong until
+# 2026-08-29, after this motor was retired). 0.0 is not a claim that it
+# responded instantly; it reproduces the pre-2026-08-29 simulator exactly, so
+# results recorded against this profile stay comparable.
+speed_response_tau_s = 0.0

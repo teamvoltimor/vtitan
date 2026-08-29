@@ -23,15 +23,17 @@ from __future__ import annotations
 import argparse
 import math
 from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import rosbag2_py
+from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.domain.models import NavigatorDebugSnapshot
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 
 from src.navigation.ports import LidarScan
 
@@ -191,6 +193,77 @@ def read_bag(
         elif topic == Topics.NAV_DEBUG:
             rows.append((rel, decode_nav_debug(data)))
     return scans, rows
+
+
+def quaternion_yaw(q) -> float:  # noqa: ANN001
+    """Yaw from an IMU orientation quaternion.
+
+    The gyro cannot be used: the robot runs ``bno08x_uart_rvc_node`` and BNO08x
+    UART-RVC mode provides no angular velocity at all, so ``/imu/data``
+    publishes ``angular_velocity`` as zeros with covariance -1 (the ROS
+    "unavailable" convention). Differentiating this quaternion at ~166 Hz is the
+    supported way to get a yaw rate, not a workaround.
+
+    ``pose_yaw`` is NOT a substitute -- it is localizer-fused and damped, and
+    differentiating it understates the achieved yaw rate by roughly half.
+    """
+    return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+
+
+@dataclass(slots=True)
+class MotionStreams:
+    """The four ``(elapsed_s, value)`` series that describe how the chassis moved.
+
+    Everything needed to compare a recorded run against
+    :class:`~src.simulation.kinematics.AckermannKinematics`: what was commanded,
+    what the actuators reported back, and what the IMU says actually happened.
+    Collected in one replay pass because a bag is large and reading it four
+    times to answer four questions is the slowest thing these scripts do.
+    """
+
+    imu_yaw_rad: list[tuple[float, float]] = field(default_factory=list)
+    """Chassis yaw, differentiate for the ACHIEVED yaw rate."""
+
+    cmd_speed_mps: list[tuple[float, float]] = field(default_factory=list)
+    cmd_steer_rad: list[tuple[float, float]] = field(default_factory=list)
+    """Commanded WHEEL angle, the frame ``/ackermann_cmd`` publishes in."""
+
+    steer_pos_deg: list[tuple[float, float]] = field(default_factory=list)
+    """Steering feedback in WHEEL degrees. NOT an independent measurement on a
+    servo chassis -- ``ServoDriver.get_steering_position`` returns the last
+    commanded angle, so this is the command echoed back through the linkage
+    ratio and the servo trim, and it cannot show servo tracking lag."""
+
+    drive_speed_dps: list[tuple[float, float]] = field(default_factory=list)
+    """Encoder-derived WHEEL speed in deg/s (not motor-shaft, not rpm)."""
+
+    def drive_speed_mps(self) -> list[tuple[float, float]]:
+        """``drive_speed_dps`` converted to m/s at the wheel rim."""
+        scale = math.radians(1.0) * RobotSpecs.WHEEL_RADIUS
+        return [(t, dps * scale) for t, dps in self.drive_speed_dps]
+
+
+def read_motion_streams(bag_dir: Path) -> MotionStreams:
+    """Replay a bag once, collecting every command/actuator/IMU series."""
+    reader = open_reader(bag_dir)
+    streams = MotionStreams()
+    t0 = None
+    while reader.has_next():
+        topic, data, t = reader.read_next()
+        if t0 is None:
+            t0 = t
+        rel = elapsed_seconds(t, t0)
+        if topic == Topics.IMU_DATA:
+            streams.imu_yaw_rad.append((rel, quaternion_yaw(deserialize_message(data, Imu).orientation)))
+        elif topic == Topics.ACKERMANN_CMD:
+            drive = deserialize_message(data, AckermannDriveStamped).drive
+            streams.cmd_speed_mps.append((rel, drive.speed))
+            streams.cmd_steer_rad.append((rel, drive.steering_angle))
+        elif topic == Topics.MOTOR_STEERING_POSITION:
+            streams.steer_pos_deg.append((rel, deserialize_message(data, Float32).data))
+        elif topic == Topics.MOTOR_DRIVE_SPEED:
+            streams.drive_speed_dps.append((rel, deserialize_message(data, Float32).data))
+    return streams
 
 
 def create_bag_parser(description: str = "") -> argparse.ArgumentParser:

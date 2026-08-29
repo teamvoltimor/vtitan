@@ -69,6 +69,12 @@ class RobotSpecs:
     MAX_ACCEL_MPS2: Final[float] = _robot.drivetrain.max_accel_mps2
     REAR_STEER_RATIO: Final[float] = _robot.drivetrain.rear_steer_ratio
 
+    # Measured departures from the textbook model, not ceilings: these two say
+    # how the real chassis MISSES what the kinematics predict, so unlike the
+    # limits above they apply on every step rather than only at saturation.
+    SPEED_RESPONSE_TAU_S: Final[float] = _robot.drivetrain.speed_response_tau_s
+    YAW_GAIN: Final[float] = _robot.drivetrain.yaw_gain
+
     # LIDAR (Slamtec C1) — mounted upside-down, centered left/right, at the front of the
     # chassis (measured 2026-07-11). See docs/robot-physical-constants.md.
     LIDAR_MIN_RANGE: Final[float] = _robot.lidar.min_range

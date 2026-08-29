@@ -8,7 +8,22 @@ hardware imposes:
   ``MAX_STEERING_RATE`` (rad/s).
 * **Drive acceleration** — the drive motor cannot change speed instantly; it is
   clamped to ``max_accel`` (m/s²), the physical acceleration limit of the drive motor.
+* **Drive lag** — and it does not track the command even within that clamp: it
+  approaches a new setpoint as a first-order lag with time constant
+  ``speed_tau_s``. Measured 2026-08-29; see below.
 * **Steering limit** — front-wheel angle saturates at ``MAX_STEERING_ANGLE``.
+* **Yaw gain** — the geometry above is zero-slip, and the real chassis is not.
+  ``yaw_gain`` scales the predicted yaw rate by the fraction actually
+  delivered. Measured 2026-08-29; see below.
+
+The last two exist because this model was written from first principles and
+first checked against a bag on 2026-08-29 (``run_20260829_140424``, via
+``scripts/bag/diag_bag_sim_fidelity.py``). Replaying that run's own command
+stream through this integrator produced 3512° of yaw against the IMU's 1918° --
+the simulator cornered 1.83x harder than the hardware it was standing in for,
+and reached commanded speed in a fraction of the ~0.35 s the drivetrain takes.
+Both gaps flattered the robot, so any tuning validated only in sim before that
+date was validated against a car that turns better than the real one.
 
 **Both axles steer, in opposite directions and by the same amount** -- confirmed
 on the real chassis 2026-07-25. That is not the textbook bicycle model, and the
@@ -18,7 +33,7 @@ as fast* as a front-steer car at the same steering angle::
 
     x += v * cos(yaw) * dt
     y += v * sin(yaw) * dt
-    yaw += (v / L_eff) * tan(steer) * dt  # L_eff = wheelbase / (1 + rear_ratio)
+    yaw += yaw_gain * (v / L_eff) * tan(steer) * dt  # L_eff = wheelbase / (1 + rear_ratio)
 
 With ``rear_steer_ratio = 1.0`` that is ``wheelbase / 2``. Modelling this as a
 front-steer car (the previous behaviour) made the simulation turn half as
@@ -58,6 +73,8 @@ class _KinematicsConstants:
     max_accel: float
     max_speed_mps: float
     rear_steer_ratio: float
+    speed_tau_s: float
+    yaw_gain: float
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
@@ -67,6 +84,8 @@ class _KinematicsConstants:
             max_accel=RobotSpecs.MAX_ACCEL_MPS2,
             max_speed_mps=RobotSpecs.MAX_SPEED_MPS,
             rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
+            speed_tau_s=RobotSpecs.SPEED_RESPONSE_TAU_S,
+            yaw_gain=RobotSpecs.YAW_GAIN,
         )
 
 
@@ -153,6 +172,8 @@ class AckermannKinematics:
         substeps: int = 5,
         rear_steer_ratio: float | None = None,
         max_speed_mps: float | None = None,
+        speed_tau_s: float | None = None,
+        yaw_gain: float | None = None,
         context: KinematicsContext | None = None,
     ) -> None:
         if context is None:
@@ -167,7 +188,13 @@ class AckermannKinematics:
             rear_steer_ratio = c.rear_steer_ratio
         if max_speed_mps is None:
             max_speed_mps = c.max_speed_mps
+        if speed_tau_s is None:
+            speed_tau_s = c.speed_tau_s
+        if yaw_gain is None:
+            yaw_gain = c.yaw_gain
 
+        self._speed_tau_s = speed_tau_s
+        self._yaw_gain = yaw_gain
         self._max_speed = max_speed_mps
         self._wheelbase = wheelbase
         self._max_steer = max_steer
@@ -210,12 +237,19 @@ class AckermannKinematics:
             # Servo steering slew toward the target angle.
             steer = _approach(steer, target_steer, self._max_steer_rate * h)
             steer = _clamp(steer, -self._max_steer, self._max_steer)
-            # Drive acceleration clamp toward the target speed.
-            v = _approach(v, _clamp(target_speed, -self._max_speed, self._max_speed), self._max_accel * h)
+            # Drive response: a first-order lag toward the setpoint, then the
+            # acceleration clamp on top. Ordered that way because they model
+            # different things -- the lag is how this drivetrain habitually
+            # answers a command, the clamp is a ceiling it may not cross -- and
+            # a lag that produced an impossible acceleration would still be
+            # impossible.
+            setpoint = _clamp(target_speed, -self._max_speed, self._max_speed)
+            lagged = setpoint if self._speed_tau_s <= 0.0 else v + (setpoint - v) * min(h / self._speed_tau_s, 1.0)
+            v = _approach(v, lagged, self._max_accel * h)
 
             x += v * math.cos(yaw) * h
             y += v * math.sin(yaw) * h
-            yaw += (v / self._turn_reference_len) * math.tan(steer) * h
+            yaw += self._yaw_gain * (v / self._turn_reference_len) * math.tan(steer) * h
 
         yaw = _wrap_angle(yaw)
         return replace(state, x=x, y=y, yaw=yaw, v=v, steer=steer)

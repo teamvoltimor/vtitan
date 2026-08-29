@@ -49,9 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import Imu
 from shared.config.constants import RobotSpecs
-from std_msgs.msg import Float32
 
 from scripts.common.bag_io import (
     Topics,
@@ -60,6 +58,7 @@ from scripts.common.bag_io import (
     elapsed_seconds,
     load_nav_debug_rows,
     open_reader,
+    read_motion_streams,
 )
 from scripts.common.stats import median, nearest_by_time, percentile
 from scripts.common.tables import fmt_optional, print_table
@@ -260,51 +259,25 @@ def _print_stats(rows: Sequence[tuple[float, NavigatorDebugSnapshot]]) -> None:
         print(f"  target behind robot (x_local<=0): {behind}/{total}")
 
 
-def _quaternion_yaw(q) -> float:  # noqa: ANN001
-    """Yaw from an IMU orientation quaternion.
-
-    The gyro cannot be used: the robot runs ``bno08x_uart_rvc_node`` and BNO08x
-    UART-RVC mode provides no angular velocity at all, so ``/imu/data``
-    publishes ``angular_velocity`` as zeros with covariance -1 (the ROS
-    "unavailable" convention). Differentiating this quaternion at ~166 Hz is the
-    supported way to get a yaw rate, not a workaround.
-
-    ``pose_yaw`` is NOT a substitute -- it is localizer-fused and damped, and
-    differentiating it understates the achieved yaw rate by roughly half.
-    """
-    return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
-
-
 def _effectiveness_samples(bag_dir: Path) -> list[tuple[float, float, float]]:
     """``(measured_steer_deg, speed_mps, achieved_yaw_rate)`` per IMU window.
 
-    Steering is read from ``/motor/steering_position`` -- a real Build HAT
-    encoder reading -- rather than from the command, so servo tracking is out of
-    the loop and the geometry is the only remaining variable.
+    Steering is read from ``/motor/steering_position`` rather than from the
+    command. On a Build HAT chassis that was a real encoder reading, which put
+    servo tracking out of the loop; on the servo chassis it is the command
+    echoed back (see :class:`~scripts.common.bag_io.MotionStreams`), so servo
+    lag is back inside the measurement and any shortfall below is an upper
+    bound on the geometric one.
 
-    Speed is the commanded value. ``/motor/drive_speed`` is motor-shaft deg/s
-    before gearing, and converting it with WHEEL_RADIUS implies 0.20 m/s, above
-    the measured 0.156 ceiling. Commanded speed is clamped to that ceiling and
-    the drivetrain reaches it; if the true speed is LOWER, predicted yaw is
-    lower too, so every ratio below is a conservative floor.
+    Speed is the commanded value. ``/motor/drive_speed`` is now trustworthy
+    (see ``diag_bag_sim_fidelity.py``) but commanded speed is kept here so the
+    trim figures stay comparable with the 2026-08-09 measurements this table
+    was first read against.
     """
-    reader = open_reader(bag_dir)
-    imu: list[tuple[float, float]] = []
-    steer: list[tuple[float, float]] = []
-    speed: list[tuple[float, float]] = []
-    t0 = None
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        rel = elapsed_seconds(t, t0)
-        if topic == Topics.IMU_DATA:
-            imu.append((rel, _quaternion_yaw(deserialize_message(data, Imu).orientation)))
-        elif topic == Topics.MOTOR_STEERING_POSITION:
-            steer.append((rel, deserialize_message(data, Float32).data))
-        elif topic == Topics.ACKERMANN_CMD:
-            speed.append((rel, deserialize_message(data, AckermannDriveStamped).drive.speed))
-
+    streams = read_motion_streams(bag_dir)
+    imu = streams.imu_yaw_rad
+    steer = streams.steer_pos_deg
+    speed = streams.cmd_speed_mps
     if not imu:
         return []
     step = max(1, int(len(imu) * _YAW_WINDOW_S / max(imu[-1][0], 1e-6)))

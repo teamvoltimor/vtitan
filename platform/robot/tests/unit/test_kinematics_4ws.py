@@ -64,9 +64,15 @@ class TestCounterPhaseDoublesTheYawRate:
         )
 
     def test_turn_radius_follows_the_effective_wheelbase(self):
-        """radius = L_eff / tan(steer), with L_eff = wheelbase / (1 + rear_ratio)."""
+        """radius = L_eff / tan(steer), with L_eff = wheelbase / (1 + rear_ratio).
+
+        ``yaw_gain`` is pinned to 1.0 because this asserts the GEOMETRY. The
+        shipped gain is a measured slip factor sitting on top of it (see
+        :class:`TestMeasuredDeparturesFromTheIdealModel`); leaving it in would
+        make a geometry regression and a re-measured tyre look identical here.
+        """
         for ratio in (0.0, 0.5, 1.0):
-            kin = AckermannKinematics(rear_steer_ratio=ratio)
+            kin = AckermannKinematics(rear_steer_ratio=ratio, yaw_gain=1.0)
             expected_l_eff = RobotSpecs.WHEELBASE / (1.0 + ratio)
             steer = _STEER_NORM * RobotSpecs.MAX_STEERING_ANGLE
 
@@ -82,6 +88,63 @@ class TestCounterPhaseDoublesTheYawRate:
         clearance number in the sign-avoidance analysis.
         """
         assert RobotSpecs.REAR_STEER_RATIO == 1.0
+
+
+class TestMeasuredDeparturesFromTheIdealModel:
+    """The two terms added 2026-08-29, when the model was first checked against a bag.
+
+    Replaying ``run_20260829_140424``'s own commands through this integrator
+    produced 3512 deg of yaw against the IMU's 1918, and reached commanded speed
+    far sooner than the drivetrain does. Both errors flattered the robot, which
+    is the direction that matters: a sim that corners better than the car
+    certifies tuning the car cannot execute. Re-measure with
+    ``scripts/bag/diag_bag_sim_fidelity.py``.
+    """
+
+    def test_yaw_gain_scales_the_turn_radius_inversely(self):
+        """Half the yaw for the same speed and angle is twice the radius."""
+        ideal = AckermannKinematics(yaw_gain=1.0)
+        slipping = AckermannKinematics(yaw_gain=0.5)
+
+        assert _radius_of_curvature(slipping, _STEER_NORM) == pytest.approx(
+            _radius_of_curvature(ideal, _STEER_NORM) * 2, rel=1e-3
+        )
+
+    def test_the_shipped_gain_is_below_one(self):
+        """A measured slip factor, not a tunable -- 1.0 would be the zero-slip model back."""
+        assert 0.0 < RobotSpecs.YAW_GAIN < 1.0
+
+    def test_the_drivetrain_lags_a_step_by_its_time_constant(self):
+        """One tau after a step, a first-order lag has closed ~63% of it."""
+        tau = 0.4
+        kin = AckermannKinematics(speed_tau_s=tau, max_accel=1e6)
+        target = 0.3
+
+        state = AckermannState(x=0.0, y=0.0, yaw=0.0)
+        for _ in range(round(tau / _DT)):
+            state = kin.step(state, target_speed=target, target_steer_norm=0.0, dt=_DT)
+
+        assert state.v == pytest.approx(target * 0.632, rel=0.05)
+
+    def test_zero_tau_reproduces_the_old_instant_response(self):
+        """What the retired motor's profile ships, so its recorded results stay comparable."""
+        kin = AckermannKinematics(speed_tau_s=0.0, max_accel=1e6)
+
+        state = kin.step(AckermannState(x=0.0, y=0.0, yaw=0.0), target_speed=0.3, target_steer_norm=0.0, dt=_DT)
+
+        assert state.v == pytest.approx(0.3)
+
+    def test_the_acceleration_clamp_still_bounds_the_lag(self):
+        """The lag says "late", the clamp says "never faster than this" -- both apply.
+
+        Ordering matters: a large step early in the lag asks for an acceleration
+        the motor cannot produce, and the clamp is what refuses it.
+        """
+        kin = AckermannKinematics(speed_tau_s=0.01, max_accel=0.5)
+
+        state = kin.step(AckermannState(x=0.0, y=0.0, yaw=0.0), target_speed=1.0, target_steer_norm=0.0, dt=_DT)
+
+        assert state.v == pytest.approx(0.5 * _DT, rel=1e-6)
 
 
 class TestWheelPosesShowTheCounterPhase:

@@ -81,11 +81,30 @@ mass = 0.05
 # 2026-08-21 the navigation speed ladder is absolute m/s and this value only
 # clamps, so raising it delivers nothing until the motor profile's own
 # motion/speed.toml raises the tiers too.
-# Physical acceleration limit of the drive motor (m/s^2).
-max_accel_mps2 = 2.0
+#
+# max_accel_mps2 and speed_response_tau_s are DELIBERATELY ABSENT for the same
+# reason: how hard a drivetrain accelerates, and how long it lags a change of
+# command, are properties of the motor, not the chassis. They lived here as one
+# shared 2.0 until 2026-08-29, when a bag showed the current motor nowhere near
+# it.
 # Counter-phase four-wheel steering: the rear axle turns the full opposite of
 # the front. 1.0 is counter-phase, 0.0 would be front-steer only.
 rear_steer_ratio = 1.0
+# Fraction of the yaw rate the kinematic model predicts that the chassis
+# ACTUALLY delivers. 1.0 is the zero-slip textbook model; anything less is the
+# tyre slip and linkage compliance that model has no term for.
+#
+# MEASURED 0.55 on 2026-08-29 from run_20260829_140424 (a clean 3-lap Open run)
+# via `scripts/bag/diag_bag_sim_fidelity.py --replay`. Before that the simulator
+# ran an implicit 1.0 and turned 1.83x sharper than the real car over the same
+# command stream -- 3512 deg of yaw against the IMU's 1918 -- so every corner
+# the sim cleared was a corner the hardware would have run wide.
+#
+# The shortfall is flat (~0.49) from 5 to 30 deg of commanded wheel angle, which
+# is what makes it a scale factor rather than large-angle saturation. It is a
+# property of THESE tyres on THIS surface: re-measure after a tyre, weight or
+# mat change, the same way max_speed_mps is re-measured after a motor swap.
+yaw_gain = 0.55
 
 [lidar]
 # Closest range the C1 can report (m). Measured ~45 mm; anything nearer is

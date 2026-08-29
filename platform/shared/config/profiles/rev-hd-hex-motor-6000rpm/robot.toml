@@ -31,3 +31,23 @@ max_speed_mps = 1.0
 # them once max_speed_mps is properly known, don't just leave them stale
 # against a corrected ceiling. localization.MAX_SPEED_MPS's headroom margin
 # (see the old comment this replaced) needs re-checking against this too.
+
+# Physical acceleration ceiling (m/s^2). NOT MEASURED for this motor -- carried
+# over from the single shared 2.0 that lived in the base robot.toml until
+# 2026-08-29. It is now a rarely-binding ceiling rather than the thing that
+# shapes a speed change: speed_response_tau_s below is what the drivetrain
+# actually obeys, and it binds first at every step this bag contains.
+max_accel_mps2 = 2.0
+# First-order lag between a commanded speed and the achieved one (seconds).
+#
+# MEASURED 0.35 on 2026-08-29 from run_20260829_140424 via
+# `scripts/bag/diag_bag_sim_fidelity.py --speed`: across 15 readable command
+# step-ups the time to 63% of the step held near-constant at ~0.35 s while the
+# achieved acceleration scattered 0.14-0.60 m/s^2 with step size. Constant tau
+# and step-dependent accel is the signature of a lag, not of an accel clamp --
+# which is why this exists as its own term instead of pulling max_accel_mps2
+# down to the 0.23 m/s^2 median and calling the drivetrain slow.
+#
+# Steps in that bag span only 0.027-0.149 m/s, so this is unverified for large
+# speed changes and says nothing about the true acceleration ceiling above them.
+speed_response_tau_s = 0.35
