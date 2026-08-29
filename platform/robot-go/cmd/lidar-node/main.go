@@ -35,9 +35,6 @@ type cliConfig struct {
 	baudRate int
 }
 
-// scanSubject is the NATS subject declared in scan.proto's own docstring.
-const scanSubject = "vtitan.sensor.v1.scan"
-
 // scanFrameID is this sensor's TF frame, matching
 // shared.config.constants.identifiers.TfFrames.LIDAR_LINK.
 const scanFrameID = "lidar_link"
@@ -56,12 +53,6 @@ const (
 	exitError = 1
 )
 
-// defaultNATSURL is nats-server's own default client address, matching the
-// Pi 5's planned deployment (see go_nats_migration_plan.md's "Process
-// model": nats-server runs on the Pi 5, reachable at pi5.local:4222 from
-// the Pi Zero over the USB-gadget link).
-const defaultNATSURL = "nats://127.0.0.1:4222"
-
 func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "lidar-node",
@@ -77,7 +68,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", defaultNATSURL, "nats-server URL")
+	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
 	flags.StringVar(&cfg.nodeName, "name", "lidar-node", "NATS client name, visible in nats-server's connz output")
 	flags.StringVar(&cfg.port, "port", defaultPort, "LIDAR serial port")
 	flags.IntVar(&cfg.baudRate, "baud-rate", lidar.DefaultBaudRate, "LIDAR serial baud rate")
@@ -159,7 +150,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	pub := nats.NewPublisher[*sensorv1.Scan](conn, scanSubject)
+	pub := nats.NewPublisher[*sensorv1.Scan](conn, sensorv1.ScanSubject)
 
 	logger.Info("lidar-node: connected", "nats_url", cfg.natsURL, "port", cfg.port)
 	return publishLoop(ctx, logger, drv, pub)

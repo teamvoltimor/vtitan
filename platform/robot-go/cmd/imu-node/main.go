@@ -32,9 +32,6 @@ type cliConfig struct {
 	baudRate int
 }
 
-// imuSubject is the NATS subject declared in imu.proto's own docstring.
-const imuSubject = "vtitan.sensor.v1.imu"
-
 // imuFrameID is this sensor's TF frame, matching
 // shared.config.constants.identifiers.TfFrames.IMU_LINK (the value the
 // existing ROS2 uart_rvc_node.py publishes Imu messages under).
@@ -45,12 +42,6 @@ const imuFrameID = "imu_link"
 // auto-detection (find_mcp2221_port in the Python driver) isn't ported
 // here; --port must be set explicitly for a board that needs it.
 const defaultPort = "/dev/ttyACM0"
-
-// defaultNATSURL is nats-server's own default client address, matching the
-// Pi 5's planned deployment (see go_nats_migration_plan.md's "Process
-// model": nats-server runs on the Pi 5, reachable at pi5.local:4222 from
-// the Pi Zero over the USB-gadget link).
-const defaultNATSURL = "nats://127.0.0.1:4222"
 
 // exit codes: 0 means imu-node ran and shut down cleanly (including via
 // SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable
@@ -92,7 +83,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", defaultNATSURL, "nats-server URL")
+	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
 	flags.StringVar(&cfg.nodeName, "name", "imu-node", "NATS client name, visible in nats-server's connz output")
 	flags.StringVar(&cfg.port, "port", defaultPort, "IMU serial port")
 	flags.IntVar(&cfg.baudRate, "baud-rate", imu.DefaultBaudRate, "IMU serial baud rate")
@@ -147,7 +138,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	pub := nats.NewPublisher[*sensorv1.Imu](conn, imuSubject)
+	pub := nats.NewPublisher[*sensorv1.Imu](conn, sensorv1.ImuSubject)
 
 	logger.Info("imu-node: connected", "nats_url", cfg.natsURL, "port", cfg.port)
 	return publishLoop(ctx, logger, drv, pub)

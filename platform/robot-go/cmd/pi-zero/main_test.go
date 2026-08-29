@@ -3,15 +3,12 @@
 package main
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
 	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
 )
-
-var errBoom = errors.New("boom")
 
 func TestButtonKindToProto(t *testing.T) {
 	t.Parallel()
@@ -92,14 +89,5 @@ func TestRenderSummary_InvalidConfigIsAnError(t *testing.T) {
 
 	if _, err := renderSummary(ssd1306.Config{Width: 0, Height: 0}, &uiv1.TelemetrySummary{}); err == nil {
 		t.Fatal("renderSummary() with an invalid framebuffer size: got nil error, want non-nil")
-	}
-}
-
-func TestMotorStatusFor_FaultTakesPriority(t *testing.T) {
-	t.Parallel()
-
-	got := motorStatusFor(0.5, 0, errBoom)
-	if got.GetDetail() != errBoom.Error() {
-		t.Errorf("Detail = %q, want %q", got.GetDetail(), errBoom.Error())
 	}
 }

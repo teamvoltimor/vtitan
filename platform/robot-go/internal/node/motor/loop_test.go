@@ -1,6 +1,4 @@
-//go:build linux
-
-package main
+package motor_test
 
 import (
 	"errors"
@@ -8,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
 )
 
@@ -32,20 +31,20 @@ func TestSpeedToNormalized(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := speedToNormalized(tt.in); math.Abs(got-tt.want) > speedTolerance {
-				t.Errorf("speedToNormalized(%v) = %v, want %v", tt.in, got, tt.want)
+			if got := motor.SpeedToNormalized(tt.in); math.Abs(got-tt.want) > speedTolerance {
+				t.Errorf("SpeedToNormalized(%v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestMotorStatusFor(t *testing.T) {
+func TestStatusFor(t *testing.T) {
 	t.Parallel()
 
 	t.Run("idle", func(t *testing.T) {
 		t.Parallel()
 
-		got := motorStatusFor(0, 0, nil)
+		got := motor.StatusFor(0, 0, nil)
 		if got.GetState() != actuationv1.MotorStatus_STATE_IDLE {
 			t.Errorf("State = %v, want STATE_IDLE", got.GetState())
 		}
@@ -57,7 +56,7 @@ func TestMotorStatusFor(t *testing.T) {
 	t.Run("running", func(t *testing.T) {
 		t.Parallel()
 
-		got := motorStatusFor(0.5, 0, nil)
+		got := motor.StatusFor(0.5, 0, nil)
 		if got.GetState() != actuationv1.MotorStatus_STATE_RUNNING {
 			t.Errorf("State = %v, want STATE_RUNNING", got.GetState())
 		}
@@ -70,7 +69,7 @@ func TestMotorStatusFor(t *testing.T) {
 		t.Parallel()
 
 		wantErr := errors.New("boom")
-		got := motorStatusFor(0.5, 0, wantErr)
+		got := motor.StatusFor(0.5, 0, wantErr)
 		if got.GetState() != actuationv1.MotorStatus_STATE_FAULT {
 			t.Errorf("State = %v, want STATE_FAULT", got.GetState())
 		}
@@ -82,9 +81,17 @@ func TestMotorStatusFor(t *testing.T) {
 	t.Run("command age is carried through", func(t *testing.T) {
 		t.Parallel()
 
-		got := motorStatusFor(0, 750*time.Millisecond, nil)
+		got := motor.StatusFor(0, 750*time.Millisecond, nil)
 		if got.GetCommandAgeMs() != 750 {
 			t.Errorf("CommandAgeMs = %v, want 750", got.GetCommandAgeMs())
 		}
 	})
+}
+
+func TestStatusFor_FrameID(t *testing.T) {
+	t.Parallel()
+
+	if got := motor.StatusFor(0, 0, nil).GetFrameId(); got != motor.FrameID {
+		t.Errorf("FrameId = %q, want %q", got, motor.FrameID)
+	}
 }

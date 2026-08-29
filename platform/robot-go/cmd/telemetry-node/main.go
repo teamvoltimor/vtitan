@@ -55,25 +55,9 @@ type natsSource struct {
 	imu  *sensorv1.Imu
 }
 
-// imuSubject/scanSubject are the NATS subjects declared in
-// imu.proto/scan.proto's own docstrings, matching cmd/imu-node and
-// cmd/lidar-node's publish subjects exactly. summarySubject is
-// telemetry_summary.proto's own docstring subject.
-const (
-	imuSubject     = "vtitan.sensor.v1.imu"
-	scanSubject    = "vtitan.sensor.v1.scan"
-	summarySubject = "vtitan.ui.v1.telemetry_summary"
-)
-
 // defaultRateHz matches telemetry_bridge_node.py's ui_summary_rate_hz
 // default (10Hz) -- the rate _publish_ui_summary redraws the OLED at.
 const defaultRateHz = 10.0
-
-// defaultNATSURL is nats-server's own default client address, matching the
-// Pi 5's planned deployment (see go_nats_migration_plan.md's "Process
-// model": nats-server runs on the Pi 5, reachable at pi5.local:4222 from
-// the Pi Zero over the USB-gadget link).
-const defaultNATSURL = "nats://127.0.0.1:4222"
 
 // exit codes: 0 means telemetry-node ran and shut down cleanly (including
 // via SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable
@@ -100,7 +84,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", defaultNATSURL, "nats-server URL")
+	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
 	flags.StringVar(&cfg.nodeName, "name", "telemetry-node", "NATS client name, visible in nats-server's connz output")
 	flags.Float64Var(&cfg.rateHz, "rate-hz", defaultRateHz, "TelemetrySummary publish rate")
 
@@ -182,7 +166,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	imuSub, err := nats.NewSubscriber(conn, imuSubject, func() *sensorv1.Imu { return &sensorv1.Imu{} })
+	imuSub, err := nats.NewSubscriber(conn, sensorv1.ImuSubject, func() *sensorv1.Imu { return &sensorv1.Imu{} })
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
@@ -192,7 +176,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	scanSub, err := nats.NewSubscriber(conn, scanSubject, func() *sensorv1.Scan { return &sensorv1.Scan{} })
+	scanSub, err := nats.NewSubscriber(conn, sensorv1.ScanSubject, func() *sensorv1.Scan { return &sensorv1.Scan{} })
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
@@ -202,7 +186,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	pub := nats.NewPublisher[*uiv1.TelemetrySummary](conn, summarySubject)
+	pub := nats.NewPublisher[*uiv1.TelemetrySummary](conn, uiv1.TelemetrySummarySubject)
 
 	source := &natsSource{}
 	aggregator := diag.NewAggregator(source, diag.DefaultConfig())

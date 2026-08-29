@@ -37,6 +37,18 @@ const (
 	DefaultConnectTimeout = 2 * time.Second
 )
 
+// DefaultDevURL is nats-server's own default client address
+// (nats-server's own out-of-the-box listen address), used across cmd/*'s
+// --nats-url flag defaults for local/bench runs. This is deliberately not
+// baked into DefaultConfig/Connect as an implicit URL default -- see
+// Config.URL's doc comment: there is no single correct production
+// nats-server address (see go_nats_migration_plan.md's "Process model":
+// the Pi 5 hosts it, reachable at pi5.local:4222 from the Pi Zero), so
+// every real deployment must still pass its own URL explicitly. This
+// constant exists only so cmd/*'s bench-run convenience default is
+// declared once, not re-typed identically in every binary's flag setup.
+const DefaultDevURL = "nats://127.0.0.1:4222"
+
 // DefaultConfig returns a Config with sane defaults for everything except
 // URL and Name, which the caller must always set explicitly -- there's no
 // safe default nats-server address or client identity.
