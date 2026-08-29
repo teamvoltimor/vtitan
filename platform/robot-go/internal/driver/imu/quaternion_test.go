@@ -7,6 +7,12 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/imu"
 )
 
+// quaternionTolerance is the float64 comparison tolerance used throughout
+// this file — the golden vectors are scipy float64 output, so anything
+// looser would risk masking a real regression, and anything tighter would
+// start failing on ordinary floating-point rounding noise.
+const quaternionTolerance = 1e-9
+
 // Golden vectors generated directly from the Python driver's own conversion
 // call — scipy.spatial.transform.Rotation.from_euler("xyz", [roll, pitch,
 // yaw], degrees=True).as_quat() — not hand-derived, so a passing test here
@@ -70,8 +76,7 @@ func TestQuaternionFromEuler_MatchesScipyGoldenVectors(t *testing.T) {
 
 			got := imu.QuaternionFromEuler(tt.yaw, tt.pitch, tt.roll)
 
-			const tolerance = 1e-9
-			if !closeQuaternion(got, tt.want, tolerance) {
+			if !closeQuaternion(got, tt.want, quaternionTolerance) {
 				t.Errorf("QuaternionFromEuler(%v, %v, %v) = %+v, want %+v",
 					tt.yaw, tt.pitch, tt.roll, got, tt.want)
 			}
@@ -87,7 +92,7 @@ func TestQuaternionFromEuler_AlwaysUnitLength(t *testing.T) {
 			for roll := -180.0; roll <= 180.0; roll += 41 {
 				q := imu.QuaternionFromEuler(yaw, pitch, roll)
 				magnitude := math.Sqrt(q.X*q.X + q.Y*q.Y + q.Z*q.Z + q.W*q.W)
-				if math.Abs(magnitude-1.0) > 1e-9 {
+				if math.Abs(magnitude-1.0) > quaternionTolerance {
 					t.Fatalf("QuaternionFromEuler(%v, %v, %v) magnitude = %v, want 1.0",
 						yaw, pitch, roll, magnitude)
 				}

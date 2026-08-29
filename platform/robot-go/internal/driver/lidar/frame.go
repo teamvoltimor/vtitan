@@ -144,6 +144,17 @@ const (
 	// fields: distance_q2[15:8] (Figure 4-4) and GET_HEALTH's
 	// error_code[15:8] (Figure 4-28).
 	highByteShift = 8
+
+	// measurementSBit and measurementSInvBit are byte 0's start-of-scan
+	// flag and its inverted self-check pair (Figure 4-4: "Quality | ~S |
+	// S", bit-position markers 8..2, 1, 0 — S is bit 0, ~S is bit 1).
+	measurementSBit         = 0x01
+	measurementSInvBit      = 0x02
+	measurementQualityShift = 2
+
+	// measurementCheckBit is byte 1's bit 0 (C), which the protocol always
+	// sets to 1 as a second self-check alongside S/~S.
+	measurementCheckBit = 0x01
 )
 
 var (
@@ -217,22 +228,16 @@ func decodeMeasurement(b []byte) (pt Point, startOfScan bool, err error) {
 	// naive "S is the higher bit" reading of the two adjacent single-bit
 	// boxes — verified against the figure's explicit bit-position
 	// numbers, not just box order.)
-	const (
-		sBit         = 0x01
-		sInvBit      = 0x02
-		qualityShift = 2
-	)
-	startOfScan = b[0]&sBit != 0
-	inverted := b[0]&sInvBit != 0
+	startOfScan = b[0]&measurementSBit != 0
+	inverted := b[0]&measurementSInvBit != 0
 	if startOfScan == inverted {
 		return Point{}, false, fmt.Errorf("%w: byte0=0x%02X", ErrSyncBitMismatch, b[0])
 	}
-	quality := b[0] >> qualityShift
+	quality := b[0] >> measurementQualityShift
 
 	// Byte 1: bits [7:1] = angle_q6[6:0], bit 0 = C (check bit, always 1).
 	// Byte 2: bits [7:0] = angle_q6[14:7].
-	const checkBit = 0x01
-	if b[1]&checkBit == 0 {
+	if b[1]&measurementCheckBit == 0 {
 		return Point{}, false, fmt.Errorf("%w: byte1=0x%02X", ErrCheckBitUnset, b[1])
 	}
 	angleQ6 := uint16(b[1]>>1) | uint16(b[2])<<angleHighByteShift

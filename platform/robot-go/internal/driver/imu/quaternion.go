@@ -8,6 +8,11 @@ type Quaternion struct {
 	X, Y, Z, W float64
 }
 
+// degToRadHalf converts a half-angle in degrees to radians, since the
+// quaternion half-angle formula in QuaternionFromEuler needs sin/cos of
+// each Euler angle divided by two.
+const degToRadHalf = math.Pi / 180 / 2
+
 // QuaternionFromEuler derives an orientation quaternion from RVC-mode
 // Euler angles (in degrees), since the BNO08x's UART-RVC mode reports
 // Euler angles directly and never a quaternion. This mirrors
@@ -21,8 +26,6 @@ type Quaternion struct {
 // do not hand-edit the formula without re-deriving against scipy, a wrong
 // sign here silently corrupts every orientation reading published.
 func QuaternionFromEuler(yawDeg, pitchDeg, rollDeg float64) Quaternion {
-	const degToRadHalf = math.Pi / 180 / 2
-
 	yaw := yawDeg * degToRadHalf
 	pitch := pitchDeg * degToRadHalf
 	roll := rollDeg * degToRadHalf

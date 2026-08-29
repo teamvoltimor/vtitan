@@ -12,6 +12,10 @@ import (
 	"testing"
 )
 
+// readingTolerance is the float64 comparison tolerance for decoded Reading
+// values in this file.
+const readingTolerance = 1e-9
+
 // adafruitExampleFrame is the complete example message from Adafruit's
 // UART-RVC documentation (learn.adafruit.com/.../uart-rvc-for-arduino):
 // 0xAA AA DE 01 00 92 FF 25 08 8D FE EC FF D1 03 00 00 00 E7 — sourced, not
@@ -46,8 +50,7 @@ func TestReadFrame_AdafruitExample(t *testing.T) {
 		ZAccel: 977 * rvcAccelScale,
 	}
 
-	const tolerance = 1e-9
-	if !closeReading(got, want, tolerance) {
+	if !closeReading(got, want, readingTolerance) {
 		t.Errorf("readFrame() = %+v, want %+v", got, want)
 	}
 }

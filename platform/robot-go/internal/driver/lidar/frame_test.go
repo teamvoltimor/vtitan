@@ -33,6 +33,10 @@ import (
 	"testing"
 )
 
+// measurementTolerance is the float64 comparison tolerance for decoded
+// angle/range values in this file.
+const measurementTolerance = 1e-9
+
 func TestRequestPacket(t *testing.T) {
 	t.Parallel()
 
@@ -148,15 +152,14 @@ func TestDecodeMeasurement_HandComputed(t *testing.T) {
 		wantAngleDeg = 45.5
 		wantRangeMM  = 1234.75
 		wantQuality  = 10
-		tolerance    = 1e-9
 	)
 	wantAngleRad := wantAngleDeg * degToRad
 	wantRangeM := wantRangeMM / mmPerMeter
 
-	if diff := got.AngleRad - wantAngleRad; diff > tolerance || diff < -tolerance {
+	if diff := got.AngleRad - wantAngleRad; diff > measurementTolerance || diff < -measurementTolerance {
 		t.Errorf("AngleRad = %v, want %v", got.AngleRad, wantAngleRad)
 	}
-	if diff := got.RangeM - wantRangeM; diff > tolerance || diff < -tolerance {
+	if diff := got.RangeM - wantRangeM; diff > measurementTolerance || diff < -measurementTolerance {
 		t.Errorf("RangeM = %v, want %v", got.RangeM, wantRangeM)
 	}
 	if got.Quality != wantQuality {
