@@ -965,6 +965,23 @@ class CoreNavigator(EscapeRecovery):
         ):
             speed = min(speed, self._tuning.speed.max_mps() * explore_frac)
 
+        # First-lap corner caution, Open-Challenge-applicable (unlike the
+        # sign-router explore-lap cap above, not gated on is_discovering --
+        # Open Challenge has no sign router at all). A mixed-width corner's
+        # PLANNED arc is safe by construction (verified 2026-08-28: clearance
+        # to both outer walls never drops below what the straights already
+        # have, see docs/internal/algorithms/open-challenge.md hardware cause
+        # #6/§6 -- the arc-radius formula is not the bug), but real hardware
+        # wedged at exactly this kind of corner anyway, which points at
+        # CONTROL tracking error (understeer/trim, already independently
+        # measured) eating the plan's margin, not the plan itself. Only the
+        # first lap has never actually been driven, so slow there specifically
+        # while approaching a corner (turn_ahead, already computed above for
+        # lookahead selection) to buy the tracking loop more margin; costs
+        # nothing on lap 2+ once the corner has been taken once for real.
+        if self._laps_completed == 0 and turn_ahead:
+            speed = min(speed, self._tuning.speed.slow_mps())
+
         # Snapshot everything decided so far -- both the escape-trigger branch
         # below and the normal publish at the end of this method share it, only
         # differing in phase and the final command actually sent.
