@@ -214,6 +214,48 @@ class TestSideCorrectionFlipsSignWhenReversing:
         assert maneuver.steering < 0  # reverse frame: negative swings the nose left, still away
 
 
+class TestSideCorrectionReversesWhenTouchingForward:
+    """A robot pinned at an angle into a corner can be touching in front while
+    its side sector still reads clear -- detect_threat_direction's narrower
+    angular cone can classify this as a side threat even though assess_risk's
+    wider forward-path lane (which triggered CRITICAL in the first place) sees
+    the wall. SIDE_CORRECTION's "already touching" check must also look
+    forward, or it keeps creeping into a wall it is already touching. Measured
+    on hardware: three real Open Challenge runs pinned nose-first for up to
+    23s, repeatedly issued SIDE_CORRECTION with a forward-creep speed the
+    whole time (2026-08-28).
+    """
+
+    def test_left_threat_with_forward_contact_reverses(self, controller):
+        ranges = create_numpy_scan()
+        left_i = angle_to_index(math.pi / 2)
+        ranges[left_i - 6 : left_i + 6] = 0.20  # left sector alone reads clear (not touching)
+        front_i = angle_to_index(0.0)
+        ranges[front_i - 4 : front_i + 4] = 0.08  # but forward is already at contact_dist
+        maneuver = controller.compute_escape_maneuver(RiskLevel.CRITICAL, "left", ranges, ANGLES_FULL_ROTATION)
+        assert maneuver.speed < 0  # reverses instead of creeping forward into the wall
+        assert maneuver.steering > 0  # reverse frame: still swings away, same as a side-touch reversal
+
+    def test_right_threat_with_forward_contact_reverses(self, controller):
+        ranges = create_numpy_scan()
+        right_i = angle_to_index(-math.pi / 2)
+        ranges[right_i - 6 : right_i + 6] = 0.20  # right sector alone reads clear
+        front_i = angle_to_index(0.0)
+        ranges[front_i - 4 : front_i + 4] = 0.08  # forward already at contact_dist
+        maneuver = controller.compute_escape_maneuver(RiskLevel.CRITICAL, "right", ranges, ANGLES_FULL_ROTATION)
+        assert maneuver.speed < 0
+        assert maneuver.steering < 0  # reverse frame: still swings away
+
+    def test_left_threat_with_forward_and_side_clear_still_creeps(self, controller):
+        # Regression guard: forward clear + side clear must still creep, not
+        # reverse on every tick regardless of actual clearance.
+        ranges = create_numpy_scan()
+        left_i = angle_to_index(math.pi / 2)
+        ranges[left_i - 6 : left_i + 6] = 0.20
+        maneuver = controller.compute_escape_maneuver(RiskLevel.CRITICAL, "left", ranges, ANGLES_FULL_ROTATION)
+        assert maneuver.speed > 0
+
+
 class TestSelfDetectionFilter:
     """Chassis/cable reflections at <= 0.08 m on side/rear sectors must not
     permanently read as a wall — that would block every reverse escape.

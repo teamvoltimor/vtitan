@@ -650,7 +650,9 @@ class CollisionAvoidanceController:
             # already touching instead of away from it whenever this branch
             # reversed -- measured pinning a side at 4.5cm clearance for the rest
             # of a run that never recovered.
-            already_touching = self._side_clearance(math.pi / 2, lidar_ranges, lidar_angles) < self.contact_dist
+            already_touching = self._side_clearance(
+                math.pi / 2, lidar_ranges, lidar_angles
+            ) < self.contact_dist or self._forward_touching(lidar_ranges, lidar_angles)
             steer_sign = 1.0 if already_touching else -1.0
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
@@ -664,7 +666,9 @@ class CollisionAvoidanceController:
             # Threat on the right — steer left (away): positive steering while
             # creeping forward, negative once already touching and reversing, for
             # the same reverse-flips-yaw reason as the LEFT branch above.
-            already_touching = self._side_clearance(-math.pi / 2, lidar_ranges, lidar_angles) < self.contact_dist
+            already_touching = self._side_clearance(
+                -math.pi / 2, lidar_ranges, lidar_angles
+            ) < self.contact_dist or self._forward_touching(lidar_ranges, lidar_angles)
             steer_sign = -1.0 if already_touching else 1.0
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
@@ -716,6 +720,31 @@ class CollisionAvoidanceController:
             blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
+
+    def _forward_touching(
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...] | None,
+        lidar_angles: np.ndarray | tuple[float, ...] | None,
+    ) -> bool:
+        """Whether the chassis is already at ``contact_dist`` or closer straight ahead.
+
+        ``_side_clearance`` alone cannot see this: a robot pinned at an angle
+        into a corner can be touching in front while its side sector still
+        reads clear, so a SIDE_CORRECTION whose "already touching" check only
+        looks sideways keeps creeping forward into the wall it is already
+        touching instead of reversing -- measured on hardware pinning a robot
+        nose-first for up to 23s across three runs that never recovered
+        (2026-08-28). Reuses ``assess_risk``'s own forward-path geometry (the
+        chassis-width lane, not ``detect_threat_direction``'s narrower angular
+        cone) so this agrees with whatever risk level triggered the escape in
+        the first place.
+        """
+        if lidar_ranges is None or len(lidar_ranges) == 0:
+            return False
+        path = self._forward_path_ranges(lidar_ranges, lidar_angles)
+        if path.size == 0:
+            return False
+        return bumper_gap_ahead(float(np.min(path))) < self.contact_dist
 
     @staticmethod
     def sector_ranges(
