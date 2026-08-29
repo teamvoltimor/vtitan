@@ -2,7 +2,6 @@ package supervise_test
 
 import (
 	"net"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -66,21 +65,34 @@ func TestNotify_SendsStateToConfiguredSocket(t *testing.T) {
 	}
 }
 
-func TestNotify_AbstractSocketPrefixTranslatesToNULByte(t *testing.T) {
-	socketPath, listener := listenNotifySocket(t)
-	t.Setenv("NOTIFY_SOCKET", "@"+socketPath[1:])
+// listenAbstractNotifySocket binds a listener directly in the Linux
+// abstract socket namespace (a leading NUL byte in the address, not a
+// filesystem path) -- the actual target Notify's "@" rewrite dials, and a
+// wholly disjoint address space from any path-based socket: replacing "@"
+// with NUL never resolves back to a real filesystem path (e.g. "@/tmp/x"
+// becomes "\x00/tmp/x", which the kernel treats as the abstract name
+// "/tmp/x", not a lookup of the file "/tmp/x"), so this is the only way to
+// exercise that code path for real rather than by coincidence.
+func listenAbstractNotifySocket(t *testing.T) (name string, listener *net.UnixConn) {
+	t.Helper()
 
-	err := supervise.Notify(t.Context(), supervise.WatchdogState)
-	if socketPath[0] != os.PathSeparator && socketPath[0] != '/' {
-		// The "@" abstract-socket convention rewrites the leading byte and
-		// otherwise leaves the path text untouched, so this substitution
-		// only round-trips back to socketPath's real filesystem path when
-		// its first character was itself the separator being replaced --
-		// true for every t.TempDir()-based path on the platforms this
-		// module targets, but guarded explicitly rather than assumed.
-		t.Skip("socketPath does not start with a path separator, abstract-socket rewrite would not target it")
-	}
+	name = "\x00vtitan-test-notify-" + t.Name()
+	addr := &net.UnixAddr{Name: name, Net: "unixgram"}
+
+	listener, err := net.ListenUnixgram("unixgram", addr)
 	if err != nil {
+		t.Skipf("abstract unixgram sockets unavailable on this platform: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	return name, listener
+}
+
+func TestNotify_AbstractSocketPrefixTranslatesToNULByte(t *testing.T) {
+	name, listener := listenAbstractNotifySocket(t)
+	t.Setenv("NOTIFY_SOCKET", "@"+name[1:])
+
+	if err := supervise.Notify(t.Context(), supervise.WatchdogState); err != nil {
 		t.Fatalf("Notify() error = %v, want nil", err)
 	}
 
