@@ -627,13 +627,16 @@ class TestHudTelemetryCaching:
         node.destroy_node()
 
     def test_snapshot_derives_scan_angles_from_angle_min_and_increment(self, ros_context, direct_node_class):
+        from src.ros2.vision.node import _LIDAR_YAW_OFFSET_RAD
+
         VisionNode, _ = direct_node_class
         node = VisionNode()
         node._on_scan(LaserScan(angle_min=-1.0, angle_increment=0.5, ranges=[1.0, 2.0, 3.0]))
 
         snapshot = node._build_frame_snapshot(np.zeros((2, 2, 3), dtype=np.uint8))
 
+        offset = _LIDAR_YAW_OFFSET_RAD
         assert snapshot.scan_ranges == [1.0, 2.0, 3.0]
-        assert snapshot.scan_angles == pytest.approx([-1.0, -0.5, 0.0])
+        assert snapshot.scan_angles == pytest.approx([-1.0 + offset, -0.5 + offset, 0.0 + offset])
 
         node.destroy_node()
