@@ -31,27 +31,56 @@ def counts_to_distance(counts: int, counts_per_rev: float, wheel_diameter_m: flo
 class SpeedEstimator:
     """Estimate signed output-shaft RPM from successive encoder counts.
 
-    Applies light exponential smoothing to suppress quantisation jitter.
+    Accumulates counts/dt over a minimum window before computing a rate, then
+    applies light exponential smoothing to what's left. A single caller tick
+    (e.g. a ~20ms PID period) is not enough window on its own at low RPM and
+    coarse counts_per_rev: bench data at 86 counts_per_rev / 13.6rpm target
+    (2026-08-28) averages ~0.39 counts per ~20ms tick, so a per-tick rate is
+    computed from a raw 0-vs-1 count difference -- a >100% relative swing
+    that smoothing alone cannot remove, since it damps a noisy signal rather
+    than fixing the signal's own resolution. Widening the window to
+    min_window_s trades responsiveness (a real lag of up to that long between
+    a real speed change and it showing up here) for a much lower noise floor
+    (at the same operating point, a 0.1s window averages ~1.95 counts, so a
+    +-1 count difference is a ~50% swing instead of >100%). Default chosen as
+    a reasoned middle ground, NOT live-verified against real oscillation
+    behavior -- re-check via base.py's "PID step" debug log after any
+    counts_per_rev/target-rpm change before trusting it.
     """
 
-    def __init__(self, counts_per_rev: float, smoothing: float = 0.3) -> None:
+    def __init__(
+        self,
+        counts_per_rev: float,
+        smoothing: float = 0.3,
+        min_window_s: float = 0.1,
+    ) -> None:
         if counts_per_rev <= 0:
             raise ValueError(_CPR_POSITIVE)
         if not 0.0 < smoothing <= 1.0:
             msg = "smoothing must be in (0, 1]"
             raise ValueError(msg)
+        if min_window_s < 0.0:
+            msg = "min_window_s must be >= 0"
+            raise ValueError(msg)
         self._counts_per_rev = counts_per_rev
         self._smoothing = smoothing
+        self._min_window_s = min_window_s
         self._prev_counts: int | None = None
+        self._window_counts = 0
+        self._window_dt = 0.0
         self._rpm = 0.0
 
     def reset(self) -> None:
         """Forget history (call when the encoder is reset or motion stops)."""
         self._prev_counts = None
+        self._window_counts = 0
+        self._window_dt = 0.0
         self._rpm = 0.0
 
     def update(self, counts: int, dt: float) -> float:
-        """Fold in a new count reading and return the smoothed RPM."""
+        """Fold in a new count reading; return the smoothed RPM once enough
+        window has accumulated, otherwise the held value from the last
+        completed window."""
         if dt <= 0:
             return self._rpm
         if self._prev_counts is None:
@@ -59,9 +88,15 @@ class SpeedEstimator:
             return self._rpm
         delta = counts - self._prev_counts
         self._prev_counts = counts
-        revs = delta / self._counts_per_rev
-        rpm_raw = revs / dt * 60.0
+        self._window_counts += delta
+        self._window_dt += dt
+        if self._window_dt < self._min_window_s:
+            return self._rpm
+        revs = self._window_counts / self._counts_per_rev
+        rpm_raw = revs / self._window_dt * 60.0
         self._rpm = self._smoothing * rpm_raw + (1.0 - self._smoothing) * self._rpm
+        self._window_counts = 0
+        self._window_dt = 0.0
         return self._rpm
 
 

@@ -64,6 +64,39 @@ class TestSpeedEstimator:
         est = SpeedEstimator(counts_per_rev=200)
         assert est.update(500, dt=0.0) == 0.0
 
+    def test_window_holds_last_value_until_min_window_elapsed(self):
+        # min_window_s=0.1, three 0.03s ticks (0.09s total) don't reach it.
+        est = SpeedEstimator(counts_per_rev=200, smoothing=1.0, min_window_s=0.1)
+        est.update(0, dt=0.03)
+        assert est.update(1, dt=0.03) == 0.0
+        assert est.update(1, dt=0.03) == 0.0
+
+    def test_window_computes_rate_once_min_window_elapsed(self):
+        # 86 cpr / ~0.39 counts per 0.02s tick, the bench regime this widened
+        # window exists for. First call only seeds prev_counts; five more
+        # 0.02s ticks (0.1s) are needed to reach min_window_s, accumulating
+        # 2 counts total.
+        est = SpeedEstimator(counts_per_rev=86, smoothing=1.0, min_window_s=0.1)
+        est.update(0, dt=0.02)  # seed
+        est.update(0, dt=0.02)
+        est.update(0, dt=0.02)
+        est.update(1, dt=0.02)
+        est.update(1, dt=0.02)
+        # 2 counts / 86 cpr / 0.1s * 60 = 13.95... rpm.
+        assert est.update(2, dt=0.02) == pytest.approx(2 / 86 / 0.1 * 60)
+
+    def test_window_resets_after_computing(self):
+        est = SpeedEstimator(counts_per_rev=200, smoothing=1.0, min_window_s=0.1)
+        est.update(0, dt=0.1)
+        first = est.update(200, dt=0.1)  # window completes: 1 rev / 0.1s = 600 rpm
+        assert first == pytest.approx(600.0)
+        # Immediately after, a single small tick shouldn't reuse stale window state.
+        assert est.update(200, dt=0.01) == pytest.approx(600.0)  # held, window not yet full
+
+    def test_rejects_negative_min_window(self):
+        with pytest.raises(ValueError, match="min_window_s"):
+            SpeedEstimator(counts_per_rev=200, min_window_s=-0.1)
+
 
 class TestPIDController:
     def test_output_clamped(self):
