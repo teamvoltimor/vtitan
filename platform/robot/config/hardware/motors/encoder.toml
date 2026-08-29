@@ -121,11 +121,25 @@ counts_per_rev = 60.0
 #     FAST       0.419      0.546    0.275        0.419
 #     mean |ff - true|:      0.065    0.161        0.000
 #
-# NOT LIVE-VERIFIED. The two clean 3-lap runs (run_20260829_1300xx) were driven
-# with 175 and no deadband term; this is expected to be better but has not been
-# run. It also interacts with pid_kp/pid_ki below, whose ~8x rescale is still
-# unverified -- if this run disappoints, revert THIS pair before touching those,
-# or neither result is attributable.
+# LIVE-VERIFIED 2026-08-29, run_20260829_140424 -- 3 clean laps:
+#
+#     config                        laps  time     cmd      enc    enc/cmd
+#     175, no deadband (baseline)    3   142.3s   32.36m  32.14m   0.993
+#     348 + deadband 0.20 (this)     3   132.5s   30.50m  31.16m   1.022
+#
+# Faster over a shorter commanded path, and still tracking to ~2%. That 2.2%
+# over-delivery works out to ~0.003 duty of excess feedforward at a typical
+# 55 rpm setpoint, i.e. the true deadband is ~0.197 rather than 0.200 -- close
+# enough that fitting it further is not worth a hardware session.
+#
+# WARNING, cost an aborted revert: this MUST be judged with the wheels LOADED.
+# Tested on a stand it reads as a 35% overshoot (135% of setpoint at 0.15 m/s,
+# 117% at 0.30), because the feedforward is calibrated for the loaded curve
+# (rpm = 434.6*duty - 86.7) while unloaded the same duty gives far more rpm
+# (rpm = 661.8*duty - 121.0). On the floor the same config tracks to 2%.
+#
+# pid_kp/pid_ki below still carry an unverified ~8x rescale, and that is now the
+# last unverified thing in this loop -- change it alone and re-run.
 #
 # Do NOT justify a future change to this value with commanded-vs-achieved
 # speed derived from nav_debug pose path length. That measure accumulates
