@@ -1,24 +1,14 @@
 package directionestimator
 
-// Direction is the robot's travel direction around the WRO track loop,
-// mirroring shared.domain.enums.Direction.
-type Direction int
+import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+
+// Direction re-exports trackmodel.Direction -- see that type's doc comment
+// for why it lives there rather than here. A true alias, not a new type,
+// so existing callers of directionestimator.Direction/Clockwise/
+// Counterclockwise keep working unchanged.
+type Direction = trackmodel.Direction
 
 const (
-	// Clockwise matches Direction.CLOCKWISE.
-	Clockwise Direction = iota
-	// Counterclockwise matches Direction.COUNTERCLOCKWISE.
-	Counterclockwise
+	Clockwise        = trackmodel.Clockwise
+	Counterclockwise = trackmodel.Counterclockwise
 )
-
-// String returns a short label for logging.
-func (d Direction) String() string {
-	switch d {
-	case Clockwise:
-		return "clockwise"
-	case Counterclockwise:
-		return "counterclockwise"
-	default:
-		return "unknown"
-	}
-}
