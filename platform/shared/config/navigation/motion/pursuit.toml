@@ -6,7 +6,16 @@ lookahead_short = 0.16        # Lookahead distance for sharp corners (m)
 lookahead_long = 0.32         # Lookahead distance for straights (m)
 lookahead_transition = 0.30   # Crosstrack error threshold to switch modes (m) -- a ceiling; see below
 steer_kp = 1.2                # Proportional gain for the steering P-controller
-max_steering_rate = 2.0       # Maximum steering command rate (rad/s)
+# PROVISIONAL, 2026-08-28: lowered from 2.0. Real hardware bag
+# (run_20260828_220533) showed the controller repeatedly saturating against
+# this cap at hard corners -- steering swinging exactly 0.6 rad (rate x 0.3s
+# window) at many unrelated corners throughout the run, which is what read as
+# "too drastic" on the track. Past sim sweeps only tested RAISING this value
+# (1.5x/3.0x), both of which scored worse than baseline (107 vs 114,
+# speed-envelope.md) -- indirect evidence a lower rate costs little, but this
+# exact value is untested; re-check lap completion if this regresses hardware
+# cornering.
+max_steering_rate = 1.2       # Maximum steering command rate (rad/s)
 
 # The operative crosstrack threshold is the smaller of lookahead_transition and
 # what the path's own distance to the outer wall actually affords. Under the
