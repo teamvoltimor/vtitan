@@ -28,5 +28,24 @@ min_lookahead_transition_m = 0.10  # Floor for the derived threshold (m)
 # been missed, so gating the lookahead on it alone lands the sharp correction
 # after the corner rather than in it (hardware, 2026-08-06). Previewing the
 # planned path's own turn arms the short lookahead on entry instead.
-corner_preview_distance_m = 0.40   # Path distance previewed for an upcoming turn (m)
+#
+# Was 0.40, which gave that preview NO LEAD AT ALL. Computed 2026-08-29 by
+# running the real planner and path_turn_ahead against the geometric arc entry
+# (all-narrow blind prior, seconds at 0.35 m/s):
+#
+#   preview  lead before the arc   short lookahead armed over lap (narrow/wide)
+#     0.40      0.000 m (0.00 s)                27% / 38%
+#     0.80      0.257 m (0.73 s)                38% / 64%
+#     1.00      0.514 m (1.47 s)                49% / 73%
+#     1.20      0.772 m (2.21 s)                61% / 100%
+#
+# Waypoint spacing is 0.117-0.258 m, and the preview must clear the straight
+# remainder AND reach into the arc before any heading change registers, so 0.40
+# armed exactly AT the arc -- the "a corner late" failure this preview exists to
+# prevent. 0.80 is the smallest value that leads at all; larger spends more of
+# the lap on the short lookahead, and curvature is quadratic in it.
+corner_preview_distance_m = 0.80   # Path distance previewed for an upcoming turn (m)
+# Insensitive over 0.21-0.58: the signal is quantised by waypoint spacing and
+# jumps 0.00 -> 0.59 in one step, so every threshold in that band arms at the
+# same waypoint. Not the lever for turn timing -- see the preview above.
 corner_turn_threshold_rad = 0.35   # Heading change over that preview that counts as a corner

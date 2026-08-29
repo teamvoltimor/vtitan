@@ -103,11 +103,48 @@ class PurePursuitParams(BaseModel):
             0.9 rad of heading error for three seconds at 0.23 of full lock,
             and only once crosstrack reached 0.13 did the short lookahead arm
             and steering jump to 0.52 -- the right magnitude, ~1.5 s late.
+
+            Was 0.40, which gave the leading signal NO LEAD AT ALL. Computed
+            2026-08-29 by running the real planner and ``path_turn_ahead``
+            against the geometric arc entry, on the all-narrow blind prior:
+
+              preview  lead before the arc   armed over the lap (narrow/wide)
+                0.40      0.000 m  (0.00 s)          27% / 38%
+                0.60      0.000 m  (0.00 s)            -
+                0.80      0.257 m  (0.73 s)          38% / 64%
+                1.00      0.514 m  (1.47 s)          49% / 73%
+                1.20      0.772 m  (2.21 s)          61% / 100%
+
+            (seconds at 0.35 m/s.) The preview has to span the straight
+            remainder AND reach into the arc before any heading change
+            registers, and waypoint spacing is 0.117-0.258 m (mean 0.205), so
+            0.40 m simply never got there -- the short lookahead armed exactly
+            AT the arc, which is the "a corner late" failure this field exists
+            to prevent, still present with the field in place.
+
+            0.80 is the SMALLEST value that leads at all. Not larger, because
+            the cost is the fraction of the lap spent on the short lookahead,
+            and curvature is quadratic in it (2y/L**2): 1.20 arms it over an
+            entire wide lap, which is no longer "corner mode" but a permanently
+            higher gain, and hardware run_20260829_100947 already showed a
+            +-0.18 m weave in a corridor whose total margin is 0.203 m.
+            Geometry, not a track measurement -- the sim cannot show tracking.
         CORNER_TURN_THRESHOLD_RAD: Heading change within the preview distance
             above which the corner is treated as imminent and the short
-            lookahead engages. A straight reads ~0; a corner on the default
-            0.45 m arc turns preview/0.45 rad, so 0.40 m of preview reads
-            ~0.89 rad. The default sits well clear of both.
+            lookahead engages. A straight reads ~0; a corner reads roughly
+            preview/arc_radius, and the arc radius is set per corner by the
+            corridors it joins (ARC_RADIUS is only a cap and does not bind on
+            this track), so 0.30-0.40 m radii put a corner well above this.
+
+            Insensitive over a wide band, so do not reach for it to change
+            WHEN the turn arms. The signal is quantised by waypoint spacing:
+            measured 2026-08-29 on the all-narrow prior, one corner reads
+            ``0.00 0.00 0.59 1.18 0.98 0.59 0.20 0.00``, jumping 0.00 -> 0.59
+            in a single step, so every threshold in 0.21-0.58 arms at the
+            identical waypoint (16/44 either way). Dropping to 0.15 only
+            catches the trailing 0.20, holding the short lookahead longer on
+            corner EXIT -- it does nothing at entry. Entry timing is set by
+            CORNER_PREVIEW_DISTANCE_M; see its note.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -132,7 +169,7 @@ class PurePursuitParams(BaseModel):
         default=0.10, validation_alias=_alias("MIN_LOOKAHEAD_TRANSITION_M")
     )  # Floor for the derived threshold
     CORNER_PREVIEW_DISTANCE_M: float = Field(
-        default=0.40, validation_alias=_alias("CORNER_PREVIEW_DISTANCE_M")
+        default=0.80, validation_alias=_alias("CORNER_PREVIEW_DISTANCE_M")
     )  # Path distance previewed for an upcoming turn
     CORNER_TURN_THRESHOLD_RAD: float = Field(
         default=0.35, validation_alias=_alias("CORNER_TURN_THRESHOLD_RAD")
