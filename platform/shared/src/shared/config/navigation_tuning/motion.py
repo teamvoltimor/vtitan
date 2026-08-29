@@ -95,6 +95,33 @@ class PurePursuitParams(BaseModel):
             Without it a path planned very close to a wall would pin the
             controller to the short lookahead permanently, which is twitchy on
             straights -- trading one failure for another.
+        LOOKAHEAD_BLEND_START: Fraction of either arming threshold at which the
+            lookahead begins sliding from LOOKAHEAD_LONG toward
+            LOOKAHEAD_SHORT, reaching short at the threshold itself. 1.0
+            restores the original hard switch.
+
+            The switch used to be a bare ``value > threshold`` step on both
+            signals. In normal driving both hover near their thresholds, so the
+            lookahead flipped long/short on consecutive ticks -- hardware
+            run_20260829_104641 shows ``0.320, 0.160, 0.320, 0.160`` at
+            ~2.5 Hz. Curvature is ``2y/L**2``, quadratic in the lookahead, so
+            every flip swung the commanded curvature by 4x and the chassis
+            drew a visible zigzag down the corridor. Steering effort rose with
+            it: mean peak |steer| through corners 0.306 -> 0.398 against the
+            pre-change baseline, while crosstrack did not improve.
+
+            Ramping instead of switching removes the discontinuity rather than
+            debouncing it -- there is no 4x jump left for hysteresis to
+            suppress, and the response becomes proportional to how far off the
+            robot actually is.
+
+            0.7 keeps a deadband: below 70% of the threshold the long lookahead
+            is untouched, so straights stay exactly as calm as before and only
+            the approach to the limit tightens. It is also the largest value
+            that leaves every pre-existing lookahead assertion true (the two
+            "must stay long" cases sit at 0.50 and 0.571 of their thresholds),
+            which is deliberate -- this refines the behaviour without
+            re-baselining the tests that pinned it.
         CORNER_PREVIEW_DISTANCE_M: How far along the planned path to look for
             an upcoming turn. Crosstrack error is a lagging signal -- it cannot
             rise until the corner has already been missed -- so gating the
@@ -168,6 +195,9 @@ class PurePursuitParams(BaseModel):
     MIN_LOOKAHEAD_TRANSITION_M: float = Field(
         default=0.10, validation_alias=_alias("MIN_LOOKAHEAD_TRANSITION_M")
     )  # Floor for the derived threshold
+    LOOKAHEAD_BLEND_START: float = Field(
+        default=0.70, validation_alias=_alias("LOOKAHEAD_BLEND_START")
+    )
     CORNER_PREVIEW_DISTANCE_M: float = Field(
         default=0.80, validation_alias=_alias("CORNER_PREVIEW_DISTANCE_M")
     )  # Path distance previewed for an upcoming turn

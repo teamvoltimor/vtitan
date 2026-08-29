@@ -5,6 +5,17 @@
 lookahead_short = 0.16        # Lookahead distance for sharp corners (m)
 lookahead_long = 0.32         # Lookahead distance for straights (m)
 lookahead_transition = 0.30   # Crosstrack error threshold to switch modes (m) -- a ceiling; see below
+
+# The switch from long to short used to be a bare step on both arming signals.
+# Both hover near their thresholds in normal driving, so the lookahead flipped
+# every tick -- hardware run_20260829_104641 shows 0.320, 0.160, 0.320, 0.160 at
+# ~2.5 Hz. Curvature is 2y/L**2, quadratic in lookahead, so each flip swung the
+# commanded curvature by 4x and the chassis drew a visible zigzag; mean peak
+# |steer| through corners rose 0.306 -> 0.398 with no crosstrack gain.
+# Ramping removes the discontinuity rather than debouncing it. 0.7 keeps a
+# deadband so straights are untouched below 70% of the threshold, and is the
+# largest value that leaves every pre-existing lookahead test true.
+lookahead_blend_start = 0.70  # Fraction of the threshold where the ramp begins (1.0 = old hard switch)
 steer_kp = 1.2                # Proportional gain for the steering P-controller
 # PROVISIONAL, 2026-08-28: lowered from 2.0. Real hardware bag
 # (run_20260828_220533) showed the controller repeatedly saturating against

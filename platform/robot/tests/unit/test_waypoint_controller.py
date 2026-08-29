@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
@@ -249,3 +250,62 @@ class TestUpcomingTurnArmsTheShortLookahead:
         controller = self._controller()
         assert controller.select_lookahead(0.01) == pytest.approx(0.40)
         assert controller.select_lookahead(0.35) == pytest.approx(0.20)
+
+
+class TestLookaheadRampsRatherThanSwitching:
+    """The switch used to be a step, and both arming signals sit near their
+    thresholds in normal driving -- so it flipped long/short on consecutive
+    ticks (hardware run_20260829_104641: 0.320, 0.160, 0.320, 0.160 at ~2.5 Hz).
+    Curvature is 2y/L**2, so each flip swung the command by 4x and the chassis
+    drew a visible zigzag. These pin the ramp that removes the discontinuity.
+    """
+
+    def _controller(self, **overrides):
+        settings = {
+            "lookahead_transition": 0.30,
+            "lookahead_short": 0.20,
+            "lookahead_long": 0.40,
+            "corner_turn_threshold_rad": 0.35,
+            "lookahead_blend_start": 0.70,
+        }
+        settings.update(overrides)
+        return _make_controller(**settings)
+
+    def test_no_single_step_moves_the_lookahead_far(self):
+        """The actual anti-zigzag property: a small change in crosstrack cannot
+        produce a large change in lookahead. Under the old step this failed by
+        construction -- one tick either side of the threshold spanned the whole
+        0.20 m range.
+        """
+        controller = self._controller()
+        xs = [i * 0.005 for i in range(81)]  # 0 -> 0.40 m in 5 mm steps
+        looks = [controller.select_lookahead(x) for x in xs]
+        biggest_jump = max(abs(b - a) for a, b in pairwise(looks))
+        span = controller.lookahead_long - controller.lookahead_short
+        assert biggest_jump <= span / 4
+
+    def test_lookahead_never_increases_as_the_robot_strays(self):
+        """Monotone: straying further may only tighten tracking, never loosen
+        it. A non-monotone blend would let a worsening error relax the
+        correction, which is the failure mode this whole path exists to avoid.
+        """
+        controller = self._controller()
+        looks = [controller.select_lookahead(i * 0.01) for i in range(41)]
+        assert all(b <= a + 1e-12 for a, b in pairwise(looks))
+
+    def test_the_deadband_leaves_straights_untouched(self):
+        """Below the blend start the long lookahead must be exactly unchanged,
+        so this cannot make calm driving twitchier than it already was.
+        """
+        controller = self._controller()
+        below = 0.70 * controller.effective_transition * 0.99
+        assert controller.select_lookahead(below) == pytest.approx(controller.lookahead_long)
+
+    def test_blend_start_of_one_restores_the_hard_switch(self):
+        """The escape hatch: 1.0 must reproduce the original step exactly, so
+        the ramp can be disabled from config without a code change.
+        """
+        controller = self._controller(lookahead_blend_start=1.0)
+        t = controller.effective_transition
+        assert controller.select_lookahead(t * 0.99) == pytest.approx(controller.lookahead_long)
+        assert controller.select_lookahead(t * 1.01) == pytest.approx(controller.lookahead_short)

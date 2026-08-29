@@ -16,7 +16,7 @@ from shared.config.constants import RobotSpecs
 from shared.domain.models import Pose, Waypoint
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.utils import pure_pursuit_steer
+from src.navigation.utils import clamp, pure_pursuit_steer
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
@@ -58,6 +58,7 @@ class WaypointController:
         max_steering_rate: float,
         waypoint_reached_distance_m: float,
         corner_turn_threshold_rad: float,
+        lookahead_blend_start: float = 1.0,
     ):
         """Initialize pure pursuit controller.
 
@@ -75,6 +76,10 @@ class WaypointController:
                 target waypoint is considered reached (m)
             corner_turn_threshold_rad: Upcoming-turn threshold for engaging
                 the short lookahead (rad)
+            lookahead_blend_start: Fraction of either threshold at which the
+                lookahead starts sliding from long toward short. 1.0 (the
+                default) reproduces the original hard switch exactly, so a
+                caller that does not pass it is unaffected.
         """
         self.max_steering_angle = max_steering_angle
         self.lookahead_short = lookahead_short
@@ -84,6 +89,7 @@ class WaypointController:
         self.max_steering_rate = max_steering_rate
         self.waypoint_reached_distance_m = waypoint_reached_distance_m
         self.corner_turn_threshold_rad = corner_turn_threshold_rad
+        self.lookahead_blend_start = lookahead_blend_start
         self._prev_steering_rad = 0.0
         # How much crosstrack the current path can absorb before the chassis
         # reaches an outer wall. None until a path is set, meaning
@@ -113,6 +119,7 @@ class WaypointController:
             max_steering_rate=tuning.pursuit.MAX_STEERING_RATE,
             waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
             corner_turn_threshold_rad=tuning.pursuit.CORNER_TURN_THRESHOLD_RAD,
+            lookahead_blend_start=tuning.pursuit.LOOKAHEAD_BLEND_START,
         )
 
     def select_lookahead(
@@ -194,13 +201,46 @@ class WaypointController:
         Returns:
             Lookahead distance in meters
         """
-        if crosstrack_error > self.effective_transition:
-            return self.lookahead_short
-        if turn_ahead_rad > self.corner_turn_threshold_rad:
-            return self.lookahead_short
-        if sign_ahead:
-            return self.lookahead_short
-        return self.lookahead_long
+        demand = max(
+            self._demand(crosstrack_error, self.effective_transition),
+            self._demand(turn_ahead_rad, self.corner_turn_threshold_rad),
+            1.0 if sign_ahead else 0.0,
+        )
+        return self.lookahead_long + (self.lookahead_short - self.lookahead_long) * demand
+
+    def _demand(self, value: float, threshold: float) -> float:
+        """How far toward the short lookahead one signal asks to go, in [0, 1].
+
+        Zero until ``value`` reaches ``lookahead_blend_start`` of ``threshold``,
+        then ramps linearly to 1.0 at the threshold itself.
+
+        Was a bare ``value > threshold`` step, which is why this exists. Both
+        signals hover near their thresholds in normal driving, and a step there
+        flips the lookahead between long and short on consecutive ticks --
+        observed on hardware run_20260829_104641 as ``0.320, 0.160, 0.320,
+        0.160`` at ~2.5 Hz. Because curvature is ``2y/L**2``, quadratic in the
+        lookahead, each flip swings the commanded curvature by 4x, which the
+        chassis renders as a visible zigzag. Hysteresis would stop the chatter
+        but keep the 4x jump; a ramp removes the discontinuity itself, so
+        there is no jump left to chatter.
+
+        ``lookahead_blend_start=1.0`` collapses this back to the original step,
+        which is the constructor default -- the ramp is opt-in via tuning.
+
+        Args:
+            value: Current signal magnitude (crosstrack m, or turn rad).
+            threshold: Value at which the short lookahead is fully engaged.
+
+        Returns:
+            Blend factor in [0, 1]; 0 keeps the long lookahead, 1 the short.
+        """
+        if threshold <= 0.0:
+            return 0.0
+        ratio = value / threshold
+        if self.lookahead_blend_start >= 1.0:
+            return 1.0 if ratio > 1.0 else 0.0
+        span = 1.0 - self.lookahead_blend_start
+        return clamp((ratio - self.lookahead_blend_start) / span, 0.0, 1.0)
 
     @property
     def effective_transition(self) -> float:
