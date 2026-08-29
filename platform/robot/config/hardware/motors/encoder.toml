@@ -46,15 +46,28 @@ pin_b = 20
 # The 0.1 m/s set is the clean one: the wheels cannot be pushed by hand, so at
 # creep there is effectively no roll-out.
 #
-# PROVISIONAL, NOT LIVE-VERIFIED. The apparent contradiction with track bags
-# (encoder 28.46 m vs LIDAR pose 28.62 m on run_20260829_003233, agreeing to
-# 0.5%) is NOT evidence against this: localization.toml's max_speed_mps was
-# 0.25, so pose updates implying more than that were discarded outright. Both
-# measures were suppressed in the same direction. That gate is raised to 0.60
-# in the same commit -- without it, the next run cannot test this value either.
+# LIVE-VERIFIED 2026-08-29 on two consecutive clean 3-lap runs:
 #
-# The run that decides it: compare encoder distance against pose on one lap.
-# If 60 is right they agree; if 86 was right the encoder reads ~1.43x pose.
+#   run_20260829_130309  encoder 32.14 m | pose 30.46 m | ratio 1.055
+#   run_20260829_130018  encoder 32.10 m | pose 30.03 m | ratio 1.069
+#
+# If 86 had been right the encoder would read ~1.43x pose. It reads ~1.06, and
+# the residual is the expected sign and size for a 1 s-decimated pose path
+# chording across corner arcs. Commanded vs achieved also closed: 32.36 m
+# commanded against 32.14 m encoder (0.7%), where the robot had previously been
+# delivering ~44% more than asked.
+#
+# Both were the first 3-lap runs of the session; before this the robot could not
+# finish two. The chain: cpr too high -> encoder under-reads -> loop drives 1.44x
+# fast -> FAST needs duty 0.514 against a 0.50 cap -> saturation -> lap-2
+# collapse. Fixing this one constant removed all of it; fast_mps and max_duty
+# were never the problem.
+#
+# The earlier apparent contradiction (encoder 28.46 m vs pose 28.62 m on
+# run_20260829_003233, agreeing to 0.5%) was an artifact: localization.toml's
+# max_speed_mps was 0.25, so pose updates above that were discarded while the
+# encoder under-read. Two measurements suppressed in the same direction. That
+# gate went to 0.60 in the same commit, which is what made this testable.
 counts_per_rev = 60.0
 
 # Maximum achievable WHEEL rpm AT 100% DUTY. counts_per_rev counts WHEEL
@@ -91,13 +104,35 @@ counts_per_rev = 60.0
 # 175 puts every tier except fast_mps (0.35 -> ff 0.546, still clamped) inside
 # the duty budget. Raising max_duty is the separate fix for that tier.
 #
-# NOT derived from measured 100%-duty rpm -- that is still unmeasured (see
-# max_duty below). 175 is the value that makes the shipped speed ladder fit
-# the duty budget with margin, chosen against the same bag's operating range.
+# NOT the physical 100%-duty rpm, and DELIBERATELY SO -- do not "correct" it.
 #
-# PROVISIONAL, NOT LIVE-VERIFIED. It interacts with pid_kp/pid_ki below, whose
-# own ~8x rescale is also unverified -- change THIS alone and re-run before
-# touching those, or neither result is attributable.
+# The physical value IS now measured: 2026-08-29 bench, loaded, at cpr=60,
+#     rpm = 434.6*duty - 86.7   (R^2 0.9999, deadband at duty 0.200)
+#     => 348 rpm at 100% duty = 1.28 m/s
+#
+# But the feedforward is `duty = rpm / max_rpm`, a line through the ORIGIN,
+# while the real relation has that 0.200 deadband. Setting max_rpm to the true
+# 348 makes the feedforward under-command across the whole ladder and dumps the
+# difference on the integrator:
+#
+#     tier     true duty   ff@175   ff@348
+#     CREEP      0.295      0.237    0.119
+#     SLOW       0.325      0.312    0.157
+#     MEDIUM     0.375      0.437    0.220
+#     FAST       0.419      0.546    0.275
+#     mean |ff - true|:      0.065    0.161
+#
+# The best through-origin fit over the shipped tier range is 192, and 175 sits
+# near it. So this field is functioning as an EFFECTIVE FEEDFORWARD GAIN that
+# compensates for the missing deadband -- not as the physical ceiling its name
+# claims. Two clean 3-lap runs (run_20260829_1300xx) were driven with 175.
+#
+# The real fix is to give the feedforward the deadband it lacks
+# (duty = 0.200 + rpm/434.6), after which max_rpm can be the honest 348. Until
+# then, changing this to 348 is a REGRESSION, not a correction.
+#
+# It also interacts with pid_kp/pid_ki below, whose ~8x rescale is still
+# unverified -- change THIS alone and re-run, or neither result is attributable.
 #
 # Do NOT justify a future change to this value with commanded-vs-achieved
 # speed derived from nav_debug pose path length. That measure accumulates
