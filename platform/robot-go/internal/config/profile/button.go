@@ -1,16 +1,5 @@
 package profile
 
-// DefaultButtonGPIOTOMLPath is
-// platform/robot/config/hardware/button/gpio.toml, relative to the repo
-// root.
-const DefaultButtonGPIOTOMLPath = "platform/robot/config/hardware/button/gpio.toml"
-
-// DefaultButtonNodeTOMLPath is
-// platform/robot/config/hardware/button/button_node.toml, relative to the
-// repo root -- the ROS2 node's own poll cadence, a separate file from
-// gpio.toml's driver-level debounce/threshold config.
-const DefaultButtonNodeTOMLPath = "platform/robot/config/hardware/button/button_node.toml"
-
 // ButtonSection mirrors gpio.toml's [button] section.
 type ButtonSection struct {
 	// PullUp matches internal/driver/button.Config.PullUp.
@@ -42,3 +31,14 @@ type ButtonNodeConfig struct {
 	// caller converts to time.Duration as time.Second / PollHz).
 	PollHz float64 `mapstructure:"poll_hz"`
 }
+
+// DefaultButtonGPIOTOMLPath is
+// platform/robot/config/hardware/button/gpio.toml, relative to the repo
+// root.
+const DefaultButtonGPIOTOMLPath = "platform/robot/config/hardware/button/gpio.toml"
+
+// DefaultButtonNodeTOMLPath is
+// platform/robot/config/hardware/button/button_node.toml, relative to the
+// repo root -- the ROS2 node's own poll cadence, a separate file from
+// gpio.toml's driver-level debounce/threshold config.
+const DefaultButtonNodeTOMLPath = "platform/robot/config/hardware/button/button_node.toml"

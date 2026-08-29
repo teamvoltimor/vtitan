@@ -1,3 +1,13 @@
+# Regenerates internal/schema/pb/telemetry/v1 -- robot-go's own Go+gRPC
+# client stubs for the canonical platform/proto/telemetry/v1/commands.proto
+# (unmodified; platform/backend/gen/telemetry/v1 remains the separate,
+# untouched generated copy the backend server uses).
+#
+# Run via `task gen:robot-command-client` from the repo's platform/
+# directory, not `buf generate` directly -- this file is a template, not a
+# full buf workspace, so it needs the explicit input/--path invocation that
+# task wraps: `buf generate ../proto --template buf.gen.commands.yaml
+# --path ../proto/telemetry/v1/commands.proto`, run from platform/robot-go.
 version: v2
 plugins:
   - local: protoc-gen-go

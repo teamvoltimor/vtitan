@@ -1,10 +1,5 @@
 package profile
 
-// DefaultTrackTOMLPath is platform/shared/config/track.toml, relative to
-// the repo root. Unlike robot.toml, it has no per-component profile
-// overlays -- pass nil profileNames to Load.
-const DefaultTrackTOMLPath = "platform/shared/config/track.toml"
-
 // TrackMat mirrors track.toml's [track] section.
 type TrackMat struct {
 	MatSize   float64 `mapstructure:"mat_size"`
@@ -95,3 +90,8 @@ type TrackConfig struct {
 	StartingZone TrackStartingZone `mapstructure:"starting_zone"`
 	Markings     TrackMarkings     `mapstructure:"markings"`
 }
+
+// DefaultTrackTOMLPath is platform/shared/config/track.toml, relative to
+// the repo root. Unlike robot.toml, it has no per-component profile
+// overlays -- pass nil profileNames to Load.
+const DefaultTrackTOMLPath = "platform/shared/config/track.toml"

@@ -59,8 +59,8 @@ func Load[T any](basePath string, profileNames []string) (*T, error) {
 	}
 
 	var cfg T
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("profile: unmarshaling merged config: %w", err)
+	if unmarshalErr := v.Unmarshal(&cfg); unmarshalErr != nil {
+		return nil, fmt.Errorf("profile: unmarshaling merged config: %w", unmarshalErr)
 	}
 	return &cfg, nil
 }

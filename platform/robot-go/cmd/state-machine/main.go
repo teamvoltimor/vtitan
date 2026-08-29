@@ -74,7 +74,12 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags.StringVar(&cfg.nodeName, "name", "state-machine", "NATS client name, visible in nats-server's connz output")
 	flags.StringVar(&cfg.backendAddr, "backend-addr", defaultBackendAddr, "backend gRPC address (host:port)")
 	flags.StringVar(&cfg.robotID, "robot-id", "", "robot ID to identify as on the backend command channel")
-	_ = cmd.MarkFlagRequired("robot-id")
+	// MarkFlagRequired only errors for a flag name that doesn't exist on
+	// cmd, which "robot-id" always does -- it's registered immediately
+	// above.
+	if err := cmd.MarkFlagRequired("robot-id"); err != nil {
+		panic(err)
+	}
 
 	return cmd
 }
@@ -104,7 +109,8 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	logger.Info("state-machine: connected", "nats_url", cfg.natsURL, "backend_addr", cfg.backendAddr, "robot_id", cfg.robotID)
+	logger.Info("state-machine: connected",
+		"nats_url", cfg.natsURL, "backend_addr", cfg.backendAddr, "robot_id", cfg.robotID)
 	if err = client.Run(ctx, dispatcher); err != nil {
 		return fmt.Errorf("state-machine: %w", err)
 	}

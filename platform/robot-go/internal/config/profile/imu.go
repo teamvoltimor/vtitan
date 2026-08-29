@@ -1,10 +1,5 @@
 package profile
 
-// DefaultIMUUARTRVCTOMLPath is
-// platform/robot/config/hardware/imu/bno08x_uart_rvc.toml, relative to the
-// repo root.
-const DefaultIMUUARTRVCTOMLPath = "platform/robot/config/hardware/imu/bno08x_uart_rvc.toml"
-
 // IMUQuaternionConfig mirrors bno08x_uart_rvc.toml's [quaternion] section --
 // axis convention, not yet consumed by internal/driver/imu (see
 // IMUUARTRVCConfig's doc comment).
@@ -30,3 +25,8 @@ type IMUUARTRVCConfig struct {
 	DataLockTimeout float64             `mapstructure:"data_lock_timeout"`
 	Quaternion      IMUQuaternionConfig `mapstructure:"quaternion"`
 }
+
+// DefaultIMUUARTRVCTOMLPath is
+// platform/robot/config/hardware/imu/bno08x_uart_rvc.toml, relative to the
+// repo root.
+const DefaultIMUUARTRVCTOMLPath = "platform/robot/config/hardware/imu/bno08x_uart_rvc.toml"

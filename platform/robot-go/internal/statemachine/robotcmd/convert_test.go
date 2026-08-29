@@ -19,19 +19,25 @@ func TestToCommand(t *testing.T) {
 		want    command.Command
 	}{
 		{
-			name:    "start race",
-			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_StartRace{StartRace: &telemetryv1.StartRaceParams{}}},
-			want:    command.Command{Kind: command.KindStartRace},
+			name: "start race",
+			payload: &telemetryv1.RobotCommand{
+				Payload: &telemetryv1.RobotCommand_StartRace{StartRace: &telemetryv1.StartRaceParams{}},
+			},
+			want: command.Command{Kind: command.KindStartRace},
 		},
 		{
-			name:    "stop race",
-			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_StopRace{StopRace: &telemetryv1.StopRaceParams{}}},
-			want:    command.Command{Kind: command.KindStopRace},
+			name: "stop race",
+			payload: &telemetryv1.RobotCommand{
+				Payload: &telemetryv1.RobotCommand_StopRace{StopRace: &telemetryv1.StopRaceParams{}},
+			},
+			want: command.Command{Kind: command.KindStopRace},
 		},
 		{
-			name:    "emergency stop",
-			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_EmergencyStop{EmergencyStop: &telemetryv1.EmergencyStopParams{}}},
-			want:    command.Command{Kind: command.KindEmergencyStop},
+			name: "emergency stop",
+			payload: &telemetryv1.RobotCommand{
+				Payload: &telemetryv1.RobotCommand_EmergencyStop{EmergencyStop: &telemetryv1.EmergencyStopParams{}},
+			},
+			want: command.Command{Kind: command.KindEmergencyStop},
 		},
 		{
 			name: "set vision debug with stream fps",
@@ -48,29 +54,41 @@ func TestToCommand(t *testing.T) {
 			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_SetVisionDebug{
 				SetVisionDebug: &telemetryv1.SetVisionDebugParams{Enabled: false},
 			}},
-			want: command.Command{Kind: command.KindSetVisionDebug, VisionDebug: command.VisionDebugParams{Enabled: false}},
+			want: command.Command{
+				Kind:        command.KindSetVisionDebug,
+				VisionDebug: command.VisionDebugParams{Enabled: false},
+			},
 		},
 		{
-			name:    "disable command channel",
-			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_DisableCommandChannel{DisableCommandChannel: &telemetryv1.DisableCommandChannelParams{}}},
-			want:    command.Command{Kind: command.KindDisableCommandChannel},
+			name: "disable command channel",
+			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_DisableCommandChannel{
+				DisableCommandChannel: &telemetryv1.DisableCommandChannelParams{},
+			}},
+			want: command.Command{Kind: command.KindDisableCommandChannel},
 		},
 		{
 			name: "set telemetry channel",
 			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_SetTelemetryChannel{
 				SetTelemetryChannel: &telemetryv1.SetTelemetryChannelParams{Enabled: true},
 			}},
-			want: command.Command{Kind: command.KindSetTelemetryChannel, TelemetryChannel: command.TelemetryChannelParams{Enabled: true}},
+			want: command.Command{
+				Kind:             command.KindSetTelemetryChannel,
+				TelemetryChannel: command.TelemetryChannelParams{Enabled: true},
+			},
 		},
 		{
-			name:    "pause is unimplemented, not unset",
-			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_Pause{Pause: &telemetryv1.PauseParams{}}},
-			want:    command.Command{Kind: command.KindUnimplemented, UnimplementedLabel: "pause"},
+			name: "pause is unimplemented, not unset",
+			payload: &telemetryv1.RobotCommand{
+				Payload: &telemetryv1.RobotCommand_Pause{Pause: &telemetryv1.PauseParams{}},
+			},
+			want: command.Command{Kind: command.KindUnimplemented, UnimplementedLabel: "pause"},
 		},
 		{
-			name:    "reboot is unimplemented, not unset",
-			payload: &telemetryv1.RobotCommand{Payload: &telemetryv1.RobotCommand_Reboot{Reboot: &telemetryv1.RebootParams{}}},
-			want:    command.Command{Kind: command.KindUnimplemented, UnimplementedLabel: "reboot"},
+			name: "reboot is unimplemented, not unset",
+			payload: &telemetryv1.RobotCommand{
+				Payload: &telemetryv1.RobotCommand_Reboot{Reboot: &telemetryv1.RebootParams{}},
+			},
+			want: command.Command{Kind: command.KindUnimplemented, UnimplementedLabel: "reboot"},
 		},
 		{
 			name:    "no payload at all",
@@ -97,7 +115,8 @@ func TestToCommand(t *testing.T) {
 				t.Errorf("VisionDebug.StreamFPS presence = %v, want %v",
 					got.VisionDebug.StreamFPS != nil, tt.want.VisionDebug.StreamFPS != nil)
 			} else if got.VisionDebug.StreamFPS != nil && *got.VisionDebug.StreamFPS != *tt.want.VisionDebug.StreamFPS {
-				t.Errorf("VisionDebug.StreamFPS = %v, want %v", *got.VisionDebug.StreamFPS, *tt.want.VisionDebug.StreamFPS)
+				t.Errorf("VisionDebug.StreamFPS = %v, want %v",
+					*got.VisionDebug.StreamFPS, *tt.want.VisionDebug.StreamFPS)
 			}
 			if got.TelemetryChannel != tt.want.TelemetryChannel {
 				t.Errorf("TelemetryChannel = %+v, want %+v", got.TelemetryChannel, tt.want.TelemetryChannel)
@@ -130,4 +149,5 @@ func TestToProtoStatus(t *testing.T) {
 	}
 }
 
+//nolint:modernize // gopls' new(expr) suggestion here isn't valid Go (new takes a type, not a value)
 func floatPtr(f float64) *float64 { return &f }

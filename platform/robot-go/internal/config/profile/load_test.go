@@ -49,7 +49,9 @@ func TestLoad_UnknownProfileErrors(t *testing.T) {
 func TestLoad_ProfileDirWithoutMatchingFileIsSkipped(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.RobotConfig](filepath.Join("testdata", "robot.toml"), []string{"empty-overlay-dir"})
+	cfg, err := profile.Load[profile.RobotConfig](
+		filepath.Join("testdata", "robot.toml"), []string{"empty-overlay-dir"},
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

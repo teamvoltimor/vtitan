@@ -544,6 +544,12 @@ tasks:
     cmds:
       - "{{.SIMGEN}} generate-track-constants"
 
+  gen:robot-command-client:
+    desc: "Regenerate robot-go's local Go+gRPC client stubs for platform/proto/telemetry/v1/commands.proto (internal/schema/pb/telemetry/v1) -- backend's own generated copy (platform/backend/gen/telemetry/v1) is untouched"
+    dir: robot-go
+    cmds:
+      - buf generate ../proto --template buf.gen.commands.yaml --path ../proto/telemetry/v1/commands.proto
+
   gen:scenarios:
     desc: "Generate scenarios for a challenge (usage: task gen:scenarios CHALLENGE=open|obstacles, SCENARIOS={{.SCENARIOS}} default)"
     deps: [simgen:build]

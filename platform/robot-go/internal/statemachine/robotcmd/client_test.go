@@ -2,7 +2,6 @@ package robotcmd_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
 	"sync"
@@ -32,6 +31,17 @@ type fakeServer struct {
 	acks []*telemetryv1.AckCommandRequest
 }
 
+// fakeButtonSink records every synthetic button event PublishButtonEvent
+// receives.
+type fakeButtonSink struct {
+	mu     sync.Mutex
+	events []string
+}
+
+// fakeChannelSink satisfies command.ChannelSink without touching any real
+// backend administrative channel.
+type fakeChannelSink struct{}
+
 func (s *fakeServer) StreamCommands(
 	req *telemetryv1.StreamCommandsRequest,
 	stream telemetryv1.RobotCommandService_StreamCommandsServer,
@@ -42,7 +52,10 @@ func (s *fakeServer) StreamCommands(
 		}
 	}
 	<-stream.Context().Done()
-	return stream.Context().Err()
+	if err := stream.Context().Err(); err != nil {
+		return err //nolint:wrapcheck // test fake, just relaying ctx cancellation to the RPC caller
+	}
+	return nil
 }
 
 func (s *fakeServer) AckCommand(
@@ -60,13 +73,6 @@ func (s *fakeServer) recordedAcks() []*telemetryv1.AckCommandRequest {
 	return append([]*telemetryv1.AckCommandRequest(nil), s.acks...)
 }
 
-// fakeButtonSink records every synthetic button event PublishButtonEvent
-// receives.
-type fakeButtonSink struct {
-	mu     sync.Mutex
-	events []string
-}
-
 func (s *fakeButtonSink) PublishButtonEvent(kind button.Kind) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -80,7 +86,13 @@ func (s *fakeButtonSink) recorded() []string {
 	return append([]string(nil), s.events...)
 }
 
-func dialBufconn(t *testing.T, srv *fakeServer) (*grpc.ClientConn, func()) {
+func (fakeChannelSink) SetVisionDebug(_ command.VisionDebugParams) error { return nil }
+func (fakeChannelSink) ToggleTelemetryChannel(_ bool) error              { return nil }
+func (fakeChannelSink) DisableCommandChannel() error                     { return nil }
+
+// dialBufconn starts srv on an in-memory bufconn listener and returns a
+// client connection to it, plus a cleanup func the caller must defer.
+func dialBufconn(t *testing.T, srv *fakeServer) (conn *grpc.ClientConn, cleanup func()) {
 	t.Helper()
 
 	lis := bufconn.Listen(1024 * 1024)
@@ -114,7 +126,7 @@ func TestClient_Run_DispatchesAndAcks(t *testing.T) {
 	conn, cleanup := dialBufconn(t, srv)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	client := robotcmd.NewFromConn(conn, robotcmd.Config{RobotID: "robot-1"}, logger)
 
 	buttonSink := &fakeButtonSink{}
@@ -151,11 +163,3 @@ func TestClient_Run_DispatchesAndAcks(t *testing.T) {
 		t.Errorf("button events = %v, want %v", events, wantEvents)
 	}
 }
-
-// fakeChannelSink satisfies command.ChannelSink without touching any real
-// backend administrative channel.
-type fakeChannelSink struct{}
-
-func (fakeChannelSink) SetVisionDebug(_ command.VisionDebugParams) error { return nil }
-func (fakeChannelSink) ToggleTelemetryChannel(_ bool) error              { return nil }
-func (fakeChannelSink) DisableCommandChannel() error                     { return nil }

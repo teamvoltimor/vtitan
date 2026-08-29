@@ -1,7 +1,7 @@
 package statemachine
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
 )
@@ -17,23 +17,32 @@ import (
 // "the telemetry channel" is this same backend gRPC connection's sibling
 // ingest stream, which in the Go architecture runs as a separate process
 // (cmd/telemetry-node) rather than an in-process toggle -- disabling it
-// from here would mean signalling across a process boundary this tree
+// from here would mean signaling across a process boundary this tree
 // doesn't have a mechanism for yet. Both are real, scoped follow-ups, not
 // oversights -- this sink exists so Dispatch's behavior for them is
 // correct (fails loudly) in the meantime, instead of half-built.
 type UnimplementedChannelSink struct{}
 
+var (
+	errSetVisionDebugNotImplemented = errors.New(
+		"node/statemachine: SetVisionDebug is not implemented on the Go robot stack yet")
+	errToggleTelemetryChannelNotImplemented = errors.New(
+		"node/statemachine: ToggleTelemetryChannel is not implemented on the Go robot stack yet")
+	errDisableCommandChannelNotImplemented = errors.New(
+		"node/statemachine: DisableCommandChannel is not implemented on the Go robot stack yet")
+)
+
 // SetVisionDebug implements command.ChannelSink.
 func (UnimplementedChannelSink) SetVisionDebug(_ command.VisionDebugParams) error {
-	return fmt.Errorf("node/statemachine: SetVisionDebug is not implemented on the Go robot stack yet")
+	return errSetVisionDebugNotImplemented
 }
 
 // ToggleTelemetryChannel implements command.ChannelSink.
 func (UnimplementedChannelSink) ToggleTelemetryChannel(_ bool) error {
-	return fmt.Errorf("node/statemachine: ToggleTelemetryChannel is not implemented on the Go robot stack yet")
+	return errToggleTelemetryChannelNotImplemented
 }
 
 // DisableCommandChannel implements command.ChannelSink.
 func (UnimplementedChannelSink) DisableCommandChannel() error {
-	return fmt.Errorf("node/statemachine: DisableCommandChannel is not implemented on the Go robot stack yet")
+	return errDisableCommandChannelNotImplemented
 }

@@ -5,10 +5,6 @@ import (
 	"math"
 )
 
-// DefaultRobotTOMLPath is platform/shared/config/robot.toml, relative to the
-// repo root.
-const DefaultRobotTOMLPath = "platform/shared/config/robot.toml"
-
 // RobotChassis mirrors robot.toml's [chassis] section.
 type RobotChassis struct {
 	Length float64 `mapstructure:"length"`
@@ -109,6 +105,16 @@ type RobotConfig struct {
 	Camera     RobotCamera     `mapstructure:"camera"`
 }
 
+// DefaultRobotTOMLPath is platform/shared/config/robot.toml, relative to the
+// repo root.
+const DefaultRobotTOMLPath = "platform/shared/config/robot.toml"
+
+// degToRadTurn is a half-turn in degrees -- used to convert both
+// MaxSteeringAngle's and LidarYawOffsetRad's degree inputs to radians, and
+// as the mandatory correction LidarYawOffsetRad adds for an inverted LIDAR
+// mount.
+const degToRadTurn = 180.0
+
 // requiredRobotKeys are the fields robot.toml deliberately omits and which
 // must come from an active hardware profile, matching
 // RobotConstants._require_component_facts().
@@ -138,8 +144,8 @@ func LoadRobotConfig(basePath string, profileNames []string) (*RobotConfig, erro
 	}
 
 	var cfg RobotConfig
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("profile: unmarshaling merged config: %w", err)
+	if unmarshalErr := v.Unmarshal(&cfg); unmarshalErr != nil {
+		return nil, fmt.Errorf("profile: unmarshaling merged config: %w", unmarshalErr)
 	}
 	return &cfg, nil
 }
@@ -157,7 +163,7 @@ func (c *RobotConfig) MaxSteeringAngle() float64 {
 	if limitDeg == 0 {
 		limitDeg = c.Steering.MaxWheelAngleDeg
 	}
-	return limitDeg * math.Pi / 180.0
+	return limitDeg * math.Pi / degToRadTurn
 }
 
 // LidarYawOffsetRad mirrors
@@ -168,18 +174,18 @@ func (c *RobotConfig) MaxSteeringAngle() float64 {
 func (c *RobotConfig) LidarYawOffsetRad() float64 {
 	invertedDeg := 0.0
 	if c.Lidar.Inverted {
-		invertedDeg = 180.0
+		invertedDeg = degToRadTurn
 	}
-	return (invertedDeg + c.Lidar.MountYawOffsetDeg) * math.Pi / 180.0
+	return (invertedDeg + c.Lidar.MountYawOffsetDeg) * math.Pi / degToRadTurn
 }
 
-// LidarToFrontBumper mirrors RobotSpecs.LIDAR_TO_FRONT_BUMPER: metres from
+// LidarToFrontBumper mirrors RobotSpecs.LIDAR_TO_FRONT_BUMPER: meters from
 // the sensor to the front bumper face.
 func (c *RobotConfig) LidarToFrontBumper() float64 {
 	return c.Chassis.Length/2 - c.Lidar.MountXOffset
 }
 
-// LidarToRearBumper mirrors RobotSpecs.LIDAR_TO_REAR_BUMPER: metres from
+// LidarToRearBumper mirrors RobotSpecs.LIDAR_TO_REAR_BUMPER: meters from
 // the sensor to the rear bumper face.
 func (c *RobotConfig) LidarToRearBumper() float64 {
 	return c.Chassis.Length/2 + c.Lidar.MountXOffset

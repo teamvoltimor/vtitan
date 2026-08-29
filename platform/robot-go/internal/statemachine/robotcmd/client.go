@@ -91,7 +91,7 @@ func (c *Client) Run(ctx context.Context, dispatcher *command.Dispatcher) error 
 
 	for {
 		if ctx.Err() != nil {
-			return nil
+			return nil //nolint:nilerr // ctx cancellation is a clean shutdown, not a failure to report
 		}
 
 		err := c.streamOnce(ctx, dispatcher, &lastCommandID)
@@ -129,7 +129,7 @@ func (c *Client) streamOnce(ctx context.Context, dispatcher *command.Dispatcher,
 		rc, recvErr := stream.Recv()
 		if recvErr != nil {
 			if ctx.Err() != nil {
-				return nil
+				return nil //nolint:nilerr // ctx cancellation is a clean shutdown, not a failure to report
 			}
 			return fmt.Errorf("robotcmd: receiving RobotCommand: %w", recvErr)
 		}

@@ -1,9 +1,5 @@
 package profile
 
-// DefaultLidarLaunchTOMLPath is platform/robot/config/launch/lidar.toml,
-// relative to the repo root.
-const DefaultLidarLaunchTOMLPath = "platform/robot/config/launch/lidar.toml"
-
 // LidarLaunchConfig mirrors lidar.toml
 // (src.config.launch_settings.LidarLaunchDefaults), the sllidar_ros2 node's
 // default launch parameters. A flat top-level table, not sectioned.
@@ -18,3 +14,7 @@ type LidarLaunchConfig struct {
 	ScanMode        string `mapstructure:"scan_mode"`
 	AngleCompensate bool   `mapstructure:"angle_compensate"`
 }
+
+// DefaultLidarLaunchTOMLPath is platform/robot/config/launch/lidar.toml,
+// relative to the repo root.
+const DefaultLidarLaunchTOMLPath = "platform/robot/config/launch/lidar.toml"
