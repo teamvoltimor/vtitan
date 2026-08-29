@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package vtitan.actuation.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1";
+
+// AckermannCmd mirrors ackermann_msgs/AckermannDriveStamped. Published on
+// the `vtitan.actuation.v1.ackermann_cmd` NATS subject. The motor node
+// enforces its own deadline watchdog on this topic (no DDS DEADLINE QoS
+// equivalent in NATS) — see go-migration-plan.md.
+//
+// protovalidate constraints here are deliberately structural (required,
+// finite) rather than hardware-specific numeric bounds — the actual
+// steering/speed limits live in platform/robot/config/hardware/motors/
+// motors.toml and haven't been reconciled into this schema yet. Do not
+// invent bound values here; pull them from motors.toml when this gets
+// wired to a real driver.
+message AckermannCmd {
+  // Replaces ROS2 Header: stamp + frame_id.
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  string frame_id = 2;
+
+  // Virtual bicycle-model steering angle [rad].
+  float steering_angle = 3 [(buf.validate.field).float.finite = true];
+  // Desired rate of change of steering angle [rad/s].
+  float steering_angle_velocity = 4 [(buf.validate.field).float.finite = true];
+  // Forward speed [m/s].
+  float speed = 5 [(buf.validate.field).float.finite = true];
+  // Desired acceleration [m/s^2].
+  float acceleration = 6 [(buf.validate.field).float.finite = true];
+  // Desired jerk [m/s^3].
+  float jerk = 7 [(buf.validate.field).float.finite = true];
+}

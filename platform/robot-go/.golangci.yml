@@ -1,0 +1,433 @@
+# yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
+#
+# go-architect template — golangci-lint v2 config (schema v2).
+# Drop in your project root as `.golangci.yml`, then replace the placeholder
+# in `formatters.settings.goimports.local-prefixes` with your module path.
+#
+# Pinned to golangci-lint 2.x — track the version in STACK.md and bump in lockstep.
+
+version: "2"
+
+run:
+  timeout: 5m
+  concurrency: 0
+  tests: true
+  modules-download-mode: readonly
+  go: "1.26"
+  relative-path-mode: gomod
+
+output:
+  formats:
+    text:
+      path: stdout
+      print-linter-name: true
+      colors: true
+  sort-order:
+    - severity
+    - linter
+    - file
+  show-stats: true
+
+formatters:
+  enable:
+    - goimports
+    - golines
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/teamvoltimor/vtitan/platform/robot-go
+
+    golines:
+      max-len: 120
+      shorten-comments: true
+
+  exclusions:
+    generated: lax
+    paths:
+      - "vendor/"
+      - "third_party/"
+      - ".claude/"
+
+linters:
+  enable:
+    # Essentials
+    - govet
+    - staticcheck
+    - unused
+    - godoclint
+    - sloglint
+    - misspell
+    - nolintlint
+
+    # Security
+    - gosec
+    - bidichk
+
+    # Resource lifecycle
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+
+    # Error handling
+    - errorlint
+    - errcheck
+    - errname
+    - nilerr
+    - nilnil
+
+    # Duplication & magic values — extract to named constants/enums (see go-architect §1)
+    - dupl
+    - goconst
+    - mnd
+
+    # Code quality
+    - varnamelen
+
+    # Complexity & size — split instead of suppress (see go-architect §14)
+    - nestif
+    - gocognit
+    - maintidx
+
+    # Declaration structure
+    - decorder
+    - gochecknoinits
+    - ineffassign
+    - revive
+    - gocritic
+    - unconvert
+    - wastedassign
+    - usestdlibvars
+
+    # Interfaces & enums — small interfaces, concrete returns, exhaustive
+    # switches, typed models over map[string]any (see go-architect §2 and §4)
+    - ireturn
+    - interfacebloat
+    - exhaustive
+    - forbidigo
+
+    # Modernization nudges — in the spirit of §14's "run go fix" note
+    - copyloopvar
+    - perfsprint
+
+    # Context & concurrency
+    - contextcheck
+    - noctx
+
+    # Idiomatic patterns
+    - prealloc
+    - reassign
+    - makezero
+    - predeclared
+
+    # Test best practices
+    - paralleltest
+    - tparallel
+    - thelper
+    - testifylint
+
+    # Style & conventions
+    - recvcheck
+    - nosprintfhostport
+    - tagliatelle
+
+    # Correctness & safety patterns
+    - containedctx
+    - durationcheck
+    - forcetypeassert
+    - dogsled
+    - exptostd
+    - fatcontext
+    - mirror
+    - unparam
+    - usetesting
+    - funcorder
+    - modernize
+    - wrapcheck
+
+    # Enable selectively via settings.exhaustruct.include — noisy repo-wide,
+    # scope to specific config/DTO structs instead (see go-architect §2):
+    # - exhaustruct
+
+  settings:
+    govet:
+      enable:
+        - shadow
+        # - fieldalignment  # enable for hot-path structs (see go-architect §2)
+      settings:
+        shadow:
+          strict: true
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - io.Copy(*bytes.Buffer)
+        - io.Copy(os.Stdout)
+        - (*net/http.ResponseWriter).Write
+
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA1019" # deprecation warnings (noisy during refactors)
+        - "-ST1000" # package comment requirements
+        - "-ST1003" # underscore naming (conflicts with generated protobuf)
+        - "-ST1016" # receiver-naming rules
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      ignore-string-values:
+        - "http.*"
+        - "^test.*"
+        - '.*\.proto$'
+
+    mnd:
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+      ignored-functions:
+        - "^strconv\\."
+        - "^time\\."
+
+    gocognit:
+      min-complexity: 20
+
+    maintidx:
+      under: 20
+
+    decorder:
+      # go-architect recommends type→const→var→func (decorder's default order).
+      # disable-dec-order-check: false enforces this ordering via the linter.
+      disable-dec-order-check: false
+      disable-init-func-first-check: false
+
+    interfacebloat:
+      max: 3
+
+    ireturn:
+      allow:
+        - error
+        - empty
+        - anon
+        - stdlib
+        - context.Context
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    forbidigo:
+      forbid:
+        - pattern: 'map\[string\]interface\{\}'
+          msg: "define a typed struct instead of map[string]interface{} (see go-architect §2)"
+        - pattern: 'map\[string\]any'
+          msg: "define a typed struct instead of map[string]any (see go-architect §2)"
+
+    exhaustruct:
+      include:
+        - '.*\.Config$'
+        - '.*Options$'
+
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
+
+    prealloc:
+      range-allocs: true
+      for-loops: false
+
+    reassign:
+      patterns:
+        - ".*"
+
+    dogsled:
+      max-blank-identifiers: 2
+
+    unparam:
+      check-exported: false
+
+    modernize:
+      exclude-unsafe: false
+
+    godoclint:
+      default: basic
+      disable:
+        - require-pkg-doc
+
+    sloglint:
+      no-global: "all"
+      static-msg: true
+      key-naming-case: "snake"
+      forbidden-keys:
+        - time
+        - level
+        - msg
+        - source
+
+    misspell:
+      locale: US
+      mode: restricted
+      ignore-rules:
+        - referer
+        - kubernetes
+        - grpc
+        - protobuf
+
+    nolintlint:
+      allow-leading-space: false
+      require-explanation: true
+      require-specific: true
+
+    varnamelen:
+      max-distance: 5
+      min-name-length: 1
+
+    dupl:
+      threshold: 250
+
+    nestif:
+      min-complexity: 6
+
+    nilnil:
+      only-two: true
+      detect-opposite: true
+
+    gosec:
+      excludes:
+        - G104 # duplicate of errcheck
+      includes:
+        - G201 # SQL injection
+        - G202 # SQL injection
+        - G204 # command injection
+        - G301 # file permissions
+        - G302 # file permissions
+        - G304 # file inclusion
+        - G401 # weak crypto
+        - G402 # TLS InsecureSkipVerify
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+    revive:
+      rules:
+        # Error handling
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+
+        # Code quality
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: unreachable-code
+
+        # Size — split instead of suppress (see go-architect §14)
+        - name: file-length-limit
+          arguments:
+            - max: 500
+              skipComments: true
+              skipBlankLines: true
+        - name: argument-limit
+          arguments:
+            - 8
+
+        # Style
+        - name: var-naming
+        - name: range
+        - name: receiver-naming
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: empty-block
+
+        # Disabled — noisy / handled elsewhere
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: unused-parameter
+          disabled: true
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentFormatting
+        - whyNoLint
+        - hugeParam
+        - sloppyReassign
+
+  exclusions:
+    warn-unused: true
+
+    presets:
+      - common-false-positives
+      - std-error-handling
+
+    rules:
+      # Test files — relax churny rules
+      - path: '_test\.go'
+        linters:
+          - dupl
+          - errcheck
+          - nestif
+          - goconst
+          - gosec
+          - funlen
+          - gocyclo
+          - mnd
+          - gocognit
+
+      # Generated protobuf
+      - path: '\.pb\.go$'
+        linters:
+          - all
+
+      # Generated mocks
+      - path: 'mock_.+\.go$'
+        linters:
+          - all
+
+      # go:generate directives are routinely long
+      - linters:
+          - lll
+        source: "^//go:generate "
+
+      # Repository pattern (sqlx + //go:embed — see go-architect §12) trips sqlclosecheck
+      - text: "Rows/Stmt was not closed"
+        path: _repository\.go$
+        linters:
+          - sqlclosecheck
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 50
+  uniq-by-line: true
+
+  # Gradual adoption on legacy codebases — uncomment one:
+  # new-from-rev: HEAD
+  # new-from-merge-base: main
+
+severity:
+  default: error
+
+  rules:
+    # Informational only
+    - linters:
+        - dupl
+        - goconst
+        - mnd
+      severity: info
+
+    # Defer to gosec's own severity mapping
+    - linters:
+        - gosec
+      severity: "@linter"

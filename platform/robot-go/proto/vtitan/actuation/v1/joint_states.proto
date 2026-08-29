@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package vtitan.actuation.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1";
+
+// JointStates mirrors sensor_msgs/JointState. Published on the
+// `vtitan.actuation.v1.joint_states` NATS subject.
+message JointStates {
+  // Replaces ROS2 Header: stamp + frame_id.
+  google.protobuf.Timestamp stamp = 1;
+  string frame_id = 2;
+
+  // name[i] describes joint state at index i. position/velocity/effort
+  // may be shorter than name if a joint doesn't report every field.
+  repeated string name = 3;
+  repeated double position = 4;
+  repeated double velocity = 5;
+  repeated double effort = 6;
+}

@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package vtitan.sensor.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/sensorv1";
+
+// Quaternion mirrors geometry_msgs/Quaternion.
+message Quaternion {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+  double w = 4;
+}
+
+// Vector3 mirrors geometry_msgs/Vector3.
+message Vector3 {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+// Imu mirrors sensor_msgs/Imu. Published on the
+// `vtitan.sensor.v1.imu` NATS subject.
+message Imu {
+  // Replaces ROS2 Header: stamp + frame_id.
+  google.protobuf.Timestamp stamp = 1;
+  string frame_id = 2;
+
+  Quaternion orientation = 3;
+  // Row-major 3x3 orientation covariance matrix. All-zero means unknown.
+  repeated double orientation_covariance = 4;
+
+  Vector3 angular_velocity = 5;
+  // Row-major 3x3 angular velocity covariance matrix.
+  repeated double angular_velocity_covariance = 6;
+
+  Vector3 linear_acceleration = 7;
+  // Row-major 3x3 linear acceleration covariance matrix.
+  repeated double linear_acceleration_covariance = 8;
+}

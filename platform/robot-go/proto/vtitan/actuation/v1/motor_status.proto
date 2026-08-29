@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package vtitan.actuation.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1";
+
+// MotorStatus is the Go-stack replacement for the current std_msgs/String
+// status topic published by the BTS7960 motor node. Published on the
+// `vtitan.actuation.v1.motor_status` NATS subject.
+message MotorStatus {
+  // Replaces ROS2 Header: stamp + frame_id.
+  google.protobuf.Timestamp stamp = 1;
+  string frame_id = 2;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_IDLE = 1;
+    STATE_RUNNING = 2;
+    STATE_FAULT = 3;
+    STATE_ESTOP = 4;
+  }
+  State state = 3;
+
+  // Free-form fault/diagnostic detail, empty when state is not FAULT.
+  string detail = 4;
+
+  // Measured duty cycle currently applied, signed [-1.0, 1.0].
+  float duty_cycle = 5;
+  // Measured wheel speed from the encoder [m/s].
+  float measured_speed = 6;
+  // Milliseconds since the last accepted AckermannCmd — mirrors the
+  // deadline watchdog described in go-migration-plan.md.
+  uint32 command_age_ms = 7;
+}

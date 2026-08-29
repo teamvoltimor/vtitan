@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package vtitan.sensor.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/sensorv1";
+
+// Scan mirrors sensor_msgs/LaserScan. Published on the
+// `vtitan.sensor.v1.scan` NATS subject.
+message Scan {
+  // Replaces ROS2 Header: stamp + frame_id.
+  google.protobuf.Timestamp stamp = 1;
+  string frame_id = 2;
+
+  // Start angle of the scan [rad].
+  float angle_min = 3;
+  // End angle of the scan [rad].
+  float angle_max = 4;
+  // Angular distance between measurements [rad].
+  float angle_increment = 5;
+  // Time between measurements [seconds].
+  float time_increment = 6;
+  // Time between scans [seconds].
+  float scan_time = 7;
+  // Minimum range value [m].
+  float range_min = 8;
+  // Maximum range value [m].
+  float range_max = 9;
+
+  // Range data [m]. Value < range_min or > range_max should be discarded.
+  repeated float ranges = 10;
+  // Intensity data. Units are device-specific; empty if not supported.
+  repeated float intensities = 11;
+}
