@@ -58,9 +58,19 @@ dedupe_distance_m = 0.001
 # reading that way after the split, hiding a behaviour change behind a name.
 wide_center_bias_m = 0.10
 
-# Shared by wide_center_bias_m and narrow_center_bias_m -- only the distance
-# varies with corridor width, never the side.
-center_bias_side = "inner"
+# Which boundary wide_center_bias_m shifts the path toward.
+wide_center_bias_side = "inner"
+
+# The same, for narrow_center_bias_m. Split from the wide side 2026-08-29
+# alongside the magnitudes: a shared side can only say "narrow hugs the same
+# boundary, less far", and the measurement points the other way. Narrow
+# corridors are where the INNER block binds -- run_20260829_020308 measured a
+# median 0.113 m to the inner wall against 0.435 m outer -- so the useful
+# direction to tune narrow is "outer", which a shared inner side can only
+# reach by passing through zero.
+# Inert while narrow_center_bias_m is 0.0; here so that trade needs a config
+# edit, not a code change.
+narrow_center_bias_side = "inner"
 
 # The same shift for NARROW corridors (at or below narrow_width_threshold_m).
 # 0.0 plans them down the true centreline.

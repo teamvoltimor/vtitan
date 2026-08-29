@@ -20,7 +20,7 @@ both directions even when the change is neutral overall.
 
 Usage (from ``platform/robot``)::
 
-    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.CENTER_BIAS_SIDE=outer
+    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.NARROW_CENTER_BIAS_SIDE=outer
     pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.ARC_RADIUS=0.35 --sample 12
     pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.ARC_RADIUS=0.35 --tuning custom.yaml
 """

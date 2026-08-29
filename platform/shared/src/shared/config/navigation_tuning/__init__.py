@@ -495,7 +495,7 @@ class NavigationTuning:
         Useful for serialization or debugging.
 
         Dumped in pydantic's ``json`` mode so enum-valued fields (e.g.
-        ``waypoints.CENTER_BIAS_SIDE``) come out as their plain string value
+        ``waypoints.WIDE_CENTER_BIAS_SIDE``) come out as their plain string value
         rather than as the enum member. Python mode emits the member, which
         ``yaml.dump`` then writes as a ``python/object/apply:`` tag that
         ``load_from_yaml``'s ``safe_load`` refuses -- so an exported profile

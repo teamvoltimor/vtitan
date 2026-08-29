@@ -8,16 +8,17 @@ from dataclasses import replace
 import pytest
 from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import Direction, Section
+from shared.domain.enums import CorridorSide, Direction, Section
 from shared.domain.models import CorridorWidthEntry, CorridorWidths, Waypoint
 
 from src.navigation.planning.waypoints import (
     arc_with_endpoints,
+    calculate_waypoints,
+    center_bias_for_corridor,
     corner_arc_radius,
+    corridor_for_position,
     deduplicate_consecutive,
     straight_waypoints,
-    calculate_waypoints,
-    corridor_for_position,
     validate_path_feasibility,
 )
 
@@ -317,7 +318,7 @@ class TestCenterBiasOverride:
         """The override path and the default path must agree on the same number.
 
         Guards the derivation itself: if the override were applied with the
-        wrong sign or skipped ``CENTER_BIAS_SIDE``, this is where it shows,
+        wrong sign or skipped ``WIDE_CENTER_BIAS_SIDE``, this is where it shows,
         rather than as a silently shifted path in one challenge only.
 
         The override is UNIFORM while the default is per-corridor-width, so the
@@ -357,6 +358,32 @@ class TestCenterBiasOverride:
         assert calculate_waypoints(
             sample_metadata_open, num_laps=1, tuning=shifted_narrow
         ) != calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
+
+    def test_each_width_class_takes_its_own_bias_side(self, tuning) -> None:
+        """Narrow and wide must read their OWN side, not a shared one.
+
+        Flipping only the narrow side has to move a narrow corridor's shift and
+        leave a wide one's alone. A helper that resolved the magnitude per class
+        but the side globally would pass ``test_narrow_corridors_take_the_narrow_bias``
+        and still steer a wide corridor the wrong way -- and with the shipped
+        narrow magnitude at 0.0 the error would be invisible in the planned path
+        until someone tuned it off zero, so the magnitudes are forced non-zero
+        here rather than relying on the shipped values.
+        """
+        narrow_w, wide_w = CorridorDimensions.NARROW, CorridorDimensions.WIDE
+        base = tuning.waypoints.model_copy(
+            update={"NARROW_CENTER_BIAS_M": 0.05, "WIDE_CENTER_BIAS_M": 0.05}
+        )
+        flipped = base.model_copy(update={"NARROW_CENTER_BIAS_SIDE": CorridorSide.OUTER})
+        base_tuning = replace(tuning, waypoints=base)
+        flipped_tuning = replace(tuning, waypoints=flipped)
+
+        assert center_bias_for_corridor(narrow_w, flipped_tuning) == pytest.approx(
+            -center_bias_for_corridor(narrow_w, base_tuning)
+        )
+        assert center_bias_for_corridor(wide_w, flipped_tuning) == pytest.approx(
+            center_bias_for_corridor(wide_w, base_tuning)
+        )
 
     def test_a_different_value_actually_moves_the_path(self, sample_metadata_open, tuning) -> None:
         """Regression guard for the override: without this the tests above pass on a no-op."""

@@ -33,7 +33,7 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, DictKeys, TrackDimensions
-from shared.domain.enums import CorridorSide, Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.planning.waypoints.generation import center_bias_for_corridor
@@ -88,7 +88,7 @@ def start_pose(
             measurement.
 
     Uses tuning: waypoints.WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
-    NARROW_WIDTH_THRESHOLD_M, CENTER_BIAS_SIDE
+    NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE
     """
     tuning = get_tuning(tuning)
 
@@ -143,7 +143,7 @@ def assumed_start_conditions(
         A ``starting_conditions`` mapping in scenario-metadata shape.
 
     Uses tuning: waypoints.WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
-    NARROW_WIDTH_THRESHOLD_M, CENTER_BIAS_SIDE
+    NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE
     """
     believed = widths_m or dict.fromkeys(Section, CorridorDimensions.NARROW)
     by_name = {s.value.lower(): w for s, w in believed.items()}

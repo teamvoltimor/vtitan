@@ -20,9 +20,9 @@ class WaypointParams(BaseModel):
             waypoints are treated as duplicates and merged.
         WIDE_CENTER_BIAS_M: How far (m) to shift corridor centreline waypoints
             off centre, for corridors ABOVE NARROW_WIDTH_THRESHOLD_M.
-            Magnitude only -- which side it shifts toward is CENTER_BIAS_SIDE,
-            so the two can be tuned independently and a side can be A/B'd
-            without touching the distance.
+            Magnitude only -- which side it shifts toward is
+            WIDE_CENTER_BIAS_SIDE, so the two can be tuned independently and a
+            side can be A/B'd without touching the distance.
             Named WIDE_ rather than left bare since the 2026-08-29 narrow/wide
             split: a bare CENTER_BIAS_M read as "the" bias at every call site
             and would silently keep meaning that after the split, which is
@@ -88,9 +88,8 @@ class WaypointParams(BaseModel):
             because the rules only ever present those two widths -- an
             interpolation would invent behaviour for widths the track cannot
             have.
-        CENTER_BIAS_SIDE: Which boundary the bias magnitudes shift the path
-            toward. Shared by WIDE_CENTER_BIAS_M and NARROW_CENTER_BIAS_M --
-            only the distance varies with width, never the side.
+        WIDE_CENTER_BIAS_SIDE: Which boundary WIDE_CENTER_BIAS_M shifts the
+            path toward.
             Was fixed at OUTER and spelled into the constant's own name
             (OUTER_WALL_BIAS), which made the preference an assumption of the
             code rather than a setting. Clearance is symmetric either way --
@@ -98,6 +97,20 @@ class WaypointParams(BaseModel):
             corridor and 0.153 m in a 0.6 m one, whichever side it is -- so the
             outward choice bought nothing and lengthened every lap, since a
             path further from the inner block is a longer way round.
+        NARROW_CENTER_BIAS_SIDE: The same, for NARROW_CENTER_BIAS_M.
+            Split from the wide side 2026-08-29, alongside the magnitudes: a
+            shared side can only express "narrow hugs the same boundary, less
+            far", and cannot reach the case the measurements point at.
+            Narrow corridors are where the inner block is the binding
+            constraint -- measured on run_20260829_020308, the chassis ran a
+            median 0.113 m from the inner wall against 0.435 m outer -- so the
+            useful direction to tune narrow is AWAY from it, i.e. OUTER, which
+            a shared INNER side can only approach by passing through zero.
+            Currently INNER with a 0.0 magnitude, so it is inert and the plan
+            is centred; it exists so that trade can be made without a code
+            change. Note the wide reasoning does NOT transfer: an outer bias
+            costs lap time, and in a narrow corridor it buys margin where the
+            margin actually is.
         NUM_INTERMEDIATE_ARC_POINTS: Number of intermediate sample points
             per corner arc.
         STRAIGHT_WAYPOINT_COUNT: Number of evenly spaced waypoints generated
@@ -147,7 +160,12 @@ class WaypointParams(BaseModel):
     # two directly.
     NARROW_WIDTH_THRESHOLD_M: float = Field(default=0.8, validation_alias=_alias("NARROW_WIDTH_THRESHOLD_M"))
     OBSTACLES_CENTER_BIAS_M: float = Field(default=0.15, validation_alias=_alias("OBSTACLES_CENTER_BIAS_M"))
-    CENTER_BIAS_SIDE: CorridorSide = Field(default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE"))
+    WIDE_CENTER_BIAS_SIDE: CorridorSide = Field(
+        default=CorridorSide.INNER, validation_alias=_alias("WIDE_CENTER_BIAS_SIDE")
+    )
+    NARROW_CENTER_BIAS_SIDE: CorridorSide = Field(
+        default=CorridorSide.INNER, validation_alias=_alias("NARROW_CENTER_BIAS_SIDE")
+    )
     NUM_INTERMEDIATE_ARC_POINTS: int = Field(default=3, validation_alias=_alias("NUM_INTERMEDIATE_ARC_POINTS"))
     STRAIGHT_WAYPOINT_COUNT: int = Field(default=8, validation_alias=_alias("STRAIGHT_WAYPOINT_COUNT"))
     MAIN_LOOP_REACHED_DISTANCE_M: float = Field(default=0.20, validation_alias=_alias("MAIN_LOOP_REACHED_DISTANCE_M"))

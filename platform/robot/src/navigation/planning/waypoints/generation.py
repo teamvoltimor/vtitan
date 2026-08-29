@@ -53,25 +53,33 @@ def center_bias_for_corridor(
     threshold reinterpret an explicitly-passed magnitude would silently change
     a value that was swept and measured as one number.
 
-    The SIDE always comes from tuning: only the distance varies here, and a
-    zero magnitude makes the side moot anyway.
+    Magnitude and SIDE are chosen together, from the same width class -- a
+    narrow corridor takes ``NARROW_CENTER_BIAS_SIDE`` as well as
+    ``NARROW_CENTER_BIAS_M``. They are one setting expressed as two fields, so
+    reading the side from the other class would silently produce a shift
+    neither class describes.
+
+    The override takes the WIDE side. Not arbitrary: Obstacles corridors are
+    1.0 m by rule, so they ARE the wide class, and the split's threshold would
+    classify them that way if it were consulted at all.
 
     Args:
         width_m: This corridor's width (m).
-        tuning: Tuning profile supplying the two magnitudes and the threshold.
-        override_m: Explicit magnitude that replaces both, applied uniformly.
+        tuning: Tuning profile supplying the magnitudes, sides and threshold.
+        override_m: Explicit magnitude that replaces both, applied uniformly
+            with the wide side.
 
     Returns:
         Signed shift (m); positive toward the inner block.
     """
     params = tuning.waypoints
     if override_m is not None:
-        magnitude = override_m
+        magnitude, side = override_m, params.WIDE_CENTER_BIAS_SIDE
     elif width_m <= params.NARROW_WIDTH_THRESHOLD_M:
-        magnitude = params.NARROW_CENTER_BIAS_M
+        magnitude, side = params.NARROW_CENTER_BIAS_M, params.NARROW_CENTER_BIAS_SIDE
     else:
-        magnitude = params.WIDE_CENTER_BIAS_M
-    return magnitude * (1.0 if params.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0)
+        magnitude, side = params.WIDE_CENTER_BIAS_M, params.WIDE_CENTER_BIAS_SIDE
+    return magnitude * (1.0 if side is CorridorSide.INNER else -1.0)
 
 
 def validate_path_feasibility(min_corridor_width_m: float, center_bias_m: float) -> PathPlannability:
@@ -162,7 +170,7 @@ def calculate_waypoints(
             track or inside the restricted inner square.
 
     Uses tuning: waypoints.ARC_RADIUS, WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
-    NARROW_WIDTH_THRESHOLD_M, CENTER_BIAS_SIDE
+    NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE
     """
     tuning = get_tuning(tuning)
     if not isinstance(metadata, ScenarioMetadata):
