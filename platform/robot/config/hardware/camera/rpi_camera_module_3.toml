@@ -8,7 +8,7 @@ camera_width = 1536
 camera_height = 864
 camera_fps = 30
 
-camera_inverted = false
+camera_inverted = true
 camera_rotation = 0
 camera_hflip = false
 camera_vflip = false

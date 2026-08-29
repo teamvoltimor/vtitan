@@ -7,7 +7,7 @@ camera_width = 1536
 camera_height = 864
 camera_fps = 30
 
-camera_inverted = false
+camera_inverted = true
 # Set true when the camera is mounted upside-down -- not cosmetic, it also
 # mirrors which side of the frame a sign falls on.
 
