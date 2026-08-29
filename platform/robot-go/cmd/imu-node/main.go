@@ -26,22 +26,17 @@ import (
 
 // cliConfig holds every flag imu-node accepts.
 type cliConfig struct {
-	natsURL  string
-	nodeName string
-	port     string
-	baudRate int
+	natsURL    string
+	nodeName   string
+	port       string
+	baudRate   int
+	configRoot string
 }
 
 // imuFrameID is this sensor's TF frame, matching
 // shared.config.constants.identifiers.TfFrames.IMU_LINK (the value the
 // existing ROS2 uart_rvc_node.py publishes Imu messages under).
 const imuFrameID = "imu_link"
-
-// defaultPort matches uart_rvc.py's Config.default_port -- the fallback
-// port used when MCP2221 VID/PID auto-detection isn't available. That
-// auto-detection (find_mcp2221_port in the Python driver) isn't ported
-// here; --port must be set explicitly for a board that needs it.
-const defaultPort = "/dev/ttyACM0"
 
 // exit codes: 0 means imu-node ran and shut down cleanly (including via
 // SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable
@@ -85,8 +80,11 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
 	flags.StringVar(&cfg.nodeName, "name", "imu-node", "NATS client name, visible in nats-server's connz output")
-	flags.StringVar(&cfg.port, "port", defaultPort, "IMU serial port")
+	flags.StringVar(&cfg.port, "port", imu.DefaultPort, "IMU serial port")
 	flags.IntVar(&cfg.baudRate, "baud-rate", imu.DefaultBaudRate, "IMU serial baud rate")
+	flags.StringVar(&cfg.configRoot, "config-root", "",
+		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
+			"overrides --port/--baud-rate when set")
 
 	return cmd
 }
@@ -119,7 +117,12 @@ func imuMessageFor(reading imu.Reading) *sensorv1.Imu {
 // run wires the IMU driver to NATS and blocks until ctx is done or a
 // non-cancellation error occurs.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	drv, err := imu.New(imu.Config{Port: cfg.port, BaudRate: cfg.baudRate})
+	drvCfg := imu.Config{Port: cfg.port, BaudRate: cfg.baudRate}
+	if cfg.configRoot != "" {
+		drvCfg = imu.ConfigFor(logger, cfg.configRoot)
+	}
+
+	drv, err := imu.New(drvCfg)
 	if err != nil {
 		return err //nolint:wrapcheck // imu.New already wraps with "imu: ..." context
 	}
@@ -140,7 +143,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	pub := nats.NewPublisher[*sensorv1.Imu](conn, sensorv1.ImuSubject)
 
-	logger.Info("imu-node: connected", "nats_url", cfg.natsURL, "port", cfg.port)
+	logger.Info("imu-node: connected", "nats_url", cfg.natsURL, "port", drvCfg.Port)
 	return publishLoop(ctx, logger, drv, pub)
 }
 

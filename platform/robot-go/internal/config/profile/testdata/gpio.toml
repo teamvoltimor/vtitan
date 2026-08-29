@@ -1,0 +1,7 @@
+button_gpio_pin = 4
+
+[button]
+pull_up = true
+debounce_ms = 50
+long_press_threshold_sec = 3.0
+shutdown_press_threshold_sec = 10.0

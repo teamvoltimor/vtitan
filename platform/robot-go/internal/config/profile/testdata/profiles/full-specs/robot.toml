@@ -1,0 +1,6 @@
+[steering]
+servo_max_angle_deg = 135.0
+max_wheel_angle_deg = 85.0
+
+[drivetrain]
+max_speed_mps = 1.0

@@ -1,0 +1,7 @@
+pwmchip = 0
+pwm_channel = 1
+frequency_hz = 1000
+forward_pwm_pin = 13
+reverse_pwm_pin = 26
+r_en_pin = 6
+l_en_pin = 5

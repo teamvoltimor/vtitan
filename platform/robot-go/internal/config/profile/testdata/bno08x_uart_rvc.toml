@@ -1,0 +1,11 @@
+default_port = "/dev/ttyACM0"
+baudrate = 115200
+poll_rate_hz = 100.0
+serial_timeout = 1.0
+data_lock_timeout = 2.0
+
+[quaternion]
+euler_sequence = "xyz"
+negate_yaw = true
+negate_pitch = false
+negate_roll = true

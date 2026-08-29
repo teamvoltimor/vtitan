@@ -240,7 +240,24 @@ func oledLoop(
 // motor/button/OLED loops as supervised goroutines until ctx is done.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	motorCfg := motordriver.DefaultConfig()
+	buttonCfg := button.Config{
+		GPIOChip:     button.DefaultGPIOChip,
+		Line:         cfg.buttonLine,
+		PullUp:       cfg.buttonPullUp,
+		PollInterval: button.DefaultPollInterval,
+		Thresholds:   button.DefaultThresholds(),
+	}
+	oledCfg := ssd1306.Config{
+		Width: cfg.oledWidth, Height: cfg.oledHeight,
+		I2CAddress: cfg.oledI2CAddress, I2CBus: cfg.oledI2CBus,
+	}
+	if cfg.configRoot != "" {
+		motorCfg = motordriver.ConfigFor(logger, cfg.configRoot)
+		buttonCfg = button.ConfigFor(logger, cfg.configRoot)
+		oledCfg = ssd1306.ConfigFor(logger, cfg.configRoot)
+	}
 	motorCfg.Invert = cfg.motorInvert
+
 	motorDrv, err := motordriver.New(motorCfg)
 	if err != nil {
 		return err //nolint:wrapcheck // motordriver.New already wraps with "motor: ..." context
@@ -250,13 +267,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer closeLogged(logger, "motor driver", motorDrv.Close)
 
-	buttonDrv, err := button.New(button.Config{
-		GPIOChip:     button.DefaultGPIOChip,
-		Line:         cfg.buttonLine,
-		PullUp:       cfg.buttonPullUp,
-		PollInterval: button.DefaultPollInterval,
-		Thresholds:   button.DefaultThresholds(),
-	})
+	buttonDrv, err := button.New(buttonCfg)
 	if err != nil {
 		return err //nolint:wrapcheck // button.New already wraps with "button: ..." context
 	}
@@ -265,10 +276,6 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer closeLogged(logger, "button driver", buttonDrv.Close)
 
-	oledCfg := ssd1306.Config{
-		Width: cfg.oledWidth, Height: cfg.oledHeight,
-		I2CAddress: cfg.oledI2CAddress, I2CBus: cfg.oledI2CBus,
-	}
 	oledDrv, err := ssd1306.New(oledCfg)
 	if err != nil {
 		return err //nolint:wrapcheck // ssd1306.New already wraps with "ssd1306: ..." context

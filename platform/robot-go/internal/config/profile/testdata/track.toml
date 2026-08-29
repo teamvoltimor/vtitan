@@ -1,0 +1,15 @@
+[track]
+mat_size = 3.2
+size = 3.0
+
+[wall]
+height = 0.10
+color = [0.0, 0.0, 0.0]
+
+[corridor]
+narrow = 0.6
+wide = 1.0
+division_lines = [0.40, 0.60]
+
+[starting_zone]
+spawn_alignment = ["inner", "outer", "outer"]

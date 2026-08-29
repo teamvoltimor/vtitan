@@ -1,0 +1,4 @@
+width = 128
+height = 64
+i2c_address = "0x3C"
+i2c_bus = 1

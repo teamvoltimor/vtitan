@@ -70,6 +70,51 @@ func TestLoad_MotorsConfig(t *testing.T) {
 	}
 }
 
+func TestLoadRobotConfig_MissingRequiredFieldsErrors(t *testing.T) {
+	t.Parallel()
+
+	_, err := profile.LoadRobotConfig(filepath.Join("testdata", "robot.toml"), nil)
+	if err == nil {
+		t.Fatal("LoadRobotConfig: want error when no profile supplies drivetrain/steering facts, got nil")
+	}
+}
+
+func TestLoadRobotConfig_ProfileSuppliesRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := profile.LoadRobotConfig(filepath.Join("testdata", "robot.toml"), []string{"full-specs"})
+	if err != nil {
+		t.Fatalf("LoadRobotConfig: %v", err)
+	}
+	if cfg.Drivetrain.MaxSpeedMPS != 1.0 {
+		t.Errorf("Drivetrain.MaxSpeedMPS = %v, want 1.0", cfg.Drivetrain.MaxSpeedMPS)
+	}
+	if cfg.Steering.ServoMaxAngleDeg != 135.0 {
+		t.Errorf("Steering.ServoMaxAngleDeg = %v, want 135.0", cfg.Steering.ServoMaxAngleDeg)
+	}
+	if cfg.Steering.MaxWheelAngleDeg != 85.0 {
+		t.Errorf("Steering.MaxWheelAngleDeg = %v, want 85.0", cfg.Steering.MaxWheelAngleDeg)
+	}
+}
+
+func TestLoad_TrackConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := profile.Load[profile.TrackConfig](filepath.Join("testdata", "track.toml"), nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Track.MatSize != 3.2 {
+		t.Errorf("Track.MatSize = %v, want 3.2", cfg.Track.MatSize)
+	}
+	if cfg.Corridor.DivisionLines != [2]float64{0.40, 0.60} {
+		t.Errorf("Corridor.DivisionLines = %v, want [0.40, 0.60]", cfg.Corridor.DivisionLines)
+	}
+	if cfg.StartingZone.SpawnAlignment != [3]string{"inner", "outer", "outer"} {
+		t.Errorf("StartingZone.SpawnAlignment = %v, want [inner outer outer]", cfg.StartingZone.SpawnAlignment)
+	}
+}
+
 func TestLoad_MissingBaseErrors(t *testing.T) {
 	t.Parallel()
 

@@ -1,0 +1,4 @@
+serial_port = "/dev/ttyUSB0"
+serial_baudrate = 460800
+scan_mode = "Standard"
+angle_compensate = true

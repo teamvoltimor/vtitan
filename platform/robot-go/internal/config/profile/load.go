@@ -8,14 +8,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Load reads basePath as TOML via viper, then for each name in
+// merge reads basePath as TOML via viper, then for each name in
 // profileNames merges that profile's overlay
 // (filepath.Join(filepath.Dir(basePath), "profiles", name,
 // filepath.Base(basePath))) on top, in order, later names winning
-// (viper.MergeInConfig deep-merges nested tables), and unmarshals the
-// merged result into a new T. Struct fields need a `mapstructure:"..."` tag
-// wherever the TOML key isn't just the field name lowercased (viper matches
-// case-insensitively but does not snake_case-convert).
+// (viper.MergeInConfig deep-merges nested tables).
 //
 // A missing base file is an error. A profileNames entry whose directory
 // doesn't exist is an error, matching
@@ -23,7 +20,7 @@ import (
 // exists but has no file named like basePath's is skipped rather than an
 // error, matching settings_base.py's per-driver overlay behavior: not every
 // profile touches every TOML file.
-func Load[T any](basePath string, profileNames []string) (*T, error) {
+func merge(basePath string, profileNames []string) (*viper.Viper, error) {
 	v := viper.New()
 	v.SetConfigFile(basePath)
 	if err := v.ReadInConfig(); err != nil {
@@ -46,6 +43,19 @@ func Load[T any](basePath string, profileNames []string) (*T, error) {
 		if err := v.MergeInConfig(); err != nil {
 			return nil, fmt.Errorf("profile: reading overlay for %q: %w", name, err)
 		}
+	}
+	return v, nil
+}
+
+// Load reads basePath as TOML, merges profileNames' overlays on top (see
+// merge), and unmarshals the result into a new T. Struct fields need a
+// `mapstructure:"..."` tag wherever the TOML key isn't just the field name
+// lowercased (viper matches case-insensitively but does not
+// snake_case-convert).
+func Load[T any](basePath string, profileNames []string) (*T, error) {
+	v, err := merge(basePath, profileNames)
+	if err != nil {
+		return nil, err
 	}
 
 	var cfg T
