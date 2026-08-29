@@ -81,8 +81,12 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 	flags.StringVar(&cfg.corpusPath, "corpus", "",
 		"path to a scenario corpus: a directory of *_metadata.json files, or a single metadata file")
 	flags.StringVar(&cfg.command, "command", "python3", "interpreter executable to invoke run_scenario.py with")
-	flags.StringVar(&cfg.baseArgs, "base-args", "",
-		"comma-separated argv entries inserted before the script path (e.g. for a wrapper like pixi: run,-e,dev,python)")
+	flags.StringVar(
+		&cfg.baseArgs,
+		"base-args",
+		"",
+		"comma-separated argv entries inserted before the script path (e.g. for a wrapper like pixi: run,-e,dev,python)",
+	)
 	flags.StringVar(&cfg.scriptPath, "script", "", "path to scripts/sim/run_scenario.py")
 	flags.StringVar(&cfg.workDir, "workdir", "", "working directory to run the script from, normally platform/robot")
 	flags.StringVar(&cfg.pythonPath, "python-path", ".", "PYTHONPATH to set for the subprocess")
