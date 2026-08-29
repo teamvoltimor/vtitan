@@ -1,0 +1,12 @@
+arc_radius = 0.45
+dedupe_distance_m = 0.001
+wide_center_bias_m = 0.10
+wide_center_bias_side = "inner"
+narrow_center_bias_side = "inner"
+narrow_center_bias_m = 0.0
+narrow_width_threshold_m = 0.8
+num_intermediate_arc_points = 3
+straight_waypoint_count = 8
+main_loop_reached_distance_m = 0.20
+controller_reached_distance_m = 0.01
+replan_heading_tie_margin_m = 0.15

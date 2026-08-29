@@ -1,0 +1,6 @@
+turn_clearance_m = 0.60
+narrow_turn_clearance_m = 0.40
+min_forward_clearance_m = 0.30
+min_reverse_clearance_m = 0.30
+# bay_wall_clearance_m deliberately omitted -- tests the LoadWithDefaults
+# fallback to CorridorFollowerParams' 0.20 Pydantic default.

@@ -1,0 +1,11 @@
+front_half_fov_deg = 30.0
+threat_half_fov_deg = 45.0
+self_detection_threshold_m = 0.08
+min_valid_range_m = 0.05
+threat_no_detection_range_m = 1.0
+no_data_range_m = 10.0
+blind_wedge_left_min_deg = -180.0
+blind_wedge_left_max_deg = -115.0
+blind_wedge_right_min_deg = 115.0
+blind_wedge_right_max_deg = 180.0
+direction_arc_half_fov_deg = 8.0

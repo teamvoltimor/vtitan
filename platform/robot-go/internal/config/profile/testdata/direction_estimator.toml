@@ -1,0 +1,7 @@
+alignment_tolerance_rad = 0.4363323129985824
+corner_clearance_m = 1.00
+max_in_track_range_m = 4.5
+min_asymmetry_m = 0.20
+plausible_span_threshold_m = 1.25
+min_votes = 5
+gate_log_period_ticks = 5

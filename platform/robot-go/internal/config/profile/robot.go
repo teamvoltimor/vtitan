@@ -129,7 +129,7 @@ var requiredRobotKeys = []string{
 // RobotConstants._require_component_facts() does: an error naming the
 // missing key and the active profiles, not a silently-zero field.
 func LoadRobotConfig(basePath string, profileNames []string) (*RobotConfig, error) {
-	v, err := merge(basePath, profileNames)
+	v, err := merge(basePath, profileNames, nil)
 	if err != nil {
 		return nil, err
 	}

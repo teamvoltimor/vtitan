@@ -11,13 +11,11 @@
 // opening on the left means counterclockwise. See InferDirection's doc
 // comment for the full discrimination.
 //
-// Config's field defaults mirror
+// DefaultConfig's field values mirror
 // shared.config.navigation_tuning.blind_nav.DirectionEstimatorParams and
 // (for DirectionFromParkingBay's forward-clearance/wall-clearance checks)
-// CorridorFollowerParams -- restated here as literals rather than loaded
-// from platform/shared/config/navigation/**'s TOML files because
-// internal/config/profile doesn't cover the navigation-tuning tree yet
-// (only robot.toml/track.toml and per-driver hardware TOMLs); migrate to a
-// profile-loaded Config the same way internal/telemetry/diag.Config did
-// once that tree is ported.
+// CorridorFollowerParams/LidarSectorParams; ConfigFor loads the real
+// values from platform/shared/config/navigation/**'s TOML files via
+// internal/config/profile, falling back to DefaultConfig's literals when
+// no config root is supplied or loading fails.
 package directionestimator

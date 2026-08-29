@@ -2,12 +2,12 @@ package waypoints
 
 import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 
-// Config parameterizes waypoint generation. Field defaults mirror
-// shared.config.navigation_tuning.waypoint.WaypointParams' Pydantic
-// defaults, restated as literals rather than profile-loaded for the same
-// reason internal/nav/directionestimator.Config is (see that package's
-// doc.go): internal/config/profile doesn't cover the navigation-tuning
-// TOML tree yet.
+// Config parameterizes waypoint generation. DefaultConfig's field values
+// mirror shared.config.navigation_tuning.waypoint.WaypointParams'
+// Pydantic defaults; ConfigFor loads the real values from
+// platform/shared/config/navigation/waypoint/waypoints.toml via
+// internal/config/profile, falling back to DefaultConfig's literals when
+// no config root is supplied or loading fails.
 type Config struct {
 	// DedupeDistanceM is the distance below which consecutive generated
 	// waypoints are treated as duplicates.
