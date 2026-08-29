@@ -28,7 +28,7 @@ from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
 from scripts.common.tables import print_table
-from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap
+from src.navigation.utils import _forward_clearance, _nearest_ray, axis_offset_rad
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 
@@ -55,7 +55,7 @@ def main() -> None:
     for t, scan in scans:
         yaw = min(yaws, key=lambda p: abs(p[0] - t))[1]
         fwd = _forward_clearance(scan.ranges_m, scan.angles_rad, tuning)
-        axis = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
+        axis = abs(axis_offset_rad(yaw))
         left = _nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2)
         right = _nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2)
         rows.append((t, fwd, axis, left, right))
