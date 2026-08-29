@@ -13,6 +13,7 @@ import math
 
 import numpy as np
 import pytest
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RiskLevel, Section, ThreatDirection
 from shared.domain.models import LidarClearances, Pose, Waypoint
@@ -344,6 +345,27 @@ class TestForwardPathRisk:
         i = angle_to_index(0.0)
         ranges[i - 4 : i + 4] = 0.20  # contact_dist < 0.20 < slow_dist (0.25)
         assert controller.assess_risk(ranges, ANGLES_FULL_ROTATION) == RiskLevel.OBSTACLE
+
+    def test_whole_forward_lane_no_return_is_critical_not_safe(self, controller):
+        # ros2_hardware_gateway sanitizes NaN/inf no-return rays to
+        # LIDAR_MAX_RANGE before this ever sees them -- grazing incidence off
+        # something very close reads exactly like this. A forward lane where
+        # every ray is this fabricated value must NOT read as "wide open,
+        # SAFE": that is precisely what let a real corner go undetected on
+        # hardware 2026-08-28 (a 60cm-corridor run with an enlarged centre
+        # wall that never turned -- the whole forward cone was grazing
+        # incidence off the wall, not genuinely clear road).
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i - 4 : i + 4] = RobotSpecs.LIDAR_MAX_RANGE
+        assert controller.assess_risk(ranges, ANGLES_FULL_ROTATION) == RiskLevel.CRITICAL
+
+    def test_genuinely_empty_scan_is_still_safe(self, controller):
+        # Only a lane that HAD rays but every one was a no-return escalates
+        # (previous test) -- a scan with nothing in it at all has nothing to
+        # judge and must stay SAFE, or every startup tick before the first
+        # scan arrives would read as a false emergency.
+        assert controller.assess_risk(np.array([]), None) == RiskLevel.SAFE
 
 
 class TestBlindWedgeMasking:

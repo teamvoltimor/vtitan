@@ -11,6 +11,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+from shared.config.constants import RobotSpecs
 from shared.domain.models import SectorRanges
 
 from src.config.tuning_helpers import get_tuning
@@ -21,6 +22,26 @@ if TYPE_CHECKING:
 
     from shared.domain.enums import Section
     from shared.domain.models import Pose, Waypoint
+
+_NO_RETURN_MARGIN_M = 0.05
+"""How far below ``RobotSpecs.LIDAR_MAX_RANGE`` still counts as a fabricated
+no-return substitute, not a genuine long reading.
+
+``ros2_hardware_gateway._lidar_callback`` sanitizes NaN/inf rays (the Slamtec
+driver's real "no signal" value) to ``LIDAR_MAX_RANGE`` BEFORE any sector code
+ever sees the scan, so by the time a ray reaches this module the distinguishing
+information is already gone -- a finite 12.0m reading is indistinguishable from
+a real 12.0m echo. ``np.isfinite`` alone (this module's historical no-return
+filter) is dead code against a sanitized hardware scan: it only ever excludes
+literal ``inf``, which nothing downstream of the gateway still emits. Measured
+on hardware 2026-08-28 (a 60cm-corridor run with an enlarged centre wall):
+``compute_forward_clearance`` and ``assess_risk`` both read the whole forward
+cone as ~12m ("wide open") at the exact moment the chassis was closest to a
+wall -- every ray in the cone was grazing-incidence no-return, sanitized to the
+fabricated far value, and nothing downstream could tell that apart from a
+genuinely clear corridor. On this track's scale (a few metres), no real echo
+should ever land within a few cm of the sensor's 12m spec ceiling, so treating
+anything in that band as unmeasured is safe."""
 
 
 def mask_mapped_obstacles(
@@ -132,6 +153,16 @@ def _forward_path_ranges(
     are in the robot's path -- the side walls of a corridor are excluded, so a
     robot driving straight down a narrow corridor is not perpetually flagged just
     because a wall is 0.2 m off its shoulder.
+
+    A literal +inf no-return ray is excluded for free here (its lateral offset
+    is also inf, failing the ``path_half_width`` bound), but the hardware
+    gateway's fabricated ``LIDAR_MAX_RANGE`` substitute (see
+    ``_NO_RETURN_MARGIN_M``) is finite and dead-ahead lands well inside the
+    lane -- it needs its own exclusion or a forward cone that is ENTIRELY
+    no-return (grazing incidence off something very close, not "genuinely
+    clear") reports as the single largest, safest-looking range in the path.
+    Measured on hardware 2026-08-28: this is what let ``assess_risk`` report
+    SAFE at the exact moment the chassis was closest to a wall.
     """
     ranges = np.asarray(lidar_ranges, dtype=float)
     if ranges.size == 0:
@@ -144,8 +175,42 @@ def _forward_path_ranges(
 
     lateral = np.abs(ranges * np.sin(angles))
     ahead = np.cos(angles) > 0.0
-    mask = ahead & (lateral < path_half_width) & (ranges > min_valid_range_m)
+    mask = (
+        ahead
+        & (lateral < path_half_width)
+        & (ranges > min_valid_range_m)
+        & (ranges < RobotSpecs.LIDAR_MAX_RANGE - _NO_RETURN_MARGIN_M)
+    )
     return np.asarray(ranges[mask])
+
+
+def _forward_path_has_rays(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    path_half_width: float,
+) -> bool:
+    """Whether any ray at all falls geometrically inside the forward lane.
+
+    Ignores validity entirely (no ``min_valid_range_m``/no-return exclusion) --
+    this answers "did the scan sweep this lane" not "is the lane clear",
+    letting a caller (``assess_risk``) tell a genuinely-empty scan window
+    (nothing to judge, safe by construction) apart from a lane that had rays
+    but every one of them was a no-return (something is very likely very
+    close -- see ``_forward_path_ranges``'s no-return exclusion), which must
+    NOT read the same as the first case.
+    """
+    ranges = np.asarray(lidar_ranges, dtype=float)
+    if ranges.size == 0:
+        return False
+
+    if lidar_angles is None:
+        angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+    else:
+        angles = np.asarray(lidar_angles, dtype=float)
+
+    lateral = np.abs(ranges * np.sin(angles))
+    ahead = np.cos(angles) > 0.0
+    return bool(np.any(ahead & (lateral < path_half_width)))
 
 
 def sector_ranges(
@@ -250,12 +315,21 @@ def sector_ranges(
         )
     else:
         in_blind_wedge = np.zeros(angles.shape, dtype=bool)
-    # np.isfinite excludes no-return rays (+inf beyond LIDAR max range): ranges >
-    # min_valid alone lets them through (inf > any finite threshold), and a single
-    # stray inf inside a sector's window turns its mean/min/max into inf for every
-    # caller -- both the OLED's displayed clearance and detect_threat_direction's
-    # real collision-avoidance sectors.
-    mask = (np.abs(delta) <= half_fov_rad) & (ranges > min_valid) & np.isfinite(ranges) & ~in_blind_wedge
+    # Excludes no-return rays at both ends: literal +inf (never survives past the
+    # hardware gateway, but still possible from mask_mapped_obstacles/tests) via
+    # np.isfinite, and the gateway's fabricated LIDAR_MAX_RANGE substitute (see
+    # _NO_RETURN_MARGIN_M) via the upper bound -- ranges > min_valid alone lets
+    # both through (inf and 12.0 both exceed any finite lower threshold), and a
+    # sector dominated by either turns its min into "wide open" for every caller,
+    # both the OLED's displayed clearance and detect_threat_direction's real
+    # collision-avoidance sectors.
+    mask = (
+        (np.abs(delta) <= half_fov_rad)
+        & (ranges > min_valid)
+        & (ranges < RobotSpecs.LIDAR_MAX_RANGE - _NO_RETURN_MARGIN_M)
+        & np.isfinite(ranges)
+        & ~in_blind_wedge
+    )
     return np.asarray(ranges[mask])
 
 

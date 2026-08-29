@@ -19,6 +19,7 @@ from shared.domain.enums import Direction, ManeuverType, RiskLevel, ThreatDirect
 
 from src.navigation.control.controllers.collision_avoidance.bumper import bumper_gap_ahead
 from src.navigation.control.controllers.collision_avoidance.sectors import (
+    _forward_path_has_rays,
     _forward_path_ranges,
     _sector_to_model,
     sector_ranges,
@@ -251,6 +252,20 @@ class CollisionAvoidanceController:
 
         path = self._forward_path_ranges(lidar_ranges, lidar_angles)
         if path.size == 0:
+            # Two different causes read the same here: no scan rays fell inside
+            # the forward lane at all (a near-empty scan -- nothing to judge,
+            # safe by construction), or the lane DID have rays but every one of
+            # them was a no-return -- the hardware gateway's fabricated
+            # LIDAR_MAX_RANGE substitute for a real grazing-incidence echo,
+            # which is the signature of something very close spanning the
+            # WHOLE cone, not of open road (see _forward_path_ranges's
+            # no-return exclusion). Only the first case is actually safe; the
+            # second must not default to SAFE, or a corner an obstacle sits
+            # flush against becomes invisible to the very check meant to catch
+            # it -- measured on hardware 2026-08-28, a 60cm-corridor run with
+            # an enlarged centre wall that never turned.
+            if _forward_path_has_rays(lidar_ranges, lidar_angles, self.path_half_width):
+                return RiskLevel.CRITICAL
             return RiskLevel.SAFE
 
         # Judged as a gap from the BUMPER, not as a raw sensor range: the
