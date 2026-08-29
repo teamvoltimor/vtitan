@@ -11,6 +11,8 @@ require (
 	go.bug.st/serial v1.8.0
 	golang.org/x/sync v0.20.0
 	google.golang.org/protobuf v1.36.12
+	periph.io/x/conn/v3 v3.7.3
+	periph.io/x/host/v3 v3.8.5
 )
 
 require (
