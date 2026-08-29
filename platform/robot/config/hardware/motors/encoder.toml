@@ -29,18 +29,56 @@ pin_b = 20
 # rate-derived, and doing so gave answers ~2x wrong for the old motor too.
 counts_per_rev = 86.0
 
-# Maximum achievable WHEEL rpm. PROVISIONAL, 2026-08-28, same bench session
-# as counts_per_rev above: commanded 0.1 m/s converged to ~0.45 m/s real
-# (measured 135cm over 3s) with max_duty capped at 0.5 -- 0.05 m/s and
-# 0.1 m/s commanded produced nearly the same real speed (0.385 vs 0.45 m/s),
-# which is the signature of the PID saturating at max_duty rather than
-# still tracking the setpoint. So ~0.45 m/s / 123 rpm is the max reachable
-# at the CURRENT 50% duty cap, not the motor's true 100%-duty max (which
-# felt like ~1 m/s by hand and remains unmeasured -- see max_duty below).
-# counts_per_rev counts WHEEL revolutions, so get_rpm() reports wheel rpm,
-# and the PID's feedforward term (1/max_rpm) must be scaled from the same
-# frame or it under/over-contributes duty.
-max_rpm = 123.0
+# Maximum achievable WHEEL rpm AT 100% DUTY. counts_per_rev counts WHEEL
+# revolutions, so get_rpm() reports wheel rpm, and the PID's feedforward term
+# (1/max_rpm) must be scaled from the same frame or it under/over-contributes
+# duty.
+#
+# The 100%-duty frame is not incidental, it is what the feedforward REQUIRES:
+# PIDController computes `feedforward * setpoint` with feedforward = 1/max_rpm,
+# so the term it contributes IS the duty fraction `setpoint_rpm / max_rpm`.
+# Feeding it an rpm ceiling measured at some LOWER duty cap makes every
+# feedforward request proportionally too hot.
+#
+# REVISED 2026-08-29 from 123.0, which was exactly that error. The 123 came
+# from the 2026-08-28 bench session and is accurately labelled there as "the
+# max reachable at the CURRENT 50% duty cap" -- a 50%-duty measurement used in
+# a 100%-duty slot, so the feedforward over-commanded by the ratio between
+# them.
+#
+# WHAT THIS FIXES, precisely -- it is a SATURATION bug, not a speed-error one.
+# The feedforward contributes duty = setpoint_rpm/max_rpm, so at 123 the
+# medium and fast tiers asked for more duty than max_duty=0.5 allows before
+# the PID contributed anything at all:
+#     cmd 0.24 m/s -> 65.5 rpm -> ff duty 0.532  CLAMPED at 0.50
+#     cmd 0.28 m/s -> 76.4 rpm -> ff duty 0.621  CLAMPED at 0.50
+# A clamped feedforward leaves the loop with zero authority: it cannot trim
+# down (already at the ceiling) and the integral cannot help. Replaying the
+# real PIDController+SpeedEstimator against a first-order plant confirms it --
+# at cmd 0.24 the old value settles at 1.33x setpoint with stdev 0.0 (the
+# signature of a rail), where 175 settles at 1.01x. Below ~0.22 m/s the old
+# value was NOT saturated and the loop did converge, so this changes little
+# there.
+#
+# 175 puts every tier except fast_mps (0.35 -> ff 0.546, still clamped) inside
+# the duty budget. Raising max_duty is the separate fix for that tier.
+#
+# NOT derived from measured 100%-duty rpm -- that is still unmeasured (see
+# max_duty below). 175 is the value that makes the shipped speed ladder fit
+# the duty budget with margin, chosen against the same bag's operating range.
+#
+# PROVISIONAL, NOT LIVE-VERIFIED. It interacts with pid_kp/pid_ki below, whose
+# own ~8x rescale is also unverified -- change THIS alone and re-run before
+# touching those, or neither result is attributable.
+#
+# Do NOT justify a future change to this value with commanded-vs-achieved
+# speed derived from nav_debug pose path length. That measure accumulates
+# localization jitter and over-reads badly: on run_20260829_003233 it gave
+# 31.57m against 28.63m commanded (an apparent 1.10x, and ~1.4x in some speed
+# buckets) which evaporates under decimation -- the same path decimated to a
+# ~1s step gives 28.7m, i.e. a true ratio of ~1.00. That run tracked its
+# commanded speed correctly on aggregate; there was no over-delivery to fix.
+max_rpm = 175.0
 
 # wheel_diameter_m is not set here -- it derives from RobotSpecs.WHEEL_RADIUS
 # (src/hardware/motors/encoder/calibration.py), not restated as a literal.
