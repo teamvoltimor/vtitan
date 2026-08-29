@@ -4,3 +4,5 @@ max_wheel_angle_deg = 85.0
 
 [drivetrain]
 max_speed_mps = 1.0
+max_accel_mps2 = 2.0
+speed_response_tau_s = 0.35

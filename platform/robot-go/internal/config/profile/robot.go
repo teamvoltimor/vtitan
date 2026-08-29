@@ -39,14 +39,16 @@ type RobotWheel struct {
 	Mass   float64 `mapstructure:"mass"`
 }
 
-// RobotDrivetrain mirrors robot.toml's [drivetrain] section. MaxSpeedMPS is
-// deliberately absent from the base robot.toml -- it describes a specific
-// motor, so it's required from an active hardware profile (see
-// LoadRobotConfig).
+// RobotDrivetrain mirrors robot.toml's [drivetrain] section. MaxSpeedMPS,
+// MaxAccelMPS2 and SpeedResponseTauS are deliberately absent from the base
+// robot.toml -- they describe a specific motor, so they're required from an
+// active hardware profile (see LoadRobotConfig).
 type RobotDrivetrain struct {
-	MaxSpeedMPS    float64 `mapstructure:"max_speed_mps"`
-	MaxAccelMPS2   float64 `mapstructure:"max_accel_mps2"`
-	RearSteerRatio float64 `mapstructure:"rear_steer_ratio"`
+	MaxSpeedMPS       float64 `mapstructure:"max_speed_mps"`
+	MaxAccelMPS2      float64 `mapstructure:"max_accel_mps2"`
+	SpeedResponseTauS float64 `mapstructure:"speed_response_tau_s"`
+	RearSteerRatio    float64 `mapstructure:"rear_steer_ratio"`
+	YawGain           float64 `mapstructure:"yaw_gain"`
 }
 
 // RobotLidar mirrors robot.toml's [lidar] section.
@@ -120,6 +122,8 @@ const degToRadTurn = 180.0
 // RobotConstants._require_component_facts().
 var requiredRobotKeys = []string{
 	"drivetrain.max_speed_mps",
+	"drivetrain.max_accel_mps2",
+	"drivetrain.speed_response_tau_s",
 	"steering.servo_max_angle_deg",
 	"steering.max_wheel_angle_deg",
 }

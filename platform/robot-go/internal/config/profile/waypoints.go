@@ -3,14 +3,15 @@ package profile
 // WaypointsConfig mirrors the subset of
 // platform/shared/config/navigation/waypoint/waypoints.toml
 // (shared.config.navigation_tuning.waypoint.WaypointParams) that
-// internal/nav/waypoints currently consumes. ArcRadius/
-// MainLoopReachedDistanceM/ControllerReachedDistanceM/
-// ReplanHeadingTieMarginM belong to calculate_waypoints and the
-// navigator/controller consumers, none ported to Go yet, so they're
-// omitted here rather than mirrored unused. WideCenterBiasSide/
-// NarrowCenterBiasSide stay strings -- viper/mapstructure has no decode
-// hook for trackmodel.CorridorSide's "inner"/"outer" TOML values, so
-// internal/nav/waypoints.ConfigFor parses them itself.
+// internal/nav/waypoints and internal/nav/controllers currently consume.
+// ArcRadius/MainLoopReachedDistanceM/ReplanHeadingTieMarginM belong to
+// calculate_waypoints and the navigator consumer, not ported to Go yet, so
+// they're omitted here rather than mirrored unused.
+// ControllerReachedDistanceM IS mirrored -- see its own doc comment for why
+// it's consumed by internal/nav/controllers rather than this package.
+// WideCenterBiasSide/NarrowCenterBiasSide stay strings -- viper/mapstructure
+// has no decode hook for trackmodel.CorridorSide's "inner"/"outer" TOML
+// values, so internal/nav/waypoints.ConfigFor parses them itself.
 type WaypointsConfig struct {
 	// DedupeDistanceM matches DEDUPE_DISTANCE_M.
 	DedupeDistanceM float64 `mapstructure:"dedupe_distance_m"`
@@ -28,6 +29,11 @@ type WaypointsConfig struct {
 	NumIntermediateArcPoints int `mapstructure:"num_intermediate_arc_points"`
 	// StraightWaypointCount matches STRAIGHT_WAYPOINT_COUNT.
 	StraightWaypointCount int `mapstructure:"straight_waypoint_count"`
+	// ControllerReachedDistanceM matches CONTROLLER_REACHED_DISTANCE_M --
+	// consumed by internal/nav/controllers.Config, not by this package
+	// (WaypointsConfig only mirrors the TOML; CONTROLLER_REACHED_DISTANCE_M
+	// belongs conceptually to WaypointController, sourced from the same file).
+	ControllerReachedDistanceM float64 `mapstructure:"controller_reached_distance_m"`
 }
 
 // DefaultWaypointsTOMLPath is
