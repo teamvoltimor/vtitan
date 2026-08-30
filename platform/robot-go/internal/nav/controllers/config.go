@@ -3,6 +3,8 @@ package controllers
 import (
 	"log/slog"
 	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 )
 
 // Config aggregates every tuning value internal/nav/controllers' types
@@ -214,12 +216,12 @@ func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController 
 		SlowDist:                c.SlowDist,
 		FastDist:                c.FastDist,
 		EscapeRevSpeed:          c.RevSpeed,
-		EscapeSteerScale:        angleRadToNorm(c.RevSteerDeg*math.Pi/degToRadTurn, c.MaxSteeringAngleRad),
+		EscapeSteerScale:        navutil.SteeringNormFromAngleRad(c.RevSteerDeg*math.Pi/degToRadTurn, c.MaxSteeringAngleRad),
 		StuckThreshold:          c.StuckMoveThreshold,
 		PathHalfWidth:           pathHalfWidth,
 		KTurnMinFrames:          c.KTurnMinFrames,
 		KTurnMaxFrames:          c.KTurnMaxFrames,
-		SideCorrectionSteer:     angleRadToNorm(c.SideCorrectionSteerDeg*math.Pi/degToRadTurn, c.MaxSteeringAngleRad),
+		SideCorrectionSteer:     navutil.SteeringNormFromAngleRad(c.SideCorrectionSteerDeg*math.Pi/degToRadTurn, c.MaxSteeringAngleRad),
 		SideCorrectionSpeed:     c.SideCorrectionSpeed,
 		SideCorrectionFrames:    c.SideCorrectionFrames,
 		FrontHalfFovRad:         c.FrontHalfFovDeg * math.Pi / degToRadTurn,
@@ -265,16 +267,4 @@ func (c Config) sectorGeometry() SectorGeometry {
 		BlindWedgeRightMinRad:   c.BlindWedgeRightMinDeg * math.Pi / degToRadTurn,
 		BlindWedgeRightMaxRad:   c.BlindWedgeRightMaxDeg * math.Pi / degToRadTurn,
 	}
-}
-
-// angleRadToNorm mirrors shared.domain.steering.angle_rad_to_steering_norm:
-// encode a physical steering angle (radians, + = left) into a normalised
-// command in [-1, 1], clamped rather than left to overshoot the physical
-// limit.
-func angleRadToNorm(angleRad, maxSteeringAngleRad float64) float64 {
-	if maxSteeringAngleRad <= 0.0 {
-		return 0.0
-	}
-	const normLimit = 1.0
-	return math.Max(-normLimit, math.Min(normLimit, angleRad/maxSteeringAngleRad))
 }

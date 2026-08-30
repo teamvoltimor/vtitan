@@ -53,7 +53,7 @@ func FollowCorridor(
 	// recalibrating the servo silently retuned the loop.
 	maxCenteringRad := cfg.MaxCenteringSteerDeg * math.Pi / degreesPerHalfTurn
 	centeringGainRadPerM := cfg.CenteringGainDegPerM * math.Pi / degreesPerHalfTurn
-	maxCorner := steeringNormFromAngle(
+	maxCorner := navutil.SteeringNormFromAngleRad(
 		cfg.MaxCornerSteerDeg*math.Pi/degreesPerHalfTurn, cfg.MaxSteeringAngleRad,
 	)
 
@@ -120,7 +120,7 @@ func FollowCorridor(
 
 	return controllers.DriveCommand{
 		SpeedMPS:     params.SpeedMPS,
-		SteeringNorm: steeringNormFromAngle(steerRad, cfg.MaxSteeringAngleRad),
+		SteeringNorm: navutil.SteeringNormFromAngleRad(steerRad, cfg.MaxSteeringAngleRad),
 	}
 }
 

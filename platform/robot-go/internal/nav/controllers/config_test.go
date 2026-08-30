@@ -55,10 +55,9 @@ func TestNewCollisionAvoidanceController_PathHalfWidthIsChassisHalfWidthPlusMarg
 }
 
 // TestNewCollisionAvoidanceController_EscapeSteerScaleClampsAtFullLock pins
-// angleRadToNorm's clamp: a rev_steer_deg tuned larger than the physical
+// navutil.SteeringNormFromAngleRad's clamp: a rev_steer_deg tuned larger than the physical
 // steering limit must saturate at 1.0 rather than overshoot it, matching
-// shared.domain.steering.angle_rad_to_steering_norm's own clamp (see
-// config.go's angleRadToNorm doc comment).
+// shared.domain.steering.angle_rad_to_steering_norm's own clamp.
 func TestNewCollisionAvoidanceController_EscapeSteerScaleClampsAtFullLock(t *testing.T) {
 	t.Parallel()
 
@@ -72,7 +71,7 @@ func TestNewCollisionAvoidanceController_EscapeSteerScaleClampsAtFullLock(t *tes
 }
 
 // TestNewCollisionAvoidanceController_ZeroMaxSteeringAngleYieldsZeroScale
-// pins angleRadToNorm's other documented edge: a non-positive
+// pins navutil.SteeringNormFromAngleRad's other documented edge: a non-positive
 // MaxSteeringAngleRad (an unconfigured hardware profile) must not divide by
 // zero or produce Inf/NaN, returning 0.0 instead.
 func TestNewCollisionAvoidanceController_ZeroMaxSteeringAngleYieldsZeroScale(t *testing.T) {

@@ -2,6 +2,8 @@ package navigator
 
 import (
 	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 )
 
 // Config aggregates every tuning value the Navigator itself consumes --
@@ -378,13 +380,13 @@ func (c Config) FastSpeedMPS() float64 { return math.Min(c.FastMPS, c.Drivetrain
 // command for the same angle rather than the same command meaning a wider
 // angle on different hardware.
 func (c Config) RevSteerNorm() float64 {
-	return steeringNormFromAngleRad(degreesToRadians(c.RevSteerDeg), c.MaxSteeringAngleRad)
+	return navutil.SteeringNormFromAngleRad(degreesToRadians(c.RevSteerDeg), c.MaxSteeringAngleRad)
 }
 
 // SignContactSteerNorm converts SignContactSteerDeg into a normalised
 // actuator command, matching SignRouterParams.sign_contact_steer_norm().
 func (c Config) SignContactSteerNorm() float64 {
-	return steeringNormFromAngleRad(degreesToRadians(c.SignContactSteerDeg), c.MaxSteeringAngleRad)
+	return navutil.SteeringNormFromAngleRad(degreesToRadians(c.SignContactSteerDeg), c.MaxSteeringAngleRad)
 }
 
 // RetraceSteerGainNorm is the reverse-pure-pursuit steering command for a
@@ -393,7 +395,7 @@ func (c Config) SignContactSteerNorm() float64 {
 // dimensionless bearing ratio, the gain turns it into a road-wheel angle,
 // and only then does the servo's reach enter.
 func (c Config) RetraceSteerGainNorm(lateralOverDistance float64) float64 {
-	return steeringNormFromAngleRad(
+	return navutil.SteeringNormFromAngleRad(
 		degreesToRadians(c.RetraceSteerGainDeg)*lateralOverDistance,
 		c.MaxSteeringAngleRad,
 	)
@@ -410,15 +412,3 @@ func (c Config) LaneLateralOffsetM(chassisHalfDiagonalM float64) float64 {
 
 // degreesToRadians converts an angle in degrees to radians.
 func degreesToRadians(deg float64) float64 { return deg * math.Pi / halfTurnDeg }
-
-// steeringNormFromAngleRad mirrors
-// shared.domain.steering.angle_rad_to_steering_norm: encode a physical
-// steering angle (radians, + = left) into a normalised command in [-1, 1],
-// clamped rather than left to overshoot past the physical limit.
-func steeringNormFromAngleRad(angleRad, maxSteeringAngleRad float64) float64 {
-	if maxSteeringAngleRad <= 0.0 {
-		return 0.0
-	}
-	const normLimit = 1.0
-	return math.Max(-normLimit, math.Min(normLimit, angleRad/maxSteeringAngleRad))
-}

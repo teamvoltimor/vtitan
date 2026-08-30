@@ -160,22 +160,3 @@ func DefaultConfig() Config {
 		MaxInTrackRangeM:     DefaultMaxInTrackRangeM,
 	}
 }
-
-// steeringNormFromAngle encodes a physical road-wheel angle as the [-1, 1]
-// command the drive port takes, mirroring
-// shared.domain.steering.angle_rad_to_steering_norm.
-//
-// This is the fourth copy of this three-line conversion in the tree (see
-// controllers/config.go, navigator/config.go, profile/escape.go). Kept local
-// for consistency with those rather than consolidated here, since moving it
-// would touch three packages this port has no other reason to change.
-func steeringNormFromAngle(angleRad, maxSteeringAngleRad float64) float64 {
-	if maxSteeringAngleRad == 0 {
-		return 0
-	}
-	return clampUnit(angleRad / maxSteeringAngleRad)
-}
-
-func clampUnit(value float64) float64 {
-	return math.Max(-1.0, math.Min(1.0, value))
-}

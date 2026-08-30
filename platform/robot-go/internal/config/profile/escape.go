@@ -1,6 +1,10 @@
 package profile
 
-import "math"
+import (
+	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+)
 
 // EscapeConfig mirrors the subset of
 // platform/shared/config/navigation/escape/escape.toml
@@ -57,24 +61,12 @@ const DefaultEscapeTOMLPath = "platform/shared/config/navigation/escape/escape.t
 // SMALLER normalised command for the same physical angle, rather than the
 // same command meaning a wider angle on different hardware.
 func (c EscapeConfig) RevSteerNorm(maxSteeringAngleRad float64) float64 {
-	return angleRadToSteeringNorm(c.RevSteerDeg*math.Pi/degToRadTurn, maxSteeringAngleRad)
+	return navutil.SteeringNormFromAngleRad(c.RevSteerDeg*math.Pi/degToRadTurn, maxSteeringAngleRad)
 }
 
 // SideCorrectionSteerNorm converts SideCorrectionSteerDeg to a normalised
 // actuator command, matching
 // EscapeManeuverParams.side_correction_steer_norm().
 func (c EscapeConfig) SideCorrectionSteerNorm(maxSteeringAngleRad float64) float64 {
-	return angleRadToSteeringNorm(c.SideCorrectionSteerDeg*math.Pi/degToRadTurn, maxSteeringAngleRad)
-}
-
-// angleRadToSteeringNorm mirrors shared.domain.steering.angle_rad_to_steering_norm:
-// encode a physical steering angle (radians, + = left) into a normalised
-// command in [-1, 1], clamped rather than left to overshoot past the
-// physical limit.
-func angleRadToSteeringNorm(angleRad, maxSteeringAngleRad float64) float64 {
-	if maxSteeringAngleRad <= 0.0 {
-		return 0.0
-	}
-	const normLimit = 1.0
-	return math.Max(-normLimit, math.Min(normLimit, angleRad/maxSteeringAngleRad))
+	return navutil.SteeringNormFromAngleRad(c.SideCorrectionSteerDeg*math.Pi/degToRadTurn, maxSteeringAngleRad)
 }
