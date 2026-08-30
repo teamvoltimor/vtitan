@@ -7,7 +7,7 @@ import (
 
 	statev1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/state/v1"
 	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	smcore "github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
 )
 
@@ -31,7 +31,7 @@ func NewNATSRaceMetricsSink(pub *nats.Publisher[*statev1.RaceMetrics]) *NATSRace
 
 // PublishRaceMetrics publishes status, with targetLaps nil until the state
 // machine knows the lap target for this race.
-func (s *NATSRaceMetricsSink) PublishRaceMetrics(status smcore.RaceStatus, targetLaps *int) error {
+func (s *NATSRaceMetricsSink) PublishRaceMetrics(status core.RaceStatus, targetLaps *int) error {
 	if err := s.pub.Publish(RaceMetricsMessageFor(status, targetLaps)); err != nil {
 		return fmt.Errorf("node/statemachine: publishing RaceMetrics: %w", err)
 	}
@@ -43,7 +43,7 @@ func (s *NATSRaceMetricsSink) PublishRaceMetrics(status smcore.RaceStatus, targe
 // The unit-suffixed field names come straight from RaceStatus's own: steering
 // and yaw are DEGREES here, not the normalized steering of ports.DriveCommand
 // nor the radians every other angle in these protos uses.
-func RaceMetricsMessageFor(status smcore.RaceStatus, targetLaps *int) *statev1.RaceMetrics {
+func RaceMetricsMessageFor(status core.RaceStatus, targetLaps *int) *statev1.RaceMetrics {
 	message := &statev1.RaceMetrics{
 		Stamp:              timestamppb.Now(),
 		LapsCompleted:      int32(status.LapsCompleted),
@@ -70,7 +70,7 @@ func NewNATSSystemStatusSink(pub *nats.Publisher[*statev1.SystemStatus]) *NATSSy
 }
 
 // PublishSystemStatus publishes status as this node's diagnostic report.
-func (s *NATSSystemStatusSink) PublishSystemStatus(status smcore.SystemStatus) error {
+func (s *NATSSystemStatusSink) PublishSystemStatus(status core.SystemStatus) error {
 	if err := s.pub.Publish(SystemStatusMessageFor(status)); err != nil {
 		return fmt.Errorf("node/statemachine: publishing SystemStatus: %w", err)
 	}
@@ -84,10 +84,10 @@ func (s *NATSSystemStatusSink) PublishSystemStatus(status smcore.SystemStatus) e
 // The schema is DiagnosticArray-shaped because the topic has several
 // independent producers; this one contributes entries named after its own
 // sensors rather than assuming it owns the whole message.
-func SystemStatusMessageFor(status smcore.SystemStatus) *statev1.SystemStatus {
+func SystemStatusMessageFor(status core.SystemStatus) *statev1.SystemStatus {
 	sensors := []struct {
 		name   string
-		sensor smcore.SensorStatus
+		sensor core.SensorStatus
 	}{
 		{"imu", status.IMUStatus},
 		{"lidar", status.LidarStatus},
@@ -140,7 +140,7 @@ func levelFor(ready bool) statev1.SystemStatus_Level {
 
 // ChallengeModeMessageFor converts the resolved challenge into its wire form
 // for the vtitan.ui.v1.challenge_mode_active subject.
-func ChallengeModeMessageFor(scenario smcore.ScenarioType) *uiv1.ChallengeModeActive {
+func ChallengeModeMessageFor(scenario core.ScenarioType) *uiv1.ChallengeModeActive {
 	return &uiv1.ChallengeModeActive{
 		Stamp:     timestamppb.Now(),
 		Challenge: challengeFor(scenario),
@@ -158,11 +158,11 @@ func JumperInsertedMessageFor(inserted bool) *uiv1.JumperInserted {
 	return &uiv1.JumperInserted{Stamp: timestamppb.Now(), Inserted: inserted}
 }
 
-func challengeFor(scenario smcore.ScenarioType) uiv1.Challenge {
+func challengeFor(scenario core.ScenarioType) uiv1.Challenge {
 	switch scenario {
-	case smcore.ScenarioOpen:
+	case core.ScenarioOpen:
 		return uiv1.Challenge_CHALLENGE_OPEN
-	case smcore.ScenarioObstacles:
+	case core.ScenarioObstacles:
 		return uiv1.Challenge_CHALLENGE_OBSTACLES
 	default:
 		return uiv1.Challenge_CHALLENGE_UNSPECIFIED

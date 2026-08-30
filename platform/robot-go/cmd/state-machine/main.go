@@ -24,7 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	nodestatemachine "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
 	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/robotcmd"
@@ -110,8 +110,8 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	buttonPub := nats.NewPublisher[*uiv1.ButtonEvent](conn, uiv1.ButtonEventSubject)
 	dispatcher := command.NewDispatcher(
-		nodestatemachine.NewNATSButtonSink(buttonPub),
-		nodestatemachine.UnimplementedChannelSink{},
+		statemachine.NewNATSButtonSink(buttonPub),
+		statemachine.UnimplementedChannelSink{},
 	)
 
 	client, err := robotcmd.New(

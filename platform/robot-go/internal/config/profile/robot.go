@@ -3,6 +3,8 @@ package profile
 import (
 	"fmt"
 	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 )
 
 // RobotChassis mirrors robot.toml's [chassis] section.
@@ -91,6 +93,15 @@ type RobotCamera struct {
 	UpdateRate   float64 `mapstructure:"update_rate"`
 	NearClip     float64 `mapstructure:"near_clip"`
 	FarClip      float64 `mapstructure:"far_clip"`
+	// Device is the V4L2 device node for direct hardware capture (e.g.
+	// "/dev/video0" for the CSI camera module 3 on a Pi 5). It is NOT hardcoded:
+	// it comes from robot.toml so a different board or a simulated source can
+	// override it. Empty when Source is "topic" (frames arrive over NATS).
+	Device string `mapstructure:"device"`
+	// Source selects the capture backend: "v4l2" (direct CSI capture, the
+	// default on hardware), "topic" (subscribe to vtitan.sensor.v1.camera, the
+	// Python camera_source="topic" path), or "synthetic" (test pattern, bench).
+	Source string `mapstructure:"source"`
 }
 
 // RobotConfig mirrors
@@ -110,12 +121,6 @@ type RobotConfig struct {
 // DefaultRobotTOMLPath is platform/shared/config/robot.toml, relative to the
 // repo root.
 const DefaultRobotTOMLPath = "platform/shared/config/robot.toml"
-
-// degToRadTurn is a half-turn in degrees -- used to convert both
-// MaxSteeringAngle's and LidarYawOffsetRad's degree inputs to radians, and
-// as the mandatory correction LidarYawOffsetRad adds for an inverted LIDAR
-// mount.
-const degToRadTurn = 180.0
 
 // requiredRobotKeys are the fields robot.toml deliberately omits and which
 // must come from an active hardware profile, matching
@@ -169,7 +174,7 @@ func (c *RobotConfig) MaxSteeringAngle() float64 {
 	if limitDeg == 0 {
 		limitDeg = c.Steering.MaxWheelAngleDeg
 	}
-	return limitDeg * math.Pi / degToRadTurn
+	return limitDeg * math.Pi / navutil.DegreesPerHalfTurn
 }
 
 // LidarYawOffsetRad mirrors
@@ -180,9 +185,9 @@ func (c *RobotConfig) MaxSteeringAngle() float64 {
 func (c *RobotConfig) LidarYawOffsetRad() float64 {
 	invertedDeg := 0.0
 	if c.Lidar.Inverted {
-		invertedDeg = degToRadTurn
+		invertedDeg = navutil.DegreesPerHalfTurn
 	}
-	return (invertedDeg + c.Lidar.MountYawOffsetDeg) * math.Pi / degToRadTurn
+	return (invertedDeg + c.Lidar.MountYawOffsetDeg) * math.Pi / navutil.DegreesPerHalfTurn
 }
 
 // LidarToFrontBumper mirrors RobotSpecs.LIDAR_TO_FRONT_BUMPER: meters from

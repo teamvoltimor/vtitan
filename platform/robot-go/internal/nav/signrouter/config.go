@@ -3,6 +3,8 @@ package signrouter
 import (
 	"fmt"
 	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 )
 
 // Config bundles every tuning- and geometry-derived value the routing,
@@ -82,11 +84,6 @@ type Config struct {
 	BehindToleranceM float64
 }
 
-// degToRadTurn is a half-turn in degrees, used to convert
-// PinHeadingGuardRad's degree-unit tuning default to radians -- same
-// pattern as internal/config/profile/robot.go's degToRadTurn.
-const degToRadTurn = 180.0
-
 // Default* mirror the shipped literal defaults this package's Python
 // counterpart is built from: SignRouterParams' Pydantic field defaults for
 // the tuning knobs, and the CURRENT platform/shared/config/robot.toml
@@ -161,7 +158,7 @@ func DefaultConfig() Config {
 		DeformDepthBufferM:      DefaultDeformDepthBufferM,
 		PinCornerGuard:          DefaultPinCornerGuard,
 		PinHeadingGuard:         DefaultPinHeadingGuard,
-		PinHeadingGuardRad:      DefaultPinHeadingGuardDeg * math.Pi / degToRadTurn,
+		PinHeadingGuardRad:      DefaultPinHeadingGuardDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		TrackMinCoordM:          DefaultTrackMinCoordM,
 		TrackMaxCoordM:          DefaultTrackMaxCoordM,
 		TrackCornerMinM:         DefaultTrackCornerMinM,

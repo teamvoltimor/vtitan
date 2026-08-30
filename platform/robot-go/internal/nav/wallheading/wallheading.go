@@ -70,9 +70,6 @@ const (
 	// DefaultMinReturns matches min_returns.
 	DefaultMinReturns = 3
 
-	// quarterTurn is the period of the wall-direction ambiguity: a Manhattan
-	// world's walls repeat every 90 degrees.
-	quarterTurn = math.Pi / 2
 	// foldFactor maps directions 90 degrees apart onto the same angle, so
 	// the four candidates reinforce instead of canceling.
 	foldFactor = 4.0
@@ -157,8 +154,8 @@ func EstimateYawFromWalls(
 	candidate := -offset
 	// Pick the candidate nearest the prior: the walls decide the value, the
 	// prior only decides which quadrant is meant.
-	quadrant := math.Round((priorYaw - candidate) / quarterTurn)
-	return candidate + quadrant*quarterTurn, true
+	quadrant := math.Round((priorYaw - candidate) / navutil.QuarterTurnRad)
+	return candidate + quadrant*navutil.QuarterTurnRad, true
 }
 
 // HeadingError is the signed difference between a wall-derived yaw and the

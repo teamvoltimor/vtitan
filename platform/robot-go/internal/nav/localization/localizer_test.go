@@ -3,6 +3,7 @@
 package localization_test
 
 import (
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"math"
 	"testing"
 
@@ -24,12 +25,7 @@ const (
 // OPEN interval, so the last ray stops short of +pi rather than duplicating
 // the first.
 func scanAngles() []float64 {
-	angles := make([]float64, lidarSamples)
-	step := 2 * math.Pi / float64(lidarSamples)
-	for i := range angles {
-		angles[i] = -math.Pi + float64(i)*step
-	}
-	return angles
+	return navutil.AngleFan(lidarSamples)
 }
 
 func wallsForWidths(widths map[trackmodel.Section]float64) *trackmodel.TrackWalls {

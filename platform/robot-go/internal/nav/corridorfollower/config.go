@@ -1,6 +1,10 @@
 package corridorfollower
 
-import "math"
+import (
+	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+)
 
 // TurnSide overrides the clearance-based side choice in the back-off and
 // corner branches, matching corridor_follower.py's TurnSide.
@@ -129,8 +133,6 @@ const (
 	DefaultMinValidRangeM = 0.05
 	// DefaultMaxInTrackRangeM matches direction_estimator.MAX_IN_TRACK_RANGE_M.
 	DefaultMaxInTrackRangeM = 4.5
-
-	degreesPerHalfTurn = 180.0
 )
 
 // DefaultConfig returns the Config matching the shipped TOML defaults.
@@ -155,7 +157,7 @@ func DefaultConfig() Config {
 		DecisionBoundaryM: DefaultDecisionBoundaryM,
 
 		MaxSteeringAngleRad:  DefaultMaxSteeringAngleRad,
-		ForwardArcHalfFovRad: DefaultForwardArcHalfFovDeg * math.Pi / degreesPerHalfTurn,
+		ForwardArcHalfFovRad: DefaultForwardArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		MinValidRangeM:       DefaultMinValidRangeM,
 		MaxInTrackRangeM:     DefaultMaxInTrackRangeM,
 	}

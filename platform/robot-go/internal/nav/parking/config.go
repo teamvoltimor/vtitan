@@ -258,8 +258,3 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 
 	return cfg
 }
-
-// clampUnit clamps a value to the normalized actuator range [-1, 1].
-func clampUnit(value float64) float64 {
-	return math.Max(-1.0, math.Min(1.0, value))
-}

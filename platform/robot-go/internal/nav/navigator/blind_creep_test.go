@@ -14,6 +14,7 @@ import (
 // direction from a parking-bay-style scan (forward blocked, right wall close,
 // left open => clockwise), then leaves the creep phase.
 func TestBlindCreep_ResolvesDirection(t *testing.T) {
+	t.Parallel()
 	gateway := &fakeGateway{}
 	// Parking-bay scan: forward ~0.1 m (blocked), right ~0.10 m (against wall),
 	// left ~3.0 m (open corridor). yaw aligned to corridor (0).

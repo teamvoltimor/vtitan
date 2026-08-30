@@ -3,9 +3,9 @@ package statemachine_test
 import (
 	"testing"
 
-	nodestatemachine "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
 	statev1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/state/v1"
-	smcore "github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
 )
 
 // TestStateMessageFor covers the mapping value by value. The domain enum
@@ -16,20 +16,20 @@ func TestStateMessageFor(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		state smcore.RobotState
+		state core.RobotState
 		want  statev1.RobotState_State
 	}{
-		"boot check": {smcore.StateBootCheck, statev1.RobotState_STATE_BOOT_CHECK},
-		"ready":      {smcore.StateReady, statev1.RobotState_STATE_READY},
-		"racing":     {smcore.StateRacing, statev1.RobotState_STATE_RACING},
-		"finished":   {smcore.StateFinished, statev1.RobotState_STATE_FINISHED},
+		"boot check": {core.StateBootCheck, statev1.RobotState_STATE_BOOT_CHECK},
+		"ready":      {core.StateReady, statev1.RobotState_STATE_READY},
+		"racing":     {core.StateRacing, statev1.RobotState_STATE_RACING},
+		"finished":   {core.StateFinished, statev1.RobotState_STATE_FINISHED},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			got := nodestatemachine.StateMessageFor(tt.state)
+			got := statemachine.StateMessageFor(tt.state)
 			if got.GetState() != tt.want {
 				t.Fatalf("State = %v, want %v", got.GetState(), tt.want)
 			}
@@ -45,8 +45,8 @@ func TestStateMessageFor(t *testing.T) {
 func TestStateMessageFor_IsExhaustive(t *testing.T) {
 	t.Parallel()
 
-	for state := smcore.StateBootCheck; state <= smcore.StateFinished; state++ {
-		if got := nodestatemachine.StateMessageFor(state).GetState(); got == statev1.RobotState_STATE_UNSPECIFIED {
+	for state := core.StateBootCheck; state <= core.StateFinished; state++ {
+		if got := statemachine.StateMessageFor(state).GetState(); got == statev1.RobotState_STATE_UNSPECIFIED {
 			t.Fatalf("state %v (%d) maps to STATE_UNSPECIFIED", state, state)
 		}
 	}

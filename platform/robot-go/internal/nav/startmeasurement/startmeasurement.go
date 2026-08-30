@@ -98,9 +98,6 @@ const (
 	// reports its own max range on a no-return, so the valid window is
 	// pinned just under it rather than at it.
 	lidarMaxRangeMargin = 0.99
-
-	// degreesPerHalfTurn converts cfg.RayHalfWidthDeg to radians.
-	degreesPerHalfTurn = 180.0
 )
 
 // sectionRotations are the sections in 90-degree rotation order, starting
@@ -177,7 +174,7 @@ func MeasureStartPose(
 	section trackmodel.Section,
 	cfg Config,
 ) (MeasuredStart, bool) {
-	rayHalfWidthRad := cfg.RayHalfWidthDeg * math.Pi / degreesPerHalfTurn
+	rayHalfWidthRad := cfg.RayHalfWidthDeg * math.Pi / navutil.DegreesPerHalfTurn
 	maxValidRangeM := cfg.LidarMaxRangeM * lidarMaxRangeMargin
 
 	forward, ok := navutil.WedgeMedian(

@@ -70,11 +70,7 @@ func (g *SimHardwareGateway) buildAngles() {
 	if n <= 0 {
 		n = 360
 	}
-	angles := make([]float64, n)
-	for i := 0; i < n; i++ {
-		// linspace(-pi, pi, n): endpoints inclusive, matching numpy.
-		angles[i] = -math.Pi + (2*math.Pi)*float64(i)/float64(n-1)
-	}
+	angles := navutil.AngleFanClosed(n)
 	g.angles = angles
 }
 

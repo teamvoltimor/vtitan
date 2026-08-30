@@ -16,6 +16,5 @@ func SteeringNormFromAngleRad(angleRad, maxSteeringAngleRad float64) float64 {
 	if maxSteeringAngleRad <= 0.0 {
 		return 0.0
 	}
-	const normLimit = 1.0
-	return math.Max(-normLimit, math.Min(normLimit, angleRad/maxSteeringAngleRad))
+	return math.Max(-SteeringNormLimit, math.Min(SteeringNormLimit, angleRad/maxSteeringAngleRad))
 }

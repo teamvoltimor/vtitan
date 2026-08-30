@@ -24,7 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	motordriver "github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
@@ -85,12 +85,12 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 // run wires the motor driver to NATS and blocks until ctx is done.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	motorCfg := motordriver.DefaultConfig()
+	motorCfg := motor.DefaultConfig()
 	motorCfg.Invert = cfg.invert
 
-	drv, err := motordriver.New(motorCfg)
+	drv, err := motor.New(motorCfg)
 	if err != nil {
-		return err //nolint:wrapcheck // motordriver.New already wraps with "motor: ..." context
+		return err //nolint:wrapcheck // motor.New already wraps with "motor: ..." context
 	}
 	if err = drv.Connect(ctx); err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "motor: ..." context

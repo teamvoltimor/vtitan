@@ -63,10 +63,6 @@ type MappedObstacle struct {
 // against a real scan.
 const NoReturnMarginM = 0.05
 
-// fullTurn is a full turn in radians expressed as a multiple of pi, used to
-// spread synthesizeAngles' sweep evenly around the circle.
-const fullTurn = 2.0
-
 // Measured reports whether anything in this sector was actually measured.
 // The numeric fields cannot answer this on their own -- they all fall back
 // to NoDataRangeM, indistinguishable by distance alone from wide-open
@@ -79,15 +75,7 @@ func (s SectorRanges) Measured() bool {
 // synthesizeAngles builds a full [-pi, pi) sweep of n angles, matching the
 // Python sector helpers' fallback for lidar_angles=None.
 func synthesizeAngles(n int) []float64 {
-	angles := make([]float64, n)
-	if n == 0 {
-		return angles
-	}
-	step := fullTurn * math.Pi / float64(n)
-	for i := range angles {
-		angles[i] = -math.Pi + float64(i)*step
-	}
-	return angles
+	return navutil.AngleFan(n)
 }
 
 // resolveAngles returns anglesRad unchanged if non-nil, else a synthesized

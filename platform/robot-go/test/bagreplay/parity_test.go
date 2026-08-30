@@ -241,6 +241,7 @@ func toLidarScan(s bagreplay.LaserScan) controllers.LidarScan {
 }
 
 func parityBagDir(t *testing.T) string {
+	t.Helper()
 	if override := os.Getenv("VTITAN_BAG_DIR"); override != "" {
 		return override
 	}

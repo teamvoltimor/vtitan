@@ -24,3 +24,23 @@ const DefaultMaxSteeringRateRadPerS = 2.0
 func DefaultConfig() Config {
 	return Config{MaxSteeringRateRadPerS: DefaultMaxSteeringRateRadPerS}
 }
+
+// DefaultParams returns the Ackermann integrator parameters for the shipped
+// robot, matching the RobotSpecs/RobotDrivetrain constants in robot.toml
+// (wheelbase 0.20 m, max steer 1.2252 rad, counter-phase rear steer -1.0,
+// yaw gain 0.55). This is the single source of truth for the Ackermann
+// parameter block previously hand-assembled at every call site; the
+// SubstepCount default is applied by NewAckermannKinematics when Substeps<=0.
+func DefaultParams() Params {
+	return Params{
+		WheelbaseM:          0.20,
+		MaxSteerRad:         1.2252,
+		MaxSteerRateRadPerS: DefaultMaxSteeringRateRadPerS,
+		MaxAccelMPS2:        0.5,
+		MaxSpeedMPS:         1.0,
+		RearSteerRatio:      -1.0,
+		SpeedTauS:           0.1,
+		YawGain:             0.55,
+		Substeps:            DefaultSubsteps,
+	}
+}

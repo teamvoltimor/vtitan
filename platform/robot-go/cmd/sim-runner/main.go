@@ -168,7 +168,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 	case "native":
 		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{})
 	case "python", "":
-		r, err := scenario.NewSubprocessRunner(scenario.Config{
+		r, rerr := scenario.NewSubprocessRunner(scenario.Config{
 			Command:    cfg.command,
 			BaseArgs:   splitCSV(cfg.baseArgs),
 			ScriptPath: cfg.scriptPath,
@@ -177,8 +177,8 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 			ExtraArgs:  splitCSV(cfg.extraArgs),
 			Timeout:    cfg.timeout,
 		})
-		if err != nil {
-			return fmt.Errorf("sim-runner: %w", err)
+		if rerr != nil {
+			return fmt.Errorf("sim-runner: %w", rerr)
 		}
 		runner = r
 	default:

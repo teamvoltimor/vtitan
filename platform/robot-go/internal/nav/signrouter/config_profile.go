@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,
@@ -74,7 +75,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		cfg.DeformDepthBufferM = sr.DeformDepthBufferM
 		cfg.PinCornerGuard = sr.PinCornerGuard
 		cfg.PinHeadingGuard = sr.PinHeadingGuard
-		cfg.PinHeadingGuardRad = sr.PinHeadingGuardDeg * math.Pi / degToRadTurn
+		cfg.PinHeadingGuardRad = sr.PinHeadingGuardDeg * math.Pi / navutil.DegreesPerHalfTurn
 	}
 
 	cfg.LateralOffsetM = cfg.ChassisHalfDiagonalM + signWidthM/2 + signClearanceMarginM

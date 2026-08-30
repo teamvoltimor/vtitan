@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"math"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
@@ -36,12 +37,7 @@ const (
 // sectors.go's synthesizeAngles) -- that fallback only matters for the one
 // test that omits angles entirely and relies on it instead of this fixture.
 func anglesFullRotation() []float64 {
-	angles := make([]float64, numRays)
-	step := 2 * math.Pi / float64(numRays-1)
-	for i := range angles {
-		angles[i] = -math.Pi + float64(i)*step
-	}
-	return angles
+	return navutil.AngleFanClosed(numRays)
 }
 
 // newScan returns a uniform-range scan, matching fixtures.create_numpy_scan.

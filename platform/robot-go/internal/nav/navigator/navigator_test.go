@@ -2,6 +2,7 @@ package navigator_test
 
 import (
 	"errors"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"math"
 	"testing"
 
@@ -347,11 +348,9 @@ func TestStep_NormalDrive_PublishesMotion(t *testing.T) {
 func clearScan() controllers.LidarScan {
 	const numRays = 360
 	ranges := make([]float64, numRays)
-	angles := make([]float64, numRays)
-	step := 2 * math.Pi / float64(numRays)
+	angles := navutil.AngleFan(numRays)
 	for i := range ranges {
 		ranges[i] = 3.0
-		angles[i] = -math.Pi + float64(i)*step
 	}
 	return controllers.LidarScan{RangesM: ranges, AnglesRad: angles}
 }

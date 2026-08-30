@@ -1,5 +1,7 @@
 package kinematics
 
+import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+
 // AckermannState is the full kinematic state of the simulated car,
 // matching src.simulation.kinematics.AckermannState. (X, Y) is the
 // chassis center, not the rear axle -- see the package doc for why.
@@ -41,10 +43,6 @@ const (
 	rearRightWheelName  = "rear_right_wheel"
 )
 
-// halfOf divides evenly by two -- named rather than a bare "/ 2.0" per
-// this repo's no-magic-numbers convention.
-const halfOf = 2.0
-
 // WheelPoses places the four road wheels for a bicycle-equivalent front
 // angle, matching wheel_poses(). Both wheels on an axle carry the SAME
 // angle: the vTitan turns each axle with one servo through one linkage, so
@@ -57,8 +55,8 @@ const halfOf = 2.0
 // Coordinates are relative to the chassis center, matching AckermannState.
 func WheelPoses(steer, wheelbase, trackWidth, rearSteerRatio float64) WheelPoseSet {
 	rearSteer := -steer * rearSteerRatio
-	halfWheelbase := wheelbase / halfOf
-	halfTrack := trackWidth / halfOf
+	halfWheelbase := wheelbase / navutil.Half
+	halfTrack := trackWidth / navutil.Half
 	return WheelPoseSet{
 		FrontLeft:  WheelPose{Name: frontLeftWheelName, X: halfWheelbase, Y: halfTrack, Steer: steer},
 		FrontRight: WheelPose{Name: frontRightWheelName, X: halfWheelbase, Y: -halfTrack, Steer: steer},

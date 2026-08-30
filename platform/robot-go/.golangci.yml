@@ -275,6 +275,16 @@ linters:
         - kubernetes
         - grpc
         - protobuf
+        # Project uses British English deliberately (modelled/behaviour/centre/tyre/colour/materialises/travelling).
+        - centred
+        - centre
+        - behaviour
+        - tyre
+        - modelled
+        - colour
+        - materialises
+        - travelling
+        - honoured
 
     nolintlint:
       allow-leading-space: false

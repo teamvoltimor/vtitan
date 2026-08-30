@@ -243,7 +243,7 @@ func (c *ParkController) startReposition(
 	// Sign-flipped for reverse Ackermann geometry (v<0 inverts the yaw-rate
 	// response to a given steer sign), biased toward whichever side the target
 	// currently bears.
-	c.repositionSteer = -clampUnit(c.cfg.RepositionSteerMag * sign(bearingErr))
+	c.repositionSteer = -navutil.Clamp(c.cfg.RepositionSteerMag*sign(bearingErr), -1.0, 1.0)
 	c.repositionLeft--
 	return ParkCommand{LinearMPS: c.repositionSpeed, SteeringNorm: c.repositionSteer, Phase: phase}
 }

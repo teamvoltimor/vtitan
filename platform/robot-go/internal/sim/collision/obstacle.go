@@ -1,6 +1,10 @@
 package collision
 
-import "math"
+import (
+	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+)
 
 // ContactSurface identifies which surface the chassis is touching, if any,
 // matching track_model.py's ContactSurface. Kept distinct because the two
@@ -78,8 +82,8 @@ func NewObstacleBoxFromPose(cx, cy, length, width, yaw, axisAlignTolerance float
 // toBox returns the axis-aligned bounds, optionally grown by margin,
 // matching ObstacleBox.to_box.
 func (o ObstacleBox) toBox(margin float64) box {
-	halfX := o.SizeX/halfOf + margin
-	halfY := o.SizeY/halfOf + margin
+	halfX := o.SizeX/navutil.Half + margin
+	halfY := o.SizeY/navutil.Half + margin
 	return box{o.CX - halfX, o.CY - halfY, o.CX + halfX, o.CY + halfY}
 }
 

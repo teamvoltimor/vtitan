@@ -74,7 +74,7 @@ func InferDirection(
 // because the alternative is a deadlock, not a delay: nothing settles
 // until the robot moves and nothing moves until the direction settles.
 func DirectionFromParkingBay(rangesM, anglesRad []float64, cfg Config) (dir Direction, ok bool) {
-	arcRad := cfg.DirectionArcHalfFovDeg * math.Pi / degToRadTurn
+	arcRad := cfg.DirectionArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn
 	if navutil.ForwardClearance(
 		rangesM,
 		anglesRad,

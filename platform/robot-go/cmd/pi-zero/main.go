@@ -24,7 +24,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
-	motordriver "github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
 	nodebutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/button"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/supervise"
@@ -240,7 +240,7 @@ func oledLoop(
 // run connects every driver and NATS subscription/publisher, then runs the
 // motor/button/OLED loops as supervised goroutines until ctx is done.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	motorCfg := motordriver.DefaultConfig()
+	motorCfg := motor.DefaultConfig()
 	buttonCfg := button.Config{
 		GPIOChip:     button.DefaultGPIOChip,
 		Line:         cfg.buttonLine,
@@ -253,15 +253,15 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		I2CAddress: cfg.oledI2CAddress, I2CBus: cfg.oledI2CBus,
 	}
 	if cfg.configRoot != "" {
-		motorCfg = motordriver.ConfigFor(logger, cfg.configRoot)
+		motorCfg = motor.ConfigFor(logger, cfg.configRoot)
 		buttonCfg = button.ConfigFor(logger, cfg.configRoot)
 		oledCfg = ssd1306.ConfigFor(logger, cfg.configRoot)
 	}
 	motorCfg.Invert = cfg.motorInvert
 
-	motorDrv, err := motordriver.New(motorCfg)
+	motorDrv, err := motor.New(motorCfg)
 	if err != nil {
-		return err //nolint:wrapcheck // motordriver.New already wraps with "motor: ..." context
+		return err //nolint:wrapcheck // motor.New already wraps with "motor: ..." context
 	}
 	if err = motorDrv.Connect(ctx); err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "motor: ..." context

@@ -53,8 +53,8 @@ func run(cfg *harnessConfig) error {
 			return fmt.Errorf("creating cpu profile: %w", err)
 		}
 		defer f.Close()
-		if err := pprof.StartCPUProfile(f); err != nil {
-			return fmt.Errorf("starting cpu profile: %w", err)
+		if perr := pprof.StartCPUProfile(f); perr != nil {
+			return fmt.Errorf("starting cpu profile: %w", perr)
 		}
 		defer pprof.StopCPUProfile()
 	}
@@ -93,8 +93,8 @@ func run(cfg *harnessConfig) error {
 			return fmt.Errorf("creating mem profile: %w", err)
 		}
 		defer f.Close()
-		if err := pprof.WriteHeapProfile(f); err != nil {
-			return fmt.Errorf("writing mem profile: %w", err)
+		if perr := pprof.WriteHeapProfile(f); perr != nil {
+			return fmt.Errorf("writing mem profile: %w", perr)
 		}
 		fmt.Printf("wrote memory profile to %s\n", cfg.memprofile)
 	}
@@ -127,15 +127,5 @@ func benchTrackModel() *collision.TrackModel {
 }
 
 func benchKinematics() *kinematics.AckermannKinematics {
-	return kinematics.NewAckermannKinematics(kinematics.Params{
-		WheelbaseM:          0.30,
-		MaxSteerRad:         0.50,
-		MaxSteerRateRadPerS: 3.0,
-		MaxAccelMPS2:        1.5,
-		MaxSpeedMPS:         1.0,
-		RearSteerRatio:      1.0,
-		SpeedTauS:           0.1,
-		YawGain:             0.55,
-		Substeps:            5,
-	})
+	return kinematics.NewAckermannKinematics(kinematics.DefaultParams())
 }

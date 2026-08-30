@@ -51,10 +51,10 @@ func FollowCorridor(
 	// normalized exactly once, on the way out. Holding it in normalized units
 	// made every constant a fraction of whatever full lock happened to be, so
 	// recalibrating the servo silently retuned the loop.
-	maxCenteringRad := cfg.MaxCenteringSteerDeg * math.Pi / degreesPerHalfTurn
-	centeringGainRadPerM := cfg.CenteringGainDegPerM * math.Pi / degreesPerHalfTurn
+	maxCenteringRad := cfg.MaxCenteringSteerDeg * math.Pi / navutil.DegreesPerHalfTurn
+	centeringGainRadPerM := cfg.CenteringGainDegPerM * math.Pi / navutil.DegreesPerHalfTurn
 	maxCorner := navutil.SteeringNormFromAngleRad(
-		cfg.MaxCornerSteerDeg*math.Pi/degreesPerHalfTurn, cfg.MaxSteeringAngleRad,
+		cfg.MaxCornerSteerDeg*math.Pi/navutil.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
 	)
 
 	turnClearance := cfg.TurnClearanceM
@@ -206,7 +206,7 @@ func cornerSteer(forced TurnSide, left, right, maxCorner float64) float64 {
 // Left in, a single dropped beam would read as wide-open track and veto every
 // corner turn on the round.
 func wayThrough(rangesM, anglesRad []float64, cfg Config) bool {
-	turnArcRad := cfg.TurnArcHalfFovDeg * math.Pi / degreesPerHalfTurn
+	turnArcRad := cfg.TurnArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn
 
 	best := math.Inf(-1)
 	found := false

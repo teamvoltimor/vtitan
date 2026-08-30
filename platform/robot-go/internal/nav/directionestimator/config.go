@@ -1,6 +1,10 @@
 package directionestimator
 
-import "math"
+import (
+	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+)
 
 // Config parameterizes InferDirection, DirectionEstimator, and
 // DirectionFromParkingBay. See doc.go for why these are literal defaults
@@ -47,10 +51,6 @@ type Config struct {
 	TurnClearanceM float64
 }
 
-// degToRadTurn is a half-turn in degrees, used to convert the degree-unit
-// tuning defaults below to radians.
-const degToRadTurn = 180.0
-
 // Default* match
 // shared.config.navigation_tuning.blind_nav.DirectionEstimatorParams' and
 // CorridorFollowerParams'/LidarSectorParams' field defaults.
@@ -70,7 +70,7 @@ const (
 // DefaultConfig returns the Config matching the Python tuning defaults.
 func DefaultConfig() Config {
 	return Config{
-		AlignmentToleranceRad:   DefaultAlignmentToleranceDeg * math.Pi / degToRadTurn,
+		AlignmentToleranceRad:   DefaultAlignmentToleranceDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		MaxInTrackRangeM:        DefaultMaxInTrackRangeM,
 		PlausibleSpanThresholdM: DefaultPlausibleSpanM,
 		MinAsymmetryM:           DefaultMinAsymmetryM,

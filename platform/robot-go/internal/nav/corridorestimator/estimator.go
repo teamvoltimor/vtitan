@@ -64,9 +64,6 @@ const (
 	// DefaultAlignmentToleranceDeg matches the direction estimator's
 	// ALIGNMENT_TOLERANCE, which this shares.
 	DefaultAlignmentToleranceDeg = 25.0
-
-	degreesPerHalfTurn = 180.0
-	quarterTurn        = math.Pi / 2
 )
 
 // DefaultConfig returns the Config matching the shipped TOML defaults.
@@ -75,7 +72,7 @@ func DefaultConfig() Config {
 		MinSamples:            DefaultMinSamples,
 		PlausibleWidthMarginM: DefaultPlausibleWidthMarginM,
 		DecisionBoundaryM:     DefaultDecisionBoundaryM,
-		AlignmentToleranceRad: DefaultAlignmentToleranceDeg * math.Pi / degreesPerHalfTurn,
+		AlignmentToleranceRad: DefaultAlignmentToleranceDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		NarrowWidthM:          DefaultNarrowWidthM,
 		WideWidthM:            DefaultWideWidthM,
 	}
@@ -105,11 +102,11 @@ func MeasureCorridorWidth(
 
 	// Heading error against the nearest track axis; corridors always run
 	// along one.
-	axisError := navutil.WrapAngle(yaw - math.Round(yaw/quarterTurn)*quarterTurn)
+	axisError := navutil.WrapAngle(yaw - math.Round(yaw/navutil.QuarterTurnRad)*navutil.QuarterTurnRad)
 	isAligned := math.Abs(axisError) <= cfg.AlignmentToleranceRad
 
-	left := navutil.NearestRay(rangesM, anglesRad, quarterTurn)
-	right := navutil.NearestRay(rangesM, anglesRad, -quarterTurn)
+	left := navutil.NearestRay(rangesM, anglesRad, navutil.QuarterTurnRad)
+	right := navutil.NearestRay(rangesM, anglesRad, -navutil.QuarterTurnRad)
 
 	width := 0.0
 	if isAligned {

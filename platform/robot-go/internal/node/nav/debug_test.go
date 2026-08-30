@@ -8,7 +8,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	nodenav "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/nav"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/nav"
 	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
 )
 
@@ -19,7 +19,7 @@ import (
 func TestDebugFor_NoPose(t *testing.T) {
 	t.Parallel()
 
-	got := nodenav.DebugFor(navigator.DebugSnapshot{
+	got := nav.DebugFor(navigator.DebugSnapshot{
 		Phase:              navigator.PhaseNoPose,
 		CommandedSpeedMPS:  new(0.0),
 		CommandedSteerNorm: new(0.0),
@@ -53,7 +53,7 @@ func TestDebugFor_NoPose(t *testing.T) {
 func TestDebugFor_AbsentGroupsStayAbsent(t *testing.T) {
 	t.Parallel()
 
-	got := nodenav.DebugFor(navigator.DebugSnapshot{Phase: navigator.PhaseNotYetStepped})
+	got := nav.DebugFor(navigator.DebugSnapshot{Phase: navigator.PhaseNotYetStepped})
 
 	if got.GetPose() != nil || got.GetRace() != nil || got.GetStuck() != nil ||
 		got.GetPerception() != nil || got.GetPathTracking() != nil ||
@@ -77,7 +77,7 @@ func TestDebugFor_NormalDrive(t *testing.T) {
 	risk := controllers.RiskObstacle
 	escapeRisk := controllers.RiskCritical
 
-	got := nodenav.DebugFor(navigator.DebugSnapshot{
+	got := nav.DebugFor(navigator.DebugSnapshot{
 		Phase:              navigator.PhaseNormalDrive,
 		PoseX:              new(1.25),
 		PoseY:              new(2.5),
@@ -134,7 +134,7 @@ func TestPhaseMapping_IsExhaustive(t *testing.T) {
 
 	seen := make([]bool, len(navv1.Phase_name))
 	for phase := navigator.PhaseNotYetStepped; phase <= navigator.PhaseEscapeTriggered; phase++ {
-		got := nodenav.DebugFor(navigator.DebugSnapshot{Phase: phase}).GetPhase()
+		got := nav.DebugFor(navigator.DebugSnapshot{Phase: phase}).GetPhase()
 		if got == navv1.Phase_PHASE_UNSPECIFIED {
 			t.Fatalf("phase %v (%d) maps to PHASE_UNSPECIFIED", phase, phase)
 		}
@@ -154,7 +154,7 @@ func TestDebugFor_DoesNotAliasSnapshot(t *testing.T) {
 	speed := 0.5
 	snapshot := navigator.DebugSnapshot{Phase: navigator.PhaseNormalDrive, CommandedSpeedMPS: &speed}
 
-	got := nodenav.DebugFor(snapshot)
+	got := nav.DebugFor(snapshot)
 	speed = 99.0
 
 	if got.GetCommand().GetSpeedMps() != 0.5 {
@@ -174,7 +174,7 @@ func TestDebugFor_PassesValidation(t *testing.T) {
 		t.Fatalf("protovalidate.New: %v", err)
 	}
 
-	got := nodenav.DebugFor(navigator.DebugSnapshot{
+	got := nav.DebugFor(navigator.DebugSnapshot{
 		Phase:              navigator.PhaseNormalDrive,
 		PoseX:              new(1.0),
 		PoseY:              new(1.0),
@@ -191,10 +191,10 @@ func TestDebugFor_PassesValidation(t *testing.T) {
 func TestLapsCompletedAndCorridor(t *testing.T) {
 	t.Parallel()
 
-	if got := nodenav.LapsCompletedFor(3).GetLapsCompleted(); got != 3 {
+	if got := nav.LapsCompletedFor(3).GetLapsCompleted(); got != 3 {
 		t.Fatalf("LapsCompleted = %d, want 3", got)
 	}
-	if got := nodenav.CurrentCorridorFor(trackmodel.East).GetSection(); got != navv1.Section_SECTION_EAST {
+	if got := nav.CurrentCorridorFor(trackmodel.East).GetSection(); got != navv1.Section_SECTION_EAST {
 		t.Fatalf("Section = %v, want EAST", got)
 	}
 }

@@ -2,7 +2,7 @@ package scenario
 
 import (
 	"fmt"
-	"math"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
@@ -36,17 +36,7 @@ func benchTrackModel() *collision.TrackModel {
 }
 
 func benchKinematics() *kinematics.AckermannKinematics {
-	return kinematics.NewAckermannKinematics(kinematics.Params{
-		WheelbaseM:          0.30,
-		MaxSteerRad:         0.50,
-		MaxSteerRateRadPerS: 3.0,
-		MaxAccelMPS2:        1.5,
-		MaxSpeedMPS:         1.0,
-		RearSteerRatio:      1.0,
-		SpeedTauS:           0.1,
-		YawGain:             0.55,
-		Substeps:            5,
-	})
+	return kinematics.NewAckermannKinematics(kinematics.DefaultParams())
 }
 
 // BenchmarkScenarioStep builds a collision.TrackModel + kinematics and runs N
@@ -60,11 +50,7 @@ func BenchmarkScenarioStep(b *testing.B) {
 	k := benchKinematics()
 
 	const numRays = 360
-	angles := make([]float64, numRays)
-	step := 2 * math.Pi / float64(numRays)
-	for i := range angles {
-		angles[i] = -math.Pi + float64(i)*step
-	}
+	angles := navutil.AngleFan(numRays)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

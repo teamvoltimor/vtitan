@@ -11,6 +11,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 )
 
@@ -46,10 +47,6 @@ type SignLaneParams struct {
 	// straight, matching SIGN_LANE_CORNER_ENTRY_M.
 	CornerEntryM float64
 }
-
-// halfOf divides evenly by two -- named rather than a bare "/ 2.0" per
-// this repo's no-magic-numbers convention.
-const halfOf = 2.0
 
 // axisCoords returns (lateral, depth) for wp under axis, matching
 // _axis_coords.
@@ -149,10 +146,10 @@ func holdPoints(plateaux []controlPoint, params SignLaneParams) []controlPoint {
 			// passed (legal WRO geometry never overlaps; see
 			// SignLaneParams.SplitOverlap's Python docstring).
 			if index > 0 {
-				low = math.Max(low, (plateaux[index-1].Depth+plateau.Depth)/halfOf)
+				low = math.Max(low, (plateaux[index-1].Depth+plateau.Depth)/navutil.Half)
 			}
 			if index+1 < len(plateaux) {
-				high = math.Min(high, (plateau.Depth+plateaux[index+1].Depth)/halfOf)
+				high = math.Min(high, (plateau.Depth+plateaux[index+1].Depth)/navutil.Half)
 			}
 			if high < low {
 				low, high = plateau.Depth, plateau.Depth

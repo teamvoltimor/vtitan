@@ -61,7 +61,7 @@ const DefaultEscapeTOMLPath = "platform/shared/config/navigation/escape/escape.t
 // SMALLER normalised command for the same physical angle, rather than the
 // same command meaning a wider angle on different hardware.
 func (c EscapeConfig) RevSteerNorm(maxSteeringAngleRad float64) float64 {
-	return navutil.SteeringNormFromAngleRad(c.RevSteerDeg*math.Pi/degToRadTurn, maxSteeringAngleRad)
+	return navutil.SteeringNormFromAngleRad(c.RevSteerDeg*math.Pi/navutil.DegreesPerHalfTurn, maxSteeringAngleRad)
 }
 
 // SideCorrectionSteerNorm converts SideCorrectionSteerDeg to a normalised
@@ -69,7 +69,7 @@ func (c EscapeConfig) RevSteerNorm(maxSteeringAngleRad float64) float64 {
 // EscapeManeuverParams.side_correction_steer_norm().
 func (c EscapeConfig) SideCorrectionSteerNorm(maxSteeringAngleRad float64) float64 {
 	return navutil.SteeringNormFromAngleRad(
-		c.SideCorrectionSteerDeg*math.Pi/degToRadTurn,
+		c.SideCorrectionSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
 		maxSteeringAngleRad,
 	)
 }

@@ -513,9 +513,9 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 			// With the direction known, measure the start so the map frame
 			// is corrected before the planned path is followed.
 			if haveScan {
-				if measured, ok := startmeasurement.MeasureStartPose(
+				if measured, measuredOK := startmeasurement.MeasureStartPose(
 					ranges, angles, dir, trackmodel.South, startmeasurement.DefaultConfig(),
-				); ok {
+				); measuredOK {
 					n.ApplyBelievedStart(
 						trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: robotYaw},
 						trackmodel.Pose{X: robotX, Y: robotY, Yaw: robotYaw},

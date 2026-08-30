@@ -1,6 +1,10 @@
 package diag
 
-import "math"
+import (
+	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+)
 
 // sectorQuery names one angular sector to aggregate a scan over, matching
 // the (center_rad, half_fov_rad, filter_self_detection) triple
@@ -64,7 +68,7 @@ func sectorMeanM(ranges []float32, cfg Config, query sectorQuery) float64 {
 		if inWedge(bearingRad, cfg.BlindWedgeLeft) || inWedge(bearingRad, cfg.BlindWedgeRight) {
 			continue
 		}
-		if math.Abs(wrapAngleRad(bearingRad-query.CenterRad)) > query.HalfFOVRad {
+		if math.Abs(navutil.WrapAngle(bearingRad-query.CenterRad)) > query.HalfFOVRad {
 			continue
 		}
 
@@ -92,10 +96,4 @@ func isValidRangeM(rangeM, lowerBoundM, upperBoundM float64) bool {
 // blind-wedge check.
 func inWedge(bearingRad float64, wedge AngleWedge) bool {
 	return wedge.Enabled && bearingRad >= wedge.MinRad && bearingRad <= wedge.MaxRad
-}
-
-// wrapAngleRad wraps deltaRad into [-pi, pi], matching sector_ranges'
-// `np.arctan2(np.sin(delta), np.cos(delta))` wrapped-distance calculation.
-func wrapAngleRad(deltaRad float64) float64 {
-	return math.Atan2(math.Sin(deltaRad), math.Cos(deltaRad))
 }

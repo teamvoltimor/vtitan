@@ -1,6 +1,10 @@
 package trackmodel
 
-import "math"
+import (
+	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+)
 
 // segment is an axis-aligned wall face as a line segment (for LIDAR
 // raycasting).
@@ -67,7 +71,7 @@ func (w *TrackWalls) Raycast(
 			}
 		}
 
-		ranges[i] = clamp(best, lidarMinRangeM, lidarMaxRangeM)
+		ranges[i] = navutil.Clamp(best, lidarMinRangeM, lidarMaxRangeM)
 	}
 	return ranges
 }
@@ -84,8 +88,4 @@ func (w *TrackWalls) PointInFreeSpace(x, y, clearance float64) bool {
 	inBlock := iv.XMin+clearance < x && x < iv.XMax-clearance && iv.YMin+clearance < y &&
 		y < iv.YMax-clearance
 	return !inBlock
-}
-
-func clamp(value, lo, hi float64) float64 {
-	return math.Max(lo, math.Min(hi, value))
 }

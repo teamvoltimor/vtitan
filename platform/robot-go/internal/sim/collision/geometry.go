@@ -3,6 +3,7 @@ package collision
 import (
 	"math"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 )
 
@@ -11,10 +12,6 @@ import (
 type box struct {
 	xMin, yMin, xMax, yMax float64
 }
-
-// halfOf divides evenly by two -- named rather than a bare "/ 2.0" per
-// this repo's no-magic-numbers convention.
-const halfOf = 2.0
 
 // corners returns the four box corners, CCW from bottom-left, matching
 // _Box.corners.
@@ -45,7 +42,8 @@ func axesForYaw(yaw float64) [4][2]float64 {
 // rectCorners returns the four corners of an oriented rectangle centered at
 // (cx, cy), matching track_model.py's _rect_corners.
 func rectCorners(cx, cy, yaw, length, width float64) []trackmodel.Waypoint {
-	hl, hw := length/halfOf, width/halfOf
+	hl, hw := length/navutil.Half, width/navutil.Half
+
 	cosY, sinY := math.Cos(yaw), math.Sin(yaw)
 	local := [4][2]float64{{hl, hw}, {hl, -hw}, {-hl, -hw}, {-hl, hw}}
 
@@ -140,9 +138,4 @@ func raycastBox(x, y, dx, dy float64, b box, maxRange float64) float64 {
 		return distance
 	}
 	return maxRange
-}
-
-// clampFloat restricts value to [lo, hi].
-func clampFloat(value, lo, hi float64) float64 {
-	return math.Max(lo, math.Min(hi, value))
 }

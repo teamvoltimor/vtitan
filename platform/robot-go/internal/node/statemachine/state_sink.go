@@ -6,7 +6,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	statev1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/state/v1"
-	smcore "github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
 )
 
@@ -29,7 +29,7 @@ func NewNATSStateSink(pub *nats.Publisher[*statev1.RobotState]) *NATSStateSink {
 }
 
 // PublishState publishes state as the machine's current state.
-func (s *NATSStateSink) PublishState(state smcore.RobotState) error {
+func (s *NATSStateSink) PublishState(state core.RobotState) error {
 	if err := s.pub.Publish(StateMessageFor(state)); err != nil {
 		return fmt.Errorf("node/statemachine: publishing RobotState: %w", err)
 	}
@@ -39,7 +39,7 @@ func (s *NATSStateSink) PublishState(state smcore.RobotState) error {
 // StateMessageFor converts a domain state into its wire form. Exported so
 // tests and any future combined publisher share one mapping rather than each
 // re-deriving it.
-func StateMessageFor(state smcore.RobotState) *statev1.RobotState {
+func StateMessageFor(state core.RobotState) *statev1.RobotState {
 	return &statev1.RobotState{
 		Stamp: timestamppb.Now(),
 		State: stateFor(state),
@@ -52,15 +52,15 @@ func StateMessageFor(state smcore.RobotState) *statev1.RobotState {
 // numbering spaces, and the wire one reserves 0 for UNSPECIFIED while the
 // domain one starts BootCheck at 0, so an index-based mapping would be off
 // by one on every value.
-func stateFor(state smcore.RobotState) statev1.RobotState_State {
+func stateFor(state core.RobotState) statev1.RobotState_State {
 	switch state {
-	case smcore.StateBootCheck:
+	case core.StateBootCheck:
 		return statev1.RobotState_STATE_BOOT_CHECK
-	case smcore.StateReady:
+	case core.StateReady:
 		return statev1.RobotState_STATE_READY
-	case smcore.StateRacing:
+	case core.StateRacing:
 		return statev1.RobotState_STATE_RACING
-	case smcore.StateFinished:
+	case core.StateFinished:
 		return statev1.RobotState_STATE_FINISHED
 	default:
 		return statev1.RobotState_STATE_UNSPECIFIED

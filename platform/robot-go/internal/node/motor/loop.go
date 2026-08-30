@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	motordriver "github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
 )
@@ -21,7 +21,7 @@ import (
 // already safety-stopped).
 type Loop struct {
 	logger                  *slog.Logger
-	drv                     *motordriver.Driver
+	drv                     *motor.Driver
 	pub                     *nats.Publisher[*actuationv1.MotorStatus]
 	speedScalePercentPerMPS float64
 
@@ -97,7 +97,7 @@ func StatusFor(dutyFraction float64, commandAge time.Duration, setSpeedErr error
 // DefaultSpeedScalePercentPerMPS).
 func NewLoop(
 	logger *slog.Logger,
-	drv *motordriver.Driver,
+	drv *motor.Driver,
 	pub *nats.Publisher[*actuationv1.MotorStatus],
 	speedScalePercentPerMPS float64,
 ) *Loop {

@@ -78,14 +78,6 @@ type Config struct {
 	LidarMaxRangeM      float64
 }
 
-// degToRadTurn is a half-turn in degrees, used to convert the degree-unit
-// tuning defaults below to radians.
-const degToRadTurn = 180.0
-
-// halfOf divides evenly by two -- named rather than a bare "/ 2.0" per
-// this repo's no-magic-numbers convention.
-const halfOf = 2.0
-
 // Default* match the shipped TOML values (platform/shared/config/
 // navigation/** and platform/shared/config/robot.toml) as of this port.
 const (
@@ -210,14 +202,14 @@ func DefaultConfig() Config {
 // NewCollisionAvoidanceController builds a CollisionAvoidanceController
 // from c, matching CollisionAvoidanceController.from_tuning.
 func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController {
-	pathHalfWidth := c.ChassisWidthM/halfOf + c.PathMargin
+	pathHalfWidth := c.ChassisWidthM/navutil.Half + c.PathMargin
 	return &CollisionAvoidanceController{
 		ContactDist:    c.ContactDist,
 		SlowDist:       c.SlowDist,
 		FastDist:       c.FastDist,
 		EscapeRevSpeed: c.RevSpeed,
 		EscapeSteerScale: navutil.SteeringNormFromAngleRad(
-			c.RevSteerDeg*math.Pi/degToRadTurn,
+			c.RevSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
 			c.MaxSteeringAngleRad,
 		),
 		StuckThreshold: c.StuckMoveThreshold,
@@ -225,13 +217,13 @@ func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController 
 		KTurnMinFrames: c.KTurnMinFrames,
 		KTurnMaxFrames: c.KTurnMaxFrames,
 		SideCorrectionSteer: navutil.SteeringNormFromAngleRad(
-			c.SideCorrectionSteerDeg*math.Pi/degToRadTurn,
+			c.SideCorrectionSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
 			c.MaxSteeringAngleRad,
 		),
 		SideCorrectionSpeed:     c.SideCorrectionSpeed,
 		SideCorrectionFrames:    c.SideCorrectionFrames,
-		FrontHalfFovRad:         c.FrontHalfFovDeg * math.Pi / degToRadTurn,
-		ThreatHalfFovRad:        c.ThreatHalfFovDeg * math.Pi / degToRadTurn,
+		FrontHalfFovRad:         c.FrontHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		ThreatHalfFovRad:        c.ThreatHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		Geometry:                c.sectorGeometry(),
 		ThreatNoDetectionRangeM: c.ThreatNoDetectionRangeM,
 		LidarToFrontBumperM:     c.LidarToFrontBumperM,
@@ -278,9 +270,9 @@ func (c Config) sectorGeometry() SectorGeometry {
 		MinValidRangeM:          c.MinValidRangeM,
 		NoDataRangeM:            c.NoDataRangeM,
 		LidarMaxRangeM:          c.LidarMaxRangeM,
-		BlindWedgeLeftMinRad:    c.BlindWedgeLeftMinDeg * math.Pi / degToRadTurn,
-		BlindWedgeLeftMaxRad:    c.BlindWedgeLeftMaxDeg * math.Pi / degToRadTurn,
-		BlindWedgeRightMinRad:   c.BlindWedgeRightMinDeg * math.Pi / degToRadTurn,
-		BlindWedgeRightMaxRad:   c.BlindWedgeRightMaxDeg * math.Pi / degToRadTurn,
+		BlindWedgeLeftMinRad:    c.BlindWedgeLeftMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		BlindWedgeLeftMaxRad:    c.BlindWedgeLeftMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		BlindWedgeRightMinRad:   c.BlindWedgeRightMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		BlindWedgeRightMaxRad:   c.BlindWedgeRightMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
 	}
 }

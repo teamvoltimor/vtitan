@@ -22,6 +22,7 @@ func NewSignRouterForTest() *SignRouter {
 // _detection_to_world: a sign dead ahead (cx at image centre) projects to the
 // robot's heading at the pinhole-estimated distance.
 func TestDetectionToWorld_Pinhole(t *testing.T) {
+	t.Parallel()
 	// Sign 0.10 m tall, 42 px tall at 1.5 m (the doc's worked example).
 	// distance = f * real_h / pixel_h.
 	f := cameraFocalPX
@@ -60,6 +61,7 @@ func TestDetectionToWorld_Pinhole(t *testing.T) {
 // of centre yields a positive (left-of-forward? theta_h sign) offset matching
 // theta_h = (cx/W - 0.5)*HFOV.
 func TestDetectionToWorld_Bearing(t *testing.T) {
+	t.Parallel()
 	// Half-width off centre => theta_h = +HFOV/4 (to the left in image = the
 	// sign is to the robot's left when cx > centre? cx is measured from left,
 	// so cx > centre means the object is on the robot's right in yaw terms
@@ -102,6 +104,7 @@ func TestDetectionToWorld_Bearing(t *testing.T) {
 // SignSpec (closest observation wins) once MinHits is reached, and a far
 // observation beyond MaxIngestRange is ignored.
 func TestObservedSignMap_StableSpec(t *testing.T) {
+	t.Parallel()
 	sd := NewSignRouterForTest()
 	m := NewObservedSignMap(DefaultDiscoveryConfig(), sd)
 
@@ -136,6 +139,7 @@ func TestObservedSignMap_StableSpec(t *testing.T) {
 // TestObservedSignMap_IgnoresFar mirrors the MAX_INGEST_RANGE gate: a sign
 // beyond MaxIngestRangeM never produces a published spec.
 func TestObservedSignMap_IgnoresFar(t *testing.T) {
+	t.Parallel()
 	sd := NewSignRouterForTest()
 	m := NewObservedSignMap(DefaultDiscoveryConfig(), sd)
 	robotPos := trackmodel.Waypoint{X: 1.0, Y: 1.0}
@@ -158,6 +162,7 @@ func TestObservedSignMap_IgnoresFar(t *testing.T) {
 // TestObservedSignMap_StandaloneNoPublish mirrors discover mode off: without a
 // router the map accumulates tracks but publishes nothing.
 func TestObservedSignMap_StandaloneNoPublish(t *testing.T) {
+	t.Parallel()
 	m := NewObservedSignMap(DefaultDiscoveryConfig(), nil)
 	robotPos := trackmodel.Waypoint{X: 1.0, Y: 1.0}
 	obs := TrafficSignObservation{WorldXM: 1.0, WorldYM: 0.4, Color: SignColorRed, Confidence: 0.9}

@@ -5,10 +5,10 @@ import (
 
 	"buf.build/go/protovalidate"
 
-	nodestatemachine "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
 	statev1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/state/v1"
 	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	smcore "github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
 )
 
 // TestRaceMetricsMessageFor_CarriesDegreesUnchanged pins the unit decision:
@@ -21,7 +21,7 @@ func TestRaceMetricsMessageFor_CarriesDegreesUnchanged(t *testing.T) {
 	corridor := "north"
 	targetLaps := 3
 
-	got := nodestatemachine.RaceMetricsMessageFor(smcore.RaceStatus{
+	got := statemachine.RaceMetricsMessageFor(core.RaceStatus{
 		CurrentCorridor:    &corridor,
 		TotalRaceTimeSec:   42.5,
 		CurrentVelocityMPS: -0.25,
@@ -54,7 +54,7 @@ func TestRaceMetricsMessageFor_CarriesDegreesUnchanged(t *testing.T) {
 func TestRaceMetricsMessageFor_AbsentOptionals(t *testing.T) {
 	t.Parallel()
 
-	got := nodestatemachine.RaceMetricsMessageFor(smcore.RaceStatus{LapsCompleted: 1}, nil)
+	got := statemachine.RaceMetricsMessageFor(core.RaceStatus{LapsCompleted: 1}, nil)
 
 	if got.TargetLaps != nil {
 		t.Fatalf("TargetLaps = %v, want absent so the OLED falls back to its own target", *got.TargetLaps)
@@ -69,12 +69,12 @@ func TestRaceMetricsMessageFor_AbsentOptionals(t *testing.T) {
 func TestSystemStatusMessageFor(t *testing.T) {
 	t.Parallel()
 
-	scenario := smcore.ScenarioObstacles
-	got := nodestatemachine.SystemStatusMessageFor(smcore.SystemStatus{
+	scenario := core.ScenarioObstacles
+	got := statemachine.SystemStatusMessageFor(core.SystemStatus{
 		NetworkStatus: "up",
 		ChallengeMode: &scenario,
-		IMUStatus:     smcore.SensorStatus{Name: "bno085", IsReady: true},
-		LidarStatus:   smcore.SensorStatus{IsReady: false, ErrorMessage: "no scan"},
+		IMUStatus:     core.SensorStatus{Name: "bno085", IsReady: true},
+		LidarStatus:   core.SensorStatus{IsReady: false, ErrorMessage: "no scan"},
 		AllReady:      false,
 	})
 
@@ -127,7 +127,7 @@ func TestSystemStatusMessageFor_PassesValidation(t *testing.T) {
 		t.Fatalf("protovalidate.New: %v", err)
 	}
 
-	got := nodestatemachine.SystemStatusMessageFor(smcore.SystemStatus{})
+	got := statemachine.SystemStatusMessageFor(core.SystemStatus{})
 	if validateErr := validator.Validate(got); validateErr != nil {
 		t.Fatalf("Validate() = %v, want nil even with every SensorStatus unnamed", validateErr)
 	}
@@ -137,18 +137,18 @@ func TestChallengeModeMessageFor(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		scenario smcore.ScenarioType
+		scenario core.ScenarioType
 		want     uiv1.Challenge
 	}{
-		"open":      {smcore.ScenarioOpen, uiv1.Challenge_CHALLENGE_OPEN},
-		"obstacles": {smcore.ScenarioObstacles, uiv1.Challenge_CHALLENGE_OBSTACLES},
+		"open":      {core.ScenarioOpen, uiv1.Challenge_CHALLENGE_OPEN},
+		"obstacles": {core.ScenarioObstacles, uiv1.Challenge_CHALLENGE_OBSTACLES},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := nodestatemachine.ChallengeModeMessageFor(tt.scenario).GetChallenge(); got != tt.want {
+			if got := statemachine.ChallengeModeMessageFor(tt.scenario).GetChallenge(); got != tt.want {
 				t.Fatalf("Challenge = %v, want %v", got, tt.want)
 			}
 		})
@@ -161,10 +161,10 @@ func TestChallengeModeMessageFor(t *testing.T) {
 func TestJumperInsertedMessageFor(t *testing.T) {
 	t.Parallel()
 
-	if got := nodestatemachine.JumperInsertedMessageFor(false); got.GetInserted() {
+	if got := statemachine.JumperInsertedMessageFor(false); got.GetInserted() {
 		t.Fatal("Inserted = true, want false")
 	}
-	if got := nodestatemachine.JumperInsertedMessageFor(true); !got.GetInserted() {
+	if got := statemachine.JumperInsertedMessageFor(true); !got.GetInserted() {
 		t.Fatal("Inserted = false, want true")
 	}
 }

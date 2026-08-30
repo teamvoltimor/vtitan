@@ -34,17 +34,17 @@ type WheelOdometry struct {
 	StampS    float64
 }
 
-// HardwareGateway is the interface for robot hardware interaction (ROS2 or
-// simulation), matching ports.HardwareGateway. Declared here -- not in a
-// hardware/simulation package -- so the dependency direction matches
-// hexagonal architecture: adapters import this port, this domain package
-// never imports an adapter. No concrete Go implementation exists yet; that
-// is a future adapter package's job (cmd/pi5 or similar), not this port
-// definition's.
-type HardwareGateway interface { //nolint:interfacebloat // 1:1 port of ports.HardwareGateway; no implementer exists yet to guide a real split
+// DriveSink commands the robot to drive at a given speed and steering angle,
+// matching ports.HardwareGateway.PublishDrive.
+type DriveSink interface {
 	// PublishDrive commands the robot to drive at the given speed and
 	// steering angle.
 	PublishDrive(command DriveCommand)
+}
+
+// PoseSource reports the robot's current estimated state, matching the
+// read-side of ports.HardwareGateway (pose, LIDAR sweep, wheel odometry).
+type PoseSource interface {
 	// GetCurrentPose returns the current estimated pose of the robot, and
 	// ok=false if none is available yet.
 	GetCurrentPose() (pose trackmodel.Pose, ok bool)
@@ -55,20 +55,52 @@ type HardwareGateway interface { //nolint:interfacebloat // 1:1 port of ports.Ha
 	// ok=false if unavailable -- a normal state, not an error: a drive
 	// backend without an encoder has nothing to report.
 	GetWheelOdometry() (odometry WheelOdometry, ok bool)
+}
+
+// WallSetter re-points the localizer at the layout the robot currently
+// believes in, matching ports.HardwareGateway.SetBelievedWalls.
+type WallSetter interface {
 	// SetBelievedWalls re-points the localizer at the layout the robot
 	// currently believes in. Blind operation estimates corridor widths as
 	// it drives, so the wall model must be updated mid-round.
 	SetBelievedWalls(walls *trackmodel.TrackWalls)
+}
+
+// PositionResetter re-seeds the estimator's position and heading reference,
+// matching ports.HardwareGateway.ResetPosition / ResetHeadingReference.
+type PositionResetter interface {
 	// ResetPosition re-seeds the estimator's position, e.g. at the start
 	// of a new race.
 	ResetPosition(x, y float64)
 	// ResetHeadingReference re-zeros the estimator's heading against the
 	// next IMU reading.
 	ResetHeadingReference()
+}
+
+// HeadingCorrector shifts the estimator's heading by a known amount, matching
+// ports.HardwareGateway.CorrectHeadingForDirectionChange.
+type HeadingCorrector interface {
 	// CorrectHeadingForDirectionChange shifts the estimator's heading by
 	// a known amount, applied in full -- used when blind direction
 	// inference overturns the direction assumed at construction.
 	CorrectHeadingForDirectionChange(deltaRad float64)
+}
+
+// HardwareGateway is the interface for robot hardware interaction (ROS2 or
+// simulation), matching ports.HardwareGateway. Declared here -- not in a
+// hardware/simulation package -- so the dependency direction matches
+// hexagonal architecture: adapters import this port, this domain package
+// never imports an adapter. It composes the smaller, single-responsibility
+// ports above (DriveSink, PoseSource, WallSetter, PositionResetter,
+// HeadingCorrector) so each can be consumed independently where only part of
+// the hardware surface is needed (e.g. a sim runner that only advances
+// state). Both implementers satisfy it trivially by implementing all methods.
+type HardwareGateway interface { //nolint:interfacebloat // composed of 5 small ports (each <=3 methods); the aggregate is the 1:1 ports.HardwareGateway contract
+	DriveSink
+	PoseSource
+	WallSetter
+	PositionResetter
+	HeadingCorrector
 }
 
 // SanitizeLidarRanges replaces non-finite LIDAR returns with lidarMaxRangeM,

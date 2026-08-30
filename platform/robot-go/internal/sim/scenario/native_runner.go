@@ -119,11 +119,28 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	return r.loop(sc, gw, nav, track, targetLaps, startPose)
 }
 
+// simGateway is the simulation-only hardware surface the native runner's
+// closed-loop helpers need: the navigator-facing scan source plus the
+// physics advance/state/collision methods of harness.SimHardwareGateway.
+// Declared at the point of use (go-architect §4) so NativeRunner stays
+// testable against a fake instead of coupled to the concrete gateway.
+type simGateway interface {
+	controllers.PoseSource
+	// State returns the current simulated chassis state.
+	State() kinematics.AckermannState
+	// Advance integrates the simulation by dt seconds.
+	Advance(dt float64)
+	// Collided reports whether the chassis has hit a wall this step.
+	Collided() bool
+	// CollisionXY returns the contact point of the latest collision, if any.
+	CollisionXY() (float64, float64)
+}
+
 // loop runs the control loop until terminal (laps / collision / timeout /
 // stuck) and scores the Result.
 func (r *NativeRunner) loop(
 	sc corpus.Scenario,
-	gw *harness.SimHardwareGateway,
+	gw simGateway,
 	nav *navigator.Navigator,
 	track *collision.TrackModel,
 	targetLaps int,
@@ -201,7 +218,7 @@ func (r *NativeRunner) loop(
 
 func (r *NativeRunner) score(
 	sc corpus.Scenario,
-	gw *harness.SimHardwareGateway,
+	gw simGateway,
 	nav *navigator.Navigator,
 	steps int,
 	dt float64,
@@ -264,7 +281,7 @@ func terminalSurfaceName(collided bool) string {
 
 // trackContact reports whether the chassis footprint touches a wall (the Open
 // Challenge's terminal surface), matching TrackModel.footprint_collides.
-func trackContact(gw *harness.SimHardwareGateway, track *collision.TrackModel, cfg harness.Config) bool {
+func trackContact(gw simGateway, track *collision.TrackModel, cfg harness.Config) bool {
 	st := gw.State()
 	return track.FootprintCollides(st.X, st.Y, st.Yaw, cfg.ChassisLengthM, cfg.ChassisWidthM)
 }
@@ -305,11 +322,11 @@ type posMeta struct {
 func loadMetadata(path string) (scenarioMetadata, error) {
 	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		return scenarioMetadata{}, err
+		return scenarioMetadata{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 	var meta scenarioMetadata
 	if err := json.Unmarshal(raw, &meta); err != nil {
-		return scenarioMetadata{}, err
+		return scenarioMetadata{}, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return meta, nil
 }
@@ -406,21 +423,12 @@ func centerlineLoop(geom trackmodel.CorridorGeometry, maxCoord float64, dir trac
 // defaultLaps returns the Open Challenge default lap count.
 func defaultLaps(_ scenarioMetadata) int { return navigator.DefaultOpenChallengeLaps }
 
-// defaultKinematicsParams returns hardcoded parity defaults for the Ackermann
-// integrator. The RobotSpecs/RobotDrivetrain constants these mirror are NOT
-// ported to Go (plan §2), so they are supplied here, not read from a profile.
+// defaultKinematicsParams returns the Ackermann integrator parameters for the
+// shipped robot. Delegates to kinematics.DefaultParams, the single source of
+// truth for these RobotSpecs/RobotDrivetrain constants (plan §2: the profile
+// loader is not yet wired, so this is the hardcoded fallback).
 func defaultKinematicsParams() kinematics.Params {
-	return kinematics.Params{
-		WheelbaseM:          0.20,
-		MaxSteerRad:         1.2252,
-		MaxSteerRateRadPerS: 3.0,
-		MaxAccelMPS2:        0.5,
-		MaxSpeedMPS:         1.0,
-		RearSteerRatio:      -1.0,
-		SpeedTauS:           0.1,
-		YawGain:             0.55,
-		Substeps:            kinematics.DefaultSubsteps,
-	}
+	return kinematics.DefaultParams()
 }
 
 // compile-time assertion that NativeRunner satisfies Runner.

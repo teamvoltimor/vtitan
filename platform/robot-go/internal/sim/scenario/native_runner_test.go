@@ -43,6 +43,7 @@ func writeTempMetadata(t *testing.T) corpus.Scenario {
 }
 
 func TestNativeRunnerSmoke(t *testing.T) {
+	t.Parallel()
 	sc := writeTempMetadata(t)
 
 	cfg := harness.DefaultConfig()

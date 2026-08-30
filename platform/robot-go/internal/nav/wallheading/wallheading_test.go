@@ -8,6 +8,7 @@ package wallheading_test
 
 import (
 	"fmt"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"math"
 	"math/rand/v2"
 	"testing"
@@ -40,12 +41,7 @@ func uniformWalls() *trackmodel.TrackWalls {
 // scanAngles mirrors the oracle's linspace(-pi, pi, RAYS) -- a CLOSED
 // interval, both endpoints included, which is what that test uses.
 func scanAngles() []float64 {
-	angles := make([]float64, rays)
-	step := 2 * math.Pi / float64(rays-1)
-	for i := range angles {
-		angles[i] = -math.Pi + float64(i)*step
-	}
-	return angles
+	return navutil.AngleFanClosed(rays)
 }
 
 // scan raycasts a sweep at (x, y, yaw), optionally with Gaussian range noise

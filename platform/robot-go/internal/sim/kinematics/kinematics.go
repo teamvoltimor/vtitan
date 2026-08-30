@@ -98,8 +98,7 @@ func NewAckermannKinematics(p Params) *AckermannKinematics {
 // controller's normalised [-1, 1] range (as published in
 // Velocity.angular). dt is the control interval (seconds).
 func (k *AckermannKinematics) Step(state AckermannState, targetSpeed, targetSteerNorm, dt float64) AckermannState {
-	const steerNormLimit = 1.0
-	targetSteer := clamp(targetSteerNorm, -steerNormLimit, steerNormLimit) * k.maxSteer
+	targetSteer := navutil.Clamp(targetSteerNorm, -navutil.SteeringNormLimit, navutil.SteeringNormLimit) * k.maxSteer
 
 	x, y, yaw := state.X, state.Y, state.Yaw
 	v, steer := state.V, state.Steer
@@ -108,14 +107,14 @@ func (k *AckermannKinematics) Step(state AckermannState, targetSpeed, targetStee
 	for i := 0; i < k.substeps; i++ {
 		// Servo steering slew toward the target angle.
 		steer = approach(steer, targetSteer, k.maxSteerRate*h)
-		steer = clamp(steer, -k.maxSteer, k.maxSteer)
+		steer = navutil.Clamp(steer, -k.maxSteer, k.maxSteer)
 		// Drive response: a first-order lag toward the setpoint, then
 		// the acceleration clamp on top. Ordered that way because they
 		// model different things -- the lag is how this drivetrain
 		// habitually answers a command, the clamp is a ceiling it may
 		// not cross -- and a lag that produced an impossible
 		// acceleration would still be impossible.
-		setpoint := clamp(targetSpeed, -k.maxSpeed, k.maxSpeed)
+		setpoint := navutil.Clamp(targetSpeed, -k.maxSpeed, k.maxSpeed)
 		lagged := setpoint
 		if k.speedTauS > 0 {
 			lagged = v + (setpoint-v)*math.Min(h/k.speedTauS, fullyClosedFraction)
@@ -141,12 +140,4 @@ func approach(current, target, maxDelta float64) float64 {
 		return current - maxDelta
 	}
 	return target
-}
-
-// clamp restricts value to [lo, hi]. Private to this package: navutil is
-// off-limits to edit under the concurrent file-ownership constraint this
-// port was done under, so a shared clamp helper isn't this package's to
-// add there.
-func clamp(value, lo, hi float64) float64 {
-	return math.Max(lo, math.Min(hi, value))
 }

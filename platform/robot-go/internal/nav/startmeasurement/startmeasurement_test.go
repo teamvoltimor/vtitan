@@ -4,6 +4,7 @@
 package startmeasurement_test
 
 import (
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"math"
 	"testing"
 
@@ -34,12 +35,7 @@ func uniformWalls() *trackmodel.TrackWalls {
 // scanAngles mirrors the Python oracle's np.linspace(-pi, pi, LIDAR_SAMPLES,
 // endpoint=False) -- a half-open interval, matching real driver sampling.
 func scanAngles() []float64 {
-	angles := make([]float64, lidarSamples)
-	step := 2 * math.Pi / float64(lidarSamples)
-	for i := range angles {
-		angles[i] = -math.Pi + float64(i)*step
-	}
-	return angles
+	return navutil.AngleFan(lidarSamples)
 }
 
 // scan raycasts a noise-free sweep at a known pose on a known layout.

@@ -3,6 +3,7 @@ package collision
 import (
 	"math"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 )
 
@@ -104,7 +105,7 @@ func (m *TrackModel) RaycastScan(
 				ranges[i] = hit
 			}
 		}
-		ranges[i] = clampFloat(ranges[i], lidarMinRangeM, maxRangeM)
+		ranges[i] = navutil.Clamp(ranges[i], lidarMinRangeM, maxRangeM)
 	}
 	return ranges
 }
@@ -182,7 +183,7 @@ func (m *TrackModel) ObstacleCenter(index int) (trackmodel.Waypoint, bool) {
 		return trackmodel.Waypoint{}, false
 	}
 	b := m.obstacleBoxes[index]
-	return trackmodel.Waypoint{X: (b.xMin + b.xMax) / halfOf, Y: (b.yMin + b.yMax) / halfOf}, true
+	return trackmodel.Waypoint{X: (b.xMin + b.xMax) / navutil.Half, Y: (b.yMin + b.yMax) / navutil.Half}, true
 }
 
 // PointInFreeSpace reports whether (x, y) is in the navigable ring with

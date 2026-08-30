@@ -160,7 +160,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		Logger:            logger,
 	})
 	if err != nil {
-		return err //nolint:wrapcheck
+		return err //nolint:wrapcheck // navigator.New already wraps with "navigator: ..." context
 	}
 
 	logger.Info("track-navigator: connected", "nats_url", cfg.natsURL, "rate_hz", cfg.rateHz)
