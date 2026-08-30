@@ -38,14 +38,14 @@ func TestStateValidation(t *testing.T) {
 			msg:     &statev1.RaceMetrics{Stamp: timestamppb.Now(), LapsCompleted: 2},
 			wantErr: false,
 		},
-		// Reverse is normal during escape maneuvers, whatever the unit turns
-		// out to be -- see race_metrics.proto on the unverified units.
+		// Reverse is normal during escape maneuvers, so a signed velocity
+		// must pass rather than trip a non-negative bound.
 		"negative velocity is accepted": {
-			msg:     &statev1.RaceMetrics{Stamp: timestamppb.Now(), CurrentVelocity: -0.3},
+			msg:     &statev1.RaceMetrics{Stamp: timestamppb.Now(), CurrentVelocityMps: -0.3},
 			wantErr: false,
 		},
 		"NaN velocity fails finite constraint": {
-			msg:     &statev1.RaceMetrics{Stamp: timestamppb.Now(), CurrentVelocity: math.NaN()},
+			msg:     &statev1.RaceMetrics{Stamp: timestamppb.Now(), CurrentVelocityMps: math.NaN()},
 			wantErr: true,
 		},
 		"negative target laps fails": {

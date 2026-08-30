@@ -17,14 +17,15 @@ option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/s
 // other, because a JSON lookup just misses. Converting that class of break
 // into a `buf breaking` failure is the point of this schema.
 //
-// FIELD NAMES ARE CARRIED FROM THE PYTHON MODEL VERBATIM, without the _m/
-// _mps/_rad suffixes used elsewhere in these protos. The producing node is
-// not in platform/robot (RaceMetricsWire is defined but populated nowhere in
-// this tree), so the units of current_steering and gyro_yaw could not be
-// verified against a producer. Renaming them to assert a unit would be a
-// guess of exactly the kind that made /motor/drive_speed read as RPM when it
-// was actually deg/s. Measure against a real publisher, then rename and add
-// range constraints in one change.
+// UNITS come from internal/statemachine/core's RaceStatus, which mirrors
+// types.py's RaceStatus dataclass and names these quantities explicitly:
+// CurrentSteeringDeg, GyroYawDeg, CurrentVelocityMPS, TotalRaceTimeSec.
+//
+// Worth stating outright, because two of them are counter-intuitive:
+// current_steering_deg is DEGREES, not the normalized [-1, 1] of
+// ports.DriveCommand, and gyro_yaw_deg is DEGREES, not radians -- unlike
+// every other angle in these protos. Assuming otherwise is the same class of
+// error that made /motor/drive_speed read as RPM when it was deg/s.
 //
 // target_laps is optional because the wire model distinguishes "the state
 // machine has not published a target yet" from a real zero: the OLED falls
@@ -37,23 +38,23 @@ message RaceMetrics {
   int32 laps_completed = 2 [(buf.validate.field).int32.gte = 0];
   optional int32 target_laps = 3 [(buf.validate.field).int32.gte = 0];
 
-  // Seconds. The only unit here that is corroborated -- race_tracker.py's
-  // RaceMetrics.elapsed_time documents the same quantity as seconds.
-  double total_race_time = 4 [(buf.validate.field).double = {
+  double total_race_time_s = 4 [(buf.validate.field).double = {
     gte: 0.0
     finite: true
   }];
 
-  // Signed regardless of unit: the drivetrain reverses during escape
-  // maneuvers, so a gte:0 bound would reject real frames.
-  double current_velocity = 5 [(buf.validate.field).double.finite = true];
+  // Signed: the drivetrain reverses during escape maneuvers, so a gte:0
+  // bound would reject real frames.
+  double current_velocity_mps = 5 [(buf.validate.field).double.finite = true];
 
-  // Unit UNVERIFIED: normalized [-1, 1] per ports.DriveCommand, or radians.
-  // Left unbounded rather than constrained to a guessed range.
-  double current_steering = 6 [(buf.validate.field).double.finite = true];
+  // DEGREES. Left unbounded rather than clamped to the servo's travel: a
+  // reading outside it means a calibration or conversion bug, which is worth
+  // seeing on the wire rather than having rejected.
+  double current_steering_deg = 6 [(buf.validate.field).double.finite = true];
 
-  // Unit UNVERIFIED: radians or degrees. Same reasoning.
-  double gyro_yaw = 7 [(buf.validate.field).double.finite = true];
+  // DEGREES, and not wrapped to [-180, 180]: a producer reporting an
+  // unwrapped heading should surface that rather than lose the reading.
+  double gyro_yaw_deg = 7 [(buf.validate.field).double.finite = true];
 
   // Empty until the navigator has classified a corridor. Typed as Section on
   // the producing side; carried as a string so state/v1 does not depend on

@@ -33,14 +33,15 @@ const (
 // other, because a JSON lookup just misses. Converting that class of break
 // into a `buf breaking` failure is the point of this schema.
 //
-// FIELD NAMES ARE CARRIED FROM THE PYTHON MODEL VERBATIM, without the _m/
-// _mps/_rad suffixes used elsewhere in these protos. The producing node is
-// not in platform/robot (RaceMetricsWire is defined but populated nowhere in
-// this tree), so the units of current_steering and gyro_yaw could not be
-// verified against a producer. Renaming them to assert a unit would be a
-// guess of exactly the kind that made /motor/drive_speed read as RPM when it
-// was actually deg/s. Measure against a real publisher, then rename and add
-// range constraints in one change.
+// UNITS come from internal/statemachine/core's RaceStatus, which mirrors
+// types.py's RaceStatus dataclass and names these quantities explicitly:
+// CurrentSteeringDeg, GyroYawDeg, CurrentVelocityMPS, TotalRaceTimeSec.
+//
+// Worth stating outright, because two of them are counter-intuitive:
+// current_steering_deg is DEGREES, not the normalized [-1, 1] of
+// ports.DriveCommand, and gyro_yaw_deg is DEGREES, not radians -- unlike
+// every other angle in these protos. Assuming otherwise is the same class of
+// error that made /motor/drive_speed read as RPM when it was deg/s.
 //
 // target_laps is optional because the wire model distinguishes "the state
 // machine has not published a target yet" from a real zero: the OLED falls
@@ -48,21 +49,21 @@ const (
 // real figure arrives. The other fields default to zero in Python and carry
 // no such distinction, so they are plain.
 type RaceMetrics struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Stamp         *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=stamp,proto3" json:"stamp,omitempty"`
-	LapsCompleted int32                  `protobuf:"varint,2,opt,name=laps_completed,json=lapsCompleted,proto3" json:"laps_completed,omitempty"`
-	TargetLaps    *int32                 `protobuf:"varint,3,opt,name=target_laps,json=targetLaps,proto3,oneof" json:"target_laps,omitempty"`
-	// Seconds. The only unit here that is corroborated -- race_tracker.py's
-	// RaceMetrics.elapsed_time documents the same quantity as seconds.
-	TotalRaceTime float64 `protobuf:"fixed64,4,opt,name=total_race_time,json=totalRaceTime,proto3" json:"total_race_time,omitempty"`
-	// Signed regardless of unit: the drivetrain reverses during escape
-	// maneuvers, so a gte:0 bound would reject real frames.
-	CurrentVelocity float64 `protobuf:"fixed64,5,opt,name=current_velocity,json=currentVelocity,proto3" json:"current_velocity,omitempty"`
-	// Unit UNVERIFIED: normalized [-1, 1] per ports.DriveCommand, or radians.
-	// Left unbounded rather than constrained to a guessed range.
-	CurrentSteering float64 `protobuf:"fixed64,6,opt,name=current_steering,json=currentSteering,proto3" json:"current_steering,omitempty"`
-	// Unit UNVERIFIED: radians or degrees. Same reasoning.
-	GyroYaw float64 `protobuf:"fixed64,7,opt,name=gyro_yaw,json=gyroYaw,proto3" json:"gyro_yaw,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Stamp          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=stamp,proto3" json:"stamp,omitempty"`
+	LapsCompleted  int32                  `protobuf:"varint,2,opt,name=laps_completed,json=lapsCompleted,proto3" json:"laps_completed,omitempty"`
+	TargetLaps     *int32                 `protobuf:"varint,3,opt,name=target_laps,json=targetLaps,proto3,oneof" json:"target_laps,omitempty"`
+	TotalRaceTimeS float64                `protobuf:"fixed64,4,opt,name=total_race_time_s,json=totalRaceTimeS,proto3" json:"total_race_time_s,omitempty"`
+	// Signed: the drivetrain reverses during escape maneuvers, so a gte:0
+	// bound would reject real frames.
+	CurrentVelocityMps float64 `protobuf:"fixed64,5,opt,name=current_velocity_mps,json=currentVelocityMps,proto3" json:"current_velocity_mps,omitempty"`
+	// DEGREES. Left unbounded rather than clamped to the servo's travel: a
+	// reading outside it means a calibration or conversion bug, which is worth
+	// seeing on the wire rather than having rejected.
+	CurrentSteeringDeg float64 `protobuf:"fixed64,6,opt,name=current_steering_deg,json=currentSteeringDeg,proto3" json:"current_steering_deg,omitempty"`
+	// DEGREES, and not wrapped to [-180, 180]: a producer reporting an
+	// unwrapped heading should surface that rather than lose the reading.
+	GyroYawDeg float64 `protobuf:"fixed64,7,opt,name=gyro_yaw_deg,json=gyroYawDeg,proto3" json:"gyro_yaw_deg,omitempty"`
 	// Empty until the navigator has classified a corridor. Typed as Section on
 	// the producing side; carried as a string so state/v1 does not depend on
 	// nav/v1 for one display field.
@@ -122,30 +123,30 @@ func (x *RaceMetrics) GetTargetLaps() int32 {
 	return 0
 }
 
-func (x *RaceMetrics) GetTotalRaceTime() float64 {
+func (x *RaceMetrics) GetTotalRaceTimeS() float64 {
 	if x != nil {
-		return x.TotalRaceTime
+		return x.TotalRaceTimeS
 	}
 	return 0
 }
 
-func (x *RaceMetrics) GetCurrentVelocity() float64 {
+func (x *RaceMetrics) GetCurrentVelocityMps() float64 {
 	if x != nil {
-		return x.CurrentVelocity
+		return x.CurrentVelocityMps
 	}
 	return 0
 }
 
-func (x *RaceMetrics) GetCurrentSteering() float64 {
+func (x *RaceMetrics) GetCurrentSteeringDeg() float64 {
 	if x != nil {
-		return x.CurrentSteering
+		return x.CurrentSteeringDeg
 	}
 	return 0
 }
 
-func (x *RaceMetrics) GetGyroYaw() float64 {
+func (x *RaceMetrics) GetGyroYawDeg() float64 {
 	if x != nil {
-		return x.GyroYaw
+		return x.GyroYawDeg
 	}
 	return 0
 }
@@ -161,16 +162,17 @@ var File_vtitan_state_v1_race_metrics_proto protoreflect.FileDescriptor
 
 const file_vtitan_state_v1_race_metrics_proto_rawDesc = "" +
 	"\n" +
-	"\"vtitan/state/v1/race_metrics.proto\x12\x0fvtitan.state.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa7\x03\n" +
+	"\"vtitan/state/v1/race_metrics.proto\x12\x0fvtitan.state.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbf\x03\n" +
 	"\vRaceMetrics\x128\n" +
 	"\x05stamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\x05stamp\x12.\n" +
 	"\x0elaps_completed\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\rlapsCompleted\x12-\n" +
 	"\vtarget_laps\x18\x03 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00H\x00R\n" +
-	"targetLaps\x88\x01\x01\x128\n" +
-	"\x0ftotal_race_time\x18\x04 \x01(\x01B\x10\xbaH\r\x12\v@\x01)\x00\x00\x00\x00\x00\x00\x00\x00R\rtotalRaceTime\x122\n" +
-	"\x10current_velocity\x18\x05 \x01(\x01B\a\xbaH\x04\x12\x02@\x01R\x0fcurrentVelocity\x122\n" +
-	"\x10current_steering\x18\x06 \x01(\x01B\a\xbaH\x04\x12\x02@\x01R\x0fcurrentSteering\x12\"\n" +
-	"\bgyro_yaw\x18\a \x01(\x01B\a\xbaH\x04\x12\x02@\x01R\agyroYaw\x12)\n" +
+	"targetLaps\x88\x01\x01\x12;\n" +
+	"\x11total_race_time_s\x18\x04 \x01(\x01B\x10\xbaH\r\x12\v@\x01)\x00\x00\x00\x00\x00\x00\x00\x00R\x0etotalRaceTimeS\x129\n" +
+	"\x14current_velocity_mps\x18\x05 \x01(\x01B\a\xbaH\x04\x12\x02@\x01R\x12currentVelocityMps\x129\n" +
+	"\x14current_steering_deg\x18\x06 \x01(\x01B\a\xbaH\x04\x12\x02@\x01R\x12currentSteeringDeg\x12)\n" +
+	"\fgyro_yaw_deg\x18\a \x01(\x01B\a\xbaH\x04\x12\x02@\x01R\n" +
+	"gyroYawDeg\x12)\n" +
 	"\x10current_corridor\x18\b \x01(\tR\x0fcurrentCorridorB\x0e\n" +
 	"\f_target_lapsBMZKgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1b\x06proto3"
 

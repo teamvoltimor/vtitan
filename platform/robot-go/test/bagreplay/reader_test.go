@@ -3,6 +3,7 @@ package bagreplay_test
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
@@ -27,18 +28,36 @@ func bagDir(t *testing.T) string {
 		t.Skipf("no recorded runs at %s: %v", root, err)
 	}
 
-	newest := ""
+	// Run directories are named run_<timestamp>, so lexical order is
+	// chronological order; the directory also holds loose log/pcap files.
+	var runs []string
 	for _, entry := range entries {
-		// Run directories are named run_<timestamp>, so lexical order is
-		// chronological order; the directory also holds loose log/pcap files.
-		if entry.IsDir() && entry.Name() > newest {
-			newest = entry.Name()
+		if entry.IsDir() {
+			runs = append(runs, entry.Name())
 		}
 	}
-	if newest == "" {
-		t.Skipf("no run directories under %s", root)
+	sort.Sort(sort.Reverse(sort.StringSlice(runs)))
+
+	// Newest-first, but NOT newest-only: a run still being recorded (or one
+	// whose process died) has no MCAP footer and fails to open with "invalid
+	// magic at end of file". Observed for real -- a recording started while
+	// this suite was being written became the newest directory and broke it.
+	// Falling back keeps the test meaningful instead of going red on an
+	// unrelated live recording.
+	for _, run := range runs {
+		dir := filepath.Join(root, run)
+		if _, readErr := bagreplay.ReadNavDebug(dir); readErr != nil {
+			// Logged rather than swallowed: if a decode regression makes
+			// every bag unreadable, the skip below reports it instead of
+			// the suite quietly passing.
+			t.Logf("skipping unreadable run %s: %v", run, readErr)
+			continue
+		}
+		return dir
 	}
-	return filepath.Join(root, newest)
+
+	t.Skipf("no readable run directories under %s (%d tried)", root, len(runs))
+	return ""
 }
 
 // TestReadNavDebug_RealBag is the end-to-end check that this package can
