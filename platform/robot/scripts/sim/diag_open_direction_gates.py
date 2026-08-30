@@ -67,6 +67,14 @@ if TYPE_CHECKING:
 
 _DEFAULT_STEPS = 760
 
+_SHORT_LOOKAHEAD_M = 0.20
+"""Below this counts as "on the short lookahead", for the weave columns.
+
+Between pursuit's LOOKAHEAD_SHORT (0.16) and LOOKAHEAD_LONG (0.32), so the
+blend lands on one side or the other rather than straddling. Matches the
+threshold the same measurement used on the hardware bags.
+"""
+
 
 def _set_yaw_gain(gain: float) -> None:
     """Re-point the sim's chassis yaw authority at ``gain`` for this process.
@@ -112,9 +120,31 @@ class _GateTracer:
         self.branches: collections.Counter[str] = collections.Counter()
         self.creep_ticks = 0
         self.settled_at: int | None = None
+        # Weave accounting. The corner latch trades corner clearance against
+        # how much of the lap sits on the short (hot) lookahead, and pass/fail
+        # cannot see that trade -- measured on hardware 2026-08-30 as short
+        # lookahead 39% -> 72% and steering sign flips 14/min -> 29/min.
+        self.drive_ticks = 0
+        self.steer_flips = 0
+        self.short_lookahead_ticks = 0
+        self._prev_steer: float | None = None
         # The thresholds themselves, not copies: this tracer exists to say which
         # gate refused a reading, so it reads the same tuning infer_direction does.
         self.tuning = NavigationTuning.load_default()
+
+    def observe_drive(self, snapshot: Any) -> None:
+        """Fold one navigator snapshot into the weave counters."""
+        steer = snapshot.commanded_steering_norm
+        if steer is None:
+            return
+        self.drive_ticks += 1
+        lookahead = snapshot.lookahead_distance_m
+        if lookahead is not None and lookahead < _SHORT_LOOKAHEAD_M:
+            self.short_lookahead_ticks += 1
+        if self._prev_steer is not None and steer * self._prev_steer < 0:
+            self.steer_flips += 1
+        if steer != 0.0:
+            self._prev_steer = steer
 
     def patch(self) -> None:
         """Wrap ``infer_direction`` where the estimator resolves it."""
@@ -221,7 +251,15 @@ def _trace(scenario: Any, steps: int) -> tuple[_GateTracer, Any]:
     tracer.patch()
     try:
         sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
-        result = sim.run(max_steps=steps, on_step=lambda st, _s: setattr(tracer, "pos", (st.x, st.y)))
+
+        def _on_step(state: Any, _scan: Any) -> None:
+            tracer.pos = (state.x, state.y)
+            # Sampled from the navigator's own snapshot rather than re-derived
+            # from the pose stream: weave is a property of what the controller
+            # COMMANDED, and a smooth pose can hide a sawing command.
+            tracer.observe_drive(sim._navigator.debug_snapshot)  # noqa: SLF001
+
+        result = sim.run(max_steps=steps, on_step=_on_step)
     finally:
         tracer.unpatch()
     return tracer, result
@@ -264,8 +302,25 @@ def _corpus(name: str) -> list[Any]:
 _WORKER_STEPS = 0
 
 
+def _set_latch_completion(fraction: float) -> None:
+    """Re-point ``CornerLatch``'s release fraction for this process.
+
+    Patches the module constant rather than threading a parameter through the
+    navigator: the latch is constructed inside ``CoreNavigator.__init__``, so a
+    constructor argument would have to be plumbed through the simulator to
+    reach it, and the constant is read per call.
+    """
+    from src.navigation.core_navigator import corner_latch
+
+    corner_latch._COMPLETION_FRACTION = fraction
+
+
 def _worker_init(
-    steps: int, yaw_gain: float | None, steer_deg: float | None, corner_deg: float | None = None
+    steps: int,
+    yaw_gain: float | None,
+    steer_deg: float | None,
+    corner_deg: float | None = None,
+    latch_completion: float | None = None,
 ) -> None:
     """Apply this arm's overrides inside a fresh worker process.
 
@@ -278,10 +333,12 @@ def _worker_init(
     _WORKER_STEPS = steps
     if yaw_gain is not None:
         _set_yaw_gain(yaw_gain)
+    if latch_completion is not None:
+        _set_latch_completion(latch_completion)
     _set_follower_steer(steer_deg, corner_deg)
 
 
-def _worker_run(scenario: Any) -> tuple[str, str, int | None, int, float, str, str]:
+def _worker_run(scenario: Any) -> tuple[str, str, int | None, int, float, str, str, int, int, int]:
     """Trace one fixture and return only its summary row."""
     tracer, result = _trace(scenario, _WORKER_STEPS)
     refusals = collections.Counter(v for _, _, _, _, v in tracer.rows if not v.startswith("VOTE"))
@@ -295,6 +352,9 @@ def _worker_run(scenario: Any) -> tuple[str, str, int | None, int, float, str, s
         statistics.median(axis_errors) if axis_errors else float("nan"),
         top[0][0] if top else "-",
         " ".join(f"{name}:{n}" for name, n in tracer.branches.most_common()),
+        tracer.drive_ticks,
+        tracer.steer_flips,
+        tracer.short_lookahead_ticks,
     )
 
 
@@ -320,6 +380,7 @@ def _summary(
     yaw_gain: float | None,
     steer_deg: float | None,
     corner_deg: float | None,
+    latch_completion: float | None = None,
 ) -> None:
     """One row per fixture: did direction settle, and what was steering if not."""
     follower = NavigationTuning.load_default().corridor_follower
@@ -339,23 +400,37 @@ def _summary(
 
     if jobs > 1:
         with concurrent.futures.ProcessPoolExecutor(
-            max_workers=jobs, initializer=_worker_init, initargs=(steps, yaw_gain, steer_deg, corner_deg)
+            max_workers=jobs,
+            initializer=_worker_init,
+            initargs=(steps, yaw_gain, steer_deg, corner_deg, latch_completion),
         ) as pool:
             results = list(pool.map(_worker_run, scenarios))
     else:
-        _worker_init(steps, None, None, None)  # overrides already applied in-process
+        _worker_init(steps, None, None, None, None)  # overrides already applied in-process
         results = [_worker_run(s) for s in scenarios]
 
     rows: list[tuple[str, str, int | None]] = []
-    for label, outcome, settled_at, creep, p50, top, branches in results:
+    drive_ticks = flips = short_ticks = 0
+    for label, outcome, settled_at, creep, p50, top, branches, dticks, sflips, sshort in results:
         settled = "-" if settled_at is None else str(settled_at)
         print(
             f"{label:<24} {outcome:<10} {settled:>8} {creep:>6} "
             f"{p50:>9.3f} {top:<12} {branches:<40}"
         )
         rows.append((label, outcome, settled_at))
+        drive_ticks += dticks
+        flips += sflips
+        short_ticks += sshort
 
     never = [r for r in rows if r[2] is None]
+    if drive_ticks:
+        # Per 1000 ticks rather than per minute: the sim's dt is a tuning
+        # value, so a rate in wall-clock would move if that changed while the
+        # controller did not.
+        print(
+            f"\nweave: {1000 * flips / drive_ticks:.1f} steering sign flips/1000 ticks   "
+            f"short lookahead {100 * short_ticks / drive_ticks:.1f}% of {drive_ticks} drive ticks"
+        )
     print(f"\nsettled {len(rows) - len(never)}/{len(rows)}   never-settled {len(never)}")
     by_outcome: collections.Counter[str] = collections.Counter()
     for _, outcome, settled in rows:
@@ -396,10 +471,18 @@ def main() -> None:
         help="committed = 28-fixture unit battery; open128 = generated space at start_cell 0",
     )
     parser.add_argument("--jobs", type=int, default=1, help="run fixtures across N processes (--summary only)")
+    parser.add_argument(
+        "--latch-completion",
+        type=float,
+        default=None,
+        help="override CornerLatch's release fraction (shipped: 0.8; 0 disables the latch)",
+    )
     args = parser.parse_args()
 
     if args.yaw_gain is not None:
         _set_yaw_gain(args.yaw_gain)
+    if args.latch_completion is not None:
+        _set_latch_completion(args.latch_completion)
     _set_follower_steer(args.centering_steer_deg, args.corner_steer_deg)
 
     scenarios = _corpus(args.corpus)
@@ -409,7 +492,15 @@ def main() -> None:
         scenarios = scenarios[:1]
 
     if args.summary:
-        _summary(scenarios, args.steps, args.jobs, args.yaw_gain, args.centering_steer_deg, args.corner_steer_deg)
+        _summary(
+            scenarios,
+            args.steps,
+            args.jobs,
+            args.yaw_gain,
+            args.centering_steer_deg,
+            args.corner_steer_deg,
+            args.latch_completion,
+        )
         return
     for scenario in scenarios:
         _report(scenario, args.steps, args.show_span_fails)

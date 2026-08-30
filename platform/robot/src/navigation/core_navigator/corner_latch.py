@@ -74,7 +74,16 @@ class CornerLatch:
     being driven, so a straight behaves exactly as before.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, completion_fraction: float | None = None) -> None:
+        """Uses :data:`_COMPLETION_FRACTION` unless given one explicitly.
+
+        The parameter exists for sweeps: this value trades corner clearance
+        against how much of the lap is spent on the short lookahead, and that
+        trade has to be measured rather than argued (see the module docstring).
+        """
+        self._completion_fraction = (
+            completion_fraction if completion_fraction is not None else _COMPLETION_FRACTION
+        )
         self._previewed_rad: float = 0.0
         self._yaw_at_arm: float | None = None
         self._accumulated_rad: float = 0.0
@@ -129,7 +138,7 @@ class CornerLatch:
             return turn_ahead_rad
 
         turned = abs(wrap_angle(robot_yaw - self._yaw_at_arm))
-        if turned >= _COMPLETION_FRACTION * self._previewed_rad or self._accumulated_rad >= _MAX_LATCH_YAW_RAD:
+        if turned >= self._completion_fraction * self._previewed_rad or self._accumulated_rad >= _MAX_LATCH_YAW_RAD:
             held = self._previewed_rad
             self.reset()
             # The tick that completes the turn still reports the held value:
