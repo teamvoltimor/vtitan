@@ -260,6 +260,34 @@ class SpeedControlParams(BaseModel):
     of ticks and CCW went from 1 escape and 4 stucks to none, against 16-21% of
     ticks pinned at the old 0.05 m/s crawl.
 
+    Per-challenge tiers (2026-08-30)
+    --------------------------------
+    ``SLOW/MEDIUM/FAST/MAX`` are the SHARED base ladder. Either challenge may
+    override any of them via ``OPEN_*`` or ``OBSTACLES_*``, resolved by
+    :meth:`for_open_challenge` and :meth:`for_obstacles_challenge`. The two
+    prefixes are symmetric on purpose: neither challenge is privileged as "the
+    default", so a future motor can retune either one without the other's values
+    having to move into a prefix first.
+
+    They live here, beside the base ladder, rather than in the
+    ``navigation-challenges/`` overlay tree because the spread between tiers is
+    a property of THIS DRIVETRAIN'S HEADROOM -- the same reason the ladder lives
+    with the motor profile at all. A slower motor with no headroom to spare
+    omits both prefixes and the two challenges share one ladder; that fallback
+    is the point, not a degenerate case.
+
+    The two challenges want opposite things. Obstacles degrades monotonically
+    with speed (measured 2026-08-28: in-time 38/256 at 0.156 m/s, 16 at 0.50,
+    9 at 0.60), so it wants the conservative rungs. Open's binding constraint is
+    the 180 s round limit rather than sign clearance, so it can spend headroom.
+
+    A tier above its own cap is INERT -- ``core_navigator`` clamps the selected
+    zone to ``max_mps()``. Raising ``OPEN_FAST_MPS`` without raising
+    ``OPEN_MAX_MPS`` therefore buys nothing and reports nothing, which is
+    exactly how the removed ``for_obstacles()`` profile came to ship a
+    measured-inert speed half. ``_challenge_tiers_below_challenge_cap`` now
+    rejects that combination instead of letting it run.
+
     Attributes:
         MIN_MPS: Friction floor. A clamp on the others, not a tier itself.
         MAX_MPS: Upper bound on any tier.
@@ -267,6 +295,19 @@ class SpeedControlParams(BaseModel):
         SLOW_MPS: Near obstacles.
         MEDIUM_MPS: Moderate clearance.
         FAST_MPS: Open track.
+        OPEN_MAX_MPS: Open-Challenge cap. ``None`` -> use ``MAX_MPS``.
+        OPEN_SLOW_MPS: Open-Challenge slow tier. ``None`` -> use ``SLOW_MPS``.
+        OPEN_MEDIUM_MPS: Open-Challenge medium tier. ``None`` -> ``MEDIUM_MPS``.
+        OPEN_FAST_MPS: Open-Challenge fast tier. ``None`` -> ``FAST_MPS``.
+        OBSTACLES_MAX_MPS: Obstacles cap. ``None`` -> use ``MAX_MPS``.
+        OBSTACLES_SLOW_MPS: Obstacles slow tier. ``None`` -> use ``SLOW_MPS``.
+        OBSTACLES_MEDIUM_MPS: Obstacles medium tier. ``None`` -> ``MEDIUM_MPS``.
+        OBSTACLES_FAST_MPS: Obstacles fast tier. ``None`` -> ``FAST_MPS``.
+
+    ``MIN_MPS`` and ``CREEP_MPS`` deliberately have NO per-challenge form. The
+    floor is stiction and the creep tier is a servo-slew budget argued in
+    centimetres of travel (see above); neither becomes different because the
+    robot is driving a different challenge with the same hardware.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -277,6 +318,75 @@ class SpeedControlParams(BaseModel):
     SLOW_MPS: float = Field(default=0.117, gt=0.0, validation_alias=_alias("SLOW_MPS"))
     MEDIUM_MPS: float = Field(default=0.1326, gt=0.0, validation_alias=_alias("MEDIUM_MPS"))
     FAST_MPS: float = Field(default=0.156, gt=0.0, validation_alias=_alias("FAST_MPS"))
+
+    OPEN_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MAX_MPS"))
+    OPEN_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_SLOW_MPS"))
+    OPEN_MEDIUM_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MEDIUM_MPS"))
+    OPEN_FAST_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_FAST_MPS"))
+
+    OBSTACLES_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_MAX_MPS"))
+    OBSTACLES_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_SLOW_MPS"))
+    OBSTACLES_MEDIUM_MPS: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_MEDIUM_MPS")
+    )
+    OBSTACLES_FAST_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_FAST_MPS"))
+
+    _CHALLENGE_PREFIXES = ("OPEN", "OBSTACLES")
+    """Every per-challenge override prefix, so the validator cannot fall behind
+    the fields it is meant to police."""
+
+    @model_validator(mode="after")
+    def _challenge_tiers_below_challenge_cap(self) -> SpeedControlParams:
+        """A per-challenge tier above that challenge's cap is inert -- reject it.
+
+        ``core_navigator`` clamps the selected zone to ``max_mps()``, so a fast
+        tier above the cap silently resolves to the cap. That failure mode has
+        already shipped twice: the pre-2026-08-09 ladder where MEDIUM and FAST
+        both resolved to the ceiling, and the removed ``for_obstacles()``
+        profile whose FAST_SPEED 0.30 sat above a 0.156 ceiling. Both looked
+        like tuning and were measuring nothing, and neither announced itself.
+        """
+        for prefix in self._CHALLENGE_PREFIXES:
+            override_cap = getattr(self, f"{prefix}_MAX_MPS")
+            cap = override_cap if override_cap is not None else self.MAX_MPS
+            for tier in ("SLOW", "MEDIUM", "FAST"):
+                name = f"{prefix}_{tier}_MPS"
+                value = getattr(self, name)
+                if value is not None and value > cap:
+                    msg = (
+                        f"speed.{name} ({value}) exceeds the {prefix.title()}-Challenge cap "
+                        f"({cap}); core_navigator clamps every tier to max_mps(), so this "
+                        f"tier would be silently inert. Raise {prefix}_MAX_MPS or lower the tier."
+                    )
+                    raise ValueError(msg)
+        return self
+
+    def _for_challenge_prefix(self, prefix: str) -> SpeedControlParams:
+        """Apply one challenge's ``<PREFIX>_*`` overrides onto the base ladder.
+
+        Returns ``self`` unchanged when that challenge defines no overrides, so
+        a drivetrain with no headroom to spare shares one ladder across both
+        challenges without any caller needing to know which case it is in.
+        """
+        overrides = {
+            tier: value
+            for tier in ("MAX_MPS", "SLOW_MPS", "MEDIUM_MPS", "FAST_MPS")
+            if (value := getattr(self, f"{prefix}_{tier}")) is not None
+        }
+        return self.model_copy(update=overrides) if overrides else self
+
+    def for_open_challenge(self) -> SpeedControlParams:
+        """This ladder as the Open Challenge should run it."""
+        return self._for_challenge_prefix("OPEN")
+
+    def for_obstacles_challenge(self) -> SpeedControlParams:
+        """This ladder as the Obstacles Challenge should run it.
+
+        Not to be confused with the removed ``NavigationTuning.for_obstacles()``
+        classmethod, which baked a whole tuning profile in code. This applies
+        only the speed tiers a motor profile declares for itself.
+        """
+        return self._for_challenge_prefix("OBSTACLES")
 
     @model_validator(mode="after")
     def _floor_below_creep(self) -> SpeedControlParams:
