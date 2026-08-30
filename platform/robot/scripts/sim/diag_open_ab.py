@@ -50,7 +50,7 @@ from scripts.common.diag_base import (
     resolve_jobs,
     run_pool,
 )
-from scripts.common.open_cases import SIDES, case_space
+from scripts.common.open_cases import SIDES, balanced_128_cases, case_space
 from scripts.common.tables import print_table
 from scripts.sim.diag_open_exhaustive import _verdict
 from src.simulation.scenario_builder import build_open_metadata
@@ -150,12 +150,26 @@ def main() -> None:
     base_tuning = load_tuning(args.tuning)
     _apply_overrides(base_tuning, overrides)
 
-    population = case_space()
-    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
+    # DEFAULT is the balanced 128: every layout/section/direction exactly once,
+    # with the start cell varied. The alternative -- sampling 128 uniformly from
+    # the 640-case space -- leaves layout and section coverage to chance, so two
+    # seeds are not comparable scenario-for-scenario. `--all` still means the
+    # exhaustive 640, and an explicit `--sample N` still draws uniformly from it
+    # for anyone who wants the old behaviour at a different size.
+    explicit_sample = args.sample != _DEFAULT_SAMPLE_SIZE
+    if args.all or explicit_sample:
+        population = case_space()
+        cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
+        corpus = "uniform sample of the 640-case space"
+    else:
+        population = case_space()
+        cases = balanced_128_cases(seed=args.seed)
+        corpus = "balanced 128 (every layout/section/direction, start cell varied)"
 
     jobs = resolve_jobs(args.jobs)
     changed = ", ".join(f"{k}={v}" for k, v in overrides.items())
     print(f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers", flush=True)
+    print(f"corpus: {corpus}", flush=True)
     print(f"variant: {changed}\n", flush=True)
 
     base_payloads = [

@@ -258,6 +258,64 @@ class SweepConfig:
     arc_radius: float | None = None
     steer_kp: float | None = None
     max_steering_rate: float | None = None
+
+    corner_steer_deg: float | None = None
+    """Override ``CorridorFollowerParams.MAX_CORNER_STEER_DEG`` (shipped 21.25).
+
+    The angle the blind creep's corner-turn and back-off branches command.
+    Split from ``MAX_CENTERING_STEER_DEG`` on 2026-08-29 because the shared
+    13.75 made the committed turn geometrically impossible: at
+    ``radius = wheelbase / ((1 + rear_steer_ratio) * yaw_gain * tan(theta))``
+    that angle needs 0.706 m against the 0.60 m ``TURN_CLEARANCE_M`` the turn
+    is committed at, so the robot ran out of room mid-corner every time.
+
+    **Only meaningful on a BLIND arm.** The corner branch lives in the blind
+    creep, so a sighted arm never reaches it and this knob is inert — an A/B on
+    it in ``baseline`` mode returns byte-identical arms and answers nothing.
+    That mistake was made on 2026-08-30; see ``corner-steer`` in
+    ``_FIXED_MODES``.
+    """
+
+    centering_steer_deg: float | None = None
+    """Override ``CorridorFollowerParams.MAX_CENTERING_STEER_DEG`` (shipped 13.75).
+
+    The heading-damping clamp, deliberately left at the pre-split value: it is
+    sized against the 2026-08-03 limit cycle, not against corner geometry.
+    Present so an arm can move both halves together and show the split itself
+    is what mattered rather than the raised angle.
+    """
+
+    contact_dist: float | None = None
+    """Override ``ClearanceZones.CONTACT_DIST`` (shipped 0.10 m).
+
+    The escape gate: ``assess_risk`` returns CRITICAL below this bumper-frame
+    gap, which is what actually begins an escape maneuver. Added 2026-08-30
+    after ``diag_escape_mask.py --census`` showed 100% of CRITICAL ticks across
+    the corpus (28,664 of 28,664) only fire because of the 12.2 cm LIDAR-mount
+    offset fix (``6c727c87``, 2026-08-22) -- in the pre-fix body-centred frame
+    NONE of them would have. That fix was already known to trade collisions for
+    escape thrash (195->57 collisions, timeouts 19->132); this constant has
+    never been re-measured against the corrected frame it now runs in.
+    """
+
+    slow_dist: float | None = None
+    """Override ``ClearanceZones.SLOW_DIST`` (shipped 0.25 m). The OBSTACLE-risk
+    boundary one rung above ``contact_dist`` -- swept alongside it because
+    ``diag_escape_mask.py``'s OBSTACLE-tick fraction (26-43% across outcomes)
+    dwarfs the CRITICAL fraction (2-6%), so the speed-cap zone may matter more
+    than the escape gate itself.
+    """
+
+    centering_gain: float | None = None
+    """Override ``CorridorFollowerParams.CENTERING_GAIN_DEG_PER_M`` (shipped 0.0).
+
+    Zeroed 2026-08-22 because centring starved the direction-inference gate of
+    the square-to-corridor scans it needs. That blocker was fixed on 2026-08-30
+    by the corner-steer split, so the zero is now an unretested legacy: its
+    standing cost is that the creep traverses a corridor pinned ~0.18 m off one
+    wall and enters the first corner from there.
+    """
+
     strip_obstacles: bool = False
     """Delete signs and the parking lot from the metadata entirely.
 
@@ -687,7 +745,14 @@ class SweepConfig:
             STEER_KP=self.steer_kp,
             MAX_STEERING_RATE=self.max_steering_rate,
         )
+        corridor_follower = _with(
+            base.corridor_follower,
+            MAX_CORNER_STEER_DEG=self.corner_steer_deg,
+            MAX_CENTERING_STEER_DEG=self.centering_steer_deg,
+            CENTERING_GAIN_DEG_PER_M=self.centering_gain,
+        )
         speed = _with(base.speed, FAST_MPS=self.fast_mps, MAX_MPS=self.max_mps, CREEP_MPS=self.creep_mps)
+        clearance = _with(base.clearance, CONTACT_DIST=self.contact_dist, SLOW_DIST=self.slow_dist)
         localization = _with(base.localization, MAX_SPEED_MPS=self.localization_max_speed)
         waypoints = _with(
             base.waypoints,
@@ -743,10 +808,12 @@ class SweepConfig:
             base,
             pursuit=pursuit,
             speed=speed,
+            clearance=clearance,
             localization=localization,
             waypoints=waypoints,
             sign_router=sign_router,
             sign_discovery=sign_discovery,
+            corridor_follower=corridor_follower,
         )
 
 
@@ -4032,6 +4099,63 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     "blind": [
         SweepConfig("sighted (signs from metadata)"),
         SweepConfig("blind (track, direction, signs)", blind=True),
+    ],
+    # Is the 2026-08-29 corner-steer split worth anything on OBSTACLES? It is
+    # shipped and live on the robot on the strength of an OPEN result alone
+    # (96 -> 125/128), and its Obstacles effect has never been measured.
+    #
+    # BOTH ARMS ARE BLIND, and that is the whole point. The corner-turn branch
+    # lives in the blind creep, so in a sighted arm the constant is inert -- the
+    # first attempt at this A/B ran in `baseline` mode (which is sighted) and
+    # returned byte-identical arms, which reads as "no effect" but is actually
+    # "no experiment". See MAX_CORNER_STEER_DEG on SweepConfig.
+    #
+    # The second arm doubles as the REFERENCE ROW the Obstacles numbers have
+    # been missing. The 2026-08-27 row (127/256) predates the yaw_gain
+    # calibration and its mode was never recorded, so "169 collisions is a
+    # regression from 127" compares across a kinematics change and possibly a
+    # mode change at once. This arm is today's shipped configuration, in blind,
+    # on the current corpus -- comparable by construction.
+    "corner-steer": [
+        SweepConfig("blind, corner 13.75 (pre-split)", blind=True, corner_steer_deg=13.75),
+        SweepConfig("blind, corner 21.25 (shipped)", blind=True, corner_steer_deg=21.25),
+    ],
+    # Re-test of CENTERING_GAIN_DEG_PER_M, zeroed 2026-08-22 because centring
+    # starved the direction-inference gate. That starvation was root-caused on
+    # 2026-08-30 to the corner geometry instead, and fixed, so the zero is now
+    # an unretested legacy carrying a standing cost: the creep crosses a
+    # corridor pinned ~0.18 m off one wall and enters corner 1 from there.
+    #
+    # Blind for the same reason as corner-steer -- the centring term is the
+    # creep's, so a sighted arm cannot see it.
+    "centering-gain": [
+        SweepConfig("blind, centering 0.0 (shipped)", blind=True, centering_gain=0.0),
+        SweepConfig("blind, centering 5.0", blind=True, centering_gain=5.0),
+        SweepConfig("blind, centering 10.0", blind=True, centering_gain=10.0),
+    ],
+    # Is the escape gate itself too aggressive for the frame it now runs in?
+    # `diag_escape_mask.py --census --corpus` (2026-08-30) found EVERY CRITICAL
+    # tick in the corpus (28,664 of 28,664) only fires because of the 12.2 cm
+    # LIDAR-mount offset fix -- in the pre-fix body-centred frame none of them
+    # would have. That fix was already known to trade collisions for escape
+    # thrash (195->57 collisions, timeouts 19->132 at the time), and
+    # CONTACT_DIST/SLOW_DIST have never been re-measured against the corrected
+    # frame. The same census also found episode COUNT, not the CRITICAL-tick
+    # rate, separates outcomes -- runs that finish 3 laps late hit 57.7
+    # episodes/run against 19.0 for in-time ones, while the CRITICAL fraction
+    # barely moves (2.3-5.9%) -- so a looser gate that stops re-triggering is
+    # the theory this sweep tests, not a gate that fires less in the first
+    # place.
+    #
+    # BLIND, for consistency with corner-steer/centering-gain above -- the
+    # escape path itself is shared with Open, but this sweep is scoped to
+    # Obstacles' outcome mix (collisions, in-time, timeouts) on purpose.
+    "escape-gate": [
+        SweepConfig("blind, contact 0.10 slow 0.25 (shipped)", blind=True),
+        SweepConfig("blind, contact 0.05 slow 0.25", blind=True, contact_dist=0.05),
+        SweepConfig("blind, contact 0.15 slow 0.25", blind=True, contact_dist=0.15),
+        SweepConfig("blind, contact 0.10 slow 0.35", blind=True, slow_dist=0.35),
+        SweepConfig("blind, contact 0.05 slow 0.35", blind=True, contact_dist=0.05, slow_dist=0.35),
     ],
     # What the escape split + half-diagonal offset are worth IN BLIND, measured
     # in one tree so nothing else that has landed since can be mistaken for

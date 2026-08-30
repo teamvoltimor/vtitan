@@ -54,6 +54,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
+from scripts.common.open_cases import balanced_128_cases
 from src.navigation import corridor_follower, direction_estimator
 from src.navigation.corridor_estimator import classify_width
 from src.navigation.utils import _forward_clearance, _nearest_ray, _rear_clearance, axis_error_rad
@@ -282,17 +283,36 @@ def _report(scenario: Any, steps: int, show_span_fails: bool) -> None:
         )
 
 
-def _corpus(name: str) -> list[Any]:
+def _corpus(name: str, seed: int = 0) -> list[Any]:
     """The fixture set to run.
 
+    ``balanced128`` (DEFAULT) is 2 directions x 16 width sets x 4 sections with
+    the start cell VARIED -- same 128 count and same grid coverage as
+    ``open128``, but without freezing the spawn against the outer wall. See
+    ``scripts.common.open_cases.balanced_128_cases``.
+
     ``committed`` is the 28-fixture unit-test battery. ``open128`` is the
-    generated space at ``start_cell == 0`` -- 2 directions x 16 width sets x 4
-    sections -- which is the corpus the Open Challenge pass rates in this
-    project's history were measured on, and the reason a lateral start is never
-    varied there. ``open640`` adds every legal starting cell.
+    LEGACY corpus: the same grid at ``start_cell == 0`` only. Every Open pass
+    rate in this project's history (96 -> 125 -> 126) was measured on it, so it
+    is kept for continuity with those figures -- but it never varies the lateral
+    start, and a blind robot's opening readings depend on exactly that. Prefer
+    ``balanced128`` for anything new. ``open640`` is every legal starting cell.
     """
     if name == "committed":
         return all_test_scenarios()
+    if name == "balanced128":
+        # Index the full space by the same key balanced_128_cases returns, so
+        # these scenarios keep the space's own indices and seeds -- a scenario
+        # must mean the same thing here as in every other harness.
+        by_key = {
+            (p.widths.as_dict()["south"], p.widths.as_dict()["north"], p.widths.as_dict()["east"],
+             p.widths.as_dict()["west"], p.section, p.direction, p.start_cell): p
+            for p in _OPEN_CHALLENGE_SPACE.all_params()
+        }
+        return [
+            by_key[(*widths, section, direction, cell)].to_named_scenario()
+            for widths, section, direction, cell in balanced_128_cases(seed=seed)
+        ]
     params = _OPEN_CHALLENGE_SPACE.all_params()
     if name == "open128":
         params = tuple(p for p in params if p.start_cell == 0)
@@ -466,9 +486,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--corpus",
-        choices=("committed", "open128", "open640"),
+        choices=("committed", "balanced128", "open128", "open640"),
         default="committed",
-        help="committed = 28-fixture unit battery; open128 = generated space at start_cell 0",
+        help="committed = 28-fixture unit battery; balanced128 = full grid with the start "
+        "cell varied (prefer this); open128 = LEGACY, same grid pinned at start_cell 0; "
+        "open640 = every legal cell",
+    )
+    parser.add_argument(
+        "--corpus-seed",
+        type=int,
+        default=0,
+        help="seed for balanced128's start-cell assignment; vary it to confirm a result "
+        "is not an artefact of one spawn assignment",
     )
     parser.add_argument("--jobs", type=int, default=1, help="run fixtures across N processes (--summary only)")
     parser.add_argument(
@@ -485,7 +514,7 @@ def main() -> None:
         _set_latch_completion(args.latch_completion)
     _set_follower_steer(args.centering_steer_deg, args.corner_steer_deg)
 
-    scenarios = _corpus(args.corpus)
+    scenarios = _corpus(args.corpus, args.corpus_seed)
     if args.labels:
         scenarios = [s for s in scenarios if any(w in s.label for w in args.labels)]
     elif not args.summary:
