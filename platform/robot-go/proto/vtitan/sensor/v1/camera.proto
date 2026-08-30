@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package vtitan.sensor.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/sensorv1";
+
+// CameraFrame is one raw (un-annotated) camera frame, published on the
+// `vtitan.sensor.v1.camera` NATS subject. It is the Go analog of the ROS2
+// /camera/image_raw topic, and the `camera_source = "topic"` input path the
+// Python VisionNode supports (config/hardware/vision/node.toml) -- so a Go
+// capture-node can consume the same frames the ROS2 pipeline produces, without
+// touching the CSI device directly.
+message CameraFrame {
+  // Replaces ROS2 Header: stamp + frame_id.
+  google.protobuf.Timestamp stamp = 1;
+  string frame_id = 2;
+
+  // Pixel layout. Encoded as contiguous rows of `width` x `height` pixels,
+  // each pixel `stride` bytes, in the channel order `encoding` names.
+  uint32 width = 3;
+  uint32 height = 4;
+  uint32 stride = 5;
+
+  // Channel encoding, e.g. "rgb8", "bgr8", "yuv422". Mirrors sensor_msgs/Image
+  // encoding names so a ROS2 bridge can forward frames without transcoding.
+  string encoding = 6;
+
+  // Raw pixel buffer (length = height * stride). No compression; the recorder
+  // encodes to mp4/jpg at write time, matching Python's "capture raw, encode
+  // later" split (dataset_capture.py writes the raw rgb; video_recorder.py
+  // encodes annotated frames).
+  bytes data = 7;
+}

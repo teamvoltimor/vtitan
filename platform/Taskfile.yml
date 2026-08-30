@@ -895,6 +895,63 @@ tasks:
     cmds:
       - pixi run -e dev build-ws
 
+  # Go robot binaries (platform/robot-go). Two build paths:
+  #   - build:static : CGO_ENABLED=0 pure-static cross-build for every cmd/*,
+  #     including capture-node/pi5 with the MJPEG (pure-Go) video backend. This
+  #     is the default and works on any dev machine (Windows/Mac/Linux) with Go.
+  #   - build:capture: CGo gocv/OpenCV mp4v video backend, confined to capture-
+  #     node/pi5 behind the `cgo` build tag. On Linux it builds natively with a
+  #     Linux/arm64 C cross-toolchain + OpenCV sysroot; on Windows it delegates
+  #     the CGo cross-build into WSL2 (which holds the toolchain), so the dev
+  #     never leaves Windows. See docs/internal/plans/2026-08-30-shared-runs-
+  #     folder-and-go-run-recorder.md.
+
+  robot-go:build:static:
+    desc: "Cross-compile all Go robot binaries as pure-static (CGO_ENABLED=0). Safe on any dev machine."
+    dir: robot-go
+    vars:
+      OUT: '{{.OUT | default "dist"}}'
+    cmds:
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o {{.OUT}}/ ./cmd/...
+
+  robot-go:build:capture:
+    desc: >-
+      Build the CGo camera binaries (capture-node, pi5) with the gocv mp4v video
+      backend (CGO_ENABLED=1 -tags cgo). On Linux builds natively; on Windows
+      delegates the cross-build into WSL2 (needs Ubuntu + aarch64-linux-gnu-gcc +
+      arm64 OpenCV sysroot there). macOS is excluded: it cannot cross to arm64
+      Linux without a Linux toolchain.
+    dir: robot-go
+    vars:
+      OUT: '{{.OUT | default "dist"}}'
+      CC: '{{.CC | default "aarch64-linux-gnu-gcc"}}'
+    cmds:
+      - cmd: |
+          if ! wsl.exe -l -q 2>$null | Select-String -Quiet Ubuntu; then
+            echo "WSL2 with an Ubuntu distro is required for CGo arm64 cross-build on Windows" >&2
+            echo "Install: wsl --install -d Ubuntu, then add aarch64-linux-gnu-gcc + arm64 OpenCV" >&2
+            exit 1
+          fi
+          # The task runs with dir: robot-go, so the current directory is the
+          # Windows path to platform/robot-go; translate it into the WSL path.
+          $wslPath = (wsl.exe wslpath -a "$(pwd)")
+          wsl.exe bash -lc "cd '$wslPath' && \
+            CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC={{.CC}} \
+            go build -tags cgo -o {{.OUT}}/capture-node ./cmd/capture-node && \
+            go build -tags cgo -o {{.OUT}}/pi5 ./cmd/pi5"
+        platforms: [windows]
+      - cmd: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC={{.CC}} \
+          go build -tags cgo -o {{.OUT}}/capture-node ./cmd/capture-node && \
+          go build -tags cgo -o {{.OUT}}/pi5 ./cmd/pi5
+        platforms: [linux]
+
+  robot-go:test:
+    desc: "Run the Go robot module's tests (pure-Go; excludes the CGo camera path)."
+    dir: robot-go
+    cmds:
+      - go test ./...
+
   robot:zero:
     desc: >-
       Pi Zero lifecycle ops — run ON Pi 5 (usage: task robot:zero

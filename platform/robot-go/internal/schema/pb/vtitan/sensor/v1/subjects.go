@@ -6,6 +6,7 @@ package sensorv1
 // one source of truth instead of each cmd/* binary retyping the same
 // literal.
 const (
-	ImuSubject  = "vtitan.sensor.v1.imu"
-	ScanSubject = "vtitan.sensor.v1.scan"
+	ImuSubject    = "vtitan.sensor.v1.imu"
+	ScanSubject   = "vtitan.sensor.v1.scan"
+	CameraSubject = "vtitan.sensor.v1.camera"
 )

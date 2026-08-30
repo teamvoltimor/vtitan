@@ -69,6 +69,30 @@ type ScanRow struct {
 	Scan     LaserScan
 }
 
+// FindVideo returns the path to a run's debug video, if the recorder wrote one
+// (run_<stamp>/video.mp4). A run may have no video (bag-only recording), in
+// which case the second return is false and the path is empty.
+func FindVideo(runDir string) (string, bool) {
+	p := filepath.Join(runDir, "video.mp4")
+	if _, err := os.Stat(p); err != nil {
+		return "", false
+	}
+	return p, true
+}
+
+// ListPhotos returns the sorted paths of a run's periodic dataset photos
+// (run_<stamp>/captures/capture_NNNN.jpg), used for later annotation/correlation
+// with the bag. An empty or missing captures dir yields an empty slice, not an
+// error -- a run with no photos is valid.
+func ListPhotos(runDir string) ([]string, error) {
+	dir := filepath.Join(runDir, "captures")
+	matches, err := filepath.Glob(filepath.Join(dir, "capture_*.jpg"))
+	if err != nil {
+		return nil, fmt.Errorf("bagreplay: globbing photos in %s: %w", dir, err)
+	}
+	return matches, nil
+}
+
 // ReadScan replays a bag and returns every /scan sweep in recorded order.
 //
 // path may be either the run directory or the .mcap file itself.
