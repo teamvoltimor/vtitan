@@ -61,3 +61,61 @@ creep_mps = 0.1521
 slow_mps = 0.22
 medium_mps = 0.32
 fast_mps = 0.42
+
+# OBSTACLES CHALLENGE ladder. Left UNSET deliberately: the base rungs above
+# already are the Obstacles tune, and duplicating them under a prefix would
+# create two places to drift apart. Set obstacles_slow_mps / obstacles_medium_mps
+# / obstacles_fast_mps / obstacles_max_mps here if the base ever needs to mean
+# something other than what Obstacles wants.
+
+# OPEN CHALLENGE ladder. Optional -- omit these four keys on a motor with no
+# headroom to spare and both challenges share the ladder above.
+#
+# The two challenges want opposite things and this motor is fast enough to give
+# each what it wants. Obstacles degrades monotonically with speed (measured
+# 2026-08-28 on the 256 corpus: in-time 38/256 at 0.156 m/s, 16 at 0.50, 9 at
+# 0.60), so it keeps the base ladder. Open's binding constraint is the 180 s
+# round limit instead -- the last clean 3-lap run was 159.7 s, about 20 s of
+# margin -- so it can spend headroom on speed.
+#
+# Sized against the MEASURED drivetrain, not the ceiling in robot.toml
+# (max_speed_mps = 1.0 is an unmeasured feel-based guess and is not the binding
+# clamp; max_mps is). Bench, 2026-08-30, robot loaded on the floor, closed
+# loop: achieved = 1.042 * commanded + 0.034 m/s across all three rungs. That
+# +3.4 cm/s offset is real and does not calibrate out with a gain, so:
+#
+#   commanded 0.50  -> ~0.555 achieved
+#   commanded 0.525 -> ~0.581, i.e. AT the measured closed-loop ceiling
+#   commanded 0.56  -> ~0.617, UNREACHABLE; the PID rails at max_duty
+#
+# fast is 0.525, not the 0.56 a naive +1/3 would give: that would sit above the
+# drivetrain ceiling AND above any sane cap, would have been clamped to
+# max_mps, and would have measured nothing. open_max_mps must rise with it --
+# core_navigator clamps every tier to max_mps(), so a fast tier above the cap
+# is silently inert. A validator now rejects that combination outright.
+#
+# TWO CAVEATS ON 0.525 SPECIFICALLY.
+#
+# It is an EXTRAPOLATION. The 2026-08-30 fit spans 0.22-0.42 commanded; 0.525
+# is 25% beyond the highest rung actually measured, and the linear fit is only
+# evidence inside its range. Whether the loop still tracks there is untested.
+#
+# It leaves the PID NO RESERVE. ~0.581 predicted against a ~0.58 ceiling means
+# the controller sits at saturation on the straights, so it has nothing left to
+# correct a disturbance with -- and a duty-capped loop stops regulating and
+# starts behaving open-loop, which is how "every commanded speed above ~0.35
+# delivered identical motion" was originally observed (2026-08-29, before the
+# counts_per_rev fix). Today's three rungs scaled cleanly at 1.042, so that
+# capping is not present up to 0.42; 0.525 is where to expect it back.
+# If the track run shows the fast tier not delivering, drop to 0.50 and
+# re-measure before assuming the ladder is at fault.
+#
+# NOT VALIDATED ON TRACK at these values. The clearance ladder
+# (contact 0.10 / slow 0.25 / medium 0.50) is in METRES, not time, so raising
+# speed shrinks the reaction runway those distances buy: medium_dist is 1.06 s
+# at the Obstacles fast tier and 0.86 s here. docs/internal/algorithms/
+# speed-envelope.md section 6 documents that as the structural speed cap.
+open_slow_mps = 0.275
+open_medium_mps = 0.40
+open_fast_mps = 0.525
+open_max_mps = 0.55

@@ -292,6 +292,16 @@ class TestConfiguredValuesAreActuallyRead:
         candidates = [field.lower()]
         if field.endswith("_DEG"):
             candidates.append(f"{field[: -len('_DEG')].lower()}_norm")
+        # A per-challenge tier override is read through the resolver that
+        # applies it, not under its own name: OPEN_FAST_MPS reaches the
+        # navigator as for_open_challenge().fast_mps(). Same indirection as the
+        # *_mps() accessors above, one level further out -- and resolved by
+        # attribute for the same reason, so a resolver that stops existing
+        # (or that nothing in robot code calls) still fails this check rather
+        # than excusing the four fields it would have applied.
+        for prefix in ("OPEN", "OBSTACLES"):
+            if field.startswith(f"{prefix}_"):
+                candidates.append(f"for_{prefix.lower()}_challenge")
         names.extend(
             accessor for accessor in candidates if accessor != field and callable(getattr(group, accessor, None))
         )
@@ -349,6 +359,16 @@ class TestFieldDefaultsMatchShippedToml:
                 continue
             shipped_values = shipped_group.model_dump()
             for field, bare_value in bare_group.model_dump().items():
+                # A ``None`` default is an ABSENCE, not a second copy of a
+                # value, so it cannot drift in the way this test guards against.
+                # Optional per-profile overrides (speed's OPEN_*/OBSTACLES_*
+                # tiers) are declared unset precisely so a motor without the
+                # headroom inherits the shared ladder; giving them a concrete
+                # default to satisfy this check would hand every motor the fast
+                # profile's numbers, which is the bug this test exists to catch,
+                # inverted. Fields with a real default are still compared.
+                if bare_value is None:
+                    continue
                 if bare_value != shipped_values[field]:
                     drifted[f"{group_name}.{field}"] = (bare_value, shipped_values[field])
 

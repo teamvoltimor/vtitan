@@ -97,6 +97,25 @@ class CoreNavigator(EscapeRecovery):
         self._laps_completed = 0
         self._suppress_next_wrap = False
         self._corner_latch = CornerLatch()
+        # The speed ladder this run drives on, resolved ONCE here rather than at
+        # each of the nine sites that read a tier.
+        #
+        # Open tolerates far more speed than Obstacles -- its binding constraint
+        # is the 180 s round limit, not sign clearance, and Obstacles was
+        # measured degrading monotonically with speed (in-time 38/256 at 0.156
+        # m/s down to 9/256 at 0.60). `for_open_challenge` returns the base
+        # ladder unchanged when the motor profile defines no OPEN_* tiers, so a
+        # drivetrain without headroom to spare needs no special case.
+        #
+        # Keyed on sign_router presence, the same Open/Obstacles discriminator
+        # STALE_TARGET_RESCUE and RETRACE_ESCAPE already use (it is None for the
+        # Open Challenge by construction). Resolving once also means a tier read
+        # mid-run cannot disagree with one read at startup.
+        self._speed = (
+            self._tuning.speed.for_obstacles_challenge()
+            if sign_router is not None
+            else self._tuning.speed.for_open_challenge()
+        )
         self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
@@ -868,13 +887,13 @@ class CoreNavigator(EscapeRecovery):
 
         # Determine speed
         if forward_clearance < self._tuning.clearance.CONTACT_DIST:
-            speed = self._tuning.speed.creep_mps()
+            speed = self._speed.creep_mps()
         elif forward_clearance < self._tuning.clearance.SLOW_DIST:
-            speed = self._tuning.speed.slow_mps()
+            speed = self._speed.slow_mps()
         elif forward_clearance < self._tuning.clearance.MEDIUM_DIST:
-            speed = self._tuning.speed.medium_mps()
+            speed = self._speed.medium_mps()
         else:
-            speed = self._tuning.speed.fast_mps()
+            speed = self._speed.fast_mps()
         # Captured before the heading limiter, the envelope clamp and the risk
         # cap all fold into `speed`. Reporting the post-min value under this
         # name made the two debug fields satisfy final <= heading_speed by
@@ -915,9 +934,9 @@ class CoreNavigator(EscapeRecovery):
         # which should take a measurement that beats the times above.
         abs_error = abs(angle_error)
         if abs_error >= self._tuning.heading.CRAWL:
-            heading_speed = self._tuning.speed.creep_mps()
+            heading_speed = self._speed.creep_mps()
         else:
-            heading_speed = self._tuning.speed.fast_mps()
+            heading_speed = self._speed.fast_mps()
         speed = min(speed, heading_speed)
 
         # Bound the selected cruise speed by the configured envelope. MIN_MPS
@@ -934,12 +953,12 @@ class CoreNavigator(EscapeRecovery):
         # and not to the final command: clamping that up to the floor would turn
         # every legitimate stop (escape hand-off, park complete, blocked at both
         # ends) into a 0.05 m/s crawl the robot cannot be commanded out of.
-        speed = min(max(speed, self._tuning.speed.min_mps()), self._tuning.speed.max_mps())
+        speed = min(max(speed, self._speed.min_mps()), self._speed.max_mps())
 
         # Never blast past a non-forward obstacle (e.g. a sign alongside the
         # robot) just because the path ahead is clear.
         if risk != RiskLevel.SAFE:
-            speed = min(speed, self._tuning.speed.slow_mps())
+            speed = min(speed, self._speed.slow_mps())
 
         # Give the pursuit controller more time to close a sign-avoidance
         # offset. Neither clearance nor heading-error speed reacts to one:
@@ -957,7 +976,7 @@ class CoreNavigator(EscapeRecovery):
             and sign_deform_magnitude is not None
             and sign_deform_magnitude > self._tuning.sign_router.SIGN_DEFORM_SPEED_THRESHOLD_M
         ):
-            speed = min(speed, self._tuning.speed.slow_mps())
+            speed = min(speed, self._speed.slow_mps())
 
         # Treat a discovering run's first lap as reconnaissance. The robot
         # cannot see a corridor's signs until it is inside that corridor (they
@@ -978,7 +997,7 @@ class CoreNavigator(EscapeRecovery):
             and self._sign_router.is_discovering
             and self._laps_completed == 0
         ):
-            speed = min(speed, self._tuning.speed.max_mps() * explore_frac)
+            speed = min(speed, self._speed.max_mps() * explore_frac)
 
         # First-lap corner caution, Open-Challenge-applicable (unlike the
         # sign-router explore-lap cap above, not gated on is_discovering --
@@ -995,7 +1014,7 @@ class CoreNavigator(EscapeRecovery):
         # lookahead selection) to buy the tracking loop more margin; costs
         # nothing on lap 2+ once the corner has been taken once for real.
         if self._laps_completed == 0 and turn_ahead:
-            speed = min(speed, self._tuning.speed.slow_mps())
+            speed = min(speed, self._speed.slow_mps())
 
         # Snapshot everything decided so far -- both the escape-trigger branch
         # below and the normal publish at the end of this method share it, only
@@ -1033,7 +1052,7 @@ class CoreNavigator(EscapeRecovery):
             evade = self._sign_evade_steer(robot_x, robot_y, robot_yaw)
             if evade is not None:
                 steering_normalized = max(-1.0, min(1.0, steering_normalized + evade))
-                speed = min(speed, self._tuning.speed.creep_mps())
+                speed = min(speed, self._speed.creep_mps())
 
         # Escape maneuvers if critical — judged on the masked scan, so a mapped
         # sign cannot trigger one, and steered by the masked scan too: the
