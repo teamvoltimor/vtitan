@@ -194,7 +194,10 @@ func gridOffset(radius float64, n, i int) float64 {
 // trusted, because a real correction reconverges to nearly the same position
 // from an independent scan while an ambiguous flip does not typically repeat
 // identically.
-func (l *LidarLocalizer) rejectImplausibleSpeed(best, priorXY trackmodel.Waypoint, dt *float64) bool {
+func (l *LidarLocalizer) rejectImplausibleSpeed(
+	best, priorXY trackmodel.Waypoint,
+	dt *float64,
+) bool {
 	if dt == nil || *dt <= 0 {
 		return false
 	}

@@ -20,9 +20,9 @@ import (
 )
 
 type harnessConfig struct {
-	steps       int
-	cpuprofile  string
-	memprofile  string
+	steps      int
+	cpuprofile string
+	memprofile string
 }
 
 func main() {

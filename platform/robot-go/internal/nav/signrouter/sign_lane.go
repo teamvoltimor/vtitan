@@ -80,7 +80,13 @@ func laneSpan(cornerEntryM float64, cfg Config) (low, high float64) {
 // corner-arc runway; the LATERAL test does not widen, which is what keeps
 // the widening safe -- see _in_lane_span's Python docstring for the traced
 // regression a wider lateral test caused.
-func inLaneSpan(wp trackmodel.Waypoint, corridor trackmodel.Section, axis Axis, cornerEntryM float64, cfg Config) bool {
+func inLaneSpan(
+	wp trackmodel.Waypoint,
+	corridor trackmodel.Section,
+	axis Axis,
+	cornerEntryM float64,
+	cfg Config,
+) bool {
 	lateral, depth := axisCoords(wp, axis)
 	low, high := laneSpan(cornerEntryM, cfg)
 	if depth < low || depth > high {
@@ -105,7 +111,10 @@ func signPlateaux(
 		if !ok {
 			continue
 		}
-		signLateral, signDepth := axisCoords(trackmodel.Waypoint{X: entry.Spec.X, Y: entry.Spec.Y}, axis)
+		signLateral, signDepth := axisCoords(
+			trackmodel.Waypoint{X: entry.Spec.X, Y: entry.Spec.Y},
+			axis,
+		)
 		target := ClampLateral(signLateral+float64(mult)*params.LateralOffsetM, corridor, cfg)
 		if params.SkipUnsatisfiable && (target-signLateral)*float64(mult) <= 0.0 {
 			// The clamp put this sign's own target on the forbidden side of
@@ -176,7 +185,12 @@ func holdPoints(plateaux []controlPoint, params SignLaneParams) []controlPoint {
 // profile ramps to baseLateral RampM beyond the outermost plateau at each
 // end.
 func controlPoints(
-	signs []LaneSpec, corridor trackmodel.Section, axis Axis, baseLateral float64, params SignLaneParams, cfg Config,
+	signs []LaneSpec,
+	corridor trackmodel.Section,
+	axis Axis,
+	baseLateral float64,
+	params SignLaneParams,
+	cfg Config,
 ) []controlPoint {
 	plateaux := signPlateaux(signs, corridor, axis, params, cfg)
 	if plateaux == nil {
@@ -189,7 +203,10 @@ func controlPoints(
 
 	low, high := laneSpan(params.CornerEntryM, cfg)
 	entryDepth := math.Min(math.Max(points[0].Depth-params.RampM, low), points[0].Depth)
-	exitDepth := math.Max(math.Min(points[len(points)-1].Depth+params.RampM, high), points[len(points)-1].Depth)
+	exitDepth := math.Max(
+		math.Min(points[len(points)-1].Depth+params.RampM, high),
+		points[len(points)-1].Depth,
+	)
 
 	profile := make([]controlPoint, 0, len(points)+2)
 	profile = append(profile, controlPoint{Depth: entryDepth, Lateral: baseLateral})
@@ -223,7 +240,11 @@ func interpolate(profile []controlPoint, depth float64) (lateral float64, ok boo
 // arc's lateral coordinate sweeps away from the centerline as it turns and
 // would drag a median computed across arc points off it.
 func corridorLaneIndices(
-	waypoints []trackmodel.Waypoint, corridor trackmodel.Section, axis Axis, params SignLaneParams, cfg Config,
+	waypoints []trackmodel.Waypoint,
+	corridor trackmodel.Section,
+	axis Axis,
+	params SignLaneParams,
+	cfg Config,
 ) (indices, straight []int) {
 	for i, wp := range waypoints {
 		if inLaneSpan(wp, corridor, axis, params.CornerEntryM, cfg) {

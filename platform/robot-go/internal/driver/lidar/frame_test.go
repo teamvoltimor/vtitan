@@ -156,10 +156,12 @@ func TestDecodeMeasurement_HandComputed(t *testing.T) {
 	wantAngleRad := wantAngleDeg * degToRad
 	wantRangeM := wantRangeMM / mmPerMeter
 
-	if diff := got.AngleRad - wantAngleRad; diff > measurementTolerance || diff < -measurementTolerance {
+	if diff := got.AngleRad - wantAngleRad; diff > measurementTolerance ||
+		diff < -measurementTolerance {
 		t.Errorf("AngleRad = %v, want %v", got.AngleRad, wantAngleRad)
 	}
-	if diff := got.RangeM - wantRangeM; diff > measurementTolerance || diff < -measurementTolerance {
+	if diff := got.RangeM - wantRangeM; diff > measurementTolerance ||
+		diff < -measurementTolerance {
 		t.Errorf("RangeM = %v, want %v", got.RangeM, wantRangeM)
 	}
 	if got.Quality != wantQuality {
@@ -219,10 +221,22 @@ func TestDecodeHealth(t *testing.T) {
 		raw  []byte
 		want Health
 	}{
-		{name: "good", raw: []byte{0x00, 0x00, 0x00}, want: Health{Status: HealthGood, ErrorCode: 0}},
-		{name: "warning", raw: []byte{0x01, 0x00, 0x00}, want: Health{Status: HealthWarning, ErrorCode: 0}},
+		{
+			name: "good",
+			raw:  []byte{0x00, 0x00, 0x00},
+			want: Health{Status: HealthGood, ErrorCode: 0},
+		},
+		{
+			name: "warning",
+			raw:  []byte{0x01, 0x00, 0x00},
+			want: Health{Status: HealthWarning, ErrorCode: 0},
+		},
 		// error_code = 0x1234 = 4660, little-endian bytes 0x34 0x12.
-		{name: "error_with_code", raw: []byte{0x02, 0x34, 0x12}, want: Health{Status: HealthError, ErrorCode: 4660}},
+		{
+			name: "error_with_code",
+			raw:  []byte{0x02, 0x34, 0x12},
+			want: Health{Status: HealthError, ErrorCode: 4660},
+		},
 	}
 
 	for _, tt := range tests {

@@ -81,7 +81,10 @@ func (w *WaypointController) SetCrosstrackBudget(budgetM *float64) {
 
 // SelectLookahead selects the lookahead distance from off-path distance
 // and upcoming turn, matching WaypointController.select_lookahead.
-func (w *WaypointController) SelectLookahead(crosstrackError, turnAheadRad float64, signAhead bool) float64 {
+func (w *WaypointController) SelectLookahead(
+	crosstrackError, turnAheadRad float64,
+	signAhead bool,
+) float64 {
 	signDemand := 0.0
 	if signAhead {
 		signDemand = 1.0
@@ -102,7 +105,10 @@ func (w *WaypointController) SelectLookahead(crosstrackError, turnAheadRad float
 // canonical-lap path, not a pre-sliced remainder. Also skips any candidate
 // that is behind the chassis in its current local frame.
 func (w *WaypointController) SelectTargetPoint(
-	currentPos trackmodel.Waypoint, currentYaw float64, waypointsPath []trackmodel.Waypoint, waypointIndex int,
+	currentPos trackmodel.Waypoint,
+	currentYaw float64,
+	waypointsPath []trackmodel.Waypoint,
+	waypointIndex int,
 	lookaheadDistance float64,
 ) trackmodel.Waypoint {
 	n := len(waypointsPath)

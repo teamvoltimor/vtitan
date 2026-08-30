@@ -60,7 +60,11 @@ func TestEstimator_SettleIsIdempotent(t *testing.T) {
 
 	dir, ok := est.Direction()
 	if !ok || dir != directionestimator.Counterclockwise {
-		t.Errorf("Direction() = (%v, %v), want (Counterclockwise, true) -- second Settle must be a no-op", dir, ok)
+		t.Errorf(
+			"Direction() = (%v, %v), want (Counterclockwise, true) -- second Settle must be a no-op",
+			dir,
+			ok,
+		)
 	}
 }
 
@@ -101,7 +105,10 @@ func TestEstimator_VotesTallyPerDirection(t *testing.T) {
 		t.Errorf("Votes()[Clockwise] = %d, want 2", votes[directionestimator.Clockwise])
 	}
 	if votes[directionestimator.Counterclockwise] != 1 {
-		t.Errorf("Votes()[Counterclockwise] = %d, want 1", votes[directionestimator.Counterclockwise])
+		t.Errorf(
+			"Votes()[Counterclockwise] = %d, want 1",
+			votes[directionestimator.Counterclockwise],
+		)
 	}
 
 	votes[directionestimator.Clockwise] = 99

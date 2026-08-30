@@ -79,9 +79,18 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.corpusPath, "corpus", "",
-		"path to a scenario corpus: a directory of *_metadata.json files, or a single metadata file")
-	flags.StringVar(&cfg.command, "command", "python3", "interpreter executable to invoke run_scenario.py with")
+	flags.StringVar(
+		&cfg.corpusPath,
+		"corpus",
+		"",
+		"path to a scenario corpus: a directory of *_metadata.json files, or a single metadata file",
+	)
+	flags.StringVar(
+		&cfg.command,
+		"command",
+		"python3",
+		"interpreter executable to invoke run_scenario.py with",
+	)
 	flags.StringVar(
 		&cfg.baseArgs,
 		"base-args",
@@ -89,15 +98,43 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		"comma-separated argv entries inserted before the script path (e.g. for a wrapper like pixi: run,-e,dev,python)",
 	)
 	flags.StringVar(&cfg.scriptPath, "script", "", "path to scripts/sim/run_scenario.py")
-	flags.StringVar(&cfg.workDir, "workdir", "", "working directory to run the script from, normally platform/robot")
+	flags.StringVar(
+		&cfg.workDir,
+		"workdir",
+		"",
+		"working directory to run the script from, normally platform/robot",
+	)
 	flags.StringVar(&cfg.pythonPath, "python-path", ".", "PYTHONPATH to set for the subprocess")
-	flags.StringVar(&cfg.extraArgs, "extra-args", "",
-		"comma-separated flags appended to every run_scenario.py invocation (e.g. --sighted,--no-park)")
-	flags.IntVar(&cfg.concurrency, "concurrency", 0, "max scenarios run concurrently; 0 means runtime.NumCPU()")
-	flags.DurationVar(&cfg.timeout, "timeout", 0, "per-scenario timeout; 0 means the runner's own default")
-	flags.BoolVar(&cfg.jsonOutput, "json", false, "print the report as JSON instead of a text summary")
-	flags.StringVar(&cfg.runner, "runner", "python",
-		"scenario runner backend: 'python' (subprocess oracle, default) or 'native' (Go-native harness)")
+	flags.StringVar(
+		&cfg.extraArgs,
+		"extra-args",
+		"",
+		"comma-separated flags appended to every run_scenario.py invocation (e.g. --sighted,--no-park)",
+	)
+	flags.IntVar(
+		&cfg.concurrency,
+		"concurrency",
+		0,
+		"max scenarios run concurrently; 0 means runtime.NumCPU()",
+	)
+	flags.DurationVar(
+		&cfg.timeout,
+		"timeout",
+		0,
+		"per-scenario timeout; 0 means the runner's own default",
+	)
+	flags.BoolVar(
+		&cfg.jsonOutput,
+		"json",
+		false,
+		"print the report as JSON instead of a text summary",
+	)
+	flags.StringVar(
+		&cfg.runner,
+		"runner",
+		"python",
+		"scenario runner backend: 'python' (subprocess oracle, default) or 'native' (Go-native harness)",
+	)
 
 	for _, name := range []string{"corpus", "script", "workdir"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
@@ -148,7 +185,10 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 		return fmt.Errorf("sim-runner: unknown --runner %q (want 'python' or 'native')", cfg.runner)
 	}
 
-	orchestrator, err := scenario.NewOrchestrator(runner, scenario.OrchestratorConfig{Concurrency: cfg.concurrency})
+	orchestrator, err := scenario.NewOrchestrator(
+		runner,
+		scenario.OrchestratorConfig{Concurrency: cfg.concurrency},
+	)
 	if err != nil {
 		return fmt.Errorf("sim-runner: %w", err)
 	}
@@ -159,7 +199,11 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 		return fmt.Errorf("sim-runner: %w", runErr)
 	}
 	if errored := countErrored(report); errored > 0 {
-		return fmt.Errorf("sim-runner: %d of %d scenarios failed to produce a result", errored, len(report.Results))
+		return fmt.Errorf(
+			"sim-runner: %d of %d scenarios failed to produce a result",
+			errored,
+			len(report.Results),
+		)
 	}
 	return nil
 }

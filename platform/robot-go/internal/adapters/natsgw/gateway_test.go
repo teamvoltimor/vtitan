@@ -20,7 +20,11 @@ func TestScanToLidarScan_ExpandsAngles(t *testing.T) {
 	}
 	got := scanToLidarScan(scan)
 	if len(got.RangesM) != 4 || len(got.AnglesRad) != 4 {
-		t.Fatalf("len(RangesM)=%d len(AnglesRad)=%d, want 4 and 4", len(got.RangesM), len(got.AnglesRad))
+		t.Fatalf(
+			"len(RangesM)=%d len(AnglesRad)=%d, want 4 and 4",
+			len(got.RangesM),
+			len(got.AnglesRad),
+		)
 	}
 	wantAngles := []float64{-math.Pi, -math.Pi / 2, 0, math.Pi / 2}
 	for i, want := range wantAngles {
@@ -42,7 +46,11 @@ func TestScanToLidarScan_RetainsZeros(t *testing.T) {
 
 	got := scanToLidarScan(&sensorv1.Scan{})
 	if len(got.RangesM) != 0 || len(got.AnglesRad) != 0 {
-		t.Errorf("empty scan -> ranges=%d angles=%d, want 0 and 0", len(got.RangesM), len(got.AnglesRad))
+		t.Errorf(
+			"empty scan -> ranges=%d angles=%d, want 0 and 0",
+			len(got.RangesM),
+			len(got.AnglesRad),
+		)
 	}
 }
 

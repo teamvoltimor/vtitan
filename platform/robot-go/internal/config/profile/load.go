@@ -69,7 +69,11 @@ func Load[T any](basePath string, profileNames []string) (*T, error) {
 // viper.SetDefault before reading -- for a TOML key some source files
 // never set, relying on the Python model's own Field(default=...) instead
 // (see merge's doc comment).
-func LoadWithDefaults[T any](basePath string, profileNames []string, defaults map[string]any) (*T, error) {
+func LoadWithDefaults[T any](
+	basePath string,
+	profileNames []string,
+	defaults map[string]any,
+) (*T, error) {
 	v, err := merge(basePath, profileNames, defaults)
 	if err != nil {
 		return nil, err

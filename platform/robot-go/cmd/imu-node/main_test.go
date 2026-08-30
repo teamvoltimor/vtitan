@@ -29,7 +29,10 @@ func TestImuMessageFor(t *testing.T) {
 		t.Errorf("FrameId = %q, want %q", got.GetFrameId(), imuFrameID)
 	}
 	if got.GetOrientationCovariance()[0] != -1 {
-		t.Errorf("OrientationCovariance[0] = %v, want -1 (unknown)", got.GetOrientationCovariance()[0])
+		t.Errorf(
+			"OrientationCovariance[0] = %v, want -1 (unknown)",
+			got.GetOrientationCovariance()[0],
+		)
 	}
 	if got.GetAngularVelocityCovariance()[0] != -1 {
 		t.Errorf(
@@ -46,6 +49,12 @@ func TestImuMessageFor(t *testing.T) {
 	if float64(la.GetX()) != reading.XAccel ||
 		float64(la.GetY()) != reading.YAccel ||
 		float64(la.GetZ()) != reading.ZAccel {
-		t.Errorf("LinearAcceleration = %+v, want (%v, %v, %v)", la, reading.XAccel, reading.YAccel, reading.ZAccel)
+		t.Errorf(
+			"LinearAcceleration = %+v, want (%v, %v, %v)",
+			la,
+			reading.XAccel,
+			reading.YAccel,
+			reading.ZAccel,
+		)
 	}
 }

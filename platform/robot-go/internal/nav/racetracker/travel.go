@@ -20,7 +20,10 @@ type TravelNormal struct {
 // A switch rather than a map, matching this codebase's preference: the pairs
 // are a closed, compile-time-known set, and ok=false makes the unknown case
 // explicit where Python's dict lookup would raise KeyError.
-func TravelNormalFor(section trackmodel.Section, direction trackmodel.Direction) (TravelNormal, bool) {
+func TravelNormalFor(
+	section trackmodel.Section,
+	direction trackmodel.Direction,
+) (TravelNormal, bool) {
 	switch direction {
 	case trackmodel.Clockwise:
 		switch section {

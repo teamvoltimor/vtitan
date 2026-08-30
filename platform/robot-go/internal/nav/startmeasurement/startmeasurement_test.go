@@ -98,7 +98,14 @@ func TestRecoversThePoseItWasTakenAt(t *testing.T) {
 			}
 			const tolM = 0.02
 			if math.Abs(measured.X-tc.x) > tolM || math.Abs(measured.Y-tc.y) > tolM {
-				t.Errorf("pose = (%.4f, %.4f), want (%.4f, %.4f) within %v", measured.X, measured.Y, tc.x, tc.y, tolM)
+				t.Errorf(
+					"pose = (%.4f, %.4f), want (%.4f, %.4f) within %v",
+					measured.X,
+					measured.Y,
+					tc.x,
+					tc.y,
+					tolM,
+				)
 			}
 		})
 	}

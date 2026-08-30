@@ -68,7 +68,10 @@ func TestApplySignLanes_EmptyPathIsHandled(t *testing.T) {
 
 	cfg := signrouter.DefaultConfig()
 	signs := []signrouter.LaneSpec{
-		{Spec: signrouter.SignSpec{X: 1.5, Y: 0.5, Color: signrouter.SignColorRed}, Corridor: trackmodel.South},
+		{
+			Spec:     signrouter.SignSpec{X: 1.5, Y: 0.5, Color: signrouter.SignColorRed},
+			Corridor: trackmodel.South,
+		},
 	}
 	got := signrouter.ApplySignLanes(nil, signs, laneTestParams, cfg)
 	if len(got) != 0 {
@@ -93,7 +96,13 @@ func TestApplySignLanes_LaneOffsetsToTheRuledSide(t *testing.T) {
 	for _, tc := range cases {
 		sign := signrouter.SignSpec{X: 1.5, Y: 0.5, Color: tc.color}
 		laned := signrouter.ApplySignLanes(
-			southStraight(t, 21), []signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}}, laneTestParams, cfg,
+			southStraight(
+				t,
+				21,
+			),
+			[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
+			laneTestParams,
+			cfg,
 		)
 		got := lateralAt(laned, 1.5)
 		want := sign.Y + tc.expectedSign*laneTestParams.LateralOffsetM
@@ -115,7 +124,13 @@ func TestApplySignLanes_LaneMeetsTheCornerArcOnTheCentreline(t *testing.T) {
 	cfg := signrouter.DefaultConfig()
 	sign := signrouter.SignSpec{X: 1.5, Y: 0.5, Color: signrouter.SignColorRed}
 	laned := signrouter.ApplySignLanes(
-		southStraight(t, 21), []signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}}, laneTestParams, cfg,
+		southStraight(
+			t,
+			21,
+		),
+		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
+		laneTestParams,
+		cfg,
 	)
 	if got := lateralAt(laned, cfg.TrackCornerMinM); math.Abs(got-laneSouthBaseY) > tolerance {
 		t.Errorf("lateral at TrackCornerMinM = %v, want %v", got, laneSouthBaseY)
@@ -136,7 +151,13 @@ func TestApplySignLanes_TransitionIsGradualNotAStep(t *testing.T) {
 	cfg := signrouter.DefaultConfig()
 	sign := signrouter.SignSpec{X: 1.5, Y: 0.5, Color: signrouter.SignColorRed}
 	laned := signrouter.ApplySignLanes(
-		southStraight(t, 21), []signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}}, laneTestParams, cfg,
+		southStraight(
+			t,
+			21,
+		),
+		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
+		laneTestParams,
+		cfg,
 	)
 	maxStep := 0.0
 	for i := 1; i < len(laned); i++ {
@@ -145,7 +166,11 @@ func TestApplySignLanes_TransitionIsGradualNotAStep(t *testing.T) {
 		}
 	}
 	if maxStep >= laneTestParams.LateralOffsetM/2 {
-		t.Errorf("max single-waypoint step = %v, want < %v (offset/2)", maxStep, laneTestParams.LateralOffsetM/2)
+		t.Errorf(
+			"max single-waypoint step = %v, want < %v (offset/2)",
+			maxStep,
+			laneTestParams.LateralOffsetM/2,
+		)
 	}
 }
 
@@ -170,7 +195,12 @@ func TestApplySignLanes_TransformIsOneToOneAndOrdered(t *testing.T) {
 	}
 	for i := range path {
 		if laned[i].X != path[i].X {
-			t.Errorf("waypoint %d: X = %v, want unchanged %v (depth orders the path)", i, laned[i].X, path[i].X)
+			t.Errorf(
+				"waypoint %d: X = %v, want unchanged %v (depth orders the path)",
+				i,
+				laned[i].X,
+				path[i].X,
+			)
 		}
 	}
 }
@@ -210,16 +240,30 @@ func TestApplySignLanes_LaneStaysClearOfTheInnerSquare(t *testing.T) {
 	t.Parallel()
 
 	cfg := signrouter.DefaultConfig()
-	sign := signrouter.SignSpec{X: 1.5, Y: cfg.TrackCornerMinM - 0.05, Color: signrouter.SignColorGreen}
+	sign := signrouter.SignSpec{
+		X:     1.5,
+		Y:     cfg.TrackCornerMinM - 0.05,
+		Color: signrouter.SignColorGreen,
+	}
 	laned := signrouter.ApplySignLanes(
-		southStraight(t, 21), []signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}}, laneTestParams, cfg,
+		southStraight(
+			t,
+			21,
+		),
+		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
+		laneTestParams,
+		cfg,
 	)
 	maxY := math.Inf(-1)
 	for _, wp := range laned {
 		maxY = math.Max(maxY, wp.Y)
 	}
 	if maxY >= cfg.TrackCornerMinM {
-		t.Errorf("max Y across the lane = %v, want < TrackCornerMinM = %v", maxY, cfg.TrackCornerMinM)
+		t.Errorf(
+			"max Y across the lane = %v, want < TrackCornerMinM = %v",
+			maxY,
+			cfg.TrackCornerMinM,
+		)
 	}
 }
 
@@ -298,8 +342,15 @@ func TestApplySignLanes_BorrowedRunwayShrinksTheWorstStep(t *testing.T) {
 		cfg,
 	)
 	borrowed := signrouter.ApplySignLanes(
-		path, []signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
-		signrouter.SignLaneParams{LateralOffsetM: 0.28, RampM: 0.70, HoldM: 0.25, CornerEntryM: 0.45}, cfg,
+		path,
+		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
+		signrouter.SignLaneParams{
+			LateralOffsetM: 0.28,
+			RampM:          0.70,
+			HoldM:          0.25,
+			CornerEntryM:   0.45,
+		},
+		cfg,
 	)
 
 	worstConfined := maxStepIn(confined)
@@ -324,7 +375,12 @@ func TestApplySignLanes_BorrowingTranslatesTheArcRatherThanFlatteningIt(t *testi
 	cfg := signrouter.DefaultConfig()
 	path := withArc(t)
 	sign := signLaneCornerEntryBoundary(cfg)
-	params := signrouter.SignLaneParams{LateralOffsetM: 0.28, RampM: 0.70, HoldM: 0.25, CornerEntryM: 0.45}
+	params := signrouter.SignLaneParams{
+		LateralOffsetM: 0.28,
+		RampM:          0.70,
+		HoldM:          0.25,
+		CornerEntryM:   0.45,
+	}
 	laned := signrouter.ApplySignLanes(
 		path,
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
@@ -366,7 +422,12 @@ func TestApplySignLanes_BorrowingNeverCrossesIntoTheNeighbouringCorridor(t *test
 	westPoint := trackmodel.Waypoint{X: 0.4, Y: 1.4} // a WEST-corridor point
 	path := append([]trackmodel.Waypoint{westPoint}, withArc(t)...)
 	sign := signLaneCornerEntryBoundary(cfg)
-	params := signrouter.SignLaneParams{LateralOffsetM: 0.28, RampM: 0.70, HoldM: 0.25, CornerEntryM: 0.90}
+	params := signrouter.SignLaneParams{
+		LateralOffsetM: 0.28,
+		RampM:          0.70,
+		HoldM:          0.25,
+		CornerEntryM:   0.90,
+	}
 
 	laned := signrouter.ApplySignLanes(
 		path,
@@ -397,10 +458,14 @@ func TestApplySignLanes_OpposingSignsEachGetTheirOwnSide(t *testing.T) {
 		laneTestParams, cfg,
 	)
 
-	if got, want := lateralAt(laned, 1.3), red.Y-laneTestParams.LateralOffsetM; math.Abs(got-want) > 0.03 {
+	if got, want := lateralAt(laned, 1.3), red.Y-laneTestParams.LateralOffsetM; math.Abs(
+		got-want,
+	) > 0.03 {
 		t.Errorf("lateral at the red sign's depth = %v, want approx %v", got, want)
 	}
-	if got, want := lateralAt(laned, 2.0), green.Y+laneTestParams.LateralOffsetM; math.Abs(got-want) > 0.03 {
+	if got, want := lateralAt(laned, 2.0), green.Y+laneTestParams.LateralOffsetM; math.Abs(
+		got-want,
+	) > 0.03 {
 		t.Errorf("lateral at the green sign's depth = %v, want approx %v", got, want)
 	}
 }

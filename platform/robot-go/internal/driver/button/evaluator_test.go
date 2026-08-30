@@ -158,11 +158,17 @@ func TestEvaluator_Sample(t *testing.T) {
 				{AtMS: 15, Pressed: true}, // press #1 debounced at 15ms
 				{AtMS: 70, Pressed: true}, // held 55ms -> LongPress #1
 				{AtMS: 100, Pressed: false},
-				{AtMS: 115, Pressed: false}, // release #1 debounced at 115ms, held 100ms -> Released
+				{
+					AtMS:    115,
+					Pressed: false,
+				}, // release #1 debounced at 115ms, held 100ms -> Released
 
 				{AtMS: 200, Pressed: true},
 				{AtMS: 215, Pressed: true}, // press #2 debounced at 215ms
-				{AtMS: 270, Pressed: true}, // held 55ms since press #2 -> LongPress #2, proving the flag reset
+				{
+					AtMS:    270,
+					Pressed: true,
+				}, // held 55ms since press #2 -> LongPress #2, proving the flag reset
 			},
 			Want: []wantEvent{
 				{Kind: button.KindPressed, HeldSec: 0},
@@ -205,7 +211,13 @@ func assertEvents(t *testing.T, got, want []wantEvent) {
 			t.Errorf("event[%d].Kind = %v, want %v", i, got[i].Kind, want[i].Kind)
 		}
 		if math.Abs(got[i].HeldSec-want[i].HeldSec) > eventEpsilonSec {
-			t.Errorf("event[%d].HeldSec = %v, want %v (+/- %v)", i, got[i].HeldSec, want[i].HeldSec, eventEpsilonSec)
+			t.Errorf(
+				"event[%d].HeldSec = %v, want %v (+/- %v)",
+				i,
+				got[i].HeldSec,
+				want[i].HeldSec,
+				eventEpsilonSec,
+			)
 		}
 	}
 }

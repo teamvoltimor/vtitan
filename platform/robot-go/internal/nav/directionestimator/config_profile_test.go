@@ -30,17 +30,28 @@ func TestConfigFor_LoadsRealNavigationTuningFiles(t *testing.T) {
 			cfg.MinVotes, def.MinVotes)
 	}
 	if cfg.AlignmentToleranceRad != def.AlignmentToleranceRad {
-		t.Errorf("AlignmentToleranceRad = %v, want %v", cfg.AlignmentToleranceRad, def.AlignmentToleranceRad)
+		t.Errorf(
+			"AlignmentToleranceRad = %v, want %v",
+			cfg.AlignmentToleranceRad,
+			def.AlignmentToleranceRad,
+		)
 	}
 	if cfg.DirectionArcHalfFovDeg != def.DirectionArcHalfFovDeg {
 		t.Errorf("DirectionArcHalfFovDeg = %v, want %v (lidar_sectors.toml wiring)",
 			cfg.DirectionArcHalfFovDeg, def.DirectionArcHalfFovDeg)
 	}
 	if cfg.TurnClearanceM != def.TurnClearanceM {
-		t.Errorf("TurnClearanceM = %v, want %v (corridor_follower.toml wiring)", cfg.TurnClearanceM, def.TurnClearanceM)
+		t.Errorf(
+			"TurnClearanceM = %v, want %v (corridor_follower.toml wiring)",
+			cfg.TurnClearanceM,
+			def.TurnClearanceM,
+		)
 	}
 	if cfg.BayWallClearanceM != def.BayWallClearanceM {
-		t.Errorf("BayWallClearanceM = %v, want %v (Pydantic default, absent from the checked-in TOML)",
-			cfg.BayWallClearanceM, def.BayWallClearanceM)
+		t.Errorf(
+			"BayWallClearanceM = %v, want %v (Pydantic default, absent from the checked-in TOML)",
+			cfg.BayWallClearanceM,
+			def.BayWallClearanceM,
+		)
 	}
 }

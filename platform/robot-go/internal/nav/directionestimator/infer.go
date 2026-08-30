@@ -23,7 +23,11 @@ import (
 // yaw is only used to check the chassis is roughly aligned with a corridor
 // (off-axis the side rays cut a diagonal and read long for no good reason);
 // no map is consulted.
-func InferDirection(rangesM, anglesRad []float64, yaw float64, cfg Config) (dir Direction, ok bool) {
+func InferDirection(
+	rangesM, anglesRad []float64,
+	yaw float64,
+	cfg Config,
+) (dir Direction, ok bool) {
 	if navutil.AxisErrorRad(yaw) > cfg.AlignmentToleranceRad {
 		return 0, false
 	}
@@ -71,7 +75,12 @@ func InferDirection(rangesM, anglesRad []float64, yaw float64, cfg Config) (dir 
 // until the robot moves and nothing moves until the direction settles.
 func DirectionFromParkingBay(rangesM, anglesRad []float64, cfg Config) (dir Direction, ok bool) {
 	arcRad := cfg.DirectionArcHalfFovDeg * math.Pi / degToRadTurn
-	if navutil.ForwardClearance(rangesM, anglesRad, arcRad, cfg.MinValidRangeM) >= cfg.MinForwardClearanceM {
+	if navutil.ForwardClearance(
+		rangesM,
+		anglesRad,
+		arcRad,
+		cfg.MinValidRangeM,
+	) >= cfg.MinForwardClearanceM {
 		return 0, false
 	}
 

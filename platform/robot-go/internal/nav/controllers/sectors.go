@@ -162,13 +162,32 @@ func inBlindWedge(a float64, geo SectorGeometry) bool {
 // SectorToModel computes aggregate metrics for an angular sector as a
 // SectorRanges, matching sectors._sector_to_model.
 func SectorToModel(
-	rangesM, anglesRad []float64, centerRad, halfFovRad float64, filterSelfDetection bool, geo SectorGeometry,
+	rangesM, anglesRad []float64,
+	centerRad, halfFovRad float64,
+	filterSelfDetection bool,
+	geo SectorGeometry,
 ) SectorRanges {
-	valid := SectorRangeValues(rangesM, anglesRad, centerRad, halfFovRad, filterSelfDetection, geo, true)
+	valid := SectorRangeValues(
+		rangesM,
+		anglesRad,
+		centerRad,
+		halfFovRad,
+		filterSelfDetection,
+		geo,
+		true,
+	)
 
 	wedgeMasked := false
 	if len(valid) == 0 {
-		unmasked := SectorRangeValues(rangesM, anglesRad, centerRad, halfFovRad, filterSelfDetection, geo, false)
+		unmasked := SectorRangeValues(
+			rangesM,
+			anglesRad,
+			centerRad,
+			halfFovRad,
+			filterSelfDetection,
+			geo,
+			false,
+		)
 		wedgeMasked = len(unmasked) > 0
 	}
 
@@ -210,7 +229,10 @@ func SectorToModel(
 // robot's path. A no-return ray fabricated as lidarMaxRangeM (the hardware
 // gateway's substitute for a real grazing-incidence echo) is excluded via
 // the upper bound, not just literal +Inf -- see NoReturnMarginM.
-func ForwardPathRanges(rangesM, anglesRad []float64, pathHalfWidthM, minValidRangeM, lidarMaxRangeM float64) []float64 {
+func ForwardPathRanges(
+	rangesM, anglesRad []float64,
+	pathHalfWidthM, minValidRangeM, lidarMaxRangeM float64,
+) []float64 {
 	if len(rangesM) == 0 {
 		return nil
 	}

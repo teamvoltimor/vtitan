@@ -23,7 +23,11 @@ type ClearanceAggregate int
 // *CollisionAvoidanceController satisfies it.
 type ClearanceSectorSource interface {
 	// SectorRangeValues returns valid ranges within center +/- halfFov.
-	SectorRangeValues(rangesM, anglesRad []float64, centerRad, halfFovRad float64, filterSelfDetection bool) []float64
+	SectorRangeValues(
+		rangesM, anglesRad []float64,
+		centerRad, halfFovRad float64,
+		filterSelfDetection bool,
+	) []float64
 	// ComputeRearClearance returns the minimum rear-sector clearance (m),
 	// or the no-data sentinel if unseen.
 	ComputeRearClearance(rangesM, anglesRad []float64) float64
@@ -39,7 +43,8 @@ const (
 // AnyBlocked reports whether any side is closer than threshold meters,
 // matching LidarClearances.any_blocked.
 func (l LidarClearances) AnyBlocked(threshold float64) bool {
-	return l.FrontM < threshold || l.LeftM < threshold || l.RightM < threshold || l.BackM < threshold
+	return l.FrontM < threshold || l.LeftM < threshold || l.RightM < threshold ||
+		l.BackM < threshold
 }
 
 // MostConstrainedSide returns the side with the smallest clearance,
@@ -66,7 +71,10 @@ func (l LidarClearances) MostConstrainedSide() ThreatDirection {
 // DetectThreatDirection's threat sectors, for use in collision logic. The
 // back sector always uses source's own min-based rear-cone logic.
 func ClearancesFromScan(
-	scan LidarScan, source ClearanceSectorSource, frontHalfFovRad float64, aggregate ClearanceAggregate,
+	scan LidarScan,
+	source ClearanceSectorSource,
+	frontHalfFovRad float64,
+	aggregate ClearanceAggregate,
 ) LidarClearances {
 	if len(scan.RangesM) == 0 {
 		return LidarClearances{}
@@ -74,7 +82,13 @@ func ClearancesFromScan(
 
 	front := source.SectorRangeValues(scan.RangesM, scan.AnglesRad, 0.0, frontHalfFovRad, false)
 	left := source.SectorRangeValues(scan.RangesM, scan.AnglesRad, math.Pi/2, frontHalfFovRad, true)
-	right := source.SectorRangeValues(scan.RangesM, scan.AnglesRad, -math.Pi/2, frontHalfFovRad, true)
+	right := source.SectorRangeValues(
+		scan.RangesM,
+		scan.AnglesRad,
+		-math.Pi/2,
+		frontHalfFovRad,
+		true,
+	)
 
 	return LidarClearances{
 		FrontM: reduce(front, aggregate),

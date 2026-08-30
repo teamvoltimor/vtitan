@@ -48,7 +48,9 @@ var (
 	// ErrFramebufferSizeMismatch is returned by Controller.WriteFramebuffer
 	// (and therefore Driver.WriteFramebuffer) when fb's dimensions don't
 	// match the Config the display was configured with.
-	ErrFramebufferSizeMismatch = errors.New("ssd1306: framebuffer size does not match display config")
+	ErrFramebufferSizeMismatch = errors.New(
+		"ssd1306: framebuffer size does not match display config",
+	)
 
 	// Compile-time assertion that Driver satisfies Actuator.
 	_ Actuator = (*Driver)(nil)

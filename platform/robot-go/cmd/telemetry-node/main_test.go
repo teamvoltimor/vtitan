@@ -62,7 +62,11 @@ func TestSummaryMessageFor(t *testing.T) {
 	got := summaryMessageFor(summary)
 
 	if got.GetBestDetectionClassId() != summary.BestDetectionClassID {
-		t.Errorf("BestDetectionClassId = %q, want %q", got.GetBestDetectionClassId(), summary.BestDetectionClassID)
+		t.Errorf(
+			"BestDetectionClassId = %q, want %q",
+			got.GetBestDetectionClassId(),
+			summary.BestDetectionClassID,
+		)
 	}
 	if got.GetBestDetectionConfidence() != summary.BestDetectionConfidence {
 		t.Errorf(
@@ -71,7 +75,11 @@ func TestSummaryMessageFor(t *testing.T) {
 		)
 	}
 	if got.GetHasBestDetection() != summary.HasBestDetection {
-		t.Errorf("HasBestDetection = %v, want %v", got.GetHasBestDetection(), summary.HasBestDetection)
+		t.Errorf(
+			"HasBestDetection = %v, want %v",
+			got.GetHasBestDetection(),
+			summary.HasBestDetection,
+		)
 	}
 	if got.GetLidarFrontCm() != summary.LidarFrontCM ||
 		got.GetLidarLeftCm() != summary.LidarLeftCM ||

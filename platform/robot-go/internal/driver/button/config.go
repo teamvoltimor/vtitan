@@ -33,8 +33,13 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	gpioPath := filepath.Join(configRoot, profile.DefaultButtonGPIOTOMLPath)
 	gpioCfg, err := profile.Load[profile.ButtonGPIOConfig](gpioPath, profile.ActiveNames())
 	if err != nil {
-		logger.Warn("driver/button: loading GPIO hardware profile, falling back to default wiring config",
-			"config_root", configRoot, "error", err)
+		logger.Warn(
+			"driver/button: loading GPIO hardware profile, falling back to default wiring config",
+			"config_root",
+			configRoot,
+			"error",
+			err,
+		)
 	} else {
 		cfg.Line = gpioCfg.ButtonGPIOPin
 		cfg.PullUp = gpioCfg.Button.PullUp
@@ -48,8 +53,13 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	nodePath := filepath.Join(configRoot, profile.DefaultButtonNodeTOMLPath)
 	nodeCfg, err := profile.Load[profile.ButtonNodeConfig](nodePath, profile.ActiveNames())
 	if err != nil {
-		logger.Warn("driver/button: loading node hardware profile, falling back to default poll interval",
-			"config_root", configRoot, "error", err)
+		logger.Warn(
+			"driver/button: loading node hardware profile, falling back to default poll interval",
+			"config_root",
+			configRoot,
+			"error",
+			err,
+		)
 	} else if nodeCfg.PollHz > 0 {
 		cfg.PollInterval = time.Duration(float64(time.Second) / nodeCfg.PollHz)
 	}

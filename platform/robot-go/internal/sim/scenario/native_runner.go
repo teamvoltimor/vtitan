@@ -13,9 +13,9 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
 )
 
 // NativeRunner implements Runner with a fully Go-native closed-loop
@@ -30,8 +30,8 @@ import (
 // SubprocessRunner remains the parity oracle for those until the native runner
 // is extended.
 type NativeRunner struct {
-	cfg    harness.Config
-	seed   uint64
+	cfg      harness.Config
+	seed     uint64
 	maxSteps int
 }
 
@@ -46,10 +46,16 @@ type NativeRunnerConfig struct {
 	MaxSteps int
 }
 
-// ControlDt returns the simulation timestep (s), matching CONTROL_DT (1/20 Hz).
-// TODO: source from the live motion/control.toml once the native runner's
-// config is wired to a profile root.
-func (c NativeRunnerConfig) ControlDt() float64 { return 1.0 / 20.0 }
+// ControlDt returns the simulation timestep (s). It resolves the effective
+// harness Config (same precedence as NewNativeRunner) and delegates to its
+// ControlDt, so a caller-supplied ControlHz is honoured instead of hardcoded.
+func (c NativeRunnerConfig) ControlDt() float64 {
+	hc := harness.DefaultConfig()
+	if c.Harness != nil {
+		hc = *c.Harness
+	}
+	return hc.ControlDt()
+}
 
 // NewNativeRunner builds a NativeRunner.
 func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
@@ -210,24 +216,24 @@ func (r *NativeRunner) score(
 	success := !collided && !stuck && !resTimedOut(steps, r.maxSteps, laps, targetLaps)
 
 	return Result{
-		TerminalSurface:  terminalSurfaceName(collided),
-		Scenario:         sc.ID,
-		CollisionXY:      []float64{cx, cy},
-		FinalPose:        []float64{st.X, st.Y, st.Yaw},
-		SimTimeS:         float64(steps) * dt,
-		DistanceM:        distanceM,
-		MaxSpeedMPS:      maxSpeedMPS,
-		AvgSpeedMPS:      avgSpeed(distanceM, steps, dt),
-		MinLidarRangeM:   orZero(minRangeM),
-		TargetLaps:       targetLaps,
-		LapsCompleted:    laps,
-		Steps:            steps,
-		ContactCount:     contactCount,
-		Collided:         collided,
-		TimedOut:         resTimedOut(steps, r.maxSteps, laps, targetLaps),
-		Stuck:            stuck,
-		Success:          success,
-		OverTime:         false,
+		TerminalSurface: terminalSurfaceName(collided),
+		Scenario:        sc.ID,
+		CollisionXY:     []float64{cx, cy},
+		FinalPose:       []float64{st.X, st.Y, st.Yaw},
+		SimTimeS:        float64(steps) * dt,
+		DistanceM:       distanceM,
+		MaxSpeedMPS:     maxSpeedMPS,
+		AvgSpeedMPS:     avgSpeed(distanceM, steps, dt),
+		MinLidarRangeM:  orZero(minRangeM),
+		TargetLaps:      targetLaps,
+		LapsCompleted:   laps,
+		Steps:           steps,
+		ContactCount:    contactCount,
+		Collided:        collided,
+		TimedOut:        resTimedOut(steps, r.maxSteps, laps, targetLaps),
+		Stuck:           stuck,
+		Success:         success,
+		OverTime:        false,
 	}
 }
 
@@ -265,18 +271,18 @@ func trackContact(gw *harness.SimHardwareGateway, track *collision.TrackModel, c
 
 // scenarioStart bundles the parsed spawn pose + travel direction.
 type scenarioStart struct {
-	X, Y, Yaw  float64
-	Direction  trackmodel.Direction
+	X, Y, Yaw float64
+	Direction trackmodel.Direction
 }
 
 // scenarioMetadata is the subset of the generator's *_metadata.json schema
 // the native runner consumes. Mirrors generate.Metadata (that module is a
 // separate Go module and not imported here to keep the runner dependency-light).
 type scenarioMetadata struct {
-	ChallengeType      string                    `json:"challenge_type"`
-	CorridorWidths     map[string]widthMeta      `json:"corridor_widths"`
-	StartingConditions startingMeta              `json:"starting_conditions"`
-	HasParkingLot      bool                      `json:"has_parking_lot"`
+	ChallengeType      string               `json:"challenge_type"`
+	CorridorWidths     map[string]widthMeta `json:"corridor_widths"`
+	StartingConditions startingMeta         `json:"starting_conditions"`
+	HasParkingLot      bool                 `json:"has_parking_lot"`
 }
 
 type widthMeta struct {
@@ -337,9 +343,9 @@ func buildScenario(meta scenarioMetadata, cfg harness.Config) (trackmodel.Corrid
 	}
 
 	start := scenarioStart{
-		X:        meta.StartingConditions.Position.X,
-		Y:        meta.StartingConditions.Position.Y,
-		Yaw:      meta.StartingConditions.Yaw,
+		X:         meta.StartingConditions.Position.X,
+		Y:         meta.StartingConditions.Position.Y,
+		Yaw:       meta.StartingConditions.Yaw,
 		Direction: dir,
 	}
 
@@ -419,4 +425,3 @@ func defaultKinematicsParams() kinematics.Params {
 
 // compile-time assertion that NativeRunner satisfies Runner.
 var _ Runner = (*NativeRunner)(nil)
-

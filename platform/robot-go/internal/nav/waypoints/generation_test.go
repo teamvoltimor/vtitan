@@ -17,7 +17,11 @@ func TestValidatePathFeasibility_BiasConsumesMargin(t *testing.T) {
 	biased := waypoints.ValidatePathFeasibility(narrowWidthM, 0.05, chassisWidthM)
 
 	if !centred.IsFeasible || !biased.IsFeasible {
-		t.Fatalf("expected both feasible: centred=%v biased=%v", centred.IsFeasible, biased.IsFeasible)
+		t.Fatalf(
+			"expected both feasible: centred=%v biased=%v",
+			centred.IsFeasible,
+			biased.IsFeasible,
+		)
 	}
 	// Biasing 0.05 off center spends 0.05 at each wall.
 	if got := centred.MarginM - biased.MarginM; math.Abs(got-0.10) > 1e-9 {

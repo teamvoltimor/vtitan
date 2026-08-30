@@ -89,7 +89,11 @@ func TestNewConfig_RejectsActivationAtOrAbovePassed(t *testing.T) {
 
 			_, err := signrouter.NewConfig(cfg)
 			if err == nil {
-				t.Fatalf("NewConfig(activation=%v, passed=%v) = nil error, want an error", tc.activation, tc.passed)
+				t.Fatalf(
+					"NewConfig(activation=%v, passed=%v) = nil error, want an error",
+					tc.activation,
+					tc.passed,
+				)
 			}
 			if !strings.Contains(err.Error(), "must be < passed_dist") {
 				t.Errorf("error = %q, want it to mention %q", err.Error(), "must be < passed_dist")
@@ -130,7 +134,10 @@ func TestNewConfig_ShippedDefaultsSatisfyTheOrdering(t *testing.T) {
 		t.Fatalf("NewConfig(DefaultConfig()) error = %v, want nil", err)
 	}
 	if !(cfg.ActivationDistM < cfg.PassedDistM) {
-		t.Errorf("shipped defaults: ActivationDistM = %v, PassedDistM = %v, want activation < passed",
-			cfg.ActivationDistM, cfg.PassedDistM)
+		t.Errorf(
+			"shipped defaults: ActivationDistM = %v, PassedDistM = %v, want activation < passed",
+			cfg.ActivationDistM,
+			cfg.PassedDistM,
+		)
 	}
 }

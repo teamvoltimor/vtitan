@@ -125,25 +125,25 @@ func TestParity_BlindPackagesVsBag(t *testing.T) {
 
 // blindStats tracks the blind-package fields we can actually assert today.
 type blindStats struct {
-	phase        fieldStat
-	poseX        fieldStat
-	poseY        fieldStat
-	poseYaw      fieldStat
-	corridor     fieldStat
-	laps         fieldStat
-	isStuck      fieldStat
-	beliefGap    bool // true if the bag carried a blind-belief field the Go side can't yet produce
+	phase     fieldStat
+	poseX     fieldStat
+	poseY     fieldStat
+	poseYaw   fieldStat
+	corridor  fieldStat
+	laps      fieldStat
+	isStuck   fieldStat
+	beliefGap bool // true if the bag carried a blind-belief field the Go side can't yet produce
 }
 
 func newBlindStats() *blindStats {
 	return &blindStats{
-		phase:   fieldStat{name: "phase"},
-		poseX:   fieldStat{name: "pose_x"},
-		poseY:   fieldStat{name: "pose_y"},
-		poseYaw: fieldStat{name: "pose_yaw"},
+		phase:    fieldStat{name: "phase"},
+		poseX:    fieldStat{name: "pose_x"},
+		poseY:    fieldStat{name: "pose_y"},
+		poseYaw:  fieldStat{name: "pose_yaw"},
 		corridor: fieldStat{name: "current_corridor"},
-		laps:    fieldStat{name: "laps_completed"},
-		isStuck: fieldStat{name: "is_stuck"},
+		laps:     fieldStat{name: "laps_completed"},
+		isStuck:  fieldStat{name: "is_stuck"},
 	}
 }
 

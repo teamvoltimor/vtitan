@@ -31,7 +31,9 @@ func TestDetectThreatDirection_WallBehindReportsNoneNotFront(t *testing.T) {
 
 	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatNone {
 		t.Errorf(
-			"DetectThreatDirection() = %v, want %v (rear is masked by the blind wedge)", got, controllers.ThreatNone,
+			"DetectThreatDirection() = %v, want %v (rear is masked by the blind wedge)",
+			got,
+			controllers.ThreatNone,
 		)
 	}
 }
@@ -53,7 +55,11 @@ func TestDetectThreatDirection_WallBehindBackEvenWithoutAngles(t *testing.T) {
 
 	got := controller.DetectThreatDirection(ranges, nil)
 	if got != controllers.ThreatNone {
-		t.Errorf("DetectThreatDirection(nil angles) = %v, want %v (rear masked)", got, controllers.ThreatNone)
+		t.Errorf(
+			"DetectThreatDirection(nil angles) = %v, want %v (rear masked)",
+			got,
+			controllers.ThreatNone,
+		)
 	}
 }
 
@@ -226,7 +232,13 @@ func TestComputeEscapeManeuver_RearThreatYieldsNoManeuver(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
-	_, ok := controller.ComputeEscapeManeuver(controllers.RiskCritical, controllers.ThreatBack, nil, nil, nil)
+	_, ok := controller.ComputeEscapeManeuver(
+		controllers.RiskCritical,
+		controllers.ThreatBack,
+		nil,
+		nil,
+		nil,
+	)
 	if ok {
 		t.Error("ComputeEscapeManeuver(back) ok = true, want false")
 	}
@@ -286,7 +298,13 @@ func TestComputeEscapeManeuver_DefaultsToRightWithoutLidarData(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
-	maneuver, ok := controller.ComputeEscapeManeuver(controllers.RiskCritical, controllers.ThreatFront, nil, nil, nil)
+	maneuver, ok := controller.ComputeEscapeManeuver(
+		controllers.RiskCritical,
+		controllers.ThreatFront,
+		nil,
+		nil,
+		nil,
+	)
 	if !ok {
 		t.Fatal("ComputeEscapeManeuver() ok = false, want true")
 	}
@@ -318,7 +336,10 @@ func TestComputeEscapeManeuver_LeftThreatCreepingSteersRight(t *testing.T) {
 		t.Errorf("Speed = %v, want > 0 (creeping forward, not reversing)", maneuver.Speed)
 	}
 	if maneuver.Steering >= 0 {
-		t.Errorf("Steering = %v, want < 0 (forward frame: negative swings the nose right)", maneuver.Steering)
+		t.Errorf(
+			"Steering = %v, want < 0 (forward frame: negative swings the nose right)",
+			maneuver.Steering,
+		)
 	}
 }
 
@@ -346,7 +367,8 @@ func TestComputeEscapeManeuver_LeftThreatTouchingReversesAndFlipsSign(t *testing
 	}
 	if maneuver.Steering <= 0 {
 		t.Errorf(
-			"Steering = %v, want > 0 (reverse frame: positive swings the nose right, still away)", maneuver.Steering,
+			"Steering = %v, want > 0 (reverse frame: positive swings the nose right, still away)",
+			maneuver.Steering,
 		)
 	}
 }
@@ -372,7 +394,10 @@ func TestComputeEscapeManeuver_RightThreatCreepingSteersLeft(t *testing.T) {
 		t.Errorf("Speed = %v, want > 0", maneuver.Speed)
 	}
 	if maneuver.Steering <= 0 {
-		t.Errorf("Steering = %v, want > 0 (forward frame: positive swings the nose left)", maneuver.Steering)
+		t.Errorf(
+			"Steering = %v, want > 0 (forward frame: positive swings the nose left)",
+			maneuver.Steering,
+		)
 	}
 }
 
@@ -398,7 +423,8 @@ func TestComputeEscapeManeuver_RightThreatTouchingReversesAndFlipsSign(t *testin
 	}
 	if maneuver.Steering >= 0 {
 		t.Errorf(
-			"Steering = %v, want < 0 (reverse frame: negative swings the nose left, still away)", maneuver.Steering,
+			"Steering = %v, want < 0 (reverse frame: negative swings the nose left, still away)",
+			maneuver.Steering,
 		)
 	}
 }
@@ -428,7 +454,10 @@ func TestComputeEscapeManeuver_LeftThreatWithForwardContactReverses(t *testing.T
 		t.Fatal("ok = false, want true")
 	}
 	if maneuver.Speed >= 0 {
-		t.Errorf("Speed = %v, want < 0 (reverses instead of creeping into the wall)", maneuver.Speed)
+		t.Errorf(
+			"Speed = %v, want < 0 (reverses instead of creeping into the wall)",
+			maneuver.Speed,
+		)
 	}
 	if maneuver.Steering <= 0 {
 		t.Errorf("Steering = %v, want > 0 (reverse frame: still swings away)", maneuver.Steering)
@@ -700,7 +729,12 @@ func TestDetectThreatDirection_LeftWedgeSelfCollisionDoesNotRegister(t *testing.
 	angles := anglesFullRotation()
 	ranges := newScan(lidarDefaultFar)
 	i := angleToIndex(angles, -140.0*math.Pi/180.0) // inside the left wedge (-180..-115)
-	setSector(ranges, i, 4, 0.02)                   // self-collision range, would otherwise scream "threat"
+	setSector(
+		ranges,
+		i,
+		4,
+		0.02,
+	) // self-collision range, would otherwise scream "threat"
 
 	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatNone {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatNone)
@@ -732,7 +766,12 @@ func TestDetectThreatDirection_RealWallJustOutsideLeftWedgeStillDetected(t *test
 	angles := anglesFullRotation()
 	ranges := newScan(lidarDefaultFar)
 	i := angleToIndex(angles, -110.0*math.Pi/180.0) // just outside the wedge (< -115 boundary)
-	setSector(ranges, i, 4, 0.15)                   // above self_detection_threshold_m (0.08): a real return
+	setSector(
+		ranges,
+		i,
+		4,
+		0.15,
+	) // above self_detection_threshold_m (0.08): a real return
 
 	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatRight {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatRight)

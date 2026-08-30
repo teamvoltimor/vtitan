@@ -105,7 +105,12 @@ const (
 
 // sectionRotations are the sections in 90-degree rotation order, starting
 // from the frame poses are built in, matching Python's _SECTION_ROTATIONS.
-var sectionRotations = [4]trackmodel.Section{trackmodel.South, trackmodel.East, trackmodel.North, trackmodel.West}
+var sectionRotations = [4]trackmodel.Section{
+	trackmodel.South,
+	trackmodel.East,
+	trackmodel.North,
+	trackmodel.West,
+}
 
 // DefaultConfig returns the Config matching the shipped TOML defaults.
 func DefaultConfig() Config {
@@ -124,7 +129,10 @@ func DefaultConfig() Config {
 // and with equal corridors the track is invariant under it -- which is
 // exactly why the section is a free choice rather than something to be
 // measured.
-func rotateInto(section trackmodel.Section, trackMaxCoordM, x, y float64) (rotatedX, rotatedY float64) {
+func rotateInto(
+	section trackmodel.Section,
+	trackMaxCoordM, x, y float64,
+) (rotatedX, rotatedY float64) {
 	turns := 0
 	for i, s := range sectionRotations {
 		if s == section {

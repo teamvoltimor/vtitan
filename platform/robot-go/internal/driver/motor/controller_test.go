@@ -95,8 +95,11 @@ func TestController_Connect_NeverEnablesBeforeZeroingEitherChannel(t *testing.T)
 			zeroedLPWM = true
 		case "rEn.SetHigh(true)", "lEn.SetHigh(true)":
 			if !zeroedRPWM || !zeroedLPWM {
-				t.Fatalf("%q recorded before both PWM channels confirmed at 0 duty (log so far: %v)",
-					entry, h.log.entries())
+				t.Fatalf(
+					"%q recorded before both PWM channels confirmed at 0 duty (log so far: %v)",
+					entry,
+					h.log.entries(),
+				)
 			}
 		}
 	}

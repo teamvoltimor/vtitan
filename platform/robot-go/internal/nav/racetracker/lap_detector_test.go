@@ -35,7 +35,11 @@ func newSouthCW(t *testing.T) *racetracker.LapDetector {
 // feed mirrors _feed: positions are fed in order and the confirmed lap count
 // is returned. The oracle's wrap_at parameter is omitted because every case
 // here arms the waypoint half once, up front, rather than mid-sequence.
-func feed(detector *racetracker.LapDetector, section trackmodel.Section, positions [][2]float64) int {
+func feed(
+	detector *racetracker.LapDetector,
+	section trackmodel.Section,
+	positions [][2]float64,
+) int {
 	laps := 0
 	for _, pos := range positions {
 		if detector.Update(trackmodel.Waypoint{X: pos[0], Y: pos[1]}, section) {

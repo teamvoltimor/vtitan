@@ -63,7 +63,9 @@ func sensorScan(walls *trackmodel.TrackWalls, x, y, yaw float64, angles []float6
 	)
 }
 
-func newLocalizer(widths map[trackmodel.Section]float64) (*localization.LidarLocalizer, *trackmodel.TrackWalls) {
+func newLocalizer(
+	widths map[trackmodel.Section]float64,
+) (*localization.LidarLocalizer, *trackmodel.TrackWalls) {
 	walls := wallsForWidths(widths)
 	return localization.New(walls, localization.DefaultConfig()), walls
 }
@@ -100,7 +102,13 @@ func TestRecoversExactPoseFromCleanScan(t *testing.T) {
 			)
 
 			if math.Abs(got.X-x) > 0.02 || math.Abs(got.Y-y) > 0.02 {
-				t.Fatalf("estimate = (%.4f, %.4f), want (%.4f, %.4f) within 0.02", got.X, got.Y, x, y)
+				t.Fatalf(
+					"estimate = (%.4f, %.4f), want (%.4f, %.4f) within 0.02",
+					got.X,
+					got.Y,
+					x,
+					y,
+				)
 			}
 		})
 	}
@@ -135,7 +143,13 @@ func TestRecoversPoseAcrossCorridorWidths(t *testing.T) {
 			)
 
 			if math.Abs(got.X-x) > 0.02 || math.Abs(got.Y-y) > 0.02 {
-				t.Fatalf("estimate = (%.4f, %.4f), want (%.4f, %.4f) within 0.02", got.X, got.Y, x, y)
+				t.Fatalf(
+					"estimate = (%.4f, %.4f), want (%.4f, %.4f) within 0.02",
+					got.X,
+					got.Y,
+					x,
+					y,
+				)
 			}
 		})
 	}
@@ -188,10 +202,22 @@ func TestAcceptsLargeInBoundsCorrection(t *testing.T) {
 	const trueX, trueY = 1.5, 0.5
 
 	ranges := sensorScan(walls, trueX, trueY, 0.0, angles)
-	got := localizer.EstimatePosition(trackmodel.Waypoint{X: 1.35, Y: 0.5}, 0.0, ranges, angles, nil)
+	got := localizer.EstimatePosition(
+		trackmodel.Waypoint{X: 1.35, Y: 0.5},
+		0.0,
+		ranges,
+		angles,
+		nil,
+	)
 
 	if math.Abs(got.X-trueX) > 0.02 || math.Abs(got.Y-trueY) > 0.02 {
-		t.Fatalf("estimate = (%.4f, %.4f), want (%.4f, %.4f) within 0.02", got.X, got.Y, trueX, trueY)
+		t.Fatalf(
+			"estimate = (%.4f, %.4f), want (%.4f, %.4f) within 0.02",
+			got.X,
+			got.Y,
+			trueX,
+			trueY,
+		)
 	}
 }
 
@@ -207,7 +233,13 @@ func TestRejectsImplausiblyFastJump(t *testing.T) {
 
 	t0 := 0.0
 	ranges0 := sensorScan(walls, x0, y0, 0.0, angles)
-	first := localizer.EstimatePosition(trackmodel.Waypoint{X: x0, Y: y0}, 0.0, ranges0, angles, &t0)
+	first := localizer.EstimatePosition(
+		trackmodel.Waypoint{X: x0, Y: y0},
+		0.0,
+		ranges0,
+		angles,
+		&t0,
+	)
 
 	// 0.15 m in 0.05 s implies 3 m/s, far beyond MaxSpeedMPS.
 	t1 := 0.05
@@ -231,7 +263,13 @@ func TestConfirmsRepeatedJumpOnNextTick(t *testing.T) {
 
 	t0 := 0.0
 	ranges0 := sensorScan(walls, x0, y0, 0.0, angles)
-	first := localizer.EstimatePosition(trackmodel.Waypoint{X: x0, Y: y0}, 0.0, ranges0, angles, &t0)
+	first := localizer.EstimatePosition(
+		trackmodel.Waypoint{X: x0, Y: y0},
+		0.0,
+		ranges0,
+		angles,
+		&t0,
+	)
 
 	farRanges := sensorScan(walls, x0+0.15, y0, 0.0, angles)
 
@@ -265,7 +303,13 @@ func TestResetTrackingDiscardsHeldCandidate(t *testing.T) {
 
 	t0 := 0.0
 	ranges0 := sensorScan(walls, x0, y0, 0.0, angles)
-	first := localizer.EstimatePosition(trackmodel.Waypoint{X: x0, Y: y0}, 0.0, ranges0, angles, &t0)
+	first := localizer.EstimatePosition(
+		trackmodel.Waypoint{X: x0, Y: y0},
+		0.0,
+		ranges0,
+		angles,
+		&t0,
+	)
 
 	farRanges := sensorScan(walls, x0+0.15, y0, 0.0, angles)
 	t1 := 0.05

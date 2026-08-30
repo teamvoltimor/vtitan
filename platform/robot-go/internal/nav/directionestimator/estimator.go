@@ -39,7 +39,10 @@ func (e *Estimator) IsSettled() bool {
 // Votes returns the current vote tally per direction, for telemetry -- a
 // copy, so callers cannot perturb the real count through it.
 func (e *Estimator) Votes() map[Direction]int {
-	return map[Direction]int{Clockwise: e.votes[Clockwise], Counterclockwise: e.votes[Counterclockwise]}
+	return map[Direction]int{
+		Clockwise:        e.votes[Clockwise],
+		Counterclockwise: e.votes[Counterclockwise],
+	}
 }
 
 // Settle adopts dir outright, without accumulating votes -- for evidence

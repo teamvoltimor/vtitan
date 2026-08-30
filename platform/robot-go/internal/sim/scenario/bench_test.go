@@ -26,12 +26,12 @@ func benchTrackGeometry() trackmodel.CorridorGeometry {
 func benchTrackModel() *collision.TrackModel {
 	const maxCoord = 3.0
 	return collision.NewTrackModel(collision.NewTrackModelParams{
-		Geometry:        benchTrackGeometry(),
-		MinCoordM:       0.0,
-		MaxCoordM:       maxCoord,
-		Obstacles:       nil,
+		Geometry:           benchTrackGeometry(),
+		MinCoordM:          0.0,
+		MaxCoordM:          maxCoord,
+		Obstacles:          nil,
 		LidarSeesObstacles: false,
-		CollisionMarginM: 0.0,
+		CollisionMarginM:   0.0,
 	})
 }
 

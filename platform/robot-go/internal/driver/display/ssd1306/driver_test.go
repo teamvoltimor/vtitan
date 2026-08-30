@@ -14,10 +14,22 @@ func TestNew_RejectsInvalidConfig(t *testing.T) {
 		name string
 		cfg  ssd1306.Config
 	}{
-		{name: "zero width", cfg: ssd1306.Config{Width: 0, Height: 64, I2CAddress: 0x3C, I2CBus: 1}},
-		{name: "zero height", cfg: ssd1306.Config{Width: 128, Height: 0, I2CAddress: 0x3C, I2CBus: 1}},
-		{name: "zero I2C address", cfg: ssd1306.Config{Width: 128, Height: 64, I2CAddress: 0, I2CBus: 1}},
-		{name: "negative I2C bus", cfg: ssd1306.Config{Width: 128, Height: 64, I2CAddress: 0x3C, I2CBus: -1}},
+		{
+			name: "zero width",
+			cfg:  ssd1306.Config{Width: 0, Height: 64, I2CAddress: 0x3C, I2CBus: 1},
+		},
+		{
+			name: "zero height",
+			cfg:  ssd1306.Config{Width: 128, Height: 0, I2CAddress: 0x3C, I2CBus: 1},
+		},
+		{
+			name: "zero I2C address",
+			cfg:  ssd1306.Config{Width: 128, Height: 64, I2CAddress: 0, I2CBus: 1},
+		},
+		{
+			name: "negative I2C bus",
+			cfg:  ssd1306.Config{Width: 128, Height: 64, I2CAddress: 0x3C, I2CBus: -1},
+		},
 	}
 
 	for _, tt := range tests {

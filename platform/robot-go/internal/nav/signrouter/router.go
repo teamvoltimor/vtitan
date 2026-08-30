@@ -54,7 +54,11 @@ type SignRouter struct {
 // direction, matching SignRouter.__init__ (sighted mode only: no discover/
 // discovery_config/tuning parameters -- see doc.go). Returns an error if
 // config fails NewConfig's validation.
-func NewSignRouter(signs []SignSpec, config Config, direction trackmodel.Direction) (*SignRouter, error) {
+func NewSignRouter(
+	signs []SignSpec,
+	config Config,
+	direction trackmodel.Direction,
+) (*SignRouter, error) {
 	cfg, err := NewConfig(config)
 	if err != nil {
 		return nil, err
@@ -141,7 +145,13 @@ func (r *SignRouter) RoutedSignPositionsByCorridor() []RoutedSign {
 		if _, isPassed := r.passed[i]; isPassed {
 			continue
 		}
-		out = append(out, RoutedSign{Waypoint: trackmodel.Waypoint{X: ls.Spec.X, Y: ls.Spec.Y}, Corridor: ls.Corridor})
+		out = append(
+			out,
+			RoutedSign{
+				Waypoint: trackmodel.Waypoint{X: ls.Spec.X, Y: ls.Spec.Y},
+				Corridor: ls.Corridor,
+			},
+		)
 	}
 	return out
 }
@@ -253,7 +263,12 @@ func (r *SignRouter) DeformWaypoint(
 // than nearest face when cfg.DepthConsistentCorridor is set, matching
 // _geometric_corridor.
 func (r *SignRouter) geometricCorridor(spec SignSpec) trackmodel.Section {
-	corridor := waypoints.CorridorForPosition(spec.X, spec.Y, r.config.TrackCornerMinM, r.config.TrackCornerMaxM)
+	corridor := waypoints.CorridorForPosition(
+		spec.X,
+		spec.Y,
+		r.config.TrackCornerMinM,
+		r.config.TrackCornerMaxM,
+	)
 	if !r.config.DepthConsistentCorridor {
 		return corridor
 	}

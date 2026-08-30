@@ -4,8 +4,8 @@ import (
 	"math"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 )
 
 // Camera pinhole geometry. The Python source reads these from
@@ -118,8 +118,8 @@ type BoundingBox struct {
 	// CenterX is the horizontal centre in pixels (cx in the Python source).
 	CenterX float64
 	// Height is the bbox pixel height (YMax - YMin).
-	Height    float64
-	Color     SignColor
+	Height     float64
+	Color      SignColor
 	Confidence float64
 }
 
@@ -127,11 +127,11 @@ type BoundingBox struct {
 // sign_discovery.py's ObservedSignMap (sourced from NavigationTuning
 // .sign_discovery in Python). See the Default* block for the shipped values.
 type DiscoveryConfig struct {
-	MinConfidence          float64
-	MaxIngestRangeM        float64
-	AssociationDistM       float64
-	MinHits                int
-	RobotCorridorFlipTicks int
+	MinConfidence           float64
+	MaxIngestRangeM         float64
+	AssociationDistM        float64
+	MinHits                 int
+	RobotCorridorFlipTicks  int
 	MinReliableBBoxHeightPX float64
 	// MinValidLidarRangeM is lidar_sectors.MIN_VALID_RANGE_M, the floor for
 	// the LIDAR range-fusion gate.
@@ -178,11 +178,11 @@ func DefaultDiscoveryConfig() DiscoveryConfig {
 // signTrack is one candidate sign, accumulated across frames, matching
 // sign_discovery.py's _SignTrack.
 type signTrack struct {
-	x, y      float64
-	bestRange float64
-	corridor  trackmodel.Section
-	hits      int
-	votes     map[SignColor]float64
+	x, y           float64
+	bestRange      float64
+	corridor       trackmodel.Section
+	hits           int
+	votes          map[SignColor]float64
 	publishedIndex *int
 }
 
@@ -209,11 +209,11 @@ func (t *signTrack) asSpec() SignSpec {
 // append-only once published so SignRouter's index-keyed bookkeeping stays
 // valid; positions are refined in place from the closest observation.
 type ObservedSignMap struct {
-	cfg  DiscoveryConfig
-	sd   *SignRouter
+	cfg    DiscoveryConfig
+	sd     *SignRouter
 	tracks []*signTrack
 
-	robotCorridor         *trackmodel.Section
+	robotCorridor           *trackmodel.Section
 	robotCorridorFlipStreak *struct {
 		corridor trackmodel.Section
 		streak   int
@@ -269,11 +269,16 @@ func (m *ObservedSignMap) settleRobotCorridor(raw trackmodel.Section) trackmodel
 
 // Observe folds one frame of world-coordinate observations into the map,
 // matching ObservedSignMap.observe.
-func (m *ObservedSignMap) Observe(observations []TrafficSignObservation, robotPos trackmodel.Waypoint) {
+func (m *ObservedSignMap) Observe(
+	observations []TrafficSignObservation,
+	robotPos trackmodel.Waypoint,
+) {
 	if len(observations) == 0 {
 		return
 	}
-	robotCorridor := m.settleRobotCorridor(waypoints.CorridorForPosition(robotPos.X, robotPos.Y, m.cfg.CornerMinM, m.cfg.CornerMaxM))
+	robotCorridor := m.settleRobotCorridor(
+		waypoints.CorridorForPosition(robotPos.X, robotPos.Y, m.cfg.CornerMinM, m.cfg.CornerMaxM),
+	)
 	for i := range observations {
 		obs := observations[i]
 		if obs.Confidence < m.cfg.MinConfidence {
@@ -291,7 +296,12 @@ func (m *ObservedSignMap) Observe(observations []TrafficSignObservation, robotPo
 	}
 }
 
-func (m *ObservedSignMap) fold(world trackmodel.Waypoint, observedRange float64, obs TrafficSignObservation, robotCorridor trackmodel.Section) {
+func (m *ObservedSignMap) fold(
+	world trackmodel.Waypoint,
+	observedRange float64,
+	obs TrafficSignObservation,
+	robotCorridor trackmodel.Section,
+) {
 	track := m.nearestTrack(world, robotCorridor)
 	if track == nil {
 		track = &signTrack{
@@ -312,7 +322,10 @@ func (m *ObservedSignMap) fold(world trackmodel.Waypoint, observedRange float64,
 	}
 }
 
-func (m *ObservedSignMap) nearestTrack(world trackmodel.Waypoint, robotCorridor trackmodel.Section) *signTrack {
+func (m *ObservedSignMap) nearestTrack(
+	world trackmodel.Waypoint,
+	robotCorridor trackmodel.Section,
+) *signTrack {
 	best := (*signTrack)(nil)
 	bestDist := m.cfg.AssociationDistM
 	for _, t := range m.tracks {

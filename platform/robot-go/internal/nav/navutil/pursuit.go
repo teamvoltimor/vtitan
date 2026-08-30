@@ -33,7 +33,9 @@ const curvatureCoefficient = 2.0
 // (and does not import) hardware-profile config, so wheelbaseM is an
 // explicit parameter here instead -- callers (WaypointController) thread
 // their own configured value through.
-func PurePursuitSteer(xLocal, yLocal, minLookaheadDist, wheelbaseM, maxSteeringAngle float64) float64 {
+func PurePursuitSteer(
+	xLocal, yLocal, minLookaheadDist, wheelbaseM, maxSteeringAngle float64,
+) float64 {
 	lookahead := max(math.Hypot(xLocal, yLocal), minLookaheadDist)
 	curvature := curvatureCoefficient * yLocal / (lookahead * lookahead)
 	steerAngle := math.Atan(curvature * wheelbaseM / wheelbaseHalfDivisor)

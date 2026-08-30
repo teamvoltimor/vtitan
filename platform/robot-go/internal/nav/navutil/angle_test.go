@@ -46,7 +46,11 @@ func TestAxisOffsetRad(t *testing.T) {
 		{name: "on axis (pi/2)", yaw: math.Pi / 2, want: 0},
 		{name: "5 degrees left of axis", yaw: 5 * math.Pi / 180, want: 5 * math.Pi / 180},
 		{name: "5 degrees right of axis", yaw: -5 * math.Pi / 180, want: -5 * math.Pi / 180},
-		{name: "5 degrees past pi/2 offsets from pi/2, not 0", yaw: math.Pi/2 + 5*math.Pi/180, want: 5 * math.Pi / 180},
+		{
+			name: "5 degrees past pi/2 offsets from pi/2, not 0",
+			yaw:  math.Pi/2 + 5*math.Pi/180,
+			want: 5 * math.Pi / 180,
+		},
 	}
 
 	for _, tt := range tests {

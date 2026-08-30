@@ -21,15 +21,15 @@ const floatTol = 1e-3
 // fieldStat accumulates the comparison outcome for one debug field across all
 // replayed ticks.
 type fieldStat struct {
-	name    string
-	bothNil int // neither side computed it (not a parity concern)
-	goOnly  int // Go set it, Python left it null (may be a real gap or path artifact)
-	refOnly int // Python set it, Go left it null
-	equal   int // both set and within tolerance
+	name     string
+	bothNil  int // neither side computed it (not a parity concern)
+	goOnly   int // Go set it, Python left it null (may be a real gap or path artifact)
+	refOnly  int // Python set it, Go left it null
+	equal    int // both set and within tolerance
 	mismatch int // both set but beyond tolerance
 }
 
-func (f *fieldStat) total() int { return f.bothNil + f.goOnly + f.refOnly + f.equal + f.mismatch }
+func (f *fieldStat) total() int    { return f.bothNil + f.goOnly + f.refOnly + f.equal + f.mismatch }
 func (f *fieldStat) computed() int { return f.goOnly + f.refOnly + f.equal + f.mismatch }
 
 func (f *fieldStat) record(goSet, refSet bool, within bool) {
@@ -53,12 +53,12 @@ type parityStats struct {
 	fields map[string]*fieldStat
 
 	// Phase comparison.
-	phaseBothNil   int
-	phaseEqual     int
-	phaseMismatch  int
-	phaseMatrix    map[string]map[string]int // goPhase -> refPhase -> count
-	scanTicks      int                       // ticks the Go side had a scan
-	noScanTicks    int
+	phaseBothNil  int
+	phaseEqual    int
+	phaseMismatch int
+	phaseMatrix   map[string]map[string]int // goPhase -> refPhase -> count
+	scanTicks     int                       // ticks the Go side had a scan
+	noScanTicks   int
 }
 
 func phaseKey(p string) string {

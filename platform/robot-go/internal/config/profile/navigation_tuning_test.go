@@ -23,7 +23,8 @@ func TestLoad_DirectionEstimatorConfig(t *testing.T) {
 	if cfg.MinVotes != 5 {
 		t.Errorf("MinVotes = %v, want 5", cfg.MinVotes)
 	}
-	if cfg.MaxInTrackRangeM != 4.5 || cfg.MinAsymmetryM != 0.20 || cfg.PlausibleSpanThresholdM != 1.25 {
+	if cfg.MaxInTrackRangeM != 4.5 || cfg.MinAsymmetryM != 0.20 ||
+		cfg.PlausibleSpanThresholdM != 1.25 {
 		t.Errorf("unexpected field values: %+v", cfg)
 	}
 }
@@ -32,7 +33,12 @@ func TestLoad_CorridorFollowerConfig_UsesDefaultForOmittedField(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := profile.LoadWithDefaults[profile.CorridorFollowerConfig](
-		filepath.Join("testdata", "corridor_follower.toml"), nil, profile.CorridorFollowerDefaults(),
+		filepath.Join(
+			"testdata",
+			"corridor_follower.toml",
+		),
+		nil,
+		profile.CorridorFollowerDefaults(),
 	)
 	if err != nil {
 		t.Fatalf("LoadWithDefaults: %v", err)
@@ -53,7 +59,10 @@ func TestLoad_CorridorFollowerConfig_WithoutDefaultsLeavesOmittedFieldZero(t *te
 	// without it, the omitted field is the Go zero value, not the Python
 	// default -- the exact silent-wrong-answer this profile struct exists
 	// to avoid when a caller does supply the defaults.
-	cfg, err := profile.Load[profile.CorridorFollowerConfig](filepath.Join("testdata", "corridor_follower.toml"), nil)
+	cfg, err := profile.Load[profile.CorridorFollowerConfig](
+		filepath.Join("testdata", "corridor_follower.toml"),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -65,7 +74,10 @@ func TestLoad_CorridorFollowerConfig_WithoutDefaultsLeavesOmittedFieldZero(t *te
 func TestLoad_LidarSectorsConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.LidarSectorsConfig](filepath.Join("testdata", "lidar_sectors.toml"), nil)
+	cfg, err := profile.Load[profile.LidarSectorsConfig](
+		filepath.Join("testdata", "lidar_sectors.toml"),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -77,7 +89,10 @@ func TestLoad_LidarSectorsConfig(t *testing.T) {
 func TestLoad_WaypointsConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.WaypointsConfig](filepath.Join("testdata", "waypoints.toml"), nil)
+	cfg, err := profile.Load[profile.WaypointsConfig](
+		filepath.Join("testdata", "waypoints.toml"),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -88,12 +103,20 @@ func TestLoad_WaypointsConfig(t *testing.T) {
 		t.Errorf("wide bias = %v/%q, want 0.10/inner", cfg.WideCenterBiasM, cfg.WideCenterBiasSide)
 	}
 	if cfg.NarrowCenterBiasM != 0.0 || cfg.NarrowCenterBiasSide != "inner" {
-		t.Errorf("narrow bias = %v/%q, want 0.0/inner", cfg.NarrowCenterBiasM, cfg.NarrowCenterBiasSide)
+		t.Errorf(
+			"narrow bias = %v/%q, want 0.0/inner",
+			cfg.NarrowCenterBiasM,
+			cfg.NarrowCenterBiasSide,
+		)
 	}
 	if cfg.NarrowWidthThresholdM != 0.8 {
 		t.Errorf("NarrowWidthThresholdM = %v, want 0.8", cfg.NarrowWidthThresholdM)
 	}
 	if cfg.NumIntermediateArcPoints != 3 || cfg.StraightWaypointCount != 8 {
-		t.Errorf("counts = %v/%v, want 3/8", cfg.NumIntermediateArcPoints, cfg.StraightWaypointCount)
+		t.Errorf(
+			"counts = %v/%v, want 3/8",
+			cfg.NumIntermediateArcPoints,
+			cfg.StraightWaypointCount,
+		)
 	}
 }

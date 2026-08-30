@@ -50,7 +50,11 @@ func scanAngles() []float64 {
 
 // scan raycasts a sweep at (x, y, yaw), optionally with Gaussian range noise
 // from a seeded generator so each case is deterministic.
-func scan(walls *trackmodel.TrackWalls, x, y, yaw, sigma float64, seed uint64) (ranges, angles []float64) {
+func scan(
+	walls *trackmodel.TrackWalls,
+	x, y, yaw, sigma float64,
+	seed uint64,
+) (ranges, angles []float64) {
 	angles = scanAngles()
 	ranges = walls.Raycast(x, y, yaw, angles, lidarMinRange, lidarMaxRange)
 	if sigma > 0 {
@@ -82,7 +86,12 @@ func TestRecoversHeadingUnderNoise(t *testing.T) {
 			yaw := offsetDeg * math.Pi / 180
 			ranges, angles := scan(walls, 1.5, 0.5, yaw, noiseSigma, 1)
 
-			got, ok := wallheading.EstimateYawFromWalls(ranges, angles, yaw, wallheading.DefaultConfig())
+			got, ok := wallheading.EstimateYawFromWalls(
+				ranges,
+				angles,
+				yaw,
+				wallheading.DefaultConfig(),
+			)
 			if !ok {
 				t.Fatal("no estimate from a structured scan")
 			}
@@ -113,12 +122,21 @@ func TestWorksFromEveryCorridor(t *testing.T) {
 			x, y, yaw := pose[0], pose[1], pose[2]
 			ranges, angles := scan(walls, x, y, yaw, noiseSigma, 2)
 
-			got, ok := wallheading.EstimateYawFromWalls(ranges, angles, yaw, wallheading.DefaultConfig())
+			got, ok := wallheading.EstimateYawFromWalls(
+				ranges,
+				angles,
+				yaw,
+				wallheading.DefaultConfig(),
+			)
 			if !ok {
 				t.Fatal("no estimate from a structured scan")
 			}
 			if errDeg(got, yaw) > 5.0 {
-				t.Fatalf("estimate = %.2f deg, want %.2f deg within 5", got*180/math.Pi, yaw*180/math.Pi)
+				t.Fatalf(
+					"estimate = %.2f deg, want %.2f deg within 5",
+					got*180/math.Pi,
+					yaw*180/math.Pi,
+				)
 			}
 		})
 	}
@@ -138,7 +156,12 @@ func TestDoesNotInheritThePrior(t *testing.T) {
 	// 20 degrees of prior error, well inside the +/-45 quadrant.
 	priorYaw := 20 * math.Pi / 180
 
-	got, ok := wallheading.EstimateYawFromWalls(ranges, angles, priorYaw, wallheading.DefaultConfig())
+	got, ok := wallheading.EstimateYawFromWalls(
+		ranges,
+		angles,
+		priorYaw,
+		wallheading.DefaultConfig(),
+	)
 	if !ok {
 		t.Fatal("no estimate from a structured scan")
 	}
@@ -161,7 +184,12 @@ func TestLocksToQuadrantNearestPrior(t *testing.T) {
 			t.Parallel()
 
 			priorYaw := float64(quadrant) * math.Pi / 2
-			got, ok := wallheading.EstimateYawFromWalls(ranges, angles, priorYaw, wallheading.DefaultConfig())
+			got, ok := wallheading.EstimateYawFromWalls(
+				ranges,
+				angles,
+				priorYaw,
+				wallheading.DefaultConfig(),
+			)
 			if !ok {
 				t.Fatal("no estimate from a structured scan")
 			}
@@ -186,7 +214,12 @@ func TestPriorBeyond45DegreesLocksToWrongQuadrant(t *testing.T) {
 
 	priorYaw := 60 * math.Pi / 180
 
-	got, ok := wallheading.EstimateYawFromWalls(ranges, angles, priorYaw, wallheading.DefaultConfig())
+	got, ok := wallheading.EstimateYawFromWalls(
+		ranges,
+		angles,
+		priorYaw,
+		wallheading.DefaultConfig(),
+	)
 	if !ok {
 		t.Fatal("no estimate from a structured scan")
 	}
@@ -255,7 +288,12 @@ func TestStillWorksWithNoNoise(t *testing.T) {
 	const trueYaw = 0.15
 	ranges, angles := scan(walls, 1.5, 0.5, trueYaw, 0, 0)
 
-	got, ok := wallheading.EstimateYawFromWalls(ranges, angles, trueYaw, wallheading.DefaultConfig())
+	got, ok := wallheading.EstimateYawFromWalls(
+		ranges,
+		angles,
+		trueYaw,
+		wallheading.DefaultConfig(),
+	)
 	if !ok {
 		t.Fatal("no estimate from a clean scan")
 	}

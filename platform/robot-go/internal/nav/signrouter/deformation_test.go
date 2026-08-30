@@ -101,15 +101,31 @@ func TestApplyDeformation_OffsetDirectionPerSectionColorDirection(t *testing.T) 
 			for _, c := range colors {
 				sign := signrouter.SignSpec{X: geo.sx, Y: geo.sy, Color: c.color}
 				result := signrouter.ApplyDeformation(
-					trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, sign, c.color, geo.section, direction,
-					cfg.LateralOffsetM, signrouter.PinContext{}, cfg,
+					trackmodel.Waypoint{
+						X: geo.sx,
+						Y: geo.sy,
+					},
+					sign,
+					c.color,
+					geo.section,
+					direction,
+					cfg.LateralOffsetM,
+					signrouter.PinContext{},
+					cfg,
 				)
 				offset := float64(geo.redMult*c.colorSign) * cfg.LateralOffsetM
 
 				if geo.axisY {
 					want := expectedLateral(geo.sy+offset, geo.lowSide, cfg)
 					if math.Abs(result.Y-want) > tolerance {
-						t.Errorf("%v/%v/%v: Y = %v, want %v", geo.section, direction, c.color, result.Y, want)
+						t.Errorf(
+							"%v/%v/%v: Y = %v, want %v",
+							geo.section,
+							direction,
+							c.color,
+							result.Y,
+							want,
+						)
 					}
 					if math.Abs(result.X-geo.sx) > tolerance {
 						t.Errorf(
@@ -170,10 +186,20 @@ func TestApplyDeformation_PassSideIsAbsoluteAcrossDirections(t *testing.T) {
 				dir := outwardDir[geo.section]
 				outwardComponent := dir[0]*(result.X-geo.sx) + dir[1]*(result.Y-geo.sy)
 				if color == signrouter.SignColorRed && outwardComponent <= 0 {
-					t.Errorf("%v/%v/red: outward component = %v, want > 0", geo.section, direction, outwardComponent)
+					t.Errorf(
+						"%v/%v/red: outward component = %v, want > 0",
+						geo.section,
+						direction,
+						outwardComponent,
+					)
 				}
 				if color == signrouter.SignColorGreen && outwardComponent >= 0 {
-					t.Errorf("%v/%v/green: outward component = %v, want < 0", geo.section, direction, outwardComponent)
+					t.Errorf(
+						"%v/%v/green: outward component = %v, want < 0",
+						geo.section,
+						direction,
+						outwardComponent,
+					)
 				}
 			}
 		}
@@ -190,8 +216,14 @@ func TestApplyDeformation_ClampsAtInnerSquareEdge(t *testing.T) {
 	cfg := signrouter.DefaultConfig()
 	sign := signrouter.SignSpec{X: 1.5, Y: cfg.TrackCornerMinM, Color: signrouter.SignColorRed}
 	result := signrouter.ApplyDeformation(
-		trackmodel.Waypoint{X: 1.5, Y: cfg.TrackCornerMinM}, sign, signrouter.SignColorRed,
-		trackmodel.South, trackmodel.Counterclockwise, cfg.LateralOffsetM, signrouter.PinContext{}, cfg,
+		trackmodel.Waypoint{X: 1.5, Y: cfg.TrackCornerMinM},
+		sign,
+		signrouter.SignColorRed,
+		trackmodel.South,
+		trackmodel.Counterclockwise,
+		cfg.LateralOffsetM,
+		signrouter.PinContext{},
+		cfg,
 	)
 	if math.Abs(result.X-1.5) > tolerance {
 		t.Errorf("X = %v, want unchanged 1.5", result.X)
@@ -209,8 +241,14 @@ func TestApplyDeformation_ClampsAtOuterWallEdge(t *testing.T) {
 	cfg := signrouter.DefaultConfig()
 	sign := signrouter.SignSpec{X: 1.5, Y: cfg.TrackMinCoordM, Color: signrouter.SignColorGreen}
 	result := signrouter.ApplyDeformation(
-		trackmodel.Waypoint{X: 1.5, Y: cfg.TrackMinCoordM}, sign, signrouter.SignColorGreen,
-		trackmodel.South, trackmodel.Counterclockwise, cfg.LateralOffsetM, signrouter.PinContext{}, cfg,
+		trackmodel.Waypoint{X: 1.5, Y: cfg.TrackMinCoordM},
+		sign,
+		signrouter.SignColorGreen,
+		trackmodel.South,
+		trackmodel.Counterclockwise,
+		cfg.LateralOffsetM,
+		signrouter.PinContext{},
+		cfg,
 	)
 	if math.Abs(result.X-1.5) > tolerance {
 		t.Errorf("X = %v, want unchanged 1.5", result.X)
@@ -230,8 +268,14 @@ func TestApplyDeformation_ClampsAtInnerSquareEdgeEastCorridor(t *testing.T) {
 	cfg := signrouter.DefaultConfig()
 	sign := signrouter.SignSpec{X: cfg.TrackCornerMaxM, Y: 1.5, Color: signrouter.SignColorRed}
 	result := signrouter.ApplyDeformation(
-		trackmodel.Waypoint{X: cfg.TrackCornerMaxM, Y: 1.5}, sign, signrouter.SignColorRed,
-		trackmodel.East, trackmodel.Counterclockwise, cfg.LateralOffsetM, signrouter.PinContext{}, cfg,
+		trackmodel.Waypoint{X: cfg.TrackCornerMaxM, Y: 1.5},
+		sign,
+		signrouter.SignColorRed,
+		trackmodel.East,
+		trackmodel.Counterclockwise,
+		cfg.LateralOffsetM,
+		signrouter.PinContext{},
+		cfg,
 	)
 	if math.Abs(result.Y-1.5) > tolerance {
 		t.Errorf("Y = %v, want unchanged 1.5", result.Y)
@@ -292,7 +336,11 @@ func TestPinDepth_CornerGuardOffRestoresThePin(t *testing.T) {
 	got := scenario.apply(signrouter.PinContext{RobotPos: &robotPos})
 
 	if math.Abs(got-scenario.signDepth) > tolerance {
-		t.Errorf("result depth = %v, want pinned to sign depth %v with the guard off", got, scenario.signDepth)
+		t.Errorf(
+			"result depth = %v, want pinned to sign depth %v with the guard off",
+			got,
+			scenario.signDepth,
+		)
 	}
 }
 
@@ -310,8 +358,11 @@ func TestPinDepth_HeadingGuardReleasesPastTheThreshold(t *testing.T) {
 	got := scenario.apply(signrouter.PinContext{RobotPos: &robotPos, YawDriftRad: &drift})
 
 	if math.Abs(got-scenario.waypointDepth) > tolerance {
-		t.Errorf("result depth = %v, want unchanged waypoint depth %v (40deg drift exceeds the 35deg guard)",
-			got, scenario.waypointDepth)
+		t.Errorf(
+			"result depth = %v, want unchanged waypoint depth %v (40deg drift exceeds the 35deg guard)",
+			got,
+			scenario.waypointDepth,
+		)
 	}
 }
 
@@ -326,8 +377,11 @@ func TestPinDepth_StillFiresUnderTheYawDriftThreshold(t *testing.T) {
 	got := scenario.apply(signrouter.PinContext{RobotPos: &robotPos, YawDriftRad: &drift})
 
 	if math.Abs(got-scenario.signDepth) > tolerance {
-		t.Errorf("result depth = %v, want pinned to sign depth %v (10deg drift is under the 35deg guard)",
-			got, scenario.signDepth)
+		t.Errorf(
+			"result depth = %v, want pinned to sign depth %v (10deg drift is under the 35deg guard)",
+			got,
+			scenario.signDepth,
+		)
 	}
 }
 
@@ -344,7 +398,11 @@ func TestPinDepth_HeadingGuardOffIgnoresDrift(t *testing.T) {
 	got := scenario.apply(signrouter.PinContext{RobotPos: &robotPos, YawDriftRad: &drift})
 
 	if math.Abs(got-scenario.signDepth) > tolerance {
-		t.Errorf("result depth = %v, want pinned to sign depth %v with the heading guard off", got, scenario.signDepth)
+		t.Errorf(
+			"result depth = %v, want pinned to sign depth %v with the heading guard off",
+			got,
+			scenario.signDepth,
+		)
 	}
 }
 
@@ -374,7 +432,9 @@ func TestMatchDetectionToSign_FarMatchRejected(t *testing.T) {
 	}
 	_, ok := signrouter.MatchDetectionToSign(obs, trackmodel.Waypoint{X: 0.0, Y: 0.0}, cfg)
 	if ok {
-		t.Error("MatchDetectionToSign() ok = true for an observation 2m from the expected position, want false")
+		t.Error(
+			"MatchDetectionToSign() ok = true for an observation 2m from the expected position, want false",
+		)
 	}
 }
 
@@ -404,7 +464,10 @@ func TestMatchDetectionToSign_NearestCandidateWinsRegardlessOfOrder(t *testing.T
 			t.Fatal("MatchDetectionToSign() ok = false, want true")
 		}
 		if color != signrouter.SignColorGreen {
-			t.Errorf("MatchDetectionToSign() = %v, want SignColorGreen (the nearer observation)", color)
+			t.Errorf(
+				"MatchDetectionToSign() = %v, want SignColorGreen (the nearer observation)",
+				color,
+			)
 		}
 	}
 }

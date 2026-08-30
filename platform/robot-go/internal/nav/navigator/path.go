@@ -29,7 +29,11 @@ import (
 // (ReplanHeadingTieMarginM) by heading agreement instead. Pass nil where
 // the robot has been tracking a path very similar to the new one, where
 // nearest-by-position alone is already safe.
-func (n *Navigator) ReplacePath(path []trackmodel.Waypoint, robotXY trackmodel.Waypoint, robotYaw *float64) {
+func (n *Navigator) ReplacePath(
+	path []trackmodel.Waypoint,
+	robotXY trackmodel.Waypoint,
+	robotYaw *float64,
+) {
 	if len(path) == 0 {
 		return
 	}
@@ -201,7 +205,9 @@ func (n *Navigator) handleWaypointWrap(robotX, robotY, robotYaw float64) bool {
 // can leave both the current and next waypoint reading farther away every
 // tick, even though local-frame ahead/behind already shows the chassis has
 // swept past them.
-func (n *Navigator) advancePastPassedWaypoints(robotX, robotY, robotYaw float64) trackmodel.Waypoint {
+func (n *Navigator) advancePastPassedWaypoints(
+	robotX, robotY, robotYaw float64,
+) trackmodel.Waypoint {
 	here := trackmodel.Waypoint{X: robotX, Y: robotY}
 	rawWP := n.waypoints[n.waypointIndex]
 

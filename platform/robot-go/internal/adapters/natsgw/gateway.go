@@ -100,10 +100,13 @@ func New(
 		return nil, errors.New("natsgw: initial walls are required to seed the localizer")
 	}
 	return &Gateway{
-		conn:     conn,
-		drivePub: natsx.NewPublisher[*actuationv1.AckermannCmd](conn, actuationv1.AckermannCmdSubject),
-		locCfg:   locCfg,
-		walls:    initialWalls,
+		conn: conn,
+		drivePub: natsx.NewPublisher[*actuationv1.AckermannCmd](
+			conn,
+			actuationv1.AckermannCmdSubject,
+		),
+		locCfg: locCfg,
+		walls:  initialWalls,
 	}, nil
 }
 

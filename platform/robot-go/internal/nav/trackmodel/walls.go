@@ -81,7 +81,8 @@ func (w *TrackWalls) PointInFreeSpace(x, y, clearance float64) bool {
 		return false
 	}
 	iv := w.InnerBlock
-	inBlock := iv.XMin+clearance < x && x < iv.XMax-clearance && iv.YMin+clearance < y && y < iv.YMax-clearance
+	inBlock := iv.XMin+clearance < x && x < iv.XMax-clearance && iv.YMin+clearance < y &&
+		y < iv.YMax-clearance
 	return !inBlock
 }
 

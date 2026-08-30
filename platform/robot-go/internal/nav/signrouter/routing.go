@@ -47,7 +47,10 @@ func RoutingTable() map[RoutingKey]RoutingEntry {
 
 // routingEntry looks up routingTable, matching ROUTING_TABLE.get((corridor,
 // direction)).
-func routingEntry(corridor trackmodel.Section, direction trackmodel.Direction) (RoutingEntry, bool) {
+func routingEntry(
+	corridor trackmodel.Section,
+	direction trackmodel.Direction,
+) (RoutingEntry, bool) {
 	entry, ok := routingTable[RoutingKey{corridor, direction}]
 	return entry, ok
 }
@@ -73,7 +76,10 @@ func multForColor(entry RoutingEntry, color SignColor) int {
 // Returns (axis, multiplier, true) where a positive multiplier along axis
 // points OUTWARD for red, INWARD for green; ok is false if corridor has no
 // routing entry.
-func OutwardLateralAxis(corridor trackmodel.Section, color SignColor) (axis Axis, multiplier int, ok bool) {
+func OutwardLateralAxis(
+	corridor trackmodel.Section,
+	color SignColor,
+) (axis Axis, multiplier int, ok bool) {
 	entry, ok := routingEntry(corridor, trackmodel.Clockwise)
 	if !ok {
 		return 0, 0, false
@@ -145,7 +151,11 @@ func depthViolation(x, y float64, corridor trackmodel.Section, cfg Config) float
 // boundary -- see depth_consistent_corridor's Python docstring for the
 // measured 42.1% misfile rate this fixes. Ties keep fallback so a genuine
 // diagonal is left where CorridorForPosition put it.
-func DepthConsistentCorridor(x, y float64, fallback trackmodel.Section, cfg Config) trackmodel.Section {
+func DepthConsistentCorridor(
+	x, y float64,
+	fallback trackmodel.Section,
+	cfg Config,
+) trackmodel.Section {
 	candidates := CandidateCorridors(x, y, cfg)
 	if len(candidates) < 2 {
 		return fallback
@@ -169,7 +179,12 @@ func DepthConsistentCorridor(x, y float64, fallback trackmodel.Section, cfg Conf
 // ClampLateral has capped the target at the corridor bound and that bound
 // is on the FORBIDDEN side of the sign. ok is false when corridor has no
 // routing entry.
-func TargetClearance(spec SignSpec, corridor trackmodel.Section, lateralOffsetM float64, cfg Config) (
+func TargetClearance(
+	spec SignSpec,
+	corridor trackmodel.Section,
+	lateralOffsetM float64,
+	cfg Config,
+) (
 	clearance float64, ok bool,
 ) {
 	axis, permitted, ok := OutwardLateralAxis(corridor, spec.Color)
@@ -201,7 +216,8 @@ func SatisfiableCorridor(
 		if alternative == corridor {
 			continue
 		}
-		if other, otherOK := TargetClearance(spec, alternative, lateralOffsetM, cfg); otherOK && other > 0.0 {
+		if other, otherOK := TargetClearance(spec, alternative, lateralOffsetM, cfg); otherOK &&
+			other > 0.0 {
 			return alternative
 		}
 	}

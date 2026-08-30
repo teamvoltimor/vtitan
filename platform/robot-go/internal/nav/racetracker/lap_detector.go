@@ -48,7 +48,12 @@ func NewLapDetector(
 ) (*LapDetector, error) {
 	normal, ok := TravelNormalFor(startSection, direction)
 	if !ok {
-		return nil, fmt.Errorf("%w: section %v, direction %v", ErrNoTravelNormal, startSection, direction)
+		return nil, fmt.Errorf(
+			"%w: section %v, direction %v",
+			ErrNoTravelNormal,
+			startSection,
+			direction,
+		)
 	}
 	return &LapDetector{origin: startPos, normal: normal, startSection: startSection}, nil
 }

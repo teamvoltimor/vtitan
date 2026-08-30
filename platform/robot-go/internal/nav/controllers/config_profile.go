@@ -53,7 +53,11 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 
 	lidarSectorsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
 	if loaded, err := profile.Load[profile.LidarSectorsConfig](lidarSectorsPath, nil); err != nil {
-		logger.Warn("controllers: loading lidar_sectors.toml, falling back to defaults", "error", err)
+		logger.Warn(
+			"controllers: loading lidar_sectors.toml, falling back to defaults",
+			"error",
+			err,
+		)
 	} else {
 		cfg.FrontHalfFovDeg = loaded.FrontHalfFovDeg
 		cfg.ThreatHalfFovDeg = loaded.ThreatHalfFovDeg

@@ -71,9 +71,24 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
-	flags.StringVar(&cfg.nodeName, "name", "state-machine", "NATS client name, visible in nats-server's connz output")
-	flags.StringVar(&cfg.backendAddr, "backend-addr", defaultBackendAddr, "backend gRPC address (host:port)")
-	flags.StringVar(&cfg.robotID, "robot-id", "", "robot ID to identify as on the backend command channel")
+	flags.StringVar(
+		&cfg.nodeName,
+		"name",
+		"state-machine",
+		"NATS client name, visible in nats-server's connz output",
+	)
+	flags.StringVar(
+		&cfg.backendAddr,
+		"backend-addr",
+		defaultBackendAddr,
+		"backend gRPC address (host:port)",
+	)
+	flags.StringVar(
+		&cfg.robotID,
+		"robot-id",
+		"",
+		"robot ID to identify as on the backend command channel",
+	)
 	// MarkFlagRequired only errors for a flag name that doesn't exist on
 	// cmd, which "robot-id" always does -- it's registered immediately
 	// above.
@@ -99,7 +114,10 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		nodestatemachine.UnimplementedChannelSink{},
 	)
 
-	client, err := robotcmd.New(robotcmd.Config{Addr: cfg.backendAddr, RobotID: cfg.robotID}, logger)
+	client, err := robotcmd.New(
+		robotcmd.Config{Addr: cfg.backendAddr, RobotID: cfg.robotID},
+		logger,
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // robotcmd.New already wraps with "robotcmd: ..." context
 	}

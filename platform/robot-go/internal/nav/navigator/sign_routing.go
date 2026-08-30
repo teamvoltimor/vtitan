@@ -55,7 +55,13 @@ func (n *Navigator) applySignRouting(
 		return steerTarget, nil, nil
 	}
 	observations := n.visionDetections()
-	deformed := n.signRouter.DeformWaypoint(steerTarget, here, robotYaw, *n.currentCorridor, observations)
+	deformed := n.signRouter.DeformWaypoint(
+		steerTarget,
+		here,
+		robotYaw,
+		*n.currentCorridor,
+		observations,
+	)
 	magnitude := math.Hypot(deformed.X-steerTarget.X, deformed.Y-steerTarget.Y)
 
 	suppress := n.cfg.SignLanePlanner && n.cfg.SignLaneSuppressDeform

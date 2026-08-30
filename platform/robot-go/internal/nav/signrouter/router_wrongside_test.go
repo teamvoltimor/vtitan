@@ -41,11 +41,28 @@ func TestWrongSideViolations_CorrectSideIsNotAViolation(t *testing.T) {
 				engagePos = trackmodel.Waypoint{X: geo.sx, Y: geo.sy - engagedGap}
 				passPos = trackmodel.Waypoint{X: geo.sx + float64(permitted)*passedGap, Y: geo.sy}
 			}
-			router.DeformWaypoint(trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, engagePos, 0.0, geo.section, nil)
-			router.DeformWaypoint(trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, passPos, 0.0, geo.section, nil)
+			router.DeformWaypoint(
+				trackmodel.Waypoint{X: geo.sx, Y: geo.sy},
+				engagePos,
+				0.0,
+				geo.section,
+				nil,
+			)
+			router.DeformWaypoint(
+				trackmodel.Waypoint{X: geo.sx, Y: geo.sy},
+				passPos,
+				0.0,
+				geo.section,
+				nil,
+			)
 
 			if got := router.WrongSideViolations(); len(got) != 0 {
-				t.Errorf("%v/%v: WrongSideViolations() = %v, want empty (permitted-side pass)", geo.section, color, got)
+				t.Errorf(
+					"%v/%v: WrongSideViolations() = %v, want empty (permitted-side pass)",
+					geo.section,
+					color,
+					got,
+				)
 			}
 		}
 	}
@@ -78,12 +95,29 @@ func TestWrongSideViolations_WrongSideIsAViolation(t *testing.T) {
 				engagePos = trackmodel.Waypoint{X: geo.sx, Y: geo.sy - engagedGap}
 				passPos = trackmodel.Waypoint{X: geo.sx + float64(forbidden)*passedGap, Y: geo.sy}
 			}
-			router.DeformWaypoint(trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, engagePos, 0.0, geo.section, nil)
-			router.DeformWaypoint(trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, passPos, 0.0, geo.section, nil)
+			router.DeformWaypoint(
+				trackmodel.Waypoint{X: geo.sx, Y: geo.sy},
+				engagePos,
+				0.0,
+				geo.section,
+				nil,
+			)
+			router.DeformWaypoint(
+				trackmodel.Waypoint{X: geo.sx, Y: geo.sy},
+				passPos,
+				0.0,
+				geo.section,
+				nil,
+			)
 
 			got := router.WrongSideViolations()
 			if _, violated := got[0]; !violated || len(got) != 1 {
-				t.Errorf("%v/%v: WrongSideViolations() = %v, want {0} (forbidden-side pass)", geo.section, color, got)
+				t.Errorf(
+					"%v/%v: WrongSideViolations() = %v, want {0} (forbidden-side pass)",
+					geo.section,
+					color,
+					got,
+				)
 			}
 		}
 	}
@@ -141,14 +175,34 @@ func TestDeformWaypoint_CameraDetectionOverridesGroundTruth(t *testing.T) {
 
 	robotPos := trackmodel.Waypoint{X: geo.sx - 0.3, Y: geo.sy}
 	obs := []signrouter.TrafficSignObservation{
-		{WorldXM: robotPos.X + 0.3, WorldYM: robotPos.Y, Color: signrouter.SignColorGreen, Confidence: 0.9},
+		{
+			WorldXM:    robotPos.X + 0.3,
+			WorldYM:    robotPos.Y,
+			Color:      signrouter.SignColorGreen,
+			Confidence: 0.9,
+		},
 	}
 
-	result := router.DeformWaypoint(trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, robotPos, 0.0, trackmodel.South, obs)
+	result := router.DeformWaypoint(
+		trackmodel.Waypoint{X: geo.sx, Y: geo.sy},
+		robotPos,
+		0.0,
+		trackmodel.South,
+		obs,
+	)
 
 	expectedIfGreen := signrouter.ApplyDeformation(
-		trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, sign, signrouter.SignColorGreen, trackmodel.South,
-		trackmodel.Counterclockwise, cfg.LateralOffsetM, signrouter.PinContext{}, cfg,
+		trackmodel.Waypoint{
+			X: geo.sx,
+			Y: geo.sy,
+		},
+		sign,
+		signrouter.SignColorGreen,
+		trackmodel.South,
+		trackmodel.Counterclockwise,
+		cfg.LateralOffsetM,
+		signrouter.PinContext{},
+		cfg,
 	)
 	expectedIfRed := signrouter.ApplyDeformation(
 		trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, sign, signrouter.SignColorRed, trackmodel.South,
@@ -156,12 +210,18 @@ func TestDeformWaypoint_CameraDetectionOverridesGroundTruth(t *testing.T) {
 	)
 
 	if math.Abs(result.Y-expectedIfGreen.Y) > tolerance {
-		t.Errorf("DeformWaypoint() with a confident GREEN observation = %+v, want %+v (as if the sign were green)",
-			result, expectedIfGreen)
+		t.Errorf(
+			"DeformWaypoint() with a confident GREEN observation = %+v, want %+v (as if the sign were green)",
+			result,
+			expectedIfGreen,
+		)
 	}
 	if math.Abs(result.Y-expectedIfRed.Y) < tolerance {
-		t.Errorf("DeformWaypoint() = %+v, matches the RED ground truth %+v -- the camera override had no effect",
-			result, expectedIfRed)
+		t.Errorf(
+			"DeformWaypoint() = %+v, matches the RED ground truth %+v -- the camera override had no effect",
+			result,
+			expectedIfRed,
+		)
 	}
 }
 
@@ -206,10 +266,20 @@ func TestPreferCommitted_HoldsTheCommittedSignOverANearerNewcomer(t *testing.T) 
 
 	waypoint := trackmodel.Waypoint{X: 1.55, Y: 0.5}
 	// Tick 1: the robot sits right next to B, far from A -- commits to B.
-	tick1 := router.DeformWaypoint(waypoint, trackmodel.Waypoint{X: 1.5, Y: 0.75}, 0.0, trackmodel.South, nil)
+	tick1 := router.DeformWaypoint(
+		waypoint,
+		trackmodel.Waypoint{X: 1.5, Y: 0.75},
+		0.0,
+		trackmodel.South,
+		nil,
+	)
 	const bDrivenThreshold = 0.35 // strictly above A's clamp floor (~0.22), below B's unclamped target (~0.46)
 	if tick1.Y < bDrivenThreshold {
-		t.Fatalf("tick 1 Y = %v, want > %v (committed to the nearer sign B)", tick1.Y, bDrivenThreshold)
+		t.Fatalf(
+			"tick 1 Y = %v, want > %v (committed to the nearer sign B)",
+			tick1.Y,
+			bDrivenThreshold,
+		)
 	}
 
 	// Tick 2: the robot has moved next to A, which is now the NEARER sign by
@@ -217,10 +287,19 @@ func TestPreferCommitted_HoldsTheCommittedSignOverANearerNewcomer(t *testing.T) 
 	// an applicable candidate (within activation distance, same corridor).
 	// Without hysteresis this tick would flip to A and read near the clamp
 	// floor instead.
-	tick2 := router.DeformWaypoint(waypoint, trackmodel.Waypoint{X: 1.6, Y: 0.25}, 0.0, trackmodel.South, nil)
+	tick2 := router.DeformWaypoint(
+		waypoint,
+		trackmodel.Waypoint{X: 1.6, Y: 0.25},
+		0.0,
+		trackmodel.South,
+		nil,
+	)
 	if tick2.Y < bDrivenThreshold {
-		t.Errorf("tick 2 Y = %v, want > %v (commit hysteresis should hold on B even though A is now nearer)",
-			tick2.Y, bDrivenThreshold)
+		t.Errorf(
+			"tick 2 Y = %v, want > %v (commit hysteresis should hold on B even though A is now nearer)",
+			tick2.Y,
+			bDrivenThreshold,
+		)
 	}
 }
 
@@ -239,9 +318,21 @@ func TestPreferCommitted_DisabledFollowsPureNearestEachTick(t *testing.T) {
 
 	waypoint := trackmodel.Waypoint{X: 1.55, Y: 0.5}
 	const bDrivenThreshold = 0.35
-	router.DeformWaypoint(waypoint, trackmodel.Waypoint{X: 1.5, Y: 0.75}, 0.0, trackmodel.South, nil) // near B
+	router.DeformWaypoint(
+		waypoint,
+		trackmodel.Waypoint{X: 1.5, Y: 0.75},
+		0.0,
+		trackmodel.South,
+		nil,
+	) // near B
 
-	tick2 := router.DeformWaypoint(waypoint, trackmodel.Waypoint{X: 1.6, Y: 0.25}, 0.0, trackmodel.South, nil) // near A
+	tick2 := router.DeformWaypoint(
+		waypoint,
+		trackmodel.Waypoint{X: 1.6, Y: 0.25},
+		0.0,
+		trackmodel.South,
+		nil,
+	) // near A
 	if tick2.Y >= bDrivenThreshold {
 		t.Errorf(
 			"tick 2 Y = %v, want < %v (without hysteresis, nearest-wins should flip to A)",

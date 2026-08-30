@@ -25,7 +25,10 @@ func TestLoad_BaseOnly(t *testing.T) {
 func TestLoad_ProfileOverlayMerges(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.RobotConfig](filepath.Join("testdata", "robot.toml"), []string{"inverted-mount"})
+	cfg, err := profile.Load[profile.RobotConfig](
+		filepath.Join("testdata", "robot.toml"),
+		[]string{"inverted-mount"},
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -40,7 +43,10 @@ func TestLoad_ProfileOverlayMerges(t *testing.T) {
 func TestLoad_UnknownProfileErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := profile.Load[profile.RobotConfig](filepath.Join("testdata", "robot.toml"), []string{"does-not-exist"})
+	_, err := profile.Load[profile.RobotConfig](
+		filepath.Join("testdata", "robot.toml"),
+		[]string{"does-not-exist"},
+	)
 	if err == nil {
 		t.Fatal("Load: want error for unknown profile, got nil")
 	}
@@ -77,14 +83,19 @@ func TestLoadRobotConfig_MissingRequiredFieldsErrors(t *testing.T) {
 
 	_, err := profile.LoadRobotConfig(filepath.Join("testdata", "robot.toml"), nil)
 	if err == nil {
-		t.Fatal("LoadRobotConfig: want error when no profile supplies drivetrain/steering facts, got nil")
+		t.Fatal(
+			"LoadRobotConfig: want error when no profile supplies drivetrain/steering facts, got nil",
+		)
 	}
 }
 
 func TestLoadRobotConfig_ProfileSuppliesRequiredFields(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.LoadRobotConfig(filepath.Join("testdata", "robot.toml"), []string{"full-specs"})
+	cfg, err := profile.LoadRobotConfig(
+		filepath.Join("testdata", "robot.toml"),
+		[]string{"full-specs"},
+	)
 	if err != nil {
 		t.Fatalf("LoadRobotConfig: %v", err)
 	}
@@ -113,14 +124,20 @@ func TestLoad_TrackConfig(t *testing.T) {
 		t.Errorf("Corridor.DivisionLines = %v, want [0.40, 0.60]", cfg.Corridor.DivisionLines)
 	}
 	if cfg.StartingZone.SpawnAlignment != [3]string{"inner", "outer", "outer"} {
-		t.Errorf("StartingZone.SpawnAlignment = %v, want [inner outer outer]", cfg.StartingZone.SpawnAlignment)
+		t.Errorf(
+			"StartingZone.SpawnAlignment = %v, want [inner outer outer]",
+			cfg.StartingZone.SpawnAlignment,
+		)
 	}
 }
 
 func TestLoad_MissingBaseErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := profile.Load[profile.RobotConfig](filepath.Join("testdata", "does-not-exist.toml"), nil)
+	_, err := profile.Load[profile.RobotConfig](
+		filepath.Join("testdata", "does-not-exist.toml"),
+		nil,
+	)
 	if err == nil {
 		t.Fatal("Load: want error for missing base file, got nil")
 	}

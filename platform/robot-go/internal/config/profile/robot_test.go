@@ -23,13 +23,21 @@ func TestRobotConfig_DerivedValues(t *testing.T) {
 
 	wantMaxSteeringAngle := 85.0 * math.Pi / 180.0
 	if got := cfg.MaxSteeringAngle(); math.Abs(got-wantMaxSteeringAngle) > 1e-9 {
-		t.Errorf("MaxSteeringAngle() (unset SteeringLimitDeg) = %v, want %v", got, wantMaxSteeringAngle)
+		t.Errorf(
+			"MaxSteeringAngle() (unset SteeringLimitDeg) = %v, want %v",
+			got,
+			wantMaxSteeringAngle,
+		)
 	}
 
 	cfg.Steering.SteeringLimitDeg = 60.0
 	wantLimitedSteeringAngle := 60.0 * math.Pi / 180.0
 	if got := cfg.MaxSteeringAngle(); math.Abs(got-wantLimitedSteeringAngle) > 1e-9 {
-		t.Errorf("MaxSteeringAngle() (set SteeringLimitDeg) = %v, want %v", got, wantLimitedSteeringAngle)
+		t.Errorf(
+			"MaxSteeringAngle() (set SteeringLimitDeg) = %v, want %v",
+			got,
+			wantLimitedSteeringAngle,
+		)
 	}
 
 	wantFront := 0.30/2 - 0.1222
@@ -54,8 +62,18 @@ func TestRobotConfig_LidarYawOffsetRad(t *testing.T) {
 	}{
 		{name: "upright, no residual", inverted: false, offsetDeg: 0, wantRadian: 0},
 		{name: "inverted, no residual", inverted: true, offsetDeg: 0, wantRadian: math.Pi},
-		{name: "upright with residual", inverted: false, offsetDeg: 5, wantRadian: 5 * math.Pi / 180},
-		{name: "inverted with residual", inverted: true, offsetDeg: 5, wantRadian: 185 * math.Pi / 180},
+		{
+			name:       "upright with residual",
+			inverted:   false,
+			offsetDeg:  5,
+			wantRadian: 5 * math.Pi / 180,
+		},
+		{
+			name:       "inverted with residual",
+			inverted:   true,
+			offsetDeg:  5,
+			wantRadian: 185 * math.Pi / 180,
+		},
 	}
 
 	for _, tt := range tests {

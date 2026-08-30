@@ -108,9 +108,13 @@ func StartPose(
 	case trackmodel.South:
 		cx, cy = trackCenter, widthsM[trackmodel.South]/2+bias(widthsM[trackmodel.South])
 	case trackmodel.North:
-		cx, cy = trackCenter, cfg.TrackMaxCoordM-widthsM[trackmodel.North]/2-bias(widthsM[trackmodel.North])
+		cx, cy = trackCenter, cfg.TrackMaxCoordM-widthsM[trackmodel.North]/2-bias(
+			widthsM[trackmodel.North],
+		)
 	case trackmodel.East:
-		cx, cy = cfg.TrackMaxCoordM-widthsM[trackmodel.East]/2-bias(widthsM[trackmodel.East]), trackCenter
+		cx, cy = cfg.TrackMaxCoordM-widthsM[trackmodel.East]/2-bias(
+			widthsM[trackmodel.East],
+		), trackCenter
 	case trackmodel.West:
 		cx, cy = widthsM[trackmodel.West]/2+bias(widthsM[trackmodel.West]), trackCenter
 	default:

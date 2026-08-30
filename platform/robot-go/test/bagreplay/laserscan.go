@@ -22,10 +22,10 @@ const ScanTopic = "/scan"
 // The Go port's own runtime scan type is controllers.LidarScan (protobuf),
 // which the reader below feeds.
 type LaserScan struct {
-	AngleMin      float32
-	AngleMax      float32
+	AngleMin       float32
+	AngleMax       float32
 	AngleIncrement float32
-	RangesM       []float32
+	RangesM        []float32
 }
 
 // cdrReader walks a CDR buffer honoring the alignment rules the primitives

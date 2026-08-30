@@ -195,7 +195,12 @@ func requestPacket(cmd byte) []byte {
 // parseDescriptor decodes a 7-byte response descriptor.
 func parseDescriptor(b []byte) (descriptor, error) {
 	if len(b) < descLen {
-		return descriptor{}, fmt.Errorf("%w: descriptor needs %d bytes, got %d", ErrShortBuffer, descLen, len(b))
+		return descriptor{}, fmt.Errorf(
+			"%w: descriptor needs %d bytes, got %d",
+			ErrShortBuffer,
+			descLen,
+			len(b),
+		)
 	}
 	if b[0] != descStartFlag1 || b[1] != descStartFlag2 {
 		return descriptor{}, fmt.Errorf("%w: got 0x%02X 0x%02X", ErrBadDescriptorSync, b[0], b[1])

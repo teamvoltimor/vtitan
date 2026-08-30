@@ -49,7 +49,12 @@ func TestMeasureCorridorWidth_SumsThePerpendicularRays(t *testing.T) {
 	t.Parallel()
 
 	ranges, angles := scan(0.5, 0.5)
-	got, ok := corridorestimator.MeasureCorridorWidth(ranges, angles, 0.0, corridorestimator.DefaultConfig())
+	got, ok := corridorestimator.MeasureCorridorWidth(
+		ranges,
+		angles,
+		0.0,
+		corridorestimator.DefaultConfig(),
+	)
 	if !ok {
 		t.Fatal("no measurement from an aligned, plausible scan")
 	}
@@ -175,7 +180,10 @@ func TestSectionFromHeading_ToleratesHeadingError(t *testing.T) {
 	t.Parallel()
 
 	for _, errorDeg := range []float64{-30, -10, 10, 30} {
-		got := corridorestimator.SectionFromHeading(errorDeg*math.Pi/180, trackmodel.Counterclockwise)
+		got := corridorestimator.SectionFromHeading(
+			errorDeg*math.Pi/180,
+			trackmodel.Counterclockwise,
+		)
 		if got != trackmodel.South {
 			t.Fatalf("heading error %v deg gave %v, want South", errorDeg, got)
 		}
@@ -253,7 +261,11 @@ func TestWidthEstimator_SeededPriorStillOverridden(t *testing.T) {
 func TestWidthEstimator_FixedPriorNeverOverridden(t *testing.T) {
 	t.Parallel()
 
-	estimator := corridorestimator.New(wideM, corridorestimator.DefaultConfig(), corridorestimator.WithFixedWidth())
+	estimator := corridorestimator.New(
+		wideM,
+		corridorestimator.DefaultConfig(),
+		corridorestimator.WithFixedWidth(),
+	)
 	changes := feed(estimator, trackmodel.North, narrowM, 40)
 
 	if got := estimator.WidthFor(trackmodel.North); math.Abs(got-wideM) > 1e-9 {

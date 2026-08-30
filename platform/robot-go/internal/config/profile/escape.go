@@ -68,5 +68,8 @@ func (c EscapeConfig) RevSteerNorm(maxSteeringAngleRad float64) float64 {
 // actuator command, matching
 // EscapeManeuverParams.side_correction_steer_norm().
 func (c EscapeConfig) SideCorrectionSteerNorm(maxSteeringAngleRad float64) float64 {
-	return navutil.SteeringNormFromAngleRad(c.SideCorrectionSteerDeg*math.Pi/degToRadTurn, maxSteeringAngleRad)
+	return navutil.SteeringNormFromAngleRad(
+		c.SideCorrectionSteerDeg*math.Pi/degToRadTurn,
+		maxSteeringAngleRad,
+	)
 }

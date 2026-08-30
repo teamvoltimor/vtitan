@@ -24,8 +24,13 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 
 	dePath := filepath.Join(configRoot, profile.DefaultDirectionEstimatorTOMLPath)
 	if de, err := profile.Load[profile.DirectionEstimatorConfig](dePath, nil); err != nil {
-		logger.Warn("directionestimator: loading direction_estimator.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
+		logger.Warn(
+			"directionestimator: loading direction_estimator.toml, falling back to defaults",
+			"config_root",
+			configRoot,
+			"error",
+			err,
+		)
 	} else {
 		cfg.AlignmentToleranceRad = de.AlignmentToleranceRad
 		cfg.MaxInTrackRangeM = de.MaxInTrackRangeM

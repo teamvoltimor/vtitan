@@ -54,7 +54,12 @@ func TestSplitDuty_NeverBothNonzero(t *testing.T) {
 		rpwm, lpwm := splitDuty(signed)
 
 		if rpwm != 0 && lpwm != 0 {
-			t.Fatalf("splitDuty(%v) = (rpwm=%v, lpwm=%v), both nonzero -- Fast Brake fault state", signed, rpwm, lpwm)
+			t.Fatalf(
+				"splitDuty(%v) = (rpwm=%v, lpwm=%v), both nonzero -- Fast Brake fault state",
+				signed,
+				rpwm,
+				lpwm,
+			)
 		}
 		if rpwm < 0 || rpwm > 1 {
 			t.Fatalf("splitDuty(%v) rpwm = %v, want in [0, 1]", signed, rpwm)
@@ -88,8 +93,16 @@ func TestSplitDuty_MagnitudeMatchesClampedInput(t *testing.T) {
 			t.Parallel()
 
 			rpwm, lpwm := splitDuty(tt.in)
-			if math.Abs(rpwm-tt.wantRPWM) > dutyTolerance || math.Abs(lpwm-tt.wantLPWM) > dutyTolerance {
-				t.Errorf("splitDuty(%v) = (%v, %v), want (%v, %v)", tt.in, rpwm, lpwm, tt.wantRPWM, tt.wantLPWM)
+			if math.Abs(rpwm-tt.wantRPWM) > dutyTolerance ||
+				math.Abs(lpwm-tt.wantLPWM) > dutyTolerance {
+				t.Errorf(
+					"splitDuty(%v) = (%v, %v), want (%v, %v)",
+					tt.in,
+					rpwm,
+					lpwm,
+					tt.wantRPWM,
+					tt.wantLPWM,
+				)
 			}
 		})
 	}

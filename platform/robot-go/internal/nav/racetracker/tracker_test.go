@@ -146,7 +146,8 @@ func TestRaceTracker_Incidents(t *testing.T) {
 	tracker.RecordCollisionWarning()
 
 	metrics := tracker.Metrics()
-	if metrics.EscapeManeuvers != 2 || metrics.StuckDetections != 1 || metrics.CollisionWarnings != 1 {
+	if metrics.EscapeManeuvers != 2 || metrics.StuckDetections != 1 ||
+		metrics.CollisionWarnings != 1 {
 		t.Fatalf("incident counts = %+v, want 2/1/1", metrics)
 	}
 }

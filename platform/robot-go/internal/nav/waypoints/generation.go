@@ -58,7 +58,9 @@ func CenterBiasForCorridor(widthM float64, cfg Config, overrideM *float64) float
 // profile.RobotConfig.Chassis.Width; only centerBiasM's magnitude
 // matters, since biasing either way moves the chassis toward one wall by
 // the same amount.
-func ValidatePathFeasibility(minCorridorWidthM, centerBiasM, chassisWidthM float64) PathPlannability {
+func ValidatePathFeasibility(
+	minCorridorWidthM, centerBiasM, chassisWidthM float64,
+) PathPlannability {
 	bias := centerBiasM
 	if bias < 0 {
 		bias = -bias
@@ -75,6 +77,10 @@ func ValidatePathFeasibility(minCorridorWidthM, centerBiasM, chassisWidthM float
 		MinRequiredM:  required,
 		MinAvailableM: minCorridorWidthM,
 		MarginM:       margin,
-		Reason:        fmt.Sprintf("corridor too narrow: required %.3fm, got %.3fm", required, minCorridorWidthM),
+		Reason: fmt.Sprintf(
+			"corridor too narrow: required %.3fm, got %.3fm",
+			required,
+			minCorridorWidthM,
+		),
 	}
 }

@@ -29,11 +29,26 @@ func TestRootCmd_RequiredFlags(t *testing.T) {
 	}{
 		{
 			name: "all required flags present",
-			args: []string{"--corpus", "/tmp/corpus", "--script", "/tmp/run_scenario.py", "--workdir", "/tmp/robot"},
+			args: []string{
+				"--corpus",
+				"/tmp/corpus",
+				"--script",
+				"/tmp/run_scenario.py",
+				"--workdir",
+				"/tmp/robot",
+			},
 		},
-		{name: "missing corpus", args: []string{"--script", "x.py", "--workdir", "."}, wantErr: true},
+		{
+			name:    "missing corpus",
+			args:    []string{"--script", "x.py", "--workdir", "."},
+			wantErr: true,
+		},
 		{name: "missing script", args: []string{"--corpus", "x", "--workdir", "."}, wantErr: true},
-		{name: "missing workdir", args: []string{"--corpus", "x", "--script", "x.py"}, wantErr: true},
+		{
+			name:    "missing workdir",
+			args:    []string{"--corpus", "x", "--script", "x.py"},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -135,7 +150,10 @@ func TestPrintReport_JSON(t *testing.T) {
 
 	report := scenario.Report{
 		Results: []scenario.ScenarioResult{
-			{Scenario: corpus.Scenario{ID: "scenario_0000"}, Result: scenario.Result{Success: true}},
+			{
+				Scenario: corpus.Scenario{ID: "scenario_0000"},
+				Result:   scenario.Result{Success: true},
+			},
 		},
 	}
 

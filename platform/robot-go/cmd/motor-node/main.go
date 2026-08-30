@@ -64,7 +64,12 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
-	flags.StringVar(&cfg.nodeName, "name", "motor-node", "NATS client name, visible in nats-server's connz output")
+	flags.StringVar(
+		&cfg.nodeName,
+		"name",
+		"motor-node",
+		"NATS client name, visible in nats-server's connz output",
+	)
 	flags.DurationVar(&cfg.commandTimeout, "command-timeout", motor.DefaultCommandTimeout,
 		"safety-stop the drive if no AckermannCmd arrives within this duration")
 	flags.BoolVar(
@@ -106,9 +111,13 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	sub, err := nats.NewSubscriber(conn, actuationv1.AckermannCmdSubject, func() *actuationv1.AckermannCmd {
-		return &actuationv1.AckermannCmd{}
-	})
+	sub, err := nats.NewSubscriber(
+		conn,
+		actuationv1.AckermannCmdSubject,
+		func() *actuationv1.AckermannCmd {
+			return &actuationv1.AckermannCmd{}
+		},
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
@@ -120,7 +129,13 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	pub := nats.NewPublisher[*actuationv1.MotorStatus](conn, actuationv1.MotorStatusSubject)
 
-	logger.Info("motor-node: connected", "nats_url", cfg.natsURL, "command_timeout", cfg.commandTimeout)
+	logger.Info(
+		"motor-node: connected",
+		"nats_url",
+		cfg.natsURL,
+		"command_timeout",
+		cfg.commandTimeout,
+	)
 	loop := motor.NewLoop(logger, drv, pub, motor.SpeedScaleFor(logger, cfg.configRoot))
 	if err = loop.Run(ctx, sub, cfg.commandTimeout); err != nil {
 		return fmt.Errorf("motor-node: %w", err)

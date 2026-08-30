@@ -87,7 +87,12 @@ func ProjectOntoPath(waypoints []Waypoint, x, y float64) PathProjection {
 			nearest, nearestDist = w, d
 		}
 	}
-	return PathProjection{X: nearest.X, Y: nearest.Y, DistanceM: nearestDist, SignedOffsetM: nearestDist}
+	return PathProjection{
+		X:             nearest.X,
+		Y:             nearest.Y,
+		DistanceM:     nearestDist,
+		SignedOffsetM: nearestDist,
+	}
 }
 
 // CrossTrackError is the perpendicular distance (meters) from (x, y) to the

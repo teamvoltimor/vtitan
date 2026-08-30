@@ -64,7 +64,13 @@ func TestArcWithEndpoints_PointsStayOnRadius(t *testing.T) {
 func TestArcWithEndpoints_Endpoints(t *testing.T) {
 	t.Parallel()
 
-	arc := waypoints.ArcWithEndpoints(trackmodel.Waypoint{X: 1.5, Y: 1.5}, 0.45, math.Pi, 1.5*math.Pi, 1)
+	arc := waypoints.ArcWithEndpoints(
+		trackmodel.Waypoint{X: 1.5, Y: 1.5},
+		0.45,
+		math.Pi,
+		1.5*math.Pi,
+		1,
+	)
 
 	if len(arc) != 3 {
 		t.Fatalf("len(arc) = %d, want 3", len(arc))
@@ -88,9 +94,15 @@ func TestCornerArcRadius_OnlyNarrowToNarrowTightens(t *testing.T) {
 	}
 
 	wantWide := wideWidthM/2 - arcBiasM
-	combos := [][2]float64{{narrowWidthM, wideWidthM}, {wideWidthM, narrowWidthM}, {wideWidthM, wideWidthM}}
+	combos := [][2]float64{
+		{narrowWidthM, wideWidthM},
+		{wideWidthM, narrowWidthM},
+		{wideWidthM, wideWidthM},
+	}
 	for _, c := range combos {
-		if gotWide := waypoints.CornerArcRadius(c[0], c[1], arcBiasM, arcCapM); math.Abs(gotWide-wantWide) > 1e-9 {
+		if gotWide := waypoints.CornerArcRadius(c[0], c[1], arcBiasM, arcCapM); math.Abs(
+			gotWide-wantWide,
+		) > 1e-9 {
 			t.Errorf("CornerArcRadius(%v, %v) = %v, want %v", c[0], c[1], gotWide, wantWide)
 		}
 	}
@@ -99,12 +111,24 @@ func TestCornerArcRadius_OnlyNarrowToNarrowTightens(t *testing.T) {
 func TestCornerArcRadius_SymmetricInEntryAndExit(t *testing.T) {
 	t.Parallel()
 
-	combos := [][2]float64{{narrowWidthM, wideWidthM}, {wideWidthM, narrowWidthM}, {narrowWidthM, narrowWidthM}}
+	combos := [][2]float64{
+		{narrowWidthM, wideWidthM},
+		{wideWidthM, narrowWidthM},
+		{narrowWidthM, narrowWidthM},
+	}
 	for _, c := range combos {
 		fwd := waypoints.CornerArcRadius(c[0], c[1], arcBiasM, arcCapM)
 		rev := waypoints.CornerArcRadius(c[1], c[0], arcBiasM, arcCapM)
 		if fwd != rev {
-			t.Errorf("CornerArcRadius(%v,%v)=%v != CornerArcRadius(%v,%v)=%v", c[0], c[1], fwd, c[1], c[0], rev)
+			t.Errorf(
+				"CornerArcRadius(%v,%v)=%v != CornerArcRadius(%v,%v)=%v",
+				c[0],
+				c[1],
+				fwd,
+				c[1],
+				c[0],
+				rev,
+			)
 		}
 	}
 }

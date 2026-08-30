@@ -62,7 +62,12 @@ func FollowCorridor(
 		turnClearance = cfg.NarrowTurnClearanceM
 	}
 
-	forward := navutil.ForwardClearance(rangesM, anglesRad, cfg.ForwardArcHalfFovRad, cfg.MinValidRangeM)
+	forward := navutil.ForwardClearance(
+		rangesM,
+		anglesRad,
+		cfg.ForwardArcHalfFovRad,
+		cfg.MinValidRangeM,
+	)
 	left := navutil.NearestRay(rangesM, anglesRad, math.Pi/2)
 	right := navutil.NearestRay(rangesM, anglesRad, -math.Pi/2)
 

@@ -102,10 +102,19 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
-	flags.StringVar(&cfg.nodeName, "name", "pi-zero", "NATS client name, visible in nats-server's connz output")
+	flags.StringVar(
+		&cfg.nodeName,
+		"name",
+		"pi-zero",
+		"NATS client name, visible in nats-server's connz output",
+	)
 
-	flags.DurationVar(&cfg.motorCommandTimeout, "motor-command-timeout", motor.DefaultCommandTimeout,
-		"safety-stop the drive if no AckermannCmd arrives within this duration")
+	flags.DurationVar(
+		&cfg.motorCommandTimeout,
+		"motor-command-timeout",
+		motor.DefaultCommandTimeout,
+		"safety-stop the drive if no AckermannCmd arrives within this duration",
+	)
 	flags.BoolVar(&cfg.motorInvert, "motor-invert", false,
 		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed")
 	flags.StringVar(&cfg.configRoot, "config-root", "",
@@ -117,9 +126,19 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		"button wired GND-to-pin (pull-up, press = LOW) rather than 3V3-to-pin")
 
 	flags.IntVar(&cfg.oledI2CBus, "oled-i2c-bus", ssd1306.DefaultI2CBus, "OLED I2C bus number")
-	flags.Uint16Var(&cfg.oledI2CAddress, "oled-i2c-address", ssd1306.DefaultI2CAddress, "OLED I2C address")
+	flags.Uint16Var(
+		&cfg.oledI2CAddress,
+		"oled-i2c-address",
+		ssd1306.DefaultI2CAddress,
+		"OLED I2C address",
+	)
 	flags.IntVar(&cfg.oledWidth, "oled-width", ssd1306.DefaultWidth, "OLED panel width in pixels")
-	flags.IntVar(&cfg.oledHeight, "oled-height", ssd1306.DefaultHeight, "OLED panel height in pixels")
+	flags.IntVar(
+		&cfg.oledHeight,
+		"oled-height",
+		ssd1306.DefaultHeight,
+		"OLED panel height in pixels",
+	)
 
 	return cmd
 }
@@ -153,7 +172,10 @@ func buttonLoop(
 // note: page-orchestration is deliberately out of scope for this driver
 // port, so this renders one fixed status screen, not oled_display_node.py's
 // full page set.
-func renderSummary(cfg ssd1306.Config, summary *uiv1.TelemetrySummary) (*ssd1306.Framebuffer, error) {
+func renderSummary(
+	cfg ssd1306.Config,
+	summary *uiv1.TelemetrySummary,
+) (*ssd1306.Framebuffer, error) {
 	fb, err := ssd1306.NewFramebuffer(cfg.Width, cfg.Height)
 	if err != nil {
 		return nil, err //nolint:wrapcheck // NewFramebuffer already wraps with "ssd1306: ..." context
@@ -161,9 +183,19 @@ func renderSummary(cfg ssd1306.Config, summary *uiv1.TelemetrySummary) (*ssd1306
 
 	ssd1306.DrawString(fb, oledLineX, oledLineOneY, fmt.Sprintf(
 		"F%d L%d R%d",
-		int(summary.GetLidarFrontCm()), int(summary.GetLidarLeftCm()), int(summary.GetLidarRightCm()),
+		int(
+			summary.GetLidarFrontCm(),
+		),
+		int(summary.GetLidarLeftCm()),
+		int(summary.GetLidarRightCm()),
 	), true)
-	ssd1306.DrawString(fb, oledLineX, oledLineTwoY, fmt.Sprintf("YAW%d", int(summary.GetGyroYawDeg())), true)
+	ssd1306.DrawString(
+		fb,
+		oledLineX,
+		oledLineTwoY,
+		fmt.Sprintf("YAW%d", int(summary.GetGyroYawDeg())),
+		true,
+	)
 
 	if summary.GetHasBestDetection() {
 		ssd1306.DrawString(fb, oledLineX, oledLineThreeY, fmt.Sprintf(
@@ -260,23 +292,34 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	ackermannSub, err := nats.NewSubscriber(conn, actuationv1.AckermannCmdSubject, func() *actuationv1.AckermannCmd {
-		return &actuationv1.AckermannCmd{}
-	})
+	ackermannSub, err := nats.NewSubscriber(
+		conn,
+		actuationv1.AckermannCmdSubject,
+		func() *actuationv1.AckermannCmd {
+			return &actuationv1.AckermannCmd{}
+		},
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
 	defer closeLogged(logger, "AckermannCmd subscription", ackermannSub.Close)
 
-	summarySub, err := nats.NewSubscriber(conn, uiv1.TelemetrySummarySubject, func() *uiv1.TelemetrySummary {
-		return &uiv1.TelemetrySummary{}
-	})
+	summarySub, err := nats.NewSubscriber(
+		conn,
+		uiv1.TelemetrySummarySubject,
+		func() *uiv1.TelemetrySummary {
+			return &uiv1.TelemetrySummary{}
+		},
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
 	defer closeLogged(logger, "TelemetrySummary subscription", summarySub.Close)
 
-	motorStatusPub := nats.NewPublisher[*actuationv1.MotorStatus](conn, actuationv1.MotorStatusSubject)
+	motorStatusPub := nats.NewPublisher[*actuationv1.MotorStatus](
+		conn,
+		actuationv1.MotorStatusSubject,
+	)
 	buttonEventPub := nats.NewPublisher[*uiv1.ButtonEvent](conn, uiv1.ButtonEventSubject)
 
 	supervisor, err := supervise.New(supervise.DefaultConfig(), logger)
@@ -284,7 +327,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		return err //nolint:wrapcheck // New already wraps with "supervise: ..." context
 	}
 
-	mLoop := motor.NewLoop(logger, motorDrv, motorStatusPub, motor.SpeedScaleFor(logger, cfg.configRoot))
+	mLoop := motor.NewLoop(
+		logger,
+		motorDrv,
+		motorStatusPub,
+		motor.SpeedScaleFor(logger, cfg.configRoot),
+	)
 
 	logger.Info("pi-zero: connected", "nats_url", cfg.natsURL)
 	if err = supervisor.RunAll(ctx,

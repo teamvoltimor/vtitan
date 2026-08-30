@@ -107,7 +107,10 @@ func discardLogger() *slog.Logger {
 // Deliberately reads DefaultConfig()/controllers.DefaultConfig() rather than
 // restating literals, so a shipped-default change surfaces here as a test
 // failure instead of being masked by a duplicated constant.
-func newNavigator(t *testing.T, mutate ...func(*navigator.Params)) (*navigator.Navigator, *fakeGateway) {
+func newNavigator(
+	t *testing.T,
+	mutate ...func(*navigator.Params),
+) (*navigator.Navigator, *fakeGateway) {
 	t.Helper()
 
 	gateway := &fakeGateway{}

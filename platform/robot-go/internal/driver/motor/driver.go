@@ -108,7 +108,11 @@ func (d *Driver) Connect(ctx context.Context) error {
 		return err //nolint:wrapcheck // Init already wraps with "motor: ..." context
 	}
 
-	lpwmLine, err := gpiocdev.RequestLine(d.cfg.GPIOChip, d.cfg.ReversePWMLine, gpiocdev.AsOutput(gpioLow))
+	lpwmLine, err := gpiocdev.RequestLine(
+		d.cfg.GPIOChip,
+		d.cfg.ReversePWMLine,
+		gpiocdev.AsOutput(gpioLow),
+	)
 	if err != nil {
 		return fmt.Errorf("motor: requesting LPWM GPIO line: %w", err)
 	}

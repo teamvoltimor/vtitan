@@ -142,7 +142,9 @@ func LoadRobotConfig(basePath string, profileNames []string) (*RobotConfig, erro
 		if !v.IsSet(key) {
 			return nil, fmt.Errorf(
 				"profile: robot.toml requires %s from an active hardware profile (%s); active profiles: %v",
-				key, EnvVar, profileNames,
+				key,
+				EnvVar,
+				profileNames,
 			)
 		}
 	}

@@ -52,18 +52,18 @@ type Config struct {
 // unported simulation.toml fields (plan §2), not measured values.
 func DefaultConfig() Config {
 	return Config{
-		ControlHz:       20.0,
-		LidarHz:         0.0,
-		LidarSamples:    360,
-		LidarMinRangeM:  0.15,
-		LidarMaxRangeM:  8.0,
-		LidarNoiseStd:   0.03,
-		InvalidRayRate:  0.01,
-		Localize:        false,
+		ControlHz:        20.0,
+		LidarHz:          0.0,
+		LidarSamples:     360,
+		LidarMinRangeM:   0.15,
+		LidarMaxRangeM:   8.0,
+		LidarNoiseStd:    0.03,
+		InvalidRayRate:   0.01,
+		Localize:         false,
 		CollisionMarginM: 0.0,
-		TrackMaxCoordM:  3.0,
-		ChassisLengthM:  0.30,
-		ChassisWidthM:   0.194,
+		TrackMaxCoordM:   3.0,
+		ChassisLengthM:   0.30,
+		ChassisWidthM:    0.194,
 	}
 }
 

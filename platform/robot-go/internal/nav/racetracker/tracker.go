@@ -99,7 +99,11 @@ func NewRaceTracker(numLaps int, opts ...Option) *RaceTracker {
 // Python appends every sample and re-sums the whole list on each call, which
 // is the same mean but grows without bound across a multi-minute race; only
 // the mean is ever read back.
-func (t *RaceTracker) UpdatePosition(currentPos trackmodel.Waypoint, currentSpeedMPS float64, waypointIndex int) {
+func (t *RaceTracker) UpdatePosition(
+	currentPos trackmodel.Waypoint,
+	currentSpeedMPS float64,
+	waypointIndex int,
+) {
 	t.metrics.Elapsed = t.now().Sub(t.startTime)
 	t.metrics.WaypointIndex = waypointIndex
 

@@ -97,7 +97,10 @@ func (n *Navigator) trailPointBehind(robotX, robotY float64) (point trackmodel.P
 // would wave the reverse through exactly when it is blindest. Refusing
 // costs little: the caller falls through to a capped forward creep, with
 // the stuck detector as the backstop.
-func (n *Navigator) reversingIntoUnseenWall(maneuver controllers.EscapeManeuver, scan controllers.LidarScan) bool {
+func (n *Navigator) reversingIntoUnseenWall(
+	maneuver controllers.EscapeManeuver,
+	scan controllers.LidarScan,
+) bool {
 	if maneuver.Speed >= 0 || n.retracing {
 		return false
 	}
@@ -112,7 +115,11 @@ func (n *Navigator) reversingIntoUnseenWall(maneuver controllers.EscapeManeuver,
 		// still refuses. Without this the gate is unreachable on a chassis
 		// with no rear slot, and a scenario needing one escape-reverse hits
 		// the wall instead (measured on go_open #85, 2026-08-22).
-		reverseDistance := math.Abs(maneuver.Speed) * float64(maneuver.DurationFrames) / n.cfg.ControlHz
+		reverseDistance := math.Abs(
+			maneuver.Speed,
+		) * float64(
+			maneuver.DurationFrames,
+		) / n.cfg.ControlHz
 		if n.trailConfirmsReverse(reverseDistance) {
 			return false
 		}
@@ -123,7 +130,10 @@ func (n *Navigator) reversingIntoUnseenWall(maneuver controllers.EscapeManeuver,
 	// made this gate unreachable: the sensor is at the front, so an
 	// obstacle touching the rear bumper reports ~0.272 m against a 0.10 m
 	// threshold and the reverse was authorized right up to impact.
-	return controllers.BumperGapBehind(rear.MinRangeM, n.cfg.LidarToRearBumperM) < n.cfg.ContactDistM
+	return controllers.BumperGapBehind(
+		rear.MinRangeM,
+		n.cfg.LidarToRearBumperM,
+	) < n.cfg.ContactDistM
 }
 
 // trailConfirmsReverse reports whether the pose trail vouches for a reverse
@@ -140,7 +150,13 @@ func (n *Navigator) trailConfirmsReverse(reverseDistance float64) bool {
 		return false
 	}
 	newest := n.poseTrail[len(n.poseTrail)-1]
-	covered, ok := trailClearanceBehind(n.poseTrail, newest.X, newest.Y, newest.Yaw, n.cfg.ChassisWidthM/2)
+	covered, ok := trailClearanceBehind(
+		n.poseTrail,
+		newest.X,
+		newest.Y,
+		newest.Yaw,
+		n.cfg.ChassisWidthM/2,
+	)
 	return ok && covered >= reverseDistance+n.cfg.ContactDistM
 }
 
@@ -292,8 +308,18 @@ func (n *Navigator) pivotSteerSign(scan controllers.LidarScan, haveScan bool) fl
 		return n.escapeSteerSignForAttempt(1, nil)
 	}
 	const sideHalfFovRad = math.Pi / 4
-	left := n.collisionController.ComputeMinClearance(scan.RangesM, scan.AnglesRad, math.Pi/2, sideHalfFovRad)
-	right := n.collisionController.ComputeMinClearance(scan.RangesM, scan.AnglesRad, -math.Pi/2, sideHalfFovRad)
+	left := n.collisionController.ComputeMinClearance(
+		scan.RangesM,
+		scan.AnglesRad,
+		math.Pi/2,
+		sideHalfFovRad,
+	)
+	right := n.collisionController.ComputeMinClearance(
+		scan.RangesM,
+		scan.AnglesRad,
+		-math.Pi/2,
+		sideHalfFovRad,
+	)
 	if left >= n.cfg.NoDataRangeM && right >= n.cfg.NoDataRangeM {
 		return n.escapeSteerSignForAttempt(1, nil)
 	}
@@ -413,7 +439,11 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 	// options -- but only when the pose trail vouches for it. A blind rear
 	// with NO trail is the exact "cannot see behind" case, and the
 	// fall-through below would reverse into whatever moved in since.
-	stuckReverseDistance := math.Abs(n.cfg.RevSpeed) * float64(n.cfg.MaxEscapeFrames) / n.cfg.ControlHz
+	stuckReverseDistance := math.Abs(
+		n.cfg.RevSpeed,
+	) * float64(
+		n.cfg.MaxEscapeFrames,
+	) / n.cfg.ControlHz
 	blindRearUnconfirmed := rearBlind && !n.trailConfirmsReverse(stuckReverseDistance)
 
 	rearBlocked := rearClear < n.cfg.ContactDistM
@@ -424,8 +454,15 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 			if rearBlind {
 				rearState = "unseen"
 			}
-			n.logger.Warn("stuck escape: forcing forward escape",
-				"rear_state", rearState, "rear_clearance_m", rearClear, "forward_clearance_m", forwardClear)
+			n.logger.Warn(
+				"stuck escape: forcing forward escape",
+				"rear_state",
+				rearState,
+				"rear_clearance_m",
+				rearClear,
+				"forward_clearance_m",
+				forwardClear,
+			)
 			n.beginStuckEscape(stuckEscapeParams{
 				robotX: robotX, robotY: robotY, robotYaw: robotYaw,
 				maneuverType: controllers.ManeuverStuckForward,
@@ -445,8 +482,15 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 		// sensor -- steering toward the more open side so the chassis
 		// reorients out of the wedge instead of sitting in it.
 		steerSign := n.pivotSteerSign(scan, haveScan)
-		n.logger.Warn("stuck escape both-blocked: stop-and-steer pivot",
-			"rear_clearance_m", rearClear, "forward_clearance_m", forwardClear, "steer_sign", steerSign)
+		n.logger.Warn(
+			"stuck escape both-blocked: stop-and-steer pivot",
+			"rear_clearance_m",
+			rearClear,
+			"forward_clearance_m",
+			forwardClear,
+			"steer_sign",
+			steerSign,
+		)
 		n.beginStuckEscape(stuckEscapeParams{
 			robotX: robotX, robotY: robotY, robotYaw: robotYaw,
 			maneuverType: controllers.ManeuverStuckForward,
@@ -535,7 +579,10 @@ func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSna
 		n.collisionController.ThreatHalfFovRad,
 		controllers.AggregateMin,
 	)
-	threatDir := controllers.ThreatDirectionFrom(escapeClearances, n.collisionController.ThreatNoDetectionRangeM)
+	threatDir := controllers.ThreatDirectionFrom(
+		escapeClearances,
+		n.collisionController.ThreatNoDetectionRangeM,
+	)
 	maneuver, haveManeuver := n.collisionController.ComputeEscapeManeuver(
 		p.escapeRisk, threatDir, p.escapeRanges, p.scan.AnglesRad, n.direction,
 	)
@@ -547,7 +594,9 @@ func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSna
 	// router's presence, so Open Challenge's escape behavior is untouched
 	// regardless of the flag.
 	_, canRetrace := n.retraceSteer(pose.X, pose.Y, pose.Yaw)
-	n.retracing = haveManeuver && maneuver.Speed < 0 && n.cfg.RetraceEscape && n.signRouter != nil && canRetrace
+	n.retracing = haveManeuver && maneuver.Speed < 0 && n.cfg.RetraceEscape &&
+		n.signRouter != nil &&
+		canRetrace
 
 	if haveManeuver && n.reversingIntoUnseenWall(maneuver, p.scan) {
 		// Blocked at both ends: fall through to the capped creep-speed

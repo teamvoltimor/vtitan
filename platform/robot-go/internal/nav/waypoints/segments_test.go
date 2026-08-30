@@ -11,7 +11,12 @@ func TestDeduplicateConsecutive_ClosePointsRemoved(t *testing.T) {
 	t.Parallel()
 
 	cfg := waypoints.DefaultConfig() // default DedupeDistanceM is 0.001m
-	pts := []trackmodel.Waypoint{{X: 0.0, Y: 0.0}, {X: 0.0001, Y: 0.0}, {X: 0.0002, Y: 0.0}, {X: 0.5, Y: 0.0}}
+	pts := []trackmodel.Waypoint{
+		{X: 0.0, Y: 0.0},
+		{X: 0.0001, Y: 0.0},
+		{X: 0.0002, Y: 0.0},
+		{X: 0.5, Y: 0.0},
+	}
 
 	got := waypoints.DeduplicateConsecutive(pts, cfg)
 	if len(got) != 2 {
@@ -103,8 +108,21 @@ func TestBuildAllSegments_SymmetricLoopStaysInBounds(t *testing.T) {
 	northCY, southCY := maxCoord-width/2-biasM, width/2+biasM
 	eastCX, westCX := maxCoord-width/2-biasM, width/2+biasM
 
-	segments := waypoints.BuildAllSegments(northCY, southCY, eastCX, westCX, radii, trackmodel.Clockwise, cfg)
-	order := []trackmodel.Section{trackmodel.South, trackmodel.West, trackmodel.North, trackmodel.East}
+	segments := waypoints.BuildAllSegments(
+		northCY,
+		southCY,
+		eastCX,
+		westCX,
+		radii,
+		trackmodel.Clockwise,
+		cfg,
+	)
+	order := []trackmodel.Section{
+		trackmodel.South,
+		trackmodel.West,
+		trackmodel.North,
+		trackmodel.East,
+	}
 	fullLoop := waypoints.AssembleLoop(order, segments)
 
 	if len(fullLoop) == 0 {
@@ -113,7 +131,10 @@ func TestBuildAllSegments_SymmetricLoopStaysInBounds(t *testing.T) {
 
 	sequence := waypoints.BuildWaypointSequence(fullLoop, segments, order, 1.5, southCY, 1, cfg)
 	if len(sequence) < 20 {
-		t.Errorf("len(sequence) = %d, want > 20 (matching calculate_waypoints' own sanity bound)", len(sequence))
+		t.Errorf(
+			"len(sequence) = %d, want > 20 (matching calculate_waypoints' own sanity bound)",
+			len(sequence),
+		)
 	}
 
 	if err := waypoints.ValidateBounds(sequence, minCoord, maxCoord, cornerMinM, cornerMaxM); err != nil {

@@ -39,9 +39,16 @@ func (n *Navigator) assessPerception(pose trackmodel.Pose) perception {
 	p.escapeRisk = p.risk
 
 	if haveScan && n.signRouter != nil {
-		mapped := make([]controllers.MappedObstacle, 0, len(n.signRouter.RoutedSignPositionsByCorridor()))
+		mapped := make(
+			[]controllers.MappedObstacle,
+			0,
+			len(n.signRouter.RoutedSignPositionsByCorridor()),
+		)
 		for _, sign := range n.signRouter.RoutedSignPositionsByCorridor() {
-			mapped = append(mapped, controllers.MappedObstacle{Position: sign.Waypoint, Corridor: sign.Corridor})
+			mapped = append(
+				mapped,
+				controllers.MappedObstacle{Position: sign.Waypoint, Corridor: sign.Corridor},
+			)
 		}
 		p.escapeRanges = controllers.MaskMappedObstacles(
 			scan.RangesM, scan.AnglesRad, pose, mapped,
@@ -67,23 +74,48 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	crosstrack := trackmodel.CrossTrackError(n.waypoints, robotX, robotY)
 	// Crosstrack alone arms the short lookahead only after a corner has
 	// been missed; the path's own upcoming turn arms it on entry.
-	turnAhead := trackmodel.PathTurnAhead(n.waypoints, n.waypointIndex, n.cfg.CornerPreviewDistanceM)
+	turnAhead := trackmodel.PathTurnAhead(
+		n.waypoints,
+		n.waypointIndex,
+		n.cfg.CornerPreviewDistanceM,
+	)
 	signAhead := n.signAhead(robotX, robotY, robotYaw)
 	lookahead := n.waypointController.SelectLookahead(crosstrack, turnAhead, signAhead)
 	// Full waypoint list, not a slice from waypointIndex -- SelectTargetPoint
 	// wraps the search around the lap itself; slicing here would cut that
 	// wraparound off again.
-	steerTarget := n.waypointController.SelectTargetPoint(here, robotYaw, n.waypoints, n.waypointIndex, lookahead)
+	steerTarget := n.waypointController.SelectTargetPoint(
+		here,
+		robotYaw,
+		n.waypoints,
+		n.waypointIndex,
+		lookahead,
+	)
 
-	steerTarget, signDeformMagnitude, activeSignCount := n.applySignRouting(steerTarget, here, robotYaw)
+	steerTarget, signDeformMagnitude, activeSignCount := n.applySignRouting(
+		steerTarget,
+		here,
+		robotYaw,
+	)
 
 	dt := 0.0
 	if n.cfg.ControlHz > 0 {
 		dt = 1.0 / n.cfg.ControlHz
 	}
-	steering, _, angleError := n.waypointController.ComputeSteering(here, robotYaw, steerTarget, crosstrack, dt)
+	steering, _, angleError := n.waypointController.ComputeSteering(
+		here,
+		robotYaw,
+		steerTarget,
+		crosstrack,
+		dt,
+	)
 
-	speed, clearanceSpeed, headingSpeed := n.selectSpeed(p, angleError, turnAhead, signDeformMagnitude)
+	speed, clearanceSpeed, headingSpeed := n.selectSpeed(
+		p,
+		angleError,
+		turnAhead,
+		signDeformMagnitude,
+	)
 
 	debug := n.baseDebug(robotX, robotY, robotYaw)
 	debug.ForwardClearanceM = new(p.forwardClearance)
@@ -130,7 +162,10 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	// place, and an unconditional reset zeroed the count every cycle so it
 	// never reached EscalateAfterAttempts.
 	if n.escapeSequenceStartXY == nil ||
-		math.Hypot(robotX-n.escapeSequenceStartXY.X, robotY-n.escapeSequenceStartXY.Y) >= n.cfg.StuckMoveThreshold {
+		math.Hypot(
+			robotX-n.escapeSequenceStartXY.X,
+			robotY-n.escapeSequenceStartXY.Y,
+		) >= n.cfg.StuckMoveThreshold {
 		n.escapeCount = 0
 		n.escapeSequenceStartXY = nil
 	}

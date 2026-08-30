@@ -26,7 +26,11 @@ func TestConfigFor_LoadsRealWaypointsTOML(t *testing.T) {
 
 	def := waypoints.DefaultConfig()
 	if cfg.DedupeDistanceM != def.DedupeDistanceM {
-		t.Errorf("DedupeDistanceM = %v, want the checked-in default %v", cfg.DedupeDistanceM, def.DedupeDistanceM)
+		t.Errorf(
+			"DedupeDistanceM = %v, want the checked-in default %v",
+			cfg.DedupeDistanceM,
+			def.DedupeDistanceM,
+		)
 	}
 	countsDiffer := cfg.NumIntermediateArcPoints != def.NumIntermediateArcPoints ||
 		cfg.StraightWaypointCount != def.StraightWaypointCount
@@ -35,8 +39,14 @@ func TestConfigFor_LoadsRealWaypointsTOML(t *testing.T) {
 			cfg.NumIntermediateArcPoints, cfg.StraightWaypointCount,
 			def.NumIntermediateArcPoints, def.StraightWaypointCount)
 	}
-	if cfg.WideCenterBiasSide != def.WideCenterBiasSide || cfg.NarrowCenterBiasSide != def.NarrowCenterBiasSide {
-		t.Errorf("sides = %v/%v, want %v/%v (string-to-CorridorSide parsing)",
-			cfg.WideCenterBiasSide, cfg.NarrowCenterBiasSide, def.WideCenterBiasSide, def.NarrowCenterBiasSide)
+	if cfg.WideCenterBiasSide != def.WideCenterBiasSide ||
+		cfg.NarrowCenterBiasSide != def.NarrowCenterBiasSide {
+		t.Errorf(
+			"sides = %v/%v, want %v/%v (string-to-CorridorSide parsing)",
+			cfg.WideCenterBiasSide,
+			cfg.NarrowCenterBiasSide,
+			def.WideCenterBiasSide,
+			def.NarrowCenterBiasSide,
+		)
 	}
 }

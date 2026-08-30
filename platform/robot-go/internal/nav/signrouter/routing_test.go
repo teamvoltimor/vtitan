@@ -84,7 +84,12 @@ func TestRoutingTable_AxisAndMultiplierPerCorridorAndDirection(t *testing.T) {
 func TestOutwardLateralAxis_AgreesWithRoutingTableRegardlessOfDirection(t *testing.T) {
 	t.Parallel()
 
-	sections := []trackmodel.Section{trackmodel.South, trackmodel.North, trackmodel.East, trackmodel.West}
+	sections := []trackmodel.Section{
+		trackmodel.South,
+		trackmodel.North,
+		trackmodel.East,
+		trackmodel.West,
+	}
 	colors := []signrouter.SignColor{signrouter.SignColorRed, signrouter.SignColorGreen}
 	directions := []trackmodel.Direction{trackmodel.Clockwise, trackmodel.Counterclockwise}
 	table := signrouter.RoutingTable()
@@ -103,8 +108,16 @@ func TestOutwardLateralAxis_AgreesWithRoutingTableRegardlessOfDirection(t *testi
 					t.Fatalf("OutwardLateralAxis(%v, %v) ok = false", section, color)
 				}
 				if gotAxis != entry.Axis || gotMult != wantMult {
-					t.Errorf("OutwardLateralAxis(%v, %v) under direction %v = (%v, %v), want (%v, %v)",
-						section, color, direction, gotAxis, gotMult, entry.Axis, wantMult)
+					t.Errorf(
+						"OutwardLateralAxis(%v, %v) under direction %v = (%v, %v), want (%v, %v)",
+						section,
+						color,
+						direction,
+						gotAxis,
+						gotMult,
+						entry.Axis,
+						wantMult,
+					)
 				}
 			}
 		}
@@ -217,10 +230,21 @@ func TestDepthConsistentCorridor_FixesTheTracedMisfile(t *testing.T) {
 	for _, p := range points {
 		t.Run(p.name, func(t *testing.T) {
 			t.Parallel()
-			fallback := waypoints.CorridorForPosition(p.x, p.y, cfg.TrackCornerMinM, cfg.TrackCornerMaxM)
+			fallback := waypoints.CorridorForPosition(
+				p.x,
+				p.y,
+				cfg.TrackCornerMinM,
+				cfg.TrackCornerMaxM,
+			)
 			got := signrouter.DepthConsistentCorridor(p.x, p.y, fallback, cfg)
 			if got != trackmodel.East {
-				t.Errorf("DepthConsistentCorridor(%v, %v, fallback=%v) = %v, want East", p.x, p.y, fallback, got)
+				t.Errorf(
+					"DepthConsistentCorridor(%v, %v, fallback=%v) = %v, want East",
+					p.x,
+					p.y,
+					fallback,
+					got,
+				)
 			}
 		})
 	}
@@ -237,15 +261,33 @@ func TestDepthConsistentCorridor_TrueCornerDiagonalCanDisagree(t *testing.T) {
 	t.Parallel()
 
 	cfg := signrouter.DefaultConfig()
-	eastFallback := waypoints.CorridorForPosition(2.010, 2.003, cfg.TrackCornerMinM, cfg.TrackCornerMaxM)
+	eastFallback := waypoints.CorridorForPosition(
+		2.010,
+		2.003,
+		cfg.TrackCornerMinM,
+		cfg.TrackCornerMaxM,
+	)
 	east := signrouter.DepthConsistentCorridor(2.010, 2.003, eastFallback, cfg)
 	if east != trackmodel.East {
-		t.Errorf("DepthConsistentCorridor(2.010, 2.003, fallback=%v) = %v, want East", eastFallback, east)
+		t.Errorf(
+			"DepthConsistentCorridor(2.010, 2.003, fallback=%v) = %v, want East",
+			eastFallback,
+			east,
+		)
 	}
-	northFallback := waypoints.CorridorForPosition(2.003, 2.010, cfg.TrackCornerMinM, cfg.TrackCornerMaxM)
+	northFallback := waypoints.CorridorForPosition(
+		2.003,
+		2.010,
+		cfg.TrackCornerMinM,
+		cfg.TrackCornerMaxM,
+	)
 	north := signrouter.DepthConsistentCorridor(2.003, 2.010, northFallback, cfg)
 	if north != trackmodel.North {
-		t.Errorf("DepthConsistentCorridor(2.003, 2.010, fallback=%v) = %v, want North", northFallback, north)
+		t.Errorf(
+			"DepthConsistentCorridor(2.003, 2.010, fallback=%v) = %v, want North",
+			northFallback,
+			north,
+		)
 	}
 }
 
@@ -260,7 +302,10 @@ func TestDepthConsistentCorridor_FewerThanTwoCandidatesKeepsFallback(t *testing.
 	cfg := signrouter.DefaultConfig()
 	got := signrouter.DepthConsistentCorridor(1.5, 0.4, trackmodel.South, cfg)
 	if got != trackmodel.South {
-		t.Errorf("DepthConsistentCorridor(1.5, 0.4, South) = %v, want South (fallback unchanged)", got)
+		t.Errorf(
+			"DepthConsistentCorridor(1.5, 0.4, South) = %v, want South (fallback unchanged)",
+			got,
+		)
 	}
 }
 

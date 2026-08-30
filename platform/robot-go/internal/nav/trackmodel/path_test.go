@@ -21,7 +21,10 @@ func TestProjectOntoPath_MidSegment(t *testing.T) {
 		t.Errorf("DistanceM = %v, want 0.5", got.DistanceM)
 	}
 	if math.Abs(got.SignedOffsetM-0.5) > tolerance {
-		t.Errorf("SignedOffsetM = %v, want 0.5 (point is left of the +x-heading segment)", got.SignedOffsetM)
+		t.Errorf(
+			"SignedOffsetM = %v, want 0.5 (point is left of the +x-heading segment)",
+			got.SignedOffsetM,
+		)
 	}
 	if got.SegmentIndex != 0 {
 		t.Errorf("SegmentIndex = %d, want 0", got.SegmentIndex)
@@ -38,7 +41,10 @@ func TestProjectOntoPath_RightOfSegmentIsNegativeOffset(t *testing.T) {
 	got := trackmodel.ProjectOntoPath(waypoints, 1, -0.5)
 
 	if got.SignedOffsetM >= 0 {
-		t.Errorf("SignedOffsetM = %v, want negative (point is right of the +x-heading segment)", got.SignedOffsetM)
+		t.Errorf(
+			"SignedOffsetM = %v, want negative (point is right of the +x-heading segment)",
+			got.SignedOffsetM,
+		)
 	}
 }
 
@@ -84,7 +90,9 @@ func TestCrossTrackError_MatchesProjectionDistance(t *testing.T) {
 	t.Parallel()
 
 	waypoints := []trackmodel.Waypoint{{X: 0, Y: 0}, {X: 2, Y: 0}}
-	if got, want := trackmodel.CrossTrackError(waypoints, 1, 0.5), 0.5; math.Abs(got-want) > tolerance {
+	if got, want := trackmodel.CrossTrackError(waypoints, 1, 0.5), 0.5; math.Abs(
+		got-want,
+	) > tolerance {
 		t.Errorf("CrossTrackError() = %v, want %v", got, want)
 	}
 }

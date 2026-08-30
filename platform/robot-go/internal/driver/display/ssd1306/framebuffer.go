@@ -51,7 +51,12 @@ func NewFramebuffer(width, height int) (*Framebuffer, error) {
 		return nil, fmt.Errorf("%w: width=%d height=%d", ErrInvalidFramebufferSize, width, height)
 	}
 	if height%bitsPerPage != 0 {
-		return nil, fmt.Errorf("%w: height=%d is not a multiple of %d", ErrInvalidFramebufferSize, height, bitsPerPage)
+		return nil, fmt.Errorf(
+			"%w: height=%d is not a multiple of %d",
+			ErrInvalidFramebufferSize,
+			height,
+			bitsPerPage,
+		)
 	}
 	return &Framebuffer{
 		width:  width,

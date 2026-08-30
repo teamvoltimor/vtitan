@@ -73,7 +73,12 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
-	flags.StringVar(&cfg.nodeName, "name", "track-navigator", "NATS client name, visible in nats-server's connz output")
+	flags.StringVar(
+		&cfg.nodeName,
+		"name",
+		"track-navigator",
+		"NATS client name, visible in nats-server's connz output",
+	)
 	flags.Float64Var(&cfg.rateHz, "rate-hz", 20.0, "navigator Step rate")
 
 	return cmd
@@ -98,7 +103,11 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	scanSub, err := nats.NewSubscriber(conn, sensorv1.ScanSubject, func() *sensorv1.Scan { return &sensorv1.Scan{} })
+	scanSub, err := nats.NewSubscriber(
+		conn,
+		sensorv1.ScanSubject,
+		func() *sensorv1.Scan { return &sensorv1.Scan{} },
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
@@ -108,7 +117,11 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	imuSub, err := nats.NewSubscriber(conn, sensorv1.ImuSubject, func() *sensorv1.Imu { return &sensorv1.Imu{} })
+	imuSub, err := nats.NewSubscriber(
+		conn,
+		sensorv1.ImuSubject,
+		func() *sensorv1.Imu { return &sensorv1.Imu{} },
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
@@ -166,7 +179,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 }
 
 // stepLoop drives nav.Step at rateHz until ctx is done.
-func stepLoop(ctx context.Context, logger *slog.Logger, nav *navigator.Navigator, rateHz float64) error {
+func stepLoop(
+	ctx context.Context,
+	logger *slog.Logger,
+	nav *navigator.Navigator,
+	rateHz float64,
+) error {
 	ticker := time.NewTicker(time.Duration(float64(time.Second) / rateHz))
 	defer ticker.Stop()
 

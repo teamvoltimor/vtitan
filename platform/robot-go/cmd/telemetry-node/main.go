@@ -86,7 +86,12 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
-	flags.StringVar(&cfg.nodeName, "name", "telemetry-node", "NATS client name, visible in nats-server's connz output")
+	flags.StringVar(
+		&cfg.nodeName,
+		"name",
+		"telemetry-node",
+		"NATS client name, visible in nats-server's connz output",
+	)
 	flags.Float64Var(&cfg.rateHz, "rate-hz", defaultRateHz, "TelemetrySummary publish rate")
 	flags.StringVar(&cfg.configRoot, "config-root", "",
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
@@ -170,7 +175,11 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	imuSub, err := nats.NewSubscriber(conn, sensorv1.ImuSubject, func() *sensorv1.Imu { return &sensorv1.Imu{} })
+	imuSub, err := nats.NewSubscriber(
+		conn,
+		sensorv1.ImuSubject,
+		func() *sensorv1.Imu { return &sensorv1.Imu{} },
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
@@ -180,7 +189,11 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	scanSub, err := nats.NewSubscriber(conn, sensorv1.ScanSubject, func() *sensorv1.Scan { return &sensorv1.Scan{} })
+	scanSub, err := nats.NewSubscriber(
+		conn,
+		sensorv1.ScanSubject,
+		func() *sensorv1.Scan { return &sensorv1.Scan{} },
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}

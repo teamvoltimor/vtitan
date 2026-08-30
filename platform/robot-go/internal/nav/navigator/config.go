@@ -386,7 +386,10 @@ func (c Config) RevSteerNorm() float64 {
 // SignContactSteerNorm converts SignContactSteerDeg into a normalised
 // actuator command, matching SignRouterParams.sign_contact_steer_norm().
 func (c Config) SignContactSteerNorm() float64 {
-	return navutil.SteeringNormFromAngleRad(degreesToRadians(c.SignContactSteerDeg), c.MaxSteeringAngleRad)
+	return navutil.SteeringNormFromAngleRad(
+		degreesToRadians(c.SignContactSteerDeg),
+		c.MaxSteeringAngleRad,
+	)
 }
 
 // RetraceSteerGainNorm is the reverse-pure-pursuit steering command for a

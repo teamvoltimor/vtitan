@@ -71,13 +71,22 @@ func TestCornerTurn_WallSpanningTheTrackCommits(t *testing.T) {
 	cfg := corridorfollower.DefaultConfig()
 	ranges, angles := corridorScan(0.8, 0.2, cfg.TurnClearanceM-turnEntryMargM)
 
-	got := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	got := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 
 	if got.SpeedMPS <= 0 {
 		t.Fatalf("SpeedMPS = %v, want forward motion into the turn", got.SpeedMPS)
 	}
 	if math.Abs(got.SteeringNorm-maxCornerNorm(cfg)) > tolerance {
-		t.Fatalf("SteeringNorm = %v, want the corner angle %v", got.SteeringNorm, maxCornerNorm(cfg))
+		t.Fatalf(
+			"SteeringNorm = %v, want the corner angle %v",
+			got.SteeringNorm,
+			maxCornerNorm(cfg),
+		)
 	}
 }
 
@@ -113,7 +122,12 @@ func TestCornerTurn_OpenCorridorDoesNotTurn(t *testing.T) {
 	// Close enough to trip the clearance test, but the arc is wide open.
 	ranges, angles := corridorScan(0.5, 0.5, 2.5)
 
-	got := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	got := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 
 	if math.Abs(got.SteeringNorm) > tolerance {
 		t.Fatalf("SteeringNorm = %v, want no turn in an open corridor", got.SteeringNorm)
@@ -134,7 +148,12 @@ func TestCornerTurn_DroppedBeamCannotVetoACorner(t *testing.T) {
 	ranges, angles := corridorScan(0.8, 0.2, cfg.TurnClearanceM-turnEntryMargM)
 	ranges[nearestIndex(angles, 0.0)] = 12.0 // a no-return, sanitized to max range
 
-	got := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	got := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 
 	if math.Abs(got.SteeringNorm-maxCornerNorm(cfg)) > tolerance {
 		t.Fatalf("SteeringNorm = %v, want the corner turn despite the dropout", got.SteeringNorm)
@@ -205,7 +224,12 @@ func TestSafety_PivotsOutOfTheBayInsteadOfHolding(t *testing.T) {
 	cfg := corridorfollower.DefaultConfig()
 	ranges, angles := corridorScan(12.0, 12.0, 0.1)
 
-	got := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	got := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 
 	if got.SpeedMPS <= 0 {
 		t.Fatalf("SpeedMPS = %v, want a forward pivot toward the open side", got.SpeedMPS)
@@ -223,7 +247,12 @@ func TestSafety_HoldsWhenBoxedAtBothEnds(t *testing.T) {
 	cfg := corridorfollower.DefaultConfig()
 	ranges, angles := corridorScan(0.2, 0.2, 0.1)
 
-	got := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	got := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 
 	if math.Abs(got.SpeedMPS) > tolerance {
 		t.Fatalf("SpeedMPS = %v, want a hold when boxed at both ends", got.SpeedMPS)
@@ -249,7 +278,10 @@ func TestForcedTurnSide(t *testing.T) {
 		}, cfg)
 
 		if got.SteeringNorm >= 0 {
-			t.Fatalf("SteeringNorm = %v, want the forced right turn over the roomier left", got.SteeringNorm)
+			t.Fatalf(
+				"SteeringNorm = %v, want the forced right turn over the roomier left",
+				got.SteeringNorm,
+			)
 		}
 	})
 
@@ -297,10 +329,18 @@ func TestCentring_ShippedCreepHoldsItsLane(t *testing.T) {
 	// Hard against one wall but square to the corridor.
 	ranges, angles := corridorScan(0.8, 0.2, 2.5)
 
-	got := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	got := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 
 	if math.Abs(got.SteeringNorm) > tolerance {
-		t.Fatalf("SteeringNorm = %v, want 0 -- the shipped creep must hold its lane", got.SteeringNorm)
+		t.Fatalf(
+			"SteeringNorm = %v, want 0 -- the shipped creep must hold its lane",
+			got.SteeringNorm,
+		)
 	}
 	if math.Abs(got.SpeedMPS-creepSpeedMPS) > tolerance {
 		t.Fatalf("SpeedMPS = %v, want the full creep speed", got.SpeedMPS)
@@ -318,7 +358,12 @@ func TestCentring_SteersWhenTheGainIsRestored(t *testing.T) {
 	cfg.CenteringGainDegPerM = 44.0
 	ranges, angles := corridorScan(0.8, 0.2, 2.5)
 
-	got := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	got := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 
 	if got.SteeringNorm <= 0 {
 		t.Fatalf("SteeringNorm = %v, want a left steer toward the roomier side", got.SteeringNorm)
@@ -347,7 +392,10 @@ func TestHeadingDamping_ObliqueChassisSteersBackToAxis(t *testing.T) {
 		ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS, Yaw: &oblique}, cfg,
 	)
 	if damped.SteeringNorm >= 0 {
-		t.Fatalf("damped SteeringNorm = %v, want a right steer for a nose left of axis", damped.SteeringNorm)
+		t.Fatalf(
+			"damped SteeringNorm = %v, want a right steer for a nose left of axis",
+			damped.SteeringNorm,
+		)
 	}
 }
 
@@ -366,7 +414,11 @@ func TestHeadingDamping_CorrectionIsSignedByNoseDirection(t *testing.T) {
 	)
 
 	if math.Abs(left.SteeringNorm+right.SteeringNorm) > tolerance {
-		t.Fatalf("left %v and right %v are not mirror images", left.SteeringNorm, right.SteeringNorm)
+		t.Fatalf(
+			"left %v and right %v are not mirror images",
+			left.SteeringNorm,
+			right.SteeringNorm,
+		)
 	}
 }
 
@@ -404,7 +456,11 @@ func TestHeadingDamping_CapStillBinds(t *testing.T) {
 	)
 
 	if math.Abs(got.SteeringNorm) > maxCenteringNorm(cfg)+1e-9 {
-		t.Fatalf("SteeringNorm = %v exceeds the centering cap %v", got.SteeringNorm, maxCenteringNorm(cfg))
+		t.Fatalf(
+			"SteeringNorm = %v exceeds the centering cap %v",
+			got.SteeringNorm,
+			maxCenteringNorm(cfg),
+		)
 	}
 }
 
@@ -419,7 +475,12 @@ func TestNarrowCorridorTurnsLater(t *testing.T) {
 	ahead := (cfg.NarrowTurnClearanceM + cfg.TurnClearanceM) / 2
 	ranges, angles := corridorScan(0.3, 0.3, ahead)
 
-	wide := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{SpeedMPS: creepSpeedMPS}, cfg)
+	wide := corridorfollower.FollowCorridor(
+		ranges,
+		angles,
+		corridorfollower.Params{SpeedMPS: creepSpeedMPS},
+		cfg,
+	)
 	if math.Abs(wide.SteeringNorm) < tolerance {
 		t.Fatal("with no believed width, expected the wide threshold to commit to the turn")
 	}

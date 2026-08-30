@@ -24,7 +24,13 @@ func TestRenderSummary(t *testing.T) {
 			t.Fatalf("renderSummary() error = %v, want nil", err)
 		}
 		if fb.Width() != cfg.Width || fb.Height() != cfg.Height {
-			t.Errorf("framebuffer = %dx%d, want %dx%d", fb.Width(), fb.Height(), cfg.Width, cfg.Height)
+			t.Errorf(
+				"framebuffer = %dx%d, want %dx%d",
+				fb.Width(),
+				fb.Height(),
+				cfg.Width,
+				cfg.Height,
+			)
 		}
 	})
 

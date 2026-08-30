@@ -32,7 +32,10 @@ func CornerArcRadius(widthEntryM, widthExitM, centerBiasM, maxRadius float64) fl
 
 // ArcIntermediatePoints samples count evenly-spaced interior arc points
 // (excluding endpoints), matching geometry.py's arc_intermediate_points.
-func ArcIntermediatePoints(cx, cy, radius, thetaStart, thetaEnd float64, count int) []trackmodel.Waypoint {
+func ArcIntermediatePoints(
+	cx, cy, radius, thetaStart, thetaEnd float64,
+	count int,
+) []trackmodel.Waypoint {
 	points := make([]trackmodel.Waypoint, 0, count)
 	for step := 1; step <= count; step++ {
 		fraction := float64(step) / float64(count+1)
@@ -59,7 +62,14 @@ func ArcWithEndpoints(
 		X: roundMM(center.X + radius*math.Cos(thetaEnd)),
 		Y: roundMM(center.Y + radius*math.Sin(thetaEnd)),
 	}
-	intermediates := ArcIntermediatePoints(center.X, center.Y, radius, thetaStart, thetaEnd, numIntermediate)
+	intermediates := ArcIntermediatePoints(
+		center.X,
+		center.Y,
+		radius,
+		thetaStart,
+		thetaEnd,
+		numIntermediate,
+	)
 
 	points := make([]trackmodel.Waypoint, 0, len(intermediates)+2)
 	points = append(points, entry)
@@ -72,7 +82,12 @@ func ArcWithEndpoints(
 // of a corridor centerline, matching geometry.py's straight_waypoints.
 // isX selects which axis fixedCoord fixes: true for X (East/West
 // corridors), false for Y (North/South corridors).
-func StraightWaypoints(fixedCoord float64, isX bool, start, end float64, count int) []trackmodel.Waypoint {
+func StraightWaypoints(
+	fixedCoord float64,
+	isX bool,
+	start, end float64,
+	count int,
+) []trackmodel.Waypoint {
 	points := make([]trackmodel.Waypoint, 0, count)
 	for step := range count {
 		fraction := 0.5
@@ -81,7 +96,10 @@ func StraightWaypoints(fixedCoord float64, isX bool, start, end float64, count i
 		}
 		varying := start + fraction*(end-start)
 		if isX {
-			points = append(points, trackmodel.Waypoint{X: roundMM(fixedCoord), Y: roundMM(varying)})
+			points = append(
+				points,
+				trackmodel.Waypoint{X: roundMM(fixedCoord), Y: roundMM(varying)},
+			)
 		} else {
 			points = append(points, trackmodel.Waypoint{X: roundMM(varying), Y: roundMM(fixedCoord)})
 		}

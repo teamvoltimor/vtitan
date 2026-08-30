@@ -52,6 +52,9 @@ func TestBumperGapBehind_UsesADifferentOffsetThanAhead(t *testing.T) {
 
 	const lidarToRearBumperM = 0.2722
 	if got := controllers.BumperGapBehind(lidarToRearBumperM, lidarToRearBumperM); got != 0.0 {
-		t.Errorf("BumperGapBehind(rearOffset, rearOffset) = %v, want 0.0 (touching the rear bumper)", got)
+		t.Errorf(
+			"BumperGapBehind(rearOffset, rearOffset) = %v, want 0.0 (touching the rear bumper)",
+			got,
+		)
 	}
 }

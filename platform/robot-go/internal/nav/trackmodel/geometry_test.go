@@ -21,7 +21,8 @@ func TestCorridorGeometryFromWidths(t *testing.T) {
 
 	got := trackmodel.CorridorGeometryFromWidths(widths, maxCoord)
 
-	if got.NorthWidthM != 0.6 || got.SouthWidthM != 0.6 || got.EastWidthM != 1.0 || got.WestWidthM != 1.0 {
+	if got.NorthWidthM != 0.6 || got.SouthWidthM != 0.6 || got.EastWidthM != 1.0 ||
+		got.WestWidthM != 1.0 {
 		t.Errorf("widths = %+v, want N=0.6 S=0.6 E=1.0 W=1.0", got)
 	}
 
@@ -34,7 +35,12 @@ func TestCorridorGeometryFromWidths(t *testing.T) {
 func TestCorridorGeometry_MinMeanWidth(t *testing.T) {
 	t.Parallel()
 
-	g := trackmodel.CorridorGeometry{NorthWidthM: 0.6, SouthWidthM: 1.0, EastWidthM: 1.0, WestWidthM: 1.0}
+	g := trackmodel.CorridorGeometry{
+		NorthWidthM: 0.6,
+		SouthWidthM: 1.0,
+		EastWidthM:  1.0,
+		WestWidthM:  1.0,
+	}
 
 	if got := g.MinWidthM(); got != 0.6 {
 		t.Errorf("MinWidthM() = %v, want 0.6", got)

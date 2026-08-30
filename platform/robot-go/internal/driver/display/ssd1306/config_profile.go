@@ -21,15 +21,25 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	basePath := filepath.Join(configRoot, profile.DefaultSSD1306TOMLPath)
 	loaded, err := profile.Load[profile.SSD1306Config](basePath, profile.ActiveNames())
 	if err != nil {
-		logger.Warn("driver/display/ssd1306: loading hardware profile, falling back to default config",
-			"config_root", configRoot, "error", err)
+		logger.Warn(
+			"driver/display/ssd1306: loading hardware profile, falling back to default config",
+			"config_root",
+			configRoot,
+			"error",
+			err,
+		)
 		return cfg
 	}
 
 	addr, err := loaded.I2CAddress()
 	if err != nil {
-		logger.Warn("driver/display/ssd1306: parsing hardware profile's i2c_address, falling back to default config",
-			"config_root", configRoot, "error", err)
+		logger.Warn(
+			"driver/display/ssd1306: parsing hardware profile's i2c_address, falling back to default config",
+			"config_root",
+			configRoot,
+			"error",
+			err,
+		)
 		return cfg
 	}
 

@@ -51,7 +51,8 @@ type StuckDetector struct {
 // making the stuck check less sensitive. A nil logger falls back to
 // slog.Default().
 func NewStuckDetector(
-	moveThreshold float64, timeoutFrames, historySize, confirmationChecks, minHistoryForDistance int,
+	moveThreshold float64,
+	timeoutFrames, historySize, confirmationChecks, minHistoryForDistance int,
 	logger *slog.Logger,
 ) (*StuckDetector, error) {
 	if historySize < timeoutFrames {
@@ -98,7 +99,13 @@ func (s *StuckDetector) Update(currentPos trackmodel.Waypoint) bool {
 		s.stuckCount++
 		if s.stuckCount > s.ConfirmationChecks {
 			s.isStuck = true
-			s.logger.Warn("controllers: robot stuck", "moved_m", distanceMoved, "frames", s.TimeoutFrames)
+			s.logger.Warn(
+				"controllers: robot stuck",
+				"moved_m",
+				distanceMoved,
+				"frames",
+				s.TimeoutFrames,
+			)
 			return true
 		}
 	} else {

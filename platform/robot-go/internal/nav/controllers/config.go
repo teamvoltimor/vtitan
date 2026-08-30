@@ -212,16 +212,22 @@ func DefaultConfig() Config {
 func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController {
 	pathHalfWidth := c.ChassisWidthM/halfOf + c.PathMargin
 	return &CollisionAvoidanceController{
-		ContactDist:             c.ContactDist,
-		SlowDist:                c.SlowDist,
-		FastDist:                c.FastDist,
-		EscapeRevSpeed:          c.RevSpeed,
-		EscapeSteerScale:        navutil.SteeringNormFromAngleRad(c.RevSteerDeg*math.Pi/degToRadTurn, c.MaxSteeringAngleRad),
-		StuckThreshold:          c.StuckMoveThreshold,
-		PathHalfWidth:           pathHalfWidth,
-		KTurnMinFrames:          c.KTurnMinFrames,
-		KTurnMaxFrames:          c.KTurnMaxFrames,
-		SideCorrectionSteer:     navutil.SteeringNormFromAngleRad(c.SideCorrectionSteerDeg*math.Pi/degToRadTurn, c.MaxSteeringAngleRad),
+		ContactDist:    c.ContactDist,
+		SlowDist:       c.SlowDist,
+		FastDist:       c.FastDist,
+		EscapeRevSpeed: c.RevSpeed,
+		EscapeSteerScale: navutil.SteeringNormFromAngleRad(
+			c.RevSteerDeg*math.Pi/degToRadTurn,
+			c.MaxSteeringAngleRad,
+		),
+		StuckThreshold: c.StuckMoveThreshold,
+		PathHalfWidth:  pathHalfWidth,
+		KTurnMinFrames: c.KTurnMinFrames,
+		KTurnMaxFrames: c.KTurnMaxFrames,
+		SideCorrectionSteer: navutil.SteeringNormFromAngleRad(
+			c.SideCorrectionSteerDeg*math.Pi/degToRadTurn,
+			c.MaxSteeringAngleRad,
+		),
 		SideCorrectionSpeed:     c.SideCorrectionSpeed,
 		SideCorrectionFrames:    c.SideCorrectionFrames,
 		FrontHalfFovRad:         c.FrontHalfFovDeg * math.Pi / degToRadTurn,
@@ -236,8 +242,14 @@ func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController 
 // WaypointController.from_tuning.
 func (c Config) NewWaypointController() *WaypointController {
 	return NewWaypointController(
-		c.MaxSteeringAngleRad, c.WheelbaseM, c.LookaheadShort, c.LookaheadLong, c.LookaheadTransition,
-		c.MaxSteeringRate, c.ControllerReachedDistanceM, c.CornerTurnThresholdRad,
+		c.MaxSteeringAngleRad,
+		c.WheelbaseM,
+		c.LookaheadShort,
+		c.LookaheadLong,
+		c.LookaheadTransition,
+		c.MaxSteeringRate,
+		c.ControllerReachedDistanceM,
+		c.CornerTurnThresholdRad,
 	)
 }
 
@@ -247,7 +259,11 @@ func (c Config) NewStuckDetector(logger *slog.Logger) (*StuckDetector, error) {
 	const historyDoubling = 2
 	historySize := max(c.StuckTimeoutFrames*historyDoubling, c.StuckHistoryFloor)
 	return NewStuckDetector(
-		c.StuckMoveThreshold, c.StuckTimeoutFrames, historySize, c.StuckConfirmationChecks, c.MinHistoryForDistance,
+		c.StuckMoveThreshold,
+		c.StuckTimeoutFrames,
+		historySize,
+		c.StuckConfirmationChecks,
+		c.MinHistoryForDistance,
 		logger,
 	)
 }

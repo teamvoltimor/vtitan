@@ -79,7 +79,12 @@ func TestStep_NoPose_StopsRatherThanCoasting(t *testing.T) {
 	// PhaseNoPose reports the command it issued but has no pose to report,
 	// so the pose fields stay nil rather than carrying a stale reading.
 	if debug.PoseX != nil || debug.PoseY != nil || debug.PoseYaw != nil {
-		t.Fatalf("pose fields = (%v, %v, %v), want all nil", debug.PoseX, debug.PoseY, debug.PoseYaw)
+		t.Fatalf(
+			"pose fields = (%v, %v, %v), want all nil",
+			debug.PoseX,
+			debug.PoseY,
+			debug.PoseYaw,
+		)
 	}
 }
 

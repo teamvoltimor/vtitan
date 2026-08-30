@@ -33,7 +33,15 @@ func TestDetectionToWorld_Pinhole(t *testing.T) {
 		Color: SignColorRed, Confidence: 0.9,
 	}
 	pose := trackmodel.Waypoint{X: 1.0, Y: 1.0}
-	got := DetectionToWorld(det, pose, 0, DefaultMinReliableBBoxHeightPX, DefaultMinValidLidarRangeM, nil, nil)
+	got := DetectionToWorld(
+		det,
+		pose,
+		0,
+		DefaultMinReliableBBoxHeightPX,
+		DefaultMinValidLidarRangeM,
+		nil,
+		nil,
+	)
 	if got == nil {
 		t.Fatal("DetectionToWorld = nil, want a point")
 	}
@@ -63,7 +71,15 @@ func TestDetectionToWorld_Bearing(t *testing.T) {
 		Color: SignColorGreen, Confidence: 0.9,
 	}
 	pose := trackmodel.Waypoint{X: 0, Y: 0}
-	got := DetectionToWorld(det, pose, 0, DefaultMinReliableBBoxHeightPX, DefaultMinValidLidarRangeM, nil, nil)
+	got := DetectionToWorld(
+		det,
+		pose,
+		0,
+		DefaultMinReliableBBoxHeightPX,
+		DefaultMinValidLidarRangeM,
+		nil,
+		nil,
+	)
 	if got == nil {
 		t.Fatal("DetectionToWorld = nil")
 	}
@@ -124,7 +140,12 @@ func TestObservedSignMap_IgnoresFar(t *testing.T) {
 	m := NewObservedSignMap(DefaultDiscoveryConfig(), sd)
 	robotPos := trackmodel.Waypoint{X: 1.0, Y: 1.0}
 	far := DefaultMaxIngestRangeM + 0.5
-	obs := TrafficSignObservation{WorldXM: 1.0, WorldYM: 1.0 - far, Color: SignColorGreen, Confidence: 0.9}
+	obs := TrafficSignObservation{
+		WorldXM:    1.0,
+		WorldYM:    1.0 - far,
+		Color:      SignColorGreen,
+		Confidence: 0.9,
+	}
 	for i := 0; i < DefaultMinHits*2; i++ {
 		m.Observe([]TrafficSignObservation{obs}, robotPos)
 	}

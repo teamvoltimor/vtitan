@@ -25,7 +25,10 @@ func TestTrackWalls_Raycast_HitsInnerBlock(t *testing.T) {
 	got := walls.Raycast(0.5, 1.5, 0, []float64{0}, 0.05, 12.0)
 
 	if math.Abs(got[0]-0.5) > tolerance {
-		t.Errorf("Raycast() forward from (0.5,1.5) = %v, want 0.5 (inner block's west face at x=1)", got[0])
+		t.Errorf(
+			"Raycast() forward from (0.5,1.5) = %v, want 0.5 (inner block's west face at x=1)",
+			got[0],
+		)
 	}
 }
 
@@ -53,7 +56,10 @@ func TestTrackWalls_Raycast_ClampsToSensorMaxRange(t *testing.T) {
 	got := walls.Raycast(0.5, 0.1, 0, []float64{math.Pi / 2}, 0.05, 1.0)
 
 	if got[0] != 1.0 {
-		t.Errorf("Raycast() with a 1.0m max range = %v, want clamped to 1.0 (real hit is ~2.9m away)", got[0])
+		t.Errorf(
+			"Raycast() with a 1.0m max range = %v, want clamped to 1.0 (real hit is ~2.9m away)",
+			got[0],
+		)
 	}
 }
 
@@ -92,6 +98,8 @@ func TestTrackWalls_PointInFreeSpace_ClearanceMargin(t *testing.T) {
 	// outer wall at x=0 -- must be rejected once a clearance margin is
 	// required, even though it passed with zero margin.
 	if got := walls.PointInFreeSpace(0.5, 0.5, 0.6); got {
-		t.Error("PointInFreeSpace with a 0.6m clearance margin at x=0.5 = true, want false (too close to outer wall)")
+		t.Error(
+			"PointInFreeSpace with a 0.6m clearance margin at x=0.5 = true, want false (too close to outer wall)",
+		)
 	}
 }

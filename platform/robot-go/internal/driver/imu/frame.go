@@ -79,7 +79,12 @@ func readFrame(r *bufio.Reader) (Reading, error) {
 // bytes.
 func parseRVCFrame(body []byte) (Reading, error) {
 	if len(body) != rvcFrameBodyLen {
-		return Reading{}, fmt.Errorf("%w: got %d bytes, want %d", ErrShortFrame, len(body), rvcFrameBodyLen)
+		return Reading{}, fmt.Errorf(
+			"%w: got %d bytes, want %d",
+			ErrShortFrame,
+			len(body),
+			rvcFrameBodyLen,
+		)
 	}
 
 	var checksum byte
@@ -87,7 +92,12 @@ func parseRVCFrame(body []byte) (Reading, error) {
 		checksum += b
 	}
 	if got := body[rvcChecksumLen]; checksum != got {
-		return Reading{}, fmt.Errorf("%w: got 0x%02X, want 0x%02X", ErrChecksumMismatch, got, checksum)
+		return Reading{}, fmt.Errorf(
+			"%w: got 0x%02X, want 0x%02X",
+			ErrChecksumMismatch,
+			got,
+			checksum,
+		)
 	}
 
 	return Reading{

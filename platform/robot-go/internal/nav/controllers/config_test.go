@@ -66,7 +66,10 @@ func TestNewCollisionAvoidanceController_EscapeSteerScaleClampsAtFullLock(t *tes
 	controller := cfg.NewCollisionAvoidanceController()
 
 	if controller.EscapeSteerScale != 1.0 {
-		t.Errorf("EscapeSteerScale = %v, want 1.0 (clamped at full lock)", controller.EscapeSteerScale)
+		t.Errorf(
+			"EscapeSteerScale = %v, want 1.0 (clamped at full lock)",
+			controller.EscapeSteerScale,
+		)
 	}
 }
 

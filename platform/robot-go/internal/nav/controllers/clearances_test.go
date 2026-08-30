@@ -44,7 +44,12 @@ func TestClearancesFromScan_EmptyScanYieldsZeroedClearances(t *testing.T) {
 
 	controller := newDefaultCollisionAvoidanceController()
 	scan := controllers.LidarScan{}
-	c := controllers.ClearancesFromScan(scan, controller, controller.FrontHalfFovRad, controllers.AggregateMean)
+	c := controllers.ClearancesFromScan(
+		scan,
+		controller,
+		controller.FrontHalfFovRad,
+		controllers.AggregateMean,
+	)
 
 	want := controllers.LidarClearances{}
 	if c != want {
@@ -64,7 +69,12 @@ func TestClearancesFromScan_FrontWallReportsSmallFrontClearance(t *testing.T) {
 	setSector(ranges, i, forwardSectorIndices, lidarCloseThreat)
 
 	scan := controllers.LidarScan{RangesM: ranges, AnglesRad: angles}
-	c := controllers.ClearancesFromScan(scan, controller, controller.FrontHalfFovRad, controllers.AggregateMean)
+	c := controllers.ClearancesFromScan(
+		scan,
+		controller,
+		controller.FrontHalfFovRad,
+		controllers.AggregateMean,
+	)
 
 	if got := c.MostConstrainedSide(); got != controllers.ThreatFront {
 		t.Errorf("MostConstrainedSide() = %v, want %v", got, controllers.ThreatFront)
@@ -91,7 +101,12 @@ func TestClearancesFromScan_MinAggregationMatchesThreatSectors(t *testing.T) {
 	setSector(ranges, i, forwardSectorIndices, lidarCloseThreat)
 
 	scan := controllers.LidarScan{RangesM: ranges, AnglesRad: angles}
-	c := controllers.ClearancesFromScan(scan, controller, controller.ThreatHalfFovRad, controllers.AggregateMin)
+	c := controllers.ClearancesFromScan(
+		scan,
+		controller,
+		controller.ThreatHalfFovRad,
+		controllers.AggregateMin,
+	)
 
 	if got := c.MostConstrainedSide(); got != controllers.ThreatLeft {
 		t.Errorf("MostConstrainedSide() = %v, want %v", got, controllers.ThreatLeft)
@@ -126,9 +141,16 @@ func TestThreatDirectionFrom_GatesOnNoDetectionRange(t *testing.T) {
 	closeClearances := controllers.ClearancesFromScan(
 		closeScan, controller, controller.ThreatHalfFovRad, controllers.AggregateMin,
 	)
-	closeThreatDir := controllers.ThreatDirectionFrom(closeClearances, controller.ThreatNoDetectionRangeM)
+	closeThreatDir := controllers.ThreatDirectionFrom(
+		closeClearances,
+		controller.ThreatNoDetectionRangeM,
+	)
 	if closeThreatDir != controllers.ThreatFront {
-		t.Errorf("ThreatDirectionFrom(close front) = %v, want %v", closeThreatDir, controllers.ThreatFront)
+		t.Errorf(
+			"ThreatDirectionFrom(close front) = %v, want %v",
+			closeThreatDir,
+			controllers.ThreatFront,
+		)
 	}
 }
 
@@ -154,7 +176,11 @@ func TestParkingGate_ReturnsForwardAndSweepFromOneCall(t *testing.T) {
 
 	wantForward := controller.ComputeForwardClearance(ranges, angles)
 	if gate.ForwardM != wantForward {
-		t.Errorf("ForwardM = %v, want %v (matching ComputeForwardClearance)", gate.ForwardM, wantForward)
+		t.Errorf(
+			"ForwardM = %v, want %v (matching ComputeForwardClearance)",
+			gate.ForwardM,
+			wantForward,
+		)
 	}
 	if gate.ForwardM <= 0.1 {
 		t.Errorf("ForwardM = %v, want > 0.1 (must not see the 45deg wall)", gate.ForwardM)
@@ -165,7 +191,9 @@ func TestParkingGate_ReturnsForwardAndSweepFromOneCall(t *testing.T) {
 	}
 	if gate.SweepM >= gate.ForwardM {
 		t.Errorf(
-			"SweepM (%v) >= ForwardM (%v), want the sweep to see the closer 45deg wall", gate.SweepM, gate.ForwardM,
+			"SweepM (%v) >= ForwardM (%v), want the sweep to see the closer 45deg wall",
+			gate.SweepM,
+			gate.ForwardM,
 		)
 	}
 }

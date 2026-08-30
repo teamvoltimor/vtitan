@@ -42,8 +42,22 @@ func TestStartPose_Centerline(t *testing.T) {
 		{"north_ccw", trackmodel.North, trackmodel.Counterclockwise, trackCenter, farEdge, math.Pi},
 		{"north_cw", trackmodel.North, trackmodel.Clockwise, trackCenter, farEdge, 0},
 		{"east_cw", trackmodel.East, trackmodel.Clockwise, farEdge, trackCenter, -math.Pi / 2},
-		{"east_ccw", trackmodel.East, trackmodel.Counterclockwise, farEdge, trackCenter, math.Pi / 2},
-		{"west_ccw", trackmodel.West, trackmodel.Counterclockwise, widthM / 2, trackCenter, -math.Pi / 2},
+		{
+			"east_ccw",
+			trackmodel.East,
+			trackmodel.Counterclockwise,
+			farEdge,
+			trackCenter,
+			math.Pi / 2,
+		},
+		{
+			"west_ccw",
+			trackmodel.West,
+			trackmodel.Counterclockwise,
+			widthM / 2,
+			trackCenter,
+			-math.Pi / 2,
+		},
 		{"west_cw", trackmodel.West, trackmodel.Clockwise, widthM / 2, trackCenter, math.Pi / 2},
 	}
 
@@ -76,7 +90,13 @@ func TestStartPose_CenterBiasShiftsTowardInner(t *testing.T) {
 	cfg := startconditions.DefaultConfig()
 	widths := uniformWidths(cfg.NarrowWidthM) // narrow, so NarrowCenterBiasM applies
 
-	_, yBiased, _, ok := startconditions.StartPose(trackmodel.South, trackmodel.Counterclockwise, widths, cfg, nil)
+	_, yBiased, _, ok := startconditions.StartPose(
+		trackmodel.South,
+		trackmodel.Counterclockwise,
+		widths,
+		cfg,
+		nil,
+	)
 	if !ok {
 		t.Fatal("StartPose = ok false")
 	}
@@ -100,7 +120,13 @@ func TestStartPose_CenterBiasOverride(t *testing.T) {
 	widths := uniformWidths(cfg.NarrowWidthM)
 	override := 0.05
 
-	_, y, _, ok := startconditions.StartPose(trackmodel.South, trackmodel.Counterclockwise, widths, cfg, &override)
+	_, y, _, ok := startconditions.StartPose(
+		trackmodel.South,
+		trackmodel.Counterclockwise,
+		widths,
+		cfg,
+		&override,
+	)
 	if !ok {
 		t.Fatal("StartPose = ok false")
 	}
@@ -119,10 +145,21 @@ func TestStartPose_UnknownSectionRefuses(t *testing.T) {
 	cfg := startconditions.DefaultConfig()
 	widths := uniformWidths(1.0)
 
-	x, y, yaw, ok := startconditions.StartPose(trackmodel.Section(99), trackmodel.Clockwise, widths, cfg, nil)
+	x, y, yaw, ok := startconditions.StartPose(
+		trackmodel.Section(99),
+		trackmodel.Clockwise,
+		widths,
+		cfg,
+		nil,
+	)
 
 	if ok {
-		t.Errorf("StartPose with an unknown section = ok true (%v, %v, %v), want ok false", x, y, yaw)
+		t.Errorf(
+			"StartPose with an unknown section = ok true (%v, %v, %v), want ok false",
+			x,
+			y,
+			yaw,
+		)
 	}
 }
 
@@ -141,14 +178,22 @@ func TestAssumedStartConditions_DefaultsToNarrowWidths(t *testing.T) {
 		t.Fatal("AssumedStartConditions(nil widths) = ok false")
 	}
 	withExplicit, ok := startconditions.AssumedStartConditions(
-		trackmodel.Counterclockwise, uniformWidths(cfg.NarrowWidthM), startconditions.CanonicalSection, cfg, nil,
+		trackmodel.Counterclockwise,
+		uniformWidths(cfg.NarrowWidthM),
+		startconditions.CanonicalSection,
+		cfg,
+		nil,
 	)
 	if !ok {
 		t.Fatal("AssumedStartConditions(explicit narrow widths) = ok false")
 	}
 
 	if withNil != withExplicit {
-		t.Errorf("nil-widths result %+v != explicit-narrow-widths result %+v", withNil, withExplicit)
+		t.Errorf(
+			"nil-widths result %+v != explicit-narrow-widths result %+v",
+			withNil,
+			withExplicit,
+		)
 	}
 	if withNil.Section != startconditions.CanonicalSection {
 		t.Errorf("Section = %v, want CanonicalSection", withNil.Section)

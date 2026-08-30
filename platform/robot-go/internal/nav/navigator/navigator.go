@@ -110,10 +110,10 @@ type Navigator struct {
 	// mode (Direction == nil at construction). dirEstimator settles the
 	// travel direction; discovery accumulates camera signs; believedYawOffset
 	// is the belief->map yaw measured at start (start_measurement).
-	dirEstimator    *directionestimator.Estimator
-	discovery       *signrouter.ObservedSignMap
+	dirEstimator      *directionestimator.Estimator
+	discovery         *signrouter.ObservedSignMap
 	believedYawOffset float64
-	believedYawSet   bool
+	believedYawSet    bool
 
 	waypointIndex     int
 	lapsCompleted     int
@@ -230,9 +230,14 @@ func New(p Params) (*Navigator, error) {
 	// Blind bootstrap: build the direction estimator and (when a router is
 	// attached) the discovery map so camera signs accumulate while creeping.
 	if n.direction == nil {
-		n.dirEstimator = directionestimator.NewEstimator(directionestimator.DefaultConfig().MinVotes)
+		n.dirEstimator = directionestimator.NewEstimator(
+			directionestimator.DefaultConfig().MinVotes,
+		)
 		if n.signRouter != nil {
-			n.discovery = signrouter.NewObservedSignMap(signrouter.DefaultDiscoveryConfig(), n.signRouter)
+			n.discovery = signrouter.NewObservedSignMap(
+				signrouter.DefaultDiscoveryConfig(),
+				n.signRouter,
+			)
 		}
 	}
 	n.applyPathWallBudget()

@@ -35,7 +35,13 @@ func TestDrawString_SupportedGlyphSetsExpectedPixels(t *testing.T) {
 	}
 	for _, tt := range tests {
 		if got := fb.Pixel(tt.x, tt.y); got != tt.want {
-			t.Errorf("Pixel(%d, %d) after DrawString(\"I\") = %v, want %v", tt.x, tt.y, got, tt.want)
+			t.Errorf(
+				"Pixel(%d, %d) after DrawString(\"I\") = %v, want %v",
+				tt.x,
+				tt.y,
+				got,
+				tt.want,
+			)
 		}
 	}
 }
@@ -66,8 +72,14 @@ func TestDrawString_UnsupportedRuneStillAdvancesCursor(t *testing.T) {
 	for x := range 16 {
 		for y := range 8 {
 			if fbWithGap.Pixel(x, y) != fbNoGap.Pixel(x, y) {
-				t.Fatalf("Pixel(%d, %d): DrawString(\"I~I\") = %v, want %v (matching two I's %d px apart)",
-					x, y, fbWithGap.Pixel(x, y), fbNoGap.Pixel(x, y), 2*glyphAdvance)
+				t.Fatalf(
+					"Pixel(%d, %d): DrawString(\"I~I\") = %v, want %v (matching two I's %d px apart)",
+					x,
+					y,
+					fbWithGap.Pixel(x, y),
+					fbNoGap.Pixel(x, y),
+					2*glyphAdvance,
+				)
 			}
 		}
 	}

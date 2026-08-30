@@ -57,9 +57,17 @@ func TestConfigFor_LoadsRealNavigationTuningFiles(t *testing.T) {
 	cfg := controllers.ConfigFor(logger, repoRoot(t), hardwareProfileNames)
 	def := controllers.DefaultConfig()
 
-	if cfg.ContactDist != def.ContactDist || cfg.SlowDist != def.SlowDist || cfg.PathMargin != def.PathMargin {
-		t.Errorf("clearance.toml wiring: ContactDist/SlowDist/PathMargin = %v/%v/%v, want %v/%v/%v",
-			cfg.ContactDist, cfg.SlowDist, cfg.PathMargin, def.ContactDist, def.SlowDist, def.PathMargin)
+	if cfg.ContactDist != def.ContactDist || cfg.SlowDist != def.SlowDist ||
+		cfg.PathMargin != def.PathMargin {
+		t.Errorf(
+			"clearance.toml wiring: ContactDist/SlowDist/PathMargin = %v/%v/%v, want %v/%v/%v",
+			cfg.ContactDist,
+			cfg.SlowDist,
+			cfg.PathMargin,
+			def.ContactDist,
+			def.SlowDist,
+			def.PathMargin,
+		)
 	}
 	if cfg.ControlHz != def.ControlHz {
 		t.Errorf("control.toml wiring: ControlHz = %v, want %v", cfg.ControlHz, def.ControlHz)
@@ -68,9 +76,15 @@ func TestConfigFor_LoadsRealNavigationTuningFiles(t *testing.T) {
 		t.Errorf("pursuit.toml wiring: LookaheadShort/Long = %v/%v, want %v/%v",
 			cfg.LookaheadShort, cfg.LookaheadLong, def.LookaheadShort, def.LookaheadLong)
 	}
-	if cfg.ThreatHalfFovDeg != def.ThreatHalfFovDeg || cfg.BlindWedgeLeftMinDeg != def.BlindWedgeLeftMinDeg {
-		t.Errorf("lidar_sectors.toml wiring: ThreatHalfFovDeg/BlindWedgeLeftMinDeg = %v/%v, want %v/%v",
-			cfg.ThreatHalfFovDeg, cfg.BlindWedgeLeftMinDeg, def.ThreatHalfFovDeg, def.BlindWedgeLeftMinDeg)
+	if cfg.ThreatHalfFovDeg != def.ThreatHalfFovDeg ||
+		cfg.BlindWedgeLeftMinDeg != def.BlindWedgeLeftMinDeg {
+		t.Errorf(
+			"lidar_sectors.toml wiring: ThreatHalfFovDeg/BlindWedgeLeftMinDeg = %v/%v, want %v/%v",
+			cfg.ThreatHalfFovDeg,
+			cfg.BlindWedgeLeftMinDeg,
+			def.ThreatHalfFovDeg,
+			def.BlindWedgeLeftMinDeg,
+		)
 	}
 	if cfg.RevSteerDeg != def.RevSteerDeg || cfg.KTurnMaxFrames != def.KTurnMaxFrames {
 		t.Errorf("escape.toml wiring: RevSteerDeg/KTurnMaxFrames = %v/%v, want %v/%v",
@@ -88,7 +102,11 @@ func TestConfigFor_LoadsRealNavigationTuningFiles(t *testing.T) {
 		t.Errorf("robot.toml wiring: WheelbaseM = %v, want %v", cfg.WheelbaseM, def.WheelbaseM)
 	}
 	if cfg.LidarMaxRangeM != def.LidarMaxRangeM {
-		t.Errorf("robot.toml wiring: LidarMaxRangeM = %v, want %v", cfg.LidarMaxRangeM, def.LidarMaxRangeM)
+		t.Errorf(
+			"robot.toml wiring: LidarMaxRangeM = %v, want %v",
+			cfg.LidarMaxRangeM,
+			def.LidarMaxRangeM,
+		)
 	}
 
 	// MaxSteeringAngleRad is profile-sourced (the 270deg servo's

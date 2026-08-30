@@ -108,9 +108,20 @@ func TestSelectTargetPoint_WrapsPastTheEndOfTheLap(t *testing.T) {
 	// A small closed loop. Starting the search at the last index, nothing
 	// from there to the literal end of the slice reaches the lookahead
 	// distance -- only continuing around to index 1 does.
-	waypoints := []trackmodel.Waypoint{{X: 0.0, Y: 0.0}, {X: 1.0, Y: 0.0}, {X: 1.0, Y: 1.0}, {X: 0.0, Y: 1.0}}
+	waypoints := []trackmodel.Waypoint{
+		{X: 0.0, Y: 0.0},
+		{X: 1.0, Y: 0.0},
+		{X: 1.0, Y: 1.0},
+		{X: 0.0, Y: 1.0},
+	}
 
-	target := controller.SelectTargetPoint(trackmodel.Waypoint{X: 0.0, Y: 1.0}, 0.0, waypoints, 3, 1.0)
+	target := controller.SelectTargetPoint(
+		trackmodel.Waypoint{X: 0.0, Y: 1.0},
+		0.0,
+		waypoints,
+		3,
+		1.0,
+	)
 	want := trackmodel.Waypoint{X: 1.0, Y: 0.0}
 	if target != want {
 		t.Errorf("SelectTargetPoint() = %+v, want %+v", target, want)
@@ -346,7 +357,11 @@ func TestSelectLookahead_NoSingleStepMovesTheLookaheadFar(t *testing.T) {
 	const steps = 81
 	looks := make([]float64, steps)
 	for i := range steps {
-		looks[i] = controller.SelectLookahead(float64(i)*0.005, 0.0, false) // 0 -> 0.40m in 5mm steps
+		looks[i] = controller.SelectLookahead(
+			float64(i)*0.005,
+			0.0,
+			false,
+		) // 0 -> 0.40m in 5mm steps
 	}
 	biggestJump := 0.0
 	for i := 1; i < steps; i++ {
@@ -376,7 +391,13 @@ func TestSelectLookahead_NeverIncreasesAsTheRobotStrays(t *testing.T) {
 	}
 	for i := 1; i < steps; i++ {
 		if looks[i] > looks[i-1]+1e-12 {
-			t.Fatalf("looks[%d] (%v) > looks[%d] (%v), want non-increasing", i, looks[i], i-1, looks[i-1])
+			t.Fatalf(
+				"looks[%d] (%v) > looks[%d] (%v), want non-increasing",
+				i,
+				looks[i],
+				i-1,
+				looks[i-1],
+			)
 		}
 	}
 }
@@ -390,7 +411,9 @@ func TestSelectLookahead_TheDeadbandLeavesStraightsUntouched(t *testing.T) {
 
 	controller := rampController(t)
 	below := 0.70 * controller.EffectiveTransition() * 0.99
-	if got := controller.SelectLookahead(below, 0.0, false); math.Abs(got-controller.LookaheadLong) > 1e-9 {
+	if got := controller.SelectLookahead(below, 0.0, false); math.Abs(
+		got-controller.LookaheadLong,
+	) > 1e-9 {
 		t.Errorf("SelectLookahead(below deadband) = %v, want %v", got, controller.LookaheadLong)
 	}
 }
@@ -406,10 +429,22 @@ func TestSelectLookahead_BlendStartOfOneRestoresTheHardSwitch(t *testing.T) {
 	controller.LookaheadBlendStart = 1.0
 	transition := controller.EffectiveTransition()
 
-	if got := controller.SelectLookahead(transition*0.99, 0.0, false); math.Abs(got-controller.LookaheadLong) > 1e-9 {
-		t.Errorf("SelectLookahead(just under threshold) = %v, want %v", got, controller.LookaheadLong)
+	if got := controller.SelectLookahead(transition*0.99, 0.0, false); math.Abs(
+		got-controller.LookaheadLong,
+	) > 1e-9 {
+		t.Errorf(
+			"SelectLookahead(just under threshold) = %v, want %v",
+			got,
+			controller.LookaheadLong,
+		)
 	}
-	if got := controller.SelectLookahead(transition*1.01, 0.0, false); math.Abs(got-controller.LookaheadShort) > 1e-9 {
-		t.Errorf("SelectLookahead(just over threshold) = %v, want %v", got, controller.LookaheadShort)
+	if got := controller.SelectLookahead(transition*1.01, 0.0, false); math.Abs(
+		got-controller.LookaheadShort,
+	) > 1e-9 {
+		t.Errorf(
+			"SelectLookahead(just over threshold) = %v, want %v",
+			got,
+			controller.LookaheadShort,
+		)
 	}
 }

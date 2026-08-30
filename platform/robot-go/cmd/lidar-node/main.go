@@ -64,7 +64,12 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultDevURL, "nats-server URL")
-	flags.StringVar(&cfg.nodeName, "name", "lidar-node", "NATS client name, visible in nats-server's connz output")
+	flags.StringVar(
+		&cfg.nodeName,
+		"name",
+		"lidar-node",
+		"NATS client name, visible in nats-server's connz output",
+	)
 	flags.StringVar(&cfg.port, "port", lidar.DefaultPort, "LIDAR serial port")
 	flags.IntVar(&cfg.baudRate, "baud-rate", lidar.DefaultBaudRate, "LIDAR serial baud rate")
 	flags.StringVar(&cfg.configRoot, "config-root", "",

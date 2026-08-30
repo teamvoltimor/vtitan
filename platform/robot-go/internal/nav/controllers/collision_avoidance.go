@@ -97,7 +97,13 @@ func (c *CollisionAvoidanceController) AssessRisk(rangesM, anglesRad []float64) 
 		return RiskSafe
 	}
 
-	path := ForwardPathRanges(rangesM, anglesRad, c.PathHalfWidth, c.Geometry.MinValidRangeM, c.Geometry.LidarMaxRangeM)
+	path := ForwardPathRanges(
+		rangesM,
+		anglesRad,
+		c.PathHalfWidth,
+		c.Geometry.MinValidRangeM,
+		c.Geometry.LidarMaxRangeM,
+	)
 	if len(path) == 0 {
 		// Two different causes read the same here: no scan rays fell
 		// inside the forward lane at all (safe by construction), or the
@@ -150,7 +156,9 @@ func (c *CollisionAvoidanceController) RearSector(rangesM, anglesRad []float64) 
 // ComputeForwardClearance is the minimum clearance in the forward
 // FrontHalfFovRad sector (0 rad = forward), matching
 // CollisionAvoidanceController.compute_forward_clearance.
-func (c *CollisionAvoidanceController) ComputeForwardClearance(rangesM, anglesRad []float64) float64 {
+func (c *CollisionAvoidanceController) ComputeForwardClearance(
+	rangesM, anglesRad []float64,
+) float64 {
 	if len(rangesM) == 0 {
 		return c.Geometry.NoDataRangeM
 	}
@@ -210,13 +218,22 @@ func (c *CollisionAvoidanceController) ParkingClearances(rangesM, anglesRad []fl
 // angular cones (+/-45deg default) about forward (0), left (+pi/2), right
 // (-pi/2) and rear (+/-pi), so the result is correct regardless of the
 // scan's index ordering.
-func (c *CollisionAvoidanceController) DetectThreatDirection(rangesM, anglesRad []float64) ThreatDirection {
+func (c *CollisionAvoidanceController) DetectThreatDirection(
+	rangesM, anglesRad []float64,
+) ThreatDirection {
 	if len(rangesM) == 0 {
 		return ThreatNone
 	}
 
 	sectorMin := func(centerRad float64, filterSelfDetection bool) float64 {
-		sr := SectorToModel(rangesM, anglesRad, centerRad, c.ThreatHalfFovRad, filterSelfDetection, c.Geometry)
+		sr := SectorToModel(
+			rangesM,
+			anglesRad,
+			centerRad,
+			c.ThreatHalfFovRad,
+			filterSelfDetection,
+			c.Geometry,
+		)
 		if sr.ValidCount > 0 {
 			return sr.MinRangeM
 		}
@@ -254,7 +271,15 @@ func (c *CollisionAvoidanceController) DetectThreatDirection(rangesM, anglesRad 
 func (c *CollisionAvoidanceController) SectorRangeValues(
 	rangesM, anglesRad []float64, centerRad, halfFovRad float64, filterSelfDetection bool,
 ) []float64 {
-	return SectorRangeValues(rangesM, anglesRad, centerRad, halfFovRad, filterSelfDetection, c.Geometry, true)
+	return SectorRangeValues(
+		rangesM,
+		anglesRad,
+		centerRad,
+		halfFovRad,
+		filterSelfDetection,
+		c.Geometry,
+		true,
+	)
 }
 
 // ComputeEscapeManeuver generates an escape maneuver for a detected
@@ -263,7 +288,10 @@ func (c *CollisionAvoidanceController) SectorRangeValues(
 // fallback for the K-turn's side when LIDAR alone cannot tell (see
 // kTurnSteerSign). Returns ok=false when no maneuver is needed.
 func (c *CollisionAvoidanceController) ComputeEscapeManeuver(
-	risk RiskLevel, threatDir ThreatDirection, rangesM, anglesRad []float64, direction *trackmodel.Direction,
+	risk RiskLevel,
+	threatDir ThreatDirection,
+	rangesM, anglesRad []float64,
+	direction *trackmodel.Direction,
 ) (maneuver EscapeManeuver, ok bool) {
 	if risk == RiskSafe {
 		return EscapeManeuver{}, false
@@ -321,7 +349,8 @@ func (c *CollisionAvoidanceController) ComputeEscapeManeuver(
 func (c *CollisionAvoidanceController) kTurnSteerSign(
 	rangesM, anglesRad []float64, direction *trackmodel.Direction,
 ) float64 {
-	if leftClear, rightClear, ok := c.leftRightClearance(rangesM, anglesRad); ok && leftClear != rightClear {
+	if leftClear, rightClear, ok := c.leftRightClearance(rangesM, anglesRad); ok &&
+		leftClear != rightClear {
 		// Swing left (negative) when the left is clearer; swing right
 		// (positive) when the right is clearer.
 		if leftClear > rightClear {
@@ -364,7 +393,10 @@ func (c *CollisionAvoidanceController) leftRightClearance(
 // sideCorrectionManeuver builds the SIDE_CORRECTION EscapeManeuver shared
 // by the LEFT/RIGHT branches of ComputeEscapeManeuver, which are
 // identical apart from the steering sign and already-touching test.
-func (c *CollisionAvoidanceController) sideCorrectionManeuver(steerSign float64, alreadyTouching bool) EscapeManeuver {
+func (c *CollisionAvoidanceController) sideCorrectionManeuver(
+	steerSign float64,
+	alreadyTouching bool,
+) EscapeManeuver {
 	speed := c.SideCorrectionSpeed
 	duration := c.SideCorrectionFrames
 	if alreadyTouching {
@@ -381,7 +413,10 @@ func (c *CollisionAvoidanceController) sideCorrectionManeuver(steerSign float64,
 // about centerRad, matching CollisionAvoidanceController._side_clearance.
 // Used to tell "obstacle getting close" from "chassis is already at the
 // wall" for a side threat.
-func (c *CollisionAvoidanceController) sideClearance(centerRad float64, rangesM, anglesRad []float64) float64 {
+func (c *CollisionAvoidanceController) sideClearance(
+	centerRad float64,
+	rangesM, anglesRad []float64,
+) float64 {
 	if rangesM == nil {
 		return c.Geometry.NoDataRangeM
 	}
@@ -401,7 +436,13 @@ func (c *CollisionAvoidanceController) forwardTouching(rangesM, anglesRad []floa
 	if len(rangesM) == 0 {
 		return false
 	}
-	path := ForwardPathRanges(rangesM, anglesRad, c.PathHalfWidth, c.Geometry.MinValidRangeM, c.Geometry.LidarMaxRangeM)
+	path := ForwardPathRanges(
+		rangesM,
+		anglesRad,
+		c.PathHalfWidth,
+		c.Geometry.MinValidRangeM,
+		c.Geometry.LidarMaxRangeM,
+	)
 	if len(path) == 0 {
 		return false
 	}

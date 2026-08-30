@@ -19,7 +19,11 @@ func routerTestConfig(t *testing.T) signrouter.Config {
 	return cfg
 }
 
-func newTestRouter(t *testing.T, signs []signrouter.SignSpec, cfg signrouter.Config) *signrouter.SignRouter {
+func newTestRouter(
+	t *testing.T,
+	signs []signrouter.SignSpec,
+	cfg signrouter.Config,
+) *signrouter.SignRouter {
 	t.Helper()
 	router, err := signrouter.NewSignRouter(signs, cfg, trackmodel.Counterclockwise)
 	if err != nil {
@@ -87,7 +91,11 @@ func TestDeformWaypoint_SignOutsideActivationNotDeformed(t *testing.T) {
 	result := router.DeformWaypoint(wp, robotPos, 0.0, trackmodel.South, nil)
 
 	if result != wp {
-		t.Errorf("DeformWaypoint() = %+v, want unchanged %+v (sign outside activation distance)", result, wp)
+		t.Errorf(
+			"DeformWaypoint() = %+v, want unchanged %+v (sign outside activation distance)",
+			result,
+			wp,
+		)
 	}
 }
 
@@ -106,7 +114,9 @@ func TestDeformWaypoint_SignInsideActivationDeformed(t *testing.T) {
 	result := router.DeformWaypoint(wp, robotPos, 0.0, trackmodel.South, nil)
 
 	if result == wp {
-		t.Error("DeformWaypoint() = unchanged waypoint, want it deformed (sign inside activation distance)")
+		t.Error(
+			"DeformWaypoint() = unchanged waypoint, want it deformed (sign inside activation distance)",
+		)
 	}
 }
 
@@ -118,7 +128,13 @@ func TestDeformWaypoint_EmptySignListReturnsWaypointUnchanged(t *testing.T) {
 	cfg := routerTestConfig(t)
 	router := newTestRouter(t, nil, cfg)
 	wp := trackmodel.Waypoint{X: 1.5, Y: 0.4}
-	result := router.DeformWaypoint(wp, trackmodel.Waypoint{X: 1.4, Y: 0.4}, 0.0, trackmodel.South, nil)
+	result := router.DeformWaypoint(
+		wp,
+		trackmodel.Waypoint{X: 1.4, Y: 0.4},
+		0.0,
+		trackmodel.South,
+		nil,
+	)
 
 	if result != wp {
 		t.Errorf("DeformWaypoint() with no signs = %+v, want unchanged %+v", result, wp)
@@ -220,7 +236,13 @@ func TestPassedSigns_NotDeformedOnceRetired(t *testing.T) {
 	)
 
 	wp := trackmodel.Waypoint{X: 1.5, Y: 0.4}
-	result := router.DeformWaypoint(wp, trackmodel.Waypoint{X: 1.5 - engagedGap, Y: 0.4}, 0.0, trackmodel.South, nil)
+	result := router.DeformWaypoint(
+		wp,
+		trackmodel.Waypoint{X: 1.5 - engagedGap, Y: 0.4},
+		0.0,
+		trackmodel.South,
+		nil,
+	)
 	if result != wp {
 		t.Errorf("DeformWaypoint() on a retired sign = %+v, want unchanged %+v", result, wp)
 	}
@@ -256,8 +278,14 @@ func TestPassedSigns_ActiveSignCountDecrements(t *testing.T) {
 		nil,
 	)
 	router.DeformWaypoint(
-		trackmodel.Waypoint{X: secondX, Y: 0.4}, trackmodel.Waypoint{X: firstX + cfg.PassedDistM + 0.2, Y: 0.4},
-		0.0, trackmodel.South, nil,
+		trackmodel.Waypoint{
+			X: secondX,
+			Y: 0.4,
+		},
+		trackmodel.Waypoint{X: firstX + cfg.PassedDistM + 0.2, Y: 0.4},
+		0.0,
+		trackmodel.South,
+		nil,
 	)
 
 	if router.ActiveSignCount() != 1 {
@@ -301,9 +329,17 @@ func TestResetForNewLap_ReArmsPassedSigns(t *testing.T) {
 	}
 
 	wp := trackmodel.Waypoint{X: 1.5, Y: 0.4}
-	result := router.DeformWaypoint(wp, trackmodel.Waypoint{X: 1.5 - engagedGap, Y: 0.4}, 0.0, trackmodel.South, nil)
+	result := router.DeformWaypoint(
+		wp,
+		trackmodel.Waypoint{X: 1.5 - engagedGap, Y: 0.4},
+		0.0,
+		trackmodel.South,
+		nil,
+	)
 	if result == wp {
-		t.Error("DeformWaypoint() after ResetForNewLap = unchanged, want the re-armed sign to deform it again")
+		t.Error(
+			"DeformWaypoint() after ResetForNewLap = unchanged, want the re-armed sign to deform it again",
+		)
 	}
 }
 
@@ -341,7 +377,10 @@ func TestSettleWindow_EngageAndPassSuppressedWithinWindow(t *testing.T) {
 		nil,
 	)
 	if router.ActiveSignCount() != 1 {
-		t.Fatalf("ActiveSignCount() = %v within the settle window, want 1 (not retired)", router.ActiveSignCount())
+		t.Fatalf(
+			"ActiveSignCount() = %v within the settle window, want 1 (not retired)",
+			router.ActiveSignCount(),
+		)
 	}
 
 	// Tick 3: burn the remaining unsettled tick.
@@ -369,7 +408,10 @@ func TestSettleWindow_EngageAndPassSuppressedWithinWindow(t *testing.T) {
 		nil,
 	)
 	if router.ActiveSignCount() != 0 {
-		t.Errorf("ActiveSignCount() = %v past the settle window, want 0 (retired)", router.ActiveSignCount())
+		t.Errorf(
+			"ActiveSignCount() = %v past the settle window, want 0 (retired)",
+			router.ActiveSignCount(),
+		)
 	}
 }
 
@@ -388,7 +430,13 @@ func TestSettleWindow_CandidateSelectionNotSuppressed(t *testing.T) {
 
 	wp := trackmodel.Waypoint{X: 1.5, Y: 0.4}
 	engagedGap := cfg.ActivationDistM / 4
-	result := router.DeformWaypoint(wp, trackmodel.Waypoint{X: 1.5 - engagedGap, Y: 0.4}, 0.0, trackmodel.South, nil)
+	result := router.DeformWaypoint(
+		wp,
+		trackmodel.Waypoint{X: 1.5 - engagedGap, Y: 0.4},
+		0.0,
+		trackmodel.South,
+		nil,
+	)
 	if result == wp {
 		t.Error("DeformWaypoint() within a long settle window = unchanged, want it still deformed")
 	}
@@ -421,7 +469,10 @@ func TestSettleWindow_ResetForNewLapRestartsTheWindow(t *testing.T) {
 		nil,
 	)
 	if router.ActiveSignCount() != 0 {
-		t.Fatalf("ActiveSignCount() = %v, want 0 (settled already, so this retired it)", router.ActiveSignCount())
+		t.Fatalf(
+			"ActiveSignCount() = %v, want 0 (settled already, so this retired it)",
+			router.ActiveSignCount(),
+		)
 	}
 
 	router.ResetForNewLap()
@@ -461,16 +512,35 @@ func TestEngagementGating_DistantSignAtSpawnNotPrematurelyPassed(t *testing.T) {
 	router := newTestRouter(t, []signrouter.SignSpec{sign}, cfg)
 
 	spawnWp := trackmodel.Waypoint{X: 0.4, Y: 0.4}
-	result := router.DeformWaypoint(spawnWp, spawnWp, 0.0, trackmodel.South, nil) // d = 1.6m > passed_dist
+	result := router.DeformWaypoint(
+		spawnWp,
+		spawnWp,
+		0.0,
+		trackmodel.South,
+		nil,
+	) // d = 1.6m > passed_dist
 	if result != spawnWp {
-		t.Errorf("DeformWaypoint() at spawn = %+v, want unchanged %+v (too far to deform yet)", result, spawnWp)
+		t.Errorf(
+			"DeformWaypoint() at spawn = %+v, want unchanged %+v (too far to deform yet)",
+			result,
+			spawnWp,
+		)
 	}
 	if router.ActiveSignCount() != 1 {
-		t.Fatalf("ActiveSignCount() = %v, want 1 (still active, not retired)", router.ActiveSignCount())
+		t.Fatalf(
+			"ActiveSignCount() = %v, want 1 (still active, not retired)",
+			router.ActiveSignCount(),
+		)
 	}
 
 	approachWp := trackmodel.Waypoint{X: 2.0, Y: 0.4}
-	approached := router.DeformWaypoint(approachWp, trackmodel.Waypoint{X: 1.7, Y: 0.4}, 0.0, trackmodel.South, nil)
+	approached := router.DeformWaypoint(
+		approachWp,
+		trackmodel.Waypoint{X: 1.7, Y: 0.4},
+		0.0,
+		trackmodel.South,
+		nil,
+	)
 	if approached == approachWp {
 		t.Error("DeformWaypoint() once approached = unchanged, want it deformed")
 	}

@@ -15,7 +15,14 @@ import (
 func TestNewStuckDetector_HistorySizeSmallerThanTimeoutFramesRejected(t *testing.T) {
 	t.Parallel()
 
-	_, err := controllers.NewStuckDetector(0.03, 40, 10, 3, controllers.DefaultMinHistoryForDistance, nil)
+	_, err := controllers.NewStuckDetector(
+		0.03,
+		40,
+		10,
+		3,
+		controllers.DefaultMinHistoryForDistance,
+		nil,
+	)
 	if err == nil {
 		t.Fatal("NewStuckDetector(historySize=10, timeoutFrames=40) err = nil, want an error")
 	}
@@ -29,7 +36,14 @@ func TestNewStuckDetector_HistorySizeSmallerThanTimeoutFramesRejected(t *testing
 func TestNewStuckDetector_HistorySizeEqualToTimeoutFramesIsAllowed(t *testing.T) {
 	t.Parallel()
 
-	_, err := controllers.NewStuckDetector(0.03, 40, 40, 3, controllers.DefaultMinHistoryForDistance, nil)
+	_, err := controllers.NewStuckDetector(
+		0.03,
+		40,
+		40,
+		3,
+		controllers.DefaultMinHistoryForDistance,
+		nil,
+	)
 	if err != nil {
 		t.Errorf("NewStuckDetector(historySize=40, timeoutFrames=40) err = %v, want nil", err)
 	}
@@ -40,7 +54,14 @@ func TestNewStuckDetector_HistorySizeEqualToTimeoutFramesIsAllowed(t *testing.T)
 func TestUpdate_DeclaresStuckAfterTimeoutWithoutMovement(t *testing.T) {
 	t.Parallel()
 
-	detector, err := controllers.NewStuckDetector(0.03, 5, 10, 3, controllers.DefaultMinHistoryForDistance, nil)
+	detector, err := controllers.NewStuckDetector(
+		0.03,
+		5,
+		10,
+		3,
+		controllers.DefaultMinHistoryForDistance,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("NewStuckDetector() err = %v", err)
 	}
@@ -58,7 +79,14 @@ func TestUpdate_DeclaresStuckAfterTimeoutWithoutMovement(t *testing.T) {
 func TestUpdate_NotStuckWhenMoving(t *testing.T) {
 	t.Parallel()
 
-	detector, err := controllers.NewStuckDetector(0.03, 5, 10, 3, controllers.DefaultMinHistoryForDistance, nil)
+	detector, err := controllers.NewStuckDetector(
+		0.03,
+		5,
+		10,
+		3,
+		controllers.DefaultMinHistoryForDistance,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("NewStuckDetector() err = %v", err)
 	}
@@ -81,7 +109,14 @@ func TestUpdate_NotStuckWhenMoving(t *testing.T) {
 func TestNewStuckDetector_NilLoggerFallsBackToDefault(t *testing.T) {
 	t.Parallel()
 
-	detector, err := controllers.NewStuckDetector(0.03, 5, 10, 3, controllers.DefaultMinHistoryForDistance, nil)
+	detector, err := controllers.NewStuckDetector(
+		0.03,
+		5,
+		10,
+		3,
+		controllers.DefaultMinHistoryForDistance,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("NewStuckDetector() err = %v", err)
 	}
@@ -103,7 +138,14 @@ func TestNewStuckDetector_NilLoggerFallsBackToDefault(t *testing.T) {
 func TestReset_ClearsStuckState(t *testing.T) {
 	t.Parallel()
 
-	detector, err := controllers.NewStuckDetector(0.03, 5, 10, 3, controllers.DefaultMinHistoryForDistance, nil)
+	detector, err := controllers.NewStuckDetector(
+		0.03,
+		5,
+		10,
+		3,
+		controllers.DefaultMinHistoryForDistance,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("NewStuckDetector() err = %v", err)
 	}
@@ -112,7 +154,8 @@ func TestReset_ClearsStuckState(t *testing.T) {
 	}
 	detector.Reset()
 
-	if got := detector.GetDiagnostics(); got.IsStuck || got.StuckCount != 0 || got.HistorySize != 0 {
+	if got := detector.GetDiagnostics(); got.IsStuck || got.StuckCount != 0 ||
+		got.HistorySize != 0 {
 		t.Errorf("GetDiagnostics() after Reset() = %+v, want a clean slate", got)
 	}
 }

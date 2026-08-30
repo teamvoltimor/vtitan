@@ -24,7 +24,11 @@ func TestNewFramebuffer_RejectsInvalidSizes(t *testing.T) {
 			t.Parallel()
 
 			if _, err := ssd1306.NewFramebuffer(tt.width, tt.height); err == nil {
-				t.Fatalf("NewFramebuffer(%d, %d): got nil error, want an error", tt.width, tt.height)
+				t.Fatalf(
+					"NewFramebuffer(%d, %d): got nil error, want an error",
+					tt.width,
+					tt.height,
+				)
 			}
 		})
 	}
@@ -67,7 +71,9 @@ func TestFramebuffer_SetPixel_OutOfBoundsIsIgnored(t *testing.T) {
 	fb.SetPixel(0, 8, true)
 
 	if fb.Pixel(-1, 0) || fb.Pixel(0, -1) || fb.Pixel(8, 0) || fb.Pixel(0, 8) {
-		t.Fatal("out-of-bounds Pixel() reported true, want false for every out-of-bounds coordinate")
+		t.Fatal(
+			"out-of-bounds Pixel() reported true, want false for every out-of-bounds coordinate",
+		)
 	}
 }
 

@@ -25,7 +25,10 @@ func TestLoad_BTS7960Config(t *testing.T) {
 func TestLoad_LidarLaunchConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.LidarLaunchConfig](filepath.Join("testdata", "lidar_launch.toml"), nil)
+	cfg, err := profile.Load[profile.LidarLaunchConfig](
+		filepath.Join("testdata", "lidar_launch.toml"),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -40,15 +43,25 @@ func TestLoad_LidarLaunchConfig(t *testing.T) {
 func TestLoad_IMUUARTRVCConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.IMUUARTRVCConfig](filepath.Join("testdata", "bno08x_uart_rvc.toml"), nil)
+	cfg, err := profile.Load[profile.IMUUARTRVCConfig](
+		filepath.Join("testdata", "bno08x_uart_rvc.toml"),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if cfg.DefaultPort != "/dev/ttyACM0" || cfg.Baudrate != 115200 {
-		t.Errorf("DefaultPort/Baudrate = %q/%v, want /dev/ttyACM0/115200", cfg.DefaultPort, cfg.Baudrate)
+		t.Errorf(
+			"DefaultPort/Baudrate = %q/%v, want /dev/ttyACM0/115200",
+			cfg.DefaultPort,
+			cfg.Baudrate,
+		)
 	}
 	if !cfg.Quaternion.NegateYaw || cfg.Quaternion.NegatePitch || !cfg.Quaternion.NegateRoll {
-		t.Errorf("Quaternion = %+v, want NegateYaw/NegateRoll true, NegatePitch false", cfg.Quaternion)
+		t.Errorf(
+			"Quaternion = %+v, want NegateYaw/NegateRoll true, NegatePitch false",
+			cfg.Quaternion,
+		)
 	}
 }
 
@@ -62,7 +75,8 @@ func TestLoad_ButtonGPIOConfig(t *testing.T) {
 	if cfg.ButtonGPIOPin != 4 {
 		t.Errorf("ButtonGPIOPin = %v, want 4", cfg.ButtonGPIOPin)
 	}
-	if !cfg.Button.PullUp || cfg.Button.LongPressThresholdSec != 3.0 || cfg.Button.ShutdownPressThresholdSec != 10.0 {
+	if !cfg.Button.PullUp || cfg.Button.LongPressThresholdSec != 3.0 ||
+		cfg.Button.ShutdownPressThresholdSec != 10.0 {
 		t.Errorf("Button = %+v, want PullUp=true, LongPress=3.0, Shutdown=10.0", cfg.Button)
 	}
 }
@@ -70,7 +84,10 @@ func TestLoad_ButtonGPIOConfig(t *testing.T) {
 func TestLoad_ButtonNodeConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.ButtonNodeConfig](filepath.Join("testdata", "button_node.toml"), nil)
+	cfg, err := profile.Load[profile.ButtonNodeConfig](
+		filepath.Join("testdata", "button_node.toml"),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

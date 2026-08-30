@@ -104,7 +104,12 @@ func (d *SerialDriver) Connect(ctx context.Context) error {
 		return fmt.Errorf("lidar: reading SCAN response descriptor: %w", descErr)
 	}
 	if desc.dataType != dataTypeMeasurement {
-		return fmt.Errorf("%w: got 0x%02X, want 0x%02X", ErrUnexpectedDataType, desc.dataType, dataTypeMeasurement)
+		return fmt.Errorf(
+			"%w: got 0x%02X, want 0x%02X",
+			ErrUnexpectedDataType,
+			desc.dataType,
+			dataTypeMeasurement,
+		)
 	}
 
 	return nil
@@ -194,7 +199,12 @@ func (d *SerialDriver) Health(_ context.Context) (Health, error) {
 		return Health{}, fmt.Errorf("lidar: reading GET_HEALTH response descriptor: %w", err)
 	}
 	if desc.dataType != dataTypeHealth {
-		return Health{}, fmt.Errorf("%w: got 0x%02X, want 0x%02X", ErrUnexpectedDataType, desc.dataType, dataTypeHealth)
+		return Health{}, fmt.Errorf(
+			"%w: got 0x%02X, want 0x%02X",
+			ErrUnexpectedDataType,
+			desc.dataType,
+			dataTypeHealth,
+		)
 	}
 
 	body := make([]byte, healthRespLen)
