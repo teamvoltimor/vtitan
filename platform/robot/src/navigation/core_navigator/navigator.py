@@ -35,6 +35,7 @@ from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand, LidarScan
+from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.track_geometry import cross_track_error, path_turn_ahead
 from src.navigation.utils import wrap_angle
 
@@ -95,6 +96,7 @@ class CoreNavigator(EscapeRecovery):
         self._waypoint_index = 0
         self._laps_completed = 0
         self._suppress_next_wrap = False
+        self._corner_latch = CornerLatch()
         self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
@@ -235,6 +237,10 @@ class CoreNavigator(EscapeRecovery):
         # layout would read as "already applied" and leave the new path bare.
         self._lane_base_waypoints = list(waypoints)
         self._lane_fingerprint = None
+        # A corner held open by the latch was previewed on the OLD centreline
+        # and need not exist on this one, so holding it would keep the short
+        # lookahead armed against a turn the robot is no longer going to make.
+        self._corner_latch.reset()
         self._apply_path_wall_budget()
         robot_x, robot_y = robot_xy
         distances = [wp.distance_to_xy(robot_x, robot_y) for wp in waypoints]
@@ -443,6 +449,7 @@ class CoreNavigator(EscapeRecovery):
         self._waypoint_index = 0
         self._laps_completed = 0
         self._suppress_next_wrap = False
+        self._corner_latch.reset()
         self._parking_engaged = False
         self._active_maneuver = None
         self._maneuver_frames_left = 0
@@ -762,6 +769,14 @@ class CoreNavigator(EscapeRecovery):
             self._waypoints,
             self._waypoint_index,
             self._tuning.pursuit.CORNER_PREVIEW_DISTANCE_M,
+        )
+        # The preview decays to zero once the chassis is INSIDE the arc, which
+        # un-arms the short lookahead mid-corner -- and crosstrack cannot cover
+        # for it there, because the robot is on the path and merely pointing
+        # the wrong way. Hold the preview open until the turn it promised has
+        # actually been driven. See CornerLatch for the hardware trace.
+        turn_ahead = self._corner_latch.update(
+            turn_ahead, robot_yaw, self._tuning.pursuit.CORNER_TURN_THRESHOLD_RAD
         )
         # A third preview signal alongside crosstrack/turn_ahead: crosstrack
         # is measured against the raw path, so it never rises during a sign

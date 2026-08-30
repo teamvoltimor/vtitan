@@ -28,7 +28,15 @@ die() { echo "[pull-runs] ERROR: $*" >&2; exit 1; }
 pi5_preflight "$PI5_HOST" "${SSH_OPTS[@]}" || exit 1
 
 PATTERN="${1:-run_*}"
-[ "$PATTERN" = "${PATTERN%\**}" ] && [[ "$PATTERN" != run_* ]] && PATTERN="${PATTERN}*"
+# Append a glob unless the caller already supplied one. The documented usage is
+# a run name or timestamp PREFIX (PATTERN=run_20260830), which is a literal and
+# matches no directory on its own; an earlier form skipped the append for
+# anything starting with "run_", i.e. for exactly the prefixes the Taskfile tells
+# you to pass.
+case "$PATTERN" in
+  *\**) ;;
+  *) PATTERN="${PATTERN}*" ;;
+esac
 
 mapfile -t RUNS < <(ssh "${SSH_OPTS[@]}" "$PI5_HOST" \
   "cd $REMOTE_BAG_DIR 2>/dev/null && ls -d $PATTERN 2>/dev/null" || true)
