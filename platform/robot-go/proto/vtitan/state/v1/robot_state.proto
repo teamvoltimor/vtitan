@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package vtitan.state.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1";
+
+// RobotState is the Go-stack replacement for /robot_state, currently a
+// std_msgs/String carrying the state name. Published on the
+// `vtitan.state.v1.robot_state` NATS subject.
+//
+// Mirrors internal/statemachine/core's RobotState, which was ported from
+// src/state_machine/core.py against its real 4-state machine and 8-rule
+// transition table.
+message RobotState {
+  // State is the machine's current state. The cycle FINISHED -> BOOT_CHECK
+  // -> READY -> RACING can be driven purely by the physical button with no
+  // process restart, which is why consumers must treat every transition as
+  // possible rather than assuming a one-way progression.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_BOOT_CHECK = 1;
+    STATE_READY = 2;
+    STATE_RACING = 3;
+    STATE_FINISHED = 4;
+  }
+
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  State state = 2 [(buf.validate.field).enum.defined_only = true];
+}

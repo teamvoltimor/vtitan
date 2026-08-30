@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package vtitan.vision.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/visionv1";
+
+// SignColor is a detected traffic sign's class, mirroring
+// shared.domain.models.SignColor and internal/nav/signrouter's SignColor.
+//
+// MAGENTA is the parking-lot marker rather than a routed sign: nothing in
+// the sign-routing path produces or consumes it, and it is present so this
+// enum mirrors the Python one exactly.
+enum SignColor {
+  SIGN_COLOR_UNSPECIFIED = 0;
+  SIGN_COLOR_RED = 1;
+  SIGN_COLOR_GREEN = 2;
+  SIGN_COLOR_MAGENTA = 3;
+}
+
+// BBox is an axis-aligned bounding box in image pixels, mirroring
+// shared.domain.models.BBox -- which exists specifically to replace an
+// ambiguous tuple[float, float, float, float].
+message BBox {
+  double x_min = 1 [(buf.validate.field).double.finite = true];
+  double y_min = 2 [(buf.validate.field).double.finite = true];
+  double x_max = 3 [(buf.validate.field).double.finite = true];
+  double y_max = 4 [(buf.validate.field).double.finite = true];
+}
+
+// Detection is one computer-vision detection, mirroring
+// shared.domain.models.Detection.
+//
+// Python carries the centroid (x, y), width/height and area alongside the
+// bbox, all of which are derivable from it. They are kept rather than
+// recomputed on the consuming side so this message stays a faithful
+// 1:1 mapping of the payload currently on the wire -- deriving them here
+// would silently paper over any producer whose values disagree with its own
+// bbox, which is worth seeing rather than hiding.
+message Detection {
+  SignColor class_name = 1 [(buf.validate.field).enum.defined_only = true];
+  double confidence = 2 [(buf.validate.field).double = {
+    gte: 0.0
+    lte: 1.0
+  }];
+  BBox bbox = 3;
+  // Centroid of the bounding box.
+  double x = 4 [(buf.validate.field).double.finite = true];
+  double y = 5 [(buf.validate.field).double.finite = true];
+  double width = 6 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  double height = 7 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  double area = 8 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+}
+
+// Detections is the Go-stack replacement for /vision/detections, currently a
+// std_msgs/String carrying JSON. Published on the
+// `vtitan.vision.v1.detections` NATS subject.
+//
+// An empty list is the normal case on most frames and is NOT an error: the
+// camera sees no sign for most of a lap. Consumers must treat "no detections
+// this frame" and "no message this frame" differently -- the former is a
+// measurement, the latter is a dropout.
+message Detections {
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  string frame_id = 2;
+  repeated Detection detections = 3;
+}

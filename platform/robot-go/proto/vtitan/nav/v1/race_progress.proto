@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package vtitan.nav.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "vtitan/nav/v1/navigator_debug.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/navv1";
+
+// LapsCompleted is the Go-stack replacement for /race/laps_completed.
+// Published on the `vtitan.nav.v1.laps_completed` NATS subject.
+//
+// Kept a separate subject rather than folded into NavigatorDebug: the
+// navigator is the only thing that detects a lap crossing, and the state
+// machine subscribes to this specifically to drive /race_metrics and the
+// FINISHED transition. Making that consumer parse the full per-tick debug
+// snapshot to read one integer would couple a control-path transition to a
+// diagnostics message.
+message LapsCompleted {
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  int32 laps_completed = 2 [(buf.validate.field).int32.gte = 0];
+}
+
+// CurrentCorridor is the Go-stack replacement for /race/current_corridor,
+// currently a std_msgs/String carrying the Section name. Published on the
+// `vtitan.nav.v1.current_corridor` NATS subject, every control tick, for the
+// OLED's CORRIDOR line.
+//
+// Published at tick rate on a best-effort basis by design: a dropped sample
+// is corrected within one tick, so consumers must not treat a gap as
+// meaningful.
+message CurrentCorridor {
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  // Reuses nav/v1's Section rather than a string, so a typo fails to compile
+  // instead of silently missing a lookup on the consuming side.
+  Section section = 2 [(buf.validate.field).enum.defined_only = true];
+}

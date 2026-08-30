@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package vtitan.ui.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1";
+
+// Challenge is which WRO challenge the robot is configured to run. Selected
+// physically by a jumper, so it can change between races without a restart.
+enum Challenge {
+  CHALLENGE_UNSPECIFIED = 0;
+  CHALLENGE_OPEN = 1;
+  CHALLENGE_OBSTACLES = 2;
+}
+
+// JumperInserted is the Go-stack replacement for
+// /challenge_mode/jumper_inserted. Published on the
+// `vtitan.ui.v1.jumper_inserted` NATS subject by the challenge-mode driver.
+//
+// Kept separate from ChallengeModeActive because they answer different
+// questions: this is the raw hardware reading, that is the resolved mode the
+// rest of the stack should act on. Collapsing them would make it impossible
+// to tell "no jumper fitted, defaulting" from "jumper fitted, selecting".
+message JumperInserted {
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  bool inserted = 2;
+}
+
+// ChallengeModeActive is the Go-stack replacement for
+// /challenge_mode/active, currently a std_msgs/String carrying the challenge
+// name. Published on the `vtitan.ui.v1.challenge_mode_active` NATS subject
+// and consumed by the navigator and vision nodes, both of which change
+// behavior wholesale between the two challenges.
+message ChallengeModeActive {
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  Challenge challenge = 2 [(buf.validate.field).enum.defined_only = true];
+}

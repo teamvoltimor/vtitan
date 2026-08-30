@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package vtitan.state.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1";
+
+// SystemStatus is the Go-stack replacement for /system_status, currently a
+// diagnostic_msgs/DiagnosticArray published by both the state machine and
+// the telemetry bridge (and, once, by the vision node to report the real
+// loaded model name). Published on the `vtitan.state.v1.system_status` NATS
+// subject.
+//
+// Shaped after DiagnosticArray rather than flattened, because the topic has
+// multiple independent producers: each contributes its own DiagnosticStatus
+// entries under its own name, and a flat message would force them to agree
+// on one field set they have no reason to share.
+message SystemStatus {
+  // Level mirrors diagnostic_msgs/DiagnosticStatus's byte levels. STALE is
+  // part of that standard and kept, even though nothing in this project
+  // emits it yet, so a message bridged from a ROS2 producer round-trips.
+  enum Level {
+    LEVEL_UNSPECIFIED = 0;
+    LEVEL_OK = 1;
+    LEVEL_WARN = 2;
+    LEVEL_ERROR = 3;
+    LEVEL_STALE = 4;
+  }
+
+  // KeyValue is one free-form diagnostic reading, mirroring
+  // diagnostic_msgs/KeyValue. Values stay strings rather than a typed union:
+  // this is a human-facing diagnostic channel, and producers already publish
+  // a mix of numbers, model names and free text through it.
+  message KeyValue {
+    string key = 1 [(buf.validate.field).string.min_len = 1];
+    string value = 2;
+  }
+
+  // Status is one producer's report, mirroring
+  // diagnostic_msgs/DiagnosticStatus.
+  message Status {
+    Level level = 1 [(buf.validate.field).enum.defined_only = true];
+    // Which component is reporting, e.g. the node or subsystem name.
+    string name = 2 [(buf.validate.field).string.min_len = 1];
+    // Human-readable summary of this status.
+    string message = 3;
+    // Identifies the specific piece of hardware, where one is involved.
+    string hardware_id = 4;
+    repeated KeyValue values = 5;
+  }
+
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  repeated Status status = 2;
+}

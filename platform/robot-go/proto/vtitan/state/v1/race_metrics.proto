@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package vtitan.state.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1";
+
+// RaceMetrics is the Go-stack replacement for /race_metrics, currently a
+// std_msgs/String carrying the JSON of RaceMetricsWire (see
+// src/ros2/wire_models.py). Published on the `vtitan.state.v1.race_metrics`
+// NATS subject; produced by the state machine, consumed by the OLED display.
+//
+// That wire model's docstring is explicit that these field names are a
+// cross-process contract -- a rename on one side is a silent break on the
+// other, because a JSON lookup just misses. Converting that class of break
+// into a `buf breaking` failure is the point of this schema.
+//
+// FIELD NAMES ARE CARRIED FROM THE PYTHON MODEL VERBATIM, without the _m/
+// _mps/_rad suffixes used elsewhere in these protos. The producing node is
+// not in platform/robot (RaceMetricsWire is defined but populated nowhere in
+// this tree), so the units of current_steering and gyro_yaw could not be
+// verified against a producer. Renaming them to assert a unit would be a
+// guess of exactly the kind that made /motor/drive_speed read as RPM when it
+// was actually deg/s. Measure against a real publisher, then rename and add
+// range constraints in one change.
+//
+// target_laps is optional because the wire model distinguishes "the state
+// machine has not published a target yet" from a real zero: the OLED falls
+// back to its own lap target so the "n/3" line stays honest before the first
+// real figure arrives. The other fields default to zero in Python and carry
+// no such distinction, so they are plain.
+message RaceMetrics {
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+
+  int32 laps_completed = 2 [(buf.validate.field).int32.gte = 0];
+  optional int32 target_laps = 3 [(buf.validate.field).int32.gte = 0];
+
+  // Seconds. The only unit here that is corroborated -- race_tracker.py's
+  // RaceMetrics.elapsed_time documents the same quantity as seconds.
+  double total_race_time = 4 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+
+  // Signed regardless of unit: the drivetrain reverses during escape
+  // maneuvers, so a gte:0 bound would reject real frames.
+  double current_velocity = 5 [(buf.validate.field).double.finite = true];
+
+  // Unit UNVERIFIED: normalized [-1, 1] per ports.DriveCommand, or radians.
+  // Left unbounded rather than constrained to a guessed range.
+  double current_steering = 6 [(buf.validate.field).double.finite = true];
+
+  // Unit UNVERIFIED: radians or degrees. Same reasoning.
+  double gyro_yaw = 7 [(buf.validate.field).double.finite = true];
+
+  // Empty until the navigator has classified a corridor. Typed as Section on
+  // the producing side; carried as a string so state/v1 does not depend on
+  // nav/v1 for one display field.
+  string current_corridor = 8;
+}

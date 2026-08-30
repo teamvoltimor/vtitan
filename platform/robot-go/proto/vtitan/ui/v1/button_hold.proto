@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package vtitan.ui.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1";
+
+// ButtonHold is the Go-stack replacement for /button/hold, currently a
+// std_msgs/String carrying the JSON of ButtonHoldWire (see
+// src/ros2/wire_models.py). Published on the `vtitan.ui.v1.button_hold` NATS
+// subject; produced by the button node, consumed by the OLED display so it
+// can show hold progress as the button is held down.
+//
+// Distinct from ui.v1.ButtonEvent (/button/event), which reports a completed
+// press. This one is the continuous in-progress signal.
+message ButtonHold {
+  // Threshold is one hold duration at which something happens, so the
+  // display can render the upcoming action rather than a bare timer.
+  message Threshold {
+    // Seconds of hold at which this threshold fires.
+    double at_s = 1 [(buf.validate.field).double = {
+      gte: 0.0
+      finite: true
+    }];
+    // What firing this threshold does. Free-form: the producer sends a
+    // human-readable kind and the display shows it verbatim.
+    string kind = 2 [(buf.validate.field).string.min_len = 1];
+  }
+
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  // How long the button has been held so far.
+  double held_s = 2 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  // Empty is legitimate: a producer with no configured thresholds still
+  // reports held_s, and the OLED must not blank on a partial frame.
+  repeated Threshold thresholds = 3;
+}
