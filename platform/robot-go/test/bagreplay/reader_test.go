@@ -94,3 +94,31 @@ func TestReadNavDebug_RealBag(t *testing.T) {
 
 	t.Logf("decoded %d /nav_debug rows spanning %.1fs", len(rows), rows[len(rows)-1].ElapsedS)
 }
+
+// TestReadScan_RealBag is the end-to-end check that this package can decode
+// the physical lidar's sensor_msgs/LaserScan off a real MCAP bag -- the other
+// half of the parity gate, alongside TestReadNavDebug_RealBag.
+func TestReadScan_RealBag(t *testing.T) {
+	t.Parallel()
+
+	rows, err := bagreplay.ReadScan(bagDir(t))
+	if err != nil {
+		t.Fatalf("ReadScan() error = %v, want nil", err)
+	}
+	if len(rows) == 0 {
+		t.Fatal("read 0 /scan rows, want the lidar's per-sweep stream")
+	}
+
+	// Every decoded sweep must carry the angles the navigator consumes.
+	for i, row := range rows {
+		if len(row.Scan.RangesM) == 0 {
+			t.Fatalf("row %d has 0 ranges, want a populated sweep", i)
+		}
+		if row.Scan.AngleIncrement == 0 {
+			t.Fatalf("row %d has angle_increment 0, want the per-ray step", i)
+		}
+	}
+
+	t.Logf("decoded %d /scan rows, first sweep %d rays over [%.4f, %.4f]",
+		len(rows), len(rows[0].Scan.RangesM), rows[0].Scan.AngleMin, rows[0].Scan.AngleMax)
+}

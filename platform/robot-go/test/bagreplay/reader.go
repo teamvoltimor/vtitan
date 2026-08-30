@@ -62,6 +62,73 @@ func FindBagFile(path string) (string, error) {
 	}
 }
 
+// ScanRow pairs a decoded LIDAR sweep with when it was recorded, on the same
+// elapsed-time basis as NavDebugRow (the bag's first message on ANY topic).
+type ScanRow struct {
+	ElapsedS float64
+	Scan     LaserScan
+}
+
+// ReadScan replays a bag and returns every /scan sweep in recorded order.
+//
+// path may be either the run directory or the .mcap file itself.
+func ReadScan(path string) ([]ScanRow, error) {
+	file, err := FindBagFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	handle, err := os.Open(file)
+	if err != nil {
+		return nil, fmt.Errorf("bagreplay: opening %s: %w", file, err)
+	}
+	defer handle.Close()
+
+	reader, err := mcap.NewReader(handle)
+	if err != nil {
+		return nil, fmt.Errorf("bagreplay: reading %s as MCAP: %w", file, err)
+	}
+	defer reader.Close()
+
+	iterator, err := reader.Messages()
+	if err != nil {
+		return nil, fmt.Errorf("bagreplay: iterating %s: %w", file, err)
+	}
+
+	var rows []ScanRow
+	var firstStamp uint64
+	haveFirst := false
+
+	var scratch mcap.Message
+	for {
+		_, channel, message, nextErr := iterator.NextInto(&scratch)
+		if errors.Is(nextErr, io.EOF) {
+			break
+		}
+		if nextErr != nil {
+			return nil, fmt.Errorf("bagreplay: reading next message from %s: %w", file, nextErr)
+		}
+
+		if !haveFirst {
+			firstStamp, haveFirst = message.LogTime, true
+		}
+		if channel == nil || channel.Topic != ScanTopic {
+			continue
+		}
+
+		scan, decodeErr := DecodeLaserScan(message.Data)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("bagreplay: decoding %s at %d: %w", ScanTopic, message.LogTime, decodeErr)
+		}
+		rows = append(rows, ScanRow{
+			ElapsedS: float64(message.LogTime-firstStamp) / nanosPerSecond,
+			Scan:     scan,
+		})
+	}
+
+	return rows, nil
+}
+
 // ReadNavDebug replays a bag and returns every /nav_debug snapshot in
 // recorded order, matching bag_io.read_nav_debug_rows.
 //
