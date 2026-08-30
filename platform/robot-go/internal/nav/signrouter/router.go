@@ -81,6 +81,25 @@ func (r *SignRouter) Signs() []SignSpec {
 	return append([]SignSpec(nil), r.signs...)
 }
 
+// AppendSign adds a discovered sign to the router's list, returning its new
+// index, matching SignRouter's discover-mode append (ObservedSignMap.Publish
+// assigns the returned index to its track so the router's index-keyed
+// bookkeeping stays valid). The new sign's corridor is derived the same way
+// NewSignRouter derives every initial sign's.
+func (r *SignRouter) AppendSign(spec SignSpec) int {
+	r.signs = append(r.signs, spec)
+	idx := len(r.signs) - 1
+	r.signCorridors = append(r.signCorridors, r.corridorForSpec(spec))
+	return idx
+}
+
+// cornerMinM/cornerMaxM expose the track corner bounds the router was built
+// with, matching the TrackDimensions CORNER_MIN/CORNER_MAX values the Python
+// ObservedSignMap.corridor_for_position uses. Discovery's robot-corridor
+// gating needs them.
+func (r *SignRouter) cornerMinM() float64 { return r.config.TrackCornerMinM }
+func (r *SignRouter) cornerMaxM() float64 { return r.config.TrackCornerMaxM }
+
 // LaneSpecs returns every routed sign paired with the corridor label the
 // router uses for it, matching the lane_specs property. Passed signs are
 // INCLUDED (the lane is planned geometry for the whole layout, not this

@@ -1,0 +1,33 @@
+[Unit]
+Description=vTitan Go (Pi 5) — Navigator, IMU, LiDAR Bridge, Foxglove Bridge
+# No network-online.target: same reasoning as vtitan-pi5.service -- nothing this
+# unit drives needs WiFi to start; telemetry/bridge are best-effort and must
+# never gate the robot. All comms are local NATS + the LiDAR is local hardware.
+# A Pi 5 reboot power-cycles the Zero too (same USB gadget cable), so every Pi 5
+# boot is a simultaneous cold boot of both boards; without the gadget-link wait
+# the navigator's own startup races link re-enumeration. Bounded (55s) and
+# never fails/blocks startup on its own -- see wait-for-gadget-link.sh.
+Wants=vtitan-lidar.service
+After=vtitan-lidar.service
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+Type=exec
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=/opt/vtitan-go
+EnvironmentFile=-/opt/vtitan-go/.env
+# Each Go node is a separate static binary talking over NATS+protobuf; they are
+# launched together so a single unit manages the Pi 5-side robot processes.
+ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/provisioning/wait-for-gadget-link.sh
+ExecStartPre=+/usr/bin/systemctl restart vtitan-lidar.service
+ExecStart=/opt/vtitan-go/bin/pi5
+Restart=on-failure
+RestartSec=5
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=10
+TimeoutStartSec=150
+
+[Install]
+WantedBy=multi-user.target

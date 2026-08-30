@@ -138,8 +138,24 @@ func TestClient_Run_DispatchesAndAcks(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- client.Run(ctx, dispatcher) }()
 
-	// Give the stream time to deliver both commands and their acks.
-	time.Sleep(300 * time.Millisecond)
+	// Wait for the actual final condition -- both commands dispatched, acked,
+	// AND their button events published -- instead of assuming a fixed delay.
+	// The dispatch pipeline is synchronous (Dispatch publishes the button
+	// event, then Run acks), so observing 2 acks also guarantees 2 button
+	// events; polling both closes the race that the fixed 300ms sleep left
+	// open under CI load.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if len(srv.recordedAcks()) == 2 && len(buttonSink.recorded()) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for dispatch+ack: acks=%v events=%v",
+				srv.recordedAcks(), buttonSink.recorded())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	cancel()
 	if err := <-runErr; err != nil {
 		t.Fatalf("Run: %v", err)

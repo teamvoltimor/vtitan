@@ -8,7 +8,11 @@ import (
 	"slices"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/directionestimator"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startmeasurement"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 )
@@ -35,10 +39,10 @@ type VisionGateway interface {
 //
 // LapDetector and ParkController have no Go equivalent and are absent by
 // design, not omitted by accident -- see doc.go for what that removes from
-// Step's behavior. Direction is a plain value rather than a pointer for
-// the same reason: this port is sighted-only, so the travel direction is
-// known at construction and never passes through the blind creep phase
-// that made it optional in Python.
+// Step's behavior. Direction is Optional: when nil the navigator runs the
+// BLIND_CREEP bootstrap (corridor follower + direction estimator) until the
+// travel direction resolves, then hands off to the planned path. When set,
+// the blind creep phase is skipped entirely and sighted behavior is preserved.
 type Params struct {
 	// Gateway is the hardware port every branch of Step reads and
 	// publishes through. Required.
@@ -48,10 +52,12 @@ type Params struct {
 	Vision VisionGateway
 	// Waypoints is the planned path: one canonical lap of a closed loop.
 	Waypoints []trackmodel.Waypoint
-	// Direction is the travel direction around the loop, consumed by the
-	// escape maneuver as the fallback side when a LIDAR-only clearance
-	// comparison cannot decide one.
-	Direction trackmodel.Direction
+	// Direction is the travel direction around the loop. Optional: nil puts
+	// the navigator into blind bootstrap (BLIND_CREEP) where the direction
+	// is inferred from LIDAR before the planned path is followed. Once set,
+	// the escape maneuver consumes it as the fallback side when a LIDAR-only
+	// clearance comparison cannot decide one.
+	Direction *trackmodel.Direction
 	// NumLaps is the laps to complete before holding position; 0 means
 	// DefaultOpenChallengeLaps.
 	NumLaps int
@@ -98,7 +104,16 @@ type Navigator struct {
 
 	numLaps    int
 	signRouter *signrouter.SignRouter
-	direction  trackmodel.Direction
+	direction  *trackmodel.Direction
+
+	// Blind bootstrap state. Nil/empty until the navigator is in blind
+	// mode (Direction == nil at construction). dirEstimator settles the
+	// travel direction; discovery accumulates camera signs; believedYawOffset
+	// is the belief->map yaw measured at start (start_measurement).
+	dirEstimator    *directionestimator.Estimator
+	discovery       *signrouter.ObservedSignMap
+	believedYawOffset float64
+	believedYawSet   bool
 
 	waypointIndex     int
 	lapsCompleted     int
@@ -212,6 +227,14 @@ func New(p Params) (*Navigator, error) {
 		collisionController: p.ControllersConfig.NewCollisionAvoidanceController(),
 		stuckDetector:       stuckDetector,
 	}
+	// Blind bootstrap: build the direction estimator and (when a router is
+	// attached) the discovery map so camera signs accumulate while creeping.
+	if n.direction == nil {
+		n.dirEstimator = directionestimator.NewEstimator(directionestimator.DefaultConfig().MinVotes)
+		if n.signRouter != nil {
+			n.discovery = signrouter.NewObservedSignMap(signrouter.DefaultDiscoveryConfig(), n.signRouter)
+		}
+	}
 	n.applyPathWallBudget()
 	return n, nil
 }
@@ -278,6 +301,16 @@ func (n *Navigator) Step() {
 	// that never clear the wall.
 	if n.activeManeuver != nil {
 		n.driveActiveManeuver(robotX, robotY, robotYaw, PhaseActiveManeuver)
+		return
+	}
+
+	// Blind bootstrap: while the travel direction is unknown, creep along the
+	// corridor (centred between visible walls) and infer the direction from
+	// LIDAR, accumulating any camera sign detections. Once the direction
+	// settles, hand off to the planned path. Sighted runs (Direction set at
+	// construction) never reach this branch.
+	if n.direction == nil {
+		n.blindCreep(robotX, robotY, robotYaw)
 		return
 	}
 
@@ -385,7 +418,7 @@ func (n *Navigator) baseDebug(robotX, robotY, robotYaw float64) DebugSnapshot {
 		PoseX:         new(robotX),
 		PoseY:         new(robotY),
 		PoseYaw:       new(robotYaw),
-		Direction:     new(n.direction),
+		Direction:     n.direction,
 		WaypointIndex: new(n.waypointIndex),
 		LapsCompleted: n.lapsCompleted,
 		NumLaps:       n.numLaps,
@@ -416,3 +449,95 @@ func (n *Navigator) recordPoseTrail(pose trackmodel.Pose) {
 // state is the open-challenge hold, and it is monotonic (never reverts once
 // reached), so it is safe to permanently stop running stuck detection here.
 func (n *Navigator) isHolding() bool { return n.lapsCompleted >= n.numLaps }
+
+// BelievedYawOffset returns the belief->map yaw measured at start (the
+// start_measurement believed-offset), or ok=false until ApplyBelievedStart
+// has been called. Match for the MCAP belief-stream plan: the localizer's
+// heading can be a rigid rotation off truth at start, and sign routing /
+// direction inference must know it.
+func (n *Navigator) BelievedYawOffset() (offset float64, ok bool) {
+	return n.believedYawOffset, n.believedYawSet
+}
+
+// ApplyBelievedStart records the belief->map yaw offset from a measured start
+// pose, matching start_measurement's believed-start offset: the difference
+// between the robot's current heading estimate and the measured one. Corrects
+// the estimator heading via the gateway so subsequent poses are in the map
+// frame.
+func (n *Navigator) ApplyBelievedStart(measured trackmodel.Pose, pose trackmodel.Pose) {
+	offset := navutil.WrapAngle(pose.Yaw - measured.Yaw)
+	n.believedYawOffset = offset
+	n.believedYawSet = true
+	if math.Abs(offset) > 1e-9 {
+		n.gateway.CorrectHeadingForDirectionChange(offset)
+	}
+}
+
+// blindCreep drives the BLIND_CREEP phase: creep along the corridor centred
+// between visible walls, infer the travel direction from LIDAR, and accumulate
+// camera sign detections, matching CoreNavigator.step's blind bootstrap. Once
+// the direction settles (parking-bay read or enough agreeing scans), the
+// navigator adopts it and the next tick follows the planned path.
+func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
+	debug := n.baseDebug(robotX, robotY, robotYaw)
+	debug.Phase = PhaseBlindCreep
+
+	scan, haveScan := n.gateway.GetLidarScan()
+	var ranges, angles []float64
+	if haveScan {
+		ranges, angles = scan.RangesM, scan.AnglesRad
+	}
+
+	// Accumulate camera sign detections into the discovery map (discover
+	// mode), so signs are published to the router as they confirm.
+	if n.discovery != nil {
+		n.discovery.Observe(n.visionDetections(), trackmodel.Waypoint{X: robotX, Y: robotY})
+		n.discovery.Publish()
+	}
+
+	// Resolve the direction: a boxed-in parking bay names it outright;
+	// otherwise vote on scans.
+	if n.dirEstimator != nil {
+		if dir, ok := directionestimator.DirectionFromParkingBay(ranges, angles, directionestimator.DefaultConfig()); ok {
+			n.dirEstimator.Settle(dir)
+		} else if haveScan {
+			n.dirEstimator.Observe(ranges, angles, robotYaw, directionestimator.DefaultConfig())
+		}
+		if dir, ok := n.dirEstimator.Direction(); ok {
+			n.direction = &dir
+			// With the direction known, measure the start so the map frame
+			// is corrected before the planned path is followed.
+			if haveScan {
+				if measured, ok := startmeasurement.MeasureStartPose(
+					ranges, angles, dir, trackmodel.South, startmeasurement.DefaultConfig(),
+				); ok {
+					n.ApplyBelievedStart(
+						trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: robotYaw},
+						trackmodel.Pose{X: robotX, Y: robotY, Yaw: robotYaw},
+					)
+				}
+			}
+			n.debug = debug
+			return
+		}
+	}
+
+	// No direction yet: creep along the corridor. Without a scan there is
+	// nothing to react to, so hold still rather than guess.
+	if !haveScan {
+		n.gateway.PublishDrive(controllers.DriveCommand{})
+		debug.CommandedSpeedMPS = new(0.0)
+		debug.CommandedSteerNorm = new(0.0)
+		n.debug = debug
+		return
+	}
+	yaw := robotYaw
+	cmd := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{
+		SpeedMPS: n.cfg.CreepSpeedMPS(),
+		Yaw:      &yaw,
+	}, corridorfollower.DefaultConfig())
+	n.gateway.PublishDrive(cmd)
+	debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
+	debug.CommandedSteerNorm = new(cmd.SteeringNorm)
+	n.debug = debug
+}

@@ -138,7 +138,7 @@ func TestParity_NavigatorVsBag(t *testing.T) {
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Waypoints:         path,
-		Direction:         direction,
+		Direction:         func() *trackmodel.Direction { d := direction; return &d }(),
 		Config:            navigator.DefaultConfig(),
 		ControllersConfig: controllers.DefaultConfig(),
 	})
@@ -212,3 +212,4 @@ func parityBagDir(t *testing.T) string {
 	// Documented complete sighted bag from an earlier session.
 	return "..\\..\\..\\robot\\vtitan_runs_pulled\\run_20260829_140424"
 }
+

@@ -1,0 +1,43 @@
+[Unit]
+Description=vTitan Go (Pi Zero) — Motor Node
+# No network-online.target: everything this unit drives (motors, button, OLED,
+# challenge-mode jumper) is local GPIO/I2C/PWM. Gating on it made boot time
+# hostage to NetworkManager-wait-online (6-60s, sometimes timing out) over the
+# already-flaky USB gadget link. Networked components (NATS telemetry) are
+# best-effort and must not gate the robot.
+# No dev-gpiochip0.device dependency: Raspberry Pi OS's udev rules never tag
+# GPIO chardevs for systemd tracking (see vtitan-pi-zero.service for the full
+# rationale); the driver layer already retries transient hardware-not-ready
+# failures (Restart=on-failure below).
+StartLimitBurst=5
+StartLimitIntervalSec=30
+
+[Service]
+Type=exec
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=/opt/vtitan-go
+EnvironmentFile=-/opt/vtitan-go/.env
+ExecStart=/opt/vtitan-go/bin/pi-zero
+Restart=on-failure
+RestartSec=3
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=5
+# Runs after the main process exits, for ANY reason -- clean stop, timeout
+# escalation, crash/OOM-kill -- which a plain ExecStop cannot cover.
+# LPWM/R_EN/L_EN (BTS7960 drive H-bridge) are plain GPIOs the motor-node
+# releases the instant its file descriptors close; released, they float and the
+# module's logic-level shifter ~10kOhm pull-up drives them HIGH -- which spun
+# the motor at full speed in reverse on a plain `systemctl stop` (see
+# docs/bts7960-ibt2-wiring.md). This re-drives them low within systemd's own
+# reaction time. __MOTOR_L_EN_PIN__/__MOTOR_R_EN_PIN__/__MOTOR_REVERSE_PIN__
+# are templated by bootstrap-fresh-zero.sh from the same shell vars used for
+# config.txt's gpio=...=op,dl line -- both must match the motor config's
+# l_en_pin/r_en_pin/reverse_pwm_pin, or a future rewire silently re-drives the
+# WRONG pins low. Guarded on DRIVE_BACKEND so this is a no-op on L298N/Build
+# HAT deployments. Does NOT cover a raw power loss/kernel panic that bypasses
+# systemd; only a physical pull-down resistor closes that gap.
+ExecStopPost=/bin/sh -c '[ "$DRIVE_BACKEND" = "bts7960" ] && /usr/bin/pinctrl set __MOTOR_L_EN_PIN__,__MOTOR_R_EN_PIN__,__MOTOR_REVERSE_PIN__ op dl || true'
+
+[Install]
+WantedBy=multi-user.target

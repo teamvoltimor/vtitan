@@ -11,16 +11,20 @@
 //
 // # Scope and deviations from the Python source
 //
-// Blind sign discovery (Python's ObservedSignMap /
-// SignDiscoveryParams / SignRouter(discover=True)) is NOT ported. It lives
-// in sign_discovery.py, a separate module never named in this port's scope,
-// and is a materially larger piece of work (camera pinhole geometry, track
-// association/publication state machine) than the routing logic itself.
-// SignRouter here only supports the "sighted" mode -- signs handed to it up
-// front, exactly as if every SignSpec came from scenario metadata. This
-// also means SignRouter.is_discovering, .lane_fingerprint and the
-// discovery-only constructor parameters (discover, discovery_config,
-// tuning) have no Go equivalent.
+// Blind sign discovery (Python's ObservedSignMap / SignDiscoveryParams /
+// SignRouter(discover=True)) IS ported in discovery.go: DetectionToWorld /
+// DetectionToObservation (pinhole projection, bearing accurate / range from
+// the 0.10 m sign height at the bbox), ObservedSignMap (persistent world-frame
+// track association gated on the robot's settled corridor, closest-observation
+// position wins), and SignRouter.AppendSign / IsDiscovering wiring. Camera
+// pinhole constants (CameraWidthPX, CameraHFOVRad, SignHeightM,
+// LidarMountXOffsetM, CameraFarClipM) are restated in discovery.go as
+// documented TODOs until a Go profile mirror of RobotSpecs/TrafficSignSpecs
+// lands -- see plan §5b.
+//
+// .lane_fingerprint and the discovery-only constructor parameters (discover,
+// discovery_config, tuning) are folded into ObservedSignMap: its Specs /
+// NewlyConfirmed / Publish replace the Python lane_fingerprint property.
 //
 // signs_from_metadata (routing.py) is not ported either: it is the only
 // function in the source package that touches ScenarioMetadata, it is not

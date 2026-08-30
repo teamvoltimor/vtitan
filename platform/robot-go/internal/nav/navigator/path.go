@@ -103,7 +103,7 @@ func (n *Navigator) ReplaceSignRouter(router *signrouter.SignRouter) {
 // as the fallback side when a LIDAR-only clearance comparison cannot decide
 // one.
 func (n *Navigator) SetTravelDirection(direction trackmodel.Direction) {
-	n.direction = direction
+	n.direction = &direction
 }
 
 // Reset clears per-race state so a new race starts as if this were the

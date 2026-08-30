@@ -43,6 +43,7 @@ type cliConfig struct {
 	concurrency int
 	timeout     time.Duration
 	jsonOutput  bool
+	runner      string
 }
 
 // exit codes: 0 means the orchestrator successfully produced a report, even
@@ -95,6 +96,8 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 	flags.IntVar(&cfg.concurrency, "concurrency", 0, "max scenarios run concurrently; 0 means runtime.NumCPU()")
 	flags.DurationVar(&cfg.timeout, "timeout", 0, "per-scenario timeout; 0 means the runner's own default")
 	flags.BoolVar(&cfg.jsonOutput, "json", false, "print the report as JSON instead of a text summary")
+	flags.StringVar(&cfg.runner, "runner", "python",
+		"scenario runner backend: 'python' (subprocess oracle, default) or 'native' (Go-native harness)")
 
 	for _, name := range []string{"corpus", "script", "workdir"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
@@ -123,17 +126,26 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 	}
 	logger.Info("loaded corpus", "path", cfg.corpusPath, "scenarios", len(scenarios))
 
-	runner, err := scenario.NewSubprocessRunner(scenario.Config{
-		Command:    cfg.command,
-		BaseArgs:   splitCSV(cfg.baseArgs),
-		ScriptPath: cfg.scriptPath,
-		WorkDir:    cfg.workDir,
-		PythonPath: cfg.pythonPath,
-		ExtraArgs:  splitCSV(cfg.extraArgs),
-		Timeout:    cfg.timeout,
-	})
-	if err != nil {
-		return fmt.Errorf("sim-runner: %w", err)
+	var runner scenario.Runner
+	switch cfg.runner {
+	case "native":
+		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{})
+	case "python", "":
+		r, err := scenario.NewSubprocessRunner(scenario.Config{
+			Command:    cfg.command,
+			BaseArgs:   splitCSV(cfg.baseArgs),
+			ScriptPath: cfg.scriptPath,
+			WorkDir:    cfg.workDir,
+			PythonPath: cfg.pythonPath,
+			ExtraArgs:  splitCSV(cfg.extraArgs),
+			Timeout:    cfg.timeout,
+		})
+		if err != nil {
+			return fmt.Errorf("sim-runner: %w", err)
+		}
+		runner = r
+	default:
+		return fmt.Errorf("sim-runner: unknown --runner %q (want 'python' or 'native')", cfg.runner)
 	}
 
 	orchestrator, err := scenario.NewOrchestrator(runner, scenario.OrchestratorConfig{Concurrency: cfg.concurrency})

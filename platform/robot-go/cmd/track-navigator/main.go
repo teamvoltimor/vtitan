@@ -141,7 +141,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Waypoints:         waypoints,
-		Direction:         trackmodel.Counterclockwise,
+		Direction:         func() *trackmodel.Direction { d := trackmodel.Counterclockwise; return &d }(),
 		Config:            navigator.DefaultConfig(),
 		ControllersConfig: controllers.DefaultConfig(),
 		Logger:            logger,

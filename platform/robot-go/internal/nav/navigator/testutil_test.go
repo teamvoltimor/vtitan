@@ -114,7 +114,7 @@ func newNavigator(t *testing.T, mutate ...func(*navigator.Params)) (*navigator.N
 	params := navigator.Params{
 		Gateway:           gateway,
 		Waypoints:         squareLoop(),
-		Direction:         trackmodel.Clockwise,
+		Direction:         clockwiseDir(),
 		Config:            navigator.DefaultConfig(),
 		ControllersConfig: controllers.DefaultConfig(),
 		Logger:            discardLogger(),
@@ -128,4 +128,11 @@ func newNavigator(t *testing.T, mutate ...func(*navigator.Params)) (*navigator.N
 		t.Fatalf("New() error = %v, want nil", err)
 	}
 	return nav, gateway
+}
+
+// clockwiseDir returns a pointer to trackmodel.Clockwise, the travel direction
+// Params.Direction now requires (Optional: a *trackmodel.Direction).
+func clockwiseDir() *trackmodel.Direction {
+	d := trackmodel.Clockwise
+	return &d
 }

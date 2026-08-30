@@ -537,7 +537,7 @@ func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSna
 	)
 	threatDir := controllers.ThreatDirectionFrom(escapeClearances, n.collisionController.ThreatNoDetectionRangeM)
 	maneuver, haveManeuver := n.collisionController.ComputeEscapeManeuver(
-		p.escapeRisk, threatDir, p.escapeRanges, p.scan.AnglesRad, &n.direction,
+		p.escapeRisk, threatDir, p.escapeRanges, p.scan.AnglesRad, n.direction,
 	)
 
 	// Rear clearance is checked against the RAW scan: a sign behind the
