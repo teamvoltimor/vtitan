@@ -13,6 +13,12 @@ package profile
 // has no decode hook for trackmodel.CorridorSide's "inner"/"outer" TOML
 // values, so internal/nav/waypoints.ConfigFor parses them itself.
 type WaypointsConfig struct {
+	// ArcRadius matches ARC_RADIUS -- the corner-arc ceiling (m). Consumed by
+	// internal/nav/parking as the staging-point clearance in front of the bay
+	// opening (the Python park controller reads tuning.waypoints.ARC_RADIUS
+	// for the same purpose), even though WaypointController's own polyline
+	// generation is not ported to Go yet.
+	ArcRadius float64 `mapstructure:"arc_radius"`
 	// DedupeDistanceM matches DEDUPE_DISTANCE_M.
 	DedupeDistanceM float64 `mapstructure:"dedupe_distance_m"`
 	// WideCenterBiasM/WideCenterBiasSide match WIDE_CENTER_BIAS_M/

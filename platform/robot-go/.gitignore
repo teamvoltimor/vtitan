@@ -1,0 +1,3 @@
+# Ignore local planning/design notes. These are working documents, not
+# shipped source. Mirrors the repo-root `docs/internal/` ignore.
+docs/internal/
