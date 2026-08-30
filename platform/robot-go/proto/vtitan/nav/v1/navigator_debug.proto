@@ -1,0 +1,280 @@
+syntax = "proto3";
+
+package vtitan.nav.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/navv1";
+
+// Phase identifies which branch of the navigator's step() produced a
+// snapshot, and so which of NavigatorDebug's groups are populated. Mirrors
+// shared.domain.enums.NavigatorPhase.
+enum Phase {
+  PHASE_UNSPECIFIED = 0;
+  PHASE_NOT_YET_STEPPED = 1;
+  PHASE_NO_POSE = 2;
+  PHASE_BLIND_CREEP = 3;
+  PHASE_ACTIVE_MANEUVER = 4;
+  PHASE_STUCK_ESCAPE_HOLDING = 5;
+  PHASE_STUCK_ESCAPE_MANEUVER = 6;
+  PHASE_FINISHED_HOLD = 7;
+  PHASE_PARKING = 8;
+  PHASE_WAYPOINT_WRAP_FALLBACK = 9;
+  PHASE_WAYPOINT_REACHED = 10;
+  PHASE_NORMAL_DRIVE = 11;
+  PHASE_ESCAPE_TRIGGERED = 12;
+}
+
+// Direction is the travel direction around the loop. Mirrors Direction.
+enum Direction {
+  DIRECTION_UNSPECIFIED = 0;
+  DIRECTION_CLOCKWISE = 1;
+  DIRECTION_COUNTERCLOCKWISE = 2;
+}
+
+// Section is which side of the mat a position falls on. Mirrors Section.
+enum Section {
+  SECTION_UNSPECIFIED = 0;
+  SECTION_NORTH = 1;
+  SECTION_SOUTH = 2;
+  SECTION_EAST = 3;
+  SECTION_WEST = 4;
+}
+
+// RiskLevel is a collision-risk reading. Mirrors RiskLevel.
+enum RiskLevel {
+  RISK_LEVEL_UNSPECIFIED = 0;
+  RISK_LEVEL_SAFE = 1;
+  RISK_LEVEL_OBSTACLE = 2;
+  RISK_LEVEL_CRITICAL = 3;
+}
+
+// ManeuverType is the kind of escape maneuver commanded. Mirrors
+// ManeuverType.
+enum ManeuverType {
+  MANEUVER_TYPE_UNSPECIFIED = 0;
+  MANEUVER_TYPE_K_TURN = 1;
+  MANEUVER_TYPE_SIDE_CORRECTION = 2;
+  MANEUVER_TYPE_STUCK_REVERSE = 3;
+  MANEUVER_TYPE_STUCK_FORWARD = 4;
+}
+
+// ParkPhase is a parking maneuver phase. Mirrors ParkPhase.
+enum ParkPhase {
+  PARK_PHASE_UNSPECIFIED = 0;
+  PARK_PHASE_STAGE = 1;
+  PARK_PHASE_ENTER = 2;
+  PARK_PHASE_DONE = 3;
+}
+
+// NavigatorPose is the localizer's estimate this tick, absent only on the
+// NO_POSE phase. Grouped because the three components are set together or
+// not at all.
+//
+// Deliberately constrained to finite rather than to the mat's bounds: a pose
+// outside the track is exactly the failure this topic exists to record, and
+// a range constraint would reject the most diagnostic messages in the bag.
+message NavigatorPose {
+  double x = 1 [(buf.validate.field).double.finite = true];
+  double y = 2 [(buf.validate.field).double.finite = true];
+  // Not bounded to [-pi, pi]: callers may record an unwrapped heading, and
+  // rejecting that would lose the reading rather than reveal the bug.
+  double yaw = 3 [(buf.validate.field).double.finite = true];
+}
+
+// RaceState is progress around the loop.
+message RaceState {
+  Direction direction = 1 [(buf.validate.field).enum.defined_only = true];
+  Section current_corridor = 2 [(buf.validate.field).enum.defined_only = true];
+  optional int32 waypoint_index = 3 [(buf.validate.field).int32.gte = 0];
+  int32 laps_completed = 4 [(buf.validate.field).int32.gte = 0];
+  int32 num_laps = 5 [(buf.validate.field).int32.gte = 0];
+}
+
+// StuckDetection mirrors StuckDetector.get_diagnostics, present whenever the
+// detector ran this tick. It does not run once the robot has reached its
+// final deliberate stop, so this group is absent on FINISHED_HOLD.
+message StuckDetection {
+  optional bool is_stuck = 1;
+  optional int32 stuck_count = 2 [(buf.validate.field).int32.gte = 0];
+  // A distance travelled, so never negative.
+  optional double recent_movement_m = 3 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+}
+
+// Perception is the LIDAR-derived picture one tick works from.
+//
+// The two risk readings are deliberate and not redundant: `risk` is measured
+// on the RAW scan and governs how fast the robot may go, while `escape_risk`
+// is measured on the mapped-obstacle-masked scan and governs whether the
+// escape maneuver fires. A sign being routed around is passed inside contact
+// distance by design, so on the raw scan alone the escape would fire at
+// every sign pass.
+message Perception {
+  optional double forward_clearance_m = 1 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  optional double min_lidar_range_m = 2 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  RiskLevel risk = 3 [(buf.validate.field).enum.defined_only = true];
+  RiskLevel escape_risk = 4 [(buf.validate.field).enum.defined_only = true];
+  optional double rear_clearance_m = 5 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+}
+
+// PathTracking is how well the robot is following the planned path, and
+// which target it chose. Set on the NORMAL_DRIVE phase.
+//
+// Several of these cannot be reconstructed from /motor/* and /imu/data after
+// the fact at all, which is why the debug topic exists.
+message PathTracking {
+  // Signed: which side of the path the robot is on is the whole point.
+  optional double crosstrack_error_m = 1 [(buf.validate.field).double.finite = true];
+  optional double lookahead_distance_m = 2 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  // Heading change the planned path makes within the preview distance: ~0 on
+  // a straight, rising before a corner, so a bag shows whether the short
+  // lookahead armed on entry or a corner late.
+  optional double path_turn_ahead_rad = 3 [(buf.validate.field).double.finite = true];
+  optional double steer_target_x = 4 [(buf.validate.field).double.finite = true];
+  optional double steer_target_y = 5 [(buf.validate.field).double.finite = true];
+  optional double angle_error_rad = 6 [(buf.validate.field).double.finite = true];
+}
+
+// SpeedSelection is the two candidate speeds the speed controller chose
+// between. Set on the NORMAL_DRIVE phase. Both are magnitudes, so neither is
+// signed even though the final command can be.
+message SpeedSelection {
+  optional double clearance_speed_mps = 1 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  optional double heading_speed_mps = 2 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+}
+
+// DriveCommand is what was actually published, set on every phase that
+// publishes one -- including the stop branches, where zeroes are a
+// deliberate command rather than an absent value.
+message DriveCommand {
+  // Signed, NOT bounded below at zero: escape maneuvers reverse.
+  optional double speed_mps = 1 [(buf.validate.field).double.finite = true];
+  // The port contract is [-1, 1], + = left. A value outside it is a bug in
+  // the producer, so reject rather than record it.
+  optional double steering_norm = 2 [(buf.validate.field).double = {
+    gte: -1.0
+    lte: 1.0
+  }];
+}
+
+// Maneuver is the escape/stuck maneuver state, present whenever one is
+// latched or begun.
+message Maneuver {
+  ManeuverType active_type = 1 [(buf.validate.field).enum.defined_only = true];
+  optional double steering = 2 [(buf.validate.field).double = {
+    gte: -1.0
+    lte: 1.0
+  }];
+  // Signed: a reverse maneuver is the common case.
+  optional double speed_mps = 3 [(buf.validate.field).double.finite = true];
+  optional int32 frames_left = 4 [(buf.validate.field).int32.gte = 0];
+  // escape_count is escapes begun since the last normal drive tick with real
+  // progress, so it escalates within a sequence rather than counting the
+  // whole race.
+  optional int32 escape_count = 5 [(buf.validate.field).int32.gte = 0];
+}
+
+// Parking is the parking maneuver state. No Go counterpart yet (the port has
+// no ParkController), carried so a Python-recorded bag round-trips through
+// this schema without loss.
+message Parking {
+  optional bool engaged = 1;
+  ParkPhase phase = 2 [(buf.validate.field).enum.defined_only = true];
+}
+
+// SignRouting is Obstacles Challenge traffic-sign routing, present on the
+// NORMAL_DRIVE phase whenever a SignRouter is attached.
+message SignRouting {
+  optional int32 active_sign_count = 1 [(buf.validate.field).int32.gte = 0];
+  optional double deform_magnitude_m = 2 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+}
+
+// BlindCreep is direction inference before the travel direction has settled,
+// present only on the BLIND_CREEP phase. No Go counterpart yet.
+message BlindCreep {
+  // Free-form rather than an enum: the Python side writes a human-readable
+  // gate verdict, not a closed set.
+  optional string gate_verdict = 1;
+  optional double left_range_m = 2 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  optional double right_range_m = 3 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+  optional int32 votes_clockwise = 4 [(buf.validate.field).int32.gte = 0];
+  optional int32 votes_counterclockwise = 5 [(buf.validate.field).int32.gte = 0];
+  optional double corridor_width_belief_m = 6 [(buf.validate.field).double = {
+    gte: 0.0
+    finite: true
+  }];
+}
+
+// NavigatorDebug is the Go-stack replacement for the current /nav_debug
+// topic, which is a std_msgs/String carrying pydantic JSON (see
+// track_navigator_node.py and scripts/common/bag_io.py's decode_nav_debug).
+// Published on the `vtitan.nav.v1.navigator_debug` NATS subject.
+//
+// Mirrors shared.domain.models.NavigatorDebugSnapshot, so a recorded bag and
+// a live Go run describe the same thing and the migration's parity gate can
+// diff them directly.
+//
+// The flat Python model is grouped here into sub-messages, which carries
+// information the flat form only implied: a message field has explicit
+// presence, so an ABSENT GROUP means that branch of step() did not run this
+// tick. Fields inside a group stay `optional` on top of that, preserving the
+// model's own per-field nulls -- that docstring is explicit that a null
+// means "not computed on this tick's branch", not "unknown" and not zero.
+// Both layers are needed to keep the mapping 1:1; collapsing either would
+// make a deliberately-absent value arrive as a measured 0.0.
+//
+// Sized against a real 132.6 s run (run_20260829_140424): the JSON form
+// averages 1527 B per message at 20 Hz, and /nav_debug alone accounted for
+// 3978 kB of that bag. This encoding is several times smaller, and unlike
+// the JSON it is schema-checked -- a renamed field fails `buf breaking`
+// instead of silently vanishing from every consumer.
+message NavigatorDebug {
+  // Replaces ROS2 Header: stamp + frame_id.
+  google.protobuf.Timestamp stamp = 1 [(buf.validate.field).required = true];
+  string frame_id = 2;
+
+  Phase phase = 3 [(buf.validate.field).enum.defined_only = true];
+
+  NavigatorPose pose = 4;
+  RaceState race = 5;
+  StuckDetection stuck = 6;
+  Perception perception = 7;
+  PathTracking path_tracking = 8;
+  SpeedSelection speed = 9;
+  DriveCommand command = 10;
+  Maneuver maneuver = 11;
+  Parking parking = 12;
+  SignRouting sign_routing = 13;
+  BlindCreep blind_creep = 14;
+}
