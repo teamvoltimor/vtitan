@@ -16,6 +16,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -30,6 +31,8 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
 )
@@ -45,6 +48,8 @@ type cliConfig struct {
 	natsURL  string
 	nodeName string
 	rateHz   float64
+	record   bool
+	runsRoot string
 }
 
 // exit codes: 0 means track-navigator ran and shut down cleanly (including via
@@ -80,6 +85,9 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		"NATS client name, visible in nats-server's connz output",
 	)
 	flags.Float64Var(&cfg.rateHz, "rate-hz", 20.0, "navigator Step rate")
+	flags.BoolVar(&cfg.record, "record", false,
+		"record the run to data/runs_pulled as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node")
+	flags.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir for --record (default: repo-root data/runs_pulled)")
 
 	return cmd
 }
@@ -165,9 +173,27 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	logger.Info("track-navigator: connected", "nats_url", cfg.natsURL, "rate_hz", cfg.rateHz)
 
+	var rec *recording.RunRecorder
+	if cfg.record {
+		r, err := recording.NewRun(cfg.runsRoot, recording.RunOptions{Video: false})
+		if err != nil {
+			return fmt.Errorf("track-navigator: creating run: %w", err)
+		}
+		if err = r.Open(); err != nil {
+			return fmt.Errorf("track-navigator: opening run: %w", err)
+		}
+		rec = r
+		defer func() {
+			if closeErr := rec.Close(); closeErr != nil {
+				logger.Error("track-navigator: closing run", "error", closeErr)
+			}
+		}()
+		logger.Info("track-navigator: recording run", "dir", rec.Dir())
+	}
+
 	group, gctx := errgroup.WithContext(ctx)
 	group.Go(func() error { return gw.Run(gctx, scanSub, imuSub) })
-	group.Go(func() error { return stepLoop(gctx, logger, nav, cfg.rateHz) })
+	group.Go(func() error { return stepLoop(gctx, logger, nav, gw, rec, cfg.rateHz) })
 
 	if err = group.Wait(); err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -178,11 +204,15 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	return nil
 }
 
-// stepLoop drives nav.Step at rateHz until ctx is done.
+// stepLoop drives nav.Step at rateHz until ctx is done. When rec is non-nil it
+// also writes each tick's /scan and /nav_debug into the run's MCAP bag, so a Go
+// run matches the Python robot's run_<stamp>/ shape for bagreplay parity.
 func stepLoop(
 	ctx context.Context,
 	logger *slog.Logger,
 	nav *navigator.Navigator,
+	gw *natsgw.Gateway,
+	rec *recording.RunRecorder,
 	rateHz float64,
 ) error {
 	ticker := time.NewTicker(time.Duration(float64(time.Second) / rateHz))
@@ -197,8 +227,24 @@ func stepLoop(
 		case <-ticker.C:
 			nav.Step()
 			steps++
+			if rec != nil {
+				if scan := gw.LatestScan(); scan != nil {
+					if err := rec.WriteMessage(sensorv1.ScanSubject, scan, logTimeNow()); err != nil {
+						logger.Error("track-navigator: writing scan", "error", err)
+					}
+				}
+				if err := rec.WriteMessage(navv1.NavigatorDebugSubject, nav.DebugSnapshot().ToProto(), logTimeNow()); err != nil {
+					logger.Error("track-navigator: writing nav_debug", "error", err)
+				}
+			}
 		}
 	}
+}
+
+// logTimeNow returns a monotonic-ish MCAP log time in nanoseconds (wall clock),
+// good enough to order messages within a single run.
+func logTimeNow() uint64 {
+	return uint64(time.Now().UnixNano())
 }
 
 func main() {

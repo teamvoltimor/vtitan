@@ -6,3 +6,5 @@ docs/internal/
 # (no -o given). Real builds go through provisioning scripts, which target
 # scripts/provisioning/ output dirs, not this one.
 /*.exe
+
+tmp/

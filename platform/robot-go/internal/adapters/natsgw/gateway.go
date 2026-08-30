@@ -164,6 +164,15 @@ func (g *Gateway) GetLidarScan() (controllers.LidarScan, bool) {
 	return scanToLidarScan(scan), true
 }
 
+// LatestScan returns the most recent raw sensorv1.Scan the gateway has cached,
+// or nil if none has arrived yet. Used by the track-navigator's --record mode to
+// write the /scan topic into the run's MCAP bag alongside /nav_debug.
+func (g *Gateway) LatestScan() *sensorv1.Scan {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.scan
+}
+
 // GetWheelOdometry always reports ok=false in this adapter: the robot has no
 // wheel odometry -- nothing publishes nav_msgs/Odometry, and the navigator
 // has zero callers for it today (see localization/doc.go and the port's own
