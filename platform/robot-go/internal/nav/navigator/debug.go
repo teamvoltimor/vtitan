@@ -150,7 +150,3 @@ func (p Phase) String() string {
 	}
 	return phaseNames[p]
 }
-
-// ptr returns a pointer to v, the DebugSnapshot builder's only way to say
-// "this field WAS computed" for a value whose zero is itself meaningful.
-func ptr[T any](v T) *T { return &v }

@@ -15,6 +15,18 @@ import (
 // indirection, so they are plain unexported methods on *Navigator, kept in
 // their own file for the same readability reason the mixin exists.
 
+// stuckEscapeParams carries everything beginStuckEscape needs to close out a
+// stuck-escape branch: the robot pose, the chosen maneuver, and the
+// diagnostics + clearances that named the robot stuck.
+type stuckEscapeParams struct {
+	robotX, robotY, robotYaw float64
+	maneuverType             controllers.ManeuverType
+	steering, speed          float64
+	diag                     controllers.StuckDiagnostics
+	rearClear, forwardClear  float64
+	reportForwardClearance   bool
+}
+
 // retraceSteer is the steering that reverses the chassis back along ground
 // it just occupied, matching _retrace_steer. ok=false when the trail is too
 // short to aim at, leaving the caller on its ordinary reverse.
@@ -221,13 +233,13 @@ func (n *Navigator) driveActiveManeuver(robotX, robotY, robotYaw float64, phase 
 	})
 	debug := n.baseDebug(robotX, robotY, robotYaw)
 	debug.Phase = phase
-	debug.ActiveManeuverType = ptr(maneuver.Type)
-	debug.ManeuverSteering = ptr(maneuver.Steering)
-	debug.ManeuverSpeedMPS = ptr(maneuver.Speed)
-	debug.ManeuverFramesLeft = ptr(n.maneuverFramesLeft)
-	debug.EscapeCount = ptr(n.escapeCount)
-	debug.CommandedSpeedMPS = ptr(maneuver.Speed)
-	debug.CommandedSteerNorm = ptr(maneuver.Steering)
+	debug.ActiveManeuverType = new(maneuver.Type)
+	debug.ManeuverSteering = new(maneuver.Steering)
+	debug.ManeuverSpeedMPS = new(maneuver.Speed)
+	debug.ManeuverFramesLeft = new(n.maneuverFramesLeft)
+	debug.EscapeCount = new(n.escapeCount)
+	debug.CommandedSpeedMPS = new(maneuver.Speed)
+	debug.CommandedSteerNorm = new(maneuver.Steering)
 	n.debug = debug
 }
 
@@ -330,32 +342,25 @@ func (n *Navigator) stuckEscapeFrames() int {
 // beginStuckEscape is the common tail of all three stuck-escape branches:
 // count the attempt, latch the maneuver, re-arm the detector, publish, and
 // annotate the snapshot with the diagnostics that named the robot stuck.
-func (n *Navigator) beginStuckEscape(
-	robotX, robotY, robotYaw float64,
-	maneuverType controllers.ManeuverType,
-	steering, speed float64,
-	diag controllers.StuckDiagnostics,
-	rearClear, forwardClear float64,
-	reportForwardClearance bool,
-) {
+func (n *Navigator) beginStuckEscape(p stuckEscapeParams) {
 	if n.escapeCount == 0 {
-		n.escapeSequenceStartXY = &trackmodel.Waypoint{X: robotX, Y: robotY}
+		n.escapeSequenceStartXY = &trackmodel.Waypoint{X: p.robotX, Y: p.robotY}
 	}
 	n.escapeCount++
 	n.beginManeuver(controllers.EscapeManeuver{
-		Type:           maneuverType,
-		Steering:       steering,
-		Speed:          speed,
+		Type:           p.maneuverType,
+		Steering:       p.steering,
+		Speed:          p.speed,
 		DurationFrames: n.stuckEscapeFrames(),
 	})
 	n.stuckDetector.Reset()
-	n.driveActiveManeuver(robotX, robotY, robotYaw, PhaseStuckEscapeManeuver)
-	n.debug.IsStuck = ptr(diag.IsStuck)
-	n.debug.StuckCount = ptr(diag.StuckCount)
-	n.debug.RecentMovementM = ptr(diag.RecentMovementM)
-	n.debug.RearClearanceM = ptr(rearClear)
-	if reportForwardClearance {
-		n.debug.ForwardClearanceM = ptr(forwardClear)
+	n.driveActiveManeuver(p.robotX, p.robotY, p.robotYaw, PhaseStuckEscapeManeuver)
+	n.debug.IsStuck = new(p.diag.IsStuck)
+	n.debug.StuckCount = new(p.diag.StuckCount)
+	n.debug.RecentMovementM = new(p.diag.RecentMovementM)
+	n.debug.RearClearanceM = new(p.rearClear)
+	if p.reportForwardClearance {
+		n.debug.ForwardClearanceM = new(p.forwardClear)
 	}
 }
 
@@ -421,11 +426,14 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 			}
 			n.logger.Warn("stuck escape: forcing forward escape",
 				"rear_state", rearState, "rear_clearance_m", rearClear, "forward_clearance_m", forwardClear)
-			n.beginStuckEscape(
-				robotX, robotY, robotYaw, controllers.ManeuverStuckForward,
-				n.cfg.RevSteerNorm()*n.escapeSteerSignForAttempt(1, nil), n.cfg.CreepSpeedMPS(),
-				diag, rearClear, forwardClear, true,
-			)
+			n.beginStuckEscape(stuckEscapeParams{
+				robotX: robotX, robotY: robotY, robotYaw: robotYaw,
+				maneuverType: controllers.ManeuverStuckForward,
+				steering:     n.cfg.RevSteerNorm() * n.escapeSteerSignForAttempt(1, nil),
+				speed:        n.cfg.CreepSpeedMPS(),
+				diag:         diag, rearClear: rearClear, forwardClear: forwardClear,
+				reportForwardClearance: true,
+			})
 			return
 		}
 
@@ -439,17 +447,124 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 		steerSign := n.pivotSteerSign(scan, haveScan)
 		n.logger.Warn("stuck escape both-blocked: stop-and-steer pivot",
 			"rear_clearance_m", rearClear, "forward_clearance_m", forwardClear, "steer_sign", steerSign)
-		n.beginStuckEscape(
-			robotX, robotY, robotYaw, controllers.ManeuverStuckForward,
-			n.cfg.RevSteerNorm()*steerSign, n.cfg.CreepSpeedMPS(),
-			diag, rearClear, forwardClear, true,
-		)
+		n.beginStuckEscape(stuckEscapeParams{
+			robotX: robotX, robotY: robotY, robotYaw: robotYaw,
+			maneuverType: controllers.ManeuverStuckForward,
+			steering:     n.cfg.RevSteerNorm() * steerSign,
+			speed:        n.cfg.CreepSpeedMPS(),
+			diag:         diag, rearClear: rearClear, forwardClear: forwardClear,
+			reportForwardClearance: true,
+		})
 		return
 	}
 
-	n.beginStuckEscape(
-		robotX, robotY, robotYaw, controllers.ManeuverStuckReverse,
-		n.cfg.RevSteerNorm()*n.escapeSteerSignForAttempt(1, nil), n.cfg.RevSpeed,
-		diag, rearClear, forwardClear, false,
+	n.beginStuckEscape(stuckEscapeParams{
+		robotX: robotX, robotY: robotY, robotYaw: robotYaw,
+		maneuverType: controllers.ManeuverStuckReverse,
+		steering:     n.cfg.RevSteerNorm() * n.escapeSteerSignForAttempt(1, nil),
+		speed:        n.cfg.RevSpeed,
+		diag:         diag, rearClear: rearClear, forwardClear: forwardClear,
+		reportForwardClearance: false,
+	})
+}
+
+// signEvadeSteer is the steering that swings the chassis clear of a routed
+// sign it is about to clip, matching _sign_evade_steer.
+//
+// PREDICTS the contact from geometry rather than waiting for the LIDAR to
+// call it CRITICAL. That distinction is the whole mechanism: a return only
+// reads CRITICAL at contact range, by which point the chassis is
+// essentially already touching. Here the trigger is the sign's own
+// along-track distance and lateral clearance, both known meters in advance
+// because the router is already tracking the sign's position.
+//
+// Returns ok=false unless a routed sign is genuinely ahead, within
+// SignContactDistM, and predicted to pass closer than the chassis and sign
+// half-widths allow -- so a sign the robot is already clearing cleanly is
+// never answered with a swerve.
+//
+// The direction comes from the sign's own bearing, not the router's
+// pass-side rule. By this point the rule has failed; which side the robot
+// ends up on is a scoring question, contact is a run-ending one.
+func (n *Navigator) signEvadeSteer(robotX, robotY, robotYaw float64) (steer float64, ok bool) {
+	if n.signRouter == nil {
+		return 0, false
+	}
+	cosYaw, sinYaw := math.Cos(robotYaw), math.Sin(robotYaw)
+	// Half-widths, plus the chassis's own: how close the centers may pass.
+	needed := n.cfg.ChassisWidthM/2 + n.cfg.SignWidthM/2
+
+	worstAhead, worstLateral, found := 0.0, 0.0, false
+	for _, wp := range n.signRouter.RoutedSignPositions() {
+		dx, dy := wp.X-robotX, wp.Y-robotY
+		ahead := dx*cosYaw + dy*sinYaw
+		if ahead <= 0.0 || ahead > n.cfg.SignContactDistM {
+			continue
+		}
+		lateral := -dx*sinYaw + dy*cosYaw
+		if math.Abs(lateral) >= needed {
+			continue // already going to clear it
+		}
+		if !found || ahead < worstAhead {
+			worstAhead, worstLateral, found = ahead, lateral, true
+		}
+	}
+	// Positive lateral puts the sign to the LEFT, so steer right. A sign
+	// dead ahead (lateral 0) still has to be resolved to a side; take the
+	// one the ordinary steering is already favoring.
+	if !found || worstLateral == 0.0 {
+		return 0, false
+	}
+	return -math.Copysign(n.cfg.SignContactSteerNorm(), worstLateral), true
+}
+
+// tryEscape fires an escape maneuver when the masked scan reads CRITICAL,
+// matching step()'s escape block. Returns true when it took over the tick.
+//
+// Judged on the masked scan, so a mapped sign cannot trigger one, and
+// steered by the masked scan too: the threat this escape is running from is
+// by construction not the sign.
+func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSnapshot) bool {
+	if p.escapeRisk != controllers.RiskCritical || !p.haveScan || p.escapeRanges == nil {
+		return false
+	}
+
+	escapeClearances := controllers.ClearancesFromScan(
+		controllers.LidarScan{RangesM: p.escapeRanges, AnglesRad: p.scan.AnglesRad},
+		n.collisionController,
+		n.collisionController.ThreatHalfFovRad,
+		controllers.AggregateMin,
 	)
+	threatDir := controllers.ThreatDirectionFrom(escapeClearances, n.collisionController.ThreatNoDetectionRangeM)
+	maneuver, haveManeuver := n.collisionController.ComputeEscapeManeuver(
+		p.escapeRisk, threatDir, p.escapeRanges, p.scan.AnglesRad, &n.direction,
+	)
+
+	// Rear clearance is checked against the RAW scan: a sign behind the
+	// robot is still something to not reverse into, whoever owns it.
+	// Retrace instead of swinging, when asked and when there is enough
+	// trail to aim at. Obstacles-only by construction: gated on the
+	// router's presence, so Open Challenge's escape behavior is untouched
+	// regardless of the flag.
+	_, canRetrace := n.retraceSteer(pose.X, pose.Y, pose.Yaw)
+	n.retracing = haveManeuver && maneuver.Speed < 0 && n.cfg.RetraceEscape && n.signRouter != nil && canRetrace
+
+	if haveManeuver && n.reversingIntoUnseenWall(maneuver, p.scan) {
+		// Blocked at both ends: fall through to the capped creep-speed
+		// publish rather than backing into an unseen wall. The stuck
+		// detector is the backstop if the robot truly cannot move.
+		haveManeuver = false
+	}
+	if !haveManeuver {
+		return false
+	}
+
+	if n.escapeCount == 0 {
+		n.escapeSequenceStartXY = &trackmodel.Waypoint{X: pose.X, Y: pose.Y}
+	}
+	n.escapeCount++
+	n.beginManeuver(n.maybeEscalate(maneuver))
+	n.debug = debug
+	n.driveActiveManeuver(pose.X, pose.Y, pose.Yaw, PhaseEscapeTriggered)
+	return true
 }

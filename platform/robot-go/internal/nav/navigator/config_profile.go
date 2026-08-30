@@ -134,6 +134,48 @@ func navSignRouterDefaults() map[string]any {
 	}
 }
 
+// loadApplyTOML loads a profile TOML from path and, on success, hands the
+// decoded value to apply; on failure it logs a warning and leaves cfg at its
+// defaults. Each source loads and falls back independently because they're
+// unrelated failure domains -- the same contract controllers.ConfigFor and
+// signrouter.ConfigFor state.
+func loadApplyTOML[T any](logger *slog.Logger, path, what string, apply func(T)) {
+	loaded, err := profile.Load[T](path, nil)
+	if err != nil {
+		logger.Warn(
+			"navigator: loading config file, falling back to defaults",
+			"file",
+			what,
+			"error",
+			err,
+		)
+		return
+	}
+	apply(*loaded)
+}
+
+// loadApplyTOMLWithDefaults is loadApplyTOML for sources whose checked-in
+// TOML omits keys that must read as their Pydantic defaults, not as zero.
+func loadApplyTOMLWithDefaults[T any](
+	logger *slog.Logger,
+	path, what string,
+	defaults map[string]any,
+	apply func(T),
+) {
+	loaded, err := profile.LoadWithDefaults[T](path, nil, defaults)
+	if err != nil {
+		logger.Warn(
+			"navigator: loading config file, falling back to defaults",
+			"file",
+			what,
+			"error",
+			err,
+		)
+		return
+	}
+	apply(*loaded)
+}
+
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,
 // overlaid with each source TOML file (clearance/speed/heading/pursuit/
 // waypoints/control/lidar_sectors/escape/sign_router/robot/track, each
@@ -150,14 +192,13 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		return cfg
 	}
 
-	clearancePath := filepath.Join(configRoot, profile.DefaultClearanceTOMLPath)
-	if loaded, err := profile.Load[profile.ClearanceConfig](clearancePath, nil); err != nil {
-		logger.Warn("navigator: loading clearance.toml, falling back to defaults", "error", err)
-	} else {
-		cfg.ContactDistM = loaded.ContactDist
-		cfg.SlowDistM = loaded.SlowDist
-		cfg.MediumDistM = loaded.MediumDist
-	}
+	loadApplyTOML(
+		logger, filepath.Join(configRoot, profile.DefaultClearanceTOMLPath), "clearance.toml",
+		func(loaded profile.ClearanceConfig) {
+			cfg.ContactDistM = loaded.ContactDist
+			cfg.SlowDistM = loaded.SlowDist
+			cfg.MediumDistM = loaded.MediumDist
+		})
 
 	if speed, err := loadSpeedConfig(configRoot, hardwareProfileNames); err != nil {
 		logger.Warn("navigator: loading speed.toml, falling back to defaults", "error", err)
@@ -170,78 +211,94 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.FastMPS = speed.FastMPS
 	}
 
-	if loaded, err := profile.Load[headingTOML](filepath.Join(configRoot, headingTOMLPath), nil); err != nil {
-		logger.Warn("navigator: loading heading.toml, falling back to defaults", "error", err)
-	} else {
-		cfg.CrawlRad = loaded.Crawl
-	}
+	loadApplyTOML(
+		logger,
+		filepath.Join(configRoot, headingTOMLPath),
+		"heading.toml",
+		func(loaded headingTOML) {
+			cfg.CrawlRad = loaded.Crawl
+		},
+	)
 
-	pursuitPath := filepath.Join(configRoot, profile.DefaultPursuitTOMLPath)
-	if loaded, err := profile.Load[profile.PursuitConfig](pursuitPath, nil); err != nil {
-		logger.Warn("navigator: loading pursuit.toml, falling back to defaults", "error", err)
-	} else {
-		cfg.WallMarginSafetyM = loaded.WallMarginSafetyM
-		cfg.MinLookaheadTransitionM = loaded.MinLookaheadTransitionM
-		cfg.CornerPreviewDistanceM = loaded.CornerPreviewDistanceM
-	}
+	loadApplyTOML(
+		logger, filepath.Join(configRoot, profile.DefaultPursuitTOMLPath), "pursuit.toml",
+		func(loaded profile.PursuitConfig) {
+			cfg.WallMarginSafetyM = loaded.WallMarginSafetyM
+			cfg.MinLookaheadTransitionM = loaded.MinLookaheadTransitionM
+			cfg.CornerPreviewDistanceM = loaded.CornerPreviewDistanceM
+		})
 
-	waypointsPath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	if loaded, err := profile.Load[navWaypointsTOML](waypointsPath, nil); err != nil {
-		logger.Warn("navigator: loading waypoints.toml, falling back to defaults", "error", err)
-	} else {
-		cfg.MainLoopReachedDistanceM = loaded.MainLoopReachedDistanceM
-		cfg.ReplanHeadingTieMarginM = loaded.ReplanHeadingTieMarginM
-	}
+	loadApplyTOML(
+		logger,
+		filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath),
+		"waypoints.toml",
+		func(loaded navWaypointsTOML) {
+			cfg.MainLoopReachedDistanceM = loaded.MainLoopReachedDistanceM
+			cfg.ReplanHeadingTieMarginM = loaded.ReplanHeadingTieMarginM
+		},
+	)
 
-	controlPath := filepath.Join(configRoot, profile.DefaultControlTOMLPath)
-	if loaded, err := profile.Load[profile.ControlConfig](controlPath, nil); err != nil {
-		logger.Warn("navigator: loading control.toml, falling back to defaults", "error", err)
-	} else {
-		cfg.ControlHz = loaded.ControlHz
-	}
+	loadApplyTOML(
+		logger,
+		filepath.Join(configRoot, profile.DefaultControlTOMLPath),
+		"control.toml",
+		func(loaded profile.ControlConfig) {
+			cfg.ControlHz = loaded.ControlHz
+		},
+	)
 
-	lidarSectorsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	if loaded, err := profile.Load[profile.LidarSectorsConfig](lidarSectorsPath, nil); err != nil {
-		logger.Warn("navigator: loading lidar_sectors.toml, falling back to defaults", "error", err)
-	} else {
-		cfg.NoDataRangeM = loaded.NoDataRangeM
-	}
+	loadApplyTOML(
+		logger,
+		filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath),
+		"lidar_sectors.toml",
+		func(loaded profile.LidarSectorsConfig) {
+			cfg.NoDataRangeM = loaded.NoDataRangeM
+		},
+	)
 
-	escapePath := filepath.Join(configRoot, profile.DefaultEscapeTOMLPath)
-	if loaded, err := profile.Load[navEscapeTOML](escapePath, nil); err != nil {
-		logger.Warn("navigator: loading escape.toml, falling back to defaults", "error", err)
-	} else {
-		applyEscapeTOML(&cfg, *loaded)
-	}
+	loadApplyTOML(
+		logger,
+		filepath.Join(configRoot, profile.DefaultEscapeTOMLPath),
+		"escape.toml",
+		func(loaded navEscapeTOML) {
+			applyEscapeTOML(&cfg, loaded)
+		},
+	)
 
-	signRouterPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
-	loadedSigns, err := profile.LoadWithDefaults[navSignRouterTOML](signRouterPath, nil, navSignRouterDefaults())
-	if err != nil {
-		logger.Warn("navigator: loading sign_router.toml, falling back to defaults", "error", err)
-	} else {
-		applySignRouterTOML(&cfg, *loadedSigns)
-	}
+	loadApplyTOMLWithDefaults(
+		logger,
+		filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath),
+		"sign_router.toml",
+		navSignRouterDefaults(),
+		func(loaded navSignRouterTOML) {
+			applySignRouterTOML(&cfg, loaded)
+		},
+	)
 
-	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
-	if loaded, robotErr := profile.LoadRobotConfig(robotPath, hardwareProfileNames); robotErr != nil {
-		logger.Warn("navigator: loading robot.toml, falling back to defaults", "error", robotErr)
-	} else {
-		cfg.ChassisWidthM = loaded.Chassis.Width
-		cfg.MaxSteeringAngleRad = loaded.MaxSteeringAngle()
-		cfg.LidarToFrontBumperM = loaded.LidarToFrontBumper()
-		cfg.LidarToRearBumperM = loaded.LidarToRearBumper()
-		cfg.DrivetrainMaxSpeedMPS = loaded.Drivetrain.MaxSpeedMPS
-	}
+	loadApplyTOML(
+		logger,
+		filepath.Join(configRoot, profile.DefaultRobotTOMLPath),
+		"robot.toml",
+		func(loaded profile.RobotConfig) {
+			cfg.ChassisWidthM = loaded.Chassis.Width
+			cfg.MaxSteeringAngleRad = loaded.MaxSteeringAngle()
+			cfg.LidarToFrontBumperM = loaded.LidarToFrontBumper()
+			cfg.LidarToRearBumperM = loaded.LidarToRearBumper()
+			cfg.DrivetrainMaxSpeedMPS = loaded.Drivetrain.MaxSpeedMPS
+		},
+	)
 
-	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if loaded, trackErr := profile.Load[profile.TrackConfig](trackPath, nil); trackErr != nil {
-		logger.Warn("navigator: loading track.toml, falling back to defaults", "error", trackErr)
-	} else {
-		cfg.TrackMaxCoordM = loaded.Track.MaxCoord
-		cfg.CornerMinM = loaded.Track.CornerMin
-		cfg.CornerMaxM = loaded.Track.CornerMax
-		cfg.SignWidthM = loaded.Sign.Width
-	}
+	loadApplyTOML(
+		logger,
+		filepath.Join(configRoot, profile.DefaultTrackTOMLPath),
+		"track.toml",
+		func(loaded profile.TrackConfig) {
+			cfg.TrackMaxCoordM = loaded.Track.MaxCoord
+			cfg.CornerMinM = loaded.Track.CornerMin
+			cfg.CornerMaxM = loaded.Track.CornerMax
+			cfg.SignWidthM = loaded.Sign.Width
+		},
+	)
 
 	return cfg
 }
@@ -311,7 +368,11 @@ func loadSpeedConfig(configRoot string, hardwareProfileNames []string) (speedTOM
 		if _, statErr := os.Stat(overlayPath); statErr != nil {
 			continue
 		}
-		overlaid, overlayErr := profile.LoadWithDefaults[speedTOML](overlayPath, nil, speedDefaults(resolved))
+		overlaid, overlayErr := profile.LoadWithDefaults[speedTOML](
+			overlayPath,
+			nil,
+			speedDefaults(resolved),
+		)
 		if overlayErr != nil {
 			return speedTOML{}, overlayErr
 		}
