@@ -1,3 +1,8 @@
 # Ignore local planning/design notes. These are working documents, not
 # shipped source. Mirrors the repo-root `docs/internal/` ignore.
 docs/internal/
+
+# Ad-hoc `go build ./cmd/<name>` output left at the module root on Windows
+# (no -o given). Real builds go through provisioning scripts, which target
+# scripts/provisioning/ output dirs, not this one.
+/*.exe

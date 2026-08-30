@@ -1,16 +1,42 @@
 package bagreplay_test
 
 import (
+	"log/slog"
+	"math"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	navnode "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/nav"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/telemetry/diag"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
 )
+
+// repoRootFromPackageDir is the relative path from this package
+// (platform/robot-go/test/bagreplay) back to the repo root, where
+// profile.DefaultRobotTOMLPath (platform/shared/config/robot.toml) lives.
+const repoRootFromPackageDir = "../../../.."
+
+// lidarYawOffsetRadForBags mirrors the mandatory rotation the real ROS2
+// hardware gateway applies before the Python navigator ever sees a bearing
+// (ros2_hardware_gateway.py's _LIDAR_YAW_OFFSET_RAD). robot.toml's
+// `[lidar] inverted = true` -- the chassis mount is physically upside-down --
+// is set in the BASE config, not behind a hardware profile, so no
+// VTITAN_HARDWARE_PROFILE override is needed to reproduce it here. Without
+// this, replayed bearings are 180deg off from what Python's escape/collision
+// logic actually saw, which was misdiagnosed once already as a navigator
+// behavior bug (see doc.go).
+//
+// Memoized with sync.OnceValue: toLidarScan runs once per scan row (tens of
+// thousands of times per bag), and re-parsing robot.toml through viper on
+// every call is not just slow but crashes mapstructure under the load.
+var lidarYawOffsetRadForBags = sync.OnceValue(func() float64 {
+	return diag.LidarYawOffsetRadFor(slog.Default(), repoRootFromPackageDir)
+})
 
 // parityGateway is the in-memory controllers.HardwareGateway the replay drives
 // the Go navigator through. Each Step reads the staged pose and the most
@@ -34,9 +60,9 @@ func (g *parityGateway) GetLidarScan() (controllers.LidarScan, bool) {
 func (g *parityGateway) GetWheelOdometry() (controllers.WheelOdometry, bool) {
 	return controllers.WheelOdometry{}, false
 }
-func (g *parityGateway) SetBelievedWalls(*trackmodel.TrackWalls) {}
-func (g *parityGateway) ResetPosition(float64, float64)         {}
-func (g *parityGateway) ResetHeadingReference()                 {}
+func (g *parityGateway) SetBelievedWalls(*trackmodel.TrackWalls)  {}
+func (g *parityGateway) ResetPosition(float64, float64)           {}
+func (g *parityGateway) ResetHeadingReference()                   {}
 func (g *parityGateway) CorrectHeadingForDirectionChange(float64) {}
 
 // reconstructPath builds the Python navigator's driven path from the recorded
@@ -194,13 +220,22 @@ func TestParity_NavigatorVsBag(t *testing.T) {
 
 // toLidarScan converts a decoded ROS2 LaserScan into the Go navigator's scan
 // type, building the per-ray angle array the collision controller expects.
+// Mirrors ros2_hardware_gateway.py's _lidar_callback: rotate raw bearings by
+// the mandatory LIDAR yaw offset (see lidarYawOffsetRadForBags) and replace
+// non-finite ranges with LidarMaxRangeM (sanitize_lidar_ranges), so the
+// navigator sees the same robot-frame scan it would live on hardware.
 func toLidarScan(s bagreplay.LaserScan) controllers.LidarScan {
+	yawOffset := lidarYawOffsetRadForBags()
 	n := len(s.RangesM)
 	ranges := make([]float64, n)
 	angles := make([]float64, n)
 	for i := range s.RangesM {
-		ranges[i] = float64(s.RangesM[i])
-		angles[i] = float64(s.AngleMin) + float64(s.AngleIncrement)*float64(i)
+		r := float64(s.RangesM[i])
+		if math.IsNaN(r) || math.IsInf(r, 0) {
+			r = controllers.DefaultLidarMaxRangeM
+		}
+		ranges[i] = r
+		angles[i] = float64(s.AngleMin) + float64(s.AngleIncrement)*float64(i) + yawOffset
 	}
 	return controllers.LidarScan{RangesM: ranges, AnglesRad: angles}
 }
@@ -212,4 +247,3 @@ func parityBagDir(t *testing.T) string {
 	// Documented complete sighted bag from an earlier session.
 	return "..\\..\\..\\robot\\vtitan_runs_pulled\\run_20260829_140424"
 }
-

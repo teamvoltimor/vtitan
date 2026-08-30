@@ -181,13 +181,15 @@ landing/
 .alias_scan.json
 
 # Parity-gate dumps: one .txt per gate run (gates_*, o128_*, o256_*/obs256_*,
-# obs_*, s_*), kept only to eyeball a single run; reproducible from the gate
-# script + profile, so never committed.
+# obs_*, s_*, latch_*, latchsweep_*), kept only to eyeball a single run;
+# reproducible from the gate script + profile, so never committed.
 /gates_*.txt
 /o128_*.txt
 /obs256_*.txt
 /obs_*.txt
 /s_*.txt
+/latch_*.txt
+/latchsweep_*.txt
 
 # Generated doc artifacts (rendered SVGs, wiring exports) — sources are the
 # mermaid/png siblings that are tracked; these are build output.
