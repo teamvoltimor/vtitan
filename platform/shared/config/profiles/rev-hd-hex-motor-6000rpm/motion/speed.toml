@@ -36,16 +36,28 @@ max_mps = 0.50
 # still a separate, attributable change.
 creep_mps = 0.1521
 
-# PROVISIONAL, 2026-08-28: lowered from the previous 0.30/0.40/0.50 (30/40/50%
-# of robot.toml's unmeasured max_speed_mps=1.0 guess). Real confirmed ceiling
-# at the current max_duty=0.5 safety cap is ~0.45 m/s (tape+stopwatch bench
-# data, see memory/motor_servo_bench_session_2026_08_28.md) -- the old fast
-# tier (0.50) asked for more than that, so the PID would have railed at
-# max_duty instead of actually closing the loop. These values stay
-# comfortably under 0.45 so the PID has real authority to converge instead of
-# saturating. Not a final tune -- re-derive once max_duty is raised and a
-# real 100%-duty max_rpm is bench-measured (see that memory file's open
-# items).
-slow_mps = 0.20
-medium_mps = 0.28
-fast_mps = 0.35
+# Raised 2026-08-30 from 0.20/0.28/0.35 after a hardware run showed the ladder
+# leaving time on the table. NOT hardware-validated at these values.
+#
+# The headroom argument changed because the ceiling did. The previous revision
+# sized these against "~0.45 m/s at max_duty=0.5" measured 2026-08-28 -- but
+# that bench predates the counts_per_rev 86 -> 60 correction, which is exactly
+# the error that made measured speed read LOW. The 2026-08-29 bench, after that
+# fix, puts the closed-loop ceiling at ~0.58 m/s (recorded in
+# navigation/blind_nav/localization.toml, which sized its own speed gate
+# against it). The 0.45 figure is superseded; treat it as an artefact of the
+# encoder error, not a second opinion.
+#
+# Against 0.58 the fast tier sits at 72% of available authority, so the PID
+# keeps real margin to converge rather than railing at max_duty -- which is the
+# same criterion the 0.45-era values were chosen on, just against a ceiling
+# that is no longer wrong. max_duty therefore stays at 0.5; raising it is not
+# required for this ladder and its own precondition (a live-verified PID gain
+# rescale) is still unmet -- see config/hardware/motors/encoder.toml.
+#
+# Still not a final tune. A real 100%-duty max_rpm has never been bench
+# measured, and the friction floor under steering load is unmeasured, so the
+# spread between tiers remains argued rather than derived.
+slow_mps = 0.22
+medium_mps = 0.32
+fast_mps = 0.42
