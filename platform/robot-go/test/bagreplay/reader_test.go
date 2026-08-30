@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
 )
 
@@ -13,8 +14,8 @@ import (
 // this skips rather than fails when none is present -- CI and a fresh clone
 // must not go red over a missing local artifact.
 //
-// VTITAN_BAG_DIR overrides the default, which is the newest run under
-// platform/robot/vtitan_runs_pulled.
+// VTITAN_BAG_DIR overrides the default, which is the newest run under the
+// repo-root data/runs_pulled tree (shared by the Python and Go stacks).
 func bagDir(t *testing.T) string {
 	t.Helper()
 
@@ -22,7 +23,10 @@ func bagDir(t *testing.T) string {
 		return override
 	}
 
-	root := filepath.Join("..", "..", "..", "robot", "vtitan_runs_pulled")
+	root, err := recording.RunsRoot()
+	if err != nil {
+		t.Skipf("no shared runs root: %v", err)
+	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Skipf("no recorded runs at %s: %v", root, err)

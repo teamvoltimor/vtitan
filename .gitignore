@@ -160,6 +160,16 @@ opencode.json
 # Internal programs configuration
 .rsk/
 
+# Shared pulled-data tree (runs/videos/photos pulled off the robot). Both the
+# Python and Go stacks reference this as siblings, never the robot module's own
+# dir. Large binary data, never committed; the .gitkeep markers are tracked.
+data/runs_pulled/*
+!data/runs_pulled/.gitkeep
+data/videos_pulled/*
+!data/videos_pulled/.gitkeep
+data/photos_pulled/*
+!data/photos_pulled/.gitkeep
+
 # Internal docs
 docs/internal/
 

@@ -53,17 +53,14 @@ AMENT_IGNORE
 # Internal docs
 docs/internal/
 
-# Bag runs pulled from the robot for local diagnosis -- large binary data,
-# never committed. Extraction scripts live in vtitan_runs_pulled/ and ARE
-# tracked (the !-negations below re-include everything but the run data).
+# Bag runs / videos / photos pulled from the robot now live in the repo-root
+# data/ tree (see repo-root .gitignore), referenced as siblings by both the
+# Python and Go stacks. These local mirrors are retained only as a fallback for
+# any pull script not yet repointed at data/.
 vtitan_runs_pulled/*
 !vtitan_runs_pulled/.gitkeep
 !vtitan_runs_pulled/*.py
 !vtitan_runs_pulled/*.sh
-
-# Per-run videos pulled from the robot -- same rationale as vtitan_runs_pulled/
-# above, deliberately a separate tree (see pull-videos-from-pi5.sh's own
-# comment for why).
 vtitan_videos_pulled/*
 !vtitan_videos_pulled/.gitkeep
 !vtitan_videos_pulled/*.sh
