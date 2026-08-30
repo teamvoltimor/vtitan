@@ -98,10 +98,39 @@ heading_gain = 0.767945
 
 # Road-wheel degrees. Was 0.25 of full lock, which meant 13.75 deg at the
 # bench-measured 55 deg limit and would have become 21.25 deg on the 270 deg
-# servo. The corner-turn and back-off branches pin steering AT this value, and
-# the 2026-08-07 run sat on it for 45% of ticks, so it is a value the robot
-# spends real time at rather than an outer bound it rarely reaches.
+# servo. The 2026-08-07 run sat on this value for 45% of ticks, so it is a value
+# the robot spends real time at rather than an outer bound it rarely reaches.
+#
+# Since centering_gain_deg_per_m went to 0.0 this clamps only the heading
+# damping term. It is sized by STABILITY -- the 2026-08-07 limit cycle -- and
+# deliberately stays where it is; the corner branches that used to share it now
+# read max_corner_steer_deg instead.
 max_centering_steer_deg = 13.75
+
+# Road-wheel degrees the corner-turn and back-off branches steer AT. Sized by
+# GEOMETRY, not stability: the corner branch commits its turn at
+# turn_clearance_m, so its arc has to fit inside that clearance.
+#
+#   radius = wheelbase / ((1 + rear_steer_ratio) * yaw_gain * tan(angle))
+#          = 0.19 / (2 * 0.55 * tan(angle))
+#
+# At 13.75 deg that is 0.706 m against a 0.60 m commit clearance -- the turn
+# cannot be completed, so the robot runs out of room mid-corner, noses into the
+# outer wall and falls into the back-off branch, where it is never square to a
+# corridor and the direction estimator can never settle. This was invisible
+# until the simulator's yaw_gain was calibrated against a bag on 2026-08-29;
+# the old model turned 1.83x too well and the arc always fit.
+#
+# Measured over the 128-scenario Open corpus at yaw_gain 0.55: all 31 collisions
+# in the shipped configuration were runs that never settled direction, and no
+# run that settled ever collided.
+#
+# 21.25 deg is 0.450 m of radius, 0.15 m inside the commit clearance. It is also
+# exactly what the pre-2026-08-21 normalised value (0.25 of full lock) resolves
+# to on the 270 deg servo this robot now has -- the units refactor froze the
+# number at the 55 deg servo's 13.75 to avoid changing behaviour, and this is
+# that intent restored on the current hardware rather than a new guess.
+max_corner_steer_deg = 21.25
 
 # Fraction of creep speed while turning a corner blind. Slower than straight
 # running, because the turn is committed on one comparison rather than a plan.

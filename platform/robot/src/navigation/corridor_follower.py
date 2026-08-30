@@ -154,7 +154,14 @@ def follow_corridor(
     max_centering_rad = math.radians(follower.MAX_CENTERING_STEER_DEG)
     centering_gain_rad_per_m = math.radians(follower.CENTERING_GAIN_DEG_PER_M)
     heading_gain = follower.HEADING_GAIN
-    max_centering = angle_rad_to_steering_norm(max_centering_rad, RobotSpecs.MAX_STEERING_ANGLE)
+    # The corner and back-off branches steer AT their own angle rather than
+    # sharing the centring clamp: one is sized by the arc having to fit inside
+    # TURN_CLEARANCE_M, the other by the 2026-08-07 limit cycle, and after the
+    # simulator was calibrated those two wanted opposite values. See
+    # MAX_CORNER_STEER_DEG.
+    max_corner = angle_rad_to_steering_norm(
+        math.radians(follower.MAX_CORNER_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE
+    )
     turn_clearance = follower.TURN_CLEARANCE_M
     if believed_width_m is not None and classify_width(believed_width_m) == CorridorDimensions.NARROW:
         turn_clearance = follower.NARROW_TURN_CLEARANCE_M
@@ -176,7 +183,7 @@ def follow_corridor(
         # the inverted sign walks the nose toward the open side instead of
         # further into the wall it is against.
         turn_left = forced_turn_side == TurnSide.LEFT if forced_turn_side is not None else left > right
-        steering = max_centering if turn_left else -max_centering
+        steering = max_corner if turn_left else -max_corner
         # None means the rear sector is unreadable on this mount, which is NOT
         # permission to reverse into it. Was a single raw ray straight back,
         # which cannot distinguish "open" from "occluded": the occlusion wedges
@@ -224,7 +231,7 @@ def follow_corridor(
         # plan to hand over to, so the robot would sit at the corner until the
         # round expired. That was every closed-loop failure of this feature.
         turn_left = forced_turn_side == TurnSide.LEFT if forced_turn_side is not None else left > right
-        steering = max_centering if turn_left else -max_centering
+        steering = max_corner if turn_left else -max_corner
         return DriveCommand(speed_mps=speed_mps * corner_scale, steering_norm=steering)
 
     # Once a side has opened past the end of the inner block it is no longer a

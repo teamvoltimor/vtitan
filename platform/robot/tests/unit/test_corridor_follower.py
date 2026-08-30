@@ -57,12 +57,23 @@ def _max_centering_norm(tuning: NavigationTuning) -> float:
     return math.radians(tuning.corridor_follower.MAX_CENTERING_STEER_DEG) / RobotSpecs.MAX_STEERING_ANGLE
 
 
+def _max_corner_norm(tuning: NavigationTuning) -> float:
+    """The angle the corner and back-off branches steer AT, normalised.
+
+    A different constant from the centring cap since 2026-08-29: that one is
+    sized by the 2026-08-07 limit cycle, this one by the turn arc having to fit
+    inside TURN_CLEARANCE_M. Converted for the same reason as its sibling
+    above, so these stay true on any steering geometry.
+    """
+    return math.radians(tuning.corridor_follower.MAX_CORNER_STEER_DEG) / RobotSpecs.MAX_STEERING_ANGLE
+
+
 class TestCornerTurn:
     def test_wall_spanning_the_track_commits_to_the_turn(self, tuning) -> None:
         """A corridor that has genuinely ended must still turn, hard over."""
         scan = LidarScanBuilder().corridor(left_m=0.5, right_m=0.5, ahead_m=_just_inside_turn_m(tuning)).build()
         cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
-        assert abs(cmd.steering_norm) == pytest.approx(_max_centering_norm(tuning))
+        assert abs(cmd.steering_norm) == pytest.approx(_max_corner_norm(tuning))
         assert cmd.speed_mps > 0.0
 
     def test_turns_toward_the_side_with_more_room(self, tuning) -> None:
@@ -105,7 +116,7 @@ class TestCornerTurn:
         ranges_with_dropout = list(scan.ranges)
         ranges_with_dropout[len(ranges_with_dropout) // 2] = RobotSpecs.LIDAR_MAX_RANGE
         cmd = follow_corridor(ranges_with_dropout, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
-        assert abs(cmd.steering_norm) == pytest.approx(_max_centering_norm(tuning))
+        assert abs(cmd.steering_norm) == pytest.approx(_max_corner_norm(tuning))
 
 
 class TestSafety:
@@ -152,8 +163,14 @@ class TestSafety:
 
         angles = _bearings()
         cmd = follow_corridor([rng(a) for a in angles], angles, CREEP_SPEED_MPS, tuning=tuning)
-        assert cmd.speed_mps == pytest.approx(0.0)
-        assert cmd.steering_norm != pytest.approx(0.0), "still steers toward the open side while held"
+        # Not "holds still": since 5bd18568 a rear-blind robot with an open side
+        # pivots toward it under lock rather than stopping, because on this mount
+        # the rear is ALWAYS unreadable and stopping here is a permanent deadlock
+        # (measured 2026-08-27: a legal in-bay start sat at 0.00 m for 8/8
+        # scenarios). What this test protects is unchanged and is the thing the
+        # docstring names -- an unmeasurable rear must never authorise REVERSE.
+        assert cmd.speed_mps >= 0.0, "reversed into a rear it could not measure"
+        assert cmd.steering_norm != pytest.approx(0.0), "still steers toward the open side"
 
     def test_holds_still_when_boxed_at_both_ends(self, rear_visible) -> None:
         # Rear slot restored on purpose: this is the DISTANCE branch (something

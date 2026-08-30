@@ -114,6 +114,29 @@ class CorridorFollowerParams(BaseModel):
             the counter-phase four-wheel chassis responds violently, and
             oscillation swings the heading past the direction estimator's
             alignment gate, which then refuses every reading.
+        MAX_CORNER_STEER_DEG: The angle the corner-turn and back-off branches
+            steer AT -- not a cap they occasionally reach, but the value they
+            command outright. Split from MAX_CENTERING_STEER_DEG on 2026-08-29
+            because the two are sized by unrelated things and, after the
+            simulator was calibrated, wanted opposite values.
+
+            This one is fixed by GEOMETRY. The corner branch commits its turn
+            at TURN_CLEARANCE_M of forward clearance, so the arc it drives has
+            to fit inside that: radius = wheelbase / ((1 + REAR_STEER_RATIO) *
+            YAW_GAIN * tan(angle)). At the shipped 13.75 deg and the
+            bag-calibrated YAW_GAIN of 0.55 that radius is 0.706 m against a
+            0.60 m commit clearance -- the turn is geometrically impossible, so
+            the robot runs out of room mid-corner, noses into the outer wall
+            and drops into the back-off branch, where it is never square to a
+            corridor and the direction estimator can never settle. Measured
+            over the 128-scenario Open corpus: every one of the 31 collisions
+            was a run that never settled, and no run that settled collided.
+
+            The sibling above stays timid because it is sized by STABILITY --
+            the 2026-08-07 limit cycle -- which the geometry has no say in.
+            Raising a single shared constant to satisfy this one necessarily
+            loosened that one; the sweep showed the cost as `stuck` runs
+            climbing monotonically past 24 deg.
 
     All three steering values are PHYSICAL road-wheel angles, not normalised
     commands. They were normalised ([-1, 1], i.e. fractions of full lock)
@@ -184,6 +207,7 @@ class CorridorFollowerParams(BaseModel):
     CENTERING_GAIN_DEG_PER_M: float = Field(default=0.0, validation_alias=_alias("CENTERING_GAIN_DEG_PER_M"))
     HEADING_GAIN: float = Field(default=0.767945, validation_alias=_alias("HEADING_GAIN"))
     MAX_CENTERING_STEER_DEG: float = Field(default=13.75, validation_alias=_alias("MAX_CENTERING_STEER_DEG"))
+    MAX_CORNER_STEER_DEG: float = Field(default=21.25, validation_alias=_alias("MAX_CORNER_STEER_DEG"))
     CORNER_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("CORNER_SPEED_SCALE"))
     REVERSE_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("REVERSE_SPEED_SCALE"))
     TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))
