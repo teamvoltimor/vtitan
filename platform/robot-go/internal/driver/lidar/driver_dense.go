@@ -287,6 +287,17 @@ func (d *DenseSerialDriver) readDescriptor() (descriptor, error) {
 func (d *DenseSerialDriver) readScan() (Scan, error) {
 	var points []Point
 	started := false
+	// scanStartDeg is the start angle of the current scan's first packet,
+	// used to measure how far the sweep has advanced; a scan is only closed
+	// once that coverage reaches a full revolution (fullSweepDeg). The C1
+	// sets S=true only on the stream's very first packet, wherever the motor
+	// happens to be, so closing on the fixed wrap drop alone returns a
+	// PARTIAL first scan when the stream begins near the sweep end
+	// (verified on hardware 2026-08-31: 18-20 points vs a full 300).
+	// Coverage-from-scan-start guarantees every returned scan is a full
+	// revolution regardless of where the stream began.
+	scanStartDeg := 0.0
+	haveScanStart := false
 	if d.pending != nil {
 		points = append(points, d.pending...)
 		d.pending = nil
@@ -314,6 +325,10 @@ func (d *DenseSerialDriver) readScan() (Scan, error) {
 				started = true
 			}
 			if started {
+				if !haveScanStart {
+					scanStartDeg = prev.startAngleDeg
+					haveScanStart = true
+				}
 				points = append(points, resolved...)
 
 				// The C1 Express/Dense stream only flags the start of a scan
@@ -322,12 +337,22 @@ func (d *DenseSerialDriver) readScan() (Scan, error) {
 				// hardware 2026-08-31: S was true exactly once per stream).
 				// Instead the scan ends when the per-packet start angle wraps
 				// back toward 0 (i.e. drops below the previous packet's angle
-				// after having increased monotonically through 360deg). Close
-				// the scan on that wrap.
+				// after having increased monotonically through 360deg).
 				if prev.startAngleDeg > cur.startAngleDeg+scanWrapAngleDeg {
-					d.prev = &cur
-					d.pending = resolved
-					return points, nil
+					covered := cur.startAngleDeg + fullSweepDeg - scanStartDeg
+					if covered < fullSweepDeg {
+						// The stream's single S=true packet landed mid-
+						// revolution, so this first scan covered only the tail
+						// of a rotation. Discard it and keep collecting from
+						// the wrap packet, which is the true start of a full
+						// revolution.
+						points = nil
+						haveScanStart = false
+					} else {
+						d.prev = &cur
+						d.pending = resolved
+						return points, nil
+					}
 				}
 			}
 		}

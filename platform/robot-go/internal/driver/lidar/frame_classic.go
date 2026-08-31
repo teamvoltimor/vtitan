@@ -290,13 +290,25 @@ const motorPayloadSize = 2
 // short; it only bounds a single empty read, not the total scan wait.
 const serialPollTimeout = 250 * time.Millisecond
 
-// scanWrapAngleDeg is the angle-drop threshold that closes a Dense Mode scan.
-// The C1 Express/Dense stream sets the S (start-of-scan) flag only on the
-// first packet, so a scan is bounded by the per-packet start angle wrapping
-// from ~360deg back toward 0. When the current packet's start angle is more
-// than scanWrapAngleDeg below the previous one, the sweep has completed a full
-// rotation (verified on hardware 2026-08-31).
+// scanWrapAngleDeg is the angle-drop threshold that identifies a per-packet
+// start-angle wrap past 360deg. The C1 Express/Dense stream sets the S
+// (start-of-scan) flag only on the first packet of the whole stream, so a
+// scan's end is detected from the per-packet start angle wrapping back toward
+// 0 (verified on hardware 2026-08-31). The wrap is recognized as a drop of
+// more than scanWrapAngleDeg between consecutive packet start angles; a full
+// 360deg rotation of the motor (e.g. one packet from 358deg to 32deg) is
+// always far more than this, while the ~35deg spacing of consecutive packets
+// is far less.
 const scanWrapAngleDeg = 180.0
+
+// fullSweepDeg is the angular coverage that completes a Dense Mode scan. A
+// scan is closed only once its per-packet start angles have advanced a full
+// revolution past the scan's first packet (see DenseSerialDriver.readScan) --
+// the C1 sets S=true on the stream's first packet wherever the motor happens
+// to be, so closing on a fixed wrap drop alone returns a partial first scan
+// when the stream begins near the sweep end (verified on hardware 2026-08-31:
+// 18-20 points vs a full 300).
+const fullSweepDeg = 360.0
 
 func startMotorPacket() []byte {
 	rpm := uint16(motorDefaultRpm)
