@@ -1041,19 +1041,15 @@ tasks:
       "already claimed"). Keeps vtitan-nats running (tests don't need it, and
       other boards connect through it). Usage:
       task robot-go:hw:stop HOST=rpi-5-local (or rpi-zero-local).
+      ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
+      resolve (Git-bash's msys HOME does not, causing exit 255).
+    shell: '{{.BASH}}'
     cmds:
       - cmd: |
           HOST="{{.HOST}}"
           if [ -z "$HOST" ]; then echo "HOST required (e.g. HOST=rpi-5-local)" && exit 1; fi
           echo "stopping vtitan services + stray launches on $HOST (keeping vtitan-nats)..."
-          ssh "$HOST" ' \
-            sudo systemctl stop vtitan-pi5 vtitan-pi-zero vtitan-lidar vtitan-motor vtitan-display vtitan-race vtitan-backend 2>/dev/null; \
-            pkill -f "ros2 launch" 2>/dev/null; \
-            pkill -f sllidar_node 2>/dev/null; \
-            pkill -f track_navigator_node 2>/dev/null; \
-            pkill -f bag_recorder_node 2>/dev/null; \
-            sleep 2; \
-            echo "remaining port holders:"; sudo fuser -v /dev/ttyUSB0 /dev/ttyACM0 2>&1 || echo "  ttyUSB0/ACM0 FREE"'
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'sudo systemctl stop vtitan-pi5 vtitan-pi-zero vtitan-lidar vtitan-motor vtitan-display vtitan-race vtitan-backend 2>/dev/null; pkill -f ros2 2>/dev/null; pkill -f sllidar_node 2>/dev/null; pkill -f track_navigator_node 2>/dev/null; pkill -f bag_recorder_node 2>/dev/null; sleep 2; echo remaining port holders:; sudo fuser -v /dev/ttyUSB0 /dev/ttyACM0; true'; exit 0"
           echo "done. Re-run if fuser still shows a holder; kill that PID explicitly."
       - task: robot-go:hw:stop-notes
 
@@ -1076,12 +1072,16 @@ tasks:
       range decode expected to read correctly, unlike classic); omit for
       classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
       robot-go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
+      ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
+      resolve (Git-bash's msys HOME does not, causing exit 255).
+    dir: robot-go
     vars:
       PKG: '{{.PKG | default "lidar"}}'
       HOST: '{{.HOST | default "rpi-5-local"}}'
       YAW_OFFSET: '{{.YAW_OFFSET | default "-85"}}'
       SCAN_MODE: '{{.SCAN_MODE | default ""}}'
       OUT: '{{.OUT | default "dist/hw-interactive"}}'
+    shell: '{{.BASH}}'
     cmds:
       - task: robot-go:hw:stop
       - task: robot-go:test:hw:interactive
@@ -1090,10 +1090,11 @@ tasks:
           HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
           REMOTE_DIR="\$HOME/vtitan/platform/robot/$OUT"
-          echo "shipping $OUT/$BIN -> $HOST:$REMOTE_DIR/"
-          ssh "$HOST" "mkdir -p $REMOTE_DIR"
-          scp "$OUT/$BIN" "$HOST:$REMOTE_DIR/"
-          ssh "$HOST" "chmod +x $REMOTE_DIR/$BIN && echo shipped OK"
+          LOCAL="$PWD/$OUT/$BIN"
+          echo "shipping $LOCAL -> $HOST:$REMOTE_DIR/"
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'mkdir -p $REMOTE_DIR'"
+          powershell.exe -NoProfile -Command "scp '$LOCAL' '${HOST}:$REMOTE_DIR/'"
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'chmod +x $REMOTE_DIR/$BIN && echo shipped OK'; exit 0"
       - cmd: |
           HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; MODE="{{.SCAN_MODE}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
@@ -1104,7 +1105,7 @@ tasks:
             if [ -n "$MODE" ]; then EXTRA="$EXTRA LIDAR_SCAN_MODE=$MODE"; fi
           fi
           echo "running $BIN on $HOST (TTY required for operator prompts)..."
-          ssh -t "$HOST" "cd ~/vtitan/platform/robot && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW"
+          powershell.exe -NoProfile -Command "ssh -t -o ConnectTimeout=30 $HOST 'cd ~/vtitan/platform/robot && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW'; exit 0"
 
 
   robot:zero:
