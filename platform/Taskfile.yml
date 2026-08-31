@@ -1073,6 +1073,8 @@ tasks:
       range decode expected to read correctly, unlike classic); omit for
       classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
       robot-go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
+      DUMP_SCAN=1 makes TestHW_LIDAR_Object_Dynamic print every valid point
+      sorted by angle, not just the closest-per-45deg-sector summary.
       ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
       resolve (Git-bash's msys HOME does not, causing exit 255).
     dir: robot-go
@@ -1081,6 +1083,7 @@ tasks:
       HOST: '{{.HOST | default "rpi-5-local"}}'
       YAW_OFFSET: '{{.YAW_OFFSET | default "180"}}'
       SCAN_MODE: '{{.SCAN_MODE | default ""}}'
+      DUMP_SCAN: '{{.DUMP_SCAN | default ""}}'
       OUT: '{{.OUT | default "dist/hw-interactive"}}'
     shell: '{{.BASH}}'
     cmds:
@@ -1090,20 +1093,21 @@ tasks:
       - cmd: |
           HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
-          REMOTE_DIR="$OUT"
+          REMOTE_DIR="vtitan/platform/robot/$OUT"
           LOCAL="$PWD/$OUT/$BIN"
           echo "shipping $LOCAL -> $HOST:$REMOTE_DIR/"
           powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'mkdir -p $REMOTE_DIR'"
           powershell.exe -NoProfile -Command "scp '$LOCAL' '${HOST}:$REMOTE_DIR/'"
           powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'chmod +x $REMOTE_DIR/$BIN && echo shipped OK'; exit 0"
       - cmd: |
-          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; MODE="{{.SCAN_MODE}}"
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; MODE="{{.SCAN_MODE}}"; DUMP="{{.DUMP_SCAN}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
           REMOTE_DIR="$OUT"
           EXTRA=""
           if [ "$PKG" = "lidar" ]; then
             EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW"
             if [ -n "$MODE" ]; then EXTRA="$EXTRA LIDAR_SCAN_MODE=$MODE"; fi
+            if [ -n "$DUMP" ]; then EXTRA="$EXTRA LIDAR_DUMP_SCAN=$DUMP"; fi
           fi
           echo "running $BIN on $HOST (TTY required for operator prompts)..."
           powershell.exe -NoProfile -Command "ssh -t -o ConnectTimeout=30 $HOST 'cd ~/vtitan/platform/robot && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW'; exit 0"
