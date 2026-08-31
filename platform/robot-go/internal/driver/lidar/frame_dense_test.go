@@ -91,7 +91,7 @@ func TestDecodeDensePacket_HandComputed(t *testing.T) {
 func TestDecodeDensePacket_ShortBuffer(t *testing.T) {
 	t.Parallel()
 
-	if _, err := decodeDensePacket(make([]byte, denseResponseLen-1)); !errors.Is(err, ErrShortBuffer) {
+	if _, err := decodeDensePacket(make([]byte, denseHeaderLen-1)); !errors.Is(err, ErrShortBuffer) {
 		t.Fatalf("decodeDensePacket() with short buffer: err = %v, want ErrShortBuffer", err)
 	}
 }
@@ -128,6 +128,7 @@ func TestResolveDenseCabins(t *testing.T) {
 
 	var prev densePacket
 	prev.startAngleDeg = 350.0
+	prev.cabinDistancesMM = make([]float64, denseCabinsPerPacket)
 	prev.cabinDistancesMM[0] = 1000 // k=0 -> angle == prev.startAngleDeg
 	prev.cabinDistancesMM[20] = 2000
 	// every other cabin (incl. index 1) is left at its zero value ->

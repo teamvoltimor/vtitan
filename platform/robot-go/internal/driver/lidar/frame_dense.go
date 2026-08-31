@@ -40,16 +40,22 @@ import (
 	"math"
 )
 
-// densePacket is one decoded 84-byte Dense Mode response packet (Figure
-// 4-13), before its 40 samples' individual angles are known — resolving
-// them requires the *next* packet's start_angle_q6 (see resolveDenseCabins).
+// densePacket is one decoded Dense Mode response packet (Figure 4-13),
+// before its samples' individual angles are known — resolving them
+// requires the *next* packet's start_angle_q6 (see resolveDenseCabins).
 type densePacket struct {
 	startAngleDeg float64
 	startOfScan   bool
-	// cabinDistancesMM holds each of the packet's 40 samples' raw
-	// distance in millimeters (Figure 4-15: plain mm, no Q2 scaling,
-	// unlike classic mode's distance_q2). 0 means the sample is invalid.
-	cabinDistancesMM [denseCabinsPerPacket]float64
+	// cabinDistancesMM holds each of the packet's samples' raw distance in
+	// millimeters (Figure 4-15: plain mm, no Q2 scaling, unlike classic
+	// mode's distance_q2). 0 means the sample is invalid. Its length is
+	// derived from the decoded packet's actual size (see
+	// decodeDensePacket), not hardcoded to denseCabinsPerPacket — the
+	// response descriptor's declared Data Response Length (Figure 2-7) is
+	// the authoritative packet size for a given session, and this package
+	// doesn't assume the legacy request always gets exactly the documented
+	// 84-byte/40-cabin worked example back on every device revision.
+	cabinDistancesMM []float64
 }
 
 const (
@@ -70,17 +76,26 @@ const (
 	// Data Type byte (p.19/21 worked example: "A5 5A 54 00 00 40 85" —
 	// the trailing 0x85 is this field).
 	dataTypeDenseMeasurement = 0x85
-	// denseResponseLen is the fixed size in bytes of one Dense Mode
-	// response packet (Figure 4-13: 4-byte header + 40 cabins x 2 bytes
-	// = 84 bytes, matching the response descriptor's declared length).
+	// denseResponseLen is the *documented* size in bytes of one Dense Mode
+	// response packet (Figure 4-13: 4-byte header + 40 cabins x 2 bytes =
+	// 84 bytes) per the worked example. It is only a fallback/test
+	// default -- the real, authoritative packet size for a given session
+	// is the response descriptor's declared Data Response Length (Figure
+	// 2-7), which DenseSerialDriver.Connect reads and uses instead (see
+	// driver_dense.go), in case a given device's actual legacy-mode
+	// packet size differs from this worked example.
 	denseResponseLen = 84
 	// denseHeaderLen is the number of header bytes (sync + checksum +
 	// start_angle_q6 + S) preceding the first cabin in a Dense Mode
-	// response packet (Figure 4-13, byte offsets +0 through +3).
+	// response packet (Figure 4-13, byte offsets +0 through +3). This one
+	// is not a fallback -- the header layout itself doesn't vary with
+	// packet size.
 	denseHeaderLen = 4
-	// denseCabinsPerPacket is the fixed number of 2-byte cabins (samples)
-	// per Dense Mode response packet (Figure 4-14: "A data response
-	// packet contains 40 groups of cabin data").
+	// denseCabinsPerPacket is the *documented* number of 2-byte cabins
+	// (samples) per Dense Mode response packet (Figure 4-14: "A data
+	// response packet contains 40 groups of cabin data"), used only by
+	// this package's tests -- decodeDensePacket derives the real cabin
+	// count from the actual packet length instead of assuming this.
 	denseCabinsPerPacket = 40
 	// denseCabinLen is the fixed size in bytes of one cabin (Figure 4-13:
 	// "distance[15:0]").
@@ -144,13 +159,18 @@ func denseRequestPacket() []byte {
 	return pkt
 }
 
-// decodeDensePacket decodes one 84-byte Dense Mode response packet
-// (Figure 4-13 field layout), validating its sync nibbles and XOR
-// checksum.
+// decodeDensePacket decodes one Dense Mode response packet (Figure 4-13
+// field layout), validating its sync nibbles and XOR checksum. The number
+// of cabins (samples) is derived from len(b) rather than assumed to be
+// denseCabinsPerPacket — callers should size b to the response
+// descriptor's declared Data Response Length (see DenseSerialDriver.Connect
+// in driver_dense.go), not hardcode the documented worked example's 84
+// bytes, in case this device's actual legacy-mode packet size differs.
 func decodeDensePacket(b []byte) (densePacket, error) {
-	if len(b) < denseResponseLen {
+	if len(b) < denseHeaderLen {
 		return densePacket{}, fmt.Errorf(
-			"%w: dense packet needs %d bytes, got %d", ErrShortBuffer, denseResponseLen, len(b),
+			"%w: dense packet needs at least %d header bytes, got %d",
+			ErrShortBuffer, denseHeaderLen, len(b),
 		)
 	}
 	if b[0]>>denseNibbleShift != denseSync1Nibble || b[1]>>denseNibbleShift != denseSync2Nibble {
@@ -166,7 +186,7 @@ func decodeDensePacket(b []byte) (densePacket, error) {
 	// bytes themselves (Figure 4-14: "starting from start_angle_q6[7:0]").
 	wantChecksum := b[0]&denseNibbleMask | (b[1]&denseNibbleMask)<<denseNibbleShift
 	var gotChecksum byte
-	for _, x := range b[2:denseResponseLen] {
+	for _, x := range b[2:] {
 		gotChecksum ^= x
 	}
 	if gotChecksum != wantChecksum {
@@ -178,9 +198,11 @@ func decodeDensePacket(b []byte) (densePacket, error) {
 	startOfScan := b[3]&denseSFlagBit != 0
 	startAngleQ6 := uint16(b[2]) | uint16(b[3]&denseStartAngleHighMask)<<denseStartAngleHighShift
 
+	cabinCount := (len(b) - denseHeaderLen) / denseCabinLen
 	pkt := densePacket{
-		startAngleDeg: float64(startAngleQ6) / angleQ6Scale,
-		startOfScan:   startOfScan,
+		startAngleDeg:    float64(startAngleQ6) / angleQ6Scale,
+		startOfScan:      startOfScan,
+		cabinDistancesMM: make([]float64, cabinCount),
 	}
 	for k := range pkt.cabinDistancesMM {
 		off := denseHeaderLen + k*denseCabinLen
@@ -189,12 +211,13 @@ func decodeDensePacket(b []byte) (densePacket, error) {
 	return pkt, nil
 }
 
-// resolveDenseCabins converts prev's 40 raw cabin distances into Points,
+// resolveDenseCabins converts prev's raw cabin distances into Points,
 // interpolating each sample's angle between prev's own start angle and
 // nextStartAngleDeg (the *following* packet's start angle) per the
-// documented formula (Figure 4-17):
+// documented formula (Figure 4-17, generalized from the documented 40 to
+// prev's actual cabin count -- see decodeDensePacket):
 //
-//	θ_k = ω_i + AngleDiff(ω_i, ω_i+1)/40 * k
+//	θ_k = ω_i + AngleDiff(ω_i, ω_i+1)/N * k    (N = len(prev.cabinDistancesMM))
 //	AngleDiff(ω_i, ω_i+1) = ω_i+1 - ω_i          if ω_i <= ω_i+1
 //	                      = 360 + ω_i+1 - ω_i    otherwise
 //
@@ -205,9 +228,9 @@ func resolveDenseCabins(prev densePacket, nextStartAngleDeg float64) []Point {
 	if prev.startAngleDeg > nextStartAngleDeg {
 		angleDiff += 360
 	}
-	step := angleDiff / float64(denseCabinsPerPacket)
+	step := angleDiff / float64(len(prev.cabinDistancesMM))
 
-	pts := make([]Point, 0, denseCabinsPerPacket)
+	pts := make([]Point, 0, len(prev.cabinDistancesMM))
 	for k, distMM := range prev.cabinDistancesMM {
 		if distMM == 0 {
 			continue

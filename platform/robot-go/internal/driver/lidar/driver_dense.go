@@ -24,7 +24,14 @@ type DenseSerialDriver struct {
 	cfg    Config
 	port   serial.Port
 	reader *bufio.Reader
-	// prev holds the most recently decoded Dense Mode packet, whose 40
+	// packetLen is the exact byte size of one Dense Mode response packet
+	// for this session, taken from the response descriptor's declared
+	// Data Response Length (Figure 2-7) in Connect -- not assumed to be
+	// the documented worked example's 84 bytes, in case this device's
+	// actual legacy-mode packet size differs. Set once by Connect, then
+	// read-only for the life of the connection.
+	packetLen int
+	// prev holds the most recently decoded Dense Mode packet, whose
 	// samples can't be angle-resolved yet — that requires the *next*
 	// packet's start_angle_q6 (see frame_dense.go's package comment).
 	// Carried across Read calls the same way ClassicSerialDriver.first
@@ -105,6 +112,13 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 			dataTypeDenseMeasurement,
 		)
 	}
+	if desc.length < denseHeaderLen {
+		return fmt.Errorf(
+			"lidar: Express Scan response descriptor declared %d byte packets, too short for a %d byte header",
+			desc.length, denseHeaderLen,
+		)
+	}
+	d.packetLen = int(desc.length)
 
 	return nil
 }
@@ -257,7 +271,7 @@ func (d *DenseSerialDriver) readScan() (Scan, error) {
 	d.prev = nil
 
 	for {
-		raw := make([]byte, denseResponseLen)
+		raw := make([]byte, d.packetLen)
 		if _, err := io.ReadFull(d.reader, raw); err != nil {
 			return nil, fmt.Errorf("lidar: reading dense packet: %w", err)
 		}
