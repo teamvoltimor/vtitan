@@ -1,4 +1,18 @@
-﻿# Team Voldemor
+﻿# 🕊️ *In Memoriam*
+
+> Este proyecto, su arquitectura y cada línea de código que da vida a este robot están dedicados con profundo cariño y respeto a la memoria de mi gran amigo y colega:
+>
+> **Javier Pérez** — [@kaucrow](https://github.com/kaucrow)
+>
+> Gracias por los años en las aulas, las incontables horas depurando código y esa pasión inquebrantable por la ingeniería que siempre nos unió. Llevar este sistema a la competencia es también llevar tu curiosidad, tu talento y tu recuerdo en cada desafío. 
+>
+> Aunque hoy no estés físicamente, tu huella sigue viva en este repositorio, en cada meta alcanzada y en mi memoria por el resto de mi vida. Descansa en paz, hermano.
+>
+> — *Ramón Álvarez*
+
+---
+
+# Team Voldemor
 <p align="center">
     <img src="assets/images/logo/teamsteelbot.png" alt="" width="400">
     <br>
