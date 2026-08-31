@@ -119,7 +119,7 @@ func buildDriver(ctx context.Context, cfg Config, logger *slog.Logger) (camera.D
 	if cfg.Camera.Source != camera.SourceTopic {
 		return camera.New(cfg.Camera)
 	}
-	conn, err := nats.Connect(cfg.NATS)
+	conn, err := nats.Connect(ctx, cfg.NATS)
 	if err != nil {
 		return nil, err
 	}
