@@ -72,6 +72,40 @@ func TestDenseSerialDriverReadScan_DiscardsPartialFirstScan(t *testing.T) {
 	}
 }
 
+// TestDenseSerialDriverReadScan_ResyncsAcrossCorruptPacket verifies
+// readScan survives a corrupted packet in the middle of the stream: the C1
+// streams at 460800 baud, so a single dropped/corrupted byte both fails its
+// own packet and (without resync) misaligns every later fixed-size read.
+// readDensePacket must scan forward to the next 0xA? 0x5? sync pair and
+// keep assembling the scan.
+func TestDenseSerialDriverReadScan_ResyncsAcrossCorruptPacket(t *testing.T) {
+	angles := []float64{0, 36, 72, 108, 144, 180, 216, 252, 288, 324, 0}
+
+	var buf bytes.Buffer
+	for i, a := range angles {
+		pkt := encodeDensePacketForTest(a, i == 0, 1000)
+		if i == 3 {
+			// Corrupt a cabin byte in the 108deg packet.
+			pkt[denseHeaderLen+2] ^= 0xFF
+		}
+		buf.Write(pkt)
+	}
+
+	d := &DenseSerialDriver{
+		reader:    bufio.NewReader(&buf),
+		packetLen: denseResponseLen,
+	}
+	scan, err := d.readScan()
+	if err != nil {
+		t.Fatalf("readScan() error = %v, want nil (should resync past the corrupt packet)", err)
+	}
+	// The corrupt 108deg packet's 40 cabins are dropped (resync skips it),
+	// leaving 9 valid packets x 40 cabins.
+	if want := 9 * denseCabinsPerPacket; len(scan) != want {
+		t.Errorf("readScan() returned %d points, want %d (corrupt packet dropped, rest of revolution kept)", len(scan), want)
+	}
+}
+
 // TestDenseSerialDriverReadScan_FullScanWhenStreamStartsAtZero is the
 // control: when the stream's S=true packet lands at the true sweep start
 // (0deg), the FIRST scan is already a full revolution and must be returned

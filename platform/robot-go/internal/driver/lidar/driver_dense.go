@@ -3,6 +3,7 @@ package lidar
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -277,6 +278,60 @@ func (d *DenseSerialDriver) readDescriptor() (descriptor, error) {
 	return parseDescriptor(raw)
 }
 
+// readDensePacket reads and decodes one Dense Mode response packet,
+// resyncing on corruption. The C1 streams 84-byte packets continuously at
+// 460800 baud, so a single dropped or corrupted byte both fails the packet
+// it lands in AND misaligns every subsequent fixed-size read -- without
+// resync, one bad byte aborts the whole scan (verified on hardware
+// 2026-08-31: "dense packet checksum mismatch" during an interactive
+// read). On a sync/checksum mismatch it therefore scans byte-by-byte for
+// the next 0xA? 0x5? sync-nibble pair (the same robustness
+// ClassicSerialDriver.readDescriptor applies to the descriptor), reads the
+// rest of the packet from there, and retries. Only a stream that stays
+// misaligned past the timeoutReader's maxSilence fails.
+func (d *DenseSerialDriver) readDensePacket() (densePacket, error) {
+	raw := make([]byte, d.packetLen)
+	if _, err := io.ReadFull(d.reader, raw); err != nil {
+		return densePacket{}, fmt.Errorf("lidar: reading dense packet: %w", err)
+	}
+
+	pkt, err := decodeDensePacket(raw)
+	if err == nil {
+		return pkt, nil
+	}
+	if !errors.Is(err, ErrDenseSyncMismatch) && !errors.Is(err, ErrDenseChecksumMismatch) {
+		return densePacket{}, err
+	}
+
+	// Resync: find the next packet start (two bytes whose upper nibbles are
+	// denseSync1Nibble then denseSync2Nibble). The bytes ahead of the sync
+	// pair are discarded -- they're corruption or the tail of a misread.
+	var prev byte
+	for {
+		b, readErr := d.reader.ReadByte()
+		if readErr != nil {
+			return densePacket{}, fmt.Errorf("lidar: resyncing dense packet: %w", readErr)
+		}
+		if prev>>denseNibbleShift == denseSync1Nibble && b>>denseNibbleShift == denseSync2Nibble {
+			raw[0] = prev
+			raw[1] = b
+			break
+		}
+		prev = b
+	}
+
+	rest := raw[2:]
+	if _, err := io.ReadFull(d.reader, rest); err != nil {
+		return densePacket{}, fmt.Errorf("lidar: reading resynced dense packet: %w", err)
+	}
+
+	pkt, err = decodeDensePacket(raw)
+	if err != nil {
+		return densePacket{}, err
+	}
+	return pkt, nil
+}
+
 // readScan reads Dense Mode packets until a full Scan (all samples between
 // two S=1 start-of-scan flags) has been assembled. Because a packet's own
 // samples can only be angle-resolved once the *next* packet's start angle
@@ -308,14 +363,9 @@ func (d *DenseSerialDriver) readScan() (Scan, error) {
 	d.prev = nil
 
 	for {
-		raw := make([]byte, d.packetLen)
-		if _, err := io.ReadFull(d.reader, raw); err != nil {
-			return nil, fmt.Errorf("lidar: reading dense packet: %w", err)
-		}
-
-		cur, err := decodeDensePacket(raw)
+		cur, err := d.readDensePacket()
 		if err != nil {
-			return nil, fmt.Errorf("lidar: decoding dense packet: %w", err)
+			return nil, err
 		}
 
 		if prev != nil {

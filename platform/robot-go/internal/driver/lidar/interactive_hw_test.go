@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -147,6 +148,30 @@ func TestHW_LIDAR_Object_Dynamic(t *testing.T) {
 	}
 
 	fmt.Printf(">>> scan: %d points, %d valid\n", len(scan), validCount)
+
+	// LIDAR_DUMP_SCAN=1 prints every valid point sorted by angle, not just
+	// the closest-per-45deg-sector summary below. The bearing report only
+	// shows the *nearest* return in each wide 45deg cone, so if anything
+	// else in that cone (a wall corner, furniture leg, the room boundary)
+	// sits closer than the operator's placed object, the summary silently
+	// reports that instead -- this dump lets the operator see the object's
+	// actual return (and its real range) even when it's not the closest
+	// thing in its sector, to tell that apart from a genuine decode bug.
+	if os.Getenv("LIDAR_DUMP_SCAN") != "" {
+		dump := make([]lidar.Point, 0, len(scan))
+		for _, pt := range scan {
+			if pt.RangeM <= 0 || pt.RangeM > maxR {
+				continue
+			}
+			dump = append(dump, pt)
+		}
+		sort.Slice(dump, func(i, j int) bool { return dump[i].AngleRad < dump[j].AngleRad })
+		fmt.Println(">>> raw valid points (angle deg, range m), sorted by angle:")
+		for _, pt := range dump {
+			fmt.Printf("    %7.2f deg  %6.3f m\n", pt.AngleRad*180/math.Pi, pt.RangeM)
+		}
+	}
+
 	for _, b := range bearings {
 		if b.best == nil {
 			fmt.Printf("    bearing %s: <no return>\n", b.name)
