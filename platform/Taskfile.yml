@@ -952,6 +952,47 @@ tasks:
     cmds:
       - go test ./...
 
+  robot-go:test:hw:
+    desc: >-
+      Cross-compile the //go:build hw hardware tests for linux/arm64 so each
+      driver can be scp'd to a real Pi and run independently (no nats-server,
+      no other board). Usage: task robot-go:test:hw [PKG=button|ssd1306|imu|lidar|motor]
+      (omit PKG to build all five). Output binaries land in robot-go/dist/hw/.
+      On the Pi, run e.g. `./dist/hw/btn -test.v`; env overrides per test:
+      BUTTON_GPIO_LINE, SSD1306_I2C_BUS/ADDR, IMU_TTY, LIDAR_TTY,
+      MOTOR_REN/LEN/REVERSE_PWM_LINE.
+    dir: robot-go
+    vars:
+      PKG: '{{.PKG | default ""}}'
+      OUT: '{{.OUT | default "dist/hw"}}'
+    cmds:
+      - cmd: |
+          mkdir -p {{.OUT}}
+          build_one() {
+            local pkg="$1" bin="$2"
+            echo "cross-compiling hw test: ./internal/driver/$pkg -> {{.OUT}}/$bin"
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+              go test -tags hw -c -o "{{.OUT}}/$bin" "./internal/driver/$pkg/"
+          }
+          if [ -n "{{.PKG}}" ]; then
+            case "{{.PKG}}" in
+              button) build_one button btn ;;
+              ssd1306) build_one display/ssd1306 oled ;;
+              imu)    build_one imu imu ;;
+              lidar)  build_one lidar lidar ;;
+              motor)  build_one motor motor ;;
+              *) echo "Unknown PKG: {{.PKG}}. Use button|ssd1306|imu|lidar|motor" && exit 1 ;;
+            esac
+          else
+            build_one button btn
+            build_one display/ssd1306 oled
+            build_one imu imu
+            build_one lidar lidar
+            build_one motor motor
+          fi
+          echo "hw test binaries written to {{.OUT}}/"
+
+
   robot:zero:
     desc: >-
       Pi Zero lifecycle ops — run ON Pi 5 (usage: task robot:zero
