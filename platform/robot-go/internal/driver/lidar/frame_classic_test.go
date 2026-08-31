@@ -14,7 +14,7 @@ package lidar
 //     descriptor "A5 5A 05 00 00 40 81", GET_HEALTH request "A5 52" /
 //     response descriptor "A5 5A 3 00 00 00 06") — these are sourced,
 //     vendor-verified vectors, the strongest coverage in this file.
-//   - decodeMeasurement and decodeHealth have no equivalent sourced
+//   - decodeClassicMeasurement and decodeHealth have no equivalent sourced
 //     byte-for-byte worked example in the protocol doc (it defines the
 //     field layout and scale factors but never publishes a concrete
 //     sample's raw bytes the way it does for descriptors). Their tests
@@ -47,7 +47,7 @@ func TestRequestPacket(t *testing.T) {
 	}{
 		{name: "stop", cmd: cmdStop, want: []byte{0xA5, 0x25}},
 		{name: "reset", cmd: cmdReset, want: []byte{0xA5, 0x40}},
-		{name: "scan", cmd: cmdScan, want: []byte{0xA5, 0x20}},
+		{name: "scan", cmd: cmdClassicScan, want: []byte{0xA5, 0x20}},
 		{name: "get_health", cmd: cmdGetHealth, want: []byte{0xA5, 0x52}},
 	}
 
@@ -78,7 +78,7 @@ func TestParseDescriptor(t *testing.T) {
 		{
 			name: "scan",
 			raw:  []byte{0xA5, 0x5A, 0x05, 0x00, 0x00, 0x40, 0x81},
-			want: descriptor{length: 5, sendMode: 1, dataType: dataTypeMeasurement},
+			want: descriptor{length: 5, sendMode: 1, dataType: dataTypeClassicMeasurement},
 		},
 		// Sourced from "Get Device Health Status (GET_HEALTH)": response
 		// descriptor "A5 5A 3 00 00 00 06". Packed word = 0x00000003;
@@ -124,8 +124,10 @@ func TestParseDescriptor_ShortBuffer(t *testing.T) {
 
 // TestDecodeMeasurement_HandComputed hand-encodes angle=45.5deg,
 // distance=1234.75mm, quality=10, S=1 per the documented field layout
-// (Figure 4-4/4-5) and checks decodeMeasurement recovers the exact same
-// values. Work shown:
+// (Figure 4-4/4-5, "Actual Distance = distance_q2/4.0 mm" — see
+// classicDistanceQ2Scale in frame_classic.go) and checks
+// decodeClassicMeasurement recovers the exact same values.
+// Work shown:
 //
 //	angle_q6 = 45.5 * 64 = 2912 (0xB60, 12 significant bits)
 //	  low7  = 2912 & 0x7F = 96  (0x60)
@@ -140,12 +142,12 @@ func TestDecodeMeasurement_HandComputed(t *testing.T) {
 	t.Parallel()
 
 	raw := []byte{0x29, 0xC1, 0x16, 0x4B, 0x13}
-	got, startOfScan, err := decodeMeasurement(raw)
+	got, startOfScan, err := decodeClassicMeasurement(raw)
 	if err != nil {
-		t.Fatalf("decodeMeasurement() error = %v, want nil", err)
+		t.Fatalf("decodeClassicMeasurement() error = %v, want nil", err)
 	}
 	if !startOfScan {
-		t.Error("decodeMeasurement() startOfScan = false, want true")
+		t.Error("decodeClassicMeasurement() startOfScan = false, want true")
 	}
 
 	const (
@@ -176,12 +178,12 @@ func TestDecodeMeasurement_NotStartOfScan(t *testing.T) {
 	t.Parallel()
 
 	raw := []byte{0x2A, 0xC1, 0x16, 0x4B, 0x13}
-	_, startOfScan, err := decodeMeasurement(raw)
+	_, startOfScan, err := decodeClassicMeasurement(raw)
 	if err != nil {
-		t.Fatalf("decodeMeasurement() error = %v, want nil", err)
+		t.Fatalf("decodeClassicMeasurement() error = %v, want nil", err)
 	}
 	if startOfScan {
-		t.Error("decodeMeasurement() startOfScan = true, want false")
+		t.Error("decodeClassicMeasurement() startOfScan = true, want false")
 	}
 }
 
@@ -190,8 +192,8 @@ func TestDecodeMeasurement_SyncBitMismatch(t *testing.T) {
 
 	// Both S and ~S set to 1 (0x03) — must differ per the protocol.
 	raw := []byte{0x03, 0xC1, 0x16, 0x4B, 0x13}
-	if _, _, err := decodeMeasurement(raw); err == nil {
-		t.Fatal("decodeMeasurement() with S==~S: got nil error, want ErrSyncBitMismatch")
+	if _, _, err := decodeClassicMeasurement(raw); err == nil {
+		t.Fatal("decodeClassicMeasurement() with S==~S: got nil error, want ErrSyncBitMismatch")
 	}
 }
 
@@ -200,16 +202,16 @@ func TestDecodeMeasurement_CheckBitUnset(t *testing.T) {
 
 	// byte1's low bit (C) cleared: 0xC1 -> 0xC0.
 	raw := []byte{0x29, 0xC0, 0x16, 0x4B, 0x13}
-	if _, _, err := decodeMeasurement(raw); err == nil {
-		t.Fatal("decodeMeasurement() with C=0: got nil error, want ErrCheckBitUnset")
+	if _, _, err := decodeClassicMeasurement(raw); err == nil {
+		t.Fatal("decodeClassicMeasurement() with C=0: got nil error, want ErrCheckBitUnset")
 	}
 }
 
 func TestDecodeMeasurement_ShortBuffer(t *testing.T) {
 	t.Parallel()
 
-	if _, _, err := decodeMeasurement([]byte{0x29, 0xC1}); err == nil {
-		t.Fatal("decodeMeasurement() with short buffer: got nil error, want ErrShortBuffer")
+	if _, _, err := decodeClassicMeasurement([]byte{0x29, 0xC1}); err == nil {
+		t.Fatal("decodeClassicMeasurement() with short buffer: got nil error, want ErrShortBuffer")
 	}
 }
 
@@ -321,7 +323,7 @@ func FuzzDecodeMeasurement(f *testing.F) {
 	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _, _ = decodeMeasurement(data) // must not panic; error is fine
+		_, _, _ = decodeClassicMeasurement(data) // must not panic; error is fine
 	})
 }
 

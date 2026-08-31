@@ -30,9 +30,9 @@ func TestHW_LIDAR_UART(t *testing.T) {
 	}
 	cfg := lidar.Config{Port: port, BaudRate: lidar.DefaultBaudRate}
 
-	d, err := lidar.New(cfg)
+	d, err := lidar.NewClassic(cfg)
 	if err != nil {
-		t.Fatalf("HW FAIL: lidar.New: %v", err)
+		t.Fatalf("HW FAIL: lidar.NewClassic: %v", err)
 	}
 	if err := d.Connect(context.Background()); err != nil {
 		t.Fatalf("HW FAIL: lidar.Connect (serial.Open %s + SCAN): %v", port, err)

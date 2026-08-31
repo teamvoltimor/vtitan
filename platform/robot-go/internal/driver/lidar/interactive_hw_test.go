@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,45 +26,43 @@ func waitForAck(prompt string) bool {
 	return line == "y" || line == "yes"
 }
 
-// TestHW_LIDAR_Object_Dynamic streams scans and asks the operator to place an
-// object in front of the lidar, then verifies a return appears at the
-// expected angle (near 0 rad, straight ahead) and a plausible range. Unlike
+// TestHW_LIDAR_Object_Dynamic streams a scan and reports the closest valid
+// return in each of the 8 compass bearings (0/45/90/135/180/225/270/315 deg,
+// 45 deg sectors). The operator places objects at those bearings and confirms
+// each shows up in its correct bucket at a plausible range. Unlike
 // TestHW_LIDAR_UART (which only proves a scan assembles), this proves the
-// decoded geometry is physically correct -- the dynamic counterpart.
+// decoded angle/range are physically correct -- the dynamic counterpart.
 //
-// PASS -> with an object placed ~0.3-1.0m in front, a scan point appears at
-//         a near-forward angle and the expected range; operator confirms the
-//         object was where they put it.
-// FAIL  -> Connect/Read errors, OR no return shows up at the commanded
-//         location when the operator confirms the object is there. Either
-//         means the angle/range decoding or the scan assembly is wrong.
+// PASS -> a scan assembles, the 8 bearings report (no hard range gate, since
+//         the room may be open), and the operator confirms each placed object
+//         lands in the expected bearing at a sane range.
+// FAIL  -> Connect/Read errors, OR the operator reports an object did NOT
+//         appear in its bearing (decode angle is wrong / offset off).
 func TestHW_LIDAR_Object_Dynamic(t *testing.T) {
 	port := os.Getenv("LIDAR_TTY")
 	if port == "" {
 		port = "/dev/ttyUSB0"
 	}
 	cfg := lidar.Config{Port: port, BaudRate: lidar.DefaultBaudRate}
+	if v := os.Getenv("LIDAR_YAW_OFFSET_DEG"); v != "" {
+		if off, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.YawOffsetDeg = off
+		}
+	}
 
-	d, err := lidar.New(cfg)
+	d, err := lidar.NewClassic(cfg)
 	if err != nil {
-		t.Fatalf("HW FAIL: lidar.New: %v", err)
+		t.Fatalf("HW FAIL: lidar.NewClassic: %v", err)
 	}
 	if err := d.Connect(context.Background()); err != nil {
 		t.Fatalf("HW FAIL: lidar.Connect: %v", err)
 	}
 	defer func() { _ = d.Close() }()
 
-	// Expect the operator to put the object roughly straight ahead (0 rad).
-	const (
-		expectAngleRad = 0.0
-		angleTolRad    = 0.35 // ~20 degrees
-		minRangeM      = 0.1
-		maxRangeM      = 2.0
-	)
-
-	fmt.Println(">>> Place an object ~0.3-1.0m directly in FRONT of the lidar (straight ahead), then confirm.")
-	if !waitForAck("Object placed in front, ready to scan?") {
-		t.Fatalf("HW FAIL: operator aborted lidar object test")
+	fmt.Println(">>> LIDAR 8-bearing scan. Place objects at the 8 compass bearings")
+	fmt.Println("   (0/45/90/135/180/225/270/315 deg around the robot) and confirm.")
+	if !waitForAck("Objects placed at the bearings, run the scan?") {
+		t.Fatalf("HW FAIL: operator aborted lidar sector test")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -73,36 +72,63 @@ func TestHW_LIDAR_Object_Dynamic(t *testing.T) {
 		t.Fatalf("HW FAIL: lidar.Read: %v", err)
 	}
 
-	// Find the closest point within the forward angular window.
-	var best *lidar.Point
+	// Bucket the closest return into 8 compass bearings (45 deg sectors
+	// centered on 0/45/.../315). Only filter true no-return (RangeM==0) and
+	// out-of-spec (> MaxRangeM); do NOT drop sub-MinRangeM returns -- the
+	// operator's objects can be closer than the datasheet's 0.05 m near
+	// limit, and those are exactly what we want to see.
+	const (
+		bearingHalfWidth = 22.5 // deg; half of the 45 deg sector
+		maxR             = lidar.MaxRangeM
+	)
+	bearings := []struct {
+		name   string
+		center float64 // radians
+		best   *lidar.Point
+	}{
+		{"0", 0, nil},
+		{"45", math.Pi / 4, nil},
+		{"90", math.Pi / 2, nil},
+		{"135", 3 * math.Pi / 4, nil},
+		{"180", math.Pi, nil},
+		{"225", -3 * math.Pi / 4, nil},
+		{"270", -math.Pi / 2, nil},
+		{"315", -math.Pi / 4, nil},
+	}
+
+	validCount := 0
 	for i := range scan {
 		pt := scan[i]
-		da := math.Abs(pt.AngleRad - expectAngleRad)
-		if da > math.Pi {
-			da = 2*math.Pi - da
+		if pt.RangeM <= 0 || pt.RangeM > maxR {
+			continue
 		}
-		if da <= angleTolRad && (best == nil || pt.RangeM < best.RangeM) {
-			p := pt
-			best = &p
+		validCount++
+		for b := range bearings {
+			da := pt.AngleRad - bearings[b].center
+			da = math.Mod(da+math.Pi, 2*math.Pi) - math.Pi // wrap to (-pi,pi]
+			if math.Abs(da) <= bearingHalfWidth*math.Pi/180 {
+				if bearings[b].best == nil || pt.RangeM < bearings[b].best.RangeM {
+					p := pt
+					bearings[b].best = &p
+				}
+				break
+			}
 		}
 	}
 
-	if best == nil {
-		t.Fatalf("HW FAIL: no return within %.0f deg of forward despite object placed there",
-			angleTolRad*180/math.Pi)
-	}
-	if best.RangeM < minRangeM || best.RangeM > maxRangeM {
-		t.Fatalf("HW FAIL: forward return range %.3f m outside plausible %.2f-%.2f m (decoding wrong?)",
-			best.RangeM, minRangeM, maxRangeM)
-	}
-
-	fmt.Printf(">>> Forward return: angle=%.2f rad (%.0f deg) range=%.3f m\n",
-		best.AngleRad, best.AngleRad*180/math.Pi, best.RangeM)
-
-	if !waitForAck("Did the reported range/angle match where you placed the object?") {
-		t.Fatalf("HW FAIL: operator did not confirm lidar geometry")
+	fmt.Printf(">>> scan: %d points, %d valid\n", len(scan), validCount)
+	for _, b := range bearings {
+		if b.best == nil {
+			fmt.Printf("    bearing %s: <no return>\n", b.name)
+		} else {
+			fmt.Printf("    bearing %s: angle=%6.1f deg range=%6.3f m\n",
+				b.name, b.best.AngleRad*180/math.Pi, b.best.RangeM)
+		}
 	}
 
-	t.Logf("HW PASS: lidar returned object at angle=%.2f rad range=%.3f m per operator",
-		best.AngleRad, best.RangeM)
+	if !waitForAck("Did each object you placed show up in its correct bearing at a sane range?") {
+		t.Fatalf("HW FAIL: operator did not confirm lidar bearing geometry")
+	}
+
+	t.Logf("HW PASS: lidar sector scan per operator (valid=%d)", validCount)
 }

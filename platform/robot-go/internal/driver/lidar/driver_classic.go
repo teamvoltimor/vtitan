@@ -14,16 +14,27 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver"
 )
 
-// Config configures a SerialDriver's serial connection to an RPLIDAR C1.
+// Config configures a ClassicSerialDriver's serial connection to an
+// RPLIDAR C1.
 type Config struct {
 	Port     string `validate:"required"`
 	BaudRate int    `validate:"required,gt=0"`
+	// YawOffsetDeg rotates every decoded measurement angle by a fixed
+	// mounting offset so that decoded angle 0 (the sensor's own 0 reference)
+	// maps to the robot's forward axis. The physical lidar is mounted rotated
+	// relative to the chassis; without this, "front" reads at the mounting
+	// angle instead of 0. Mirrors the Python launch's inverted/inverted-yaw
+	// handling. Applied in decodeClassicMeasurement (frame_classic.go)
+	// before AngleRad is stored. Zero means "sensor 0 == robot forward".
+	YawOffsetDeg float64
 }
 
-// SerialDriver reads 360-degree Scans from an RPLIDAR C1 over its TTL UART
-// interface using the classic SCAN command (see doc.go for scope). It
-// implements driver.Driver[Scan] (platform/robot-go/internal/driver).
-type SerialDriver struct {
+// ClassicSerialDriver reads 360-degree Scans from an RPLIDAR C1 over its
+// TTL UART interface using the classic SCAN command (see doc.go for scope,
+// and frame_classic.go's package comment for why this is kept alongside
+// the Dense/Express mode implementation rather than as the sole driver).
+// It implements driver.Driver[Scan] (platform/robot-go/internal/driver).
+type ClassicSerialDriver struct {
 	cfg    Config
 	port   serial.Port
 	reader *bufio.Reader
@@ -64,23 +75,26 @@ const (
 var (
 	errReadBeforeConnect = errors.New("lidar: Read called before Connect")
 
-	// Compile-time assertion that SerialDriver satisfies driver.Driver[Scan].
-	_ driver.Driver[Scan] = (*SerialDriver)(nil)
+	// Compile-time assertion that ClassicSerialDriver satisfies
+	// driver.Driver[Scan].
+	_ driver.Driver[Scan] = (*ClassicSerialDriver)(nil)
 )
 
-// New validates cfg and returns a SerialDriver. Call Connect before Read.
-func New(cfg Config) (*SerialDriver, error) {
+// NewClassic validates cfg and returns a ClassicSerialDriver. Call Connect
+// before Read.
+func NewClassic(cfg Config) (*ClassicSerialDriver, error) {
 	if err := validator.New().Struct(cfg); err != nil {
 		return nil, fmt.Errorf("lidar: invalid config: %w", err)
 	}
-	return &SerialDriver{cfg: cfg}, nil
+	yawOffsetDeg = cfg.YawOffsetDeg
+	return &ClassicSerialDriver{cfg: cfg}, nil
 }
 
 // Connect opens the configured serial port, stops any scan already in
 // progress (the device may still be scanning from a previous session that
 // didn't clean up), and issues the classic SCAN request so measurement
 // samples start streaming.
-func (d *SerialDriver) Connect(ctx context.Context) error {
+func (d *ClassicSerialDriver) Connect(ctx context.Context) error {
 	mode := &serial.Mode{BaudRate: d.cfg.BaudRate}
 	port, err := serial.Open(d.cfg.Port, mode)
 	if err != nil {
@@ -111,7 +125,7 @@ func (d *SerialDriver) Connect(ctx context.Context) error {
 		return fmt.Errorf("lidar: purging stale input: %w", err)
 	}
 
-	if _, writeErr := d.port.Write(requestPacket(cmdScan)); writeErr != nil {
+	if _, writeErr := d.port.Write(requestPacket(cmdClassicScan)); writeErr != nil {
 		return fmt.Errorf("lidar: sending SCAN request: %w", writeErr)
 	}
 
@@ -119,12 +133,12 @@ func (d *SerialDriver) Connect(ctx context.Context) error {
 	if descErr != nil {
 		return fmt.Errorf("lidar: reading SCAN response descriptor: %w", descErr)
 	}
-	if desc.dataType != dataTypeMeasurement {
+	if desc.dataType != dataTypeClassicMeasurement {
 		return fmt.Errorf(
 			"%w: got 0x%02X, want 0x%02X",
 			ErrUnexpectedDataType,
 			desc.dataType,
-			dataTypeMeasurement,
+			dataTypeClassicMeasurement,
 		)
 	}
 
@@ -137,7 +151,7 @@ func (d *SerialDriver) Connect(ctx context.Context) error {
 // blocked on the serial read until Close is called — Close closing the
 // port is what unblocks it, matching the standard Go pattern for wrapping
 // a blocking syscall with a context (same pattern as imu.RVCDriver.Read).
-func (d *SerialDriver) Read(ctx context.Context) (Scan, error) {
+func (d *ClassicSerialDriver) Read(ctx context.Context) (Scan, error) {
 	if d.reader == nil {
 		return nil, errReadBeforeConnect
 	}
@@ -163,7 +177,7 @@ func (d *SerialDriver) Read(ctx context.Context) (Scan, error) {
 // Close sends a STOP request (best-effort — the port may already be
 // unusable) and closes the underlying serial port. Safe to call even if
 // Connect was never called.
-func (d *SerialDriver) Close() error {
+func (d *ClassicSerialDriver) Close() error {
 	if d.port == nil {
 		return nil
 	}
@@ -184,7 +198,7 @@ func (d *SerialDriver) Close() error {
 // delay (or until ctx is done, whichever comes first) before returning so
 // the caller doesn't immediately send another request the device isn't
 // ready for yet.
-func (d *SerialDriver) Stop(ctx context.Context) error {
+func (d *ClassicSerialDriver) Stop(ctx context.Context) error {
 	if _, err := d.port.Write(requestPacket(cmdStop)); err != nil {
 		return fmt.Errorf("lidar: sending STOP request: %w", err)
 	}
@@ -198,7 +212,7 @@ func (d *SerialDriver) Stop(ctx context.Context) error {
 // Protection Stop state. RPLIDAR sends no response to this request; Reset
 // waits the protocol-mandated settle delay (or until ctx is done) before
 // returning.
-func (d *SerialDriver) Reset(ctx context.Context) error {
+func (d *ClassicSerialDriver) Reset(ctx context.Context) error {
 	if _, err := d.port.Write(requestPacket(cmdReset)); err != nil {
 		return fmt.Errorf("lidar: sending RESET request: %w", err)
 	}
@@ -207,7 +221,7 @@ func (d *SerialDriver) Reset(ctx context.Context) error {
 
 // Health sends the GET_HEALTH request and returns the device's reported
 // health state.
-func (d *SerialDriver) Health(_ context.Context) (Health, error) {
+func (d *ClassicSerialDriver) Health(_ context.Context) (Health, error) {
 	if _, err := d.port.Write(requestPacket(cmdGetHealth)); err != nil {
 		return Health{}, fmt.Errorf("lidar: sending GET_HEALTH request: %w", err)
 	}
@@ -238,12 +252,37 @@ func (d *SerialDriver) Health(_ context.Context) (Health, error) {
 }
 
 // readDescriptor reads and parses the fixed 7-byte response descriptor
-// that precedes every data response.
-func (d *SerialDriver) readDescriptor() (descriptor, error) {
-	raw := make([]byte, descLen)
-	if _, err := io.ReadFull(d.reader, raw); err != nil {
+// that precedes every data response. It resyncs on the 0xA5 0x5A sync pair
+// (scanning byte-by-byte) before reading the remaining 5 descriptor bytes,
+// rather than assuming the stream is already aligned at the descriptor
+// start. This mirrors imu.readFrame's robustness: after a STOP (or a
+// leftover scan still streaming from a prior session) there can be one or
+// more stray bytes queued ahead of the real SCAN response descriptor, and a
+// fixed 7-byte read would otherwise start mid-descriptor and fail with a
+// "response descriptor sync mismatch" even though the device answered
+// correctly. See f404ce99 / the live "got 0x5A 0x4B" failure this guards
+// against.
+func (d *ClassicSerialDriver) readDescriptor() (descriptor, error) {
+	var prev byte
+	for {
+		b, err := d.reader.ReadByte()
+		if err != nil {
+			return descriptor{}, fmt.Errorf("lidar: reading descriptor sync: %w", err)
+		}
+		if prev == descStartFlag1 && b == descStartFlag2 {
+			break
+		}
+		prev = b
+	}
+
+	rest := make([]byte, descLen-2)
+	if _, err := io.ReadFull(d.reader, rest); err != nil {
 		return descriptor{}, fmt.Errorf("lidar: reading response descriptor: %w", err)
 	}
+
+	raw := make([]byte, 0, descLen)
+	raw = append(raw, descStartFlag1, descStartFlag2)
+	raw = append(raw, rest...)
 	return parseDescriptor(raw)
 }
 
@@ -252,7 +291,7 @@ func (d *SerialDriver) readDescriptor() (descriptor, error) {
 // arrive before the first S=1 flag of a fresh connection are discarded —
 // they belong to whatever partial scan was already in flight when
 // streaming started.
-func (d *SerialDriver) readScan() (Scan, error) {
+func (d *ClassicSerialDriver) readScan() (Scan, error) {
 	var points []Point
 	started := false
 	if d.first != nil {
@@ -262,12 +301,12 @@ func (d *SerialDriver) readScan() (Scan, error) {
 	}
 
 	for {
-		raw := make([]byte, measurementLen)
+		raw := make([]byte, classicMeasurementLen)
 		if _, err := io.ReadFull(d.reader, raw); err != nil {
 			return nil, fmt.Errorf("lidar: reading measurement: %w", err)
 		}
 
-		pt, startOfScan, err := decodeMeasurement(raw)
+		pt, startOfScan, err := decodeClassicMeasurement(raw)
 		if err != nil {
 			return nil, fmt.Errorf("lidar: decoding measurement: %w", err)
 		}

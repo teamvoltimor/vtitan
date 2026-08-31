@@ -139,9 +139,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		drvCfg = lidar.ConfigFor(logger, cfg.configRoot)
 	}
 
-	drv, err := lidar.New(drvCfg)
+	drv, err := lidar.NewClassic(drvCfg)
 	if err != nil {
-		return err //nolint:wrapcheck // lidar.New already wraps with "lidar: ..." context
+		return err //nolint:wrapcheck // lidar.NewClassic already wraps with "lidar: ..." context
 	}
 	if err = drv.Connect(ctx); err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "lidar: ..." context
@@ -169,7 +169,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 func publishLoop(
 	ctx context.Context,
 	logger *slog.Logger,
-	drv *lidar.SerialDriver,
+	drv *lidar.ClassicSerialDriver,
 	pub *nats.Publisher[*sensorv1.Scan],
 ) error {
 	lastScanAt := time.Now()
