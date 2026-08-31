@@ -994,6 +994,45 @@ tasks:
           fi
           echo "hw test binaries written to {{.OUT}}/"
 
+  robot-go:test:hw:interactive:
+    desc: >-
+      Cross-compile the INTERACTIVE //go:build hw && hwinteractive hardware
+      tests (dynamic, operator-gated: motor spin, servo sweep, IMU rotate,
+      OLED eyeball, lidar object) for linux/arm64. These need a TTY + a human
+      at the bench, so they are kept out of the unattended robot-go:test:hw
+      binaries. Usage: task robot-go:test:hw:interactive [PKG=motor|imu|lidar|ssd1306]
+      (omit PKG to build all four). Output binaries land in robot-go/dist/hw-interactive/.
+      On the Pi, run e.g. `./dist/hw-interactive/motor -test.v -test.run TestHW`
+      and answer the on-screen prompts.
+    dir: robot-go
+    vars:
+      PKG: '{{.PKG | default ""}}'
+      OUT: '{{.OUT | default "dist/hw-interactive"}}'
+    cmds:
+      - cmd: |
+          mkdir -p {{.OUT}}
+          build_one() {
+            local pkg="$1" bin="$2"
+            echo "cross-compiling interactive hw test: ./internal/driver/$pkg -> {{.OUT}}/$bin"
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+              go test -tags "hw hwinteractive" -c -o "{{.OUT}}/$bin" "./internal/driver/$pkg/"
+          }
+          if [ -n "{{.PKG}}" ]; then
+            case "{{.PKG}}" in
+              motor)  build_one motor motor ;;
+              imu)    build_one imu imu ;;
+              lidar)  build_one lidar lidar ;;
+              ssd1306) build_one display/ssd1306 oled ;;
+              *) echo "Unknown PKG: {{.PKG}}. Use motor|imu|lidar|ssd1306" && exit 1 ;;
+            esac
+          else
+            build_one motor motor
+            build_one imu imu
+            build_one lidar lidar
+            build_one display/ssd1306 oled
+          fi
+          echo "interactive hw test binaries written to {{.OUT}}/"
+
 
   robot:zero:
     desc: >-
