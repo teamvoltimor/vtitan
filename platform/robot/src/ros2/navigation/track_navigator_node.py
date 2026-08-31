@@ -43,6 +43,7 @@ from src.navigation.corridor_estimator import (
 )
 from src.navigation.corridor_follower import TurnSide, follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
+from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import (
     Axis,
@@ -321,6 +322,11 @@ class TrackNavigator(Node, ResettableNode):
         # 0.150 m/s this phase actually ran at, so keeping it here avoids
         # slowing every race start as a side effect of grading the ladder.
         self._blind_follow_speed = tuning.speed.medium_mps()
+        # In-bay start. Checked once (see _resolve_direction) and driven by the
+        # same nav-layer manoeuvre the simulator uses.
+        self._bay_start_checked = False
+        self._exiting_bay = False
+        self._bay_exit = BayExit()
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
         # _told_geometry is None exactly when blind (and then _width_estimator
         # is set instead), so geometry is never actually None here -- just not
@@ -627,10 +633,47 @@ class TrackNavigator(Node, ResettableNode):
 
         # Conclusive on its own, so it settles the estimator rather than
         # voting; the block below then runs unchanged.
-        boxed = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
-        if boxed is not None:
-            logger.info("direction settled from parking-bay geometry: %s", boxed.value)
-            estimator.settle(boxed)
+        #
+        # Tested ONCE, on the first tick, because it is a question about where
+        # the robot was PLACED. Re-testing every tick lets it fire mid-creep at
+        # a corner -- forward blocked, one side close, the other open reads the
+        # same -- and settle the direction off geometry that is not a bay at
+        # all. Measured in the simulator, which has carried this guard since
+        # 2026-08-27: without it a parallel-start run went 22.40 m -> 3.42 m.
+        # This node re-tested every tick until 2026-08-31 and so carried that
+        # fault on hardware.
+        boxed = None
+        if not self._bay_start_checked:
+            self._bay_start_checked = True
+            boxed = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
+            if boxed is not None:
+                logger.info("direction settled from parking-bay geometry: %s", boxed.value)
+                estimator.settle(boxed)
+                self._exiting_bay = True
+
+        # Out of the pocket. Falls THROUGH to the settle block rather than
+        # returning, so the path is rebuilt for the committed direction; see
+        # BayExit.is_clear.
+        if self._exiting_bay and BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning):
+            self._exiting_bay = False
+
+        if self._exiting_bay:
+            odom = self._gateway.get_wheel_odometry()
+            if odom is None:
+                # No odometry means the reverse leg cannot be bounded, and this
+                # manoeuvre reverses toward a fin. Hold rather than guess.
+                self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+                return True
+            self._gateway.publish_drive(
+                self._bay_exit.command(
+                    scan.ranges_m,
+                    scan.angles_rad,
+                    odom.distance_m,
+                    self._blind_follow_speed,
+                    self._tuning,
+                )
+            )
+            return True
 
         if boxed is not None or estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
             inferred = estimator.direction

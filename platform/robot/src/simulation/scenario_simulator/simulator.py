@@ -32,6 +32,7 @@ from src.navigation.corridor_estimator import (
     section_from_heading,
 )
 from src.navigation.corridor_follower import follow_corridor
+from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.ports import DriveCommand
 from src.navigation.utils import _forward_clearance, _nearest_ray, clamp
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
@@ -313,7 +314,7 @@ class ScenarioSimulator(PassSideScorer):
         # first scan, and never revisited -- see _resolve_direction.
         self._bay_start_checked = False
         self._exiting_bay = False
-        self._bay_reverse_start_m: float | None = None
+        self._bay_exit = BayExit()
         # Speed for the blind corridor-follow that runs before the travel
         # direction settles. Named _creep_speed until 2026-08-09, which was
         # doubly misleading: it is not the creep tier, and it never was --
@@ -461,68 +462,20 @@ class ScenarioSimulator(PassSideScorer):
         )
 
     def _bay_exit_command(self, scan: LidarScan) -> DriveCommand:
-        """Back out of the parking pocket, then swing the nose to the open side.
+        """Delegate to the navigation-layer bay exit.
 
-        Pivoting straight from a centred placement does not work: the pocket is
-        0.45 m along the wall against a 0.30 m chassis, so there is only ~7.5 cm
-        of slack at each end, and the nose reaches the marker before it has
-        rotated clear. Measured -- the pivot alone escaped some scenarios and
-        clipped a fin in most.
-
-        So reverse first, straight, to double the room ahead, then turn hard.
-        Straight rather than steered because a steered reverse sweeps the tail
-        across the pocket it is trying to leave.
-
-        The reverse is bounded by GEOMETRY, not measured: there is no rear
-        sensing on this mount at all (compute_rear_clearance fails open, no rear
-        slot), so backing until something appears is not available. The bound is
-        the slack the lot is guaranteed to have by its own dimensions.
-
-        Which way to turn is not a guess either. The lot is always against the
-        OUTER wall, so its opening faces the inner block, and a lap always turns
-        toward the inner block -- open side, inner side and corner-turn side are
-        the same side by track design.
+        The manoeuvre itself lived here until 2026-08-31, which meant the
+        simulator drove the pocket exit while the real robot had no bay-exit
+        path at all. It now lives in :mod:`src.navigation.maneuvers.bay_exit`
+        and both this and the ROS2 node call it, so an in-bay simulation
+        exercises the code the robot runs.
         """
-        follower = self._tuning.corridor_follower
-        travelled = self._gateway.get_wheel_odometry().distance_m
-        if self._bay_reverse_start_m is None:
-            self._bay_reverse_start_m = travelled
-
-        # Wheel distance is SIGNED -- a quadrature encoder counts down in
-        # reverse (see SimulatedHardwareGateway.step). Progress on a REVERSE leg
-        # is therefore start-minus-current; comparing current-minus-start gives
-        # a negative that is below any positive threshold forever, which reversed
-        # until the tail hit the rear fin. Measured before the fix: every
-        # BAY_EXIT_STEER_NORM from 0.0 to 1.0 and every BAY_EXIT_REVERSE_M from
-        # 0.001 to 0.20 produced byte-identical runs, because the turn was
-        # unreachable in all of them.
-        # Which way is out. Single rays at +/-90 deg, so in the pocket one is the
-        # outer wall and the other is open corridor.
-        left = _nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2)
-        right = _nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2)
-        open_is_left = left > right
-
-        if self._bay_reverse_start_m - travelled < follower.BAY_EXIT_REVERSE_M:
-            # Steering is INVERTED on the reverse, the same way
-            # follow_corridor's reverse branch inverts it: backing up swings the
-            # nose away from the steer direction, so steering toward the WALL
-            # walks the nose out toward the open corridor. That buys lateral
-            # offset with no forward travel, which is the only thing the pocket
-            # has no room for.
-            reverse_steer = clamp(follower.BAY_EXIT_REVERSE_STEER_NORM, 0.0, 1.0)
-            return DriveCommand(
-                speed_mps=-self._blind_follow_speed * follower.REVERSE_SPEED_SCALE,
-                steering_norm=-reverse_steer if open_is_left else reverse_steer,
-            )
-
-        # Magnitude is tuned, not pinned at full lock -- see
-        # BAY_EXIT_STEER_NORM. Full lock spins the chassis about its own centre
-        # (8 mm radius at the shipped 85 deg wheel angle) and the pocket has no
-        # room to rotate in; what gets the robot out is translation.
-        magnitude = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0)
-        return DriveCommand(
-            speed_mps=self._blind_follow_speed * follower.CORNER_SPEED_SCALE,
-            steering_norm=magnitude if open_is_left else -magnitude,
+        return self._bay_exit.command(
+            scan.ranges_m,
+            scan.angles_rad,
+            self._gateway.get_wheel_odometry().distance_m,
+            self._blind_follow_speed,
+            self._tuning,
         )
 
     def _resolve_direction(self) -> bool:
@@ -566,9 +519,7 @@ class ScenarioSimulator(PassSideScorer):
                 self._exiting_bay = True
 
         just_exited = False
-        if self._exiting_bay and _forward_clearance(scan.ranges_m, scan.angles_rad, self._tuning) >= (
-            self._tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
-        ):
+        if self._exiting_bay and BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning):
             # Out of the pocket. Fall THROUGH to the settle block rather than
             # returning: that block is what rebuilds the path for the committed
             # direction and calls replace_path, and skipping it hands the
