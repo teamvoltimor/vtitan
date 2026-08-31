@@ -115,7 +115,7 @@ fast_mps = 0.42
 # speed shrinks the reaction runway those distances buy: medium_dist is 1.06 s
 # at the Obstacles fast tier and 0.86 s here. docs/internal/algorithms/
 # speed-envelope.md section 6 documents that as the structural speed cap.
-open_slow_mps = 0.275
-open_medium_mps = 0.40
-open_fast_mps = 0.525
+open_slow_mps = 0.24
+open_medium_mps = 0.35
+open_fast_mps = 0.46
 open_max_mps = 0.55

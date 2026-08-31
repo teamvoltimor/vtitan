@@ -20,6 +20,7 @@ from src.navigation.control.controllers import EscapeManeuver, ManeuverType
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec
 from src.navigation.ports import DriveCommand, LidarScan
+from src.navigation.utils import wrap_angle
 from tests.fixtures import FakeGateway, create_scan_with_sectors
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
@@ -91,14 +92,30 @@ class TestCriticalEscapeRearGate:
     def test_rear_blind_and_trail_less_creeps_forward_not_reverse(self, waypoints, tuning):
         """The degraded default, pinned on purpose.
 
-        On the current chassis the rear is unmeasurable AND a single step has
-        no pose trail, so there is no evidence behind at all. Reversing there is
-        reversing blind into whatever moved in since -- the documented fallback
-        is a capped forward creep, and with no trail that is the RIGHT call, not
-        a regression. This asserts the fallback rather than letting it be an
+        With the rear unmeasurable AND a single step carrying no pose trail,
+        there is no evidence behind at all. Reversing there is reversing blind
+        into whatever moved in since -- the documented fallback is a capped
+        forward creep, and with no trail that is the RIGHT call, not a
+        regression. This asserts the fallback rather than letting it be an
         incidental side effect of the empty-trail refusal above.
+
+        The rear is blinded explicitly rather than by assuming the mount cannot
+        see behind. ``create_scan_with_sectors`` defaults every ray to 10 m, so
+        once the blind wedges narrowed to the measured -155..-120 / 120..160 on
+        2026-08-31 the rear became readable and this scan stopped describing a
+        rear-blind robot at all. A self-detection return is what an occluded
+        bearing actually reports (0.006-0.04 m, measured across three bags), so
+        that is what the sector is given here.
         """
-        ranges = create_scan_with_sectors(front=0.06)
+        # Built by bearing rather than via create_scan_with_sectors(back=...),
+        # whose named sectors do not reach the rear arc this gate reads.
+        sectors = tuning.lidar_sectors
+        occluded = sectors.SELF_DETECTION_THRESHOLD_M / 2.0
+        base = create_scan_with_sectors(front=0.06)
+        ranges = [
+            occluded if abs(wrap_angle(a - math.pi)) <= math.radians(sectors.THREAT_HALF_FOV_DEG) else r
+            for r, a in zip(base, ANGLES, strict=False)
+        ]
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
         assert not nav._pose_trail, "test precondition: no history yet"
@@ -352,7 +369,12 @@ class TestMissingSensorsDegradeSafely:
         nav.step()
 
         assert gateway.commands
-        assert gateway.commands[-1].speed_mps <= tuning.speed.slow_mps()
+        # Resolved ladder, not the base one: this navigator has no sign_router,
+        # so it is an Open Challenge navigator and drives the OPEN tiers. Against
+        # the base ladder this reads as a violation whenever a motor profile
+        # gives Open a faster slow tier (0.275 vs 0.22 on the REV HD Hex), which
+        # is the profile working as intended rather than a degraded-sensor bug.
+        assert gateway.commands[-1].speed_mps <= tuning.speed.for_open_challenge().slow_mps()
 
 
 class TestEscapeEscalation:

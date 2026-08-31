@@ -171,3 +171,155 @@ class WaypointParams(BaseModel):
     MAIN_LOOP_REACHED_DISTANCE_M: float = Field(default=0.20, validation_alias=_alias("MAIN_LOOP_REACHED_DISTANCE_M"))
     CONTROLLER_REACHED_DISTANCE_M: float = Field(default=0.01, validation_alias=_alias("CONTROLLER_REACHED_DISTANCE_M"))
     REPLAN_HEADING_TIE_MARGIN_M: float = Field(default=0.15, validation_alias=_alias("REPLAN_HEADING_TIE_MARGIN_M"))
+
+    CORNER_CAUTION_ALL_LAPS: bool = Field(default=False, validation_alias=_alias("CORNER_CAUTION_ALL_LAPS"))
+    """Apply the previewed-corner speed on EVERY lap, not only the first.
+
+    ``FIRST_LAP_CORNER_CAUTION`` is gated to lap 1 because it was introduced as
+    first-lap caution -- the lap that has never been driven. Later laps were
+    never measured and found not to want it; they were simply out of scope.
+
+    That gating is worth revisiting because corner behaviour, not straight-line
+    speed, is what sets lap time on this track: measured 2026-08-30, the largest
+    single time gain of the session came from fixing corner GEOMETRY
+    (``CORNER_ARC_ASSUME_WIDE``, -7.9 s at unchanged speed), while every attempt
+    to raise the speed ladder either lost cases or had to buy them back with
+    earlier slowdowns that cost more time than the higher ceiling gained.
+
+    Pairs with ``speed.CORNER_MPS`` so the tier can sit between slow and medium
+    rather than being forced to ``slow``.
+    """
+
+    CORNER_ARC_ASSUME_WIDE: bool = Field(default=True, validation_alias=_alias("CORNER_ARC_ASSUME_WIDE"))
+    """Size every corner arc as if both corridors were WIDE, ignoring the belief.
+
+    **OPEN-CHALLENGE-ONLY IN EFFECT, without needing a gate.** The flag
+    substitutes WIDE for the measured widths, and every Obstacles corridor is
+    1.0 m by rule -- so on that challenge the substitution is the IDENTITY and
+    the radius is unchanged (verified 2026-08-30 at both
+    OBSTACLES_CENTER_BIAS_M and WIDE_CENTER_BIAS_M). An Obstacles A/B on this
+    would return byte-identical arms by construction, which is the same dead-end
+    that cost two 256-scenario runs on MAX_CORNER_STEER_DEG the same day.
+
+    That equivalence holds only while Obstacles corridors are uniformly wide. If
+    a future round presents a narrow one, this stops being a no-op there and
+    wants a real gate.
+
+    Measured on balanced128: 94 -> 105 alone (+11), improving EVERY width bucket
+    and cutting collisions in all five (1->0, 7->4, 10->9, 6->2, 1->0). Paired
+    with the L1 ladder it gives 121/128 against 120 for the pre-2026-08-30
+    configuration, at ~12.5 s faster per run.
+
+    The arc is tangent to both centrelines, so for a 90 deg corner its radius IS
+    the turn-entry distance: the turn starts ``r`` metres before the corner.
+    With the shipped bias that makes entry 0.300 m for narrow->narrow and
+    0.450 m for anything touching a wide corridor.
+
+    A blind round starts believing every corridor NARROW. So on a narrow->wide
+    corner it plans a 0.300 m entry where the true geometry wants 0.450 m and
+    commits **0.15 m late** -- 0.38 s at the 0.40 m/s medium tier. Confirming
+    wide takes ``corridor_estimator.MIN_SAMPLES`` = 12 readings, about 0.5 m of
+    travel, so the correction normally lands AFTER the correct entry point has
+    gone past. Late is the default on every corner touching a wide corridor,
+    which is why the symptom is specific to wide ones and to first laps.
+
+    Setting this trades that for the opposite error: a narrow->narrow corner
+    turns 0.15 m EARLY. That is the safe direction -- turning early into a
+    corridor wider than planned costs a little line, turning late is what puts
+    the nose into the outer wall. It does erode narrow->narrow clearance from
+    +0.153 m to +0.070 m (see ``corner_arc_radius``), so it is a real trade and
+    not free.
+    """
+
+    FIRST_LAP_CORNER_CAUTION: bool = Field(default=True, validation_alias=_alias("FIRST_LAP_CORNER_CAUTION"))
+    """Cap the FIRST lap's corners at ``slow_mps``, on the lap never yet driven.
+
+    Added because real hardware wedged at a mixed-width corner whose PLANNED arc
+    is safe by construction (2026-08-28), pointing at control tracking error
+    eating the plan's margin rather than the plan itself. Slowing the one lap
+    that has never been driven was meant to buy the tracking loop margin.
+
+    **The 2026-08-30 hardware evidence says it does the opposite.** Over four
+    track runs it pins lap 1 to ``slow_mps`` -- median commanded 0.220 m/s
+    against 0.400 on later laps -- and lap 1 carries double the heading error
+    (``|angle_error|`` p90 1.38 rad vs 0.68). Lookahead occupancy and turn-preview
+    activity are near-identical across laps, so speed is the only variable that
+    moves between them. That is the same shape as the 2026-08-09 finding which
+    retired the four-rung heading ladder: the middle rungs taxed every corner
+    and cost 33% of lap time without catching a dangerous case.
+
+    A corner is plausibly a STEERING problem rather than a braking one -- the
+    servo slews at a fixed rate, so creeping through the arc spends more ticks
+    at high heading error rather than fewer. This flag exists so that can be
+    measured instead of argued.
+    """
+
+    FIRST_LAP_CORNER_CAUTION_NARROW_ONLY: bool = Field(
+        default=False, validation_alias=_alias("FIRST_LAP_CORNER_CAUTION_NARROW_ONLY")
+    )
+    """Restrict ``FIRST_LAP_CORNER_CAUTION`` to corridors planned as NARROW.
+
+    The cap is not uniformly good or bad -- it crosses over with corridor width.
+    Measured on balanced128, 2026-08-30, cap ON vs OFF by how many of the four
+    corridors are wide:
+
+    | wide | cap ON | cap OFF |
+    |------|--------|---------|
+    |    0 |    88% |     75% |
+    |    1 |    75% |     47% |
+    |    2 |    73% |     56% |
+    |    3 |    66% |     72% |
+    |    4 |    88% |    100% |
+
+    Protective where corridors are tight (75% vs 47% at one wide corridor) and
+    harmful where they are not (100% vs 88% at all-wide). Slowing to ``slow_mps``
+    buys margin the robot needs in a narrow corridor and spends margin it does
+    not need in a wide one. This flag applies the cap only where the measurement
+    says it earns its keep.
+
+    Width is read back from the planned path rather than from the estimator --
+    see ``CoreNavigator._cache_corridor_widths`` -- so it reflects the geometry
+    actually being driven, including after a replan.
+    """
+
+    REPLAN_BLEND_TICKS: int = Field(default=0, ge=0, validation_alias=_alias("REPLAN_BLEND_TICKS"))
+    """Ticks over which a replanned path is faded in, instead of swapped at once.
+
+    **DEFAULTED OFF 2026-08-30, after measuring it.** Fading at 20 ticks removes
+    the discontinuity exactly as designed -- path jumps 2 -> 0 and the heading
+    limiter halves on a single scenario -- and still costs **11 cases** on the
+    balanced128 corpus (94 -> 83). The step is real but is not what makes first
+    laps bad: runs with NO replan at all show the same first-lap corner problem,
+    slightly worse (limiter 38.2% vs 33.3%). A path that slides under the robot
+    for a second is evidently worse than one that jumps once and settles.
+
+    Kept, with its sweep mode, because the discontinuity it targets is measured
+    and real -- it just needs a better remedy than a linear fade. Do not re-enable
+    without a corpus number.
+
+    ``replace_path`` used to install the new centreline in a single tick. The
+    path is what crosstrack and the steering target are measured against, so
+    that made the TARGET teleport: measured on hardware 2026-08-30 across six
+    runs, every first-lap corridor-width belief update stepped crosstrack by
+    ~0.30 m in one 50 ms tick, which is ten times the ~0.03 m the chassis can
+    physically travel in that time.
+
+    The consequence was not a small transient. The step threw heading error
+    past ``heading.CRAWL`` (1.0 rad), so the heading limiter dropped the robot
+    to ``creep_mps`` and it crawled back onto a line that had moved under it:
+    in 4 of 5 recorded jumps the limiter went from 0% of ticks to 82-100%
+    immediately after. First laps spent 33% of their ticks there against 6% on
+    later laps, and the single run that completed cleanly was the one with no
+    replan at all.
+
+    Fading the geometry in over ~1 s keeps the same final path -- this changes
+    only how fast the target gets there, never where it ends up. Zero restores
+    the original single-tick swap.
+
+    Blending is index-wise, which is safe because the planned path has the same
+    waypoint count for every corridor-width combination (44 across all 16 on
+    the Open geometry, verified 2026-08-30). ``CoreNavigator`` checks the counts
+    match anyway and falls back to the instant swap if they ever do not, so a
+    future geometry that breaks that assumption degrades to today's behaviour
+    rather than interpolating between mismatched indices.
+    """

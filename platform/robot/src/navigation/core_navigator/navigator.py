@@ -9,10 +9,17 @@ from __future__ import annotations
 
 import logging
 import math
+import statistics
 from collections import deque
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CompetitionSpecs, RobotSpecs, TrackDimensions, TrafficSignSpecs
+from shared.config.constants import (
+    CompetitionSpecs,
+    CorridorDimensions,
+    RobotSpecs,
+    TrackDimensions,
+    TrafficSignSpecs,
+)
 from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
 from shared.domain.models import NavigatorDebugSnapshot, Pose, Waypoint
 
@@ -31,6 +38,7 @@ from src.navigation.control.controllers import (
     mask_mapped_obstacles,
 )
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
+from src.navigation.corridor_estimator import classify_width
 from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
@@ -97,6 +105,12 @@ class CoreNavigator(EscapeRecovery):
         self._laps_completed = 0
         self._suppress_next_wrap = False
         self._corner_latch = CornerLatch()
+        self._corridor_width_belief: dict[Section, float] = {}
+        # Replan fade state -- see replace_path and REPLAN_BLEND_TICKS.
+        self._blend_from: list[Waypoint] = []
+        self._blend_to: list[Waypoint] = []
+        self._blend_total = 0
+        self._blend_left = 0
         # The speed ladder this run drives on, resolved ONCE here rather than at
         # each of the nine sites that read a tier.
         #
@@ -178,6 +192,49 @@ class CoreNavigator(EscapeRecovery):
         """The traffic-sign router, or None outside the Obstacles Challenge."""
         return self._sign_router
 
+    def _cache_corridor_widths(self) -> None:
+        """Recover each corridor's believed width from the planned path itself.
+
+        The navigator is handed waypoints, never the width belief that produced
+        them -- but the belief is recoverable: a planned centreline sits half a
+        corridor in from the mat edge, so twice a corridor's waypoint-to-edge
+        distance is the width it was planned for (~0.60 believed narrow, ~1.00
+        believed wide). Reading it back here avoids plumbing the estimator
+        through every construction site of this class, and it stays correct by
+        construction after a replan because it is derived from the same path the
+        robot is actually driving.
+
+        Recomputed only when the path is replaced, not per tick: the mapping is
+        a property of the path.
+        """
+        offsets: dict[Section, list[float]] = {}
+        for wp in self._waypoints:
+            section = corridor_for_position(wp.x, wp.y)
+            if section is None:
+                continue
+            edge = min(wp.x, TrackDimensions.MAX_COORD - wp.x, wp.y, TrackDimensions.MAX_COORD - wp.y)
+            offsets.setdefault(section, []).append(edge)
+        # MEDIAN, not min: a corridor's waypoints include the corner arcs at each
+        # end, which cut inward and read as a narrower corridor than the straight
+        # actually is. The median is the straight-section offset, which is the
+        # one that equals half the believed width.
+        self._corridor_width_belief = {
+            section: 2.0 * statistics.median(edges) for section, edges in offsets.items() if edges
+        }
+
+    def _in_narrow_corridor(self) -> bool:
+        """Whether the corridor being driven was planned as NARROW.
+
+        Unknown corridor reads as narrow -- the cap this gates is a caution, so
+        the absence of evidence should not switch it off.
+        """
+        if self._current_corridor is None:
+            return True
+        believed = self._corridor_width_belief.get(self._current_corridor)
+        if believed is None:
+            return True
+        return classify_width(believed) == CorridorDimensions.NARROW
+
     def _apply_path_wall_budget(self) -> None:
         """Tell the pursuit controller how much drift this path can absorb.
 
@@ -199,6 +256,7 @@ class CoreNavigator(EscapeRecovery):
             min(wp.x, TrackDimensions.MAX_COORD - wp.x, wp.y, TrackDimensions.MAX_COORD - wp.y)
             for wp in self._waypoints
         )
+        self._cache_corridor_widths()
         budget = clearance - RobotSpecs.WIDTH / 2 - self._tuning.pursuit.WALL_MARGIN_SAFETY_M
         self._waypoint_controller.set_crosstrack_budget(
             max(budget, self._tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M),
@@ -250,6 +308,27 @@ class CoreNavigator(EscapeRecovery):
                 is already safe.
         """
         previous_index = self._waypoint_index
+        # Fade the new geometry in rather than teleporting the steering target
+        # onto it. The path is what crosstrack and the steer target are measured
+        # against, so an instant swap steps both -- measured on hardware
+        # 2026-08-30 as ~0.30 m of crosstrack in one 50 ms tick, against the
+        # ~0.03 m the chassis can actually travel in that time, which threw
+        # heading error past CRAWL and pinned the robot at creep speed while it
+        # recovered onto a line that had moved under it. See REPLAN_BLEND_TICKS.
+        #
+        # Only the RATE changes here; the destination is identical. The blend is
+        # index-wise, guarded on equal waypoint counts so a geometry that ever
+        # breaks that assumption falls back to the original instant swap instead
+        # of interpolating between indices that do not correspond.
+        blend_ticks = self._tuning.waypoints.REPLAN_BLEND_TICKS
+        if blend_ticks > 0 and self._waypoints and len(self._waypoints) == len(waypoints):
+            self._blend_from = list(self._waypoints)
+            self._blend_to = list(waypoints)
+            self._blend_total = blend_ticks
+            self._blend_left = blend_ticks
+        else:
+            self._blend_left = 0
+
         self._waypoints = list(waypoints)
         # A replanned path is a new centreline, so the lanes have to be laid
         # over it again -- and the fingerprint cleared, or the unchanged sign
@@ -290,6 +369,46 @@ class CoreNavigator(EscapeRecovery):
         # case the robot cannot rule out for itself.
         if self._waypoint_index - previous_index > len(waypoints) // 2:
             self._suppress_next_wrap = True
+
+    def _advance_replan_blend(self) -> None:
+        """Step the replanned path one tick further in, if a fade is running.
+
+        Interpolates every waypoint from the path the robot was tracking toward
+        the one the new belief asks for. The endpoint is exactly the new path --
+        the final tick assigns it rather than a 99%-of-the-way interpolation, so
+        no residue survives the fade and a later replan starts from a clean
+        centreline.
+
+        ``_lane_base_waypoints`` moves with it and the lane fingerprint is
+        cleared each blended tick, because the base the lanes are laid over is
+        genuinely changing; leaving the fingerprint alone would let the first
+        blended tick's lanes stand for the whole fade. Open Challenge pays
+        nothing for that -- ``_refresh_sign_lanes`` returns immediately with no
+        router.
+        """
+        if self._blend_left <= 0:
+            return
+
+        self._blend_left -= 1
+        if self._blend_left == 0:
+            self._waypoints = list(self._blend_to)
+            self._lane_base_waypoints = list(self._blend_to)
+            self._lane_fingerprint = None
+            self._blend_from = []
+            self._blend_to = []
+            return
+
+        alpha = 1.0 - (self._blend_left / self._blend_total)
+        blended = [
+            Waypoint(
+                start.x + (end.x - start.x) * alpha,
+                start.y + (end.y - start.y) * alpha,
+            )
+            for start, end in zip(self._blend_from, self._blend_to, strict=True)
+        ]
+        self._waypoints = blended
+        self._lane_base_waypoints = list(blended)
+        self._lane_fingerprint = None
 
     def _refresh_sign_lanes(self) -> None:
         """Rebuild the planned path onto its pass-side lanes when the sign layout changes.
@@ -469,6 +588,11 @@ class CoreNavigator(EscapeRecovery):
         self._laps_completed = 0
         self._suppress_next_wrap = False
         self._corner_latch.reset()
+        # A fade left running across a reset would keep dragging the new race's
+        # path back toward the previous one's geometry.
+        self._blend_left = 0
+        self._blend_from = []
+        self._blend_to = []
         self._parking_engaged = False
         self._active_maneuver = None
         self._maneuver_frames_left = 0
@@ -641,6 +765,11 @@ class CoreNavigator(EscapeRecovery):
         # and the target search all read it, and the router only runs after
         # those. Blind discovery lands one tick later as a result, which is
         # 50 ms against a corridor-length lane transition.
+        # Advance the replan fade BEFORE the lanes are laid and before anything
+        # reads the path this tick, so crosstrack, the lookahead search and the
+        # index advance all see one consistent centreline.
+        self._advance_replan_blend()
+
         self._refresh_sign_lanes()
 
         raw_wp = self._waypoints[self._waypoint_index]
@@ -1013,8 +1142,29 @@ class CoreNavigator(EscapeRecovery):
         # while approaching a corner (turn_ahead, already computed above for
         # lookahead selection) to buy the tracking loop more margin; costs
         # nothing on lap 2+ once the corner has been taken once for real.
-        if self._laps_completed == 0 and turn_ahead:
-            speed = min(speed, self._speed.slow_mps())
+        #
+        # UNDER TEST 2026-08-30, and the hardware evidence points the other way.
+        # Across four track runs the cap pins lap 1 to slow_mps (median commanded
+        # 0.220 against 0.400 on later laps) and lap 1 carries DOUBLE the heading
+        # error: |angle_error| p90 1.38 rad against 0.68. Lookahead and turn
+        # preview are near-identical across laps, so speed is the one variable
+        # that moves. Slowing appears to be making the corner worse, not safer --
+        # consistent with a corner being a STEERING problem (a fixed servo slew
+        # rate has to produce the same geometric turn over more ticks) rather
+        # than a braking one. FIRST_LAP_CORNER_CAUTION exists to A/B exactly
+        # that; see its docstring.
+        # CORNER_CAUTION_ALL_LAPS lifts the lap-1 gate: the preview is available
+        # on every lap and knows about a corner metres before the LIDAR does, so
+        # restricting it to lap 1 leaves the predictive signal unused for
+        # two-thirds of the race while the reactive clearance ladder does the
+        # work alone.
+        corner_previewed = self._tuning.waypoints.FIRST_LAP_CORNER_CAUTION and turn_ahead
+        lap_applies = self._laps_completed == 0 or self._tuning.waypoints.CORNER_CAUTION_ALL_LAPS
+        width_applies = (
+            not self._tuning.waypoints.FIRST_LAP_CORNER_CAUTION_NARROW_ONLY or self._in_narrow_corridor()
+        )
+        if corner_previewed and lap_applies and width_applies:
+            speed = min(speed, self._speed.corner_mps())
 
         # Snapshot everything decided so far -- both the escape-trigger branch
         # below and the normal publish at the end of this method share it, only
@@ -1080,11 +1230,27 @@ class CoreNavigator(EscapeRecovery):
             # trail to aim at. Obstacles-only by construction: gated on
             # sign_router presence, which is None for Open Challenge, so its
             # escape behaviour is untouched regardless of the flag.
+            # NOT gated on sign_router presence any more, so the Open Challenge
+            # can reverse too. The gate was incidental rather than a dependency:
+            # `_retrace_steer` reads only `_pose_trail`, and merely happens to
+            # take its constants from the sign_router tuning group (those fields
+            # belong in `escape` and should move).
+            #
+            # Open could not reverse AT ALL before this. The rear sector is
+            # masked to a ~25 deg slot by mount occlusion, so when that slot
+            # returns nothing `_reversing_into_unseen_wall` refuses the reverse
+            # -- correctly failing closed -- and the robot falls through to a
+            # full-lock pivot. Every hardware run this session logged "Reverse
+            # escape refused: rear sector measured nothing".
+            #
+            # Retracing needs no rear sensor by construction: it backs along
+            # ground the chassis occupied moments ago, which is known free
+            # because the robot was just there. `RETRACE_ESCAPE` still gates it,
+            # so this only makes the capability reachable, not automatic.
             self._retracing = bool(
                 maneuver is not None
                 and maneuver.speed < 0
                 and self._tuning.sign_router.RETRACE_ESCAPE
-                and self._sign_router is not None
                 and self._retrace_steer(robot_x, robot_y, robot_yaw) is not None
             )
             if maneuver and self._reversing_into_unseen_wall(maneuver, scan):

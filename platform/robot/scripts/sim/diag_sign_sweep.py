@@ -285,6 +285,18 @@ class SweepConfig:
     is what mattered rather than the raised angle.
     """
 
+    replan_blend_ticks: int | None = None
+    """Override ``WaypointParams.REPLAN_BLEND_TICKS`` (shipped 20; 0 = the old
+    instant swap).
+
+    How many ticks a replanned centreline is faded in over. Added 2026-08-30
+    after hardware showed every first-lap width-belief update stepping crosstrack
+    ~0.30 m in one tick, throwing heading error past CRAWL and pinning the robot
+    at creep speed. Obstacles replans on the same path, so the same fade applies
+    -- but its replans are driven by sign discovery as well as corridor width,
+    so the two corpora are not interchangeable evidence for it.
+    """
+
     contact_dist: float | None = None
     """Override ``ClearanceZones.CONTACT_DIST`` (shipped 0.10 m).
 
@@ -758,6 +770,7 @@ class SweepConfig:
             base.waypoints,
             ARC_RADIUS=self.arc_radius,
             OBSTACLES_CENTER_BIAS_M=self.obstacles_center_bias,
+            REPLAN_BLEND_TICKS=self.replan_blend_ticks,
         )
         sign_router = _with(
             base.sign_router,
@@ -4150,6 +4163,17 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # BLIND, for consistency with corner-steer/centering-gain above -- the
     # escape path itself is shared with Open, but this sweep is scoped to
     # Obstacles' outcome mix (collisions, in-time, timeouts) on purpose.
+    # Does fading a replanned path in help or hurt OBSTACLES? The defect it
+    # fixes was measured on Open hardware, and the two corpora are not
+    # interchangeable evidence: Open replans only when a corridor-width belief
+    # moves, while Obstacles also replans on sign discovery, far more often and
+    # for a different reason. A fade that is free on Open could plausibly delay
+    # a sign-avoidance deformation here, which is exactly what this measures.
+    "replan-blend": [
+        SweepConfig("blind, blend 0 (instant swap, pre-fix)", blind=True, replan_blend_ticks=0),
+        SweepConfig("blind, blend 20 (shipped)", blind=True, replan_blend_ticks=20),
+        SweepConfig("blind, blend 40", blind=True, replan_blend_ticks=40),
+    ],
     "escape-gate": [
         SweepConfig("blind, contact 0.10 slow 0.25 (shipped)", blind=True),
         SweepConfig("blind, contact 0.05 slow 0.25", blind=True, contact_dist=0.05),

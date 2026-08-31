@@ -319,6 +319,26 @@ class SpeedControlParams(BaseModel):
     MEDIUM_MPS: float = Field(default=0.1326, gt=0.0, validation_alias=_alias("MEDIUM_MPS"))
     FAST_MPS: float = Field(default=0.156, gt=0.0, validation_alias=_alias("FAST_MPS"))
 
+    CORNER_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("CORNER_MPS"))
+    """Speed while a corner is PREVIEWED, independent of the clearance ladder.
+
+    Corner speed is otherwise set reactively: forward clearance falls as a wall
+    comes into range and the ladder steps down. But ``path_turn_ahead`` knows a
+    corner is coming from the PLAN, metres before any wall is in LIDAR range, so
+    a preview-driven tier can slow the chassis before the geometry forces it to.
+
+    Evidence that the preview is the better signal: the first-lap corner cap is
+    the only thing currently using it, and disabling it costs 15 cases on
+    balanced128 (94 -> 79). It is gated to lap 1 purely because it was
+    introduced as first-lap caution, not because later laps were measured and
+    found not to want it.
+
+    ``None`` falls back to ``slow_mps()``, which is what the first-lap cap has
+    always used -- so leaving this unset preserves today's behaviour exactly.
+    Setting it allows a corner tier BETWEEN slow and medium, which forcing
+    ``slow`` cannot express.
+    """
+
     OPEN_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MAX_MPS"))
     OPEN_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_SLOW_MPS"))
     OPEN_MEDIUM_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MEDIUM_MPS"))
@@ -441,6 +461,12 @@ class SpeedControlParams(BaseModel):
     def fast_mps(self) -> float:
         """Open-track speed in m/s."""
         return min(self.FAST_MPS, RobotSpecs.MAX_SPEED_MPS)
+
+    def corner_mps(self) -> float:
+        """Speed while a corner is previewed. Falls back to the slow tier."""
+        if self.CORNER_MPS is None:
+            return self.slow_mps()
+        return min(self.CORNER_MPS, RobotSpecs.MAX_SPEED_MPS)
 
 
 class ControlLoopParams(BaseModel):

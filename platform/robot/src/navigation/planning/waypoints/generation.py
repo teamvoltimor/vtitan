@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from shared.config.constants import RobotSpecs, TrackDimensions
+from shared.config.constants import CorridorDimensions, RobotSpecs, TrackDimensions
 from shared.domain.enums import CorridorSide, Direction, Section
 from shared.domain.models import (
     CorridorGeometry,
@@ -234,10 +234,27 @@ def calculate_waypoints(
     # radius has to preserve the clearance THAT straight has. Passing the
     # narrow side's bias would size the arc against a centreline it is not
     # tangent to -- the same class of error the max/min choice already guards.
+    # CORNER_ARC_ASSUME_WIDE sizes every corner as if both corridors were WIDE,
+    # which makes the arc -- and therefore the turn-entry point, `r` back from a
+    # 90 deg corner -- independent of a belief that starts out wrong.
+    #
+    # Blind rounds begin believing every corridor NARROW, so a narrow->wide
+    # corner plans a 0.300 m entry where the true geometry wants 0.450 m and the
+    # robot commits 0.15 m late (0.38 s at the medium tier). Confirming wide
+    # needs MIN_SAMPLES=12 readings ~= 0.5 m of travel, so the correction
+    # generally arrives AFTER the entry point has already passed: late is the
+    # default on every corner touching a wide corridor, not an edge case.
+    #
+    # Turning early into a corridor wider than planned is the safe direction to
+    # be wrong; turning late is what puts the nose in the outer wall.
+    effective = (
+        (lambda entry_w, exit_w: (CorridorDimensions.WIDE, CorridorDimensions.WIDE))
+        if tuning.waypoints.CORNER_ARC_ASSUME_WIDE
+        else (lambda entry_w, exit_w: (entry_w, exit_w))
+    )
     corner_radii = {
         corner: corner_arc_radius(
-            entry_w,
-            exit_w,
+            *effective(entry_w, exit_w),
             center_bias_for_corridor(max(entry_w, exit_w), tuning, center_bias_m),
             arc_radius,
         )

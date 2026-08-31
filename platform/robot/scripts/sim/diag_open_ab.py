@@ -50,7 +50,7 @@ from scripts.common.diag_base import (
     resolve_jobs,
     run_pool,
 )
-from scripts.common.open_cases import SIDES, balanced_128_cases, case_space
+from scripts.common.open_cases import SIDES, WIDE_MM, balanced_128_cases, case_space
 from scripts.common.tables import print_table
 from scripts.sim.diag_open_exhaustive import _verdict
 from src.simulation.scenario_builder import build_open_metadata
@@ -125,6 +125,118 @@ def _run_arm(name: str, payloads: list[tuple[Any, ...]], jobs: int) -> dict[int,
     return {int(row["index"]): row for row in results}
 
 
+def _report_by_width(cases: list, base: dict, variant: dict) -> None:
+    """Split both arms' pass rate by how many corridors are WIDE.
+
+    A layout-shaped failure and a speed-shaped one look identical in an
+    aggregate pass count, and they call for opposite fixes. If failures track
+    the number of wide corridors in a scenario, the problem is the layout the
+    robot is driving; if they are flat across wide-count and only the arms
+    differ, the change under test is what moved them.
+
+    Wide-count is read from the case's own widths tuple rather than the label,
+    so it cannot drift from what was actually simulated.
+    """
+    buckets: dict[int, dict[str, int]] = {}
+    for i, (widths, _section, _direction, _cell) in enumerate(cases):
+        wide = sum(1 for w in widths if w == WIDE_MM)
+        b = buckets.setdefault(wide, {"n": 0, "base_ok": 0, "variant_ok": 0})
+        b["n"] += 1
+        b["base_ok"] += base[i]["verdict"] == "ok"
+        b["variant_ok"] += variant[i]["verdict"] == "ok"
+        for arm, results in (("base", base), ("var", variant)):
+            verdict = str(results[i]["verdict"])
+            if verdict != "ok":
+                b[f"{arm}_{verdict}"] = b.get(f"{arm}_{verdict}", 0) + 1
+
+    def failures(b: dict[str, int], arm: str) -> str:
+        """Failure kinds for one arm, most common first.
+
+        Printed because a pass count cannot separate the two ways a speed
+        change hurts: a COLLISION means the robot ran out of room, an
+        over-time/incomplete means it ran out of clock. They point at opposite
+        remedies, and an aggregate that mixes them reads as one problem.
+        """
+        kinds = sorted(
+            ((k.split("_", 1)[1], v) for k, v in b.items() if k.startswith(f"{arm}_")),
+            key=lambda kv: -kv[1],
+        )
+        return ", ".join(f"{kind} {count}" for kind, count in kinds) or "-"
+
+    print("\npass rate by number of WIDE corridors:", flush=True)
+    print_table(
+        [
+            [
+                wide,
+                b["n"],
+                f"{b['base_ok']}/{b['n']} ({b['base_ok'] / b['n']:.0%})",
+                failures(b, "base"),
+                f"{b['variant_ok']}/{b['n']} ({b['variant_ok'] / b['n']:.0%})",
+                failures(b, "var"),
+            ]
+            for wide, b in sorted(buckets.items())
+        ],
+        ["wide", "n", "baseline ok", "baseline fails", "variant ok", "variant fails"],
+    )
+
+
+def _report_failures(cases: list, variant: dict) -> None:
+    """List and characterise the VARIANT arm's remaining failures.
+
+    A pass count says how many are left, not what they have in common. Once a
+    config is near the ceiling the residue is what decides whether the next fix
+    is a broad one or a special case -- and the two look identical in the
+    headline number.
+
+    Attributes are read from the case tuple, so the start corridor's width is
+    the one the robot actually begins in rather than a guess from the label.
+    """
+    failures = [
+        (i, cases[i], str(variant[i]["verdict"])) for i in sorted(variant) if variant[i]["verdict"] != "ok"
+    ]
+    if not failures:
+        print("\nno variant failures", flush=True)
+        return
+
+    print(f"\nvariant failures ({len(failures)}):", flush=True)
+    rows = []
+    for i, (widths, section, direction, cell) in [(i, c) for i, c, _ in failures]:
+        verdict = next(v for j, _, v in failures if j == i)
+        start_w = dict(zip(SIDES, widths, strict=True))[section.value.lower()]
+        rows.append([
+            i,
+            "-".join(str(w) for w in widths),
+            section.value,
+            "cw" if direction.value == "clockwise" else "ccw",
+            f"c{cell}",
+            "WIDE" if start_w == WIDE_MM else "narrow",
+            sum(1 for w in widths if w == WIDE_MM),
+            verdict,
+        ])
+    print_table(rows, ["#", "widths S-N-E-W", "start", "dir", "cell", "start corridor", "n wide", "verdict"])
+
+    def tally(label: str, key) -> None:  # noqa: ANN001 - local formatting helper
+        counts: dict[str, int] = {}
+        for _i, case, _v in failures:
+            counts[str(key(case))] = counts.get(str(key(case)), 0) + 1
+        ordered = ", ".join(f"{k}={v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1]))
+        print(f"  {label:<22} {ordered}", flush=True)
+
+    print("\n  failure composition:", flush=True)
+    tally("start section", lambda c: c[1].value)
+    tally("direction", lambda c: "cw" if c[2].value == "clockwise" else "ccw")
+    tally("start cell", lambda c: f"c{c[3]}")
+    tally(
+        "start corridor",
+        lambda c: "WIDE" if dict(zip(SIDES, c[0], strict=True))[c[1].value.lower()] == WIDE_MM else "narrow",
+    )
+    tally("wide corridors", lambda c: sum(1 for w in c[0] if w == WIDE_MM))
+    counts: dict[str, int] = {}
+    for _i, _c, v in failures:
+        counts[v] = counts.get(v, 0) + 1
+    print(f"  {'verdict':<22} " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1])))
+
+
 def main() -> None:
     """Run both arms over the same sample and report what the override changed."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -184,6 +296,9 @@ def main() -> None:
     base_ok = sum(1 for r in base.values() if r["verdict"] == "ok")
     variant_ok = sum(1 for r in variant.values() if r["verdict"] == "ok")
     print(f"\nverdicts: baseline {base_ok}/{len(base)} ok, variant {variant_ok}/{len(variant)} ok", flush=True)
+
+    _report_by_width(cases, base, variant)
+    _report_failures(cases, variant)
 
     flipped = [
         (i, str(base[i]["verdict"]), str(variant[i]["verdict"]))
