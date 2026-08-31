@@ -56,6 +56,9 @@ const (
 const (
 	stopSettleDelay  = 1 * time.Millisecond
 	resetSettleDelay = 2 * time.Millisecond
+	// connectReadTimeout bounds every Read after Connect opens the port, so a
+	// device that never answers the SCAN request fails fast instead of hanging.
+	connectReadTimeout = 2 * time.Second
 )
 
 var (
@@ -85,6 +88,11 @@ func (d *SerialDriver) Connect(ctx context.Context) error {
 	}
 	d.port = port
 	d.reader = bufio.NewReader(port)
+	// Bound every subsequent Read (incl. readDescriptor's io.ReadFull) so a
+	// device that never answers the SCAN request can't hang Connect forever.
+	if err := d.port.SetReadTimeout(connectReadTimeout); err != nil {
+		return fmt.Errorf("lidar: setting read timeout: %w", err)
+	}
 
 	// Best-effort: if the device is already scanning from a prior session,
 	// this stops it so the SCAN request below starts a clean session. A
@@ -93,6 +101,14 @@ func (d *SerialDriver) Connect(ctx context.Context) error {
 	// state.").
 	if stopErr := d.Stop(ctx); stopErr != nil {
 		return fmt.Errorf("lidar: stopping prior scan session: %w", stopErr)
+	}
+
+	// Purge any measurement bytes the device already had queued on the wire
+	// before we sent STOP -- otherwise the SCAN descriptor read below picks up
+	// a stale sample instead of the real response descriptor (seen live: a
+	// previously-running sllidar node left the RX buffer full of scan data).
+	if err := d.port.ResetInputBuffer(); err != nil {
+		return fmt.Errorf("lidar: purging stale input: %w", err)
 	}
 
 	if _, writeErr := d.port.Write(requestPacket(cmdScan)); writeErr != nil {
@@ -174,6 +190,8 @@ func (d *SerialDriver) Stop(ctx context.Context) error {
 	}
 	return waitSettle(ctx, stopSettleDelay)
 }
+
+// drain is unused; stale input is purged via ResetInputBuffer in Connect.
 
 // Reset sends the RESET request, rebooting the RPLIDAR core back to the
 // state it's in right after powering up — useful for recovering from the
