@@ -1033,6 +1033,71 @@ tasks:
           fi
           echo "interactive hw test binaries written to {{.OUT}}/"
 
+  robot-go:hw:stop:
+    desc: >-
+      Stop the robot's production services + any stray ROS2/sllidar processes
+      on a Pi so the Go //go:build hw interactive tests can claim the serial
+      port / PWM / I2C (otherwise they fail with "Serial port busy" /
+      "already claimed"). Keeps vtitan-nats running (tests don't need it, and
+      other boards connect through it). Usage:
+      task robot-go:hw:stop HOST=rpi-5-local (or rpi-zero-local).
+    cmds:
+      - cmd: |
+          HOST="{{.HOST}}"
+          if [ -z "$HOST" ]; then echo "HOST required (e.g. HOST=rpi-5-local)" && exit 1; fi
+          echo "stopping vtitan services + stray launches on $HOST (keeping vtitan-nats)..."
+          ssh "$HOST" ' \
+            sudo systemctl stop vtitan-pi5 vtitan-pi-zero vtitan-lidar vtitan-motor vtitan-display vtitan-race vtitan-backend 2>/dev/null; \
+            pkill -f "ros2 launch" 2>/dev/null; \
+            pkill -f sllidar_node 2>/dev/null; \
+            pkill -f track_navigator_node 2>/dev/null; \
+            pkill -f bag_recorder_node 2>/dev/null; \
+            sleep 2; \
+            echo "remaining port holders:"; sudo fuser -v /dev/ttyUSB0 /dev/ttyACM0 2>&1 || echo "  ttyUSB0/ACM0 FREE"'
+          echo "done. Re-run if fuser still shows a holder; kill that PID explicitly."
+      - task: robot-go:hw:stop-notes
+
+  robot-go:hw:stop-notes:
+    desc: "Print the port-holding reminder after robot-go:hw:stop"
+    cmds:
+      - 'echo "NOTE: if fuser still reports a holder, ssh {{.HOST}} and kill that PID, then re-run robot-go:hw:stop."'
+
+  robot-go:hw:run:
+    desc: >-
+      Full interactive-hw-test flow for ONE package: build the linux/arm64
+      binary (task robot-go:test:hw:interactive), ship it to a Pi (mkdir +
+      scp + chmod +x so scp does not drop the exec bit), and run it over a TTY
+      (operator-ack prompts need it). Stops services first via
+      robot-go:hw:stop. Usage:
+      task robot-go:hw:run PKG=lidar HOST=rpi-5-local
+      (PKG=motor|imu|lidar|ssd1306). For lidar, LIDAR_YAW_OFFSET_DEG defaults
+      to -85 (the measured C1 mounting offset); override via YAW_OFFSET=.
+    vars:
+      PKG: '{{.PKG | default "lidar"}}'
+      HOST: '{{.HOST | default "rpi-5-local"}}'
+      YAW_OFFSET: '{{.YAW_OFFSET | default "-85"}}'
+      OUT: '{{.OUT | default "dist/hw-interactive"}}'
+    cmds:
+      - task: robot-go:hw:stop
+      - task: robot-go:test:hw:interactive
+        vars: { PKG: '{{.PKG}}', OUT: '{{.OUT}}' }
+      - cmd: |
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"
+          BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
+          REMOTE_DIR="\$HOME/vtitan/platform/robot/$OUT"
+          echo "shipping $OUT/$BIN -> $HOST:$REMOTE_DIR/"
+          ssh "$HOST" "mkdir -p $REMOTE_DIR"
+          scp "$OUT/$BIN" "$HOST:$REMOTE_DIR/"
+          ssh "$HOST" "chmod +x $REMOTE_DIR/$BIN && echo shipped OK"
+      - cmd: |
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"
+          BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
+          REMOTE_DIR="\$HOME/vtitan/platform/robot/$OUT"
+          EXTRA=""
+          if [ "$PKG" = "lidar" ]; then EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW"; fi
+          echo "running $BIN on $HOST (TTY required for operator prompts)..."
+          ssh -t "$HOST" "cd ~/vtitan/platform/robot && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW"
+
 
   robot:zero:
     desc: >-
