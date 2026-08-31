@@ -981,7 +981,8 @@ tasks:
               imu)    build_one imu imu ;;
               lidar)  build_one lidar lidar ;;
               motor)  build_one motor motor ;;
-              *) echo "Unknown PKG: {{.PKG}}. Use button|ssd1306|imu|lidar|motor" && exit 1 ;;
+              nats)   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go test -tags hw -c -o "{{.OUT}}/nats" ./internal/transport/nats/ ;;
+              *) echo "Unknown PKG: {{.PKG}}. Use button|ssd1306|imu|lidar|motor|nats" && exit 1 ;;
             esac
           else
             build_one button btn
@@ -989,6 +990,7 @@ tasks:
             build_one imu imu
             build_one lidar lidar
             build_one motor motor
+            build_one transport/nats nats
           fi
           echo "hw test binaries written to {{.OUT}}/"
 
