@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/lidar"
 )
 
@@ -26,19 +27,16 @@ func waitForAck(prompt string) bool {
 	return line == "y" || line == "yes"
 }
 
-// TestHW_LIDAR_Object_Dynamic streams a scan and reports the closest valid
-// return in each of the 8 compass bearings (0/45/90/135/180/225/270/315 deg,
-// 45 deg sectors). The operator places objects at those bearings and confirms
-// each shows up in its correct bucket at a plausible range. Unlike
-// TestHW_LIDAR_UART (which only proves a scan assembles), this proves the
-// decoded angle/range are physically correct -- the dynamic counterpart.
-//
-// PASS -> a scan assembles, the 8 bearings report (no hard range gate, since
-//         the room may be open), and the operator confirms each placed object
-//         lands in the expected bearing at a sane range.
-// FAIL  -> Connect/Read errors, OR the operator reports an object did NOT
-//         appear in its bearing (decode angle is wrong / offset off).
-func TestHW_LIDAR_Object_Dynamic(t *testing.T) {
+// newInteractiveDriver builds the lidar.Config every interactive hw test
+// shares (port, baud, yaw offset from the environment) and constructs
+// either lidar.ClassicSerialDriver or lidar.DenseSerialDriver depending on
+// LIDAR_SCAN_MODE ("classic", the default, or "dense") -- so the same
+// bearing-scan logic below can validate either scan-mode implementation
+// without duplicating it. See frame_dense.go's package comment for why
+// Dense mode is the one expected to actually read correct ranges.
+func newInteractiveDriver(t *testing.T) driver.Driver[lidar.Scan] {
+	t.Helper()
+
 	port := os.Getenv("LIDAR_TTY")
 	if port == "" {
 		port = "/dev/ttyUSB0"
@@ -50,10 +48,42 @@ func TestHW_LIDAR_Object_Dynamic(t *testing.T) {
 		}
 	}
 
-	d, err := lidar.NewClassic(cfg)
-	if err != nil {
-		t.Fatalf("HW FAIL: lidar.NewClassic: %v", err)
+	mode := strings.ToLower(os.Getenv("LIDAR_SCAN_MODE"))
+	switch mode {
+	case "", "classic":
+		d, err := lidar.NewClassic(cfg)
+		if err != nil {
+			t.Fatalf("HW FAIL: lidar.NewClassic: %v", err)
+		}
+		return d
+	case "dense":
+		d, err := lidar.NewDense(cfg)
+		if err != nil {
+			t.Fatalf("HW FAIL: lidar.NewDense: %v", err)
+		}
+		return d
+	default:
+		t.Fatalf("HW FAIL: unknown LIDAR_SCAN_MODE %q, want \"classic\" or \"dense\"", mode)
+		return nil
 	}
+}
+
+// TestHW_LIDAR_Object_Dynamic streams a scan and reports the closest valid
+// return in each of the 8 compass bearings (0/45/90/135/180/225/270/315 deg,
+// 45 deg sectors). The operator places objects at those bearings and confirms
+// each shows up in its correct bucket at a plausible range. Unlike
+// TestHW_LIDAR_UART (which only proves a scan assembles), this proves the
+// decoded angle/range are physically correct -- the dynamic counterpart.
+// Set LIDAR_SCAN_MODE=dense to run this against DenseSerialDriver instead
+// of the default ClassicSerialDriver.
+//
+// PASS -> a scan assembles, the 8 bearings report (no hard range gate, since
+//         the room may be open), and the operator confirms each placed object
+//         lands in the expected bearing at a sane range.
+// FAIL  -> Connect/Read errors, OR the operator reports an object did NOT
+//         appear in its bearing (decode angle is wrong / offset off).
+func TestHW_LIDAR_Object_Dynamic(t *testing.T) {
+	d := newInteractiveDriver(t)
 	if err := d.Connect(context.Background()); err != nil {
 		t.Fatalf("HW FAIL: lidar.Connect: %v", err)
 	}
