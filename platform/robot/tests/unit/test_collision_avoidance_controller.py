@@ -54,10 +54,13 @@ class TestThreatDirection:
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
-        # The current chassis' rear mount sits in the LIDAR's blind wedge, so
-        # rear rays are masked and a wall directly behind is not seen -- the
-        # threat direction reports none rather than "back".
-        assert controller.detect_threat_direction(ranges, ANGLES_FULL_ROTATION) == "none"
+        # Asserts what the test is named for again. Between 2026-08-22 and
+        # 2026-08-31 the rear was fully masked by the blind wedges, so a wall
+        # behind was not seen at all and this asserted "none". The wedges were
+        # re-measured on the current mount (-155..-120 / 120..160, a ~40 deg
+        # slot at +/-160..180), so the rear is visible and the original
+        # behaviour is back.
+        assert controller.detect_threat_direction(ranges, ANGLES_FULL_ROTATION) == "back"
 
     def test_wall_behind_back_even_without_angles(self, controller):
         # When angles are omitted, index 0 is assumed to be -pi, so a close
@@ -66,9 +69,9 @@ class TestThreatDirection:
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
-        # Rear is masked by the chassis blind wedge (see
-        # test_wall_behind_reports_back_not_front); nothing is reported.
-        assert controller.detect_threat_direction(ranges) == "none"
+        # Rear visible again since the 2026-08-31 wedge re-measurement (see
+        # test_wall_behind_reports_back_not_front).
+        assert controller.detect_threat_direction(ranges) == "back"
 
     def test_wall_ahead_reports_front(self, controller):
         ranges = create_numpy_scan()
@@ -100,10 +103,10 @@ class TestClearance:
         ranges = create_numpy_scan()
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
-        # The rear mount sits in the LIDAR's blind wedge on the current
-        # chassis, so rear rays are masked and rear clearance reads as the
-        # no-data fallback rather than the actual wall distance.
-        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(controller.no_data_range_m)
+        # Asserts the actual wall distance again, as the name says. It read the
+        # no-data fallback while the rear was fully masked (2026-08-22 to
+        # 2026-08-31); the re-measured wedges restore the original behaviour.
+        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(LIDAR_CLOSE_THREAT)
 
     def test_rear_clearance_clear_when_only_front_blocked(self, controller):
         ranges = create_numpy_scan()
@@ -116,10 +119,12 @@ class TestRearSectorVisibility:
     """A reverse gate must be able to tell "nothing behind" from "cannot see"."""
 
     def test_normal_scan_is_measured(self, controller):
-        # On the current chassis the rear mount occupies the LIDAR's blind
-        # wedge, so even a normal scan's rear sector is masked and reports as
-        # not measured -- "cannot see" rather than "nothing behind".
-        assert controller.rear_sector(create_numpy_scan(), ANGLES_FULL_ROTATION).measured is False
+        # Measured again since the 2026-08-31 wedge re-measurement: the rear
+        # sector carries a ~40 deg readable slot at +/-160..180, so a normal
+        # scan reports MEASURED. Between 2026-08-22 and then the mount masked
+        # the whole rear and this asserted False -- "cannot see" rather than
+        # "nothing behind".
+        assert controller.rear_sector(create_numpy_scan(), ANGLES_FULL_ROTATION).measured is True
 
     def test_no_valid_rear_rays_is_not_measured(self, controller):
         # Every ray in the rear half is a no-return -- the case a chassis whose
@@ -272,9 +277,9 @@ class TestSelfDetectionFilter:
         ranges = create_numpy_scan()
         i = angle_to_index(math.pi)
         ranges[i - 4 : i + 4] = 0.15  # beyond self-detection radius: a real wall
-        # The rear mount is in the blind wedge on the current chassis, so the
-        # rear wall is masked and clearance reads as the no-data fallback.
-        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(controller.no_data_range_m)
+        # Detected again, as the name says -- masked from 2026-08-22 until the
+        # 2026-08-31 wedge re-measurement, which is why this asserted no-data.
+        assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(0.15)
 
     def test_side_self_reflection_does_not_report_as_threat(self, controller):
         ranges = create_numpy_scan()

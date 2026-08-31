@@ -73,6 +73,16 @@ to be before it looks like the LIDAR is reading its own mount rather than a wall
 memory/lidar_min_range_self_detection.md). Distinct from RobotSpecs.LIDAR_MIN_RANGE, which
 is the sensor's own spec floor and is used above to bound the windowed-median calculation."""
 _BEARING_BIN_DEG = 15.0
+_REAR_VALID_FRACTION = 0.30
+"""Fraction of a bearing's rays that must be valid returns before --rear-occlusion
+calls it readable. Deliberately low: a rear bearing spends much of a round pointed
+down an empty corridor, where a no-return is the honest answer rather than evidence
+of occlusion. What separates the two is the spread below, not this."""
+_REAR_RANGE_SPREAD_M = 0.20
+"""Spread between a bearing's min and max valid return before it counts as readable.
+An occluded bearing that sees the mount answers the same distance on every scan
+however the robot moves; an open one cannot, because the robot drove. This is the
+test that valid-fraction alone cannot make."""
 _MIN_VOTES = 5
 _MAT_CENTRE_X = 1.5
 _MAT_CENTRE_Y = 1.5
@@ -400,6 +410,116 @@ def _dropout_symmetry(bag_dir: Path) -> None:
         )
 
 
+def _rear_occlusion(bag_dir: Path, bin_deg: float) -> None:
+    """Measure which rear bearings the mount can actually READ, and derive the blind wedges.
+
+    ``lidar_sectors.toml`` masks the rear by ANGLE, unconditionally, because a
+    no-return cannot be told from open road on a single scan: the gateway
+    substitutes max range, so an occluded bearing reads 12 m and looks
+    maximally clear. That is why "is this bearing readable right now" is not a
+    safe runtime test, and why the wedges are measured once instead.
+
+    Over a whole bag it IS decidable, because occlusion is geometric and
+    static. An occluded bearing gives the same degenerate answer on every scan
+    however the robot moves -- a no-return, or a self-detection return off the
+    chassis -- while an open bearing returns plausible ranges that VARY as the
+    robot drives. So a bearing counts as readable here on two conditions, not
+    one: enough valid returns, and spread among them. Valid-fraction alone
+    would pass a bearing pinned to a constant by its own mount.
+
+    Prints the per-bin evidence and the four wedge numbers it implies, rather
+    than editing config: these bound whether the robot may reverse, so the
+    numbers should be read by a human before they are shipped.
+
+    Args:
+        bag_dir: Bag to replay.
+        bin_deg: Bearing bin width. Finer than ``_BEARING_BIN_DEG`` on purpose
+            -- the 2026-08-04 slot was ~25 deg wide and 15 deg bins would
+            straddle its edges.
+    """
+    sectors = NavigationTuning.load_default().lidar_sectors
+    tot: Counter[int] = Counter()
+    valid: Counter[int] = Counter()
+    ranges: dict[int, list[float]] = {}
+
+    reader = open_reader(bag_dir)
+    scans = 0
+    while reader.has_next():
+        topic, data, _t = reader.read_next()
+        if topic != Topics.SCAN:
+            continue
+        msg = deserialize_message(data, LaserScan)
+        scans += 1
+        n = len(msg.ranges)
+        for i, r in enumerate(msg.ranges):
+            raw_deg = math.degrees(msg.angle_min + i * (msg.angle_max - msg.angle_min) / max(n - 1, 1))
+            deg = (raw_deg + math.degrees(_LIDAR_YAW_OFFSET_RAD) + 180) % 360 - 180
+            b = int(math.floor(deg / bin_deg) * bin_deg)
+            tot[b] += 1
+            # Excluded for the same three reasons _rear_clearance excludes them:
+            # no-returns, sub-spec readings, and the chassis seeing itself.
+            if (
+                math.isfinite(r)
+                and r > sectors.MIN_VALID_RANGE_M
+                and r > sectors.SELF_DETECTION_THRESHOLD_M
+                and r < _MAX_RANGE_M
+            ):
+                valid[b] += 1
+                ranges.setdefault(b, []).append(r)
+
+    if not scans:
+        print("\nno /scan messages in this bag")
+        return
+
+    def readable(b: int) -> bool:
+        rs = ranges.get(b, [])
+        if tot[b] == 0 or valid[b] / tot[b] < _REAR_VALID_FRACTION:
+            return False
+        return len(rs) >= _MIN_VOTES and (max(rs) - min(rs)) >= _REAR_RANGE_SPREAD_M
+
+    print(f"\n--- rear occlusion ({scans} scans, {bin_deg:.0f}-deg bins, robot frame) ---")
+    print(f"LIDAR yaw offset applied: {math.degrees(_LIDAR_YAW_OFFSET_RAD):.1f} deg")
+    print(f"readable = valid >= {_REAR_VALID_FRACTION:.0%} of rays AND range spread >= {_REAR_RANGE_SPREAD_M} m")
+    rows = []
+    for b in sorted(tot):
+        if abs(b) < 90:  # noqa: PLR2004 - rear half only; the front is not in question
+            continue
+        rs = ranges.get(b, [])
+        spread = f"{max(rs) - min(rs):.2f}" if rs else "-"
+        rows.append([
+            b,
+            tot[b],
+            f"{100 * valid[b] / tot[b]:.1f}%",
+            f"{median(rs):.2f}" if rs else "-",
+            spread,
+            "READABLE" if readable(b) else "blind",
+        ])
+    print_table(rows, ["bearing_deg", "rays", "valid_%", "median_m", "spread_m", "verdict"])
+
+    # The wedges are the blind arcs either side of the readable slot, so the
+    # slot is found first and the wedges are what is left over.
+    rear_bins = sorted(b for b in tot if abs(b) >= 90)  # noqa: PLR2004
+    slot = [b for b in rear_bins if readable(b)]
+    print("\nCURRENT config (lidar_sectors.toml):")
+    print(f"  left  {sectors.BLIND_WEDGE_LEFT_MIN_DEG:.1f}..{sectors.BLIND_WEDGE_LEFT_MAX_DEG:.1f}")
+    print(f"  right {sectors.BLIND_WEDGE_RIGHT_MIN_DEG:.1f}..{sectors.BLIND_WEDGE_RIGHT_MAX_DEG:.1f}")
+    if not slot:
+        print("\nNo readable rear bearing in this bag -- the rear is genuinely blind. Leave the wedges closed.")
+        return
+    negative = [b for b in slot if b < 0]
+    positive = [b for b in slot if b >= 0]
+    print(f"\nreadable rear bearings: {slot}")
+    print("MEASURED wedges (blind arcs either side of that slot):")
+    print(f"  blind_wedge_left_min_deg  = -180.0")
+    print(f"  blind_wedge_left_max_deg  = {min(negative) if negative else -180.0:.1f}")
+    print(f"  blind_wedge_right_min_deg = {max(positive) + bin_deg if positive else 180.0:.1f}")
+    print(f"  blind_wedge_right_max_deg = 180.0")
+    print(
+        "\nCheck against a SECOND bag before shipping: one bag can only show a bearing was readable "
+        "in the situations that bag happened to contain.",
+    )
+
+
 def main() -> None:
     """Replay a bag's /scan and /nav_debug, print the side-ray recovery report, and any opt-in sections."""
     parser = create_bag_parser(
@@ -418,6 +538,12 @@ def main() -> None:
         action="store_true",
         help="per-corridor true width, width belief, and where the robot actually drove vs where it aimed",
     )
+    parser.add_argument(
+        "--rear-occlusion",
+        action="store_true",
+        help="which rear bearings this mount can actually read, and the blind wedges they imply",
+    )
+    parser.add_argument("--rear-bin-deg", type=float, default=5.0, help="bearing bin width for --rear-occlusion")
     args = parser.parse_args()
     half = math.radians(args.window_deg)
 
@@ -427,6 +553,8 @@ def main() -> None:
         _dropout_symmetry(args.bag_dir)
     if args.centre_offset:
         _centre_offset(args.bag_dir, args.window_deg)
+    if args.rear_occlusion:
+        _rear_occlusion(args.bag_dir, args.rear_bin_deg)
         return
 
     tuning = NavigationTuning.load_default()

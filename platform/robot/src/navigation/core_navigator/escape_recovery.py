@@ -371,6 +371,16 @@ class EscapeRecovery:
         # must hold instead. The same evidence argument as
         # _reversing_into_unseen_wall (ground the chassis occupied), applied to
         # the worst-case stuck reverse so a longer escalation cannot outrun it.
+        #
+        # Every forward-forcing term below is gated on `rear_blind`, so none of
+        # this is the normal path any more: the rear slot was re-measured on
+        # 2026-08-31 (~40 deg at +/-160..180, wedges -155..-120 / 120..160) and
+        # `rear_blind` is now usually False, leaving only the genuine
+        # `rear_clear < CONTACT_DIST` case. Measured over five previously
+        # colliding scenarios, "rear sector measured nothing" refusals went
+        # 54 -> 0. The degraded reasoning above is kept deliberately -- it is
+        # what runs when the rear IS occluded, which is still every bearing
+        # inside the wedges.
         stuck_reverse_distance = (
             abs(self._tuning.escape.REV_SPEED) * self._tuning.escape.MAX_ESCAPE_FRAMES / self._tuning.control.CONTROL_HZ
         )
