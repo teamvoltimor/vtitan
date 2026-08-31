@@ -39,6 +39,8 @@ def center_bias_for_corridor(
     width_m: float,
     tuning: NavigationTuning,
     override_m: float | None = None,
+    *,
+    confirmed: bool = True,
 ) -> float:
     """Signed centreline shift for ONE corridor, positive toward the inner block.
 
@@ -63,11 +65,27 @@ def center_bias_for_corridor(
     1.0 m by rule, so they ARE the wide class, and the split's threshold would
     classify them that way if it were consulted at all.
 
+    An UNCONFIRMED narrow corridor -- one still sitting on the blind prior
+    rather than on a measurement -- takes ``UNCONFIRMED_WIDTH_INNER_BIAS_M``
+    instead of ``NARROW_CENTER_BIAS_M``. The two hypotheses share the outer
+    wall, so believing narrow when the truth is wide puts the planned line
+    0.30 m too far OUTWARD, and confirming wide moves it inward by that whole
+    amount in one tick. Pre-positioning inward while the belief is still a
+    guess shortens that move; see the tuning field for the arithmetic and for
+    why this is deliberately not the same value as the confirmed-narrow bias.
+
     Args:
         width_m: This corridor's width (m).
         tuning: Tuning profile supplying the magnitudes, sides and threshold.
         override_m: Explicit magnitude that replaces both, applied uniformly
-            with the wide side.
+            with the wide side. Takes precedence over ``confirmed``: an
+            explicitly-passed magnitude was swept and measured as one number
+            (see above), and a belief-dependent substitution underneath it
+            would silently make it mean two.
+        confirmed: Whether this corridor's width has been MEASURED rather than
+            assumed. Defaults True, which is both the sighted case (a told
+            width is confirmed by definition) and the behaviour every caller
+            had before this parameter existed.
 
     Returns:
         Signed shift (m); positive toward the inner block.
@@ -76,7 +94,8 @@ def center_bias_for_corridor(
     if override_m is not None:
         magnitude, side = override_m, params.WIDE_CENTER_BIAS_SIDE
     elif width_m <= params.NARROW_WIDTH_THRESHOLD_M:
-        magnitude, side = params.NARROW_CENTER_BIAS_M, params.NARROW_CENTER_BIAS_SIDE
+        magnitude = params.NARROW_CENTER_BIAS_M if confirmed else params.UNCONFIRMED_WIDTH_INNER_BIAS_M
+        side = params.NARROW_CENTER_BIAS_SIDE if confirmed else CorridorSide.INNER
     else:
         magnitude, side = params.WIDE_CENTER_BIAS_M, params.WIDE_CENTER_BIAS_SIDE
     return magnitude * (1.0 if side is CorridorSide.INNER else -1.0)
@@ -136,6 +155,7 @@ def calculate_waypoints(
     arc_radius: float | None = None,
     tuning: NavigationTuning | None = None,
     center_bias_m: float | None = None,
+    unconfirmed_sections: frozenset[Section] | None = None,
 ) -> list[Waypoint]:
     """Build the full multi-lap waypoint sequence for a scenario.
 
@@ -160,6 +180,13 @@ def calculate_waypoints(
             is unchanged. The Obstacles Challenge passes its own bias (0.0,
             centred) -- see the tuning field for why the inner bias is an
             Open-Challenge-only argument.
+        unconfirmed_sections: Sections whose width is still the blind prior
+            rather than a measurement, from
+            ``CorridorWidthEstimator.observed_sections``. Those corridors take
+            ``UNCONFIRMED_WIDTH_INNER_BIAS_M`` -- see
+            :func:`center_bias_for_corridor`. ``None`` (and the empty set)
+            means every width is trusted, which is the sighted case and the
+            behaviour of every caller before this parameter existed.
 
     Returns:
         Ordered list of world-frame Waypoints starting near the robot's spawn
@@ -170,8 +197,10 @@ def calculate_waypoints(
             track or inside the restricted inner square.
 
     Uses tuning: waypoints.ARC_RADIUS, WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
-    NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE
+    NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE,
+    UNCONFIRMED_WIDTH_INNER_BIAS_M
     """
+    unconfirmed = unconfirmed_sections or frozenset()
     tuning = get_tuning(tuning)
     if not isinstance(metadata, ScenarioMetadata):
         metadata = ScenarioMetadata.model_validate(metadata)
@@ -199,7 +228,19 @@ def calculate_waypoints(
     # one carrying the narrow bias, so score feasibility with ITS bias rather
     # than a single track-wide figure -- the wide value would overstate what the
     # narrow corridor actually spends.
-    feasibility = validate_path_feasibility(min_width_m, center_bias_for_corridor(min_width_m, tuning, center_bias_m))
+    #
+    # Scored at the LARGER of the confirmed and unconfirmed narrow biases, not
+    # at whichever one this particular call happens to use. The unconfirmed
+    # value is the bigger of the two by construction and is what the chassis
+    # actually drives for the first ~0.5 m of every blind round, so scoring the
+    # confirmed value would declare feasible a path that spends more margin
+    # than was checked -- and it would do so only on the runs where the belief
+    # is still wrong, i.e. exactly where the check matters.
+    narrow_bias_m = max(
+        abs(center_bias_for_corridor(min_width_m, tuning, center_bias_m)),
+        abs(center_bias_for_corridor(min_width_m, tuning, center_bias_m, confirmed=False)),
+    )
+    feasibility = validate_path_feasibility(min_width_m, narrow_bias_m)
     if not feasibility.is_feasible:
         raise ValueError(feasibility.reason)
 
@@ -214,10 +255,10 @@ def calculate_waypoints(
     # the inner racing line. An explicit magnitude still overrides both
     # uniformly, which is how the Obstacles Challenge plans down the middle
     # without touching Open's values.
-    north_bias = center_bias_for_corridor(north_width, tuning, center_bias_m)
-    south_bias = center_bias_for_corridor(south_width, tuning, center_bias_m)
-    east_bias = center_bias_for_corridor(east_width, tuning, center_bias_m)
-    west_bias = center_bias_for_corridor(west_width, tuning, center_bias_m)
+    north_bias = center_bias_for_corridor(north_width, tuning, center_bias_m, confirmed=Section.NORTH not in unconfirmed)
+    south_bias = center_bias_for_corridor(south_width, tuning, center_bias_m, confirmed=Section.SOUTH not in unconfirmed)
+    east_bias = center_bias_for_corridor(east_width, tuning, center_bias_m, confirmed=Section.EAST not in unconfirmed)
+    west_bias = center_bias_for_corridor(west_width, tuning, center_bias_m, confirmed=Section.WEST not in unconfirmed)
 
     # Signs put the bias toward the inner block on every side: north and east
     # corridors have the block below/left of them, south and west above/right.
@@ -305,6 +346,7 @@ def plan_believed_path(
     arc_radius: float | None,
     tuning: NavigationTuning | None = None,
     center_bias_m: float | None = None,
+    unconfirmed_sections: frozenset[Section] | None = None,
 ) -> list[Waypoint]:
     """Build a one-lap path for the layout the robot currently believes it is on.
 
@@ -335,6 +377,9 @@ def plan_believed_path(
         tuning: Navigation tuning instance. Defaults to loaded defaults.
         center_bias_m: Centreline shift magnitude (m); forwarded to
             :func:`calculate_waypoints`. ``None`` keeps the tuning value.
+        unconfirmed_sections: Sections still on the blind width prior;
+            forwarded to :func:`calculate_waypoints`. ``None`` trusts every
+            width, which is what a sighted round wants.
 
     Returns:
         Single-lap ordered list of world-frame Waypoints.
@@ -356,4 +401,5 @@ def plan_believed_path(
         arc_radius=arc_radius,
         tuning=tuning,
         center_bias_m=center_bias_m,
+        unconfirmed_sections=unconfirmed_sections,
     )

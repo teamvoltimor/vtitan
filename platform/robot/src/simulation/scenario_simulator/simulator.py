@@ -459,6 +459,14 @@ class ScenarioSimulator(PassSideScorer):
             arc_radius=self._arc_radius,
             tuning=self._tuning,
             center_bias_m=self._center_bias_m,
+            # Empty when sighted -- no estimator means the widths were told
+            # rather than discovered, and a told width is confirmed by
+            # definition. See WaypointParams.UNCONFIRMED_WIDTH_INNER_BIAS_M.
+            unconfirmed_sections=(
+                frozenset(Section) - self._width_estimator.observed_sections
+                if self._width_estimator is not None
+                else frozenset()
+            ),
         )
 
     def _bay_exit_command(self, scan: LidarScan) -> DriveCommand:

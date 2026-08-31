@@ -1079,7 +1079,19 @@ class TrackNavigator(Node, ResettableNode):
             # WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and why it
             # is compensating for the tracker's outward drift.
             center_bias_m=(None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M),
+            unconfirmed_sections=self._unconfirmed_sections(),
         )
+
+    def _unconfirmed_sections(self) -> frozenset[Section]:
+        """Corridors whose width is still the blind prior rather than a measurement.
+
+        Empty when sighted: ``_width_estimator`` is None exactly when the widths
+        were told rather than discovered, and a told width is confirmed by
+        definition. See WaypointParams.UNCONFIRMED_WIDTH_INNER_BIAS_M.
+        """
+        if self._width_estimator is None:
+            return frozenset()
+        return frozenset(Section) - self._width_estimator.observed_sections
 
     def _update_layout_belief(self) -> bool:
         """Fold the latest scan into the width estimate; replan if it moved.

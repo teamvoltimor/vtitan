@@ -153,6 +153,94 @@ class WaypointParams(BaseModel):
     # test_navigation_tuning.py::test_field_defaults_match_shipped_toml enforces it.
     WIDE_CENTER_BIAS_M: float = Field(default=0.10, validation_alias=_alias("WIDE_CENTER_BIAS_M"))
     NARROW_CENTER_BIAS_M: float = Field(default=0.0, validation_alias=_alias("NARROW_CENTER_BIAS_M"))
+    UNCONFIRMED_WIDTH_INNER_BIAS_M: float = Field(
+        default=0.05, ge=0.0, validation_alias=_alias("UNCONFIRMED_WIDTH_INNER_BIAS_M")
+    )
+    """Inner bias for a narrow corridor still on the PRIOR rather than a measurement.
+
+    **Measured over the FULL 640-case Open space 2026-08-31: 618 -> 631 ok,
+    collisions 1 -> 0, incompletes 21 -> 9, sim time -12.80 s mean** (555 of the
+    610 cases that finished in both arms were faster; 21 fixed against 8
+    regressed). Every gain AND every residual failure sits in a mixed-width
+    layout -- the uniform ones (nnnn, wwww) do not move at all, which is the
+    fingerprint of a width-belief step rather than a general handling change.
+    0.0 restores the previous behaviour exactly.
+
+    NOT track-validated, and the simulator weaves 1.6-3.3x more than hardware,
+    so the magnitude is expected to shrink there even though the mechanism
+    below was measured on real runs.
+
+    A blind round begins believing every corridor NARROW, and both hypotheses
+    share the fixed OUTER wall, so the whole width error lands as a lateral
+    displacement of the planned line:
+
+    ```
+    believed narrow (0.6), NARROW_CENTER_BIAS_M 0.0   ->  cy = MAX - 0.30
+    confirmed wide  (1.0), WIDE_CENTER_BIAS_M   0.10  ->  cy = MAX - 0.60
+                                                  step  =  0.30 m
+    ```
+
+    That step is measured, not derived: ``REPLAN_BLEND_TICKS``' own docstring
+    records every first-lap width update stepping crosstrack by ~0.30 m in a
+    single 50 ms tick across six hardware runs -- ten times the ~0.03 m the
+    chassis can physically travel in that time -- which threw heading error
+    past ``heading.CRAWL`` and pinned the limiter for 82-100% of the following
+    ticks. Reported independently from the driver's seat 2026-08-31 as a
+    decaying zigzag on WIDE corridors during lap 1 only, which is exactly the
+    signature: wide corridors are where the belief flips and where there is
+    room to swing, and it is gone by lap 2 because the widths have settled.
+
+    Pre-positioning the unconfirmed line inward shrinks the step to
+    ``0.30 - value``. It cannot be cancelled: the narrow bias budget is
+    ``width/2 - RobotSpecs.WIDTH/2`` = 0.203 m, so ~0.10 m of step is
+    irreducible while the plan must also fit a corridor that may really be
+    narrow. Assuming WIDE outright -- the trick ``CORNER_ARC_ASSUME_WIDE``
+    plays on the corner arcs -- is NOT available here: it puts the line at
+    MAX - 0.60, which is *on* the inner wall of a true narrow corridor. An arc
+    sized from a wrong belief is a timing error; a centreline from one is a
+    position error straight into a wall.
+
+    A SEPARATE field rather than raising ``NARROW_CENTER_BIAS_M``, because
+    that value is 0.0 on evidence and raising it would pay this cost in
+    corridors that are genuinely narrow. Measured on run_20260829_020308, the
+    chassis ran a median 0.113 m and a p05 of 0.069 m from the INNER wall in
+    the narrowest quartile -- tracking error ADDS to the commanded bias rather
+    than averaging out, so there is little room there to spend. This field
+    spends it only while the corridor might not be narrow at all, over the
+    ``corridor_estimator.MIN_SAMPLES`` = 12 readings (~0.5 m of travel) before
+    the width resolves, and hands it straight back on a confirmed-narrow
+    reading.
+
+    Both branches then move by ``0.30 - value`` instead of 0.30:
+
+    - confirms WIDE:   inward, onto the wide line
+    - confirms NARROW: outward, into the side measured to have 0.435 m spare
+
+    **0.05 is a ceiling set by a coupling, not a cautious round-down.**
+    ``corner_arc_radius`` is ``max(W_entry, W_exit)/2 - center_bias``, so this
+    bias tightens the lap-1 corner as well as moving the straight -- the same
+    "separation and corner sharpness are one number pulling two ways" trade
+    ``NARROW_CENTER_BIAS_M`` documents. At 0.05 the ``ARC_RADIUS`` cap (0.45)
+    still binds and the coupling is inert; at 0.10 the arc falls to 0.400 m and
+    at 0.15 to 0.350 m.
+
+    Measured at 0.15 on balanced128: **-16 cases** (18 worse, 2 better), almost
+    all ``ok -> incomplete``. Incomplete rather than collision means a corner
+    that can no longer be settled, i.e. the tightened arc, not the spent
+    clearance -- though 0.15 also leaves a true narrow corridor only 0.053 m of
+    inner margin against the ~0.07 m of inward tracking drift measured on
+    run_20260829_020308, so both costs are real at that magnitude.
+
+    Raising this therefore requires DECOUPLING the arc first (pass the
+    confirmed bias to ``corner_arc_radius`` while the straight uses this one).
+    Until then the step is only shortened 0.30 -> 0.25, not the ~0.10 the
+    budget would otherwise allow.
+
+    Complementary to ``REPLAN_BLEND_TICKS``, which changes how the step is
+    APPLIED rather than how big it is; that one is also due a re-test, having
+    been judged while replanning was independently corrupting the waypoint
+    index -- and now also while this field is shrinking the step it fades.
+    """
     # 0.8 = midway between CorridorDimensions.NARROW (0.6) and .WIDE (1.0).
     # Spelled as a literal rather than computed from them for the same reason
     # every other default here is: this class is a second, independent copy of

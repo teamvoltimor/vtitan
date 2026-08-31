@@ -395,3 +395,161 @@ class TestCenterBiasOverride:
             center_bias_m=tuning.waypoints.WIDE_CENTER_BIAS_M + 0.05,
         )
         assert shifted != implicit
+
+
+class TestUnconfirmedWidthInnerBias:
+    """``UNCONFIRMED_WIDTH_INNER_BIAS_M`` pre-positions a still-guessed corridor.
+
+    See the tuning field: a blind round believes every corridor NARROW, both
+    hypotheses share the outer wall, and confirming WIDE therefore steps the
+    planned centreline 0.30 m inward in one tick. Biasing the unconfirmed line
+    inward shortens that step.
+    """
+
+    @staticmethod
+    def _armed(tuning, magnitude: float):
+        return replace(
+            tuning,
+            waypoints=tuning.waypoints.model_copy(update={"UNCONFIRMED_WIDTH_INNER_BIAS_M": magnitude}),
+        )
+
+    def test_zero_is_inert(self, sample_metadata_open, tuning) -> None:
+        """At 0.0 an unconfirmed corridor must plan exactly where it always did.
+
+        0.0 is the documented "restores the previous behaviour exactly" escape
+        hatch, so declaring every section unconfirmed has to be a no-op there.
+        Pinned against the tuning explicitly zeroed rather than against the
+        shipped profile, which now ships the field ARMED -- see
+        ``test_shipped_default_is_armed``.
+        """
+        off = self._armed(tuning, 0.0)
+        assert calculate_waypoints(
+            sample_metadata_open, num_laps=1, tuning=off, unconfirmed_sections=frozenset(Section)
+        ) == calculate_waypoints(sample_metadata_open, num_laps=1, tuning=off)
+
+    def test_shipped_default_is_armed(self, sample_metadata_open, tuning) -> None:
+        """The shipped value must actually reach the planned path.
+
+        Guards the wiring end-to-end rather than the magnitude: the 640-case
+        result this field ships on is worth nothing if a refactor silently
+        stops ``unconfirmed_sections`` reaching ``center_bias_for_corridor``,
+        and every other test here would still pass on that no-op because they
+        construct their own armed tuning.
+        """
+        assert tuning.waypoints.UNCONFIRMED_WIDTH_INNER_BIAS_M > 0.0
+        assert calculate_waypoints(
+            sample_metadata_open, num_laps=1, tuning=tuning, unconfirmed_sections=frozenset(Section)
+        ) != calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
+
+    def test_the_shipped_value_does_not_tighten_the_corner_arc(self, tuning) -> None:
+        """The 0.15 regression was the arc coupling; the shipped value must clear it.
+
+        ``corner_arc_radius`` is ``max(W)/2 - center_bias``, so this bias
+        shrinks the lap-1 arc as well as moving the straight. 0.05 is chosen as
+        the largest magnitude at which the ``ARC_RADIUS`` cap still binds and
+        the coupling stays inert -- if either the bias or the cap moves so that
+        it no longer does, the measured result no longer applies and this fails
+        rather than silently re-introducing the -16-case arm.
+        """
+        params = tuning.waypoints
+        assert corner_arc_radius(
+            CorridorDimensions.WIDE,
+            CorridorDimensions.WIDE,
+            params.UNCONFIRMED_WIDTH_INNER_BIAS_M,
+            params.ARC_RADIUS,
+        ) == pytest.approx(params.ARC_RADIUS)
+
+    def test_none_and_empty_agree(self, sample_metadata_open, tuning) -> None:
+        """"Nothing to say" and "everything confirmed" are the same statement."""
+        armed = self._armed(tuning, 0.15)
+        assert calculate_waypoints(
+            sample_metadata_open, num_laps=1, tuning=armed, unconfirmed_sections=frozenset()
+        ) == calculate_waypoints(sample_metadata_open, num_laps=1, tuning=armed, unconfirmed_sections=None)
+
+    def test_unconfirmed_narrow_takes_the_new_bias(self, tuning) -> None:
+        armed = self._armed(tuning, 0.15)
+        assert center_bias_for_corridor(CorridorDimensions.NARROW, armed, confirmed=False) == pytest.approx(0.15)
+        assert center_bias_for_corridor(
+            CorridorDimensions.NARROW, armed, confirmed=True
+        ) == pytest.approx(armed.waypoints.NARROW_CENTER_BIAS_M)
+
+    def test_wide_corridors_are_untouched(self, tuning) -> None:
+        """The field describes the NARROW prior only.
+
+        A corridor already believed wide is not the case this exists for -- it
+        has nothing left to confirm into -- so the unconfirmed flag must not
+        reach ``WIDE_CENTER_BIAS_M``.
+        """
+        armed = self._armed(tuning, 0.15)
+        assert center_bias_for_corridor(CorridorDimensions.WIDE, armed, confirmed=False) == pytest.approx(
+            center_bias_for_corridor(CorridorDimensions.WIDE, armed, confirmed=True)
+        )
+
+    def test_explicit_override_still_wins(self, tuning) -> None:
+        """Obstacles' swept magnitude must not be reinterpreted by a belief.
+
+        ``OBSTACLES_CENTER_BIAS_M`` was measured as one number; letting an
+        unconfirmed width substitute a different one underneath it would make
+        the same field mean two things depending on the round.
+        """
+        armed = self._armed(tuning, 0.15)
+        assert center_bias_for_corridor(CorridorDimensions.NARROW, armed, 0.05, confirmed=False) == pytest.approx(
+            center_bias_for_corridor(CorridorDimensions.NARROW, armed, 0.05, confirmed=True)
+        )
+
+    def test_it_shortens_the_confirm_wide_step(self, tuning) -> None:
+        """The point of the field, as a property rather than a comment.
+
+        Both corridors share the fixed OUTER wall, so the planned centreline
+        sits ``width/2 + bias`` in from it and the step taken when a belief
+        resolves is the difference of those two. Arming the field must shrink
+        that distance and must not change where the confirmed-wide line ends
+        up -- this changes the START of the move, never its destination.
+        """
+        narrow, wide = CorridorDimensions.NARROW, CorridorDimensions.WIDE
+        off = self._armed(tuning, 0.0)
+        armed = self._armed(tuning, 0.15)
+
+        def offset_from_outer_wall(width: float, t, *, confirmed: bool) -> float:
+            return width / 2 + center_bias_for_corridor(width, t, confirmed=confirmed)
+
+        wide_line = offset_from_outer_wall(wide, off, confirmed=True)
+        assert offset_from_outer_wall(wide, armed, confirmed=True) == pytest.approx(wide_line)
+
+        # 0.0 rather than the shipped profile: the field now ships armed, so
+        # reading the un-pre-positioned step off `tuning` would measure 0.25
+        # and quietly stop pinning the 0.30 m the hardware actually recorded.
+        unarmed_step = abs(wide_line - offset_from_outer_wall(narrow, off, confirmed=False))
+        armed_step = abs(wide_line - offset_from_outer_wall(narrow, armed, confirmed=False))
+        assert unarmed_step == pytest.approx(0.30)
+        assert armed_step == pytest.approx(0.15)
+        shipped_step = abs(wide_line - offset_from_outer_wall(narrow, tuning, confirmed=False))
+        assert shipped_step == pytest.approx(0.25)
+
+    def test_it_stays_inside_the_narrow_corridor(self, tuning) -> None:
+        """Arming must never plan a line the chassis cannot fit on.
+
+        The budget is ``width/2 - RobotSpecs.WIDTH/2``. A magnitude past it is
+        a path into the inner wall of a corridor that really is narrow, which
+        is the whole risk this field trades against -- so the feasibility check
+        must reject it rather than plan it.
+        """
+        budget = CorridorDimensions.NARROW / 2 - RobotSpecs.WIDTH / 2
+        assert center_bias_for_corridor(
+            CorridorDimensions.NARROW, self._armed(tuning, budget - 0.01), confirmed=False
+        ) < budget
+
+    def test_infeasible_magnitude_is_rejected(self, sample_metadata_open, tuning) -> None:
+        """Feasibility is scored at the LARGER of the two narrow biases.
+
+        Scoring only the confirmed value would pass a path that spends more
+        margin than was checked, and would do so exactly on the runs where the
+        belief is still wrong.
+        """
+        with pytest.raises(ValueError, match="narrow|width|fit|feasib"):
+            calculate_waypoints(
+                sample_metadata_open,
+                num_laps=1,
+                tuning=self._armed(tuning, 0.35),
+                unconfirmed_sections=frozenset(Section),
+            )
