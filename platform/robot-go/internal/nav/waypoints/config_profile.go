@@ -33,6 +33,8 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	cfg.NarrowWidthThresholdM = loaded.NarrowWidthThresholdM
 	cfg.NumIntermediateArcPoints = loaded.NumIntermediateArcPoints
 	cfg.StraightWaypointCount = loaded.StraightWaypointCount
+	cfg.ArcRadius = loaded.ArcRadius
+	cfg.CornerArcAssumeWide = loaded.CornerArcAssumeWide
 
 	if side, ok := corridorSideFromString(loaded.WideCenterBiasSide); ok {
 		cfg.WideCenterBiasSide = side

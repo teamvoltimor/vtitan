@@ -24,6 +24,25 @@ const (
 	West
 )
 
+// LoopOrder returns the four corridors in traversal order with startSection
+// first, matching shared.domain.enums.Section.loop_order. The internal
+// absolute order is anchored at East (the start/finish line sits on the east
+// side of the mat), but that anchor never leaks: callers always pass the
+// believed start, so the returned order is relative to the robot's actual
+// corner. Used to assemble the waypoint loop.
+func LoopOrder(startSection Section, direction Direction) []Section {
+	absolute := []Section{East, South, West, North}
+	if direction == Counterclockwise {
+		absolute = []Section{East, North, West, South}
+	}
+	rotated := make([]Section, len(absolute))
+	copy(rotated, absolute)
+	for rotated[0] != startSection {
+		rotated = append(rotated[1:], rotated[0])
+	}
+	return rotated
+}
+
 // MinWidthM returns the narrowest corridor width across all four sides.
 func (g CorridorGeometry) MinWidthM() float64 {
 	return min(g.NorthWidthM, g.SouthWidthM, g.EastWidthM, g.WestWidthM)
@@ -33,6 +52,17 @@ func (g CorridorGeometry) MinWidthM() float64 {
 func (g CorridorGeometry) MeanWidthM() float64 {
 	const sides = 4
 	return (g.NorthWidthM + g.SouthWidthM + g.EastWidthM + g.WestWidthM) / sides
+}
+
+// ToWidthsDict returns the corridor widths keyed by their section, matching
+// CorridorGeometry.to_widths_dict.
+func (g CorridorGeometry) ToWidthsDict() map[Section]float64 {
+	return map[Section]float64{
+		North: g.NorthWidthM,
+		South: g.SouthWidthM,
+		East:  g.EastWidthM,
+		West:  g.WestWidthM,
+	}
 }
 
 // CorridorGeometryFromWidths builds a CorridorGeometry from a per-section

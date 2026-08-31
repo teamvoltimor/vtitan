@@ -19,6 +19,13 @@ type WaypointsConfig struct {
 	// for the same purpose), even though WaypointController's own polyline
 	// generation is not ported to Go yet.
 	ArcRadius float64 `mapstructure:"arc_radius"`
+	// CornerArcAssumeWide matches CORNER_ARC_ASSUME_WIDE -- when true,
+	// CalculateWaypoints sizes every corner as if both corridors were WIDE
+	// (see waypoints.Config.CornerArcAssumeWide), so the turn-entry point is
+	// independent of a corridor-width belief that starts out wrong. Blind
+	// rounds begin believing every corridor narrow, so without this a
+	// narrow->wide corner plans a late entry.
+	CornerArcAssumeWide bool `mapstructure:"corner_arc_assume_wide"`
 	// DedupeDistanceM matches DEDUPE_DISTANCE_M.
 	DedupeDistanceM float64 `mapstructure:"dedupe_distance_m"`
 	// WideCenterBiasM/WideCenterBiasSide match WIDE_CENTER_BIAS_M/

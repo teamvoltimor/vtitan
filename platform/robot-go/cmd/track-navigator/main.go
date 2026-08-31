@@ -27,10 +27,12 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/adapters/natsgw"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
@@ -149,14 +151,34 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	// A single canonical 4-corner lap around the bench track, so the
-	// navigator has a path to drive. A real run loads the scenario's
-	// waypoints.
-	waypoints := []trackmodel.Waypoint{
-		{X: -benchTrackCoord + 1, Y: -benchTrackCoord + 1},
-		{X: benchTrackCoord - 1, Y: -benchTrackCoord + 1},
-		{X: benchTrackCoord - 1, Y: benchTrackCoord - 1},
-		{X: -benchTrackCoord + 1, Y: benchTrackCoord - 1},
+	// Build the planned path from the bench track's corridor geometry instead
+	// of a hardcoded 4-corner rectangle: CalculateWaypoints synthesizes the
+	// centerline (with per-corner arc waypoints) from the believed corridor
+	// widths and a starting condition, the same way a real run plans from the
+	// scenario's metadata. A real run would load the scenario's geometry and
+	// starting conditions instead of the bench defaults below.
+	benchGeom := trackmodel.CorridorGeometryFromWidths(map[trackmodel.Section]float64{
+		trackmodel.North: 2.0,
+		trackmodel.South: 2.0,
+		trackmodel.East:  2.0,
+		trackmodel.West:  2.0,
+	}, benchTrackCoord)
+	cwCfg, cwErr := profile.LoadRobotConfig(profile.DefaultRobotTOMLPath, nil)
+	chassisWidthM := 0.30
+	if cwErr == nil {
+		chassisWidthM = cwCfg.Chassis.Width
+	} else {
+		logger.Warn("track-navigator: loading robot.toml for chassis width, using default", "error", cwErr)
+	}
+	startSection := trackmodel.South
+	waypoints, planErr := waypoints.CalculateWaypoints(waypoints.PlannerInput{
+		Geometry:      benchGeom,
+		Starting:      waypoints.StartingConditions{Section: startSection, Position: trackmodel.Waypoint{X: -benchTrackCoord + 1, Y: -benchTrackCoord + 1}},
+		MaxCoordM:     benchTrackCoord,
+		ChassisWidthM: chassisWidthM,
+	}, 1, waypoints.DefaultConfig(), nil)
+	if planErr != nil {
+		return fmt.Errorf("track-navigator: planning bench path: %w", planErr)
 	}
 
 	nav, err := navigator.New(navigator.Params{
