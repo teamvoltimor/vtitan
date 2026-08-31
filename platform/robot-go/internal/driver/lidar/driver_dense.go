@@ -80,7 +80,7 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 	// loops forever in bufio). scanReadTimeout is set above the C1's observed
 	// ~2.1s inter-scan gap (measured on hardware 2026-08-31) so a healthy
 	// scan assembles across bursts, while a truly dead device still errors.
-	if err := d.port.SetReadTimeout(250 * time.Millisecond); err != nil {
+	if err := d.port.SetReadTimeout(serialPollTimeout); err != nil {
 		return fmt.Errorf("lidar: setting read timeout: %w", err)
 	}
 
@@ -324,7 +324,7 @@ func (d *DenseSerialDriver) readScan() (Scan, error) {
 				// back toward 0 (i.e. drops below the previous packet's angle
 				// after having increased monotonically through 360deg). Close
 				// the scan on that wrap.
-				if prev.startAngleDeg > cur.startAngleDeg+180 {
+				if prev.startAngleDeg > cur.startAngleDeg+scanWrapAngleDeg {
 					d.prev = &cur
 					d.pending = resolved
 					return points, nil

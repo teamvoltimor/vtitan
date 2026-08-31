@@ -49,4 +49,11 @@ func TestConfigFor_LoadsRealWaypointsTOML(t *testing.T) {
 			def.NarrowCenterBiasSide,
 		)
 	}
+	// CORNER_ARC_ASSUME_WIDE is absent from the checked-in waypoints.toml,
+	// so LoadWithDefaults must supply the Python model's True default
+	// rather than the zero-value false (regression: ConfigFor once read it
+	// as false, silently disabling the assume-wide corner-arc sizing).
+	if !cfg.CornerArcAssumeWide {
+		t.Errorf("CornerArcAssumeWide = false, want true (Python CORNER_ARC_ASSUME_WIDE default)")
+	}
 }

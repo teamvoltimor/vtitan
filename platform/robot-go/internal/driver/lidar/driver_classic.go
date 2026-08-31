@@ -26,6 +26,14 @@ type Config struct {
 	// angle instead of 0. Mirrors the Python launch's inverted/inverted-yaw
 	// handling. Applied in decodeClassicMeasurement (frame_classic.go)
 	// before AngleRad is stored. Zero means "sensor 0 == robot forward".
+	//
+	// The single source of truth is robot.toml's [lidar] section: the total
+	// correction is LidarYawOffsetRad() = 180deg when inverted=true plus
+	// mount_yaw_offset_deg (0 on this robot). Only the interactive hardware
+	// tests set this so decoded angles read in the robot frame directly;
+	// production lidar-node keeps it 0 and publishes raw C1 bearings, with
+	// consumers (telemetry diag, the nav gateway) applying the same offset
+	// via profile.RobotConfig.LidarYawOffsetRad().
 	YawOffsetDeg float64
 }
 
@@ -124,7 +132,7 @@ func (d *ClassicSerialDriver) Connect(ctx context.Context) error {
 	d.reader = bufio.NewReader(newTimeoutReader(port, scanReadTimeout))
 	// The serial port's per-call read timeout is kept short; the
 	// timeoutReader's maxSilence (connectReadTimeout) bounds a stalled read.
-	if err := d.port.SetReadTimeout(250 * time.Millisecond); err != nil {
+	if err := d.port.SetReadTimeout(serialPollTimeout); err != nil {
 		return fmt.Errorf("lidar: setting read timeout: %w", err)
 	}
 

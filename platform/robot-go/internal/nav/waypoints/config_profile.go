@@ -20,7 +20,13 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	loaded, err := profile.Load[profile.WaypointsConfig](basePath, nil)
+	// CORNER_ARC_ASSUME_WIDE defaults to True in the Python model and is
+	// absent from the checked-in waypoints.toml, so it must be defaulted
+	// here rather than silently read as false -- the same pattern as
+	// controllers' min_history_for_distance (see EscapeConfig) and
+	// CorridorFollowerConfig's bay_wall_clearance_m.
+	waypointDefaults := map[string]any{"corner_arc_assume_wide": DefaultCornerArcAssumeWide}
+	loaded, err := profile.LoadWithDefaults[profile.WaypointsConfig](basePath, nil, waypointDefaults)
 	if err != nil {
 		logger.Warn("waypoints: loading waypoints.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)

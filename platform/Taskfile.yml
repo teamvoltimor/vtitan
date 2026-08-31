@@ -1067,7 +1067,8 @@ tasks:
       robot-go:hw:stop. Usage:
       task robot-go:hw:run PKG=lidar HOST=rpi-5-local
       (PKG=motor|imu|lidar|ssd1306). For lidar, LIDAR_YAW_OFFSET_DEG defaults
-      to -85 (the measured C1 mounting offset); override via YAW_OFFSET=. For
+      to 180 (the C1's inverted-mount correction -- robot.toml's [lidar]
+      inverted=true; mount_yaw_offset_deg is 0). Override via YAW_OFFSET=. For
       lidar, SCAN_MODE=dense selects the DenseSerialDriver (8-bearing test +
       range decode expected to read correctly, unlike classic); omit for
       classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
@@ -1078,7 +1079,7 @@ tasks:
     vars:
       PKG: '{{.PKG | default "lidar"}}'
       HOST: '{{.HOST | default "rpi-5-local"}}'
-      YAW_OFFSET: '{{.YAW_OFFSET | default "-85"}}'
+      YAW_OFFSET: '{{.YAW_OFFSET | default "180"}}'
       SCAN_MODE: '{{.SCAN_MODE | default ""}}'
       OUT: '{{.OUT | default "dist/hw-interactive"}}'
     shell: '{{.BASH}}'

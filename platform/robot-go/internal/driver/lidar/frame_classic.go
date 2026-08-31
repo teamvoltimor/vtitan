@@ -275,15 +275,32 @@ func payloadRequestPacket(cmd byte, payload []byte) []byte {
 // to its default speed. Must be sent before any scan request, or the device
 // answers the scan request with no data stream (verified on hardware
 // 2026-08-31: Express Scan returned zero bytes until the motor was started).
-// motorDefaultRpm is the 16-bit RPM value sent to start the motor via the
-// HQ motor-speed command. The sllidar SDK's startMotor() drives the motor to a
+// motorDefaultRpm is the RPM value sent to start the motor via the HQ
+// motor-speed command. The sllidar SDK's startMotor() drives the motor to a
 // nominal speed; 600 RPM matches the spin-up observed streaming correctly on
-// the C1 (verified on hardware 2026-08-31). Declared as a var (not a const)
-// so it can be split into bytes at runtime without a constant-width overflow.
-var motorDefaultRpm uint16 = 600
+// the C1 (verified on hardware 2026-08-31).
+const motorDefaultRpm = 600
+
+// motorPayloadSize is the byte length of the motor-speed payload (a single
+// little-endian u16 RPM value), shared by both motor-start commands.
+const motorPayloadSize = 2
+
+// serialPollTimeout is the per-call read timeout configured on the serial
+// port. timeoutReader retries (0, nil) reads up to maxSilence, so this stays
+// short; it only bounds a single empty read, not the total scan wait.
+const serialPollTimeout = 250 * time.Millisecond
+
+// scanWrapAngleDeg is the angle-drop threshold that closes a Dense Mode scan.
+// The C1 Express/Dense stream sets the S (start-of-scan) flag only on the
+// first packet, so a scan is bounded by the per-packet start angle wrapping
+// from ~360deg back toward 0. When the current packet's start angle is more
+// than scanWrapAngleDeg below the previous one, the sweep has completed a full
+// rotation (verified on hardware 2026-08-31).
+const scanWrapAngleDeg = 180.0
 
 func startMotorPacket() []byte {
-	return payloadRequestPacket(cmdHQMatorSpeedCtrl, []byte{byte(motorDefaultRpm), byte(motorDefaultRpm >> 8)})
+	rpm := uint16(motorDefaultRpm)
+	return payloadRequestPacket(cmdHQMatorSpeedCtrl, []byte{byte(rpm), byte(rpm >> 8)})
 }
 
 // timeoutReader wraps a serial.Port so that the underlying driver's
@@ -325,7 +342,7 @@ func (t *timeoutReader) portReadTimeout() time.Duration {
 	if p, ok := t.port.(interface{ ReadTimeout() time.Duration }); ok {
 		return p.ReadTimeout()
 	}
-	return 250 * time.Millisecond
+	return serialPollTimeout
 }
 
 // newTimeoutReader wraps port in a timeoutReader. SetReadTimeout on the
