@@ -66,10 +66,30 @@ const (
 // Request").
 const (
 	stopSettleDelay  = 1 * time.Millisecond
-	resetSettleDelay = 2 * time.Millisecond
+	// resetSettleDelay is how long Connect waits after a RESET before issuing
+	// the next request. The RPLIDAR C1 reboots its core on RESET, which takes
+	// far longer than the protocol's typical few-ms stop settle — sending the
+	// scan request during the reboot is silently ignored and the descriptor
+	// never arrives (verified on hardware 2026-08-31: a 2ms delay hung/failed,
+	// ~1s succeeds). 1s is conservative but well within the serial read
+	// timeout, so Connect still fails fast if the device is truly unresponsive.
+	resetSettleDelay = 1 * time.Second
+	// motorSpinupDelay is how long Connect waits after starting the motor
+	// before requesting the scan. The C1 ignores the Express Scan request
+	// (and so never returns its descriptor) until the motor is actually
+	// spinning; an ~800ms spin-up window matches the validated sllidar/Python
+	// flow and the hardware probe that first got the C1 streaming
+	// (2026-08-31).
+	motorSpinupDelay = 800 * time.Millisecond
 	// connectReadTimeout bounds every Read after Connect opens the port, so a
 	// device that never answers the SCAN request fails fast instead of hanging.
 	connectReadTimeout = 2 * time.Second
+	// scanReadTimeout is the per-read silence tolerance used while streaming
+	// scan data. The RPLIDAR C1 Express/Dense stream emits one scan then
+	// pauses ~2.1s before the next (measured on hardware 2026-08-31); this
+	// must exceed that gap so a healthy scan assembles, while still bounding a
+	// truly stalled device.
+	scanReadTimeout = 4 * time.Second
 )
 
 var (
@@ -101,10 +121,10 @@ func (d *ClassicSerialDriver) Connect(ctx context.Context) error {
 		return fmt.Errorf("lidar: opening serial port %s: %w", d.cfg.Port, err)
 	}
 	d.port = port
-	d.reader = bufio.NewReader(port)
-	// Bound every subsequent Read (incl. readDescriptor's io.ReadFull) so a
-	// device that never answers the SCAN request can't hang Connect forever.
-	if err := d.port.SetReadTimeout(connectReadTimeout); err != nil {
+	d.reader = bufio.NewReader(newTimeoutReader(port, scanReadTimeout))
+	// The serial port's per-call read timeout is kept short; the
+	// timeoutReader's maxSilence (connectReadTimeout) bounds a stalled read.
+	if err := d.port.SetReadTimeout(250 * time.Millisecond); err != nil {
 		return fmt.Errorf("lidar: setting read timeout: %w", err)
 	}
 

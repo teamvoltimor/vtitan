@@ -33,6 +33,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
+
+	"go.bug.st/serial"
 )
 
 // yawOffsetDeg is the mounting rotation applied to every decoded
@@ -114,6 +117,19 @@ const (
 	cmdReset       = 0x40
 	cmdClassicScan = 0x20
 	cmdGetHealth   = 0x52
+	// cmdSetMotorPwm starts/spins the C1's motor (SL_LIDAR_CMD_SET_MOTOR_PWM,
+	// SDK sl_lidar_cmd.h). The RPLIDAR C1 will not stream scan data unless its
+	// motor is spinning, so both scan modes must issue this before requesting
+	// a scan (the sllidar SDK's startScanExpress/startScanNormal both call
+	// startMotor() first — see sl_lidar_driver.cpp startScanExpress line 59).
+	cmdSetMotorPwm = 0xF0
+	// cmdHQMatorSpeedCtrl (SL_LIDAR_CMD_HQ_MOTOR_SPEED_CTRL) is the
+	// alternative motor-start command the sllidar SDK uses for RPM-mode motor
+	// control. On the C1 this is the variant that actually spins the motor up
+	// and lets the Express Scan stream (verified on hardware 2026-08-31: the
+	// 0xF0 PWM command left the device unresponsive to the scan request,
+	// while 0xA8 with an RPM payload produced a live capsule stream).
+	cmdHQMatorSpeedCtrl = 0xA8
 
 	// descStartFlag1/2 are the fixed two bytes identifying the start of a
 	// response descriptor (§ "Response Packets' Format", Figure 2-7).
@@ -207,6 +223,10 @@ var (
 	// didn't match what the caller requested (e.g. a SCAN request got a
 	// non-measurement descriptor back). Shared across scan modes.
 	ErrUnexpectedDataType = errors.New("lidar: unexpected response descriptor data type")
+	// ErrReadTimeout means a serial read returned no data before the port's
+	// configured read timeout elapsed (surfaced by timeoutReader wrapping
+	// go.bug.st/serial's (0, nil) timeout quirk). Shared across scan modes.
+	ErrReadTimeout = errors.New("lidar: serial read timed out")
 	// ErrSyncBitMismatch means a classic measurement sample's S and ~S
 	// bits (byte 0, bits 0-1) weren't complementary — the sample is
 	// corrupt.
@@ -231,6 +251,88 @@ var (
 // separately (see frame_dense.go).
 func requestPacket(cmd byte) []byte {
 	return []byte{reqStartFlag, cmd}
+}
+
+// payloadRequestPacket builds a request that carries a payload: {reqStartFlag,
+// cmd, payloadSize, payload..., checksum}, where checksum is the XOR of every
+// byte from reqStartFlag through the last payload byte (per the SDK's
+// RPLidarProtocolCodec::onEncodeData — the C1 rejects the request, returning
+// nothing, if the checksum omits any of these). Used by the motor-start
+// command and the Dense/Express scan request.
+func payloadRequestPacket(cmd byte, payload []byte) []byte {
+	checksum := byte(reqStartFlag) ^ cmd ^ byte(len(payload))
+	for _, p := range payload {
+		checksum ^= p
+	}
+	pkt := make([]byte, 0, 3+len(payload)+1)
+	pkt = append(pkt, reqStartFlag, cmd, byte(len(payload)))
+	pkt = append(pkt, payload...)
+	pkt = append(pkt, checksum)
+	return pkt
+}
+
+// startMotorPacket builds the SET_MOTOR_PWM request that spins the C1 motor up
+// to its default speed. Must be sent before any scan request, or the device
+// answers the scan request with no data stream (verified on hardware
+// 2026-08-31: Express Scan returned zero bytes until the motor was started).
+// motorDefaultRpm is the 16-bit RPM value sent to start the motor via the
+// HQ motor-speed command. The sllidar SDK's startMotor() drives the motor to a
+// nominal speed; 600 RPM matches the spin-up observed streaming correctly on
+// the C1 (verified on hardware 2026-08-31). Declared as a var (not a const)
+// so it can be split into bytes at runtime without a constant-width overflow.
+var motorDefaultRpm uint16 = 600
+
+func startMotorPacket() []byte {
+	return payloadRequestPacket(cmdHQMatorSpeedCtrl, []byte{byte(motorDefaultRpm), byte(motorDefaultRpm >> 8)})
+}
+
+// timeoutReader wraps a serial.Port so that the underlying driver's
+// "timed-out read returns (0, nil)" quirk (go.bug.st/serial v1.8.0,
+// serial_unix.go:93) doesn't cause an endless retry. bufio.Reader.fill (and
+// io.ReadFull) treat a (0, nil) read as "no data available yet, try again"
+// and loop forever, which otherwise hangs Connect and Read indefinitely
+// whenever the device is slow or silent — confirmed on the C1 (2026-08-31: a
+// non-streaming lidar hung the dense driver for the full test timeout).
+//
+// Instead of erroring on the very first empty read (which would also kill a
+// healthy scan that has a brief inter-packet gap), timeoutReader tolerates
+// short silences up to maxSilence, then returns ErrReadTimeout so a truly
+// stalled device still fails fast.
+type timeoutReader struct {
+	port       serial.Port
+	maxSilence time.Duration
+}
+
+func (t *timeoutReader) Read(p []byte) (int, error) {
+	var silence time.Duration
+	for {
+		n, err := t.port.Read(p)
+		if n > 0 || err != nil {
+			return n, err
+		}
+		// n == 0 && err == nil: the serial lib's timeout quirk.
+		silence += t.portReadTimeout()
+		if silence >= t.maxSilence {
+			return 0, fmt.Errorf("%w: serial read returned no data within %s", ErrReadTimeout, t.maxSilence)
+		}
+	}
+}
+
+// portReadTimeout reports the underlying port's configured read timeout (the
+// duration of a single (0, nil) empty read). It defaults to a small value if
+// the port doesn't expose one.
+func (t *timeoutReader) portReadTimeout() time.Duration {
+	if p, ok := t.port.(interface{ ReadTimeout() time.Duration }); ok {
+		return p.ReadTimeout()
+	}
+	return 250 * time.Millisecond
+}
+
+// newTimeoutReader wraps port in a timeoutReader. SetReadTimeout on the
+// underlying port controls the per-call wait; maxSilence bounds how long a
+// total silence is tolerated before erroring.
+func newTimeoutReader(port serial.Port, maxSilence time.Duration) *timeoutReader {
+	return &timeoutReader{port: port, maxSilence: maxSilence}
 }
 
 // parseDescriptor decodes a 7-byte response descriptor. Shared across scan

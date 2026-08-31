@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"go.bug.st/serial"
@@ -71,11 +72,15 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 		return fmt.Errorf("lidar: opening serial port %s: %w", d.cfg.Port, err)
 	}
 	d.port = port
-	d.reader = bufio.NewReader(port)
-	// Bound every subsequent Read (incl. readDescriptor's io.ReadFull) so a
-	// device that never answers the Express Scan request can't hang Connect
-	// forever.
-	if err := d.port.SetReadTimeout(connectReadTimeout); err != nil {
+	d.reader = bufio.NewReader(newTimeoutReader(port, scanReadTimeout))
+	// The serial port's per-call read timeout is kept short; the
+	// timeoutReader's maxSilence (scanReadTimeout) bounds a stalled read so a
+	// device that never answers the Express Scan request fails fast instead of
+	// hanging (go.bug.st/serial returns (0, nil) on timeout, which otherwise
+	// loops forever in bufio). scanReadTimeout is set above the C1's observed
+	// ~2.1s inter-scan gap (measured on hardware 2026-08-31) so a healthy
+	// scan assembles across bursts, while a truly dead device still errors.
+	if err := d.port.SetReadTimeout(250 * time.Millisecond); err != nil {
 		return fmt.Errorf("lidar: setting read timeout: %w", err)
 	}
 
@@ -87,6 +92,27 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 	if stopErr := d.Stop(ctx); stopErr != nil {
 		return fmt.Errorf("lidar: stopping prior scan session: %w", stopErr)
 	}
+
+	// Reboot the RPLIDAR core to a clean idle state. The sllidar SDK's
+	// connect sequence issues a RESET before starting a scan, and on the C1
+	// the Express Scan request is otherwise sometimes silently ignored
+	// (verified on hardware 2026-08-31: streaming only began reliably after
+	// a RESET + motor-start, matching the SDK's flow).
+	if resetErr := d.Reset(ctx); resetErr != nil {
+		return fmt.Errorf("lidar: resetting device: %w", resetErr)
+	}
+
+	// The C1 will not stream scan data unless its motor is spinning, so start
+	// it before requesting the scan (mirrors the sllidar SDK's startMotor()
+	// call inside startScanExpress). Without this the Express Scan request is
+	// silently ignored and the device returns no data (verified on hardware
+	// 2026-08-31).
+	if _, writeErr := d.port.Write(startMotorPacket()); writeErr != nil {
+		return fmt.Errorf("lidar: starting motor: %w", writeErr)
+	}
+	// The C1 ignores the Express Scan request until the motor is actually
+	// spinning, so wait for spin-up before issuing it (see motorSpinupDelay).
+	time.Sleep(motorSpinupDelay)
 
 	// Purge any measurement bytes the device already had queued on the wire
 	// before we sent STOP -- otherwise the descriptor read below picks up a
@@ -285,15 +311,24 @@ func (d *DenseSerialDriver) readScan() (Scan, error) {
 			resolved := resolveDenseCabins(*prev, cur.startAngleDeg)
 
 			if prev.startOfScan {
-				if started {
-					d.prev = &cur
-					d.pending = resolved
-					return points, nil
-				}
 				started = true
 			}
 			if started {
 				points = append(points, resolved...)
+
+				// The C1 Express/Dense stream only flags the start of a scan
+				// (S=1) on its first packet; subsequent packets never re-set
+				// S, so a scan can't be closed on a second S flag (verified on
+				// hardware 2026-08-31: S was true exactly once per stream).
+				// Instead the scan ends when the per-packet start angle wraps
+				// back toward 0 (i.e. drops below the previous packet's angle
+				// after having increased monotonically through 360deg). Close
+				// the scan on that wrap.
+				if prev.startAngleDeg > cur.startAngleDeg+180 {
+					d.prev = &cur
+					d.pending = resolved
+					return points, nil
+				}
 			}
 		}
 

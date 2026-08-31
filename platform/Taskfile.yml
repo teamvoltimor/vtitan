@@ -1089,7 +1089,7 @@ tasks:
       - cmd: |
           HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
-          REMOTE_DIR="\$HOME/vtitan/platform/robot/$OUT"
+          REMOTE_DIR="$OUT"
           LOCAL="$PWD/$OUT/$BIN"
           echo "shipping $LOCAL -> $HOST:$REMOTE_DIR/"
           powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'mkdir -p $REMOTE_DIR'"
@@ -1098,7 +1098,7 @@ tasks:
       - cmd: |
           HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; MODE="{{.SCAN_MODE}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
-          REMOTE_DIR="\$HOME/vtitan/platform/robot/$OUT"
+          REMOTE_DIR="$OUT"
           EXTRA=""
           if [ "$PKG" = "lidar" ]; then
             EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW"
