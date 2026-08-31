@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.config.navigation_tuning.blind_nav import CorridorFollowerParams
 
 
 class TurnSide(StrEnum):
@@ -58,6 +59,40 @@ class TurnSide(StrEnum):
 
     LEFT = "left"
     RIGHT = "right"
+
+
+def steer_cap_norm(commit_distance_m: float, follower: CorridorFollowerParams) -> float:
+    """Steering cap for a branch that commits its turn at ``commit_distance_m``.
+
+    ``MAX_CORNER_STEER_DEG`` is sized by geometry against one distance,
+    ``TURN_CLEARANCE_M``: the arc has to fit inside the room left ahead when the
+    turn is committed. Three branches commit at three different distances and
+    all three used that one angle, so two of them drive an arc that cannot fit
+    -- the same defect the 13.75 deg value had at 0.60 m, one level down.
+
+    Holding the radius proportional to the commit distance keeps the argument
+    and re-derives the angle::
+
+        tan(cap) = tan(MAX_CORNER_STEER_DEG) * TURN_CLEARANCE_M / d
+
+    At ``d = TURN_CLEARANCE_M`` this returns ``MAX_CORNER_STEER_DEG`` exactly,
+    so the measured wide-corner case is untouched and only the shorter commits
+    move. The ratio form also cancels the ``(1 + REAR_STEER_RATIO) * YAW_GAIN``
+    factor in the radius, so it inherits the anchor's calibration rather than
+    depending on those two separately.
+
+    Args:
+        commit_distance_m: Forward clearance at which this branch commits.
+        follower: Tuning group holding the anchor angle and its distance.
+
+    Returns:
+        Normalised steering magnitude, clamped to the servo's reach.
+    """
+    anchor_rad = math.radians(follower.MAX_CORNER_STEER_DEG)
+    if not follower.STEER_CAP_FROM_COMMIT_DISTANCE or commit_distance_m <= 0.0:
+        return angle_rad_to_steering_norm(anchor_rad, RobotSpecs.MAX_STEERING_ANGLE)
+    scaled = math.atan(math.tan(anchor_rad) * follower.TURN_CLEARANCE_M / commit_distance_m)
+    return angle_rad_to_steering_norm(min(scaled, RobotSpecs.MAX_STEERING_ANGLE), RobotSpecs.MAX_STEERING_ANGLE)
 
 
 def _way_through(
@@ -159,12 +194,17 @@ def follow_corridor(
     # TURN_CLEARANCE_M, the other by the 2026-08-07 limit cycle, and after the
     # simulator was calibrated those two wanted opposite values. See
     # MAX_CORNER_STEER_DEG.
-    max_corner = angle_rad_to_steering_norm(
-        math.radians(follower.MAX_CORNER_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE
-    )
+    #
+    # They then took the SAME value anyway, because one constant was applied to
+    # branches that commit at three different distances -- so lowering it to
+    # 21.25 deg on 2026-08-30 to make the corner arc fit 0.60 m also cut the
+    # back-off branch, which commits at 0.30 m and is where the colliding runs
+    # spend 59% of their creep ticks. Each branch now derives its own cap from
+    # its own commit distance; see steer_cap_norm.
     turn_clearance = follower.TURN_CLEARANCE_M
     if believed_width_m is not None and classify_width(believed_width_m) == CorridorDimensions.NARROW:
         turn_clearance = follower.NARROW_TURN_CLEARANCE_M
+    max_corner = steer_cap_norm(turn_clearance, follower)
     min_forward_clearance = follower.MIN_FORWARD_CLEARANCE_M
     min_reverse_clearance = follower.MIN_REVERSE_CLEARANCE_M
 
@@ -183,7 +223,19 @@ def follow_corridor(
         # the inverted sign walks the nose toward the open side instead of
         # further into the wall it is against.
         turn_left = forced_turn_side == TurnSide.LEFT if forced_turn_side is not None else left > right
-        steering = max_corner if turn_left else -max_corner
+        # Sized by MIN_FORWARD_CLEARANCE_M, not the corner's clearance: this
+        # branch has already let the wall get closer than the corner branch
+        # ever commits at, so the arc it needs is correspondingly tighter. On a
+        # rear-free chassis the fallback below drives FORWARD under this angle,
+        # which is the comment's "full lock" -- at the corner cap it was a
+        # quarter of it, on a radius half again too wide to clear the wall.
+        backoff_cap = steer_cap_norm(min_forward_clearance, follower)
+        steering = backoff_cap if turn_left else -backoff_cap
+        # Re-measured 2026-08-31: the rear slot is back (~40 deg at +/-160..180),
+        # so this is no longer "always None" and the reverse below is now the
+        # normal path rather than dead code. The refusal reasoning stands for
+        # bearings still inside the wedges.
+        #
         # None means the rear sector is unreadable on this mount, which is NOT
         # permission to reverse into it. Was a single raw ray straight back,
         # which cannot distinguish "open" from "occluded": the occlusion wedges

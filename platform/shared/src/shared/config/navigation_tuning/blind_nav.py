@@ -152,6 +152,51 @@ class CorridorFollowerParams(BaseModel):
     ``max_wheel_angle_deg`` goes back to being what it should be: a statement
     about the servo's reach, which changes where saturation happens and
     nothing else.
+        STEER_CAP_FROM_COMMIT_DISTANCE: Scale the steering cap by the distance
+            the branch actually commits at, instead of applying
+            MAX_CORNER_STEER_DEG to all three.
+
+            The geometry argument above fixes the cap against
+            TURN_CLEARANCE_M = 0.60. Two other branches commit at shorter
+            distances and inherited the same angle, so the turn they drive
+            cannot fit for exactly the reason the 13.75 deg value could not fit
+            0.60:
+
+            ===================================  ========  =======================
+            branch                               commit    radius at 21.25 deg
+            ===================================  ========  =======================
+            corner, wide corridor (anchor)       0.60 m    0.444 m  fits
+            corner, NARROW_TURN_CLEARANCE_M      0.40 m    0.444 m  DOES NOT FIT
+            back-off, MIN_FORWARD_CLEARANCE_M    0.30 m    0.444 m  1.5x too wide
+            ===================================  ========  =======================
+
+            Holding radius proportional to the commit distance gives
+            ``tan(cap) = tan(MAX_CORNER_STEER_DEG) * TURN_CLEARANCE_M / d``,
+            which reproduces 21.25 deg exactly at 0.60 m -- so the wide-corner
+            case, the only one that has been measured, does not move -- and
+            yields 30.2 deg at 0.40 m and 37.9 deg at 0.30 m. Note the ratio
+            form cancels ``(1 + REAR_STEER_RATIO) * YAW_GAIN``, so it does not
+            depend on those being right, only on the anchor being right.
+
+            Measured 2026-08-31 over the 640-case Open space: all 18 collisions
+            hit the OUTER wall and none hit the inner block, so the error is
+            always "turned too late", never "too tight" -- there is clearance
+            to spare on the inside and a tighter cap is the low-risk direction.
+            Those runs spend 3943 of 6657 blind creep ticks (59%) in the
+            back-off branch against 676 in the corner branch, which is why the
+            back-off distance is the one that matters most here.
+
+            Measured 2026-08-31 over the full 640-case space: 596 -> 612 ok,
+            collisions 18 -> 3, zero new collisions, inner-block 0 -> 0, sim
+            time mean -0.01 s. The 3 survivors are exactly the 3 runs that
+            logged no corner-branch and no back-off ticks.
+
+            37.9 deg is commandable: ``max_wheel_angle_deg`` = 85.0 on the
+            current servo IS a true road-wheel angle (confirmed 2026-08-31; the
+            previous servo's was 180). The remaining unknown is understeer --
+            the chassis turns wider than the bicycle model at a given angle --
+            but that error is in the safe direction, since it makes this cap
+            under-correct rather than over-correct. NOT track-validated.
         CORNER_SPEED_SCALE: Fraction of creep speed while turning a corner
             blind, which is committed on one comparison rather than a plan.
         REVERSE_SPEED_SCALE: Fraction of creep speed while backing off.
@@ -208,6 +253,9 @@ class CorridorFollowerParams(BaseModel):
     HEADING_GAIN: float = Field(default=0.767945, validation_alias=_alias("HEADING_GAIN"))
     MAX_CENTERING_STEER_DEG: float = Field(default=13.75, validation_alias=_alias("MAX_CENTERING_STEER_DEG"))
     MAX_CORNER_STEER_DEG: float = Field(default=21.25, validation_alias=_alias("MAX_CORNER_STEER_DEG"))
+    STEER_CAP_FROM_COMMIT_DISTANCE: bool = Field(
+        default=True, validation_alias=_alias("STEER_CAP_FROM_COMMIT_DISTANCE")
+    )
     CORNER_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("CORNER_SPEED_SCALE"))
     REVERSE_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("REVERSE_SPEED_SCALE"))
     TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))

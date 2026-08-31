@@ -132,6 +132,49 @@ max_centering_steer_deg = 13.75
 # that intent restored on the current hardware rather than a new guess.
 max_corner_steer_deg = 21.25
 
+# Scale that cap by the distance each branch actually commits at, instead of
+# applying max_corner_steer_deg to all three of them.
+#
+# The geometry argument above is anchored on ONE distance, turn_clearance_m =
+# 0.60. Two other branches commit closer and inherited the same angle, so the
+# arc they drive cannot fit -- the same defect the 13.75 deg value had at
+# 0.60 m, one level down:
+#
+#   corner, wide corridor (the anchor)   0.60 m   fits
+#   corner, narrow_turn_clearance_m      0.40 m   does NOT fit
+#   back-off, min_forward_clearance_m    0.30 m   1.5x too wide
+#
+# So lowering this constant to 21.25 on 2026-08-30 to make the corner arc fit
+# also cut the back-off branch, where colliding runs spend 59% of their creep
+# ticks (3943 of 6657, against 676 in the corner branch). On a rear-free
+# chassis that branch drives FORWARD under this angle -- its comment calls it
+# "full lock" and it was a quarter of it.
+#
+# Holding radius proportional to the commit distance gives
+# tan(cap) = tan(max_corner_steer_deg) * turn_clearance_m / d, which returns
+# 21.25 deg at 0.60 m -- so the one case that has actually been measured does
+# not move -- and 30.26 deg at 0.40 m, 37.87 deg at 0.30 m. The ratio form
+# cancels (1 + rear_steer_ratio) * yaw_gain, so it inherits the anchor's
+# calibration rather than depending on those two separately.
+#
+# Measured 2026-08-31 over the FULL 640-case Open space (every layout, section,
+# direction and legal start cell): 596 -> 612 ok, collisions 18 -> 3, ZERO new
+# collisions, inner-block collisions 0 -> 0, and sim time mean -0.01 s with
+# 587 of 596 cases identical. It is the only change of the session that buys
+# cases for free; it re-sizes a turn rather than adding caution.
+#
+# The 3 collisions that survive are exactly the 3 runs that logged zero
+# corner-branch and zero back-off ticks, so the fix repaired every collision
+# routed through the branches it touches and none of the others.
+#
+# 37.87 deg is commandable: max_wheel_angle_deg is 85.0 on the current servo
+# and that is a true ROAD-WHEEL angle (confirmed 2026-08-31; the previous
+# servo's was 180). Understeer is the remaining unknown -- the real chassis
+# turns wider than the bicycle model at a given angle -- but that error is in
+# the safe direction here, since it means this cap under-corrects rather than
+# over-corrects. NOT yet validated on track.
+steer_cap_from_commit_distance = true
+
 # Fraction of creep speed while turning a corner blind. Slower than straight
 # running, because the turn is committed on one comparison rather than a plan.
 corner_speed_scale = 0.6

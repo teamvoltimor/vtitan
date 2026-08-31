@@ -142,23 +142,48 @@ class TestSafety:
         assert cmd.speed_mps < 0.0, "did not back off from a wall inside chassis length"
 
     def test_refuses_to_back_off_when_the_rear_cannot_be_measured(self, tuning) -> None:
-        """Same scan, shipped wedges: unreadable behind is not permission to reverse.
+        """Unreadable behind is not permission to reverse.
 
-        The scan says 2.0 m of clear road behind, and on the shipped mount that
-        bearing is occluded, so the reading is not a measurement -- the gateway
-        substitutes max range for a no-return and the old single-ray gate read
-        it as open track. Refusing costs a back-off the robot might have got
-        away with; accepting costs a reverse into whatever is actually there.
+        The masked bearings say 2.0 m of clear road behind, and that is not a
+        measurement -- the gateway substitutes max range for a no-return, and
+        the old single-ray gate read it as open track. Refusing costs a back-off
+        the robot might have got away with; accepting costs a reverse into
+        whatever is actually there.
+
+        The rear is made unreadable the way the mount actually makes it
+        unreadable, rather than by assuming a particular wedge width. Measured
+        2026-08-31 across three bags, an occluded bearing returns 0.006-0.04 m
+        off the mount's own structure -- so the readable part of the sector is
+        given a self-detection return and only the masked part gets the
+        deceptive 2.0 m. Before that measurement this test set 2.0 m across the
+        whole sector and passed only because the shipped wedges masked all of
+        it; when the wedges narrowed to the measured -155..-120 / 120..160 it
+        started authorising a reverse, which is the premise changing rather
+        than the safety property.
         """
         close = RobotSpecs.LENGTH - 0.05
+        sectors = tuning.lidar_sectors
+        occluded = sectors.SELF_DETECTION_THRESHOLD_M / 2.0
+
+        def masked(deg: float) -> bool:
+            return (
+                sectors.BLIND_WEDGE_LEFT_MIN_DEG <= deg <= sectors.BLIND_WEDGE_LEFT_MAX_DEG
+                or sectors.BLIND_WEDGE_RIGHT_MIN_DEG <= deg <= sectors.BLIND_WEDGE_RIGHT_MAX_DEG
+            )
 
         def rng(a: float) -> float:
             if abs(a) < math.radians(10):
                 return close
             if abs(a - math.radians(30)) < math.radians(15):
                 return 3.0
-            if abs(_wrap_pi(a - math.pi)) < math.radians(20):
-                return 2.0  # "clear" behind -- but unreadable on this mount
+            # The WHOLE rear sector, read from tuning rather than a hardcoded
+            # arc: a ray just outside it still counts as rear evidence, and
+            # covering only part of the sector leaves valid rays behind that
+            # authorise the reverse this test exists to forbid.
+            if abs(_wrap_pi(a - math.pi)) <= math.radians(sectors.THREAT_HALF_FOV_DEG):
+                # Masked bearings carry the substituted max-range lie; the rest
+                # of the sector is genuinely blocked by the mount.
+                return 2.0 if masked(math.degrees(_wrap_pi(a))) else occluded
             return 0.9
 
         angles = _bearings()
