@@ -1071,11 +1071,16 @@ tasks:
       robot-go:hw:stop. Usage:
       task robot-go:hw:run PKG=lidar HOST=rpi-5-local
       (PKG=motor|imu|lidar|ssd1306). For lidar, LIDAR_YAW_OFFSET_DEG defaults
-      to -85 (the measured C1 mounting offset); override via YAW_OFFSET=.
+      to -85 (the measured C1 mounting offset); override via YAW_OFFSET=. For
+      lidar, SCAN_MODE=dense selects the DenseSerialDriver (8-bearing test +
+      range decode expected to read correctly, unlike classic); omit for
+      classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
+      robot-go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
     vars:
       PKG: '{{.PKG | default "lidar"}}'
       HOST: '{{.HOST | default "rpi-5-local"}}'
       YAW_OFFSET: '{{.YAW_OFFSET | default "-85"}}'
+      SCAN_MODE: '{{.SCAN_MODE | default ""}}'
       OUT: '{{.OUT | default "dist/hw-interactive"}}'
     cmds:
       - task: robot-go:hw:stop
@@ -1090,11 +1095,14 @@ tasks:
           scp "$OUT/$BIN" "$HOST:$REMOTE_DIR/"
           ssh "$HOST" "chmod +x $REMOTE_DIR/$BIN && echo shipped OK"
       - cmd: |
-          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; MODE="{{.SCAN_MODE}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
           REMOTE_DIR="\$HOME/vtitan/platform/robot/$OUT"
           EXTRA=""
-          if [ "$PKG" = "lidar" ]; then EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW"; fi
+          if [ "$PKG" = "lidar" ]; then
+            EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW"
+            if [ -n "$MODE" ]; then EXTRA="$EXTRA LIDAR_SCAN_MODE=$MODE"; fi
+          fi
           echo "running $BIN on $HOST (TTY required for operator prompts)..."
           ssh -t "$HOST" "cd ~/vtitan/platform/robot && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW"
 
