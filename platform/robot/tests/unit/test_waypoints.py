@@ -441,23 +441,27 @@ class TestUnconfirmedWidthInnerBias:
             sample_metadata_open, num_laps=1, tuning=tuning, unconfirmed_sections=frozenset(Section)
         ) != calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
 
-    def test_the_shipped_value_does_not_tighten_the_corner_arc(self, tuning) -> None:
-        """The 0.15 regression was the arc coupling; the shipped value must clear it.
+    def test_the_arc_is_invariant_to_this_field(self, tuning) -> None:
+        """The corner arc must keep reading the CONFIRMED bias at any magnitude.
 
-        ``corner_arc_radius`` is ``max(W)/2 - center_bias``, so this bias
-        shrinks the lap-1 arc as well as moving the straight. 0.05 is chosen as
-        the largest magnitude at which the ``ARC_RADIUS`` cap still binds and
-        the coupling stays inert -- if either the bias or the cap moves so that
-        it no longer does, the measured result no longer applies and this fails
-        rather than silently re-introducing the -16-case arm.
+        ``calculate_waypoints`` sizes each corner with a bias computed without
+        ``confirmed=``, so the arc sees the confirmed value and this field can
+        only move the straight. That separation is load-bearing: the arc is
+        sized by geometry (it has to fit inside the commit clearance) while
+        this field is sized by a belief, and coupling them would make a
+        pre-positioning tweak silently retune corner entry.
+
+        Pinned across magnitudes well past anything shippable, because the
+        version of this test it replaces asserted the property of a
+        hand-constructed ``corner_arc_radius`` call rather than of the code
+        path, and so would have passed even if the two were coupled.
         """
-        params = tuning.waypoints
-        assert corner_arc_radius(
-            CorridorDimensions.WIDE,
-            CorridorDimensions.WIDE,
-            params.UNCONFIRMED_WIDTH_INNER_BIAS_M,
-            params.ARC_RADIUS,
-        ) == pytest.approx(params.ARC_RADIUS)
+        for magnitude in (0.0, 0.05, 0.15, 0.30):
+            armed = self._armed(tuning, magnitude)
+            for width in (CorridorDimensions.NARROW, CorridorDimensions.WIDE):
+                assert center_bias_for_corridor(width, armed, None) == pytest.approx(
+                    center_bias_for_corridor(width, tuning, None)
+                )
 
     def test_none_and_empty_agree(self, sample_metadata_open, tuning) -> None:
         """"Nothing to say" and "everything confirmed" are the same statement."""

@@ -216,25 +216,30 @@ class WaypointParams(BaseModel):
     - confirms WIDE:   inward, onto the wide line
     - confirms NARROW: outward, into the side measured to have 0.435 m spare
 
-    **0.05 is a ceiling set by a coupling, not a cautious round-down.**
-    ``corner_arc_radius`` is ``max(W_entry, W_exit)/2 - center_bias``, so this
-    bias tightens the lap-1 corner as well as moving the straight -- the same
-    "separation and corner sharpness are one number pulling two ways" trade
-    ``NARROW_CENTER_BIAS_M`` documents. At 0.05 the ``ARC_RADIUS`` cap (0.45)
-    still binds and the coupling is inert; at 0.10 the arc falls to 0.400 m and
-    at 0.15 to 0.350 m.
-
+    **The ceiling is CLEARANCE, and 0.05 is not known to be the optimum.**
     Measured at 0.15 on balanced128: **-16 cases** (18 worse, 2 better), almost
-    all ``ok -> incomplete``. Incomplete rather than collision means a corner
-    that can no longer be settled, i.e. the tightened arc, not the spent
-    clearance -- though 0.15 also leaves a true narrow corridor only 0.053 m of
-    inner margin against the ~0.07 m of inward tracking drift measured on
-    run_20260829_020308, so both costs are real at that magnitude.
+    all ``ok -> incomplete``. 0.15 leaves a corridor that really is narrow only
+    ``0.6/2 - 0.15 - RobotSpecs.WIDTH/2`` = 0.053 m of inner margin, against
+    the ~0.07 m of inward tracking drift measured on run_20260829_020308 --
+    i.e. negative margin. The chassis is pressed toward the inner block, which
+    reads as dithering and a lost round rather than a clean collision.
 
-    Raising this therefore requires DECOUPLING the arc first (pass the
-    confirmed bias to ``corner_arc_radius`` while the straight uses this one).
-    Until then the step is only shortened 0.30 -> 0.25, not the ~0.10 the
-    budget would otherwise allow.
+    This bias does NOT touch the corner arc, despite the coupling
+    ``NARROW_CENTER_BIAS_M`` documents. ``calculate_waypoints`` passes
+    ``corner_arc_radius`` a bias computed WITHOUT ``confirmed=``, so the arc
+    always sees the confirmed value and is invariant to this field at every
+    magnitude (pinned by ``test_the_arc_is_invariant_to_this_field``). An
+    earlier version of this docstring claimed 0.10 and 0.15 tightened the arc
+    to 0.400/0.350 m and that raising the field required decoupling it first.
+    That was wrong: the arc was already decoupled, and the 0.15 result is the
+    clearance cost alone.
+
+    So the practical ceiling is ``width/2 - RobotSpecs.WIDTH/2`` = 0.203 m less
+    the tracking drift, i.e. around 0.13 -- and **0.10 is simply untested**. It
+    was skipped on the mistaken coupling argument above, not on evidence. The
+    dose-response measured either side of 0.05 (0.025 is -9 cases against it,
+    0.0 is -13) is still climbing at 0.05, so a value between it and the
+    clearance ceiling may well be better. Measure before assuming otherwise.
 
     Complementary to ``REPLAN_BLEND_TICKS``, which changes how the step is
     APPLIED rather than how big it is; that one is also due a re-test, having

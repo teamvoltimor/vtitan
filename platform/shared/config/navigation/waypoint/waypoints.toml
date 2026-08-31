@@ -97,13 +97,16 @@ narrow_center_bias_m = 0.0
 # Inner bias for a narrow corridor still on the PRIOR rather than a measurement.
 # 0.0 = inert, i.e. an unconfirmed corridor takes narrow_center_bias_m as before.
 #
-# 0.05 is NOT a rounded-down guess -- it is the largest value that does not also
-# tighten the corner. corner_arc_radius is max(W)/2 - center_bias, so this bias
-# shrinks the lap-1 arc as well as moving the straight; at 0.05 the arc_radius
-# cap (0.45) still binds and the coupling is inert, at 0.10 the arc drops to
-# 0.40 and at 0.15 to 0.35. Measured: 0.15 LOSES 16 cases on balanced128
-# (18 worse, 2 better), almost all ok -> incomplete, which is a corner that can
-# no longer be settled rather than a wall being hit.
+# The ceiling is CLEARANCE, and 0.05 is not known to be the optimum. Measured:
+# 0.15 LOSES 16 cases on balanced128 (18 worse, 2 better), almost all
+# ok -> incomplete -- it leaves a corridor that really is narrow only 0.053 m of
+# inner margin against ~0.07 m of measured inward tracking drift, so the chassis
+# is pressed toward the inner block and dithers.
+#
+# This bias does NOT touch the corner arc: calculate_waypoints passes
+# corner_arc_radius the CONFIRMED bias, so the arc is invariant to this field.
+# 0.10 is untested -- it was skipped on a mistaken arc-coupling argument, not on
+# evidence, and the dose-response is still climbing at 0.05.
 #
 # A blind round starts believing every corridor narrow, and both hypotheses share
 # the fixed OUTER wall, so the whole width error becomes a lateral shift of the
