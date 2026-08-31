@@ -26,7 +26,7 @@ import (
 func TestHW_LIDAR_UART(t *testing.T) {
 	port := os.Getenv("LIDAR_TTY")
 	if port == "" {
-		port = "/dev/ttyAMA1"
+		port = "/dev/ttyUSB0"
 	}
 	cfg := lidar.Config{Port: port, BaudRate: lidar.DefaultBaudRate}
 
