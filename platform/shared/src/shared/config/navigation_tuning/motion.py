@@ -36,7 +36,7 @@ class ClearanceZones(BaseModel):
     PATH_MARGIN: float = Field(default=0.10, validation_alias=_alias("PATH_MARGIN"))  # Forward-path margin
 
     FORWARD_NO_DATA_IS_DEGRADED: bool = Field(
-        default=False, validation_alias=_alias("FORWARD_NO_DATA_IS_DEGRADED")
+        default=True, validation_alias=_alias("FORWARD_NO_DATA_IS_DEGRADED")
     )
     """Treat an UNREADABLE forward cone as a degraded sensor, not as open road.
 
@@ -69,9 +69,30 @@ class ClearanceZones(BaseModel):
     open (``rear_sector().measured``); this is the same fix for the front, which
     never had it. See ``CollisionAvoidanceController.front_sector``.
 
-    Defaults False -- the simulator cannot exercise this path (contact is
-    absorbing, so a run ends before the robot can be wedged), so it ships off
-    until hardware confirms it. NOT yet track-validated.
+    **Defaults True, on a measured false-positive rate of zero.** Replayed over
+    the recorded bags, the forward cone is unmeasured in **0 of 847 scans** of
+    the clean 3-lap run (run_20260830_182505) and in **62.7% / 66.1%** of the
+    two failing runs. So it never fires on a healthy round and fires on two
+    thirds of a wedged one -- there is no crawl-the-whole-race cost to weigh
+    against it.
+
+    Covers BOTH consumers of forward clearance. ``CoreNavigator.step`` treats an
+    unmeasured cone as the degraded sensor it is; ``EscapeRecovery`` gates
+    ``forward_open`` on it, because without that the escape reads 10 m, passes
+    ``forward_clear >= CONTACT_DIST``, and chooses STUCK_FORWARD *into* the wall
+    it is already touching -- which is what both failing runs recorded. Fixing
+    only the navigator yields a slower crash, not a recovery.
+
+    The simulator cannot validate any of this: contact is absorbing, so a run
+    ends before the robot can be wedged, and the state is unreachable there. An
+    A/B returns identical arms -- the dead end that cost two 256-scenario runs
+    on MAX_CORNER_STEER_DEG. Evidence is the unit tests plus the bag replay
+    above. NOT track-validated.
+
+    Fixes RECOVERABILITY, not cause. The robot drives into the corner because
+    longitudinal pose is unobservable in a corridor (pose_x wanders 0.24-0.38 m
+    while the chassis is stationary, pose_y 0.01 m). This stops it grinding
+    there at 0.24 m/s afterwards believing the road is clear.
     """
 
 

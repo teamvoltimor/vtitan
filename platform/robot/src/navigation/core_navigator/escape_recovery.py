@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from collections import deque
 
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.config.navigation_tuning.motion import ClearanceZones
 
     from src.navigation.control.controllers import (
         CollisionAvoidanceController,
@@ -47,6 +48,9 @@ class EscapeRecovery:
 
     # State owned by the CoreNavigator subclass; declared here for type-checking.
     _tuning: NavigationTuning
+    # Per-challenge-resolved clearance zones. Read these rather than
+    # `_tuning.clearance` -- CONTACT_DIST may carry an Obstacles override.
+    _clearance: ClearanceZones
     _gateway: HardwareGateway
     _collision_controller: CollisionAvoidanceController
     _waypoint_controller: WaypointController
@@ -154,7 +158,7 @@ class EscapeRecovery:
         # made this gate unreachable: the sensor is at the front, so an obstacle
         # touching the rear bumper reports ~0.272 m against a 0.10 m threshold
         # and the reverse was authorised right up to the moment of impact.
-        return bumper_gap_behind(rear.min_range_m) < self._tuning.clearance.CONTACT_DIST
+        return bumper_gap_behind(rear.min_range_m) < self._clearance.CONTACT_DIST
 
     def _trail_confirms_reverse(self, reverse_distance: float) -> bool:
         """Whether the pose trail vouches for a reverse of ``reverse_distance``.
@@ -172,7 +176,7 @@ class EscapeRecovery:
             return False
         trail_x, trail_y, trail_yaw = self._pose_trail[-1]
         covered = trail_clearance_behind(self._pose_trail, trail_x, trail_y, trail_yaw)
-        return covered is not None and covered >= reverse_distance + self._tuning.clearance.CONTACT_DIST
+        return covered is not None and covered >= reverse_distance + self._clearance.CONTACT_DIST
 
     def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
         """Latch an escape maneuver so it executes for its full duration."""
@@ -340,6 +344,7 @@ class EscapeRecovery:
         rear_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
         forward_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
         rear_blind = False
+        forward_blind = False
         scan = self._gateway.get_lidar_scan()
         if scan:
             # A rear sector that measured nothing reports the same 10 m as a
@@ -355,12 +360,17 @@ class EscapeRecovery:
             # survives the conversion -- 10 m less either datum is still open
             # road -- so the no-scan branch keeps its "assume clear" meaning.
             rear_clear = bumper_gap_behind(rear.min_range_m)
-            forward_clear = bumper_gap_ahead(
-                self._collision_controller.compute_forward_clearance(
-                    scan.ranges_m,
-                    scan.angles_rad,
-                )
-            )
+            # The front needs the SAME distinction the rear has above, and for
+            # the same reason: an unreadable forward cone reports NO_DATA_RANGE_M
+            # and is indistinguishable from open road. Measured on hardware
+            # 2026-08-31 (run_20260831_205208/_205235) -- wedged against a wall,
+            # every forward ray fell below min_valid_range_m, forward_clear read
+            # ~10 m, `forward_clear >= CONTACT_DIST` passed, and this chose
+            # STUCK_FORWARD: it escaped INTO the wall it was already touching,
+            # then stood down. `maneuver types seen: stuck_forward`, 0 laps.
+            front = self._collision_controller.front_sector(scan.ranges_m, scan.angles_rad)
+            forward_blind = not front.measured
+            forward_clear = bumper_gap_ahead(front.min_range_m)
         # Blind behind is a reason to prefer forward, but only when forward is
         # actually open. Treating it as flatly "blocked" would leave a chassis
         # with no rear vision at all frozen in every corner where both ends
@@ -387,12 +397,19 @@ class EscapeRecovery:
         blind_rear_unconfirmed = rear_blind and not self._trail_confirms_reverse(
             reverse_distance=stuck_reverse_distance
         )
+        # "Forward is open" must mean MEASURED open, not merely a large number.
+        # Without the second term a blind forward cone reads 10 m and every test
+        # below passes, which is how the robot came to escape forward into a wall
+        # it was touching. Gated so the flag alone decides whether this is live.
+        forward_open = forward_clear >= self._clearance.CONTACT_DIST and not (
+            self._clearance.FORWARD_NO_DATA_IS_DEGRADED and forward_blind
+        )
         if (
-            rear_clear < self._tuning.clearance.CONTACT_DIST
-            or (rear_blind and forward_clear >= self._tuning.clearance.CONTACT_DIST)
+            rear_clear < self._clearance.CONTACT_DIST
+            or (rear_blind and forward_open)
             or blind_rear_unconfirmed
         ):
-            if forward_clear >= self._tuning.clearance.CONTACT_DIST:
+            if forward_open:
                 logger.warning(
                     "Stuck escape: rear %s (%.2f m), forward clear (%.2f m) - forcing forward escape",
                     "unseen" if rear_blind else "blocked",
