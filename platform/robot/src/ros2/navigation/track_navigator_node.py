@@ -14,6 +14,7 @@ import json
 import logging
 import math
 import statistics
+import traceback
 from pathlib import Path
 from typing import Any, cast, override
 
@@ -1202,7 +1203,11 @@ class TrackNavigator(Node, ResettableNode):
         try:
             self.reset()
         except Exception:
-            self.get_logger().error("Race start reset FAILED - navigator holding", exc_info=True)
+            # rclpy's logger is NOT the stdlib one: it accepts only its own
+            # filter kwargs and raises TypeError on `exc_info`, from inside the
+            # except block, which kills the node this handler exists to keep
+            # alive. Format the traceback into the message instead.
+            self.get_logger().error(f"Race start reset FAILED - navigator holding\n{traceback.format_exc()}")
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return
         self.get_logger().info("Race started - heading reference zeroed, navigator driving")
@@ -1370,7 +1375,10 @@ class TrackNavigator(Node, ResettableNode):
             # gives it away. Stop, log the traceback, and let the next tick try
             # again -- a navigator that holds is recoverable, one that is gone
             # is not, and the traceback is the thing that was missing.
-            self.get_logger().error("Unexpected error in control loop - holding", exc_info=True)
+            #
+            # `exc_info=True` here raised TypeError from inside this handler and
+            # killed the node anyway -- see the note on the race-start reset.
+            self.get_logger().error(f"Unexpected error in control loop - holding\n{traceback.format_exc()}")
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
         finally:
             if self._width_estimator is not None:

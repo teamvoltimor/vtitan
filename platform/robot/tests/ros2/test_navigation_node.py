@@ -703,6 +703,39 @@ class TestControlLoop:
         finally:
             navigator.destroy_node()
 
+    def test_unnamed_exception_from_step_is_caught_and_stops_the_motors(
+        self, tmp_path, sample_metadata_open, ros_context
+    ):
+        """The catch-all handler must hold, not re-raise from inside itself.
+
+        The two tests above only exercise the named ``RuntimeError`` and
+        ``ValueError`` handlers. The broad ``except Exception`` had no test, and
+        it logged with ``exc_info=True`` -- a stdlib logging kwarg that rclpy's
+        logger rejects with ``TypeError``, raised from inside the except block.
+        The guard therefore converted every unnamed exception into a fatal one.
+
+        Measured on hardware 2026-09-01 (run_20260901_075151): an AttributeError
+        in the escape path reached this handler, the handler raised TypeError,
+        and the node died mid-race -- /nav_debug stopped at 3.47 s while every
+        other node ran the full 21.2 s. AttributeError is used here because that
+        is the exception that actually did it.
+        """
+        navigator = TrackNavigator(metadata_path=_write_metadata(tmp_path, sample_metadata_open), num_laps=1)
+        try:
+            navigator._racing = True
+            with (
+                mock.patch.object(
+                    navigator._core_navigator,
+                    "step",
+                    side_effect=AttributeError("'CoreNavigator' object has no attribute '_clearance'"),
+                ),
+                mock.patch.object(navigator._gateway, "publish_drive") as publish_mock,
+            ):
+                navigator._control_loop()  # must not propagate
+            publish_mock.assert_called_once_with(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+        finally:
+            navigator.destroy_node()
+
 
 class TestReset:
     """``reset()`` is what actually runs at every RACING transition, not just node startup."""
