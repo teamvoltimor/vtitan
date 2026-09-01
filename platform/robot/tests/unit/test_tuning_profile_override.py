@@ -41,17 +41,29 @@ def _corridor_scan(left_m: float, right_m: float) -> list[float]:
 
 
 def test_corridor_follower_respects_tuning_override(override_tuning) -> None:
-    """Doubling CENTERING_GAIN_DEG_PER_M must double the steering follow_corridor commands."""
+    """Doubling CENTERING_GAIN_DEG_PER_M must double the steering follow_corridor commands.
+
+    The base gain is stated here rather than read from the shipped tuning. The
+    shipped value has been deliberately 0.0 since 2026-08-22 -- the blind creep
+    holds heading instead of chasing the centreline -- so doubling it doubles
+    nothing, both calls return -0.0, and the "off-centre scan should steer"
+    guard fails on correct config. What this pins is that the OVERRIDE reaches
+    corridor_follower at all; the shipped gain's value is a separate question,
+    already pinned by test_tuning_fields_not_none's DELIBERATELY_ZERO entry.
+    """
     default_tuning = NavigationTuning.load_default()
-    base_gain = default_tuning.corridor_follower.CENTERING_GAIN_DEG_PER_M
+    base_gain = 5.0
 
     # Off-centre, so the centering term has an offset to act on. The doubled
     # gain must stay under STEERING_CAP or both calls saturate to the same
     # number and the assertion passes without the override doing anything.
     ranges_m = _corridor_scan(left_m=0.35, right_m=0.65)
 
-    default_cmd = follow_corridor(
-        ranges_m=ranges_m, angles_rad=_ANGLES_RAD, speed_mps=0.1, tuning=default_tuning
+    base_cmd = follow_corridor(
+        ranges_m=ranges_m,
+        angles_rad=_ANGLES_RAD,
+        speed_mps=0.1,
+        tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": base_gain}),
     )
     doubled_cmd = follow_corridor(
         ranges_m=ranges_m,
@@ -60,8 +72,8 @@ def test_corridor_follower_respects_tuning_override(override_tuning) -> None:
         tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": base_gain * 2.0}),
     )
 
-    assert default_cmd.steering_norm != 0.0, "off-centre scan should steer back to the middle"
-    assert doubled_cmd.steering_norm == pytest.approx(default_cmd.steering_norm * 2.0)
+    assert base_cmd.steering_norm != 0.0, "off-centre scan should steer back to the middle"
+    assert doubled_cmd.steering_norm == pytest.approx(base_cmd.steering_norm * 2.0)
 
 
 def test_centred_corridor_steers_straight_at_any_gain(override_tuning) -> None:

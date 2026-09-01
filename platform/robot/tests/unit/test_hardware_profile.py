@@ -121,7 +121,12 @@ class TestRobotConstantsProfileOverlay:
         mixed = RobotConstants.load_default()
 
         assert mixed.steering.max_wheel_angle_deg == pytest.approx(55.0)
-        assert mixed.drivetrain.max_speed_mps == pytest.approx(0.234)
+        # Both literals track the profile files they come from. max_speed_mps
+        # was 0.234 until 3df130e3 raised the estimate to 1.0; the test kept the
+        # old number and has failed since. If a profile is re-measured, this
+        # moves with it -- the assertion is that the NAMED motor's value wins,
+        # not that the value is any particular one.
+        assert mixed.drivetrain.max_speed_mps == pytest.approx(1.0)
 
     def test_load_default_profile_overlay_leaves_untouched_sections_at_base_values(self, monkeypatch):
         monkeypatch.setenv("VTITAN_HARDWARE_PROFILE", "180deg-injora-14kg,generic-motor-1500rpm")
@@ -146,14 +151,22 @@ class TestRobotConstantsProfileOverlay:
 
         The overlay must declare every component fact the base file no longer
         does, so this rig stands in for a complete servo + motor pair; the
-        assertion is that ``max_accel_mps2`` (declared only in the base) still
+        assertion is that ``yaw_gain`` (declared only in the base) still
         survives the merge.
+
+        ``max_accel_mps2`` and ``speed_response_tau_s`` used to be the base's
+        and were the inheritance being checked here. They have since moved into
+        the motor profiles alongside ``max_speed_mps`` -- the base [drivetrain]
+        now declares only ``rear_steer_ratio`` and ``yaw_gain`` -- so a rig
+        omitting them is no longer a partial overlay, it is an incomplete motor,
+        and ``_require_component_facts`` correctly refuses it. The rig declares
+        all three, and inheritance is asserted on a key the base still owns.
         """
         profile_dir = tmp_path / "bench_rig"
         profile_dir.mkdir()
         (profile_dir / "robot.toml").write_text(
             "[steering]\nservo_max_angle_deg = 90.0\nmax_wheel_angle_deg = 42.0\n"
-            "[drivetrain]\nmax_speed_mps = 0.111\n",
+            "[drivetrain]\nmax_speed_mps = 0.111\nmax_accel_mps2 = 2.0\nspeed_response_tau_s = 0.35\n",
             encoding="utf-8",
         )
         monkeypatch.setattr(hardware_profile, "PROFILES_ROOT", tmp_path)
@@ -163,5 +176,5 @@ class TestRobotConstantsProfileOverlay:
 
         assert overlaid.steering.max_wheel_angle_deg == pytest.approx(42.0)
         assert overlaid.drivetrain.max_speed_mps == pytest.approx(0.111)
-        # max_accel_mps2 wasn't declared in the overlay -- base value survives.
-        assert overlaid.drivetrain.max_accel_mps2 == pytest.approx(2.0)
+        # yaw_gain wasn't declared in the overlay -- base value survives.
+        assert overlaid.drivetrain.yaw_gain == pytest.approx(0.55)

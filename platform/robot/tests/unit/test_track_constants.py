@@ -40,7 +40,14 @@ class TestValuesSurvivedTheMove:
             (TrackDimensions.CORNER_SIZE, 1.0),
             (WallSpecs.HEIGHT, 0.1),
             (WallSpecs.THICKNESS, 0.1),
-            (WallSpecs.COLLISION_THICKNESS, 0.18),
+            # 0.10, not the 0.18 this pinned before. The 40 mm per-side
+            # collision margin was removed deliberately (see track.toml): it
+            # made every corridor behave 8 cm narrower than spec and made
+            # parking arithmetically impossible -- a 0.194 m chassis in a
+            # 0.20 m bay needs its centre within 0.10 m of the wall while
+            # collision stopped it at 0.14 m, which was the whole 0/16 park
+            # rate. Collision now matches the visual wall.
+            (WallSpecs.COLLISION_THICKNESS, 0.10),
             (WallSpecs.EXTERIOR_OFFSET, 0.05),
             (WallSpecs.INTERIOR_OFFSET, 0.05),
             (CorridorDimensions.NARROW, 0.6),
