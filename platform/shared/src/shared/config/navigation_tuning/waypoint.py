@@ -375,6 +375,66 @@ class WaypointParams(BaseModel):
     actually being driven, including after a replan.
     """
 
+    DEFER_CURRENT_CORRIDOR_REPLAN: bool = Field(
+        default=True, validation_alias=_alias("DEFER_CURRENT_CORRIDOR_REPLAN")
+    )
+    """Hold a width change back until the robot has left the corridor it describes.
+
+    **OPEN-CHALLENGE-ONLY, by construction rather than by this flag.** Both
+    callers build the gate only for Open (``None`` otherwise, which keeps the
+    pre-gate control flow byte-for-byte). On Obstacles the estimator is
+    ``fixed=True`` and the bias comes from ``OBSTACLES_CENTER_BIAS_M``, so the
+    gate's confirmed-ness trigger would rebuild an identical path and re-seek
+    the waypoint index for nothing.
+
+    **Measured over the full 640-case Open space 2026-08-31: 634 -> 638 ok,
+    failures 6 -> 2, no collisions in either arm, sim time -4.74 s mean** (497
+    of 633 cases faster). 5 fixed against 1 regressed, and no width bucket got
+    worse. Screened on balanced128 first, where it was 128/128 in both arms --
+    that corpus has no verdict headroom left, so the -5.17 s mean was the only
+    signal and the full space was needed to see the +4.
+
+    It also closes the case cluster {38, 64, 71, 207, 264, 368, 407, 426} that
+    flipped as a unit under every previous attempt on this step: shrinking the
+    step (``UNCONFIRMED_WIDTH_INNER_BIAS_M``) or fading it
+    (``REPLAN_BLEND_TICKS``) traded those cases against each other, while
+    removing it passes all eight.
+
+    The replan step is not inherent to replanning, only to replanning
+    *underneath* the chassis: a width update for the corridor the robot is
+    standing in moves the line it is actively tracking, while the same update
+    for any other corridor costs nothing because the robot arrives on the new
+    line instead of being displaced onto it.
+
+    Third attack on the same ~0.30 m first-lap step, and the only one that
+    removes it rather than reshaping it.
+    ``UNCONFIRMED_WIDTH_INNER_BIAS_M`` shrinks it (0.30 -> 0.25, worth +13 cases
+    over the 640-case space). ``REPLAN_BLEND_TICKS`` spreads it over time and is
+    refuted twice -- most recently at -16 cases AND a new collision on the full
+    640 with both of its original confounds removed.
+
+    Costs one traverse of slightly-off centring in the corridor whose width just
+    changed, corrected from the next lap. Cannot disturb corner geometry:
+    ``CORNER_ARC_ASSUME_WIDE`` already sizes every arc independently of the
+    belief, so nothing deferred here reaches an arc.
+
+    A separate, unintended fix rode in with the same wiring and is worth
+    knowing about because it is NOT what this flag controls. The gate replans
+    when confirmed-ness moves, and the code it replaced returned early on
+    ``if not estimator.observe(...)`` -- so a corridor that confirmed at the
+    value the prior already held never replanned, and
+    ``UNCONFIRMED_WIDTH_INNER_BIAS_M`` went on being applied to a corridor that
+    was no longer unconfirmed. Releasing it correctly is worth about +3 on the
+    640-case space (631 -> 634) with this flag still OFF, which is why the
+    A/B's baseline reads 634 rather than the 631 that ``2a0e9e28`` measured.
+    That +3 is a cross-run comparison, not a paired arm, so it is the weaker of
+    the two numbers here.
+
+    See :class:`~src.navigation.deferred_width_belief.DeferredWidthBelief`.
+    SIM ONLY -- not track-validated, and the simulator weaves 1.6-3.3x more
+    than hardware.
+    """
+
     REPLAN_BLEND_TICKS: int = Field(default=0, ge=0, validation_alias=_alias("REPLAN_BLEND_TICKS"))
     """Ticks over which a replanned path is faded in, instead of swapped at once.
 

@@ -42,6 +42,7 @@ from src.navigation.corridor_estimator import (
     section_from_heading,
 )
 from src.navigation.corridor_follower import TurnSide, follow_corridor
+from src.navigation.deferred_width_belief import DeferredWidthBelief
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
 from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
@@ -286,6 +287,18 @@ class TrackNavigator(Node, ResettableNode):
                 fixed=not self._is_open_challenge,
             )
             if self._blind
+            else None
+        )
+        # OPEN CHALLENGE ONLY, and None elsewhere rather than merely disabled.
+        # The gate replans whenever confirmed-ness moves, not only when a width
+        # does -- which is the point on Open, where confirming a corridor
+        # releases UNCONFIRMED_WIDTH_INNER_BIAS_M. On Obstacles the estimator is
+        # fixed=True and the bias comes from an explicit override, so that same
+        # trigger would rebuild a byte-identical path and re-seek the waypoint
+        # index for nothing. See DeferredWidthBelief.
+        self._width_gate = (
+            DeferredWidthBelief(enabled=self._tuning.waypoints.DEFER_CURRENT_CORRIDOR_REPLAN)
+            if self._is_open_challenge
             else None
         )
         # Blind implies inferring the direction: it is drawn at random on the
@@ -1033,7 +1046,7 @@ class TrackNavigator(Node, ResettableNode):
             f"position estimate corrected from ({pose.x:.2f}, {pose.y:.2f})",
         )
 
-    def _plan(self, geometry: CorridorGeometry) -> list[Waypoint]:
+    def _plan(self, geometry: CorridorGeometry, unconfirmed: frozenset[Section] | None = None) -> list[Waypoint]:
         """Build a one-lap path for the layout the robot believes it is on."""
         # self._metadata is a plain dict (from _load_json, or the assumed-start
         # fallback literal) everywhere else in this class -- never actually a
@@ -1079,11 +1092,18 @@ class TrackNavigator(Node, ResettableNode):
             # WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and why it
             # is compensating for the tracker's outward drift.
             center_bias_m=(None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M),
-            unconfirmed_sections=self._unconfirmed_sections(),
+            unconfirmed_sections=(unconfirmed if unconfirmed is not None else self._unconfirmed_sections()),
         )
 
     def _unconfirmed_sections(self) -> frozenset[Section]:
         """Corridors whose width is still the blind prior rather than a measurement.
+
+        The fallback for callers that have no gated answer to hand (the initial
+        plan, and the re-plans that are not driven by a belief update). Once the
+        width gate has an opinion it is passed in explicitly instead, so the
+        bias and the width it belongs to are always the same vintage -- see
+        DeferredWidthBelief on why gating one without the other leaks a 0.05 m
+        step.
 
         Empty when sighted: ``_width_estimator`` is None exactly when the widths
         were told rather than discovered, and a told width is confirmed by
@@ -1113,13 +1133,26 @@ class TrackNavigator(Node, ResettableNode):
         # reading that would have corrected it and the error locks in. Heading
         # comes from the IMU and owes nothing to the map.
         section = section_from_heading(pose.yaw, self._direction)
-        if not estimator.observe(section, scan.ranges_m, scan.angles_rad, pose.yaw):
-            return False
+        observed_change = estimator.observe(section, scan.ranges_m, scan.angles_rad, pose.yaw)
+        if self._width_gate is None:
+            # Not the Open Challenge -- keep the pre-gate semantics exactly.
+            if not observed_change:
+                return False
+            believed, unconfirmed = estimator.widths, None
+        else:
+            # Gated every tick rather than only when observe() reports a change:
+            # a belief held back is released by the robot LEAVING the corridor,
+            # not by a new reading, so the tick that finally applies it is
+            # usually one the estimator had nothing to say about.
+            believed, unconfirmed, changed = self._width_gate.update(
+                estimator.widths, estimator.observed_sections, section
+            )
+            if not changed:
+                return False
 
-        believed = estimator.widths
         self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
         self._core_navigator.replace_path(
-            self._plan(CorridorGeometry.from_width_dict(believed)), (pose.x, pose.y)
+            self._plan(CorridorGeometry.from_width_dict(believed), unconfirmed), (pose.x, pose.y)
         )
         self.get_logger().info(
             "Layout belief updated: "
