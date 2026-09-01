@@ -132,6 +132,21 @@ class SignRouter:
         """Signs currently being routed around — discovered ones included."""
         return list(self._signs)
 
+    @property
+    def _lateral_offset(self) -> float:
+        """``SignRouterConfig.lateral_offset``, narrowed to the float it always is.
+
+        The field is declared ``float | None`` because None is how a caller asks
+        for the computed default, but ``__post_init__`` resolves that default
+        before construction returns, so no instance ever carries None. The type
+        cannot say so, which left three call sites passing ``float | None`` into
+        parameters typed ``float`` -- one of them already carrying its own local
+        assert. Stating the invariant once beats restating it per call site.
+        """
+        offset = self._config.lateral_offset
+        assert offset is not None, "SignRouterConfig.__post_init__ resolves lateral_offset"
+        return offset
+
     def _ingest_observations(
         self,
         observations: list[TrafficSignObservation] | None,
@@ -182,7 +197,7 @@ class SignRouter:
         settled = self._settled_corridor(index, spec)
         if not self._relabel_unsatisfiable:
             return settled
-        return satisfiable_corridor(spec, settled, self._config.lateral_offset, self._context)
+        return satisfiable_corridor(spec, settled, self._lateral_offset, self._context)
 
     def _settled_corridor(self, index: int, spec: SignSpec) -> Section:
         """Corridor for a refined sign estimate, held steady against jitter.
@@ -242,7 +257,7 @@ class SignRouter:
         corridor = self._geometric_corridor(spec)
         if not self._relabel_unsatisfiable:
             return corridor
-        return satisfiable_corridor(spec, corridor, self._config.lateral_offset, self._context)
+        return satisfiable_corridor(spec, corridor, self._lateral_offset, self._context)
 
     def _geometric_corridor(self, spec: SignSpec) -> Section:
         """Corner tie-break for a sign, on depth rather than nearest face."""
@@ -475,7 +490,9 @@ class SignRouter:
                 self._config,
             )
             if camera_color is not None:
-                color = camera_color.value
+                # The enum itself, not `.value`: SignColor is a StrEnum, so the
+                # two are equal as strings, and `color` is declared SignColor.
+                color = camera_color
 
         # Taper the offset so it fades in and out over `passed_dist` instead of
         # snapping between full magnitude and zero in a single waypoint step at
@@ -509,9 +526,7 @@ class SignRouter:
         # the taper ever binds, so the ramp has nothing to give. Do not re-try
         # it without new information; see docs/sign-avoidance-investigation.md.
         taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
-        lateral_offset = self._config.lateral_offset
-        assert lateral_offset is not None
-        effective_offset = lateral_offset * taper
+        effective_offset = self._lateral_offset * taper
 
         deformed = apply_deformation(
             waypoint,

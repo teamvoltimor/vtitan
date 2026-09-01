@@ -69,7 +69,7 @@ class SignSpec:
 
     x: float
     y: float
-    color: str  # SignColor.RED or SignColor.GREEN
+    color: SignColor
 
 
 def detection_to_observation(
@@ -258,8 +258,15 @@ class _SignTrack:
     """Index in the router's sign list once published, or None while pending."""
 
     @property
-    def color(self) -> str:
-        return max(self.votes, key=lambda name: self.votes[name])
+    def color(self) -> SignColor:
+        """The winning colour vote, as the enum the votes were cast from.
+
+        ``votes`` is keyed by ``SignColor.value`` (see ``_fold_observation``),
+        so the winner is always a valid member; converting here keeps the
+        ``str`` keys the dict is built with while handing callers the enum
+        ``SignSpec.color`` is declared as.
+        """
+        return SignColor(max(self.votes, key=lambda name: self.votes[name]))
 
     def as_spec(self) -> SignSpec:
         return SignSpec(x=self.x, y=self.y, color=self.color)

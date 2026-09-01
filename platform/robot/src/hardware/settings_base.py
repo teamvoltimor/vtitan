@@ -18,7 +18,7 @@ driver's TOML tree is untouched and behaves exactly as before.
 """
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Self
 
 from pydantic import BeforeValidator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
@@ -58,6 +58,29 @@ class HardwareBaseSettings(BaseSettings):
     Subclasses set ``model_config``'s ``toml_file`` to their own file under
     :data:`CONFIG_DIR`.
     """
+
+    @classmethod
+    def load(cls) -> Self:
+        """This config, populated from its TOML file, profile overlay and env.
+
+        Equivalent to calling the class with no arguments, which is what every
+        caller wants and what pydantic-settings is built to do -- the values
+        arrive from ``settings_customise_sources`` below, never from the caller.
+
+        A type checker cannot know that. Pydantic v2 is ``dataclass_transform``-
+        ed, so mypy synthesises an ``__init__`` from the model fields, and a
+        field that is deliberately REQUIRED with no default (``EncoderConfig``'s
+        ``counts_per_rev`` and ``max_rpm``, whose docstrings say exactly why they
+        must not have one) reads as a missing named argument at every direct
+        construction site. Those sites are correct; the synthesised signature is
+        what is wrong.
+
+        Constructing through ``cls`` rather than the concrete class sidesteps
+        that synthesis entirely -- no ``type: ignore`` is needed here, and none
+        is needed at the call sites either, so long as they come through this
+        method. Prefer ``EncoderConfig.load()`` over ``EncoderConfig()``.
+        """
+        return cls()
 
     @classmethod
     def settings_customise_sources(

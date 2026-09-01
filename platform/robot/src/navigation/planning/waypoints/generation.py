@@ -32,6 +32,8 @@ from src.navigation.planning.waypoints.segments import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from shared.config.navigation_tuning import NavigationTuning
 
 
@@ -288,7 +290,12 @@ def calculate_waypoints(
     #
     # Turning early into a corridor wider than planned is the safe direction to
     # be wrong; turning late is what puts the nose in the outer wall.
-    effective = (
+    # Annotated rather than inferred: joining the two lambda types across the
+    # conditional loses the tuple's LENGTH, and the `*effective(...)` unpack
+    # below then reads as an arbitrary number of arguments, which mypy reports
+    # as "Too many arguments for corner_arc_radius" against a call that passes
+    # exactly the four it wants.
+    effective: Callable[[float, float], tuple[float, float]] = (
         (lambda entry_w, exit_w: (CorridorDimensions.WIDE, CorridorDimensions.WIDE))
         if tuning.waypoints.CORNER_ARC_ASSUME_WIDE
         else (lambda entry_w, exit_w: (entry_w, exit_w))

@@ -24,7 +24,7 @@ service is never left down by an interrupted run. Manual equivalent:
 
 Loads .env itself (load_dotenv() below) rather than relying on the caller
 to `source .env` first -- the exact class of bug fixed in `097ab6cf` for
-run-lidar's RobotSpecs read (Config()/EncoderConfig()/ServoConfig() below
+run-lidar's RobotSpecs read (Config()/EncoderConfig.load()/ServoConfig() below
 need VTITAN_HARDWARE_PROFILE etc. from it).
 
 The script itself ALSO checks whether vtitan-pi-zero.service is active and
@@ -367,7 +367,7 @@ def main() -> None:
                 return
 
         config = Config()  # type: ignore[call-arg]
-        encoder_config = EncoderConfig()
+        encoder_config = EncoderConfig.load()
         drive = Bts7960Driver(invert=config.drive.reversed)
         encoder = QuadratureEncoder(
             pin_a=encoder_config.pin_a,

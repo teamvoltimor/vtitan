@@ -254,20 +254,23 @@ class _DriverFactory:
         """
         if backend is DriveBackend.BUILD_HAT:
             return self._shared_build_hat()  # combined object also satisfies DriveDriver
+        # Aliased on import: both modules export the name `Driver`, and binding
+        # two different classes to one name in the same scope is an error to a
+        # type checker even though only one branch ever runs.
         if backend is DriveBackend.BTS7960:
-            from src.hardware.motors.bts7960 import Driver  # noqa: PLC0415 - lazy: only when selected
+            from src.hardware.motors.bts7960 import Driver as Bts7960Driver  # noqa: PLC0415 - lazy: only when selected
 
-            return Driver(invert=self._config.drive.reversed)
+            return Bts7960Driver(invert=self._config.drive.reversed)
 
-        from src.hardware.motors.l298n import Driver  # noqa: PLC0415 - lazy: only when selected
+        from src.hardware.motors.l298n import Driver as L298nDriver  # noqa: PLC0415 - lazy: only when selected
 
-        return Driver(invert=self._config.drive.reversed)
+        return L298nDriver(invert=self._config.drive.reversed)
 
     def encoder(self, backend: DriveBackend) -> QuadratureEncoder | None:
         """Build the drive encoder, unless ``backend`` reports its own feedback (Build HAT)."""
         if backend is DriveBackend.BUILD_HAT:
             return None
-        encoder_config = EncoderConfig()
+        encoder_config = EncoderConfig.load()
         return QuadratureEncoder(
             pin_a=encoder_config.pin_a,
             pin_b=encoder_config.pin_b,
@@ -375,7 +378,7 @@ class AckermannMotorNode(LifecycleNode):
 
             steering.connect()
             if encoder is not None:
-                encoder_config = EncoderConfig()
+                encoder_config = EncoderConfig.load()
                 pid = PIDController(
                     kp=encoder_config.pid_kp,
                     ki=encoder_config.pid_ki,

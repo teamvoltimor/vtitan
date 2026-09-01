@@ -131,11 +131,11 @@ def main() -> None:
         type=float,
         default=None,
         help="Value to compare against as 'currently configured' -- defaults to the live "
-        "encoder.toml value (EncoderConfig().counts_per_rev), not a restated literal",
+        "encoder.toml value (EncoderConfig.load().counts_per_rev), not a restated literal",
     )
     args = parser.parse_args()
     if args.counts_per_rev_config is None:
-        args.counts_per_rev_config = EncoderConfig().counts_per_rev
+        args.counts_per_rev_config = EncoderConfig.load().counts_per_rev
 
     circumference_m = math.pi * args.wheel_diameter_m
     print(f"Wheel {args.wheel_diameter_m * 1000:.0f} mm -> circumference {circumference_m * 100:.2f} cm")

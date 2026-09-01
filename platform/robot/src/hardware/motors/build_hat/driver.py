@@ -186,7 +186,7 @@ class Driver(MotorDriver):
         """Get current drive speed in degrees/s."""
         return float(self.drive.get_speed())
 
-    def _clamp_speed(self, speed: int) -> int:
+    def _clamp_speed(self, speed: float) -> int:
         """Clamp speed to configured limits."""
         speed = abs(speed)
         return int(clamp(speed, self.config.drive.min_speed, self.config.drive.max_speed))
@@ -196,14 +196,14 @@ class Driver(MotorDriver):
         return clamp(position, self.config.steering.left_limit_angle, self.config.steering.right_limit_angle)
 
     @override
-    def run_drive_forward(self, speed: int | None = None) -> None:
+    def run_drive_forward(self, speed: float | None = None) -> None:
         """Run drive motor forward with optional speed limit."""
         s = self._clamp_speed(speed or self.config.drive.default_speed)
         self.logger.info("Starting drive forward", extra={DETAILS_KEY: {"speed": s}})
         self.drive.start(s)
 
     @override
-    def run_drive_reverse(self, speed: int | None = None) -> None:
+    def run_drive_reverse(self, speed: float | None = None) -> None:
         """Run drive motor in reverse."""
         s = self._clamp_speed(speed or self.config.drive.default_speed)
         self.logger.info("Starting drive reverse", extra={DETAILS_KEY: {"speed": -s}})
