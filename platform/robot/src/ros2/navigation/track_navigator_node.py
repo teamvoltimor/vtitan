@@ -1178,8 +1178,33 @@ class TrackNavigator(Node, ResettableNode):
         self.get_logger().info("Race state left - navigator holding, motors stopped")
 
     def _reset_on_race_start(self) -> None:
-        """Re-zero heading and navigator state at the one known starting-pose instant."""
-        self.reset()
+        """Re-zero heading and navigator state at the one known starting-pose instant.
+
+        Guarded because this runs inside the ``/robot_state`` subscription
+        callback, where an unhandled exception propagates out of ``spin()`` and
+        takes the whole node down -- silently, from the driver's seat, since the
+        state machine and every sensor node keep running and the OLED keeps
+        showing a healthy state.
+
+        Measured on hardware 2026-08-31 across two button-restart pairs
+        (run_20260831_224647, run_20260831_225308): the SECOND race of each pair
+        published **zero** ``/nav_debug`` messages over 30 s and 4 s of RACING
+        respectively, against 261 and 132 in the first. ``/nav_debug`` is emitted
+        from ``_control_loop``'s ``finally``, so it appears on every tick the
+        loop runs at all -- none did. Meanwhile ``/scan``, ``/imu/data`` and
+        ``/robot_state`` all flowed normally, so the failure looked like "the
+        robot won't move" rather than "the navigator is gone".
+
+        Degrading to a logged error keeps the node alive and holding, which is
+        both recoverable and visible. It does NOT paper over the fault: the
+        traceback is what identifies it, and there was none to read before.
+        """
+        try:
+            self.reset()
+        except Exception:
+            self.get_logger().error("Race start reset FAILED - navigator holding", exc_info=True)
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            return
         self.get_logger().info("Race started - heading reference zeroed, navigator driving")
 
     @override
@@ -1335,6 +1360,17 @@ class TrackNavigator(Node, ResettableNode):
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
         except ValueError as e:
             self.get_logger().error(f"Value error in control loop: {e}")
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+        except Exception:
+            # Anything the two handlers above do not name used to escape the
+            # timer callback, and an unhandled exception there propagates out of
+            # spin() and kills the node. From the outside that is indistinguish-
+            # able from "the robot will not move": the state machine, the OLED
+            # and every sensor node carry on, and only /nav_debug going silent
+            # gives it away. Stop, log the traceback, and let the next tick try
+            # again -- a navigator that holds is recoverable, one that is gone
+            # is not, and the traceback is the thing that was missing.
+            self.get_logger().error("Unexpected error in control loop - holding", exc_info=True)
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
         finally:
             if self._width_estimator is not None:
