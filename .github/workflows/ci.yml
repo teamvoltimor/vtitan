@@ -31,6 +31,18 @@ jobs:
       - name: Ruff
         run: pixi run -e dev ruff check src/ tests/
 
+      # Same Ruff -> Typecheck -> tests order the ml-service and hailo jobs
+      # already use. mypy never executes module-level code, so this needs no
+      # VTITAN_HARDWARE_PROFILE and no hardware.
+      #
+      # This check was configured but never enforced, and stood at 11 errors.
+      # c5739d35 then shipped `exc_info=True` on an rclpy logger -- which mypy
+      # reports as an ordinary call-arg error -- and it killed the navigator
+      # mid-race on hardware. A 12th entry in an 11-entry list is invisible;
+      # zero is the only count a checker can be read against.
+      - name: Typecheck
+        run: pixi run -e dev typecheck
+
       - name: Unit tests
         run: pixi run -e dev pytest tests/unit -q
 

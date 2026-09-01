@@ -162,6 +162,7 @@ tasks:
                                      fast=unit minus @slow closed-loop sims; navigation/vision/drivers scope by subsystem; TEST=path targets one file/module)
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
+          task robot:typecheck      Type-check robot code (mypy: src/ + ros2_ws packages)
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
           task robot:zero           Pi Zero lifecycle ops — run on Pi 5 (ACTION=bootstrap|deploy|shutdown|verify|recover-sd)
           task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
@@ -888,6 +889,18 @@ tasks:
     dir: robot
     cmds:
       - pixi run -e dev lint-fix
+
+  robot:typecheck:
+    desc: >-
+      Type-check robot code with mypy (src/ + all four ros2_ws packages). The
+      robot was the only module without this entry, though the pixi task and
+      mypy.ini both existed — backend, frontend, ml-service, api and hailo all
+      have one. Needs no hardware and no VTITAN_HARDWARE_PROFILE: mypy does not
+      execute module-level code, so the profile that RobotConstants demands at
+      import time is never read.
+    dir: robot
+    cmds:
+      - pixi run -e dev typecheck
 
   robot:build-ws:
     desc: Build ROS2 workspace via colcon (Linux only — sllidar_ros2 requires Linux)
