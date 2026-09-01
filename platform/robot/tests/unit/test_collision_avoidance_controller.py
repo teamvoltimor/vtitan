@@ -141,6 +141,56 @@ class TestRearSectorVisibility:
         assert controller.rear_sector(np.array([]), None).measured is False
 
 
+class TestFrontSectorVisibility:
+    """The same distinction for the FRONT, which never had it and drove into a wall.
+
+    Measured on hardware 2026-08-31 (run_20260831_205208 / _205235): pressed
+    against a wall and physically immobile, every ray in the forward cone fell
+    below ``min_valid_range_m`` -- a flat surface centimetres away reflects too
+    shallowly to return a signal -- so forward clearance reported ~9.97 m for
+    the rest of the run. The navigator held 0.24 m/s into the wall and the
+    ``stuck_forward`` escape stood down after six ticks, because by that number
+    the road ahead was clear.
+    """
+
+    def test_normal_scan_is_measured(self, controller):
+        assert controller.front_sector(create_numpy_scan(), ANGLES_FULL_ROTATION).measured is True
+
+    def test_all_invalid_forward_rays_is_not_measured(self, controller):
+        """The hardware condition: a wall too close for any ray to return validly."""
+        ranges = create_numpy_scan()
+        # Below min_valid_range_m across the WHOLE front sector -- physically
+        # unmeasurable, not "clear". Masked by angle rather than by index so it
+        # covers front_half_fov exactly; an index slice narrower than the sector
+        # leaves valid rays at its edges and the sector still reports measured.
+        ranges[np.abs(ANGLES_FULL_ROTATION) <= controller.front_half_fov_rad] = 0.0
+
+        # The shorthand cannot express it: reads as wide-open road. This is the
+        # number that let the robot drive into a wall it was touching.
+        assert controller.compute_forward_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(
+            controller.no_data_range_m
+        )
+        # The sector can.
+        assert controller.front_sector(ranges, ANGLES_FULL_ROTATION).measured is False
+
+    def test_empty_scan_is_not_measured(self, controller):
+        assert controller.front_sector(np.array([]), None).measured is False
+
+    def test_a_genuine_far_reading_stays_measured(self, controller):
+        """"Far" and "cannot see" must not collapse into each other.
+
+        Guards the fix against over-reach: an open corridor ahead reports large
+        ranges and MUST still count as measured, or the degraded-sensor branch
+        fires on every straight and the robot crawls the whole race.
+        """
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = 3.0
+        sector = controller.front_sector(ranges, ANGLES_FULL_ROTATION)
+        assert sector.measured is True
+        assert sector.min_range_m == pytest.approx(3.0)
+
+
 class TestEscapeDoesNotReverseIntoRearWall:
     def test_rear_threat_yields_no_kturn(self, controller):
         # A rear wall classifies as "back"; the escape table only reverses for

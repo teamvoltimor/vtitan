@@ -35,6 +35,45 @@ class ClearanceZones(BaseModel):
     FAST_DIST: float = Field(default=1.00, validation_alias=_alias("FAST_DIST"))  # Full speed capability
     PATH_MARGIN: float = Field(default=0.10, validation_alias=_alias("PATH_MARGIN"))  # Forward-path margin
 
+    FORWARD_NO_DATA_IS_DEGRADED: bool = Field(
+        default=False, validation_alias=_alias("FORWARD_NO_DATA_IS_DEGRADED")
+    )
+    """Treat an UNREADABLE forward cone as a degraded sensor, not as open road.
+
+    ``compute_forward_clearance`` reports ``NO_DATA_RANGE_M`` (10 m) when no ray
+    in the forward cone is valid, which is indistinguishable from clear road, so
+    every ``clearance < threshold`` gate downstream fails OPEN.
+
+    That is not a hypothetical. Measured on hardware 2026-08-31
+    (run_20260831_205208 / _205235): pressed against a wall and physically
+    immobile, every forward ray fell below ``min_valid_range_m`` -- a flat
+    surface centimetres away reflects too shallowly to return a signal -- so
+    forward clearance read **9.97 m for the rest of the run**. The navigator
+    held 0.24 m/s into the wall, and the ``stuck_forward`` escape fired for six
+    ticks and stood down, because by that number nothing was wrong. Neither run
+    recovered.
+
+    The no-LIDAR branch in ``CoreNavigator.step`` already argues the correct
+    policy -- "a degraded sensor is not open road", answered with ``SLOW_DIST``
+    and a non-SAFE risk. This applies the SAME policy to the case where a scan
+    arrives but its forward cone is unreadable, which is strictly more
+    dangerous: no scan at all is obvious, an all-invalid cone masquerades as
+    12 m of open track.
+
+    Deliberately reuses that branch's response rather than forcing clearance to
+    zero. Zero would assert an obstacle at the bumper, which is a different
+    claim from "I cannot see", and would fire contact handling on any transient
+    dropout burst.
+
+    The rear has had this distinction since the reverse guard was found failing
+    open (``rear_sector().measured``); this is the same fix for the front, which
+    never had it. See ``CollisionAvoidanceController.front_sector``.
+
+    Defaults False -- the simulator cannot exercise this path (contact is
+    absorbing, so a run ends before the robot can be wedged), so it ships off
+    until hardware confirms it. NOT yet track-validated.
+    """
+
 
 class HeadingErrorZones(BaseModel):
     """The heading error above which speed is cut. Radians.

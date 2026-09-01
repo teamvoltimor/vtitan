@@ -366,6 +366,42 @@ class CollisionAvoidanceController:
         """
         return self.sector(lidar_ranges, lidar_angles, math.pi, filter_self_detection=True)
 
+    def front_sector(
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+    ) -> SectorRanges:
+        """The forward +/-``front_half_fov`` sector, with ``measured`` retained.
+
+        The counterpart to ``rear_sector``, and it exists for the same reason:
+        ``compute_forward_clearance`` collapses an unreadable sector into
+        ``no_data_range_m``, which reads identically to open road, so a gate
+        acting on that number alone fails OPEN. The rear has had this
+        distinction since the reverse guard was found failing open; the front
+        did not, and drove into the wall it could no longer see.
+
+        Measured on hardware 2026-08-31 (run_20260831_205208): pressed against a
+        wall and physically immobile, every ray in the forward cone fell below
+        ``min_valid_range_m`` -- a flat surface centimetres away reflects too
+        shallowly to return a signal -- so the sector reported ~10 m. The
+        navigator resumed 0.24 m/s into the wall, and the ``stuck_forward``
+        escape fired once and immediately stood down, because by this number
+        the road ahead was clear. It never recovered.
+
+        Callers deciding whether it is safe to DRIVE FORWARD want this and must
+        check ``measured``; ``compute_forward_clearance`` remains the shorthand
+        for display and for callers that only want a number.
+
+        Args:
+            lidar_ranges: Array of LIDAR measurements.
+            lidar_angles: Per-ray bearings (radians). Synthesised if omitted.
+
+        Returns:
+            The sector's ranges, with ``measured`` False when nothing in the
+            cone was a valid reading.
+        """
+        return self.sector(lidar_ranges, lidar_angles, 0.0, self.front_half_fov_rad)
+
     def compute_forward_clearance(
         self,
         lidar_ranges: np.ndarray | tuple[float, ...],

@@ -837,7 +837,23 @@ class CoreNavigator(EscapeRecovery):
 
         # Get LIDAR scan from gateway
         scan = self._gateway.get_lidar_scan()
-        if scan:
+        front = (
+            self._collision_controller.front_sector(scan.ranges_m, scan.angles_rad)
+            if scan and self._tuning.clearance.FORWARD_NO_DATA_IS_DEGRADED
+            else None
+        )
+        if scan and front is not None and not front.measured:
+            # A scan arrived but NOTHING in the forward cone was a valid reading.
+            # That is the degraded-sensor case below, not open road -- and it is
+            # the more dangerous of the two, because no scan at all is obvious
+            # while an all-invalid cone reports NO_DATA_RANGE_M and reads as 10 m
+            # of clear track. Measured on hardware 2026-08-31: wedged against a
+            # wall, this held 9.97 m and the robot drove into it at 0.24 m/s for
+            # the rest of the round. Same answer as the no-LIDAR branch, because
+            # it is the same statement about the sensor.
+            forward_clearance = self._tuning.clearance.SLOW_DIST
+            risk = RiskLevel.OBSTACLE
+        elif scan:
             # Converted to a BUMPER gap once, here, rather than at each of the
             # comparisons below: the no-LIDAR fallback assigns a threshold value
             # to this same variable, so the two branches have to leave it in one
