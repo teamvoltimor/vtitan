@@ -19,21 +19,26 @@ import (
 type Config struct {
 	Port     string `validate:"required"`
 	BaudRate int    `validate:"required,gt=0"`
-	// YawOffsetDeg rotates every decoded measurement angle by a fixed
-	// mounting offset so that decoded angle 0 (the sensor's own 0 reference)
-	// maps to the robot's forward axis. The physical lidar is mounted rotated
-	// relative to the chassis; without this, "front" reads at the mounting
-	// angle instead of 0. Mirrors the Python launch's inverted/inverted-yaw
-	// handling. Applied in decodeClassicMeasurement (frame_classic.go)
-	// before AngleRad is stored. Zero means "sensor 0 == robot forward".
+	// Inverted marks the LIDAR as physically mounted upside-down (rotated
+	// 180deg about a horizontal axis, not the vertical/yaw axis). This
+	// reverses the sensor's apparent spin direction in the robot's top-down
+	// frame, so decoded angles must be mirrored (negated), not rotated by a
+	// constant -- see correctAngleDeg (frame_classic.go) for why a plain
+	// +180 offset is wrong (hardware-verified 2026-08-31: an 8-bearing
+	// object placement test found front/back swapped while left/right
+	// read correctly with a +180 offset, a pattern only a mirror explains).
+	Inverted bool
+	// YawOffsetDeg is the residual mount miscalibration (degrees) applied
+	// after Inverted's mirroring, not a replacement for it. Applied in
+	// decodeClassicMeasurement (frame_classic.go) before AngleRad is
+	// stored. Zero means no residual correction.
 	//
-	// The single source of truth is robot.toml's [lidar] section: the total
-	// correction is LidarYawOffsetRad() = 180deg when inverted=true plus
-	// mount_yaw_offset_deg (0 on this robot). Only the interactive hardware
-	// tests set this so decoded angles read in the robot frame directly;
-	// production lidar-node keeps it 0 and publishes raw C1 bearings, with
-	// consumers (telemetry diag, the nav gateway) applying the same offset
-	// via profile.RobotConfig.LidarYawOffsetRad().
+	// The single source of truth is robot.toml's [lidar] section:
+	// Inverted/MountYawOffsetDeg. Only the interactive hardware tests set
+	// these so decoded angles read in the robot frame directly; production
+	// lidar-node keeps them at the zero value and publishes raw C1
+	// bearings, with consumers (telemetry diag, the nav gateway) applying
+	// the same correction via profile.RobotConfig.
 	YawOffsetDeg float64
 }
 
@@ -115,6 +120,7 @@ func NewClassic(cfg Config) (*ClassicSerialDriver, error) {
 		return nil, fmt.Errorf("lidar: invalid config: %w", err)
 	}
 	yawOffsetDeg = cfg.YawOffsetDeg
+	mountInverted = cfg.Inverted
 	return &ClassicSerialDriver{cfg: cfg}, nil
 }
 

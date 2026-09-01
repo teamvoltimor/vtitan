@@ -236,7 +236,7 @@ func resolveDenseCabins(prev densePacket, nextStartAngleDeg float64) []Point {
 			continue
 		}
 
-		angleDeg := prev.startAngleDeg + step*float64(k) + yawOffsetDeg
+		angleDeg := correctAngleDeg(prev.startAngleDeg+step*float64(k), mountInverted, yawOffsetDeg)
 		angleDeg = math.Mod(angleDeg, 360)
 		if angleDeg < 0 {
 			angleDeg += 360

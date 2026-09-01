@@ -297,6 +297,46 @@ func TestHealthStatus_String(t *testing.T) {
 	}
 }
 
+// TestCorrectAngleDeg pins the mount-correction formula against the
+// 8-bearing hardware data that found it (2026-08-31): with the old
+// rawDeg+180 offset, front and back read swapped while left and right read
+// correctly. A rotation (constant offset) moves every bearing together, so
+// it can't reproduce that pattern -- only a mirror (negation) can, since a
+// reflection about the left-right axis fixes points on that axis while
+// swapping points off it. These cases encode that derivation directly:
+// front/back (0/180) must swap, left/right (90/270) must not move, for the
+// same inverted+offset inputs that produced the old, wrong pairing.
+func TestCorrectAngleDeg(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		rawDeg         float64
+		inverted       bool
+		residualDeg    float64
+		wantCorrectDeg float64
+	}{
+		{name: "upright, no residual, passthrough", rawDeg: 37, inverted: false, residualDeg: 0, wantCorrectDeg: 37},
+		{name: "upright with residual", rawDeg: 37, inverted: false, residualDeg: 5, wantCorrectDeg: 42},
+		{name: "inverted, raw 0 mirrors to residual", rawDeg: 0, inverted: true, residualDeg: 0, wantCorrectDeg: 0},
+		{name: "inverted, front/back swap: raw 180 -> 180 (unmirrored midpoint)", rawDeg: 180, inverted: true, residualDeg: 0, wantCorrectDeg: -180},
+		{name: "inverted, left/right fixed points: raw 90 -> -90", rawDeg: 90, inverted: true, residualDeg: 0, wantCorrectDeg: -90},
+		{name: "inverted, left/right fixed points: raw 270 -> -270", rawDeg: 270, inverted: true, residualDeg: 0, wantCorrectDeg: -270},
+		{name: "inverted with residual", rawDeg: 37, inverted: true, residualDeg: 5, wantCorrectDeg: -32},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := correctAngleDeg(tt.rawDeg, tt.inverted, tt.residualDeg); got != tt.wantCorrectDeg {
+				t.Errorf("correctAngleDeg(%v, %v, %v) = %v, want %v",
+					tt.rawDeg, tt.inverted, tt.residualDeg, got, tt.wantCorrectDeg)
+			}
+		})
+	}
+}
+
 // FuzzParseDescriptor proves the descriptor parser fails cleanly rather
 // than panicking on arbitrary, malformed, or truncated byte streams — the
 // serial port is a trust boundary, real hardware glitches and stream

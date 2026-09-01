@@ -43,6 +43,18 @@ func newInteractiveDriver(t *testing.T) driver.Driver[lidar.Scan] {
 		port = "/dev/ttyUSB0"
 	}
 	cfg := lidar.Config{Port: port, BaudRate: lidar.DefaultBaudRate}
+	// Inverted defaults true to match this robot's robot.toml ([lidar]
+	// inverted=true) -- set LIDAR_INVERTED=0/false to test an upright mount.
+	cfg.Inverted = true
+	if v := strings.ToLower(os.Getenv("LIDAR_INVERTED")); v != "" {
+		cfg.Inverted = v != "0" && v != "false"
+	}
+	// LIDAR_YAW_OFFSET_DEG is the residual mount miscalibration applied
+	// after Inverted's mirroring (see Config.YawOffsetDeg) -- NOT the
+	// mandatory 180deg for an upside-down mount, which Inverted now
+	// supplies. Hardware-verified 2026-08-31: 0 residual matched an
+	// 8-bearing object placement test once Inverted's mirroring replaced
+	// the old +180 offset.
 	if v := os.Getenv("LIDAR_YAW_OFFSET_DEG"); v != "" {
 		if off, err := strconv.ParseFloat(v, 64); err == nil {
 			cfg.YawOffsetDeg = off

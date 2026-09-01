@@ -20,8 +20,12 @@ package lidar
 // standalone option alongside the Dense/Express mode implementation (see
 // frame_dense.go, ClassicSerialDriver's sibling), not because it's the
 // preferred mode: hardware validation 2026-08-31 found classic-mode range
-// decode reading 2-4x too large versus known physical distances (angle
-// decode is correct), while the same hardware's Python stack — which uses
+// decode reading 2-4x too large versus known physical distances (a coarse
+// front-placement check found angle decode plausible, but this predates the
+// same day's 8-bearing dump that caught Dense mode's front/back mirroring
+// bug -- classic mode shares correctAngleDeg but hasn't had the same
+// rigorous per-bearing verification), while the same hardware's Python
+// stack — which uses
 // Dense mode via sllidar_ros2's default scan_mode="Standard" (routed
 // through startScanExpress, never classic startScan) — reads correctly.
 // That means classic mode's distanceQ2Scale formula, though it matches the
@@ -38,13 +42,36 @@ import (
 	"go.bug.st/serial"
 )
 
-// yawOffsetDeg is the mounting rotation applied to every decoded
-// measurement angle (see Config.YawOffsetDeg). It is a package-level value
-// rather than a decodeClassicMeasurement parameter because
-// decodeClassicMeasurement is on the documented wire-format signature
-// (Figure 4-4) and is also exercised by the frame-unit tests with no
-// offset; NewClassic/Connect install it from Config.
+// yawOffsetDeg is the residual mount miscalibration (degrees) applied on
+// top of mountInverted's mirroring (see Config.YawOffsetDeg). It is a
+// package-level value rather than a decodeClassicMeasurement parameter
+// because decodeClassicMeasurement is on the documented wire-format
+// signature (Figure 4-4) and is also exercised by the frame-unit tests with
+// no offset; NewClassic/Connect install it from Config.
 var yawOffsetDeg float64
+
+// mountInverted marks the LIDAR as physically mounted upside-down (rotated
+// 180deg about a horizontal axis, not the vertical/yaw axis), matching
+// Config.Inverted. Installed from Config by NewClassic/NewDense alongside
+// yawOffsetDeg; see correctAngleDeg for why this needs its own field
+// instead of folding into yawOffsetDeg as a constant +180.
+var mountInverted bool
+
+// correctAngleDeg maps rawDeg (the sensor's own 0-360 angle reference, with
+// no correction applied) into the robot frame, where 0 is straight ahead.
+// When mounted upside-down, the LIDAR's apparent spin direction reverses in
+// the robot's top-down frame -- a constant offset can't express that, only
+// a mirror (negation) can. Verified on hardware 2026-08-31: an 8-bearing
+// object placement test found front/back swapped while left/right read
+// correctly with a plain rawDeg+180 offset; a rotation moves every bearing
+// together; only the mirror -rawDeg+offset reproduced "front and back swap,
+// left and right unchanged" from that same data.
+func correctAngleDeg(rawDeg float64, inverted bool, residualOffsetDeg float64) float64 {
+	if inverted {
+		return -rawDeg + residualOffsetDeg
+	}
+	return rawDeg + residualOffsetDeg
+}
 
 type (
 	// descriptor is a parsed RPLIDAR response descriptor: the fixed 7-byte
@@ -425,10 +452,10 @@ func decodeClassicMeasurement(b []byte) (pt Point, startOfScan bool, err error) 
 	distanceQ2 := uint16(b[3]) | uint16(b[4])<<highByteShift
 	rangeMM := float64(distanceQ2) / classicDistanceQ2Scale
 
-	// Apply the fixed mounting yaw offset so decoded 0 == robot forward
-	// (see Config.YawOffsetDeg). yawOffsetDeg is the package-level value
-	// installed from Config by NewClassic/Connect.
-	angleDeg += yawOffsetDeg
+	// Apply the mounting correction so decoded 0 == robot forward (see
+	// Config.Inverted/Config.YawOffsetDeg). mountInverted/yawOffsetDeg are
+	// the package-level values installed from Config by NewClassic/Connect.
+	angleDeg = correctAngleDeg(angleDeg, mountInverted, yawOffsetDeg)
 
 	// Normalize to [0, 360) so a large positive/negative offset can't push
 	// angles outside the conventional lidar range (e.g. offset 180 landing

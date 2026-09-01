@@ -59,6 +59,7 @@ func NewDense(cfg Config) (*DenseSerialDriver, error) {
 		return nil, fmt.Errorf("lidar: invalid config: %w", err)
 	}
 	yawOffsetDeg = cfg.YawOffsetDeg
+	mountInverted = cfg.Inverted
 	return &DenseSerialDriver{cfg: cfg}, nil
 }
 

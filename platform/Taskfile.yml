@@ -1066,9 +1066,14 @@ tasks:
       (operator-ack prompts need it). Stops services first via
       robot-go:hw:stop. Usage:
       task robot-go:hw:run PKG=lidar HOST=rpi-5-local
-      (PKG=motor|imu|lidar|ssd1306). For lidar, LIDAR_YAW_OFFSET_DEG defaults
-      to 180 (the C1's inverted-mount correction -- robot.toml's [lidar]
-      inverted=true; mount_yaw_offset_deg is 0). Override via YAW_OFFSET=. For
+      (PKG=motor|imu|lidar|ssd1306). For lidar, INVERTED defaults to true
+      (robot.toml's [lidar] inverted=true), mirroring decoded angles for the
+      C1's upside-down mount -- NOT a +180 offset, which hardware
+      verification 2026-08-31 found swaps front/back while leaving
+      left/right correct, a pattern only a mirror explains (see
+      lidar.correctAngleDeg). YAW_OFFSET is the residual mount
+      miscalibration applied after the mirror, defaults to 0. Override via
+      INVERTED=false and/or YAW_OFFSET=. For
       lidar, SCAN_MODE=dense selects the DenseSerialDriver (8-bearing test +
       range decode expected to read correctly, unlike classic); omit for
       classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
@@ -1081,7 +1086,8 @@ tasks:
     vars:
       PKG: '{{.PKG | default "lidar"}}'
       HOST: '{{.HOST | default "rpi-5-local"}}'
-      YAW_OFFSET: '{{.YAW_OFFSET | default "180"}}'
+      YAW_OFFSET: '{{.YAW_OFFSET | default "0"}}'
+      INVERTED: '{{.INVERTED | default "true"}}'
       SCAN_MODE: '{{.SCAN_MODE | default ""}}'
       DUMP_SCAN: '{{.DUMP_SCAN | default ""}}'
       OUT: '{{.OUT | default "dist/hw-interactive"}}'
@@ -1100,12 +1106,12 @@ tasks:
           powershell.exe -NoProfile -Command "scp '$LOCAL' '${HOST}:$REMOTE_DIR/'"
           powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'chmod +x $REMOTE_DIR/$BIN && echo shipped OK'; exit 0"
       - cmd: |
-          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; MODE="{{.SCAN_MODE}}"; DUMP="{{.DUMP_SCAN}}"
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; INVERTED="{{.INVERTED}}"; MODE="{{.SCAN_MODE}}"; DUMP="{{.DUMP_SCAN}}"
           BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
           REMOTE_DIR="$OUT"
           EXTRA=""
           if [ "$PKG" = "lidar" ]; then
-            EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW"
+            EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW LIDAR_INVERTED=$INVERTED"
             if [ -n "$MODE" ]; then EXTRA="$EXTRA LIDAR_SCAN_MODE=$MODE"; fi
             if [ -n "$DUMP" ]; then EXTRA="$EXTRA LIDAR_DUMP_SCAN=$DUMP"; fi
           fi
