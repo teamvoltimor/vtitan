@@ -43,6 +43,12 @@ def add_sweep_args(
     parser.add_argument("--sample", type=int, default=default_sample, help="How many scenarios to draw.")
     parser.add_argument("--seed", type=int, default=default_seed, help="Draw seed; same seed, same sample.")
     parser.add_argument("--all", action="store_true", help="Run the whole population instead of a sample.")
+    parser.add_argument(
+        "--case",
+        type=int,
+        action="append",
+        help="Population index to run, repeatable. Reproduces exactly the case --all reports under that number.",
+    )
     if jobs:
         parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
 
@@ -76,6 +82,31 @@ def draw_sample[T](population: Sequence[T], *, sample: int, seed: int, all_: boo
     # Suppression is justified here: the draw must be reproducible from a
     # seed, which is the one thing a cryptographic generator will not do.
     return random.Random(seed).sample(population, sample)  # noqa: S311
+
+
+def select_cases[T](
+    population: Sequence[T],
+    *,
+    sample: int,
+    seed: int,
+    all_: bool,
+    case: Sequence[int] | None = None,
+) -> list[tuple[int, T]]:
+    """Pair each selected case with the index the simulator must be seeded by.
+
+    Every sweep seeds the simulator by the case's position in the run, so that
+    position is not a label -- it decides what the case does. Filtering to a
+    single case by re-enumerating from zero would therefore run a *different*
+    scenario than the one the sweep reported under that number, which is the
+    one thing a reproduce flag must not do.
+
+    ``--case N`` selects ``population[N]`` and keeps N as the seed, matching
+    ``--all`` exactly. Sampled runs keep their existing position-based seeding,
+    so numbers recorded against a ``--sample``/``--seed`` pair stay comparable.
+    """
+    if case:
+        return [(n, population[n]) for n in case]
+    return list(enumerate(draw_sample(population, sample=sample, seed=seed, all_=all_)))
 
 
 def resolve_jobs(jobs: int) -> int:

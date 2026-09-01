@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs
 
-from scripts.common.diag_base import add_sweep_args, add_tuning_arg, draw_sample, load_tuning, resolve_jobs, run_pool
+from scripts.common.diag_base import add_sweep_args, add_tuning_arg, load_tuning, resolve_jobs, run_pool, select_cases
 from scripts.common.open_cases import SIDES, case_space
 from scripts.common.tables import print_table
 from scripts.sim.diag_open_exhaustive import _summarise, _verdict
@@ -88,14 +88,14 @@ def main() -> None:
     load_tuning(args.tuning)
 
     population = case_space()
-    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
+    cases = select_cases(population, sample=args.sample, seed=args.seed, all_=args.all, case=args.case)
 
     jobs = resolve_jobs(args.jobs)
     print(f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers\n", flush=True)
 
     payloads = [
         (i, widths, section.value, direction.value, cell, args.laps, args.tuning)
-        for i, (widths, section, direction, cell) in enumerate(cases)
+        for i, (widths, section, direction, cell) in cases
     ]
 
     def _print_progress(row: dict[str, object], done: int, total: int) -> None:

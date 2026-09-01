@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs
 
-from scripts.common.diag_base import add_sweep_args, add_tuning_arg, draw_sample, load_tuning
+from scripts.common.diag_base import add_sweep_args, add_tuning_arg, load_tuning, select_cases
 from scripts.common.open_cases import SIDES, case_space
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -77,7 +77,7 @@ def main() -> None:
 
     tuning = load_tuning(args.tuning)
     population = case_space()
-    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
+    cases = select_cases(population, sample=args.sample, seed=args.seed, all_=args.all, case=args.case)
 
     print(f"{len(cases)} de {len(population)} escenarios ({len(cases) / len(population):.1%}), seed={args.seed}\n", flush=True)
 
@@ -90,7 +90,7 @@ def main() -> None:
     }
     failures: list[str] = []
 
-    for i, (widths, section, direction, cell) in enumerate(cases):
+    for i, (widths, section, direction, cell) in cases:
         widths_mm = dict(zip(SIDES, widths, strict=True))
         meta = build_open_metadata(widths_mm, section, direction, scenario_id=i, start_cell=cell)
         # Seed by case index so a rerun of the same sample behaves identically.
