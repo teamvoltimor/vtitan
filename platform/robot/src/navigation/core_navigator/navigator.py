@@ -130,6 +130,18 @@ class CoreNavigator(EscapeRecovery):
             if sign_router is not None
             else self._tuning.speed.for_open_challenge()
         )
+        # The clearance zones this run drives on, resolved ONCE for the same
+        # reasons and on the same discriminator as the speed ladder above.
+        #
+        # Only Obstacles has an override to apply (`for_obstacles_challenge`
+        # returns self when it is unset), so the Open branch reads the base
+        # zones directly rather than through a `for_open_challenge` that could
+        # only ever be the identity.
+        self._clearance = (
+            self._tuning.clearance.for_obstacles_challenge()
+            if sign_router is not None
+            else self._tuning.clearance
+        )
         self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
@@ -169,7 +181,13 @@ class CoreNavigator(EscapeRecovery):
         self._waypoint_controller = WaypointController.from_tuning(self._tuning)
         self._apply_path_wall_budget()
 
-        self._collision_controller = CollisionAvoidanceController.from_tuning(self._tuning)
+        # Built from the RESOLVED zones, not `self._tuning.clearance`. This
+        # controller owns `assess_risk`, which is what actually fires the
+        # reversing escape at `contact_dist` -- resolving everywhere except
+        # here would leave the override inert on the path it was added for.
+        self._collision_controller = CollisionAvoidanceController.from_tuning(
+            self._tuning, clearance=self._clearance
+        )
 
         self._stuck_detector = StuckDetector.from_tuning(self._tuning)
 
@@ -1055,11 +1073,11 @@ class CoreNavigator(EscapeRecovery):
         )
 
         # Determine speed
-        if forward_clearance < self._tuning.clearance.CONTACT_DIST:
+        if forward_clearance < self._clearance.CONTACT_DIST:
             speed = self._speed.creep_mps()
-        elif forward_clearance < self._tuning.clearance.SLOW_DIST:
+        elif forward_clearance < self._clearance.SLOW_DIST:
             speed = self._speed.slow_mps()
-        elif forward_clearance < self._tuning.clearance.MEDIUM_DIST:
+        elif forward_clearance < self._clearance.MEDIUM_DIST:
             speed = self._speed.medium_mps()
         else:
             speed = self._speed.fast_mps()
@@ -1409,8 +1427,8 @@ class CoreNavigator(EscapeRecovery):
             # a clean park (see ParkController's own max_frames give-up) rather than thread
             # the gap in every case -- a known, documented limitation, not a silent one.
             # Not colliding takes priority over completing the maneuver.
-            side_margin = self._tuning.clearance.CONTACT_DIST + RobotSpecs.WIDTH / 2
-            if fwd < self._tuning.clearance.CONTACT_DIST or side < side_margin:
+            side_margin = self._clearance.CONTACT_DIST + RobotSpecs.WIDTH / 2
+            if fwd < self._clearance.CONTACT_DIST or side < side_margin:
                 linear = 0.0
         self._gateway.publish_drive(DriveCommand(speed_mps=linear, steering_norm=cmd.steering))
         debug = self._base_debug(robot_x, robot_y, robot_yaw)

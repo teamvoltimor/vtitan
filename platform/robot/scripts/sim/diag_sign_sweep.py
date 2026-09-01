@@ -310,6 +310,23 @@ class SweepConfig:
     never been re-measured against the corrected frame it now runs in.
     """
 
+    obstacles_contact_dist: float | None = None
+    """Override ``ClearanceZones.OBSTACLES_CONTACT_DIST`` (shipped unset).
+
+    The Obstacles-only form of ``contact_dist`` above. Both reach the same
+    navigator threshold on this harness, which runs Obstacles scenarios
+    exclusively, so setting either to the same value must produce IDENTICAL
+    rows -- that equivalence is the point of sweeping both, and the
+    ``obstacles-contact-dist`` mode below asserts it rather than assuming it.
+    Two overrides on this script have already failed to reach the navigator
+    silently (see ``_apply_patches`` and ``SweepConfig.tuning``), and this one
+    travels a NEW path -- a per-challenge resolution keyed on ``sign_router``
+    presence -- that no previous sweep has exercised.
+
+    Prefer this one for anything intended to ship: ``contact_dist`` moves the
+    shared zone and so moves the Open Challenge too.
+    """
+
     slow_dist: float | None = None
     """Override ``ClearanceZones.SLOW_DIST`` (shipped 0.25 m). The OBSTACLE-risk
     boundary one rung above ``contact_dist`` -- swept alongside it because
@@ -764,7 +781,12 @@ class SweepConfig:
             CENTERING_GAIN_DEG_PER_M=self.centering_gain,
         )
         speed = _with(base.speed, FAST_MPS=self.fast_mps, MAX_MPS=self.max_mps, CREEP_MPS=self.creep_mps)
-        clearance = _with(base.clearance, CONTACT_DIST=self.contact_dist, SLOW_DIST=self.slow_dist)
+        clearance = _with(
+            base.clearance,
+            CONTACT_DIST=self.contact_dist,
+            OBSTACLES_CONTACT_DIST=self.obstacles_contact_dist,
+            SLOW_DIST=self.slow_dist,
+        )
         localization = _with(base.localization, MAX_SPEED_MPS=self.localization_max_speed)
         waypoints = _with(
             base.waypoints,
@@ -4180,6 +4202,25 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind, contact 0.15 slow 0.25", blind=True, contact_dist=0.15),
         SweepConfig("blind, contact 0.10 slow 0.35", blind=True, slow_dist=0.35),
         SweepConfig("blind, contact 0.05 slow 0.35", blind=True, contact_dist=0.05, slow_dist=0.35),
+    ],
+    # The SHIPPABLE form of the escape-gate result. `escape-gate` above moves
+    # the shared ClearanceZones.CONTACT_DIST, which is also the Open Challenge's
+    # contact zone, so its numbers cannot be adopted without re-measuring Open.
+    # OBSTACLES_CONTACT_DIST moves this challenge only.
+    #
+    # Row 2 and row 3 must come back IDENTICAL. They set the same threshold by
+    # two different routes -- row 2 through the new per-challenge resolution
+    # (`ClearanceZones.for_obstacles_challenge`, keyed on sign_router presence),
+    # row 3 through the shared field the old mode already exercised. If they
+    # disagree the new path is not reaching the navigator, which is the failure
+    # this script has hit twice before and which reads as a real result. Row 4
+    # is the same override at the shipped value: it must equal row 1, proving
+    # the resolution is the identity when it should be.
+    "obstacles-contact-dist": [
+        SweepConfig("blind, shipped (contact 0.10, no override)", blind=True),
+        SweepConfig("blind, OBSTACLES_CONTACT_DIST 0.05", blind=True, obstacles_contact_dist=0.05),
+        SweepConfig("blind, shared CONTACT_DIST 0.05 (must match row 2)", blind=True, contact_dist=0.05),
+        SweepConfig("blind, OBSTACLES_CONTACT_DIST 0.10 (must match row 1)", blind=True, obstacles_contact_dist=0.10),
     ],
     # What the escape split + half-diagonal offset are worth IN BLIND, measured
     # in one tree so nothing else that has landed since can be mistaken for

@@ -27,6 +27,7 @@ from src.navigation.control.controllers.collision_avoidance.sectors import (
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.config.navigation_tuning.motion import ClearanceZones
     from shared.domain.models import SectorRanges
 
 logger = logging.getLogger(__name__)
@@ -175,7 +176,9 @@ class CollisionAvoidanceController:
         self.blind_wedge_right_max_rad = math.radians(blind_wedge_right_max_deg)
 
     @classmethod
-    def from_tuning(cls, tuning: NavigationTuning) -> CollisionAvoidanceController:
+    def from_tuning(
+        cls, tuning: NavigationTuning, clearance: ClearanceZones | None = None
+    ) -> CollisionAvoidanceController:
         """Build controller from NavigationTuning parameters.
 
         This is the preferred constructor for production code; it ensures that
@@ -184,18 +187,23 @@ class CollisionAvoidanceController:
 
         Args:
             tuning: NavigationTuning instance (usually from load_default).
+            clearance: Zones to use in place of ``tuning.clearance``, for a
+                caller that has already resolved the per-challenge overrides
+                (``ClearanceZones.for_obstacles_challenge``). Defaults to
+                ``tuning.clearance``, so every existing call is unchanged.
 
         Returns:
             CollisionAvoidanceController with values from tuning.
         """
+        clearance = clearance if clearance is not None else tuning.clearance
         return cls(
-            contact_dist=tuning.clearance.CONTACT_DIST,
-            slow_dist=tuning.clearance.SLOW_DIST,
-            fast_dist=tuning.clearance.FAST_DIST,
+            contact_dist=clearance.CONTACT_DIST,
+            slow_dist=clearance.SLOW_DIST,
+            fast_dist=clearance.FAST_DIST,
             escape_rev_speed=tuning.escape.REV_SPEED,
             escape_steer_scale=tuning.escape.rev_steer_norm(),
             stuck_threshold=tuning.escape.STUCK_MOVE_THRESHOLD,
-            path_margin=tuning.clearance.PATH_MARGIN,
+            path_margin=clearance.PATH_MARGIN,
             k_turn_min_frames=tuning.escape.K_TURN_MIN_FRAMES,
             k_turn_max_frames=tuning.escape.K_TURN_MAX_FRAMES,
             side_correction_steer=tuning.escape.side_correction_steer_norm(),

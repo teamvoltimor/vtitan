@@ -25,6 +25,9 @@ class ClearanceZones(BaseModel):
         FAST_DIST: Robot can go full speed (> 0.50m)
         PATH_MARGIN: Extra clearance beyond the chassis half-width still
             counted as "in the robot's forward path" for risk assessment (m)
+        OBSTACLES_CONTACT_DIST: Obstacles-Challenge CONTACT_DIST. ``None`` ->
+            use CONTACT_DIST. See the field for why only this zone is
+            per-challenge, and why only Obstacles has an override.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -94,6 +97,69 @@ class ClearanceZones(BaseModel):
     while the chassis is stationary, pose_y 0.01 m). This stops it grinding
     there at 0.24 m/s afterwards believing the road is clear.
     """
+
+    OBSTACLES_CONTACT_DIST: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_CONTACT_DIST")
+    )
+    """Obstacles-Challenge ``CONTACT_DIST``. ``None`` -> use ``CONTACT_DIST``.
+
+    Resolved by :meth:`for_obstacles_challenge`, which ``CoreNavigator`` calls
+    once at construction -- the same shape, and the same discriminator, as the
+    speed ladder's ``OBSTACLES_*`` tiers below.
+
+    Why the contact zone wants to differ by challenge: it is the threshold that
+    fires the reversing escape (``assess_risk`` returns CRITICAL below it), and
+    the two challenges present completely different things to escape FROM. Open
+    has walls only, and a wall at 0.10 m ahead is a genuine emergency. Obstacles
+    additionally has signs the router deliberately routes PAST at ~0.175 m from
+    their surface, so the same 0.10 m threshold fires on geometry the planner
+    chose on purpose. Measured 2026-08-31 on subset128: with signs physical the
+    robot logs ~180 escapes per run while colliding with a sign only 4-5 times
+    in 128 runs, and 66/128 runs time out -- it is escaping from clearances it
+    was aimed at, not from danger.
+
+    Asymmetric on purpose, unlike the speed tiers: there is no
+    ``OPEN_CONTACT_DIST``, because nothing has been measured that wants Open to
+    differ from the shared value, and an unset knob that nothing has ever moved
+    reads as tuning that exists. Add the Open half when a measurement asks for
+    it.
+
+    NOT track-validated. Lowering this shortens the distance in which the
+    chassis must actually halt, which is a hardware question the simulator
+    cannot answer -- see the stopping-distance bench check.
+    """
+
+    def for_obstacles_challenge(self) -> ClearanceZones:
+        """These zones as the Obstacles Challenge should run them.
+
+        Returns ``self`` unchanged when no Obstacles override is set, so the
+        Open path and the un-overridden Obstacles path stay byte-identical.
+        """
+        if self.OBSTACLES_CONTACT_DIST is None:
+            return self
+        return self.model_copy(update={"CONTACT_DIST": self.OBSTACLES_CONTACT_DIST})
+
+    @model_validator(mode="after")
+    def _contact_below_slow(self) -> ClearanceZones:
+        """The contact zone must stay below the slow zone, override included.
+
+        The ladder in ``core_navigator`` is an if/elif chain ordered
+        contact < slow < medium, so a contact threshold at or above SLOW_DIST
+        does not widen the contact zone -- it makes the slow rung unreachable
+        and silently deletes a tier. That is the same class of failure the
+        speed ladder's ``_challenge_tiers_below_challenge_cap`` exists to
+        catch, and it reads as tuning while measuring nothing.
+        """
+        contact = self.OBSTACLES_CONTACT_DIST
+        if contact is not None and contact >= self.SLOW_DIST:
+            msg = (
+                f"clearance.OBSTACLES_CONTACT_DIST ({contact}) must stay below "
+                f"clearance.SLOW_DIST ({self.SLOW_DIST}); the ladder is an ordered "
+                "if/elif chain, so an equal or larger contact zone makes the slow "
+                "tier unreachable instead of widening the contact one."
+            )
+            raise ValueError(msg)
+        return self
 
 
 class HeadingErrorZones(BaseModel):
