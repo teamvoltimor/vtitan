@@ -17,7 +17,7 @@ _shared_src = (_this_dir.parent.parent / "shared" / "src").resolve()
 if str(_shared_src) not in sys.path:
     sys.path.insert(0, str(_shared_src))
 
-_TEST_HARDWARE_PROFILE = "180deg-injora-14kg,generic-motor-1500rpm"
+_TEST_HARDWARE_PROFILE = "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm"
 """Which physical robot the suite's assertions describe.
 
 The base ``robot.toml`` no longer declares a motor or servo -- those live in
@@ -26,10 +26,32 @@ this. Declaring it here rather than defaulting it in the config loader is the
 point: a test's hardware is now stated, not inherited from whatever happened to
 be checked in.
 
-Pinned to the RETIRED build (Injora 14 kg + generic 1500 rpm) because that is
-what every existing assertion and every recorded baseline was measured against.
-Moving the suite to the current build is a deliberate change that re-baselines
-those numbers, not a side effect of the config restructure.
+Pinned to the CURRENT build (Hiwonder 270 deg + REV HD Hex) as of 2026-09-01.
+This was the retired build (Injora 14 kg + generic 1500 rpm) until then,
+because that is what the assertions and recorded baselines had been measured
+against -- and moving is the deliberate re-baseline that note anticipated, made
+on purpose rather than as a side effect.
+
+What forced it: the retired motor's ``max_speed_mps`` is 0.156, and roughly
+27 m of track over three laps needs ~173 s at that speed with zero cornering
+loss, against a 180 s ``ROUND_TIME_LIMIT_S``. A 3-lap in-time round was
+therefore ARITHMETICALLY IMPOSSIBLE on the pinned hardware, and 31 failures
+followed from it -- 21 in test_open_challenge_sim's narrow solvability cases
+and 10 in test_deviation_recovery. None was a navigation defect: the runs did
+not collide, recovered from the pose kick in ~184 steps, and completed their
+laps; ``SimResult.success`` failed only on ``over_time``. Asserting competition
+success against hardware that cannot meet the competition spec measures
+nothing.
+
+It also restores the drivetrain lag. The retired profile ships
+``speed_response_tau_s = 0.0`` -- instant response to a speed step, which is
+precisely the sim-fidelity defect the 2026-08-29 calibration corrected (tau
+0.35, measured against run_20260829_140424). The suite had been running with
+``yaw_gain`` calibrated but tau not, so it flattered the robot in the one
+direction that matters.
+
+Every pass rate recorded against the retired pin is NOT comparable to anything
+measured after this change.
 
 An externally set VTITAN_HARDWARE_PROFILE wins, so the whole suite can be run
 against other hardware without editing this file.
