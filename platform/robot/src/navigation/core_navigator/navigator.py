@@ -815,7 +815,31 @@ class CoreNavigator(EscapeRecovery):
         # Gated on sign_router presence (None for Open Challenge -- see
         # STALE_TARGET_RESCUE's docstring) and its own toggle, so Open
         # Challenge's waypoint-advance pipeline is untouched byte-for-byte.
-        rescue_behind = self._sign_router is not None and self._tuning.sign_router.STALE_TARGET_RESCUE
+        # ADVANCE_PAST_PASSED_WAYPOINT lifts the Obstacles-only gate above, on
+        # hardware evidence that Open hits the identical failure the paragraph
+        # describes. run_20260831_224600, first corner: the index froze on
+        # waypoint 8 at (0.35, 1.00) for FOUR SECONDS while the chassis swept
+        # past it, and pure pursuit -- correctly, for a target now behind and to
+        # the right -- turned to go back for it. Heading ran 172 -> 151 -> 130
+        # -> 107 -> 66 -> 14 deg: about 160 deg of rotation where the corner
+        # needed 90, ending perpendicular to the corridor with forward clearance
+        # collapsing 0.21 -> 0.11 m into the wall. The index then jumped 8 -> 11,
+        # which is the re-seek finding a later point once the overshoot was
+        # unrecoverable.
+        #
+        # The distance test cannot catch this by construction: overshoot a
+        # waypoint and BOTH it and its successor recede every tick, so
+        # `next_closer` never closes and the only remaining exit is entering a
+        # 0.20 m circle the chassis has already left behind.
+        #
+        # Separate flag rather than reusing STALE_TARGET_RESCUE: that one is
+        # namespaced under sign_router, was measured on Obstacles (2-5%, and
+        # refuted there), and carries the sign_router presence check that makes
+        # it structurally unavailable to Open. Same geometry, different
+        # challenge, different evidence -- so a different switch.
+        rescue_behind = (self._sign_router is not None and self._tuning.sign_router.STALE_TARGET_RESCUE) or (
+            self._tuning.waypoints.ADVANCE_PAST_PASSED_WAYPOINT
+        )
         cos_yaw, sin_yaw = (math.cos(robot_yaw), math.sin(robot_yaw)) if rescue_behind else (0.0, 0.0)
         count = len(self._waypoints)
         for _ in range(count):

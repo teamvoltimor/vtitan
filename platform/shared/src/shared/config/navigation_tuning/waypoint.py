@@ -435,6 +435,42 @@ class WaypointParams(BaseModel):
     than hardware.
     """
 
+    ADVANCE_PAST_PASSED_WAYPOINT: bool = Field(
+        default=False, validation_alias=_alias("ADVANCE_PAST_PASSED_WAYPOINT")
+    )
+    """Retire a waypoint the chassis has SWEPT PAST, not only one it drove near.
+
+    ``CoreNavigator.step`` advances the index when the next waypoint tests
+    strictly closer than the current one. Overshoot a waypoint and that test
+    can never close -- both it and its successor recede every tick -- leaving
+    entry into a 0.20 m circle the chassis has already left as the only exit.
+    The index freezes, and pure pursuit then steers CORRECTLY for a target that
+    is now behind: it turns around to go back for it.
+
+    Measured on hardware 2026-08-31, run_20260831_224600, first corner: index
+    frozen on waypoint 8 at (0.35, 1.00) for four seconds while heading ran
+    172 -> 151 -> 130 -> 107 -> 66 -> 14 deg. About 160 deg of rotation where
+    the corner needed 90, ending perpendicular to the corridor with forward
+    clearance collapsing 0.21 -> 0.11 m into the wall. The index then jumped
+    8 -> 11 -- the re-seek finding a later point after the overshoot.
+
+    The local-frame ahead/behind test already knows the chassis has passed it;
+    the machinery exists and has been in the Obstacles path for a while (see
+    ``sign_router.STALE_TARGET_RESCUE``). It was never available to Open, whose
+    ``rescue_behind`` is gated on a sign router being present -- deliberately,
+    to leave Open's advance pipeline byte-identical. This is that gate lifted,
+    on Open's own evidence.
+
+    A separate flag rather than reusing STALE_TARGET_RESCUE, which is namespaced
+    under sign_router, was measured on Obstacles (2-5%, and refuted there), and
+    carries the presence check that makes it structurally unreachable from Open.
+    Same geometry, different challenge, different evidence.
+
+    Defaults False pending a corpus number. Unlike the fail-safe clearance work,
+    this IS simulator-testable -- the overshoot is ordinary geometry, not a
+    wedged-against-a-wall state the absorbing contact model cannot reach.
+    """
+
     REPLAN_BLEND_TICKS: int = Field(default=0, ge=0, validation_alias=_alias("REPLAN_BLEND_TICKS"))
     """Ticks over which a replanned path is faded in, instead of swapped at once.
 
