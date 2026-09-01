@@ -347,7 +347,24 @@ class TestFieldDefaultsMatchShippedToml:
     measured at the drifted value without any signal that it had.
     """
 
-    def test_field_defaults_match_shipped_toml(self):
+    def test_field_defaults_match_shipped_toml(self, monkeypatch):
+        # Compared against the BASE tree only, with no hardware profile active.
+        # `load_default` composes [DEFAULT_CONFIG_DIR, *profile_dirs()], and
+        # navigation tuning has per-profile overlays of its own
+        # (profiles/<name>/motion/speed.toml), so "the shipped value" is not one
+        # number -- rev-hd-hex-motor-6000rpm ships max_mps 0.50 where the base
+        # ships 0.156. A single Field default cannot mirror every profile, and
+        # comparing it against whichever one happens to be pinned makes this
+        # test fail on correct config: it passed only while the pinned profile
+        # was byte-identical to the base, which stopped being true when
+        # 35a86a3e moved the suite to the current build.
+        #
+        # The drift this guards is still guarded. A bare NavigationTuning() has
+        # no profile by definition, so the base tree is exactly what its
+        # defaults are a second copy of -- WIDE_CENTER_BIAS_M, and the
+        # BLIND_WEDGE_* and MAX_STEERING_RATE drift found in 0d4a8b70, were all
+        # base-vs-default and all still caught here.
+        monkeypatch.setenv("VTITAN_HARDWARE_PROFILE", "")
         bare = NavigationTuning()
         shipped = NavigationTuning.load_default()
 
