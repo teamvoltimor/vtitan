@@ -18,7 +18,21 @@ from unittest import mock
 import numpy as np
 import pytest
 
+from src.vision.hud import HudConfig
 from src.vision.video_recorder import FrameSnapshot, VideoRecorder
+
+
+def _recorder(video_width: int = 160, fps: float = 10.0) -> VideoRecorder:
+    """A recorder with the shipped HUD settings.
+
+    ``hud_config`` became a required argument when 954ab829 retired the
+    ``_DEFAULT_HUD_CONFIG`` global; these tests were not updated and every one
+    of them failed on ``TypeError`` from then on. Built here rather than at ten
+    call sites so the next signature change lands in one place, and loaded from
+    the real config rather than hand-built so the tests exercise the same HUD
+    settings the robot records with.
+    """
+    return VideoRecorder(video_width=video_width, fps=fps, hud_config=HudConfig.load())
 
 
 def _frame(width: int = 320, height: int = 180) -> np.ndarray:
@@ -31,12 +45,12 @@ def _snapshot(**kwargs) -> FrameSnapshot:
 
 
 def test_not_recording_before_start() -> None:
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     assert recorder.is_recording is False
 
 
 def test_start_marks_recording_and_stop_finalizes_the_file(tmp_path) -> None:
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     path = tmp_path / "video.mp4"
 
     recorder.start(path)
@@ -50,7 +64,7 @@ def test_start_marks_recording_and_stop_finalizes_the_file(tmp_path) -> None:
 
 
 def test_starting_twice_is_a_no_op(tmp_path) -> None:
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     path = tmp_path / "video.mp4"
     recorder.start(path)
     first_thread = recorder._thread
@@ -62,18 +76,18 @@ def test_starting_twice_is_a_no_op(tmp_path) -> None:
 
 
 def test_submit_before_start_is_a_no_op_not_an_error() -> None:
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     recorder.submit(_snapshot())  # must not raise
 
 
 def test_stop_before_start_is_a_no_op() -> None:
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     recorder.stop()  # must not raise
 
 
 def test_recorded_video_is_downscaled_to_video_width_preserving_aspect_ratio(tmp_path) -> None:
     """Height is derived from the input frame's own aspect ratio, not hardcoded."""
-    recorder = VideoRecorder(video_width=100, fps=10.0)
+    recorder = _recorder(video_width=100)
     path = tmp_path / "video.mp4"
 
     recorder.start(path)
@@ -101,7 +115,7 @@ def test_submit_never_blocks_when_the_encoder_falls_behind(tmp_path) -> None:
     must never make submit() itself block -- the queue fills, then every
     further submit() drops the frame and returns immediately.
     """
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     path = tmp_path / "video.mp4"
     recorder.start(path)
 
@@ -120,7 +134,7 @@ def test_submit_never_blocks_when_the_encoder_falls_behind(tmp_path) -> None:
 
 def test_dropped_frame_counter_increments_when_queue_is_full() -> None:
     """White-box check that Full is actually handled, not just that submit() returns."""
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     # Fill the internal queue directly without starting the encoder thread, so
     # nothing drains it and the next submit() is guaranteed to hit queue.Full.
     recorder._thread = object()
@@ -136,7 +150,7 @@ def test_dropped_frame_counter_increments_when_queue_is_full() -> None:
 @pytest.mark.slow()
 def test_stop_drains_queued_frames_before_releasing(tmp_path) -> None:
     """stop() must not truncate frames that were already queued when it was called."""
-    recorder = VideoRecorder(video_width=160, fps=10.0)
+    recorder = _recorder()
     path = tmp_path / "video.mp4"
     recorder.start(path)
     for _ in range(3):
@@ -157,7 +171,7 @@ class TestHudCompositing:
     """The encoder thread draws the HUD, not the caller -- see the module docstring."""
 
     def test_draw_stats_and_draw_radar_are_called_on_the_resized_frame(self, tmp_path) -> None:
-        recorder = VideoRecorder(video_width=100, fps=10.0)
+        recorder = _recorder(video_width=100)
         snapshot = _snapshot(
             frame=_frame(width=400, height=300),
             nav_debug={"phase": "normal_drive"},

@@ -67,10 +67,18 @@ class LidarSectorParams(BaseModel):
     THREAT_HALF_FOV_DEG: float = Field(default=45.0, validation_alias=_alias("THREAT_HALF_FOV_DEG"))
     SELF_DETECTION_THRESHOLD_M: float = Field(default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M"))
     MIN_VALID_RANGE_M: float = Field(default=0.05, validation_alias=_alias("MIN_VALID_RANGE_M"))
-    BLIND_WEDGE_LEFT_MIN_DEG: float = Field(default=-180.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MIN_DEG"))
-    BLIND_WEDGE_LEFT_MAX_DEG: float = Field(default=-115.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MAX_DEG"))
-    BLIND_WEDGE_RIGHT_MIN_DEG: float = Field(default=115.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MIN_DEG"))
-    BLIND_WEDGE_RIGHT_MAX_DEG: float = Field(default=180.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MAX_DEG"))
+    # These four track sensors/lidar_sectors.toml, and the gap between them
+    # mattered: the old bare defaults (-180..-115 and 115..180) blinded the
+    # rear ARC ENTIRELY, which is the pre-2026-08-31 belief that this chassis
+    # has no rear slot at all. The shipped values leave the ~40 deg slot at
+    # +-160..180 that was re-measured on 08-31, and the reverse guards key off
+    # exactly that: `rear_sector().measured` is False for a fully-blind arc, so
+    # bare-constructed tuning refused every reverse escape while the same code
+    # loaded from TOML allowed it.
+    BLIND_WEDGE_LEFT_MIN_DEG: float = Field(default=-155.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MIN_DEG"))
+    BLIND_WEDGE_LEFT_MAX_DEG: float = Field(default=-120.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MAX_DEG"))
+    BLIND_WEDGE_RIGHT_MIN_DEG: float = Field(default=120.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MIN_DEG"))
+    BLIND_WEDGE_RIGHT_MAX_DEG: float = Field(default=160.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MAX_DEG"))
     THREAT_NO_DETECTION_RANGE_M: float = Field(default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M"))
     NO_DATA_RANGE_M: float = Field(default=10.0, validation_alias=_alias("NO_DATA_RANGE_M"))
     """Fallback range (m) when no valid LIDAR readings are available.

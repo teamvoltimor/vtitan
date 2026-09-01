@@ -248,7 +248,10 @@ class PurePursuitParams(BaseModel):
         default=0.30, validation_alias=_alias("LOOKAHEAD_TRANSITION")
     )  # Crosstrack threshold
     STEER_KP: float = Field(default=1.2, validation_alias=_alias("STEER_KP"))  # Steering P-gain
-    MAX_STEERING_RATE: float = Field(default=2.0, validation_alias=_alias("MAX_STEERING_RATE"))  # rad/s
+    # 1.2 to match motion/pursuit.toml, not the 2.0 this carried before: bare
+    # construction was running a rate 67% higher than anything the robot ships
+    # with, so a weave measured on bare tuning was not measuring the robot.
+    MAX_STEERING_RATE: float = Field(default=1.2, validation_alias=_alias("MAX_STEERING_RATE"))  # rad/s
     WALL_MARGIN_SAFETY_M: float = Field(
         default=0.03, validation_alias=_alias("WALL_MARGIN_SAFETY_M")
     )  # Kept clear of an outer wall

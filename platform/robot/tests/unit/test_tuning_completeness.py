@@ -33,6 +33,23 @@ def test_all_tuning_params_groups_have_config() -> None:
         assert group is not None, f"Group {group_name} is None"
 
 
+# Fields whose shipped value is DELIBERATELY zero, with the reason. A zero here
+# is a tuning decision, not the "config never loaded" symptom the check below
+# looks for, and asserting non-zero on one makes the suite fail on correct
+# config -- which it did, from 2026-08-22 until this was written.
+#
+# Naming them individually rather than dropping the zero check keeps it live for
+# every other field: a NEW accidental zero still fails.
+DELIBERATELY_ZERO = {
+    # Zeroed 2026-08-22: the blind creep holds heading instead of chasing the
+    # centreline, because the lateral correction swings the chassis past
+    # ALIGNMENT_TOLERANCE_RAD and starves the direction gate. Kept as a zeroed
+    # gain rather than deleted so the branch survives for a chassis that wants
+    # it -- see CorridorFollowerParams.CENTERING_GAIN_DEG_PER_M.
+    "corridor_follower.CENTERING_GAIN_DEG_PER_M",
+}
+
+
 def test_tuning_fields_not_none() -> None:
     """Verify all tuning fields have non-None values (config is complete)."""
     tuning = NavigationTuning.load_default()
@@ -49,7 +66,7 @@ def test_tuning_fields_not_none() -> None:
 
     for field_name, value in critical_fields.items():
         assert value is not None, f"Tuning field {field_name} is None"
-        if isinstance(value, (int, float)):
+        if isinstance(value, (int, float)) and field_name not in DELIBERATELY_ZERO:
             assert value != 0.0, f"Tuning field {field_name} is zero (may indicate config error)"
 
 

@@ -212,11 +212,20 @@ def test_scan_masks_the_bearings_the_mount_cannot_see():
             round(math.degrees(a)): r for a, r in zip(scan.angles_rad, msg.ranges, strict=True)
         }
 
-        # Straight back is masked edge to edge on this mount. The sweep spans
-        # [-180, +180), so only one of the two ends is actually sampled.
+        # Straight back SURVIVES. This asserted the opposite until 2026-09-01,
+        # encoding the superseded belief that the mount occludes the rear edge
+        # to edge. The wedges were re-measured on 08-31 as -155..-120 and
+        # 120..160, which leaves a ~40 deg slot at +-160..180 -- and that slot
+        # is what `rear_sector().measured` reports on, so the reverse guards
+        # authorise a reverse only because these rays come back. A test
+        # demanding it be blank pins the geometry the robot no longer has.
+        # The sweep spans [-180, +180), so only one of the two ends is sampled.
         rear = [by_degree[d] for d in (180, -180) if d in by_degree]
         assert rear, "sweep should sample one of the two rear ends"
-        assert all(math.isnan(r) for r in rear), "straight back must be blanked"
+        assert all(r == pytest.approx(2.0) for r in rear), (
+            "straight back is the measured rear slot and must NOT be blanked"
+        )
+        # Inside each wedge is still masked -- read from config, not restated.
         assert math.isnan(by_degree[round(sectors.BLIND_WEDGE_RIGHT_MIN_DEG) + 5])
         assert math.isnan(by_degree[round(sectors.BLIND_WEDGE_LEFT_MAX_DEG) - 5])
         # Forward is untouched -- masking must not eat the useful sweep.
