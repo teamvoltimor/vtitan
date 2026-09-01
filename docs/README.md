@@ -42,7 +42,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
          3. [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops)
          4. [Raspberry Pi Zero W](README.md#raspberry-pi-zero-w)
          5. [RPLIDAR C1](README.md#rplidar-c1)
-         6. [INJORA 14KG INJS014 Micro Servo](README.md#injora-14-kg-injs014-micro-servo)
+         6. [Hi Wonder HPS 3527SG 35Kg Servo](README.md#hi-wonder-hps-3527sg-35kg-servo)
          7. [HD Hex Motor](README.md#hd-hex-motor)
          8. [9-Axis IMU Gyroscope GY-BNO085](README.md#gyroscope-gy-bno085)
          9. [Puente H L298N](README.md#raspberry-pi-camera-module-3-wide)
@@ -337,19 +337,19 @@ Especificaciones técnicas:
 | Resolución angular     | 0,72°                                                                              |
 | Ángulo de inclinación  | 0°-1,5°                                                                            |
 
-### INJORA 14 kg INJS014 Micro Servo
+### Hi Wonder HPS-3527SG 35kg Servo
 
 <!-- github-only-start -->
 <p align="center">
-	<img src="assets/images/components/injora-14kg-injs014-micro-servo.png" alt="INJORA 14 kg INJS014 Micro Servo" 
+	<img src="assets/images/components/hi-wonder-hps-3527sg-35kg-servo.png" alt="Hiwonder HPS-3527SG 35kg Servo" 
 width="350">
 	<br>
-	<i>INJORA 14 kg INJS014 Micro Servo</i>
+	<i>Hiwonder HPS-3527SG 35kg Servo</i>
 </p>
 
-El INJORA 14 kg INJS014 Micro Servo es el servomotor encargado de controlar la dirección de V-Titan, decidimos utilizar este modelo debido a su reducido tamaño y peso, además de una precisión más que suficiente para poder manejar a V-Titan.
+El Hiwonder HPS-3527SG 35kg Servo es el servomotor encargado de controlar la dirección de V-Titan, decidimos utilizar este modelo debido a su reducido tamaño y peso, además de una precisión más que suficiente para poder manejar a V-Titan.
 
-No solo estos aspectos definieron la elección, el INJORA 14 kg INJS014 ofrece también una gran precisión a pesar de su reducido tamaño, algo esencialmente vital en esta competencia.
+No solo estos aspectos definieron la elección, el Hiwonder HPS-3527SG 35kg ofrece también una gran precisión a pesar de su reducido tamaño, algo esencialmente vital en esta competencia.
 
 Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
 `servo`, nos permiten configurar el servo a nuestra elección, convirtiendo el uso de funciones para controlar el servo previamente establecido mucho más fácil de leer sin arriesgar el rendimiento del programa.
@@ -364,7 +364,7 @@ Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
 ### HD Hex Motor
 
 <p align="center">
-	<img src="assets/images/components/bno08x.png" alt="HD Hex Motor" 
+	<img src="assets/images/components/hd-hex-motor.png" alt="HD Hex Motor" 
 width="350">
 	<br>
 	<i>HD Hex Motor</i>
@@ -452,9 +452,9 @@ Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 
 
 * **Dimensiones y peso límite:** Máximo 300 mm (largo) 200 mm (ancho) 300 mm (alto) y un peso no mayor a 1500 g.
 
-* **Reglamento de tracción y dirección:** Permitido tracción 4x4 impulsada por un **único motor** (o dos interconectados en el mismo árbol de transmisión) y sistema de dirección para las 4 ruedas accionado por un **único servomotor**.
+* **Reglamento de tracción y dirección:** Permitido tracción 4x4 impulsada por un **único motor** (o dos conectados en el mismo árbol de transmisión) y sistema de dirección para las 4 ruedas accionado por un **único servomotor**.
 
-Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#9-axis-imu-gyroscope-gy-bno085) como componentes principales para la navegación de V-Titan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de V-Titan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-w) como microcontrolador para el manejo de el [Motor] y el [Servo] y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el [Adaptador a 5V DC] para poder alimentar a la Raspberry Pi 5.
+Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#9-axis-imu-gyroscope-gy-bno085) como componentes principales para la navegación de V-Titan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de V-Titan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-w) como microcontrolador para el manejo de el [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
 
 Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita general el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Desafío Cerrado sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación decidimos dividir el proceso en 4 fases:
 
@@ -521,9 +521,9 @@ En este apartado, describimos las estrategias que empleamos en pista para poder 
 
 Para poder detectar los obstáculos del Desafío Cerrado de una manera confiable, decidimos implementar un modelo de detección YOLO (You Only Look Once) para poder mantener tracción de los obstáculos en pista, al principio, decidimos probar los modelos de prueba en la Raspberry Pi 5, utilizando la Raspberry Pi Camera Module 3 Wide para poder ejecutar los modelos de prueba, sin embargo tras las primeras pruebas notamos que el tiempo de detección era demasiado alto (alrededor de los 700ms por imágen) tras esto decidimos implementar un Raspberry Pi AI HAT+ (26 TOPS) con el cual, obtuvimos una tasa de detección de alrededor de 30 a 40 imágenes por segundo.
 
-## Simulador
+## Algoritmo PID
 
-
+Otro algoritmo fundamental que implementamos en nuestra estrategia para facilitar el buen desempeño de V-Titan en los desafíos es el PID (Proporcional, Integral y Derivativo) éste es utilizado principalmente para que, con ayuda del giroscopio, V-Titan siempre esté orientado de paralelamente a los bordes de la pista, además de esto, el PID es utilizado para suavizar los cruces en los desafíos (para evitar el "overshooting", es decir, que V-Titan, por inercia cruce 10 o 20 grados más de lo deseado por un giro brusco)
 
 # Pensamiento sistémico y decisiones de ingeniería
 
