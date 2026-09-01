@@ -115,9 +115,16 @@ class TestMeasuredDeparturesFromTheIdealModel:
         assert 0.0 < RobotSpecs.YAW_GAIN < 1.0
 
     def test_the_drivetrain_lags_a_step_by_its_time_constant(self):
-        """One tau after a step, a first-order lag has closed ~63% of it."""
+        """One tau after a step, a first-order lag has closed ~63% of it.
+
+        ``max_speed_mps`` is pinned here for the same reason ``max_accel`` is:
+        this measures the LAG, so every other limiter has to be taken out of
+        the way. Left unset it inherits the profile ceiling, and conftest pins
+        the retired generic-motor-1500rpm at 0.156 m/s -- below the 0.3 target,
+        so the step was clamped and the test measured 63% of the wrong number.
+        """
         tau = 0.4
-        kin = AckermannKinematics(speed_tau_s=tau, max_accel=1e6)
+        kin = AckermannKinematics(speed_tau_s=tau, max_accel=1e6, max_speed_mps=1e6)
         target = 0.3
 
         state = AckermannState(x=0.0, y=0.0, yaw=0.0)
@@ -127,8 +134,13 @@ class TestMeasuredDeparturesFromTheIdealModel:
         assert state.v == pytest.approx(target * 0.632, rel=0.05)
 
     def test_zero_tau_reproduces_the_old_instant_response(self):
-        """What the retired motor's profile ships, so its recorded results stay comparable."""
-        kin = AckermannKinematics(speed_tau_s=0.0, max_accel=1e6)
+        """What the retired motor's profile ships, so its recorded results stay comparable.
+
+        ``max_speed_mps`` pinned for the same reason as the test above: the
+        assertion is that zero tau reaches target in ONE step, which the
+        profile's 0.156 m/s ceiling silently contradicted for a 0.3 target.
+        """
+        kin = AckermannKinematics(speed_tau_s=0.0, max_accel=1e6, max_speed_mps=1e6)
 
         state = kin.step(AckermannState(x=0.0, y=0.0, yaw=0.0), target_speed=0.3, target_steer_norm=0.0, dt=_DT)
 
