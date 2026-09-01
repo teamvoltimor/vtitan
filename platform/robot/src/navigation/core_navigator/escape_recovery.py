@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from collections import deque
 
     from shared.config.navigation_tuning import NavigationTuning
-    from shared.config.navigation_tuning.motion import ClearanceZones
 
     from src.navigation.control.controllers import (
         CollisionAvoidanceController,
@@ -48,9 +47,6 @@ class EscapeRecovery:
 
     # State owned by the CoreNavigator subclass; declared here for type-checking.
     _tuning: NavigationTuning
-    # Per-challenge-resolved clearance zones. Read these rather than
-    # `_tuning.clearance` -- CONTACT_DIST may carry an Obstacles override.
-    _clearance: ClearanceZones
     _gateway: HardwareGateway
     _collision_controller: CollisionAvoidanceController
     _waypoint_controller: WaypointController
@@ -158,7 +154,7 @@ class EscapeRecovery:
         # made this gate unreachable: the sensor is at the front, so an obstacle
         # touching the rear bumper reports ~0.272 m against a 0.10 m threshold
         # and the reverse was authorised right up to the moment of impact.
-        return bumper_gap_behind(rear.min_range_m) < self._clearance.CONTACT_DIST
+        return bumper_gap_behind(rear.min_range_m) < self._tuning.clearance.CONTACT_DIST
 
     def _trail_confirms_reverse(self, reverse_distance: float) -> bool:
         """Whether the pose trail vouches for a reverse of ``reverse_distance``.
@@ -176,7 +172,7 @@ class EscapeRecovery:
             return False
         trail_x, trail_y, trail_yaw = self._pose_trail[-1]
         covered = trail_clearance_behind(self._pose_trail, trail_x, trail_y, trail_yaw)
-        return covered is not None and covered >= reverse_distance + self._clearance.CONTACT_DIST
+        return covered is not None and covered >= reverse_distance + self._tuning.clearance.CONTACT_DIST
 
     def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
         """Latch an escape maneuver so it executes for its full duration."""
@@ -401,11 +397,11 @@ class EscapeRecovery:
         # Without the second term a blind forward cone reads 10 m and every test
         # below passes, which is how the robot came to escape forward into a wall
         # it was touching. Gated so the flag alone decides whether this is live.
-        forward_open = forward_clear >= self._clearance.CONTACT_DIST and not (
-            self._clearance.FORWARD_NO_DATA_IS_DEGRADED and forward_blind
+        forward_open = forward_clear >= self._tuning.clearance.CONTACT_DIST and not (
+            self._tuning.clearance.FORWARD_NO_DATA_IS_DEGRADED and forward_blind
         )
         if (
-            rear_clear < self._clearance.CONTACT_DIST
+            rear_clear < self._tuning.clearance.CONTACT_DIST
             or (rear_blind and forward_open)
             or blind_rear_unconfirmed
         ):
