@@ -1333,7 +1333,12 @@ class CoreNavigator(EscapeRecovery):
                 self._escape_count += 1
                 self._begin_maneuver(self._maybe_escalate(maneuver))
                 self._debug = debug
-                self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ESCAPE_TRIGGERED)
+                # Hand over the snapshot rather than letting it be rebuilt: it
+                # carries the risk verdict and the trigger ray that caused this
+                # escape, and this is the only tick they can be attributed to.
+                self._drive_active_maneuver(
+                    robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ESCAPE_TRIGGERED, base=debug,
+                )
                 return
 
         # Normal publish — clear the escape escalation, but only once the

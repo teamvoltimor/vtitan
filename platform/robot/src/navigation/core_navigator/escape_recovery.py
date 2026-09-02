@@ -198,8 +198,27 @@ class EscapeRecovery:
         robot_y: float,
         robot_yaw: float,
         phase: NavigatorPhase,
+        base: NavigatorDebugSnapshot | None = None,
     ) -> None:
-        """Publish the active escape command and count down its latched duration."""
+        """Publish the active escape command and count down its latched duration.
+
+        ``base`` is the snapshot the caller has already filled in, used instead
+        of building a fresh one. Rebuilding unconditionally discards everything
+        the caller computed this tick -- in particular ``risk``/``escape_risk``
+        and the ray the escape verdict came from -- so the ESCAPE_TRIGGERED
+        tick, the one tick that can explain why a maneuver fired, published
+        exactly the fields that would explain it as None.
+
+        That is not only a reporting problem: it made escapes look
+        unattributable to the contact gate. A 2026-09-02 sweep of the 256
+        corpus read 37 of 19,276 engagements as gate-triggered, which would
+        have meant OBSTACLES_CONTACT_DIST governs almost nothing, when in fact
+        the evidence was being erased one line after it was recorded.
+
+        Callers with nothing to carry pass None and get the old behaviour --
+        the stuck paths reach here from branches that never computed a risk
+        verdict, so for them a fresh snapshot is the honest one.
+        """
         maneuver = self._active_maneuver
         if maneuver is None:
             return
@@ -219,7 +238,7 @@ class EscapeRecovery:
                 steering = retrace
         maneuver = replace(maneuver, steering=steering)
         self._gateway.publish_drive(DriveCommand(speed_mps=maneuver.speed, steering_norm=maneuver.steering))
-        debug = self._base_debug(robot_x, robot_y, robot_yaw)
+        debug = self._base_debug(robot_x, robot_y, robot_yaw) if base is None else base
         debug.phase = phase
         debug.active_maneuver_type = maneuver.maneuver_type
         debug.maneuver_steering = maneuver.steering
