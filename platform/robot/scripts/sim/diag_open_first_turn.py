@@ -39,6 +39,7 @@ import argparse
 import math
 import sys
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -141,7 +142,23 @@ def _monotone_progress(yaw_deg: list[float]) -> list[float]:
     return running
 
 
-def _leg_profile(index: int, ticks: list[tuple[float, float, float, bool]], corner: str) -> dict[str, object]:
+@dataclass(frozen=True, slots=True)
+class LegProfile:
+    """One leg's summary: the straight approach plus the corner arc it ends on."""
+
+    leg: int
+    corner: str
+    ticks: int
+    seconds: float
+    creep: float
+    reverse: int
+    stalled: int
+    crawling: int
+    steer_flips: int
+    entry_speed: float | None
+
+
+def _leg_profile(index: int, ticks: list[tuple[float, float, float, bool]], corner: str) -> LegProfile:
     """Summarise one leg's ticks of ``(progress_deg, speed, steer, creeping)``."""
     driving = [(v, steer) for _, v, steer, creeping in ticks if not creeping]
     flips = sum(
@@ -160,23 +177,23 @@ def _leg_profile(index: int, ticks: list[tuple[float, float, float, bool]], corn
     # clearance than a narrow one.
     base = index * _QUARTER_TURN_DEG
     entering = [v for progress, v, _, creeping in ticks if not creeping and progress - base >= _TURN_START_DEG]
-    return {
-        "leg": index + 1,
-        "corner": corner,
-        "ticks": len(ticks),
-        "seconds": len(ticks) * CONTROL_DT,
-        "creep": sum(1 for _, _, _, creeping in ticks if creeping) * CONTROL_DT,
-        "reverse": sum(1 for v, _ in driving if v < -_STALL_SPEED_MPS),
-        "stalled": sum(1 for v, _ in driving if abs(v) <= _STALL_SPEED_MPS),
-        "crawling": sum(1 for v, _ in driving if _STALL_SPEED_MPS < v < _CRAWL_FRACTION * RobotSpecs.MAX_SPEED_MPS),
-        "steer_flips": flips,
+    return LegProfile(
+        leg=index + 1,
+        corner=corner,
+        ticks=len(ticks),
+        seconds=len(ticks) * CONTROL_DT,
+        creep=sum(1 for _, _, _, creeping in ticks if creeping) * CONTROL_DT,
+        reverse=sum(1 for v, _ in driving if v < -_STALL_SPEED_MPS),
+        stalled=sum(1 for v, _ in driving if abs(v) <= _STALL_SPEED_MPS),
+        crawling=sum(1 for v, _ in driving if _STALL_SPEED_MPS < v < _CRAWL_FRACTION * RobotSpecs.MAX_SPEED_MPS),
+        steer_flips=flips,
         # None when the run died before this turn ever started -- which is
         # itself the failure being investigated, so it must not read as 0.0.
-        "entry_speed": entering[0] if entering else None,
-    }
+        entry_speed=entering[0] if entering else None,
+    )
 
 
-def _legs(tracer: _YawTracer, corners: list[str]) -> list[dict[str, object]]:
+def _legs(tracer: _YawTracer, corners: list[str]) -> list[LegProfile]:
     """Split a run into legs, one per turn reached, each ending as that turn completes.
 
     ``corners`` labels the corner each leg ENDS on, cycling with the lap, so a
@@ -211,7 +228,19 @@ def _corner_sequence(widths_mm: dict[str, int], section: Any, direction: Any) ->
     return labels
 
 
-def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None, bool]) -> dict[str, Any]:
+@dataclass(frozen=True, slots=True)
+class _CaseResult:
+    """One scenario's outcome, with its full per-leg breakdown."""
+
+    index: int
+    verdict: str
+    stuck: bool
+    sim_time_s: float
+    legs: list[LegProfile]
+    label: str
+
+
+def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None, bool]) -> _CaseResult:
     """Run one scenario and return its per-leg profile. Primitive-valued so it pickles."""
     from shared.domain.enums import Direction, Section
 
@@ -232,38 +261,38 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
     tracer = _YawTracer(sim)
     result = sim.run(on_step=tracer.on_step)
 
-    return {
-        "index": index,
-        "verdict": _verdict(result),
-        "stuck": result.stuck,
-        "sim_time_s": result.sim_time_s,
-        "legs": _legs(tracer, _corner_sequence(widths_mm, section, direction)),
-        "label": f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
-    }
+    return _CaseResult(
+        index=index,
+        verdict=_verdict(result),
+        stuck=result.stuck,
+        sim_time_s=result.sim_time_s,
+        legs=_legs(tracer, _corner_sequence(widths_mm, section, direction)),
+        label=f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
+    )
 
 
-def _leg_table(rows: list[dict[str, Any]]) -> None:
+def _leg_table(rows: list[_CaseResult]) -> None:
     """Aggregate every run's legs by ordinal and print the per-ordinal profile."""
-    by_leg: defaultdict[int, list[dict[str, float]]] = defaultdict(list)
+    by_leg: defaultdict[int, list[LegProfile]] = defaultdict(list)
     for row in rows:
-        for leg in row["legs"]:
-            by_leg[int(leg["leg"])].append(leg)
+        for leg in row.legs:
+            by_leg[leg.leg].append(leg)
 
     table = []
     for leg_index in sorted(by_leg):
         legs = by_leg[leg_index]
-        reversing = [leg for leg in legs if leg["reverse"] > 0]
+        reversing = [leg for leg in legs if leg.reverse > 0]
         table.append(
             [
                 leg_index,
                 len(legs),
-                f"{sum(leg['seconds'] for leg in legs) / len(legs):.1f}s",
-                f"{sum(leg['creep'] for leg in legs) / len(legs):.1f}s",
+                f"{sum(leg.seconds for leg in legs) / len(legs):.1f}s",
+                f"{sum(leg.creep for leg in legs) / len(legs):.1f}s",
                 f"{len(reversing) / len(legs):.1%}",
-                f"{sum(leg['reverse'] for leg in legs) / len(legs):.1f}",
-                f"{max((leg['reverse'] for leg in legs), default=0):.0f}",
-                f"{sum(leg['crawling'] for leg in legs) / len(legs):.1f}",
-                f"{sum(leg['steer_flips'] for leg in legs) / len(legs):.1f}",
+                f"{sum(leg.reverse for leg in legs) / len(legs):.1f}",
+                f"{max((leg.reverse for leg in legs), default=0):.0f}",
+                f"{sum(leg.crawling for leg in legs) / len(legs):.1f}",
+                f"{sum(leg.steer_flips for leg in legs) / len(legs):.1f}",
             ]
         )
     print_table(
@@ -272,7 +301,7 @@ def _leg_table(rows: list[dict[str, Any]]) -> None:
     )
 
 
-def _corner_table(rows: list[dict[str, Any]]) -> None:
+def _corner_table(rows: list[_CaseResult]) -> None:
     """Entry speed and reversing per width transition, split by first corner or later.
 
     The first corner is separated because it is the only one the robot meets
@@ -280,11 +309,11 @@ def _corner_table(rows: list[dict[str, Any]]) -> None:
     in the corpus lands there -- pooling it with laps 2 and 3 would dilute the
     contrast by roughly twelve to one.
     """
-    by_corner: defaultdict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    by_corner: defaultdict[tuple[str, str], list[LegProfile]] = defaultdict(list)
     for row in rows:
-        for leg in row["legs"]:
-            when = "first" if leg["leg"] == 1 else "later"
-            by_corner[(str(leg["corner"]), when)].append(leg)
+        for leg in row.legs:
+            when = "first" if leg.leg == 1 else "later"
+            by_corner[(leg.corner, when)].append(leg)
 
     table = []
     for corner in ("W->W", "W->N", "N->W", "N->N"):
@@ -292,9 +321,9 @@ def _corner_table(rows: list[dict[str, Any]]) -> None:
             legs = by_corner.get((corner, when), [])
             if not legs:
                 continue
-            speeds = [leg["entry_speed"] for leg in legs if leg["entry_speed"] is not None]
-            never = sum(1 for leg in legs if leg["entry_speed"] is None)
-            reversing = [leg for leg in legs if leg["reverse"] > 0]
+            speeds = [leg.entry_speed for leg in legs if leg.entry_speed is not None]
+            never = sum(1 for leg in legs if leg.entry_speed is None)
+            reversing = [leg for leg in legs if leg.reverse > 0]
             table.append(
                 [
                     corner,
@@ -312,12 +341,12 @@ def _corner_table(rows: list[dict[str, Any]]) -> None:
     )
 
 
-def _worst_leg_table(rows: list[dict[str, Any]]) -> None:
+def _worst_leg_table(rows: list[_CaseResult]) -> None:
     """Which turn ordinal owns each run's worst patch of reversing."""
     worst: Counter[int | str] = Counter()
     for row in rows:
-        legs = [leg for leg in row["legs"] if leg["reverse"] > 0]
-        worst[int(max(legs, key=lambda leg: leg["reverse"])["leg"]) if legs else "none"] += 1
+        legs = [leg for leg in row.legs if leg.reverse > 0]
+        worst[max(legs, key=lambda leg: leg.reverse).leg if legs else "none"] += 1
     total = sum(worst.values())
     print_table(
         [[key, count, f"{count / total:.1%}"] for key, count in sorted(worst.items(), key=lambda kv: str(kv[0]))],
@@ -365,10 +394,10 @@ def main() -> None:
         for i, (widths, section, direction, cell) in enumerate(cases)
     ]
     rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress("legs"))
-    rows.sort(key=lambda row: int(row["index"]))
+    rows.sort(key=lambda row: row.index)
 
-    verdicts = Counter(str(row["verdict"]) for row in rows)
-    print(f"\nverdicts: {dict(verdicts)}, stuck={sum(1 for row in rows if row['stuck'])}\n", flush=True)
+    verdicts = Counter(row.verdict for row in rows)
+    print(f"\nverdicts: {dict(verdicts)}, stuck={sum(1 for row in rows if row.stuck)}\n", flush=True)
 
     print("per turn ordinal, over every run that reached it:", flush=True)
     _leg_table(rows)
@@ -380,18 +409,18 @@ def main() -> None:
     print("N->W (same corner, driven both ways), so any gap here is arrival state:", flush=True)
     _corner_table(rows)
 
-    ended_early = [row for row in rows if row["verdict"] != "ok"]
+    ended_early = [row for row in rows if row.verdict != "ok"]
     if ended_early:
         print(f"\n{len(ended_early)} runs that did not finish, and the turn they died on:", flush=True)
         print_table(
             [
                 [
-                    row["index"],
-                    row["label"],
-                    row["verdict"],
-                    len(row["legs"]),
-                    f"{row['legs'][-1]['reverse']:.0f}" if row["legs"] else "-",
-                    f"{row['sim_time_s']:.1f}s",
+                    row.index,
+                    row.label,
+                    row.verdict,
+                    len(row.legs),
+                    f"{row.legs[-1].reverse:.0f}" if row.legs else "-",
+                    f"{row.sim_time_s:.1f}s",
                 ]
                 for row in ended_early
             ],

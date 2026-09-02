@@ -30,7 +30,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -91,9 +91,20 @@ def _apply_overrides(tuning: NavigationTuning, overrides: dict[str, str]) -> Nav
     return replace(tuning, **updated)
 
 
+@dataclass(frozen=True, slots=True)
+class _ArmResult:
+    """One scenario's outcome under one A/B arm."""
+
+    index: int
+    verdict: str
+    laps: int
+    sim_time_s: float
+    label: str
+
+
 def _run_case(
     payload: tuple[int, tuple[int, ...], str, str, int, int, str | None, dict[str, str] | None],
-) -> dict[str, object]:
+) -> _ArmResult:
     """Run one scenario under one arm. Primitive-valued so it pickles."""
     from shared.domain.enums import Direction, Section
 
@@ -108,24 +119,24 @@ def _run_case(
         tuning = _apply_overrides(tuning, overrides)
 
     result = ScenarioSimulator(meta, num_laps=laps, tuning=tuning, seed=index, blind=True).run()
-    return {
-        "index": index,
-        "verdict": _verdict(result),
-        "laps": result.laps_completed,
-        "sim_time_s": result.sim_time_s,
-        "label": f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
-    }
+    return _ArmResult(
+        index=index,
+        verdict=_verdict(result),
+        laps=result.laps_completed,
+        sim_time_s=result.sim_time_s,
+        label=f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
+    )
 
 
-def _run_arm(name: str, payloads: list[tuple[Any, ...]], jobs: int) -> dict[int, dict[str, object]]:
+def _run_arm(name: str, payloads: list[tuple[Any, ...]], jobs: int) -> dict[int, _ArmResult]:
     """Run every case for one arm, returning results keyed by case index."""
     started = time.perf_counter()
     results = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
     print(f"  {name}: {len(results)}/{len(payloads)} in {time.perf_counter() - started:.0f}s", flush=True)
-    return {int(row["index"]): row for row in results}
+    return {row.index: row for row in results}
 
 
-def _report_by_width(cases: list, base: dict, variant: dict) -> None:
+def _report_by_width(cases: list, base: dict[int, _ArmResult], variant: dict[int, _ArmResult]) -> None:
     """Split both arms' pass rate by how many corridors are WIDE.
 
     A layout-shaped failure and a speed-shaped one look identical in an
@@ -142,10 +153,10 @@ def _report_by_width(cases: list, base: dict, variant: dict) -> None:
         wide = sum(1 for w in widths if w == WIDE_MM)
         b = buckets.setdefault(wide, {"n": 0, "base_ok": 0, "variant_ok": 0})
         b["n"] += 1
-        b["base_ok"] += base[i]["verdict"] == "ok"
-        b["variant_ok"] += variant[i]["verdict"] == "ok"
+        b["base_ok"] += base[i].verdict == "ok"
+        b["variant_ok"] += variant[i].verdict == "ok"
         for arm, results in (("base", base), ("var", variant)):
-            verdict = str(results[i]["verdict"])
+            verdict = results[i].verdict
             if verdict != "ok":
                 b[f"{arm}_{verdict}"] = b.get(f"{arm}_{verdict}", 0) + 1
 
@@ -180,7 +191,7 @@ def _report_by_width(cases: list, base: dict, variant: dict) -> None:
     )
 
 
-def _report_failures(cases: list, variant: dict) -> None:
+def _report_failures(cases: list, variant: dict[int, _ArmResult]) -> None:
     """List and characterise the VARIANT arm's remaining failures.
 
     A pass count says how many are left, not what they have in common. Once a
@@ -191,9 +202,7 @@ def _report_failures(cases: list, variant: dict) -> None:
     Attributes are read from the case tuple, so the start corridor's width is
     the one the robot actually begins in rather than a guess from the label.
     """
-    failures = [
-        (i, cases[i], str(variant[i]["verdict"])) for i in sorted(variant) if variant[i]["verdict"] != "ok"
-    ]
+    failures = [(i, cases[i], variant[i].verdict) for i in sorted(variant) if variant[i].verdict != "ok"]
     if not failures:
         print("\nno variant failures", flush=True)
         return
@@ -293,22 +302,20 @@ def main() -> None:
     base = _run_arm("baseline", base_payloads, jobs)
     variant = _run_arm("variant ", variant_payloads, jobs)
 
-    base_ok = sum(1 for r in base.values() if r["verdict"] == "ok")
-    variant_ok = sum(1 for r in variant.values() if r["verdict"] == "ok")
+    base_ok = sum(1 for r in base.values() if r.verdict == "ok")
+    variant_ok = sum(1 for r in variant.values() if r.verdict == "ok")
     print(f"\nverdicts: baseline {base_ok}/{len(base)} ok, variant {variant_ok}/{len(variant)} ok", flush=True)
 
     _report_by_width(cases, base, variant)
     _report_failures(cases, variant)
 
     flipped = [
-        (i, str(base[i]["verdict"]), str(variant[i]["verdict"]))
-        for i in sorted(base)
-        if base[i]["verdict"] != variant[i]["verdict"]
+        (i, base[i].verdict, variant[i].verdict) for i in sorted(base) if base[i].verdict != variant[i].verdict
     ]
     if flipped:
         print("\nverdict changes:", flush=True)
         print_table(
-            [[i, str(base[i]["label"]), was, now] for i, was, now in flipped],
+            [[i, base[i].label, was, now] for i, was, now in flipped],
             ["#", "scenario", "baseline", "variant"],
         )
     else:
@@ -316,10 +323,10 @@ def main() -> None:
 
     # Sim time only compares where both arms finished; a timed-out run's clock
     # measures the time limit, not the lap.
-    both_ok = [i for i in sorted(base) if base[i]["verdict"] == "ok" and variant[i]["verdict"] == "ok"]
+    both_ok = [i for i in sorted(base) if base[i].verdict == "ok" and variant[i].verdict == "ok"]
     if not both_ok:
         return
-    deltas = [(i, float(variant[i]["sim_time_s"]) - float(base[i]["sim_time_s"])) for i in both_ok]
+    deltas = [(i, variant[i].sim_time_s - base[i].sim_time_s) for i in both_ok]
     total = sum(d for _, d in deltas)
     faster = sum(1 for _, d in deltas if d < 0)
     slower = sum(1 for _, d in deltas if d > 0)
@@ -335,7 +342,7 @@ def main() -> None:
     extremes = dict(ranked[:3] + ranked[-3:])
     print_table(
         [
-            [i, str(base[i]["label"]), f"{base[i]['sim_time_s']:.1f}s", f"{variant[i]['sim_time_s']:.1f}s", f"{d:+.1f}s"]
+            [i, base[i].label, f"{base[i].sim_time_s:.1f}s", f"{variant[i].sim_time_s:.1f}s", f"{d:+.1f}s"]
             for i, d in sorted(extremes.items(), key=lambda kv: kv[1])
         ],
         ["#", "scenario", "baseline", "variant", "delta"],

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import sys
+from dataclasses import dataclass
 
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
@@ -138,14 +139,27 @@ def _classify(
     return hits
 
 
+@dataclass(frozen=True, slots=True)
+class ParkSweepOutcome:
+    """One perturbed approach run against ParkController, reduced to what the sweep reports on."""
+
+    done: bool
+    timed_out: bool
+    hits: set[str]
+    first_contact_phase: str | None
+    contained: bool
+    final: tuple[float, float, float]
+    rect: tuple[float, float, float, float]
+
+
 def _run_one(
     metadata: dict,
     section: Section,
     direction: str,
     lat_err: float,
     yaw_err: float,
-) -> dict:
-    """Drive ParkController from one perturbed approach pose. Returns a result dict."""
+) -> ParkSweepOutcome:
+    """Drive ParkController from one perturbed approach pose."""
     blocks = _blocks(metadata)
     ctrl = park_controller_from_metadata(metadata, section)
     if ctrl is None:
@@ -180,15 +194,15 @@ def _run_one(
         hits |= new
 
     rect = _bay_rect(metadata, section)
-    return {
-        "done": done,
-        "timed_out": ctrl.is_timed_out,
-        "hits": hits,
-        "first_contact_phase": first_contact_phase,
-        "contained": _footprint_contained(state.x, state.y, state.yaw, rect),
-        "final": (state.x, state.y, state.yaw),
-        "rect": rect,
-    }
+    return ParkSweepOutcome(
+        done=done,
+        timed_out=ctrl.is_timed_out,
+        hits=hits,
+        first_contact_phase=first_contact_phase,
+        contained=_footprint_contained(state.x, state.y, state.yaw, rect),
+        final=(state.x, state.y, state.yaw),
+        rect=rect,
+    )
 
 
 def report_contacts_and_containment() -> None:
@@ -208,16 +222,16 @@ def report_contacts_and_containment() -> None:
             for yaw_err in _YAW_ERRORS:
                 r = _run_one(meta, section, direction, lat_err, yaw_err)
                 runs += 1
-                done_n += r["done"]
-                s_done += r["done"]
-                contained_n += r["contained"]
-                s_contained += r["contained"]
-                done_but_not_contained += r["done"] and not r["contained"]
-                for h in r["hits"]:
+                done_n += r.done
+                s_done += r.done
+                contained_n += r.contained
+                s_contained += r.contained
+                done_but_not_contained += r.done and not r.contained
+                for h in r.hits:
                     hit_counts[h] = hit_counts.get(h, 0) + 1
                     s_hits[h] = s_hits.get(h, 0) + 1
-                if r["first_contact_phase"]:
-                    key = r["first_contact_phase"]
+                if r.first_contact_phase:
+                    key = r.first_contact_phase
                     phase_counts[key] = phase_counts.get(key, 0) + 1
 
         n = len(_LATERAL_ERRORS) * len(_YAW_ERRORS)

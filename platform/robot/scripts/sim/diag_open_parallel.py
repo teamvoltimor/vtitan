@@ -22,6 +22,7 @@ import argparse
 import sys
 import time
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -39,7 +40,23 @@ _DEFAULT_SAMPLE_SIZE = 24
 _DEFAULT_SEED = 0
 
 
-def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None]) -> dict[str, object]:
+@dataclass(frozen=True, slots=True)
+class _CaseResult:
+    """One scenario's outcome, with the dimensions the summary tables split by."""
+
+    index: int
+    verdict: str
+    section: str
+    direction: str
+    cell: int
+    start_width_mm: int
+    laps: int
+    target: int
+    sim_time_s: float
+    label: str
+
+
+def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None]) -> _CaseResult:
     """Run one scenario. Module-level and primitive-valued, so it can be pickled.
 
     Mirrors diag_open_exhaustive's loop body exactly, including seeding the
@@ -57,18 +74,18 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
     meta = build_open_metadata(widths_mm, section, direction, scenario_id=index, start_cell=cell)
     tuning = load_tuning(tuning_path)
     result = ScenarioSimulator(meta, num_laps=laps, tuning=tuning, seed=index, blind=True).run()
-    return {
-        "index": index,
-        "verdict": _verdict(result),
-        "section": section.value,
-        "direction": direction.value,
-        "cell": cell,
-        "start_width_mm": widths_mm[section.value.lower()],
-        "laps": result.laps_completed,
-        "target": result.target_laps,
-        "sim_time_s": result.sim_time_s,
-        "label": f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
-    }
+    return _CaseResult(
+        index=index,
+        verdict=_verdict(result),
+        section=section.value,
+        direction=direction.value,
+        cell=cell,
+        start_width_mm=widths_mm[section.value.lower()],
+        laps=result.laps_completed,
+        target=result.target_laps,
+        sim_time_s=result.sim_time_s,
+        label=f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
+    )
 
 
 def main() -> None:
@@ -98,11 +115,11 @@ def main() -> None:
         for i, (widths, section, direction, cell) in cases
     ]
 
-    def _print_progress(row: dict[str, object], done: int, total: int) -> None:
-        mark = "OK  " if row["verdict"] == "ok" else "FAIL"
+    def _print_progress(row: _CaseResult, done: int, total: int) -> None:
+        mark = "OK  " if row.verdict == "ok" else "FAIL"
         print(
-            f"{mark} [{row['index']:>3}] {row['label']:<46} {row['verdict']:<10} "
-            f"laps={row['laps']}/{row['target']} t={row['sim_time_s']:.1f}s "
+            f"{mark} [{row.index:>3}] {row.label:<46} {row.verdict:<10} "
+            f"laps={row.laps}/{row.target} t={row.sim_time_s:.1f}s "
             f"({done}/{total})",
             flush=True,
         )
@@ -112,13 +129,13 @@ def main() -> None:
     elapsed = time.perf_counter() - started
 
     # Sorted so the report reads the same regardless of completion order.
-    results.sort(key=lambda r: r["index"])
-    by_verdict: Counter[str] = Counter(str(r["verdict"]) for r in results)
+    results.sort(key=lambda r: r.index)
+    by_verdict: Counter[str] = Counter(r.verdict for r in results)
     dims = {
-        "by start section:": Counter((str(r["section"]), str(r["verdict"])) for r in results),
-        "by direction:": Counter((str(r["direction"]), str(r["verdict"])) for r in results),
-        "by start cell:": Counter((f"cell {r['cell']}", str(r["verdict"])) for r in results),
-        "by start corridor width:": Counter((f"{r['start_width_mm']}mm", str(r["verdict"])) for r in results),
+        "by start section:": Counter((r.section, r.verdict) for r in results),
+        "by direction:": Counter((r.direction, r.verdict) for r in results),
+        "by start cell:": Counter((f"cell {r.cell}", r.verdict) for r in results),
+        "by start corridor width:": Counter((f"{r.start_width_mm}mm", r.verdict) for r in results),
     }
 
     ok = by_verdict.get("ok", 0)
@@ -129,14 +146,11 @@ def main() -> None:
     for title, counts in dims.items():
         _summarise(title, counts)
 
-    failed = [r for r in results if r["verdict"] != "ok"]
+    failed = [r for r in results if r.verdict != "ok"]
     if failed:
         print("\nfailures:", flush=True)
         print_table(
-            [
-                [r["index"], r["label"], r["verdict"], f"{r['laps']}/{r['target']}", f"{r['sim_time_s']:.1f}s"]
-                for r in failed
-            ],
+            [[r.index, r.label, r.verdict, f"{r.laps}/{r.target}", f"{r.sim_time_s:.1f}s"] for r in failed],
             ["#", "scenario", "verdict", "laps", "sim time"],
         )
 

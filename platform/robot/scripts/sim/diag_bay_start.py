@@ -35,6 +35,7 @@ import argparse
 import json
 import math
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -64,6 +65,31 @@ _CONTACT_GRACE_S = 8.0
 # Below this separation the bay and the parallel start coincide on the axis
 # perpendicular to the wall, leaving "out of the bay" without a direction.
 _DEGENERATE_AXIS_M = 1e-6
+
+
+@dataclass(frozen=True, slots=True)
+class BayStartRow:
+    """One scenario's outcome from one start, as produced by ``_run_case``."""
+
+    id: str
+    skipped: bool
+    moved: bool = False
+    fx: float = 0.0
+    fy: float = 0.0
+    dyaw_deg: float = 0.0
+    net_m: float = 0.0
+    exit_m: float | None = None
+    bex: int = 0
+    rev_ticks: int = 0
+    fwd_ticks: int = 0
+    rev_m: float = 0.0
+    flips: int = 0
+    dist: float = 0.0
+    laps: int = 0
+    collided: bool = False
+    stuck: bool = False
+    timed_out: bool = False
+    pass_side: bool = False
 
 
 def bay_outward_axis(
@@ -121,9 +147,9 @@ def bay_exit_clearance(
     return nearest - ParkingLotSpecs.LENGTH
 
 
-def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool]) -> dict[str, object]:
+def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool, float]) -> BayStartRow:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
-    path_str, in_bay, laps, changes, known_start, solid_walls, slide = payload
+    path_str, in_bay, laps, changes, known_start, solid_walls, slide, scrub = payload
     path = Path(path_str)
     raw = json.loads(path.read_text())
 
@@ -136,7 +162,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool]
     moved = False
     if in_bay:
         if centre is None:
-            return {"id": raw["scenario_id"], "skipped": True}
+            return BayStartRow(id=raw["scenario_id"], skipped=True)
         # Heading is left alone: the scenario's own start is already parallel to
         # the outer wall, which is the only orientation the 0.20m-deep pocket
         # admits for a 0.194m-wide chassis.
@@ -153,6 +179,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool]
         known_start=known_start,
         solid_walls=solid_walls,
         slide_on_contact=slide,
+        scrub_yaw_gain=scrub,
     )
     # Wall contact is legal on OBSTACLES and not on Open, so a scraping escape is
     # only a real result on this challenge -- which is also the only one with a
@@ -186,32 +213,32 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool]
     # meant to be driving down.
     fx, fy, fyaw = result.final_pose
     sx, sy = start["position"]["x"], start["position"]["y"]
-    return {
-        "id": raw["scenario_id"],
-        "skipped": False,
-        "moved": moved,
-        "fx": fx,
-        "fy": fy,
-        "dyaw_deg": math.degrees(abs(wrap_angle(fyaw - start["yaw"]))),
-        "net_m": math.hypot(fx - sx, fy - sy),
-        "exit_m": best_exit_m,
-        "bex": sim.bay_exit_ticks,
-        "rev_ticks": sim.bay_exit.legs[0],
-        "fwd_ticks": sim.bay_exit.legs[1],
-        "rev_m": sim.bay_exit.legs[2],
-        "flips": sim.bay_exit.open_flips,
-        "dist": result.distance_m,
-        "laps": result.laps_completed,
-        "collided": result.collided,
-        "stuck": result.stuck,
-        "timed_out": result.timed_out,
-        "pass_side": result.pass_side_violation,
-    }
+    return BayStartRow(
+        id=raw["scenario_id"],
+        skipped=False,
+        moved=moved,
+        fx=fx,
+        fy=fy,
+        dyaw_deg=math.degrees(abs(wrap_angle(fyaw - start["yaw"]))),
+        net_m=math.hypot(fx - sx, fy - sy),
+        exit_m=best_exit_m,
+        bex=sim.bay_exit_ticks,
+        rev_ticks=sim.bay_exit.legs[0],
+        fwd_ticks=sim.bay_exit.legs[1],
+        rev_m=sim.bay_exit.legs[2],
+        flips=sim.bay_exit.open_flips,
+        dist=result.distance_m,
+        laps=result.laps_completed,
+        collided=result.collided,
+        stuck=result.stuck,
+        timed_out=result.timed_out,
+        pass_side=result.pass_side_violation,
+    )
 
 
-def _summarise(name: str, rows: Sequence[dict[str, object]]) -> None:
+def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
     """One line per scenario, then the aggregate that actually decides it."""
-    live = [r for r in rows if not r["skipped"]]
+    live = [r for r in rows if not r.skipped]
     if not live:
         print(f"  {name}: no scenarios with a parking lot")
         return
@@ -226,28 +253,28 @@ def _summarise(name: str, rows: Sequence[dict[str, object]]) -> None:
         f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 7}|{'-' * 7}|{'-' * 7}|{'-' * 8}|"
         f"{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
     )
-    for r in sorted(live, key=lambda x: int(x["id"])):  # type: ignore[arg-type]
-        exit_cell = f"{r['exit_m']:>6.2f}" if r["exit_m"] is not None else f"{'--':>6}"
+    for r in sorted(live, key=lambda x: int(x.id)):
+        exit_cell = f"{r.exit_m:>6.2f}" if r.exit_m is not None else f"{'--':>6}"
         print(
-            f"| {r['id']:>4} | {r['dist']:>7.2f} | {r['net_m']:>6.2f} | {exit_cell} | {r['bex']:>5} | "
-            f"{r['rev_ticks']:>5} | {r['fwd_ticks']:>5} | {r['rev_m']:>6.3f} | {r['flips']:>5} | "
-            f"{r['dyaw_deg']:>6.1f} | {r['fx']:>6.2f} | {r['fy']:>6.2f} | {r['laps']:>4} | "
-            f"{'Y' if r['collided'] else '.':>4} | {'Y' if r['stuck'] else '.':>5} | "
-            f"{'Y' if r['timed_out'] else '.':>3} | {'Y' if r['pass_side'] else '.':>4} |"
+            f"| {r.id:>4} | {r.dist:>7.2f} | {r.net_m:>6.2f} | {exit_cell} | {r.bex:>5} | "
+            f"{r.rev_ticks:>5} | {r.fwd_ticks:>5} | {r.rev_m:>6.3f} | {r.flips:>5} | "
+            f"{r.dyaw_deg:>6.1f} | {r.fx:>6.2f} | {r.fy:>6.2f} | {r.laps:>4} | "
+            f"{'Y' if r.collided else '.':>4} | {'Y' if r.stuck else '.':>5} | "
+            f"{'Y' if r.timed_out else '.':>3} | {'Y' if r.pass_side else '.':>4} |"
         )
 
     n = len(live)
-    dists = [float(r["dist"]) for r in live]  # type: ignore[arg-type]
+    dists = [r.dist for r in live]
     immobile = sum(1 for d in dists if d < 0.01)
     # The headline for the in-bay arm. Laps and distance both answer "how well
     # did the run go afterwards"; this answers the prior question the pocket
     # actually poses, and a run can clear the bay and then stall or collide
     # without that making the exit itself a failure. The margin is the run's
     # BEST clearance, so it says how far out it got, not where it ended.
-    clear = [r for r in live if r["exit_m"] is not None]
+    clear = [r for r in live if r.exit_m is not None]
     if clear:
-        out = [r for r in clear if float(r["exit_m"]) > 0.0]  # type: ignore[arg-type]
-        margins = sorted(float(r["exit_m"]) for r in clear)  # type: ignore[arg-type]
+        out = [r for r in clear if r.exit_m > 0.0]  # type: ignore[operator]
+        margins = sorted(r.exit_m for r in clear)  # type: ignore[misc]
         print(
             f"  OUT OF BAY {len(out)}/{len(clear)}  "
             f"clearance min {margins[0]:.2f} / median {margins[len(margins) // 2]:.2f} / max {margins[-1]:.2f} m"
@@ -255,9 +282,9 @@ def _summarise(name: str, rows: Sequence[dict[str, object]]) -> None:
     print(
         f"  n={n}  immobile(<1cm)={immobile}  "
         f"dist min {min(dists):.2f} / median {sorted(dists)[n // 2]:.2f} / max {max(dists):.2f}  "
-        f"laps>=1 {sum(1 for r in live if int(r['laps']) >= 1)}  "  # type: ignore[arg-type]
-        f"collided {sum(1 for r in live if r['collided'])}  "
-        f"stuck {sum(1 for r in live if r['stuck'])}"
+        f"laps>=1 {sum(1 for r in live if r.laps >= 1)}  "
+        f"collided {sum(1 for r in live if r.collided)}  "
+        f"stuck {sum(1 for r in live if r.stuck)}"
     )
 
 
@@ -348,6 +375,16 @@ def main() -> None:
         "contact-dependent baseline in the repo was measured WITHOUT it.",
     )
     parser.add_argument(
+        "--scrub",
+        type=float,
+        default=0.0,
+        help="chassis yaw per radian of wheel turn while STATIONARY, modelling the servo "
+        "scrubbing the tyres in place. The kinematics scale yaw with speed, so a stopped "
+        "chassis cannot rotate at all -- yet the servo has 35-70x the torque needed to "
+        "scrub a wheel. DELIBERATELY OPTIMISTIC: applied in the helpful direction with no "
+        "friction threshold, so it bounds the benefit rather than modelling it.",
+    )
+    parser.add_argument(
         "--parallel-only",
         action="store_true",
         help="skip the in-bay arm (control alone, to confirm the probe is inert)",
@@ -427,7 +464,9 @@ def main() -> None:
                 arms.append((f"IN-BAY{' ' + label if label else ''} +known_start", True, changes, True))
 
     for name, in_bay, changes, known in arms:
-        payloads = [(str(p), in_bay, args.laps, changes, known, args.solid_walls, args.slide) for p in paths]
+        payloads = [
+            (str(p), in_bay, args.laps, changes, known, args.solid_walls, args.slide, args.scrub) for p in paths
+        ]
         rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
         _summarise(name, rows)
 

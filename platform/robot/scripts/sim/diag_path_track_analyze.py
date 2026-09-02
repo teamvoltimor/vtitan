@@ -14,6 +14,7 @@ import argparse
 import csv
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -21,23 +22,32 @@ from scripts.common.stats import percentile
 from scripts.common.tables import print_table
 
 
+class Stats(NamedTuple):
+    """Summary statistics for a list of cross-track error samples."""
+
+    mean: float
+    p50: float
+    p95: float
+    max: float
+
+
 def _float(rows: list[dict], key: str) -> list[float]:
     return [float(r[key]) for r in rows if r.get(key) not in (None, "", "None")]
 
 
-def _summarize(values: list[float]) -> dict[str, float]:
+def _summarize(values: list[float]) -> Stats:
     if not values:
-        return {"mean": float("nan"), "p50": float("nan"), "p95": float("nan"), "max": float("nan")}
-    return {
-        "mean": sum(values) / len(values),
-        "p50": percentile(values, 0.5),
-        "p95": percentile(values, 0.95),
-        "max": max(values),
-    }
+        return Stats(mean=float("nan"), p50=float("nan"), p95=float("nan"), max=float("nan"))
+    return Stats(
+        mean=sum(values) / len(values),
+        p50=percentile(values, 0.5),
+        p95=percentile(values, 0.95),
+        max=max(values),
+    )
 
 
-def _format_summary(stats: dict[str, float]) -> list[str]:
-    return [f"{stats['mean']:.3f}", f"{stats['p50']:.3f}", f"{stats['p95']:.3f}", f"{stats['max']:.3f}"]
+def _format_summary(stats: Stats) -> list[str]:
+    return [f"{stats.mean:.3f}", f"{stats.p50:.3f}", f"{stats.p95:.3f}", f"{stats.max:.3f}"]
 
 
 def analyze(csv_path: Path) -> None:

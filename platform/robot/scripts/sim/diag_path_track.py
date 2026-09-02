@@ -48,8 +48,10 @@ import csv
 import json
 import math
 import sys
+from dataclasses import asdict, dataclass
 from multiprocessing import Pool
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -108,7 +110,26 @@ _SIM_DT_S = 0.05
 durations in seconds so they are comparable with the hardware bag figures."""
 
 
-def _index_probe(navigator) -> dict:  # noqa: ANN001 - diagnostic peek at private state
+@dataclass(frozen=True, slots=True)
+class WaypointProbeRow:
+    """One tick's waypoint index and both advance tests, read off the navigator."""
+
+    waypoint_index: int
+    dist_to_wp_m: float | None
+    wp_behind: bool | None
+    next_closer: bool | None
+    phase: str | None
+
+
+class DwellRun(NamedTuple):
+    """Consecutive ticks collapsed into a single waypoint-index dwell."""
+
+    index: int
+    start_step: int
+    rows: list[WaypointProbeRow]
+
+
+def _index_probe(navigator) -> WaypointProbeRow:  # noqa: ANN001 - diagnostic peek at private state
     """Read the waypoint index and both advance tests from the navigator.
 
     Everything here is taken from ``_debug``'s pose rather than the simulator's
@@ -119,38 +140,39 @@ def _index_probe(navigator) -> dict:  # noqa: ANN001 - diagnostic peek at privat
     debug = getattr(navigator, "_debug", None)  # noqa: SLF001
     waypoints = navigator._waypoints  # noqa: SLF001
     index = navigator._waypoint_index  # noqa: SLF001
-    blank = {
-        "waypoint_index": index,
-        "dist_to_wp_m": None,
-        "wp_behind": None,
-        "next_closer": None,
-        "phase": getattr(getattr(debug, "phase", None), "name", None),
-    }
+    phase = getattr(getattr(debug, "phase", None), "name", None)
     if debug is None or debug.pose_x is None or not waypoints:
-        return blank
+        return WaypointProbeRow(
+            waypoint_index=index,
+            dist_to_wp_m=None,
+            wp_behind=None,
+            next_closer=None,
+            phase=phase,
+        )
 
     count = len(waypoints)
     wp = waypoints[index % count]
     nxt = waypoints[(index + 1) % count]
     dx, dy = wp.x - debug.pose_x, wp.y - debug.pose_y
     cos_yaw, sin_yaw = math.cos(debug.pose_yaw), math.sin(debug.pose_yaw)
-    return {
-        **blank,
-        "dist_to_wp_m": math.hypot(dx, dy),
+    return WaypointProbeRow(
+        waypoint_index=index,
+        dist_to_wp_m=math.hypot(dx, dy),
         # The same dot product navigator.py uses for `raw_behind`.
-        "wp_behind": (dx * cos_yaw + dy * sin_yaw) <= 0,
-        "next_closer": nxt.distance_to_xy(debug.pose_x, debug.pose_y) < math.hypot(dx, dy),
-    }
+        wp_behind=(dx * cos_yaw + dy * sin_yaw) <= 0,
+        next_closer=nxt.distance_to_xy(debug.pose_x, debug.pose_y) < math.hypot(dx, dy),
+        phase=phase,
+    )
 
 
-def _dwell_runs(rows: list[dict]) -> list[tuple[int, int, list[dict]]]:
+def _dwell_runs(rows: list[WaypointProbeRow]) -> list[DwellRun]:
     """Collapse per-tick rows into (index, start_step, ticks-at-that-index) runs."""
-    runs: list[tuple[int, int, list[dict]]] = []
-    for row in rows:
-        if runs and runs[-1][0] == row["waypoint_index"]:
-            runs[-1][2].append(row)
+    runs: list[DwellRun] = []
+    for step, row in enumerate(rows):
+        if runs and runs[-1].index == row.waypoint_index:
+            runs[-1].rows.append(row)
         else:
-            runs.append((row["waypoint_index"], row.get("step", len(runs)), [row]))
+            runs.append(DwellRun(index=row.waypoint_index, start_step=step, rows=[row]))
     return runs
 
 
@@ -205,15 +227,15 @@ def _batch_one(args: tuple[int, float, str]) -> dict:
         use_lidar_localization=True,
         tuning=load_tuning(None),
     )
-    probes: list[dict] = []
+    probes: list[WaypointProbeRow] = []
 
     def on_step(state, scan) -> None:  # noqa: ANN001, ARG001 - callback signature
-        probes.append({"step": len(probes), **_index_probe(sim.navigator)})
+        probes.append(_index_probe(sim.navigator))
 
     result = sim.run(on_step=on_step, max_steps=OBSTACLES_MAX_STEPS)
 
     runs = _dwell_runs(probes)
-    dwells = sorted(len(w) for _, _, w in runs)
+    dwells = sorted(len(run.rows) for run in runs)
     # RELATIVE, not an absolute tick count. Runs differ two-fold in how long
     # they dwell per waypoint -- a narrow-corridor scenario creeps and spends
     # ~26 ticks on an ordinary index where a wide one spends ~9 -- so a fixed
@@ -225,8 +247,8 @@ def _batch_one(args: tuple[int, float, str]) -> dict:
     # the signature of a threshold measuring speed rather than stalling.
     median = dwells[len(dwells) // 2] if dwells else 0
     floor = max(median * stall_multiple, 1)
-    stalls = [r for r in runs if len(r[2]) >= floor]
-    behind = [p["wp_behind"] for _, _, w in stalls for p in w if p["wp_behind"] is not None]
+    stalls = [run for run in runs if len(run.rows) >= floor]
+    behind = [p.wp_behind for run in stalls for p in run.rows if p.wp_behind is not None]
     return {
         "idx": scenario_index,
         "label": scenario.label,
@@ -249,7 +271,7 @@ def _batch_one(args: tuple[int, float, str]) -> dict:
         "median_dwell": median,
         "stall_floor": floor,
         "stalls": len(stalls),
-        "stall_ticks": sum(len(w) for _, _, w in stalls),
+        "stall_ticks": sum(len(run.rows) for run in stalls),
         "max_dwell": max(dwells, default=0),
         "dwell_ratio": (max(dwells) / median) if median else None,
         "behind_frac": (sum(behind) / len(behind)) if behind else None,
@@ -434,7 +456,7 @@ def run_scenario(
             "north_m": _safe_width(widths, Section.NORTH),
             "east_m": _safe_width(widths, Section.EAST),
             "west_m": _safe_width(widths, Section.WEST),
-            **_index_probe(sim.navigator),
+            **asdict(_index_probe(sim.navigator)),
         })
 
     result = sim.run(on_step=on_step, max_steps=max_steps)

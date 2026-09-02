@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +45,39 @@ _WIDTH_MATCH_TOL_M = 0.01
 anything this side of a centimetre is the same classification."""
 
 
-def probe(index: int) -> dict[str, Any]:
+@dataclass(slots=True)
+class _ProbeState:
+    """Mutable counters closed over by ``probe()``'s tracking callbacks."""
+
+    step: int = 0
+    last_change: int = -1
+    changes: int = 0
+    here_ok: bool | None = None
+    here_seen: bool | None = None
+    calls: int = 0
+    valid: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class LayoutProbeResult:
+    """One blind fixture's outcome, reduced to what the probe reports on."""
+
+    label: str
+    wrong_corridors: list[str]
+    seen: set[str]
+    votes: dict[str, list[int]]
+    calls: int
+    valid: int
+    here_ok: bool | None
+    here_seen: bool | None
+    last_change: int
+    changes: int
+    end_step: int
+    collided: bool
+    laps: int
+
+
+def probe(index: int) -> LayoutProbeResult:
     """Run one blind fixture, tracking when its layout belief settled."""
     scenario = all_obstacles_demo_scenarios()[index]
     sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
@@ -52,9 +85,7 @@ def probe(index: int) -> dict[str, Any]:
     original_update = sim._update_layout_belief  # noqa: SLF001 - a probe, by design
     estimator = sim._width_estimator  # noqa: SLF001
     true_widths = sim._true_geometry.to_widths_dict()  # noqa: SLF001
-    state: dict[str, Any] = {
-        "step": 0, "last_change": -1, "changes": 0, "here_ok": None, "here_seen": None, "calls": 0, "valid": 0,
-    }
+    state = _ProbeState()
 
     # Count how often a scan yields a usable width at all. A corridor that is
     # never measured is either short of time (few calls) or having its readings
@@ -62,20 +93,20 @@ def probe(index: int) -> dict[str, Any]:
     original_measure = corridor_estimator.measure_corridor_width
 
     def counted_measure(*a: Any, **kw: Any) -> Any:
-        state["calls"] += 1
+        state.calls += 1
         m = original_measure(*a, **kw)
         if m is not None:
-            state["valid"] += 1
+            state.valid += 1
         return m
 
     corridor_estimator.measure_corridor_width = counted_measure
 
     def tracked() -> bool:
-        state["step"] += 1
+        state.step += 1
         changed = original_update()
         if changed:
-            state["last_change"] = state["step"]
-            state["changes"] += 1
+            state.last_change = state.step
+            state.changes += 1
         # Snapshot the belief about the corridor the robot is in RIGHT NOW.
         # Whatever it believes about corridors it has not reached yet is not a
         # cause of anything -- a run that dies at step 124 has never seen three
@@ -84,8 +115,8 @@ def probe(index: int) -> dict[str, Any]:
         pose = sim.gateway.get_current_pose()
         if pose is not None and estimator is not None:
             here = section_from_heading(pose.yaw, sim._direction)  # noqa: SLF001
-            state["here_ok"] = abs(estimator.widths[here] - true_widths[here]) <= _WIDTH_MATCH_TOL_M
-            state["here_seen"] = here in estimator.observed_sections
+            state.here_ok = abs(estimator.widths[here] - true_widths[here]) <= _WIDTH_MATCH_TOL_M
+            state.here_seen = here in estimator.observed_sections
         return changed
 
     sim._update_layout_belief = tracked  # type: ignore[method-assign]  # noqa: SLF001
@@ -102,21 +133,21 @@ def probe(index: int) -> dict[str, Any]:
     # measure" (few votes) from "measured and got it wrong" (many, wrong way).
     votes = {s.value: list(v) for s, v in estimator._votes.items() if sum(v)} if estimator else {}  # noqa: SLF001
 
-    return {
-        "label": scenario.label,
-        "wrong_corridors": wrong,
-        "seen": seen,
-        "votes": votes,
-        "calls": state["calls"],
-        "valid": state["valid"],
-        "here_ok": state["here_ok"],
-        "here_seen": state["here_seen"],
-        "last_change": state["last_change"],
-        "changes": state["changes"],
-        "end_step": result.steps,
-        "collided": result.collided,
-        "laps": result.laps_completed,
-    }
+    return LayoutProbeResult(
+        label=scenario.label,
+        wrong_corridors=wrong,
+        seen=seen,
+        votes=votes,
+        calls=state.calls,
+        valid=state.valid,
+        here_ok=state.here_ok,
+        here_seen=state.here_seen,
+        last_change=state.last_change,
+        changes=state.changes,
+        end_step=result.steps,
+        collided=result.collided,
+        laps=result.laps_completed,
+    )
 
 
 def main() -> None:
@@ -124,19 +155,19 @@ def main() -> None:
     verdicts: Counter = Counter()
     for i in range(len(all_obstacles_demo_scenarios())):
         r = probe(i)
-        if not r["collided"]:
+        if not r.collided:
             verdict = "no collision"
-        elif r["here_ok"] is False and r["here_seen"] is False:
+        elif r.here_ok is False and r.here_seen is False:
             verdict = "WRONG+UNMEASURED (still on the narrow default)"
-        elif r["here_ok"] is False:
+        elif r.here_ok is False:
             verdict = "WRONG (measured this corridor and got it wrong)"
         else:
             verdict = "belief here correct, still collided"
         verdicts[verdict] += 1
         print(
-            f"{r['label']:<34} end={r['end_step']:>4} changes={r['changes']:>2} laps={r['laps']} "
-            f"here_ok={r['here_ok']} here_measured={r['here_seen']} "
-            f"scans={r['calls']} valid={r['valid']} votes={r['votes']} -> {verdict}",
+            f"{r.label:<34} end={r.end_step:>4} changes={r.changes:>2} laps={r.laps} "
+            f"here_ok={r.here_ok} here_measured={r.here_seen} "
+            f"scans={r.calls} valid={r.valid} votes={r.votes} -> {verdict}",
             flush=True,
         )
     print("\nSUMMARY " + "  ".join(f"{k}={v}" for k, v in verdicts.most_common()))
