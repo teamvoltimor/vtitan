@@ -205,6 +205,14 @@ def main() -> None:
     parser.add_argument("--corpus", action="store_true", help=f"use {CORPUS_DIR} instead of the committed set")
     parser.add_argument("--scenarios-dir", default=None)
     parser.add_argument(
+        "--hold-steer",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_HOLD_STEER (0/1, in-bay arm only). Holds the forward leg's "
+        "steering through the reverse instead of centring it, so the servo can actually "
+        "reach the commanded angle within the pocket's 7.5 cm of stroke.",
+    )
+    parser.add_argument(
         "--max-frames",
         type=float,
         nargs="*",
@@ -273,6 +281,7 @@ def main() -> None:
             ("BAY_EXIT_REVERSE_M", "rev-dist", args.reverse),
             ("BAY_EXIT_REVERSE_STEER_NORM", "rev-steer", args.rev_steer),
             ("BAY_EXIT_MAX_FRAMES", "max-frames", args.max_frames),
+            ("BAY_EXIT_HOLD_STEER", "hold-steer", args.hold_steer),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]

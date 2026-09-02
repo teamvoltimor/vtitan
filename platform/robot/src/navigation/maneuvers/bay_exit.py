@@ -126,9 +126,34 @@ class BayExit:
             # offset with no forward travel, which is the only thing the pocket
             # has no room for.
             reverse_steer = clamp(follower.BAY_EXIT_REVERSE_STEER_NORM, 0.0, 1.0)
+            reverse_norm = -reverse_steer if open_is_left else reverse_steer
+            if follower.BAY_EXIT_HOLD_STEER:
+                # Hold the FORWARD leg's angle instead of returning to centre.
+                #
+                # The servo slews at MAX_STEERING_RATE = 1.2 rad/s, so reaching
+                # full lock takes 1.24 s = 25 ticks, while a stroke bounded by
+                # BAY_EXIT_REVERSE_M = 0.05 m lasts about 9. Commanding 0 here
+                # slews the wheels back to centre every cycle, so the angle is
+                # never reached: measured 30.9 deg of the 85 deg asked for, 36%
+                # of full lock, ramping up for 9 ticks and straight back down
+                # for 11. That also explains why BAY_EXIT_STEER_NORM swept
+                # byte-identical at 0.4/0.6/0.8/1.0 -- every command at or above
+                # 0.364 is clipped to the same achievable angle, and only 0.2
+                # (17 deg, reachable inside a stroke) behaved differently.
+                #
+                # Lengthening the stroke instead is not available: the servo
+                # needs ~0.14 m of travel and the pocket has 7.5 cm of slack.
+                # Holding costs no travel at all.
+                #
+                # NOT the same as BAY_EXIT_REVERSE_STEER_NORM, which applies the
+                # INVERTED sign and so slews even further, to opposite lock --
+                # refuted 2026-08-29, every non-zero value collapsing to 0.02 m.
+                reverse_norm = (
+                    clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0) * (1.0 if open_is_left else -1.0)
+                )
             return DriveCommand(
                 speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE,
-                steering_norm=-reverse_steer if open_is_left else reverse_steer,
+                steering_norm=reverse_norm,
             )
 
         # Magnitude is tuned, not pinned at full lock -- see BAY_EXIT_STEER_NORM.

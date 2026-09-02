@@ -340,6 +340,28 @@ class CorridorFollowerParams(BaseModel):
     not what happens.
     """
 
+    BAY_EXIT_HOLD_STEER: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_HOLD_STEER"))
+    """Hold the forward leg's steering through the reverse leg instead of centring.
+
+    The servo slews at ``MAX_STEERING_RATE`` (1.2 rad/s), so full lock takes
+    1.24 s = 25 ticks, while a stroke bounded by ``BAY_EXIT_REVERSE_M`` lasts
+    about 9. Commanding centre on the reverse throws the slew away every cycle:
+    measured on an in-bay start, the wheels reach **30.9 deg of the 85 deg
+    commanded** -- 36% of full lock -- ramping up for 9 ticks and back down for
+    11, never arriving.
+
+    That also explains why ``BAY_EXIT_STEER_NORM`` swept byte-identical at
+    0.4/0.6/0.8/1.0: every command at or above 0.364 is clipped by the slew to
+    the same achievable angle, and only 0.2 (17 deg, reachable within a stroke)
+    behaved differently. The knob was never inert -- it was unreachable.
+
+    Lengthening the stroke instead is not available: the servo needs ~0.14 m of
+    travel and the pocket has 7.5 cm of slack. Holding costs no travel.
+
+    Distinct from ``BAY_EXIT_REVERSE_STEER_NORM``, which applies the INVERTED
+    sign and slews further still, to opposite lock (refuted 2026-08-29).
+    """
+
     BAY_EXIT_MAX_FRAMES: int = Field(default=0, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))
     """Ticks the bay-exit maneuver may hold control before handing over. 0 = forever.
 
