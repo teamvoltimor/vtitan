@@ -35,18 +35,18 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs, ParkingLotSpecs, RobotSpecs  # noqa: E402
-from shared.config.navigation_tuning import NavigationTuning  # noqa: E402
 from shared.domain.models import ScenarioMetadata  # noqa: E402
 
 from scripts.common.diag_base import print_pool_progress, resolve_jobs, run_pool  # noqa: E402
 from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
+from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
+from src.navigation.track_geometry import parking_bay_centre  # noqa: E402
 from src.navigation.utils import wrap_angle  # noqa: E402
 from src.simulation.scenario_simulator import ScenarioSimulator  # noqa: E402
 
@@ -64,19 +64,6 @@ _CONTACT_GRACE_S = 8.0
 # Below this separation the bay and the parallel start coincide on the axis
 # perpendicular to the wall, leaving "out of the bay" without a direction.
 _DEGENERATE_AXIS_M = 1e-6
-
-
-def bay_centre(meta: dict[str, Any]) -> tuple[float, float] | None:
-    """Pocket centre: the midpoint of the two fins bounding the lot.
-
-    Returns ``None`` for a scenario without a parking lot, which is not an
-    error -- the generator only builds one when ``has_parking_lot`` is set.
-    """
-    lot = meta.get("parking_lot")
-    if not lot or not meta.get("has_parking_lot"):
-        return None
-    b1, b2 = lot["block1_position"], lot["block2_position"]
-    return (b1["x"] + b2["x"]) / 2.0, (b1["y"] + b2["y"]) / 2.0
 
 
 def bay_outward_axis(
@@ -134,31 +121,6 @@ def bay_exit_clearance(
     return nearest - ParkingLotSpecs.LENGTH
 
 
-def _tuning_with(changes: dict[str, float]) -> NavigationTuning:
-    """Shipped tuning with only the named ``corridor_follower`` fields moved.
-
-    Rebuilds the one group and swaps it in, the same way ``diag_open_ab`` does:
-    ``NavigationTuning`` is a frozen dataclass of pydantic groups, so the group
-    revalidates itself and the aggregate is replaced rather than mutated. An
-    unknown field is rejected by the group's own model rather than silently
-    ignored.
-
-    Deliberately NOT routed through ``_from_mapping``/``--tuning``, which resets
-    every group the mapping omits to code defaults -- a partial override there
-    silently discards the entire shipped profile.
-    """
-    base = NavigationTuning.load_default()
-    if not changes:
-        return base
-    group = base.corridor_follower
-    for field in changes:
-        if not hasattr(group, field):
-            message = f"no such corridor_follower field: {field}"
-            raise ValueError(message)
-    updated = group.model_validate({**group.model_dump(), **changes})
-    return replace(base, corridor_follower=updated)
-
-
 def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> dict[str, object]:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
     path_str, in_bay, laps, changes, known_start, solid_walls = payload
@@ -166,7 +128,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> d
     raw = json.loads(path.read_text())
 
     start = raw["starting_conditions"]
-    centre = bay_centre(raw)
+    centre = parking_bay_centre(raw)
     # Captured before the in-bay branch overwrites it: the parallel start is the
     # reference the outward axis is derived from, and it must be the ORIGINAL
     # one on both arms so the two report the exit on the same axis.
@@ -185,7 +147,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> d
     sim = ScenarioSimulator(
         meta,
         num_laps=laps,
-        tuning=_tuning_with(changes),
+        tuning=tuning_with_overrides(changes),
         seed=raw["scenario_id"],
         blind=True,
         known_start=known_start,
@@ -232,6 +194,11 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> d
         "dyaw_deg": math.degrees(abs(wrap_angle(fyaw - start["yaw"]))),
         "net_m": math.hypot(fx - sx, fy - sy),
         "exit_m": best_exit_m,
+        "bex": sim.bay_exit_ticks,
+        "rev_ticks": sim.bay_exit.legs[0],
+        "fwd_ticks": sim.bay_exit.legs[1],
+        "rev_m": sim.bay_exit.legs[2],
+        "flips": sim.bay_exit.open_flips,
         "dist": result.distance_m,
         "laps": result.laps_completed,
         "collided": result.collided,
@@ -250,18 +217,20 @@ def _summarise(name: str, rows: Sequence[dict[str, object]]) -> None:
 
     print(f"\n=== {name} ===")
     print(
-        f"| {'#':>4} | {'dist m':>7} | {'net m':>6} | {'exit m':>6} | {'dyaw':>6} | {'end x':>6} | {'end y':>6} | "
-        f"{'laps':>4} | {'coll':>4} | {'stuck':>5} | {'t/o':>3} | {'pass':>4} |"
+        f"| {'#':>4} | {'dist m':>7} | {'net m':>6} | {'exit m':>6} | {'bex':>5} | {'rev':>5} | {'fwd':>5} | "
+        f"{'rev m':>6} | {'flip':>5} | {'dyaw':>6} | "
+        f"{'end x':>6} | {'end y':>6} | {'laps':>4} | {'coll':>4} | {'stuck':>5} | {'t/o':>3} | {'pass':>4} |"
     )
     print(
-        f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|"
-        f"{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
+        f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 7}|{'-' * 7}|{'-' * 7}|{'-' * 8}|"
+        f"{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
     )
     for r in sorted(live, key=lambda x: int(x["id"])):  # type: ignore[arg-type]
         exit_cell = f"{r['exit_m']:>6.2f}" if r["exit_m"] is not None else f"{'--':>6}"
         print(
-            f"| {r['id']:>4} | {r['dist']:>7.2f} | {r['net_m']:>6.2f} | {exit_cell} | {r['dyaw_deg']:>6.1f} | "
-            f"{r['fx']:>6.2f} | {r['fy']:>6.2f} | {r['laps']:>4} | "
+            f"| {r['id']:>4} | {r['dist']:>7.2f} | {r['net_m']:>6.2f} | {exit_cell} | {r['bex']:>5} | "
+            f"{r['rev_ticks']:>5} | {r['fwd_ticks']:>5} | {r['rev_m']:>6.3f} | {r['flips']:>5} | "
+            f"{r['dyaw_deg']:>6.1f} | {r['fx']:>6.2f} | {r['fy']:>6.2f} | {r['laps']:>4} | "
             f"{'Y' if r['collided'] else '.':>4} | {'Y' if r['stuck'] else '.':>5} | "
             f"{'Y' if r['timed_out'] else '.':>3} | {'Y' if r['pass_side'] else '.':>4} |"
         )
@@ -306,6 +275,22 @@ def main() -> None:
         help="sweep BAY_EXIT_HOLD_STEER (0/1, in-bay arm only). Holds the forward leg's "
         "steering through the reverse instead of centring it, so the servo can actually "
         "reach the commanded angle within the pocket's 7.5 cm of stroke.",
+    )
+    parser.add_argument(
+        "--latch-direction",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_LATCH_DIRECTION (0/1, in-bay arm only). Decides the open "
+        "side once, on the first tick, rather than re-reading two rays that stop "
+        "pointing across the pocket as soon as the chassis rotates.",
+    )
+    parser.add_argument(
+        "--latch-reverse",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_LATCH_REVERSE (0/1, in-bay arm only). Makes the reverse leg "
+        "a one-shot, so the forward turn is held instead of the gate flipping back and "
+        "forth across its own threshold.",
     )
     parser.add_argument(
         "--max-frames",
@@ -377,6 +362,8 @@ def main() -> None:
             ("BAY_EXIT_REVERSE_STEER_NORM", "rev-steer", args.rev_steer),
             ("BAY_EXIT_MAX_FRAMES", "max-frames", args.max_frames),
             ("BAY_EXIT_HOLD_STEER", "hold-steer", args.hold_steer),
+            ("BAY_EXIT_LATCH_REVERSE", "latch", args.latch_reverse),
+            ("BAY_EXIT_LATCH_DIRECTION", "latch-dir", args.latch_direction),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]

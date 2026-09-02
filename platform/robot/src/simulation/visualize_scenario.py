@@ -59,10 +59,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from shared.config.constants import DictKeys
 from shared.domain.enums import Direction, Section
 from shared.domain.models import ParkingLot, SignPosition
 
-from src.navigation.track_geometry import corridor_widths_from_metadata
+from src.config.tuning_helpers import tuning_with_overrides
+from src.navigation.track_geometry import corridor_widths_from_metadata, parking_bay_centre
 from src.simulation.imu_error_model import SensorErrors
 from src.simulation.live_visualizer import (
     LiveScenarioVisualizer,
@@ -83,6 +85,8 @@ from src.simulation.simulated_hardware_gateway import CONTROL_DT
 from src.simulation.track_model import TrackModel
 
 if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
+
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState
     from src.simulation.scenario_result import SimResult
@@ -225,6 +229,24 @@ def _parse_args() -> argparse.Namespace:
         help="Run a *_metadata.json file directly (e.g. from `simgen generate`) "
         "instead of a catalog scenario or the ad-hoc widths above.",
     )
+    parser.add_argument(
+        "--in-bay",
+        action="store_true",
+        help="Start INSIDE the parking lot instead of parallel to it. Both are legal "
+        "WRO starts and no corpus scenario uses this one, so it is invisible to every "
+        "sweep unless asked for. Needs --recover to behave as the headless probe does: "
+        "wall contact is legal on Obstacles and the escape depends on it.",
+    )
+    parser.add_argument(
+        "--tune",
+        metavar="FIELD=VALUE",
+        action="append",
+        default=[],
+        help="Override one corridor_follower tuning field, repeatable. Lets an arm be "
+        "watched without editing a shipped default -- a modified default left in the "
+        "working tree is how an unrelated run later gets measured under it. "
+        "e.g. --tune BAY_EXIT_HOLD_STEER=1",
+    )
     return parser.parse_args()
 
 
@@ -281,6 +303,8 @@ class _RunOptions:
     errors: SensorErrors | None = None
     recover: bool = False
     contact_grace_s: float = 5.0
+    tuning: NavigationTuning | None = None
+    in_bay: bool = False
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> _RunOptions:
@@ -295,6 +319,13 @@ class _RunOptions:
         # they are all no-ops. Since `localize` now defaults off, asking for one
         # has to switch it back on -- otherwise `--place-error 5` runs clean and
         # silently answers a question nobody asked.
+        changes: dict[str, object] = {}
+        for item in args.tune:
+            field, _, value = item.partition("=")
+            if not value:
+                message = f"--tune expects FIELD=VALUE, got {item!r}"
+                raise SystemExit(message)
+            changes[field] = value
         return cls(
             rate=args.rate,
             localize=args.localize or errors.any_error,
@@ -302,7 +333,25 @@ class _RunOptions:
             errors=errors,
             recover=args.recover,
             contact_grace_s=args.contact_grace,
+            tuning=tuning_with_overrides(changes) if changes else None,
+            in_bay=args.in_bay,
         )
+
+
+def _place_in_bay(metadata: dict[str, Any]) -> None:
+    """Move the start into the parking pocket, in place.
+
+    Heading is left alone: the scenario's own start is already parallel to the
+    outer wall, which is the only orientation a 0.20 m deep pocket admits for a
+    0.194 m wide chassis. Only the position moves, which is also the only thing
+    that separates the two legal starts -- their along-corridor offset is 0.0.
+    """
+    centre = parking_bay_centre(metadata)
+    if centre is None:
+        message = "--in-bay needs a scenario with a parking lot (Obstacles); this one has none"
+        raise SystemExit(message)
+    position = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.POSITION]
+    position[DictKeys.X], position[DictKeys.Y] = centre
 
 
 def _run_one(
@@ -311,10 +360,13 @@ def _run_one(
     opts: _RunOptions,
 ) -> SimResult:
     """Run a single named scenario against the live visualizer."""
+    if opts.in_bay:
+        _place_in_bay(scenario.metadata)
     sim = ScenarioSimulator(
         scenario.metadata,
         num_laps=scenario.laps,
         seed=scenario.seed,
+        tuning=opts.tuning,
         use_lidar_localization=opts.localize,
         blind=opts.blind,
         sensor_errors=opts.errors,
@@ -420,7 +472,18 @@ def main() -> None:
     if args.metadata_file is not None:
         path = Path(args.metadata_file)
         metadata = json.loads(path.read_text())
-        scenario = NamedScenario(label=path.name, metadata=metadata, laps=args.laps, seed=0)
+        # Seeded from the scenario's own id, as every headless sweep does, not
+        # from a fixed 0. The seed drives LIDAR noise, and on a manoeuvre living
+        # this close to its margin -- the in-bay exit clears the pocket in 46 of
+        # 64 corpus scenarios with nothing in the layout separating the two
+        # groups -- a different seed is a different outcome. A fixed 0 here
+        # meant a run watched in RViz was not the run the sweep had scored.
+        scenario = NamedScenario(
+            label=path.name,
+            metadata=metadata,
+            laps=args.laps,
+            seed=int(metadata.get(DictKeys.SCENARIO_ID, 0)),
+        )
         _run_and_visualize(scenario, opts)
         return
 

@@ -340,7 +340,7 @@ class CorridorFollowerParams(BaseModel):
     not what happens.
     """
 
-    BAY_EXIT_HOLD_STEER: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_HOLD_STEER"))
+    BAY_EXIT_HOLD_STEER: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_HOLD_STEER"))
     """Hold the forward leg's steering through the reverse leg instead of centring.
 
     The servo slews at ``MAX_STEERING_RATE`` (1.2 rad/s), so full lock takes
@@ -360,6 +360,47 @@ class CorridorFollowerParams(BaseModel):
 
     Distinct from ``BAY_EXIT_REVERSE_STEER_NORM``, which applies the INVERTED
     sign and slews further still, to opposite lock (refuted 2026-08-29).
+    """
+
+    BAY_EXIT_LATCH_DIRECTION: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_LATCH_DIRECTION"))
+    """Decide which side is open once, on the first tick, instead of every tick.
+
+    ``open_is_left`` compares single rays at +/-90 deg. That reads wall against
+    corridor only while the chassis is parallel to the outer wall; once it
+    rotates, both rays point along the pocket at a fin apiece and the
+    comparison is noise. A flip inverts the steering sign, so the escape
+    becomes a re-entry.
+
+    The side is a fact about the layout, not about the current pose -- the lot
+    stands against the OUTER wall, so the opening faces the inner block, which
+    is the LEFT of a counterclockwise lap and the RIGHT of a clockwise one
+    (verified 64/64 against geometry, both directions). Nothing about it can
+    change while the manoeuvre runs, so re-deriving it every tick can only
+    introduce error.
+
+    Measured before latching, over 64 in-bay starts: escapes flipped a median
+    of 4 times and failures 6, and **all 9 runs that never flipped escaped**
+    while 0 of 18 failures managed zero. Suggestive, not conclusive -- the
+    distributions overlap, and a wedged chassis sits at exactly the angle that
+    makes the rays ambiguous, so flips may be a symptom rather than a cause.
+    """
+
+    BAY_EXIT_LATCH_REVERSE: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_LATCH_REVERSE"))
+    """Commit to the forward turn once the reverse leg has finished, instead of re-testing it.
+
+    The reverse gate compares ``reverse_start - travelled`` against
+    ``BAY_EXIT_REVERSE_M``, and the FORWARD leg moves that quantity back below
+    the threshold -- so the gate flips the manoeuvre straight into reverse
+    again. Measured on 64 in-bay starts: the reverse leg, which covers 0.05 m
+    at creep in about 11 ticks, instead consumed **265-353 ticks against
+    235-294 forward**, with the progress figure pinned at 0.045-0.054 m in
+    every run. The manoeuvre spends its whole 30 s alternating two opposed
+    commands about a knife-edge, which is why the chassis barely rotates: it is
+    not driving an arc, it is chattering.
+
+    Latching makes the reverse a one-shot, so the turn is actually held long
+    enough to describe an arc. Sequencing state that a sensor cannot re-derive
+    is already why ``_reverse_start_m`` exists; this is the other half of it.
     """
 
     BAY_EXIT_MAX_FRAMES: int = Field(default=0, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))

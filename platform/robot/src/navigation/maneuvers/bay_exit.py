@@ -33,13 +33,37 @@ if TYPE_CHECKING:
 class BayExit:
     """Drives the reverse-then-swing exit, holding the reverse leg's origin.
 
-    One instance per round. The only state is where the reverse leg started,
-    which cannot be derived from a scan -- the pocket looks the same throughout
-    it.
+    One instance per round. It holds the two things a scan cannot re-derive:
+    where the reverse leg started (the pocket looks the same throughout it) and
+    which side is open (the rays that answer that stop meaning anything as soon
+    as the chassis rotates -- see ``BAY_EXIT_LATCH_DIRECTION``).
     """
 
     def __init__(self) -> None:
         self._reverse_start_m: float | None = None
+        self._reverse_done = False
+        self._reverse_ticks = 0
+        self._forward_ticks = 0
+        self._reverse_progress_m = 0.0
+        self._open_is_left: bool | None = None
+        self._open_flips = 0
+
+    @property
+    def legs(self) -> tuple[int, int, float]:
+        """``(reverse_ticks, forward_ticks, reverse_progress_m)``, for diagnostics.
+
+        The reverse gate reads SIGNED odometry, which cancels under rocking: a
+        chassis pushed forward as much as it backs registers no progress and
+        the manoeuvre never advances to the turn. Distance travelled cannot
+        show that -- the path length accumulates either way -- so which leg the
+        ticks were spent in has to be counted rather than inferred.
+        """
+        return self._reverse_ticks, self._forward_ticks, self._reverse_progress_m
+
+    @property
+    def open_flips(self) -> int:
+        """Times the measured open side changed sides during the manoeuvre."""
+        return self._open_flips
 
     @staticmethod
     def is_clear(
@@ -72,9 +96,12 @@ class BayExit:
         rotated clear. Measured -- the pivot alone escaped some scenarios and
         clipped a fin in most.
 
-        So reverse first, straight, to double the room ahead, then turn hard.
-        Straight rather than steered because a steered reverse sweeps the tail
-        across the pocket it is trying to leave.
+        So reverse first, to double the room ahead, then turn hard. The reverse
+        was straight until 2026-09-02, on the reasoning that a steered reverse
+        sweeps the tail across the pocket it is trying to leave. True as far as
+        it goes, and outweighed: centring the wheels every reverse throws away
+        the servo's slew and the turn never reaches its angle at all. See
+        ``BAY_EXIT_HOLD_STEER``, which measured 0 -> 187 of 256 on its own.
 
         The reverse is bounded by GEOMETRY, not measured: the bound is the slack
         the lot is guaranteed to have by its own dimensions. That was originally
@@ -88,7 +115,12 @@ class BayExit:
         Which way to turn is not a guess either. The lot is always against the
         OUTER wall, so its opening faces the inner block, and a lap always turns
         toward the inner block -- open side, inner side and corner-turn side are
-        the same side by track design.
+        the same side by track design. It is the LEFT of a counterclockwise lap
+        and the RIGHT of a clockwise one, verified 64/64 against geometry in
+        both directions. Being a fact about the layout, it is read once and
+        latched rather than re-derived every tick: 0 -> 254 of 256 together with
+        the steering hold, 187 -> 254 on top of it. See
+        ``BAY_EXIT_LATCH_DIRECTION``.
 
         Args:
             ranges_m: LIDAR ranges.
@@ -111,6 +143,18 @@ class BayExit:
         left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
         right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
         open_is_left = left > right
+        if follower.BAY_EXIT_LATCH_DIRECTION and self._open_is_left is not None:
+            # First reading wins: taken while the chassis is still parallel to
+            # the wall, which is the only pose at which these two rays compare
+            # wall against corridor at all.
+            open_is_left = self._open_is_left
+        # Counted, not assumed stable: these are single rays at +/-90 deg, which
+        # point ACROSS the pocket only while the chassis is still parallel to the
+        # wall. Once it rotates they point along it, at a fin on each side, and a
+        # flip inverts the steering sign -- turning the escape into a re-entry.
+        if self._open_is_left is not None and open_is_left != self._open_is_left:
+            self._open_flips += 1
+        self._open_is_left = open_is_left
 
         # Wheel distance is SIGNED -- comparing current-minus-start gives a
         # negative that is below any positive threshold forever, which reversed
@@ -118,7 +162,16 @@ class BayExit:
         # BAY_EXIT_STEER_NORM from 0.0 to 1.0 and every BAY_EXIT_REVERSE_M from
         # 0.001 to 0.20 produced byte-identical runs, because the turn was
         # unreachable in all of them.
-        if self._reverse_start_m - travelled_m < follower.BAY_EXIT_REVERSE_M:
+        self._reverse_progress_m = self._reverse_start_m - travelled_m
+        if follower.BAY_EXIT_LATCH_REVERSE and self._reverse_progress_m >= follower.BAY_EXIT_REVERSE_M:
+            # One-shot once latching is on. The forward leg drives this same
+            # quantity back DOWN -- it is start-minus-travelled, and travelling
+            # forward raises travelled -- so without the latch the gate returns
+            # to reverse on the very next tick and the manoeuvre chatters
+            # between two opposed commands instead of holding the turn.
+            self._reverse_done = True
+        if not self._reverse_done and self._reverse_progress_m < follower.BAY_EXIT_REVERSE_M:
+            self._reverse_ticks += 1
             # Steering is INVERTED on the reverse, the same way
             # follow_corridor's reverse branch inverts it: backing up swings the
             # nose away from the steer direction, so steering toward the WALL
@@ -148,9 +201,7 @@ class BayExit:
                 # NOT the same as BAY_EXIT_REVERSE_STEER_NORM, which applies the
                 # INVERTED sign and so slews even further, to opposite lock --
                 # refuted 2026-08-29, every non-zero value collapsing to 0.02 m.
-                reverse_norm = (
-                    clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0) * (1.0 if open_is_left else -1.0)
-                )
+                reverse_norm = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0) * (1.0 if open_is_left else -1.0)
             return DriveCommand(
                 speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE,
                 steering_norm=reverse_norm,
@@ -160,6 +211,7 @@ class BayExit:
         # Full lock spins the chassis about its own centre (8 mm radius at the
         # shipped 85 deg wheel angle) and the pocket has no room to rotate in;
         # what gets the robot out is translation.
+        self._forward_ticks += 1
         magnitude = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0)
         return DriveCommand(
             speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE,

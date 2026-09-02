@@ -558,9 +558,7 @@ class ScenarioSimulator(PassSideScorer):
         if self._exiting_bay:
             self._bay_exit_ticks += 1
         bay_exit_spent = bool(budget) and self._bay_exit_ticks > budget
-        if self._exiting_bay and (
-            bay_exit_spent or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
-        ):
+        if self._exiting_bay and (bay_exit_spent or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)):
             # Out of the pocket. Fall THROUGH to the settle block rather than
             # returning: that block is what rebuilds the path for the committed
             # direction and calls replace_path, and skipping it hands the
@@ -763,6 +761,24 @@ class ScenarioSimulator(PassSideScorer):
             (believed.x, believed.y, believed.yaw),
             (true.x, true.y, true.yaw),
         )
+
+    @property
+    def bay_exit_ticks(self) -> int:
+        """Control ticks the bay-exit manoeuvre held before handing over.
+
+        Stops rising at the handover, so this is how long the pocket exit was
+        driven -- not how long the run lasted. Exposed because the release
+        gate (``BayExit.is_clear``, forward clearance) can be satisfied by a
+        nose that has merely rotated toward open space while the chassis is
+        still inside the pocket, and a run that hands over there looks from
+        the outside like one that escaped and then failed.
+        """
+        return self._bay_exit_ticks
+
+    @property
+    def bay_exit(self) -> BayExit:
+        """The bay-exit manoeuvre this scenario drives, for diagnostics."""
+        return self._bay_exit
 
     @property
     def track(self) -> TrackModel:

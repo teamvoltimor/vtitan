@@ -43,6 +43,25 @@ def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeome
     return CorridorGeometry.from_width_dict(widths)
 
 
+def parking_bay_centre(metadata: Mapping[Any, Any]) -> tuple[float, float] | None:
+    """Pocket centre: the midpoint of the two fins bounding the lot.
+
+    The lot's two magenta fins stand perpendicular to the outer wall at
+    ``block1_position`` and ``block2_position``, so their midpoint is the only
+    placement a 0.194 m chassis admits inside a 0.20 m deep pocket. Derived
+    rather than stored because no scenario records an in-bay start: the WRO
+    rules allow one, but every corpus scenario uses the parallel start instead.
+
+    Returns ``None`` for a scenario without a parking lot, which is not an
+    error -- the generator only builds one when ``has_parking_lot`` is set.
+    """
+    lot = metadata.get(DictKeys.PARKING_LOT)
+    if not lot or not metadata.get(DictKeys.HAS_PARKING_LOT):
+        return None
+    b1, b2 = lot[DictKeys.BLOCK1_POSITION], lot[DictKeys.BLOCK2_POSITION]
+    return (b1[DictKeys.X] + b2[DictKeys.X]) / 2.0, (b1[DictKeys.Y] + b2[DictKeys.Y]) / 2.0
+
+
 def corridor_widths_from_metadata(metadata: ScenarioMetadata | Mapping[Any, Any]) -> CorridorGeometry:
     """Extract corridor geometry (widths + inner block) from scenario metadata.
 
