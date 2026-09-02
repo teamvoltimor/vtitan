@@ -246,6 +246,58 @@ def _report_failures(cases: list, variant: dict[int, _ArmResult]) -> None:
     print(f"  {'verdict':<22} " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1])))
 
 
+def _report_run_header(cases: list, population: list, seed: int, jobs: int, corpus: str, changed: str) -> None:
+    print(f"{len(cases)} of {len(population)} scenarios, seed={seed}, {jobs} workers", flush=True)
+    print(f"corpus: {corpus}", flush=True)
+    print(f"variant: {changed}\n", flush=True)
+
+
+def _report_verdict_summary(base: dict[int, _ArmResult], variant: dict[int, _ArmResult]) -> None:
+    base_ok = sum(1 for r in base.values() if r.verdict == "ok")
+    variant_ok = sum(1 for r in variant.values() if r.verdict == "ok")
+    print(f"\nverdicts: baseline {base_ok}/{len(base)} ok, variant {variant_ok}/{len(variant)} ok", flush=True)
+
+
+def _report_flipped_verdicts(base: dict[int, _ArmResult], variant: dict[int, _ArmResult]) -> None:
+    flipped = [
+        (i, base[i].verdict, variant[i].verdict) for i in sorted(base) if base[i].verdict != variant[i].verdict
+    ]
+    if flipped:
+        print("\nverdict changes:", flush=True)
+        print_table(
+            [[i, base[i].label, was, now] for i, was, now in flipped],
+            ["#", "scenario", "baseline", "variant"],
+        )
+    else:
+        print("no verdict changed", flush=True)
+
+
+def _report_sim_time_delta(base: dict[int, _ArmResult], variant: dict[int, _ArmResult], both_ok: list[int]) -> None:
+    # Sim time only compares where both arms finished; a timed-out run's clock
+    # measures the time limit, not the lap.
+    deltas = [(i, variant[i].sim_time_s - base[i].sim_time_s) for i in both_ok]
+    total = sum(d for _, d in deltas)
+    faster = sum(1 for _, d in deltas if d < 0)
+    slower = sum(1 for _, d in deltas if d > 0)
+    print(
+        f"\nsim time over {len(deltas)} cases both arms finished: "
+        f"mean {total / len(deltas):+.2f}s, total {total:+.1f}s "
+        f"({faster} faster, {slower} slower, {len(deltas) - faster - slower} identical)",
+        flush=True,
+    )
+    ranked = sorted(deltas, key=lambda d: d[1])
+    # The three biggest moves each way, without repeating a case when the sample
+    # is smaller than six.
+    extremes = dict(ranked[:3] + ranked[-3:])
+    print_table(
+        [
+            [i, base[i].label, f"{base[i].sim_time_s:.1f}s", f"{variant[i].sim_time_s:.1f}s", f"{d:+.1f}s"]
+            for i, d in sorted(extremes.items(), key=lambda kv: kv[1])
+        ],
+        ["#", "scenario", "baseline", "variant", "delta"],
+    )
+
+
 def main() -> None:
     """Run both arms over the same sample and report what the override changed."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -289,9 +341,7 @@ def main() -> None:
 
     jobs = resolve_jobs(args.jobs)
     changed = ", ".join(f"{k}={v}" for k, v in overrides.items())
-    print(f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers", flush=True)
-    print(f"corpus: {corpus}", flush=True)
-    print(f"variant: {changed}\n", flush=True)
+    _report_run_header(cases, population, args.seed, jobs, corpus, changed)
 
     base_payloads = [
         (i, widths, section.value, direction.value, cell, args.laps, args.tuning, None)
@@ -302,51 +352,17 @@ def main() -> None:
     base = _run_arm("baseline", base_payloads, jobs)
     variant = _run_arm("variant ", variant_payloads, jobs)
 
-    base_ok = sum(1 for r in base.values() if r.verdict == "ok")
-    variant_ok = sum(1 for r in variant.values() if r.verdict == "ok")
-    print(f"\nverdicts: baseline {base_ok}/{len(base)} ok, variant {variant_ok}/{len(variant)} ok", flush=True)
+    _report_verdict_summary(base, variant)
 
     _report_by_width(cases, base, variant)
     _report_failures(cases, variant)
 
-    flipped = [
-        (i, base[i].verdict, variant[i].verdict) for i in sorted(base) if base[i].verdict != variant[i].verdict
-    ]
-    if flipped:
-        print("\nverdict changes:", flush=True)
-        print_table(
-            [[i, base[i].label, was, now] for i, was, now in flipped],
-            ["#", "scenario", "baseline", "variant"],
-        )
-    else:
-        print("no verdict changed", flush=True)
+    _report_flipped_verdicts(base, variant)
 
-    # Sim time only compares where both arms finished; a timed-out run's clock
-    # measures the time limit, not the lap.
     both_ok = [i for i in sorted(base) if base[i].verdict == "ok" and variant[i].verdict == "ok"]
     if not both_ok:
         return
-    deltas = [(i, variant[i].sim_time_s - base[i].sim_time_s) for i in both_ok]
-    total = sum(d for _, d in deltas)
-    faster = sum(1 for _, d in deltas if d < 0)
-    slower = sum(1 for _, d in deltas if d > 0)
-    print(
-        f"\nsim time over {len(deltas)} cases both arms finished: "
-        f"mean {total / len(deltas):+.2f}s, total {total:+.1f}s "
-        f"({faster} faster, {slower} slower, {len(deltas) - faster - slower} identical)",
-        flush=True,
-    )
-    ranked = sorted(deltas, key=lambda d: d[1])
-    # The three biggest moves each way, without repeating a case when the sample
-    # is smaller than six.
-    extremes = dict(ranked[:3] + ranked[-3:])
-    print_table(
-        [
-            [i, base[i].label, f"{base[i].sim_time_s:.1f}s", f"{variant[i].sim_time_s:.1f}s", f"{d:+.1f}s"]
-            for i, d in sorted(extremes.items(), key=lambda kv: kv[1])
-        ],
-        ["#", "scenario", "baseline", "variant", "delta"],
-    )
+    _report_sim_time_delta(base, variant, both_ok)
 
 
 if __name__ == "__main__":

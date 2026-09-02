@@ -354,29 +354,9 @@ def _worst_leg_table(rows: list[_CaseResult]) -> None:
     )
 
 
-def main() -> None:
-    """Sweep the scenario space and report where in the lap the reversing happens."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    add_sweep_args(
-        parser,
-        default_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
-        default_sample=_DEFAULT_SAMPLE_SIZE,
-        default_seed=_DEFAULT_SEED,
-        jobs=True,
-    )
-    add_tuning_arg(parser)
-    parser.add_argument(
-        "--told-direction",
-        action="store_true",
-        help="hand the robot its travel direction instead of inferring it (NOT a competition condition)",
-    )
-    args = parser.parse_args()
-
-    population = case_space()
-    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
-    jobs = resolve_jobs(args.jobs)
-
-    profiles = active_profiles()
+def _report_run_header(
+    profiles: list[str], cases: list, population: list, seed: int, jobs: int, told_direction: bool
+) -> None:
     print(
         f"profile {','.join(profiles) if profiles else '<base>'}: "
         f"max_speed {RobotSpecs.MAX_SPEED_MPS:.3f} m/s, "
@@ -384,21 +364,13 @@ def main() -> None:
         flush=True,
     )
     print(
-        f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers, "
-        f"direction {'TOLD (control)' if args.told_direction else 'inferred'}\n",
+        f"{len(cases)} of {len(population)} scenarios, seed={seed}, {jobs} workers, "
+        f"direction {'TOLD (control)' if told_direction else 'inferred'}\n",
         flush=True,
     )
 
-    payloads = [
-        (i, widths, section.value, direction.value, cell, args.laps, args.tuning, args.told_direction)
-        for i, (widths, section, direction, cell) in enumerate(cases)
-    ]
-    rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress("legs"))
-    rows.sort(key=lambda row: row.index)
 
-    verdicts = Counter(row.verdict for row in rows)
-    print(f"\nverdicts: {dict(verdicts)}, stuck={sum(1 for row in rows if row.stuck)}\n", flush=True)
-
+def _report_turn_sections(rows: list[_CaseResult]) -> None:
     print("per turn ordinal, over every run that reached it:", flush=True)
     _leg_table(rows)
 
@@ -426,6 +398,44 @@ def main() -> None:
             ],
             ["#", "scenario", "verdict", "turns reached", "rev on last", "time"],
         )
+
+
+def main() -> None:
+    """Sweep the scenario space and report where in the lap the reversing happens."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    add_sweep_args(
+        parser,
+        default_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
+        default_sample=_DEFAULT_SAMPLE_SIZE,
+        default_seed=_DEFAULT_SEED,
+        jobs=True,
+    )
+    add_tuning_arg(parser)
+    parser.add_argument(
+        "--told-direction",
+        action="store_true",
+        help="hand the robot its travel direction instead of inferring it (NOT a competition condition)",
+    )
+    args = parser.parse_args()
+
+    population = case_space()
+    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
+    jobs = resolve_jobs(args.jobs)
+
+    profiles = active_profiles()
+    _report_run_header(profiles, cases, population, args.seed, jobs, args.told_direction)
+
+    payloads = [
+        (i, widths, section.value, direction.value, cell, args.laps, args.tuning, args.told_direction)
+        for i, (widths, section, direction, cell) in enumerate(cases)
+    ]
+    rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress("legs"))
+    rows.sort(key=lambda row: row.index)
+
+    verdicts = Counter(row.verdict for row in rows)
+    print(f"\nverdicts: {dict(verdicts)}, stuck={sum(1 for row in rows if row.stuck)}\n", flush=True)
+
+    _report_turn_sections(rows)
 
 
 if __name__ == "__main__":

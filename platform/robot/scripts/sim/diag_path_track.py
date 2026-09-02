@@ -74,6 +74,8 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 if TYPE_CHECKING:
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState
+    from src.simulation.scenario_catalog import NamedScenario
+    from src.simulation.scenario_result import SimResult
 
 
 def _transform_point(
@@ -393,6 +395,33 @@ def _safe_width(widths: dict[Section, float] | None, section: Section) -> float 
     return widths.get(section)
 
 
+def _report_scenario_header(
+    scenario_index: int,
+    scenario: NamedScenario,
+    sim: ScenarioSimulator,
+    true_path: list[Waypoint],
+) -> None:
+    """Print the scenario/start/belief/waypoint-count report before the sim loop runs."""
+    print(f"Scenario {scenario_index}: {scenario.label}")
+    print(f"True start: {scenario.metadata['starting_conditions']}")
+    print(f"Initial belief offset: {sim.belief_offset_poses}")
+    print(f"True path has {len(true_path)} waypoints")
+
+
+def _report_scenario_result(result: SimResult, ctes: list[float]) -> None:
+    """Print the result/CTE summary report after the sim loop finishes."""
+    print(
+        f"Result: success={result.success} laps={result.laps_completed} "
+        f"collided={result.collided} timed_out={result.timed_out}",
+    )
+
+    if ctes:
+        print(
+            f"CTE vs displayed path: min={min(ctes):.3f} max={max(ctes):.3f} "
+            f"mean={sum(ctes) / len(ctes):.3f} m",
+        )
+
+
 def run_scenario(
     scenario_index: int,
     *,
@@ -409,8 +438,6 @@ def run_scenario(
     Returns the CSV path and the collected rows.
     """
     scenario = open_scenario_by_index(scenario_index)
-    print(f"Scenario {scenario_index}: {scenario.label}")
-    print(f"True start: {scenario.metadata['starting_conditions']}")
 
     tuning = load_tuning(tuning_path)
     sim = ScenarioSimulator(
@@ -420,11 +447,11 @@ def run_scenario(
         use_lidar_localization=use_lidar_localization,
         tuning=tuning,
     )
-    print(f"Initial belief offset: {sim.belief_offset_poses}")
 
     meta = ScenarioMetadata.model_validate(scenario.metadata)
     true_path = calculate_waypoints(meta, num_laps=laps, tuning=tuning)
-    print(f"True path has {len(true_path)} waypoints")
+
+    _report_scenario_header(scenario_index, scenario, sim, true_path)
 
     rows: list[dict] = []
 
@@ -460,17 +487,9 @@ def run_scenario(
         })
 
     result = sim.run(on_step=on_step, max_steps=max_steps)
-    print(
-        f"Result: success={result.success} laps={result.laps_completed} "
-        f"collided={result.collided} timed_out={result.timed_out}",
-    )
 
     ctes = [r["cte_displayed_m"] for r in rows if r["cte_displayed_m"] is not None]
-    if ctes:
-        print(
-            f"CTE vs displayed path: min={min(ctes):.3f} max={max(ctes):.3f} "
-            f"mean={sum(ctes) / len(ctes):.3f} m",
-        )
+    _report_scenario_result(result, ctes)
 
     report_index_stalls(
         rows,

@@ -88,6 +88,18 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
     )
 
 
+def _report_verdict_summary(
+    by_verdict: Counter[str], dims: dict[str, Counter], elapsed: float, total: int
+) -> None:
+    ok = by_verdict.get("ok", 0)
+    print(f"\n{ok}/{total} ok ({ok / total:.0%}) in {elapsed:.0f}s wall", flush=True)
+    for verdict, count in by_verdict.most_common():
+        if verdict != "ok":
+            print(f"  {verdict:<12} {count}", flush=True)
+    for title, counts in dims.items():
+        _summarise(title, counts)
+
+
 def main() -> None:
     """Run a seeded sample concurrently and summarise by dimension."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -138,13 +150,7 @@ def main() -> None:
         "by start corridor width:": Counter((f"{r.start_width_mm}mm", r.verdict) for r in results),
     }
 
-    ok = by_verdict.get("ok", 0)
-    print(f"\n{ok}/{len(results)} ok ({ok / len(results):.0%}) in {elapsed:.0f}s wall", flush=True)
-    for verdict, count in by_verdict.most_common():
-        if verdict != "ok":
-            print(f"  {verdict:<12} {count}", flush=True)
-    for title, counts in dims.items():
-        _summarise(title, counts)
+    _report_verdict_summary(by_verdict, dims, elapsed, len(results))
 
     failed = [r for r in results if r.verdict != "ok"]
     if failed:

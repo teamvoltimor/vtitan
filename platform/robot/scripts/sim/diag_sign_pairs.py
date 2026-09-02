@@ -214,6 +214,24 @@ def probe(
     )
 
 
+def _report_summary(
+    verdicts: Counter, total_switches: int, clear_when_collided: list[int], args: argparse.Namespace
+) -> None:
+    print("\nSUMMARY " + "  ".join(f"{k}={v}" for k, v in verdicts.most_common()))
+    # The number the hysteresis A/B turns on: how often the SELECTED sign
+    # changed mid-approach across the whole corpus, not just how many runs saw
+    # at least one change.
+    print(f"TOTAL WINNER SWITCHES (hysteresis={args.hysteresis or 'default'}): {total_switches}")
+    not_clear, clear = clear_when_collided
+    total = clear + not_clear
+    if total:
+        # Of the runs that ended in a collision, how many were on a line that
+        # already cleared every sign in play? A high number means the router is
+        # putting an already-safe robot back into contention rather than
+        # rescuing an unsafe one.
+        print(f"STRAIGHT-WAS-CLEAR at collision: {clear}/{total} ({100 * clear / total:.0f}%)")
+
+
 def main() -> None:
     """Probe one fixture or all of them."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -260,19 +278,7 @@ def main() -> None:
             f"switches={r.winner_switches} straight_clear={r.straight_was_clear} -> {verdict}",
             flush=True,
         )
-    print("\nSUMMARY " + "  ".join(f"{k}={v}" for k, v in verdicts.most_common()))
-    # The number the hysteresis A/B turns on: how often the SELECTED sign
-    # changed mid-approach across the whole corpus, not just how many runs saw
-    # at least one change.
-    print(f"TOTAL WINNER SWITCHES (hysteresis={args.hysteresis or 'default'}): {total_switches}")
-    not_clear, clear = clear_when_collided
-    total = clear + not_clear
-    if total:
-        # Of the runs that ended in a collision, how many were on a line that
-        # already cleared every sign in play? A high number means the router is
-        # putting an already-safe robot back into contention rather than
-        # rescuing an unsafe one.
-        print(f"STRAIGHT-WAS-CLEAR at collision: {clear}/{total} ({100 * clear / total:.0f}%)")
+    _report_summary(verdicts, total_switches, clear_when_collided, args)
 
 
 if __name__ == "__main__":
