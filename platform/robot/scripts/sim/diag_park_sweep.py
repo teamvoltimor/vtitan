@@ -125,7 +125,10 @@ def _classify(
     corners = _rect_corners(x, y, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
     hits = set()
     ob = track._outer_collision  # noqa: SLF001
-    if any(cx < ob.x_min or cx > ob.x_max or cy < ob.y_min or cy > ob.y_max for cx, cy in corners):
+    # `_rect_corners` returns Waypoints, not (x, y) tuples -- same adaptation as
+    # the containment check above. Unpacking them as pairs is what broke this
+    # script at HEAD (TypeError: cannot unpack non-iterable Waypoint object).
+    if any(c.x < ob.x_min or c.x > ob.x_max or c.y < ob.y_min or c.y > ob.y_max for c in corners):
         hits.add("outer-wall")
     if _convex_overlap(corners, track._inner_collision.corners(), yaw):  # noqa: SLF001
         hits.add("inner-block")
