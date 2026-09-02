@@ -320,10 +320,27 @@ def main() -> None:
         "-- a pivot, not a translation; ~0.5 is 42 deg and ~0.21 m.",
     )
     parser.add_argument(
+        "--cycle-reverse",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_CYCLE_REVERSE_M (with --cycle): how far the straight reverse "
+        "runs. Its own constant -- BAY_EXIT_REVERSE_M belongs to the reverse-then-swing exit "
+        "and is pinned at 0.05 there.",
+    )
+    parser.add_argument(
         "--forward-dist",
         type=float,
         nargs="*",
         help="sweep BAY_EXIT_FORWARD_M (with --cycle): how far the forward arc runs before the reverse leg.",
+    )
+    parser.add_argument(
+        "--fallback",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_FALLBACK_FRAMES (in-bay arm only): ticks to give the configured "
+        "exit before switching to the OTHER one. The two are complementary -- each scores "
+        "254/256 under the contact model where the other scores 0 -- so covering both beats "
+        "betting on one. 0 never switches.",
     )
     parser.add_argument(
         "--cycle-rev-steer",
@@ -441,8 +458,10 @@ def main() -> None:
             ("BAY_EXIT_LATCH_REVERSE", "latch", args.latch_reverse),
             ("BAY_EXIT_LATCH_DIRECTION", "latch-dir", args.latch_direction),
             ("BAY_EXIT_CYCLE", "cycle", args.cycle),
+            ("BAY_EXIT_FALLBACK_FRAMES", "fallback", args.fallback),
             ("BAY_EXIT_ARC_STEER_NORM", "arc", args.arc_steer),
             ("BAY_EXIT_FORWARD_M", "fwd", args.forward_dist),
+            ("BAY_EXIT_CYCLE_REVERSE_M", "cyc-rev", args.cycle_reverse),
             ("BAY_EXIT_CYCLE_REVERSE_STEER_NORM", "back-steer", args.cycle_rev_steer),
         )
         combos: list[dict[str, float]] = [{}]

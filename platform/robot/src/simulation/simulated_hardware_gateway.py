@@ -68,6 +68,12 @@ _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
 CONTROL_DT = _DEFAULT_SIMULATOR_CONTEXT.constants.control_dt
 LIDAR_INVALID_RAY_RATE = _DEFAULT_SIMULATOR_CONTEXT.constants.lidar_invalid_ray_rate
 
+_SCRUB_STANDSTILL_MPS = 1e-3
+"""Commanded speed below which the chassis counts as stationary for scrub.
+
+A millimetre per second: three orders under creep, so only a deliberate
+standstill qualifies and no moving tick picks up a scrub bonus."""
+
 
 class SimulatedHardwareGateway:
     """A :class:`HardwareGateway` backed by a kinematic body and raycast LIDAR.
@@ -92,6 +98,7 @@ class SimulatedHardwareGateway:
         solid_walls: bool = False,
         solid_surfaces: frozenset[ContactSurface] | None = None,
         slide_on_contact: bool = False,
+        scrub_yaw_gain: float = 0.0,
         # Sweep rate of the Slamtec C1, which is what the robot actually has.
         # Read from the sensor's own spec rather than restated, so the
         # simulated scan rate cannot drift from the rate the rest of the
@@ -130,6 +137,7 @@ class SimulatedHardwareGateway:
         # baseline in the repo was measured without it, so turning it on is a
         # re-baselining decision, not a default.
         self._slide_on_contact = slide_on_contact
+        self._scrub_yaw_gain = scrub_yaw_gain
         self._state = initial_state
         self._kin = kinematics or AckermannKinematics()
         self._rng = rng or np.random.default_rng(0)
@@ -386,6 +394,32 @@ class SimulatedHardwareGateway:
         """Current kinematic state of the simulated body."""
         return self._state
 
+    def _scrub(self, candidate: AckermannState) -> AckermannState:
+        """Yaw the chassis while the servo turns the wheels at a standstill.
+
+        The kinematic model has ``yaw`` scaling with ``v``, so a stationary
+        chassis rotates by exactly zero however hard the servo pushes. That is
+        wrong on this robot by a wide margin: the steering servo delivers
+        2.84 N-m (29 kg-cm at 5 V), which is 35-70x the moment needed to scrub a
+        wheel in place and 10-30x the force needed to slide the whole 1.5 kg
+        chassis sideways. In a pocket whose entire margin is 6 mm, scrub may be
+        the dominant actuator rather than a second-order effect.
+
+        DELIBERATELY OPTIMISTIC. The yaw is applied in the direction that helps,
+        proportional to how far the wheels turned this tick, with no friction
+        threshold and no cost. It is a sensitivity probe, not a physics model:
+        the useful result is the THRESHOLD gain at which an outcome changes, so
+        a bench measurement can be compared against it. A negative result under
+        this model is therefore strong, and a positive one only says "possible".
+
+        Off (0.0) by default; contact still clips the result via
+        ``allowed_step``, so the chassis cannot scrub through a wall.
+        """
+        if not self._scrub_yaw_gain or abs(self._command.speed_mps) > _SCRUB_STANDSTILL_MPS:
+            return candidate
+        turned_rad = candidate.steer - self._state.steer
+        return replace(candidate, yaw=_wrap_angle(candidate.yaw + self._scrub_yaw_gain * turned_rad))
+
     def advance(self, dt: float | None = None) -> None:
         """Integrate the last command over ``dt`` and regenerate the sensors.
 
@@ -407,6 +441,7 @@ class SimulatedHardwareGateway:
             target_steer_norm=self._command.steering_norm,
             dt=dt,
         )
+        candidate = self._scrub(candidate)
         # A solid wall constrains the POSE, not the motion: the chassis
         # advances as far along the commanded step as fits and stops there,
         # rather than the whole step being refused.

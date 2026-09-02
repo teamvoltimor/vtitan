@@ -360,7 +360,33 @@ class CorridorFollowerParams(BaseModel):
     sign and slews further still, to opposite lock (refuted 2026-08-29).
     """
 
-    BAY_EXIT_CYCLE: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_CYCLE"))
+    BAY_EXIT_FALLBACK_FRAMES: int = Field(default=0, ge=0, validation_alias=_alias("BAY_EXIT_FALLBACK_FRAMES"))
+    """Ticks to give the configured exit before switching to the OTHER one. 0 = never.
+
+    The two manoeuvres are complementary, each scoring 254/256 under the contact
+    model where the other scores 0:
+
+    | 256 corpus         | no-slide | sliding |
+    |--------------------|----------|---------|
+    | reverse-then-swing |  254/256 |   0/256 |
+    | cycle              |    0/256 | 254/256 |
+
+    The reverse-then-swing exit needs the rotation-clipping ratchet that contact
+    provides; the cycle exit needs to be able to slide along a fin. Which
+    applies to the real robot is unknown -- the simulator has no sliding, scales
+    yaw with speed so a stationary chassis cannot move at all, and ignores a
+    steering servo with 35-70x the torque needed to scrub a wheel in place.
+
+    Rather than bet on one, run one and switch. The failing manoeuvre costs only
+    its budget: neither damages anything (2 collisions in 256 either way, the
+    rest simply stuck), so the trade is budget against coverage.
+
+    Distinct from ``BAY_EXIT_MAX_FRAMES``, which hands control to
+    ``CoreNavigator`` -- refuted, 0/64 at every budget, because the escape
+    ladder cannot leave a pocket at all.
+    """
+
+    BAY_EXIT_CYCLE: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_CYCLE"))
     """Use the alternating arc/straight-reverse exit instead of reverse-then-swing.
 
     A shuffle at CONSTANT steering magnitude cannot accumulate:
@@ -380,8 +406,24 @@ class CorridorFollowerParams(BaseModel):
     already is.
     """
 
+    BAY_EXIT_CYCLE_REVERSE_M: float = Field(default=0.09, gt=0.0, validation_alias=_alias("BAY_EXIT_CYCLE_REVERSE_M"))
+    """How far the cycle manoeuvre's straight reverse runs before arcing again.
+
+    Its OWN constant rather than sharing ``BAY_EXIT_REVERSE_M``, which the
+    reverse-then-swing exit needs pinned at exactly 0.05 (0.055 scores 0/64
+    there). The two manoeuvres want different values for the same-named
+    quantity, and one field serving both is a landmine: tuning the cycle would
+    silently break the fallback.
+
+    0.09 exceeds the pocket's 7.5 cm of slack on purpose -- the stall backstop
+    ends the leg on geometry, so the reverse uses ALL the room available at the
+    current heading rather than a fixed stroke. Measured against 0.05: exit
+    267 -> 229 ticks and laps>=1 29 -> 33, which is parity with the
+    parallel-start control.
+    """
+
     BAY_EXIT_ARC_STEER_NORM: float = Field(
-        default=0.5, ge=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_ARC_STEER_NORM")
+        default=0.3, ge=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_ARC_STEER_NORM")
     )
     """Steering magnitude for the cycle manoeuvre's forward arc, 0..1 of full lock.
 

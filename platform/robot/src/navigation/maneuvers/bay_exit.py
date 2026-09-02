@@ -68,6 +68,9 @@ class BayExit:
         # Starts at 0: the first arc begins from wherever the wheels already
         # are, and the settle is budgeted at each leg CHANGE.
         self._settle_ticks = 0
+        # Ticks the manoeuvre has run, and whether the fallback has fired.
+        self._ticks = 0
+        self._switched = False
 
     @property
     def cycles(self) -> int:
@@ -90,6 +93,23 @@ class BayExit:
     def open_flips(self) -> int:
         """Times the measured open side changed sides during the manoeuvre."""
         return self._open_flips
+
+    def _reset_for_switch(self, travelled_m: float) -> None:
+        """Re-origin both manoeuvres' odometry state at the handover.
+
+        Every distance in here is measured from a remembered starting odometry
+        reading, and those readings belong to the manoeuvre that just gave up.
+        Carried across, the incoming reverse leg would believe it had already
+        run -- ``_reverse_start_m`` is set on the first tick of the round, so by
+        the switch it is hundreds of ticks stale.
+        """
+        self._reverse_start_m = travelled_m
+        self._reverse_done = False
+        self._leg_is_reverse = False
+        self._leg_start_m = travelled_m
+        self._last_travelled_m = travelled_m
+        self._leg_stall_ticks = 0
+        self._settle_ticks = 0
 
     def _begin_leg(
         self,
@@ -193,7 +213,7 @@ class BayExit:
         if self._leg_is_reverse:
             self._reverse_ticks += 1
             self._reverse_progress_m = (self._leg_start_m or travelled_m) - travelled_m
-            if stalled or self._reverse_progress_m >= follower.BAY_EXIT_REVERSE_M:
+            if stalled or self._reverse_progress_m >= follower.BAY_EXIT_CYCLE_REVERSE_M:
                 self._begin_leg(is_reverse=False, travelled_m=travelled_m, tuning=tuning, from_norm=target)
                 self._cycles += 1
             # Straight back at 0 (the reverse then returns no rotation, so the
@@ -314,7 +334,18 @@ class BayExit:
             self._open_flips += 1
         self._open_is_left = open_is_left
 
-        if follower.BAY_EXIT_CYCLE:
+        # Which exit is driving. After BAY_EXIT_FALLBACK_FRAMES the OTHER one
+        # takes over, once: the two are complementary (each 254/256 under the
+        # contact model where the other is 0/256) and which one the real robot
+        # needs is unknown, so covering both beats betting on one.
+        self._ticks += 1
+        use_cycle = follower.BAY_EXIT_CYCLE
+        if follower.BAY_EXIT_FALLBACK_FRAMES and self._ticks > follower.BAY_EXIT_FALLBACK_FRAMES:
+            use_cycle = not use_cycle
+            if not self._switched:
+                self._switched = True
+                self._reset_for_switch(travelled_m)
+        if use_cycle:
             return self._cycle_command(travelled_m, creep_speed_mps, tuning, open_is_left)
 
         # Wheel distance is SIGNED -- comparing current-minus-start gives a
