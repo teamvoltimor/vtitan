@@ -41,7 +41,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CompetitionSpecs  # noqa: E402
+from shared.config.constants import CompetitionSpecs, ParkingLotSpecs, RobotSpecs  # noqa: E402
 from shared.config.navigation_tuning import NavigationTuning  # noqa: E402
 from shared.domain.models import ScenarioMetadata  # noqa: E402
 
@@ -53,11 +53,17 @@ from src.simulation.scenario_simulator import ScenarioSimulator  # noqa: E402
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from src.navigation.ports import LidarScan
+    from src.simulation.kinematics import AckermannState
+
 _COMMITTED_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
 # Seconds of continuous wall contact allowed before the run is judged a real
 # failure rather than a chassis still working itself clear. Only meaningful
 # with solid walls; the escape being measured IS a sustained scrape.
 _CONTACT_GRACE_S = 8.0
+# Below this separation the bay and the parallel start coincide on the axis
+# perpendicular to the wall, leaving "out of the bay" without a direction.
+_DEGENERATE_AXIS_M = 1e-6
 
 
 def bay_centre(meta: dict[str, Any]) -> tuple[float, float] | None:
@@ -71,6 +77,61 @@ def bay_centre(meta: dict[str, Any]) -> tuple[float, float] | None:
         return None
     b1, b2 = lot["block1_position"], lot["block2_position"]
     return (b1["x"] + b2["x"]) / 2.0, (b1["y"] + b2["y"]) / 2.0
+
+
+def bay_outward_axis(
+    centre: tuple[float, float],
+    start_xy: tuple[float, float],
+    start_yaw: float,
+) -> tuple[float, float] | None:
+    """Unit vector from the pocket towards the corridor, perpendicular to the wall.
+
+    Derived, not hardcoded: the scenario's own (parallel) start sits on the
+    corridor centreline and the bay against the outer wall, so the bay-to-start
+    vector points out of the pocket. Its along-corridor part is 0.0 in every
+    corpus scenario, but it is projected out anyway rather than trusted -- the
+    axis this measurement is taken on must be the one perpendicular to the wall
+    even if a future generator offsets the start along the corridor.
+
+    Returns ``None`` when the two coincide on that axis, which would leave the
+    direction undefined; the caller then reports no exit verdict rather than a
+    guessed one.
+    """
+    vx, vy = start_xy[0] - centre[0], start_xy[1] - centre[1]
+    along = vx * math.cos(start_yaw) + vy * math.sin(start_yaw)
+    px, py = vx - along * math.cos(start_yaw), vy - along * math.sin(start_yaw)
+    norm = math.hypot(px, py)
+    if norm < _DEGENERATE_AXIS_M:
+        return None
+    return px / norm, py / norm
+
+
+def bay_exit_clearance(
+    pose: tuple[float, float, float],
+    centre: tuple[float, float],
+    outward: tuple[float, float],
+) -> float:
+    """Metres by which the whole chassis footprint clears the pocket mouth.
+
+    The two fins stand ``ParkingLotSpecs.LENGTH`` (0.20 m) out from the outer
+    wall, and the pocket centre sits ``WALL_OFFSET`` (0.10 m) from it, so the
+    mouth is 0.10 m outboard of where the chassis is placed. The verdict is
+    taken on the footprint CORNER nearest the wall, at the final heading, not on
+    the centre: a chassis that has driven its nose out while its tail is still
+    between the fins has not left the bay, and a centre-only test would call it
+    out. Negative means still (partly) in the pocket.
+    """
+    x, y, yaw = pose
+    hx, hy = math.cos(yaw), math.sin(yaw)
+    half_l, half_w = RobotSpecs.LENGTH / 2.0, RobotSpecs.WIDTH / 2.0
+    nearest = min(
+        ParkingLotSpecs.WALL_OFFSET
+        + (x + sl * half_l * hx + sw * half_w * -hy - centre[0]) * outward[0]
+        + (y + sl * half_l * hy + sw * half_w * hx - centre[1]) * outward[1]
+        for sl in (-1.0, 1.0)
+        for sw in (-1.0, 1.0)
+    )
+    return nearest - ParkingLotSpecs.LENGTH
 
 
 def _tuning_with(changes: dict[str, float]) -> NavigationTuning:
@@ -105,9 +166,13 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> d
     raw = json.loads(path.read_text())
 
     start = raw["starting_conditions"]
+    centre = bay_centre(raw)
+    # Captured before the in-bay branch overwrites it: the parallel start is the
+    # reference the outward axis is derived from, and it must be the ORIGINAL
+    # one on both arms so the two report the exit on the same axis.
+    parallel_xy = (start["position"]["x"], start["position"]["y"])
     moved = False
     if in_bay:
-        centre = bay_centre(raw)
         if centre is None:
             return {"id": raw["scenario_id"], "skipped": True}
         # Heading is left alone: the scenario's own start is already parallel to
@@ -133,7 +198,22 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> d
     # while keeping the translation, which is what lets a cornered chassis peel
     # away. Without it the run simply stalls short of contact, which is what
     # every earlier bay-start number here measured.
-    result = sim.run(contact_grace_s=_CONTACT_GRACE_S if solid_walls else None)
+    # Tracked over the whole run, not read off the final pose: a run that leaves
+    # the pocket, drives its laps and then PARKS is back inside the bay at the
+    # end, and a final-pose test scores that -- the best possible outcome -- as
+    # never having left. Observed on scenario 0 of the committed set: 3 laps,
+    # 26 m driven, final clearance -0.00 m.
+    outward = bay_outward_axis(centre, parallel_xy, start["yaw"]) if centre else None
+    best_exit_m: float | None = None
+
+    def _observe(state: AckermannState, _scan: LidarScan) -> None:
+        nonlocal best_exit_m
+        if centre is None or outward is None:
+            return
+        clearance = bay_exit_clearance((state.x, state.y, state.yaw), centre, outward)
+        best_exit_m = clearance if best_exit_m is None else max(best_exit_m, clearance)
+
+    result = sim.run(contact_grace_s=_CONTACT_GRACE_S if solid_walls else None, on_step=_observe)
 
     # Where it STOPPED, not just how far it went. A distance alone cannot tell
     # "never left the pocket" from "drove out, crossed the corridor and stalled
@@ -151,6 +231,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> d
         "fy": fy,
         "dyaw_deg": math.degrees(abs(wrap_angle(fyaw - start["yaw"]))),
         "net_m": math.hypot(fx - sx, fy - sy),
+        "exit_m": best_exit_m,
         "dist": result.distance_m,
         "laps": result.laps_completed,
         "collided": result.collided,
@@ -169,16 +250,17 @@ def _summarise(name: str, rows: Sequence[dict[str, object]]) -> None:
 
     print(f"\n=== {name} ===")
     print(
-        f"| {'#':>4} | {'dist m':>7} | {'net m':>6} | {'dyaw':>6} | {'end x':>6} | {'end y':>6} | "
+        f"| {'#':>4} | {'dist m':>7} | {'net m':>6} | {'exit m':>6} | {'dyaw':>6} | {'end x':>6} | {'end y':>6} | "
         f"{'laps':>4} | {'coll':>4} | {'stuck':>5} | {'t/o':>3} | {'pass':>4} |"
     )
     print(
-        f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|"
+        f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|"
         f"{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
     )
     for r in sorted(live, key=lambda x: int(x["id"])):  # type: ignore[arg-type]
+        exit_cell = f"{r['exit_m']:>6.2f}" if r["exit_m"] is not None else f"{'--':>6}"
         print(
-            f"| {r['id']:>4} | {r['dist']:>7.2f} | {r['net_m']:>6.2f} | {r['dyaw_deg']:>6.1f} | "
+            f"| {r['id']:>4} | {r['dist']:>7.2f} | {r['net_m']:>6.2f} | {exit_cell} | {r['dyaw_deg']:>6.1f} | "
             f"{r['fx']:>6.2f} | {r['fy']:>6.2f} | {r['laps']:>4} | "
             f"{'Y' if r['collided'] else '.':>4} | {'Y' if r['stuck'] else '.':>5} | "
             f"{'Y' if r['timed_out'] else '.':>3} | {'Y' if r['pass_side'] else '.':>4} |"
@@ -187,6 +269,19 @@ def _summarise(name: str, rows: Sequence[dict[str, object]]) -> None:
     n = len(live)
     dists = [float(r["dist"]) for r in live]  # type: ignore[arg-type]
     immobile = sum(1 for d in dists if d < 0.01)
+    # The headline for the in-bay arm. Laps and distance both answer "how well
+    # did the run go afterwards"; this answers the prior question the pocket
+    # actually poses, and a run can clear the bay and then stall or collide
+    # without that making the exit itself a failure. The margin is the run's
+    # BEST clearance, so it says how far out it got, not where it ended.
+    clear = [r for r in live if r["exit_m"] is not None]
+    if clear:
+        out = [r for r in clear if float(r["exit_m"]) > 0.0]  # type: ignore[arg-type]
+        margins = sorted(float(r["exit_m"]) for r in clear)  # type: ignore[arg-type]
+        print(
+            f"  OUT OF BAY {len(out)}/{len(clear)}  "
+            f"clearance min {margins[0]:.2f} / median {margins[len(margins) // 2]:.2f} / max {margins[-1]:.2f} m"
+        )
     print(
         f"  n={n}  immobile(<1cm)={immobile}  "
         f"dist min {min(dists):.2f} / median {sorted(dists)[n // 2]:.2f} / max {max(dists):.2f}  "
