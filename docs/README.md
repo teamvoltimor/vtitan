@@ -78,6 +78,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
 	2. [Evolución y Justificación del Diseño](README.md#evolución-y-justificación-del-diseño) 
 	3. [Sistema de Transmición](README.md#sistema-de-transmición)
 	4. [Sistema de Dirección](README.md#sistema-de-dirección)
+        5. [Monochasis](README.md#monochasis)
 
 4. **Arquitectura de software y estrategia para superar obstáculos**
 	1. [Modelo de Detección YOLO](README.md#modelo-de-detección-yolo)
@@ -531,7 +532,18 @@ Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción e
 
 ## Sistema de Dirección
 
-Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. Resumidamente, todo el movimiento lo transmitimos a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque es necesario un servo con mucha capacidad de torque para poder ejercer fuerza en las 4 ruedas. En primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado a un engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con las dos ruedas, ya sean delanteras o traseras
+Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. Resumidamente, todo el movimiento lo transmitimos a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque es necesario un servo con mucha capacidad de torque para poder ejercer fuerza en las 4 ruedas. En primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado a un engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con las dos ruedas, ya sean delanteras o traseras.
+
+## Chasis Inferior 
+
+<p align="center">
+	<img src="/3d-models/chasis-inferior.png" alt="Chasis Inferior" 
+width="350">
+	<br>
+	<i>Chasis Inferior</i>
+</p>
+
+Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en la mitad del chasis 
 
 # Arquitectura de software y estrategia para superar obstáculos
 
