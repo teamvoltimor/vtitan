@@ -91,6 +91,7 @@ class SimulatedHardwareGateway:
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         solid_surfaces: frozenset[ContactSurface] | None = None,
+        slide_on_contact: bool = False,
         # Sweep rate of the Slamtec C1, which is what the robot actually has.
         # Read from the sensor's own spec rather than restated, so the
         # simulated scan rate cannot drift from the rate the rest of the
@@ -124,6 +125,11 @@ class SimulatedHardwareGateway:
         self._solid_surfaces = (
             frozenset(ContactSurface) - {ContactSurface.NONE} if solid_walls else (solid_surfaces or frozenset())
         )
+        # Whether a blocked translation may slide along the surface instead of
+        # being scaled to nothing. OFF by default: every contact-dependent
+        # baseline in the repo was measured without it, so turning it on is a
+        # re-baselining decision, not a default.
+        self._slide_on_contact = slide_on_contact
         self._state = initial_state
         self._kin = kinematics or AckermannKinematics()
         self._rng = rng or np.random.default_rng(0)
@@ -420,7 +426,7 @@ class SimulatedHardwareGateway:
         # squarely into a wall still yields a scale of ~0 and makes no
         # progress, so reversing out remains a real escape rather than a
         # cosmetic one.
-        allowed = allowed_step(self._track, self._solid_surfaces, self._state, candidate)
+        allowed = allowed_step(self._track, self._solid_surfaces, self._state, candidate, slide=self._slide_on_contact)
         self.blocked = allowed is not candidate
         self._state = replace(self._state, v=0.0) if allowed is None else allowed
         # Whenever the step had to be cut short the chassis is against the

@@ -314,9 +314,7 @@ class CorridorFollowerParams(BaseModel):
     result at all.
     """
 
-    BAY_EXIT_REVERSE_STEER_NORM: float = Field(
-        default=0.0, validation_alias=_alias("BAY_EXIT_REVERSE_STEER_NORM")
-    )
+    BAY_EXIT_REVERSE_STEER_NORM: float = Field(default=0.0, validation_alias=_alias("BAY_EXIT_REVERSE_STEER_NORM"))
     """Steering magnitude DURING the reverse leg out of the pocket, 0..1.
 
     0.0 backs straight, and 0.0 is what wins. The reasoning below argued the
@@ -360,6 +358,88 @@ class CorridorFollowerParams(BaseModel):
 
     Distinct from ``BAY_EXIT_REVERSE_STEER_NORM``, which applies the INVERTED
     sign and slews further still, to opposite lock (refuted 2026-08-29).
+    """
+
+    BAY_EXIT_CYCLE: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_CYCLE"))
+    """Use the alternating arc/straight-reverse exit instead of reverse-then-swing.
+
+    A shuffle at CONSTANT steering magnitude cannot accumulate:
+    ``dy/dtheta = sin(theta) / (k tan(delta))`` is independent of speed and its
+    sign, so ``y`` is a state function of ``theta`` and any cycle returning
+    theta returns y. The reverse-then-swing manoeuvre therefore only escapes by
+    leaning on wall contact, whose turn-clipping breaks that conservation --
+    and its 254/256 does NOT survive giving the contact model the ability to
+    slide along a surface (0/256 with sliding).
+
+    Asymmetric legs break the conservation without contact: steer the forward
+    arc, back STRAIGHT. The reverse returns no rotation, so each cycle keeps
+    the theta the arc won and buys back the room it spent.
+
+    Forward leg ends on FORWARD CLEARANCE, not a fixed distance -- how far the
+    arc runs before the fin is in the way depends on how far round the chassis
+    already is.
+    """
+
+    BAY_EXIT_ARC_STEER_NORM: float = Field(
+        default=0.5, ge=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_ARC_STEER_NORM")
+    )
+    """Steering magnitude for the cycle manoeuvre's forward arc, 0..1 of full lock.
+
+    Moderate on purpose. Turn radius is ``wheelbase / tan(delta)``: at full lock
+    (85 deg) that is **17 mm**, so the chassis pivots about its own centre and
+    translates nothing, which is the opposite of what a 0.20 m deep pocket
+    needs. 0.5 is ~42 deg and ~0.21 m of radius, which actually moves the body
+    sideways. Only meaningful with ``BAY_EXIT_CYCLE``.
+    """
+
+    BAY_EXIT_FORWARD_M: float = Field(default=0.05, gt=0.0, validation_alias=_alias("BAY_EXIT_FORWARD_M"))
+    """How far the cycle manoeuvre's forward arc runs before backing up again.
+
+    Bounded by GEOMETRY, like ``BAY_EXIT_REVERSE_M``, and for the same reason:
+    the pocket cannot be sensed from inside it. A clean raycast at the bay pose
+    puts the fin ahead at 0.215 m, but the live pipeline reads 0.05-0.13 m and
+    fluctuates every tick -- the chassis sits 0.1 m from one wall and 3 mm from
+    the other, so a forward-cone minimum measures its surroundings and its own
+    noise. An earlier version gated this leg on that reading and the arc got one
+    tick per cycle: 53 cycles, 0.1 deg of rotation, 0.192 m travelled.
+
+    Sized against the 7.5 cm of slack at each end of the lot. A stall backstop
+    (``BAY_EXIT_LEG_STALL_TICKS``) ends the leg early when it meets a fin
+    first. Only meaningful with ``BAY_EXIT_CYCLE``.
+    """
+
+    BAY_EXIT_CYCLE_REVERSE_STEER_NORM: float = Field(
+        default=0.0, ge=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_CYCLE_REVERSE_STEER_NORM")
+    )
+    """Steering on the cycle manoeuvre's reverse leg, applied OPPOSITE to the arc.
+
+    0 backs straight: the reverse returns no rotation, so the heading the arc
+    won is kept but not added to. Non-zero is the classic three-point turn --
+    backing with the wheels reversed swings the tail the other way, so the nose
+    turns the SAME sense on both legs and heading accumulates twice as fast.
+
+    The cost is servo travel. Alternating between +arc and -arc asks for twice
+    the arc angle between legs, ~25 ticks at ``MAX_STEERING_RATE`` against a leg
+    of ~11 at creep, so the commanded angle may never be reached. A flat sweep
+    of this field means slew clipping, not indifference -- the same effect that
+    made ``BAY_EXIT_STEER_NORM`` read as inert before ``BAY_EXIT_HOLD_STEER``.
+    Lengthening the legs is bounded by the pocket's 7.5 cm of slack.
+
+    Only meaningful with ``BAY_EXIT_CYCLE``. Distinct from
+    ``BAY_EXIT_REVERSE_STEER_NORM``, which belongs to the reverse-then-swing
+    manoeuvre.
+    """
+
+    BAY_EXIT_LEG_STALL_TICKS: int = Field(default=6, ge=1, validation_alias=_alias("BAY_EXIT_LEG_STALL_TICKS"))
+    """Ticks of no wheel travel that end a cycle-manoeuvre leg and start the other.
+
+    The primary leg-end signal, ahead of distance or clearance. Wheel odometry
+    stops accumulating exactly when the chassis is blocked, so a leg bounded
+    only by distance runs forever once it jams: measured, the reverse leg backed
+    6.5 cm onto the rear fin and then held for 174 ticks waiting for 0.05 m that
+    could no longer arrive. Six ticks is 0.3 s at 20 Hz -- long enough not to
+    trip on a momentary scrape, short enough that a jammed leg costs almost
+    nothing. Only meaningful with ``BAY_EXIT_CYCLE``.
     """
 
     BAY_EXIT_LATCH_DIRECTION: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_LATCH_DIRECTION"))

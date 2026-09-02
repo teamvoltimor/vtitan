@@ -121,9 +121,9 @@ def bay_exit_clearance(
     return nearest - ParkingLotSpecs.LENGTH
 
 
-def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> dict[str, object]:
+def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool]) -> dict[str, object]:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
-    path_str, in_bay, laps, changes, known_start, solid_walls = payload
+    path_str, in_bay, laps, changes, known_start, solid_walls, slide = payload
     path = Path(path_str)
     raw = json.loads(path.read_text())
 
@@ -152,6 +152,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> d
         blind=True,
         known_start=known_start,
         solid_walls=solid_walls,
+        slide_on_contact=slide,
     )
     # Wall contact is legal on OBSTACLES and not on Open, so a scraping escape is
     # only a real result on this challenge -- which is also the only one with a
@@ -277,6 +278,36 @@ def main() -> None:
         "reach the commanded angle within the pocket's 7.5 cm of stroke.",
     )
     parser.add_argument(
+        "--cycle",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_CYCLE (0/1, in-bay arm only). Alternating steered-forward-arc "
+        "and STRAIGHT reverse, repeated until clear. Asymmetric legs accumulate outward "
+        "displacement without needing wall contact, which a constant-|steer| shuffle cannot.",
+    )
+    parser.add_argument(
+        "--arc-steer",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_ARC_STEER_NORM (with --cycle). Full lock is a 17 mm turn radius "
+        "-- a pivot, not a translation; ~0.5 is 42 deg and ~0.21 m.",
+    )
+    parser.add_argument(
+        "--forward-dist",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_FORWARD_M (with --cycle): how far the forward arc runs before the reverse leg.",
+    )
+    parser.add_argument(
+        "--cycle-rev-steer",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_CYCLE_REVERSE_STEER_NORM (with --cycle): steering on the reverse "
+        "leg, applied OPPOSITE to the arc. 0 backs straight (keeps the heading the arc won); "
+        "non-zero is the three-point turn, adding rotation on both legs at the cost of a full "
+        "servo swing between them.",
+    )
+    parser.add_argument(
         "--latch-direction",
         type=float,
         nargs="*",
@@ -307,6 +338,14 @@ def main() -> None:
         "Touching the outer wall is legal on OBSTACLES (not on Open), and `allowed_step` then "
         "caps the TURN while keeping the translation, so a cornered chassis can scrape and peel "
         "away. Without this the probe stalls short of contact and the wall can never help.",
+    )
+    parser.add_argument(
+        "--slide",
+        action="store_true",
+        help="let a blocked translation slide ALONG the contacted surface instead of being "
+        "scaled to nothing. Without it the chassis advances 0.125 mm per tick at 20 deg of "
+        "incidence where a rubbing one gains 7.05 mm. Applies to both arms; every "
+        "contact-dependent baseline in the repo was measured WITHOUT it.",
     )
     parser.add_argument(
         "--parallel-only",
@@ -364,6 +403,10 @@ def main() -> None:
             ("BAY_EXIT_HOLD_STEER", "hold-steer", args.hold_steer),
             ("BAY_EXIT_LATCH_REVERSE", "latch", args.latch_reverse),
             ("BAY_EXIT_LATCH_DIRECTION", "latch-dir", args.latch_direction),
+            ("BAY_EXIT_CYCLE", "cycle", args.cycle),
+            ("BAY_EXIT_ARC_STEER_NORM", "arc", args.arc_steer),
+            ("BAY_EXIT_FORWARD_M", "fwd", args.forward_dist),
+            ("BAY_EXIT_CYCLE_REVERSE_STEER_NORM", "back-steer", args.cycle_rev_steer),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]
@@ -384,7 +427,7 @@ def main() -> None:
                 arms.append((f"IN-BAY{' ' + label if label else ''} +known_start", True, changes, True))
 
     for name, in_bay, changes, known in arms:
-        payloads = [(str(p), in_bay, args.laps, changes, known, args.solid_walls) for p in paths]
+        payloads = [(str(p), in_bay, args.laps, changes, known, args.solid_walls, args.slide) for p in paths]
         rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
         _summarise(name, rows)
 

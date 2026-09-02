@@ -167,6 +167,7 @@ class ScenarioSimulator(PassSideScorer):
         known_start: bool = False,
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
+        slide_on_contact: bool = False,
         infer_direction: bool | None = None,
         lidar_hz: float = RobotSpecs.LIDAR_UPDATE_RATE,
         lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
@@ -392,6 +393,7 @@ class ScenarioSimulator(PassSideScorer):
             localize=use_lidar_localization,
             sensor_errors=self._errors,
             solid_walls=solid_walls,
+            slide_on_contact=slide_on_contact,
             # A surface that no longer ends the run has to stop the chassis
             # instead, or the robot simply drives through the inner block and
             # goes on counting laps. Nothing enforced this before because every

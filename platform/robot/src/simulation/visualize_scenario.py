@@ -230,6 +230,14 @@ def _parse_args() -> argparse.Namespace:
         "instead of a catalog scenario or the ad-hoc widths above.",
     )
     parser.add_argument(
+        "--slide",
+        action="store_true",
+        help="let a blocked translation slide ALONG the contacted surface instead of being "
+        "scaled to nothing. Without it the chassis advances 0.125 mm per tick at 20 deg of "
+        "incidence where a rubbing one gains 7.05 mm. Needs --recover to have any effect, "
+        "and every contact-dependent baseline in the repo was measured WITHOUT it.",
+    )
+    parser.add_argument(
         "--in-bay",
         action="store_true",
         help="Start INSIDE the parking lot instead of parallel to it. Both are legal "
@@ -305,6 +313,7 @@ class _RunOptions:
     contact_grace_s: float = 5.0
     tuning: NavigationTuning | None = None
     in_bay: bool = False
+    slide: bool = False
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> _RunOptions:
@@ -335,6 +344,7 @@ class _RunOptions:
             contact_grace_s=args.contact_grace,
             tuning=tuning_with_overrides(changes) if changes else None,
             in_bay=args.in_bay,
+            slide=args.slide,
         )
 
 
@@ -371,6 +381,7 @@ def _run_one(
         blind=opts.blind,
         sensor_errors=opts.errors,
         solid_walls=opts.recover,
+        slide_on_contact=opts.slide,
     )
     _set_track(visualizer, scenario.metadata, sim.track)
     # Blind seeds the believed start from a fixed SOUTH guess, so on any
