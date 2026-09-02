@@ -74,9 +74,17 @@ fast_mps = 0.42
 # The two challenges want opposite things and this motor is fast enough to give
 # each what it wants. Obstacles degrades monotonically with speed (measured
 # 2026-08-28 on the 256 corpus: in-time 38/256 at 0.156 m/s, 16 at 0.50, 9 at
-# 0.60), so it keeps the base ladder. Open's binding constraint is the 180 s
-# round limit instead -- the last clean 3-lap run was 159.7 s, about 20 s of
-# margin -- so it can spend headroom on speed.
+# 0.60), so it keeps the base ladder. Open tolerates far more, so it can spend
+# headroom on speed.
+#
+# NOT because Open is short of clock. That was the original argument and it is
+# now WRONG: it read "the last clean 3-lap run was 159.7 s, about 20 s of
+# margin", but the two clean hardware 3-lap runs of 2026-09-01 came in at 71.6 s
+# and 98.7 s against the 180 s limit. Open is nowhere near the round limit, so
+# raising these buys margin that does not bind. What justifies the rungs below
+# is that Open tolerates the speed without collisions -- see the A/B -- not that
+# it needs it. If a future change makes speed cost cases, give it up: there is
+# no lap-time pressure to defend it with.
 #
 # Sized against the MEASURED drivetrain, not the ceiling in robot.toml
 # (max_speed_mps = 1.0 is an unmeasured feel-based guess and is not the binding
@@ -88,34 +96,52 @@ fast_mps = 0.42
 #   commanded 0.525 -> ~0.581, i.e. AT the measured closed-loop ceiling
 #   commanded 0.56  -> ~0.617, UNREACHABLE; the PID rails at max_duty
 #
-# fast is 0.525, not the 0.56 a naive +1/3 would give: that would sit above the
+# fast is 0.50, not the 0.56 a naive +1/3 would give: that would sit above the
 # drivetrain ceiling AND above any sane cap, would have been clamped to
-# max_mps, and would have measured nothing. open_max_mps must rise with it --
+# max_mps, and would have measured nothing. open_max_mps must stay above it --
 # core_navigator clamps every tier to max_mps(), so a fast tier above the cap
 # is silently inert. A validator now rejects that combination outright.
 #
-# TWO CAVEATS ON 0.525 SPECIFICALLY.
+# Raised 2026-09-01 from 0.24/0.35/0.46. A/B on the full 640-case Open sweep
+# (diag_open_ab.py, both arms same seeded cases): baseline 638/640 -> variant
+# 639/640, ZERO collisions in either arm, every failure in both arms
+# over-time or incomplete. Case 144 flipped over-time -> ok; the one variant
+# failure is case 300, the known creep deadlock, which fails in the baseline
+# too. Mean sim time -5.73 s per case, 563 of 638 faster.
 #
-# It is an EXTRAPOLATION. The 2026-08-30 fit spans 0.22-0.42 commanded; 0.525
-# is 25% beyond the highest rung actually measured, and the linear fit is only
-# evidence inside its range. Whether the loop still tracks there is untested.
+# The +1 case is inside this sweep's noise floor and is NOT the evidence. The
+# evidence is the absence of regression -- specifically that no case turned
+# into a collision, which is the failure mode a speed rise threatens, because
+# the clearance ladder is in METRES (see the closing note below).
 #
-# It leaves the PID NO RESERVE. ~0.581 predicted against a ~0.58 ceiling means
-# the controller sits at saturation on the straights, so it has nothing left to
-# correct a disturbance with -- and a duty-capped loop stops regulating and
-# starts behaving open-loop, which is how "every commanded speed above ~0.35
-# delivered identical motion" was originally observed (2026-08-29, before the
-# counts_per_rev fix). Today's three rungs scaled cleanly at 1.042, so that
-# capping is not present up to 0.42; 0.525 is where to expect it back.
-# If the track run shows the fast tier not delivering, drop to 0.50 and
+# WHY 0.50 AND NOT 0.525. 0.525 is where the fit predicts ~0.581 against a
+# ~0.58 measured ceiling: the controller would sit at saturation on the
+# straights with nothing left to correct a disturbance, and a duty-capped loop
+# stops regulating and behaves open-loop -- which is how "every commanded speed
+# above ~0.35 delivered identical motion" was originally observed (2026-08-29,
+# before the counts_per_rev fix). 0.50 predicts ~0.555, leaving ~4% of reserve.
+# That is thin, not absent.
+#
+# STILL AN EXTRAPOLATION. The 2026-08-30 fit spans 0.22-0.42 commanded; 0.50 is
+# 19% beyond the highest rung actually measured, and a linear fit is only
+# evidence inside its range. Whether the loop still tracks there is untested on
+# hardware. If a track run shows the fast tier not delivering, drop to 0.46 --
+# the previous value, which drove the 71.6 s and 98.7 s clean runs -- and
 # re-measure before assuming the ladder is at fault.
 #
 # NOT VALIDATED ON TRACK at these values. The clearance ladder
 # (contact 0.10 / slow 0.25 / medium 0.50) is in METRES, not time, so raising
-# speed shrinks the reaction runway those distances buy: medium_dist is 1.06 s
-# at the Obstacles fast tier and 0.86 s here. docs/internal/algorithms/
-# speed-envelope.md section 6 documents that as the structural speed cap.
-open_slow_mps = 0.24
-open_medium_mps = 0.35
-open_fast_mps = 0.46
+# speed shrinks the reaction runway those distances buy: medium_dist is 1.19 s
+# at the Obstacles fast tier, was 1.09 s here at 0.46, and is 1.00 s at 0.50.
+# docs/internal/algorithms/speed-envelope.md section 6 documents that as the
+# structural speed cap, and measured the dose-response: at a 0.50 ceiling the
+# thresholds are close enough to right that scaling them adds nothing, at 0.60
+# they are ~17% off, and at 0.80 they are ~60% off and worth 58 cases. This
+# ladder stays inside the band where the shipped thresholds still hold. Going
+# further is not a config edit -- it wants the thresholds derived from current
+# speed as a time-to-collision budget, which is the refactor that section
+# names.
+open_slow_mps = 0.26
+open_medium_mps = 0.38
+open_fast_mps = 0.50
 open_max_mps = 0.55
