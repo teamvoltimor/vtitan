@@ -164,14 +164,30 @@ def _forward_path_ranges(
     Measured on hardware 2026-08-28: this is what let ``assess_risk`` report
     SAFE at the exact moment the chassis was closest to a wall.
     """
+    ranges, mask = _forward_path_selection(lidar_ranges, lidar_angles, path_half_width, min_valid_range_m)
+    return np.asarray(ranges[mask])
+
+
+def _forward_path_selection(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    path_half_width: float,
+    min_valid_range_m: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """The forward-lane ranges and the boolean mask selecting them.
+
+    Split out so ``_forward_path_ranges`` and ``forward_path_nearest_ray``
+    cannot disagree about what "in the path" means. They are answers to the
+    same question -- how close is the nearest thing ahead, and which ray said
+    so -- and a second copy of this mask would be free to drift from the one
+    the risk decision actually used, which is precisely the drift the ray
+    identity exists to rule out.
+    """
     ranges = np.asarray(lidar_ranges, dtype=float)
     if ranges.size == 0:
-        return ranges
+        return ranges, np.zeros(0, dtype=bool)
 
-    if lidar_angles is None:
-        angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
-    else:
-        angles = np.asarray(lidar_angles, dtype=float)
+    angles = _angles_for(ranges, lidar_angles)
 
     lateral = np.abs(ranges * np.sin(angles))
     ahead = np.cos(angles) > 0.0
@@ -181,7 +197,45 @@ def _forward_path_ranges(
         & (ranges > min_valid_range_m)
         & (ranges < RobotSpecs.LIDAR_MAX_RANGE - _NO_RETURN_MARGIN_M)
     )
-    return np.asarray(ranges[mask])
+    return ranges, mask
+
+
+def _angles_for(
+    ranges: np.ndarray,
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+) -> np.ndarray:
+    """Per-ray bearings, synthesised as a full even sweep when not supplied."""
+    if lidar_angles is None:
+        return np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+    return np.asarray(lidar_angles, dtype=float)
+
+
+def forward_path_nearest_ray(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    path_half_width: float,
+    min_valid_range_m: float,
+) -> tuple[float, float] | None:
+    """Bearing and range of the closest in-path ray, or None if the lane is empty.
+
+    The identity of the ray ``assess_risk`` minimised over. The risk decision
+    reduces the whole forward lane to one scalar gap, which cannot distinguish
+    "a sign is dead ahead" from "the outer wall has come round into the lane on
+    a late corner commit" -- and those want opposite fixes. The bearing does:
+    a threat near 0 rad is in front of the robot, one out near the lane edge is
+    something the robot is turning into.
+
+    Returns the raw ``(angle_rad, range_m)`` as measured, NOT a bumper gap: the
+    caller comparing this against a threshold should convert, and folding the
+    12.2 cm sensor offset in here would make the range disagree with the
+    ``angle`` it is paired with.
+    """
+    ranges, mask = _forward_path_selection(lidar_ranges, lidar_angles, path_half_width, min_valid_range_m)
+    if not bool(np.any(mask)):
+        return None
+    angles = _angles_for(ranges, lidar_angles)
+    idx = int(np.flatnonzero(mask)[int(np.argmin(ranges[mask]))])
+    return float(angles[idx]), float(ranges[idx])
 
 
 def _forward_path_has_rays(
@@ -203,10 +257,7 @@ def _forward_path_has_rays(
     if ranges.size == 0:
         return False
 
-    if lidar_angles is None:
-        angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
-    else:
-        angles = np.asarray(lidar_angles, dtype=float)
+    angles = _angles_for(ranges, lidar_angles)
 
     lateral = np.abs(ranges * np.sin(angles))
     ahead = np.cos(angles) > 0.0

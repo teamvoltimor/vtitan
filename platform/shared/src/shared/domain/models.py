@@ -981,6 +981,20 @@ class NavigatorDebugSnapshot(BaseModel):
     escape_risk: RiskLevel | None = None
     rear_clearance_m: float | None = None
 
+    # WHICH ray the escape verdict was minimised over -- bearing in radians
+    # (0 = dead ahead, positive left) and its raw range, taken from the same
+    # masked scan and forward lane ``escape_risk`` itself used.
+    #
+    # ``escape_risk`` collapses the whole forward lane to one scalar gap, and
+    # that scalar cannot tell a sign standing in the road apart from the outer
+    # wall swinging into the lane on a late corner commit -- the two want
+    # opposite fixes, and a 2026-09-02 sweep found the failing Obstacles runs
+    # escaping 200-340 times a lap laterally rather than head-on with no way
+    # to say which. The bearing is what says which. None when no valid ray fell
+    # in the lane, which is itself the "blind, not clear" case.
+    escape_trigger_angle_rad: float | None = None
+    escape_trigger_range_m: float | None = None
+
     # Path tracking -- set on the normal_drive phase.
     crosstrack_error_m: float | None = None
     lookahead_distance_m: float | None = None

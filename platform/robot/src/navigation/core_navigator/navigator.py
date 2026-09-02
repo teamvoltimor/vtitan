@@ -939,6 +939,15 @@ class CoreNavigator(EscapeRecovery):
             )
             escape_risk = self._collision_controller.assess_risk(escape_ranges, scan.angles_rad)
 
+        # Identity of the ray that verdict came from, recorded here rather than
+        # reconstructed later: by the time a maneuver latches, the robot has
+        # already been driven somewhere else and the geometry is gone.
+        escape_trigger = (
+            self._collision_controller.nearest_path_ray(escape_ranges, scan.angles_rad)
+            if scan and escape_ranges is not None
+            else None
+        )
+
         # Check waypoint reached — against the *raw* planned point, not the
         # sign-deformed one: deformation only biases steering near a sign, it
         # must never stall path progression. A sign can pull the steering
@@ -1232,6 +1241,8 @@ class CoreNavigator(EscapeRecovery):
         debug.min_lidar_range_m = min(scan.ranges_m) if scan and scan.ranges_m else None
         debug.risk = risk
         debug.escape_risk = escape_risk
+        if escape_trigger is not None:
+            debug.escape_trigger_angle_rad, debug.escape_trigger_range_m = escape_trigger
         debug.crosstrack_error_m = crosstrack
         debug.lookahead_distance_m = lookahead_distance
         debug.path_turn_ahead_rad = turn_ahead

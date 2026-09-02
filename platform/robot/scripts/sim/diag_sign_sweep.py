@@ -18,7 +18,9 @@ means anything until it is explained.
 ``success`` is deliberately not the headline: it also requires ``parked``, and
 parking is independently blocked by chassis-vs-pocket geometry, so it stays
 0/16 regardless of any driving change. ``laps>=3`` is the driving-success
-metric.
+metric -- but it is LAP PROGRESS ONLY and counts runs the rules would have
+disqualified, so read ``clean`` beside it. On the 256 corpus at
+``OBSTACLES_CONTACT_DIST`` 0.05 the two read 82 and 76.
 
 Usage (from ``platform/robot``, with PYTHONPATH=.)::
 
@@ -47,7 +49,7 @@ import argparse
 import json
 import math
 import sys
-from collections import deque
+from collections import Counter, deque
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -65,10 +67,11 @@ from shared.config.constants import (
     TrafficSignSpecs,
 )
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import NavigatorPhase, Section
+from shared.domain.enums import NavigatorPhase, RiskLevel, Section
 from shared.domain.models import (
     CorridorWidthEntry,
     CorridorWidths,
+    NavigatorDebugSnapshot,
     ScenarioMetadata,
     Waypoint,
 )
@@ -79,6 +82,8 @@ from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.provenance import environment as _provenance
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
+from scripts.common.tables import print_table
+from src.navigation.control.controllers.collision_avoidance.bumper import bumper_gap_ahead
 from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.planning.sign_discovery import SignSpec
 from src.navigation.planning.sign_lane import (
@@ -97,7 +102,7 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.track_model import TrackModel, obstacles_from_metadata
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from src.navigation.core_navigator import CoreNavigator
     from src.navigation.ports import LidarScan
@@ -300,6 +305,15 @@ class SweepConfig:
     contact_dist: float | None = None
     """Override ``ClearanceZones.CONTACT_DIST`` (shipped 0.10 m).
 
+    SHADOWED ON THIS HARNESS unless ``clear_obstacles_contact_dist`` is set.
+    Since ``obstacles_contact_dist = 0.05`` began shipping in ``clearance.toml``,
+    ``ClearanceZones.for_obstacles_challenge()`` overwrites ``CONTACT_DIST``
+    with it on every run that has a ``SignRouter`` -- which, on an
+    Obstacles-only harness, is every run. Setting this field alone therefore
+    moves nothing and reads as a flat sweep, i.e. exactly the disconnected-knob
+    failure the module docstring warns about. Pair it with
+    ``clear_obstacles_contact_dist=True`` to make it reach the navigator.
+
     The escape gate: ``assess_risk`` returns CRITICAL below this bumper-frame
     gap, which is what actually begins an escape maneuver. Added 2026-08-30
     after ``diag_escape_mask.py --census`` showed 100% of CRITICAL ticks across
@@ -311,20 +325,33 @@ class SweepConfig:
     """
 
     obstacles_contact_dist: float | None = None
-    """Override ``ClearanceZones.OBSTACLES_CONTACT_DIST`` (shipped unset).
+    """Override ``ClearanceZones.OBSTACLES_CONTACT_DIST`` (SHIPPED 0.05 m).
 
-    The Obstacles-only form of ``contact_dist`` above. Both reach the same
-    navigator threshold on this harness, which runs Obstacles scenarios
+    The Obstacles-only form of ``contact_dist`` above, and since 2026-09-02 the
+    one that is actually live: it ships set, so leaving this field None does
+    NOT mean "no override", it means "the shipped 0.05". Both fields reach the
+    same navigator threshold on this harness, which runs Obstacles scenarios
     exclusively, so setting either to the same value must produce IDENTICAL
     rows -- that equivalence is the point of sweeping both, and the
     ``obstacles-contact-dist`` mode below asserts it rather than assuming it.
     Two overrides on this script have already failed to reach the navigator
     silently (see ``_apply_patches`` and ``SweepConfig.tuning``), and this one
-    travels a NEW path -- a per-challenge resolution keyed on ``sign_router``
-    presence -- that no previous sweep has exercised.
+    travels a per-challenge resolution keyed on ``sign_router`` presence.
 
     Prefer this one for anything intended to ship: ``contact_dist`` moves the
     shared zone and so moves the Open Challenge too.
+    """
+
+    clear_obstacles_contact_dist: bool = False
+    """Unset ``OBSTACLES_CONTACT_DIST``, restoring the shared ``CONTACT_DIST``.
+
+    Needed because the override now ships. Without it there is no way to
+    express "run the shared zone" from this harness -- the resolution would
+    shadow it -- so the shared-field arm of any comparison would silently
+    become a duplicate of the override arm and the sweep would report an
+    equivalence it never tested. Separate from ``obstacles_contact_dist``
+    rather than a sentinel value on it, because None already means "leave the
+    TOML alone" everywhere else on this dataclass.
     """
 
     slow_dist: float | None = None
@@ -787,6 +814,11 @@ class SweepConfig:
             OBSTACLES_CONTACT_DIST=self.obstacles_contact_dist,
             SLOW_DIST=self.slow_dist,
         )
+        if self.clear_obstacles_contact_dist:
+            # Not expressible through `_with`, which drops None by design so
+            # that "no override" and "override to None" cannot be confused.
+            # Clearing is the one place they must be.
+            clearance = clearance.model_copy(update={"OBSTACLES_CONTACT_DIST": None})
         localization = _with(base.localization, MAX_SPEED_MPS=self.localization_max_speed)
         waypoints = _with(
             base.waypoints,
@@ -899,6 +931,60 @@ class ScenarioOutcome:
     Normalise by laps driven before comparing arms -- an arm that survives
     longer gets more escapes for free (see the corner-escape rate mistake in
     the 2026-08-16 notes)."""
+
+    escape_ticks: int = 0
+    """Ticks spent with the escape machinery driving, not pure pursuit.
+
+    The TIMEOUT counterpart to ``escape_starts``. Frequency and duration come
+    apart badly here: at ``OBSTACLES_CONTACT_DIST`` 0.10 the corpus logs ~685
+    escapes per lap, and whether that is a robot briefly twitching 685 times or
+    a robot that is escaping for most of its round is not answerable from the
+    count. Only this says which."""
+
+    total_ticks: int = 0
+    """Ticks the run lasted, so ``escape_ticks`` can be read as a fraction."""
+
+    phase_ticks: tuple[tuple[str, int], ...] = ()
+    """Ticks per ``NavigatorPhase``, most-visited first.
+
+    Every tick lands in exactly one phase, so this accounts for the whole run:
+    where the clock goes, rather than only how much of it the escape took."""
+
+    escape_maneuvers: tuple[tuple[str, int], ...] = ()
+    """``ManeuverType`` at each escape engagement. A K_TURN and a STUCK_REVERSE
+    cost very different amounts of clock and mean different things."""
+
+    trigger_clearance_m: tuple[float, ...] = ()
+    """Forward clearance on each tick an escape engaged."""
+
+    trigger_sign_dist_m: tuple[float, ...] = ()
+    """Distance from the chassis to the NEAREST sign on each engagement tick.
+
+    The spurious-vs-genuine discriminator. The router routes past signs at
+    ~0.175 m from their surface deliberately, so engagements clustered at that
+    separation are the planner's own geometry firing the escape; engagements in
+    open corridor are a tracking failure. Empty when the scenario has no signs,
+    which is itself the control."""
+
+    trigger_bearing_rad: tuple[float, ...] = ()
+    """Bearing of the ray the escape verdict was minimised over, per engagement.
+
+    Sampled on the last tick ``escape_risk`` was CRITICAL, so it is the
+    geometry that actually fired the maneuver. Sampling it on every tick a ray
+    existed instead gives the ordinary driving tick before the latch, whose
+    bumper gap sits above the gate -- see ``_EscapeTracker._last_trigger_ray``.
+
+    ``trigger_clearance_m`` above is the front CONE, while the escape gate is
+    ``assess_risk`` over the forward PATH CORRIDOR -- two different windows, so
+    the cone reading cannot be used to argue about what the gate saw. This one
+    comes from the corridor itself, and it carries the discriminator the scalar
+    gap throws away: near 0 rad is something standing in the road, out at the
+    lane edge is the robot turning into a wall. The 2026-09-02 anatomy run
+    found failing runs escaping 200-340 times a lap and could not say which."""
+
+    trigger_ray_range_m: tuple[float, ...] = ()
+    """Raw range of that same ray. Raw, not a bumper gap -- pairing a range with
+    the bearing it was measured at means both must be in the sensor frame."""
 
     steps_since_escape: int | None = None
     """Ticks between the last escape engagement and the run ending.
@@ -1103,27 +1189,134 @@ class _EscapeTracker:
     like ordinary bad tracking.
     """
 
-    def __init__(self, navigator: CoreNavigator) -> None:
+    def __init__(
+        self,
+        navigator: CoreNavigator,
+        sign_xy: tuple[tuple[float, float], ...] = (),
+    ) -> None:
         self._navigator = navigator
         self._engaged = False
         self.step = 0
         self.starts = 0
         self.last_step: int | None = None
 
+        # Anatomy of where the clock goes. `starts` answers "how often", and
+        # that is all the collision-attribution use above needs; none of it
+        # answers "how much of the run", which is the question a TIMEOUT poses.
+        # A run can escape rarely and still spend most of itself escaping.
+        self._sign_xy = sign_xy
+        self.ticks_engaged = 0
+        self.phase_ticks: Counter[str] = Counter()
+        self.maneuvers: Counter[str] = Counter()
+        self.trigger_clearance_m: list[float] = []
+        self.trigger_sign_dist_m: list[float] = []
+        # Bearing (rad, 0 = ahead) and range of the ray the escape verdict was
+        # actually minimised over. The clearance column above is the front
+        # CONE; this is the forward PATH CORRIDOR that `assess_risk` gates on,
+        # and the 2026-09-02 anatomy run could not tell a sign in the road from
+        # a wall swinging into the lane because it only had the cone.
+        self.trigger_bearing_rad: list[float] = []
+        self.trigger_ray_range_m: list[float] = []
+        # Last clearance the navigator actually computed. Carried forward
+        # because `forward_clearance_m` is None on the phases an escape can
+        # latch into: reading it only on the engagement tick left the clearance
+        # column EMPTY for exactly the timeout and collision runs this report
+        # is about, since their escapes re-engage straight into a held
+        # maneuver. The value just before engaging is the honest one anyway --
+        # it is what the escape decided on.
+        self._last_clearance_m: float | None = None
+        # Latched on the last tick the escape verdict was actually CRITICAL,
+        # NOT on every tick a ray was computed.
+        #
+        # Carrying the most recent ray forward the way the clearance above does
+        # measures the wrong thing here, and measurably so: it reported a p50
+        # range of 9.5 cm across all 256 corpus runs, which `bumper_gap_ahead`
+        # turns into a 6.7 cm gap -- ABOVE the 0.05 m gate, i.e. a geometry
+        # that by construction did not trigger anything. It was sampling the
+        # last ordinary driving tick before the maneuver latched. Gating on the
+        # verdict itself is what makes this column the trigger.
+        self._last_trigger_ray: tuple[float, float] | None = None
+        self._last_trigger_step: int | None = None
+
     def update(self) -> None:
         """Fold one tick of navigator phase in."""
         self.step += 1
-        engaged = self._navigator.debug_snapshot.phase in _ESCAPE_PHASES
+        snapshot = self._navigator.debug_snapshot
+        self.phase_ticks[str(snapshot.phase)] += 1
+        if snapshot.forward_clearance_m is not None:
+            self._last_clearance_m = snapshot.forward_clearance_m
+        if (
+            snapshot.escape_risk == RiskLevel.CRITICAL
+            and snapshot.escape_trigger_angle_rad is not None
+            and snapshot.escape_trigger_range_m is not None
+        ):
+            self._last_trigger_ray = (snapshot.escape_trigger_angle_rad, snapshot.escape_trigger_range_m)
+            self._last_trigger_step = self.step
+        engaged = snapshot.phase in _ESCAPE_PHASES
         if engaged:
+            self.ticks_engaged += 1
             if not self._engaged:
                 self.starts += 1
+                self._record_trigger(snapshot)
             self.last_step = self.step
         self._engaged = engaged
+
+    def _record_trigger(self, snapshot: NavigatorDebugSnapshot) -> None:
+        """Latch what the world looked like on the tick an escape ENGAGED.
+
+        The discriminator this exists for: an escape fired at a sign the router
+        deliberately routed past is spurious, an escape fired in open corridor
+        is a tracking failure, and the two want opposite fixes. Recorded at the
+        engagement tick because a latched maneuver immediately drives the robot
+        somewhere else -- by the time the phase clears, the geometry that
+        triggered it is gone.
+
+        Distances are raw, not bucketed against a threshold. Picking the
+        threshold here would decide the answer before the data arrived; the
+        report prints the distribution instead.
+        """
+        if snapshot.active_maneuver_type is not None:
+            self.maneuvers[str(snapshot.active_maneuver_type)] += 1
+        if self._last_clearance_m is not None:
+            self.trigger_clearance_m.append(self._last_clearance_m)
+        # Only a CRITICAL on this tick or the one before it counts. Both are
+        # live: `update` latches the ray before it notices the engagement, and
+        # the navigator publishes the CRITICAL verdict and the escape it caused
+        # on the SAME debug snapshot, so the usual case is same-tick; the
+        # previous tick covers an escape that latches one tick later.
+        #
+        # Accepting any earlier CRITICAL instead answers "has this run ever been
+        # critical", which every long run eventually has -- it would attribute
+        # an engagement to a gate that fired hundreds of ticks ago somewhere
+        # else on the track, and inflate the count this measurement exists to
+        # bound.
+        if self._last_trigger_ray is not None and self._last_trigger_step in (self.step, self.step - 1):
+            bearing, ray_range = self._last_trigger_ray
+            self.trigger_bearing_rad.append(bearing)
+            self.trigger_ray_range_m.append(ray_range)
+        if self._sign_xy and snapshot.pose_x is not None and snapshot.pose_y is not None:
+            self.trigger_sign_dist_m.append(
+                min(math.hypot(sx - snapshot.pose_x, sy - snapshot.pose_y) for sx, sy in self._sign_xy),
+            )
 
     @property
     def steps_since_escape(self) -> int | None:
         """Ticks from the last engagement to now, or None if none ever ran."""
         return None if self.last_step is None else self.step - self.last_step
+
+
+def _true_sign_xy(metadata: dict[str, Any]) -> tuple[tuple[float, float], ...]:
+    """True (x, y) of every sign in a scenario, or empty if it has none.
+
+    Tolerates metadata a sweep arm has stripped signs out of -- that is a
+    legitimate arm, not a failure -- so callers get the empty control rather
+    than an exception.
+    """
+    try:
+        meta = ScenarioMetadata.model_validate(metadata)
+    except ValueError:
+        return ()
+    return tuple((s.x, s.y) for s in meta.sign_positions)
 
 
 def _without_parking(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -1589,7 +1782,10 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
             sensor_errors=REAL_SENSOR_ERRORS if config.real_sensor_errors else None,
         )
         uturns = _UTurnDetector()
-        escapes = _EscapeTracker(sim.navigator)
+        # TRUE sign positions, from the scenario rather than the router's
+        # believed set: the question is what the robot was physically next to
+        # when it escaped, which is not the same as what it had discovered.
+        escapes = _EscapeTracker(sim.navigator, _true_sign_xy(metadata))
         # Last tick's tracking state, kept so the COLLISION tick can be
         # described. `sim.run` returns only the final pose, and by then the
         # navigator has stopped, so anything about what the tracker was doing
@@ -1651,6 +1847,14 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         uturns=len(uturns.events),
         corner_uturns=uturns.corner_events,
         escape_starts=escapes.starts,
+        escape_ticks=escapes.ticks_engaged,
+        total_ticks=escapes.step,
+        phase_ticks=tuple(escapes.phase_ticks.most_common()),
+        escape_maneuvers=tuple(escapes.maneuvers.most_common()),
+        trigger_clearance_m=tuple(escapes.trigger_clearance_m),
+        trigger_sign_dist_m=tuple(escapes.trigger_sign_dist_m),
+        trigger_bearing_rad=tuple(escapes.trigger_bearing_rad),
+        trigger_ray_range_m=tuple(escapes.trigger_ray_range_m),
         steps_since_escape=escapes.steps_since_escape,
         sign_masked=sign_masked,
         sign_ahead_m=sign_ahead_m,
@@ -1664,6 +1868,24 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         struck_corridor_count=struck_corridor_count,
         planned_outward_m=planned_outward_m,
         sim_time_s=result.sim_time_s,
+    )
+
+
+def _drove_full_laps_clean(outcome: ScenarioOutcome) -> bool:
+    """Three laps with none of the faults that void a round.
+
+    The fault set is exactly the one ``_verdict_bucket`` retires a run on
+    before it ever asks about laps -- collision, pass-side, no-progress -- so
+    the two never disagree about whether a run counts. Parking is deliberately
+    not required: it is independently blocked by chassis-vs-bay geometry, and
+    demanding it would zero every arm and measure nothing (the same defect
+    that makes ``SimResult.success`` useless here).
+    """
+    return (
+        outcome.laps >= CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS
+        and not outcome.collided
+        and not outcome.pass_side_violation
+        and not outcome.stuck
     )
 
 
@@ -1686,8 +1908,28 @@ class SweepResult:
 
     @property
     def laps_ge_3(self) -> int:
-        """Scenarios that completed the full three laps — the driving-success metric."""
+        """Scenarios that drove three laps, INCLUDING ones that were disqualified.
+
+        Lap progress only. It asks nothing about how the run ended, so a run
+        that drives its three laps and then passes a sign on the forbidden side
+        -- or hits a wall, or wedges -- still counts here. On the 256 corpus at
+        ``OBSTACLES_CONTACT_DIST`` 0.05 that is 82 against 76 clean, i.e. six
+        runs of the headline are runs the rules would have thrown out.
+
+        Kept, not corrected in place, because it is the right denominator for a
+        driving change: a fix that makes the robot complete more laps should
+        show up here whether or not a separate pass-side fault also fires. Read
+        ``laps_ge_3_clean`` for what would actually score.
+        """
         return sum(1 for o in self.outcomes if o.laps >= CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS)
+
+    @property
+    def laps_ge_3_clean(self) -> int:
+        """Three laps AND no disqualifying fault -- lap progress the rules would allow.
+
+        Says nothing about the clock; ``laps_ge_3_in_time`` adds that.
+        """
+        return sum(1 for o in self.outcomes if _drove_full_laps_clean(o))
 
     @property
     def uturns(self) -> int:
@@ -1706,17 +1948,17 @@ class SweepResult:
 
     @property
     def laps_ge_3_in_time(self) -> int:
-        """Three laps AND inside the official round limit -- the competition result.
+        """Three clean laps AND inside the official round limit -- the competition result.
 
         Reported alongside ``laps>=3`` rather than replacing it: the difference
-        between the two is exactly the set of runs that drive correctly but too
-        slowly, which is a different failure from driving into a sign and wants
-        a different fix.
+        between the two is the runs that drive correctly but too slowly or that
+        drove the distance while committing a fault, and each of those is a
+        different failure from driving into a sign and wants a different fix.
         """
         return sum(
             1
             for o in self.outcomes
-            if o.laps >= CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS and o.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
+            if _drove_full_laps_clean(o) and o.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
         )
 
     @property
@@ -1905,6 +2147,7 @@ class SweepResult:
             f"(wall {self.kind(CollisionKind.WALL):>{_RESULT_METRIC_WIDTH}} sign {self.kind(CollisionKind.SIGN):>{_RESULT_METRIC_WIDTH}} park {self.kind(CollisionKind.PARKING):>{_RESULT_METRIC_WIDTH}})  "
             f"laps>=1 {self.laps_ge_1:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"laps>=3 {self.laps_ge_3:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"clean {self.laps_ge_3_clean:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"pass-side {self.pass_side_violations:>{_RESULT_METRIC_WIDTH}}/{n}  "
@@ -1956,6 +2199,267 @@ class SweepResult:
             f"xt={_round_or_none(o.collision_crosstrack_m)} phase={o.collision_phase}"
             for o in self.outcomes
         )
+
+
+def _verdict_bucket(outcome: ScenarioOutcome, target_laps: int) -> str:
+    """Which single failure this run is, in the order the rules retire them.
+
+    Ordered, not overlapping: a run that collides is not also asked whether it
+    ran out of clock. ``SimResult.success`` is useless here because it demands
+    ``parked`` and parking is independently blocked, and a plain timeout count
+    hides that a run can also die by pass-side or by the no-progress bailout.
+    """
+    if outcome.collided:
+        return f"collision/{outcome.collision_kind}"
+    if outcome.pass_side_violation:
+        return "pass-side"
+    if outcome.stuck:
+        return "stuck"
+    if outcome.laps >= target_laps:
+        # Checked BEFORE `timed_out`, which is the harness's max_steps budget
+        # and keeps running through the parking attempt. Ordering it the other
+        # way filed runs that had ALREADY driven their laps under "timeout" --
+        # the smoke test showed that bucket averaging 5.33 laps against a
+        # target of 3, i.e. counting successful driving as the failure this
+        # report exists to explain.
+        return "laps-done"
+    if outcome.timed_out:
+        return "timeout"
+    return "short"
+
+
+def report_timeout_anatomy(workers: int, config: SweepConfig) -> None:
+    """Where the clock actually goes, split by how each run ended.
+
+    Written for one question: the corpus is TIMEOUT-bound, not collision-bound
+    (126/256 expiries at the 0.10 contact zone, 48 at 0.05), and no counter
+    yet says what those runs were DOING. ``escapes per lap`` cannot answer it
+    -- it is a frequency, and it is also confounded, because a run that
+    survives longer earns more escapes for free.
+
+    The two hypotheses have opposite fixes, so the report is built to separate
+    them rather than to score an arm:
+
+    * SPURIOUS -- the escape keeps firing on signs the router deliberately
+      routed past at ~0.175 m. Then trigger distance-to-nearest-sign clusters
+      tight and low, and the fix is more zone work.
+    * GENUINE -- the robot really is arriving that close, from tracking error
+      (cross-track at sign passes is 4.63 cm median against 5.6 cm of plan
+      margin). Then triggers are spread and often far from any sign, and no
+      threshold value saves you; lowering it further just converts escapes
+      into collisions.
+
+    The 2026-09-02 pass answered neither, because both readings it had were
+    taken through the wrong window: the trigger clearance column is the front
+    CONE while the escape gate is ``assess_risk`` over the forward PATH
+    CORRIDOR, and distance-to-nearest-sign says a sign was near without saying
+    the sign was what the gate saw. The bearing columns close that -- they come
+    off the corridor ray the verdict was actually minimised over, so a third
+    hypothesis is now separable and, on that pass's evidence, the likely one:
+
+    * LATERAL -- the trigger is the outer wall coming into the lane on a late
+      corner commit, not a sign at all. Then bearings sit out near the lane
+      edge, distance-to-sign is large, and neither a contact-zone change nor
+      more sign-zone work touches it; the fix is in cornering.
+
+    Reads the shipped tuning rather than sweeping anything, deliberately. This
+    is a measurement of the configuration that is actually going to run, and
+    the corpus takes ~25 min a pass -- an arm comparison here would double that
+    while answering a question nobody has asked yet.
+    """
+    scenarios = _scenarios(config)
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        outcomes = list(pool.map(_run_one, [(i, config) for i in range(len(scenarios))]))
+
+    target = max((s.laps for s in scenarios), default=3)
+    buckets: dict[str, list[ScenarioOutcome]] = {}
+    for outcome in outcomes:
+        buckets.setdefault(_verdict_bucket(outcome, target), []).append(outcome)
+
+    print(f"\nscenarios: {len(outcomes)}   config: {config.label}", flush=True)
+    print(f"target laps: {target}\n", flush=True)
+
+    rows = []
+    for name, group in sorted(buckets.items(), key=lambda kv: -len(kv[1])):
+        ticks = sum(o.total_ticks for o in group)
+        esc_ticks = sum(o.escape_ticks for o in group)
+        laps = sum(o.laps for o in group)
+        starts = sum(o.escape_starts for o in group)
+        clearances = [v for o in group for v in o.trigger_clearance_m]
+        sign_dists = [v for o in group for v in o.trigger_sign_dist_m]
+        bearings = [v for o in group for v in o.trigger_bearing_rad]
+        ray_ranges = [v for o in group for v in o.trigger_ray_range_m]
+        rows.append([
+            name,
+            len(group),
+            f"{laps / len(group):.2f}",
+            f"{ticks / len(group):.0f}",
+            f"{esc_ticks / ticks:.1%}" if ticks else "-",
+            f"{starts / laps:.1f}" if laps else "-",
+            _fmt_m(clearances, 0.5),
+            _fmt_m(ray_ranges, 0.5),
+            _fmt_deg([abs(b) for b in bearings], 0.5),
+            _fmt_deg([abs(b) for b in bearings], 0.9),
+            _fmt_m(sign_dists, 0.5),
+        ])
+    print_table(
+        rows,
+        [
+            "verdict",
+            "n",
+            "laps",
+            "ticks",
+            "% ticks escaping",
+            "escapes/lap",
+            "cone clear p50",
+            "trigger ray p50",
+            "|bearing| p50",
+            "|bearing| p90",
+            "sign dist p50",
+        ],
+    )
+
+    print("\nescape trigger bearing, by verdict (0 deg = dead ahead, +ve left):", flush=True)
+    _print_bearing_histogram(buckets)
+    _print_trigger_ray_sanity(outcomes, config)
+
+    print("\nticks by navigator phase (all runs):", flush=True)
+    phases: Counter[str] = Counter()
+    for outcome in outcomes:
+        phases.update(dict(outcome.phase_ticks))
+    total = sum(phases.values())
+    print_table(
+        [[phase, n, f"{n / total:.1%}"] for phase, n in phases.most_common()],
+        ["phase", "ticks", "share"],
+    )
+
+    print("\nescape maneuver chosen at engagement (all runs):", flush=True)
+    maneuvers: Counter[str] = Counter()
+    for outcome in outcomes:
+        maneuvers.update(dict(outcome.escape_maneuvers))
+    engagements = sum(maneuvers.values())
+    print_table(
+        [[kind, n, f"{n / engagements:.1%}"] for kind, n in maneuvers.most_common()] or [["-", 0, "-"]],
+        ["maneuver", "engagements", "share"],
+    )
+
+
+def _fmt_m(values: Sequence[float], q: float) -> str:
+    """Quantile ``q`` of ``values`` in centimetres, or a dash if none exist.
+
+    Centimetres because every quantity it formats is compared against numbers
+    argued in centimetres -- the 5.6 cm plan margin, the 4.63 cm median
+    cross-track, the 5 cm contact zone.
+    """
+    return "-" if not values else f"{percentile(values, q) * 100:.1f}cm"
+
+
+def _fmt_deg(values: Sequence[float], q: float) -> str:
+    """Quantile ``q`` of radian ``values`` in degrees, or a dash if none exist."""
+    return "-" if not values else f"{math.degrees(percentile(values, q)):.0f}deg"
+
+
+_BEARING_BIN_EDGES_DEG = (-90.0, -60.0, -30.0, -10.0, 10.0, 30.0, 60.0, 90.0)
+"""Signed bins for the escape-trigger bearing.
+
+Signed rather than folded to a magnitude: left and right are not
+interchangeable when the question is pass-side. The narrow +/-10 deg centre bin
+is the one that means "in the road" -- a threat the robot is driving at
+head-on. The outer bins can only be reached by a return that is close AND wide,
+which inside the forward lane means the robot has already turned into it.
+"""
+
+
+def _print_bearing_histogram(buckets: dict[str, list[ScenarioOutcome]]) -> None:
+    """Escape-trigger bearing distribution per verdict bucket, as row shares.
+
+    A distribution rather than a mean: the hypothesis under test is that the
+    failing runs trigger BIMODALLY -- some head-on at signs, some out at the
+    lane edge on walls -- and a mean of those two lands between them, on a
+    bearing nothing actually triggered at.
+    """
+    labels = [
+        f"{lo:.0f}..{hi:.0f}"
+        for lo, hi in zip(_BEARING_BIN_EDGES_DEG, _BEARING_BIN_EDGES_DEG[1:], strict=False)
+    ]
+    rows = []
+    for name, group in sorted(buckets.items(), key=lambda kv: -len(kv[1])):
+        degrees = [math.degrees(b) for o in group for b in o.trigger_bearing_rad]
+        if not degrees:
+            rows.append([name, 0, *["-"] * len(labels)])
+            continue
+        counts = Counter(_bearing_bin(d) for d in degrees)
+        rows.append([
+            name,
+            len(degrees),
+            *[f"{counts[i] / len(degrees):.0%}" for i in range(len(labels))],
+        ])
+    print_table(rows, ["verdict", "engagements", *labels])
+
+
+def _print_trigger_ray_sanity(outcomes: Sequence[ScenarioOutcome], config: SweepConfig) -> None:
+    """Check the recorded trigger rays against the threshold that fired them.
+
+    Exists because the first version of this instrumentation was wrong in a way
+    no column revealed: it reported a plausible-looking 9.5 cm p50 that,
+    through ``bumper_gap_ahead``, is a 6.7 cm gap -- above the 5 cm gate, so
+    those rays cannot have triggered anything. Every bearing conclusion drawn
+    from them would have described the tick BEFORE the escape.
+
+    A ray whose bumper gap is not below the contact zone is therefore a bug in
+    this script, not a finding, and it says so rather than printing a number
+    that reads as evidence.
+    """
+    ranges = [r for o in outcomes for r in o.trigger_ray_range_m]
+    engagements = sum(o.escape_starts for o in outcomes)
+    # The share of escapes the forward-path contact gate explains at all. This
+    # is the number that decides whether OBSTACLES_CONTACT_DIST is the lever
+    # for the escape thrash, and nothing else in this report answers it: the
+    # maneuver table says WHICH maneuver ran, never what fired it.
+    print(
+        f"\nescapes attributable to the forward-path CRITICAL gate: "
+        f"{len(ranges)}/{engagements}"
+        + (f" ({len(ranges) / engagements:.1%})" if engagements else ""),
+        flush=True,
+    )
+    if not ranges:
+        print("  trigger ray sanity: no rays recorded", flush=True)
+        return
+    gate = config.obstacles_contact_dist or config.contact_dist or _SHIPPED_OBSTACLES_CONTACT_DIST
+    below = sum(1 for r in ranges if bumper_gap_ahead(r) < gate)
+    print(
+        f"\ntrigger ray sanity: {below}/{len(ranges)} rays below the {gate:.2f} m gate "
+        f"(bumper gap p50 {_fmt_m([bumper_gap_ahead(r) for r in ranges], 0.5)})",
+        flush=True,
+    )
+    if below < len(ranges):
+        print(
+            "  WARNING: rays at or above the gate were recorded. They did not fire an "
+            "escape, so the bearing histogram above is not measuring the trigger.",
+            flush=True,
+        )
+
+
+_SHIPPED_OBSTACLES_CONTACT_DIST = 0.05
+"""Fallback gate for the sanity check when an arm overrides neither zone.
+
+Hardcoded rather than read back from the tuning: this check exists to catch
+the instrumentation disagreeing with the navigator, and sourcing both sides of
+the comparison from the same place is how it would fail to.
+"""
+
+
+def _bearing_bin(degrees: float) -> int:
+    """Index of the bin ``degrees`` falls in, clamped to the end bins.
+
+    Clamped rather than dropped: a bearing outside the edges would be a ray the
+    forward-lane filter should have excluded, and silently discarding it would
+    hide that contradiction instead of showing it piled up in an end bin.
+    """
+    for i, hi in enumerate(_BEARING_BIN_EDGES_DEG[1:]):
+        if degrees < hi:
+            return i
+    return len(_BEARING_BIN_EDGES_DEG) - 2
 
 
 def run_sweep(configs: list[SweepConfig], workers: int, verbose: bool = False) -> list[SweepResult]:
@@ -4196,31 +4700,59 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind, blend 20 (shipped)", blind=True, replan_blend_ticks=20),
         SweepConfig("blind, blend 40", blind=True, replan_blend_ticks=40),
     ],
+    # Every arm here clears OBSTACLES_CONTACT_DIST, or `contact_dist` would be
+    # shadowed by the shipped 0.05 override and the whole mode would read flat
+    # (see `SweepConfig.contact_dist`). Row 1 is therefore the PRE-SHIP
+    # baseline, not the shipped config; `obstacles-contact-dist` below is where
+    # the shipped value is measured.
     "escape-gate": [
-        SweepConfig("blind, contact 0.10 slow 0.25 (shipped)", blind=True),
-        SweepConfig("blind, contact 0.05 slow 0.25", blind=True, contact_dist=0.05),
-        SweepConfig("blind, contact 0.15 slow 0.25", blind=True, contact_dist=0.15),
-        SweepConfig("blind, contact 0.10 slow 0.35", blind=True, slow_dist=0.35),
-        SweepConfig("blind, contact 0.05 slow 0.35", blind=True, contact_dist=0.05, slow_dist=0.35),
+        SweepConfig("blind, contact 0.10 slow 0.25 (pre-ship)", blind=True, clear_obstacles_contact_dist=True),
+        SweepConfig("blind, contact 0.05 slow 0.25", blind=True, contact_dist=0.05, clear_obstacles_contact_dist=True),
+        SweepConfig("blind, contact 0.15 slow 0.25", blind=True, contact_dist=0.15, clear_obstacles_contact_dist=True),
+        SweepConfig("blind, contact 0.10 slow 0.35", blind=True, slow_dist=0.35, clear_obstacles_contact_dist=True),
+        SweepConfig(
+            "blind, contact 0.05 slow 0.35",
+            blind=True,
+            contact_dist=0.05,
+            slow_dist=0.35,
+            clear_obstacles_contact_dist=True,
+        ),
     ],
     # The SHIPPABLE form of the escape-gate result. `escape-gate` above moves
     # the shared ClearanceZones.CONTACT_DIST, which is also the Open Challenge's
     # contact zone, so its numbers cannot be adopted without re-measuring Open.
     # OBSTACLES_CONTACT_DIST moves this challenge only.
     #
-    # Row 2 and row 3 must come back IDENTICAL. They set the same threshold by
-    # two different routes -- row 2 through the new per-challenge resolution
-    # (`ClearanceZones.for_obstacles_challenge`, keyed on sign_router presence),
-    # row 3 through the shared field the old mode already exercised. If they
-    # disagree the new path is not reaching the navigator, which is the failure
-    # this script has hit twice before and which reads as a real result. Row 4
-    # is the same override at the shipped value: it must equal row 1, proving
-    # the resolution is the identity when it should be.
+    # Rows 1-3 must come back IDENTICAL. They set the same threshold by three
+    # routes: row 1 the shipped TOML, row 2 an explicit override at the shipped
+    # value (so the resolution must be the identity), row 3 the shared field
+    # with the override cleared. If any disagrees, one of those paths is not
+    # reaching the navigator -- the failure this script has hit twice before,
+    # and which reads as a real result. Row 4 is the pre-ship 0.10 baseline,
+    # kept so the A/B this value was adopted on stays reproducible in-tree.
+    #
+    # Relabelled 2026-09-02: `obstacles_contact_dist = 0.05` now SHIPS, so the
+    # old row 1 ("no override") no longer means 0.10 and the old row 4
+    # ("must match row 1") asserted an equality that had become false.
     "obstacles-contact-dist": [
-        SweepConfig("blind, shipped (contact 0.10, no override)", blind=True),
-        SweepConfig("blind, OBSTACLES_CONTACT_DIST 0.05", blind=True, obstacles_contact_dist=0.05),
-        SweepConfig("blind, shared CONTACT_DIST 0.05 (must match row 2)", blind=True, contact_dist=0.05),
-        SweepConfig("blind, OBSTACLES_CONTACT_DIST 0.10 (must match row 1)", blind=True, obstacles_contact_dist=0.10),
+        SweepConfig("blind, shipped (OBSTACLES_CONTACT_DIST 0.05 from TOML)", blind=True),
+        SweepConfig(
+            "blind, OBSTACLES_CONTACT_DIST 0.05 explicit (must match row 1)",
+            blind=True,
+            obstacles_contact_dist=0.05,
+        ),
+        SweepConfig(
+            "blind, shared CONTACT_DIST 0.05, override cleared (must match row 1)",
+            blind=True,
+            contact_dist=0.05,
+            clear_obstacles_contact_dist=True,
+        ),
+        SweepConfig(
+            "blind, pre-ship contact 0.10",
+            blind=True,
+            contact_dist=0.10,
+            clear_obstacles_contact_dist=True,
+        ),
     ],
     # What the escape split + half-diagonal offset are worth IN BLIND, measured
     # in one tree so nothing else that has landed since can be mistaken for
@@ -4779,6 +5311,7 @@ def report_spec_validity(workers: int, scenarios_dir: str | None) -> None:
 
 MODES = (
     "crosstrack",
+    "timeout-anatomy",
     "sign-crosstrack",
     "yaw-screen",
     "lane-geometry",
@@ -4814,6 +5347,16 @@ def main() -> None:
         help="directory of generated *_metadata.json to run instead of the committed 16",
     )
     parser.add_argument("--corpus", action="store_true", help=f"shorthand for --scenarios-dir {CORPUS_DIR}")
+    parser.add_argument(
+        "--arms",
+        type=int,
+        nargs="+",
+        metavar="N",
+        help="run only these arms of a fixed mode, 1-based as the RESULT rows print them "
+        "(e.g. --arms 1 2). Each arm is a full pass over the scenario set, so this is the "
+        "difference between 12 and 50 minutes on the 256 corpus. Equivalence rows are only "
+        "meaningful when their partner arm runs too -- do not drop one half of a pair.",
+    )
     args = parser.parse_args()
 
     if args.mode == "crosstrack":
@@ -4821,6 +5364,17 @@ def main() -> None:
         return
 
     scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
+    if args.mode == "timeout-anatomy":
+        # blind=True is not optional. The `baseline` arm of this script is
+        # SIGHTED, and a sighted run does not produce the escapes being
+        # measured -- reading this mode against it would report an anatomy of
+        # a round nobody drives.
+        report_timeout_anatomy(
+            args.workers,
+            replace(SweepConfig("blind, shipped tuning", blind=True), scenarios_dir=scenarios_dir),
+        )
+        return
+
     if args.mode == "lane-geometry":
         report_lane_geometry(scenarios_dir, args.values)
         return
@@ -4847,6 +5401,15 @@ def main() -> None:
     configs = _build_configs(args.mode, args.values)
     if scenarios_dir:
         configs = [replace(c, scenarios_dir=scenarios_dir) for c in configs]
+    if args.arms:
+        # Each arm is a full pass over the scenario set -- four of them against
+        # the 256 corpus is ~50 min. Once a mode's equivalence rows have passed,
+        # re-running them to look at one arm's per-scenario detail buys nothing.
+        # 1-based to match how the RESULT rows read on screen.
+        try:
+            configs = [configs[i - 1] for i in args.arms]
+        except IndexError:
+            parser.error(f"--arms out of range: mode {args.mode!r} has {len(configs)} arm(s)")
     run_sweep(configs, args.workers, verbose=args.verbose)
 
 

@@ -22,6 +22,7 @@ from src.navigation.control.controllers.collision_avoidance.sectors import (
     _forward_path_has_rays,
     _forward_path_ranges,
     _sector_to_model,
+    forward_path_nearest_ray,
     sector_ranges,
 )
 
@@ -232,6 +233,22 @@ class CollisionAvoidanceController:
         instance's ``path_half_width`` and ``min_valid_range_m``.
         """
         return _forward_path_ranges(
+            lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m
+        )
+
+    def nearest_path_ray(
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+    ) -> tuple[float, float] | None:
+        """Bearing and range of the ray :meth:`assess_risk` is deciding on.
+
+        Same lane, same validity filter, same instance parameters -- so a
+        recorded bearing is the one the risk verdict came from and not a
+        re-derivation that might disagree. See
+        ``sectors.forward_path_nearest_ray``.
+        """
+        return forward_path_nearest_ray(
             lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m
         )
 
