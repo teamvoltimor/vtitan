@@ -16,6 +16,13 @@ import (
 // max_wheel_angle_deg has no chassis-only default).
 var hardwareProfileNames = []string{"270deg-hiwonder-35kg", "rev-hd-hex-motor-6000rpm"}
 
+// shippedObstaclesContactDist is clearance.toml's obstacles_contact_dist.
+// Not taken from DefaultConfig like the other expectations in this file:
+// DefaultConfig leaves the override nil (that IS its documented default, and
+// the Open path depends on nil meaning "unset"), so comparing against it
+// would assert the opposite of what ships.
+const shippedObstaclesContactDist = 0.05
+
 // repoRoot walks up from this test file's package directory
 // (platform/robot-go/internal/nav/controllers) to the repo root, so
 // ConfigFor can be exercised against the real checked-in TOML files --
@@ -68,6 +75,16 @@ func TestConfigFor_LoadsRealNavigationTuningFiles(t *testing.T) {
 			def.SlowDist,
 			def.PathMargin,
 		)
+	}
+	// The Obstacles override ships SET, so a nil here means the key silently
+	// failed to load and Go would run the escape gate at the shared 0.10 while
+	// Python runs it at 0.05 -- a divergence invisible to every other
+	// assertion in this test, since ContactDist itself still matches.
+	if cfg.ObstaclesContactDist == nil {
+		t.Error("clearance.toml wiring: ObstaclesContactDist = nil, want the shipped override")
+	} else if *cfg.ObstaclesContactDist != shippedObstaclesContactDist {
+		t.Errorf("clearance.toml wiring: ObstaclesContactDist = %v, want %v",
+			*cfg.ObstaclesContactDist, shippedObstaclesContactDist)
 	}
 	if cfg.ControlHz != def.ControlHz {
 		t.Errorf("control.toml wiring: ControlHz = %v, want %v", cfg.ControlHz, def.ControlHz)

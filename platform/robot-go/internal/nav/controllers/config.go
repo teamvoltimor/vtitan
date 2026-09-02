@@ -21,9 +21,12 @@ import (
 type Config struct {
 	// Clearance (motion/clearance.toml).
 	ContactDist float64
-	SlowDist    float64
-	FastDist    float64
-	PathMargin  float64
+	// ObstaclesContactDist supersedes ContactDist on the Obstacles Challenge;
+	// nil leaves it alone. See ForObstaclesChallenge.
+	ObstaclesContactDist *float64
+	SlowDist             float64
+	FastDist             float64
+	PathMargin           float64
 
 	// Control (motion/control.toml).
 	ControlHz float64
@@ -197,6 +200,24 @@ func DefaultConfig() Config {
 		LidarToRearBumperM:  DefaultLidarToRearBumperM,
 		LidarMaxRangeM:      DefaultLidarMaxRangeM,
 	}
+}
+
+// ForObstaclesChallenge returns c as the Obstacles Challenge should run it,
+// mirroring ClearanceZones.for_obstacles_challenge: ContactDist replaced by
+// ObstaclesContactDist when one is set, and c unchanged when it is not, so
+// the Open path and an un-overridden Obstacles path stay byte-identical.
+//
+// The two challenges present different things to escape FROM, which is why
+// the zone is per-challenge at all: a wall 0.10 m ahead in Open is a genuine
+// emergency, while Obstacles additionally has signs the router deliberately
+// routes PAST at ~0.175 m, so the shared value fires on geometry the planner
+// chose on purpose.
+func (c Config) ForObstaclesChallenge() Config {
+	if c.ObstaclesContactDist == nil {
+		return c
+	}
+	c.ContactDist = *c.ObstaclesContactDist
+	return c
 }
 
 // NewCollisionAvoidanceController builds a CollisionAvoidanceController

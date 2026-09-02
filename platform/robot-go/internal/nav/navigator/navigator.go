@@ -210,6 +210,17 @@ func New(p Params) (*Navigator, error) {
 		return nil, fmt.Errorf("navigator: building stuck detector: %w", err)
 	}
 
+	// The contact zone is per-challenge, and an attached sign router is what
+	// identifies the Obstacles Challenge -- the same test CoreNavigator uses.
+	// Resolved onto the COLLISION controller alone: it is that controller's
+	// assess_risk that fires the escape, and widening the zone for the
+	// waypoint controller or the stuck detector would change things the
+	// measurement behind the override never covered.
+	collisionCfg := p.ControllersConfig
+	if p.SignRouter != nil {
+		collisionCfg = collisionCfg.ForObstaclesChallenge()
+	}
+
 	n := &Navigator{
 		logger:              logger,
 		gateway:             p.Gateway,
@@ -224,7 +235,7 @@ func New(p Params) (*Navigator, error) {
 		waypointThreshold:   p.Config.MainLoopReachedDistanceM,
 		escapeSteerSign:     1.0,
 		waypointController:  p.ControllersConfig.NewWaypointController(),
-		collisionController: p.ControllersConfig.NewCollisionAvoidanceController(),
+		collisionController: collisionCfg.NewCollisionAvoidanceController(),
 		stuckDetector:       stuckDetector,
 	}
 	// Blind bootstrap: build the direction estimator and (when a router is

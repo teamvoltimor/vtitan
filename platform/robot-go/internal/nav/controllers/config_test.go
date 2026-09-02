@@ -141,3 +141,39 @@ func TestDefaultConfig_MatchesShippedTOMLDefaults(t *testing.T) {
 		}
 	}
 }
+
+// TestForObstaclesChallenge mirrors the Python oracle
+// tests/unit/test_navigation_tuning.py's coverage of
+// ClearanceZones.for_obstacles_challenge: the override supersedes the shared
+// contact zone when set, and is the exact identity when it is not.
+//
+// The identity half is the one worth pinning. It is what keeps the Open
+// Challenge byte-identical to the un-ported path, and a regression there
+// would not show up as a wrong number -- it would show up as Open quietly
+// escaping on a threshold nothing measured it against.
+func TestForObstaclesChallenge(t *testing.T) {
+	t.Parallel()
+
+	base := controllers.DefaultConfig()
+	if got := base.ForObstaclesChallenge(); got != base {
+		t.Errorf("ForObstaclesChallenge() with no override = %+v, want the receiver unchanged", got)
+	}
+
+	const override = 0.05
+	withOverride := base
+	withOverride.ObstaclesContactDist = &[]float64{override}[0]
+	got := withOverride.ForObstaclesChallenge()
+	if got.ContactDist != override {
+		t.Errorf("ForObstaclesChallenge().ContactDist = %v, want %v", got.ContactDist, override)
+	}
+	if withOverride.ContactDist != base.ContactDist {
+		t.Errorf("ForObstaclesChallenge() mutated its receiver: ContactDist = %v, want %v",
+			withOverride.ContactDist, base.ContactDist)
+	}
+	// The escape gate is the only zone the override moves; a wider blast
+	// radius would change speed-ladder rungs the 256-corpus A/B never varied.
+	if got.SlowDist != base.SlowDist || got.FastDist != base.FastDist {
+		t.Errorf("ForObstaclesChallenge() moved a non-contact zone: SlowDist/FastDist = %v/%v, want %v/%v",
+			got.SlowDist, got.FastDist, base.SlowDist, base.FastDist)
+	}
+}

@@ -26,6 +26,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger.Warn("controllers: loading clearance.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.ContactDist = loaded.ContactDist
+		cfg.ObstaclesContactDist = loaded.ObstaclesContactDist
 		cfg.SlowDist = loaded.SlowDist
 		cfg.FastDist = loaded.FastDist
 		cfg.PathMargin = loaded.PathMargin

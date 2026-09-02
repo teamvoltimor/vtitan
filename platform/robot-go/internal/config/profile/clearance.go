@@ -10,6 +10,15 @@ package profile
 type ClearanceConfig struct {
 	// ContactDist matches CONTACT_DIST -- robot creeps forward below this (m).
 	ContactDist float64 `mapstructure:"contact_dist"`
+	// ObstaclesContactDist matches OBSTACLES_CONTACT_DIST -- the
+	// Obstacles-Challenge-only contact zone, which supersedes ContactDist
+	// whenever a sign router is attached (see
+	// controllers.Config.ForObstaclesChallenge). A pointer because the key is
+	// genuinely optional, exactly as it is optional in Python: absent must
+	// mean "leave ContactDist alone", and a zero float64 would instead mean
+	// "escape never fires", silently disabling the gate on any config that
+	// omits the key.
+	ObstaclesContactDist *float64 `mapstructure:"obstacles_contact_dist"`
 	// SlowDist matches SLOW_DIST -- reduced-speed zone (m).
 	SlowDist float64 `mapstructure:"slow_dist"`
 	// MediumDist matches MEDIUM_DIST -- normal-speed zone (m).
