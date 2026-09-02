@@ -24,7 +24,7 @@ from __future__ import annotations
 import math
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -86,24 +86,33 @@ def _print_phases(rows: list[tuple[float, NavigatorDebugSnapshot]]) -> None:
     print_table(phases[:10], ["t", "phase", "direction"])
 
 
+class WedgeMedians(NamedTuple):
+    """The four cardinal wedge medians a start-pose measurement is built from."""
+
+    fwd: float | None
+    back: float | None
+    left: float | None
+    right: float | None
+
+
 def _verdict(
     scan: LidarScan,
     half_width_rad: float,
     closing_tolerance_m: float,
-) -> tuple[str, dict[str, float | None]]:
+) -> tuple[str, WedgeMedians]:
     """Which refusal criterion fires for this scan, and the four wedge medians."""
     ranges = np.asarray(scan.ranges_m, dtype=float)
     angles = np.asarray(scan.angles_rad, dtype=float)
-    rays = {
-        "fwd": _wedge_median(ranges, angles, 0.0, half_width_rad),
-        "back": _wedge_median(ranges, angles, math.pi, half_width_rad),
-        "left": _wedge_median(ranges, angles, math.pi / 2, half_width_rad),
-        "right": _wedge_median(ranges, angles, -math.pi / 2, half_width_rad),
-    }
-    blocked = [name for name, value in rays.items() if value is None]
+    rays = WedgeMedians(
+        fwd=_wedge_median(ranges, angles, 0.0, half_width_rad),
+        back=_wedge_median(ranges, angles, math.pi, half_width_rad),
+        left=_wedge_median(ranges, angles, math.pi / 2, half_width_rad),
+        right=_wedge_median(ranges, angles, -math.pi / 2, half_width_rad),
+    )
+    blocked = [name for name, value in rays._asdict().items() if value is None]
     if blocked:
         return f"blocked:{'+'.join(blocked)}", rays
-    closing = (rays["fwd"] + rays["back"]) - TrackDimensions.MAX_COORD
+    closing = (rays.fwd + rays.back) - TrackDimensions.MAX_COORD
     if abs(closing) > closing_tolerance_m:
         return f"closing:{closing:+.2f}", rays
     return "ok", rays
@@ -173,7 +182,7 @@ def main() -> None:
             measured = measure_start_pose(scan.ranges_m, scan.angles_rad, direction, section, tuning=tuning)
             table.append((
                 f"{t:.2f}",
-                *(f"{rays[k]:.2f}" if rays[k] is not None else "--" for k in ("fwd", "back", "left", "right")),
+                *(f"{value:.2f}" if value is not None else "--" for value in rays),
                 verdict,
                 f"({measured.x:.2f}, {measured.y:.2f})" if measured else "-",
                 *believed(t),

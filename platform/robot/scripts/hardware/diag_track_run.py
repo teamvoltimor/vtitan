@@ -20,6 +20,7 @@ import statistics
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -52,17 +53,39 @@ _SPIN_TIMEOUT_RUN_S = 0.05
 _DEFAULT_RUN_SECONDS = 20.0
 
 
+class DriveSample(NamedTuple):
+    """A drive command as published on /ackermann_cmd."""
+
+    t: float
+    steering_rad: float
+    speed: float
+
+
+class StateChange(NamedTuple):
+    """A state-machine transition, deduplicated by consecutive value."""
+
+    t: float
+    state: str
+
+
+class ClearanceSample(NamedTuple):
+    """Sector clearances in metres, from the raw scan."""
+
+    t: float
+    front: float
+    left: float
+    right: float
+
+
 class TrackRunProbe(Node):
     """Drives one bounded race and records the drive commands it produces."""
 
     def __init__(self, seconds: float) -> None:
         super().__init__("track_run_probe")
         self.seconds = seconds
-        self.samples: list[tuple[float, float, float]] = []
-        """(t, steering_rad, speed) as published on /ackermann_cmd."""
-        self.states: list[tuple[float, str]] = []
-        self.clearances: list[tuple[float, float, float, float]] = []
-        """(t, front, left, right) in metres, from the raw scan."""
+        self.samples: list[DriveSample] = []
+        self.states: list[StateChange] = []
+        self.clearances: list[ClearanceSample] = []
 
         topics = RosTopicConfig.load_default()
         self.button = self.create_publisher(String, topics.button.event, 10)
@@ -72,12 +95,12 @@ class TrackRunProbe(Node):
         self.t0 = time.monotonic()
 
     def _on_cmd(self, msg: AckermannDriveStamped) -> None:
-        self.samples.append((time.monotonic() - self.t0, msg.drive.steering_angle, msg.drive.speed))
+        self.samples.append(DriveSample(time.monotonic() - self.t0, msg.drive.steering_angle, msg.drive.speed))
 
     def _on_state(self, msg: String) -> None:
         stamp = time.monotonic() - self.t0
-        if not self.states or self.states[-1][1] != msg.data:
-            self.states.append((stamp, msg.data))
+        if not self.states or self.states[-1].state != msg.data:
+            self.states.append(StateChange(stamp, msg.data))
 
     def _on_scan(self, msg: LaserScan) -> None:
         # Sectors in the ROBOT frame, i.e. after the same mount correction the
@@ -103,7 +126,7 @@ class TrackRunProbe(Node):
             return min(vals) if vals else float("nan")
 
         self.clearances.append(
-            (time.monotonic() - self.t0, *[sector(a) for a in _SECTOR_ANGLES_DEG]),
+            ClearanceSample(time.monotonic() - self.t0, *[sector(a) for a in _SECTOR_ANGLES_DEG]),
         )
 
     def press(self, event: str) -> None:
@@ -119,7 +142,7 @@ def _summarise(probe: TrackRunProbe) -> None:
         print(f"  t={t:5.1f}s  {s}")
 
     print("\n--- drive commands (steering + = left) ---")
-    driving = [s for s in probe.samples if abs(s[2]) > _SPEED_THRESHOLD]
+    driving = [s for s in probe.samples if abs(s.speed) > _SPEED_THRESHOLD]
     if not driving:
         print("  none with non-zero speed -- the robot never drove")
     else:
@@ -130,7 +153,7 @@ def _summarise(probe: TrackRunProbe) -> None:
             rows.append((t, math.degrees(steer), speed, bar))
         if rows:
             print_table(rows, ["t", "steer_deg", "speed", "bar"])
-        steers = [s[1] for s in driving]
+        steers = [s.steering_rad for s in driving]
         print(
             f"\n  steering: mean={math.degrees(statistics.fmean(steers)):+.1f}deg  "
             f"min={math.degrees(min(steers)):+.1f}  max={math.degrees(max(steers)):+.1f}",

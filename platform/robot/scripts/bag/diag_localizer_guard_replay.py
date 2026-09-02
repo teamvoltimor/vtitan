@@ -36,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 from rclpy.serialization import deserialize_message
@@ -127,13 +127,20 @@ def _final_walls(nav_debug: list[tuple[int, NavigatorDebugSnapshot]]) -> TrackWa
     return None
 
 
+class GridSearchResult(NamedTuple):
+    x: float
+    y: float
+    best_cost: float
+    second_cost: float
+
+
 def _grid_search_costs(
     walls: TrackWalls,
     prior_xy: tuple[float, float],
     yaw: float,
     ranges: np.ndarray,
     angles: np.ndarray,
-) -> tuple[float, float, float, float]:
+) -> GridSearchResult:
     """Replicate LidarLocalizer's exact search, returning (x, y, best_cost, second_cost)."""
     localizer = LidarLocalizer(walls, LocalizationParams())
     best_x, best_y = prior_xy
@@ -162,7 +169,7 @@ def _grid_search_costs(
         best_x, best_y = cand_x, cand_y
         radius = _GRID_SEARCH_RADIUS_SCALE * radius / (n - 1)
 
-    return best_x, best_y, best_cost, second_cost
+    return GridSearchResult(best_x, best_y, best_cost, second_cost)
 
 
 def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None:

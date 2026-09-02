@@ -46,7 +46,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
@@ -114,6 +114,15 @@ _PAIR_TOLERANCE_S = 0.10
 at ~10 Hz and the control loop at 20 Hz, so a real pair is always well under this."""
 
 
+class CorridorOffsetSample(NamedTuple):
+    """One accepted ``_offset_sample`` tick: true width, width belief, actual and planned offset."""
+
+    width: float
+    belief: float
+    actual: float
+    planned: float
+
+
 def _single(ranges: Sequence[float], angles: Sequence[float], target: float) -> float:
     idx = min(range(len(angles)), key=lambda i: abs(wrap_angle(angles[i] - target)))
     return ranges[idx]
@@ -148,7 +157,7 @@ def _offset_sample(
     scan: LidarScan,
     snap: NavigatorDebugSnapshot,
     half_width: float,
-) -> tuple[float, float, float, float] | str:
+) -> CorridorOffsetSample | str:
     """``(true_width, belief, actual, planned)`` for one scan, or why it was rejected.
 
     Returning the rejection reason rather than None keeps every discard
@@ -210,7 +219,7 @@ def _offset_sample(
     planned = actual + dx * math.cos(to_centre) + dy * math.sin(to_centre)
 
     belief = snap.corridor_width_belief_m
-    return (width, belief if belief is not None else math.nan, actual, planned)
+    return CorridorOffsetSample(width, belief if belief is not None else math.nan, actual, planned)
 
 
 def _centre_offset(bag_dir: Path, window_deg: float) -> None:
@@ -248,7 +257,7 @@ def _centre_offset(bag_dir: Path, window_deg: float) -> None:
     tuning = NavigationTuning.load_default()
     intended = tuning.waypoints.WIDE_CENTER_BIAS_M
     row_times = [t for t, _ in rows]
-    samples: dict[tuple[str, str], list[tuple[float, float, float, float]]] = {}
+    samples: dict[tuple[str, str], list[CorridorOffsetSample]] = {}
     rejected: Counter[str] = Counter()
 
     for t_scan, scan in scans:
@@ -276,7 +285,10 @@ def _centre_offset(bag_dir: Path, window_deg: float) -> None:
     print(f"\n{bag_dir.name}  (intended bias {intended:+.3f} m toward inner, window +/-{window_deg:.0f} deg)")
     table = []
     for (direction, section), vals in sorted(samples.items()):
-        width, belief, actual, planned = ([v[i] for v in vals] for i in range(4))
+        width = [v.width for v in vals]
+        belief = [v.belief for v in vals]
+        actual = [v.actual for v in vals]
+        planned = [v.planned for v in vals]
         table.append(
             [
                 direction,

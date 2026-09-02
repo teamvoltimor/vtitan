@@ -37,7 +37,7 @@ import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -60,6 +60,23 @@ _MATCH_TOLERANCE_M = 0.03
 """How close a replayed target has to land to the logged one to count as a match."""
 _MAX_MISMATCH_EXAMPLES = 6
 """How many mismatch examples to print in the default replay-and-compare mode."""
+
+
+class RotationTrial(NamedTuple):
+    """One (path variant, rotation offset) trial for `_variant_worker`, pickled across the process pool."""
+
+    name: str
+    path: list[tuple[float, float]]
+    k: int
+    nd_primitive: list[tuple[float, float, float, int, float, float, float]]
+
+
+class RotationMatch(NamedTuple):
+    """Result of one `RotationTrial`: how many ticks matched at rotation `k`."""
+
+    name: str
+    k: int
+    match: int
 
 
 def _jobs(requested: int) -> int:
@@ -264,9 +281,7 @@ def _solve_rotation(
     )
 
 
-def _variant_worker(
-    payload: tuple[str, list[tuple[float, float]], int, list[tuple[float, float, float, int, float, float, float]]],
-) -> tuple[str, int, int]:
+def _variant_worker(payload: RotationTrial) -> RotationMatch:
     """Best rotation match for one path variant. Module-level so it can be pickled."""
     name, path, k, nd_primitive = payload
     ctrl = WaypointController.from_tuning(NavigationTuning.load_default())
@@ -276,7 +291,7 @@ def _variant_worker(
         got = ctrl.select_target_point((x, y), yaw, path, (wi + k) % n, look)
         if math.hypot(got[0] - tx, got[1] - ty) < _MATCH_TOLERANCE_M:
             match += 1
-    return name, k, match
+    return RotationMatch(name, k, match)
 
 
 def _try_reversed(bag_dir: Path, width_m: float, arc: float | None, section: str, laps: int, jobs: int) -> None:
@@ -303,19 +318,21 @@ def _try_reversed(bag_dir: Path, width_m: float, arc: float | None, section: str
         ("CCW path", ccw),
         ("reversed(CW)", rev),
     )
-    payloads = [(name, path, k, nd_primitive) for name, path in variants for k in range(len(path))]
-    results: dict[str, tuple[int, int]] = {}
+    payloads = [RotationTrial(name, path, k, nd_primitive) for name, path in variants for k in range(len(path))]
+    results: dict[str, RotationMatch] = {}
     with ProcessPoolExecutor(max_workers=_jobs(jobs)) as pool:
         futures = {pool.submit(_variant_worker, p): p for p in payloads}
         for done in as_completed(futures):
-            name, k, match = done.result()
-            best = results.get(name, (-1, -1))
-            if match > best[0]:
-                results[name] = (match, k)
+            result = done.result()
+            best = results.get(result.name)
+            if best is None or result.match > best.match:
+                results[result.name] = result
 
     for name, _path in variants:
-        match, k = results[name]
-        print(f"{name:34s}: best {match}/{len(nd)} ({100 * match / len(nd):.1f}%) at rotation k={k}")
+        result = results[name]
+        print(
+            f"{name:34s}: best {result.match}/{len(nd)} ({100 * result.match / len(nd):.1f}%) at rotation k={result.k}"
+        )
 
 
 def main() -> None:

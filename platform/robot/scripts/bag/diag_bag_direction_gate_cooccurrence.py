@@ -22,6 +22,7 @@ from __future__ import annotations
 import math
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -33,7 +34,14 @@ from src.navigation.utils import _nearest_ray, axis_error_rad
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 
-def _gates(scan, yaw: float, tuning: NavigationTuning) -> dict[str, bool]:
+class GateResult(NamedTuple):
+    aligned: bool
+    no_dropout: bool
+    span_open: bool
+    asymmetric: bool
+
+
+def _gates(scan, yaw: float, tuning: NavigationTuning) -> GateResult:
     """Each of infer_direction's conditions, evaluated independently.
 
     Reads the same tuning fields infer_direction does, so the gates measured
@@ -43,12 +51,12 @@ def _gates(scan, yaw: float, tuning: NavigationTuning) -> dict[str, bool]:
     left = _nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2)
     right = _nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2)
     max_in_track = estimator.MAX_IN_TRACK_RANGE_M
-    return {
-        "aligned": axis_error_rad(yaw) <= estimator.ALIGNMENT_TOLERANCE_RAD,
-        "no_dropout": left <= max_in_track and right <= max_in_track,
-        "span_open": left + right > estimator.PLAUSIBLE_SPAN_THRESHOLD_M,
-        "asymmetric": abs(left - right) >= estimator.MIN_ASYMMETRY_M,
-    }
+    return GateResult(
+        aligned=axis_error_rad(yaw) <= estimator.ALIGNMENT_TOLERANCE_RAD,
+        no_dropout=left <= max_in_track and right <= max_in_track,
+        span_open=left + right > estimator.PLAUSIBLE_SPAN_THRESHOLD_M,
+        asymmetric=abs(left - right) >= estimator.MIN_ASYMMETRY_M,
+    )
 
 
 def main() -> None:
@@ -67,8 +75,8 @@ def main() -> None:
         if not evaluated:
             continue
         n = len(evaluated)
-        marginals = {k: sum(1 for g in evaluated if g[k]) / n for k in names}
-        both = sum(1 for g in evaluated if all(g.values())) / n
+        marginals = {k: sum(1 for g in evaluated if getattr(g, k)) / n for k in names}
+        both = sum(1 for g in evaluated if all(g)) / n
         # If the conditions were independent, this is what the conjunction would
         # be. Far below it means they actively exclude each other.
         expected = 1.0
@@ -76,7 +84,7 @@ def main() -> None:
             expected *= v
         # The pair the geometry ties together: you are square to the corridor
         # mid-corridor, and the span only opens at the very end of it.
-        align_and_span = sum(1 for g in evaluated if g["aligned"] and g["span_open"]) / n
+        align_and_span = sum(1 for g in evaluated if g.aligned and g.span_open) / n
         out.append(
             (
                 bag_dir.name.replace("run_2026", ""),
