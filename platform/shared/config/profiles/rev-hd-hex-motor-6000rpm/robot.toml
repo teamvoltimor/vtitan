@@ -21,16 +21,31 @@
 #     impossible" plausibility bound. Against 0.234 it has 6.8% headroom, down
 #     from 60% against 0.156. That guard is what rejects the scan-match snap
 #     that root-caused the CCW corner failures; it needs raising with this.
-max_speed_mps = 1.0
-# NOT BENCH-MEASURED -- a rough feel-based estimate from hardware 2026-08-27
-# (previous 0.234 scaled guess was a significant underestimate). Bench-measure
-# properly (timed over a known distance, under load, the same way 0.156 was
-# for the retired motor) before trusting this for anything beyond a rough
-# ceiling. motion/speed.toml's tiers are now set as fractions of THIS number
-# (fast=50%, medium=40%, slow=30%) pending that real measurement -- re-derive
-# them once max_speed_mps is properly known, don't just leave them stale
-# against a corrected ceiling. localization.MAX_SPEED_MPS's headroom margin
-# (see the old comment this replaced) needs re-checking against this too.
+max_speed_mps = 0.58
+# BENCH-MEASURED 2026-08-30, robot loaded on the floor, closed loop at the
+# shipped max_duty of 0.5: achieved = 1.042 * commanded + 0.034 m/s, which
+# rails at ~0.58 (commanded 0.56 -> the PID saturates at max_duty and stops
+# regulating). This replaces the 1.0 that stood here from 2026-08-27, which
+# was a feel-based estimate and never a measurement.
+#
+# It is the CLOSED-LOOP ceiling at max_duty = 0.5, not the motor's open-loop
+# maximum (~0.9 m/s at full duty). That is the right number for this field:
+# every consumer treats it as "the fastest the robot can actually be made to
+# go" -- a plausibility bound in the localizer, a clamp in the gateway and the
+# simulator's kinematics -- and none of them ever command full duty. An
+# open-loop figure here would make all three permissive by ~55%.
+#
+# An earlier "~0.45 m/s ceiling" reading is void: it was computed with the
+# wrong encoder counts_per_rev (86, actually 60), so it under-read by the
+# same ratio.
+#
+# INERT for the shipped ladder, deliberately verified rather than assumed:
+# every tier is an ABSOLUTE m/s in motion/speed.toml and the highest of them
+# is open_max at 0.55, so the min() clamps in SpeedControlParams.*_mps() and
+# the simulator's kinematics ceiling do not bind at 0.58 any more than they
+# did at 1.0. The 2026-09-01 Open A/B (639/640) therefore still stands. If a
+# future tier is raised past 0.58 that stops being true, and the clamp will
+# start silently eating the difference.
 
 # Physical acceleration ceiling (m/s^2). NOT MEASURED for this motor -- carried
 # over from the single shared 2.0 that lived in the base robot.toml until

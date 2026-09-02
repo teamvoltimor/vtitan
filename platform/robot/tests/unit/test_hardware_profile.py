@@ -122,11 +122,11 @@ class TestRobotConstantsProfileOverlay:
 
         assert mixed.steering.max_wheel_angle_deg == pytest.approx(55.0)
         # Both literals track the profile files they come from. max_speed_mps
-        # was 0.234 until 3df130e3 raised the estimate to 1.0; the test kept the
-        # old number and has failed since. If a profile is re-measured, this
-        # moves with it -- the assertion is that the NAMED motor's value wins,
-        # not that the value is any particular one.
-        assert mixed.drivetrain.max_speed_mps == pytest.approx(1.0)
+        # was 0.234, then an estimated 1.0, and is 0.58 since the 2026-08-30
+        # bench. If a profile is re-measured, this moves with it -- the
+        # assertion is that the NAMED motor's value wins, not that the value is
+        # any particular one.
+        assert mixed.drivetrain.max_speed_mps == pytest.approx(0.58)
 
     def test_load_default_profile_overlay_leaves_untouched_sections_at_base_values(self, monkeypatch):
         monkeypatch.setenv("VTITAN_HARDWARE_PROFILE", "180deg-injora-14kg,generic-motor-1500rpm")
