@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -46,12 +47,17 @@ from shared.domain.models import ScenarioMetadata  # noqa: E402
 
 from scripts.common.diag_base import print_pool_progress, resolve_jobs, run_pool  # noqa: E402
 from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
+from src.navigation.utils import wrap_angle  # noqa: E402
 from src.simulation.scenario_simulator import ScenarioSimulator  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 _COMMITTED_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
+# Seconds of continuous wall contact allowed before the run is judged a real
+# failure rather than a chassis still working itself clear. Only meaningful
+# with solid walls; the escape being measured IS a sustained scrape.
+_CONTACT_GRACE_S = 8.0
 
 
 def bay_centre(meta: dict[str, Any]) -> tuple[float, float] | None:
@@ -92,9 +98,9 @@ def _tuning_with(changes: dict[str, float]) -> NavigationTuning:
     return replace(base, corridor_follower=updated)
 
 
-def _run_case(payload: tuple[str, bool, int, dict[str, float], bool]) -> dict[str, object]:
+def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool]) -> dict[str, object]:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
-    path_str, in_bay, laps, changes, known_start = payload
+    path_str, in_bay, laps, changes, known_start, solid_walls = payload
     path = Path(path_str)
     raw = json.loads(path.read_text())
 
@@ -111,19 +117,40 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool]) -> dict[st
         moved = True
 
     meta = ScenarioMetadata.model_validate(raw)
-    result = ScenarioSimulator(
+    sim = ScenarioSimulator(
         meta,
         num_laps=laps,
         tuning=_tuning_with(changes),
         seed=raw["scenario_id"],
         blind=True,
         known_start=known_start,
-    ).run()
+        solid_walls=solid_walls,
+    )
+    # Wall contact is legal on OBSTACLES and not on Open, so a scraping escape is
+    # only a real result on this challenge -- which is also the only one with a
+    # parking lot to start in. With solid walls the chassis is stopped by the
+    # wall instead of passing through it, and `allowed_step` then limits the TURN
+    # while keeping the translation, which is what lets a cornered chassis peel
+    # away. Without it the run simply stalls short of contact, which is what
+    # every earlier bay-start number here measured.
+    result = sim.run(contact_grace_s=_CONTACT_GRACE_S if solid_walls else None)
 
+    # Where it STOPPED, not just how far it went. A distance alone cannot tell
+    # "never left the pocket" from "drove out, crossed the corridor and stalled
+    # facing the far wall" -- and those want opposite fixes. Yaw is reported
+    # against the scenario's own start heading, which is parallel to the outer
+    # wall, so ~90 deg means the chassis is broadside to the corridor it is
+    # meant to be driving down.
+    fx, fy, fyaw = result.final_pose
+    sx, sy = start["position"]["x"], start["position"]["y"]
     return {
         "id": raw["scenario_id"],
         "skipped": False,
         "moved": moved,
+        "fx": fx,
+        "fy": fy,
+        "dyaw_deg": math.degrees(abs(wrap_angle(fyaw - start["yaw"]))),
+        "net_m": math.hypot(fx - sx, fy - sy),
         "dist": result.distance_m,
         "laps": result.laps_completed,
         "collided": result.collided,
@@ -141,11 +168,18 @@ def _summarise(name: str, rows: Sequence[dict[str, object]]) -> None:
         return
 
     print(f"\n=== {name} ===")
-    print(f"| {'#':>4} | {'dist m':>7} | {'laps':>4} | {'coll':>4} | {'stuck':>5} | {'t/o':>3} | {'pass':>4} |")
-    print(f"|{'-' * 6}|{'-' * 9}|{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|")
+    print(
+        f"| {'#':>4} | {'dist m':>7} | {'net m':>6} | {'dyaw':>6} | {'end x':>6} | {'end y':>6} | "
+        f"{'laps':>4} | {'coll':>4} | {'stuck':>5} | {'t/o':>3} | {'pass':>4} |"
+    )
+    print(
+        f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|"
+        f"{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
+    )
     for r in sorted(live, key=lambda x: int(x["id"])):  # type: ignore[arg-type]
         print(
-            f"| {r['id']:>4} | {r['dist']:>7.2f} | {r['laps']:>4} | "
+            f"| {r['id']:>4} | {r['dist']:>7.2f} | {r['net_m']:>6.2f} | {r['dyaw_deg']:>6.1f} | "
+            f"{r['fx']:>6.2f} | {r['fy']:>6.2f} | {r['laps']:>4} | "
             f"{'Y' if r['collided'] else '.':>4} | {'Y' if r['stuck'] else '.':>5} | "
             f"{'Y' if r['timed_out'] else '.':>3} | {'Y' if r['pass_side'] else '.':>4} |"
         )
@@ -170,6 +204,22 @@ def main() -> None:
     parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
     parser.add_argument("--corpus", action="store_true", help=f"use {CORPUS_DIR} instead of the committed set")
     parser.add_argument("--scenarios-dir", default=None)
+    parser.add_argument(
+        "--max-frames",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_MAX_FRAMES (in-bay arm only). Ticks the bay-exit maneuver may "
+        "hold control before handing over to CoreNavigator; 0 = forever (shipped). The "
+        "maneuver currently never yields, so the escape ladder has never run from the pocket.",
+    )
+    parser.add_argument(
+        "--solid-walls",
+        action="store_true",
+        help="make walls physically stop the chassis instead of ending the run on contact. "
+        "Touching the outer wall is legal on OBSTACLES (not on Open), and `allowed_step` then "
+        "caps the TURN while keeping the translation, so a cornered chassis can scrape and peel "
+        "away. Without this the probe stalls short of contact and the wall can never help.",
+    )
     parser.add_argument(
         "--parallel-only",
         action="store_true",
@@ -222,6 +272,7 @@ def main() -> None:
             ("BAY_EXIT_STEER_NORM", "steer", args.steer),
             ("BAY_EXIT_REVERSE_M", "rev-dist", args.reverse),
             ("BAY_EXIT_REVERSE_STEER_NORM", "rev-steer", args.rev_steer),
+            ("BAY_EXIT_MAX_FRAMES", "max-frames", args.max_frames),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]
@@ -242,7 +293,7 @@ def main() -> None:
                 arms.append((f"IN-BAY{' ' + label if label else ''} +known_start", True, changes, True))
 
     for name, in_bay, changes, known in arms:
-        payloads = [(str(p), in_bay, args.laps, changes, known) for p in paths]
+        payloads = [(str(p), in_bay, args.laps, changes, known, args.solid_walls) for p in paths]
         rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
         _summarise(name, rows)
 

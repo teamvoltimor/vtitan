@@ -340,6 +340,32 @@ class CorridorFollowerParams(BaseModel):
     not what happens.
     """
 
+    BAY_EXIT_MAX_FRAMES: int = Field(default=0, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))
+    """Ticks the bay-exit maneuver may hold control before handing over. 0 = forever.
+
+    ``BayExit`` is the only maneuver in the stack with no give-up path.
+    ``ParkController`` has ``max_frames``; escape recovery has
+    ``MAX_ESCAPE_FRAMES`` and ``ESCALATE_AFTER_ATTEMPTS``. This one releases
+    only when ``BayExit.is_clear`` reports forward clearance above
+    ``MIN_FORWARD_CLEARANCE_M`` -- which cannot happen while the chassis is
+    boxed in by a fin.
+
+    Measured 2026-09-01 on an in-bay start: ``_exiting_bay`` was True for
+    **600 of 600 ticks** and ``CoreNavigator`` reported ``not_yet_stepped`` for
+    every one of them. The whole recovery repertoire -- retrace-reverse, K-turn
+    escalation, pivot-out-of-wedge, side-correction -- sits behind a gate that
+    never opens, so none of it has ever been tried from the pocket.
+
+    Expiry takes the same path as a clean exit (see the ``is_clear`` branch in
+    the simulator and ``track_navigator_node``): it must fall THROUGH to the
+    direction-settle block, which rebuilds the path and calls ``replace_path``.
+    Releasing without that hands the planner a stale plan still pointing at
+    waypoint 0.
+
+    Ships 0 (unchanged behaviour). Raising it is a real behaviour change on the
+    in-bay start ONLY, which currently scores 0 laps in 64/64 scenarios.
+    """
+
     BAY_WALL_CLEARANCE_M: float = Field(default=0.20, validation_alias=_alias("BAY_WALL_CLEARANCE_M"))
     """How close a side ray has to be to count as "hard against the outer wall".
 

@@ -327,6 +327,7 @@ class ScenarioSimulator(PassSideScorer):
         # first scan, and never revisited -- see _resolve_direction.
         self._bay_start_checked = False
         self._exiting_bay = False
+        self._bay_exit_ticks = 0
         self._bay_exit = BayExit()
         # Speed for the blind corridor-follow that runs before the travel
         # direction settles. Named _creep_speed until 2026-08-09, which was
@@ -547,7 +548,19 @@ class ScenarioSimulator(PassSideScorer):
                 self._exiting_bay = True
 
         just_exited = False
-        if self._exiting_bay and BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning):
+        # A budget expiry releases the maneuver on exactly the same path as a
+        # clean exit, so the fall-through below still rebuilds the plan. Without
+        # a budget `is_clear` is the ONLY release, and it gates on forward
+        # clearance the pocket cannot provide -- measured: 600/600 ticks held,
+        # `CoreNavigator` never stepped once, so no escape behaviour was ever
+        # reachable from an in-bay start.
+        budget = self._tuning.corridor_follower.BAY_EXIT_MAX_FRAMES
+        if self._exiting_bay:
+            self._bay_exit_ticks += 1
+        bay_exit_spent = bool(budget) and self._bay_exit_ticks > budget
+        if self._exiting_bay and (
+            bay_exit_spent or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
+        ):
             # Out of the pocket. Fall THROUGH to the settle block rather than
             # returning: that block is what rebuilds the path for the committed
             # direction and calls replace_path, and skipping it hands the
