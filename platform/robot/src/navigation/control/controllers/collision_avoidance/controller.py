@@ -111,6 +111,7 @@ class CollisionAvoidanceController:
         blind_wedge_left_max_deg: float,
         blind_wedge_right_min_deg: float,
         blind_wedge_right_max_deg: float,
+        ahead_of_bumper: bool = False,
     ):
         """Initialize collision avoidance controller.
 
@@ -175,6 +176,7 @@ class CollisionAvoidanceController:
         self.blind_wedge_left_max_rad = math.radians(blind_wedge_left_max_deg)
         self.blind_wedge_right_min_rad = math.radians(blind_wedge_right_min_deg)
         self.blind_wedge_right_max_rad = math.radians(blind_wedge_right_max_deg)
+        self.ahead_of_bumper = ahead_of_bumper
 
     @classmethod
     def from_tuning(
@@ -220,6 +222,7 @@ class CollisionAvoidanceController:
             blind_wedge_left_max_deg=tuning.lidar_sectors.BLIND_WEDGE_LEFT_MAX_DEG,
             blind_wedge_right_min_deg=tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MIN_DEG,
             blind_wedge_right_max_deg=tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MAX_DEG,
+            ahead_of_bumper=clearance.FORWARD_PATH_AHEAD_OF_BUMPER,
         )
 
     def _forward_path_ranges(
@@ -233,7 +236,8 @@ class CollisionAvoidanceController:
         instance's ``path_half_width`` and ``min_valid_range_m``.
         """
         return _forward_path_ranges(
-            lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m
+            lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m,
+            self.ahead_of_bumper,
         )
 
     def nearest_path_ray(
@@ -249,7 +253,8 @@ class CollisionAvoidanceController:
         ``sectors.forward_path_nearest_ray``.
         """
         return forward_path_nearest_ray(
-            lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m
+            lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m,
+            self.ahead_of_bumper,
         )
 
     def assess_risk(

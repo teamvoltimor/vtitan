@@ -38,6 +38,63 @@ class ClearanceZones(BaseModel):
     FAST_DIST: float = Field(default=1.00, validation_alias=_alias("FAST_DIST"))  # Full speed capability
     PATH_MARGIN: float = Field(default=0.10, validation_alias=_alias("PATH_MARGIN"))  # Forward-path margin
 
+    FORWARD_PATH_AHEAD_OF_BUMPER: bool = Field(
+        default=False, validation_alias=_alias("FORWARD_PATH_AHEAD_OF_BUMPER")
+    )
+    """Require a forward-path return to be ahead of the FRONT BUMPER, not the LIDAR.
+
+    ``_forward_path_ranges`` admits a ray on ``cos(theta) > 0`` -- ahead of the
+    SENSOR. The sensor sits ``RobotSpecs.LIDAR_TO_FRONT_BUMPER`` (2.78 cm)
+    behind the bumper plane, so "ahead of the sensor" includes a band that is
+    physically ALONGSIDE the chassis.
+
+    It only matters at contact range, and there it decides the escape. A ray
+    trips the 0.05 m Obstacles gate at a range below 7.78 cm, and at that range
+    the lateral test (``|r*sin(theta)| < 0.197``) cannot exclude ANY bearing --
+    the largest lateral offset reachable is 7.78 cm. So the forward-path
+    corridor degenerates into the whole forward half-plane exactly where it
+    fires, and a return at 85 deg -- 0.6 cm along-track, i.e. 2.2 cm BEHIND the
+    bumper -- reads as an obstacle dead ahead and triggers a reversing escape
+    at something the robot is not driving into. The cutoff is
+    ``acos(2.78/7.78) = 69 deg``.
+
+    Measured on the 256 corpus 2026-09-02: 82.1% of escape engagements come
+    from this gate, and in every FAILING verdict bucket ~92% of them fire
+    outside +/-10 deg with a median |bearing| of 51-57 deg, while the front
+    cone reads 33-55 cm clear. ``laps-done`` is the only bucket that triggers
+    head-on (16% inside +/-10 deg).
+
+    REFUTED 2026-09-02 on the full 256 corpus, and kept OFF. Do not turn this
+    on. It does exactly what it was designed to -- escapes 19,276 -> 7,730,
+    timeouts 48 -> 20, and the target metric pass-side 122 -> 80 -- and it is
+    still a large net loss:
+
+        pass-side        122 -> 80     clean laps>=3   76 -> 62
+        SIGN collisions    4 -> 97     in-time         47 -> 40
+        wall collisions   17 -> 13     total          22 -> 111
+
+    All 97 sign collisions came back ``masked``, colour ``right``: the router
+    knew about every one of those signs and had its colour correct, and the
+    robot drove into it anyway. So the lateral trigger is LOAD-BEARING. The
+    escape firing at 70-90 deg is the last line of defence against clipping a
+    sign the planner is deliberately passing within ~0.175 m of; suppressing it
+    trades 42 disqualifications for 93 extra collisions.
+
+    The conclusion to carry forward is that this gate is not misfiring. Given
+    that the robot arrives 6.8 cm from a sign at 55-85 deg, reversing is the
+    correct response, and the defect is that it arrives there at all --
+    cross-track error is 4.63 cm median against 5.6 cm of plan margin
+    (2026-09-01). Pass-side is a TRACKING problem and cannot be reduced through
+    the reactive layer.
+
+    Kept rather than deleted so that refutation stays reproducible in-tree:
+    ``diag_sign_sweep.py ahead-of-bumper --corpus``.
+
+    Deliberately a bearing/geometry gate rather than a smaller PATH_MARGIN:
+    the margin is irrelevant at contact range (nothing can reach it), so
+    tightening it would read as a flat sweep.
+    """
+
     FORWARD_NO_DATA_IS_DEGRADED: bool = Field(
         default=True, validation_alias=_alias("FORWARD_NO_DATA_IS_DEGRADED")
     )

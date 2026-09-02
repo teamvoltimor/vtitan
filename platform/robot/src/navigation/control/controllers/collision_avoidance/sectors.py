@@ -144,6 +144,7 @@ def _forward_path_ranges(
     lidar_angles: np.ndarray | tuple[float, ...] | None,
     path_half_width: float,
     min_valid_range_m: float,
+    ahead_of_bumper: bool = False,
 ) -> np.ndarray:
     """Ranges of points ahead of the robot inside its driving lane.
 
@@ -164,7 +165,9 @@ def _forward_path_ranges(
     Measured on hardware 2026-08-28: this is what let ``assess_risk`` report
     SAFE at the exact moment the chassis was closest to a wall.
     """
-    ranges, mask = _forward_path_selection(lidar_ranges, lidar_angles, path_half_width, min_valid_range_m)
+    ranges, mask = _forward_path_selection(
+        lidar_ranges, lidar_angles, path_half_width, min_valid_range_m, ahead_of_bumper
+    )
     return np.asarray(ranges[mask])
 
 
@@ -173,6 +176,7 @@ def _forward_path_selection(
     lidar_angles: np.ndarray | tuple[float, ...] | None,
     path_half_width: float,
     min_valid_range_m: float,
+    ahead_of_bumper: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """The forward-lane ranges and the boolean mask selecting them.
 
@@ -190,7 +194,11 @@ def _forward_path_selection(
     angles = _angles_for(ranges, lidar_angles)
 
     lateral = np.abs(ranges * np.sin(angles))
-    ahead = np.cos(angles) > 0.0
+    # "Ahead" of WHAT. The sensor is the historical answer and is wrong by the
+    # mount offset: it counts a band alongside the chassis as forward path.
+    # See ClearanceZones.FORWARD_PATH_AHEAD_OF_BUMPER.
+    along_track = ranges * np.cos(angles)
+    ahead = along_track > (RobotSpecs.LIDAR_TO_FRONT_BUMPER if ahead_of_bumper else 0.0)
     mask = (
         ahead
         & (lateral < path_half_width)
@@ -215,6 +223,7 @@ def forward_path_nearest_ray(
     lidar_angles: np.ndarray | tuple[float, ...] | None,
     path_half_width: float,
     min_valid_range_m: float,
+    ahead_of_bumper: bool = False,
 ) -> tuple[float, float] | None:
     """Bearing and range of the closest in-path ray, or None if the lane is empty.
 
@@ -230,7 +239,9 @@ def forward_path_nearest_ray(
     12.2 cm sensor offset in here would make the range disagree with the
     ``angle`` it is paired with.
     """
-    ranges, mask = _forward_path_selection(lidar_ranges, lidar_angles, path_half_width, min_valid_range_m)
+    ranges, mask = _forward_path_selection(
+        lidar_ranges, lidar_angles, path_half_width, min_valid_range_m, ahead_of_bumper
+    )
     if not bool(np.any(mask)):
         return None
     angles = _angles_for(ranges, lidar_angles)

@@ -354,6 +354,16 @@ class SweepConfig:
     TOML alone" everywhere else on this dataclass.
     """
 
+    ahead_of_bumper: bool | None = None
+    """Override ``ClearanceZones.FORWARD_PATH_AHEAD_OF_BUMPER`` (shipped False).
+
+    Requires a forward-path return to be ahead of the front BUMPER rather than
+    the LIDAR, which sits 2.78 cm behind it. Only bites at contact range, and
+    there it decides the escape: a ray trips the gate below 7.78 cm, and beyond
+    69 deg such a ray is physically alongside the chassis, not in front of it.
+    See the tuning field for the corpus evidence.
+    """
+
     slow_dist: float | None = None
     """Override ``ClearanceZones.SLOW_DIST`` (shipped 0.25 m). The OBSTACLE-risk
     boundary one rung above ``contact_dist`` -- swept alongside it because
@@ -813,6 +823,7 @@ class SweepConfig:
             CONTACT_DIST=self.contact_dist,
             OBSTACLES_CONTACT_DIST=self.obstacles_contact_dist,
             SLOW_DIST=self.slow_dist,
+            FORWARD_PATH_AHEAD_OF_BUMPER=self.ahead_of_bumper,
         )
         if self.clear_obstacles_contact_dist:
             # Not expressible through `_with`, which drops None by design so
@@ -4705,6 +4716,22 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # (see `SweepConfig.contact_dist`). Row 1 is therefore the PRE-SHIP
     # baseline, not the shipped config; `obstacles-contact-dist` below is where
     # the shipped value is measured.
+    # Does excluding returns that are BESIDE the bumper rather than in front of
+    # it reduce pass-side? The forward-path filter admits a ray on "ahead of the
+    # SENSOR", and the sensor sits 2.78 cm behind the bumper plane, so at the
+    # ranges that trip the gate (<7.78 cm) anything beyond 69 deg is alongside
+    # the chassis. Measured 2026-09-02: 82.1% of escapes come from this gate,
+    # and ~92% of them in every FAILING bucket fire outside +/-10 deg.
+    #
+    # PRE-REGISTERED. Primary: pass-side (122/256 baseline). Guard: wall
+    # collisions (17 baseline) -- the risk is the mirror of the bug, since
+    # something at 70-90 deg is a real hazard when the robot TURNS into it, just
+    # not one a reversing escape addresses. Secondary: clean laps>=3 (76).
+    # Decide on 256, never a subset: this gate did not bind at 16 or 128.
+    "ahead-of-bumper": [
+        SweepConfig("blind, ahead of SENSOR (shipped)", blind=True, ahead_of_bumper=False),
+        SweepConfig("blind, ahead of BUMPER", blind=True, ahead_of_bumper=True),
+    ],
     "escape-gate": [
         SweepConfig("blind, contact 0.10 slow 0.25 (pre-ship)", blind=True, clear_obstacles_contact_dist=True),
         SweepConfig("blind, contact 0.05 slow 0.25", blind=True, contact_dist=0.05, clear_obstacles_contact_dist=True),
