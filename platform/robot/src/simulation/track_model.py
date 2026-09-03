@@ -72,7 +72,19 @@ class ContactSurface(StrEnum):
     OUTER_WALL = "outer_wall"
     INNER_WALL = "inner_wall"
     OBSTACLE = "obstacle"
-    """A traffic sign or parking block, which belongs to neither wall."""
+    """A traffic sign, which the rules let the chassis nudge (9.20)."""
+    PARKING_LOT = "parking_lot"
+    """A parking lot marker fin, which the rules do NOT let it touch at all.
+
+    Split from ``OBSTACLE`` on 2026-09-03. Both are boxes on the mat and were
+    modelled as one surface, so the fins inherited the traffic sign's leniency:
+    ``_score_obstacle_contact`` downgrades a contact to a non-event while the
+    object stays within its 85 mm placement circle, and a fin -- which cannot
+    move at all -- always did. That is exactly inverted. 9.20 lets the vehicle
+    "touch, move or knock down the traffic signs ... while the projection of the
+    traffic sign is within the circle", whereas 9.24.7 ends the round outright
+    when "the robot touches the parking lot limitations".
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +121,13 @@ class ObstacleBox:
     cy: float
     size_x: float
     size_y: float
+    is_parking_lot: bool = False
+    """Whether this box is a lot marker fin rather than a traffic sign.
+
+    They are the same shape and were therefore the same thing to this model, but
+    the rules treat them oppositely -- see :class:`ContactSurface`. Defaulted so
+    every existing construction site keeps meaning "traffic sign".
+    """
 
     @classmethod
     def from_pose(
@@ -119,6 +138,7 @@ class ObstacleBox:
         width: float,
         yaw: float = 0.0,
         tuning: NavigationTuning | None = None,
+        is_parking_lot: bool = False,
     ) -> ObstacleBox:
         """Build a box from a centre pose, swapping extents for a quarter-turn ``yaw``.
 
@@ -127,7 +147,7 @@ class ObstacleBox:
         tuning = get_tuning(tuning)
         quarter_turned = abs(math.cos(yaw)) < tuning.simulation.AXIS_ALIGN_TOLERANCE
         size_x, size_y = (width, length) if quarter_turned else (length, width)
-        return cls(cx=cx, cy=cy, size_x=size_x, size_y=size_y)
+        return cls(cx=cx, cy=cy, size_x=size_x, size_y=size_y, is_parking_lot=is_parking_lot)
 
     def to_box(self, margin: float = 0.0) -> _Box:
         """Return the axis-aligned bounds, optionally grown by ``margin``."""
@@ -168,6 +188,7 @@ def obstacles_from_metadata(metadata: dict, tuning: NavigationTuning | None = No
                     width=ParkingLotSpecs.WIDTH,
                     yaw=float(parking.get(yaw_key, 0.0)),
                     tuning=tuning,
+                    is_parking_lot=True,
                 ),
             )
     return boxes
@@ -317,7 +338,18 @@ class TrackModel:
         if _convex_overlap(corners, self._inner_collision.corners(), yaw):
             return ContactSurface.INNER_WALL
 
-        if any(_convex_overlap(corners, box.corners(), yaw) for box in self._obstacle_boxes):
+        # Fins before signs: a fin ends the round (9.24.7) while a sign may be
+        # nudged (9.20), so reporting OBSTACLE for a simultaneous touch would
+        # hand the fin the sign's leniency -- the very conflation this split
+        # exists to remove.
+        touched = [
+            obstacle
+            for obstacle, box in zip(self._obstacles, self._obstacle_boxes, strict=True)
+            if _convex_overlap(corners, box.corners(), yaw)
+        ]
+        if any(obstacle.is_parking_lot for obstacle in touched):
+            return ContactSurface.PARKING_LOT
+        if touched:
             return ContactSurface.OBSTACLE
         return ContactSurface.NONE
 

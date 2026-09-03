@@ -21,7 +21,9 @@ if TYPE_CHECKING:
 
 TERMINAL_SURFACES: dict[ScenarioType, frozenset[ContactSurface]] = {
     ScenarioType.OPEN: frozenset({ContactSurface.OUTER_WALL}),
-    ScenarioType.OBSTACLES: frozenset({ContactSurface.INNER_WALL, ContactSurface.OBSTACLE}),
+    ScenarioType.OBSTACLES: frozenset(
+        {ContactSurface.INNER_WALL, ContactSurface.OBSTACLE, ContactSurface.PARKING_LOT}
+    ),
 }
 """Which contacts end a run, per challenge.
 
@@ -30,11 +32,20 @@ Obstacles Challenge the *inner* one. Contact with the other wall is still
 recorded in ``SimResult.contact_count`` but does not end the run, so a scrape
 the robot drives out of no longer scores the same as failing to complete.
 
-Obstacles are grouped with the inner wall rather than given a rule of their
-own: knocking a traffic sign or parking block over is a scored failure and only
-exists in the Obstacles Challenge. The user's rule covers walls, so this half
-is an assumption -- if a sign is meant to be a survivable penalty instead, this
-is the one line to change.
+``OBSTACLE`` (a traffic sign) is listed terminal but is SOFTENED downstream by
+``_score_obstacle_contact``, which downgrades a contact to a non-event while the
+sign stays inside its 85 mm placement circle -- rule 9.20. ``PARKING_LOT`` is
+listed alongside it and is NOT softened: 9.24.7 ends the round the moment "the
+robot touches the parking lot limitations". Before 2026-09-03 the fins shared
+``OBSTACLE`` and so inherited a leniency the rules give only to signs.
+
+**``INNER_WALL`` is stricter than the rules and is knowingly left that way.**
+9.18 permits touching a wall that is not moved -- "if the vehicle touches or
+bumps the walls, and the walls are not moved, the vehicle may continue the
+round, and no penalties will be incurred" -- and names only the OPEN challenge's
+outer boundary wall as untouchable. Relaxing it would re-base every Obstacles
+figure in the repo at once, so it is a deliberate decision rather than an
+oversight; see the 2026-09-03 notes.
 """
 
 
