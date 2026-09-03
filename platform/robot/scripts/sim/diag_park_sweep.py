@@ -25,6 +25,11 @@ from shared.domain.models import Pose
 
 from scripts.common.tables import print_table
 from src.navigation.maneuvers.parking import park_controller_from_metadata
+from src.navigation.maneuvers.parking.scoring import (
+    FULL_PARK_POINTS,
+    PARTIAL_PARK_POINTS,
+    score_park,
+)
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
@@ -150,6 +155,21 @@ class ParkSweepOutcome:
     contained: bool
     final: tuple[float, float, float]
     rect: tuple[float, float, float, float]
+    points: int
+    """WRO points for the final pose: 15 (1.8.2), 7 (1.8.3), or 0.
+
+    ``contained`` above is the 15-point test ALONE, which is the only thing this
+    sweep used to report -- and which the chassis cannot satisfy geometrically, so
+    it read 0/240 and parking looked worthless. Partial credit is a separate tier
+    and is what this column exists to expose.
+    """
+    touched_lot: bool
+    """Contacted a fin at ANY point in the run, which voids the points entirely.
+
+    Run-level, not final-pose: the rule stops the robot on contact, so a run that
+    brushes a fin on the way in cannot go on to earn anything, however good the
+    pose it would otherwise have reached.
+    """
 
 
 def _run_one(
@@ -194,6 +214,8 @@ def _run_one(
         hits |= new
 
     rect = _bay_rect(metadata, section)
+    touched_lot = bool(hits & {"block1", "block2"})
+    score = score_park(state.x, state.y, state.yaw, ctrl.zone)
     return ParkSweepOutcome(
         done=done,
         timed_out=ctrl.is_timed_out,
@@ -202,6 +224,8 @@ def _run_one(
         contained=_footprint_contained(state.x, state.y, state.yaw, rect),
         final=(state.x, state.y, state.yaw),
         rect=rect,
+        points=0 if touched_lot else score.points,
+        touched_lot=touched_lot,
     )
 
 
@@ -211,12 +235,13 @@ def report_contacts_and_containment() -> None:
     hit_counts: dict[str, int] = {}
     phase_counts: dict[str, int] = {}
     runs = done_n = contained_n = done_but_not_contained = 0
+    points_total = full_n = partial_n = touched_n = 0
 
     for scenario in all_obstacles_demo_scenarios():
         meta = scenario.metadata
         section = _section_of(meta)
         direction = meta["starting_conditions"]["direction"]
-        s_done = s_contained = 0
+        s_done = s_contained = s_points = 0
         s_hits: dict[str, int] = {}
         for lat_err in _LATERAL_ERRORS:
             for yaw_err in _YAW_ERRORS:
@@ -227,6 +252,11 @@ def report_contacts_and_containment() -> None:
                 contained_n += r.contained
                 s_contained += r.contained
                 done_but_not_contained += r.done and not r.contained
+                points_total += r.points
+                s_points += r.points
+                full_n += r.points == FULL_PARK_POINTS
+                partial_n += r.points == PARTIAL_PARK_POINTS
+                touched_n += r.touched_lot
                 for h in r.hits:
                     hit_counts[h] = hit_counts.get(h, 0) + 1
                     s_hits[h] = s_hits.get(h, 0) + 1
@@ -236,13 +266,19 @@ def report_contacts_and_containment() -> None:
 
         n = len(_LATERAL_ERRORS) * len(_YAW_ERRORS)
         print(
-            f"{scenario.label:<42} done={s_done:>2}/{n} contained={s_contained:>2}/{n} contacts={s_hits or '{}'}",
+            f"{scenario.label:<42} done={s_done:>2}/{n} contained={s_contained:>2}/{n} "
+            f"pts={s_points:>3} contacts={s_hits or '{}'}",
         )
 
     print(f"\nruns={runs}  done={done_n}  footprint_contained_in_bay={contained_n}")
     print(f"reported done but NOT contained = {done_but_not_contained}")
     print(f"contact breakdown={hit_counts}")
     print(f"phase of first contact={phase_counts}")
+    print(
+        f"\nWRO POINTS  total={points_total}  "
+        f"full({FULL_PARK_POINTS})={full_n}  partial({PARTIAL_PARK_POINTS})={partial_n}  "
+        f"touched-a-fin(voided)={touched_n}  of {runs} runs"
+    )
 
 
 def report_straight_in() -> None:

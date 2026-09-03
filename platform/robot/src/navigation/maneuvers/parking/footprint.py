@@ -59,11 +59,59 @@ def footprint_inside(
     return all(lot.contains(Waypoint(cx, cy)) for cx, cy in chassis_corners(rx, ry, robot_yaw))
 
 
+def footprint_overlaps_lot(
+    rx: float,
+    ry: float,
+    robot_yaw: float,
+    zone: ParkZone,
+) -> bool:
+    """Whether ANY part of the chassis projection lies inside the parking lot.
+
+    The partial-credit counterpart to :func:`footprint_inside`. WRO scores parking
+    in two tiers -- 15 points for "completely in the parking area and parallel"
+    (1.8.2) and **7 for "parking partly or not parallel"** (1.8.3) -- and until
+    2026-09-03 nothing in this repo could express the second, so every sweep
+    measured only the tier the chassis geometrically cannot reach.
+
+    A true rectangle-rectangle overlap, not a corner-in-box test: at the headings
+    that matter here the chassis can straddle the lot mouth with no corner of
+    either rectangle inside the other, which a corner test reports as "outside".
+    Separating-axis over both rectangles' edge normals, in the zone's
+    ``(along, depth)`` frame where the lot is axis-aligned.
+    """
+    along_min, along_max = zone.bounds_along()
+    depth_min, depth_max = zone.bounds_depth()
+    chassis = [zone.project(cx, cy) for cx, cy in chassis_corners(rx, ry, robot_yaw)]
+    lot = [
+        (along_min, depth_min),
+        (along_max, depth_min),
+        (along_max, depth_max),
+        (along_min, depth_max),
+    ]
+    # The lot's own normals are the frame axes; the chassis contributes two more.
+    # A gap on ANY axis separates the rectangles, so overlap needs all four to
+    # overlap. Two edges suffice per rectangle -- opposite edges share a normal.
+    axes = [(1.0, 0.0), (0.0, 1.0)]
+    axes += [
+        (chassis[i][1] - chassis[i - 1][1], chassis[i - 1][0] - chassis[i][0])  # edge normal
+        for i in (1, 2)
+    ]
+    for ax, ay in axes:
+        c_lo = min(px * ax + py * ay for px, py in chassis)
+        c_hi = max(px * ax + py * ay for px, py in chassis)
+        l_lo = min(px * ax + py * ay for px, py in lot)
+        l_hi = max(px * ax + py * ay for px, py in lot)
+        if c_hi <= l_lo or l_hi <= c_lo:
+            return False
+    return True
+
+
 def footprint_breaches_wall(
     rx: float,
     ry: float,
     robot_yaw: float,
     zone: ParkZone,
+    standoff_m: float | None = None,
 ) -> bool:
     """Whether any chassis corner has come within the wall standoff of the field wall.
 
@@ -75,13 +123,15 @@ def footprint_breaches_wall(
     the actual rule, nothing stops it any more -- so the maneuver gives up here
     instead of pushing into the wall. Not colliding takes priority over completing
     the park.
+
+    ``standoff_m`` defaults to the controller's safety margin. SCORING must pass
+    ``0.0``: that margin exists to make the maneuver give up early, so scoring
+    through it reports a legal park as a breach.
     """
+    standoff = DEFAULT_PARKING_CONTEXT.constants.wall_standoff_m if standoff_m is None else standoff_m
     for cx, cy in chassis_corners(rx, ry, robot_yaw):
         coord = cx if zone.wall_is_x else cy
-        if (
-            abs(coord - zone.wall_coord) < DEFAULT_PARKING_CONTEXT.constants.wall_standoff_m
-            and is_beyond_lot_centre(coord, zone)
-        ):
+        if abs(coord - zone.wall_coord) < standoff and is_beyond_lot_centre(coord, zone):
             return True
     return False
 
@@ -91,6 +141,7 @@ def footprint_breaches_markers(
     ry: float,
     robot_yaw: float,
     zone: ParkZone,
+    standoff_m: float | None = None,
 ) -> bool:
     """Whether any chassis corner has come within the marker standoff of a fin.
 
@@ -104,8 +155,15 @@ def footprint_breaches_markers(
     A fin flanks the lot along the wall and spans its full depth, so a corner is in
     fin territory when it lies within the lot's depth band and at or past a fin's
     inner face.
+
+    ``standoff_m`` defaults to the controller's safety margin; SCORING passes
+    ``0.0`` -- see :func:`footprint_breaches_wall`. Touching a fin is not merely a
+    collision here: WRO stops the robot and voids ALL parking points for it
+    (ruled 2026-09-03), so this predicate at zero standoff is the scorer's veto.
     """
-    marker_standoff = DEFAULT_PARKING_CONTEXT.constants.marker_standoff_m
+    marker_standoff = (
+        DEFAULT_PARKING_CONTEXT.constants.marker_standoff_m if standoff_m is None else standoff_m
+    )
     depth_min, depth_max = zone.bounds_depth()
     along_min, along_max = zone.bounds_along()
     for cx, cy in chassis_corners(rx, ry, robot_yaw):
