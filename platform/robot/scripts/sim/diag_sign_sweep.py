@@ -67,7 +67,7 @@ from shared.config.constants import (
     TrafficSignSpecs,
 )
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import NavigatorPhase, RiskLevel, Section
+from shared.domain.enums import Direction, NavigatorPhase, RiskLevel, Section
 from shared.domain.models import (
     CorridorWidthEntry,
     CorridorWidths,
@@ -1526,7 +1526,7 @@ def _closest_on_polyline(px: float, py: float, path: list[Any] | None) -> tuple[
     return best
 
 
-def _lane_is_clamped(spec: Any) -> bool | None:
+def _lane_is_clamped(spec: Any, direction: Direction | None) -> bool | None:
     """True if ``clamp_lateral`` binds on this sign's lane plateau.
 
     The split that decides whether any LATERAL widening is reachable at all.
@@ -1545,7 +1545,7 @@ def _lane_is_clamped(spec: Any) -> bool | None:
     collision at one cannot be explained by plan geometry.
     """
     corridor = corridor_for_position(spec.x, spec.y)
-    plateau = _lane_plateau_m(spec, corridor)
+    plateau = _lane_plateau_m(spec, corridor, direction)
     if plateau is None:
         return None
     return abs(plateau - _unclamped_lane_offset_m()) > _CLAMP_BIND_EPS_M
@@ -1560,7 +1560,7 @@ def _unclamped_lane_offset_m() -> float:
     )
 
 
-def _lane_plateau_m(spec: Any, corridor: Section) -> float | None:
+def _lane_plateau_m(spec: Any, corridor: Section, direction: Direction | None) -> float | None:
     """The outward sign-to-lane offset this sign's lane should deliver.
 
     The yardstick the measured offsets are read against, computed per sign
@@ -1569,7 +1569,7 @@ def _lane_plateau_m(spec: Any, corridor: Section) -> float | None:
     sign's own lateral, so a single literal would be wrong for half the corpus
     and would restate config besides.
     """
-    rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+    rule = sign_router_module.pass_side_lateral_axis(corridor, spec.color, direction)
     if rule is None:
         return None
     axis, mult = rule
@@ -1587,6 +1587,9 @@ def _planned_lane_attribution(
 ) -> tuple[bool | None, bool | None, float | None, int | None, float | None]:
     """Describe the struck sign's lane: ``(clamped, boundary, gap, corridors, outward)``.
 
+    Reads the round's TRUE direction off ``sim``: the pass-side rule is
+    travel-relative, so every lane question below is direction-dependent.
+
     The struck sign is identified from its TRUE position, deliberately: unlike
     the mask attribution (a question about what the ROUTER believed, hence
     believed-frame), clamped/boundary are questions about the PLANNED lane's
@@ -1596,6 +1599,9 @@ def _planned_lane_attribution(
     true_signs = sign_router_module.signs_from_metadata(metadata)
     if not true_signs:
         return None, None, None, None, None
+    # TRUE direction of the round: the pass-side rule is travel-relative, so
+    # every lane question below flips with it.
+    direction = sim._start.direction  # noqa: SLF001
     cx, cy = collision_xy
     hit = min(true_signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
     # BELIEVED frame on both sides of the gap measurement. `_waypoints` is the
@@ -1618,11 +1624,11 @@ def _planned_lane_attribution(
     corridors = None if router is None else len({corridor for _, corridor in matches})
     closest = _closest_on_polyline(hit_bx, hit_by, planned_path)
     return (
-        _lane_is_clamped(hit),
+        _lane_is_clamped(hit, direction),
         not _is_middle_sign(hit.x, hit.y),
         None if closest is None else closest[0],
         corridors,
-        _outward_pass_offset(hit, (hit_bx, hit_by), closest, matches[0] if matches else None),
+        _outward_pass_offset(hit, (hit_bx, hit_by), closest, matches[0] if matches else None, direction),
     )
 
 
@@ -1631,6 +1637,7 @@ def _outward_pass_offset(
     believed_xy: tuple[float, float],
     closest: tuple[float, float, float, int] | None,
     matched: tuple[Any, Section] | None,
+    direction: Direction | None,
 ) -> float | None:
     """Signed lateral offset of the plan from the sign, positive = OUTWARD.
 
@@ -1668,7 +1675,7 @@ def _outward_pass_offset(
         corridor = corridor_for_position(spec.x, spec.y)
         color = spec.color
         origin_x, origin_y = believed_xy
-    rule = sign_router_module.outward_lateral_axis(corridor, color)
+    rule = sign_router_module.pass_side_lateral_axis(corridor, color, direction)
     if rule is None:
         return None
     axis, mult = rule
@@ -2941,6 +2948,7 @@ def _lane_branch(
     base_waypoints: list[Waypoint],
     specs: list[tuple[Any, Section]],
     params: SignLaneParams,
+    direction: Direction | None,
     fresh: list[Waypoint] | None = None,
 ) -> _BranchResult:
     """Re-run ``apply_sign_lanes``'s decisions for one sign and name the branch.
@@ -2956,14 +2964,14 @@ def _lane_branch(
     as its own branch instead of being modelled here and folded in twice.
     """
     spec, corridor = specs[index]
-    built = _lane_profile_for(spec, corridor, base_waypoints, specs, params)
+    built = _lane_profile_for(spec, corridor, base_waypoints, specs, params, direction)
     if isinstance(built, LaneBranch):
         # A lane that was never built has no single-group prediction for the
         # full build to differ FROM, so composition is not a question here.
         return _BranchResult(branch=built, compose_m=None, waypoint_index=None)
     target = _lane_group_target(spec, corridor, built)
     return _BranchResult(
-        branch=_lane_delivery_branch(spec, corridor, built),
+        branch=_lane_delivery_branch(spec, corridor, built, direction),
         compose_m=_composition_gap_m(spec, corridor, built, fresh),
         waypoint_index=None if target is None else target[0],
     )
@@ -2975,6 +2983,7 @@ def _lane_profile_for(
     base_waypoints: list[Waypoint],
     specs: list[tuple[Any, Section]],
     params: SignLaneParams,
+    direction: Direction | None,
 ) -> LaneBranch | _LaneProfile:
     """Rebuild this corridor group's lane profile, or name the branch that stopped it.
 
@@ -2988,8 +2997,8 @@ def _lane_profile_for(
         return LaneBranch.MULTI_CORRIDOR
 
     group = [(s, c) for s, c in specs if c is corridor]
-    rule = sign_router_module.outward_lateral_axis(corridor, group[0][0].color)
-    target_rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+    rule = sign_router_module.pass_side_lateral_axis(corridor, group[0][0].color, direction)
+    target_rule = sign_router_module.pass_side_lateral_axis(corridor, spec.color, direction)
     if rule is None or target_rule is None:
         return LaneBranch.NO_RULE
     axis, _ = rule
@@ -3352,6 +3361,7 @@ def _lane_delivery_branch(
     spec: Any,
     corridor: Section,
     built: _LaneProfile,
+    direction: Direction | None,
 ) -> LaneBranch:
     """Name what a successfully-built lane actually delivers at ``spec``.
 
@@ -3364,7 +3374,7 @@ def _lane_delivery_branch(
         return LaneBranch.OFF_PROFILE
     _, want, shifted = target
     sign_lateral, _ = _axis_coords(Waypoint(spec.x, spec.y), built.axis)
-    plateau = _lane_plateau_m(spec, corridor)
+    plateau = _lane_plateau_m(spec, corridor, direction)
     if plateau and built.mult * (shifted - sign_lateral) >= plateau - _LANE_BRANCH_EPS_M:
         return LaneBranch.DELIVERED
     if abs(shifted - want) > _LANE_BRANCH_EPS_M:
@@ -3410,6 +3420,9 @@ def _sample_lane_delivery(
     ramps on either side.
     """
     router = navigator.sign_router
+    # The router's own direction, so this measures the lane against the rule
+    # the routing decision was actually made under.
+    direction = router.direction
     specs = router.lane_specs
     # Built at most once per tick and only if some sign actually samples, since
     # it is a whole-path transform and this runs inside the sweep's hot loop.
@@ -3421,8 +3434,8 @@ def _sample_lane_delivery(
         if gap > _SIGN_PASS_WINDOW_M or (previous is not None and gap >= previous.gap_m):
             continue
         closest = _closest_on_polyline(spec.x, spec.y, plan)
-        outward = _outward_pass_offset(spec, (spec.x, spec.y), closest, (spec, corridor))
-        plateau = _lane_plateau_m(spec, corridor)
+        outward = _outward_pass_offset(spec, (spec.x, spec.y), closest, (spec, corridor), direction)
+        plateau = _lane_plateau_m(spec, corridor, direction)
         if outward is None or not plateau:
             continue
         # Sampled at the same tick as the offset, not once at the end: the
@@ -3439,7 +3452,7 @@ def _sample_lane_delivery(
             # keep a whole-path transform out of the per-sign loop.
             if not rebuilt:
                 fresh, rebuilt = apply_sign_lanes(lane_base, specs, params), True
-            verdict = _lane_branch(index, lane_base, specs, params, fresh)
+            verdict = _lane_branch(index, lane_base, specs, params, direction, fresh)
             branch, compose = verdict.branch, verdict.compose_m
             approach = _approach_offset(plan, verdict.waypoint_index, closest, lane_base)
             if approach is not None:
@@ -3959,6 +3972,10 @@ def _lane_geometry_for(
     width_error: float,
 ) -> list[tuple[float, bool, bool]]:
     """Per sign: ``(approach gap m, closest point in corner box, on an arc)``."""
+    # Taken from the scenario rather than threaded: the pass-side rule is
+    # travel-relative, and this is the one helper here that already holds the
+    # metadata that names the round's direction.
+    direction = meta.starting_conditions.direction
     plan_meta = meta if not width_error else _with_width_error(meta, width_error)
     try:
         base = calculate_waypoints(
@@ -3981,7 +3998,7 @@ def _lane_geometry_for(
     planned = apply_sign_lanes(base, specs, params)
     out: list[tuple[float, bool, bool]] = []
     for spec, corridor in specs:
-        rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+        rule = sign_router_module.pass_side_lateral_axis(corridor, spec.color, direction)
         closest = _closest_on_polyline(spec.x, spec.y, planned)
         if rule is None or closest is None:
             continue
@@ -4152,11 +4169,21 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
                 head_b = [h for smp in got for h in smp.head_boundary]
                 yaw_b = [y for smp in got for y in smp.yaw_boundary]
                 hits = sum(1 for smp in got if smp.collided_with_sign)
+                # Signed radial, carried into the screen 2026-09-03: the pass
+                # error is a SYSTEMATIC OUTWARD BIAS (84.1% outward, +7.53cm
+                # median) rather than scatter, so this -- not |error|, which
+                # hides the sign, and not the pass-side count, which is far too
+                # coarse to screen on -- is the statistic that names the
+                # mechanism. An arm that leaves outward% at 84 has not touched
+                # the thing the boundary collisions come from.
+                radial = [e for smp in got for e in smp.near_outward]
+                out_share = sum(1 for e in radial if e > 0) / len(radial) if radial else 0.0
                 print(
                     f"YAW-SCREEN {arm.label:<38} sign-collisions {hits:>3}/{count}  "
                     f"boundary path-heading {percentile(head_b, 0.5):5.2f}deg "
                     f"(p90 {percentile(head_b, 0.9):5.2f})  "
-                    f"boundary yaw {percentile(yaw_b, 0.5):5.2f}deg",
+                    f"boundary yaw {percentile(yaw_b, 0.5):5.2f}deg  "
+                    f"signed radial {percentile(radial, 0.5) * 100:+6.2f}cm outward {out_share:5.1%}",
                     flush=True,
                 )
             return
@@ -4302,6 +4329,18 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         lookahead_short=v,
         lookahead_long=v * _LOOKAHEAD_MULTIPLIER,
     ),
+    # LONG only, holding SHORT at the shipped 0.16. `lookahead` above moves
+    # both together (short=v, long=2v), which cannot answer whether the
+    # straight-line tracking error is what drives pass-side: the corner value
+    # moves with it and corners are where the other half of the trade lives.
+    # Added 2026-09-03 after an Open sweep found LOOKAHEAD_LONG 0.32 -> 0.24
+    # cutting straight-line |CTE| 6.19cm -> 3.50cm, i.e. from outside the
+    # plan's 5.6cm margin on the tight half of signs to inside it.
+    # Run as `lookahead-long 0.32 0.24 --corpus`; 0.32 IS the shipped value, so
+    # that arm is the baseline and the pair is a clean one-field A/B.
+    # `PursuitParams` has no `for_obstacles_challenge`, so unlike CONTACT_DIST
+    # this override is NOT shadowed on the Obstacles path.
+    "lookahead-long": lambda v: SweepConfig(f"lookahead_long {v:{_FORMAT_2F}}", lookahead_long=v),
     "arc": lambda v: SweepConfig(f"arc_radius {v:{_FORMAT_2F}}", arc_radius=v),
     # Runway the lane takes to move on and off the centreline. The trade is
     # legible from the geometry: too short and the lane reproduces the very
@@ -5375,6 +5414,16 @@ def main() -> None:
     )
     parser.add_argument("--corpus", action="store_true", help=f"shorthand for --scenarios-dir {CORPUS_DIR}")
     parser.add_argument(
+        "--strip-parking",
+        action="store_true",
+        help="delete the parking lot from every arm, leaving the signs physical. Isolates the "
+        "LAP portion of a round from the parking subsystem, which is the half that is being "
+        "actively changed: on 2026-09-03 the same arm scored park 12 then park 30 across two "
+        "invocations while every lap-phase figure (wall, sign, laps, timeouts, pass-side, stuck) "
+        "stayed byte-identical, because parking code changed between them. Use this whenever a "
+        "sweep must stay comparable across TIME rather than only within one invocation.",
+    )
+    parser.add_argument(
         "--arms",
         type=int,
         nargs="+",
@@ -5416,18 +5465,43 @@ def main() -> None:
             if args.mode == "yaw-screen"
             else [SweepConfig("sign-crosstrack", blind=True, sign_lane_planner=True)]
         )
+        # `sign-crosstrack V...` runs one arm per LOOKAHEAD_LONG value, so the
+        # mechanism behind a pass-side result can be checked instead of assumed.
+        # A `lookahead-long` A/B on 2026-09-03 moved pass-side only 111 -> 109
+        # on the 256 corpus, which has two incompatible readings -- the arm
+        # never reduced cross-track here, or it did and pass-side is not
+        # cross-track-driven -- and nothing in the RESULT row separates them
+        # (its crosstrack figures cover CLAMPED signs only, n=4).
+        if args.mode == "sign-crosstrack" and args.values:
+            arms = [replace(arms[0], label=f"sign-crosstrack la_long {v:{_FORMAT_2F}}", lookahead_long=v) for v in args.values]
         # `yaw-screen N` runs only the first N arms. Each arm is a full pass
         # over the scenario set, so screening nine of them against the corpus
         # costs over an hour -- once the fixtures have narrowed the field,
         # re-running the refuted arms buys nothing.
-        if args.values:
+        elif args.values:
             arms = arms[: int(args.values[0])]
-        report_sign_pass_crosstrack(args.workers, [replace(a, scenarios_dir=scenarios_dir) for a in arms])
+        # ...and `--arms` picks them out of order, which is what a PREFIX count
+        # cannot do. The lookahead arms sit at positions 2-3 and were refuted
+        # 2026-09-03 (no effect on boundary yaw, heading, or signed radial), so
+        # reaching the untested steer-rate and arc arms at 7-9 by prefix means
+        # paying for two known-dead passes first. 1-based, matching how the
+        # rows print and how `--arms` already reads for the fixed modes.
+        if args.arms:
+            try:
+                arms = [arms[i - 1] for i in args.arms]
+            except IndexError:
+                parser.error(f"--arms out of range: mode {args.mode!r} has {len(arms)} arm(s)")
+        arms = [replace(a, scenarios_dir=scenarios_dir) for a in arms]
+        if args.strip_parking:
+            arms = [replace(a, strip_parking=True) for a in arms]
+        report_sign_pass_crosstrack(args.workers, arms)
         return
 
     configs = _build_configs(args.mode, args.values)
     if scenarios_dir:
         configs = [replace(c, scenarios_dir=scenarios_dir) for c in configs]
+    if args.strip_parking:
+        configs = [replace(c, strip_parking=True) for c in configs]
     if args.arms:
         # Each arm is a full pass over the scenario set -- four of them against
         # the 256 corpus is ~50 min. Once a mode's equivalence rows have passed,

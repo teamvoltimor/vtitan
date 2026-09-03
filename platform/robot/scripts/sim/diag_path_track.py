@@ -467,6 +467,16 @@ def run_scenario(
             "step": len(rows),
             "x": state.x,
             "y": state.y,
+            # The ONLY per-tick attitude in this file. The believed_*/true_*
+            # columns below are NOT poses -- see the comment on them -- so
+            # without this a reader has no way to tell a corner from a straight,
+            # and a 2026-09-03 attempt to split cross-track error that way
+            # silently measured zero cornering ticks in every run.
+            "yaw": state.yaw,
+            # CONSTANT for the whole run: `belief_offset_poses` is the fixed
+            # anchor PAIR defining the believed->true frame offset (the one
+            # printed as "Initial belief offset" in the header), not the robot's
+            # pose. Named for the frames they define, not for the chassis.
             "believed_x": believed[0],
             "believed_y": believed[1],
             "believed_yaw": believed[2],
@@ -483,6 +493,13 @@ def run_scenario(
             "north_m": _safe_width(widths, Section.NORTH),
             "east_m": _safe_width(widths, Section.EAST),
             "west_m": _safe_width(widths, Section.WEST),
+            # The knob-reached-the-navigator check. A --tuning arm that moves
+            # LOOKAHEAD_* but leaves this column identical did not take effect,
+            # and its flat CTE result means nothing -- three separate constants
+            # have now been A/B'd in this repo while silently never reaching the
+            # navigator at all. Read off the published debug snapshot, so it is
+            # the value pure pursuit actually used, not the one asked for.
+            "lookahead_m": getattr(sim.navigator._debug, "lookahead_distance_m", None),  # noqa: SLF001
             **asdict(_index_probe(sim.navigator)),
         })
 
