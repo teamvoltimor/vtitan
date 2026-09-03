@@ -50,6 +50,7 @@ from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
 from src.navigation.track_geometry import parking_bay_centre  # noqa: E402
 from src.navigation.utils import wrap_angle  # noqa: E402
 from src.simulation.scenario_simulator import ScenarioSimulator  # noqa: E402
+from src.simulation.track_model import ObstacleBox  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -90,6 +91,27 @@ class BayStartRow:
     stuck: bool = False
     timed_out: bool = False
     pass_side: bool = False
+    fin_m: float | None = None
+    """Smallest measured clearance to a lot fin DURING the bay-exit phase.
+
+    The whole legality question in one number. 9.24.7 ends the round when the
+    robot touches the parking lot limitations, and both shipped exits are built
+    around a stall detector that fires ON contact -- so whether the manoeuvre is
+    legal is not a matter of which knob is set but of whether the chassis ever
+    reaches a fin while escaping. Measured over the exit ticks only; the parking
+    phase at the END of a round legitimately approaches the lot and would swamp
+    a whole-run minimum. ``None`` when the scenario has no lot or the exit never
+    ran.
+    """
+    surface: str = ""
+    """Which surface ENDED the run, or "" if contact did not end it.
+
+    A bare ``collided`` flag cannot decide whether an in-bay start is worth its
+    7 points, because the rules do not treat contacts alike: 9.18 lets the
+    vehicle touch a wall it does not move and continue, while 9.24.7 ends the
+    round on the parking lot. Counting them together reads a legal brush as a
+    failure.
+    """
 
 
 def bay_outward_axis(
@@ -147,6 +169,64 @@ def bay_exit_clearance(
     return nearest - ParkingLotSpecs.LENGTH
 
 
+def _chassis_corners(pose: tuple[float, float, float]) -> list[tuple[float, float]]:
+    """The four chassis corners at ``pose`` (world frame)."""
+    x, y, yaw = pose
+    hx, hy = math.cos(yaw), math.sin(yaw)
+    half_l, half_w = RobotSpecs.LENGTH / 2.0, RobotSpecs.WIDTH / 2.0
+    return [
+        (x + sl * half_l * hx - sw * half_w * hy, y + sl * half_l * hy + sw * half_w * hx)
+        for sl, sw in ((1, 1), (1, -1), (-1, -1), (-1, 1))
+    ]
+
+
+def _convex_gap(poly_a: Sequence[tuple[float, float]], poly_b: Sequence[tuple[float, float]]) -> float:
+    """Lower bound on the gap between two convex polygons; negative means overlap.
+
+    The largest separation found over both polygons' edge normals. That is the
+    exact distance when the closest features are edge-to-vertex and an
+    UNDER-estimate when they are vertex-to-vertex, so it never reports more
+    clearance than there is -- the right direction for a margin that has to hold
+    against a rule which ends the round on contact.
+    """
+    best = -math.inf
+    for poly in (poly_a, poly_b):
+        count = len(poly)
+        for i in range(count):
+            (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % count]
+            ax, ay = y2 - y1, x1 - x2
+            norm = math.hypot(ax, ay)
+            if norm == 0.0:
+                continue
+            ax, ay = ax / norm, ay / norm
+            a_lo = min(px * ax + py * ay for px, py in poly_a)
+            a_hi = max(px * ax + py * ay for px, py in poly_a)
+            b_lo = min(px * ax + py * ay for px, py in poly_b)
+            b_hi = max(px * ax + py * ay for px, py in poly_b)
+            best = max(best, max(b_lo - a_hi, a_lo - b_hi))
+    return best
+
+
+def _fin_polygons(raw: dict) -> list[list[tuple[float, float]]]:
+    """The two lot marker fins as polygons, or empty when the scenario has no lot."""
+    parking = raw.get("parking_lot")
+    if not parking:
+        return []
+    polys = []
+    for pos_key, yaw_key in (("block1_position", "block1_yaw"), ("block2_position", "block2_yaw")):
+        block = parking[pos_key]
+        box = ObstacleBox.from_pose(
+            cx=float(block["x"]),
+            cy=float(block["y"]),
+            length=ParkingLotSpecs.LENGTH,
+            width=ParkingLotSpecs.WIDTH,
+            yaw=float(parking.get(yaw_key, 0.0)),
+            is_parking_lot=True,
+        ).to_box()
+        polys.append([(c.x, c.y) for c in box.corners()])
+    return polys
+
+
 def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool, float]) -> BayStartRow:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
     path_str, in_bay, laps, changes, known_start, solid_walls, slide, scrub = payload
@@ -195,9 +275,21 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
     # 26 m driven, final clearance -0.00 m.
     outward = bay_outward_axis(centre, parallel_xy, start["yaw"]) if centre else None
     best_exit_m: float | None = None
+    fins = _fin_polygons(raw)
+    min_fin_m: float | None = None
+    prev_bex = 0
 
     def _observe(state: AckermannState, _scan: LidarScan) -> None:
-        nonlocal best_exit_m
+        nonlocal best_exit_m, min_fin_m, prev_bex
+        # Only ticks the MANOEUVRE drove. `bay_exit_ticks` advances exactly while
+        # it holds control, so a tick that raised it is one it is answerable for
+        # -- and the parking phase later in the round is correctly excluded.
+        bex = sim.bay_exit_ticks
+        if fins and bex > prev_bex:
+            corners = _chassis_corners((state.x, state.y, state.yaw))
+            gap = min(_convex_gap(corners, fin) for fin in fins)
+            min_fin_m = gap if min_fin_m is None else min(min_fin_m, gap)
+        prev_bex = bex
         if centre is None or outward is None:
             return
         clearance = bay_exit_clearance((state.x, state.y, state.yaw), centre, outward)
@@ -233,6 +325,8 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         stuck=result.stuck,
         timed_out=result.timed_out,
         pass_side=result.pass_side_violation,
+        surface=str(result.terminal_surface.value),
+        fin_m=min_fin_m,
     )
 
 
@@ -286,6 +380,29 @@ def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
         f"collided {sum(1 for r in live if r.collided)}  "
         f"stuck {sum(1 for r in live if r.stuck)}"
     )
+    # Split by WHAT ended the run. The rules do not treat contacts alike -- 9.18
+    # lets the vehicle touch a wall it does not move and carry on, 9.24.7 ends
+    # the round on the parking lot -- so a single `collided` total cannot say
+    # whether an in-bay start actually forfeits its 7 points or merely brushed
+    # something legal on the way past.
+    surfaces: dict[str, int] = {}
+    for row in live:
+        if row.collided and row.surface:
+            surfaces[row.surface] = surfaces.get(row.surface, 0) + 1
+    if surfaces:
+        breakdown = "  ".join(f"{name}={count}" for name, count in sorted(surfaces.items()))
+        print(f"  ended by surface: {breakdown}")
+    # The legality verdict. A single touch ends the round and voids the parking
+    # points, so the aggregate that matters is the WORST margin any run got to,
+    # not an average.
+    fins = [r.fin_m for r in live if r.fin_m is not None]
+    if fins:
+        fins.sort()
+        touched = sum(1 for f in fins if f <= 0.0)
+        print(
+            f"  fin clearance during exit: min {fins[0]:.4f} / median {fins[len(fins) // 2]:.4f} m"
+            f"  TOUCHED={touched}/{len(fins)}"
+        )
 
 
 def main() -> None:
