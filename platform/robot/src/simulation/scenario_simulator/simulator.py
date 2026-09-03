@@ -362,7 +362,6 @@ class ScenarioSimulator(PassSideScorer):
         # where the true layout says 21%, and ended 45 of 64 runs where 38
         # genuinely offended. A judge watches the mat, so this does too.
         self._true_signs = signs
-        self._pass_side_closest: dict[int, tuple[float, Waypoint]] = {}
         self._pass_side_engaged: set[int] = set()
         self._pass_side_scored: set[int] = set()
         self._pass_side_wrong: list[int] = []
@@ -957,7 +956,6 @@ class ScenarioSimulator(PassSideScorer):
                 # Each lap passes every sign again and is judged on its own, so
                 # a sign cleared correctly on lap 1 must still be scored on lap
                 # 2. Mirrors SignRouter.reset_for_new_lap.
-                self._pass_side_closest.clear()
                 self._pass_side_engaged.clear()
                 self._pass_side_scored.clear()
 
