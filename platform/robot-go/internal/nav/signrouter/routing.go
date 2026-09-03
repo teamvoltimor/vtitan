@@ -22,19 +22,34 @@ type RoutingKey struct {
 // routingTable is the per-(corridor, direction) routing table, matching
 // routing.py's ROUTING_TABLE. axis: AxisY means deform the y-coordinate,
 // AxisX deforms x. RedMult/GreenMult: +1 or -1 applied to the LATERAL
-// offset, chosen so red always moves the deformed waypoint OUTWARD (away
-// from the inner square) and green always moves it INWARD -- identically
-// for CW and CCW, since outward/inward is a fixed property of the
-// corridor, not the travel direction.
+// offset, chosen so the deformed waypoint moves to the vehicle's own RIGHT
+// of a red pillar and its own LEFT of a green one, for the direction
+// actually driven (rules 2026 9.19).
+//
+// Worked example, so the polarity can be re-derived rather than trusted: on
+// the SOUTH straight a counterclockwise round heads EAST, and the right
+// hand of an east-facing chassis points SOUTH, which is OUTWARD (the south
+// corridor sits at low y, away from the inner square). So CCW red = -1 on
+// Y = outward. A clockwise round drives the same straight heading WEST,
+// whose right hand points NORTH = inward, so CW red = +1. Every CW row is
+// the negation of its CCW partner for exactly this reason -- "the
+// vehicle's right" is a fixed rule that names opposite world directions
+// depending on which way it drives.
+//
+// Corrected 2026-09-03 (Python 879198f7) after reading the official PDF.
+// Between the port and then this table was ABSOLUTE (CW rows identical to
+// CCW), which is right for counterclockwise and backwards for every
+// clockwise round -- every pass-side figure recorded on the absolute table
+// is void.
 var routingTable = map[RoutingKey]RoutingEntry{
 	{trackmodel.South, trackmodel.Counterclockwise}: {AxisY, -1, +1},
 	{trackmodel.North, trackmodel.Counterclockwise}: {AxisY, +1, -1},
 	{trackmodel.East, trackmodel.Counterclockwise}:  {AxisX, +1, -1},
 	{trackmodel.West, trackmodel.Counterclockwise}:  {AxisX, -1, +1},
-	{trackmodel.South, trackmodel.Clockwise}:        {AxisY, -1, +1},
-	{trackmodel.North, trackmodel.Clockwise}:        {AxisY, +1, -1},
-	{trackmodel.East, trackmodel.Clockwise}:         {AxisX, +1, -1},
-	{trackmodel.West, trackmodel.Clockwise}:         {AxisX, -1, +1},
+	{trackmodel.South, trackmodel.Clockwise}:        {AxisY, +1, -1},
+	{trackmodel.North, trackmodel.Clockwise}:        {AxisY, -1, +1},
+	{trackmodel.East, trackmodel.Clockwise}:         {AxisX, -1, +1},
+	{trackmodel.West, trackmodel.Clockwise}:         {AxisX, +1, -1},
 }
 
 // RoutingTable returns a copy of the per-(corridor, direction) routing
@@ -64,23 +79,33 @@ func multForColor(entry RoutingEntry, color SignColor) int {
 	return entry.GreenMult
 }
 
-// OutwardLateralAxis returns the world-frame axis and sign of the
-// pass-side rule for corridor, direction-agnostic, matching
-// outward_lateral_axis. The CLOCKWISE and COUNTERCLOCKWISE rows of
-// routingTable are identical for every section (see routingTable's doc
-// comment), so looking the rule up under a fixed direction is exactly as
-// correct as knowing the real one -- this lets a caller that hasn't
-// inferred the travel direction yet still apply "red outward, green
-// inward".
+// PassSideLateralAxis returns the world-frame axis and sign of the
+// pass-side rule for corridor, matching pass_side_lateral_axis.
+//
+// direction is REQUIRED and may not be guessed. Until the 2026-09-03 fix
+// this was OutwardLateralAxis(corridor, color), which looked the rule up
+// under a fixed CLOCKWISE key and documented itself as direction-agnostic
+// -- true only while the table's CW and CCW rows were identical, which was
+// itself the bug. Under the real travel-relative rule the two rows are
+// negations, so a caller without a settled direction cannot evaluate the
+// rule at all.
+//
+// ok is false when direction has no entry (e.g. a zero-value Direction not
+// in the table) or corridor has no routing entry, which callers must treat
+// as "the pass-side rule is unavailable on this tick" and fall back to
+// generic obstacle avoidance -- a coin-flip between two opposite answers is
+// worse than declining to answer, since a wrong-side pass ENDS THE ROUND
+// under rule 9.24.5 while merely avoiding the sign does not.
 //
 // Returns (axis, multiplier, true) where a positive multiplier along axis
-// points OUTWARD for red, INWARD for green; ok is false if corridor has no
-// routing entry.
-func OutwardLateralAxis(
+// points to the vehicle's own RIGHT for red and its own LEFT for green,
+// expressed in world coordinates for direction.
+func PassSideLateralAxis(
 	corridor trackmodel.Section,
 	color SignColor,
+	direction trackmodel.Direction,
 ) (axis Axis, multiplier int, ok bool) {
-	entry, ok := routingEntry(corridor, trackmodel.Clockwise)
+	entry, ok := routingEntry(corridor, direction)
 	if !ok {
 		return 0, 0, false
 	}
@@ -134,7 +159,7 @@ func CandidateCorridors(x, y float64, cfg Config) []trackmodel.Section {
 // depthViolation is how far outside its corridor's straight this point's
 // DEPTH falls, matching _depth_violation. Zero anywhere along the
 // straight; the along-corridor axis is x for SOUTH/NORTH and y for
-// EAST/WEST -- the axis OutwardLateralAxis does NOT use, since lateral and
+// EAST/WEST -- the axis PassSideLateralAxis does NOT use, since lateral and
 // depth are perpendicular by definition.
 func depthViolation(x, y float64, corridor trackmodel.Section, cfg Config) float64 {
 	depth := x
@@ -183,11 +208,12 @@ func TargetClearance(
 	spec SignSpec,
 	corridor trackmodel.Section,
 	lateralOffsetM float64,
+	direction trackmodel.Direction,
 	cfg Config,
 ) (
 	clearance float64, ok bool,
 ) {
-	axis, permitted, ok := OutwardLateralAxis(corridor, spec.Color)
+	axis, permitted, ok := PassSideLateralAxis(corridor, spec.Color, direction)
 	if !ok {
 		return 0, false
 	}
@@ -206,9 +232,10 @@ func TargetClearance(
 // track -- which would plant a geometrically absurd lane while scoring
 // well on the metric.
 func SatisfiableCorridor(
-	spec SignSpec, corridor trackmodel.Section, lateralOffsetM float64, cfg Config,
+	spec SignSpec, corridor trackmodel.Section, lateralOffsetM float64,
+	direction trackmodel.Direction, cfg Config,
 ) trackmodel.Section {
-	clearance, ok := TargetClearance(spec, corridor, lateralOffsetM, cfg)
+	clearance, ok := TargetClearance(spec, corridor, lateralOffsetM, direction, cfg)
 	if !ok || clearance > 0.0 {
 		return corridor
 	}
@@ -216,7 +243,7 @@ func SatisfiableCorridor(
 		if alternative == corridor {
 			continue
 		}
-		if other, otherOK := TargetClearance(spec, alternative, lateralOffsetM, cfg); otherOK &&
+		if other, otherOK := TargetClearance(spec, alternative, lateralOffsetM, direction, cfg); otherOK &&
 			other > 0.0 {
 			return alternative
 		}

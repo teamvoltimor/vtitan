@@ -79,6 +79,18 @@ func NewSignRouter(
 	return r, nil
 }
 
+// Direction is the travel direction this router routes for, matching the
+// direction property.
+//
+// Exposed so the lane planner uses the SAME direction the routing decision
+// was made under. The pass-side rule is travel-relative, so a lane built
+// from a second, independently-tracked direction can disagree with the
+// routing it is supposed to realise -- and a lane on the wrong side is a
+// round-ender under 9.24.5, not a tracking error.
+func (r *SignRouter) Direction() trackmodel.Direction {
+	return r.direction
+}
+
 // Signs returns the signs currently being routed around, matching the
 // signs property.
 func (r *SignRouter) Signs() []SignSpec {
@@ -283,19 +295,25 @@ func (r *SignRouter) corridorForSpec(spec SignSpec) trackmodel.Section {
 	if !r.config.RelabelUnsatisfiable {
 		return corridor
 	}
-	return SatisfiableCorridor(spec, corridor, r.config.LateralOffsetM, r.config)
+	return SatisfiableCorridor(spec, corridor, r.config.LateralOffsetM, r.direction, r.config)
 }
 
 // recordPassSide decides whether index was cleared on its permitted side,
-// matching _record_pass_side. The permitted side is absolute, fixed by the
-// corridor geometry and the sign color -- red outward, green inward -- and
+// matching _record_pass_side. The permitted side is TRAVEL-RELATIVE -- red
+// is passed on the vehicle's right, green on its left (rules 9.19) -- and
 // is exactly the lateral direction routingTable deforms toward for that
-// color. The robot's lateral coordinate relative to the sign's is compared
-// against it: same sign -> correct side, opposite sign -> wrong-side pass,
-// recorded in wrongSide.
+// color under the direction this round is driven. The robot's lateral
+// coordinate relative to the sign's is compared against it: same sign ->
+// correct side, opposite sign -> wrong-side pass, recorded in wrongSide.
+//
+// The lookup was keyed on a hardcoded Clockwise until the 2026-09-03 fix,
+// which was harmless only while both rows of the table were identical. It
+// is now r.direction: keying a travel-relative rule on a constant
+// direction judges half the rounds against the mirror of the rule they are
+// actually driving.
 func (r *SignRouter) recordPassSide(index int, robotPos trackmodel.Waypoint) {
 	sign := r.signs[index]
-	entry, ok := routingEntry(r.signCorridors[index], trackmodel.Clockwise)
+	entry, ok := routingEntry(r.signCorridors[index], r.direction)
 	if !ok {
 		return
 	}

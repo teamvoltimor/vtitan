@@ -112,6 +112,9 @@ func (n *Navigator) refreshSignLanes() {
 	n.laneFingerprint, n.laneFingerprintSet = fingerprint, true
 
 	previous := n.waypoints
+	// The ROUTER's direction, not the navigator's: the lane must be built
+	// on the same one the pass-side decision was made under.
+	direction := n.signRouter.Direction()
 	n.waypoints = signrouter.ApplySignLanes(
 		n.laneBaseWaypoints,
 		n.signRouter.LaneSpecs(),
@@ -123,6 +126,7 @@ func (n *Navigator) refreshSignLanes() {
 			SkipUnsatisfiable: n.cfg.SignLaneSkipUnsatisfiable,
 			CornerEntryM:      n.cfg.SignLaneCornerEntryM,
 		},
+		&direction,
 		n.signRouterCfg,
 	)
 	n.holdCommittedPath(previous, n.cfg.SignLaneCommitAheadM)

@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 )
@@ -79,100 +80,107 @@ func (s pinDepthScenario) apply(pin signrouter.PinContext) float64 {
 
 // TestApplyDeformation_OffsetDirectionPerSectionColorDirection matches
 // TestDeformationDirections.test_offset_side: 16 cases (4 sections x
-// {red, green} x {CCW, CW}). Red always moves the deformed waypoint OUTWARD
-// (away from the inner square), green always INWARD -- identically for CW
-// and CCW, since this is an absolute property of the track, not the travel
-// direction.
+// {red, green} x {CCW, CW}). geo.redMult is the section's OUTWARD
+// multiplier (CCW), so colorSign says whether this (direction, color) pair
+// should deform outward (+1) or inward (-1). The rule is TRAVEL-RELATIVE --
+// red passes on the vehicle's right -- and the vehicle's right is the
+// outer wall driving COUNTERCLOCKWISE but the inner square driving
+// CLOCKWISE, so the two directions take OPPOSITE signs. They were
+// identical here until the 2026-09-03 fix, which is what let the absolute
+// misreading survive.
 func TestApplyDeformation_OffsetDirectionPerSectionColorDirection(t *testing.T) {
 	t.Parallel()
 
 	cfg := signrouter.DefaultConfig()
-	directions := []trackmodel.Direction{trackmodel.Counterclockwise, trackmodel.Clockwise}
-	colors := []struct {
+	cases := []struct {
+		direction trackmodel.Direction
 		color     signrouter.SignColor
 		colorSign int
 	}{
-		{signrouter.SignColorRed, +1},
-		{signrouter.SignColorGreen, -1},
+		// CCW: the chassis's right hand points OUTWARD.
+		{trackmodel.Counterclockwise, signrouter.SignColorRed, +1},
+		{trackmodel.Counterclockwise, signrouter.SignColorGreen, -1},
+		// CW: it points INWARD, so the same rule inverts in track terms.
+		{trackmodel.Clockwise, signrouter.SignColorRed, -1},
+		{trackmodel.Clockwise, signrouter.SignColorGreen, +1},
 	}
 
 	for _, geo := range deformationSections {
-		for _, direction := range directions {
-			for _, c := range colors {
-				sign := signrouter.SignSpec{X: geo.sx, Y: geo.sy, Color: c.color}
-				result := signrouter.ApplyDeformation(
-					trackmodel.Waypoint{
-						X: geo.sx,
-						Y: geo.sy,
-					},
-					sign,
-					c.color,
-					geo.section,
-					direction,
-					cfg.LateralOffsetM,
-					signrouter.PinContext{},
-					cfg,
-				)
-				offset := float64(geo.redMult*c.colorSign) * cfg.LateralOffsetM
+		for _, c := range cases {
+			direction := c.direction
+			sign := signrouter.SignSpec{X: geo.sx, Y: geo.sy, Color: c.color}
+			result := signrouter.ApplyDeformation(
+				trackmodel.Waypoint{
+					X: geo.sx,
+					Y: geo.sy,
+				},
+				sign,
+				c.color,
+				geo.section,
+				direction,
+				cfg.LateralOffsetM,
+				signrouter.PinContext{},
+				cfg,
+			)
+			offset := float64(geo.redMult*c.colorSign) * cfg.LateralOffsetM
 
-				if geo.axisY {
-					want := expectedLateral(geo.sy+offset, geo.lowSide, cfg)
-					if math.Abs(result.Y-want) > tolerance {
-						t.Errorf(
-							"%v/%v/%v: Y = %v, want %v",
-							geo.section,
-							direction,
-							c.color,
-							result.Y,
-							want,
-						)
-					}
-					if math.Abs(result.X-geo.sx) > tolerance {
-						t.Errorf(
-							"%v/%v/%v: X = %v, want unchanged %v",
-							geo.section,
-							direction,
-							c.color,
-							result.X,
-							geo.sx,
-						)
-					}
-				} else {
-					want := expectedLateral(geo.sx+offset, geo.lowSide, cfg)
-					if math.Abs(result.X-want) > tolerance {
-						t.Errorf("%v/%v/%v: X = %v, want %v", geo.section, direction, c.color, result.X, want)
-					}
-					if math.Abs(result.Y-geo.sy) > tolerance {
-						t.Errorf(
-							"%v/%v/%v: Y = %v, want unchanged %v",
-							geo.section,
-							direction,
-							c.color,
-							result.Y,
-							geo.sy,
-						)
-					}
+			if geo.axisY {
+				want := expectedLateral(geo.sy+offset, geo.lowSide, cfg)
+				if math.Abs(result.Y-want) > tolerance {
+					t.Errorf(
+						"%v/%v/%v: Y = %v, want %v",
+						geo.section,
+						direction,
+						c.color,
+						result.Y,
+						want,
+					)
+				}
+				if math.Abs(result.X-geo.sx) > tolerance {
+					t.Errorf(
+						"%v/%v/%v: X = %v, want unchanged %v",
+						geo.section,
+						direction,
+						c.color,
+						result.X,
+						geo.sx,
+					)
+				}
+			} else {
+				want := expectedLateral(geo.sx+offset, geo.lowSide, cfg)
+				if math.Abs(result.X-want) > tolerance {
+					t.Errorf("%v/%v/%v: X = %v, want %v", geo.section, direction, c.color, result.X, want)
+				}
+				if math.Abs(result.Y-geo.sy) > tolerance {
+					t.Errorf(
+						"%v/%v/%v: Y = %v, want unchanged %v",
+						geo.section,
+						direction,
+						c.color,
+						result.Y,
+						geo.sy,
+					)
 				}
 			}
 		}
 	}
 }
 
-// TestApplyDeformation_PassSideIsAbsoluteAcrossDirections matches
-// TestPassSideRule.test_sign_kept_on_correct_side: red is avoided outward,
-// green inward, for every corridor, in BOTH directions -- pinned as an
-// ABSOLUTE track-relative invariant (not "red on the robot's right", a
-// travel-relative rule that would flip outward/inward between CW and CCW).
-func TestApplyDeformation_PassSideIsAbsoluteAcrossDirections(t *testing.T) {
+// TestApplyDeformation_SignKeptOnCorrectSide matches
+// TestPassSideRule.test_sign_kept_on_correct_side: red is passed on the
+// vehicle's RIGHT, green on its LEFT (rules 2026 9.19), for every
+// corridor, in the direction the round is actually driven. Asserted
+// against the chassis's own heading (racetracker.TravelNormalFor, the
+// production table) rather than a track-frame outward vector, because the
+// two agree counterclockwise and are OPPOSITE clockwise -- which is
+// exactly the bug this replaces (was
+// TestApplyDeformation_PassSideIsAbsoluteAcrossDirections, asserting the
+// absolute form for BOTH directions, so it passed while every clockwise
+// round routed backwards).
+func TestApplyDeformation_SignKeptOnCorrectSide(t *testing.T) {
 	t.Parallel()
 
 	cfg := signrouter.DefaultConfig()
-	outwardDir := map[trackmodel.Section][2]float64{
-		trackmodel.South: {0, -1},
-		trackmodel.North: {0, 1},
-		trackmodel.East:  {1, 0},
-		trackmodel.West:  {-1, 0},
-	}
 	directions := []trackmodel.Direction{trackmodel.Clockwise, trackmodel.Counterclockwise}
 
 	for _, geo := range deformationSections {
@@ -183,22 +191,29 @@ func TestApplyDeformation_PassSideIsAbsoluteAcrossDirections(t *testing.T) {
 					trackmodel.Waypoint{X: geo.sx, Y: geo.sy}, sign, color, geo.section, direction,
 					cfg.LateralOffsetM, signrouter.PinContext{}, cfg,
 				)
-				dir := outwardDir[geo.section]
-				outwardComponent := dir[0]*(result.X-geo.sx) + dir[1]*(result.Y-geo.sy)
-				if color == signrouter.SignColorRed && outwardComponent <= 0 {
+				// The chassis's own right-hand direction for the heading it
+				// drives here: rotating the travel vector by -90 degrees
+				// gives (hy, -hx).
+				heading, ok := racetracker.TravelNormalFor(geo.section, direction)
+				if !ok {
+					t.Fatalf("TravelNormalFor(%v, %v) ok = false", geo.section, direction)
+				}
+				rightX, rightY := heading.NY, -heading.NX
+				rightComponent := rightX*(result.X-geo.sx) + rightY*(result.Y-geo.sy)
+				if color == signrouter.SignColorRed && rightComponent <= 0 {
 					t.Errorf(
-						"%v/%v/red: outward component = %v, want > 0",
+						"%v/%v/red: right component = %v, want > 0 (passed on the vehicle's right)",
 						geo.section,
 						direction,
-						outwardComponent,
+						rightComponent,
 					)
 				}
-				if color == signrouter.SignColorGreen && outwardComponent >= 0 {
+				if color == signrouter.SignColorGreen && rightComponent >= 0 {
 					t.Errorf(
-						"%v/%v/green: outward component = %v, want < 0",
+						"%v/%v/green: right component = %v, want < 0 (passed on the vehicle's left)",
 						geo.section,
 						direction,
-						outwardComponent,
+						rightComponent,
 					)
 				}
 			}

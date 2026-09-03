@@ -3,11 +3,15 @@
 // deformation,config}.py and sign_lane.py: WRO 2026 traffic-sign avoidance
 // for the Obstacles Challenge.
 //
-// Computes lateral waypoint deformations so the robot avoids a red obstacle
-// on its OUTWARD side (toward the outer wall) and a green obstacle on its
-// INWARD side (toward the inner square) -- an absolute rule tied to track
-// geometry, not travel direction: it holds identically whether the round is
-// run clockwise or counterclockwise.
+// Computes lateral waypoint deformations so the robot passes a red obstacle
+// on its own RIGHT and a green obstacle on its own LEFT (rules 2026 9.19)
+// -- a TRAVEL-RELATIVE rule: since the vehicle's right is the outer wall
+// driving counterclockwise and the inner square driving clockwise, the
+// same rule points at opposite world directions between the two, and
+// cannot be evaluated without knowing the travel direction. Corrected
+// 2026-09-03 (Python 879198f7) after two months of an absolute reading
+// (red always outward) that was right for counterclockwise and backwards
+// for every clockwise round.
 //
 // # Scope and deviations from the Python source
 //

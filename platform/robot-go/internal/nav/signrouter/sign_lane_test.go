@@ -16,6 +16,14 @@ const laneSouthBaseY = 0.5
 // covers that).
 var laneTestParams = signrouter.SignLaneParams{LateralOffsetM: 0.28, RampM: 0.70, HoldM: 0.25}
 
+// laneCCW pins these lane assertions to COUNTERCLOCKWISE, matching
+// test_sign_lane.py's _CCW: they were all written under the
+// pre-2026-09-03 absolute rule, which is the counterclockwise answer --
+// so pinning CCW here keeps every expected geometry below valid.
+// Clockwise is the mirror image and is covered by
+// routing_test.go/router_test.go.
+var laneCCW = trackmodel.Counterclockwise
+
 // southStraight builds evenly spaced centerline waypoints spanning the
 // SOUTH corridor's straight, matching test_sign_lane.py's _south_straight.
 func southStraight(t *testing.T, count int) []trackmodel.Waypoint {
@@ -49,7 +57,7 @@ func TestApplySignLanes_EmptySignListReturnsInputPath(t *testing.T) {
 
 	cfg := signrouter.DefaultConfig()
 	path := southStraight(t, 21)
-	got := signrouter.ApplySignLanes(path, nil, laneTestParams, cfg)
+	got := signrouter.ApplySignLanes(path, nil, laneTestParams, &laneCCW, cfg)
 
 	if len(got) != len(path) {
 		t.Fatalf("len(ApplySignLanes()) = %v, want %v", len(got), len(path))
@@ -73,7 +81,7 @@ func TestApplySignLanes_EmptyPathIsHandled(t *testing.T) {
 			Corridor: trackmodel.South,
 		},
 	}
-	got := signrouter.ApplySignLanes(nil, signs, laneTestParams, cfg)
+	got := signrouter.ApplySignLanes(nil, signs, laneTestParams, &laneCCW, cfg)
 	if len(got) != 0 {
 		t.Errorf("ApplySignLanes(nil path) = %v, want empty", got)
 	}
@@ -102,6 +110,7 @@ func TestApplySignLanes_LaneOffsetsToTheRuledSide(t *testing.T) {
 			),
 			[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 			laneTestParams,
+			&laneCCW,
 			cfg,
 		)
 		got := lateralAt(laned, 1.5)
@@ -130,6 +139,7 @@ func TestApplySignLanes_LaneMeetsTheCornerArcOnTheCentreline(t *testing.T) {
 		),
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		laneTestParams,
+		&laneCCW,
 		cfg,
 	)
 	if got := lateralAt(laned, cfg.TrackCornerMinM); math.Abs(got-laneSouthBaseY) > tolerance {
@@ -157,6 +167,7 @@ func TestApplySignLanes_TransitionIsGradualNotAStep(t *testing.T) {
 		),
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		laneTestParams,
+		&laneCCW,
 		cfg,
 	)
 	maxStep := 0.0
@@ -187,6 +198,7 @@ func TestApplySignLanes_TransformIsOneToOneAndOrdered(t *testing.T) {
 		path,
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		laneTestParams,
+		&laneCCW,
 		cfg,
 	)
 
@@ -222,6 +234,7 @@ func TestApplySignLanes_CornerArcWaypointsAreUntouched(t *testing.T) {
 		path,
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		laneTestParams,
+		&laneCCW,
 		cfg,
 	)
 
@@ -252,6 +265,7 @@ func TestApplySignLanes_LaneStaysClearOfTheInnerSquare(t *testing.T) {
 		),
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		laneTestParams,
+		&laneCCW,
 		cfg,
 	)
 	maxY := math.Inf(-1)
@@ -315,6 +329,7 @@ func TestApplySignLanes_WithoutRunwayABoundarySignStepsOffTheArc(t *testing.T) {
 		path,
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		laneTestParams,
+		&laneCCW,
 		cfg,
 	)
 
@@ -339,6 +354,7 @@ func TestApplySignLanes_BorrowedRunwayShrinksTheWorstStep(t *testing.T) {
 		path,
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		laneTestParams,
+		&laneCCW,
 		cfg,
 	)
 	borrowed := signrouter.ApplySignLanes(
@@ -350,6 +366,7 @@ func TestApplySignLanes_BorrowedRunwayShrinksTheWorstStep(t *testing.T) {
 			HoldM:          0.25,
 			CornerEntryM:   0.45,
 		},
+		&laneCCW,
 		cfg,
 	)
 
@@ -385,6 +402,7 @@ func TestApplySignLanes_BorrowingTranslatesTheArcRatherThanFlatteningIt(t *testi
 		path,
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		params,
+		&laneCCW,
 		cfg,
 	)
 
@@ -433,6 +451,7 @@ func TestApplySignLanes_BorrowingNeverCrossesIntoTheNeighbouringCorridor(t *test
 		path,
 		[]signrouter.LaneSpec{{Spec: sign, Corridor: trackmodel.South}},
 		params,
+		&laneCCW,
 		cfg,
 	)
 	if laned[0] != westPoint {
@@ -455,7 +474,7 @@ func TestApplySignLanes_OpposingSignsEachGetTheirOwnSide(t *testing.T) {
 			{Spec: red, Corridor: trackmodel.South},
 			{Spec: green, Corridor: trackmodel.South},
 		},
-		laneTestParams, cfg,
+		laneTestParams, &laneCCW, cfg,
 	)
 
 	if got, want := lateralAt(laned, 1.3), red.Y-laneTestParams.LateralOffsetM; math.Abs(

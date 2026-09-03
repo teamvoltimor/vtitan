@@ -100,11 +100,12 @@ func inLaneSpan(
 // requiring OPPOSITE sides produce an S-bend rather than an averaged,
 // invalid centerline (see the Python docstring).
 func signPlateaux(
-	signs []LaneSpec, corridor trackmodel.Section, axis Axis, params SignLaneParams, cfg Config,
+	signs []LaneSpec, corridor trackmodel.Section, axis Axis, params SignLaneParams,
+	direction trackmodel.Direction, cfg Config,
 ) []controlPoint {
 	var plateaux []controlPoint
 	for _, entry := range signs {
-		_, mult, ok := OutwardLateralAxis(entry.Corridor, entry.Spec.Color)
+		_, mult, ok := PassSideLateralAxis(entry.Corridor, entry.Spec.Color, direction)
 		if !ok {
 			continue
 		}
@@ -187,9 +188,10 @@ func controlPoints(
 	axis Axis,
 	baseLateral float64,
 	params SignLaneParams,
+	direction trackmodel.Direction,
 	cfg Config,
 ) []controlPoint {
-	plateaux := signPlateaux(signs, corridor, axis, params, cfg)
+	plateaux := signPlateaux(signs, corridor, axis, params, direction, cfg)
 	if plateaux == nil {
 		return nil
 	}
@@ -278,9 +280,9 @@ func medianLateral(waypoints []trackmodel.Waypoint, axis Axis, indices, straight
 // matching apply_sign_lanes' per-corridor loop body.
 func applyLaneToCorridor(
 	result []trackmodel.Waypoint, corridor trackmodel.Section, corridorSigns []LaneSpec,
-	params SignLaneParams, cfg Config,
+	params SignLaneParams, direction trackmodel.Direction, cfg Config,
 ) {
-	axis, _, ok := OutwardLateralAxis(corridor, corridorSigns[0].Spec.Color)
+	axis, _, ok := PassSideLateralAxis(corridor, corridorSigns[0].Spec.Color, direction)
 	if !ok {
 		return
 	}
@@ -291,7 +293,7 @@ func applyLaneToCorridor(
 	}
 	baseLateral := medianLateral(result, axis, indices, straight)
 
-	profile := controlPoints(corridorSigns, corridor, axis, baseLateral, params, cfg)
+	profile := controlPoints(corridorSigns, corridor, axis, baseLateral, params, direction, cfg)
 	if profile == nil {
 		return
 	}
@@ -322,12 +324,20 @@ func applyLaneToCorridor(
 // SignCorridors / LaneSpecs, not recomputed here -- a discovery estimate
 // held steady against corner jitter stays steady in the lane too).
 //
+// direction is the round's travel direction, matching apply_sign_lanes'
+// REQUIRED direction parameter -- the pass-side rule is travel-relative,
+// so a lane laid on an unsettled direction would be a wrong-side pass half
+// the time, and that ENDS THE ROUND (9.24.5). nil means the direction is
+// not yet settled (matching Python's direction: Direction | None = None)
+// and yields the conservative "unchanged" answer.
+//
 // Returns a new slice of the same length and order: identical to the
-// input when signs is empty, which is every Open Challenge run.
+// input when signs is empty (every Open Challenge run) or direction is nil.
 func ApplySignLanes(
-	waypointsIn []trackmodel.Waypoint, signs []LaneSpec, params SignLaneParams, cfg Config,
+	waypointsIn []trackmodel.Waypoint, signs []LaneSpec, params SignLaneParams,
+	direction *trackmodel.Direction, cfg Config,
 ) []trackmodel.Waypoint {
-	if len(signs) == 0 || len(waypointsIn) == 0 {
+	if len(signs) == 0 || len(waypointsIn) == 0 || direction == nil {
 		return append([]trackmodel.Waypoint(nil), waypointsIn...)
 	}
 
@@ -343,7 +353,7 @@ func ApplySignLanes(
 	}
 
 	for _, corridor := range corridorOrder {
-		applyLaneToCorridor(result, corridor, byCorridor[corridor], params, cfg)
+		applyLaneToCorridor(result, corridor, byCorridor[corridor], params, *direction, cfg)
 	}
 
 	return result

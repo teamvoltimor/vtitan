@@ -9,10 +9,12 @@ import (
 )
 
 // TestRoutingTable_AxisAndMultiplierPerCorridorAndDirection matches
-// routing.py's ROUTING_TABLE literal: red always moves the deformed
-// waypoint OUTWARD (away from the inner square) and green always INWARD --
-// identically for CW and CCW, since outward/inward is a fixed property of
-// the corridor, not the travel direction (see routingTable's doc comment).
+// routing.py's ROUTING_TABLE literal: the deformed waypoint moves to the
+// vehicle's own RIGHT of red and its own LEFT of green, for the direction
+// actually driven -- which means the CW rows are the NEGATION of the CCW
+// rows (the vehicle's right is the outer wall counterclockwise and the
+// inner square clockwise), not identical to them. See routingTable's doc
+// comment for the worked example.
 func TestRoutingTable_AxisAndMultiplierPerCorridorAndDirection(t *testing.T) {
 	t.Parallel()
 
@@ -39,23 +41,23 @@ func TestRoutingTable_AxisAndMultiplierPerCorridorAndDirection(t *testing.T) {
 		},
 		{Corridor: trackmodel.South, Direction: trackmodel.Clockwise}: {
 			Axis:      signrouter.AxisY,
-			RedMult:   -1,
-			GreenMult: +1,
+			RedMult:   +1,
+			GreenMult: -1,
 		},
 		{Corridor: trackmodel.North, Direction: trackmodel.Clockwise}: {
 			Axis:      signrouter.AxisY,
-			RedMult:   +1,
-			GreenMult: -1,
+			RedMult:   -1,
+			GreenMult: +1,
 		},
 		{Corridor: trackmodel.East, Direction: trackmodel.Clockwise}: {
 			Axis:      signrouter.AxisX,
-			RedMult:   +1,
-			GreenMult: -1,
+			RedMult:   -1,
+			GreenMult: +1,
 		},
 		{Corridor: trackmodel.West, Direction: trackmodel.Clockwise}: {
 			Axis:      signrouter.AxisX,
-			RedMult:   -1,
-			GreenMult: +1,
+			RedMult:   +1,
+			GreenMult: -1,
 		},
 	}
 
@@ -75,13 +77,16 @@ func TestRoutingTable_AxisAndMultiplierPerCorridorAndDirection(t *testing.T) {
 	}
 }
 
-// TestOutwardLateralAxis_AgreesWithRoutingTableRegardlessOfDirection matches
-// TestOutwardLateralAxis.test_matches_routing_table_regardless_of_direction:
-// this lookup must agree with ROUTING_TABLE under EITHER travel direction,
-// since that table's CW/CCW rows are identical by design -- this lets a
-// caller that hasn't inferred the travel direction yet still apply "red
-// outward, green inward".
-func TestOutwardLateralAxis_AgreesWithRoutingTableRegardlessOfDirection(t *testing.T) {
+// TestPassSideLateralAxis_MatchesRoutingTableForItsOwnDirection matches
+// TestPassSideLateralAxis.test_matches_routing_table_for_its_own_direction:
+// the lookup is direction-KEYED, not direction-agnostic -- it must agree
+// with ROUTING_TABLE[(section, direction)] for the SAME direction passed
+// in, not either one. Was TestOutwardLateralAxis, which asserted the
+// lookup gave the same answer for both directions; that held only while
+// ROUTING_TABLE's CW/CCW rows were identical, which was itself the bug
+// (see routingTable's doc comment) -- the old test could not have failed
+// on the bug it was covering, because it asserted the bug.
+func TestPassSideLateralAxis_MatchesRoutingTableForItsOwnDirection(t *testing.T) {
 	t.Parallel()
 
 	sections := []trackmodel.Section{
@@ -103,13 +108,13 @@ func TestOutwardLateralAxis_AgreesWithRoutingTableRegardlessOfDirection(t *testi
 					wantMult = entry.GreenMult
 				}
 
-				gotAxis, gotMult, ok := signrouter.OutwardLateralAxis(section, color)
+				gotAxis, gotMult, ok := signrouter.PassSideLateralAxis(section, color, direction)
 				if !ok {
-					t.Fatalf("OutwardLateralAxis(%v, %v) ok = false", section, color)
+					t.Fatalf("PassSideLateralAxis(%v, %v, %v) ok = false", section, color, direction)
 				}
 				if gotAxis != entry.Axis || gotMult != wantMult {
 					t.Errorf(
-						"OutwardLateralAxis(%v, %v) under direction %v = (%v, %v), want (%v, %v)",
+						"PassSideLateralAxis(%v, %v, %v) = (%v, %v), want (%v, %v)",
 						section,
 						color,
 						direction,
@@ -119,6 +124,41 @@ func TestOutwardLateralAxis_AgreesWithRoutingTableRegardlessOfDirection(t *testi
 						wantMult,
 					)
 				}
+			}
+		}
+	}
+}
+
+// TestPassSideLateralAxis_DirectionsAreOpposite matches
+// TestPassSideLateralAxis.test_directions_are_opposite: the whole point of
+// the fix -- CW and CCW must never agree, since "the vehicle's right"
+// names opposite world directions depending on which way it drives.
+func TestPassSideLateralAxis_DirectionsAreOpposite(t *testing.T) {
+	t.Parallel()
+
+	sections := []trackmodel.Section{
+		trackmodel.South,
+		trackmodel.North,
+		trackmodel.East,
+		trackmodel.West,
+	}
+	colors := []signrouter.SignColor{signrouter.SignColorRed, signrouter.SignColorGreen}
+
+	for _, section := range sections {
+		for _, color := range colors {
+			cwAxis, cwMult, cwOK := signrouter.PassSideLateralAxis(section, color, trackmodel.Clockwise)
+			ccwAxis, ccwMult, ccwOK := signrouter.PassSideLateralAxis(
+				section, color, trackmodel.Counterclockwise,
+			)
+			if !cwOK || !ccwOK {
+				t.Fatalf("PassSideLateralAxis(%v, %v, ...) ok = false", section, color)
+			}
+			if cwAxis != ccwAxis {
+				t.Errorf("%v/%v: axis CW %v != CCW %v, want same corridor same axis",
+					section, color, cwAxis, ccwAxis)
+			}
+			if cwMult != -ccwMult {
+				t.Errorf("%v/%v: multiplier CW %v, CCW %v, want opposites", section, color, cwMult, ccwMult)
 			}
 		}
 	}
