@@ -1,11 +1,26 @@
 """Sign-routing table and pure routing helpers for the WRO 2026 obstacles challenge.
 
-The pass-side rule is absolute, tied to track geometry, not travel direction:
-a red obstacle is cleared on its OUTWARD side (toward the outer wall) and a green
-on its INWARD side. This module holds the per-(corridor, direction) routing table
-and the pure functions that look the rule up, clamp a deformed lateral
-coordinate, test corridor squareness, and extract signs from metadata. No router
-state.
+The pass-side rule is TRAVEL-RELATIVE: the vehicle passes to its own RIGHT of a
+red pillar and to its own LEFT of a green one, in the direction the round is
+being driven. Rules 2026 9.19: "The vehicle must pass the traffic sign
+represented by the red pillar on the right ... and the green pillar on the
+left", restated for back-to-front driving on p38. This module holds the
+per-(corridor, direction) routing table and the pure functions that look the
+rule up, clamp a deformed lateral coordinate, test corridor squareness, and
+extract signs from metadata. No router state.
+
+Because the vehicle's right is the OUTER wall when driving counterclockwise and
+the INNER square when driving clockwise, the same rule inverts in world terms
+between the two directions -- so the CW rows are the negation of the CCW rows,
+and **the rule cannot be evaluated without knowing the travel direction**.
+
+Corrected 2026-09-03 after reading the official PDF. Between 2026-07-05 and then
+this table was ABSOLUTE (red always outward, CW rows identical to CCW), which is
+right for counterclockwise and backwards for every clockwise round. It was
+invisible because ``scenario_simulator/scoring.py`` scored the same absolute
+convention the router drove, so the simulator graded itself against its own
+mistake -- 256-corpus pass-side counts recorded before this date are scored on
+the absolute rule and mean nothing under the real one.
 """
 
 from __future__ import annotations
@@ -32,41 +47,57 @@ BEHIND_TOLERANCE = behind_tolerance_m()
 # Per-(corridor, direction) routing table.
 # axis: Axis.Y means deform the y-coordinate; Axis.X deforms x.
 # red_mult / green_mult: +1 or -1 multiplier applied to the LATERAL offset,
-# chosen so red always moves the deformed waypoint OUTWARD (away from the
-# inner square) and green always moves it INWARD -- identically for CW and
-# CCW, since outward/inward is a fixed property of the corridor, not the
-# travel direction. (An earlier version of this table made the CW rows the
-# world-frame negation of the CCW rows, which instead pinned "red on the
-# robot's right" -- a travel-RELATIVE rule that flips outward/inward between
-# CW and CCW. That was wrong: the official rule is the absolute one above.)
+# chosen so the deformed waypoint moves to the vehicle's own RIGHT of a red
+# pillar and to its own LEFT of a green one, for the direction actually driven.
+#
+# Worked example, so the polarity can be re-derived rather than trusted: on the
+# SOUTH straight a counterclockwise round heads EAST, and the right hand of an
+# east-facing chassis points SOUTH, which is OUTWARD (the south corridor sits at
+# low y, away from the inner square). So CCW red = -1 on Y = outward. A
+# clockwise round drives the same straight heading WEST, whose right hand points
+# NORTH = inward, so CW red = +1. Every CW row is the negation of its CCW
+# partner for exactly this reason -- "the vehicle's right" is a fixed rule that
+# names opposite world directions depending on which way it drives.
 ROUTING_TABLE: dict[tuple[Section, Direction], RoutingEntry] = {
     (Section.SOUTH, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.Y, -1, +1),
     (Section.NORTH, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.Y, +1, -1),
     (Section.EAST, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.X, +1, -1),
     (Section.WEST, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.X, -1, +1),
-    (Section.SOUTH, Direction.CLOCKWISE): RoutingEntry(Axis.Y, -1, +1),
-    (Section.NORTH, Direction.CLOCKWISE): RoutingEntry(Axis.Y, +1, -1),
-    (Section.EAST, Direction.CLOCKWISE): RoutingEntry(Axis.X, +1, -1),
-    (Section.WEST, Direction.CLOCKWISE): RoutingEntry(Axis.X, -1, +1),
+    (Section.SOUTH, Direction.CLOCKWISE): RoutingEntry(Axis.Y, +1, -1),
+    (Section.NORTH, Direction.CLOCKWISE): RoutingEntry(Axis.Y, -1, +1),
+    (Section.EAST, Direction.CLOCKWISE): RoutingEntry(Axis.X, -1, +1),
+    (Section.WEST, Direction.CLOCKWISE): RoutingEntry(Axis.X, +1, -1),
 }
 
 
-def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int] | None:
-    """World-frame axis and sign of the pass-side rule for ``corridor``, direction-agnostic.
+def pass_side_lateral_axis(
+    corridor: Section, color: SignColor, direction: Direction | None
+) -> tuple[Axis, int] | None:
+    """World-frame axis and sign of the pass-side rule for ``corridor``.
 
-    The CLOCKWISE and COUNTERCLOCKWISE rows of ``ROUTING_TABLE`` are identical
-    for every section (see module docstring), so looking the rule up under a fixed
-    direction is exactly as correct as knowing the real one. This lets a caller
-    that hasn't inferred the travel direction yet -- e.g. ``corridor_follower``
-    during BLIND_CREEP -- still apply "red outward, green inward" instead of
-    falling back to generic obstacle avoidance.
+    ``direction`` is REQUIRED and may not be guessed. Until 2026-09-03 this was
+    ``outward_lateral_axis(corridor, color)``, which looked the rule up under a
+    fixed CLOCKWISE key and documented itself as direction-agnostic -- true only
+    while the table's CW and CCW rows were identical, which was itself the bug.
+    Under the real travel-relative rule the two rows are negations, so a caller
+    without a settled direction cannot evaluate the rule at all.
+
+    Returns ``None`` when ``direction`` is unknown, which callers must treat as
+    "the pass-side rule is unavailable on this tick" and fall back to generic
+    obstacle avoidance. That is a real capability loss for BLIND_CREEP, where the
+    direction has not been inferred yet -- but a coin-flip between two opposite
+    answers is worse than declining to answer, because a wrong-side pass ENDS
+    THE ROUND under rule 9.24.5 while merely avoiding the sign does not.
 
     Returns:
         ``(axis, multiplier)`` where a positive multiplier along ``axis`` points
-        OUTWARD (away from the inner square) for red, INWARD for green. ``None``
-        if ``corridor`` has no routing entry.
+        to the vehicle's own RIGHT for red and its own LEFT for green, expressed
+        in world coordinates for ``direction``. ``None`` if ``direction`` is
+        ``None`` or ``corridor`` has no routing entry.
     """
-    entry = ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
+    if direction is None:
+        return None
+    entry = ROUTING_TABLE.get((corridor, direction))
     if entry is None:
         return None
     return entry.axis, entry.red_mult if color == SignColor.RED else entry.green_mult
@@ -131,7 +162,7 @@ def _depth_violation(x: float, y: float, corridor: Section) -> float:
     """How far outside its corridor's straight this point's DEPTH falls.
 
     Zero anywhere along the straight. The along-corridor axis is x for
-    SOUTH/NORTH and y for EAST/WEST -- the axis ``outward_lateral_axis`` does
+    SOUTH/NORTH and y for EAST/WEST -- the axis ``pass_side_lateral_axis`` does
     NOT use, since lateral and depth are perpendicular by definition.
     """
     depth = x if corridor in (Section.SOUTH, Section.NORTH) else y
@@ -173,6 +204,7 @@ def depth_consistent_corridor(x: float, y: float, fallback: Section) -> Section:
 
 
 def target_clearance(spec: SignSpec, corridor: Section, lateral_offset: float,
+                     direction: Direction | None,
                      context: SignRouterContext | None = None) -> float | None:
     """Clearance this corridor's CLAMPED lane target leaves from the sign itself.
 
@@ -181,7 +213,7 @@ def target_clearance(spec: SignSpec, corridor: Section, lateral_offset: float,
     and that bound is on the FORBIDDEN side of the sign, so every point of the
     resulting plateau violates the rule the lane exists to obey.
     """
-    rule = outward_lateral_axis(corridor, spec.color)
+    rule = pass_side_lateral_axis(corridor, spec.color, direction)
     if rule is None:
         return None
     axis, permitted = rule
@@ -191,6 +223,7 @@ def target_clearance(spec: SignSpec, corridor: Section, lateral_offset: float,
 
 
 def satisfiable_corridor(spec: SignSpec, corridor: Section, lateral_offset: float,
+                         direction: Direction | None,
                          context: SignRouterContext | None = None) -> Section:
     """``corridor``, or the corner's OTHER face when this one cannot be satisfied.
 
@@ -208,13 +241,13 @@ def satisfiable_corridor(spec: SignSpec, corridor: Section, lateral_offset: floa
     of the track -- and that would plant a geometrically absurd lane while
     scoring well on the metric.
     """
-    clearance = target_clearance(spec, corridor, lateral_offset, context)
+    clearance = target_clearance(spec, corridor, lateral_offset, direction, context)
     if clearance is None or clearance > 0.0:
         return corridor
     for alternative in candidate_corridors(spec.x, spec.y):
         if alternative == corridor:
             continue
-        other = target_clearance(spec, alternative, lateral_offset, context)
+        other = target_clearance(spec, alternative, lateral_offset, direction, context)
         if other is not None and other > 0.0:
             return alternative
     return corridor

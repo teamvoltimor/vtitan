@@ -48,13 +48,11 @@ from src.navigation.direction_estimator import DirectionEstimator, direction_fro
 from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import (
-    Axis,
     SignRouter,
     SignRouterConfig,
-    outward_lateral_axis,
     signs_from_metadata,
 )
-from src.navigation.planning.waypoints import corridor_for_position, corridor_widths_dict_to_model, plan_believed_path
+from src.navigation.planning.waypoints import corridor_widths_dict_to_model, plan_believed_path
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
@@ -577,11 +575,17 @@ class TrackNavigator(Node, ResettableNode):
         toward whichever side has more LIDAR clearance -- because it never
         sees vision detections and has no notion of sign color. That is
         correct for a plain wall but wrong for a red/green traffic sign,
-        which has a fixed pass-side rule (red outward, green inward) instead.
-        This resolves that rule from the nearest active sign detection using
-        ``outward_lateral_axis`` -- direction-agnostic, so it works even
-        though BLIND_CREEP's whole reason for existing is that the travel
-        direction is not known yet.
+        which has a fixed pass-side rule instead.
+
+        The rule is TRAVEL-RELATIVE -- the vehicle passes to its own RIGHT of a
+        red pillar and its own LEFT of a green one (rules 9.19) -- so in the
+        chassis's own frame it needs no geometry at all: red means steer right,
+        green means steer left. This used to resolve a world-frame axis through
+        ``outward_lateral_axis`` and project it onto the pose, which was only
+        necessary while the rule was (wrongly) modelled as absolute. The
+        body-frame form is also what keeps this usable in BLIND_CREEP, whose
+        whole reason for existing is that the travel direction is not known yet:
+        the world-frame lookup now REQUIRES a direction, but this does not.
 
         Returns:
             A :class:`TurnSide` to override follow_corridor's clearance
@@ -603,13 +607,7 @@ class TrackNavigator(Node, ResettableNode):
                 nearest, nearest_dist = obs, dist
         if nearest is None or nearest_dist > sign_cfg.ACTIVATION_DIST_M:
             return None
-        routing = outward_lateral_axis(corridor_for_position(nearest.world_x_m, nearest.world_y_m), nearest.color)
-        if routing is None:
-            return None
-        axis, mult = routing
-        outward_x, outward_y = (mult, 0.0) if axis is Axis.X else (0.0, mult)
-        left_x, left_y = -math.sin(pose.yaw), math.cos(pose.yaw)
-        return TurnSide.LEFT if (outward_x * left_x + outward_y * left_y) > 0 else TurnSide.RIGHT
+        return TurnSide.RIGHT if nearest.color == SignColor.RED else TurnSide.LEFT
 
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.

@@ -128,6 +128,18 @@ class SignRouter:
             self._sign_map = None
 
     @property
+    def direction(self) -> Direction:
+        """The travel direction this router routes for.
+
+        Exposed so the lane planner uses the SAME direction the routing
+        decision was made under. The pass-side rule is travel-relative, so a
+        lane built from a second, independently-tracked direction can disagree
+        with the routing it is supposed to realise -- and a lane on the wrong
+        side is a round-ender under 9.24.5, not a tracking error.
+        """
+        return self._direction
+
+    @property
     def signs(self) -> list[SignSpec]:
         """Signs currently being routed around — discovered ones included."""
         return list(self._signs)
@@ -197,7 +209,7 @@ class SignRouter:
         settled = self._settled_corridor(index, spec)
         if not self._relabel_unsatisfiable:
             return settled
-        return satisfiable_corridor(spec, settled, self._lateral_offset, self._context)
+        return satisfiable_corridor(spec, settled, self._lateral_offset, self._direction, self._context)
 
     def _settled_corridor(self, index: int, spec: SignSpec) -> Section:
         """Corridor for a refined sign estimate, held steady against jitter.
@@ -257,7 +269,7 @@ class SignRouter:
         corridor = self._geometric_corridor(spec)
         if not self._relabel_unsatisfiable:
             return corridor
-        return satisfiable_corridor(spec, corridor, self._lateral_offset, self._context)
+        return satisfiable_corridor(spec, corridor, self._lateral_offset, self._direction, self._context)
 
     def _geometric_corridor(self, spec: SignSpec) -> Section:
         """Corner tie-break for a sign, on depth rather than nearest face."""
@@ -374,12 +386,18 @@ class SignRouter:
     def _record_pass_side(self, index: int, robot_pos: Waypoint) -> None:
         """Decide whether ``index`` was cleared on its permitted side.
 
-        The permitted side is absolute, fixed by the corridor geometry and the
-        sign colour — red outward, green inward — and is exactly the lateral
-        direction ``ROUTING_TABLE`` deforms toward for that colour. The robot's
-        lateral coordinate relative to the sign's is compared against it: same
-        sign ⇒ correct side, opposite sign ⇒ wrong-side pass, recorded in
-        ``_wrong_side``.
+        The permitted side is TRAVEL-RELATIVE -- red is passed on the vehicle's
+        right, green on its left (rules 9.19) -- and is exactly the lateral
+        direction ``ROUTING_TABLE`` deforms toward for that colour under the
+        direction this round is driven. The robot's lateral coordinate relative
+        to the sign's is compared against it: same sign ⇒ correct side,
+        opposite sign ⇒ wrong-side pass, recorded in ``_wrong_side``.
+
+        The lookup was keyed on a hardcoded ``Direction.CLOCKWISE`` until
+        2026-09-03, which was harmless only while both rows of the table were
+        identical. It is now ``self._direction``: keying a travel-relative rule
+        on a constant direction judges half the rounds against the mirror of
+        the rule they are actually driving.
 
         The comparison uses the robot's position at the instant the sign is
         retired (distance > ``passed_dist``). By then the chassis is ~1.6 m
@@ -388,7 +406,7 @@ class SignRouter:
         — which is precisely the choice of side that the pass represents.
         """
         sign = self._signs[index]
-        entry = ROUTING_TABLE.get((self._sign_corridors[index], Direction.CLOCKWISE))
+        entry = ROUTING_TABLE.get((self._sign_corridors[index], self._direction))
         if entry is None:
             return
         axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult

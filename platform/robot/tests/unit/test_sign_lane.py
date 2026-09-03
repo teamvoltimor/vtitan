@@ -14,13 +14,19 @@ from itertools import pairwise
 
 import pytest
 from shared.config.constants import TrackDimensions
-from shared.domain.enums import Section
+from shared.domain.enums import Direction, Section
 from shared.domain.models import SignColor, Waypoint
 
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.sign_router import SignSpec
 
 _OFFSET = 0.28
+_CCW = Direction.COUNTERCLOCKWISE
+"""These lane assertions were all written under the pre-2026-09-03 absolute rule,
+which is the COUNTERCLOCKWISE answer -- so pinning CCW here keeps every expected
+geometry below valid. Clockwise is the mirror image and is covered by
+``test_sign_router.py::TestPassSideRule``."""
+
 _PARAMS = SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25)
 
 # SOUTH corridor: depth is x, lateral is y, and the inner square is above, so
@@ -44,10 +50,10 @@ class TestNoSigns:
 
     def test_empty_sign_list_returns_input_path(self) -> None:
         path = _south_straight()
-        assert apply_sign_lanes(path, [], _PARAMS) == path
+        assert apply_sign_lanes(path, [], _PARAMS, _CCW) == path
 
     def test_empty_path_is_handled(self) -> None:
-        assert apply_sign_lanes([], [(SignSpec(x=1.5, y=0.5, color=SignColor.RED), Section.SOUTH)], _PARAMS) == []
+        assert apply_sign_lanes([], [(SignSpec(x=1.5, y=0.5, color=SignColor.RED), Section.SOUTH)], _PARAMS, _CCW) == []
 
 
 class TestPassSide:
@@ -59,7 +65,7 @@ class TestPassSide:
     )
     def test_lane_offsets_to_the_ruled_side(self, color: SignColor, expected_sign: int) -> None:
         sign = SignSpec(x=1.5, y=0.5, color=color)
-        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS)
+        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS, _CCW)
         assert _lateral_at(laned, 1.5) == pytest.approx(sign.y + expected_sign * _OFFSET, abs=0.02)
 
     def test_lane_meets_the_corner_arc_on_the_centreline(self) -> None:
@@ -74,7 +80,7 @@ class TestPassSide:
         only passes if the ramp compresses rather than truncates.
         """
         sign = SignSpec(x=1.5, y=0.5, color=SignColor.RED)
-        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS)
+        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS, _CCW)
         assert _lateral_at(laned, TrackDimensions.CORNER_MIN) == pytest.approx(_SOUTH_BASE_Y)
         assert _lateral_at(laned, TrackDimensions.CORNER_MAX) == pytest.approx(_SOUTH_BASE_Y)
 
@@ -88,7 +94,7 @@ class TestPassSide:
         back.
         """
         sign = SignSpec(x=1.5, y=0.5, color=SignColor.RED)
-        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS)
+        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS, _CCW)
         steps = [abs(b.y - a.y) for a, b in pairwise(laned)]
         assert max(steps) < _OFFSET / 2
 
@@ -98,7 +104,7 @@ class TestPathInvariants:
 
     def test_transform_is_one_to_one_and_ordered(self) -> None:
         path = _south_straight()
-        laned = apply_sign_lanes(path, [(SignSpec(x=1.5, y=0.5, color=SignColor.RED), Section.SOUTH)], _PARAMS)
+        laned = apply_sign_lanes(path, [(SignSpec(x=1.5, y=0.5, color=SignColor.RED), Section.SOUTH)], _PARAMS, _CCW)
         assert len(laned) == len(path)
         # Depth (the coordinate that orders the path) is never touched.
         assert [wp.x for wp in laned] == [wp.x for wp in path]
@@ -107,14 +113,14 @@ class TestPathInvariants:
         """Arc points sit outside [CORNER_MIN, CORNER_MAX] in depth and must not move."""
         arc = [Waypoint(0.8, 0.42), Waypoint(2.2, 0.42)]
         path = [*arc[:1], *_south_straight(), *arc[1:]]
-        laned = apply_sign_lanes(path, [(SignSpec(x=1.1, y=0.5, color=SignColor.RED), Section.SOUTH)], _PARAMS)
+        laned = apply_sign_lanes(path, [(SignSpec(x=1.1, y=0.5, color=SignColor.RED), Section.SOUTH)], _PARAMS, _CCW)
         assert laned[0] == arc[0]
         assert laned[-1] == arc[1]
 
     def test_lane_stays_clear_of_the_inner_square(self) -> None:
         """A green sign hard against the inner square must not command a lane inside it."""
         sign = SignSpec(x=1.5, y=TrackDimensions.CORNER_MIN - 0.05, color=SignColor.GREEN)
-        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS)
+        laned = apply_sign_lanes(_south_straight(), [(sign, Section.SOUTH)], _PARAMS, _CCW)
         assert max(wp.y for wp in laned) < TrackDimensions.CORNER_MIN
 
 
@@ -141,7 +147,7 @@ class TestCornerEntry:
         full offset while the arc point immediately before it has not moved.
         """
         path = self._with_arc()
-        laned = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], _PARAMS)
+        laned = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], _PARAMS, _CCW)
         step_at_arc_join = abs(laned[3].y - laned[2].y)
         assert step_at_arc_join > 0.15
 
@@ -154,11 +160,12 @@ class TestCornerEntry:
         which is what the chassis actually has to track.
         """
         path = self._with_arc()
-        confined = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], _PARAMS)
+        confined = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], _PARAMS, _CCW)
         borrowed = apply_sign_lanes(
             path,
             [(self._BOUNDARY, Section.SOUTH)],
             SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25, corner_entry_m=0.45),
+            _CCW,
         )
         worst_confined = max(abs(b.y - a.y) for a, b in pairwise(confined))
         worst_borrowed = max(abs(b.y - a.y) for a, b in pairwise(borrowed))
@@ -175,7 +182,7 @@ class TestCornerEntry:
         """
         path = self._with_arc()
         params = SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25, corner_entry_m=0.45)
-        laned = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], params)
+        laned = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], params, _CCW)
         arc_before = [wp.y for wp in path[:3]]
         arc_after = [wp.y for wp in laned[:3]]
         assert len(set(arc_after)) == len(set(arc_before)), "arc points must not collapse onto one line"
@@ -186,7 +193,7 @@ class TestCornerEntry:
         """The lateral test does not widen with the depth test, so the borrow self-limits."""
         path = [Waypoint(0.4, 1.4), *self._with_arc()]  # a WEST-corridor point
         params = SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25, corner_entry_m=0.90)
-        laned = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], params)
+        laned = apply_sign_lanes(path, [(self._BOUNDARY, Section.SOUTH)], params, _CCW)
         assert laned[0] == path[0]
 
 
@@ -200,6 +207,7 @@ class TestTwoSigns:
             _south_straight(41),
             [(red, Section.SOUTH), (green, Section.SOUTH)],
             _PARAMS,
+            _CCW,
         )
         assert _lateral_at(laned, 1.3) == pytest.approx(red.y - _OFFSET, abs=0.03)
         assert _lateral_at(laned, 2.0) == pytest.approx(green.y + _OFFSET, abs=0.03)

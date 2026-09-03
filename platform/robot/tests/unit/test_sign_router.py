@@ -30,7 +30,7 @@ from src.navigation.planning.sign_router import (
     SignRouterConfig,
     SignRouterContext,
     SignSpec,
-    outward_lateral_axis,
+    pass_side_lateral_axis,
 )
 from src.navigation.planning.sign_router.config import (
     CHASSIS_HALF_DIAGONAL,
@@ -40,6 +40,7 @@ from src.navigation.planning.sign_router.deformation import (
     match_detection_to_sign,
 )
 from src.navigation.planning.sign_router.routing import ROUTING_TABLE, depth_consistent_corridor
+from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.planning.waypoints import corridor_for_position
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
@@ -97,8 +98,19 @@ def router_config(tuning_constants):
 # Helper
 
 
-def _router(signs: list[SignSpec], config: SignRouterConfig) -> SignRouter:
-    return SignRouter(signs, config=config)
+def _router(
+    signs: list[SignSpec],
+    config: SignRouterConfig,
+    direction: Direction = Direction.COUNTERCLOCKWISE,
+) -> SignRouter:
+    """Build a router for one test case.
+
+    ``direction`` matters since 2026-09-03: the pass-side rule is
+    travel-relative, so a router left on the default CCW judges a clockwise
+    case against the wrong half of ``ROUTING_TABLE``. It was safe to omit only
+    while the table's two directions were identical, which was the bug.
+    """
+    return SignRouter(signs, config=config, direction=direction)
 
 
 def _sign_at(x: float, y: float, color: str) -> SignSpec:
@@ -134,19 +146,29 @@ _SECTION_GEOMETRY = {
 class TestDeformationDirections:
     """16 cases: 4 sections x {red, green} x {CCW, CW}.
 
-    Red always moves the deformed waypoint OUTWARD (away from the inner
-    square), green always INWARD — identically for CW and CCW, since this is
-    an absolute property of the track, not the travel direction.
+    ``red_mult`` in ``_SECTION_GEOMETRY`` is the section's OUTWARD multiplier,
+    so ``color_sign`` says whether this (direction, colour) pair should deform
+    outward (+1) or inward (-1). The rule is travel-relative -- red passes on
+    the vehicle's right -- and the vehicle's right is the outer wall driving
+    COUNTERCLOCKWISE but the inner square driving CLOCKWISE, so **the two
+    directions take opposite signs**.
+
+    They were identical here until 2026-09-03, which is what let the absolute
+    misreading survive: this table asserted red-outward for both directions,
+    the routing table implemented it, and the pair agreed with each other while
+    disagreeing with rules 9.19.
     """
 
     @pytest.mark.parametrize("section", list(_SECTION_GEOMETRY))
     @pytest.mark.parametrize(
         ("direction", "color", "color_sign"),
         [
+            # CCW: the chassis's right hand points OUTWARD.
             (Direction.COUNTERCLOCKWISE, "red", +1),
             (Direction.COUNTERCLOCKWISE, "green", -1),
-            (Direction.CLOCKWISE, "red", +1),
-            (Direction.CLOCKWISE, "green", -1),
+            # CW: it points INWARD, so the same rule inverts in track terms.
+            (Direction.CLOCKWISE, "red", -1),
+            (Direction.CLOCKWISE, "green", +1),
         ],
     )
     def test_offset_side(self, section, direction, color, color_sign, router_config):
@@ -165,21 +187,41 @@ class TestDeformationDirections:
             assert ry == pytest.approx(sy)
 
 
-class TestOutwardLateralAxis:
-    """Direction-agnostic lookup that lets BLIND_CREEP apply the pass-side
-    rule before the travel direction is inferred -- see
-    [[sign_router_blind_creep_gap_2026_08_13]]. Must agree with
-    ``ROUTING_TABLE`` under either direction, since that table's CW/CCW rows
-    are identical by design (see ``TestDeformationDirections``).
+class TestPassSideLateralAxis:
+    """Direction-KEYED lookup of the travel-relative pass-side rule.
+
+    Was ``TestOutwardLateralAxis``, asserting the lookup gave the same answer
+    for both directions. That held only while ``ROUTING_TABLE``'s CW and CCW
+    rows were identical, which was the 2026-07-05 bug: the real rule is
+    travel-relative (9.19), so the rows are negations and the lookup MUST be
+    keyed on direction. The old test could not have failed on the bug it was
+    covering, because it asserted the bug.
     """
 
     @pytest.mark.parametrize("section", list(Section))
     @pytest.mark.parametrize("color", [SignColor.RED, SignColor.GREEN])
     @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
-    def test_matches_routing_table_regardless_of_direction(self, section, color, direction):
+    def test_matches_routing_table_for_its_own_direction(self, section, color, direction):
         entry = ROUTING_TABLE[(section, direction)]
         expected_mult = entry.red_mult if color == SignColor.RED else entry.green_mult
-        assert outward_lateral_axis(section, color) == (entry.axis, expected_mult)
+        assert pass_side_lateral_axis(section, color, direction) == (entry.axis, expected_mult)
+
+    @pytest.mark.parametrize("section", list(Section))
+    @pytest.mark.parametrize("color", [SignColor.RED, SignColor.GREEN])
+    def test_directions_are_opposite(self, section, color):
+        """The whole point of the fix: CW and CCW must never agree."""
+        cw = pass_side_lateral_axis(section, color, Direction.CLOCKWISE)
+        ccw = pass_side_lateral_axis(section, color, Direction.COUNTERCLOCKWISE)
+        assert cw is not None
+        assert ccw is not None
+        assert cw[0] == ccw[0], "same corridor, same lateral axis"
+        assert cw[1] == -ccw[1], "opposite multiplier -- 'the vehicle's right' inverts with heading"
+
+    @pytest.mark.parametrize("color", [SignColor.RED, SignColor.GREEN])
+    def test_unknown_direction_declines_to_answer(self, color):
+        """None, not a guess: a coin-flip here is a wrong-side pass half the
+        time, and that ends the round under 9.24.5."""
+        assert pass_side_lateral_axis(Section.SOUTH, color, None) is None
 
 
 # 2. 36-scenario routing
@@ -1201,14 +1243,19 @@ _OUTWARD_DIR = {
 
 
 class TestPassSideRule:
-    """Red is avoided outward, green inward — for every corridor, in BOTH directions.
+    """Red is passed on the vehicle's RIGHT, green on its LEFT — travel-relative.
 
-    This pins the official WRO pass-side rule as an ABSOLUTE, track-relative
-    invariant: it must hold identically whether the round is driven clockwise
-    or counterclockwise, so a future edit cannot silently make it
-    direction-dependent again (an earlier version of this table pinned "red on
-    the robot's right" instead — a travel-relative rule that flips outward and
-    inward between CW and CCW, which is not the actual official rule).
+    Pins the official rule as rules 2026 9.19 states it: "the red pillar must be
+    passed from the right; the green pillar must be passed from the left", in
+    the direction the round is actually driven. Asserted against the chassis's
+    own heading (``TRAVEL_DIRS``, the production table) rather than a
+    track-frame outward vector, because the two agree counterclockwise and are
+    OPPOSITE clockwise -- which is exactly the bug this replaces.
+
+    Between 2026-07-05 and 2026-09-03 this test asserted the absolute form ("red
+    must be avoided on the outward side") for BOTH directions, so it passed
+    while every clockwise round routed backwards. A test written from the same
+    misreading as the code cannot catch the misreading.
     """
 
     @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
@@ -1227,12 +1274,15 @@ class TestPassSideRule:
             direction,
             SIGN_LATERAL_OFFSET,
         )
-        ox, oy = _OUTWARD_DIR[section]
-        outward_component = ox * (wx - sign.x) + oy * (wy - sign.y)
+        # The chassis's own right-hand direction for the heading it drives here:
+        # rotating the travel vector by -90 degrees gives (hy, -hx).
+        heading = TRAVEL_DIRS[(section, direction)]
+        right_x, right_y = heading.ny, -heading.nx
+        right_component = right_x * (wx - sign.x) + right_y * (wy - sign.y)
         if color == "red":
-            assert outward_component > 0, "red must be avoided on the outward side"
+            assert right_component > 0, "red must be passed on the vehicle's right"
         else:
-            assert outward_component < 0, "green must be avoided on the inward side"
+            assert right_component < 0, "green must be passed on the vehicle's left"
 
 
 # 7. Minimum edge-to-edge clearance from the sign's own footprint
@@ -1250,9 +1300,14 @@ class TestWrongSidePassDetection:
 
     The simulator stops the run on ``wrong_side_violations`` exactly as it does
     on a forbidden wall contact, so this pins that the router reports the miss
-    in the first place: red must be cleared OUTWARD, green INWARD, and the side
-    is judged from the robot's lateral coordinate relative to the sign's at the
-    instant it is passed. A pass on the permitted side is NOT a violation.
+    in the first place: red is passed on the vehicle's RIGHT and green on its
+    LEFT, and the side is judged from the robot's lateral coordinate relative
+    to the sign's at the instant it is passed. A pass on the permitted side is
+    NOT a violation.
+
+    The permitted side is read out of ``ROUTING_TABLE`` for the case's own
+    direction, and the router is BUILT for that direction -- both halves matter
+    now that the two directions are negations of each other.
     """
 
     @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
@@ -1267,7 +1322,7 @@ class TestWrongSidePassDetection:
             robot = (sx, sy + permitted * 0.3)
         else:
             robot = (sx + permitted * 0.3, sy)
-        router = _router([_sign_at(sx, sy, color)], router_config)
+        router = _router([_sign_at(sx, sy, color)], router_config, direction)
         router._sign_corridors = [corridor_for_position(sx, sy)]
         router._engaged = {0}
         router._record_pass_side(0, Waypoint(*robot))
@@ -1284,7 +1339,7 @@ class TestWrongSidePassDetection:
             robot = (sx, sy + forbidden * 0.3)
         else:
             robot = (sx + forbidden * 0.3, sy)
-        router = _router([_sign_at(sx, sy, color)], router_config)
+        router = _router([_sign_at(sx, sy, color)], router_config, direction)
         router._sign_corridors = [corridor_for_position(sx, sy)]
         router._engaged = {0}
         router._record_pass_side(0, Waypoint(*robot))

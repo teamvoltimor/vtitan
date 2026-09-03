@@ -93,10 +93,10 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 from shared.config.constants import TrackDimensions
-from shared.domain.enums import Section
+from shared.domain.enums import Direction, Section
 from shared.domain.models import SignColor, Waypoint
 
-from src.navigation.planning.sign_router import Axis, SignSpec, clamp_lateral, outward_lateral_axis
+from src.navigation.planning.sign_router import Axis, SignSpec, clamp_lateral, pass_side_lateral_axis
 
 __all__ = ["SignLaneParams", "apply_sign_lanes"]
 
@@ -220,6 +220,7 @@ def _control_points(
     axis: Axis,
     base_lateral: float,
     params: SignLaneParams,
+    direction: Direction | None,
 ) -> list[tuple[float, float]]:
     """Piecewise-linear ``(depth, lateral)`` profile for one corridor's lane.
 
@@ -243,7 +244,7 @@ def _control_points(
     """
     plateaux: list[tuple[float, float]] = []
     for spec, sign_corridor in signs:
-        rule = outward_lateral_axis(sign_corridor, SignColor(spec.color))
+        rule = pass_side_lateral_axis(sign_corridor, SignColor(spec.color), direction)
         if rule is None:
             continue
         _, mult = rule
@@ -335,6 +336,7 @@ def apply_sign_lanes(
     waypoints: list[Waypoint],
     signs: list[tuple[SignSpec, Section]],
     params: SignLaneParams,
+    direction: Direction | None,
 ) -> list[Waypoint]:
     """Return ``waypoints`` with each signed corridor's straight shifted onto its pass-side lane.
 
@@ -345,6 +347,13 @@ def apply_sign_lanes(
             not recomputed here, so a discovery estimate that has been held
             steady against corner jitter stays steady in the lane too.
         params: Lane geometry.
+        direction: The round's travel direction. REQUIRED because the pass-side
+            rule is travel-relative -- the vehicle passes to its own right of a
+            red pillar, which is the outer wall counterclockwise and the inner
+            square clockwise. ``None`` (direction not yet settled) makes every
+            lane unbuildable and returns the path unchanged, which is the
+            correct conservative answer: a lane laid on a guessed direction is
+            a wrong-side pass half the time, and that ENDS THE ROUND (9.24.5).
 
     Returns:
         A new list of the same length and order. Identical to the input when
@@ -359,7 +368,7 @@ def apply_sign_lanes(
         by_corridor.setdefault(entry[1], []).append(entry)
 
     for corridor, corridor_signs in by_corridor.items():
-        rule = outward_lateral_axis(corridor, SignColor(corridor_signs[0][0].color))
+        rule = pass_side_lateral_axis(corridor, SignColor(corridor_signs[0][0].color), direction)
         if rule is None:
             continue
         axis, _ = rule
@@ -382,7 +391,7 @@ def apply_sign_lanes(
         laterals = sorted(_axis_coords(result[i], axis)[0] for i in (straight or indices))
         base_lateral = laterals[len(laterals) // 2]
 
-        profile = _control_points(corridor_signs, corridor, axis, base_lateral, params)
+        profile = _control_points(corridor_signs, corridor, axis, base_lateral, params, direction)
         if not profile:
             continue
 

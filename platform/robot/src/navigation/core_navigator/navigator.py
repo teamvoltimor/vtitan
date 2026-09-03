@@ -469,6 +469,9 @@ class CoreNavigator(EscapeRecovery):
                 split_overlap=sr.SIGN_LANE_SPLIT_OVERLAP,
                 corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
             ),
+            # The ROUTER's direction, not the navigator's: the lane must be
+            # built on the same one the pass-side decision was made under.
+            router.direction,
         )
         self._hold_committed_path(previous, sr.SIGN_LANE_COMMIT_AHEAD_M)
         self._apply_path_wall_budget()
