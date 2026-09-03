@@ -203,7 +203,7 @@ def _convex_gap(poly_a: Sequence[tuple[float, float]], poly_b: Sequence[tuple[fl
             a_hi = max(px * ax + py * ay for px, py in poly_a)
             b_lo = min(px * ax + py * ay for px, py in poly_b)
             b_hi = max(px * ax + py * ay for px, py in poly_b)
-            best = max(best, max(b_lo - a_hi, a_lo - b_hi))
+            best = max(best, b_lo - a_hi, a_lo - b_hi)
     return best
 
 
