@@ -352,6 +352,15 @@ def main() -> None:
         "servo swing between them.",
     )
     parser.add_argument(
+        "--leg-stall",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_LEG_STALL_TICKS (with --cycle): motionless ticks before a leg is "
+        "judged jammed and handed over. Charged on EVERY reverse leg at shipped tuning, which "
+        "ends on stall rather than on BAY_EXIT_CYCLE_REVERSE_M -- measured rev_m 0.041 against "
+        "the 0.09 asked for -- so it is paid once per cycle whatever the distance bound says.",
+    )
+    parser.add_argument(
         "--latch-direction",
         type=float,
         nargs="*",
@@ -463,6 +472,7 @@ def main() -> None:
             ("BAY_EXIT_FORWARD_M", "fwd", args.forward_dist),
             ("BAY_EXIT_CYCLE_REVERSE_M", "cyc-rev", args.cycle_reverse),
             ("BAY_EXIT_CYCLE_REVERSE_STEER_NORM", "back-steer", args.cycle_rev_steer),
+            ("BAY_EXIT_LEG_STALL_TICKS", "stall", args.leg_stall),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]

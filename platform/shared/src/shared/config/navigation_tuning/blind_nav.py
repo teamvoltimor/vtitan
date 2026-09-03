@@ -420,6 +420,12 @@ class CorridorFollowerParams(BaseModel):
     current heading rather than a fixed stroke. Measured against 0.05: exit
     267 -> 229 ticks and laps>=1 29 -> 33, which is parity with the
     parallel-start control.
+
+    Do not sweep it DOWN again: shortening this leg costs cycles far faster
+    than it saves ticks within one. Measured 2026-09-03 at the shipped forward
+    distance -- 0.06 -> 213 ticks, 0.04 -> 317, 0.03 -> 391, 0.02 -> 417. The
+    leg does not even reach 0.09 (``rev_m`` 0.041, ended by the stall
+    backstop), so the reachable stroke, not this bound, is what sizes it.
     """
 
     BAY_EXIT_ARC_STEER_NORM: float = Field(
@@ -432,9 +438,17 @@ class CorridorFollowerParams(BaseModel):
     translates nothing, which is the opposite of what a 0.20 m deep pocket
     needs. 0.5 is ~42 deg and ~0.21 m of radius, which actually moves the body
     sideways. Only meaningful with ``BAY_EXIT_CYCLE``.
+
+    REFUTED as a way to cut the servo standstill, 2026-09-03. The pause is
+    proportional to this angle, so a smaller arc does shorten each one -- and
+    loses more than it saves, because a shallower arc needs more cycles and the
+    pause is charged per leg change. At the shipped forward distance: 0.2 ->
+    203 ticks, 0.25 -> 213, 0.35 -> 199, 0.45 -> 199, against 0.3's 195. The
+    lever that reaches the standstill is ``BAY_EXIT_FORWARD_M``, which removes
+    whole cycles.
     """
 
-    BAY_EXIT_FORWARD_M: float = Field(default=0.05, gt=0.0, validation_alias=_alias("BAY_EXIT_FORWARD_M"))
+    BAY_EXIT_FORWARD_M: float = Field(default=0.08, gt=0.0, validation_alias=_alias("BAY_EXIT_FORWARD_M"))
     """How far the cycle manoeuvre's forward arc runs before backing up again.
 
     Bounded by GEOMETRY, like ``BAY_EXIT_REVERSE_M``, and for the same reason:
@@ -445,9 +459,43 @@ class CorridorFollowerParams(BaseModel):
     noise. An earlier version gated this leg on that reading and the arc got one
     tick per cycle: 53 cycles, 0.1 deg of rotation, 0.192 m travelled.
 
-    Sized against the 7.5 cm of slack at each end of the lot. A stall backstop
-    (``BAY_EXIT_LEG_STALL_TICKS``) ends the leg early when it meets a fin
-    first. Only meaningful with ``BAY_EXIT_CYCLE``.
+    Deliberately LONGER than the 7.5 cm of slack at each end of the lot, which
+    is what it was originally sized against. Overshooting hands the leg's end
+    to the stall backstop (``BAY_EXIT_LEG_STALL_TICKS``) in the cycles whose
+    nose meets a fin, and lets the ones that do not run further -- trading a
+    guarantee from the lot's dimensions for a sensed one, which is the second
+    reason that backstop stays at 6.
+
+    Fewer, longer cycles is the ONLY lever that reaches the standstill: the
+    servo pause is ``ceil(swing / (MAX_STEERING_RATE / CONTROL_HZ))`` = 8 ticks
+    per leg CHANGE, so it is paid per cycle no matter how the legs are shaped.
+    Measured 2026-09-03 over the 256 corpus with sliding contact, against 0.05:
+    exit 229 -> 195 ticks (-15%), of which standstill 65 -> 57, one whole cycle
+    removed. Out-of-bay held at 254/256 -- the same two scenarios, and in both
+    the manoeuvre never RAN (``bay_exit_ticks`` 0, so
+    ``direction_from_parking_bay`` did not recognise the pocket); the exit
+    itself is 254/254. Laps within noise (clean laps>=1 127 -> 125, >=3 72 ->
+    71, against a parallel-start control's 123/74) and collisions 8 -> 4.
+
+    0.08 is a bracketed optimum, not a direction to push: 0.06 gives 213 ticks,
+    0.09 gives 229, and 0.10 is byte-identical to 0.09 because above ~0.09 the
+    bound goes inert and every leg ends on the stall backstop instead. Only
+    meaningful with ``BAY_EXIT_CYCLE``.
+
+    **READ THIS BEFORE TRUSTING THE NUMBERS ABOVE.** They are all measured with
+    ``--solid-walls``, which lets the chassis grind along a fin and keep going.
+    WRO does not: "the parking lot limitations cannot be touched by the robot.
+    When they are touched, the robot is stopped and no points for the parking can
+    be scored" (ruled 2026-09-03). Every leg here that ends on the stall backstop
+    ends because a fin stopped it, so those runs model a rule violation as a
+    success.
+
+    In the simulator's DEFAULT model, where contact ends the run, this constant is
+    **INERT**: 0.05 and 0.08 are byte-identical over all 256 scenarios (out of bay
+    256/256, laps>=1 119, collided 95), because the manoeuvre is released by
+    ``is_clear`` after ~22 ticks on a single forward arc and the reverse leg never
+    runs. It is kept at 0.08 because it is free there and better under the other
+    model, NOT because 229 -> 195 is a result that survives the rules.
     """
 
     BAY_EXIT_CYCLE_REVERSE_STEER_NORM: float = Field(
@@ -482,6 +530,13 @@ class CorridorFollowerParams(BaseModel):
     could no longer arrive. Six ticks is 0.3 s at 20 Hz -- long enough not to
     trip on a momentary scrape, short enough that a jammed leg costs almost
     nothing. Only meaningful with ``BAY_EXIT_CYCLE``.
+
+    **1 is a cliff**: a single motionless tick ends a leg, so no leg ever runs
+    and the manoeuvre burns its whole budget without leaving the pocket -- 600
+    ticks, 0/4 out of the bay, measured 2026-09-03. 2 and 3 work and are worth
+    2 ticks of the ~195-tick exit, which is not a trade worth taking one step
+    from that cliff on a constant that is also the jam backstop on hardware,
+    where a real chassis has friction and noise this simulator does not.
     """
 
     BAY_EXIT_LATCH_DIRECTION: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_LATCH_DIRECTION"))
