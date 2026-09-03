@@ -4,6 +4,22 @@
 
 lookahead_short = 0.16        # Lookahead distance for sharp corners (m)
 lookahead_long = 0.32         # Lookahead distance for straights (m)
+
+# Open only. The two challenges want different values here and everything else
+# in this file is shared, so one number costs whichever challenge does not get
+# it. Measured 2026-09-03, both arms paired against the same seeded cases:
+#
+#   Open 640      mean sim time -5.39 s/case (530 faster, 94 slower) for ONE
+#                 verdict, case 590 ok -> incomplete. Case 300 fails in both
+#                 arms; that is the known free-space creep deadlock.
+#   Obstacles 256 WORSE -- clean 21 -> 19, timeouts 35 -> 40, escapes/lap
+#                 59.6 -> 66.4, and sign-pass crosstrack IDENTICAL at 10.32 cm
+#                 median, so the Open tracking gain does not reproduce there.
+#
+# On the OPEN side deliberately: Obstacles keeps 0.32 and its resolution path is
+# untouched, so this cannot shadow the base constant on an Obstacles sweep the
+# way OBSTACLES_CONTACT_DIST did.
+open_lookahead_long = 0.24    # Lookahead for straights, Open Challenge only (m)
 lookahead_transition = 0.30   # Crosstrack error threshold to switch modes (m) -- a ceiling; see below
 
 # The switch from long to short used to be a bare step on both arming signals.

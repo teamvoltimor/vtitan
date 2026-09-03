@@ -97,7 +97,7 @@ class WaypointController:
         self._crosstrack_budget_m: float | None = None
 
     @classmethod
-    def from_tuning(cls, tuning: NavigationTuning) -> WaypointController:
+    def from_tuning(cls, tuning: NavigationTuning, *, for_open: bool = False) -> WaypointController:
         """Build controller from NavigationTuning parameters.
 
         Still passes through ``STEER_KP`` even though ``compute_steering`` no
@@ -106,20 +106,27 @@ class WaypointController:
 
         Args:
             tuning: NavigationTuning instance (usually from load_default).
+            for_open: Resolve the Open Challenge's pursuit overrides
+                (``OPEN_LOOKAHEAD_LONG``). Defaults False so every existing
+                caller -- the bag replay scripts, and Obstacles -- keeps the
+                base values byte-identical. ``for_open_challenge()`` is itself
+                the identity when no override is set, so this is a no-op until
+                one is configured.
 
         Returns:
             WaypointController with values from tuning.
         """
+        pursuit = tuning.pursuit.for_open_challenge() if for_open else tuning.pursuit
         return cls(
             max_steering_angle=RobotSpecs.MAX_STEERING_ANGLE,
-            lookahead_short=tuning.pursuit.LOOKAHEAD_SHORT,
-            lookahead_long=tuning.pursuit.LOOKAHEAD_LONG,
-            lookahead_transition=tuning.pursuit.LOOKAHEAD_TRANSITION,
-            steer_kp=tuning.pursuit.STEER_KP,
-            max_steering_rate=tuning.pursuit.MAX_STEERING_RATE,
+            lookahead_short=pursuit.LOOKAHEAD_SHORT,
+            lookahead_long=pursuit.LOOKAHEAD_LONG,
+            lookahead_transition=pursuit.LOOKAHEAD_TRANSITION,
+            steer_kp=pursuit.STEER_KP,
+            max_steering_rate=pursuit.MAX_STEERING_RATE,
             waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
-            corner_turn_threshold_rad=tuning.pursuit.CORNER_TURN_THRESHOLD_RAD,
-            lookahead_blend_start=tuning.pursuit.LOOKAHEAD_BLEND_START,
+            corner_turn_threshold_rad=pursuit.CORNER_TURN_THRESHOLD_RAD,
+            lookahead_blend_start=pursuit.LOOKAHEAD_BLEND_START,
         )
 
     def select_lookahead(

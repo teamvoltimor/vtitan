@@ -177,8 +177,14 @@ class CoreNavigator(EscapeRecovery):
         self._pose_trail: deque[Pose] = deque(maxlen=self._tuning.escape.POSE_TRAIL_LEN)
         self._retracing = False
 
-        # Controllers
-        self._waypoint_controller = WaypointController.from_tuning(self._tuning)
+        # Controllers. Keyed on the same sign_router discriminator as the speed
+        # ladder and clearance zones above, and resolved ONCE for the same
+        # reason: a lookahead read mid-run cannot disagree with one read at
+        # startup. Only Open has an override to apply, so Obstacles reads the
+        # base parameters and its resolution path is untouched.
+        self._waypoint_controller = WaypointController.from_tuning(
+            self._tuning, for_open=sign_router is None
+        )
         self._apply_path_wall_budget()
 
         # Built from the RESOLVED zones, not `self._tuning.clearance`. This

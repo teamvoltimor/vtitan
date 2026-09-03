@@ -391,6 +391,41 @@ class PurePursuitParams(BaseModel):
         default=0.35, validation_alias=_alias("CORNER_TURN_THRESHOLD_RAD")
     )  # Heading change over that preview that counts as a corner
 
+    OPEN_LOOKAHEAD_LONG: float | None = Field(
+        default=None, validation_alias=_alias("OPEN_LOOKAHEAD_LONG")
+    )
+    """``LOOKAHEAD_LONG`` for the Open Challenge only. ``None`` keeps the base value.
+
+    The two challenges want different values and the constant is otherwise
+    shared, so shipping one number costs the other challenge. Measured
+    2026-09-03 at 0.24 against the base 0.32:
+
+    * **Open, 640 cases, paired:** mean sim time **-5.39 s/case** (-3440 s
+      total; 530 faster, 94 slower, 14 identical) for **one** verdict, case 590
+      ``ok -> incomplete``. Case 300 fails in both arms -- it is the known
+      free-space creep deadlock, not this.
+    * **Obstacles, 256 corpus, paired:** WORSE -- clean 21 -> 19, timeouts
+      35 -> 40, laps-driven 321 -> 315, escapes/lap 59.6 -> 66.4. Sign-pass
+      cross-track was IDENTICAL at 10.32 cm median in both arms, so the Open
+      tracking gain does not reproduce here at all.
+
+    Hence the override sits on the OPEN side: Obstacles keeps the shipped 0.32
+    and its resolution path is untouched, so unlike ``OBSTACLES_CONTACT_DIST``
+    this cannot shadow the base constant on an Obstacles sweep -- the failure
+    that silently made ``diag_sign_sweep``'s ``escape-gate`` mode measure
+    nothing. Only Open sweeps need to clear it.
+    """
+
+    def for_open_challenge(self) -> PurePursuitParams:
+        """These parameters as the Open Challenge should run them.
+
+        Returns ``self`` unchanged when no Open override is set, so the
+        Obstacles path and the un-overridden Open path stay byte-identical.
+        """
+        if self.OPEN_LOOKAHEAD_LONG is None:
+            return self
+        return self.model_copy(update={"LOOKAHEAD_LONG": self.OPEN_LOOKAHEAD_LONG})
+
 
 class SpeedControlParams(BaseModel):
     """Speed control parameters for different zones, in ABSOLUTE m/s.
