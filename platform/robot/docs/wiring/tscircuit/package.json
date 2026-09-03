@@ -1,0 +1,15 @@
+{
+  "name": "vtitan-wiring-harness",
+  "version": "1.0.0",
+  "description": "tscircuit port of the vtitan robot wiring harness",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@tscircuit/cli": "^0.1.2021",
+    "@tscircuit/schematic-autolayout": "^0.0.8",
+    "tscircuit": "^0.0.2460"
+  },
+  "overrides": {
+    "circuit-json": "^0.0.479"
+  }
+}

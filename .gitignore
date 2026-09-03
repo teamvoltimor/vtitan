@@ -179,3 +179,11 @@ landing/
 
 # alias scan artifact
 .alias_scan.json
+
+# Generated doc artifacts (rendered SVGs, wiring exports) — sources are the
+# mermaid/png siblings that are tracked; these are build output.
+platform/robot/docs/diagrams/common/svg-editorial/
+# NOT platform/robot/docs/wiring/ as a whole: that blanket rule also hid the
+# tscircuit harness SOURCE (circuit.tsx), which is hand-written, not build
+# output. Its generated exports are ignored by the nested
+# docs/wiring/tscircuit/.gitignore instead.
