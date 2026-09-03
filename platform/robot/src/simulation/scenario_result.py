@@ -176,6 +176,17 @@ class RunMetrics:
         return self.min_range if math.isfinite(self.min_range) else 0.0
 
 
+_UNFORGIVABLE_SURFACES: frozenset[ContactSurface] = frozenset({ContactSurface.PARKING_LOT})
+"""Surfaces no grace period may forgive, however the tracker is configured.
+
+The graces below model a chassis working itself free of a WALL, which 9.18
+explicitly permits ("if the vehicle touches or bumps the walls, and the walls
+are not moved, the vehicle may continue the round"). The parking lot has no
+such concession: 9.24.7 ends the round on contact, full stop. A surface that
+is fatal by rule cannot be waited out.
+"""
+
+
 class ContactTracker:
     """Decides when a wall-contact streak stops being survivable and ends the run.
 
@@ -228,6 +239,22 @@ class ContactTracker:
             self._streak_start_step = step
         self.time_s += self._dt
         streak_s = (step - self._streak_start_step) * self._dt
+
+        if surface in _UNFORGIVABLE_SURFACES:
+            # No grace of any kind. 9.24.7 ends the round the moment the robot
+            # touches the parking lot limitations -- there is no streak length
+            # that makes it survivable, and no opening seconds during which it
+            # does not count.
+            #
+            # Both graces used to apply here and between them they hid the
+            # bay-exit manoeuvre entirely: the start window is 2.0 s (40 ticks)
+            # and the whole exit is 22, so EVERY contact it made began inside
+            # the window and was forgiven for a further 15 s. Measured
+            # 2026-09-03: the chassis penetrates a fin by 8.9 cm in 254/254
+            # corpus scenarios while the run reports collided=False and goes on
+            # to complete its laps.
+            self.surface = surface
+            return True
 
         if self._grace_s is not None:
             ended = streak_s >= self._grace_s
