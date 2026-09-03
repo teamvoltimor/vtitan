@@ -520,6 +520,38 @@ class CorridorFollowerParams(BaseModel):
     manoeuvre.
     """
 
+    BAY_EXIT_CLEARANCE_GUARD: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_CLEARANCE_GUARD"))
+    """Bound the cycle legs by PREDICTED FIN CLEARANCE instead of by contact.
+
+    The shipped manoeuvre ends each leg on the stall backstop, which fires
+    because a fin stopped the chassis. Rule 9.24.7 ends the round on that touch,
+    so the leg-end signal is itself the violation -- measured 2026-09-03, the
+    chassis penetrates a fin by 8.9 cm in 254/254 corpus scenarios.
+
+    The distance bounds cannot fix it. ``BAY_EXIT_FORWARD_M`` and
+    ``BAY_EXIT_CYCLE_REVERSE_M`` sweep BYTE-IDENTICAL at 0.02/0.04 because
+    contact happens on the FIRST arc, before any bound applies: the straight
+    reverse returns no rotation, so yaw accumulates monotonically, and a pocket
+    that admits 1.15 degrees of yaw is exhausted long before the leg is.
+
+    With this on, the manoeuvre dead-reckons its own pose in the bay frame from
+    wheel odometry and the steering it commanded (slew included), models the two
+    fins from ``ParkingLotSpecs``, and reverses the leg when the NEXT pose would
+    come within ``BAY_EXIT_CLEARANCE_MARGIN_M`` of one. No LIDAR -- the pocket
+    cannot be sensed from inside it -- and no contact.
+    """
+
+    BAY_EXIT_CLEARANCE_MARGIN_M: float = Field(
+        default=0.005, ge=0.0, validation_alias=_alias("BAY_EXIT_CLEARANCE_MARGIN_M")
+    )
+    """Fin clearance the guard refuses to go below, in metres.
+
+    Absorbs the dead-reckoning error the guard cannot see: wheel slip, the
+    servo's true angle versus the modelled slew, and the placement tolerance of
+    the start pose. 5 mm against the pocket's 65 mm of slack per side. Only
+    meaningful with ``BAY_EXIT_CLEARANCE_GUARD``.
+    """
+
     BAY_EXIT_LEG_STALL_TICKS: int = Field(default=6, ge=1, validation_alias=_alias("BAY_EXIT_LEG_STALL_TICKS"))
     """Ticks of no wheel travel that end a cycle-manoeuvre leg and start the other.
 

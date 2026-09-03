@@ -469,6 +469,14 @@ def main() -> None:
         "servo swing between them.",
     )
     parser.add_argument(
+        "--clearance-guard",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_CLEARANCE_GUARD (0/1): bound the cycle legs by PREDICTED fin "
+        "clearance, dead-reckoned from odometry, instead of by the stall backstop -- which "
+        "fires ON contact and so is itself the 9.24.7 violation.",
+    )
+    parser.add_argument(
         "--leg-stall",
         type=float,
         nargs="*",
@@ -590,6 +598,7 @@ def main() -> None:
             ("BAY_EXIT_CYCLE_REVERSE_M", "cyc-rev", args.cycle_reverse),
             ("BAY_EXIT_CYCLE_REVERSE_STEER_NORM", "back-steer", args.cycle_rev_steer),
             ("BAY_EXIT_LEG_STALL_TICKS", "stall", args.leg_stall),
+            ("BAY_EXIT_CLEARANCE_GUARD", "guard", args.clearance_guard),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]

@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from shared.config.constants import RobotSpecs
+from shared.config.constants import ParkingLotSpecs, RobotSpecs
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
@@ -31,12 +31,82 @@ if TYPE_CHECKING:
 
     from shared.config.navigation_tuning import NavigationTuning
 
+_EFFECTIVE_WHEELBASE_M = RobotSpecs.WHEELBASE / (1.0 + RobotSpecs.REAR_STEER_RATIO)
+"""Wheelbase the chassis actually turns about, not the axle spacing.
+
+The rear axle steers counter-phase, so the instantaneous centre sits between
+the axles: ``wheelbase / (1 + rear_steer_ratio)``, which at the shipped ratio of
+1.0 is HALF the wheelbase. Paired with ``YAW_GAIN``, the fraction of the
+geometric yaw rate the real chassis achieves (0.55, calibrated against bag data
+2026-08-29). A plain bicycle model understates the yaw by ~10% here, and the
+clearance guard integrates that error over every tick it dead-reckons.
+"""
+
 _LEG_STALL_EPSILON_M = 1e-4
 """Wheel travel below which a tick counts as no progress at all.
 
 A tenth of a millimetre: two orders under the 7.5 mm a free tick covers at
 creep, so ordinary slow motion never reads as a stall, while a chassis held
 against a surface -- which reports no travel at all -- registers immediately."""
+
+
+def _rect_corners(along: float, out: float, yaw: float, length: float, width: float) -> list[tuple[float, float]]:
+    """Corners of a ``length`` x ``width`` rectangle centred at (along, out), rotated by ``yaw``."""
+    ca, sa = math.cos(yaw), math.sin(yaw)
+    hl, hw = length / 2.0, width / 2.0
+    return [
+        (along + sl * hl * ca - sw * hw * sa, out + sl * hl * sa + sw * hw * ca)
+        for sl, sw in ((1, 1), (1, -1), (-1, -1), (-1, 1))
+    ]
+
+
+def _gap(poly_a: list[tuple[float, float]], poly_b: list[tuple[float, float]]) -> float:
+    """Separating-axis gap between two convex polygons; negative means overlap.
+
+    Under-estimates vertex-to-vertex gaps, which is the safe direction for a
+    guard whose job is to never touch.
+    """
+    best = -math.inf
+    for poly in (poly_a, poly_b):
+        count = len(poly)
+        for i in range(count):
+            (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % count]
+            ax, ay = y2 - y1, x1 - x2
+            norm = math.hypot(ax, ay)
+            if norm == 0.0:
+                continue
+            ax, ay = ax / norm, ay / norm
+            a_lo = min(px * ax + py * ay for px, py in poly_a)
+            a_hi = max(px * ax + py * ay for px, py in poly_a)
+            b_lo = min(px * ax + py * ay for px, py in poly_b)
+            b_hi = max(px * ax + py * ay for px, py in poly_b)
+            best = max(best, b_lo - a_hi, a_lo - b_hi)
+    return best
+
+
+def _fin_rects() -> list[list[tuple[float, float]]]:
+    """The two marker fins in the BAY FRAME, from the rulebook geometry.
+
+    Origin is where the chassis was placed -- the pocket centre, on the lot's
+    axis, ``ParkingLotSpecs.WALL_OFFSET`` out from the wall. ``along`` runs down
+    the wall along the start heading; ``out`` runs away from the wall toward the
+    corridor. The fins stand at +-half the block spacing, are ``WIDTH`` thick,
+    and span the lot's full depth from the wall to their tips.
+
+    Known without sensing: these are fixed by the rules, and the manoeuvre is
+    only ever entered from a placement the judges made. The pocket cannot be
+    measured from inside it -- a forward cone reads 0.05-0.13 m and fluctuates
+    every tick -- so a guard that needed to see the fins could not work.
+    """
+    half_spacing = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
+    inner = half_spacing - ParkingLotSpecs.WIDTH / 2.0
+    outer = half_spacing + ParkingLotSpecs.WIDTH / 2.0
+    wall = -ParkingLotSpecs.WALL_OFFSET
+    tip = wall + ParkingLotSpecs.LENGTH
+    return [
+        [(-outer, wall), (-inner, wall), (-inner, tip), (-outer, tip)],
+        [(inner, wall), (outer, wall), (outer, tip), (inner, tip)],
+    ]
 
 
 class BayExit:
@@ -71,6 +141,60 @@ class BayExit:
         # Ticks the manoeuvre has run, and whether the fallback has fired.
         self._ticks = 0
         self._switched = False
+        # Dead-reckoned pose in the BAY FRAME, for the clearance guard. Signed so
+        # +out is the OPEN side and +yaw turns toward it, which makes the fin
+        # geometry symmetric and removes the left/right case split.
+        self._dr_along = 0.0
+        self._dr_out = 0.0
+        self._dr_yaw = 0.0
+        self._dr_prev_m: float | None = None
+        self._dr_wheel_rad = 0.0
+        self._guard_flips = 0
+        self._guard_min_gap: float | None = None
+
+    @property
+    def guard_stats(self) -> tuple[int, float | None, float]:
+        """``(direction_flips, min_predicted_gap_m, outward_travel_m)`` for the guard."""
+        return self._guard_flips, self._guard_min_gap, self._dr_out
+
+    def _dead_reckon(self, travelled_m: float, wheel_norm: float, tuning: NavigationTuning) -> None:
+        """Advance the bay-frame pose from wheel odometry and the commanded steering.
+
+        A bicycle model driven by the two things the robot genuinely has in the
+        pocket: how far the wheels turned, and what angle it asked the servo
+        for. No LIDAR, because the pocket cannot be sensed from inside it, and
+        no pose estimate, because the localizer is matching a wall model the
+        chassis is not yet out among.
+
+        The servo's SLEW is modelled rather than assumed instant. Skipping it
+        was what made ``BAY_EXIT_STEER_NORM`` read as inert: every command at or
+        above 0.364 clipped to the same reachable angle, because a 0.05 m stroke
+        is ~9 ticks and full lock takes 25.
+        """
+        previous = self._dr_prev_m
+        self._dr_prev_m = travelled_m
+        if previous is None:
+            return
+        step = travelled_m - previous
+        max_rad = math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
+        target = clamp(wheel_norm, -1.0, 1.0) * max_rad
+        slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
+        self._dr_wheel_rad += clamp(target - self._dr_wheel_rad, -slew, slew)
+        self._dr_yaw += step * math.tan(self._dr_wheel_rad) / _EFFECTIVE_WHEELBASE_M * RobotSpecs.YAW_GAIN
+        self._dr_along += step * math.cos(self._dr_yaw)
+        self._dr_out += step * math.sin(self._dr_yaw)
+
+    def _predicted_gap(self, step_m: float, wheel_norm: float, tuning: NavigationTuning) -> float:
+        """Fin clearance the chassis WOULD have after one more step like this one."""
+        max_rad = math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
+        target = clamp(wheel_norm, -1.0, 1.0) * max_rad
+        slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
+        wheel = self._dr_wheel_rad + clamp(target - self._dr_wheel_rad, -slew, slew)
+        yaw = self._dr_yaw + step_m * math.tan(wheel) / _EFFECTIVE_WHEELBASE_M * RobotSpecs.YAW_GAIN
+        along = self._dr_along + step_m * math.cos(yaw)
+        out = self._dr_out + step_m * math.sin(yaw)
+        corners = _rect_corners(along, out, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
+        return min(_gap(corners, fin) for fin in _fin_rects())
 
     @property
     def cycles(self) -> int:
@@ -142,6 +266,73 @@ class BayExit:
         # The standstill would otherwise read as a stall on its very first
         # moving tick, since travel during it is zero by construction.
         self._last_travelled_m = travelled_m
+
+    def _guarded_command(
+        self,
+        travelled_m: float,
+        creep_speed_mps: float,
+        tuning: NavigationTuning,
+        open_is_left: bool,
+    ) -> DriveCommand:
+        """Shuffle out of the pocket bounded by PREDICTED CLEARANCE, never by contact.
+
+        The legal replacement for the stall-bounded cycle. Same shape -- steer
+        toward the open side, alternate forward and reverse -- but the leg ends
+        when the NEXT pose would come within
+        ``BAY_EXIT_CLEARANCE_MARGIN_M`` of a fin, which is a prediction rather
+        than a collision. 9.24.7 ends the round on the touch the old backstop
+        waited for.
+
+        Why bounding the DISTANCE instead cannot work: the straight reverse
+        returns no rotation, so yaw only ever grows, and the swept extent along
+        the wall is ``(L cos t + W sin t) / 2`` -- 0.150 m square, 0.177 m at 25
+        degrees. Against 0.215 m to a fin face, yaw alone consumes the slack
+        before any leg bound applies. Measured: ``BAY_EXIT_FORWARD_M`` and
+        ``BAY_EXIT_CYCLE_REVERSE_M`` are byte-identical at 0.02 and 0.04,
+        because contact happens on the first arc.
+
+        Both legs steer toward the open side. Forward swings the nose out;
+        reverse with the same lock walks the tail back along the arc it came
+        down, which returns most of the yaw and buys the room for the next
+        forward leg to gain more ``out`` than it gives back. That is the classic
+        tight-slot exit, and it accumulates outward displacement without ever
+        needing a surface to push against.
+        """
+        follower = tuning.corridor_follower
+        margin = follower.BAY_EXIT_CLEARANCE_MARGIN_M
+        sign = 1.0 if open_is_left else -1.0
+        magnitude = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
+        # Both legs hold the SAME lock, and the dead-reckoned frame is signed so
+        # +yaw is toward the open side -- so the guard's geometry never needs a
+        # left/right case split. The caller-facing command is re-signed below.
+        wheel_norm = magnitude
+        self._dead_reckon(travelled_m, wheel_norm, tuning)
+        if self._guard_min_gap is None:
+            self._guard_min_gap = self._predicted_gap(0.0, wheel_norm, tuning)
+
+        speed = creep_speed_mps * (
+            follower.REVERSE_SPEED_SCALE if self._leg_is_reverse else follower.CORNER_SPEED_SCALE
+        )
+        step = (-speed if self._leg_is_reverse else speed) / tuning.control.CONTROL_HZ
+        gap = self._predicted_gap(step, wheel_norm, tuning)
+        self._guard_min_gap = min(self._guard_min_gap, gap)
+        if gap <= margin:
+            # Reverse the leg rather than push on. The chassis has not touched
+            # anything -- this fires on the prediction.
+            self._leg_is_reverse = not self._leg_is_reverse
+            self._guard_flips += 1
+            self._cycles += 1
+            speed = creep_speed_mps * (
+                follower.REVERSE_SPEED_SCALE if self._leg_is_reverse else follower.CORNER_SPEED_SCALE
+            )
+        if self._leg_is_reverse:
+            self._reverse_ticks += 1
+        else:
+            self._forward_ticks += 1
+        return DriveCommand(
+            speed_mps=-speed if self._leg_is_reverse else speed,
+            steering_norm=magnitude * sign,
+        )
 
     def _cycle_command(
         self,
@@ -258,6 +449,31 @@ class BayExit:
         tuning = get_tuning(tuning)
         return _forward_clearance(ranges_m, angles_rad, tuning) >= tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
 
+    def _resolve_open_side(
+        self,
+        ranges_m: Sequence[float],
+        angles_rad: Sequence[float],
+        tuning: NavigationTuning,
+    ) -> bool:
+        """Which way is out, latched once because it is a fact about the layout.
+
+        Single rays at +/-90 deg, so in the pocket one is the outer wall and the
+        other is open corridor. They point ACROSS the pocket only while the
+        chassis is still parallel to the wall; once it rotates they point along
+        it, at a fin on each side, and a flip inverts the steering sign --
+        turning the escape into a re-entry. Hence the latch, and hence counting
+        the flips rather than assuming stability.
+        """
+        left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
+        right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
+        open_is_left = left > right
+        if tuning.corridor_follower.BAY_EXIT_LATCH_DIRECTION and self._open_is_left is not None:
+            open_is_left = self._open_is_left
+        if self._open_is_left is not None and open_is_left != self._open_is_left:
+            self._open_flips += 1
+        self._open_is_left = open_is_left
+        return open_is_left
+
     def command(
         self,
         ranges_m: Sequence[float],
@@ -316,29 +532,18 @@ class BayExit:
         if self._reverse_start_m is None:
             self._reverse_start_m = travelled_m
 
-        # Which way is out. Single rays at +/-90 deg, so in the pocket one is the
-        # outer wall and the other is open corridor.
-        left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
-        right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
-        open_is_left = left > right
-        if follower.BAY_EXIT_LATCH_DIRECTION and self._open_is_left is not None:
-            # First reading wins: taken while the chassis is still parallel to
-            # the wall, which is the only pose at which these two rays compare
-            # wall against corridor at all.
-            open_is_left = self._open_is_left
-        # Counted, not assumed stable: these are single rays at +/-90 deg, which
-        # point ACROSS the pocket only while the chassis is still parallel to the
-        # wall. Once it rotates they point along it, at a fin on each side, and a
-        # flip inverts the steering sign -- turning the escape into a re-entry.
-        if self._open_is_left is not None and open_is_left != self._open_is_left:
-            self._open_flips += 1
-        self._open_is_left = open_is_left
+        open_is_left = self._resolve_open_side(ranges_m, angles_rad, tuning)
+
+        self._ticks += 1
+        # The clearance guard supersedes both contact-bounded exits, so it is
+        # answered before their fallback bookkeeping runs at all.
+        if follower.BAY_EXIT_CLEARANCE_GUARD:
+            return self._guarded_command(travelled_m, creep_speed_mps, tuning, open_is_left)
 
         # Which exit is driving. After BAY_EXIT_FALLBACK_FRAMES the OTHER one
         # takes over, once: the two are complementary (each 254/256 under the
         # contact model where the other is 0/256) and which one the real robot
         # needs is unknown, so covering both beats betting on one.
-        self._ticks += 1
         use_cycle = follower.BAY_EXIT_CYCLE
         if follower.BAY_EXIT_FALLBACK_FRAMES and self._ticks > follower.BAY_EXIT_FALLBACK_FRAMES:
             use_cycle = not use_cycle
