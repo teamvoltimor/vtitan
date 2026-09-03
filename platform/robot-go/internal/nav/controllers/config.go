@@ -105,10 +105,10 @@ const (
 	DefaultMinValidRangeM          = 0.05
 	DefaultThreatNoDetectionRangeM = 1.0
 	DefaultNoDataRangeM            = 10.0
-	DefaultBlindWedgeLeftMinDeg    = -180.0
-	DefaultBlindWedgeLeftMaxDeg    = -115.0
-	DefaultBlindWedgeRightMinDeg   = 115.0
-	DefaultBlindWedgeRightMaxDeg   = 180.0
+	DefaultBlindWedgeLeftMinDeg    = -155.0
+	DefaultBlindWedgeLeftMaxDeg    = -120.0
+	DefaultBlindWedgeRightMinDeg   = 120.0
+	DefaultBlindWedgeRightMaxDeg   = 160.0
 
 	DefaultRevSpeed                = -0.20
 	DefaultRevSteerDeg             = 44.0

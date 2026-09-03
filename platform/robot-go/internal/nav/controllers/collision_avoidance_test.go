@@ -9,13 +9,11 @@ import (
 
 // -- TestThreatDirection: ports test_collision_avoidance_controller.py's
 // TestThreatDirection class. A wall behind the robot must report "back",
-// never "front" -- on the current chassis the rear mount sits in the
-// LIDAR's blind wedge, so a wall directly behind actually reports NONE,
-// which is the regression these pin.
+// never "front".
 
-// TestDetectThreatDirection_WallBehindReportsNoneNotFront ports
+// TestDetectThreatDirection_WallBehindReportsBackNotFront ports
 // test_wall_behind_reports_back_not_front.
-func TestDetectThreatDirection_WallBehindReportsNoneNotFront(t *testing.T) {
+func TestDetectThreatDirection_WallBehindReportsBackNotFront(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
@@ -29,12 +27,13 @@ func TestDetectThreatDirection_WallBehindReportsNoneNotFront(t *testing.T) {
 		ranges[k] = lidarCloseThreat
 	}
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatNone {
-		t.Errorf(
-			"DetectThreatDirection() = %v, want %v (rear is masked by the blind wedge)",
-			got,
-			controllers.ThreatNone,
-		)
+	// Between 2026-08-22 and 2026-08-31 the rear was fully masked by the
+	// blind wedges, so a wall behind was not seen at all and this asserted
+	// ThreatNone. The wedges were re-measured on the current mount
+	// (-155..-120 / 120..160, a ~40 deg slot at +/-160..180), so the rear
+	// is visible again and the original behaviour is back.
+	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatBack {
+		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatBack)
 	}
 }
 
@@ -54,12 +53,8 @@ func TestDetectThreatDirection_WallBehindBackEvenWithoutAngles(t *testing.T) {
 	}
 
 	got := controller.DetectThreatDirection(ranges, nil)
-	if got != controllers.ThreatNone {
-		t.Errorf(
-			"DetectThreatDirection(nil angles) = %v, want %v (rear masked)",
-			got,
-			controllers.ThreatNone,
-		)
+	if got != controllers.ThreatBack {
+		t.Errorf("DetectThreatDirection(nil angles) = %v, want %v", got, controllers.ThreatBack)
 	}
 }
 
@@ -131,12 +126,13 @@ func TestComputeForwardClearance_IgnoresRearWall(t *testing.T) {
 	}
 }
 
-// TestComputeRearClearance_RearWallReadsAsNoData ports
-// test_rear_clearance_sees_rear_wall: the rear mount sits in the LIDAR's
-// blind wedge on the current chassis, so rear rays are masked and rear
-// clearance reads as the no-data fallback rather than the actual wall
-// distance.
-func TestComputeRearClearance_RearWallReadsAsNoData(t *testing.T) {
+// TestComputeRearClearance_SeesRearWall ports
+// test_rear_clearance_sees_rear_wall: the re-measured wedges (2026-08-31)
+// leave a ~40 deg readable slot at the rear (+/-160..180), so rear rays are
+// visible and rear clearance reads the actual wall distance rather than the
+// no-data fallback -- unlike the 2026-08-22..2026-08-31 window when the
+// mount fully masked the rear.
+func TestComputeRearClearance_SeesRearWall(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
@@ -149,8 +145,8 @@ func TestComputeRearClearance_RearWallReadsAsNoData(t *testing.T) {
 		ranges[k] = lidarCloseThreat
 	}
 
-	if got := controller.ComputeRearClearance(ranges, angles); got != controller.Geometry.NoDataRangeM {
-		t.Errorf("ComputeRearClearance() = %v, want %v", got, controller.Geometry.NoDataRangeM)
+	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-lidarCloseThreat) > 1e-9 {
+		t.Errorf("ComputeRearClearance() = %v, want %v", got, lidarCloseThreat)
 	}
 }
 
@@ -173,16 +169,17 @@ func TestComputeRearClearance_ClearWhenOnlyFrontBlocked(t *testing.T) {
 // -- TestRearSectorVisibility: a reverse gate must be able to tell "nothing
 // behind" from "cannot see".
 
-// TestRearSector_NormalScanIsNotMeasured ports test_normal_scan_is_measured:
-// on the current chassis the rear mount occupies the LIDAR's blind wedge, so
-// even a normal scan's rear sector is masked and reports as not measured --
-// "cannot see" rather than "nothing behind".
-func TestRearSector_NormalScanIsNotMeasured(t *testing.T) {
+// TestRearSector_NormalScanIsMeasured ports test_normal_scan_is_measured:
+// the 2026-08-31 wedge re-measurement restored a ~40 deg readable slot at
+// the rear (+/-160..180), so a normal scan's rear sector reports measured
+// again -- unlike the 2026-08-22..2026-08-31 window when the mount fully
+// masked the rear ("cannot see" rather than "nothing behind").
+func TestRearSector_NormalScanIsMeasured(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
-	if controller.RearSector(newScan(lidarDefaultFar), anglesFullRotation()).Measured() {
-		t.Error("RearSector(...).Measured() = true, want false (rear mount is in the blind wedge)")
+	if !controller.RearSector(newScan(lidarDefaultFar), anglesFullRotation()).Measured() {
+		t.Error("RearSector(...).Measured() = false, want true (rear slot is readable again)")
 	}
 }
 
@@ -534,13 +531,12 @@ func TestComputeRearClearance_SelfReflectionDoesNotBlockReverse(t *testing.T) {
 	}
 }
 
-// TestComputeRearClearance_RealWallBeyondSelfRadiusStillMasked ports
-// test_rear_real_wall_beyond_self_radius_still_detected: the rear mount is
-// in the blind wedge on the current chassis, so a real wall just beyond the
-// self-detection radius is STILL masked and reads as the no-data fallback,
-// per the Python test's own comment about the current (post-2026-08-22)
-// mount geometry.
-func TestComputeRearClearance_RealWallBeyondSelfRadiusStillMasked(t *testing.T) {
+// TestComputeRearClearance_RealWallBeyondSelfRadiusStillDetected ports
+// test_rear_real_wall_beyond_self_radius_still_detected: masked from
+// 2026-08-22 until the 2026-08-31 wedge re-measurement (-155..-120 /
+// 120..160), which restored a ~40 deg readable rear slot -- a real wall
+// just beyond the self-detection radius is detected again.
+func TestComputeRearClearance_RealWallBeyondSelfRadiusStillDetected(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
@@ -549,8 +545,8 @@ func TestComputeRearClearance_RealWallBeyondSelfRadiusStillMasked(t *testing.T) 
 	i := angleToIndex(angles, math.Pi)
 	setSector(ranges, i, 4, 0.15) // beyond self-detection radius: a real return
 
-	if got := controller.ComputeRearClearance(ranges, angles); got != controller.Geometry.NoDataRangeM {
-		t.Errorf("ComputeRearClearance() = %v, want %v", got, controller.Geometry.NoDataRangeM)
+	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-0.15) > 1e-9 {
+		t.Errorf("ComputeRearClearance() = %v, want %v", got, 0.15)
 	}
 }
 
