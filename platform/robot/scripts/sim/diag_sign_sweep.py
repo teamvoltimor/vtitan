@@ -149,6 +149,10 @@ _DETAIL_LABEL_WIDTH = 34
 _DETAIL_COLLISION_WIDTH = 9
 _COLLISION_PRECISION = 2
 _CLEARANCE_PRECISION = 3
+# Half-thickness the collision-KIND probes inflate the chassis by, so a rest
+# against a solid surface is attributed rather than falling through every probe.
+# See `_classify_collision`.
+_CONTACT_EPSILON_M = 1e-4
 
 
 def _round_or_none(value: float | None) -> float | None:
@@ -1355,16 +1359,29 @@ def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, floa
     strike as ``park`` and every parking strike as ``sign``, i.e. it inverted
     the split it exists to provide, and made a sign-avoidance sweep look like it
     was moving nothing but parking outcomes.
+
+    The probes run against a chassis inflated by ``_CONTACT_EPSILON_M`` a side,
+    because they test OVERLAP and a SOLID surface stops the chassis before it
+    overlaps anything. Measured 2026-09-04 on the 256 corpus, the same tree one
+    line apart: with the fins ghosted the split read ``wall 49 sign 1 park 33``,
+    and with them solid (shipped since ``905a9b15``) it read ``wall 49 sign 1
+    park 0`` — while the collision TOTAL stayed 83 in both. The 33 runs still
+    ended on the parking lot; a zero-gap rest simply matched none of the three
+    probes and fell through to ``NONE``, so the split silently stopped summing
+    to the total it splits. Same false negative ``905a9b15`` fixed for
+    ``diag_bay_start``'s TOUCHED, in a different diagnostic.
     """
     x, y, yaw = pose
     widths = corridor_widths_from_metadata(metadata)
-    if TrackModel(widths).footprint_collides(x, y, yaw):
+    length = RobotSpecs.LENGTH + 2.0 * _CONTACT_EPSILON_M
+    width = RobotSpecs.WIDTH + 2.0 * _CONTACT_EPSILON_M
+    if TrackModel(widths).footprint_collides(x, y, yaw, length, width):
         return CollisionKind.WALL
     signs_only = _without_parking(metadata)
-    if TrackModel(widths, obstacles=obstacles_from_metadata(signs_only)).footprint_collides(x, y, yaw):
+    if TrackModel(widths, obstacles=obstacles_from_metadata(signs_only)).footprint_collides(x, y, yaw, length, width):
         return CollisionKind.SIGN
     parking_only = _without_signs(metadata)
-    if TrackModel(widths, obstacles=obstacles_from_metadata(parking_only)).footprint_collides(x, y, yaw):
+    if TrackModel(widths, obstacles=obstacles_from_metadata(parking_only)).footprint_collides(x, y, yaw, length, width):
         return CollisionKind.PARKING
     return CollisionKind.NONE
 
