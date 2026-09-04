@@ -36,11 +36,16 @@
 //     / DirectionFromParkingBay settling the travel direction), accumulating
 //     camera signs through signrouter.ObservedSignMap (discover mode) and
 //     applying the start_measurement believed-offset (BelievedYawOffset /
-//     ApplyBelievedStart) once the direction resolves. corridor_estimator.py
-//     (running corridor-width averaging) is the one blind piece still not
-//     wired here -- the creep uses the plain TurnClearanceM; a sighted
-//     Direction (non-nil) skips the whole phase, preserving the original
-//     behavior.
+//     ApplyBelievedStart) once the direction resolves. A boxed-in parking-bay
+//     start additionally hands off to internal/nav/bayexit's BayExit for the
+//     ticks it takes to clear the pocket (see blindCreep's exitingBay
+//     handling), matching track_navigator_node.py's `_exiting_bay` state
+//     machine; on real hardware this holds rather than exits, since the
+//     Gateway has no encoder topic to read wheel odometry from yet.
+//     corridor_estimator.py (running corridor-width averaging) is the one
+//     blind piece still not wired here -- the creep uses the plain
+//     TurnClearanceM; a sighted Direction (non-nil) skips the whole phase,
+//     preserving the original behavior.
 //
 // Everything else -- the full Step control flow, the whole escape/stuck
 // recovery subsystem, SignRouter integration including the pass-side lane

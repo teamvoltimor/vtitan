@@ -22,10 +22,15 @@
 // decides WHEN to invoke BayExit -- boxed-in-bay detection via
 // directionestimator.DirectionFromParkingBay, calling IsClear each tick to
 // know when to stop, and reading wheel odometry to pass as Command's
-// travelledM) is NOT wired in yet. internal/nav/navigator's Gateway port has
-// no wheel-odometry accessor at all currently (Python's
-// get_wheel_odometry() has no Go counterpart), so wiring this in is a
-// separate change that also touches the Gateway interface and both its
-// implementations (internal/adapters/natsgw, internal/sim/harness), not
-// just this package.
+// travelledM) IS wired in now, in internal/nav/navigator's blindCreep.
+//
+// The wheel-odometry accessor (controllers.HardwareGateway.GetWheelOdometry)
+// already existed on the port; it only lacked a real producer.
+// internal/sim/harness's SimHardwareGateway now accumulates a genuine
+// signed distance (matching the Python oracle's heading-projected
+// _wheel_distance_m update) instead of reporting zero. Real hardware
+// (internal/adapters/natsgw) still has no encoder topic to read, so
+// GetWheelOdometry there continues to report ok=false -- the navigator
+// holds (publishes zero drive) rather than run the exit blind, exactly as
+// the Python node does when its gateway returns None.
 package bayexit

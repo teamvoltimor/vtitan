@@ -36,6 +36,7 @@ type SimHardwareGateway struct {
 	scan      controllers.LidarScan
 	elapsedS  float64
 	lastScanS float64
+	distanceM float64
 
 	collided   bool
 	collisionX float64
@@ -96,10 +97,10 @@ func (g *SimHardwareGateway) GetLidarScan() (controllers.LidarScan, bool) {
 	return g.scan, true
 }
 
-// GetWheelOdometry returns zero travel; the navigator's control loop does not
-// consume odometry, so a no-op estimate is sufficient.
+// GetWheelOdometry returns the accumulated signed wheel travel and current
+// speed, matching the Python SimulatedHardwareGateway.
 func (g *SimHardwareGateway) GetWheelOdometry() (controllers.WheelOdometry, bool) {
-	return controllers.WheelOdometry{StampS: g.elapsedS, SpeedMPS: g.state.V}, true
+	return controllers.WheelOdometry{DistanceM: g.distanceM, StampS: g.elapsedS, SpeedMPS: g.state.V}, true
 }
 
 // SetBelievedWalls is accepted but a no-op: blind mode (believed-wall
@@ -128,8 +129,15 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 	}
 	g.elapsedS += dt
 
+	prevX, prevY, prevYaw := g.state.X, g.state.Y, g.state.Yaw
 	candidate := g.kin.Step(g.state, g.command.SpeedMPS, g.command.SteeringNorm, dt)
 	g.state = candidate
+
+	// Signed along the heading, not unsigned path length: a quadrature
+	// encoder counts down in reverse, so the real distance_m is signed.
+	// Accumulating hypot() here would make a reversing robot report travel
+	// forwards, matching the Python oracle's _wheel_distance_m update.
+	g.distanceM += (g.state.X-prevX)*math.Cos(prevYaw) + (g.state.Y-prevY)*math.Sin(prevYaw)
 
 	// The chassis is allowed to graze a wall; the integrated pose is kept
 	// (the Python allowed_step logic is ported separately and applied by the

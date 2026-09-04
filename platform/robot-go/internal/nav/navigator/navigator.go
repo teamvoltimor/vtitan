@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/directionestimator"
@@ -114,6 +115,19 @@ type Navigator struct {
 	discovery         *signrouter.ObservedSignMap
 	believedYawOffset float64
 	believedYawSet    bool
+
+	// In-bay start. bayStartChecked is tested ONCE (the first blindCreep
+	// tick with a scan), matching track_navigator_node.py's
+	// _bay_start_checked: re-testing every tick lets it fire mid-creep at a
+	// corner and settle the direction off geometry that is not a bay at
+	// all. exitingBay latches while BayExit drives the pocket exit; the
+	// direction is settled into dirEstimator immediately (so the router and
+	// belief-offset math can commit once the exit clears) but n.direction
+	// itself is not published until then, so blindCreep keeps running the
+	// exit maneuver instead of handing off to normal driving mid-pocket.
+	bayStartChecked bool
+	exitingBay      bool
+	bayExit         *bayexit.BayExit
 
 	waypointIndex     int
 	lapsCompleted     int
@@ -512,13 +526,54 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 	}
 
 	// Resolve the direction: a boxed-in parking bay names it outright;
-	// otherwise vote on scans.
+	// otherwise vote on scans. The parking-bay check is tested ONCE (the
+	// first tick a scan is available) -- see bayStartChecked's doc comment;
+	// re-testing every tick lets it fire mid-creep at a corner and settle
+	// the direction off geometry that is not a bay at all.
 	if n.dirEstimator != nil {
-		if dir, ok := directionestimator.DirectionFromParkingBay(ranges, angles, directionestimator.DefaultConfig()); ok {
-			n.dirEstimator.Settle(dir)
-		} else if haveScan {
+		boxed := false
+		if !n.bayStartChecked && haveScan {
+			n.bayStartChecked = true
+			if dir, ok := directionestimator.DirectionFromParkingBay(ranges, angles, directionestimator.DefaultConfig()); ok {
+				n.dirEstimator.Settle(dir)
+				n.exitingBay = true
+				boxed = true
+			}
+		}
+		if !boxed && !n.exitingBay && haveScan {
 			n.dirEstimator.Observe(ranges, angles, robotYaw, directionestimator.DefaultConfig())
 		}
+
+		// Out of the pocket. Falls through to the settle block below rather
+		// than returning, so the path is rebuilt for the committed
+		// direction once the maneuver ends -- see bayexit.IsClear.
+		bxCfg := bayexit.DefaultConfig()
+		if n.exitingBay && haveScan && bayexit.IsClear(ranges, angles, bxCfg) {
+			n.exitingBay = false
+		}
+		if n.exitingBay {
+			odom, odomOK := n.gateway.GetWheelOdometry()
+			if !odomOK {
+				// No odometry means the reverse leg cannot be bounded, and
+				// this maneuver reverses toward a fin. Hold rather than
+				// guess.
+				n.gateway.PublishDrive(controllers.DriveCommand{})
+				debug.CommandedSpeedMPS = new(0.0)
+				debug.CommandedSteerNorm = new(0.0)
+				n.debug = debug
+				return
+			}
+			if n.bayExit == nil {
+				n.bayExit = bayexit.New()
+			}
+			cmd := n.bayExit.Command(ranges, angles, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg)
+			n.gateway.PublishDrive(cmd)
+			debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
+			debug.CommandedSteerNorm = new(cmd.SteeringNorm)
+			n.debug = debug
+			return
+		}
+
 		if dir, ok := n.dirEstimator.Direction(); ok {
 			n.direction = &dir
 			// With the direction known, measure the start so the map frame
