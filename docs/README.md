@@ -481,6 +481,13 @@ Con todos estos componentes en mente, queríamos implementar esta idea en un sis
 
 #### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
 
+<p align="center">
+	<img src="assets/images/development/early-direction-system-design.jpg" alt="Sistema de Transmisión" 
+width="350">
+	<br>
+	<i>Primer Prototipo del Sistema de Dirección</i>
+</p>
+
 * **Mecanismo de Rueda:** Nuestro primer prototipo fue un rin estático que actúa como soporte/pivote en la tijera, mientras que el caucho exterior móvil incorpora una corona/cremallera interna accionada por piñones para transmitir tracción.
 
 * **Transmisión de Dirección/Potencia:** Se implementaron **guayas flexibles** (tipo mototool/rotamil) para llevar el movimiento de rotación a la rueda soportando el ángulo extremo de 90 grados.
@@ -526,11 +533,25 @@ Con todos estos componentes en mente, queríamos implementar esta idea en un sis
 
 ## Sistema de Transmisión
 
+<p align="center">
+	<img src="assets/images/development/transmission-system-top-view.jpg" alt="Sistema de Transmisión" 
+width="350">
+	<br>
+	<i>Sistema de Transmisión, visto desde arriba</i>
+</p>
+
 Para poder diseñar nuestro sistema de transmisión, tuvimos que tener en cuenta nuestra meta inicial de nuestro alcance de dirección, para poder transmitir el movimiento del motor hacia las ruedas aún cuando éstas estén rotadas a un ángulo de 90 grados. 
 
 Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción en cada rueda, éste sistema es controlado por un único motor cuyo movimiento es transmitido mediante dos correas de movimiento (una para las ruedas delanteras, y otra para las ruedas traseras), este movimiento se va a su eje correspondiente (para el cual utilizamos unos pernos de transmisión de LEGO) cada eje transmite a dos sisteams de engranajes (uno a la izquierda, otro a la derecha) y este eje tiene un engranaje cónico con un ángulo de 90 grados de 15 dientes, y este movimiento luego es transmitido directamente a la rueda (la cual en lugar de ser un caucho regular, recibe la tracción mediante sus dientes internos)
 
 ## Sistema de Dirección
+
+<p align="center">
+	<img src="assets/images/development/direction-system-top-view.jpg" alt="Sistema de Dirección" 
+width="350">
+	<br>
+	<i>Sistema de Dirección, visto desde arriba</i>
+</p>
 
 Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. Resumidamente, todo el movimiento lo transmitimos a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque es necesario un servo con mucha capacidad de torque para poder ejercer fuerza en las 4 ruedas. En primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado a un engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con las dos ruedas, ya sean delanteras o traseras.
 
