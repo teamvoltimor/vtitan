@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"os/signal"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/opencorpus"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/scenario"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
 )
 
 // cliConfig holds every flag sim-runner accepts. Nothing about which
@@ -36,22 +38,27 @@ import (
 // (dev box vs. CI vs. a future pixi-managed runner) may reasonably want to
 // override any of it.
 type cliConfig struct {
-	corpusPath  string
-	command     string
-	baseArgs    string
-	scriptPath  string
-	workDir     string
-	pythonPath  string
-	extraArgs   string
-	openSpace   string
-	openDir     string
-	configRoot  string
-	hwProfiles  string
-	concurrency int
-	timeout     time.Duration
-	jsonOutput  bool
-	runner      string
-	blind       bool
+	corpusPath   string
+	command      string
+	baseArgs     string
+	scriptPath   string
+	workDir      string
+	pythonPath   string
+	extraArgs    string
+	openSpace    string
+	openDir      string
+	configRoot   string
+	hwProfiles   string
+	yawBiasDeg   float64
+	imuDriftDPM  float64
+	gyroScaleErr float64
+	imuNoiseDeg  float64
+	startPosErr  float64
+	concurrency  int
+	timeout      time.Duration
+	jsonOutput   bool
+	runner       string
+	blind        bool
 }
 
 // Open-space selectors accepted by --open-space. There is no committed Open
@@ -175,6 +182,43 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		"--runner native only: comma-separated hardware profiles to overlay on --config-root, "+
 			"one per component (e.g. 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm)",
 	)
+	// Sensor errors: what the robot is wrong about regarding ITSELF, as
+	// opposed to what --blind withholds about the track. All default to
+	// zero (a perfect robot), which is the condition every corpus number
+	// here was measured on, so switching one on is an explicit A/B.
+	flags.Float64Var(
+		&cfg.startPosErr,
+		"start-pos-error-m",
+		0,
+		"--runner native only: distance between where the body is and where it believes it is, "+
+			"at a random bearing (a robot is set down by hand, not on a surveyed point)",
+	)
+	flags.Float64Var(
+		&cfg.yawBiasDeg,
+		"yaw-bias-deg",
+		0,
+		"--runner native only: constant IMU yaw-zero offset; never corrected, because nothing "+
+			"else observes absolute heading",
+	)
+	flags.Float64Var(
+		&cfg.imuDriftDPM,
+		"imu-drift-deg-per-min",
+		0,
+		"--runner native only: IMU yaw drift rate; the BNO085's quoted figure is 0.5",
+	)
+	flags.Float64Var(
+		&cfg.gyroScaleErr,
+		"gyro-scale-error",
+		0,
+		"--runner native only: fractional gyro rotation error (0.005 = 0.5%), accumulated per "+
+			"degree TURNED rather than per second",
+	)
+	flags.Float64Var(
+		&cfg.imuNoiseDeg,
+		"imu-noise-deg",
+		0,
+		"--runner native only: per-reading Gaussian yaw noise (stddev)",
+	)
 	flags.StringVar(
 		&cfg.openSpace,
 		"open-space",
@@ -278,6 +322,23 @@ func resolveCorpus(logger *slog.Logger, cfg cliConfig) (scenarios []corpus.Scena
 	return generated, cleanup, nil
 }
 
+// sensorErrorsFor converts the CLI's human-facing units into the model's.
+// Angles are taken in DEGREES on the command line and drift in deg/min,
+// because that is how the BNO085 datasheet quotes them and how anyone
+// reasoning about a mount error thinks; the model itself is all radians.
+func sensorErrorsFor(cfg cliConfig) sensorerrors.Errors {
+	const secondsPerMinute = 60.0
+	return sensorerrors.Errors{
+		StartPosErrorM:  cfg.startPosErr,
+		YawBiasRad:      degreesToRadians(cfg.yawBiasDeg),
+		IMUDriftRadPerS: degreesToRadians(cfg.imuDriftDPM) / secondsPerMinute,
+		GyroScaleError:  cfg.gyroScaleErr,
+		IMUNoiseRad:     degreesToRadians(cfg.imuNoiseDeg),
+	}
+}
+
+func degreesToRadians(deg float64) float64 { return deg * math.Pi / 180.0 }
+
 func splitCSV(raw string) []string {
 	if raw == "" {
 		return nil
@@ -303,6 +364,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 			Blind:            cfg.blind,
 			ConfigRoot:       cfg.configRoot,
 			HardwareProfiles: splitCSV(cfg.hwProfiles),
+			SensorErrors:     sensorErrorsFor(cfg),
 		})
 	case "python", "":
 		r, rerr := scenario.NewSubprocessRunner(scenario.Config{

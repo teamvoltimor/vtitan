@@ -1,6 +1,10 @@
 package harness
 
-import "math"
+import (
+	"math"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
+)
 
 // Config configures a SimHardwareGateway, the Go-native replacement for the
 // Python SimulatedHardwareGateway. Every field has a sane default so a
@@ -44,6 +48,14 @@ type Config struct {
 	// the known WRO chassis (0.30 x 0.194).
 	ChassisLengthM float64
 	ChassisWidthM  float64
+	// SensorErrors is what the robot may be wrong about regarding ITSELF:
+	// where it was placed and which way it thinks it points. The zero value
+	// is a perfect robot, which is what every corpus number in this repo
+	// was measured against -- and what the Python default is too, since
+	// every SensorErrors field defaults to 0.0 there. Switching any of it
+	// on is an explicit A/B.
+	SensorErrors sensorerrors.Errors
+
 	// DetectionConfidence is the fixed confidence internal/sim/visionsim
 	// reports for every emulated sign detection. Mirrors
 	// simulation.toml's detection_confidence; unported (plan §2), defaulted

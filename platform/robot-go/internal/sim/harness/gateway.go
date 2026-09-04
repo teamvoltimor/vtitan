@@ -9,7 +9,14 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
 )
+
+// sensorErrorStreamSalt separates the sensor-error RNG stream from the LIDAR
+// sampler's. Any fixed non-zero constant works; what matters is that the two
+// streams never coincide, so enabling sensor errors cannot perturb the LIDAR
+// noise sequence an unperturbed control run was measured on.
+const sensorErrorStreamSalt = 0xa076_1d64_78bd_642f
 
 // SimHardwareGateway is the Go-native HardwareGateway backing a scenario run
 // with a kinematic body and a raycast LIDAR, replacing the Python
@@ -38,6 +45,23 @@ type SimHardwareGateway struct {
 	lastScanS float64
 	distanceM float64
 
+	// imu is nil when the run configures no sensor errors, which is the
+	// default and every existing corpus number's condition. A nil model
+	// means GetCurrentPose returns ground-truth yaw with no arithmetic at
+	// all, rather than truth-plus-zero.
+	imu *sensorerrors.IMUModel
+	// startPosErrorX/Y is the fixed displacement between where the body is
+	// and where the pose is reported to be. Drawn once at a random bearing,
+	// then held: it models a robot placed somewhere other than where it
+	// believes, which does not converge out on its own.
+	startPosErrorX float64
+	startPosErrorY float64
+	// rotationRad is the signed, UNWRAPPED rotation the body has turned
+	// through, so three laps of one-way cornering accumulate rather than
+	// cancel. Only the gyro scale error reads it.
+	rotationRad float64
+	prevTrueYaw float64
+
 	collided   bool
 	collisionX float64
 	collisionY float64
@@ -53,15 +77,41 @@ func NewSimHardwareGateway(
 	seed uint64,
 ) *SimHardwareGateway {
 	g := &SimHardwareGateway{
-		cfg:   cfg,
-		track: track,
-		kin:   kin,
-		rng:   rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)),
-		state: initial,
+		cfg:         cfg,
+		track:       track,
+		kin:         kin,
+		rng:         rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)),
+		state:       initial,
+		prevTrueYaw: initial.Yaw,
 	}
+	g.initSensorErrors(seed)
 	g.buildAngles()
 	g.refreshSensors()
 	return g
+}
+
+// initSensorErrors builds the IMU model and draws the start-pose offset,
+// when cfg.SensorErrors asks for any perturbation at all.
+//
+// The error stream is spawned from the run seed but kept SEPARATE from the
+// LIDAR sampler above. Drawing these from the sensor stream would shift the
+// LIDAR noise sequence, silently changing every existing result -- including
+// the unperturbed control runs a perturbed arm is supposed to be compared
+// against. Mirrors the Python gateway's own seed_seq.spawn(1).
+func (g *SimHardwareGateway) initSensorErrors(seed uint64) {
+	errors := g.cfg.SensorErrors
+	if !errors.Any() {
+		return
+	}
+
+	errRNG := rand.New(rand.NewPCG(seed^sensorErrorStreamSalt, seed))
+	g.imu = sensorerrors.NewIMUModel(errors, errRNG)
+
+	// A random bearing, so the error is not systematically along-track --
+	// which a localizer finds far easier to correct than a lateral one.
+	bearing := errRNG.Float64()*2*math.Pi - math.Pi
+	g.startPosErrorX = errors.StartPosErrorM * math.Cos(bearing)
+	g.startPosErrorY = errors.StartPosErrorM * math.Sin(bearing)
 }
 
 // buildAngles fills the full 360 sweep (robot frame, 0 = forward, +pi/2 =
@@ -86,7 +136,14 @@ func (g *SimHardwareGateway) PublishDrive(command controllers.DriveCommand) {
 // GetCurrentPose returns the ground-truth kinematic pose. localize is not
 // implemented (TODO below), so this is always perfect odometry.
 func (g *SimHardwareGateway) GetCurrentPose() (trackmodel.Pose, bool) {
-	return trackmodel.Pose{X: g.state.X, Y: g.state.Y, Yaw: g.state.Yaw}, true
+	if g.imu == nil {
+		return trackmodel.Pose{X: g.state.X, Y: g.state.Y, Yaw: g.state.Yaw}, true
+	}
+	return trackmodel.Pose{
+		X:   g.state.X + g.startPosErrorX,
+		Y:   g.state.Y + g.startPosErrorY,
+		Yaw: g.imu.Yaw(g.state.Yaw, g.elapsedS, g.rotationRad),
+	}, true
 }
 
 // GetLidarScan returns the most recent simulated sweep (ranges + angles).
@@ -113,7 +170,10 @@ func (g *SimHardwareGateway) ResetPosition(x, y float64) {
 	g.refreshSensors()
 }
 
-// ResetHeadingReference is a no-op (no IMU drift model in the native runner).
+// ResetHeadingReference is a no-op. The IMU error model deliberately does
+// NOT reset here: a BNO085's yaw zero is fixed at boot, so the bias a
+// chassis set down askew carries is not something the navigator can re-zero
+// away mid-round.
 func (g *SimHardwareGateway) ResetHeadingReference() {}
 
 // CorrectHeadingForDirectionChange shifts the kinematic yaw by deltaRad.
@@ -138,6 +198,12 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 	// Accumulating hypot() here would make a reversing robot report travel
 	// forwards, matching the Python oracle's _wheel_distance_m update.
 	g.distanceM += (g.state.X-prevX)*math.Cos(prevYaw) + (g.state.Y-prevY)*math.Sin(prevYaw)
+
+	// Unwrapped so a one-way round accumulates: the gyro scale error scales
+	// with the course turned rather than the clock, and wrapping here would
+	// cancel twelve corners back to nearly nothing.
+	g.rotationRad += navutil.WrapAngle(g.state.Yaw - g.prevTrueYaw)
+	g.prevTrueYaw = g.state.Yaw
 
 	// The chassis is allowed to graze a wall; the integrated pose is kept
 	// (the Python allowed_step logic is ported separately and applied by the

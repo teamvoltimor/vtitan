@@ -22,6 +22,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/visionsim"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
 )
@@ -102,6 +103,11 @@ type NativeRunnerConfig struct {
 	// Python baseline must set both.
 	ConfigRoot       string
 	HardwareProfiles []string
+	// SensorErrors perturbs what the robot knows about ITSELF -- its start
+	// pose and its heading -- on top of whatever Blind withholds about the
+	// track. Zero (a perfect robot) is what every corpus number here was
+	// measured on, and is Python's default too.
+	SensorErrors sensorerrors.Errors
 }
 
 // ControlDt returns the simulation timestep (s). It resolves the effective
@@ -120,6 +126,11 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	hc := harness.DefaultConfig()
 	if cfg.Harness != nil {
 		hc = *cfg.Harness
+	}
+	// Applied after the harness override so --sensor-error flags compose
+	// with a caller-supplied Config rather than being erased by it.
+	if cfg.SensorErrors.Any() {
+		hc.SensorErrors = cfg.SensorErrors
 	}
 	maxSteps := cfg.MaxSteps
 	if maxSteps <= 0 {
