@@ -96,3 +96,48 @@ commit_hysteresis = false
 # steering with infinite bandwidth, so a 20Hz axis flip costs it almost nothing,
 # where a real servo has to physically slew between the two commands.
 corridor_flip_ticks = 1
+
+# Cap speed at the `slow` tier while the router is actually holding a sign
+# deformation this tick. ON.
+#
+# The docstring shipped this False as "unmeasured over the corpus, ships off
+# until it is", and separately records the lever as REFUTED. Both are now
+# resolved rather than overridden:
+#
+# * The refutation was measured SIGHTED, where the shortfall is curvature-
+#   limited and extra time cannot buy turning radius. This is measured BLIND,
+#   which is the competition configuration and, as `explore_lap_speed_frac`
+#   already argues, an INFORMATION-limited problem where time is worth
+#   something. Same knob, different constraint.
+# * Measured 2026-09-04 over the 256-scenario corpus, blind, both arms in ONE
+#   invocation (diag_sign_sweep.py sign-speed-blind 0 1 --corpus
+#   --strip-parking), against the rule-9.21 judge added the day before:
+#
+#     metric        off    on
+#     clean          77    79
+#     in-time        71    73
+#     laps>=3        77    79
+#     rev-run (9.21) 14     9
+#     unscored       14     9
+#     collisions     15    15   (sign 6->4, wall 9->11)
+#     timeouts       26    27
+#     pass-side     118   119
+#
+# READ THE COLLISION ROW HONESTLY: the total does not move. Two strikes shift
+# from the sign column to the wall column, which this file's own
+# `corridor_flip_ticks` note calls out as not an achievement. An earlier
+# session's "collisions 17->15, timeouts 31->30 so it costs nothing" does NOT
+# reproduce; timeouts cost +1 here.
+#
+# What earns the flag is the row that session could not see, because 9.21 was
+# unenforced when it measured: rev-run falls 14 -> 9, and `unscored` falls by
+# the same 5 -- the same runs, five previously ILLEGAL rounds becoming
+# scoreable, which is where +2 clean / +2 in-time / +2 laps>=3 come from.
+#
+# The MECHANISM is not established. Escapes are flat (17293 vs 17283), so
+# "fewer sign contacts -> fewer escapes -> fewer heading inversions" is a
+# plausible story that has NOT been measured. Do not build on it.
+#
+# Obstacles-only by construction: it gates on a deformation the router applied,
+# and Open never deforms, so this cannot touch the Open ladder.
+sign_aware_speed = true

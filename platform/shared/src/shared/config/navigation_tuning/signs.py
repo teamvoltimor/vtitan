@@ -85,8 +85,14 @@ class SignRouterParams(BaseModel):
             worse, see its own docstring), this reacts to the deformation the
             router already applied rather than proximity to a sign, so it
             cannot mis-trigger on a sign that isn't currently biasing
-            anything. Defaults ``False``: unmeasured over the corpus, ships
-            off until it is.
+            anything. The FIELD default is ``False`` but the shipped TOML sets
+            it TRUE -- read
+            ``shared/config/navigation/signs/sign_router.toml``, not this
+            default, which is what a bare ``SignRouterParams()`` would give.
+            Measured 2026-09-04 over the 256-scenario corpus, blind: rev-run
+            (rule 9.21) 14 -> 9 and the same 5 runs leave ``unscored``, giving
+            +2 clean / +2 in-time / +2 laps>=3. Total collisions do NOT move
+            (15 -> 15; 2 shift sign -> wall) and timeouts cost +1.
         SIGN_DEFORM_SPEED_THRESHOLD_M: Deformation magnitude (m) above which
             ``SIGN_AWARE_SPEED`` caps speed. Only meaningful with
             ``SIGN_AWARE_SPEED``.
@@ -223,13 +229,15 @@ class SignRouterParams(BaseModel):
             until the corner is turned, so observations top out at ~2.3 m no
             matter how discovery is tuned -- but discovered signs PERSIST
             across laps, so laps 2-3 run against a full map.
-            Note this is not the refuted ``SIGN_AWARE_SPEED`` lever wearing a
+            Note this is not the ``SIGN_AWARE_SPEED`` lever wearing a
             different hat. That one failed in SIGHTED mode, where the shortfall
             is curvature-limited and extra time cannot buy turning radius. A
             blind first lap is INFORMATION-limited: a sign that only exists
             once it is 1.5 m away gives twice the runway at half the speed.
             Different constraint, so the same knob can legitimately behave
-            differently.
+            differently -- and it did: measured BLIND on 2026-09-04 that lever
+            earned its way on and now ships TRUE, so "refuted" applies only to
+            the sighted result, never unqualified.
         SIGN_LANE_PLANNER: Shift the PLANNED PATH onto a pass-side lane
             through each signed corridor, instead of only overriding the
             pursuit target near the sign. Every other lever tried against the
