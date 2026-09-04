@@ -19,7 +19,7 @@ from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.timer import Timer  # noqa: TC002
 from sensor_msgs.msg import Image, LaserScan
-from shared.config.constants import RobotSpecs, TfFrames
+from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import ScenarioType
 from std_msgs.msg import String
@@ -51,14 +51,6 @@ from src.vision.video_recorder import FrameSnapshot, VideoRecorder
 
 if TYPE_CHECKING:
     from src.hardware.camera.base import Driver as CameraDriver
-
-_LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
-"""Rotates raw /scan bearings into the robot frame (0 rad = forward) before the
-HUD radar plots them -- same shared classmethod as ros2_hardware_gateway.py's
-own copy of this constant, so the recorded video's radar doesn't disagree with
-navigation about which way the robot is facing (LIDAR_INVERTED's mandatory
-180deg mount correction otherwise leaves the radar in raw sensor frame)."""
-
 
 class Config(HardwareBaseSettings):
     """Fallback defaults for VisionNode's ROS2 parameters.
@@ -519,15 +511,17 @@ class VisionNode(Node):
         Cheap (no copying beyond what building the tuple/angle list needs) --
         this runs on the same tick as inference, so it must stay that way.
         Scan angles aren't carried on LaserScan directly; computed here from
-        angle_min/angle_increment plus _LIDAR_YAW_OFFSET_RAD, the same
-        derivation ros2_hardware_gateway.py uses -- without it these are raw
-        sensor-frame bearings, 180deg off body frame on this upside-down
-        mount, and the recorded video's radar shows the robot backward.
+        angle_min/angle_increment, deliberately left in the RAW sensor frame --
+        draw_radar (src/vision/hud.py) applies its own mount-inversion/yaw-offset
+        correction from HudConfig, mirroring (not just rotating) when the mount
+        is upside-down, since a display-only path can carry that fix without
+        the bag-replay-parity risk RobotSpecs.lidar_yaw_offset_rad()'s
+        rotation-only formula still has on the nav side.
         """
         scan = self._scan
         scan_ranges = list(scan.ranges) if scan is not None else None
         scan_angles = (
-            [scan.angle_min + i * scan.angle_increment + _LIDAR_YAW_OFFSET_RAD for i in range(len(scan.ranges))]
+            [scan.angle_min + i * scan.angle_increment for i in range(len(scan.ranges))]
             if scan is not None
             else None
         )

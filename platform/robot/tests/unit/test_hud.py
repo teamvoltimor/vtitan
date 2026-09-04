@@ -124,6 +124,33 @@ class TestDrawRadar:
         out = draw_radar(_blank(width=20, height=20), [1.0], [0.0], config=_HUD)
         assert out is not None  # must not raise; drawing nothing is the correct behaviour here
 
+    @staticmethod
+    def _point_x(out: np.ndarray, config: HudConfig) -> int:
+        """x pixel of the single plotted radar point, via its configured colour."""
+        matches = np.argwhere((out == np.array(config.radar_point_rgb)).all(axis=-1))
+        assert matches.size, "expected the radar point colour to be drawn somewhere"
+        return int(matches[:, 1].mean())
+
+    def test_upright_mount_left_raw_angle_lands_left_of_centre(self) -> None:
+        """Not inverted: raw angle IS the body-frame angle (0=fwd, CCW=left,
+        per REP-103) -- +pi/2 must render left of the radar's centre, or the
+        screen-space projection (x increases rightward) is mirroring it."""
+        config = HudConfig(lidar_inverted=False, lidar_yaw_offset_deg=0.0)
+        width, height = 1536, 864
+        out = draw_radar(_blank(width=width, height=height), [1.0], [math.pi / 2], max_range_m=3.0, config=config)
+        cx = width - (config.radar_radius_px + config.radar_margin_px)
+        assert self._point_x(out, config) < cx
+
+    def test_inverted_mount_mirrors_not_rotates_left_right(self) -> None:
+        """Inverted: correction is a MIRROR (negate raw), not a +180 rotation --
+        see _body_frame_angle_rad. A raw +pi/2 (left in the sensor's own spin
+        direction) must land on the RIGHT once mirrored into body frame."""
+        config = HudConfig(lidar_inverted=True, lidar_yaw_offset_deg=0.0)
+        width, height = 1536, 864
+        out = draw_radar(_blank(width=width, height=height), [1.0], [math.pi / 2], max_range_m=3.0, config=config)
+        cx = width - (config.radar_radius_px + config.radar_margin_px)
+        assert self._point_x(out, config) > cx
+
 
 class TestDrawLogo:
     """Purely cosmetic branding, unlike the telemetry panels/radar -- these pin

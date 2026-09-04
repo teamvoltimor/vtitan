@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 from pydantic_settings import SettingsConfigDict
+from shared.config.constants import RobotSpecs
 
 from src.hardware.settings_base import CONFIG_DIR, ROBOT_ROOT, HardwareBaseSettings
 
@@ -106,6 +107,17 @@ class HudConfig(HardwareBaseSettings):
     another use of the same UI accent colour."""
     radar_robot_rgb: _RGB = (255, 255, 255)
     max_radar_range_m: float = 3.0
+
+    lidar_inverted: bool = RobotSpecs.LIDAR_INVERTED
+    """Whether the mounted LIDAR is upside-down -- default sourced from
+    robot.toml's [lidar].inverted (the same single source of truth
+    RobotSpecs.LIDAR_INVERTED drives everywhere else), not hardcoded, so this
+    stays in sync if the physical mount ever changes. Overridable like any
+    other HardwareBaseSettings field for a preview/test that wants to force
+    the other orientation."""
+    lidar_yaw_offset_deg: float = RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
+    """Residual yaw miscalibration NOT explained by lidar_inverted, added on
+    top of the inversion correction -- see RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG."""
 
     logo_size_px: int = 128
     logo_margin_px: int = 8
@@ -294,6 +306,22 @@ def draw_stats(
     return out
 
 
+def _body_frame_angle_rad(raw_angle_rad: float, *, config: HudConfig) -> float:
+    """Convert a raw /scan bearing to the robot's body frame (0 rad = forward, CCW = left).
+
+    An upside-down-mounted spinning LIDAR reverses its apparent spin direction
+    in the robot's top-down frame, so correcting for it is a MIRROR (negate
+    the raw angle), not a rotation (add a constant offset) -- hardware-verified
+    2026-08-31 against the Go driver's correctAngleDeg (frame_classic.go).
+    Only applied here: this is display-only, so there's no bag-replay-parity
+    risk the way there is for RobotSpecs.lidar_yaw_offset_rad(), which the nav
+    pipeline still uses with the older rotation-only formula and can't change
+    without a coordinated Go+Python fix validated against recorded bags.
+    """
+    residual_rad = math.radians(config.lidar_yaw_offset_deg)
+    return (-raw_angle_rad if config.lidar_inverted else raw_angle_rad) + residual_rad
+
+
 def draw_radar(
     canvas: np.ndarray,
     ranges_m: Sequence[float] | None,
@@ -304,13 +332,18 @@ def draw_radar(
 ) -> np.ndarray:
     """Return a copy of *canvas* with a small LIDAR radar plot in the bottom-right corner.
 
-    0 rad is straight ahead (up on the plot); angle increases counter-clockwise,
+    Plots straight ahead as up; angle increases counter-clockwise on the plot,
     matching the robot's own body frame -- not screen/compass convention.
 
     Args:
         canvas: Frame in RGB order.
         ranges_m: Latest LaserScan ranges, or None/empty before the first /scan message.
-        angles_rad: Matching per-ray angles (same length as ranges_m).
+        angles_rad: Matching per-ray angles (same length as ranges_m), in the
+            RAW /scan frame (e.g. angle_min + i * angle_increment) -- NOT
+            pre-corrected for mount inversion/yaw offset. This function applies
+            that correction itself, from config.lidar_inverted /
+            config.lidar_yaw_offset_deg, so it stays config-driven rather than
+            baked into the caller.
         max_range_m: Range that maps to the radar circle's outer edge; anything
             farther (including inf/nan, both of which a real LaserScan can carry
             for a no-return ray) is clipped to the edge rather than dropped, so
@@ -353,11 +386,15 @@ def draw_radar(
     cv2.circle(out, (cx, cy), radius // 2, config.radar_ring_rgb, 1, cv2.LINE_AA)
 
     if ranges_m and angles_rad:
-        for r, theta in zip(ranges_m, angles_rad, strict=False):
+        for r, raw_theta in zip(ranges_m, angles_rad, strict=False):
             if r is None or math.isnan(r):
                 continue
             clipped = min(r, max_range_m)  # inf (a real "no return" LaserScan value) clips fine too
-            px = cx + int((clipped / max_range_m) * radius * np.sin(theta))
+            theta = _body_frame_angle_rad(raw_theta, config=config)
+            # theta increases CCW in the robot's body frame (positive = left,
+            # per REP-103), but screen x increases rightward -- so a left ray
+            # must subtract from cx, or it renders mirrored onto the right.
+            px = cx - int((clipped / max_range_m) * radius * np.sin(theta))
             py = cy - int((clipped / max_range_m) * radius * np.cos(theta))
             if 0 <= px < width and 0 <= py < height:
                 cv2.circle(out, (px, py), 1, config.radar_point_rgb, -1, cv2.LINE_AA)
