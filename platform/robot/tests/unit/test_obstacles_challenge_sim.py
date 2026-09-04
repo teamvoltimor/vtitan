@@ -144,7 +144,11 @@ class TestObstaclesDemoScenariosRun:
         navigator_ref: list = [None]
 
         def recording_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, observations=None):
-            candidates = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
+            # deform_waypoint takes robot_pos as a plain (x, y) tuple and
+            # converts it before reaching the private helper, which requires a
+            # Waypoint. A wrapper calling that helper directly has to do the
+            # same conversion or it raises AttributeError on .distance_to.
+            candidates = self._active_sign_candidates(Waypoint(*robot_pos), robot_yaw, corridor)
             nearest_idx = candidates[0][0] if candidates else -1
             result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations)
             if result != waypoint and nearest_idx >= 0:
