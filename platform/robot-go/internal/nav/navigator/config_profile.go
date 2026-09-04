@@ -279,18 +279,31 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		},
 	)
 
-	loadApplyTOML(
-		logger,
-		filepath.Join(configRoot, profile.DefaultRobotTOMLPath),
-		"robot.toml",
-		func(loaded profile.RobotConfig) {
-			cfg.ChassisWidthM = loaded.Chassis.Width
-			cfg.MaxSteeringAngleRad = loaded.MaxSteeringAngle()
-			cfg.LidarToFrontBumperM = loaded.LidarToFrontBumper()
-			cfg.LidarToRearBumperM = loaded.LidarToRearBumper()
-			cfg.DrivetrainMaxSpeedMPS = loaded.Drivetrain.MaxSpeedMPS
-		},
-	)
+	// robot.toml goes through LoadRobotConfig, not the generic loadApplyTOML
+	// above, for two reasons that both bite silently.
+	//
+	// It must see hardwareProfileNames: max_speed_mps and max_wheel_angle_deg
+	// are DELIBERATELY ABSENT from the base file (they describe a specific
+	// motor and servo) and only a profile supplies them.
+	//
+	// And it must be the checked variant: every field here is applied
+	// unconditionally, so a missing key lands as 0 rather than leaving the
+	// default in place -- and DrivetrainMaxSpeedMPS=0 makes every
+	// Config.*SpeedMPS() method return min(tier, 0), i.e. a robot that
+	// cannot move at all. Measured: a native corpus sweep given a config
+	// root but no profiles scored 640/640 STUCK at max speed 0.000, which
+	// reads as a navigation failure rather than as the config error it is.
+	// LoadRobotConfig fails loudly on exactly those keys instead.
+	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
+	if loaded, err := profile.LoadRobotConfig(robotPath, hardwareProfileNames); err != nil {
+		logger.Warn("navigator: loading robot.toml, falling back to defaults", "error", err)
+	} else {
+		cfg.ChassisWidthM = loaded.Chassis.Width
+		cfg.MaxSteeringAngleRad = loaded.MaxSteeringAngle()
+		cfg.LidarToFrontBumperM = loaded.LidarToFrontBumper()
+		cfg.LidarToRearBumperM = loaded.LidarToRearBumper()
+		cfg.DrivetrainMaxSpeedMPS = loaded.Drivetrain.MaxSpeedMPS
+	}
 
 	loadApplyTOML(
 		logger,
