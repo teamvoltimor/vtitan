@@ -374,6 +374,23 @@ class BayExit:
         sign = 1.0 if open_is_left else -1.0
         target = -back * sign if self._leg_is_reverse else arc * sign
 
+        # Origin the FIRST leg too, and compare with `is None` rather than `or`
+        # below. BOTH were needed: `_leg_start_m` was only ever set by
+        # `_begin_leg`/`_reset_for_switch`, which run on a leg CHANGE, so until
+        # the first one both bounds below read
+        # ``travelled_m - (None or travelled_m)`` == 0 and could never fire. The
+        # opening leg was therefore unbounded by distance and could only end on
+        # `stalled` -- that is, on CONTACT with a fin, which ends the round under
+        # 9.24.7. It is also why BAY_EXIT_FORWARD_M and BAY_EXIT_CYCLE_REVERSE_M
+        # swept byte-identical at 0.02 and 0.04, and why `rev_m` measured 0.041
+        # against the 0.09 asked for. And once it IS set, the old
+        # ``self._leg_start_m or travelled_m`` idiom still discarded it whenever
+        # it was 0.0 -- which is exactly what the first leg of a round starts
+        # from, since odometry is zeroed at the start line. A float that can
+        # legitimately be zero cannot be defaulted with `or`.
+        if self._leg_start_m is None:
+            self._leg_start_m = travelled_m
+
         # Steer FIRST, then drive. Every previous version commanded the angle and
         # the motion together, so the servo slewed while the leg ran and the leg
         # ended before the angle arrived: a 0.05 m leg is ~11 ticks at creep,
@@ -403,7 +420,8 @@ class BayExit:
 
         if self._leg_is_reverse:
             self._reverse_ticks += 1
-            self._reverse_progress_m = (self._leg_start_m or travelled_m) - travelled_m
+            leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
+            self._reverse_progress_m = leg_start - travelled_m
             if stalled or self._reverse_progress_m >= follower.BAY_EXIT_CYCLE_REVERSE_M:
                 self._begin_leg(is_reverse=False, travelled_m=travelled_m, tuning=tuning, from_norm=target)
                 self._cycles += 1
@@ -430,7 +448,8 @@ class BayExit:
         # by noise. Gated on it, the arc got ONE tick per cycle and the chassis
         # turned 0.1 deg in 57 ticks. This is the same reason the reverse leg
         # above is bounded by the lot's own dimensions rather than measured.
-        if stalled or travelled_m - (self._leg_start_m or travelled_m) >= follower.BAY_EXIT_FORWARD_M:
+        leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
+        if stalled or travelled_m - leg_start >= follower.BAY_EXIT_FORWARD_M:
             self._begin_leg(is_reverse=True, travelled_m=travelled_m, tuning=tuning, from_norm=target)
         return DriveCommand(speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE, steering_norm=target)
 
