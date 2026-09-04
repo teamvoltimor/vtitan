@@ -196,7 +196,23 @@ func visionConfigFor(cfg harness.Config) visionsim.Config {
 const (
 	signObstacleWidthM = signrouter.DefaultSignWidthM
 	signObstacleDepthM = 0.05
+
+	// signPlacementCircleDiameterM mirrors track.toml's [sign]
+	// placement_circle_diameter (TrafficSignSpecs.PLACEMENT_CIRCLE_DIAMETER):
+	// the circle a pillar is placed within on the mat. Touching a pillar is
+	// NOT a failure (WRO 9.20) -- the run stays valid as long as any corner
+	// of its square is still inside this circle.
+	signPlacementCircleDiameterM = 0.085
 )
+
+// maxLegalSignDisplacementM is how far a pillar may be pushed and still have
+// a corner in its placement circle, matching
+// TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M. Derived, not measured: the
+// corner that survives longest is the one trailing the push, so the bound is
+// the displacement at which even that corner leaves the circle.
+var maxLegalSignDisplacementM = math.Sqrt(
+	math.Pow(signPlacementCircleDiameterM/2, 2)-math.Pow(signObstacleWidthM/2, 2),
+) + signObstacleWidthM/2
 
 // signsFromMetadata builds the ground-truth SignSpec list for an Obstacles
 // Challenge scenario, matching the sign half of track_model.py's
@@ -254,6 +270,7 @@ func (r *NativeRunner) loop(
 	var maxSpeedMPS float64
 	var minRangeM = math.Inf(1)
 	prevX, prevY := gw.State().X, gw.State().Y
+	nudge := newSignNudgeState(prevX, prevY)
 
 	// No-progress bailout (mirrors the Python run's NO_PROGRESS_* policy). The
 	// unported NO_PROGRESS_WINDOW_S / NO_PROGRESS_DISPLACEMENT_M constants are
@@ -287,10 +304,16 @@ func (r *NativeRunner) loop(
 			contactCount++
 		}
 
-		// Terminal surface for Open is the outer wall; any contact ends the run
-		// under the strict (pre-2026-08-01) policy the Python simulator uses by
-		// default. FootprintCollides checks the full chassis against both walls.
-		if trackContact(gw, track, r.cfg) {
+		// Terminal surface: any wall contact ends the run. A traffic-sign
+		// touch does not -- WRO 9.20 allows the pillar to be nudged, and the
+		// run stands as long as no sign's accumulated push exceeds
+		// maxLegalSignDisplacementM (see signNudgeState.score). Parking fins
+		// carry no such leniency (9.24.7), but no parking obstacle ever
+		// reaches this runner yet (signsFromMetadata), so every
+		// SurfaceObstacle touch here is a sign.
+		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
+		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
+		if surface != collision.SurfaceNone {
 			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, true, false)
 			return res, nil
 		}
@@ -395,11 +418,60 @@ func terminalSurfaceName(collided bool) string {
 	return "none"
 }
 
-// trackContact reports whether the chassis footprint touches a wall (the Open
-// Challenge's terminal surface), matching TrackModel.footprint_collides.
-func trackContact(gw simGateway, track *collision.TrackModel, cfg harness.Config) bool {
-	st := gw.State()
-	return track.FootprintCollides(st.X, st.Y, st.Yaw, cfg.ChassisLengthM, cfg.ChassisWidthM)
+// signNudgeState accumulates each sign's push-displacement across ticks,
+// matching scoring.py's ScenarioSimulator._score_obstacle_contact /
+// _sign_push / _prev_contact_xy. One instance per run.
+type signNudgeState struct {
+	prevX, prevY float64
+	push         map[int]float64
+}
+
+// newSignNudgeState seeds the reference point at the run's start pose,
+// matching _prev_contact_xy's __init__ assignment.
+func newSignNudgeState(x, y float64) *signNudgeState {
+	return &signNudgeState{prevX: x, prevY: y, push: make(map[int]float64)}
+}
+
+// score downgrades a legal pillar nudge (WRO 9.20) to a non-collision surface,
+// matching _score_obstacle_contact. Fin/wall surfaces pass through untouched
+// -- only SurfaceObstacle (traffic signs; no parking fin ever reaches this
+// runner yet, see signsFromMetadata) gets the leniency.
+//
+// The reference point advances EVERY call, not only while touching: updating
+// it only during contact would make the accumulated displacement the
+// distance since the last touch, so a sign brushed twice a metre apart would
+// accumulate that whole metre as if it had been pushed through it.
+func (s *signNudgeState) score(track *collision.TrackModel, surface collision.ContactSurface, x, y, yaw, length, width float64) collision.ContactSurface {
+	dx, dy := x-s.prevX, y-s.prevY
+	s.prevX, s.prevY = x, y
+	if surface != collision.SurfaceObstacle {
+		return surface
+	}
+	for index := range track.ObstacleDisplacements(x, y, yaw, length, width) {
+		// Only the component of travel pointing AT the sign moves it: a
+		// chassis sliding past a sign it is brushing covers distance
+		// without pushing it anywhere.
+		center, ok := track.ObstacleCenter(index)
+		if !ok {
+			continue
+		}
+		toX, toY := center.X-x, center.Y-y
+		norm := math.Hypot(toX, toY)
+		if norm <= 0.0 {
+			continue
+		}
+		push := (dx*toX + dy*toY) / norm
+		if push > 0.0 {
+			s.push[index] += push
+		}
+	}
+	for _, push := range s.push {
+		if push > maxLegalSignDisplacementM {
+			return surface
+		}
+	}
+	// Touched, but still inside its placement circle: not a collision.
+	return collision.SurfaceNone
 }
 
 // scenarioStart bundles the parsed spawn pose + travel direction.
