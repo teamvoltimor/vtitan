@@ -2217,6 +2217,14 @@ class SweepResult:
             # want different fixes. Attributing the 2026-08-26 stuck move (5 ->
             # 10) needed a second sweep purely because this was absent.
             f"stuck={o.stuck} timed_out={o.timed_out} "
+            # Rule 9.21 and the U-turn count, PER RUN rather than only summed.
+            # The aggregates move together (uturns 11 / rev-run 14 shipped, 10 /
+            # 9 with sign-aware speed) which is suggestive but cannot establish
+            # that they are the SAME runs -- and that is the question deciding
+            # whether 9.21 violations are over-long reverses or wrong-way
+            # forward driving after a heading inversion. Only a per-run overlap
+            # separates them, and the aggregate row cannot express one.
+            f"rev_run={o.reverse_run_violation} uturns={o.uturns} "
             f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
             f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)} "
             f"color_match={o.sign_color_match} "
