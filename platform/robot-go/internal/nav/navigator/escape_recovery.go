@@ -220,8 +220,31 @@ func (n *Navigator) beginManeuver(maneuver controllers.EscapeManeuver) {
 }
 
 // driveActiveManeuver publishes the active escape command and counts down
-// its latched duration, matching _drive_active_maneuver.
+// its latched duration, matching _drive_active_maneuver. The debug snapshot
+// is rebuilt from scratch, which is right for a CONTINUATION tick: nothing
+// earlier in the tick computed evidence worth keeping.
+//
+// The tick that TRIGGERS an escape is the exception -- see
+// driveActiveManeuverOnto.
 func (n *Navigator) driveActiveManeuver(robotX, robotY, robotYaw float64, phase Phase) {
+	n.driveActiveManeuverOnto(robotX, robotY, robotYaw, phase, n.baseDebug(robotX, robotY, robotYaw))
+}
+
+// driveActiveManeuverOnto is driveActiveManeuver, decorating a
+// caller-supplied snapshot rather than a freshly built one.
+//
+// This exists because the trigger tick is the ONE tick that can explain an
+// escape. By the time it fires, the caller has already measured the forward
+// clearance, both risk levels, the min LIDAR range and the tracking error
+// that made it fire -- and rebuilding the snapshot here discarded every one
+// of them, leaving the recorded evidence for "why did it escape" as the bare
+// pose plus the maneuver it chose. Bag analysis then had to infer the cause
+// from the tick BEFORE, which is a different scan.
+func (n *Navigator) driveActiveManeuverOnto(
+	robotX, robotY, robotYaw float64,
+	phase Phase,
+	debug DebugSnapshot,
+) {
 	if n.activeManeuver == nil {
 		return
 	}
@@ -247,7 +270,6 @@ func (n *Navigator) driveActiveManeuver(robotX, robotY, robotYaw float64, phase 
 	n.gateway.PublishDrive(controllers.DriveCommand{
 		SpeedMPS: maneuver.Speed, SteeringNorm: maneuver.Steering,
 	})
-	debug := n.baseDebug(robotX, robotY, robotYaw)
 	debug.Phase = phase
 	debug.ActiveManeuverType = new(maneuver.Type)
 	debug.ManeuverSteering = new(maneuver.Steering)
@@ -613,7 +635,9 @@ func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSna
 	}
 	n.escapeCount++
 	n.beginManeuver(n.maybeEscalate(maneuver))
-	n.debug = debug
-	n.driveActiveManeuver(pose.X, pose.Y, pose.Yaw, PhaseEscapeTriggered)
+	// Decorate the caller's snapshot rather than assigning it and letting
+	// driveActiveManeuver rebuild over the top -- that ordering silently
+	// erased the clearance/risk evidence for this exact tick.
+	n.driveActiveManeuverOnto(pose.X, pose.Y, pose.Yaw, PhaseEscapeTriggered, debug)
 	return true
 }
