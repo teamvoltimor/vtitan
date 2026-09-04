@@ -109,6 +109,32 @@ def _fin_rects() -> list[list[tuple[float, float]]]:
     ]
 
 
+def _wall_feasible_yaw_rad(out_m: float) -> float:
+    """Greatest yaw the pocket's DEPTH allows at this outward displacement.
+
+    The lot is 0.20 m deep against a 0.194 m chassis, so the wall behind pins
+    rotation until the body has eased out of the pocket: the swept depth
+    ``(L sin t + W cos t) / 2`` has to clear ``out + WALL_OFFSET``. Written as
+    ``hypot(L, W) sin(t + atan2(W, L))`` that inverts in closed form. It is
+    1.15 degrees at the judges' placement, 3.11 at 5 mm out, 9.31 at 20 mm,
+    and unbounded past 78.6 mm -- so the escape is a RATCHET, each shuffle
+    buying the yaw that buys the next shuffle. Coupling
+    ``d(out)/d(along) = tan t`` grows exponentially with a 0.15 m length
+    scale, which reaches free rotation in about 0.50 m of shuffling.
+
+    The FIRST crossing is the bound, not the largest feasible angle. Past the
+    peak at ``atan2(W, L)`` the swept depth falls again, so wide angles are
+    feasible too -- but a chassis rotating continuously from parallel cannot
+    jump the infeasible band between them.
+    """
+    reach = out_m + ParkingLotSpecs.WALL_OFFSET
+    diagonal = math.hypot(RobotSpecs.LENGTH, RobotSpecs.WIDTH)
+    sin_sum = 2.0 * reach / diagonal
+    if sin_sum >= 1.0:
+        return math.pi / 2.0
+    return max(0.0, math.asin(sin_sum) - math.atan2(RobotSpecs.WIDTH, RobotSpecs.LENGTH))
+
+
 class BayExit:
     """Drives the reverse-then-swing exit, holding the reverse leg's origin.
 
@@ -181,6 +207,16 @@ class BayExit:
         slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
         self._dr_wheel_rad += clamp(target - self._dr_wheel_rad, -slew, slew)
         self._dr_yaw += step * math.tan(self._dr_wheel_rad) / _EFFECTIVE_WHEELBASE_M * RobotSpecs.YAW_GAIN
+        # The wall behind the pocket CLIPS the rotation, and dead reckoning
+        # cannot see it -- measured 4.5x high. Unclamped, the guard bounds a
+        # pose the chassis can never reach: on the first arc it predicts ~19 deg
+        # where 1.15 is available, takes the swept extent of that fantasy, finds
+        # it inside a fin and ends the leg -- every tick, so the manoeuvre never
+        # moves. Measured 2026-09-04 over 16 corpus scenarios: total travel
+        # 0.05-0.06 m whether the arc was 0.02 or 0.3, i.e. the arc was INERT
+        # because the guard rejected the leg before its value could matter.
+        limit = _wall_feasible_yaw_rad(self._dr_out)
+        self._dr_yaw = clamp(self._dr_yaw, -limit, limit)
         self._dr_along += step * math.cos(self._dr_yaw)
         self._dr_out += step * math.sin(self._dr_yaw)
 
@@ -191,6 +227,10 @@ class BayExit:
         slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
         wheel = self._dr_wheel_rad + clamp(target - self._dr_wheel_rad, -slew, slew)
         yaw = self._dr_yaw + step_m * math.tan(wheel) / _EFFECTIVE_WHEELBASE_M * RobotSpecs.YAW_GAIN
+        # Same wall clip as `_dead_reckon`, for the same reason: a predicted
+        # pose the pocket forbids is not a prediction the guard may act on.
+        limit = _wall_feasible_yaw_rad(self._dr_out)
+        yaw = clamp(yaw, -limit, limit)
         along = self._dr_along + step_m * math.cos(yaw)
         out = self._dr_out + step_m * math.sin(yaw)
         corners = _rect_corners(along, out, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
@@ -283,72 +323,114 @@ class BayExit:
         than a collision. 9.24.7 ends the round on the touch the old backstop
         waited for.
 
-        Why bounding the DISTANCE instead cannot work: the straight reverse
-        returns no rotation, so yaw only ever grows, and the swept extent along
+        Why bounding the DISTANCE instead cannot work: the swept extent along
         the wall is ``(L cos t + W sin t) / 2`` -- 0.150 m square, 0.177 m at 25
-        degrees. Against 0.215 m to a fin face, yaw alone consumes the slack
-        before any leg bound applies. Measured: ``BAY_EXIT_FORWARD_M`` and
-        ``BAY_EXIT_CYCLE_REVERSE_M`` are byte-identical at 0.02 and 0.04,
-        because contact happens on the first arc.
+        degrees. Against 0.215 m to a fin face, yaw alone consumes most of the
+        slack before any leg bound applies. (``BAY_EXIT_FORWARD_M`` and
+        ``BAY_EXIT_CYCLE_REVERSE_M`` sweeping byte-identical was long read as
+        confirming this. It was not: their bound was DEAD -- see the falsy-zero
+        note in ``_cycle_command``. A flat sweep meant an unreachable code path,
+        not a refuted idea.)
 
-        Both legs steer toward the open side. Forward swings the nose out;
-        reverse with the same lock walks the tail back along the arc it came
-        down, which returns most of the yaw and buys the room for the next
-        forward leg to gain more ``out`` than it gives back. That is the classic
-        tight-slot exit, and it accumulates outward displacement without ever
-        needing a surface to push against.
+        The legs are ASYMMETRIC, and that is the whole manoeuvre rather than a
+        detail. A shuffle at constant steering magnitude is a closed cycle:
+        ``dy/dtheta = sin(theta) / (k tan(delta))`` depends on neither speed nor
+        its sign, so ``y`` is a state function of ``theta`` and returning theta
+        returns y with it. Holding one lock on both legs -- which is what this
+        did until 2026-09-04 -- therefore cannot escape a pocket no matter how
+        many cycles it runs, which is exactly what it measured: TOUCHED 0/16 and
+        2.78 m of shuffling for no net gain. The reverse takes the OPPOSITE
+        lock, the three-point turn: backing with the wheels the other way swings
+        the tail the other way, so the nose keeps turning the SAME sense on both
+        legs and yaw accumulates instead of cancelling.
+
+        That matters because of which axis is short. Escaping needs ~0.10 m
+        across the bay mouth while only ~0.065 m of slack exists along the wall,
+        so the chassis has to ROTATE nearly in place rather than translate: the
+        along-wall extent peaks at 0.179 m at 32.9 degrees and falls to 0.097 m
+        by 90, so the whole sweep fits inside 0.215 m -- but only if each cycle's
+        along-wall excursion stays inside the ~0.036 m the peak leaves.
         """
         follower = tuning.corridor_follower
         margin = follower.BAY_EXIT_CLEARANCE_MARGIN_M
         sign = 1.0 if open_is_left else -1.0
-        magnitude = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
-        # Both legs hold the SAME lock, and the dead-reckoned frame is signed so
-        # +yaw is toward the open side -- so the guard's geometry never needs a
-        # left/right case split. The caller-facing command is re-signed below.
-        wheel_norm = magnitude
+        arc = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
+        back = clamp(follower.BAY_EXIT_CYCLE_REVERSE_STEER_NORM, 0.0, 1.0)
+        # Signed in the dead-reckoned frame, where +yaw is toward the open side,
+        # so the guard's geometry needs no left/right case split; the
+        # caller-facing command is re-signed on the way out.
+        wheel_norm = -back if self._leg_is_reverse else arc
+
+        # Slew at a STANDSTILL, as ``_cycle_command`` does. Skipping it was
+        # survivable while both legs held one lock, because then there was no
+        # swing to pay for. With opposite lock the swing is twice the arc angle
+        # -- ~25 ticks at MAX_STEERING_RATE against a leg lasting ~11 at creep
+        # -- so a leg that slewed while it drove would end at roughly the angle
+        # it started from, and the cycle would be symmetric again by accident.
+        # Dead-reckoned during the pause too: travel is zero, but the wheel is
+        # moving and the model has to follow it there as much as anywhere.
+        if self._settle_ticks > 0:
+            self._settle_ticks -= 1
+            self._dead_reckon(travelled_m, wheel_norm, tuning)
+            return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
+
         self._dead_reckon(travelled_m, wheel_norm, tuning)
         if self._guard_min_gap is None:
             self._guard_min_gap = self._predicted_gap(0.0, wheel_norm, tuning)
 
-        speed = creep_speed_mps * (
-            follower.REVERSE_SPEED_SCALE if self._leg_is_reverse else follower.CORNER_SPEED_SCALE
+        speed = (
+            creep_speed_mps
+            * (follower.REVERSE_SPEED_SCALE if self._leg_is_reverse else follower.CORNER_SPEED_SCALE)
+            * follower.BAY_EXIT_SPEED_SCALE
         )
         step = (-speed if self._leg_is_reverse else speed) / tuning.control.CONTROL_HZ
-        # Bound the POSITION, not the leg. Per-leg distance bounds cannot work:
-        # a leg ends by commanding zero and the chassis then coasts v*tau (37 mm
-        # at creep, against a 20 mm leg), and even when the coast is small the
-        # cycles DRIFT along the wall until one reaches a fin. Measured
-        # 2026-09-03 -- fast: 26 mm leg + 37 mm coast touches on cycle 1; slow:
-        # survives cycle 1 and drifts to the same 62 mm over many.
-        #
-        # Uses only the part of dead reckoning that is trustworthy. DR `along`
-        # tracks truth closely (0.0577 modelled against 0.0583 true), while DR
-        # `yaw` does NOT -- it cannot see the outer wall clipping the rotation,
-        # and ran 4.5x high. So the swept extent is taken at its WORST CASE,
-        # sqrt(L^2 + W^2)/2, which needs no yaw estimate at all and can only be
-        # conservative.
-        worst_half_extent = math.hypot(RobotSpecs.LENGTH, RobotSpecs.WIDTH) / 2.0
-        half_gap = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0 - ParkingLotSpecs.WIDTH / 2.0
-        along_limit = half_gap - worst_half_extent - margin
-        predicted_along = abs(self._dr_along + step * math.cos(self._dr_yaw))
-        gap = self._predicted_gap(step, wheel_norm, tuning)
+        # Look a STOPPING DISTANCE ahead, not a single tick. Commanding zero
+        # does not stop the chassis -- the drivetrain decays with
+        # ``SPEED_RESPONSE_TAU_S``, so it coasts a further ``v * tau``, 40 mm at
+        # creep against an along-wall budget of 31-57 mm. A one-tick guard
+        # therefore ends the leg with the fin already inside the coast, which is
+        # how a manoeuvre that never predicted a touch still measured one.
+        # ``BAY_EXIT_SPEED_SCALE`` is the lever on this, and it only became one
+        # once the settle above stopped the slew competing with the leg.
+        coast_m = speed * RobotSpecs.SPEED_RESPONSE_TAU_S
+        reach = step + math.copysign(coast_m, step)
+        # The rectangle-against-fin gap at that reachable pose IS the bound. A
+        # worst-case along-wall limit used to sit alongside it, taking the swept
+        # extent at ``hypot(L, W) / 2`` because dead-reckoned yaw was not
+        # trusted. It is redundant, and it is what made the guarded exit
+        # immobile: that value is the extent at 32.9 degrees, the angle where it
+        # PEAKS, so it left 31 mm of the 65 mm slack usable at EVERY yaw
+        # including zero. The distrust also points the other way -- DR yaw runs
+        # HIGH, and extent rises with yaw up to the peak, so a gap taken at DR
+        # yaw is already the conservative reading.
+        gap = self._predicted_gap(reach, wheel_norm, tuning)
         self._guard_min_gap = min(self._guard_min_gap, gap)
-        if predicted_along >= along_limit or gap <= margin:
-            # Reverse the leg rather than push on. The chassis has not touched
-            # anything -- this fires on the prediction.
-            self._leg_is_reverse = not self._leg_is_reverse
+        if gap <= margin:
+            # End the leg on the PREDICTION -- nothing has been touched -- and
+            # pay the servo swing before the next one moves. Flipping the flag
+            # inline, as this did until 2026-09-04, skipped ``_begin_leg``
+            # entirely: no standstill was budgeted, ``_leg_start_m`` was never
+            # re-origined, and the new leg inherited the old leg's lock.
+            self._begin_leg(
+                is_reverse=not self._leg_is_reverse,
+                travelled_m=travelled_m,
+                tuning=tuning,
+                from_norm=wheel_norm * sign,
+            )
             self._guard_flips += 1
             self._cycles += 1
-            speed = creep_speed_mps * (
-                follower.REVERSE_SPEED_SCALE if self._leg_is_reverse else follower.CORNER_SPEED_SCALE
+            return DriveCommand(
+                speed_mps=0.0,
+                steering_norm=(-back if self._leg_is_reverse else arc) * sign,
             )
+
         if self._leg_is_reverse:
             self._reverse_ticks += 1
         else:
             self._forward_ticks += 1
         return DriveCommand(
             speed_mps=-speed if self._leg_is_reverse else speed,
-            steering_norm=magnitude * sign,
+            steering_norm=wheel_norm * sign,
         )
 
     def _cycle_command(
