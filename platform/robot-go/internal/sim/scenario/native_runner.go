@@ -18,6 +18,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/visionsim"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
 )
 
 // NativeRunner implements Runner with a fully Go-native closed-loop
@@ -203,7 +204,7 @@ const (
 // ported here -- see collision.ObstacleBox's is_parking_lot gap, tracked
 // separately). Empty for Open Challenge metadata (no sign_positions key),
 // exactly as Python's obstacles_from_metadata returns an empty list for it.
-func signsFromMetadata(meta scenarioMetadata) []signrouter.SignSpec {
+func signsFromMetadata(meta generate.Metadata) []signrouter.SignSpec {
 	if len(meta.SignPositions) == 0 {
 		return nil
 	}
@@ -407,74 +408,27 @@ type scenarioStart struct {
 	Direction trackmodel.Direction
 }
 
-// scenarioMetadata is the subset of the generator's *_metadata.json schema
-// the native runner consumes. Mirrors generate.Metadata (that module is a
-// separate Go module and not imported here to keep the runner dependency-light).
-type scenarioMetadata struct {
-	ChallengeType      string               `json:"challenge_type"`
-	CorridorWidths     map[string]widthMeta `json:"corridor_widths"`
-	StartingConditions startingMeta         `json:"starting_conditions"`
-	HasParkingLot      bool                 `json:"has_parking_lot"`
-	// SignPositions is absent (nil) for Open Challenge metadata -- there is
-	// no "empty array vs. missing key" distinction that matters here, since
-	// signsFromMetadata treats both as "no signs" identically.
-	SignPositions []signPositionMeta `json:"sign_positions"`
-	// ParkingLot is nil for Open Challenge and Obstacles-without-parking
-	// metadata. Parsed for a future ParkController/BayExit wiring pass
-	// (see NativeRunner's doc comment) -- not yet read by anything.
-	ParkingLot *parkingLotMeta `json:"parking_lot"`
-}
-
-type widthMeta struct {
-	Type    string `json:"type"`
-	WidthMM int    `json:"width_mm"`
-}
-
-type startingMeta struct {
-	Direction string  `json:"direction"`
-	Section   string  `json:"section"`
-	Position  posMeta `json:"position"`
-	Yaw       float64 `json:"yaw"`
-}
-
-type posMeta struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
-}
-
-// signPositionMeta is one entry of the generator's sign_positions array --
-// ground-truth color and world position for one traffic sign.
-type signPositionMeta struct {
-	Color string  `json:"color"`
-	X     float64 `json:"x"`
-	Y     float64 `json:"y"`
-}
-
-// parkingLotMeta mirrors the generator's parking_lot object: the two
-// magenta blocks' poses that define the bay between them.
-type parkingLotMeta struct {
-	Block1Position posMeta `json:"block1_position"`
-	Block2Position posMeta `json:"block2_position"`
-	Block1Yaw      float64 `json:"block1_yaw"`
-	Block2Yaw      float64 `json:"block2_yaw"`
-	Depth          float64 `json:"depth"`
-}
-
-func loadMetadata(path string) (scenarioMetadata, error) {
+// loadMetadata reads and parses a *_metadata.json file into generate.Metadata
+// -- the SAME struct cmd/simgen writes (internal/simgen/generate), not a
+// separately maintained mirror of its schema. The two used to be independent,
+// hand-kept-in-sync definitions (one per Go module); unified once simgen
+// joined this module, so a schema change in one can no longer silently drift
+// from the other.
+func loadMetadata(path string) (generate.Metadata, error) {
 	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		return scenarioMetadata{}, fmt.Errorf("reading %s: %w", path, err)
+		return generate.Metadata{}, fmt.Errorf("reading %s: %w", path, err)
 	}
-	var meta scenarioMetadata
+	var meta generate.Metadata
 	if err := json.Unmarshal(raw, &meta); err != nil {
-		return scenarioMetadata{}, fmt.Errorf("parsing %s: %w", path, err)
+		return generate.Metadata{}, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return meta, nil
 }
 
 // buildScenario derives the track geometry, spawn pose, and a centerline
 // waypoint loop from scenario metadata.
-func buildScenario(meta scenarioMetadata, cfg harness.Config) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {
+func buildScenario(meta generate.Metadata, cfg harness.Config) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {
 	widthsM := map[trackmodel.Section]float64{}
 	for _, sec := range []struct {
 		name  string
@@ -562,7 +516,7 @@ func centerlineLoop(geom trackmodel.CorridorGeometry, maxCoord float64, dir trac
 }
 
 // defaultLaps returns the Open Challenge default lap count.
-func defaultLaps(_ scenarioMetadata) int { return navigator.DefaultOpenChallengeLaps }
+func defaultLaps(_ generate.Metadata) int { return navigator.DefaultOpenChallengeLaps }
 
 // defaultKinematicsParams returns the Ackermann integrator parameters for the
 // shipped robot. Delegates to kinematics.DefaultParams, the single source of
