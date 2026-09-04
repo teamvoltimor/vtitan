@@ -133,8 +133,6 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	// discards its own -- a sweep runs hundreds of scenarios and a
 	// per-package load line from each would bury the report.
 	logger := discardingLogger()
-	kinParams := kinematics.DefaultParams()
-	kinParams.MaxSteerRateRadPerS = kinematics.ConfigFor(logger, cfg.ConfigRoot).MaxSteeringRateRadPerS
 
 	return &NativeRunner{
 		cfg:       hc,
@@ -143,7 +141,7 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		wpCfg:     waypoints.ConfigFor(logger, cfg.ConfigRoot),
 		srCfg:     signrouter.ConfigFor(logger, cfg.ConfigRoot),
 		startCfg:  startconditions.ConfigFor(logger, cfg.ConfigRoot),
-		kinParams: kinParams,
+		kinParams: kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		collCfg:   collision.ConfigFor(logger, cfg.ConfigRoot),
 		seed:      cfg.Seed,
 		maxSteps:  maxSteps,
