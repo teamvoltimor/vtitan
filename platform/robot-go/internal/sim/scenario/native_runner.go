@@ -14,7 +14,9 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/widthbelief"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
@@ -53,10 +55,21 @@ import (
 // corrected by widthbelief.Layout as the estimator measures each corridor.
 // Sighted mode (the default) keeps taking both from metadata.
 type NativeRunner struct {
-	cfg      harness.Config
-	seed     uint64
-	maxSteps int
-	blind    bool
+	cfg harness.Config
+	// Resolved once at construction rather than per scenario: a corpus sweep
+	// runs hundreds of scenarios, and re-reading the same TOML tree for each
+	// would be both wasteful and a source of per-scenario divergence if a
+	// file changed mid-sweep.
+	navCfg    navigator.Config
+	ctrlCfg   controllers.Config
+	wpCfg     waypoints.Config
+	srCfg     signrouter.Config
+	startCfg  startconditions.Config
+	kinParams kinematics.Params
+	collCfg   collision.Config
+	seed      uint64
+	maxSteps  int
+	blind     bool
 }
 
 // NativeRunnerConfig configures a NativeRunner.
@@ -74,6 +87,21 @@ type NativeRunnerConfig struct {
 	// corpus sweep measured, so turning this on is an explicit A/B rather
 	// than a silent change to what "the native runner" means.
 	Blind bool
+	// ConfigRoot is the repo root the shipped TOML tree is read from, and
+	// HardwareProfiles names one profile per component (drive motor,
+	// steering servo) to overlay on it -- the two inputs every nav package's
+	// own ConfigFor already takes.
+	//
+	// An empty ConfigRoot keeps every package on its Go literal defaults.
+	// That is NOT the shipped robot: the base navigation tree caps speed at
+	// max_mps 0.156 and carries no Open speed ladder at all, while the
+	// ladder that Open's results were measured against (0.26/0.38/0.50)
+	// lives only in profiles/rev-hd-hex-motor-6000rpm/motion/speed.toml. A
+	// sweep run without these is measuring a robot that drives a third as
+	// fast as the one the numbers describe, so any comparison against a
+	// Python baseline must set both.
+	ConfigRoot       string
+	HardwareProfiles []string
 }
 
 // ControlDt returns the simulation timestep (s). It resolves the effective
@@ -97,7 +125,30 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	if maxSteps <= 0 {
 		maxSteps = 4000
 	}
-	return &NativeRunner{cfg: hc, seed: cfg.Seed, maxSteps: maxSteps, blind: cfg.Blind}
+
+	// Every ConfigFor already treats an empty root as "use the literal
+	// defaults" and logs its own reason on a load failure, so there is no
+	// branch here: passing "" reproduces the previous all-defaults runner
+	// exactly. The logger is discarded for the same reason newBlindSetup
+	// discards its own -- a sweep runs hundreds of scenarios and a
+	// per-package load line from each would bury the report.
+	logger := discardingLogger()
+	kinParams := kinematics.DefaultParams()
+	kinParams.MaxSteerRateRadPerS = kinematics.ConfigFor(logger, cfg.ConfigRoot).MaxSteeringRateRadPerS
+
+	return &NativeRunner{
+		cfg:       hc,
+		navCfg:    navigator.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		ctrlCfg:   controllers.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		wpCfg:     waypoints.ConfigFor(logger, cfg.ConfigRoot),
+		srCfg:     signrouter.ConfigFor(logger, cfg.ConfigRoot),
+		startCfg:  startconditions.ConfigFor(logger, cfg.ConfigRoot),
+		kinParams: kinParams,
+		collCfg:   collision.ConfigFor(logger, cfg.ConfigRoot),
+		seed:      cfg.Seed,
+		maxSteps:  maxSteps,
+		blind:     cfg.Blind,
+	}
 }
 
 // Run builds and drives one scenario, returning a Result.
@@ -107,13 +158,13 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		return Result{}, fmt.Errorf("native runner: loading %s: %w", sc.MetadataPath, err)
 	}
 
-	geom, startPose, waypoints, err := buildScenario(meta, r.cfg)
+	geom, startPose, path, err := r.buildScenario(meta)
 	if err != nil {
 		return Result{}, fmt.Errorf("native runner: building %s: %w", sc.ID, err)
 	}
 
 	signs := signsFromMetadata(meta)
-	axisAlignTolerance := collision.DefaultConfig().AxisAlignTolerance
+	axisAlignTolerance := r.collCfg.AxisAlignTolerance
 	obstacleSpecs := make([]collision.ObstacleSpec, len(signs))
 	for i, sign := range signs {
 		obstacleSpecs[i] = collision.ObstacleSpec{
@@ -131,7 +182,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		CollisionMarginM:   r.cfg.CollisionMarginM,
 	})
 
-	kin := kinematics.NewAckermannKinematics(defaultKinematicsParams())
+	kin := kinematics.NewAckermannKinematics(r.kinParams)
 
 	gw := harness.NewSimHardwareGateway(
 		r.cfg, track,
@@ -147,8 +198,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	var signRouter *signrouter.SignRouter
 	var vision navigator.VisionGateway
 	if len(signs) > 0 {
-		signRouterCfg := signrouter.DefaultConfig()
-		signRouter, err = signrouter.NewSignRouter(signs, signRouterCfg, startPose.Direction)
+		signRouter, err = signrouter.NewSignRouter(signs, r.srCfg, startPose.Direction)
 		if err != nil {
 			return Result{}, fmt.Errorf("native runner: building sign router %s: %w", sc.ID, err)
 		}
@@ -156,7 +206,6 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	}
 
 	targetLaps := defaultLaps(meta)
-	navCfg := navigator.ConfigFor(nil, "", nil)
 	pc := parkControllerFromMetadata(meta, startPose.Section, startPose.Direction)
 
 	// Blind withholds BOTH the direction and the layout. The direction goes
@@ -177,13 +226,14 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 			startPose.Direction,
 			len(signs) > 0,
 			r.cfg,
-			waypointsCfg(),
+			r.wpCfg,
+			r.startCfg,
 			blindCenterBiasM(len(signs) > 0),
 		)
 		if blindErr != nil {
 			return Result{}, fmt.Errorf("native runner: %s: %w", sc.ID, blindErr)
 		}
-		waypoints = blind.Waypoints
+		path = blind.Waypoints
 		layout = blind.Layout
 		direction = nil
 	}
@@ -191,12 +241,12 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Vision:            vision,
-		Waypoints:         waypoints,
+		Waypoints:         path,
 		Direction:         direction,
 		NumLaps:           targetLaps,
-		Config:            navCfg,
-		ControllersConfig: controllers.DefaultConfig(),
-		SignRouterConfig:  signrouter.DefaultConfig(),
+		Config:            r.navCfg,
+		ControllersConfig: r.ctrlCfg,
+		SignRouterConfig:  r.srCfg,
 		SignRouter:        signRouter,
 		ParkController:    pc,
 	})
@@ -616,9 +666,20 @@ func loadMetadata(path string) (generate.Metadata, error) {
 	return meta, nil
 }
 
-// buildScenario derives the track geometry, spawn pose, and a centerline
-// waypoint loop from scenario metadata.
-func buildScenario(meta generate.Metadata, cfg harness.Config) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {
+// buildScenario derives the track geometry, spawn pose, and the planned path
+// from scenario metadata.
+//
+// The path comes from the REAL planner (waypoints.CalculateWaypoints), the
+// same one the deployed navigator and the blind setup use. It used to come
+// from centerlineLoop, a rectangle offset half a corridor width from each
+// wall -- an approximation with SQUARE corners, no centreline bias and no
+// arcs, which is not a path any robot in this project has ever been asked to
+// drive. Measured on the full 640-case Open space: the approximation scored
+// 37/640 against Python's 638/640, with the failures concentrated at corner
+// entry, because a square corner asks for a turn no Ackermann chassis can
+// execute.
+func (r *NativeRunner) buildScenario(meta generate.Metadata) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {
+	cfg := r.cfg
 	sectionsByName := map[string]trackmodel.Section{
 		"north": trackmodel.North,
 		"south": trackmodel.South,
@@ -657,70 +718,36 @@ func buildScenario(meta generate.Metadata, cfg harness.Config) (trackmodel.Corri
 		Section:   section,
 	}
 
-	waypoints := centerlineLoop(geom, cfg.TrackMaxCoordM, dir)
-	return geom, start, waypoints, nil
+	planned := plannerBaseFor(meta, cfg)
+	planned.Geometry = geom
+	planned.Starting = planned.Starting.ReplannedAt(
+		&dir, section, trackmodel.Waypoint{X: start.X, Y: start.Y}, start.Yaw,
+	)
+	// A SIGHTED round has been handed the true widths, so every corridor is
+	// confirmed and none takes the unconfirmed inner bias -- the opposite of
+	// newBlindSetup, which plans everything unconfirmed.
+	path, err := waypoints.CalculateWaypoints(
+		planned, 1, r.wpCfg, sightedCenterBiasM(meta), waypoints.AllConfirmed(),
+	)
+	if err != nil {
+		return trackmodel.CorridorGeometry{}, scenarioStart{}, nil,
+			fmt.Errorf("planning the believed path: %w", err)
+	}
+	return geom, start, path, nil
 }
 
-// centerlineLoop builds a rectangular waypoint loop offset by half each
-// corridor width from the walls — a focused approximation of the Python
-// plan_believed_path centerline for the sighted Open Challenge. Edges are
-// subdivided so the navigator's waypoint-reached threshold is well-sampled.
-func centerlineLoop(geom trackmodel.CorridorGeometry, maxCoord float64, dir trackmodel.Direction) []trackmodel.Waypoint {
-	ib := geom.InnerBlock
-	// The centerline sits half a corridor width inside each wall:
-	//   south corridor -> y = south/2,  north corridor -> y = maxCoord-north/2
-	//   west corridor  -> x = west/2,   east corridor  -> x = maxCoord-east/2
-	westCL := ib.XMin / 2.0
-	eastCL := maxCoord - (maxCoord-ib.XMax)/2.0
-	southCL := ib.YMin / 2.0
-	northCL := maxCoord - (maxCoord-ib.YMax)/2.0
-
-	// CCW ordering starting along the south edge (west -> east), so a robot
-	// spawned on the south centreline travelling CCW proceeds eastward first.
-	corners := []trackmodel.Waypoint{
-		{X: westCL, Y: southCL},
-		{X: eastCL, Y: southCL},
-		{X: eastCL, Y: northCL},
-		{X: westCL, Y: northCL},
-	}
-	if dir == trackmodel.Clockwise {
-		// Reverse CCW -> CW.
-		for i, j := 0, len(corners)-1; i < j; i, j = i+1, j-1 {
-			corners[i], corners[j] = corners[j], corners[i]
-		}
-	}
-
-	const edgeStep = 0.1
-	var pts []trackmodel.Waypoint
-	for i := 0; i < len(corners); i++ {
-		a := corners[i]
-		b := corners[(i+1)%len(corners)]
-		edgeLen := a.DistanceTo(b)
-		n := int(math.Ceil(edgeLen / edgeStep))
-		if n < 1 {
-			n = 1
-		}
-		for k := 0; k < n; k++ {
-			t := float64(k) / float64(n)
-			pts = append(pts, trackmodel.Waypoint{
-				X: a.X + (b.X-a.X)*t,
-				Y: a.Y + (b.Y-a.Y)*t,
-			})
-		}
-	}
-	return pts
+// sightedCenterBiasM is the planning bias for a sighted round: nil on Open,
+// which takes waypoints.toml's narrow/wide split, and the uniform Obstacles
+// override otherwise. Mirrors blindCenterBiasM, keyed off the same fact
+// (does this scenario carry signs) rather than off the metadata's
+// challenge_type string, so a mislabeled fixture cannot plan one challenge
+// with the other's bias.
+func sightedCenterBiasM(meta generate.Metadata) *float64 {
+	return blindCenterBiasM(len(meta.SignPositions) > 0)
 }
 
 // defaultLaps returns the Open Challenge default lap count.
 func defaultLaps(_ generate.Metadata) int { return navigator.DefaultOpenChallengeLaps }
-
-// defaultKinematicsParams returns the Ackermann integrator parameters for the
-// shipped robot. Delegates to kinematics.DefaultParams, the single source of
-// truth for these RobotSpecs/RobotDrivetrain constants (plan §2: the profile
-// loader is not yet wired, so this is the hardcoded fallback).
-func defaultKinematicsParams() kinematics.Params {
-	return kinematics.DefaultParams()
-}
 
 // compile-time assertion that NativeRunner satisfies Runner.
 var _ Runner = (*NativeRunner)(nil)

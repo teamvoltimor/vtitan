@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
@@ -29,7 +30,7 @@ func TestNativeRunner_BlindPlansFromThePriorNotTheTruth(t *testing.T) {
 	}
 
 	blind, err := newBlindSetup(
-		base, trackmodel.Counterclockwise, false, cfg, waypointsCfg(), nil,
+		base, trackmodel.Counterclockwise, false, cfg, waypoints.DefaultConfig(), startconditions.DefaultConfig(), nil,
 	)
 	if err != nil {
 		t.Fatalf("newBlindSetup: %v", err)
@@ -45,7 +46,7 @@ func TestNativeRunner_BlindPlansFromThePriorNotTheTruth(t *testing.T) {
 	// blindNarrowWidthM/2 plus the unconfirmed inner bias -- NOT at the
 	// 1.0 m truth's half-width. If the runner leaked the true geometry in,
 	// the southernmost waypoint would sit at 0.5 instead.
-	wantY := blindNarrowWidthM/2 + waypointsCfg().UnconfirmedWidthInnerBiasM
+	wantY := blindNarrowWidthM/2 + waypoints.DefaultConfig().UnconfirmedWidthInnerBiasM
 	minY := blind.Waypoints[0].Y
 	for _, wp := range blind.Waypoints {
 		minY = min(minY, wp.Y)
@@ -71,8 +72,8 @@ func TestNativeRunner_BlindObstaclesUsesTheRuleWidthPrior(t *testing.T) {
 	// knowledge rather than a guess -- and the bias is the explicit override,
 	// not the narrow/wide split.
 	blind, err := newBlindSetup(
-		base, trackmodel.Counterclockwise, true, cfg, waypointsCfg(),
-		blindCenterBiasM(true),
+		base, trackmodel.Counterclockwise, true, cfg, waypoints.DefaultConfig(),
+		startconditions.DefaultConfig(), blindCenterBiasM(true),
 	)
 	if err != nil {
 		t.Fatalf("newBlindSetup(obstacles): %v", err)

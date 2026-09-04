@@ -14,40 +14,68 @@ import (
 )
 
 // TestRootCmd_RequiredFlags exercises flag parsing through the real cobra
-// command (newRootCmd), not a standalone parser — cobra's MarkFlagRequired
-// is what enforces -corpus/-script/-workdir, so the test needs to go
-// through the command to actually exercise that enforcement. RunE is
-// swapped for a no-op that only reports success, since these cases are
-// about flag validation, not the orchestrator itself running end to end.
+// command (newRootCmd), not a standalone parser, so the cases go through the
+// same binding validate then reads. RunE is swapped for validate alone,
+// since these cases are about flag validation and not about the orchestrator
+// running end to end.
+//
+// Which flags are required is conditional: --corpus is replaced by
+// --open-space, and --script/--workdir address a subprocess that
+// --runner native never starts. That is why none of them can be a cobra
+// MarkFlagRequired.
 func TestRootCmd_RequiredFlags(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
 		args    []string
-		wantErr bool
+		wantErr string
 	}{
 		{
-			name: "all required flags present",
+			name: "python runner with a corpus and its script",
 			args: []string{
-				"--corpus",
-				"/tmp/corpus",
-				"--script",
-				"/tmp/run_scenario.py",
-				"--workdir",
-				"/tmp/robot",
+				"--corpus", "/tmp/corpus",
+				"--script", "/tmp/run_scenario.py",
+				"--workdir", "/tmp/robot",
 			},
 		},
 		{
-			name:    "missing corpus",
+			name:    "no corpus and no open space",
 			args:    []string{"--script", "x.py", "--workdir", "."},
-			wantErr: true,
+			wantErr: "one of --corpus or --open-space",
 		},
-		{name: "missing script", args: []string{"--corpus", "x", "--workdir", "."}, wantErr: true},
 		{
-			name:    "missing workdir",
+			name:    "python runner without a script",
+			args:    []string{"--corpus", "x", "--workdir", "."},
+			wantErr: "needs --script and --workdir",
+		},
+		{
+			name:    "python runner without a workdir",
 			args:    []string{"--corpus", "x", "--script", "x.py"},
-			wantErr: true,
+			wantErr: "needs --script and --workdir",
+		},
+		{
+			name: "native runner needs neither script nor workdir",
+			args: []string{"--corpus", "x", "--runner", "native"},
+		},
+		{
+			name: "generated open space needs no corpus path",
+			args: []string{"--open-space", "full", "--runner", "native"},
+		},
+		{
+			name:    "a corpus and a generated space are mutually exclusive",
+			args:    []string{"--corpus", "x", "--open-space", "full", "--runner", "native"},
+			wantErr: "mutually exclusive",
+		},
+		{
+			name:    "unknown open space",
+			args:    []string{"--open-space", "open999", "--runner", "native"},
+			wantErr: "unknown --open-space",
+		},
+		{
+			name:    "unknown runner",
+			args:    []string{"--corpus", "x", "--runner", "rust"},
+			wantErr: "unknown --runner",
 		},
 	}
 
@@ -58,15 +86,21 @@ func TestRootCmd_RequiredFlags(t *testing.T) {
 			var cfg cliConfig
 			logger := slog.New(slog.DiscardHandler)
 			cmd := newRootCmd(&cfg, logger, &bytes.Buffer{})
-			cmd.RunE = func(*cobra.Command, []string) error { return nil }
+			cmd.RunE = func(*cobra.Command, []string) error { return validate(cfg) }
 			cmd.SetArgs(tt.args)
 
 			err := cmd.Execute()
-			if tt.wantErr && err == nil {
-				t.Fatal("Execute() error = nil, want an error")
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Execute() error = %v, want nil", err)
+				}
+				return
 			}
-			if !tt.wantErr && err != nil {
-				t.Fatalf("Execute() error = %v, want nil", err)
+			if err == nil {
+				t.Fatalf("Execute() error = nil, want one mentioning %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Execute() error = %q, want it to mention %q", err, tt.wantErr)
 			}
 		})
 	}

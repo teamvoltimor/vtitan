@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,7 +25,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/opencorpus"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/scenario"
 )
 
@@ -40,12 +43,25 @@ type cliConfig struct {
 	workDir     string
 	pythonPath  string
 	extraArgs   string
+	openSpace   string
+	openDir     string
+	configRoot  string
+	hwProfiles  string
 	concurrency int
 	timeout     time.Duration
 	jsonOutput  bool
 	runner      string
 	blind       bool
 }
+
+// Open-space selectors accepted by --open-space. There is no committed Open
+// corpus in either language — the space is enumerable from the rules, so it
+// is generated rather than stored. See internal/sim/opencorpus.
+const (
+	openSpaceNone = ""
+	openSpaceFull = "full"
+	openSpace128  = "open128"
+)
 
 // exit codes: 0 means the orchestrator successfully produced a report, even
 // one full of scored scenario failures (collisions, timeouts, ...) — those
@@ -60,8 +76,8 @@ const (
 )
 
 // newRootCmd builds the sim-runner cobra command. Flags bind directly into
-// cfg; validation of required flags is declarative (cobra's
-// MarkFlagRequired) rather than hand-rolled per-field checks.
+// cfg; which flags are required depends on the others, so the rules live in
+// validate rather than in cobra's unconditional MarkFlagRequired.
 func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sim-runner",
@@ -144,17 +160,122 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 			"so the robot infers both from LIDAR as it does in a real round",
 	)
 
-	for _, name := range []string{"corpus", "script", "workdir"} {
-		if err := cmd.MarkFlagRequired(name); err != nil {
-			// Only reachable if "name" above is misspelled against a flag
-			// that was never registered — a programmer error, not a
-			// runtime condition, so panic is appropriate here (this runs
-			// once at startup, before any user input is processed).
-			panic(fmt.Sprintf("sim-runner: MarkFlagRequired(%q): %v", name, err))
+	flags.StringVar(
+		&cfg.configRoot,
+		"config-root",
+		"",
+		"--runner native only: repo root to read the shipped TOML tree from; "+
+			"empty runs on Go literal defaults, which is NOT the shipped robot "+
+			"(base max_mps 0.156, no Open speed ladder)",
+	)
+	flags.StringVar(
+		&cfg.hwProfiles,
+		"hardware-profile",
+		"",
+		"--runner native only: comma-separated hardware profiles to overlay on --config-root, "+
+			"one per component (e.g. 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm)",
+	)
+	flags.StringVar(
+		&cfg.openSpace,
+		"open-space",
+		openSpaceNone,
+		"generate the Open Challenge corpus instead of loading --corpus: "+
+			"'full' is the whole 640-case space, 'open128' the legacy start-cell-0 grid",
+	)
+	flags.StringVar(
+		&cfg.openDir,
+		"open-space-dir",
+		"",
+		"--open-space only: directory to materialize the generated scenarios into; "+
+			"empty uses a temporary directory removed when the run finishes",
+	)
+
+	// --corpus, --script and --workdir are conditionally required, so they
+	// are validated in run() rather than with MarkFlagRequired: --corpus is
+	// replaced by --open-space, and the two subprocess flags mean nothing to
+	// --runner native, which shells out to nothing. Marking them required
+	// unconditionally forced a native Open run to invent three paths it
+	// would never open.
+	return cmd
+}
+
+// validate checks the flag combinations cobra cannot: every requirement here
+// is conditional on another flag, so MarkFlagRequired (which is
+// unconditional) would either under- or over-constrain. Kept separate from
+// run so the rules are testable without orchestrating anything.
+func validate(cfg cliConfig) error {
+	switch cfg.openSpace {
+	case openSpaceNone:
+		if cfg.corpusPath == "" {
+			return errors.New("sim-runner: one of --corpus or --open-space is required")
+		}
+	case openSpaceFull, openSpace128:
+		if cfg.corpusPath != "" {
+			return errors.New("sim-runner: --corpus and --open-space are mutually exclusive")
+		}
+	default:
+		return fmt.Errorf(
+			"sim-runner: unknown --open-space %q (want %q or %q)",
+			cfg.openSpace, openSpaceFull, openSpace128,
+		)
+	}
+
+	switch cfg.runner {
+	case "native":
+		// Nothing to check: the native runner shells out to nothing, so
+		// --script, --workdir, --command, --base-args and --python-path are
+		// all inert.
+	case "python", "":
+		if cfg.scriptPath == "" || cfg.workDir == "" {
+			return errors.New("sim-runner: --runner python needs --script and --workdir")
+		}
+	default:
+		return fmt.Errorf("sim-runner: unknown --runner %q (want 'python' or 'native')", cfg.runner)
+	}
+	return nil
+}
+
+// resolveCorpus returns the scenarios to run and a cleanup for anything it
+// had to write to disk. Assumes validate has already passed.
+func resolveCorpus(logger *slog.Logger, cfg cliConfig) (scenarios []corpus.Scenario, cleanup func(), err error) {
+	noop := func() {}
+
+	if cfg.openSpace == openSpaceNone {
+		loaded, loadErr := corpus.Load(cfg.corpusPath)
+		if loadErr != nil {
+			return nil, noop, fmt.Errorf("sim-runner: loading corpus: %w", loadErr)
+		}
+		logger.Info("loaded corpus", "path", cfg.corpusPath, "scenarios", len(loaded))
+		return loaded, noop, nil
+	}
+
+	params := opencorpus.Space()
+	if cfg.openSpace == openSpace128 {
+		params = opencorpus.OuterWallCells(params)
+	}
+
+	dir := cfg.openDir
+	cleanup = noop
+	if dir == "" {
+		tmp, mkErr := os.MkdirTemp("", "vtitan-open-space-")
+		if mkErr != nil {
+			return nil, noop, fmt.Errorf("sim-runner: creating a temp corpus directory: %w", mkErr)
+		}
+		dir = tmp
+		cleanup = func() {
+			if rmErr := os.RemoveAll(dir); rmErr != nil {
+				logger.Warn("removing the generated corpus", "dir", dir, "error", rmErr)
+			}
 		}
 	}
 
-	return cmd
+	generated, writeErr := opencorpus.Write(dir, params, startconditions.DefaultConfig())
+	if writeErr != nil {
+		cleanup()
+		return nil, noop, fmt.Errorf("sim-runner: generating the Open corpus: %w", writeErr)
+	}
+	logger.Info("generated Open corpus", "space", cfg.openSpace, "dir", dir, "scenarios", len(generated))
+	return generated, cleanup, nil
 }
 
 func splitCSV(raw string) []string {
@@ -165,16 +286,24 @@ func splitCSV(raw string) []string {
 }
 
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writer) error {
-	scenarios, err := corpus.Load(cfg.corpusPath)
-	if err != nil {
-		return fmt.Errorf("sim-runner: loading corpus: %w", err)
+	if err := validate(cfg); err != nil {
+		return err
 	}
-	logger.Info("loaded corpus", "path", cfg.corpusPath, "scenarios", len(scenarios))
+
+	scenarios, cleanup, err := resolveCorpus(logger, cfg)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 
 	var runner scenario.Runner
 	switch cfg.runner {
 	case "native":
-		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{Blind: cfg.blind})
+		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{
+			Blind:            cfg.blind,
+			ConfigRoot:       cfg.configRoot,
+			HardwareProfiles: splitCSV(cfg.hwProfiles),
+		})
 	case "python", "":
 		r, rerr := scenario.NewSubprocessRunner(scenario.Config{
 			Command:    cfg.command,
@@ -190,6 +319,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 		}
 		runner = r
 	default:
+		// Unreachable: validate rejects any other value first.
 		return fmt.Errorf("sim-runner: unknown --runner %q (want 'python' or 'native')", cfg.runner)
 	}
 

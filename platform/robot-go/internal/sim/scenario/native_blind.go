@@ -46,12 +46,11 @@ type blindSetup struct {
 
 // newBlindSetup builds the blind round's initial path and belief loop.
 //
-// The initial path is planned with the REAL planner (waypoints.CalculateWaypoints)
-// rather than the sighted path's centerlineLoop approximation, because every
-// subsequent replan comes from the real planner via widthbelief.Layout and a
-// blind round that switched planners on its first width update would report a
-// path discontinuity that no belief change caused. The sighted path is
-// deliberately left on centerlineLoop so no existing corpus number moves.
+// The initial path is planned with the REAL planner
+// (waypoints.CalculateWaypoints), the same one buildScenario now uses for a
+// sighted round: every subsequent replan comes from that planner via
+// widthbelief.Layout, and a round that switched planners on its first width
+// update would report a path discontinuity that no belief change caused.
 //
 // The believed START is the assumed pose, not the scenario's: a path is built
 // from where the robot thinks it is, and blind is exactly the case where that
@@ -66,6 +65,7 @@ func newBlindSetup(
 	isObstacles bool,
 	cfg harness.Config,
 	waypointCfg waypoints.Config,
+	startCfg startconditions.Config,
 	centerBiasM *float64,
 ) (blindSetup, error) {
 	priorWidthM := blindNarrowWidthM
@@ -94,7 +94,7 @@ func newBlindSetup(
 		direction,
 		prior,
 		startconditions.CanonicalSection,
-		startconditions.DefaultConfig(),
+		startCfg,
 		assumedBiasM,
 	)
 	if !ok {
@@ -168,14 +168,6 @@ func blindCenterBiasM(isObstacles bool) *float64 {
 	}
 	bias := obstaclesCenterBiasM
 	return &bias
-}
-
-// waypointsCfg is the waypoint tuning a native run plans with. Shipped
-// defaults, matching the rest of the runner's "no config root" stance --
-// NativeRunner takes no repo path, so there is nothing to load a TOML from
-// and inventing one would make a sweep depend on the caller's cwd.
-func waypointsCfg() waypoints.Config {
-	return waypoints.DefaultConfig()
 }
 
 // plannerBaseFor builds the PlannerInput a blind round replans from. Its
