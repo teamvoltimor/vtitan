@@ -299,6 +299,13 @@ func (n *Navigator) SignRouter() *signrouter.SignRouter { return n.signRouter }
 // park_controller property.
 func (n *Navigator) ParkController() *parking.ParkController { return n.parkController }
 
+// Direction is the round's travel direction, nil while a blind round's
+// bootstrap has not settled one yet. Exposed because the host's layout-belief
+// loop (internal/nav/widthbelief) cannot attribute a corridor reading without
+// it, and must not guess: attributing to the wrong section folds a
+// measurement of one corridor into another's estimate.
+func (n *Navigator) Direction() *trackmodel.Direction { return n.direction }
+
 // LapsCompleted is the number of laps confirmed completed so far, matching
 // the laps_completed property.
 func (n *Navigator) LapsCompleted() int { return n.lapsCompleted }

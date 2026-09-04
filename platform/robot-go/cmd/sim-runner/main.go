@@ -44,6 +44,7 @@ type cliConfig struct {
 	timeout     time.Duration
 	jsonOutput  bool
 	runner      string
+	blind       bool
 }
 
 // exit codes: 0 means the orchestrator successfully produced a report, even
@@ -135,6 +136,13 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		"python",
 		"scenario runner backend: 'python' (subprocess oracle, default) or 'native' (Go-native harness)",
 	)
+	flags.BoolVar(
+		&cfg.blind,
+		"blind",
+		false,
+		"--runner native only: withhold the scenario's direction and corridor widths, "+
+			"so the robot infers both from LIDAR as it does in a real round",
+	)
 
 	for _, name := range []string{"corpus", "script", "workdir"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
@@ -166,7 +174,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 	var runner scenario.Runner
 	switch cfg.runner {
 	case "native":
-		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{})
+		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{Blind: cfg.blind})
 	case "python", "":
 		r, rerr := scenario.NewSubprocessRunner(scenario.Config{
 			Command:    cfg.command,

@@ -15,6 +15,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/widthbelief"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
@@ -45,15 +46,17 @@ import (
 // (BayExit) is a separate maneuver from parking IN, and is not driven by
 // this runner -- see internal/nav/bayexit's own doc comment.
 //
-// Scope note: blind mode (direction inference + corridor-width estimation +
-// believed-wall relocalization) is intentionally out of scope here --
-// Direction is always taken from scenario-truth metadata, never nil.
-// SubprocessRunner remains the parity oracle for blind-mode and parking
-// scenarios until the native runner is extended further.
+// BLIND mode (NativeRunnerConfig.Blind) withholds the scenario's truth from
+// the navigator the way a real round does: Direction is nil, so the blind
+// bootstrap infers it from LIDAR, and the initial path is planned from the
+// challenge's WIDTH PRIOR rather than the true corridor widths, then
+// corrected by widthbelief.Layout as the estimator measures each corridor.
+// Sighted mode (the default) keeps taking both from metadata.
 type NativeRunner struct {
 	cfg      harness.Config
 	seed     uint64
 	maxSteps int
+	blind    bool
 }
 
 // NativeRunnerConfig configures a NativeRunner.
@@ -65,6 +68,12 @@ type NativeRunnerConfig struct {
 	Seed uint64
 	// MaxSteps bounds a single run (parity default 4000 ≈ 200 s at 20 Hz).
 	MaxSteps int
+	// Blind withholds the scenario's direction and corridor widths from the
+	// navigator, which must then infer both from LIDAR -- the way a real
+	// round works. Defaults false (sighted), which is what every existing
+	// corpus sweep measured, so turning this on is an explicit A/B rather
+	// than a silent change to what "the native runner" means.
+	Blind bool
 }
 
 // ControlDt returns the simulation timestep (s). It resolves the effective
@@ -88,7 +97,7 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	if maxSteps <= 0 {
 		maxSteps = 4000
 	}
-	return &NativeRunner{cfg: hc, seed: cfg.Seed, maxSteps: maxSteps}
+	return &NativeRunner{cfg: hc, seed: cfg.Seed, maxSteps: maxSteps, blind: cfg.Blind}
 }
 
 // Run builds and drives one scenario, returning a Result.
@@ -149,11 +158,41 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	targetLaps := defaultLaps(meta)
 	navCfg := navigator.ConfigFor(nil, "", nil)
 	pc := parkControllerFromMetadata(meta, startPose.Section, startPose.Direction)
+
+	// Blind withholds BOTH the direction and the layout. The direction goes
+	// to nil so navigator's own bootstrap infers it from LIDAR; the path is
+	// replaced with one planned from the challenge's width prior and the
+	// assumed start, which widthbelief.Layout then corrects each tick.
+	//
+	// The blind round's DIRECTION is still the scenario's for planning
+	// purposes: newBlindSetup needs one to lay out a lap, and the real robot
+	// likewise plans only once its own inference has settled. What the
+	// navigator is not told is the answer -- it has to reach it itself before
+	// it follows this path at all.
+	var layout *widthbelief.Layout
+	direction := func() *trackmodel.Direction { d := startPose.Direction; return &d }()
+	if r.blind {
+		blind, blindErr := newBlindSetup(
+			plannerBaseFor(meta, r.cfg),
+			startPose.Direction,
+			len(signs) > 0,
+			r.cfg,
+			waypointsCfg(),
+			blindCenterBiasM(len(signs) > 0),
+		)
+		if blindErr != nil {
+			return Result{}, fmt.Errorf("native runner: %s: %w", sc.ID, blindErr)
+		}
+		waypoints = blind.Waypoints
+		layout = blind.Layout
+		direction = nil
+	}
+
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Vision:            vision,
 		Waypoints:         waypoints,
-		Direction:         func() *trackmodel.Direction { d := startPose.Direction; return &d }(),
+		Direction:         direction,
 		NumLaps:           targetLaps,
 		Config:            navCfg,
 		ControllersConfig: controllers.DefaultConfig(),
@@ -165,7 +204,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		return Result{}, fmt.Errorf("native runner: building navigator %s: %w", sc.ID, err)
 	}
 
-	return r.loop(sc, gw, nav, track, targetLaps, startPose)
+	return r.loop(sc, gw, nav, track, targetLaps, startPose, layout)
 }
 
 // simVisionGateway implements navigator.VisionGateway by emulating sign
@@ -290,6 +329,9 @@ func parkControllerFromMetadata(
 // testable against a fake instead of coupled to the concrete gateway.
 type simGateway interface {
 	controllers.PoseSource
+	// Sensors is what the blind layout-belief loop reads and re-seeds --
+	// embedded rather than restated so the two cannot drift apart.
+	widthbelief.Sensors
 	// State returns the current simulated chassis state.
 	State() kinematics.AckermannState
 	// Advance integrates the simulation by dt seconds.
@@ -309,6 +351,7 @@ func (r *NativeRunner) loop(
 	track *collision.TrackModel,
 	targetLaps int,
 	startPose scenarioStart,
+	layout *widthbelief.Layout,
 ) (Result, error) {
 	dt := r.cfg.ControlDt()
 
@@ -330,6 +373,11 @@ func (r *NativeRunner) loop(
 
 	for steps < r.maxSteps {
 		nav.Step()
+		// Driven every tick, not only when the estimator speaks: a deferred
+		// belief is released by the robot LEAVING a corridor, so the tick that
+		// applies it is usually one with no new reading at all. A nil layout
+		// (sighted) is a no-op.
+		layout.Update(nav, gw, nav.Direction())
 		gw.Advance(dt)
 		steps++
 

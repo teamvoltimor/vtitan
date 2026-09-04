@@ -29,7 +29,6 @@ type Layout struct {
 	cfg           waypoints.Config
 	centerBiasM   *float64
 	maxCoordM     float64
-	believedYaw   float64
 	lastReplanned map[trackmodel.Section]float64
 }
 
@@ -72,6 +71,20 @@ func NewLayout(p Params) *Layout {
 	}
 }
 
+// Sensors is the slice of controllers.HardwareGateway the belief loop reads:
+// the scan it measures a corridor from, the pose it attributes that
+// measurement by, and the wall model it must re-seed so the NEXT pose is
+// computed against the layout just adopted.
+//
+// Declared here rather than taking the whole gateway so a caller with a
+// narrower simulation gateway (internal/sim/scenario's simGateway) can pass
+// it without implementing the parts of the port a belief loop never touches.
+type Sensors interface {
+	GetLidarScan() (controllers.LidarScan, bool)
+	GetCurrentPose() (trackmodel.Pose, bool)
+	SetBelievedWalls(walls *trackmodel.TrackWalls)
+}
+
 // Update folds one tick's scan into the belief and replans nav's path if the
 // gate released a change. Returns true when the path was rebuilt.
 //
@@ -82,7 +95,7 @@ func NewLayout(p Params) *Layout {
 // A nil Layout is a no-op, so a sighted caller need not branch.
 func (l *Layout) Update(
 	nav *navigator.Navigator,
-	gateway controllers.HardwareGateway,
+	gateway Sensors,
 	direction *trackmodel.Direction,
 ) bool {
 	if l == nil || direction == nil {
