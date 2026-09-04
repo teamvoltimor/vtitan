@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
@@ -16,19 +17,32 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/visionsim"
 )
 
 // NativeRunner implements Runner with a fully Go-native closed-loop
 // simulation, replacing SubprocessRunner (the frozen Python oracle). It builds
 // the harness + collision.TrackModel from scenario metadata, drives the real
-// navigator.Navigator (sighted — direction known, no vision), and scores the
-// outcome into a Result.
+// navigator.Navigator (sighted — direction known), and scores the outcome
+// into a Result.
 //
-// Scope note: this is the sighted Open-Challenge path. Blind mode (direction
-// inference + corridor-width estimation + believed-wall relocalization) and
-// the Obstacles pass-side/parking logic are intentionally out of scope here;
-// SubprocessRunner remains the parity oracle for those until the native runner
-// is extended.
+// Obstacles Challenge scenarios (metadata's sign_positions) are supported:
+// signs become both LIDAR-visible collision obstacles
+// (collision.ObstacleBox) and SignRouter targets, with a
+// internal/sim/visionsim-emulated camera feeding SignRouter's per-tick
+// deformation the same way a real detection would. Parking-lot scenarios
+// (metadata's parking_lot) are parsed but NOT yet acted on: ParkController
+// and BayExit are not wired into navigator.Navigator itself (see
+// internal/nav/navigator/doc.go's "Scope and deviations" section and
+// internal/nav/bayexit's own doc comment on the missing Gateway
+// wheel-odometry accessor), so an in-bay-start or drive-past-the-lot
+// scenario still runs, just without any parking behavior.
+//
+// Scope note: blind mode (direction inference + corridor-width estimation +
+// believed-wall relocalization) is intentionally out of scope here --
+// Direction is always taken from scenario-truth metadata, never nil.
+// SubprocessRunner remains the parity oracle for blind-mode and parking
+// scenarios until the native runner is extended further.
 type NativeRunner struct {
 	cfg      harness.Config
 	seed     uint64
@@ -82,12 +96,21 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		return Result{}, fmt.Errorf("native runner: building %s: %w", sc.ID, err)
 	}
 
+	signs := signsFromMetadata(meta)
+	axisAlignTolerance := collision.DefaultConfig().AxisAlignTolerance
+	obstacleSpecs := make([]collision.ObstacleSpec, len(signs))
+	for i, sign := range signs {
+		obstacleSpecs[i] = collision.ObstacleSpec{
+			CX: sign.X, CY: sign.Y, Length: signObstacleWidthM, Width: signObstacleDepthM,
+		}
+	}
+
 	track := collision.NewTrackModel(collision.NewTrackModelParams{
 		Geometry:           geom,
 		MinCoordM:          0.0,
 		MaxCoordM:          r.cfg.TrackMaxCoordM,
-		Obstacles:          nil,
-		LidarSeesObstacles: false,
+		Obstacles:          collision.ObstaclesFromSpecs(obstacleSpecs, axisAlignTolerance),
+		LidarSeesObstacles: len(signs) > 0,
 		CollisionMarginM:   r.cfg.CollisionMarginM,
 	})
 
@@ -99,24 +122,100 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		kin, r.seed,
 	)
 
+	// A non-nil SignRouter is what identifies the Obstacles Challenge to
+	// Navigator itself (widens the collision-avoidance contact zone, enables
+	// the sign-lane path planner) -- see navigator.New's own doc comment on
+	// p.SignRouter -- so it is only built when the scenario actually has
+	// signs, never as an always-present-but-empty router.
+	var signRouter *signrouter.SignRouter
+	var vision navigator.VisionGateway
+	if len(signs) > 0 {
+		signRouterCfg := signrouter.DefaultConfig()
+		signRouter, err = signrouter.NewSignRouter(signs, signRouterCfg, startPose.Direction)
+		if err != nil {
+			return Result{}, fmt.Errorf("native runner: building sign router %s: %w", sc.ID, err)
+		}
+		vision = &simVisionGateway{gw: gw, signs: signs, cfg: visionConfigFor(r.cfg)}
+	}
+
 	targetLaps := defaultLaps(meta)
 	navCfg := navigator.ConfigFor(nil, "", nil)
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
-		Vision:            nil,
+		Vision:            vision,
 		Waypoints:         waypoints,
 		Direction:         func() *trackmodel.Direction { d := startPose.Direction; return &d }(),
 		NumLaps:           targetLaps,
 		Config:            navCfg,
 		ControllersConfig: controllers.DefaultConfig(),
 		SignRouterConfig:  signrouter.DefaultConfig(),
-		SignRouter:        nil,
+		SignRouter:        signRouter,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("native runner: building navigator %s: %w", sc.ID, err)
 	}
 
 	return r.loop(sc, gw, nav, track, targetLaps, startPose)
+}
+
+// simVisionGateway implements navigator.VisionGateway by emulating sign
+// detections from the simulation's TRUE chassis pose each tick, matching
+// how ScenarioSimulator wires vision_emulator.emulate_sign_observations
+// into the Python gateway. Ground-truth pose only (no believed-pose
+// reprojection): the native runner's Localize is unsupported (see
+// harness.Config.Localize's doc comment), so there is no separate believed
+// pose to diverge from the true one yet.
+type simVisionGateway struct {
+	gw    simGateway
+	signs []signrouter.SignSpec
+	cfg   visionsim.Config
+}
+
+func (v *simVisionGateway) GetVisionDetections() ([]signrouter.TrafficSignObservation, bool) {
+	st := v.gw.State()
+	obs := visionsim.EmulateSignObservations(v.signs, st.X, st.Y, st.Yaw, v.cfg, nil)
+	return obs, len(obs) > 0
+}
+
+// visionConfigFor derives visionsim.Config from the harness Config's own
+// DetectionConfidence, keeping the camera HFOV/range defaults (visionsim
+// owns those; harness.Config does not mirror RobotSpecs' camera constants).
+func visionConfigFor(cfg harness.Config) visionsim.Config {
+	vc := visionsim.DefaultConfig()
+	vc.DetectionConfidence = cfg.DetectionConfidence
+	return vc
+}
+
+// signObstacleWidthM/signObstacleDepthM mirror track.toml's [sign]
+// width/depth (TrafficSignSpecs.WIDTH/DEPTH) -- both 0.05 m. No Go mirror
+// of TrafficSignSpecs exists yet beyond signrouter.DefaultSignWidthM
+// (the lane-offset consumer of the same width value); depth has no
+// existing home, so both are named here where the sim-obstacle geometry
+// that needs them lives.
+const (
+	signObstacleWidthM = signrouter.DefaultSignWidthM
+	signObstacleDepthM = 0.05
+)
+
+// signsFromMetadata builds the ground-truth SignSpec list for an Obstacles
+// Challenge scenario, matching the sign half of track_model.py's
+// obstacles_from_metadata (the parking-block half is deliberately not
+// ported here -- see collision.ObstacleBox's is_parking_lot gap, tracked
+// separately). Empty for Open Challenge metadata (no sign_positions key),
+// exactly as Python's obstacles_from_metadata returns an empty list for it.
+func signsFromMetadata(meta scenarioMetadata) []signrouter.SignSpec {
+	if len(meta.SignPositions) == 0 {
+		return nil
+	}
+	signs := make([]signrouter.SignSpec, len(meta.SignPositions))
+	for i, s := range meta.SignPositions {
+		color := signrouter.SignColorGreen
+		if s.Color == "red" {
+			color = signrouter.SignColorRed
+		}
+		signs[i] = signrouter.SignSpec{X: s.X, Y: s.Y, Color: color}
+	}
+	return signs
 }
 
 // simGateway is the simulation-only hardware surface the native runner's
@@ -230,27 +329,43 @@ func (r *NativeRunner) score(
 	laps := nav.LapsCompleted()
 	st := gw.State()
 	cx, cy := gw.CollisionXY()
-	success := !collided && !stuck && !resTimedOut(steps, r.maxSteps, laps, targetLaps)
+
+	// PassSideViolationSigns/PassSideViolation are only ever populated by an
+	// Obstacles Challenge run (nav.SignRouter() nil for Open), matching
+	// SimResult's own fields -- an empty sign-router-less run reports zero
+	// violations, not "unknown."
+	var wrongSideSigns []int
+	if sr := nav.SignRouter(); sr != nil {
+		for index := range sr.WrongSideViolations() {
+			wrongSideSigns = append(wrongSideSigns, index)
+		}
+		slices.Sort(wrongSideSigns)
+	}
+	passSideViolation := len(wrongSideSigns) > 0
+
+	success := !collided && !stuck && !passSideViolation && !resTimedOut(steps, r.maxSteps, laps, targetLaps)
 
 	return Result{
-		TerminalSurface: terminalSurfaceName(collided),
-		Scenario:        sc.ID,
-		CollisionXY:     []float64{cx, cy},
-		FinalPose:       []float64{st.X, st.Y, st.Yaw},
-		SimTimeS:        float64(steps) * dt,
-		DistanceM:       distanceM,
-		MaxSpeedMPS:     maxSpeedMPS,
-		AvgSpeedMPS:     avgSpeed(distanceM, steps, dt),
-		MinLidarRangeM:  orZero(minRangeM),
-		TargetLaps:      targetLaps,
-		LapsCompleted:   laps,
-		Steps:           steps,
-		ContactCount:    contactCount,
-		Collided:        collided,
-		TimedOut:        resTimedOut(steps, r.maxSteps, laps, targetLaps),
-		Stuck:           stuck,
-		Success:         success,
-		OverTime:        false,
+		TerminalSurface:        terminalSurfaceName(collided),
+		Scenario:               sc.ID,
+		PassSideViolationSigns: wrongSideSigns,
+		CollisionXY:            []float64{cx, cy},
+		FinalPose:              []float64{st.X, st.Y, st.Yaw},
+		SimTimeS:               float64(steps) * dt,
+		DistanceM:              distanceM,
+		MaxSpeedMPS:            maxSpeedMPS,
+		AvgSpeedMPS:            avgSpeed(distanceM, steps, dt),
+		MinLidarRangeM:         orZero(minRangeM),
+		TargetLaps:             targetLaps,
+		LapsCompleted:          laps,
+		Steps:                  steps,
+		ContactCount:           contactCount,
+		Collided:               collided,
+		PassSideViolation:      passSideViolation,
+		TimedOut:               resTimedOut(steps, r.maxSteps, laps, targetLaps),
+		Stuck:                  stuck,
+		Success:                success,
+		OverTime:               false,
 	}
 }
 
@@ -300,6 +415,14 @@ type scenarioMetadata struct {
 	CorridorWidths     map[string]widthMeta `json:"corridor_widths"`
 	StartingConditions startingMeta         `json:"starting_conditions"`
 	HasParkingLot      bool                 `json:"has_parking_lot"`
+	// SignPositions is absent (nil) for Open Challenge metadata -- there is
+	// no "empty array vs. missing key" distinction that matters here, since
+	// signsFromMetadata treats both as "no signs" identically.
+	SignPositions []signPositionMeta `json:"sign_positions"`
+	// ParkingLot is nil for Open Challenge and Obstacles-without-parking
+	// metadata. Parsed for a future ParkController/BayExit wiring pass
+	// (see NativeRunner's doc comment) -- not yet read by anything.
+	ParkingLot *parkingLotMeta `json:"parking_lot"`
 }
 
 type widthMeta struct {
@@ -317,6 +440,24 @@ type startingMeta struct {
 type posMeta struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
+}
+
+// signPositionMeta is one entry of the generator's sign_positions array --
+// ground-truth color and world position for one traffic sign.
+type signPositionMeta struct {
+	Color string  `json:"color"`
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+}
+
+// parkingLotMeta mirrors the generator's parking_lot object: the two
+// magenta blocks' poses that define the bay between them.
+type parkingLotMeta struct {
+	Block1Position posMeta `json:"block1_position"`
+	Block2Position posMeta `json:"block2_position"`
+	Block1Yaw      float64 `json:"block1_yaw"`
+	Block2Yaw      float64 `json:"block2_yaw"`
+	Depth          float64 `json:"depth"`
 }
 
 func loadMetadata(path string) (scenarioMetadata, error) {

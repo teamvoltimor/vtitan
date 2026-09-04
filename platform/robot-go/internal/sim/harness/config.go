@@ -44,6 +44,11 @@ type Config struct {
 	// the known WRO chassis (0.30 x 0.194).
 	ChassisLengthM float64
 	ChassisWidthM  float64
+	// DetectionConfidence is the fixed confidence internal/sim/visionsim
+	// reports for every emulated sign detection. Mirrors
+	// simulation.toml's detection_confidence; unported (plan §2), defaulted
+	// to 0.9.
+	DetectionConfidence float64
 }
 
 // DefaultConfig returns the all-default Config: 20 Hz control, 360-ray LIDAR
@@ -52,18 +57,19 @@ type Config struct {
 // unported simulation.toml fields (plan §2), not measured values.
 func DefaultConfig() Config {
 	return Config{
-		ControlHz:        20.0,
-		LidarHz:          0.0,
-		LidarSamples:     360,
-		LidarMinRangeM:   0.15,
-		LidarMaxRangeM:   8.0,
-		LidarNoiseStd:    0.03,
-		InvalidRayRate:   0.01,
-		Localize:         false,
-		CollisionMarginM: 0.0,
-		TrackMaxCoordM:   3.0,
-		ChassisLengthM:   0.30,
-		ChassisWidthM:    0.194,
+		ControlHz:           20.0,
+		LidarHz:             0.0,
+		LidarSamples:        360,
+		LidarMinRangeM:      0.15,
+		LidarMaxRangeM:      8.0,
+		LidarNoiseStd:       0.03,
+		InvalidRayRate:      0.01,
+		Localize:            false,
+		CollisionMarginM:    0.0,
+		TrackMaxCoordM:      3.0,
+		ChassisLengthM:      0.30,
+		ChassisWidthM:       0.194,
+		DetectionConfidence: 0.9,
 	}
 }
 
