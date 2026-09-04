@@ -2,6 +2,8 @@ package recording
 
 import (
 	"google.golang.org/protobuf/proto"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/protoschema"
 )
 
 // newVideoSink returns the video encoder for the build: the gocv mp4v backend
@@ -13,14 +15,12 @@ func newVideoSink(path string, fps float64) VideoSink {
 	return newMJPEGAVISinkOrCgo(path, fps)
 }
 
-// mustProtoDescriptor returns the FileDescriptorSet for msg's schema so MCAP
-// protobuf readers can decode it. Our own bagreplay reader carries the generated
-// Go types and unmarshals by type, so an empty descriptor still round-trips
-// within this repo; external tools get the descriptor when available.
-func mustProtoDescriptor(msg proto.Message) []byte {
-	// proto.Marshal of a FileDescriptorSet is heavy to compute here; the
-	// generated types in this module decode without it. Return nil and rely on
-	// the reader's generated schema. (If cross-tool interop is needed later,
-	// populate this from protoregistry.)
-	return nil
+// fileDescriptorSet returns the FileDescriptorSet for msg's schema so MCAP
+// protobuf readers -- including EXTERNAL ones like Foxglove Studio, which
+// has no access to this module's generated Go types -- can decode it. Our
+// own bagreplay reader carries the generated types and unmarshals by type
+// regardless, so this is specifically what makes a bag portable outside
+// this repo.
+func fileDescriptorSet(msg proto.Message) ([]byte, error) {
+	return protoschema.FileDescriptorSet(msg)
 }

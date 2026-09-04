@@ -147,11 +147,15 @@ func (r *RunRecorder) ensureSchema(subject string, msg proto.Message) (uint16, e
 	if id, ok := r.channels[subject]; ok {
 		return id, nil
 	}
+	descriptorSet, err := fileDescriptorSet(msg)
+	if err != nil {
+		return 0, fmt.Errorf("recording: building schema for %s: %w", subject, err)
+	}
 	schema := &mcap.Schema{
 		ID:       r.nextSchemaID,
 		Name:     string(proto.MessageName(msg)),
 		Encoding: "protobuf",
-		Data:     mustProtoDescriptor(msg),
+		Data:     descriptorSet,
 	}
 	if err := r.mcapW.WriteSchema(schema); err != nil {
 		return 0, fmt.Errorf("recording: writing schema %s: %w", subject, err)
