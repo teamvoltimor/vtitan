@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
+from enum import StrEnum
 from typing import TYPE_CHECKING, Self
 
 import cv2
@@ -50,6 +51,23 @@ _EOI = b"\xff\xd9"
 _READ_CHUNK = 65536
 
 
+class ExposureMode(StrEnum):
+    """Auto-exposure bias, matching the Picamera2 driver's `AeExposureMode` naming.
+
+    rpicam-vid's ``--exposure`` flag has no literal "short" value; SHORT maps
+    to its closest equivalent, "sport".
+    """
+
+    NORMAL = "normal"
+    SHORT = "short"
+    LONG = "long"
+
+    @property
+    def rpicam_value(self) -> str:
+        """The ``--exposure`` value rpicam-vid expects for this mode."""
+        return "sport" if self is ExposureMode.SHORT else self.value
+
+
 class Config(CameraConfig):
     """Capture settings, sharing the CAMERA_* variables with the Picamera2 driver."""
 
@@ -61,6 +79,23 @@ class Config(CameraConfig):
     """
     How long to wait for a complete frame before reporting the stream dead.
     """
+
+    exposure_mode: ExposureMode = Field(
+        default=ExposureMode.NORMAL, validation_alias=AliasChoices("CAMERA_EXPOSURE_MODE", "camera_exposure_mode")
+    )
+    """SHORT biases auto-exposure toward shorter exposure times (less motion blur, more noise)."""
+
+    exposure_time_us: int | None = Field(
+        default=None, validation_alias=AliasChoices("CAMERA_EXPOSURE_TIME_US", "camera_exposure_time_us")
+    )
+    """
+    Manual shutter time in microseconds, passed as ``--shutter``. Set together with `analogue_gain` to disable auto-exposure entirely; leave unset to keep AE (biased by `exposure_mode`) enabled.
+    """
+
+    analogue_gain: float = Field(
+        default=1.0, validation_alias=AliasChoices("CAMERA_ANALOGUE_GAIN", "camera_analogue_gain")
+    )
+    """Sensor gain, passed as ``--gain``. Only fixed when `exposure_time_us` is also set; otherwise AE is free to adjust it."""
 
 
 class Driver(CameraDriver):
@@ -95,11 +130,15 @@ class Driver(CameraDriver):
             str(self.config.height),
             "--framerate",
             str(self.config.fps),
+            "--exposure",
+            self.config.exposure_mode.rpicam_value,
         ]
         if hflip:
             cmd.append("--hflip")
         if vflip:
             cmd.append("--vflip")
+        if self.config.exposure_time_us is not None:
+            cmd += ["--shutter", str(self.config.exposure_time_us), "--gain", str(self.config.analogue_gain)]
         return cmd
 
     def connect(self) -> None:

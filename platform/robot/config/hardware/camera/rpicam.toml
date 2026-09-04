@@ -16,3 +16,7 @@ camera_vflip = false
 
 camera_read_timeout_sec = 5.0
 # Seconds to wait for a complete frame before reporting the stream dead.
+
+camera_exposure_mode = "short"       # "normal" | "short" | "long" -- venue is well-lit, bias toward less motion blur
+# camera_exposure_time_us = 8000     # set together with camera_analogue_gain to disable AE entirely
+camera_analogue_gain = 1.0
