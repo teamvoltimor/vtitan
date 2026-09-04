@@ -314,9 +314,26 @@ class BayExit:
             follower.REVERSE_SPEED_SCALE if self._leg_is_reverse else follower.CORNER_SPEED_SCALE
         )
         step = (-speed if self._leg_is_reverse else speed) / tuning.control.CONTROL_HZ
+        # Bound the POSITION, not the leg. Per-leg distance bounds cannot work:
+        # a leg ends by commanding zero and the chassis then coasts v*tau (37 mm
+        # at creep, against a 20 mm leg), and even when the coast is small the
+        # cycles DRIFT along the wall until one reaches a fin. Measured
+        # 2026-09-03 -- fast: 26 mm leg + 37 mm coast touches on cycle 1; slow:
+        # survives cycle 1 and drifts to the same 62 mm over many.
+        #
+        # Uses only the part of dead reckoning that is trustworthy. DR `along`
+        # tracks truth closely (0.0577 modelled against 0.0583 true), while DR
+        # `yaw` does NOT -- it cannot see the outer wall clipping the rotation,
+        # and ran 4.5x high. So the swept extent is taken at its WORST CASE,
+        # sqrt(L^2 + W^2)/2, which needs no yaw estimate at all and can only be
+        # conservative.
+        worst_half_extent = math.hypot(RobotSpecs.LENGTH, RobotSpecs.WIDTH) / 2.0
+        half_gap = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0 - ParkingLotSpecs.WIDTH / 2.0
+        along_limit = half_gap - worst_half_extent - margin
+        predicted_along = abs(self._dr_along + step * math.cos(self._dr_yaw))
         gap = self._predicted_gap(step, wheel_norm, tuning)
         self._guard_min_gap = min(self._guard_min_gap, gap)
-        if gap <= margin:
+        if predicted_along >= along_limit or gap <= margin:
             # Reverse the leg rather than push on. The chassis has not touched
             # anything -- this fires on the prediction.
             self._leg_is_reverse = not self._leg_is_reverse
