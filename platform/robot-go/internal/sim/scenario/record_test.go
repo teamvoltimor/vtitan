@@ -12,6 +12,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
 	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
 )
 
@@ -21,7 +22,7 @@ import (
 func TestNewSimRecorder_NilWhenOff(t *testing.T) {
 	t.Parallel()
 
-	rec, err := newSimRecorder("", "open_0000")
+	rec, err := newSimRecorder("", "open_0000", recorderGeometry{WheelRadiusM: 0.035, MaxSteerRad: 1.0})
 	if err != nil {
 		t.Fatalf("newSimRecorder(\"\"): %v", err)
 	}
@@ -31,7 +32,7 @@ func TestNewSimRecorder_NilWhenOff(t *testing.T) {
 	if err := rec.close(); err != nil {
 		t.Errorf("close on a nil recorder: %v", err)
 	}
-	if err := rec.tick(controllers.LidarScan{}, false, nil, 0.05); err != nil {
+	if err := rec.tick(controllers.LidarScan{}, false, nil, kinematics.AckermannState{}, 0, 0.05); err != nil {
 		t.Errorf("tick on a nil recorder: %v", err)
 	}
 }
@@ -156,7 +157,7 @@ func TestSimRecorder_WritesBothSubjectsOnASimClock(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	rec, err := newSimRecorder(dir, "open_0042")
+	rec, err := newSimRecorder(dir, "open_0042", recorderGeometry{WheelRadiusM: 0.035, MaxSteerRad: 1.0})
 	if err != nil {
 		t.Fatalf("newSimRecorder: %v", err)
 	}

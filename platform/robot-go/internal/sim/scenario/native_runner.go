@@ -69,9 +69,14 @@ type NativeRunner struct {
 	kinParams  kinematics.Params
 	collCfg    collision.Config
 	recordRoot string
-	seed       uint64
-	maxSteps   int
-	blind      bool
+	// recGeom is chassis geometry only the BAG needs -- wheel size, steering
+	// limit, LIDAR mount. None of it belongs in kinematics.Params: a bicycle
+	// model turns on wheelbase, not wheel size, and knows nothing of where a
+	// sensor is bolted.
+	recGeom  recorderGeometry
+	seed     uint64
+	maxSteps int
+	blind    bool
 }
 
 // NativeRunnerConfig configures a NativeRunner.
@@ -150,10 +155,12 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	// discards its own -- a sweep runs hundreds of scenarios and a
 	// per-package load line from each would bury the report.
 	logger := discardingLogger()
+	kinParams := kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles)
 
 	return &NativeRunner{
 		cfg:        hc,
 		recordRoot: cfg.RecordRoot,
+		recGeom:    recorderGeometryFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles, kinParams.MaxSteerRad),
 		navCfg:     navigator.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		ctrlCfg:    controllers.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		wpCfg:      waypoints.ConfigFor(logger, cfg.ConfigRoot),
@@ -270,7 +277,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		return Result{}, fmt.Errorf("native runner: building navigator %s: %w", sc.ID, err)
 	}
 
-	rec, err := newSimRecorder(r.recordRoot, sc.ID)
+	rec, err := newSimRecorder(r.recordRoot, sc.ID, r.recGeom)
 	if err != nil {
 		return Result{}, fmt.Errorf("native runner: %s: %w", sc.ID, err)
 	}
@@ -455,8 +462,16 @@ func (r *NativeRunner) loop(
 		// applies it is usually one with no new reading at all. A nil layout
 		// (sighted) is a no-op.
 		layout.Update(nav, gw, nav.Direction())
-		if scan, ok := gw.GetLidarScan(); ok || rec != nil {
-			if err := rec.tick(scan, ok, nav, dt); err != nil {
+		if rec != nil {
+			scan, scanOK := gw.GetLidarScan()
+			// The REPORTED yaw, not the true one: /imu/data must carry what
+			// the robot believes, so a run with sensor errors shows the belief
+			// diverging from the ground-truth transform.
+			reportedYaw := gw.State().Yaw
+			if pose, poseOK := gw.GetCurrentPose(); poseOK {
+				reportedYaw = pose.Yaw
+			}
+			if err := rec.tick(scan, scanOK, nav, gw.State(), reportedYaw, dt); err != nil {
 				return Result{}, err
 			}
 		}
