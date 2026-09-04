@@ -8,3 +8,9 @@ docs/internal/
 /*.exe
 
 tmp/
+
+# simgen (cmd/simgen) build output and generated scenario data -- mirrors
+# the ignore rules the old standalone platform/gazebo/generator module had
+# before simgen moved into this module.
+bin/
+training_data/

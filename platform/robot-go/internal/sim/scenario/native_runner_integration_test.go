@@ -153,8 +153,8 @@ func assertResultParity(t *testing.T, id string, native, py scenario.Result) {
 }
 
 // openCorpusDir resolves a directory of Open Challenge scenario metadata
-// files, preferring VTITAN_OPEN_CORPUS and falling back to the gazebo
-// generator's training_data/open/scenarios (checked out alongside this module).
+// files, preferring VTITAN_OPEN_CORPUS and falling back to this module's
+// own cmd/simgen training_data/open/scenarios output.
 func openCorpusDir(t *testing.T) string {
 	t.Helper()
 	if override := os.Getenv("VTITAN_OPEN_CORPUS"); override != "" {
@@ -165,9 +165,9 @@ func openCorpusDir(t *testing.T) string {
 		t.Fatal("runtime.Caller(0) failed")
 	}
 	// this file: platform/robot-go/internal/sim/scenario/native_runner_integration_test.go
-	// four levels up -> platform ; join gazebo generator open scenarios.
-	platformDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
-	return filepath.Join(platformDir, "gazebo", "generator", "training_data", "open", "scenarios")
+	// three levels up -> platform/robot-go ; join simgen's training_data/open/scenarios.
+	robotGoDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..")
+	return filepath.Join(robotGoDir, "training_data", "open", "scenarios")
 }
 
 func splitComma(s string) []string {

@@ -1,7 +1,7 @@
 """Track geometry model for the headless Open Challenge simulation.
 
 Rebuilds the exact wall geometry the Go scenario generator emits
-(``platform/gazebo/generator``) from a scenario's corridor widths, then
+(``platform/robot-go/cmd/simgen``) from a scenario's corridor widths, then
 exposes the two queries the simulated car needs:
 
 * :meth:`TrackModel.raycast_scan` — a simulated Slamtec-C1 LIDAR sweep.

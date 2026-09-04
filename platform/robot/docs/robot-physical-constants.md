@@ -7,10 +7,10 @@ in the Go Gazebo generator or the xacro — both silently kept using the old num
 
 **To change a measurement:** edit `platform/shared/config/robot.toml`, then run
 `task gen:robot-constants` (wraps `simgen generate-robot-constants`, see
-`platform/gazebo/generator/internal/robotconfig`). This regenerates the two Go/xacro consumers
+`platform/robot-go/internal/simgen/robotconfig`). This regenerates the two Go/xacro consumers
 below — do not hand-edit either, they're marked `DO NOT EDIT` and will be silently overwritten:
 
-- `platform/gazebo/generator/internal/simconfig/robot_constants.gen.go` (Go)
+- `platform/robot-go/internal/simgen/simconfig/robot_constants.gen.go` (Go)
 - `platform/gazebo/runtime/robot_description/robot_properties.gen.xacro` (`xacro:include`d from
   `wro_robot.urdf.xacro`)
 
@@ -64,8 +64,8 @@ what the model sees.
 camera mount offset/pitch. Edit this, then run `task gen:robot-constants`.
 
 ### Generated (do not hand-edit)
-- `platform/gazebo/generator/internal/simconfig/robot_constants.gen.go` — the `Robot*` const
-  block, consumed by `platform/gazebo/generator/internal/sdf/robot.go` (chassis box/inertia,
+- `platform/robot-go/internal/simgen/simconfig/robot_constants.gen.go` — the `Robot*` const
+  block, consumed by `platform/robot-go/internal/simgen/sdf/robot.go` (chassis box/inertia,
   wheel joints, Ackermann plugin params, `buildCameraLink`/`buildLidarLink` poses) and
   transitively by `internal/validate/validate.go` and `internal/preview/svg.go`.
 - `platform/gazebo/runtime/robot_description/robot_properties.gen.xacro` — `xacro:include`d

@@ -2,7 +2,7 @@
 # four-wheel steering). Measured 2026-07-11 — see platform/robot/docs/robot-physical-constants.md.
 #
 # Edit this file, then regenerate its Go/xacro consumers with `task gen:robot-constants`:
-#   - platform/gazebo/generator/internal/simconfig/robot_constants.gen.go
+#   - platform/robot-go/internal/simgen/simconfig/robot_constants.gen.go
 #   - platform/gazebo/runtime/robot_description/robot_properties.gen.xacro
 #
 # The Python side reads this file directly at runtime via

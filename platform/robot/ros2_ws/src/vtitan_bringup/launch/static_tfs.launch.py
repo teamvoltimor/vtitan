@@ -3,7 +3,7 @@
 Publishes fixed transforms so RViz, nav2, and any node that needs
 sensor-frame coordinates can resolve them from TF without a running URDF publisher.
 
-Poses match the Go Gazebo SDF generator (platform/gazebo/generator/internal/sdf/robot.go)
+Poses match the Go Gazebo SDF generator (platform/robot-go/internal/simgen/sdf/robot.go)
 and the URDF in robot_description/wro_robot.urdf (measured 2026-07-11, see
 ../../../../docs/robot-physical-constants.md):
   camera_link : over the LIDAR, angled down  x=+0.1222  y=0   z=+0.16  pitch=+30deg

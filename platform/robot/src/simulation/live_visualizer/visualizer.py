@@ -393,7 +393,7 @@ class LiveScenarioVisualizer(Node):
         ON the boundary, drawing half a wall thickness INTO the drivable area.
 
         Geometry mirrors ``addExteriorWalls`` in
-        ``gazebo/generator/internal/sdf/world.go`` so RViz and the generated
+        ``robot-go/internal/simgen/sdf/world.go`` so RViz and the generated
         SDF describe the same track: centre half a thickness beyond
         MIN/MAX_COORD, which puts the inner face exactly on the boundary the
         collision checks use.

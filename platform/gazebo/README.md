@@ -1,20 +1,29 @@
 # Gazebo Simulation Platform
 
-This directory contains the complete Gazebo simulation infrastructure for WRO 2026.
+This directory contains the Gazebo simulation runtime for WRO 2026.
+
+**The scenario/world generator (`simgen`) has moved.** It lived here as
+`gazebo/generator/` until the headless sim path moved to
+`platform/robot-go`'s own Go-native simulator, at which point it was folded
+into that module (it never depended on Gazebo at runtime -- it only emitted
+`.sdf` world files as one of several outputs alongside JSON scenario
+metadata and an SVG preview). It now lives at `platform/robot-go/cmd/simgen`
++ `platform/robot-go/internal/simgen/*`, built via `task simgen:build`
+(same as before, see `platform/Taskfile.yml`).
 
 ## Directory Structure
 
 ```
 gazebo/
-├── generator/     World and scenario generation (Go)
 └── runtime/       ROS2 simulation runtime & data collection (Python)
 ```
 
 ## Components
 
-### [generator](./generator/)
+### simgen (moved -- see platform/robot-go)
 
-**Purpose:** Generate randomized Gazebo SDF world files for training data collection.
+**Purpose:** Generate randomized Gazebo SDF world files (plus JSON scenario
+metadata and an SVG preview) for training data collection.
 
 - **Technology:** Go
 - **Speed:** ~50ms per scenario
@@ -22,11 +31,9 @@ gazebo/
 
 **Quick start:**
 ```bash
-cd generator
+cd ../robot-go  # platform/robot-go
 go run ./cmd/simgen generate --challenge obstacles --num-scenarios 50 --seed 42
 ```
-
-**Documentation:** See [generator/README.md](./generator/README.md)
 
 ---
 
@@ -52,7 +59,7 @@ ros2 launch wro_simulation wro_simulation.launch.py
 
 1. **Generate scenarios** using the generator:
    ```bash
-   cd gazebo/generator
+   cd robot-go  # platform/robot-go
    go run ./cmd/simgen generate --challenge obstacles --num-scenarios 50 --seed 42
    ```
 
@@ -111,7 +118,7 @@ See `platform/robot/` for the complete training pipeline integration.
 ## Troubleshooting
 
 **Generator issues:**
-- Check `gazebo/generator/README.md`
+- Check `platform/robot-go/cmd/simgen`
 - Verify Go 1.26+
 
 **Simulation issues:**
@@ -123,7 +130,7 @@ See `platform/robot/` for the complete training pipeline integration.
 
 ## Contributing
 
-- **Generator changes:** See `gazebo/generator/`
+- **Generator changes:** See `platform/robot-go/cmd/simgen` and `platform/robot-go/internal/simgen/`
 - **Runtime changes:** See `gazebo/runtime/`
 - Keep modules decoupled
 - Document coordinate system assumptions

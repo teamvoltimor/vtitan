@@ -5,7 +5,7 @@ Shared Python constants, enums, domain models, and utilities for the vTitan robo
 ## Consumers
 
 **`platform/robot` only.** No other project in this monorepo imports `shared` — the Go
-backend (`platform/backend`), the Go simulation generator (`platform/gazebo/generator`), and
+backend (`platform/backend`), the Go simulation generator (`platform/robot-go`), and
 the frontend (`platform/frontend`) each maintain their own parallel type/constant
 definitions in their own language, rather than depending on this Python package. `robot.toml`
 (see below) is the one exception that *is* shared across languages, via code generation

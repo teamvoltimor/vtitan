@@ -43,7 +43,7 @@ need this env, only this script does):
 
     # Real official-scenario metadata from the Go generator (the actual WRO
     # 2026 36-scenario sign table), visualized live instead of the demo layout
-    # above. From platform/gazebo/generator:
+    # above. From platform/robot-go:
     #   go run ./cmd/simgen generate --challenge obstacles --num-scenarios 1 --deterministic --output-dir ../training_data
     # Then from platform/robot:
     pixi run -e dev visualize-scenario -- --metadata-file ../training_data/scenarios/scenario_0000_metadata.json

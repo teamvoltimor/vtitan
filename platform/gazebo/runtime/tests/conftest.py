@@ -55,7 +55,7 @@ def simgen_bin() -> Path:
     if bin_path is None:
         pytest.skip(
             "simgen binary not found and go build failed — "
-            "install Go or pre-build with: cd platform/gazebo/generator && go build ./cmd/simgen"
+            "install Go or pre-build with: cd platform/robot-go && go build ./cmd/simgen"
         )
     return bin_path
 

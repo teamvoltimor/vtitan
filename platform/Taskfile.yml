@@ -28,10 +28,10 @@ vars:
   ROBOT_PIXI: ~/.pixi/bin/pixi
   SCENARIOS: 10
   CHALLENGE: open
-  OUTPUT_DIR: ./gazebo/generator/training_data
+  OUTPUT_DIR: ./robot-go/training_data
   BASE_WORLD: ./gazebo/runtime/worlds/wro_track_2026.sdf
-  METADATA: ./gazebo/generator/training_data/open/scenarios/scenario_0000_metadata.json
-  SCENARIO_SDF: ./gazebo/generator/training_data/open/scenarios/scenario_0000.sdf
+  METADATA: ./robot-go/training_data/open/scenarios/scenario_0000_metadata.json
+  SCENARIO_SDF: ./robot-go/training_data/open/scenarios/scenario_0000.sdf
   LAPS: 3
   PARAMS: ./gazebo/runtime/scripts/navigator_params.json
   GRPC_ADDR: localhost:9010
@@ -48,7 +48,7 @@ vars:
   # host it should have expanded to.
   # Override with BASH=... if Git is installed somewhere else.
   BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
-  SIMGEN: ./gazebo/generator/bin/simgen{{.EXE}}
+  SIMGEN: ./robot-go/bin/simgen{{.EXE}}
   # Statistical corpus for the navigation sweeps. The committed fixture set
   # (16 obstacles, 28 open) is the unit-test battery and has to stay fast, so
   # it is far too small to attribute a failure to a cause -- measured: the
@@ -110,9 +110,9 @@ tasks:
         PROTO (buf toolchain — requires buf CLI)
           task proto ACTION=update|generate|lint|breaking|format
 
-        SIMGEN (Go scenario generator)
+        SIMGEN (Go scenario generator, part of the robot-go module)
           task simgen:install       Build simgen binary (Go compilation)
-          task simgen:build         Compile binary to gazebo/generator/bin/simgen
+          task simgen:build         Compile binary to robot-go/bin/simgen
           task simgen:test          Run simgen tests
           task simgen:lint          Run golangci-lint
           task simgen:lint:fix      Auto-fix simgen lint issues
@@ -413,7 +413,13 @@ tasks:
             *) echo "Unknown ACTION: {{.ACTION}}. Use update|generate|lint|breaking|format" && exit 1 ;;
           esac
 
-  # SIMGEN (Go scenario generator)
+  # SIMGEN (Go scenario generator) -- lives at robot-go/cmd/simgen +
+  # robot-go/internal/simgen/*, part of the robot-go Go module (moved out of
+  # platform/gazebo/generator once Gazebo itself was dropped -- simgen never
+  # depended on Gazebo at runtime, it only emitted .sdf files as one of
+  # several outputs). These tasks stay scoped to just the simgen packages
+  # (./cmd/simgen/... ./internal/simgen/...), not all of robot-go, so `task
+  # lint`'s simgen:lint step keeps exactly the coverage it always had.
 
   simgen:install:
     desc: Build simgen binary (Go compilation — no external deps required)
@@ -421,46 +427,46 @@ tasks:
       - task: simgen:build
 
   simgen:build:
-    desc: Compile simgen binary to gazebo/generator/bin/simgen[.exe]
-    dir: gazebo/generator
+    desc: Compile simgen binary to robot-go/bin/simgen[.exe]
+    dir: robot-go
     cmds:
       - go build -o bin/simgen{{.EXE}} ./cmd/simgen
 
   simgen:test:
     desc: Run simgen tests
-    dir: gazebo/generator
+    dir: robot-go
     cmds:
-      - go test ./... -v
+      - go test ./cmd/simgen/... ./internal/simgen/... -v
 
   simgen:lint:
     desc: Run golangci-lint on simgen
-    dir: gazebo/generator
+    dir: robot-go
     cmds:
-      - golangci-lint run ./...
+      - golangci-lint run ./cmd/simgen/... ./internal/simgen/...
 
   simgen:lint:fix:
     desc: Auto-fix simgen lint issues with golangci-lint
-    dir: gazebo/generator
+    dir: robot-go
     cmds:
-      - golangci-lint run --fix ./...
+      - golangci-lint run --fix ./cmd/simgen/... ./internal/simgen/...
 
   simgen:align:
     desc: Check Go struct field alignment (betteralign)
-    dir: gazebo/generator
+    dir: robot-go
     cmds:
-      - betteralign ./...
+      - betteralign ./cmd/simgen/... ./internal/simgen/...
 
   simgen:align:fix:
     desc: Auto-fix Go struct field alignment with betteralign
-    dir: gazebo/generator
+    dir: robot-go
     cmds:
-      - betteralign -fix ./...
+      - betteralign -fix ./cmd/simgen/... ./internal/simgen/...
 
   simgen:fmt:
     desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)
-    dir: gazebo/generator
+    dir: robot-go
     cmds:
-      - golangci-lint fmt ./...
+      - golangci-lint fmt ./cmd/simgen/... ./internal/simgen/...
 
   clean:go:
     desc: Remove Go build cache and compiled binaries

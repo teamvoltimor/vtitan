@@ -116,7 +116,7 @@ Generates randomized WRO 2026 Gazebo SDF world files and metadata. ~50ms/scenari
 
 ```bash
 task simgen:install      # Build binary
-task simgen:build        # Compile to gazebo/generator/bin/simgen
+task simgen:build        # Compile to robot-go/bin/simgen
 task simgen:test         # Go tests
 task simgen:lint         # golangci-lint
 ```
@@ -206,7 +206,7 @@ task backend:dev
 task frontend:dev
 
 # 5. Run the navigator on a scenario
-task sim:navigate METADATA=gazebo/generator/training_data/open/scenarios/scenario_0000_metadata.json
+task sim:navigate METADATA=robot-go/training_data/open/scenarios/scenario_0000_metadata.json
 ```
 
 ## Challenge Types

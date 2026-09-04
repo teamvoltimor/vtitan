@@ -3,7 +3,7 @@
   WRO Future Engineers 2026 — Robot URDF
   Used by RViz and the ROS2 TF tree. Poses match wro_robot.urdf.xacro (this file's own
   base_link/box/joints -- NOT the full mechanical xacro with wheels/steering) and the Go
-  Gazebo SDF generator (platform/gazebo/generator/internal/sdf/robot.go). Measurements
+  Gazebo SDF generator (platform/robot-go/internal/simgen/sdf/robot.go). Measurements
   updated 2026-07-11 -- see ../../../robot/docs/robot-physical-constants.md.
 
   Coordinate convention: base_link origin at ground-wheel contact plane centre.
