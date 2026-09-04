@@ -437,7 +437,10 @@ class BayExit:
             # this value comes back flat, that is the slew clipping every
             # setting to the same reachable angle -- the same trap that made
             # BAY_EXIT_STEER_NORM read as inert -- not the idea failing.
-            return DriveCommand(speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE, steering_norm=target)
+            return DriveCommand(
+                speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+                steering_norm=target,
+            )
 
         self._forward_ticks += 1
         # Bounded by GEOMETRY plus a stall backstop, NOT by forward clearance.
@@ -451,7 +454,10 @@ class BayExit:
         leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
         if stalled or travelled_m - leg_start >= follower.BAY_EXIT_FORWARD_M:
             self._begin_leg(is_reverse=True, travelled_m=travelled_m, tuning=tuning, from_norm=target)
-        return DriveCommand(speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE, steering_norm=target)
+        return DriveCommand(
+            speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+            steering_norm=target,
+        )
 
     @staticmethod
     def is_clear(

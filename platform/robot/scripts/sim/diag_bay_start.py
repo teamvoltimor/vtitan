@@ -227,9 +227,9 @@ def _fin_polygons(raw: dict) -> list[list[tuple[float, float]]]:
     return polys
 
 
-def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool, float]) -> BayStartRow:
+def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool, float, float]) -> BayStartRow:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
-    path_str, in_bay, laps, changes, known_start, solid_walls, slide, scrub = payload
+    path_str, in_bay, laps, changes, known_start, solid_walls, slide, scrub, bay_offset_m = payload
     path = Path(path_str)
     raw = json.loads(path.read_text())
 
@@ -246,7 +246,14 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         # Heading is left alone: the scenario's own start is already parallel to
         # the outer wall, which is the only orientation the 0.20m-deep pocket
         # admits for a 0.194m-wide chassis.
-        start["position"]["x"], start["position"]["y"] = centre
+        # Offset ALONG THE WALL from the pocket centre. The corpus always places
+        # the chassis dead centre, but on the day the TEAM places it and 9.9
+        # allows physical adjustment during preparation, so where in the pocket
+        # it starts is a free parameter -- and the pocket has 65 mm of slack at
+        # each end against a manoeuvre that misses by a fraction of a
+        # millimetre. Positive is along the start heading.
+        start["position"]["x"] = centre[0] + bay_offset_m * math.cos(start["yaw"])
+        start["position"]["y"] = centre[1] + bay_offset_m * math.sin(start["yaw"])
         moved = True
 
     meta = ScenarioMetadata.model_validate(raw)
@@ -405,8 +412,8 @@ def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
         )
 
 
-def main() -> None:
-    """Run both starts over the same scenarios and print them side by side."""
+def _build_parser() -> argparse.ArgumentParser:
+    """Assemble the CLI. Split from ``main`` purely to keep it readable."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=8, help="Scenario count (0 = all).")
     parser.add_argument("--laps", type=int, default=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
@@ -467,6 +474,23 @@ def main() -> None:
         "leg, applied OPPOSITE to the arc. 0 backs straight (keeps the heading the arc won); "
         "non-zero is the three-point turn, adding rotation on both legs at the cost of a full "
         "servo swing between them.",
+    )
+    parser.add_argument(
+        "--exit-speed",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_SPEED_SCALE: extra scale on both cycle legs. The pocket is short "
+        "of STOPPING distance -- a leg ends by commanding zero but the drivetrain coasts "
+        "v*tau ~ 40 mm at creep, twice the 20 mm leg. Stopping distance is linear in speed.",
+    )
+    parser.add_argument(
+        "--bay-offset",
+        type=float,
+        default=0.0,
+        help="metres to offset the IN-BAY placement along the wall from the pocket centre. "
+        "The corpus always places the chassis dead centre, but on the day the team places it "
+        "and 9.9 permits physical adjustment during preparation -- so this is a free, legal "
+        "parameter, and the pocket has 65 mm of slack at each end.",
     )
     parser.add_argument(
         "--clearance-guard",
@@ -567,6 +591,12 @@ def main() -> None:
         "DIAGNOSTIC ONLY -- separates a failed exit maneuver from a good exit "
         "handing over to a plan built for a centreline the robot is not on.",
     )
+    return parser
+
+
+def main() -> None:
+    """Run both starts over the same scenarios and print them side by side."""
+    parser = _build_parser()
     args = parser.parse_args()
 
     directory = Path(args.scenarios_dir) if args.scenarios_dir else (CORPUS_DIR if args.corpus else _COMMITTED_DIR)
@@ -599,6 +629,7 @@ def main() -> None:
             ("BAY_EXIT_CYCLE_REVERSE_STEER_NORM", "back-steer", args.cycle_rev_steer),
             ("BAY_EXIT_LEG_STALL_TICKS", "stall", args.leg_stall),
             ("BAY_EXIT_CLEARANCE_GUARD", "guard", args.clearance_guard),
+            ("BAY_EXIT_SPEED_SCALE", "spd", args.exit_speed),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]
@@ -620,7 +651,8 @@ def main() -> None:
 
     for name, in_bay, changes, known in arms:
         payloads = [
-            (str(p), in_bay, args.laps, changes, known, args.solid_walls, args.slide, args.scrub) for p in paths
+            (str(p), in_bay, args.laps, changes, known, args.solid_walls, args.slide, args.scrub, args.bay_offset)
+            for p in paths
         ]
         rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
         _summarise(name, rows)

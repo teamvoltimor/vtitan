@@ -520,6 +520,36 @@ class CorridorFollowerParams(BaseModel):
     manoeuvre.
     """
 
+    BAY_EXIT_SPEED_SCALE: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_SPEED_SCALE"))
+    """Extra speed scale applied to BOTH cycle legs, on top of the corner/reverse scales.
+
+    The pocket is short of stopping distance, not of speed. A leg ends by
+    COMMANDING zero, but the drivetrain is a first-order lag with
+    ``speed_response_tau_s`` = 0.35 s, so at the shipped creep the chassis coasts
+    ``v * tau`` ~ 40 mm after the command. Measured 2026-09-03: the forward leg's
+    bound fires at 26 mm of along-wall travel and the chassis carries on to 63 mm
+    during the servo settle, which is what puts it into a fin -- 20 mm of leg
+    against 40 mm of coast.
+
+    No value of ``BAY_EXIT_FORWARD_M`` can fix that, because the bound governs
+    where the robot stops COMMANDING motion, not where it stops. Stopping
+    distance is linear in speed, so this is the constant that reaches it.
+
+    Its OWN scale rather than lowering ``CORNER_SPEED_SCALE``, which the corner
+    turn and the back-off branch also read -- slowing the bay exit must not slow
+    ordinary cornering.
+
+    **REFUTED as a fix, 2026-09-03. Left at 1.0.** Slowing makes the fin
+    clearance WORSE, monotonically: 1.0 -> -0.0005 m, 0.5 -> -0.0007,
+    0.25 -> -0.0011. The coast is real -- 31 mm of travel after the command to
+    stop -- but speed trades it against something larger. The servo slews at a
+    fixed rate in RADIANS PER SECOND while the leg is bounded in METRES, so at
+    half speed the wheels turn twice as far per metre travelled; the extra yaw
+    grows the swept extent along the wall faster than the shorter coast shrinks
+    the travel. Same time-versus-distance coupling that made
+    ``BAY_EXIT_STEER_NORM`` read as inert.
+    """
+
     BAY_EXIT_CLEARANCE_GUARD: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_CLEARANCE_GUARD"))
     """Bound the cycle legs by PREDICTED FIN CLEARANCE instead of by contact.
 
