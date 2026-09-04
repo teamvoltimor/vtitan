@@ -362,7 +362,7 @@ func (r *NativeRunner) loop(
 		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		if surface != collision.SurfaceNone {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, true, false)
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, surface, false)
 			return res, nil
 		}
 
@@ -372,7 +372,7 @@ func (r *NativeRunner) loop(
 		// `laps_completed >= num_laps and (pc is None or pc.is_done)`.
 		pc := nav.ParkController()
 		if nav.LapsCompleted() >= targetLaps && (pc == nil || pc.IsDone()) {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, false, false)
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false)
 			return res, nil
 		}
 
@@ -381,13 +381,13 @@ func (r *NativeRunner) loop(
 			anchorX, anchorY = st.X, st.Y
 			anchorStep = steps
 		} else if (steps - anchorStep) >= noProgressWindow {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, false, true)
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, true)
 			return res, nil
 		}
 	}
 
 	// Timed out.
-	res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, false, false)
+	res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false)
 	res.TimedOut = nav.LapsCompleted() < targetLaps
 	return res, nil
 }
@@ -401,8 +401,12 @@ func (r *NativeRunner) score(
 	distanceM, maxSpeedMPS, minRangeM float64,
 	contactCount int,
 	targetLaps int,
-	collided, stuck bool,
+	surface collision.ContactSurface,
+	stuck bool,
 ) Result {
+	// collided is derived from the surface rather than passed alongside it,
+	// so the two can never disagree about whether the run ended in contact.
+	collided := surface != collision.SurfaceNone
 	laps := nav.LapsCompleted()
 	st := gw.State()
 	cx, cy := gw.CollisionXY()
@@ -438,7 +442,7 @@ func (r *NativeRunner) score(
 	}
 
 	return Result{
-		TerminalSurface:        terminalSurfaceName(collided),
+		TerminalSurface:        surface.String(),
 		Scenario:               sc.ID,
 		PassSideViolationSigns: wrongSideSigns,
 		CollisionXY:            []float64{cx, cy},
@@ -479,13 +483,6 @@ func orZero(v float64) float64 {
 		return 0
 	}
 	return v
-}
-
-func terminalSurfaceName(collided bool) string {
-	if collided {
-		return "outer_wall"
-	}
-	return "none"
 }
 
 // signNudgeState accumulates each sign's push-displacement across ticks,
