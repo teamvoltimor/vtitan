@@ -2782,6 +2782,17 @@ class _SignPassSample:
     yaw_at_collision: float | None
     """Corridor-relative chassis angle on the last tick before contact."""
 
+    pre_control: list[tuple[float, float, float, float]]
+    """Control-loop outputs over the same pre-violation window.
+
+    ``(commanded steering norm, achieved wheel angle rad, angle error rad,
+    lookahead m)`` per tick. Eight constant sweeps have come back null, which
+    is itself evidence the answer is not in a constant -- so this reads what
+    the loop DID instead of guessing which gain to move. Three-way split:
+    commanded pinned at +/-1 is an authority limit; commanded near zero while
+    the radial grows means the controller is not acting on the error at all;
+    commanded correctly but the wheel angle lagging is the plant."""
+
     pre_pass: list[tuple[float, float, float, float]]
     """Sign-pass approach ticks, ``(radial, chassis lateral, plan lateral, gap)``.
 
@@ -3553,6 +3564,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     # Sign-pass ticks only, so this is the approach to the sign the run dies on.
     recent: deque[tuple[float, float, float]] = deque(maxlen=_PRE_VIOLATION_TICKS)
     recent_pass: deque[tuple[float, float, float, float]] = deque(maxlen=_PRE_VIOLATION_TICKS)
+    recent_ctrl: deque[tuple[float, float, float, float]] = deque(maxlen=_PRE_VIOLATION_TICKS)
     near_yaw: list[float] = []
     yaw_boundary: list[float] = []
     yaw_middle: list[float] = []
@@ -3653,6 +3665,13 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
                     abs(math.degrees(wrap_angle(pose.yaw - proj.tangent_rad))),
                     gap_m,
                 ))
+                dbg = sim.navigator._debug  # noqa: SLF001
+                recent_ctrl.append((
+                    dbg.commanded_steering_norm if dbg.commanded_steering_norm is not None else float("nan"),
+                    state.steer,
+                    dbg.angle_error_rad if dbg.angle_error_rad is not None else float("nan"),
+                    dbg.lookahead_distance_m if dbg.lookahead_distance_m is not None else float("nan"),
+                ))
                 chassis_lat = _centreline_offset(pose.x, pose.y)
                 plan_lat = _centreline_offset(proj.x, proj.y)
                 if chassis_lat is not None and plan_lat is not None:
@@ -3748,6 +3767,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
         at_collision=last[0] if struck_sign else None,
         yaw_at_collision=last_yaw[0] if struck_sign else None,
         estimate_err_m=estimate_err,
+        pre_control=list(recent_ctrl) if result.pass_side_violation else [],
         pre_pass=list(recent_pass),
         pre_violation=list(recent) if result.pass_side_violation else [],
         direction=scenario.metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION],
@@ -4435,6 +4455,34 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
                 flush=True,
             )
 
+    # What the CONTROL LOOP did while the radial grew. Read across the row:
+    # a commanded norm pinned near +/-1 is an authority limit; one near zero
+    # while the radial triples means the loop is not acting on the error;
+    # a large command the wheel angle does not reach is the plant.
+    ctrl = [s.pre_control for s in samples if s.pre_control]
+    if ctrl:
+        max_steer = math.degrees(RobotSpecs.MAX_STEERING_ANGLE)
+        print(
+            f"SIGN-CROSSTRACK {'pre-violation control':<26} {len(ctrl)} runs "
+            f"(commanded norm is +/-1 of {max_steer:.0f} deg full lock)",
+            flush=True,
+        )
+        for back, label in ((80, "-4.0s"), (60, "-3.0s"), (40, "-2.0s"), (20, "-1.0s")):
+            sel = [c[-back] for c in ctrl if len(c) >= back]
+            sel = [s for s in sel if not any(math.isnan(v) for v in s)]
+            if not sel:
+                continue
+            cmd = [abs(s[0]) for s in sel]
+            print(
+                f"SIGN-CROSSTRACK {'  ' + label:<26} n {len(sel):>4}  "
+                f"|cmd| {percentile(cmd, 0.5):.3f} (p90 {percentile(cmd, 0.9):.3f}, "
+                f"saturated {100 * sum(1 for v in cmd if v >= 0.98) / len(cmd):4.1f}%)  "
+                f"wheel {math.degrees(percentile([abs(s[1]) for s in sel], 0.5)):5.1f}deg  "
+                f"angle-err {math.degrees(percentile([abs(s[2]) for s in sel], 0.5)):5.1f}deg  "
+                f"lookahead {percentile([s[3] for s in sel], 0.5):.2f}m",
+                flush=True,
+            )
+
     _report_lane_branches(samples)
 
     struck = [e for s in samples if s.collided_with_sign for e in s.near_abs]
@@ -4717,6 +4765,34 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # first tick; blind has to DISCOVER the sign first and reaches the same
     # geometry later and with an estimate. A runway gain measured sighted is
     # therefore an upper bound, and the shippable number is this one.
+    # Does the corner steer cap BIND on a sign approach, and does raising it
+    # let the chassis close the error? Recorded 2026-09-03: through the whole
+    # 3-second pre-violation divergence the commanded steering sits at 21.3 deg
+    # against a MAX_CORNER_STEER_DEG of 21.25 and 0% saturation of the 85 deg
+    # full lock -- the loop sees 56-73 deg of angle error and is allowed a
+    # quarter of the authority. NOTE this contradicts the 2026-08-30 finding
+    # that the constant is INERT (0 ticks); that was measured elsewhere, so
+    # this sweep is the arbiter. If the observed command does not move with the
+    # value, the constant is still inert and the 21.3 match is a coincidence.
+    # Time, not authority. The pre-violation trace shows the loop commanding a
+    # 0.26 m turn radius (21 deg of wheel, 0% saturated) while the chassis still
+    # loses ground: with the sign gap closing 26 -> 19 cm it has only tenths of
+    # a metre to execute a lane step of up to 27.86 cm. SIGN_AWARE_SPEED caps to
+    # slow_mps while a correction is in flight, which buys exactly the missing
+    # variable. It read null on the yaw-screen, but that scored yaw and heading
+    # pooled; the metric that matters here is pass-side. v!=0 enables.
+    "sign-speed-blind": lambda v: SweepConfig(
+        f"sign-aware speed {'on' if v else 'off'} blind",
+        blind=True,
+        sign_lane_planner=True,
+        sign_aware_speed=bool(v),
+    ),
+    "corner-steer-blind": lambda v: SweepConfig(
+        f"corner steer {v:{_FORMAT_2F}} blind",
+        blind=True,
+        sign_lane_planner=True,
+        corner_steer_deg=v,
+    ),
     "lane-entry-blind": lambda v: SweepConfig(
         f"lane corner entry {v:{_FORMAT_2F}} blind",
         blind=True,
