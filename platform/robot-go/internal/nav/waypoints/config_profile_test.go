@@ -2,9 +2,12 @@ package waypoints_test
 
 import (
 	"log/slog"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 )
 
@@ -49,11 +52,46 @@ func TestConfigFor_LoadsRealWaypointsTOML(t *testing.T) {
 			def.NarrowCenterBiasSide,
 		)
 	}
-	// CORNER_ARC_ASSUME_WIDE is absent from the checked-in waypoints.toml,
-	// so LoadWithDefaults must supply the Python model's True default
-	// rather than the zero-value false (regression: ConfigFor once read it
-	// as false, silently disabling the assume-wide corner-arc sizing).
 	if !cfg.CornerArcAssumeWide {
 		t.Errorf("CornerArcAssumeWide = false, want true (Python CORNER_ARC_ASSUME_WIDE default)")
+	}
+	if !cfg.DeferCurrentCorridorReplan {
+		t.Errorf("DeferCurrentCorridorReplan = false, want true (Python DEFER_CURRENT_CORRIDOR_REPLAN default)")
+	}
+	if cfg.UnconfirmedWidthInnerBiasM != def.UnconfirmedWidthInnerBiasM {
+		t.Errorf(
+			"UnconfirmedWidthInnerBiasM = %v, want the checked-in default %v",
+			cfg.UnconfirmedWidthInnerBiasM,
+			def.UnconfirmedWidthInnerBiasM,
+		)
+	}
+}
+
+// TestWaypointsTOML_SpellsOutTheWidthBeliefFlags asserts the three fields
+// that carry the 596 -> 638/640 Open result are WRITTEN IN the shared
+// waypoints.toml, not merely defaulted.
+//
+// ConfigFor registers viper defaults for all three, so a missing key reads
+// as the shipped value and every behavioural test still passes -- the
+// revert would be silent, and the file a reader consults to see what the
+// robot drives would not mention them at all. Assert on the file's text so
+// deleting a key fails here rather than in a corpus sweep months later.
+func TestWaypointsTOML_SpellsOutTheWidthBeliefFlags(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(repoRoot(t), profile.DefaultWaypointsTOMLPath)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", profile.DefaultWaypointsTOMLPath, err)
+	}
+	for _, assignment := range []string{
+		"corner_arc_assume_wide = true",
+		"defer_current_corridor_replan = true",
+		"unconfirmed_width_inner_bias_m = 0.05",
+	} {
+		if !strings.Contains(string(raw), assignment) {
+			t.Errorf("%s is missing %q; ConfigFor's viper default would hide the revert",
+				profile.DefaultWaypointsTOMLPath, assignment)
+		}
 	}
 }

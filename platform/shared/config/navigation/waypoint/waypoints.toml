@@ -29,6 +29,15 @@
 # tan(MAX_STEERING_ANGLE=1.2252rad), reduced further by counter-phase steering).
 arc_radius = 0.45
 
+# Size every corner arc as if BOTH corridors were WIDE, ignoring the width
+# belief. OPEN-CHALLENGE-ONLY IN EFFECT without needing a gate: every Obstacles
+# corridor is 1.0 m by rule, so there the substitution is the IDENTITY and the
+# radius is unchanged (verified 2026-08-30 at both OBSTACLES_CENTER_BIAS_M and
+# WIDE_CENTER_BIAS_M). An Obstacles A/B on this returns byte-identical arms by
+# construction. Written here with its shipped value rather than left to the
+# model default, so the value the robot drives is readable in one place.
+corner_arc_assume_wide = true
+
 # Distance below which consecutive generated waypoints are treated as duplicates.
 dedupe_distance_m = 0.001
 
@@ -132,6 +141,29 @@ narrow_center_bias_m = 0.0
 #
 # Do not RAISE without re-reading the arc coupling above.
 unconfirmed_width_inner_bias_m = 0.05
+
+# Hold a width change back until the robot has LEFT the corridor it describes.
+# OPEN-CHALLENGE-ONLY by construction rather than by this flag: both callers
+# build the gate only for Open (None otherwise, which keeps the pre-gate control
+# flow byte-for-byte). On Obstacles the estimator is fixed=True and the bias
+# comes from OBSTACLES_CENTER_BIAS_M, so the gate's confirmed-ness trigger would
+# rebuild an identical path and re-seek the waypoint index for nothing.
+#
+# The replan step is not inherent to replanning, only to replanning UNDERNEATH
+# the chassis: a width update for the corridor the robot is standing in moves
+# the line it is actively tracking. Width and confirmed-ness are gated as ONE
+# unit -- a genuinely narrow corridor confirms at its prior value, so the width
+# does not move, but dropping unconfirmed_width_inner_bias_m above still shifts
+# the line 0.05 m.
+#
+# Measured over the full 640-case Open space 2026-08-31: 634 -> 638 ok, failures
+# 6 -> 2, no collisions in either arm, sim time -4.74 s mean (497 of 633 cases
+# faster). 5 fixed against 1 regressed, no width bucket worse. It also closes the
+# case cluster {38, 64, 71, 207, 264, 368, 407, 426} that flipped as a unit under
+# every previous attempt on this step -- shrinking it
+# (unconfirmed_width_inner_bias_m) or fading it (replan_blend_ticks) traded those
+# cases against each other, while removing it passes all eight.
+defer_current_corridor_replan = true
 
 # Corridor width (m) at or below which narrow_center_bias_m applies. Midway
 # between the rule widths CorridorDimensions.NARROW (0.6) and .WIDE (1.0), so

@@ -20,19 +20,16 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	// CORNER_ARC_ASSUME_WIDE defaults to True in the Python model and is
-	// absent from the checked-in waypoints.toml, so it must be defaulted
-	// here rather than silently read as false -- the same pattern as
-	// controllers' min_history_for_distance (see EscapeConfig) and
-	// CorridorFollowerConfig's bay_wall_clearance_m.
+	// All three are now written into the checked-in waypoints.toml, and
+	// TestWaypointsTOML_SpellsOutTheWidthBeliefFlags keeps them there.
+	// They stay registered as defaults anyway because a bool and a bias
+	// both revert SILENTLY: a missing key reads as false / 0.0, which is
+	// off rather than absent, and disabling assume-wide corner sizing or
+	// both halves of the 596 -> 638/640 Open result would look like a
+	// clean load. Same pattern as controllers' min_history_for_distance
+	// (see EscapeConfig) and CorridorFollowerConfig's bay_wall_clearance_m.
 	waypointDefaults := map[string]any{
-		"corner_arc_assume_wide": DefaultCornerArcAssumeWide,
-		// Both of these are Python-model defaults absent from the checked-in
-		// waypoints.toml, for the same reason: they were added with their
-		// shipped value as the default rather than written into the file.
-		// Without them here the bias reads as 0.0 (no pre-positioning) and
-		// the deferral reads as false -- silently reverting both halves of
-		// the 596 -> 638/640 Open result.
+		"corner_arc_assume_wide":         DefaultCornerArcAssumeWide,
 		"unconfirmed_width_inner_bias_m": DefaultUnconfirmedWidthInnerBiasM,
 		"defer_current_corridor_replan":  DefaultDeferCurrentCorridorReplan,
 	}
