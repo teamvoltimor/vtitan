@@ -235,3 +235,73 @@ def test_overshoot_on_every_lap_still_counts_exactly_three():
             if det.update(Waypoint(*pos), Section.SOUTH):
                 counted += 1
     assert counted == 3
+
+
+class TestApproachingFinish:
+    """The final-lap slowdown gate that lands the robot inside the finish section.
+
+    Scoring rule 1.3 pays 3 points for stopping in the finish section. The
+    section straight is 1 m wide with the line at its centre, so the robot has
+    0.50 m past the line before it is in the corner and out of the section.
+    """
+
+    def test_true_just_short_of_the_line(self) -> None:
+        det = _make(section=Section.SOUTH, direction=Direction.COUNTERCLOCKWISE, start=(1.5, 0.2))
+        # CCW/SOUTH travels +x, so short of the line means x < 1.5.
+        assert det.approaching_finish(Waypoint(1.3, 0.2), Section.SOUTH, 0.40) is True
+
+    def test_false_once_past_the_line(self) -> None:
+        det = _make(section=Section.SOUTH, direction=Direction.COUNTERCLOCKWISE, start=(1.5, 0.2))
+        # The gate releases the moment the crossing registers, so the stop is
+        # commanded rather than the robot crawling on indefinitely.
+        assert det.approaching_finish(Waypoint(1.6, 0.2), Section.SOUTH, 0.40) is False
+
+    def test_false_beyond_the_approach_window(self) -> None:
+        det = _make(section=Section.SOUTH, direction=Direction.COUNTERCLOCKWISE, start=(1.5, 0.2))
+        assert det.approaching_finish(Waypoint(1.0, 0.2), Section.SOUTH, 0.40) is False
+
+    def test_opposite_straight_does_not_trigger(self) -> None:
+        """The section test is load-bearing, not belt-and-braces.
+
+        ``dot`` projects onto ONE travel normal, and the opposite straight
+        projects onto the same window: for SOUTH/CCW the normal is +x and
+        ``dot = x - 1.5``, which the NORTH straight sweeps through identically.
+        Without the section test the robot would slow down on the far side of
+        the track, one straight early, on its final lap.
+        """
+        det = _make(section=Section.SOUTH, direction=Direction.COUNTERCLOCKWISE, start=(1.5, 0.2))
+        # Same x as the passing case above, but on the NORTH straight.
+        assert det.approaching_finish(Waypoint(1.3, 2.8), Section.NORTH, 0.40) is False
+
+    def test_zero_window_never_triggers(self) -> None:
+        """FINISH_APPROACH_M = 0.0 is the documented way to disable the approach."""
+        det = _make(section=Section.SOUTH, direction=Direction.COUNTERCLOCKWISE, start=(1.5, 0.2))
+        assert det.approaching_finish(Waypoint(1.4999, 0.2), Section.SOUTH, 0.0) is False
+
+    @pytest.mark.parametrize(
+        ("section", "direction", "start", "approach", "past"),
+        [
+            (Section.SOUTH, Direction.COUNTERCLOCKWISE, (1.5, 0.2), (1.3, 0.2), (1.7, 0.2)),
+            (Section.SOUTH, Direction.CLOCKWISE, (1.5, 0.2), (1.7, 0.2), (1.3, 0.2)),
+            (Section.NORTH, Direction.COUNTERCLOCKWISE, (1.5, 2.8), (1.7, 2.8), (1.3, 2.8)),
+            (Section.EAST, Direction.COUNTERCLOCKWISE, (2.8, 1.5), (2.8, 1.3), (2.8, 1.7)),
+            (Section.WEST, Direction.COUNTERCLOCKWISE, (0.2, 1.5), (0.2, 1.7), (0.2, 1.3)),
+        ],
+    )
+    def test_orientation_follows_travel_direction(
+        self,
+        section: Section,
+        direction: Direction,
+        start: tuple[float, float],
+        approach: tuple[float, float],
+        past: tuple[float, float],
+    ) -> None:
+        """Which side of the line counts as "short of it" is travel-relative.
+
+        Reversing the direction must swap the two, exactly as it does for the
+        pass-side rule -- a gate keyed on a fixed world axis would slow the
+        robot AFTER the line on half the rounds.
+        """
+        det = _make(section=section, direction=direction, start=start)
+        assert det.approaching_finish(Waypoint(*approach), section, 0.40) is True
+        assert det.approaching_finish(Waypoint(*past), section, 0.40) is False

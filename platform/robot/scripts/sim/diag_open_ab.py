@@ -100,6 +100,15 @@ class _ArmResult:
     laps: int
     sim_time_s: float
     label: str
+    # Scoring rule 1.3, worth 3 points: "stopped in the finish section after
+    # three laps". Scored from the TRUE final pose against the section the round
+    # started in, not from anything the navigator believes about where it came
+    # to rest -- the same separation the pass-side scorer needed.
+    #
+    # None when the run never completed its laps: a run that timed out has no
+    # finish to be in the wrong section of, and folding those in as failures
+    # would report the lap rate a second time under a different name.
+    finished_in_section: bool | None
 
 
 def _run_case(
@@ -119,11 +128,18 @@ def _run_case(
         tuning = _apply_overrides(tuning, overrides)
 
     result = ScenarioSimulator(meta, num_laps=laps, tuning=tuning, seed=index, blind=True).run()
+    finished_in_section: bool | None = None
+    if result.laps_completed >= laps:
+        from src.navigation.planning.waypoints import corridor_for_position
+
+        final_x, final_y, _final_yaw = result.final_pose
+        finished_in_section = corridor_for_position(final_x, final_y) is section
     return _ArmResult(
         index=index,
         verdict=_verdict(result),
         laps=result.laps_completed,
         sim_time_s=result.sim_time_s,
+        finished_in_section=finished_in_section,
         label=f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
     )
 
@@ -256,6 +272,21 @@ def _report_verdict_summary(base: dict[int, _ArmResult], variant: dict[int, _Arm
     base_ok = sum(1 for r in base.values() if r.verdict == "ok")
     variant_ok = sum(1 for r in variant.values() if r.verdict == "ok")
     print(f"\nverdicts: baseline {base_ok}/{len(base)} ok, variant {variant_ok}/{len(variant)} ok", flush=True)
+
+    # Rule 1.3 (3 pts). Denominator is runs that actually finished their laps,
+    # printed alongside, so a change in the lap rate cannot be misread as a
+    # change in where the robot stops.
+    for name, arm in (("baseline", base), ("variant", variant)):
+        scored = [r.finished_in_section for r in arm.values() if r.finished_in_section is not None]
+        in_section = sum(1 for v in scored if v)
+        if scored:
+            print(
+                f"  rule 1.3 stopped in finish section, {name}: "
+                f"{in_section}/{len(scored)} of runs that completed their laps",
+                flush=True,
+            )
+        else:
+            print(f"  rule 1.3 stopped in finish section, {name}: no run completed its laps", flush=True)
 
 
 def _report_flipped_verdicts(base: dict[int, _ArmResult], variant: dict[int, _ArmResult]) -> None:
