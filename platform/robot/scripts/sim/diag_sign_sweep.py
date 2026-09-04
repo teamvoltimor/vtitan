@@ -2782,6 +2782,47 @@ class _SignPassSample:
     yaw_at_collision: float | None
     """Corridor-relative chassis angle on the last tick before contact."""
 
+    pre_pass: list[tuple[float, float, float, float]]
+    """Sign-pass approach ticks, ``(radial, chassis lateral, plan lateral, gap)``.
+
+    The CONTROL for ``pre_violation``, and the decomposition that names the
+    cause. Both laterals are measured against the fixed corridor CENTRELINE, so
+    ``radial`` is their difference and the two ways it can grow are separable:
+    a moving chassis lateral is the controller drifting off a stationary plan,
+    a moving plan lateral is the lane being re-laid out from under the chassis.
+    Kept for EVERY run, offending or not -- a 3-second outward drift is only
+    pathological if clean approaches do not show it too."""
+
+    pre_violation: list[tuple[float, float, float]]
+    """The last sign-pass ticks before a wrong-side pass ended the run.
+
+    ``(signed radial, path-heading error deg, distance to nearest routed sign)``
+    per tick, oldest first. Empty unless the run offended.
+
+    Exists because the run-level statistics identify WHICH runs fail without
+    saying why: offenders ride +6.57 cm outside their path against clean runs'
+    +3.56 in CW (matched window), and escape twice as often per step, but the
+    violation is NOT adjacent to an escape -- median 78 ticks from the last one,
+    about 4x further than chance. So the proximate cause is unaccounted for, and
+    this is the trace to read it off instead of inferring it."""
+
+    direction: Direction
+    """The round's travel direction, so pass statistics can be split by it.
+
+    Added 2026-09-03: on the 256 corpus CW violates pass-side in 49.3% of runs
+    against CCW's 38.5%, and the two get very different lane room -- CW takes
+    the full 27.86 cm offset, CCW clamps to 18.14 cm. Pooling them hides both
+    halves of that."""
+
+    pass_side_violated: bool
+    """Did this run end on a wrong-side pass?
+
+    The split that separates "the TAIL of tracking error causes violations"
+    from "the lane is not delivered": compare the same statistic on runs that
+    offended against runs that did not. The medians alone cannot -- at +7.53 cm
+    of systematic error against 18-28 cm of room, no run should violate, yet
+    40-50% do."""
+
     estimate_err_m: float | None
     """Distance from the struck sign to the routed position the lane was built
     around, both in the believed frame.
@@ -3010,7 +3051,7 @@ def _lane_profile_for(
     laterals = sorted(_axis_coords(base_waypoints[i], axis)[0] for i in (straight or indices))
     base_lateral = laterals[len(laterals) // 2]
 
-    profile = _control_points(group, corridor, axis, base_lateral, params)
+    profile = _control_points(group, corridor, axis, base_lateral, params, direction)
     if not profile:
         return LaneBranch.NO_PROFILE
     return _LaneProfile(
@@ -3451,7 +3492,7 @@ def _sample_lane_delivery(
             # inside it reads this exact rebuild, and the caching only exists to
             # keep a whole-path transform out of the per-sign loop.
             if not rebuilt:
-                fresh, rebuilt = apply_sign_lanes(lane_base, specs, params), True
+                fresh, rebuilt = apply_sign_lanes(lane_base, specs, params, direction), True
             verdict = _lane_branch(index, lane_base, specs, params, direction, fresh)
             branch, compose = verdict.branch, verdict.compose_m
             approach = _approach_offset(plan, verdict.waypoint_index, closest, lane_base)
@@ -3466,6 +3507,28 @@ def _sample_lane_delivery(
             stale_m=_lane_staleness_m(spec, plan, fresh),
             fingerprint_stale=router.lane_fingerprint != navigator._lane_fingerprint,  # noqa: SLF001
         )
+
+
+def _centreline_offset(x: float, y: float) -> float | None:
+    """Signed offset from the corridor CENTRELINE, positive toward the outer wall.
+
+    A FIXED reference, unlike the plan -- which is the point. Comparing the
+    chassis and its plan against the same fixed line is what separates "the
+    chassis drifted" from "the plan moved".
+    """
+    corridor = corridor_for_position(x, y)
+    if corridor is None:
+        return None
+    low_side = corridor in (Section.SOUTH, Section.WEST)
+    lateral = y if corridor in (Section.SOUTH, Section.NORTH) else x
+    if low_side:
+        return (TrackDimensions.MIN_COORD + TrackDimensions.CORNER_MIN) / 2.0 - lateral
+    return lateral - (TrackDimensions.CORNER_MAX + TrackDimensions.MAX_COORD) / 2.0
+
+
+_PRE_VIOLATION_TICKS = 80
+"""Sign-pass ticks kept before a violation: 4 s at 20 Hz, which covers the
+median 78-tick gap from the last escape."""
 
 
 def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
@@ -3487,6 +3550,9 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     restore = _apply_patches(config, scenario.metadata)
     near_abs: list[float] = []
     near_outward: list[float] = []
+    # Sign-pass ticks only, so this is the approach to the sign the run dies on.
+    recent: deque[tuple[float, float, float]] = deque(maxlen=_PRE_VIOLATION_TICKS)
+    recent_pass: deque[tuple[float, float, float, float]] = deque(maxlen=_PRE_VIOLATION_TICKS)
     near_yaw: list[float] = []
     yaw_boundary: list[float] = []
     yaw_middle: list[float] = []
@@ -3581,6 +3647,16 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             outward = _radial_offset(proj, pose.x, pose.y)
             if outward is not None:
                 near_outward.append(outward)
+                gap_m = math.hypot(nearest.x - pose.x, nearest.y - pose.y)
+                recent.append((
+                    outward,
+                    abs(math.degrees(wrap_angle(pose.yaw - proj.tangent_rad))),
+                    gap_m,
+                ))
+                chassis_lat = _centreline_offset(pose.x, pose.y)
+                plan_lat = _centreline_offset(proj.x, proj.y)
+                if chassis_lat is not None and plan_lat is not None:
+                    recent_pass.append((outward, chassis_lat, plan_lat, gap_m))
 
             # Heading error against the PATH, not the corridor. The pair that
             # decides the fix: a chassis angled to the corridor but aligned
@@ -3672,6 +3748,10 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
         at_collision=last[0] if struck_sign else None,
         yaw_at_collision=last_yaw[0] if struck_sign else None,
         estimate_err_m=estimate_err,
+        pre_pass=list(recent_pass),
+        pre_violation=list(recent) if result.pass_side_violation else [],
+        direction=scenario.metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION],
+        pass_side_violated=result.pass_side_violation,
     )
 
 
@@ -3995,7 +4075,7 @@ def _lane_geometry_for(
         (SignSpec(x=s.x, y=s.y, color=s.color), corridor_for_position(s.x, s.y))
         for s in meta.sign_positions
     ]
-    planned = apply_sign_lanes(base, specs, params)
+    planned = apply_sign_lanes(base, specs, params, direction)
     out: list[tuple[float, bool, bool]] = []
     for spec, corridor in specs:
         rule = sign_router_module.pass_side_lateral_axis(corridor, spec.color, direction)
@@ -4234,6 +4314,126 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
             f"at-plateau {full * 100:5.1f}%  (1.0 = full lane, <0 = wrong side)",
             flush=True,
         )
+
+    # The split the pooled rows cannot make. At +7.5 cm of systematic error
+    # against 18-28 cm of planned room NO run should offend, yet 40-50% do, so
+    # the offence has to live in the TAIL rather than the level -- and the two
+    # directions are not the same problem: CW takes the full 27.86 cm lane
+    # offset where CCW clamps to 18.14, yet CW offends MORE. Compare the same
+    # statistic on runs that offended against runs that did not; a level that
+    # is equal across those two columns is not what ends rounds.
+    for label, direction in (("CCW", "counterclockwise"), ("CW", "clockwise")):
+        for offended in (False, True):
+            sel = [
+                s for s in samples
+                if str(s.direction) == direction and s.pass_side_violated is offended
+            ]
+            if not sel:
+                continue
+            radial = [v for s in sel for v in s.near_outward]
+            delivered = [v for s in sel for v in s.pass_outward]
+            if not radial:
+                continue
+            print(
+                f"SIGN-CROSSTRACK {label + (' OFFENDED' if offended else ' clean'):<26} "
+                f"runs {len(sel):>4}  "
+                f"signed radial median {percentile(radial, 0.5) * 100:+6.2f}cm "
+                f"p90 {percentile(radial, 0.9) * 100:+6.2f}cm  "
+                f"lane delivered median "
+                f"{(percentile(delivered, 0.5) if delivered else float('nan')):+.3f}x",
+                flush=True,
+            )
+
+    # CONTROL for the split above. A run that offends STOPS THERE, so it
+    # contributes ticks only up to the violation while a clean run contributes
+    # three full laps including easy straights -- the offending bucket
+    # over-samples hard moments by construction, which alone would raise its
+    # median with no causal role for the radial at all. (Same shape as the
+    # 2026-08-30 waypoint-stall correlation, where the arrow ran backwards.)
+    #
+    # So compare a MATCHED window: each run truncated to its first `window`
+    # sign-pass ticks, `window` chosen so nearly every run reaches it. If the
+    # separation survives, exposure is not what produced it.
+    exposure = sorted(len(s.near_outward) for s in samples if s.near_outward)
+    if exposure:
+        window = max(1, int(percentile(exposure, 0.1)))
+        print(
+            f"SIGN-CROSSTRACK {'matched window':<26} first {window} sign-pass ticks per run "
+            f"(10th pct of exposure; median exposure {int(percentile(exposure, 0.5))})",
+            flush=True,
+        )
+        for label, direction in (("CCW", "counterclockwise"), ("CW", "clockwise")):
+            for offended in (False, True):
+                sel = [
+                    s for s in samples
+                    if str(s.direction) == direction
+                    and s.pass_side_violated is offended
+                    and s.near_outward
+                ]
+                if not sel:
+                    continue
+                early = [v for s in sel for v in s.near_outward[:window]]
+                full = [v for s in sel for v in s.near_outward]
+                exp = sorted(len(s.near_outward) for s in sel)
+                print(
+                    f"SIGN-CROSSTRACK {label + (' OFFENDED' if offended else ' clean'):<26} "
+                    f"runs {len(sel):>4}  "
+                    f"matched median {percentile(early, 0.5) * 100:+6.2f}cm  "
+                    f"(full-run {percentile(full, 0.5) * 100:+6.2f}cm, "
+                    f"median exposure {int(percentile(exp, 0.5)):>4} ticks)",
+                    flush=True,
+                )
+
+    # The trace the run-level statistics cannot give: what the chassis is doing
+    # in the seconds BEFORE it crosses on the wrong side. Read as a trajectory
+    # across the row -- a radial that grows steadily is a drift the controller
+    # never corrects; one flat until the last ticks is something that happens AT
+    # the sign.
+    traces = [s.pre_violation for s in samples if s.pre_violation]
+    if traces:
+        print(
+            f"SIGN-CROSSTRACK {'pre-violation trace':<26} {len(traces)} offending runs, "
+            f"sign-pass ticks before the crossing (20 Hz)",
+            flush=True,
+        )
+        for back, label in ((80, "-4.0s"), (60, "-3.0s"), (40, "-2.0s"), (20, "-1.0s"), (1, "at crossing")):
+            radial = [tr[-back][0] for tr in traces if len(tr) >= back]
+            head = [tr[-back][1] for tr in traces if len(tr) >= back]
+            gap = [tr[-back][2] for tr in traces if len(tr) >= back]
+            if not radial:
+                continue
+            print(
+                f"SIGN-CROSSTRACK {'  ' + label:<26} n {len(radial):>4}  "
+                f"radial {percentile(radial, 0.5) * 100:+6.2f}cm  "
+                f"path-heading {percentile(head, 0.5):5.1f}deg  "
+                f"sign gap {percentile(gap, 0.5) * 100:5.1f}cm",
+                flush=True,
+            )
+
+    # Decomposition + control. Offenders are compared against CLEAN approaches
+    # over the same window, because a 3-second outward drift only means
+    # something if clean passes do not show it too -- and the chassis/plan split
+    # says which of the two actually moved.
+    for offended in (True, False):
+        traces = [s.pre_pass for s in samples if s.pre_pass and s.pass_side_violated is offended]
+        if not traces:
+            continue
+        print(
+            f"SIGN-CROSSTRACK {('decomposed OFFENDED' if offended else 'decomposed clean'):<26} "
+            f"{len(traces)} runs -- radial = chassis - plan, both vs the fixed centreline",
+            flush=True,
+        )
+        for back, label in ((80, "-4.0s"), (60, "-3.0s"), (40, "-2.0s"), (20, "-1.0s")):
+            sel = [tr[-back] for tr in traces if len(tr) >= back]
+            if not sel:
+                continue
+            print(
+                f"SIGN-CROSSTRACK {'  ' + label:<26} n {len(sel):>4}  "
+                f"radial {percentile([s[0] for s in sel], 0.5) * 100:+6.2f}cm  "
+                f"chassis {percentile([s[1] for s in sel], 0.5) * 100:+6.2f}cm  "
+                f"plan {percentile([s[2] for s in sel], 0.5) * 100:+6.2f}cm",
+                flush=True,
+            )
 
     _report_lane_branches(samples)
 
@@ -4509,6 +4709,17 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # first here -- this exists to buy back the 3 -> 23 the lane cost.
     "lane-entry": lambda v: SweepConfig(
         f"lane corner entry {v:{_FORMAT_2F}}",
+        sign_lane_planner=True,
+        sign_lane_corner_entry=v,
+    ),
+    # The same sweep BLIND, which is how the round is actually driven. Sighted
+    # arms know each sign exactly, so they use the borrowed runway from the
+    # first tick; blind has to DISCOVER the sign first and reaches the same
+    # geometry later and with an estimate. A runway gain measured sighted is
+    # therefore an upper bound, and the shippable number is this one.
+    "lane-entry-blind": lambda v: SweepConfig(
+        f"lane corner entry {v:{_FORMAT_2F}} blind",
+        blind=True,
         sign_lane_planner=True,
         sign_lane_corner_entry=v,
     ),
