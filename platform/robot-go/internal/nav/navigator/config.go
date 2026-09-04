@@ -1,6 +1,7 @@
 package navigator
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
@@ -40,6 +41,21 @@ type Config struct {
 	// DrivetrainMaxSpeedMPS is RobotSpecs.MAX_SPEED_MPS -- a ceiling the
 	// tiers clamp against, not a multiplier they scale by.
 	DrivetrainMaxSpeedMPS float64
+
+	// Open/Obstacles are the per-challenge overrides on the ladder above,
+	// matching SpeedControlParams' OPEN_*/OBSTACLES_* fields. Apply them
+	// with ForChallenge; the tier fields themselves stay the shared base
+	// so a Config that has never been resolved still drives something sane.
+	//
+	// The two challenges want opposite things. Obstacles degrades
+	// monotonically with speed (measured 2026-08-28: in-time 38/256 at
+	// 0.156 m/s, 16 at 0.50, 9 at 0.60), so it wants conservative rungs.
+	// Open's binding constraint is the 180 s round limit rather than sign
+	// clearance, so it can spend the headroom. Neither prefix is privileged
+	// as "the default": a drivetrain with no headroom declares neither and
+	// both challenges share one ladder.
+	Open      ChallengeTiers
+	Obstacles ChallengeTiers
 
 	// CrawlRad is the heading error (rad) at or above which speed drops to
 	// the creep floor, matching HeadingErrorZones.CRAWL.
@@ -360,6 +376,96 @@ func DefaultConfig() Config {
 
 		ParkEngageDistM: DefaultParkEngageDistM,
 	}
+}
+
+// ChallengeTiers is one challenge's overrides on the shared speed ladder.
+// A nil field means "this challenge does not override that tier", which is
+// distinct from zero -- zero is a stopped robot, not a slow one.
+type ChallengeTiers struct {
+	MaxMPS    *float64
+	SlowMPS   *float64
+	MediumMPS *float64
+	FastMPS   *float64
+}
+
+// isEmpty reports whether this challenge overrides nothing, in which case
+// ForChallenge returns the base ladder untouched.
+func (t ChallengeTiers) isEmpty() bool {
+	return t.MaxMPS == nil && t.SlowMPS == nil && t.MediumMPS == nil && t.FastMPS == nil
+}
+
+// cap returns the ceiling this challenge's tiers are measured against:
+// its own override when it has one, else the shared MAX_MPS.
+func (t ChallengeTiers) cap(baseMaxMPS float64) float64 {
+	if t.MaxMPS != nil {
+		return *t.MaxMPS
+	}
+	return baseMaxMPS
+}
+
+// ForChallenge returns this ladder as the named challenge should run it,
+// matching SpeedControlParams.for_open_challenge/for_obstacles_challenge.
+//
+// isObstacles is keyed on SignRouter presence at the one call site
+// (navigator.New), the same Open/Obstacles discriminator the sign-lane
+// features already use -- a SignRouter is nil for Open by construction.
+// Resolving once at construction rather than at each site that reads a tier
+// also means a tier read mid-run cannot disagree with one read at startup.
+func (c Config) ForChallenge(isObstacles bool) Config {
+	tiers := c.Open
+	if isObstacles {
+		tiers = c.Obstacles
+	}
+	if tiers.isEmpty() {
+		return c
+	}
+	if tiers.MaxMPS != nil {
+		c.MaxMPS = *tiers.MaxMPS
+	}
+	if tiers.SlowMPS != nil {
+		c.SlowMPS = *tiers.SlowMPS
+	}
+	if tiers.MediumMPS != nil {
+		c.MediumMPS = *tiers.MediumMPS
+	}
+	if tiers.FastMPS != nil {
+		c.FastMPS = *tiers.FastMPS
+	}
+	return c
+}
+
+// validateChallengeTiers rejects a per-challenge tier above that challenge's
+// own cap, matching SpeedControlParams._challenge_tiers_below_challenge_cap.
+//
+// Speed selection clamps the chosen zone to MaxSpeedMPS(), so a fast tier
+// above the cap silently resolves to the cap: it looks like tuning and
+// measures nothing. That failure mode has already shipped twice in the
+// Python original, which is why it is an error rather than a warning about
+// a value that would merely be ignored.
+func (c Config) validateChallengeTiers() error {
+	for _, named := range []struct {
+		name  string
+		tiers ChallengeTiers
+	}{{"open", c.Open}, {"obstacles", c.Obstacles}} {
+		ceiling := named.tiers.cap(c.MaxMPS)
+		for _, tier := range []struct {
+			name  string
+			value *float64
+		}{
+			{"slow", named.tiers.SlowMPS},
+			{"medium", named.tiers.MediumMPS},
+			{"fast", named.tiers.FastMPS},
+		} {
+			if tier.value != nil && *tier.value > ceiling {
+				return fmt.Errorf(
+					"speed.%s_%s_mps (%v) exceeds the %s cap (%v); every tier is clamped to "+
+						"max_mps, so this tier would be silently inert",
+					named.name, tier.name, *tier.value, named.name, ceiling,
+				)
+			}
+		}
+	}
+	return nil
 }
 
 // MinSpeedMPS is MIN_MPS clamped by the drivetrain ceiling, matching

@@ -247,11 +247,18 @@ func New(p Params) (*Navigator, error) {
 		collisionCfg = collisionCfg.ForObstaclesChallenge()
 	}
 
+	// The SPEED ladder is per-challenge on the same discriminator, resolved
+	// ONCE here rather than at each site that reads a tier -- so a tier read
+	// mid-run cannot disagree with one read at startup. ForChallenge returns
+	// the base ladder unchanged when the motor profile declares no overrides,
+	// so a drivetrain without headroom to spare needs no special case.
+	cfg := p.Config.ForChallenge(p.SignRouter != nil)
+
 	n := &Navigator{
 		logger:              logger,
 		gateway:             p.Gateway,
 		vision:              p.Vision,
-		cfg:                 p.Config,
+		cfg:                 cfg,
 		signRouterCfg:       p.SignRouterConfig,
 		waypoints:           slices.Clone(p.Waypoints),
 		laneBaseWaypoints:   slices.Clone(p.Waypoints),
@@ -259,7 +266,7 @@ func New(p Params) (*Navigator, error) {
 		signRouter:          p.SignRouter,
 		parkController:      p.ParkController,
 		direction:           p.Direction,
-		waypointThreshold:   p.Config.MainLoopReachedDistanceM,
+		waypointThreshold:   cfg.MainLoopReachedDistanceM,
 		escapeSteerSign:     1.0,
 		waypointController:  p.ControllersConfig.NewWaypointController(),
 		collisionController: collisionCfg.NewCollisionAvoidanceController(),

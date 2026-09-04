@@ -22,12 +22,26 @@ import (
 // (shared.config.navigation_tuning.motion.SpeedControlParams' raw fields,
 // before the drivetrain clamp its *_mps() accessors apply).
 type speedTOML struct {
-	MinMPS    float64 `mapstructure:"min_mps"`
-	MaxMPS    float64 `mapstructure:"max_mps"`
-	CreepMPS  float64 `mapstructure:"creep_mps"`
-	SlowMPS   float64 `mapstructure:"slow_mps"`
-	MediumMPS float64 `mapstructure:"medium_mps"`
-	FastMPS   float64 `mapstructure:"fast_mps"`
+	// Per-challenge overrides are POINTERS because absent and zero mean
+	// different things: nil falls back to the shared base tier, while 0 is
+	// a tier a Pydantic gt=0.0 constraint rejects outright. A drivetrain
+	// with no headroom to spare declares neither prefix and both challenges
+	// share one ladder -- that fallback is the design, not a degenerate
+	// case. Mirrors SpeedControlParams' OPEN_*/OBSTACLES_* fields.
+	OpenMaxMPS         *float64 `mapstructure:"open_max_mps"`
+	OpenSlowMPS        *float64 `mapstructure:"open_slow_mps"`
+	OpenMediumMPS      *float64 `mapstructure:"open_medium_mps"`
+	OpenFastMPS        *float64 `mapstructure:"open_fast_mps"`
+	ObstaclesMaxMPS    *float64 `mapstructure:"obstacles_max_mps"`
+	ObstaclesSlowMPS   *float64 `mapstructure:"obstacles_slow_mps"`
+	ObstaclesMediumMPS *float64 `mapstructure:"obstacles_medium_mps"`
+	ObstaclesFastMPS   *float64 `mapstructure:"obstacles_fast_mps"`
+	MinMPS             float64  `mapstructure:"min_mps"`
+	MaxMPS             float64  `mapstructure:"max_mps"`
+	CreepMPS           float64  `mapstructure:"creep_mps"`
+	SlowMPS            float64  `mapstructure:"slow_mps"`
+	MediumMPS          float64  `mapstructure:"medium_mps"`
+	FastMPS            float64  `mapstructure:"fast_mps"`
 }
 
 // headingTOML mirrors platform/shared/config/navigation/motion/heading.toml
@@ -212,6 +226,22 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.SlowMPS = speed.SlowMPS
 		cfg.MediumMPS = speed.MediumMPS
 		cfg.FastMPS = speed.FastMPS
+		cfg.Open = ChallengeTiers{
+			MaxMPS:    speed.OpenMaxMPS,
+			SlowMPS:   speed.OpenSlowMPS,
+			MediumMPS: speed.OpenMediumMPS,
+			FastMPS:   speed.OpenFastMPS,
+		}
+		cfg.Obstacles = ChallengeTiers{
+			MaxMPS:    speed.ObstaclesMaxMPS,
+			SlowMPS:   speed.ObstaclesSlowMPS,
+			MediumMPS: speed.ObstaclesMediumMPS,
+			FastMPS:   speed.ObstaclesFastMPS,
+		}
+		if err := cfg.validateChallengeTiers(); err != nil {
+			logger.Warn("navigator: per-challenge speed tiers rejected, dropping them", "error", err)
+			cfg.Open, cfg.Obstacles = ChallengeTiers{}, ChallengeTiers{}
+		}
 	}
 
 	loadApplyTOML(
@@ -400,8 +430,14 @@ func loadSpeedConfig(configRoot string, hardwareProfileNames []string) (speedTOM
 
 // speedDefaults turns an already-resolved ladder into the defaults map an
 // overlay load falls back to for every tier it does not itself set.
+//
+// The per-challenge tiers are carried through only when the resolved ladder
+// actually has them. Seeding a nil one would turn "this profile declares no
+// Open ladder" into an explicit zero, and a zero tier is not a slower robot
+// -- it is a stopped one. Omitting the key instead leaves it nil, which is
+// what the fallback-to-base-tier path reads.
 func speedDefaults(s speedTOML) map[string]any {
-	return map[string]any{
+	defaults := map[string]any{
 		"min_mps":    s.MinMPS,
 		"max_mps":    s.MaxMPS,
 		"creep_mps":  s.CreepMPS,
@@ -409,4 +445,19 @@ func speedDefaults(s speedTOML) map[string]any {
 		"medium_mps": s.MediumMPS,
 		"fast_mps":   s.FastMPS,
 	}
+	for key, value := range map[string]*float64{
+		"open_max_mps":         s.OpenMaxMPS,
+		"open_slow_mps":        s.OpenSlowMPS,
+		"open_medium_mps":      s.OpenMediumMPS,
+		"open_fast_mps":        s.OpenFastMPS,
+		"obstacles_max_mps":    s.ObstaclesMaxMPS,
+		"obstacles_slow_mps":   s.ObstaclesSlowMPS,
+		"obstacles_medium_mps": s.ObstaclesMediumMPS,
+		"obstacles_fast_mps":   s.ObstaclesFastMPS,
+	} {
+		if value != nil {
+			defaults[key] = *value
+		}
+	}
+	return defaults
 }
