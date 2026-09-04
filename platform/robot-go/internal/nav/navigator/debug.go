@@ -2,6 +2,7 @@ package navigator
 
 import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 )
 
@@ -12,11 +13,11 @@ import (
 // mean "not computed on this phase" rather than "unknown" -- see
 // DebugSnapshot's own doc comment.
 //
-// BlindCreep, StuckEscapeHolding and Parking are mirrored for completeness
-// (they are part of the wire format other tooling reads) even though this
-// port never emits them: blind bootstrap and the park controller are both
-// out of scope here (see doc.go), and the stuck-escape hold branch they
-// belong to was replaced by the both-blocked pivot.
+// StuckEscapeHolding is mirrored for completeness (it is part of the wire
+// format other tooling reads) even though this port never emits it: the
+// stuck-escape hold branch it belongs to was replaced by the both-blocked
+// pivot. BlindCreep and Parking ARE emitted -- both blind bootstrap and the
+// park controller are ported, see doc.go.
 type Phase int
 
 // DebugSnapshot is the complete per-tick internal state of Navigator.Step,
@@ -37,9 +38,6 @@ type Phase int
 // preserve that distinction, which Python gets from `float | None` -- a
 // plain 0.0 would read as a real measurement.
 //
-// The parking fields (parking_engaged, park_phase) have no Go counterpart:
-// ParkController is out of scope for this port (see doc.go), so they would
-// be permanently nil.
 type DebugSnapshot struct {
 	Phase Phase
 
@@ -97,6 +95,11 @@ type DebugSnapshot struct {
 	// a SignRouter is attached.
 	ActiveSignCount      *int
 	SignDeformMagnitudeM *float64
+
+	// ParkPhase is the ParkController phase that produced this tick's
+	// command, set on PhaseParking whenever a ParkController is attached
+	// (nil for the Open Challenge, which has none).
+	ParkPhase *parking.Phase
 }
 
 const (

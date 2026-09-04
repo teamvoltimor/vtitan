@@ -25,11 +25,19 @@
 //     always Python's waypoint-wrap fallback branch -- the index running off
 //     the end of the canonical lap IS the lap -- with no geometric
 //     finish-line confirmation.
-//   - ParkController (maneuvers/parking.py) is not ported. Finish handling
-//     collapses to _handle_finish's `pc is None` branch: once LapsCompleted
-//     reaches NumLaps the robot holds at zero speed and zero steering
-//     forever. There is no parking maneuver, no engage distance, and no
-//     is_repositioning suspension of stuck detection.
+//   - ParkController (internal/nav/parking) IS ported and wired: once
+//     LapsCompleted reaches NumLaps, handleFinish (path.go) mirrors
+//     _handle_finish faithfully -- a nil ParkController (Open Challenge)
+//     holds at zero speed/steering as before; a non-nil one defers the
+//     handoff until the robot is in the parking corridor and within
+//     Config.ParkEngageDistM of the staging point (shouldEngageParking,
+//     matching _should_engage_parking), then drives ParkController.Update
+//     each tick with the same forward/side LIDAR-clearance safety clamp
+//     (controllers.ParkingClearances) that overrides the maneuver rather
+//     than let it complete into a wall. IsRepositioning suspends and resets
+//     the stuck detector during ParkController's own reverse-and-reorient
+//     recovery, matching Python's suspension for the same reason (the
+//     generic escape is blind to the bay's keep-out geometry).
 //   - Blind-mode bootstrap IS ported: when Params.Direction is nil the
 //     navigator runs the BLIND_CREEP phase (corridor_follower.FollowCorridor
 //     creep centred between visible walls + directionestimator.InferDirection

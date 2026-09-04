@@ -26,6 +26,11 @@ type Result struct {
 	// is None in that case) rather than false, which would misreport a
 	// parking-less scenario as a failed parking attempt.
 	Parked *bool `json:"parked"`
+	// ParkPoints is the final pose scored against the WRO 15/7/0 point
+	// tiers (parking.ScorePark), nil under the same condition as Parked.
+	// No Python counterpart in SimResult -- that scorer was ported
+	// standalone and never wired in there either.
+	ParkPoints *int `json:"park_points,omitempty"`
 
 	SimTimeS       float64 `json:"sim_time_s"`
 	DistanceM      float64 `json:"distance_m"`

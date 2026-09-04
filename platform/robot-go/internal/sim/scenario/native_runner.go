@@ -8,9 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
@@ -31,13 +33,17 @@ import (
 // signs become both LIDAR-visible collision obstacles
 // (collision.ObstacleBox) and SignRouter targets, with a
 // internal/sim/visionsim-emulated camera feeding SignRouter's per-tick
-// deformation the same way a real detection would. Parking-lot scenarios
-// (metadata's parking_lot) are parsed but NOT yet acted on: ParkController
-// and BayExit are not wired into navigator.Navigator itself (see
-// internal/nav/navigator/doc.go's "Scope and deviations" section and
-// internal/nav/bayexit's own doc comment on the missing Gateway
-// wheel-odometry accessor), so an in-bay-start or drive-past-the-lot
-// scenario still runs, just without any parking behavior.
+// deformation the same way a real detection would.
+//
+// Parking-lot scenarios (metadata's parking_lot) ARE acted on: the two
+// marker fins become LIDAR-visible, unforgivable (collision.SurfaceParkingLot,
+// WRO 9.24.7) collision obstacles, and a parking.ParkController drives the
+// post-final-lap maneuver into the bay -- see parkBlocksFromMetadata,
+// parkControllerFromMetadata, and navigator.Navigator's own handleFinish/
+// shouldEngageParking. The final pose is scored against the WRO 15/7/0 point
+// tiers (parking.ScorePark) into Result.ParkPoints. A boxed-in-bay START
+// (BayExit) is a separate maneuver from parking IN, and is not driven by
+// this runner -- see internal/nav/bayexit's own doc comment.
 //
 // Scope note: blind mode (direction inference + corridor-width estimation +
 // believed-wall relocalization) is intentionally out of scope here --
@@ -105,13 +111,14 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 			CX: sign.X, CY: sign.Y, Length: signObstacleWidthM, Width: signObstacleDepthM,
 		}
 	}
+	obstacleSpecs = append(obstacleSpecs, parkBlocksFromMetadata(meta)...)
 
 	track := collision.NewTrackModel(collision.NewTrackModelParams{
 		Geometry:           geom,
 		MinCoordM:          0.0,
 		MaxCoordM:          r.cfg.TrackMaxCoordM,
 		Obstacles:          collision.ObstaclesFromSpecs(obstacleSpecs, axisAlignTolerance),
-		LidarSeesObstacles: len(signs) > 0,
+		LidarSeesObstacles: len(obstacleSpecs) > 0,
 		CollisionMarginM:   r.cfg.CollisionMarginM,
 	})
 
@@ -141,6 +148,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 
 	targetLaps := defaultLaps(meta)
 	navCfg := navigator.ConfigFor(nil, "", nil)
+	pc := parkControllerFromMetadata(meta, startPose.Section, startPose.Direction)
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Vision:            vision,
@@ -151,6 +159,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		ControllersConfig: controllers.DefaultConfig(),
 		SignRouterConfig:  signrouter.DefaultConfig(),
 		SignRouter:        signRouter,
+		ParkController:    pc,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("native runner: building navigator %s: %w", sc.ID, err)
@@ -235,6 +244,45 @@ func signsFromMetadata(meta generate.Metadata) []signrouter.SignSpec {
 	return signs
 }
 
+// parkBlocksFromMetadata builds the two parking-lot marker fins as
+// collision.ObstacleSpec, matching the parking half of obstacles_from_metadata
+// (track_model.py) -- the sign half lives in signsFromMetadata. Empty when
+// the scenario has no parking lot.
+func parkBlocksFromMetadata(meta generate.Metadata) []collision.ObstacleSpec {
+	if meta.ParkingLot == nil {
+		return nil
+	}
+	lot := meta.ParkingLot
+	return []collision.ObstacleSpec{
+		{
+			CX: lot.Block1Position.X, CY: lot.Block1Position.Y,
+			Length: parking.DefaultParkingLotLengthM, Width: parking.DefaultParkingLotWidthM,
+			Yaw: lot.Block1Yaw, IsParkingLot: true,
+		},
+		{
+			CX: lot.Block2Position.X, CY: lot.Block2Position.Y,
+			Length: parking.DefaultParkingLotLengthM, Width: parking.DefaultParkingLotWidthM,
+			Yaw: lot.Block2Yaw, IsParkingLot: true,
+		},
+	}
+}
+
+// parkControllerFromMetadata builds a parking.ParkController from scenario
+// metadata, matching park_controller_from_metadata. nil when the scenario
+// has no parking lot.
+func parkControllerFromMetadata(
+	meta generate.Metadata, section trackmodel.Section, direction trackmodel.Direction,
+) *parking.ParkController {
+	if meta.ParkingLot == nil {
+		return nil
+	}
+	lot := &parking.ParkingLot{
+		Block1: parking.BlockPosition{X: meta.ParkingLot.Block1Position.X, Y: meta.ParkingLot.Block1Position.Y},
+		Block2: parking.BlockPosition{X: meta.ParkingLot.Block2Position.X, Y: meta.ParkingLot.Block2Position.Y},
+	}
+	return parking.ParkControllerFromMetadata(lot, section, direction, parking.DefaultConfig())
+}
+
 // simGateway is the simulation-only hardware surface the native runner's
 // closed-loop helpers need: the navigator-facing scan source plus the
 // physics advance/state/collision methods of harness.SimHardwareGateway.
@@ -307,10 +355,10 @@ func (r *NativeRunner) loop(
 		// Terminal surface: any wall contact ends the run. A traffic-sign
 		// touch does not -- WRO 9.20 allows the pillar to be nudged, and the
 		// run stands as long as no sign's accumulated push exceeds
-		// maxLegalSignDisplacementM (see signNudgeState.score). Parking fins
-		// carry no such leniency (9.24.7), but no parking obstacle ever
-		// reaches this runner yet (signsFromMetadata), so every
-		// SurfaceObstacle touch here is a sign.
+		// maxLegalSignDisplacementM (see signNudgeState.score). A parking-lot
+		// fin carries no such leniency (9.24.7): SurfaceParkingLot never
+		// reaches signNudgeState.score's leniency branch (it only special-
+		// cases SurfaceObstacle), so it stays terminal here unconditionally.
 		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		if surface != collision.SurfaceNone {
@@ -318,7 +366,12 @@ func (r *NativeRunner) loop(
 			return res, nil
 		}
 
-		if nav.LapsCompleted() >= targetLaps {
+		// Lap completion alone isn't terminal when a ParkController is
+		// attached: the round only ends once it is also done (parked
+		// cleanly or gave up), matching the Python run loop's
+		// `laps_completed >= num_laps and (pc is None or pc.is_done)`.
+		pc := nav.ParkController()
+		if nav.LapsCompleted() >= targetLaps && (pc == nil || pc.IsDone()) {
 			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, false, false)
 			return res, nil
 		}
@@ -369,12 +422,29 @@ func (r *NativeRunner) score(
 
 	success := !collided && !stuck && !passSideViolation && !resTimedOut(steps, r.maxSteps, laps, targetLaps)
 
+	// Parked is nil for a scenario with no parking lot, matching
+	// SimResult.parked's None. ParkPoints additionally scores the final
+	// pose against the WRO 15/7/0 tiers (parking.ScorePark) -- an addition
+	// beyond Python's plain boolean, since that scorer was ported standalone
+	// and never wired into SimResult either.
+	var parked *bool
+	var parkPoints *int
+	if pc := nav.ParkController(); pc != nil {
+		p := pc.IsDone() && !pc.IsTimedOut()
+		parked = &p
+		score := parking.ScorePark(st.X, st.Y, st.Yaw, pc.Zone(), parking.DefaultConfig())
+		points := score.Points
+		parkPoints = &points
+	}
+
 	return Result{
 		TerminalSurface:        terminalSurfaceName(collided),
 		Scenario:               sc.ID,
 		PassSideViolationSigns: wrongSideSigns,
 		CollisionXY:            []float64{cx, cy},
 		FinalPose:              []float64{st.X, st.Y, st.Yaw},
+		Parked:                 parked,
+		ParkPoints:             parkPoints,
 		SimTimeS:               float64(steps) * dt,
 		DistanceM:              distanceM,
 		MaxSpeedMPS:            maxSpeedMPS,
@@ -474,10 +544,13 @@ func (s *signNudgeState) score(track *collision.TrackModel, surface collision.Co
 	return collision.SurfaceNone
 }
 
-// scenarioStart bundles the parsed spawn pose + travel direction.
+// scenarioStart bundles the parsed spawn pose + travel direction + starting
+// section, matching ScenarioSimulator's believed_start (the fields
+// park_controller_from_metadata needs to build the parking-lot geometry).
 type scenarioStart struct {
 	X, Y, Yaw float64
 	Direction trackmodel.Direction
+	Section   trackmodel.Section
 }
 
 // loadMetadata reads and parses a *_metadata.json file into generate.Metadata
@@ -501,22 +574,21 @@ func loadMetadata(path string) (generate.Metadata, error) {
 // buildScenario derives the track geometry, spawn pose, and a centerline
 // waypoint loop from scenario metadata.
 func buildScenario(meta generate.Metadata, cfg harness.Config) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {
+	sectionsByName := map[string]trackmodel.Section{
+		"north": trackmodel.North,
+		"south": trackmodel.South,
+		"east":  trackmodel.East,
+		"west":  trackmodel.West,
+	}
+
 	widthsM := map[trackmodel.Section]float64{}
-	for _, sec := range []struct {
-		name  string
-		which trackmodel.Section
-	}{
-		{"north", trackmodel.North},
-		{"south", trackmodel.South},
-		{"east", trackmodel.East},
-		{"west", trackmodel.West},
-	} {
-		wm, ok := meta.CorridorWidths[sec.name]
+	for name, which := range sectionsByName {
+		wm, ok := meta.CorridorWidths[name]
 		if !ok {
 			return trackmodel.CorridorGeometry{}, scenarioStart{}, nil,
-				fmt.Errorf("metadata missing corridor width for %q", sec.name)
+				fmt.Errorf("metadata missing corridor width for %q", name)
 		}
-		widthsM[sec.which] = float64(wm.WidthMM) / 1000.0
+		widthsM[which] = float64(wm.WidthMM) / 1000.0
 	}
 
 	geom := trackmodel.CorridorGeometryFromWidths(widthsM, cfg.TrackMaxCoordM)
@@ -526,11 +598,18 @@ func buildScenario(meta generate.Metadata, cfg harness.Config) (trackmodel.Corri
 		dir = trackmodel.Clockwise
 	}
 
+	section, ok := sectionsByName[strings.ToLower(meta.StartingConditions.Section)]
+	if !ok {
+		return trackmodel.CorridorGeometry{}, scenarioStart{}, nil,
+			fmt.Errorf("metadata has unknown starting section %q", meta.StartingConditions.Section)
+	}
+
 	start := scenarioStart{
 		X:         meta.StartingConditions.Position.X,
 		Y:         meta.StartingConditions.Position.Y,
 		Yaw:       meta.StartingConditions.Yaw,
 		Direction: dir,
+		Section:   section,
 	}
 
 	waypoints := centerlineLoop(geom, cfg.TrackMaxCoordM, dir)

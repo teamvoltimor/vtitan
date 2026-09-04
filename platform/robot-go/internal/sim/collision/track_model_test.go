@@ -66,6 +66,30 @@ func TestTrackModel_ContactSurfaceAt_InnerWall(t *testing.T) {
 	}
 }
 
+func TestTrackModel_ContactSurfaceAt_SignVsParkingLotFin(t *testing.T) {
+	t.Parallel()
+
+	widths := map[trackmodel.Section]float64{
+		trackmodel.North: 1.0, trackmodel.South: 1.0, trackmodel.East: 1.0, trackmodel.West: 1.0,
+	}
+	geometry := trackmodel.CorridorGeometryFromWidths(widths, 3.0)
+	sign := collision.NewObstacleBoxFromPose(0.5, 0.5, 0.05, 0.05, 0.0, 1e-6, false)
+	fin := collision.NewObstacleBoxFromPose(2.5, 0.5, 0.20, 0.02, 0.0, 1e-6, true)
+	tm := collision.NewTrackModel(collision.NewTrackModelParams{
+		Geometry:  geometry,
+		MinCoordM: 0.0,
+		MaxCoordM: 3.0,
+		Obstacles: []collision.ObstacleBox{sign, fin},
+	})
+
+	if got := tm.ContactSurfaceAt(0.5, 0.5, 0.0, chassisLengthM, chassisWidthM); got != collision.SurfaceObstacle {
+		t.Errorf("ContactSurfaceAt() touching a traffic sign = %v, want SurfaceObstacle (nudgeable, 9.20)", got)
+	}
+	if got := tm.ContactSurfaceAt(2.5, 0.5, 0.0, chassisLengthM, chassisWidthM); got != collision.SurfaceParkingLot {
+		t.Errorf("ContactSurfaceAt() touching a parking-lot fin = %v, want SurfaceParkingLot (unforgivable, 9.24.7)", got)
+	}
+}
+
 func TestTrackModel_FootprintCollides_MatchesContactSurfaceAt(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +109,7 @@ func TestTrackModel_ObstacleDisplacements_MeasuresIntrusionDepth(t *testing.T) {
 		trackmodel.North: 1.0, trackmodel.South: 1.0, trackmodel.East: 1.0, trackmodel.West: 1.0,
 	}
 	geometry := trackmodel.CorridorGeometryFromWidths(widths, 3.0)
-	obstacle := collision.NewObstacleBoxFromPose(0.5, 0.5, 0.10, 0.05, 0.0, 1e-6)
+	obstacle := collision.NewObstacleBoxFromPose(0.5, 0.5, 0.10, 0.05, 0.0, 1e-6, false)
 	tm := collision.NewTrackModel(collision.NewTrackModelParams{
 		Geometry:  geometry,
 		MinCoordM: 0.0,
@@ -122,7 +146,7 @@ func TestTrackModel_RaycastScan_ObstacleShortensTheWallRange(t *testing.T) {
 	geometry := trackmodel.CorridorGeometryFromWidths(widths, 3.0)
 	// A 0.1x0.1 obstacle centered at (0.7, 0.5), between the sensor at
 	// (0.1, 0.5) and the inner block's west face at x=1.0.
-	obstacle := collision.NewObstacleBoxFromPose(0.7, 0.5, 0.1, 0.1, 0.0, 1e-6)
+	obstacle := collision.NewObstacleBoxFromPose(0.7, 0.5, 0.1, 0.1, 0.0, 1e-6, false)
 	tm := collision.NewTrackModel(collision.NewTrackModelParams{
 		Geometry:           geometry,
 		MinCoordM:          0.0,
@@ -151,7 +175,7 @@ func TestTrackModel_RaycastScan_ObstaclesIgnoredWhenLidarCannotSeeThem(t *testin
 	// ray actually crosses its west face at x=1.0 once the obstacle is
 	// ignored -- unlike the sibling test above, whose y=0.5 ray never
 	// enters the inner block's y-range at all.
-	obstacle := collision.NewObstacleBoxFromPose(0.7, 1.5, 0.1, 0.1, 0.0, 1e-6)
+	obstacle := collision.NewObstacleBoxFromPose(0.7, 1.5, 0.1, 0.1, 0.0, 1e-6, false)
 	tm := collision.NewTrackModel(collision.NewTrackModelParams{
 		Geometry:           geometry,
 		MinCoordM:          0.0,

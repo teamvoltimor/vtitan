@@ -151,6 +151,12 @@ type Config struct {
 	CornerMinM     float64
 	CornerMaxM     float64
 	SignWidthM     float64
+
+	// ParkEngageDistM is how close the robot must be to ParkController's
+	// staging point, in its own corridor, before the parking handoff
+	// engages, matching _park_engage_dist (= waypoints.ARC_RADIUS). Ignored
+	// when no ParkController is attached.
+	ParkEngageDistM float64
 }
 
 // Default* mirror the shipped TOML values this package's Python
@@ -267,6 +273,10 @@ const (
 	DefaultCornerMaxM     = 2.0
 	DefaultSignWidthM     = 0.05
 
+	// DefaultParkEngageDistM matches waypoints.toml's ARC_RADIUS, doubling
+	// as the parking-handoff engage distance (see Config.ParkEngageDistM).
+	DefaultParkEngageDistM = 0.45
+
 	// DefaultOpenChallengeLaps matches competition_specs.toml's
 	// open_challenge_laps (CompetitionSpecs.OPEN_CHALLENGE_LAPS), the
 	// default num_laps CoreNavigator.__init__ takes.
@@ -347,6 +357,8 @@ func DefaultConfig() Config {
 		CornerMinM:     DefaultCornerMinM,
 		CornerMaxM:     DefaultCornerMaxM,
 		SignWidthM:     DefaultSignWidthM,
+
+		ParkEngageDistM: DefaultParkEngageDistM,
 	}
 }
 

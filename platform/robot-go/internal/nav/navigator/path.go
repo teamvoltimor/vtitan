@@ -6,6 +6,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 )
@@ -102,6 +103,18 @@ func (n *Navigator) ReplaceSignRouter(router *signrouter.SignRouter) {
 	n.laneFingerprint, n.laneFingerprintSet = nil, false
 }
 
+// ReplaceParkController swaps in a parking maneuver built for a new race,
+// matching replace_park_controller. Exists for the same reason as
+// ReplaceSignRouter: the state machine can cycle FINISHED -> BOOT_CHECK ->
+// READY -> RACING purely from the button, so a process built once for one
+// scenario's parking lot (or none) must be able to pick up a different one
+// without a restart. nil is valid -- the Open Challenge, or any scenario
+// with no parking lot.
+func (n *Navigator) ReplaceParkController(pc *parking.ParkController) {
+	n.parkController = pc
+	n.parkingEngaged = false
+}
+
 // SetTravelDirection adopts the (re-)inferred travel direction, matching
 // set_travel_direction. Consumed by the collision-avoidance escape maneuver
 // as the fallback side when a LIDAR-only clearance comparison cannot decide
@@ -122,6 +135,7 @@ func (n *Navigator) Reset() {
 	n.waypointIndex = 0
 	n.lapsCompleted = 0
 	n.suppressNextWrap = false
+	n.parkingEngaged = false
 	n.activeManeuver = nil
 	n.maneuverFramesLeft = 0
 	n.escapeCount = 0
@@ -134,18 +148,81 @@ func (n *Navigator) Reset() {
 	}
 }
 
-// handleFinish handles the post-final-lap phase, matching _handle_finish's
-// `pc is None` branch: the Open Challenge has no parking maneuver, so the
-// robot holds position. Python's version returns a bool because the parking
-// branch can decline to act; that branch does not exist here, so this
-// always issues a command and the caller always stops this tick.
-func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) {
+// handleFinish handles the post-final-lap phase, matching _handle_finish.
+// Returns true if a command was issued (caller should stop this tick);
+// false if the robot should keep navigating toward the parking corridor.
+func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) bool {
+	pc := n.parkController
+	if pc == nil {
+		// Open Challenge: no parking maneuver -- hold position.
+		n.holdFinished(robotX, robotY, robotYaw)
+		return true
+	}
+
+	if !n.parkingEngaged && n.shouldEngageParking(robotX, robotY) {
+		n.logger.Info("parking engaged", "corridor", n.currentCorridor)
+		n.parkingEngaged = true
+	}
+	if !n.parkingEngaged {
+		return false // Keep navigating until at the staging point.
+	}
+
+	if pc.IsDone() {
+		n.holdFinished(robotX, robotY, robotYaw)
+		return true
+	}
+
+	cmd := pc.Update(trackmodel.Pose{X: robotX, Y: robotY, Yaw: robotYaw})
+	linear := cmd.LinearMPS
+	if scan, ok := n.gateway.GetLidarScan(); ok {
+		// One call for both parking stop-check clearances (narrow-forward
+		// min + full 360deg sweep min) over the same scan. Not colliding
+		// takes priority over completing the maneuver -- see
+		// ParkingClearances' own doc comment for the side-margin padding
+		// rationale.
+		gate := n.collisionController.ParkingClearances(scan.RangesM, scan.AnglesRad)
+		sideMargin := n.cfg.ContactDistM + n.cfg.ChassisWidthM/2
+		if gate.ForwardM < n.cfg.ContactDistM || gate.SweepM < sideMargin {
+			linear = 0.0
+		}
+	}
+
+	n.gateway.PublishDrive(controllers.DriveCommand{SpeedMPS: linear, SteeringNorm: cmd.SteeringNorm})
+	debug := n.baseDebug(robotX, robotY, robotYaw)
+	debug.Phase = PhaseParking
+	parkPhase := cmd.Phase
+	debug.ParkPhase = &parkPhase
+	debug.CommandedSpeedMPS = new(linear)
+	debug.CommandedSteerNorm = new(cmd.SteeringNorm)
+	n.debug = debug
+	return true
+}
+
+// holdFinished publishes a zero drive command and the FINISHED_HOLD
+// snapshot, matching the two identical branches of _handle_finish (no
+// ParkController, and a done one) that both do exactly this.
+func (n *Navigator) holdFinished(robotX, robotY, robotYaw float64) {
 	n.gateway.PublishDrive(controllers.DriveCommand{})
 	debug := n.baseDebug(robotX, robotY, robotYaw)
 	debug.Phase = PhaseFinishedHold
 	debug.CommandedSpeedMPS = new(0.0)
 	debug.CommandedSteerNorm = new(0.0)
 	n.debug = debug
+}
+
+// shouldEngageParking reports whether the parking handoff should engage:
+// only once in the parking corridor and near the staging point, matching
+// _should_engage_parking.
+func (n *Navigator) shouldEngageParking(robotX, robotY float64) bool {
+	pc := n.parkController
+	if pc == nil {
+		return false
+	}
+	if n.currentCorridor != nil && *n.currentCorridor != pc.Section() {
+		return false
+	}
+	staging := pc.Staging()
+	return math.Hypot(staging.X-robotX, staging.Y-robotY) < n.cfg.ParkEngageDistM
 }
 
 // handleWaypointWrap detects the index running off the end of the lap and

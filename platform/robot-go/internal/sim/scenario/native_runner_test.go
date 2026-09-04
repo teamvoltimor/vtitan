@@ -35,9 +35,9 @@ const inlineOpenMetadata = `{
 // inlineObstaclesMetadata mirrors a real generated Obstacles Challenge
 // metadata file (platform/robot/.corpus/obstacles/scenarios/
 // scenario_0000_metadata.json): 4 red signs down the south/west corridors,
-// a parking lot the native runner parses but does not yet act on (see
-// NativeRunner's doc comment), robot starting on the north wall travelling
-// counterclockwise.
+// a parking lot the native runner now acts on (see NativeRunner's doc
+// comment) once the laps finish, robot starting on the north wall
+// travelling counterclockwise.
 const inlineObstaclesMetadata = `{
   "challenge_type": "obstacles",
   "seed": 2026,
@@ -149,6 +149,13 @@ func TestNativeRunnerSmoke_Obstacles(t *testing.T) {
 	if res.PassSideViolation != (len(res.PassSideViolationSigns) > 0) {
 		t.Errorf("PassSideViolation=%v inconsistent with PassSideViolationSigns=%v",
 			res.PassSideViolation, res.PassSideViolationSigns)
+	}
+	// This fixture has a parking lot, so ParkController is attached and both
+	// fields must be set -- even on a run that collides on lap 0 and never
+	// gets near the bay, ScorePark still scores whatever the final pose
+	// happens to be (0 points, typically, this far from the lot).
+	if res.Parked == nil || res.ParkPoints == nil {
+		t.Errorf("Parked=%v ParkPoints=%v, want both set (scenario has a parking lot)", res.Parked, res.ParkPoints)
 	}
 	t.Logf(
 		"native obstacles smoke: laps=%d/%d collided=%t timed_out=%t stuck=%t steps=%d sim_time=%.1fs pass_side_violations=%v",

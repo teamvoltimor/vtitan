@@ -43,6 +43,9 @@ type headingTOML struct {
 type navWaypointsTOML struct {
 	MainLoopReachedDistanceM float64 `mapstructure:"main_loop_reached_distance_m"`
 	ReplanHeadingTieMarginM  float64 `mapstructure:"replan_heading_tie_margin_m"`
+	// ArcRadius doubles as ParkEngageDistM, matching Python's
+	// _park_engage_dist = tuning.waypoints.ARC_RADIUS.
+	ArcRadius float64 `mapstructure:"arc_radius"`
 }
 
 // navEscapeTOML mirrors the escape.toml fields the core navigator's
@@ -235,6 +238,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		func(loaded navWaypointsTOML) {
 			cfg.MainLoopReachedDistanceM = loaded.MainLoopReachedDistanceM
 			cfg.ReplanHeadingTieMarginM = loaded.ReplanHeadingTieMarginM
+			cfg.ParkEngageDistM = loaded.ArcRadius
 		},
 	)
 

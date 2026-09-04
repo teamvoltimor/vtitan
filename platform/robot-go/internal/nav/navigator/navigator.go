@@ -12,6 +12,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/directionestimator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startmeasurement"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
@@ -74,6 +75,11 @@ type Params struct {
 	// SignRouter routes past traffic signs; nil outside the Obstacles
 	// Challenge.
 	SignRouter *signrouter.SignRouter
+	// ParkController drives the post-final-lap parking maneuver; nil for
+	// the Open Challenge (or any scenario with no parking lot), in which
+	// case handleFinish holds position once NumLaps is reached, matching
+	// _handle_finish's `pc is None` branch.
+	ParkController *parking.ParkController
 	// Logger receives the lap/escape/refusal messages CoreNavigator logs;
 	// nil falls back to slog.Default().
 	Logger *slog.Logger
@@ -106,6 +112,12 @@ type Navigator struct {
 	numLaps    int
 	signRouter *signrouter.SignRouter
 	direction  *trackmodel.Direction
+
+	// parkController drives the post-final-lap parking maneuver; nil for
+	// the Open Challenge. parkingEngaged latches once the robot is close
+	// enough to the staging point to start it -- see shouldEngageParking.
+	parkController *parking.ParkController
+	parkingEngaged bool
 
 	// Blind bootstrap state. Nil/empty until the navigator is in blind
 	// mode (Direction == nil at construction). dirEstimator settles the
@@ -245,6 +257,7 @@ func New(p Params) (*Navigator, error) {
 		laneBaseWaypoints:   slices.Clone(p.Waypoints),
 		numLaps:             numLaps,
 		signRouter:          p.SignRouter,
+		parkController:      p.ParkController,
 		direction:           p.Direction,
 		waypointThreshold:   p.Config.MainLoopReachedDistanceM,
 		escapeSteerSign:     1.0,
@@ -280,6 +293,11 @@ func (n *Navigator) CurrentCorridor() *trackmodel.Section { return n.currentCorr
 // SignRouter is the traffic-sign router, or nil outside the Obstacles
 // Challenge, matching the sign_router property.
 func (n *Navigator) SignRouter() *signrouter.SignRouter { return n.signRouter }
+
+// ParkController is the post-final-lap parking maneuver, or nil for the
+// Open Challenge (or any scenario with no parking lot), matching the
+// park_controller property.
+func (n *Navigator) ParkController() *parking.ParkController { return n.parkController }
 
 // LapsCompleted is the number of laps confirmed completed so far, matching
 // the laps_completed property.
@@ -346,14 +364,20 @@ func (n *Navigator) Step() {
 
 	// Update the stuck detector -- it runs while actively driving, but not
 	// once the robot has reached its final deliberate stop (the
-	// open-challenge hold): otherwise a robot correctly holding position at
-	// zero velocity would eventually read as "stuck" and reverse itself
-	// back out of a completed race.
+	// open-challenge hold, or parking done): otherwise a robot correctly
+	// holding position at zero velocity would eventually read as "stuck"
+	// and reverse itself back out of a completed race.
 	//
-	// Python also suspends and resets the detector while ParkController is
-	// mid reposition; that branch is unreachable here (no park controller,
-	// see doc.go) and is omitted rather than stubbed.
-	if !n.isHolding() {
+	// Also suspended and RESET while ParkController is mid
+	// reverse-and-reorient recovery (IsRepositioning): that maneuver is
+	// itself a deliberate, low-net-displacement reverse burst, and the
+	// generic escape it would otherwise trigger is blind to the inner
+	// keep-out block ParkController is navigating around. Reset, not just
+	// skipped, so the history queue does not span across the gap and
+	// reintroduce the same false "stuck" trigger one tick later.
+	if n.parkController != nil && n.parkController.IsRepositioning() {
+		n.stuckDetector.Reset()
+	} else if !n.isHolding() {
 		n.stuckDetector.Update(trackmodel.Waypoint{X: robotX, Y: robotY})
 		if n.stuckDetector.GetDiagnostics().IsStuck {
 			n.handleStuckEscape(robotX, robotY, robotYaw)
@@ -361,10 +385,11 @@ func (n *Navigator) Step() {
 		}
 	}
 
-	// Lap completion. With no ParkController there is no handoff to defer:
-	// the race is over, so hold position from here on.
-	if n.lapsCompleted >= n.numLaps {
-		n.handleFinish(robotX, robotY, robotYaw)
+	// Lap completion: defer the parking handoff until the robot is
+	// actually in the parking corridor and within reach of the staging
+	// point (see handleFinish/shouldEngageParking). Until then keep
+	// navigating so the handoff never fires mid-corridor.
+	if n.lapsCompleted >= n.numLaps && n.handleFinish(robotX, robotY, robotYaw) {
 		return
 	}
 
@@ -475,10 +500,16 @@ func (n *Navigator) recordPoseTrail(pose trackmodel.Pose) {
 }
 
 // isHolding reports whether the robot has reached a deliberate, terminal
-// stop, matching _is_holding. With no ParkController the only terminal
-// state is the open-challenge hold, and it is monotonic (never reverts once
-// reached), so it is safe to permanently stop running stuck detection here.
-func (n *Navigator) isHolding() bool { return n.lapsCompleted >= n.numLaps }
+// stop, matching _is_holding. Both terminal states (the open-challenge
+// hold, and a done ParkController) are monotonic -- never revert once
+// reached -- so it is safe to permanently stop running stuck detection once
+// this is true.
+func (n *Navigator) isHolding() bool {
+	if n.lapsCompleted < n.numLaps {
+		return false
+	}
+	return n.parkController == nil || n.parkController.IsDone()
+}
 
 // BelievedYawOffset returns the belief->map yaw measured at start (the
 // start_measurement believed-offset), or ok=false until ApplyBelievedStart

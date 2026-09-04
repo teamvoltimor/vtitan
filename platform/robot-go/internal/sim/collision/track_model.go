@@ -35,8 +35,13 @@ type NewTrackModelParams struct {
 type TrackModel struct {
 	walls *trackmodel.TrackWalls
 
-	obstacleBoxes      []box
-	lidarSeesObstacles bool
+	obstacleBoxes []box
+	// obstacleIsParkingLot parallels obstacleBoxes: true for a lot marker
+	// fin, false for a traffic sign -- see ObstacleBox.IsParkingLot. Kept as
+	// a separate slice rather than a field on box itself, since box is the
+	// shared axis-aligned-rectangle type every wall/margin box also uses.
+	obstacleIsParkingLot []bool
+	lidarSeesObstacles   bool
 
 	innerVisual    box
 	innerCollision box
@@ -52,8 +57,10 @@ func NewTrackModel(p NewTrackModelParams) *TrackModel {
 	// size -- unlike the walls there is no separate fatter collision mesh,
 	// so visual and collision bounds are the same box.
 	obstacleBoxes := make([]box, len(p.Obstacles))
+	obstacleIsParkingLot := make([]bool, len(p.Obstacles))
 	for i, ob := range p.Obstacles {
 		obstacleBoxes[i] = ob.toBox(noMargin)
+		obstacleIsParkingLot[i] = ob.IsParkingLot
 	}
 
 	inner := walls.InnerBlock
@@ -64,12 +71,13 @@ func NewTrackModel(p NewTrackModelParams) *TrackModel {
 	outerCollision := box{p.MinCoordM + m, p.MinCoordM + m, p.MaxCoordM - m, p.MaxCoordM - m}
 
 	return &TrackModel{
-		walls:              walls,
-		obstacleBoxes:      obstacleBoxes,
-		lidarSeesObstacles: p.LidarSeesObstacles,
-		innerVisual:        innerVisual,
-		innerCollision:     innerCollision,
-		outerCollision:     outerCollision,
+		walls:                walls,
+		obstacleBoxes:        obstacleBoxes,
+		obstacleIsParkingLot: obstacleIsParkingLot,
+		lidarSeesObstacles:   p.LidarSeesObstacles,
+		innerVisual:          innerVisual,
+		innerCollision:       innerCollision,
+		outerCollision:       outerCollision,
 	}
 }
 
@@ -144,10 +152,22 @@ func (m *TrackModel) ContactSurfaceAt(x, y, yaw, length, width float64) ContactS
 		return SurfaceInnerWall
 	}
 
-	for _, b := range m.obstacleBoxes {
-		if convexOverlap(corners, b.corners(), yaw) {
-			return SurfaceObstacle
+	// Fins before signs: a fin ends the round (9.24.7) while a sign may be
+	// nudged (9.20), so reporting SurfaceObstacle for a simultaneous touch
+	// would hand the fin the sign's leniency -- the very conflation this
+	// split exists to remove.
+	touchedObstacle := false
+	for i, b := range m.obstacleBoxes {
+		if !convexOverlap(corners, b.corners(), yaw) {
+			continue
 		}
+		if m.obstacleIsParkingLot[i] {
+			return SurfaceParkingLot
+		}
+		touchedObstacle = true
+	}
+	if touchedObstacle {
+		return SurfaceObstacle
 	}
 	return SurfaceNone
 }

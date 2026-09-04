@@ -23,6 +23,13 @@ type ContactSurface int
 type ObstacleBox struct {
 	CX, CY       float64
 	SizeX, SizeY float64
+	// IsParkingLot reports whether this box is a lot marker fin rather than
+	// a traffic sign, matching ObstacleBox.is_parking_lot. They are the same
+	// shape and were therefore the same thing to this model, but the rules
+	// treat them oppositely -- see ContactSurface. Defaults to false
+	// (traffic sign), so every existing construction site keeps its
+	// original meaning.
+	IsParkingLot bool
 }
 
 // ObstacleSpec is one already-parsed obstacle pose -- the Go equivalent of
@@ -32,15 +39,21 @@ type ObstacleBox struct {
 // directly instead of a metadata-dict-parsing layer.
 type ObstacleSpec struct {
 	CX, CY, Length, Width, Yaw float64
+	// IsParkingLot marks this spec as a lot marker fin -- see
+	// ObstacleBox.IsParkingLot.
+	IsParkingLot bool
 }
 
 // The surfaces a chassis footprint can be touching. SurfaceObstacle is a
-// traffic sign or parking block, which belongs to neither wall.
+// traffic sign, which may be legally nudged (WRO 9.20). SurfaceParkingLot is
+// a lot marker fin, which may NOT (9.24.7) -- contact with it is an
+// unconditional terminal surface, unlike a sign.
 const (
 	SurfaceNone ContactSurface = iota
 	SurfaceOuterWall
 	SurfaceInnerWall
 	SurfaceObstacle
+	SurfaceParkingLot
 )
 
 // noMargin is toBox's margin when the caller wants the obstacle's true
@@ -60,6 +73,8 @@ func (s ContactSurface) String() string {
 		return "inner_wall"
 	case SurfaceObstacle:
 		return "obstacle"
+	case SurfaceParkingLot:
+		return "parking_lot"
 	default:
 		return "unknown"
 	}
@@ -70,13 +85,13 @@ func (s ContactSurface) String() string {
 //
 // axisAlignTolerance is |cos(yaw)|'s threshold for "quarter-turned",
 // matching SimulationParams.AXIS_ALIGN_TOLERANCE (collision.Config).
-func NewObstacleBoxFromPose(cx, cy, length, width, yaw, axisAlignTolerance float64) ObstacleBox {
+func NewObstacleBoxFromPose(cx, cy, length, width, yaw, axisAlignTolerance float64, isParkingLot bool) ObstacleBox {
 	quarterTurned := math.Abs(math.Cos(yaw)) < axisAlignTolerance
 	sizeX, sizeY := length, width
 	if quarterTurned {
 		sizeX, sizeY = width, length
 	}
-	return ObstacleBox{CX: cx, CY: cy, SizeX: sizeX, SizeY: sizeY}
+	return ObstacleBox{CX: cx, CY: cy, SizeX: sizeX, SizeY: sizeY, IsParkingLot: isParkingLot}
 }
 
 // toBox returns the axis-aligned bounds, optionally grown by margin,
@@ -93,7 +108,7 @@ func (o ObstacleBox) toBox(margin float64) box {
 func ObstaclesFromSpecs(specs []ObstacleSpec, axisAlignTolerance float64) []ObstacleBox {
 	boxes := make([]ObstacleBox, len(specs))
 	for i, s := range specs {
-		boxes[i] = NewObstacleBoxFromPose(s.CX, s.CY, s.Length, s.Width, s.Yaw, axisAlignTolerance)
+		boxes[i] = NewObstacleBoxFromPose(s.CX, s.CY, s.Length, s.Width, s.Yaw, axisAlignTolerance, s.IsParkingLot)
 	}
 	return boxes
 }

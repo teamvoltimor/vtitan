@@ -142,12 +142,12 @@ func TestNewObstacleBoxFromPose_SwapsExtentsOnAQuarterTurn(t *testing.T) {
 	t.Parallel()
 
 	const tolerance = 1e-6
-	straight := NewObstacleBoxFromPose(0, 0, 0.20, 0.05, 0.0, tolerance)
+	straight := NewObstacleBoxFromPose(0, 0, 0.20, 0.05, 0.0, tolerance, false)
 	if straight.SizeX != 0.20 || straight.SizeY != 0.05 {
 		t.Errorf("yaw=0: got (%v, %v), want (0.20, 0.05)", straight.SizeX, straight.SizeY)
 	}
 
-	turned := NewObstacleBoxFromPose(0, 0, 0.20, 0.05, math.Pi/2, tolerance)
+	turned := NewObstacleBoxFromPose(0, 0, 0.20, 0.05, math.Pi/2, tolerance, false)
 	if turned.SizeX != 0.05 || turned.SizeY != 0.20 {
 		t.Errorf("yaw=pi/2: got (%v, %v), want (0.05, 0.20)", turned.SizeX, turned.SizeY)
 	}
