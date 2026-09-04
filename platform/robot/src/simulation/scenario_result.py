@@ -86,6 +86,17 @@ class SimResult:
     sign is retired as passed on the wrong side. Recorded separately from
     ``collided`` so a diagnostic can tell the two failure modes apart."""
 
+    reverse_run_violation: bool = False
+    """The vehicle drove against the round direction past its allowance.
+
+    Rule 9.21 permits driving opposite for two sections only -- the one where
+    the direction was changed and the neighbouring one -- and Appendix A case 4
+    stops the round once the projection is COMPLETELY out of that window.
+    Enforced from 2026-09-04; before that the simulator scored exactly one
+    round-end condition (the wrong-side pass), so escapes and U-turns could
+    reverse arbitrarily far and still be graded clean.
+    """
+
     pass_side_violation_signs: list[int] = field(default_factory=list)
     """Indices (into the scenario's ``sign_positions``) passed on the wrong side."""
 

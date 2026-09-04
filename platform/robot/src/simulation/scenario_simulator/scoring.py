@@ -14,7 +14,7 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
-from shared.domain.enums import Axis
+from shared.domain.enums import Axis, Direction, Section
 from shared.domain.models import SignColor, Waypoint
 
 from src.navigation.planning.sign_router import SignSpec, pass_side_lateral_axis
@@ -34,6 +34,26 @@ metres away is trivially not crossing it. Wide enough that no crossing is
 missed at any speed the robot reaches in one tick."""
 
 
+_ROUND_ORDER = (Section.SOUTH, Section.EAST, Section.NORTH, Section.WEST)
+"""The ring in COUNTERCLOCKWISE order, derived from ``TRAVEL_DIRS``.
+
+Driving counterclockwise the south straight heads +x and arrives at EAST, east
+heads +y and arrives at NORTH, and so on. Clockwise is the same tuple read
+backwards."""
+
+_OPPOSITE_SPEED_EPS_MPS = 0.02
+"""Below this the chassis is not meaningfully travelling either way.
+
+Keeps a stationary or barely-creeping robot -- during an escape's reversal
+pause, say -- from latching a direction change it never made."""
+
+
+def _ring_step(section: Section, direction: Direction, step: int) -> Section:
+    """The section ``step`` places along the round from ``section``."""
+    forward = 1 if direction is Direction.COUNTERCLOCKWISE else -1
+    return _ROUND_ORDER[(_ROUND_ORDER.index(section) + forward * step) % len(_ROUND_ORDER)]
+
+
 class PassSideScorer:
     """Obstacles-Challenge scoring behaviours shared into ``ScenarioSimulator``."""
 
@@ -51,6 +71,9 @@ class PassSideScorer:
     _pass_side_wrong: list[int]
     # The TRUE start, needed because the pass-side rule is travel-relative.
     _start: _StartConditions
+    # Rule 9.21 state: where the chassis began travelling against the round.
+    _opposite_origin: Section | None
+    _reverse_run_violation: bool
 
     def _check_pass_side_violation(self, state: AckermannState) -> list[int] | None:
         """Return offending sign indices if the run must stop for a wrong-side pass.
@@ -135,6 +158,65 @@ class PassSideScorer:
         if lateral_axis == Axis.Y:
             return Axis.X, (1 if heading.nx > 0 else -1), lateral_axis, permitted
         return Axis.Y, (1 if heading.ny > 0 else -1), lateral_axis, permitted
+
+    def _check_reverse_run_violation(self, state: AckermannState) -> bool:
+        """Has the vehicle driven opposite the round direction past its allowance?
+
+        Rule 9.21: the vehicle may drive against the round direction "for two
+        sections only: the section where the direction was changed and the
+        neighbouring section". Appendix A cases 4 and 5 make the boundary
+        explicit -- going COMPLETELY out of the neighbouring section that way
+        "will lead to the immediate stop of the round", while a projection only
+        PARTLY into the next one does not.
+
+        Modelled here because the simulator otherwise scores exactly one
+        round-end condition (the wrong-side pass) and would grade an illegal
+        round as a clean one. Escapes and U-turns reverse the chassis routinely
+        -- 11 of 256 runs register a U-turn -- so every escape tuning decision
+        has been made against a judge that forgives this. Same class of gap as
+        the pass-side scorer, which agreed with the router's own mistake.
+
+        Direction of travel is taken from the VELOCITY, not the heading, so
+        driving back-to-front is not itself an offence: rules p38 case 6 allows
+        it outright as long as the vehicle is being moved in the round
+        direction.
+
+        Simplifications, stated rather than hidden:
+
+        * The origin is the section the chassis is in when it starts moving
+          opposite. The rules say that for a change made ON a border it is the
+          FORWARD section; here a border straddle resolves to whichever section
+          ``corridor_for_position`` reports for the centre.
+        * Case 5 (several direction changes) says the allowance is measured
+          from the change CLOSEST TO THE FINISH. This keeps the first origin
+          until the chassis travels in the round direction again, which is
+          equal or stricter, never more permissive.
+        """
+        if self._start.direction is None:
+            return False
+        section = corridor_for_position(state.x, state.y)
+        if section is None:
+            return False
+        heading = TRAVEL_DIRS[(section, self._start.direction)]
+        # Negative v is reverse gear, which flips the motion vector -- exactly
+        # what makes back-to-front travel in the round direction legal here.
+        along = state.v * (math.cos(state.yaw) * heading.nx + math.sin(state.yaw) * heading.ny)
+        if abs(state.v) < _OPPOSITE_SPEED_EPS_MPS:
+            return self._reverse_run_violation
+        if along >= 0.0:
+            self._opposite_origin = None
+            return self._reverse_run_violation
+        if self._opposite_origin is None:
+            self._opposite_origin = section
+        allowed = {self._opposite_origin, _ring_step(self._opposite_origin, self._start.direction, -1)}
+        # "Completely out" is a footprint test, like the pass-side radius: while
+        # any corner is still in an allowed section the round stands.
+        corners = _rect_corners(state.x, state.y, state.yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
+        for corner in corners:
+            if corridor_for_position(corner.x, corner.y) in allowed:
+                return self._reverse_run_violation
+        self._reverse_run_violation = True
+        return True
 
     def _score_obstacle_contact(
         self,

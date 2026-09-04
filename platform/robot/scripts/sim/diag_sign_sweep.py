@@ -908,6 +908,7 @@ class ScenarioOutcome:
     collision_step: int
     steps: int
     pass_side_violation: bool = False
+    reverse_run_violation: bool = False
     """The run was ended by a sign passed on the forbidden side.
 
     A THIRD terminal verdict, added to the simulator by ``cef75f2a`` and
@@ -1860,6 +1861,7 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         collision_step=result.steps,
         steps=result.steps,
         pass_side_violation=result.pass_side_violation,
+        reverse_run_violation=result.reverse_run_violation,
         pass_side_signs=tuple(result.pass_side_violation_signs),
         stuck=result.stuck,
         uturns=len(uturns.events),
@@ -1983,6 +1985,11 @@ class SweepResult:
     def timeouts(self) -> int:
         """Scenarios that ran out of step budget."""
         return sum(1 for o in self.outcomes if o.timed_out)
+
+    @property
+    def reverse_run_violations(self) -> int:
+        """Runs stopped for driving against the round direction past 9.21's allowance."""
+        return sum(1 for o in self.outcomes if o.reverse_run_violation)
 
     @property
     def pass_side_violations(self) -> int:
@@ -2169,6 +2176,7 @@ class SweepResult:
             f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"pass-side {self.pass_side_violations:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"rev-run {self.reverse_run_violations:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"stuck {self.stuck:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"unscored {self.unscored:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)  "

@@ -365,6 +365,9 @@ class ScenarioSimulator(PassSideScorer):
         self._pass_side_engaged: set[int] = set()
         self._pass_side_scored: set[int] = set()
         self._pass_side_wrong: list[int] = []
+        # Rule 9.21: how far the chassis may drive against the round direction.
+        self._opposite_origin: Section | None = None
+        self._reverse_run_violation = False
 
         # Where the signs are is drawn at random on the day and no scenario file
         # exists on the mat, so a blind run cannot be handed the sign layout any
@@ -895,6 +898,7 @@ class ScenarioSimulator(PassSideScorer):
         terminal_collision = False
         stuck = False
         pass_side_violation = False
+        reverse_run_violation = False
         violation_signs: list[int] | None = []
         contacts = ContactTracker(
             dt=dt,
@@ -983,6 +987,14 @@ class ScenarioSimulator(PassSideScorer):
                 pass_side_violation = True
                 break
 
+            # Rule 9.21, enforced the same way: driving against the round
+            # direction past the section where it turned plus the neighbouring
+            # one stops the round. Escapes and U-turns reverse routinely, so
+            # without this the simulator grades an illegal round as clean.
+            if self._check_reverse_run_violation(gw.state):
+                reverse_run_violation = True
+                break
+
             if nav.laps_completed >= self._num_laps and (
                 self._park_controller is None or self._park_controller.is_done
             ):
@@ -1002,6 +1014,7 @@ class ScenarioSimulator(PassSideScorer):
             metrics=metrics,
             lap_steps=lap_steps,
             pass_side_violation=pass_side_violation,
+            reverse_run_violation=reverse_run_violation,
             violation_signs=violation_signs,
         )
 
@@ -1017,6 +1030,7 @@ class ScenarioSimulator(PassSideScorer):
         metrics: RunMetrics,
         lap_steps: list[int],
         pass_side_violation: bool = False,
+        reverse_run_violation: bool = False,
         violation_signs: list[int] | None = None,
     ) -> SimResult:
         """Assemble the run outcome from the loop's accumulators."""
@@ -1045,6 +1059,7 @@ class ScenarioSimulator(PassSideScorer):
             lap_step_indices=lap_steps,
             stuck=stuck,
             pass_side_violation=pass_side_violation,
+            reverse_run_violation=reverse_run_violation,
             pass_side_violation_signs=violation_signs or [],
         )
 
