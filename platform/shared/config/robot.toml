@@ -1,7 +1,8 @@
 # Single source of truth for the WRO robot's physical constants (custom chassis, counter-phase
 # four-wheel steering). Measured 2026-07-11 — see platform/robot/docs/robot-physical-constants.md.
 #
-# Edit this file, then regenerate its Go/xacro consumers with `task gen:robot-constants`:
+# Edit this file, then hand-update its Go/xacro consumers to match (the generator that used
+# to regenerate them was removed 2026-09-03 -- see robot-physical-constants.md):
 #   - platform/robot-go/internal/simgen/simconfig/robot_constants.gen.go
 #   - platform/gazebo/runtime/robot_description/robot_properties.gen.xacro
 #

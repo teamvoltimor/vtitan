@@ -51,6 +51,6 @@ Watch for: MIN_FRAC is the *measured* friction floor at the old motor's torque c
 
 ## Bottom line
 
-- **Auto-scales, don't touch the code**: the speed ladder (once `max_speed_mps` is updated in `robot.toml` and `task gen:robot-constants` is re-run).
+- **Auto-scales, don't touch the code**: the speed ladder (once `max_speed_mps` is updated in `robot.toml` and its hand-maintained Go/xacro copies -- see robot-physical-constants.md; `task gen:robot-constants` no longer exists).
 - **Needs a fresh bench/bag pass, not a formula**: `STEER_KP`, understeer/linkage numbers, `WALL_MARGIN_SAFETY_M` / crosstrack threshold, lookahead distances, and whether `ARC_RADIUS` tiers still clear the tighter corners at the new speed.
 - **Needs independent bench measurement, not derivable from the +60% figure**: `max_accel_mps2`, and the actual new `max_speed_mps` itself (don't assume the vendor/motor-swap +60% claim holds under load — it's exactly the kind of number that was wrong before, see the 0.156 vs earlier-assumed-0.5 history).

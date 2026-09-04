@@ -4,7 +4,6 @@
 //
 //	simgen generate [flags]                  — generate randomized scenario worlds
 //	simgen generate-track [flags]             — regenerate the base track SDF template
-//	simgen generate-robot-constants [flags]   — regenerate robot constants from robot.toml
 //	simgen preview [flags]                    — render SVG top-down preview from metadata JSON
 package main
 
@@ -19,7 +18,6 @@ import (
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/preview"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/robotconfig"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/sdf"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/trackconfig"
@@ -42,7 +40,6 @@ func main() {
 	root.AddCommand(
 		generateCmd(),
 		generateTrackCmd(),
-		generateRobotConstantsCmd(),
 		generateTrackConstantsCmd(),
 		previewCmd(),
 	)
@@ -159,57 +156,6 @@ func generateTrackCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&output, "output", "worlds/wro_track_2026.sdf", "Output SDF file path")
-
-	return cmd
-}
-
-func generateRobotConstantsCmd() *cobra.Command {
-	var (
-		config      string
-		profile     string
-		goOutput    string
-		xacroOutput string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "generate-robot-constants",
-		Short: "Regenerate robot physical constants from robot.toml",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			cfg, err := robotconfig.Load(config, robotconfig.ParseProfileNames(profile)...)
-			if err != nil {
-				return fmt.Errorf("load robot config: %w", err)
-			}
-
-			goSrc, err := robotconfig.GenerateGo(cfg)
-			if err != nil {
-				return fmt.Errorf("generate go constants: %w", err)
-			}
-
-			outputs := []generatedFile{
-				{path: goOutput, contents: goSrc},
-				{path: xacroOutput, contents: robotconfig.GenerateXacro(cfg)},
-			}
-			for _, out := range outputs {
-				if err := os.MkdirAll(filepath.Dir(out.path), simconfig.DirPermissions); err != nil {
-					return fmt.Errorf("create output dir for %s: %w", out.path, err)
-				}
-				if err := os.WriteFile(out.path, []byte(out.contents), simconfig.FilePermissions); err != nil {
-					return fmt.Errorf("write %s: %w", out.path, err)
-				}
-				slog.Info("robot constants written", "path", out.path)
-			}
-
-			return nil
-		},
-	}
-
-	cmd.Flags().StringVar(&config, "config", "./shared/config/robot.toml", "Path to robot.toml source of truth (base)")
-	cmd.Flags().StringVar(&profile, "profile", "",
-		"Comma-separated hardware profile names to overlay onto --config, in order (e.g. 270deg-hiwonder-35kg)")
-	cmd.Flags().StringVar(&goOutput, "go-output",
-		"./robot-go/internal/simgen/simconfig/robot_constants.gen.go", "Go const block output path")
-	cmd.Flags().StringVar(&xacroOutput, "xacro-output",
-		"./gazebo/runtime/robot_description/robot_properties.gen.xacro", "xacro property fragment output path")
 
 	return cmd
 }

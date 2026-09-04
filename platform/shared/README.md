@@ -17,9 +17,10 @@ rather than a runtime import.
   `WallSpecs`, `TrafficSignSpecs`). The chassis/Ackermann/LIDAR/camera-mount fields are sourced
   from `shared.config.robot_constants.RobotConstants`, which reads
   `platform/shared/config/robot.toml` directly at runtime (the actual cross-language source of
-  truth — the Go/xacro consumers still regenerate via `task gen:robot-constants`, but Python
-  reads the TOML itself, no codegen step); everything else in `RobotSpecs` (LIDAR/IMU/camera
-  simulation parameters) is hand-maintained since it isn't duplicated in Go or xacro.
+  truth — the Go/xacro consumers are now hand-maintained copies (the regenerator was removed
+  2026-09-03), but Python reads the TOML itself, no codegen step); everything else in
+  `RobotSpecs` (LIDAR/IMU/camera simulation parameters) is hand-maintained since it isn't
+  duplicated in Go or xacro.
 - `shared.config.navigation_tuning` — `NavigationTuning`, the runtime-tunable navigation
   parameter set (pursuit, clearance, escape, sign routing, parking, etc.), loadable from the
   per-group TOML files under `platform/shared/config/navigation/`.

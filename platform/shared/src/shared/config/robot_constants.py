@@ -2,7 +2,8 @@
 
 Loads ``platform/shared/config/robot.toml`` directly at runtime -- the single
 source of truth also consumed by the Go ``simconfig`` package and the URDF
-xacro fragment (regenerated via ``task gen:robot-constants``). Python used to
+xacro fragment (both now hand-maintained copies; the ``task gen:robot-constants``
+regenerator was removed 2026-09-03). Python used to
 read a checked-in generated module (``robot_constants_gen.py``) instead, which
 duplicated the TOML into a second, driftable Python file; this reads the TOML
 itself, the same way :class:`~shared.config.navigation_tuning.NavigationTuning`

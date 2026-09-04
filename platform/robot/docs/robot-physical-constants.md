@@ -5,10 +5,11 @@ be hand-duplicated across Python, Go, and XML/xacro, and had already drifted out
 (chassis `LENGTH`/`WIDTH` were corrected from 0.28×0.15 to 0.30×0.20 in Python but never updated
 in the Go Gazebo generator or the xacro — both silently kept using the old numbers for months).
 
-**To change a measurement:** edit `platform/shared/config/robot.toml`, then run
-`task gen:robot-constants` (wraps `simgen generate-robot-constants`, see
-`platform/robot-go/internal/simgen/robotconfig`). This regenerates the two Go/xacro consumers
-below — do not hand-edit either, they're marked `DO NOT EDIT` and will be silently overwritten:
+**To change a measurement:** edit `platform/shared/config/robot.toml`, then hand-edit the two
+Go/xacro consumers below to match. The `simgen generate-robot-constants` command that used to
+regenerate them from `robot.toml` was removed 2026-09-03 (unused, and its Go-source output was
+broken); their `.gen.*` names and `DO NOT EDIT` headers are stale and should be disregarded
+until those are cleaned up:
 
 - `platform/robot-go/internal/simgen/simconfig/robot_constants.gen.go` (Go)
 - `platform/gazebo/runtime/robot_description/robot_properties.gen.xacro` (`xacro:include`d from
@@ -61,9 +62,10 @@ what the model sees.
 
 ### Source of truth
 `platform/shared/config/robot.toml` — chassis, Ackermann geometry, wheel, LIDAR mount offset,
-camera mount offset/pitch. Edit this, then run `task gen:robot-constants`.
+camera mount offset/pitch. Edit this, then hand-update the two consumers below (no generator
+regenerates them any more, see above).
 
-### Generated (do not hand-edit)
+### Generated (no longer regenerated — see above; edit by hand and keep in sync)
 - `platform/robot-go/internal/simgen/simconfig/robot_constants.gen.go` — the `Robot*` const
   block, consumed by `platform/robot-go/internal/simgen/sdf/robot.go` (chassis box/inertia,
   wheel joints, Ackermann plugin params, `buildCameraLink`/`buildLidarLink` poses) and
@@ -107,5 +109,7 @@ Worth its own change once the camera's real x/z/pitch are confirmed rather than 
 
 ## The actual structural fix (not done here, flagged for later)
 
-Done (2026-07-11): `platform/shared/config/robot.toml` is now the shared source all three read,
-via `task gen:robot-constants` (see "Where each constant lives" above).
+Done (2026-07-11): `platform/shared/config/robot.toml` is now the shared source all three read.
+The `task gen:robot-constants` regenerator that kept the Go/xacro copies in sync was removed
+2026-09-03 (unused, broken Go output); those two consumers are hand-maintained again (see
+"Where each constant lives" above) until a replacement lands.
