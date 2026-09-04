@@ -38,6 +38,15 @@ type WaypointsConfig struct {
 	NarrowCenterBiasSide string  `mapstructure:"narrow_center_bias_side"`
 	// NarrowWidthThresholdM matches NARROW_WIDTH_THRESHOLD_M.
 	NarrowWidthThresholdM float64 `mapstructure:"narrow_width_threshold_m"`
+	// UnconfirmedWidthInnerBiasM matches UNCONFIRMED_WIDTH_INNER_BIAS_M --
+	// the inner bias a narrow corridor takes while its width is still the
+	// blind prior rather than a measurement. See
+	// waypoints.Config.UnconfirmedWidthInnerBiasM.
+	UnconfirmedWidthInnerBiasM float64 `mapstructure:"unconfirmed_width_inner_bias_m"`
+	// DeferCurrentCorridorReplan matches DEFER_CURRENT_CORRIDOR_REPLAN --
+	// hold a width change back until the robot has left the corridor it
+	// describes. See internal/nav/widthbelief.
+	DeferCurrentCorridorReplan bool `mapstructure:"defer_current_corridor_replan"`
 	// NumIntermediateArcPoints matches NUM_INTERMEDIATE_ARC_POINTS.
 	NumIntermediateArcPoints int `mapstructure:"num_intermediate_arc_points"`
 	// StraightWaypointCount matches STRAIGHT_WAYPOINT_COUNT.

@@ -21,6 +21,38 @@ type Config struct {
 	// corridor (at or below NarrowWidthThresholdM).
 	NarrowCenterBiasM    float64
 	NarrowCenterBiasSide trackmodel.CorridorSide
+	// UnconfirmedWidthInnerBiasM replaces NarrowCenterBiasM for a narrow
+	// corridor still sitting on the blind PRIOR rather than a measurement,
+	// always toward the inner block. Matches
+	// waypoints.UNCONFIRMED_WIDTH_INNER_BIAS_M.
+	//
+	// A blind round begins believing every corridor narrow, and both
+	// hypotheses share the fixed OUTER wall, so the entire width error lands
+	// as a lateral shift of the planned line: believed-narrow (0.6 m) plans
+	// at MAX-0.30, confirmed-wide (1.0 m) at MAX-0.60. Confirming moves the
+	// line 0.30 m in one 50 ms tick -- ten times what the chassis can travel,
+	// measured across six hardware runs, which threw heading error past the
+	// crawl threshold and pinned the limiter for 82-100% of the following
+	// ticks. Pre-positioning inward while the belief is still a guess shrinks
+	// that step to 0.30 - this value.
+	//
+	// A SEPARATE field rather than a raised NarrowCenterBiasM: that value is
+	// 0.0 on evidence, and raising it would pay the cost in corridors that
+	// are genuinely narrow, where measured inward tracking drift (~0.07 m)
+	// already eats most of the margin. This one is handed straight back on a
+	// confirmed-narrow reading.
+	//
+	// The ceiling is CLEARANCE. Do NOT raise it above 0.05 without
+	// re-measuring: 0.15 leaves a truly-narrow corridor 0.053 m of inner
+	// margin against that same 0.07 m of drift, and measured -16 cases.
+	UnconfirmedWidthInnerBiasM float64
+	// DeferCurrentCorridorReplan holds a width change back until the robot
+	// has left the corridor it describes, matching
+	// waypoints.DEFER_CURRENT_CORRIDOR_REPLAN. Read by
+	// internal/nav/widthbelief, not by this package's own planning -- it
+	// lives here because it is a field of the same TOML section and belongs
+	// with the bias it complements.
+	DeferCurrentCorridorReplan bool
 	// NarrowWidthThresholdM is the corridor width at or below which
 	// Narrow* applies instead of Wide*.
 	NarrowWidthThresholdM float64
@@ -51,14 +83,16 @@ type Config struct {
 
 // Default* match WaypointParams' field defaults.
 const (
-	DefaultDedupeDistanceM          = 0.001
-	DefaultWideCenterBiasM          = 0.10
-	DefaultNarrowCenterBiasM        = 0.0
-	DefaultNarrowWidthThresholdM    = 0.8
-	DefaultNumIntermediateArcPoints = 3
-	DefaultStraightWaypointCount    = 8
-	DefaultArcRadius                = 0.45
-	DefaultCornerArcAssumeWide      = true
+	DefaultDedupeDistanceM            = 0.001
+	DefaultWideCenterBiasM            = 0.10
+	DefaultNarrowCenterBiasM          = 0.0
+	DefaultUnconfirmedWidthInnerBiasM = 0.05
+	DefaultDeferCurrentCorridorReplan = true
+	DefaultNarrowWidthThresholdM      = 0.8
+	DefaultNumIntermediateArcPoints   = 3
+	DefaultStraightWaypointCount      = 8
+	DefaultArcRadius                  = 0.45
+	DefaultCornerArcAssumeWide        = true
 )
 
 // DefaultConfig returns the Config matching the Python tuning defaults:
@@ -66,15 +100,17 @@ const (
 // WIDE_CENTER_BIAS_SIDE/NARROW_CENTER_BIAS_SIDE's "inner" defaults.
 func DefaultConfig() Config {
 	return Config{
-		DedupeDistanceM:          DefaultDedupeDistanceM,
-		WideCenterBiasM:          DefaultWideCenterBiasM,
-		WideCenterBiasSide:       trackmodel.Inner,
-		NarrowCenterBiasM:        DefaultNarrowCenterBiasM,
-		NarrowCenterBiasSide:     trackmodel.Inner,
-		NarrowWidthThresholdM:    DefaultNarrowWidthThresholdM,
-		NumIntermediateArcPoints: DefaultNumIntermediateArcPoints,
-		StraightWaypointCount:    DefaultStraightWaypointCount,
-		ArcRadius:                DefaultArcRadius,
-		CornerArcAssumeWide:      DefaultCornerArcAssumeWide,
+		DedupeDistanceM:            DefaultDedupeDistanceM,
+		WideCenterBiasM:            DefaultWideCenterBiasM,
+		WideCenterBiasSide:         trackmodel.Inner,
+		NarrowCenterBiasM:          DefaultNarrowCenterBiasM,
+		NarrowCenterBiasSide:       trackmodel.Inner,
+		UnconfirmedWidthInnerBiasM: DefaultUnconfirmedWidthInnerBiasM,
+		DeferCurrentCorridorReplan: DefaultDeferCurrentCorridorReplan,
+		NarrowWidthThresholdM:      DefaultNarrowWidthThresholdM,
+		NumIntermediateArcPoints:   DefaultNumIntermediateArcPoints,
+		StraightWaypointCount:      DefaultStraightWaypointCount,
+		ArcRadius:                  DefaultArcRadius,
+		CornerArcAssumeWide:        DefaultCornerArcAssumeWide,
 	}
 }

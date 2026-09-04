@@ -71,6 +71,7 @@ func CalculateWaypoints(
 	numLaps int,
 	cfg Config,
 	centerBiasM *float64,
+	unconfirmed UnconfirmedSections,
 ) ([]trackmodel.Waypoint, error) {
 	if input.Starting.Direction == nil {
 		return nil, fmt.Errorf(
@@ -85,11 +86,19 @@ func CalculateWaypoints(
 
 	// Score feasibility with the narrowest corridor's own bias -- the wide
 	// value would overstate what the narrow corridor actually spends.
-	feasibility := ValidatePathFeasibility(
-		minWidthM,
-		CenterBiasForCorridor(minWidthM, cfg, centerBiasM),
-		input.ChassisWidthM,
+	//
+	// Scored at the LARGER of the confirmed and unconfirmed narrow biases,
+	// not at whichever one this call happens to use. The unconfirmed value is
+	// the bigger of the two by construction and is what the chassis actually
+	// drives for the first ~0.5 m of every blind round, so scoring only the
+	// confirmed one would declare feasible a path that spends more margin
+	// than was checked -- on exactly the runs where the belief is wrong, i.e.
+	// where the check matters.
+	narrowBiasM := math.Max(
+		math.Abs(CenterBiasForCorridor(minWidthM, cfg, centerBiasM, true)),
+		math.Abs(CenterBiasForCorridor(minWidthM, cfg, centerBiasM, false)),
 	)
+	feasibility := ValidatePathFeasibility(minWidthM, narrowBiasM, input.ChassisWidthM)
 	if !feasibility.IsFeasible {
 		return nil, fmt.Errorf("waypoints: %s", feasibility.Reason)
 	}
@@ -101,10 +110,10 @@ func CalculateWaypoints(
 
 	// Each corridor takes the bias for ITS OWN width; an explicit magnitude
 	// still overrides both uniformly.
-	northBias := CenterBiasForCorridor(northWidth, cfg, centerBiasM)
-	southBias := CenterBiasForCorridor(southWidth, cfg, centerBiasM)
-	eastBias := CenterBiasForCorridor(eastWidth, cfg, centerBiasM)
-	westBias := CenterBiasForCorridor(westWidth, cfg, centerBiasM)
+	northBias := CenterBiasForCorridor(northWidth, cfg, centerBiasM, unconfirmed.Confirmed(trackmodel.North))
+	southBias := CenterBiasForCorridor(southWidth, cfg, centerBiasM, unconfirmed.Confirmed(trackmodel.South))
+	eastBias := CenterBiasForCorridor(eastWidth, cfg, centerBiasM, unconfirmed.Confirmed(trackmodel.East))
+	westBias := CenterBiasForCorridor(westWidth, cfg, centerBiasM, unconfirmed.Confirmed(trackmodel.West))
 
 	// Signs put the bias toward the inner block on every side: north and east
 	// corridors have the block below/left of them, south and west above/right.
@@ -174,7 +183,12 @@ func cornerRadius(
 	return CornerArcRadius(
 		entryW,
 		exitW,
-		CenterBiasForCorridor(math.Max(entryW, exitW), cfg, nil),
+		// Confirmed unconditionally: the corner arc must be invariant to the
+		// width belief, or a belief flip would move the turn-entry point as
+		// well as the line. CornerArcAssumeWide already makes the arc
+		// independent of the belief; passing the unconfirmed bias here would
+		// reintroduce the dependency it removes.
+		CenterBiasForCorridor(math.Max(entryW, exitW), cfg, nil, true),
 		cfg.ArcRadius,
 	)
 }
@@ -199,13 +213,14 @@ func PlanBelievedPath(
 	believedYaw float64,
 	cfg Config,
 	centerBiasM *float64,
+	unconfirmed UnconfirmedSections,
 ) ([]trackmodel.Waypoint, error) {
 	replanned := base
 	replanned.Geometry = believed
 	replanned.Starting = base.Starting.ReplannedAt(
 		direction, believedSection, believedPosition, believedYaw,
 	)
-	return CalculateWaypoints(replanned, 1, cfg, centerBiasM)
+	return CalculateWaypoints(replanned, 1, cfg, centerBiasM, unconfirmed)
 }
 
 // validateBounds reports an error if generation produced an out-of-bounds

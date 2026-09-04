@@ -18,9 +18,9 @@ func benchInput(maxCoordM, chassisWidthM float64) PlannerInput {
 	}, maxCoordM)
 	dir := trackmodel.Counterclockwise
 	return PlannerInput{
-		Geometry:  geom,
-		Starting:  StartingConditions{Direction: &dir, Section: trackmodel.South, Position: trackmodel.Waypoint{X: -maxCoordM + 1, Y: -maxCoordM + 1}},
-		MaxCoordM: maxCoordM,
+		Geometry:      geom,
+		Starting:      StartingConditions{Direction: &dir, Section: trackmodel.South, Position: trackmodel.Waypoint{X: -maxCoordM + 1, Y: -maxCoordM + 1}},
+		MaxCoordM:     maxCoordM,
 		ChassisWidthM: chassisWidthM,
 	}
 }
@@ -32,7 +32,7 @@ func TestCalculateWaypoints_CCWLoopStartsNearSpawn(t *testing.T) {
 	dir := trackmodel.Counterclockwise
 	input.Starting.Direction = &dir
 
-	wps, err := CalculateWaypoints(input, 1, cfg, nil)
+	wps, err := CalculateWaypoints(input, 1, cfg, nil, AllConfirmed())
 	if err != nil {
 		t.Fatalf("CalculateWaypoints() error = %v", err)
 	}
@@ -70,7 +70,7 @@ func TestCalculateWaypoints_RejectsUnresolvedDirection(t *testing.T) {
 	input := benchInput(4.0, 0.30)
 	input.Starting.Direction = nil
 
-	if _, err := CalculateWaypoints(input, 1, cfg, nil); err == nil {
+	if _, err := CalculateWaypoints(input, 1, cfg, nil, AllConfirmed()); err == nil {
 		t.Fatal("CalculateWaypoints() with nil Direction = nil error, want error")
 	}
 }
@@ -89,13 +89,13 @@ func TestCalculateWaypoints_RejectsTooNarrowCorridor(t *testing.T) {
 	}, 3.0)
 	dir := trackmodel.Clockwise
 	input := PlannerInput{
-		Geometry:       geom,
-		Starting:       StartingConditions{Section: trackmodel.South, Position: trackmodel.Waypoint{X: 0.25, Y: 0.25}},
-		MaxCoordM:      3.0,
-		ChassisWidthM:  0.6,
+		Geometry:      geom,
+		Starting:      StartingConditions{Section: trackmodel.South, Position: trackmodel.Waypoint{X: 0.25, Y: 0.25}},
+		MaxCoordM:     3.0,
+		ChassisWidthM: 0.6,
 	}
 	input.Starting.Direction = &dir
-	if _, err := CalculateWaypoints(input, 1, cfg, nil); err == nil {
+	if _, err := CalculateWaypoints(input, 1, cfg, nil, AllConfirmed()); err == nil {
 		t.Fatal("CalculateWaypoints() with infeasible corridor = nil error, want error")
 	}
 }
@@ -117,7 +117,7 @@ func TestPlanBelievedPath_ReplansFromBelievedGeometry(t *testing.T) {
 		base, believed,
 		&dir, trackmodel.East,
 		trackmodel.Waypoint{X: 2.0, Y: 0.5}, 0.0,
-		cfg, nil,
+		cfg, nil, AllConfirmed(),
 	)
 	if err != nil {
 		t.Fatalf("PlanBelievedPath() error = %v", err)

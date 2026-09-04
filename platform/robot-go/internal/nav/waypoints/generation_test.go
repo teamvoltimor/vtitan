@@ -58,10 +58,10 @@ func TestCenterBiasForCorridor_NarrowVsWideSplit(t *testing.T) {
 	cfg.NarrowCenterBiasM = 0.05
 	cfg.WideCenterBiasM = 0.08
 
-	if got := waypoints.CenterBiasForCorridor(narrowWidthM, cfg, nil); got != 0.05 {
+	if got := waypoints.CenterBiasForCorridor(narrowWidthM, cfg, nil, true); got != 0.05 {
 		t.Errorf("narrow corridor bias = %v, want 0.05", got)
 	}
-	if got := waypoints.CenterBiasForCorridor(wideWidthM, cfg, nil); got != 0.08 {
+	if got := waypoints.CenterBiasForCorridor(wideWidthM, cfg, nil, true); got != 0.08 {
 		t.Errorf("wide corridor bias = %v, want 0.08", got)
 	}
 }
@@ -77,14 +77,14 @@ func TestCenterBiasForCorridor_EachWidthClassTakesItsOwnSide(t *testing.T) {
 	flipped.NarrowCenterBiasSide = trackmodel.Outer
 
 	// Flipping only the narrow side must move a narrow corridor's shift...
-	got := waypoints.CenterBiasForCorridor(narrowWidthM, flipped, nil)
-	want := -waypoints.CenterBiasForCorridor(narrowWidthM, base, nil)
+	got := waypoints.CenterBiasForCorridor(narrowWidthM, flipped, nil, true)
+	want := -waypoints.CenterBiasForCorridor(narrowWidthM, base, nil, true)
 	if got != want {
 		t.Errorf("narrow bias after flipping narrow side = %v, want %v", got, want)
 	}
 	// ...and leave a wide corridor's alone.
-	got = waypoints.CenterBiasForCorridor(wideWidthM, flipped, nil)
-	want = waypoints.CenterBiasForCorridor(wideWidthM, base, nil)
+	got = waypoints.CenterBiasForCorridor(wideWidthM, flipped, nil, true)
+	want = waypoints.CenterBiasForCorridor(wideWidthM, base, nil, true)
 	if got != want {
 		t.Errorf("wide bias after flipping narrow side = %v, want unchanged %v", got, want)
 	}
@@ -100,7 +100,7 @@ func TestCenterBiasForCorridor_OverrideAppliesUniformlyOnTheWideSide(t *testing.
 	override := 0.15
 	// Even a NARROW-width corridor takes the override uniformly, on the
 	// WIDE side setting -- not the narrow split.
-	got := waypoints.CenterBiasForCorridor(narrowWidthM, cfg, &override)
+	got := waypoints.CenterBiasForCorridor(narrowWidthM, cfg, &override, true)
 	if got != -0.15 {
 		t.Errorf("overridden bias = %v, want -0.15 (magnitude 0.15, outer side)", got)
 	}

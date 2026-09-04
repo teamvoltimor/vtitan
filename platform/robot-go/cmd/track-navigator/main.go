@@ -214,7 +214,10 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		Starting:      waypoints.StartingConditions{Section: startSection, Position: trackmodel.Waypoint{X: -benchTrackCoord + 1, Y: -benchTrackCoord + 1}},
 		MaxCoordM:     benchTrackCoord,
 		ChassisWidthM: chassisWidthM,
-	}, 1, waypoints.DefaultConfig(), nil)
+		// AllConfirmed: this bench path is planned from the operator-supplied
+		// bench geometry, which is a told width and so confirmed by
+		// definition. A blind run would pass the belief gate's set instead.
+	}, 1, waypoints.DefaultConfig(), nil, waypoints.AllConfirmed())
 	if planErr != nil {
 		return fmt.Errorf("track-navigator: planning bench path: %w", planErr)
 	}

@@ -25,7 +25,17 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	// here rather than silently read as false -- the same pattern as
 	// controllers' min_history_for_distance (see EscapeConfig) and
 	// CorridorFollowerConfig's bay_wall_clearance_m.
-	waypointDefaults := map[string]any{"corner_arc_assume_wide": DefaultCornerArcAssumeWide}
+	waypointDefaults := map[string]any{
+		"corner_arc_assume_wide": DefaultCornerArcAssumeWide,
+		// Both of these are Python-model defaults absent from the checked-in
+		// waypoints.toml, for the same reason: they were added with their
+		// shipped value as the default rather than written into the file.
+		// Without them here the bias reads as 0.0 (no pre-positioning) and
+		// the deferral reads as false -- silently reverting both halves of
+		// the 596 -> 638/640 Open result.
+		"unconfirmed_width_inner_bias_m": DefaultUnconfirmedWidthInnerBiasM,
+		"defer_current_corridor_replan":  DefaultDeferCurrentCorridorReplan,
+	}
 	loaded, err := profile.LoadWithDefaults[profile.WaypointsConfig](basePath, nil, waypointDefaults)
 	if err != nil {
 		logger.Warn("waypoints: loading waypoints.toml, falling back to defaults",
@@ -41,6 +51,8 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	cfg.StraightWaypointCount = loaded.StraightWaypointCount
 	cfg.ArcRadius = loaded.ArcRadius
 	cfg.CornerArcAssumeWide = loaded.CornerArcAssumeWide
+	cfg.UnconfirmedWidthInnerBiasM = loaded.UnconfirmedWidthInnerBiasM
+	cfg.DeferCurrentCorridorReplan = loaded.DeferCurrentCorridorReplan
 
 	if side, ok := corridorSideFromString(loaded.WideCenterBiasSide); ok {
 		cfg.WideCenterBiasSide = side

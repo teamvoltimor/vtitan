@@ -31,12 +31,29 @@ type PathPlannability struct {
 // non-nil, applies UNIFORMLY with the WIDE side, ignoring the split --
 // Obstacles corridors are all 1.0m by rule, so there is no narrow case
 // for it to describe.
-func CenterBiasForCorridor(widthM float64, cfg Config, overrideM *float64) float64 {
+//
+// confirmed says whether this corridor's width has been MEASURED rather
+// than assumed. An UNCONFIRMED narrow corridor takes
+// cfg.UnconfirmedWidthInnerBiasM toward the inner block instead of
+// NarrowCenterBiasM, pre-positioning the line so confirming the width moves
+// it less -- see that field for the 0.30 m step this shrinks.
+//
+// overrideM takes precedence over confirmed: an explicitly-passed magnitude
+// was swept and measured as one number, and a belief-dependent substitution
+// underneath it would silently make it mean two.
+func CenterBiasForCorridor(
+	widthM float64,
+	cfg Config,
+	overrideM *float64,
+	confirmed bool,
+) float64 {
 	var magnitude float64
 	var side trackmodel.CorridorSide
 	switch {
 	case overrideM != nil:
 		magnitude, side = *overrideM, cfg.WideCenterBiasSide
+	case widthM <= cfg.NarrowWidthThresholdM && !confirmed:
+		magnitude, side = cfg.UnconfirmedWidthInnerBiasM, trackmodel.Inner
 	case widthM <= cfg.NarrowWidthThresholdM:
 		magnitude, side = cfg.NarrowCenterBiasM, cfg.NarrowCenterBiasSide
 	default:

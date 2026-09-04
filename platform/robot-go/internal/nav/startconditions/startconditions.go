@@ -99,7 +99,9 @@ func StartPose(
 	centerBiasM *float64,
 ) (x, y, yaw float64, ok bool) {
 	bias := func(widthM float64) float64 {
-		return waypoints.CenterBiasForCorridor(widthM, cfg.Waypoints, centerBiasM)
+		// Confirmed: start conditions are evaluated before the round begins,
+		// when there is no width belief to be provisional about yet.
+		return waypoints.CenterBiasForCorridor(widthM, cfg.Waypoints, centerBiasM, true)
 	}
 
 	trackCenter := cfg.TrackMaxCoordM / 2
