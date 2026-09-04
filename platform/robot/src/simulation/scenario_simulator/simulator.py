@@ -368,6 +368,7 @@ class ScenarioSimulator(PassSideScorer):
         # Rule 9.21: how far the chassis may drive against the round direction.
         self._opposite_origin: Section | None = None
         self._reverse_run_violation = False
+        self._opposite_origin_step: int | None = None
 
         # Where the signs are is drawn at random on the day and no scenario file
         # exists on the mat, so a blind run cannot be handed the sign layout any
@@ -991,7 +992,7 @@ class ScenarioSimulator(PassSideScorer):
             # direction past the section where it turned plus the neighbouring
             # one stops the round. Escapes and U-turns reverse routinely, so
             # without this the simulator grades an illegal round as clean.
-            if self._check_reverse_run_violation(gw.state):
+            if self._check_reverse_run_violation(gw.state, step):
                 reverse_run_violation = True
                 break
 
@@ -1060,6 +1061,8 @@ class ScenarioSimulator(PassSideScorer):
             stuck=stuck,
             pass_side_violation=pass_side_violation,
             reverse_run_violation=reverse_run_violation,
+            reverse_run_origin_step=self._opposite_origin_step,
+            reverse_run_origin_section=self._opposite_origin,
             pass_side_violation_signs=violation_signs or [],
         )
 

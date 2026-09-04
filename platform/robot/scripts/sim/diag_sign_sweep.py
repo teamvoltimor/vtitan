@@ -935,6 +935,17 @@ class ScenarioOutcome:
     corner_uturns: int = 0
     """How many of ``uturns`` happened in a corner zone rather than a straight."""
 
+    uturn_steps: tuple[int, ...] = ()
+    """Tick each U-turn completed on -- see ``_UTurnDetector.event_steps``."""
+
+    rev_run_origin_step: int | None = None
+    """Tick the rule 9.21 offence STARTED on (``SimResult.reverse_run_origin_step``).
+
+    The tick it ends on is ``steps``: the violation breaks the run loop."""
+
+    rev_run_origin_section: str | None = None
+    """Section the offence started in, for comparing against where a U-turn happened."""
+
     escape_starts: int = 0
     """How many times the escape machinery engaged during the run.
 
@@ -1151,10 +1162,25 @@ class _UTurnDetector:
         self._deltas: deque[float] = deque(maxlen=_UTURN_WINDOW_TICKS)
         self._prev_yaw: float | None = None
         self._cooldown = 0
+        self._step = -1
         self.events: list[tuple[float, float]] = []
+        self.event_steps: list[int] = []
+        """Tick each event in ``events`` completed on, parallel to it.
+
+        Recorded so a U-turn can be placed BEFORE or AFTER the rule 9.21
+        offence it is suspected of causing. Counting both per run only ever
+        shows co-occurrence.
+
+        Note this is the tick the reversal COMPLETED on, not the one it began:
+        the detector needs a full window of heading deltas to sum past the
+        threshold, so a genuine reversal is recognised up to
+        ``_UTURN_WINDOW_TICKS`` after it started. Any lag measured against it
+        is therefore an UNDER-estimate of the true lead.
+        """
 
     def update(self, x: float, y: float, yaw: float) -> None:
         """Fold one tick's pose in, recording an event if a reversal completed."""
+        self._step += 1
         if self._prev_yaw is not None:
             self._deltas.append(wrap_angle(yaw - self._prev_yaw))
         self._prev_yaw = yaw
@@ -1166,6 +1192,7 @@ class _UTurnDetector:
         # turn in ONE direction accumulates past the threshold.
         if abs(sum(self._deltas)) > _UTURN_THRESHOLD_RAD:
             self.events.append((x, y))
+            self.event_steps.append(self._step)
             self._deltas.clear()
             self._cooldown = _UTURN_DEBOUNCE_TICKS
 
@@ -1866,6 +1893,11 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         stuck=result.stuck,
         uturns=len(uturns.events),
         corner_uturns=uturns.corner_events,
+        uturn_steps=tuple(uturns.event_steps),
+        rev_run_origin_step=result.reverse_run_origin_step,
+        rev_run_origin_section=(
+            None if result.reverse_run_origin_section is None else result.reverse_run_origin_section.value
+        ),
         escape_starts=escapes.starts,
         escape_ticks=escapes.ticks_engaged,
         total_ticks=escapes.step,
@@ -2225,6 +2257,11 @@ class SweepResult:
             # forward driving after a heading inversion. Only a per-run overlap
             # separates them, and the aggregate row cannot express one.
             f"rev_run={o.reverse_run_violation} uturns={o.uturns} "
+            # Tick-level, so the two can be ORDERED rather than merely counted:
+            # `rev_from` is the tick the illegal run began (it ends on `steps`)
+            # and `uturn_at` lists the tick each reversal completed on.
+            f"rev_from={o.rev_run_origin_step}@{o.rev_run_origin_section} "
+            f"uturn_at={list(o.uturn_steps) or ''} "
             f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
             f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)} "
             f"color_match={o.sign_color_match} "
@@ -2496,6 +2533,79 @@ def _bearing_bin(degrees: float) -> int:
     return len(_BEARING_BIN_EDGES_DEG) - 2
 
 
+_UTURN_LEAD_WINDOW_TICKS = _UTURN_WINDOW_TICKS + _UTURN_DEBOUNCE_TICKS
+"""How long before the offence a U-turn may complete and still be its cause.
+
+The detector needs a full ``_UTURN_WINDOW_TICKS`` of heading deltas to sum past
+threshold and then holds ``_UTURN_DEBOUNCE_TICKS`` of cooldown, so the tick it
+REPORTS trails the tick the reversal physically began by up to their sum. A
+window narrower than that would reject genuine causes on detector lag alone.
+"""
+
+
+def rev_run_pairing(outcomes: list[ScenarioOutcome]) -> str:
+    """Order rule 9.21 offences against U-turns, instead of only counting both.
+
+    The per-run overlap (7 of 9 violations carry a U-turn, against a 3.9% base
+    rate) establishes ASSOCIATION only. Causation needs the U-turn to come
+    FIRST: a reversal that completes after the illegal run has already started
+    is a consequence of being stuck, not its cause, and would be tuned against
+    in exactly the wrong direction.
+
+    Buckets each violation by the lead of its nearest preceding U-turn, where
+    "preceding" is measured against ``rev_run_origin_step`` -- the tick the
+    offence STARTED -- not against the tick it was detected on.
+    """
+    violations = [o for o in outcomes if o.reverse_run_violation]
+    if not violations:
+        return "rev-run pairing: no violations to pair"
+
+    before: list[int] = []
+    during = 0
+    distant: list[int] = []
+    none = 0
+    no_origin = 0
+    for o in violations:
+        if o.rev_run_origin_step is None:
+            # Latched on an episode already cleared -- nothing to order against.
+            no_origin += 1
+            continue
+        if not o.uturn_steps:
+            none += 1
+            continue
+        leads = [o.rev_run_origin_step - t for t in o.uturn_steps]
+        prior = [lead for lead in leads if lead >= 0]
+        nearest = min(prior) if prior else None
+        if nearest is not None and nearest <= _UTURN_LEAD_WINDOW_TICKS:
+            before.append(nearest)
+        elif any(lead < 0 for lead in leads):
+            during += 1
+        else:
+            # A U-turn exists but happened elsewhere in the run. Counting this
+            # as "no U-turn" would hide the whole finding: it is the bucket that
+            # separates a proximate cause from two symptoms of one sick run.
+            assert nearest is not None
+            distant.append(nearest)
+
+    n = len(violations)
+
+    def _spread(vals: list[int]) -> str:
+        if not vals:
+            return "-"
+        o = sorted(vals)
+        return f"median {o[len(o) // 2]}, range {o[0]}-{o[-1]}"
+
+    return (
+        f"rev-run pairing over {n} violations: "
+        f"U-turn ADJACENT (<={_UTURN_LEAD_WINDOW_TICKS} ticks before onset) "
+        f"{len(before)}/{n} ({_spread(before)}); "
+        f"U-turn only AFTER onset {during}/{n}; "
+        f"U-turn ELSEWHERE in the run {len(distant)}/{n} ({_spread(distant)}); "
+        f"no U-turn at all {none}/{n}; "
+        f"no recorded origin {no_origin}/{n}"
+    )
+
+
 def run_sweep(configs: list[SweepConfig], workers: int, verbose: bool = False) -> list[SweepResult]:
     """Run every config over every fixture, fixtures fanned out across processes."""
     scenario_count = len(_scenarios(configs[0])) if configs else 0
@@ -2507,6 +2617,7 @@ def run_sweep(configs: list[SweepConfig], workers: int, verbose: bool = False) -
             if verbose:
                 print(result.detail(), flush=True)
             print(result.row(), flush=True)
+            print(rev_run_pairing(outcomes), flush=True)
             population = result.clamp_population_report()
             if population:
                 print(population, flush=True)
