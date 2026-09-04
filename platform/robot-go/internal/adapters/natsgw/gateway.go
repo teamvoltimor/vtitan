@@ -10,10 +10,14 @@
 //   - PublishDrive -> vtitan.actuation.v1.ackermann_cmd (the motor node's
 //     input, consumed by loop.go's *natsx.Subscriber[*actuationv1.AckermannCmd]).
 //   - GetLidarScan -> vtitan.sensor.v1.scan (the lidar node's output).
+//   - GetWheelOdometry -> vtitan.actuation.v1.joint_states (the motor
+//     node's encoder feedback, internal/node/motor.Feedback), decoded the
+//     same way ros2_hardware_gateway.py decodes /joint_states.
 //   - GetCurrentPose -> computed IN-PROCESS from the same scan + IMU caches,
-//     via localization.LidarLocalizer. There is no pose/odometry NATS subject
-//     in this tree (no localizer node, no wheel odometry -- see
-//     localization/doc.go), so pose is estimated here rather than subscribed.
+//     via localization.LidarLocalizer. There is no POSE NATS subject in this
+//     tree (no localizer node -- see localization/doc.go), so pose is
+//     estimated here rather than subscribed. Wheel odometry is a measurement
+//     and is subscribed; pose is an inference and is computed.
 //
 // The pull-cache shape (subscribe once, store latest under a sync.RWMutex,
 // serve each Get* from the cache) is copied verbatim from
@@ -26,6 +30,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"slices"
 	"sync"
 
 	"github.com/nats-io/nats.go"
@@ -52,6 +57,10 @@ import (
 // proto doc's "pull it from the profile, do not invent a bound" instruction
 // by centralizing the value rather than scattering a literal.
 const maxSteeringWheelAngleRad = 55.0 * math.Pi / 180.0
+
+// nanosecondsPerSecond scales a protobuf Timestamp's nanos field into the
+// fractional seconds controllers.WheelOdometry.StampS carries.
+const nanosecondsPerSecond = 1e-9
 
 // Gateway is a NATS-backed controllers.HardwareGateway. See the package doc
 // for the transport/source decisions.
@@ -83,15 +92,30 @@ type Gateway struct {
 	// walls is the localizer's current seed geometry; swapped under g.mu when
 	// pendingWalls is drained.
 	walls *trackmodel.TrackWalls
+
+	// wheel is the latest odometry decoded from joint_states; haveWheel
+	// stays false until the first message with a drive joint arrives.
+	wheel     controllers.WheelOdometry
+	haveWheel bool
+
+	// wheelRadiusM scales the drive joint's ANGLE into linear travel. It is
+	// a construction-time fact rather than something read per message: the
+	// publisher sends SI radians precisely so the consumer applies the
+	// radius it believes in, matching ros2_hardware_gateway.py's use of
+	// RobotSpecs.WHEEL_RADIUS.
+	wheelRadiusM float64
 }
 
 // New builds a Gateway over an already-connected conn and the track walls the
 // localizer seeds from. locCfg tunes the in-process localizer; the zero value
-// is NOT usable -- pass localization.DefaultConfig().
+// is NOT usable -- pass localization.DefaultConfig(). wheelRadiusM is
+// robot.toml's [wheel] radius, used to turn the drive joint's angle into
+// linear travel; it must be positive.
 func New(
 	conn *nats.Conn,
 	initialWalls *trackmodel.TrackWalls,
 	locCfg localization.Config,
+	wheelRadiusM float64,
 ) (*Gateway, error) {
 	if conn == nil {
 		return nil, errors.New("natsgw: nil NATS connection")
@@ -99,14 +123,18 @@ func New(
 	if initialWalls == nil {
 		return nil, errors.New("natsgw: initial walls are required to seed the localizer")
 	}
+	if wheelRadiusM <= 0 {
+		return nil, errors.New("natsgw: wheel radius must be positive")
+	}
 	return &Gateway{
 		conn: conn,
 		drivePub: natsx.NewPublisher[*actuationv1.AckermannCmd](
 			conn,
 			actuationv1.AckermannCmdSubject,
 		),
-		locCfg: locCfg,
-		walls:  initialWalls,
+		locCfg:       locCfg,
+		walls:        initialWalls,
+		wheelRadiusM: wheelRadiusM,
 	}, nil
 }
 
@@ -173,13 +201,19 @@ func (g *Gateway) LatestScan() *sensorv1.Scan {
 	return g.scan
 }
 
-// GetWheelOdometry always reports ok=false in this adapter: the robot has no
-// wheel odometry -- nothing publishes nav_msgs/Odometry, and the navigator
-// has zero callers for it today (see localization/doc.go and the port's own
-// "a normal state, not an error" note). No sensor, producer, or consumer
-// exists, so there is nothing to build.
+// GetWheelOdometry returns the latest wheel travel decoded from
+// vtitan.actuation.v1.joint_states, ok=false until the first message
+// arrives (or forever, if Run was given no joint-states subscriber -- a
+// deployment with no encoder wired). This is the direct analogue of
+// ros2_hardware_gateway.py's /joint_states subscription, and its absence is
+// what kept internal/nav/bayexit sim-only.
+//
+// ok=false is a normal state, not an error: the navigator holds (commands
+// zero drive) rather than guessing at travel it cannot measure.
 func (g *Gateway) GetWheelOdometry() (controllers.WheelOdometry, bool) {
-	return controllers.WheelOdometry{}, false
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.wheel, g.haveWheel
 }
 
 // SetBelievedWalls re-points the in-process localizer at the layout the robot
@@ -266,28 +300,92 @@ func imuYawRad(imu *sensorv1.Imu) (float64, bool) {
 //
 // Call Run (typically in its own goroutine) before the navigator starts
 // calling Get*. It returns nil on ctx cancellation.
+//
+// jointSub may be nil, for a deployment with no encoder publishing
+// joint_states: GetWheelOdometry then keeps reporting ok=false, which the
+// navigator already treats as a normal state.
 func (g *Gateway) Run(
 	ctx context.Context,
 	scanSub *natsx.Subscriber[*sensorv1.Scan],
 	imuSub *natsx.Subscriber[*sensorv1.Imu],
+	jointSub *natsx.Subscriber[*actuationv1.JointStates],
 ) error {
-	scanErr := make(chan error, 1)
-	imuErr := make(chan error, 1)
-	go func() { scanErr <- g.scanLoop(ctx, scanSub) }()
-	go func() { imuErr <- g.imuLoop(ctx, imuSub) }()
-
-	select {
-	case err := <-scanErr:
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return nil
-		}
-		return err
-	case err := <-imuErr:
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return nil
-		}
-		return err
+	// Buffered so a loop that returns after another has already won the
+	// select below doesn't block forever on an unread send.
+	loopErr := make(chan error, 3)
+	go func() { loopErr <- g.scanLoop(ctx, scanSub) }()
+	go func() { loopErr <- g.imuLoop(ctx, imuSub) }()
+	if jointSub != nil {
+		go func() { loopErr <- g.jointLoop(ctx, jointSub) }()
 	}
+
+	err := <-loopErr
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil
+	}
+	return err
+}
+
+// jointLoop stores the wheel odometry decoded from each JointStates.
+func (g *Gateway) jointLoop(
+	ctx context.Context,
+	sub *natsx.Subscriber[*actuationv1.JointStates],
+) error {
+	for {
+		joints, err := sub.Read(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil
+			}
+			return err //nolint:wrapcheck // Read already wraps with "nats: ..." context
+		}
+		odometry, ok := wheelOdometryFrom(joints, g.wheelRadiusM)
+		if !ok {
+			continue
+		}
+		g.mu.Lock()
+		g.wheel = odometry
+		g.haveWheel = true
+		g.mu.Unlock()
+	}
+}
+
+// wheelOdometryFrom converts the drive joint's accumulating angle and rate
+// into linear travel and speed, ok=false when the message carries no drive
+// joint or no position for it.
+//
+// Indexed by joint NAME rather than array position, matching
+// ros2_hardware_gateway.py's _joint_state_callback: JointStates carries an
+// arbitrary set of joints in an arbitrary order, and assuming index 0 is the
+// drive wheel would break silently the moment another joint is added.
+//
+// A missing velocity entry yields a zero speed rather than dropping the
+// sample: position is what bayexit and the parking clamp actually
+// difference, and refusing the whole message over an absent rate would
+// withhold the travel they need.
+func wheelOdometryFrom(
+	joints *actuationv1.JointStates,
+	wheelRadiusM float64,
+) (controllers.WheelOdometry, bool) {
+	index := slices.Index(joints.GetName(), actuationv1.DriveJoint)
+	if index < 0 || index >= len(joints.GetPosition()) {
+		return controllers.WheelOdometry{}, false
+	}
+
+	speedMPS := 0.0
+	if index < len(joints.GetVelocity()) {
+		speedMPS = joints.GetVelocity()[index] * wheelRadiusM
+	}
+	stamp := joints.GetStamp()
+	return controllers.WheelOdometry{
+		DistanceM: joints.GetPosition()[index] * wheelRadiusM,
+		SpeedMPS:  speedMPS,
+		// Seconds since the epoch, the same sec + nanosec*1e-9 the Python
+		// callback assembles. Only differences between successive stamps are
+		// meaningful to the consumer, so the epoch itself does not matter --
+		// only that every sample shares one.
+		StampS: float64(stamp.GetSeconds()) + float64(stamp.GetNanos())*nanosecondsPerSecond,
+	}, true
 }
 
 // scanLoop stores each Scan and, when a yaw is available, scores the localizer

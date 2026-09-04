@@ -25,12 +25,24 @@
 // travelledM) IS wired in now, in internal/nav/navigator's blindCreep.
 //
 // The wheel-odometry accessor (controllers.HardwareGateway.GetWheelOdometry)
-// already existed on the port; it only lacked a real producer.
-// internal/sim/harness's SimHardwareGateway now accumulates a genuine
-// signed distance (matching the Python oracle's heading-projected
-// _wheel_distance_m update) instead of reporting zero. Real hardware
-// (internal/adapters/natsgw) still has no encoder topic to read, so
-// GetWheelOdometry there continues to report ok=false -- the navigator
-// holds (publishes zero drive) rather than run the exit blind, exactly as
-// the Python node does when its gateway returns None.
+// has a real producer on both sides now. internal/sim/harness's
+// SimHardwareGateway accumulates a genuine signed distance (matching the
+// Python oracle's heading-projected _wheel_distance_m update). Real
+// hardware (internal/adapters/natsgw) decodes it from
+// vtitan.actuation.v1.joint_states, published by internal/node/motor's
+// encoder feedback loop over internal/driver/encoder -- the Go equivalent
+// of ackermann_motor_node.py publishing /joint_states and
+// ros2_hardware_gateway.py consuming it.
+//
+// When no encoder is wired (or no motor profile is active, so
+// counts_per_rev is unknown) GetWheelOdometry still reports ok=false, and
+// the navigator holds (publishes zero drive) rather than run the exit
+// blind, exactly as the Python node does when its gateway returns None.
+//
+// CAUTION: encoder.Decoder counts every quadrature edge, while
+// counts_per_rev was bench-calibrated against gpiozero's RotaryEncoder. If
+// the two conventions differ, travelledM is off by that exact ratio and
+// every exit leg is correspondingly short or long. Re-run
+// scripts/hardware/calibrate_encoder.py against the Go driver before
+// trusting a hardware bay exit.
 package bayexit

@@ -11,6 +11,10 @@
 // watchdog (see ackermann_cmd.proto's docstring: NATS has no DDS DEADLINE
 // QoS equivalent, so the motor node must detect a stale command itself and
 // stop the drive rather than keep applying the last one it heard).
+//
+// When a wheel encoder is configured (see internal/driver/encoder) it also
+// publishes JointStates on `vtitan.actuation.v1.joint_states`, the wheel
+// odometry natsgw.Gateway feeds to bay exit.
 package main
 
 import (
@@ -22,10 +26,12 @@ import (
 	"syscall"
 	"time"
 
+	natsconn "github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/encoder"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
+	nodemotor "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
 )
@@ -70,7 +76,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		"motor-node",
 		"NATS client name, visible in nats-server's connz output",
 	)
-	flags.DurationVar(&cfg.commandTimeout, "command-timeout", motor.DefaultCommandTimeout,
+	flags.DurationVar(&cfg.commandTimeout, "command-timeout", nodemotor.DefaultCommandTimeout,
 		"safety-stop the drive if no AckermannCmd arrives within this duration")
 	flags.BoolVar(
 		&cfg.invert, "invert", false,
@@ -78,7 +84,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	)
 	flags.StringVar(&cfg.configRoot, "config-root", "",
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
-			"empty uses motor.DefaultSpeedScalePercentPerMPS")
+			"empty uses nodemotor.DefaultSpeedScalePercentPerMPS")
 
 	return cmd
 }
@@ -136,11 +142,72 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		"command_timeout",
 		cfg.commandTimeout,
 	)
-	loop := motor.NewLoop(logger, drv, pub, motor.SpeedScaleFor(logger, cfg.configRoot))
+
+	stopFeedback, err := startEncoderFeedback(ctx, logger, conn, cfg.configRoot)
+	if err != nil {
+		return err
+	}
+	defer stopFeedback()
+
+	loop := nodemotor.NewLoop(logger, drv, pub, nodemotor.SpeedScaleFor(logger, cfg.configRoot))
 	if err = loop.Run(ctx, sub, cfg.commandTimeout); err != nil {
 		return fmt.Errorf("motor-node: %w", err)
 	}
 	return nil
+}
+
+// startEncoderFeedback connects the wheel encoder and starts publishing
+// JointStates, returning the teardown to defer.
+//
+// A missing or unloadable encoder config is NOT fatal: motor-node is a
+// bench binary routinely run with no --config-root and no motor profile
+// active, and refusing to drive the motor because odometry is unavailable
+// would break the bench workflow this binary exists for. It logs why and
+// runs without odometry, which is exactly the state natsgw.Gateway's
+// ok=false already models. A configured encoder that then fails to CONNECT
+// is fatal, since that is a wiring fault the operator asked us to use.
+func startEncoderFeedback(
+	ctx context.Context,
+	logger *slog.Logger,
+	conn *natsconn.Conn,
+	configRoot string,
+) (func(), error) {
+	encCfg, err := encoder.ConfigFor(configRoot)
+	if err != nil {
+		logger.Warn("motor-node: no wheel encoder configured, not publishing joint_states",
+			"error", err)
+		return func() {}, nil
+	}
+
+	enc, err := encoder.New(encCfg)
+	if err != nil {
+		return nil, fmt.Errorf("motor-node: %w", err)
+	}
+	if err = enc.Connect(ctx); err != nil {
+		return nil, fmt.Errorf("motor-node: %w", err)
+	}
+
+	jointPub := nats.NewPublisher[*actuationv1.JointStates](conn, actuationv1.JointStatesSubject)
+	feedback := nodemotor.NewFeedback(logger, enc, jointPub, nodemotor.DefaultFeedbackInterval)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if runErr := feedback.Run(ctx); runErr != nil {
+			logger.Error("motor-node: encoder feedback loop", "error", runErr)
+		}
+	}()
+	logger.Info("motor-node: publishing wheel odometry",
+		"subject", actuationv1.JointStatesSubject,
+		"pin_a", encCfg.PinA, "pin_b", encCfg.PinB,
+		"counts_per_rev", encCfg.CountsPerRev)
+
+	return func() {
+		<-done
+		if closeErr := enc.Close(); closeErr != nil {
+			logger.Error("motor-node: closing wheel encoder", "error", closeErr)
+		}
+	}, nil
 }
 
 func main() {

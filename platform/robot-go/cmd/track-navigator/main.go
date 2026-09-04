@@ -7,7 +7,9 @@
 // It wires the NATS-backed controllers.HardwareGateway (internal/adapters/natsgw)
 // to the navigator composition root (internal/nav/navigator) and drives Step at
 // the nav control rate. The gateway subscribes to vtitan.sensor.v1.scan and
-// vtitan.sensor.v1.imu (published by cmd/lidar-node and the IMU node), estimates
+// vtitan.sensor.v1.imu (published by cmd/lidar-node and the IMU node) plus
+// vtitan.actuation.v1.joint_states (the motor node's encoder feedback, which
+// supplies the wheel odometry bay exit bounds its legs by), estimates
 // pose in-process via localization.LidarLocalizer, and publishes drive commands
 // on vtitan.actuation.v1.ackermann_cmd (consumed by the motor node) — no new
 // NATS subjects are introduced here.
@@ -34,6 +36,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
+	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
@@ -44,6 +47,17 @@ import (
 // well-conditioned layout for isolated bench runs that do not load a real
 // scenario's geometry.
 const benchTrackCoord = 4.0
+
+// defaultWheelRadiusM/defaultChassisWidthM are the fallbacks used when
+// robot.toml cannot be loaded (a bench run outside the repo, or with no
+// hardware profile active). They restate platform/shared/config/robot.toml's
+// shipped values so a fallback run behaves like the real robot rather than
+// like a zero-sized one; the warning names them so a wrong number is visible
+// in the log rather than silently believed.
+const (
+	defaultWheelRadiusM  = 0.035
+	defaultChassisWidthM = 0.194
+)
 
 // cliConfig holds every flag track-navigator accepts.
 type cliConfig struct {
@@ -141,7 +155,38 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	gw, err := natsgw.New(conn, benchWalls(), localization.DefaultConfig())
+	jointSub, err := nats.NewSubscriber(
+		conn,
+		actuationv1.JointStatesSubject,
+		func() *actuationv1.JointStates { return &actuationv1.JointStates{} },
+	)
+	if err != nil {
+		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+	}
+	defer func() {
+		if closeErr := jointSub.Close(); closeErr != nil {
+			logger.Error("track-navigator: closing JointStates subscription", "error", closeErr)
+		}
+	}()
+
+	// robot.toml supplies both the wheel radius the gateway scales joint
+	// angles by and the chassis width the planner sizes its corridor with.
+	// Loaded once, before either consumer, so the two cannot disagree about
+	// which robot they are describing.
+	robotCfg, robotCfgErr := profile.LoadRobotConfig(profile.DefaultRobotTOMLPath, nil)
+	wheelRadiusM := defaultWheelRadiusM
+	chassisWidthM := defaultChassisWidthM
+	if robotCfgErr == nil {
+		wheelRadiusM = robotCfg.Wheel.Radius
+		chassisWidthM = robotCfg.Chassis.Width
+	} else {
+		logger.Warn("track-navigator: loading robot.toml, using defaults",
+			"error", robotCfgErr,
+			"wheel_radius_m", wheelRadiusM,
+			"chassis_width_m", chassisWidthM)
+	}
+
+	gw, err := natsgw.New(conn, benchWalls(), localization.DefaultConfig(), wheelRadiusM)
 	if err != nil {
 		return err //nolint:wrapcheck
 	}
@@ -163,13 +208,6 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		trackmodel.East:  2.0,
 		trackmodel.West:  2.0,
 	}, benchTrackCoord)
-	cwCfg, cwErr := profile.LoadRobotConfig(profile.DefaultRobotTOMLPath, nil)
-	chassisWidthM := 0.30
-	if cwErr == nil {
-		chassisWidthM = cwCfg.Chassis.Width
-	} else {
-		logger.Warn("track-navigator: loading robot.toml for chassis width, using default", "error", cwErr)
-	}
 	startSection := trackmodel.South
 	waypoints, planErr := waypoints.CalculateWaypoints(waypoints.PlannerInput{
 		Geometry:      benchGeom,
@@ -214,7 +252,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 
 	group, gctx := errgroup.WithContext(ctx)
-	group.Go(func() error { return gw.Run(gctx, scanSub, imuSub) })
+	group.Go(func() error { return gw.Run(gctx, scanSub, imuSub, jointSub) })
 	group.Go(func() error { return stepLoop(gctx, logger, nav, gw, rec, cfg.rateHz) })
 
 	if err = group.Wait(); err != nil {

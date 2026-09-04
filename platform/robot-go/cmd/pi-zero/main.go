@@ -24,9 +24,10 @@ import (
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/encoder"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
 	nodebutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/button"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
+	nodemotor "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/supervise"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
@@ -112,14 +113,14 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags.DurationVar(
 		&cfg.motorCommandTimeout,
 		"motor-command-timeout",
-		motor.DefaultCommandTimeout,
+		nodemotor.DefaultCommandTimeout,
 		"safety-stop the drive if no AckermannCmd arrives within this duration",
 	)
 	flags.BoolVar(&cfg.motorInvert, "motor-invert", false,
 		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed")
 	flags.StringVar(&cfg.configRoot, "config-root", "",
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
-			"empty uses motor.DefaultSpeedScalePercentPerMPS")
+			"empty uses nodemotor.DefaultSpeedScalePercentPerMPS")
 
 	flags.IntVar(&cfg.buttonLine, "button-line", defaultButtonLine, "button GPIO line offset")
 	flags.BoolVar(&cfg.buttonPullUp, "button-pull-up", defaultButtonPullUp,
@@ -327,25 +328,64 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		return err //nolint:wrapcheck // New already wraps with "supervise: ..." context
 	}
 
-	mLoop := motor.NewLoop(
+	mLoop := nodemotor.NewLoop(
 		logger,
 		motorDrv,
 		motorStatusPub,
-		motor.SpeedScaleFor(logger, cfg.configRoot),
+		nodemotor.SpeedScaleFor(logger, cfg.configRoot),
 	)
 
+	// The encoder is optional: a Zero with no encoder wired (or no motor
+	// profile active, so counts_per_rev is unknown) still drives, it just
+	// publishes no odometry -- the ok=false state natsgw.Gateway models.
+	// Fabricating a counts_per_rev to keep the loop alive would produce
+	// confident, wrong distances instead.
+	var feedbackTargets []supervise.Target
+	encCfg, encCfgErr := encoder.ConfigFor(cfg.configRoot)
+	switch {
+	case encCfgErr != nil:
+		logger.Warn("pi-zero: no wheel encoder configured, not publishing joint_states",
+			"error", encCfgErr)
+	default:
+		enc, encErr := encoder.New(encCfg)
+		if encErr != nil {
+			return fmt.Errorf("pi-zero: %w", encErr)
+		}
+		if encErr = enc.Connect(ctx); encErr != nil {
+			return fmt.Errorf("pi-zero: %w", encErr)
+		}
+		defer closeLogged(logger, "wheel encoder", enc.Close)
+
+		feedback := nodemotor.NewFeedback(
+			logger,
+			enc,
+			nats.NewPublisher[*actuationv1.JointStates](conn, actuationv1.JointStatesSubject),
+			nodemotor.DefaultFeedbackInterval,
+		)
+		feedbackTargets = append(feedbackTargets, supervise.Target{
+			Name: "wheel-odometry",
+			Fn:   feedback.Run,
+		})
+		logger.Info("pi-zero: publishing wheel odometry",
+			"subject", actuationv1.JointStatesSubject,
+			"pin_a", encCfg.PinA, "pin_b", encCfg.PinB,
+			"counts_per_rev", encCfg.CountsPerRev)
+	}
+
 	logger.Info("pi-zero: connected", "nats_url", cfg.natsURL)
-	if err = supervisor.RunAll(ctx,
-		supervise.Target{Name: "motor", Fn: func(ctx context.Context) error {
+	targets := []supervise.Target{
+		{Name: "motor", Fn: func(ctx context.Context) error {
 			return mLoop.Run(ctx, ackermannSub, cfg.motorCommandTimeout)
 		}},
-		supervise.Target{Name: "button", Fn: func(ctx context.Context) error {
+		{Name: "button", Fn: func(ctx context.Context) error {
 			return buttonLoop(ctx, logger, buttonDrv, buttonEventPub)
 		}},
-		supervise.Target{Name: "oled", Fn: func(ctx context.Context) error {
+		{Name: "oled", Fn: func(ctx context.Context) error {
 			return oledLoop(ctx, logger, oledCfg, oledDrv, summarySub)
 		}},
-	); err != nil {
+	}
+	targets = append(targets, feedbackTargets...)
+	if err = supervisor.RunAll(ctx, targets...); err != nil {
 		return fmt.Errorf("pi-zero: %w", err)
 	}
 	return nil
