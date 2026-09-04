@@ -61,16 +61,17 @@ type NativeRunner struct {
 	// runs hundreds of scenarios, and re-reading the same TOML tree for each
 	// would be both wasteful and a source of per-scenario divergence if a
 	// file changed mid-sweep.
-	navCfg    navigator.Config
-	ctrlCfg   controllers.Config
-	wpCfg     waypoints.Config
-	srCfg     signrouter.Config
-	startCfg  startconditions.Config
-	kinParams kinematics.Params
-	collCfg   collision.Config
-	seed      uint64
-	maxSteps  int
-	blind     bool
+	navCfg     navigator.Config
+	ctrlCfg    controllers.Config
+	wpCfg      waypoints.Config
+	srCfg      signrouter.Config
+	startCfg   startconditions.Config
+	kinParams  kinematics.Params
+	collCfg    collision.Config
+	recordRoot string
+	seed       uint64
+	maxSteps   int
+	blind      bool
 }
 
 // NativeRunnerConfig configures a NativeRunner.
@@ -103,6 +104,11 @@ type NativeRunnerConfig struct {
 	// Python baseline must set both.
 	ConfigRoot       string
 	HardwareProfiles []string
+	// RecordRoot, when non-empty, writes each scenario's run to an MCAP bag
+	// under <RecordRoot>/<scenario ID>/. Off by default: a 640-case sweep
+	// records 640 bags, which is worth it when debugging a specific failure
+	// and pure overhead when scoring.
+	RecordRoot string
 	// SensorErrors perturbs what the robot knows about ITSELF -- its start
 	// pose and its heading -- on top of whatever Blind withholds about the
 	// track. Zero (a perfect robot) is what every corpus number here was
@@ -146,17 +152,18 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	logger := discardingLogger()
 
 	return &NativeRunner{
-		cfg:       hc,
-		navCfg:    navigator.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
-		ctrlCfg:   controllers.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
-		wpCfg:     waypoints.ConfigFor(logger, cfg.ConfigRoot),
-		srCfg:     signrouter.ConfigFor(logger, cfg.ConfigRoot),
-		startCfg:  startconditions.ConfigFor(logger, cfg.ConfigRoot),
-		kinParams: kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
-		collCfg:   collision.ConfigFor(logger, cfg.ConfigRoot),
-		seed:      cfg.Seed,
-		maxSteps:  maxSteps,
-		blind:     cfg.Blind,
+		cfg:        hc,
+		recordRoot: cfg.RecordRoot,
+		navCfg:     navigator.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		ctrlCfg:    controllers.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		wpCfg:      waypoints.ConfigFor(logger, cfg.ConfigRoot),
+		srCfg:      signrouter.ConfigFor(logger, cfg.ConfigRoot),
+		startCfg:   startconditions.ConfigFor(logger, cfg.ConfigRoot),
+		kinParams:  kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		collCfg:    collision.ConfigFor(logger, cfg.ConfigRoot),
+		seed:       cfg.Seed,
+		maxSteps:   maxSteps,
+		blind:      cfg.Blind,
 	}
 }
 
@@ -263,7 +270,17 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		return Result{}, fmt.Errorf("native runner: building navigator %s: %w", sc.ID, err)
 	}
 
-	return r.loop(sc, gw, nav, track, targetLaps, startPose, layout)
+	rec, err := newSimRecorder(r.recordRoot, sc.ID)
+	if err != nil {
+		return Result{}, fmt.Errorf("native runner: %s: %w", sc.ID, err)
+	}
+	defer func() {
+		if closeErr := rec.close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
+	return r.loop(sc, gw, nav, track, targetLaps, startPose, layout, rec)
 }
 
 // simVisionGateway implements navigator.VisionGateway by emulating sign
@@ -411,6 +428,7 @@ func (r *NativeRunner) loop(
 	targetLaps int,
 	startPose scenarioStart,
 	layout *widthbelief.Layout,
+	rec *simRecorder,
 ) (Result, error) {
 	dt := r.cfg.ControlDt()
 
@@ -437,6 +455,11 @@ func (r *NativeRunner) loop(
 		// applies it is usually one with no new reading at all. A nil layout
 		// (sighted) is a no-op.
 		layout.Update(nav, gw, nav.Direction())
+		if scan, ok := gw.GetLidarScan(); ok || rec != nil {
+			if err := rec.tick(scan, ok, nav, dt); err != nil {
+				return Result{}, err
+			}
+		}
 		gw.Advance(dt)
 		steps++
 

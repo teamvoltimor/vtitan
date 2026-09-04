@@ -22,6 +22,15 @@ const (
 	PhotosDir = "photos_pulled"
 )
 
+// SimRunsDir holds bags recorded by the SIMULATOR rather than pulled off the
+// robot. Separate from RunsDir on purpose: a sim sweep can emit hundreds of
+// bags in seconds, and mixing them into the pulled-hardware tree would bury
+// the handful of real track runs that tree exists to hold -- and those are
+// expensive to re-record. The bags themselves are the same format, so a sim
+// bag opens in Foxglove Studio and replays through test/bagreplay exactly
+// like a hardware one.
+const SimRunsDir = "runs_sim"
+
 // dataDirName is the repo-root directory that holds every pulled artifact.
 const dataDirName = "data"
 
@@ -55,6 +64,15 @@ func RunsRoot() (string, error) {
 		return "", err
 	}
 	return filepath.Join(root, RunsDir), nil
+}
+
+// SimRunsRoot is RunRoot joined with SimRunsDir.
+func SimRunsRoot() (string, error) {
+	root, err := RunRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, SimRunsDir), nil
 }
 
 // statDir reports whether path exists and is a directory.

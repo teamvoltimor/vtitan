@@ -49,6 +49,7 @@ type cliConfig struct {
 	openDir      string
 	configRoot   string
 	hwProfiles   string
+	recordDir    string
 	yawBiasDeg   float64
 	imuDriftDPM  float64
 	gyroScaleErr float64
@@ -57,6 +58,7 @@ type cliConfig struct {
 	concurrency  int
 	timeout      time.Duration
 	jsonOutput   bool
+	record       bool
 	runner       string
 	blind        bool
 }
@@ -182,6 +184,20 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		"--runner native only: comma-separated hardware profiles to overlay on --config-root, "+
 			"one per component (e.g. 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm)",
 	)
+	flags.BoolVar(
+		&cfg.record,
+		"record",
+		false,
+		"--runner native only: write each scenario's run to an MCAP bag under "+
+			"<repo-root>/data/runs_sim/sweep_<stamp>/<scenario>/, openable in Foxglove Studio",
+	)
+	flags.StringVar(
+		&cfg.recordDir,
+		"record-dir",
+		"",
+		"--record only: write the bags here instead of under data/runs_sim",
+	)
+
 	// Sensor errors: what the robot is wrong about regarding ITSELF, as
 	// opposed to what --blind withholds about the track. All default to
 	// zero (a perfect robot), which is the condition every corpus number
@@ -360,7 +376,17 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 	var runner scenario.Runner
 	switch cfg.runner {
 	case "native":
+		recordRoot := ""
+		if cfg.record {
+			root, rootErr := scenario.SimRunsRootFor(cfg.recordDir, time.Now())
+			if rootErr != nil {
+				return rootErr
+			}
+			recordRoot = root
+			logger.Info("recording runs", "dir", recordRoot)
+		}
 		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{
+			RecordRoot:       recordRoot,
 			Blind:            cfg.blind,
 			ConfigRoot:       cfg.configRoot,
 			HardwareProfiles: splitCSV(cfg.hwProfiles),

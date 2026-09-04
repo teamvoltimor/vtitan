@@ -20,6 +20,7 @@ type RunRecorder struct {
 	mu            sync.Mutex
 	dir           string
 	stamp         string
+	stem          string
 	mcapW         *mcap.Writer
 	mcapF         *os.File
 	video         *VideoWriter
@@ -43,6 +44,14 @@ type RunOptions struct {
 	PhotoRequireDet bool
 	// Video toggles the debug video; some runs may record bag-only.
 	Video bool
+	// Name overrides the run directory name (and the bag's filename stem).
+	// Empty keeps the hardware convention, run_<stamp>.
+	//
+	// A simulator sweep needs this: it can start hundreds of runs inside one
+	// second, so a timestamp is not unique, and "which scenario is this" is
+	// the only question anyone asks of a sim bag. Naming the directory after
+	// the scenario answers it without opening the file.
+	Name string
 }
 
 // NewRun creates (but does not open) a recorder for a fresh run directory under
@@ -53,13 +62,22 @@ func NewRun(runsRoot string, opts RunOptions) (*RunRecorder, error) {
 		now = time.Now()
 	}
 	stamp := now.Format("20060102_150405")
-	dir := filepath.Join(runsRoot, "run_"+stamp)
+	// The hardware convention is a run_<stamp>/ directory holding
+	// run_<stamp>_0.mcap, and both the Python tooling and test/bagreplay
+	// discover bags by that name -- so a named run replaces the whole stem
+	// rather than just the directory, keeping dir and bag consistent.
+	stem := "run_" + stamp
+	if opts.Name != "" {
+		stem = opts.Name
+	}
+	dir := filepath.Join(runsRoot, stem)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("recording: creating run dir %s: %w", dir, err)
 	}
 	r := &RunRecorder{
 		dir:          dir,
 		stamp:        stamp,
+		stem:         stem,
 		channels:     make(map[string]uint16),
 		nextSchemaID: 1,
 	}
@@ -86,7 +104,7 @@ func (r *RunRecorder) Open() error {
 	if r.started {
 		return nil
 	}
-	bagPath := filepath.Join(r.dir, "run_"+r.stamp+"_0.mcap")
+	bagPath := filepath.Join(r.dir, r.stem+"_0.mcap")
 	f, err := os.Create(bagPath)
 	if err != nil {
 		return fmt.Errorf("recording: creating bag %s: %w", bagPath, err)

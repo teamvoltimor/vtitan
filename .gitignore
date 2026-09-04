@@ -169,6 +169,12 @@ data/videos_pulled/*
 !data/videos_pulled/.gitkeep
 data/photos_pulled/*
 !data/photos_pulled/.gitkeep
+# Simulator-recorded bags (sim-runner --record). Kept apart from
+# runs_pulled/ because a single 640-case sweep writes ~1.2 GB across 640
+# bags, and burying the handful of expensive real track runs under that is
+# how one gets deleted by accident.
+data/runs_sim/*
+!data/runs_sim/.gitkeep
 
 # Internal docs
 docs/internal/
