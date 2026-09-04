@@ -160,7 +160,9 @@ func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) bool {
 	}
 
 	if !n.parkingEngaged && n.shouldEngageParking(robotX, robotY) {
-		n.logger.Info("parking engaged", "corridor", n.currentCorridor)
+		// currentCorridor is set every tick before this branch is reachable
+		// (Step's very first assignment), so it is never nil here.
+		n.logger.Info("parking engaged", "corridor", *n.currentCorridor)
 		n.parkingEngaged = true
 	}
 	if !n.parkingEngaged {
