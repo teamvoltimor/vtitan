@@ -66,6 +66,12 @@ _CONTACT_GRACE_S = 8.0
 # Below this separation the bay and the parallel start coincide on the axis
 # perpendicular to the wall, leaving "out of the bay" without a direction.
 _DEGENERATE_AXIS_M = 1e-6
+# Clearance at or below which the chassis counts as TOUCHING a fin. Not zero:
+# once the fins are solid the chassis is stopped AT the surface rather than
+# through it, so the measured gap settles on a hair of floating-point positive.
+# A judge calls that contact and 9.24.7 ends the round for it, so scoring it as
+# clear would replace one false negative (ghosting through) with another.
+_TOUCH_EPSILON_M = 1e-4
 
 
 @dataclass(frozen=True, slots=True)
@@ -405,7 +411,7 @@ def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
     fins = [r.fin_m for r in live if r.fin_m is not None]
     if fins:
         fins.sort()
-        touched = sum(1 for f in fins if f <= 0.0)
+        touched = sum(1 for f in fins if f <= _TOUCH_EPSILON_M)
         print(
             f"  fin clearance during exit: min {fins[0]:.4f} / median {fins[len(fins) // 2]:.4f} m"
             f"  TOUCHED={touched}/{len(fins)}"

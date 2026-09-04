@@ -400,7 +400,16 @@ class ScenarioSimulator(PassSideScorer):
             # goes on counting laps. Nothing enforced this before because every
             # contact was terminal on the tick it happened, so a pass-through
             # could never be observed.
-            solid_surfaces=frozenset(ContactSurface) - {ContactSurface.NONE} - self._terminal_surfaces,
+            #
+            # The lot fins are solid REGARDLESS of being terminal. Solidity is a
+            # property of the object, not of the scoring: a fin is a physical
+            # barrier and a chassis cannot occupy the same space as one. Deriving
+            # it from the terminal set meant fins were excluded and the chassis
+            # passed through them, which is how the bay exit measured 8.9 cm of
+            # PENETRATION rather than a contact -- the geometry it was scored on
+            # was never reachable.
+            solid_surfaces=(frozenset(ContactSurface) - {ContactSurface.NONE} - self._terminal_surfaces)
+            | {ContactSurface.PARKING_LOT},
             lidar_hz=lidar_hz,
             lidar_invalid_rate=lidar_invalid_rate,
             wall_heading=wall_heading,
