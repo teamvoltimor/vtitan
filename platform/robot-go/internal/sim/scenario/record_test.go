@@ -10,8 +10,9 @@ import (
 	"github.com/foxglove/mcap/go/mcap"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
 	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
 )
 
 // TestNewSimRecorder_NilWhenOff pins the "off" contract the run loop relies
@@ -48,31 +49,70 @@ func TestScanToProto_RebuildsTheAngleFan(t *testing.T) {
 		RangesM:   []float64{1.0, 2.0, 0.5, 3.0},
 		AnglesRad: []float64{-math.Pi, -math.Pi / 2, 0, math.Pi / 2},
 	}
-	got := scanToProto(scan, 0)
+	got := scanToCDR(scan, 0)
 
-	if len(got.GetRanges()) != len(scan.RangesM) {
-		t.Fatalf("ranges = %d, want %d", len(got.GetRanges()), len(scan.RangesM))
+	if len(got.Ranges) != len(scan.RangesM) {
+		t.Fatalf("ranges = %d, want %d", len(got.Ranges), len(scan.RangesM))
 	}
-	if math.Abs(float64(got.GetAngleMin())-(-math.Pi)) > 1e-6 {
-		t.Errorf("AngleMin = %v, want -pi", got.GetAngleMin())
+	if math.Abs(float64(got.AngleMin)-(-math.Pi)) > 1e-6 {
+		t.Errorf("AngleMin = %v, want -pi", got.AngleMin)
 	}
-	if math.Abs(float64(got.GetAngleMax())-math.Pi/2) > 1e-6 {
-		t.Errorf("AngleMax = %v, want pi/2", got.GetAngleMax())
+	if math.Abs(float64(got.AngleMax)-math.Pi/2) > 1e-6 {
+		t.Errorf("AngleMax = %v, want pi/2", got.AngleMax)
 	}
 	// Four samples spanning -pi..pi/2 is three steps of pi/2.
-	if math.Abs(float64(got.GetAngleIncrement())-math.Pi/2) > 1e-6 {
-		t.Errorf("AngleIncrement = %v, want pi/2", got.GetAngleIncrement())
+	if math.Abs(float64(got.AngleIncr)-math.Pi/2) > 1e-6 {
+		t.Errorf("AngleIncrement = %v, want pi/2", got.AngleIncr)
 	}
 	// range_min/max describe the SWEEP's extent, which is what a viewer uses
 	// to scale its colour ramp.
-	if math.Abs(float64(got.GetRangeMin())-0.5) > 1e-6 {
-		t.Errorf("RangeMin = %v, want 0.5", got.GetRangeMin())
+	if math.Abs(float64(got.RangeMin)-0.5) > 1e-6 {
+		t.Errorf("RangeMin = %v, want 0.5", got.RangeMin)
 	}
-	if math.Abs(float64(got.GetRangeMax())-3.0) > 1e-6 {
-		t.Errorf("RangeMax = %v, want 3.0", got.GetRangeMax())
+	if math.Abs(float64(got.RangeMax)-3.0) > 1e-6 {
+		t.Errorf("RangeMax = %v, want 3.0", got.RangeMax)
 	}
-	if got.GetFrameId() != scanFrameID {
-		t.Errorf("FrameId = %q, want %q", got.GetFrameId(), scanFrameID)
+	if got.FrameID != scanFrameID {
+		t.Errorf("FrameId = %q, want %q", got.FrameID, scanFrameID)
+	}
+}
+
+// TestEncodeLaserScan_RoundTripsThroughTheRepoDecoder is the check that
+// matters most: the CDR this writes is decoded by test/bagreplay's own
+// reader, the one that reads REAL rosbag2 recordings off the robot. If the
+// two agree, the bytes are genuine ROS2 CDR rather than a plausible-looking
+// buffer -- and Foxglove, which uses the same layout rules, will render it.
+func TestEncodeLaserScan_RoundTripsThroughTheRepoDecoder(t *testing.T) {
+	t.Parallel()
+
+	want := recording.LaserScanCDR{
+		FrameID:      "lidar_link",
+		StampSec:     12,
+		StampNanosec: 340000000,
+		AngleMin:     -math.Pi,
+		AngleMax:     math.Pi,
+		AngleIncr:    0.0175,
+		RangeMin:     0.15,
+		RangeMax:     8.0,
+		Ranges:       []float32{1.5, 2.25, 0.75, 8.0},
+	}
+	got, err := bagreplay.DecodeLaserScan(recording.EncodeLaserScan(want))
+	if err != nil {
+		t.Fatalf("DecodeLaserScan on our own encoding: %v", err)
+	}
+	if got.AngleMin != want.AngleMin || got.AngleMax != want.AngleMax ||
+		got.AngleIncrement != want.AngleIncr {
+		t.Errorf("angles round-tripped as %v/%v/%v, want %v/%v/%v",
+			got.AngleMin, got.AngleMax, got.AngleIncrement,
+			want.AngleMin, want.AngleMax, want.AngleIncr)
+	}
+	if len(got.RangesM) != len(want.Ranges) {
+		t.Fatalf("ranges round-tripped as %d values, want %d", len(got.RangesM), len(want.Ranges))
+	}
+	for i := range want.Ranges {
+		if got.RangesM[i] != want.Ranges[i] {
+			t.Errorf("range %d = %v, want %v", i, got.RangesM[i], want.Ranges[i])
+		}
 	}
 }
 
@@ -83,10 +123,10 @@ func TestScanToProto_RebuildsTheAngleFan(t *testing.T) {
 func TestScanToProto_EmptyScanHasNoInfiniteRange(t *testing.T) {
 	t.Parallel()
 
-	got := scanToProto(controllers.LidarScan{}, 0)
-	if math.IsInf(float64(got.GetRangeMin()), 0) || math.IsInf(float64(got.GetRangeMax()), 0) {
+	got := scanToCDR(controllers.LidarScan{}, 0)
+	if math.IsInf(float64(got.RangeMin), 0) || math.IsInf(float64(got.RangeMax), 0) {
 		t.Errorf("empty scan produced RangeMin=%v RangeMax=%v, want finite",
-			got.GetRangeMin(), got.GetRangeMax())
+			got.RangeMin, got.RangeMax)
 	}
 }
 
@@ -128,7 +168,10 @@ func TestSimRecorder_WritesBothSubjectsOnASimClock(t *testing.T) {
 		// A nil navigator would panic in tick, so drive the recorder's writes
 		// directly here; the navigator's own ToProto is covered in its package.
 		logTime := rec.simClockNanos
-		if err := rec.run.WriteMessage(sensorv1.ScanSubject, scanToProto(scan, logTime), logTime); err != nil {
+		if err := rec.run.WriteROS2(
+			scanTopic, recording.LaserScanType, recording.LaserScanSchema,
+			recording.EncodeLaserScan(scanToCDR(scan, logTime)), logTime,
+		); err != nil {
 			t.Fatalf("writing scan: %v", err)
 		}
 		if err := rec.run.WriteMessage(navv1.NavigatorDebugSubject, &navv1.NavigatorDebug{}, logTime); err != nil {
@@ -165,14 +208,20 @@ func TestSimRecorder_WritesBothSubjectsOnASimClock(t *testing.T) {
 	for _, ch := range info.Channels {
 		topics[ch.Topic] = ch.MessageEncoding
 	}
-	for _, subject := range []string{sensorv1.ScanSubject, navv1.NavigatorDebugSubject} {
-		encoding, ok := topics[subject]
+	// /scan is ROS2 CDR because that is what Foxglove renders natively and
+	// what the diag_bag_*.py suite reads; nav debug stays protobuf because
+	// no ROS message describes it.
+	for topic, wantEncoding := range map[string]string{
+		scanTopic:                   recording.ROS2MessageEncoding,
+		navv1.NavigatorDebugSubject: "protobuf",
+	} {
+		encoding, ok := topics[topic]
 		if !ok {
-			t.Errorf("bag has no channel for %q", subject)
+			t.Errorf("bag has no channel for %q", topic)
 			continue
 		}
-		if encoding != "protobuf" {
-			t.Errorf("channel %q encoding = %q, want protobuf", subject, encoding)
+		if encoding != wantEncoding {
+			t.Errorf("channel %q encoding = %q, want %q", topic, encoding, wantEncoding)
 		}
 	}
 	// Sim time, not wall time: four ticks at 50 ms span 150 ms end to end.

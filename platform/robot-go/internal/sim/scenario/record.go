@@ -6,13 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
 	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
 )
 
 // scanFrameID is the LIDAR's frame in the robot's TF tree, matching what the
@@ -20,22 +17,30 @@ import (
 // scans in the same frame.
 const scanFrameID = "lidar_link"
 
+// scanTopic is the ROS topic name the Python stack records /scan under, and
+// what every diag_bag_*.py script and test/bagreplay look for.
+const scanTopic = "/scan"
+
 // nanosPerSecond converts the simulation's float seconds into MCAP log time.
 const nanosPerSecond = 1e9
 
 // simRecorder writes one scenario's run to an MCAP bag.
 //
-// It records exactly the two subjects cmd/track-navigator --record writes on
-// hardware -- the LIDAR scan and the navigator debug snapshot -- so a sim bag
-// and a Go hardware bag are the same format and Foxglove Studio opens both
-// directly. A third subject here would be a sim-only channel that no hardware
-// bag has, and every consumer would have to learn which kind it was holding.
+// It records two channels, deliberately in DIFFERENT encodings.
 //
-// NOT the same format as test/bagreplay reads. That package replays the
-// ROS2/rosbag2 bags the PYTHON stack records: same MCAP container, but CDR
-// message encoding on ROS topic names (/scan, /nav_debug), where this writes
-// protobuf on NATS subjects. Both Go recorders have that gap; it is not
-// introduced here.
+// /scan is ROS2 CDR (sensor_msgs/msg/LaserScan), byte-compatible with what
+// rosbag2 records on the robot. That is not a stylistic choice: Foxglove
+// Studio renders sensor_msgs/msg/LaserScan natively, while a custom
+// protobuf like vtitan.sensor.v1.Scan appears only under Raw Messages and
+// draws nothing in the 3D panel -- which reads as an EMPTY BAG to anyone
+// comparing against a pulled hardware run. It also means the Python
+// diag_bag_*.py suite and test/bagreplay, both of which read /scan as CDR,
+// work on a sim run unchanged.
+//
+// The navigator debug snapshot stays protobuf on its NATS subject, because
+// no ROS message describes it and the Python stack records its own version
+// as an opaque JSON string. Mixed encodings in one bag are legal MCAP and
+// every reader here handles both.
 //
 // A nil *simRecorder is valid and does nothing, so the run loop needs no
 // branch around each call.
@@ -76,7 +81,10 @@ func (r *simRecorder) tick(scan controllers.LidarScan, ok bool, nav *navigator.N
 	}
 	logTime := r.simClockNanos
 	if ok && len(scan.RangesM) > 0 {
-		if err := r.run.WriteMessage(sensorv1.ScanSubject, scanToProto(scan, logTime), logTime); err != nil {
+		if err := r.run.WriteROS2(
+			scanTopic, recording.LaserScanType, recording.LaserScanSchema,
+			recording.EncodeLaserScan(scanToCDR(scan, logTime)), logTime,
+		); err != nil {
 			return fmt.Errorf("sim recorder: writing scan: %w", err)
 		}
 	}
@@ -100,14 +108,13 @@ func (r *simRecorder) close() error {
 	return nil
 }
 
-// scanToProto converts the simulator's scan into the wire message the real
-// LIDAR driver publishes.
+// scanToCDR converts the simulator's scan into sensor_msgs/msg/LaserScan.
 //
 // The angle fan is regenerated as min/increment rather than carried
-// per-sample, because that is the shape sensor_msgs/LaserScan (and this
-// repo's mirror of it) has: a start angle and a fixed step. The simulator's
-// fan is uniform by construction, so nothing is lost.
-func scanToProto(scan controllers.LidarScan, stampNanos uint64) *sensorv1.Scan {
+// per-sample, because that is the shape LaserScan has: a start angle and a
+// fixed step. The simulator's fan is uniform by construction, so nothing is
+// lost.
+func scanToCDR(scan controllers.LidarScan, stampNanos uint64) recording.LaserScanCDR {
 	ranges := make([]float32, len(scan.RangesM))
 	for i, r := range scan.RangesM {
 		ranges[i] = float32(r)
@@ -131,15 +138,16 @@ func scanToProto(scan controllers.LidarScan, stampNanos uint64) *sensorv1.Scan {
 		rangeMin = 0
 	}
 
-	return &sensorv1.Scan{
-		Stamp:          timestamppb.New(time.Unix(0, int64(stampNanos))),
-		FrameId:        scanFrameID,
-		AngleMin:       float32(angleMin),
-		AngleMax:       float32(angleMax),
-		AngleIncrement: float32(increment),
-		RangeMin:       float32(rangeMin),
-		RangeMax:       float32(rangeMax),
-		Ranges:         ranges,
+	return recording.LaserScanCDR{
+		FrameID:      scanFrameID,
+		StampSec:     int32(stampNanos / nanosPerSecond),
+		StampNanosec: uint32(stampNanos % nanosPerSecond),
+		AngleMin:     float32(angleMin),
+		AngleMax:     float32(angleMax),
+		AngleIncr:    float32(increment),
+		RangeMin:     float32(rangeMin),
+		RangeMax:     float32(rangeMax),
+		Ranges:       ranges,
 	}
 }
 

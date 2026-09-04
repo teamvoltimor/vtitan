@@ -157,6 +157,70 @@ func (r *RunRecorder) WriteMessage(subject string, msg proto.Message, logTime ui
 	})
 }
 
+// WriteROS2 appends an already-CDR-encoded ROS2 message under topic,
+// registering the channel with the "cdr"/"ros2msg" encodings rosbag2 uses.
+//
+// This exists so a bag can carry the topics Foxglove Studio renders
+// NATIVELY. Studio draws sensor_msgs/msg/LaserScan out of the box; a custom
+// protobuf like vtitan.sensor.v1.Scan shows up under Raw Messages and can be
+// plotted, but nothing appears in the 3D panel -- which reads as "the bag is
+// empty" to anyone comparing against a rosbag2 recording.
+func (r *RunRecorder) WriteROS2(
+	topic, schemaName, schemaText string, data []byte, logTime uint64,
+) error {
+	if err := r.Open(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	channelID, err := r.ensureRawChannel(topic, schemaName, ROS2SchemaEncoding, []byte(schemaText), ROS2MessageEncoding)
+	if err != nil {
+		return err
+	}
+	return r.mcapW.WriteMessage(&mcap.Message{
+		ChannelID:   channelID,
+		Sequence:    0,
+		LogTime:     logTime,
+		PublishTime: logTime,
+		Data:        data,
+	})
+}
+
+// ensureRawChannel registers a channel whose schema is supplied by the
+// caller rather than derived from a protobuf descriptor, returning the
+// channel ID. Callers hold r.mu.
+func (r *RunRecorder) ensureRawChannel(
+	topic, schemaName, schemaEncoding string, schemaData []byte, messageEncoding string,
+) (uint16, error) {
+	if id, ok := r.channels[topic]; ok {
+		return id, nil
+	}
+	schema := &mcap.Schema{
+		ID:       r.nextSchemaID,
+		Name:     schemaName,
+		Encoding: schemaEncoding,
+		Data:     schemaData,
+	}
+	if err := r.mcapW.WriteSchema(schema); err != nil {
+		return 0, fmt.Errorf("recording: writing schema %s: %w", topic, err)
+	}
+	r.nextSchemaID++
+	id := r.nextChannelID
+	r.nextChannelID++
+	ch := &mcap.Channel{
+		ID:              id,
+		SchemaID:        schema.ID,
+		Topic:           topic,
+		MessageEncoding: messageEncoding,
+		Metadata:        map[string]string{},
+	}
+	if err := r.mcapW.WriteChannel(ch); err != nil {
+		return 0, fmt.Errorf("recording: writing channel %s: %w", topic, err)
+	}
+	r.channels[topic] = id
+	return id, nil
+}
+
 // ensureSchema registers the subject's channel+schema in the MCAP if absent,
 // returning the channel ID.
 func (r *RunRecorder) ensureSchema(subject string, msg proto.Message) (uint16, error) {
