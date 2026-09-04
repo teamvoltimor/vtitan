@@ -32,6 +32,14 @@ type ParkingLot struct {
 type ParkingLotSpecs struct {
 	Length float64
 	Width  float64
+	// WallOffsetM is half of Length: the block is placed by its centre,
+	// flush to the wall.
+	WallOffsetM float64
+	// BlockSpacingFactor is the bay length as a multiple of the robot's
+	// LENGTH -- the dimension that has to fit inside the bay. Scaling it by
+	// width instead once produced a bay exactly one chassis long, which the
+	// robot could never enter.
+	BlockSpacingFactor float64
 }
 
 // TrackDimensions mirrors the [track] section of track.toml
@@ -146,6 +154,13 @@ const (
 	// [parking] length/width.
 	DefaultParkingLotLengthM = 0.20
 	DefaultParkingLotWidthM  = 0.02
+	// DefaultParkingLotWallOffsetM mirrors track.toml's [parking]
+	// wall_offset -- half of DefaultParkingLotLengthM, the block being
+	// placed by its centre, flush to the wall.
+	DefaultParkingLotWallOffsetM = 0.10
+	// DefaultParkingLotBlockSpacingFactor mirrors track.toml's [parking]
+	// spacing_factor.
+	DefaultParkingLotBlockSpacingFactor = 1.5
 	// DefaultTrackMinCoordM/DefaultTrackMaxCoordM mirror track.toml's
 	// [track] min_coord/max_coord.
 	DefaultTrackMinCoordM = 0.0
@@ -154,8 +169,10 @@ const (
 
 // DefaultParkingLotSpecs matches track.toml's [parking] section.
 var DefaultParkingLotSpecs = ParkingLotSpecs{
-	Length: DefaultParkingLotLengthM,
-	Width:  DefaultParkingLotWidthM,
+	Length:             DefaultParkingLotLengthM,
+	Width:              DefaultParkingLotWidthM,
+	WallOffsetM:        DefaultParkingLotWallOffsetM,
+	BlockSpacingFactor: DefaultParkingLotBlockSpacingFactor,
 }
 
 // DefaultTrackDimensions matches track.toml's [track] min_coord/max_coord.

@@ -73,6 +73,81 @@ type Config struct {
 	// MaxInTrackRangeM rejects a ray longer than anything the mat can contain
 	// when testing for a way through.
 	MaxInTrackRangeM float64
+
+	// BayExitReverseM is how far to back straight out of the parking pocket
+	// before turning, on the legacy reverse-then-swing exit. Bounded by
+	// GEOMETRY (no rear sensing on this mount), and sharp -- see the shipped
+	// TOML comment before re-sweeping.
+	BayExitReverseM float64
+	// BayExitSteerNorm is the swing-out steering magnitude, 0..1 of full
+	// lock, on the legacy exit. MEASURED INERT 2026-08-29 (something
+	// downstream saturates before this reaches the wheels) but kept at full
+	// lock since nothing refutes the geometry argument for it.
+	BayExitSteerNorm float64
+	// BayExitReverseSteerNorm is the steering magnitude DURING the legacy
+	// exit's reverse leg, applied with the sign INVERTED the way
+	// FollowCorridor's reverse branch already does. REFUTED 2026-08-29 at
+	// any non-zero value; kept at 0.0 (straight reverse) so the refutation
+	// stays recorded.
+	BayExitReverseSteerNorm float64
+	// BayExitHoldSteer holds the forward leg's steering through the legacy
+	// exit's reverse leg instead of centring, so the servo's slew is not
+	// thrown away every cycle.
+	BayExitHoldSteer bool
+	// BayExitFallbackFrames is the ticks to give the configured exit before
+	// switching to the OTHER one; 0 = never. The reverse-then-swing and
+	// cycle exits are complementary under the sim contact model (each
+	// 254/256 where the other is 0/256), and which applies to the real
+	// robot is unknown.
+	BayExitFallbackFrames int
+	// BayExitCycle selects the alternating arc/straight-reverse exit
+	// instead of reverse-then-swing.
+	BayExitCycle bool
+	// BayExitCycleReverseM is how far the cycle manoeuvre's straight
+	// reverse runs before arcing again. Its OWN constant, not shared with
+	// BayExitReverseM -- the two manoeuvres want different values for the
+	// same-named quantity.
+	BayExitCycleReverseM float64
+	// BayExitArcSteerNorm is the cycle manoeuvre's forward-arc steering
+	// magnitude, 0..1 of full lock. Moderate on purpose: full lock pivots
+	// the chassis about its own centre and translates nothing.
+	BayExitArcSteerNorm float64
+	// BayExitForwardM is how far the cycle manoeuvre's forward arc runs
+	// before backing up again. Bounded by GEOMETRY, deliberately longer
+	// than the pocket's own slack so overshooting hands the leg's end to
+	// the stall backstop.
+	BayExitForwardM float64
+	// BayExitCycleReverseSteerNorm is the cycle manoeuvre's reverse-leg
+	// steering, applied OPPOSITE to the arc (the classic three-point turn).
+	// 0 backs straight, which is what ships.
+	BayExitCycleReverseSteerNorm float64
+	// BayExitClearanceGuard bounds the cycle legs by PREDICTED FIN
+	// CLEARANCE instead of by contact -- the legal replacement, since a
+	// contact-bounded leg-end IS the 9.24.7 violation. Dead-reckons the
+	// chassis pose in the bay frame and models the two fins from
+	// ParkingLotSpecs; no LIDAR, no contact.
+	BayExitClearanceGuard bool
+	// BayExitClearanceMarginM is the fin clearance the guard refuses to go
+	// below, absorbing dead-reckoning error. Only meaningful with
+	// BayExitClearanceGuard.
+	BayExitClearanceMarginM float64
+	// BayExitLegStallTicks is ticks of no wheel travel that end a
+	// cycle-manoeuvre leg and start the other -- the PRIMARY leg-end
+	// signal, ahead of distance or clearance. Only meaningful with
+	// BayExitCycle.
+	BayExitLegStallTicks int
+	// BayExitLatchDirection decides which side is open once, on the first
+	// tick, instead of every tick -- re-deriving it mid-manoeuvre reads
+	// noise once the chassis has rotated off-parallel to the wall.
+	BayExitLatchDirection bool
+	// BayExitLatchReverse commits to the forward turn once the legacy
+	// exit's reverse leg has finished, instead of re-testing the gate every
+	// tick (which chatters between two opposed commands).
+	BayExitLatchReverse bool
+	// BayExitMaxFrames is the ticks the bay-exit manoeuvre may hold control
+	// before handing over; 0 = forever. BayExit is the only manoeuvre in
+	// the stack with no give-up path by default.
+	BayExitMaxFrames int
 }
 
 // TurnSide values. TurnSideNone preserves the plain clearance-based
@@ -133,6 +208,39 @@ const (
 	DefaultMinValidRangeM = 0.05
 	// DefaultMaxInTrackRangeM matches direction_estimator.MAX_IN_TRACK_RANGE_M.
 	DefaultMaxInTrackRangeM = 4.5
+
+	// DefaultBayExitReverseM matches BAY_EXIT_REVERSE_M.
+	DefaultBayExitReverseM = 0.05
+	// DefaultBayExitSteerNorm matches BAY_EXIT_STEER_NORM.
+	DefaultBayExitSteerNorm = 1.0
+	// DefaultBayExitReverseSteerNorm matches BAY_EXIT_REVERSE_STEER_NORM.
+	DefaultBayExitReverseSteerNorm = 0.0
+	// DefaultBayExitHoldSteer matches BAY_EXIT_HOLD_STEER.
+	DefaultBayExitHoldSteer = true
+	// DefaultBayExitFallbackFrames matches BAY_EXIT_FALLBACK_FRAMES.
+	DefaultBayExitFallbackFrames = 0
+	// DefaultBayExitCycle matches BAY_EXIT_CYCLE.
+	DefaultBayExitCycle = true
+	// DefaultBayExitCycleReverseM matches BAY_EXIT_CYCLE_REVERSE_M.
+	DefaultBayExitCycleReverseM = 0.09
+	// DefaultBayExitArcSteerNorm matches BAY_EXIT_ARC_STEER_NORM.
+	DefaultBayExitArcSteerNorm = 0.3
+	// DefaultBayExitForwardM matches BAY_EXIT_FORWARD_M.
+	DefaultBayExitForwardM = 0.08
+	// DefaultBayExitCycleReverseSteerNorm matches BAY_EXIT_CYCLE_REVERSE_STEER_NORM.
+	DefaultBayExitCycleReverseSteerNorm = 0.0
+	// DefaultBayExitClearanceGuard matches BAY_EXIT_CLEARANCE_GUARD.
+	DefaultBayExitClearanceGuard = false
+	// DefaultBayExitClearanceMarginM matches BAY_EXIT_CLEARANCE_MARGIN_M.
+	DefaultBayExitClearanceMarginM = 0.005
+	// DefaultBayExitLegStallTicks matches BAY_EXIT_LEG_STALL_TICKS.
+	DefaultBayExitLegStallTicks = 6
+	// DefaultBayExitLatchDirection matches BAY_EXIT_LATCH_DIRECTION.
+	DefaultBayExitLatchDirection = true
+	// DefaultBayExitLatchReverse matches BAY_EXIT_LATCH_REVERSE.
+	DefaultBayExitLatchReverse = false
+	// DefaultBayExitMaxFrames matches BAY_EXIT_MAX_FRAMES.
+	DefaultBayExitMaxFrames = 0
 )
 
 // DefaultConfig returns the Config matching the shipped TOML defaults.
@@ -160,5 +268,22 @@ func DefaultConfig() Config {
 		ForwardArcHalfFovRad: DefaultForwardArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		MinValidRangeM:       DefaultMinValidRangeM,
 		MaxInTrackRangeM:     DefaultMaxInTrackRangeM,
+
+		BayExitReverseM:              DefaultBayExitReverseM,
+		BayExitSteerNorm:             DefaultBayExitSteerNorm,
+		BayExitReverseSteerNorm:      DefaultBayExitReverseSteerNorm,
+		BayExitHoldSteer:             DefaultBayExitHoldSteer,
+		BayExitFallbackFrames:        DefaultBayExitFallbackFrames,
+		BayExitCycle:                 DefaultBayExitCycle,
+		BayExitCycleReverseM:         DefaultBayExitCycleReverseM,
+		BayExitArcSteerNorm:          DefaultBayExitArcSteerNorm,
+		BayExitForwardM:              DefaultBayExitForwardM,
+		BayExitCycleReverseSteerNorm: DefaultBayExitCycleReverseSteerNorm,
+		BayExitClearanceGuard:        DefaultBayExitClearanceGuard,
+		BayExitClearanceMarginM:      DefaultBayExitClearanceMarginM,
+		BayExitLegStallTicks:         DefaultBayExitLegStallTicks,
+		BayExitLatchDirection:        DefaultBayExitLatchDirection,
+		BayExitLatchReverse:          DefaultBayExitLatchReverse,
+		BayExitMaxFrames:             DefaultBayExitMaxFrames,
 	}
 }
