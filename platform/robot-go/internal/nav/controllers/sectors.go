@@ -229,9 +229,15 @@ func ForwardPathRanges(
 	out := make([]float64, 0, len(rangesM))
 	for i, r := range rangesM {
 		a := angles[i]
-		ahead := math.Cos(a) > 0.0
-		lateral := math.Abs(r * math.Sin(a))
-		if !ahead || !(lateral < pathHalfWidthM) {
+		// The lateral offset is only consulted for a ray that points ahead,
+		// and roughly half a 360-degree fan does not, so computing its Sin
+		// before the test evaluated it for every ray in the sweep. Split so
+		// the Sin is reached only when it can matter; a NaN bearing still
+		// fails the first test exactly as it failed the combined one.
+		if !(math.Cos(a) > 0.0) {
+			continue
+		}
+		if !(math.Abs(r*math.Sin(a)) < pathHalfWidthM) {
 			continue
 		}
 		if !(r > minValidRangeM) || !(r < lidarMaxRangeM-NoReturnMarginM) {
@@ -290,6 +296,21 @@ func MaskMappedObstacles(
 
 	angles := resolveAngles(rangesM, anglesRad)
 	robotCorridor := waypoints.CorridorForPosition(robotPose.X, robotPose.Y, cornerMinM, cornerMaxM)
+
+	// Only an obstacle mapped to the robot's OWN corridor can mask a ray, but
+	// that is checked after the endpoint -- a Cos, a Sin and a Hypot per ray --
+	// has already been computed. When none qualify the loop below provably
+	// cannot write to out, so the whole sweep is skippable.
+	masksAnything := false
+	for _, mapped := range mappedXY {
+		if mapped.Corridor == robotCorridor {
+			masksAnything = true
+			break
+		}
+	}
+	if !masksAnything {
+		return out
+	}
 
 	for i, r := range out {
 		if !math.IsInf(r, 0) && math.IsNaN(r) {

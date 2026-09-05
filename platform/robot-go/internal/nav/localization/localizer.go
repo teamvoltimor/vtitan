@@ -16,6 +16,15 @@ type LidarLocalizer struct {
 	// ticks, and ResetTracking exists to discard both.
 	lastEstimateTimeS *float64
 	pendingJumpXY     *trackmodel.Waypoint
+
+	// Scratch reused across the grid search, which raycasts
+	// GridPoints^2 x Passes times per tick (100 at the shipped 5/4). Rebuilding
+	// the ray fan and allocating a fresh range slice per candidate dominated
+	// the sweep profile; neither outlives the cost() call that consumes it, so
+	// both are safe to reuse. Not part of the estimate, so ResetTracking
+	// deliberately leaves them alone.
+	fan       *trackmodel.RayFan
+	predicted []float64
 }
 
 // gridSpan is the width of the search window in units of its radius: the
@@ -79,12 +88,19 @@ func (l *LidarLocalizer) EstimatePosition(
 		return priorXY
 	}
 
+	// Built once per tick and reused across every candidate of every pass.
+	// Matches() re-checks the bearings rather than assuming they are fixed, so
+	// a caller that does change its fan still gets correct ranges.
+	if l.fan == nil || !l.fan.Matches(anglesRad) {
+		l.fan = trackmodel.NewRayFan(anglesRad)
+	}
+
 	best := priorXY
 	radius := l.cfg.SearchRadiusM
 	n := l.cfg.GridPoints
 
 	for range l.cfg.Passes {
-		best = l.bestCandidate(best, radius, n, yaw, rangesM, anglesRad)
+		best = l.bestCandidate(best, radius, n, yaw, rangesM)
 		// Refine at the resolution just found, for the next pass.
 		if n > 1 {
 			radius = gridSpan * radius / float64(n-1)
@@ -124,7 +140,6 @@ func (l *LidarLocalizer) bestCandidate(
 	n int,
 	yaw float64,
 	rangesM []float64,
-	anglesRad []float64,
 ) trackmodel.Waypoint {
 	// Predict from where the SENSOR is, not the body center. The C1 sits
 	// LidarMountXOffsetM forward of center, flush with the bumper, so a scan
@@ -144,10 +159,11 @@ func (l *LidarLocalizer) bestCandidate(
 				X: seed.X + gridOffset(radius, n, i),
 				Y: seed.Y + gridOffset(radius, n, j),
 			}
-			predicted := l.walls.Raycast(
-				candidate.X+offsetX, candidate.Y+offsetY, yaw, anglesRad,
-				l.cfg.LidarMinRangeM, l.cfg.LidarMaxRangeM,
+			predicted := l.walls.RaycastFan(
+				candidate.X+offsetX, candidate.Y+offsetY, yaw, l.fan,
+				l.cfg.LidarMinRangeM, l.cfg.LidarMaxRangeM, l.predicted,
 			)
+			l.predicted = predicted
 			if cost := l.cost(predicted, rangesM); cost < bestCost {
 				best, bestCost = candidate, cost
 			}

@@ -126,15 +126,51 @@ func raycastBox(x, y, dx, dy float64, b box, maxRange float64) float64 {
 	tx1, tx2 := (b.xMin-x)/dx, (b.xMax-x)/dx
 	ty1, ty2 := (b.yMin-y)/dy, (b.yMax-y)/dy
 
-	tNear := math.Max(math.Min(tx1, tx2), math.Min(ty1, ty2))
-	tFar := math.Min(math.Max(tx1, tx2), math.Max(ty1, ty2))
+	// math.Min/math.Max carry NaN and signed-zero semantics that the Go
+	// compiler cannot inline into a bare comparison, so each one is a real
+	// call into math.archMin/archMax -- together ~24% of a sweep's runtime,
+	// since this runs once per ray per obstacle. A NaN can only arise here
+	// from 0/0, which needs the ray exactly parallel to an axis (dx or dy
+	// exactly 0) AND the sensor exactly on that slab's plane. When both
+	// components are non-zero every t is Inf-or-finite, comparisons order
+	// them exactly as math.Min/Max would, and the branch form is equivalent.
+	// The parallel-ray case keeps the original calls so the NaN path that
+	// isFinite below depends on still behaves identically.
+	var tNear, tFar float64
+	if dx != 0 && dy != 0 {
+		txNear, txFar := tx1, tx2
+		if txNear > txFar {
+			txNear, txFar = txFar, txNear
+		}
+		tyNear, tyFar := ty1, ty2
+		if tyNear > tyFar {
+			tyNear, tyFar = tyFar, tyNear
+		}
+		tNear, tFar = txNear, txFar
+		if tyNear > tNear {
+			tNear = tyNear
+		}
+		if tyFar < tFar {
+			tFar = tyFar
+		}
+	} else {
+		tNear = math.Max(math.Min(tx1, tx2), math.Min(ty1, ty2))
+		tFar = math.Min(math.Max(tx1, tx2), math.Max(ty1, ty2))
+	}
 
 	// A hit needs the slabs to overlap and the exit point to be in front of
 	// the sensor. Starting inside the box yields t_near < 0, reported as
 	// range 0.
+	// Computed once rather than twice, and by comparison for the same reason
+	// as above. A NaN tNear lands on 0 here instead of propagating, which
+	// changes nothing: isFinite is false in that case, so distance is never
+	// the returned value.
+	distance := tNear
+	if !(distance > 0.0) {
+		distance = 0.0
+	}
 	isFinite := !math.IsInf(tNear, 0) && !math.IsNaN(tNear)
-	distance := math.Max(tNear, 0.0)
-	if isFinite && tFar >= math.Max(tNear, 0.0) {
+	if isFinite && tFar >= distance {
 		return distance
 	}
 	return maxRange

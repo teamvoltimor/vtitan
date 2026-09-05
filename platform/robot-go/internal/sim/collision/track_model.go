@@ -46,6 +46,12 @@ type TrackModel struct {
 	innerVisual    box
 	innerCollision box
 	outerCollision box
+
+	// fan caches the ray directions for the bearings RaycastScan was last
+	// called with, so the convenience path costs no more transcendentals than
+	// RaycastScanFan. Purely derived from its argument, so it is not part of
+	// the track's identity.
+	fan *trackmodel.RayFan
 }
 
 // NewTrackModel builds the track from corridor geometry, matching
@@ -98,16 +104,27 @@ func (m *TrackModel) Walls() *trackmodel.TrackWalls {
 func (m *TrackModel) RaycastScan(
 	x, y, yaw float64, anglesRobot []float64, lidarMinRangeM, maxRangeM float64,
 ) []float64 {
-	ranges := m.walls.Raycast(x, y, yaw, anglesRobot, lidarMinRangeM, maxRangeM)
+	if m.fan == nil || !m.fan.Matches(anglesRobot) {
+		m.fan = trackmodel.NewRayFan(anglesRobot)
+	}
+	return m.RaycastScanFan(x, y, yaw, m.fan, lidarMinRangeM, maxRangeM, nil)
+}
+
+// RaycastScanFan is RaycastScan against a precomputed fan, writing into out.
+// See TrackWalls.RaycastFan for the aliasing contract on out.
+func (m *TrackModel) RaycastScanFan(
+	x, y, yaw float64, fan *trackmodel.RayFan, lidarMinRangeM, maxRangeM float64, out []float64,
+) []float64 {
+	ranges := m.walls.RaycastFan(x, y, yaw, fan, lidarMinRangeM, maxRangeM, out)
 	if !m.lidarSeesObstacles || len(m.obstacleBoxes) == 0 {
 		return ranges
 	}
 
 	// An obstacle only shortens a ray -- never lengthens it -- so fold each
 	// box in with an elementwise minimum against the wall ranges.
-	for i, angleRobot := range anglesRobot {
-		worldAngle := yaw + angleRobot
-		dx, dy := math.Cos(worldAngle), math.Sin(worldAngle)
+	cosYaw, sinYaw := math.Cos(yaw), math.Sin(yaw)
+	for i := range ranges {
+		dx, dy := fan.Direction(i, cosYaw, sinYaw)
 		for _, b := range m.obstacleBoxes {
 			if hit := raycastBox(x, y, dx, dy, b, maxRangeM); hit < ranges[i] {
 				ranges[i] = hit

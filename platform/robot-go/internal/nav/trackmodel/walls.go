@@ -44,17 +44,91 @@ func NewTrackWalls(geometry CorridorGeometry, minCoord, maxCoord float64) *Track
 	}
 }
 
+// RayFan caches the unit vectors of a fixed bearing fan in the ROBOT frame.
+//
+// A scan's bearings never change between ticks; only the yaw they are cast at
+// does. Evaluating cos/sin per ray per scan therefore recomputes 2*len(angles)
+// transcendentals for a fan that is constant, which profiling put at ~22% of a
+// corpus sweep. Rotating a cached robot-frame unit vector into the world frame
+// costs four multiplies and two adds against two cos/sin calls per ray, so a
+// scan needs exactly two transcendentals regardless of how many rays it has.
+type RayFan struct {
+	angles   []float64
+	cos, sin []float64
+}
+
+// NewRayFan precomputes the unit vectors for anglesRobot. The slice is copied,
+// so a caller may reuse or mutate its own buffer afterwards.
+func NewRayFan(anglesRobot []float64) *RayFan {
+	f := &RayFan{
+		angles: make([]float64, len(anglesRobot)),
+		cos:    make([]float64, len(anglesRobot)),
+		sin:    make([]float64, len(anglesRobot)),
+	}
+	copy(f.angles, anglesRobot)
+	for i, a := range anglesRobot {
+		f.cos[i], f.sin[i] = math.Cos(a), math.Sin(a)
+	}
+	return f
+}
+
+// Len is the number of rays in the fan.
+func (f *RayFan) Len() int { return len(f.angles) }
+
+// Direction rotates ray i from the robot frame into the world frame, given the
+// cos/sin of the body yaw. The caller computes those once per scan and passes
+// them in, which is the whole point of the fan: two transcendentals per scan
+// rather than two per ray.
+func (f *RayFan) Direction(i int, cosYaw, sinYaw float64) (dx, dy float64) {
+	return cosYaw*f.cos[i] - sinYaw*f.sin[i], sinYaw*f.cos[i] + cosYaw*f.sin[i]
+}
+
+// Matches reports whether this fan was built from exactly these bearings, so a
+// caller handed a scan per tick can reuse a cached fan instead of rebuilding
+// it, and stays correct if the bearings ever do change.
+func (f *RayFan) Matches(anglesRobot []float64) bool {
+	if len(f.angles) != len(anglesRobot) {
+		return false
+	}
+	for i, a := range anglesRobot {
+		if f.angles[i] != a {
+			return false
+		}
+	}
+	return true
+}
+
 // Raycast casts a fan of rays from (x, y) at heading yaw+anglesRobot[i] and
 // returns the nearest wall range per ray, clamped to
 // [lidarMinRangeM, lidarMaxRangeM]. A ray that hits nothing returns
 // lidarMaxRangeM.
+//
+// Allocates both the fan and the result; a hot caller holding a fan across
+// ticks should use RaycastFan instead.
 func (w *TrackWalls) Raycast(
 	x, y, yaw float64, anglesRobot []float64, lidarMinRangeM, lidarMaxRangeM float64,
 ) []float64 {
-	ranges := make([]float64, len(anglesRobot))
-	for i, angleRobot := range anglesRobot {
-		worldAngle := yaw + angleRobot
-		dx, dy := math.Cos(worldAngle), math.Sin(worldAngle)
+	return w.RaycastFan(x, y, yaw, NewRayFan(anglesRobot), lidarMinRangeM, lidarMaxRangeM, nil)
+}
+
+// RaycastFan is Raycast against a precomputed fan, writing into out (which may
+// be nil, or any slice with at least fan.Len() capacity) and returning it. The
+// result aliases out, so a caller that retains the ranges past the next call
+// must pass a fresh slice or copy them.
+func (w *TrackWalls) RaycastFan(
+	x, y, yaw float64, fan *RayFan, lidarMinRangeM, lidarMaxRangeM float64, out []float64,
+) []float64 {
+	ranges := out[:0]
+	if cap(ranges) < fan.Len() {
+		ranges = make([]float64, fan.Len())
+	}
+	ranges = ranges[:fan.Len()]
+
+	cosYaw, sinYaw := math.Cos(yaw), math.Sin(yaw)
+	for i := range fan.cos {
+		// Angle-sum identity for cos/sin(yaw + angles[i]).
+		dx := cosYaw*fan.cos[i] - sinYaw*fan.sin[i]
+		dy := sinYaw*fan.cos[i] + cosYaw*fan.sin[i]
 
 		best := math.Inf(1)
 		for _, s := range w.segments {
