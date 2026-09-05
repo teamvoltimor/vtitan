@@ -153,6 +153,30 @@ type Config struct {
 	// before handing over; 0 = forever. BayExit is the only manoeuvre in
 	// the stack with no give-up path by default.
 	BayExitMaxFrames int
+	// BayExitSpeedScale is an extra speed scale applied to BOTH guarded
+	// legs, on top of CornerSpeedScale/ReverseSpeedScale. It is the lever
+	// on the COAST: commanding zero does not stop the chassis, it decays
+	// with SpeedResponseTauS and travels a further v*tau, against an
+	// along-wall budget of 31-57 mm. A cliff at both ends -- 1.0 leaves no
+	// admissible leg at all (the coast alone exceeds the slack, so the
+	// guard correctly refuses and the chassis never moves), 0.5 collides,
+	// 0.2 leaves only 3.5 mm of fin margin where 0.35 leaves 9.0 mm.
+	// Matches BAY_EXIT_SPEED_SCALE.
+	BayExitSpeedScale float64
+	// AssumeBayStart begins an OBSTACLES round believing the robot was
+	// placed inside the parking bay, instead of waiting for
+	// DirectionFromParkingBay to recognise the pocket. That function tests
+	// two things -- forward blocked, and the +/-90 deg rays reading
+	// wall-against-open -- and only the first is load-bearing here: the
+	// second names the travel DIRECTION, which the exit does not need (it
+	// ratchets against the outer wall, and the estimator settles once
+	// clear). A dropped side ray reads as open corridor and costs the whole
+	// round, because a bay start that is not recognised DEADLOCKS: forward
+	// is a fin below the creep gate and there is no rear sensing to reverse
+	// on. Believing wrongly is self-correcting -- a parallel start has
+	// forward clearance, which is exactly IsClear's threshold, tested the
+	// tick after this latches. Matches ASSUME_BAY_START.
+	AssumeBayStart bool
 }
 
 // TurnSide values. TurnSideNone preserves the plain clearance-based
@@ -243,6 +267,10 @@ const (
 	DefaultBayExitClearanceMarginM = 0.005
 	// DefaultBayExitLegStallTicks matches BAY_EXIT_LEG_STALL_TICKS.
 	DefaultBayExitLegStallTicks = 6
+	// DefaultAssumeBayStart matches ASSUME_BAY_START.
+	DefaultAssumeBayStart = true
+	// DefaultBayExitSpeedScale matches BAY_EXIT_SPEED_SCALE.
+	DefaultBayExitSpeedScale = 0.35
 	// DefaultBayExitLatchDirection matches BAY_EXIT_LATCH_DIRECTION.
 	DefaultBayExitLatchDirection = true
 	// DefaultBayExitLatchReverse matches BAY_EXIT_LATCH_REVERSE.
@@ -292,6 +320,8 @@ func DefaultConfig() Config {
 		BayExitClearanceGuard:        DefaultBayExitClearanceGuard,
 		BayExitClearanceMarginM:      DefaultBayExitClearanceMarginM,
 		BayExitLegStallTicks:         DefaultBayExitLegStallTicks,
+		AssumeBayStart:               DefaultAssumeBayStart,
+		BayExitSpeedScale:            DefaultBayExitSpeedScale,
 		BayExitLatchDirection:        DefaultBayExitLatchDirection,
 		BayExitLatchReverse:          DefaultBayExitLatchReverse,
 		BayExitMaxFrames:             DefaultBayExitMaxFrames,

@@ -657,6 +657,22 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 				n.dirEstimator.Settle(dir)
 				n.exitingBay = true
 				boxed = true
+			} else if n.signRouter != nil && n.followerCfg.AssumeBayStart &&
+				!bayexit.IsClear(ranges, angles, n.bayExitCfg) {
+				// The in-bay start is the one Obstacles intends to use, so
+				// believe it rather than requiring the scan to prove it.
+				// Only the DIRECTION half of the test failed, and the exit
+				// does not need one; boxed stays false so the estimator
+				// resumes voting once the pocket is behind us.
+				//
+				// IsClear is tested HERE rather than left to the unlatch
+				// below because the vote at !boxed && !exitingBay runs
+				// first: latching and unlatching around it would cost a
+				// parallel start one direction vote, which the Python node
+				// does not pay (its unlatch precedes its vote). Same
+				// threshold either way -- a parallel start is a start with
+				// forward clearance. See AssumeBayStart.
+				n.exitingBay = true
 			}
 		}
 		if !boxed && !n.exitingBay && haveScan {
