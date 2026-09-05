@@ -68,7 +68,7 @@ def _default_bag_topics() -> list[str]:
 
 # Separate from config/hardware/ (driver calibration) -- these are
 # launch-time session/routing defaults, a different concern.
-LAUNCH_CONFIG_DIR: Path = ROBOT_ROOT / "config" / "launch"
+LAUNCH_CONFIG_DIR: Path = ROBOT_ROOT.parent / "config" / "launch"
 
 
 class VisionLaunchSettings(BaseSettings):

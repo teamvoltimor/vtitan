@@ -2,7 +2,7 @@
 <robot name="wro_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <!-- Chassis/Ackermann/wheel/sensor-mount properties, generated from
-       platform/shared/config/robot.toml, see robot_properties.gen.xacro. -->
+       platform/config/robot.toml, see robot_properties.gen.xacro. -->
   <xacro:include filename="robot_properties.gen.xacro"/>
 
   <!-- Derived properties -->
@@ -277,7 +277,7 @@
          + 0.025 = 0.075 here only, a pre-existing drift from those other two sources,
          found and fixed alongside the mount-offset measurements (see
          platform/robot/docs/robot-physical-constants.md). lidar_mount_z is now generated
-         from platform/shared/config/robot.toml (was a hardcoded 0.02 literal here). -->
+         from platform/config/robot.toml (was a hardcoded 0.02 literal here). -->
     <origin xyz="${lidar_mount_x} 0 ${chassis_height + lidar_mount_z}" rpy="0 0 0"/>
   </joint>
 
@@ -339,7 +339,7 @@
     <!-- z = imu_mount_z = 0.01: matches static_tfs.launch.py / the Go SDF generator's
          RobotImuMountZOffset. Was hardcoded to 0 here only, a pre-existing drift from
          those other two sources, found while consolidating the mount-offset source of
-         truth into platform/shared/config/robot.toml. -->
+         truth into platform/config/robot.toml. -->
     <origin xyz="0 0 ${imu_mount_z}" rpy="0 0 0"/>
   </joint>
 

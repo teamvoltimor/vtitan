@@ -22,9 +22,9 @@ type SSD1306Config struct {
 }
 
 // DefaultSSD1306TOMLPath is
-// platform/robot/config/hardware/display/ssd1306.toml, relative to the
+// platform/config/hardware/display/ssd1306.toml, relative to the
 // repo root.
-const DefaultSSD1306TOMLPath = "platform/robot/config/hardware/display/ssd1306.toml"
+const DefaultSSD1306TOMLPath = "platform/config/hardware/display/ssd1306.toml"
 
 // I2CAddress parses I2CAddressHex (e.g. "0x3C") into the uint16
 // internal/driver/display/ssd1306.Config.I2CAddress expects.

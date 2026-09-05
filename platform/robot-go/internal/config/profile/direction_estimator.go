@@ -1,7 +1,7 @@
 package profile
 
 // DirectionEstimatorConfig mirrors the subset of
-// platform/shared/config/navigation/blind_nav/direction_estimator.toml
+// platform/config/navigation/blind_nav/direction_estimator.toml
 // (shared.config.navigation_tuning.blind_nav.DirectionEstimatorParams)
 // that internal/nav/directionestimator currently consumes.
 // CornerClearanceM/GateLogPeriodTicks belong to corridor_follower.py's
@@ -21,7 +21,7 @@ type DirectionEstimatorConfig struct {
 }
 
 // DefaultDirectionEstimatorTOMLPath is
-// platform/shared/config/navigation/blind_nav/direction_estimator.toml,
+// platform/config/navigation/blind_nav/direction_estimator.toml,
 // relative to the repo root. No per-component profile overlays -- pass
 // nil profileNames to Load.
-const DefaultDirectionEstimatorTOMLPath = "platform/shared/config/navigation/blind_nav/direction_estimator.toml"
+const DefaultDirectionEstimatorTOMLPath = "platform/config/navigation/blind_nav/direction_estimator.toml"

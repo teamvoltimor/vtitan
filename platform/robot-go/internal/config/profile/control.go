@@ -1,6 +1,6 @@
 package profile
 
-// ControlConfig mirrors platform/shared/config/navigation/motion/control.toml
+// ControlConfig mirrors platform/config/navigation/motion/control.toml
 // (shared.config.navigation_tuning.motion.ControlLoopParams) in full.
 type ControlConfig struct {
 	// ControlHz matches CONTROL_HZ -- the navigation control loop's rate,
@@ -9,7 +9,7 @@ type ControlConfig struct {
 }
 
 // DefaultControlTOMLPath is
-// platform/shared/config/navigation/motion/control.toml, relative to the
+// platform/config/navigation/motion/control.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load.
-const DefaultControlTOMLPath = "platform/shared/config/navigation/motion/control.toml"
+const DefaultControlTOMLPath = "platform/config/navigation/motion/control.toml"

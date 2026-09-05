@@ -1,7 +1,7 @@
 package profile
 
 // StartMeasurementConfig mirrors
-// platform/shared/config/navigation/sensors/start_measurement.toml
+// platform/config/navigation/sensors/start_measurement.toml
 // (shared.config.navigation_tuning.StartMeasurementParams), the parameters
 // for internal/nav/startmeasurement's scan-derived starting pose.
 type StartMeasurementConfig struct {
@@ -20,7 +20,7 @@ type StartMeasurementConfig struct {
 }
 
 // DefaultStartMeasurementTOMLPath is
-// platform/shared/config/navigation/sensors/start_measurement.toml,
+// platform/config/navigation/sensors/start_measurement.toml,
 // relative to the repo root. No per-component profile overlays -- pass nil
 // profileNames to Load.
-const DefaultStartMeasurementTOMLPath = "platform/shared/config/navigation/sensors/start_measurement.toml"
+const DefaultStartMeasurementTOMLPath = "platform/config/navigation/sensors/start_measurement.toml"

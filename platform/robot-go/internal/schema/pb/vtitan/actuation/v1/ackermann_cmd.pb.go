@@ -30,7 +30,7 @@ const (
 //
 // protovalidate constraints here are deliberately structural (required,
 // finite) rather than hardware-specific numeric bounds — the actual
-// steering/speed limits live in platform/robot/config/hardware/motors/
+// steering/speed limits live in platform/config/hardware/motors/
 // motors.toml and haven't been reconciled into this schema yet. Do not
 // invent bound values here; pull them from motors.toml when this gets
 // wired to a real driver.

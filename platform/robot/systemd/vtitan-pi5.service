@@ -27,7 +27,7 @@ Environment=ROS_DOMAIN_ID=0
 # which silently blocks discovery/delivery for whichever participant lands
 # on a wedged port -- no error, no exception, the subscription just never
 # receives anything. UDP-only removes the failure mode at its source.
-Environment=FASTRTPS_DEFAULT_PROFILES_FILE=__TARGET_HOME__/vtitan/platform/robot/config/fastdds_udp_only.xml
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=__TARGET_HOME__/vtitan/platform/config/fastdds_udp_only.xml
 # A Pi 5 reboot power-cycles the Zero too (it draws power over the same USB
 # gadget cable) -- there is no "just the Pi 5 rebooted" on this hardware,
 # every Pi 5 boot is a simultaneous cold boot of both boards. Without this,

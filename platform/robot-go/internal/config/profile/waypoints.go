@@ -1,7 +1,7 @@
 package profile
 
 // WaypointsConfig mirrors the subset of
-// platform/shared/config/navigation/waypoint/waypoints.toml
+// platform/config/navigation/waypoint/waypoints.toml
 // (shared.config.navigation_tuning.waypoint.WaypointParams) that
 // internal/nav/waypoints and internal/nav/controllers currently consume.
 // ArcRadius/MainLoopReachedDistanceM/ReplanHeadingTieMarginM belong to
@@ -59,7 +59,7 @@ type WaypointsConfig struct {
 }
 
 // DefaultWaypointsTOMLPath is
-// platform/shared/config/navigation/waypoint/waypoints.toml, relative to
+// platform/config/navigation/waypoint/waypoints.toml, relative to
 // the repo root. No per-component profile overlays -- pass nil
 // profileNames to Load.
-const DefaultWaypointsTOMLPath = "platform/shared/config/navigation/waypoint/waypoints.toml"
+const DefaultWaypointsTOMLPath = "platform/config/navigation/waypoint/waypoints.toml"

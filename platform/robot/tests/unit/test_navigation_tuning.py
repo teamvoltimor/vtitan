@@ -175,7 +175,7 @@ def test_load_from_toml_dir_missing_directory_returns_defaults(tmp_path):
 
 
 def test_load_default_finds_the_checked_in_config_tree():
-    """The actual platform/shared/config/navigation/ tree this repo ships."""
+    """The actual platform/config/navigation/ tree this repo ships."""
     tuning = NavigationTuning.load_default()
 
     assert pytest.approx(0.10) == tuning.clearance.CONTACT_DIST

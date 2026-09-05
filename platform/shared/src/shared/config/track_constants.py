@@ -1,6 +1,6 @@
 """Mat geometry constants for the WRO 2026 Future Engineers track.
 
-Loads ``platform/shared/config/track.toml`` directly at runtime -- the single
+Loads ``platform/config/track.toml`` directly at runtime -- the single
 source of truth also consumed by the Go ``simconfig`` package (regenerated via
 ``task gen:track-constants``). Python used to read a checked-in generated
 module (``track_constants_gen.py``) instead, which duplicated the TOML into a
@@ -19,10 +19,10 @@ from pydantic import BaseModel, ConfigDict, model_validator
 if TYPE_CHECKING:
     from pathlib import Path
 
-from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
+from shared.config.paths import CONFIG_ROOT, TomlLoadableModel
 
-DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "track.toml"
-"""platform/shared/config/track.toml -- resolved via shared.config.paths rather
+DEFAULT_CONFIG_PATH: Path = CONFIG_ROOT / "track.toml"
+"""platform/config/track.toml -- resolved via shared.config.paths rather
 than a fragile ``parents[N]`` relative to this file."""
 
 

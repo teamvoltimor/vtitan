@@ -52,7 +52,7 @@ type Measurement struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/blind_nav/corridor_estimator.toml and
+// platform/config/navigation/blind_nav/corridor_estimator.toml and
 // track.toml's [corridor] section.
 const (
 	// DefaultMinSamples matches corridor_estimator.toml's min_samples.

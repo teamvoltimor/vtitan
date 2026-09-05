@@ -1,7 +1,7 @@
 package profile
 
 // PursuitConfig mirrors
-// platform/shared/config/navigation/motion/pursuit.toml
+// platform/config/navigation/motion/pursuit.toml
 // (shared.config.navigation_tuning.motion.PurePursuitParams) in full.
 // WallMarginSafetyM/MinLookaheadTransitionM are mirrored even though
 // internal/nav/controllers.WaypointController does not (yet) derive a
@@ -39,7 +39,7 @@ type PursuitConfig struct {
 }
 
 // DefaultPursuitTOMLPath is
-// platform/shared/config/navigation/motion/pursuit.toml, relative to the
+// platform/config/navigation/motion/pursuit.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load.
-const DefaultPursuitTOMLPath = "platform/shared/config/navigation/motion/pursuit.toml"
+const DefaultPursuitTOMLPath = "platform/config/navigation/motion/pursuit.toml"

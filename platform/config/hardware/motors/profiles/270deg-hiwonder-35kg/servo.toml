@@ -1,6 +1,6 @@
 # Hardware-profile overlay for the 270deg-hiwonder-35kg servo's physical PWM
 # driver config, deep-merged onto the base
-# platform/robot/config/hardware/motors/servo.toml (see
+# platform/config/hardware/motors/servo.toml (see
 # shared.config.hardware_profile). Only declares the keys that differ.
 #
 # This folder MUST be named exactly `270deg-hiwonder-35kg` to match the

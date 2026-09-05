@@ -1,7 +1,7 @@
 package profile
 
 // CorridorFollowerConfig mirrors
-// platform/shared/config/navigation/blind_nav/corridor_follower.toml
+// platform/config/navigation/blind_nav/corridor_follower.toml
 // (shared.config.navigation_tuning.blind_nav.CorridorFollowerParams) in
 // full.
 //
@@ -48,10 +48,10 @@ type CorridorFollowerConfig struct {
 }
 
 // DefaultCorridorFollowerTOMLPath is
-// platform/shared/config/navigation/blind_nav/corridor_follower.toml,
+// platform/config/navigation/blind_nav/corridor_follower.toml,
 // relative to the repo root. No per-component profile overlays -- pass
 // nil profileNames to Load.
-const DefaultCorridorFollowerTOMLPath = "platform/shared/config/navigation/blind_nav/corridor_follower.toml"
+const DefaultCorridorFollowerTOMLPath = "platform/config/navigation/blind_nav/corridor_follower.toml"
 
 // DefaultBayWallClearanceM matches CorridorFollowerParams.BAY_WALL_CLEARANCE_M's
 // Pydantic default -- see CorridorFollowerConfig.BayWallClearanceM's doc

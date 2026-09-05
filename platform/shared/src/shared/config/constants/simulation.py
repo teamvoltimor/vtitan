@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING, Final
 
 from pydantic import BaseModel, ConfigDict
 
-from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
+from shared.config.paths import CONFIG_ROOT, load_toml_model
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "competition_specs.toml"
+DEFAULT_CONFIG_PATH: Path = CONFIG_ROOT / "competition_specs.toml"
 
 
 class _CompetitionSpecsModel(BaseModel):

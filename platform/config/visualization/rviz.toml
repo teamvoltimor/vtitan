@@ -1,7 +1,7 @@
 # RViz/visualization-only appearance tuning for the live scenario view.
 # These are NOT official WRO track specs -- only how the sim draws itself in
 # RViz. Official track measurements (wall colour/dimensions, sign colours,
-# corridor geometry) live in platform/shared/config/track.toml.
+# corridor geometry) live in platform/config/track.toml.
 
 # Floor slab (a thin cube under the track). Keep it thin: a thick slab's side
 # faces read as an opaque wall at shallow viewing angles and swamp the mat

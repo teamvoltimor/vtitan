@@ -12,7 +12,7 @@ from shared.domain.enums import Section
 class TrackDimensions:
     """Official WRO track dimensions (meters).
 
-    Sourced from platform/shared/config/track.toml via TrackConstants — see
+    Sourced from platform/config/track.toml via TrackConstants — see
     shared.config.track_constants. Do not hand-edit these values here; edit
     the TOML directly.
     """

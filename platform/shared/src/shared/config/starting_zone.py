@@ -1,7 +1,7 @@
 """Typed, validated model of the mat's starting-square layout.
 
 The numbers come from ``TrackConstants``/``RobotConstants`` (loaded from
-``platform/shared/config/track.toml``/``robot.toml``); this module gives them
+``platform/config/track.toml``/``robot.toml``); this module gives them
 a shape and checks the invariants that make them legal starts. The Go
 generator validates the same invariants at generation time in
 ``internal/trackconfig``, so a bad edit to the TOML fails on both sides rather

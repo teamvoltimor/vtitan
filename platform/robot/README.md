@@ -22,7 +22,7 @@ Build the ROS2 workspace with `task robot:build-ws` (Linux only — colcon) befo
 | Directory | Contents |
 |---|---|
 | `hardware/` | Per-sensor/actuator drivers (camera, LIDAR passthrough, IMU variants, motors, button, display, Hailo NPU). Each has a `Config` (pydantic-settings, reads `config/hardware/*.toml`) and a `Driver`. |
-| `navigation/` | `CoreNavigator` and its controllers (pure pursuit, collision avoidance, stuck detection), maneuvers (parking, K-turn/slalom escapes), and planning (waypoint generation, sign routing/discovery, corridor estimation). Tunable via `NavigationTuning` (`platform/shared`), not hardcoded — see `platform/shared/config/navigation/*.toml`. |
+| `navigation/` | `CoreNavigator` and its controllers (pure pursuit, collision avoidance, stuck detection), maneuvers (parking, K-turn/slalom escapes), and planning (waypoint generation, sign routing/discovery, corridor estimation). Tunable via `NavigationTuning` (`platform/shared`), not hardcoded — see `platform/config/navigation/*.toml`. |
 | `state_machine/` | The 4-stage competition state machine (BOOT_CHECK → READY → RACING → FINISHED) and its data types. |
 | `simulation/` | Headless closed-loop simulator: drives the real `CoreNavigator` against a simulated `HardwareGateway` (Ackermann kinematics + raycast LIDAR + collision), used for navigation regression testing without Gazebo. |
 | `vision/` | Traffic-sign detector (Hailo NPU on hardware, Ultralytics/YOLO fallback in sim). |
@@ -31,7 +31,7 @@ Build the ROS2 workspace with `task robot:build-ws` (Linux only — colcon) befo
 | `config/`, `gen/`, `logger/` | Env/config loading, generated code, structured JSON logging setup. |
 
 Hardware config lives under `config/hardware/*.toml` (one file per driver, read via
-pydantic-settings — see each driver's `Config`), separate from `platform/shared/config/` which
+pydantic-settings — see each driver's `Config`), separate from `platform/config/` which
 holds cross-language physical constants (`robot.toml`) and navigation tuning.
 
 ## Testing

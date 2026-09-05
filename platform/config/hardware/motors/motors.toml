@@ -16,7 +16,7 @@ turning_speed = 30
 reversed = false
 
 # max_steering_angle and linkage_ratio are NOT declared here. They are physical
-# facts of the steering hardware, so they live in platform/shared/config/
+# facts of the steering hardware, so they live in platform/config/
 # robot.toml, which is also where the navigator's road-wheel limit is derived
 # from them. Declaring them here too is what let this file say 90 x 0.78 while
 # the code defaults said 45 x 1.0 -- two different robots. Override per-unit

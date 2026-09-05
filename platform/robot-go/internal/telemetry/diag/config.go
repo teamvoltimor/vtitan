@@ -64,7 +64,7 @@ const (
 	// LidarSectorsTuning.SELF_DETECTION_THRESHOLD_M's default.
 	DefaultSelfDetectionThresholdM = 0.08
 	// lidarMaxRangeM matches RobotSpecs.LIDAR_MAX_RANGE's default
-	// (platform/shared/config/robot.toml's lidar.max_range, the Slamtec
+	// (platform/config/robot.toml's lidar.max_range, the Slamtec
 	// C1's spec ceiling).
 	lidarMaxRangeM = 12.0
 	// noReturnMarginM matches sectors.py's _NO_RETURN_MARGIN_M: how far

@@ -26,13 +26,12 @@ if TYPE_CHECKING:
 
 # Anchored from hardware_profile.py (shared/config/hardware_profile.py) rather
 # than each caller, so module relocations can't change the resolved root.
-SHARED_CONFIG_ROOT: Path = PROFILES_ROOT.parent
-"""platform/shared/config -- the single shared TOML root, resolved once."""
+CONFIG_ROOT: Path = PROFILES_ROOT.parent
+"""platform/config -- the single TOML root for both stacks, resolved once.
 
-# The robot-side hardware settings live under a separate tree (driver-level
-# PWM ranges etc.); kept here so callers don't re-derive it either.
-ROBOT_CONFIG_ROOT: Path = SHARED_CONFIG_ROOT.parents[1] / "robot" / "config"
-"""platform/robot/config -- driver/hardware TOML root (HardwareBaseSettings)."""
+Shared constants (robot.toml, track.toml, navigation/) and the robot-side
+driver settings (hardware/, launch/) live under this one tree so the Python
+and Go stacks read the same files from the same place."""
 
 _ModelT = TypeVar("_ModelT", bound=BaseModel)
 

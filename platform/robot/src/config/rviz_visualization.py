@@ -4,10 +4,10 @@ These are NOT official WRO track specs -- they are purely how the simulation
 draws itself in RViz (marker colours, alphas, line-thickness multipliers, the
 floor slab). Official, competition-rules values (wall dimensions/colour, sign
 dimensions/colours, corridor geometry) live in ``shared.config.constants`` and
-are sourced from ``platform/shared/config/track.toml``; this module holds only
+are sourced from ``platform/config/track.toml``; this module holds only
 what the renderer chooses that no physical track measurement decides.
 
-Loaded from ``platform/robot/config/visualization/rviz.toml`` at runtime -- the
+Loaded from ``platform/config/visualization/rviz.toml`` at runtime -- the
 single source of truth. Edit the TOML, not the code, to retune the look.
 """
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[3] / "config" / "visualization" / "rviz.toml"
-"""platform/robot/config/visualization/rviz.toml -- resolved relative to this
+"""platform/config/visualization/rviz.toml -- resolved relative to this
 module's own location rather than the caller's."""
 
 
@@ -95,7 +95,7 @@ class RvizVisualizationConfig(BaseModel):
 
     @classmethod
     def load_default(cls) -> RvizVisualizationConfig:
-        """Load from the checked-in ``platform/robot/config/visualization/rviz.toml``.
+        """Load from the checked-in ``platform/config/visualization/rviz.toml``.
 
         Falls back to the hardcoded defaults if the file is absent, so the
         visualizer still works in a stripped-down test/sim context.

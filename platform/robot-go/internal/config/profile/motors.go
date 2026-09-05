@@ -1,7 +1,7 @@
 package profile
 
 // MotorsConfig mirrors the subset of
-// platform/robot/config/hardware/motors/motors.toml (src/hardware/motors/
+// platform/config/hardware/motors/motors.toml (src/hardware/motors/
 // config.py) that robot-go currently consumes.
 type MotorsConfig struct {
 	Drive struct {
@@ -12,6 +12,6 @@ type MotorsConfig struct {
 }
 
 // DefaultMotorsTOMLPath is
-// platform/robot/config/hardware/motors/motors.toml, relative to the repo
+// platform/config/hardware/motors/motors.toml, relative to the repo
 // root.
-const DefaultMotorsTOMLPath = "platform/robot/config/hardware/motors/motors.toml"
+const DefaultMotorsTOMLPath = "platform/config/hardware/motors/motors.toml"

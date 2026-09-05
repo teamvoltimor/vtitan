@@ -55,7 +55,7 @@ type Config struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/sensors/wall_heading.toml.
+// platform/config/navigation/sensors/wall_heading.toml.
 const (
 	// DefaultMinConcentration matches min_concentration.
 	DefaultMinConcentration = 0.55

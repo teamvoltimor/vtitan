@@ -1,20 +1,20 @@
 # Servo comparison: 180° (retired) vs 270° (270deg-hiwonder-35kg profile, CURRENT BUILD)
 
 Reference sheet for the two steering servo candidates. The 180° unit was the
-originally-built hardware (`platform/robot/config/hardware/motors/servo.toml`);
+originally-built hardware (`platform/config/hardware/motors/servo.toml`);
 the 270° unit (Hiwonder HPS-3527SG) is the current build, backed by the
 `270deg-hiwonder-35kg` hardware profile at
-`platform/robot/config/hardware/motors/profiles/270deg-hiwonder-35kg/servo.toml`
+`platform/config/hardware/motors/profiles/270deg-hiwonder-35kg/servo.toml`
 (see `docs/internal/plans/2026-08-11-servo-hardware-profiles.md`). That
 folder was named `servo270` until 2026-08-27, which didn't match the active
 profile name and meant its `range_deg=270` override silently never applied
-on hardware -- see `platform/robot/config/hardware/motors/profiles/
+on hardware -- see `platform/config/hardware/motors/profiles/
 270deg-hiwonder-35kg/servo.toml`'s own comment for the mechanism.
 
 ## Profile activation is a runtime setting, not a config edit (2026-08-20)
 
-Editing a value inside `platform/shared/config/profiles/<name>/robot.toml`
-(or the matching `platform/robot/config/hardware/motors/profiles/<name>/servo.toml`)
+Editing a value inside `platform/config/profiles/<name>/robot.toml`
+(or the matching `platform/config/hardware/motors/profiles/<name>/servo.toml`)
 does **not** put that value into effect on its own. Every profile is an
 overlay that only applies when its name is listed in the
 `VTITAN_HARDWARE_PROFILE` env var at process start (`shared.config.

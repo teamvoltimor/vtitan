@@ -1,6 +1,6 @@
 """Physical constants for the WRO 2026 robot chassis (vTitan + Ackermann steering).
 
-Loads ``platform/shared/config/robot.toml`` directly at runtime -- the single
+Loads ``platform/config/robot.toml`` directly at runtime -- the single
 source of truth also consumed by the Go ``simconfig`` package and the URDF
 xacro fragment (both now hand-maintained copies; the ``task gen:robot-constants``
 regenerator was removed 2026-09-03). Python used to
@@ -21,10 +21,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from shared.config.hardware_profile import PROFILES_ROOT, active_profiles
-from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel, load_toml_merged, profile_overlay_paths
+from shared.config.paths import CONFIG_ROOT, TomlLoadableModel, load_toml_merged, profile_overlay_paths
 
-DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "robot.toml"
-"""platform/shared/config/robot.toml -- resolved via shared.config.paths rather
+DEFAULT_CONFIG_PATH: Path = CONFIG_ROOT / "robot.toml"
+"""platform/config/robot.toml -- resolved via shared.config.paths rather
 than a fragile ``parents[N]`` relative to this file."""
 
 

@@ -119,7 +119,7 @@ doesn't need SHM's latency advantage to begin with.
 
 ## What was actually changed
 
-New file: `platform/robot/config/fastdds_udp_only.xml` -- a FastDDS XML
+New file: `platform/config/fastdds_udp_only.xml` -- a FastDDS XML
 profile that defines a single UDPv4 transport descriptor, sets
 `useBuiltinTransports=false` (which is what pulls in SHM by default),
 and applies it as the default participant profile.
@@ -136,7 +136,7 @@ robot:
 Each got one line added right after its existing `ROS_DOMAIN_ID=0`:
 
 ```
-Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/home/ralvarezdev/vtitan/platform/robot/config/fastdds_udp_only.xml
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/home/ralvarezdev/vtitan/platform/config/fastdds_udp_only.xml
 ```
 
 No code changes were needed -- this is entirely a transport-layer
@@ -159,6 +159,6 @@ configuration change, invisible to every node's Python source.
 
 Delete the added `Environment=FASTRTPS_DEFAULT_PROFILES_FILE=...` line
 from each of the three unit files, `sudo systemctl daemon-reload`, and
-restart. `platform/robot/config/fastdds_udp_only.xml` can stay in place
+restart. `platform/config/fastdds_udp_only.xml` can stay in place
 unused, or be deleted -- it has no effect unless something points
 `FASTRTPS_DEFAULT_PROFILES_FILE` at it.

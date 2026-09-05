@@ -539,7 +539,7 @@ tasks:
       - "{{.SIMGEN}} generate-track --output {{.BASE_WORLD}}"
 
   gen:track-constants:
-    desc: Regenerate mat geometry constants (Go) from shared/config/track.toml
+    desc: Regenerate mat geometry constants (Go) from config/track.toml
     deps: [simgen:build]
     cmds:
       - "{{.SIMGEN}} generate-track-constants"

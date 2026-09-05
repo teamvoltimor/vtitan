@@ -15,6 +15,6 @@ type LidarLaunchConfig struct {
 	AngleCompensate bool   `mapstructure:"angle_compensate"`
 }
 
-// DefaultLidarLaunchTOMLPath is platform/robot/config/launch/lidar.toml,
+// DefaultLidarLaunchTOMLPath is platform/config/launch/lidar.toml,
 // relative to the repo root.
-const DefaultLidarLaunchTOMLPath = "platform/robot/config/launch/lidar.toml"
+const DefaultLidarLaunchTOMLPath = "platform/config/launch/lidar.toml"

@@ -1,7 +1,7 @@
 # Obstacles Challenge tuning overlay
 
 Empty by default. Add `<subfolder>/<group>.toml` files here (same layout as
-`platform/shared/config/navigation/`, e.g. `waypoint/waypoints.toml` for
+`platform/config/navigation/`, e.g. `waypoint/waypoints.toml` for
 `ARC_RADIUS`, `motion/pursuit.toml` for lookahead) to override specific
 tuning keys for the Obstacles Challenge only. Loaded via
 `NavigationTuning.load_default(challenge=ScenarioType.OBSTACLES)`, merged

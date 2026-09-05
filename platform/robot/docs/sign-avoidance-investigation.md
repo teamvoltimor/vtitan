@@ -1698,8 +1698,8 @@ physical robot** — these are not simulation artifacts.
 
 Any future arc_radius/lookahead retune from this document routes through
 `NavigationTuning.load_default(challenge=ScenarioType.OBSTACLES)` and the
-`platform/shared/config/navigation-challenges/obstacles/` overlay, never
-through `platform/shared/config/navigation/` (the base config Open Challenge
+`platform/config/navigation-challenges/obstacles/` overlay, never
+through `platform/config/navigation/` (the base config Open Challenge
 also reads). The old `for_obstacles()` classmethod this document refers to no
 longer exists as such — the mechanism it would have used is the challenge
 overlay, and `navigation-challenges/open/` stays empty by construction (see

@@ -1,6 +1,6 @@
 # Hardware-profile overlay for practicing under natural/daylight instead of
 # the WRO venue's controlled artificial white light, deep-merged onto the
-# base platform/robot/config/hardware/camera/rpi_camera_module_3.toml (see
+# base platform/config/hardware/camera/rpi_camera_module_3.toml (see
 # shared.config.hardware_profile). Only declares the keys that differ.
 # Select with VTITAN_HARDWARE_PROFILE=natural_light.
 #

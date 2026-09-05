@@ -15,7 +15,7 @@
 // shared.config.navigation_tuning.blind_nav.DirectionEstimatorParams and
 // (for DirectionFromParkingBay's forward-clearance/wall-clearance checks)
 // CorridorFollowerParams/LidarSectorParams; ConfigFor loads the real
-// values from platform/shared/config/navigation/**'s TOML files via
+// values from platform/config/navigation/**'s TOML files via
 // internal/config/profile, falling back to DefaultConfig's literals when
 // no config root is supplied or loading fails.
 package directionestimator

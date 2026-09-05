@@ -33,12 +33,12 @@ type ButtonNodeConfig struct {
 }
 
 // DefaultButtonGPIOTOMLPath is
-// platform/robot/config/hardware/button/gpio.toml, relative to the repo
+// platform/config/hardware/button/gpio.toml, relative to the repo
 // root.
-const DefaultButtonGPIOTOMLPath = "platform/robot/config/hardware/button/gpio.toml"
+const DefaultButtonGPIOTOMLPath = "platform/config/hardware/button/gpio.toml"
 
 // DefaultButtonNodeTOMLPath is
-// platform/robot/config/hardware/button/button_node.toml, relative to the
+// platform/config/hardware/button/button_node.toml, relative to the
 // repo root -- the ROS2 node's own poll cadence, a separate file from
 // gpio.toml's driver-level debounce/threshold config.
-const DefaultButtonNodeTOMLPath = "platform/robot/config/hardware/button/button_node.toml"
+const DefaultButtonNodeTOMLPath = "platform/config/hardware/button/button_node.toml"

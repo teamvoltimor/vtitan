@@ -67,7 +67,7 @@ from shared.config.navigation_tuning.sensors import (
 from shared.config.navigation_tuning.signs import SignDiscoveryParams, SignRouterParams
 from shared.config.navigation_tuning.simulation_params import SimulationParams
 from shared.config.navigation_tuning.waypoint import WaypointParams
-from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_merged
+from shared.config.paths import CONFIG_ROOT, load_toml_merged
 from shared.domain.enums import ScenarioType
 
 __all__ = [
@@ -95,8 +95,8 @@ __all__ = [
     "WaypointParams",
 ]
 
-DEFAULT_CONFIG_DIR: Path = SHARED_CONFIG_ROOT / "navigation"
-"""platform/shared/config/navigation -- the checked-in per-group TOML tree.
+DEFAULT_CONFIG_DIR: Path = CONFIG_ROOT / "navigation"
+"""platform/config/navigation -- the checked-in per-group TOML tree.
 
 Resolved via shared.config.paths (anchored from hardware_profile's fixed depth)
 rather than a fragile ``parents[N]`` relative to this file, so a module
@@ -104,8 +104,8 @@ relocation can't change the resolved root. This package is the one that actually
 knows where its own config lives -- callers (e.g. CoreNavigator) shouldn't have
 to know or assume the two are siblings under the same platform/ root."""
 
-CHALLENGES_ROOT: Path = SHARED_CONFIG_ROOT / "navigation-challenges"
-"""platform/shared/config/navigation-challenges -- per-challenge overlay tree.
+CHALLENGES_ROOT: Path = CONFIG_ROOT / "navigation-challenges"
+"""platform/config/navigation-challenges -- per-challenge overlay tree.
 
 One ``<challenge>/<subfolder>/<group>.toml`` directory per :class:`ScenarioType`
 value (``open``, ``obstacles``), same per-group layout as ``DEFAULT_CONFIG_DIR``
@@ -242,7 +242,7 @@ class NavigationTuning:
     # load_from_toml_dir/load_from_toml_dirs handle, so adding a new tuning group never requires
     # touching more than this tuple. The subfolder mirrors this package's own
     # module grouping (motion.py, blind_nav.py, etc.) under
-    # platform/shared/config/navigation/, so a TOML file's location and its
+    # platform/config/navigation/, so a TOML file's location and its
     # Python group's home module always agree.
     _GROUPS: ClassVar[tuple[tuple[str, type, str], ...]] = (
         ("clearance", ClearanceZones, "motion"),

@@ -177,7 +177,7 @@ type Config struct {
 
 // Default* mirror the shipped TOML values this package's Python
 // counterpart (CoreNavigator + EscapeRecovery, via NavigationTuning) reads:
-// platform/shared/config/navigation/** plus platform/shared/config/robot.toml
+// platform/config/navigation/** plus platform/config/robot.toml
 // and track.toml. They are the fallback for a caller with no config root at
 // all -- ConfigFor prefers the live files.
 const (

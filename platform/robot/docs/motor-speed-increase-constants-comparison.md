@@ -2,7 +2,7 @@
 
 Working note for evaluating a motor swap/upgrade expected to raise top speed
 by ~60%. Current ceiling is the bench-measured `[drivetrain] max_speed_mps =
-0.156` in `platform/shared/config/robot.toml`. Projected column assumes the
+0.156` in `platform/config/robot.toml`. Projected column assumes the
 new ceiling is confirmed at **0.156 × 1.6 ≈ 0.25 m/s** — replace with the
 actual bench-measured number once available, then recompute the derived rows.
 
@@ -10,7 +10,7 @@ actual bench-measured number once available, then recompute the derived rows.
 
 | Constant | File | Current | Projected (×1.6) | Notes |
 |---|---|---|---|---|
-| `max_speed_mps` | `platform/shared/config/robot.toml` [drivetrain] | 0.156 | ~0.25 (re-measure) | Hard ceiling — `AckermannKinematics` clamps to it. Single source; everything below reads through `RobotSpecs.MAX_SPEED_MPS`. |
+| `max_speed_mps` | `platform/config/robot.toml` [drivetrain] | 0.156 | ~0.25 (re-measure) | Hard ceiling — `AckermannKinematics` clamps to it. Single source; everything below reads through `RobotSpecs.MAX_SPEED_MPS`. |
 | `max_accel_mps2` | same, [drivetrain] | 2.0 | ? | Physical accel limit — depends on the new motor, not derivable from top-speed alone. Bench-measure separately. |
 
 ## Speed ladder (auto-scales — fractions of the ceiling)

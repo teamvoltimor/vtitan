@@ -1,6 +1,6 @@
 """Shared base for every hardware driver's ``Config``.
 
-Reads from its own TOML file under ``platform/robot/config/hardware/`` instead
+Reads from its own TOML file under ``platform/config/hardware/`` instead
 of ``.env``.
 
 An env var of the same name still overrides the toml value (env_settings
@@ -26,7 +26,7 @@ from shared.config.hardware_profile import active_profiles
 
 # settings_base.py -> hardware -> src -> robot
 ROBOT_ROOT: Path = Path(__file__).resolve().parents[2]
-CONFIG_DIR: Path = ROBOT_ROOT / "config" / "hardware"
+CONFIG_DIR: Path = ROBOT_ROOT.parent / "config" / "hardware"
 SAFE_SHUTDOWN_BOTH_SCRIPT: Path = ROBOT_ROOT / "scripts" / "provisioning" / "safe-shutdown-both.sh"
 
 

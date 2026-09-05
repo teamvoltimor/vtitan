@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict
 if TYPE_CHECKING:
     from pathlib import Path
 
-from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
+from shared.config.paths import CONFIG_ROOT, TomlLoadableModel
 
 
 class RosMessageType(StrEnum):
@@ -230,5 +230,5 @@ class RosTopicConfig(TomlLoadableModel):
     bag_recorder: BagRecorderTopics
     simulation: SimulationTopics
 
-    default_config_path: ClassVar[Path] = SHARED_CONFIG_ROOT / "ros_topics.toml"
+    default_config_path: ClassVar[Path] = CONFIG_ROOT / "ros_topics.toml"
     """Path to the checked-in ros_topics.toml file."""

@@ -5,7 +5,7 @@ import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel
 // Config parameterizes waypoint generation. DefaultConfig's field values
 // mirror shared.config.navigation_tuning.waypoint.WaypointParams'
 // Pydantic defaults; ConfigFor loads the real values from
-// platform/shared/config/navigation/waypoint/waypoints.toml via
+// platform/config/navigation/waypoint/waypoints.toml via
 // internal/config/profile, falling back to DefaultConfig's literals when
 // no config root is supplied or loading fails.
 type Config struct {

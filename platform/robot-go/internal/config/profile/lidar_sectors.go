@@ -1,7 +1,7 @@
 package profile
 
 // LidarSectorsConfig mirrors
-// platform/shared/config/navigation/sensors/lidar_sectors.toml
+// platform/config/navigation/sensors/lidar_sectors.toml
 // (shared.config.navigation_tuning.LidarSectorParams) in full. Originally
 // covered only the two fields internal/nav/directionestimator needed
 // (DirectionArcHalfFovDeg, MinValidRangeM); expanded to the full schema
@@ -41,7 +41,7 @@ type LidarSectorsConfig struct {
 }
 
 // DefaultLidarSectorsTOMLPath is
-// platform/shared/config/navigation/sensors/lidar_sectors.toml, relative
+// platform/config/navigation/sensors/lidar_sectors.toml, relative
 // to the repo root. No per-component profile overlays -- pass nil
 // profileNames to Load.
-const DefaultLidarSectorsTOMLPath = "platform/shared/config/navigation/sensors/lidar_sectors.toml"
+const DefaultLidarSectorsTOMLPath = "platform/config/navigation/sensors/lidar_sectors.toml"
