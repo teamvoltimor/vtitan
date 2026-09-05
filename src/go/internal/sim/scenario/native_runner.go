@@ -265,7 +265,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		if err != nil {
 			return Result{}, fmt.Errorf("native runner: building sign router %s: %w", sc.ID, err)
 		}
-		vision = &simVisionGateway{gw: gw, signs: signs, cfg: visionConfigFor(r.cfg)}
+		vision = &simVisionGateway{gw: gw, signs: signs, cfg: visionsim.ConfigFrom(r.srCfg, r.cfg.DetectionConfidence)}
 	}
 
 	targetLaps := defaultLaps(meta)
@@ -352,15 +352,6 @@ func (v *simVisionGateway) GetVisionDetections() ([]signrouter.TrafficSignObserv
 	st := v.gw.State()
 	obs := visionsim.EmulateSignObservations(v.signs, st.X, st.Y, st.Yaw, v.cfg, nil)
 	return obs, len(obs) > 0
-}
-
-// visionConfigFor derives visionsim.Config from the harness Config's own
-// DetectionConfidence, keeping the camera HFOV/range defaults (visionsim
-// owns those; harness.Config does not mirror RobotSpecs' camera constants).
-func visionConfigFor(cfg harness.Config) visionsim.Config {
-	vc := visionsim.DefaultConfig()
-	vc.DetectionConfidence = cfg.DetectionConfidence
-	return vc
 }
 
 // signObstacleWidthM/signObstacleDepthM mirror track.toml's [sign]

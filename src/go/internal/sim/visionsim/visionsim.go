@@ -39,15 +39,29 @@ type Config struct {
 }
 
 // DefaultConfig returns the Config matching the shipped defaults:
-// signrouter's own camera-pinhole constants for HFOV/range (see that
-// package's discovery.go -- both are documented TODOs pending a Go
-// profile mirror of RobotSpecs, not measured here), and
-// simulation.toml's detection_confidence (0.9).
+// signrouter's own camera geometry defaults for HFOV/range (which mirror
+// robot.toml's [camera] section) and simulation.toml's
+// detection_confidence (0.9).
+//
+// ConfigFrom is preferred wherever a resolved signrouter.Config is on hand,
+// so a run with a --config-root sees the shipped camera rather than these
+// fallbacks.
 func DefaultConfig() Config {
 	return Config{
-		CameraHFOVRad:       signrouter.CameraHFOVRad,
-		MaxRangeM:           signrouter.CameraFarClipM,
+		CameraHFOVRad:       signrouter.DefaultCameraHFOVRad,
+		MaxRangeM:           signrouter.DefaultCameraFarClipM,
 		DetectionConfidence: 0.9,
+	}
+}
+
+// ConfigFrom takes the camera geometry from an already-resolved
+// signrouter.Config, so the emulated camera and the sign router that
+// consumes its detections agree on what the lens is.
+func ConfigFrom(sr signrouter.Config, detectionConfidence float64) Config {
+	return Config{
+		CameraHFOVRad:       sr.CameraHFOVRad,
+		MaxRangeM:           sr.CameraFarClipM,
+		DetectionConfidence: detectionConfidence,
 	}
 }
 

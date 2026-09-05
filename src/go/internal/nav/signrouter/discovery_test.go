@@ -25,16 +25,17 @@ func TestDetectionToWorld_Pinhole(t *testing.T) {
 	t.Parallel()
 	// Sign 0.10 m tall, 42 px tall at 1.5 m (the doc's worked example).
 	// distance = f * real_h / pixel_h.
-	f := cameraFocalPX
-	wantDist := (f * SignHeightM) / 42.0
+	cfg := DefaultConfig()
+	f := cfg.CameraFocalPX()
+	wantDist := (f * cfg.SignHeightM) / 42.0
 
 	det := BoundingBox{
 		XMin: 0, YMin: 0, XMax: 100, YMax: 42,
-		CenterX: CameraWidthPX / 2.0, Height: 42,
+		CenterX: cfg.CameraWidthPX / 2.0, Height: 42,
 		Color: SignColorRed, Confidence: 0.9,
 	}
 	pose := trackmodel.Waypoint{X: 1.0, Y: 1.0}
-	got := DetectionToWorld(
+	got := cfg.DetectionToWorld(
 		det,
 		pose,
 		0,
@@ -48,7 +49,7 @@ func TestDetectionToWorld_Pinhole(t *testing.T) {
 	}
 	// Bearing 0 (forward) => +x, projected from the sensor origin (mount
 	// offset forward of the body centre).
-	wantX := pose.X + LidarMountXOffsetM + wantDist
+	wantX := pose.X + cfg.SensorMountXOffsetM + wantDist
 	if math.Abs(got.X-wantX) > 1e-6 {
 		t.Errorf("x = %v, want %v", got.X, wantX)
 	}
@@ -62,18 +63,19 @@ func TestDetectionToWorld_Pinhole(t *testing.T) {
 // theta_h = (cx/W - 0.5)*HFOV.
 func TestDetectionToWorld_Bearing(t *testing.T) {
 	t.Parallel()
+	cfg := DefaultConfig()
 	// Half-width off centre => theta_h = +HFOV/4 (to the left in image = the
 	// sign is to the robot's left when cx > centre? cx is measured from left,
 	// so cx > centre means the object is on the robot's right in yaw terms
 	// per the Python model theta_h = (cx/W - 0.5)*HFOV, bearing = yaw+theta_h).
-	cx := CameraWidthPX * 0.75
+	cx := cfg.CameraWidthPX * 0.75
 	det := BoundingBox{
 		XMin: 0, YMin: 0, XMax: 20, YMax: 42,
 		CenterX: cx, Height: 42,
 		Color: SignColorGreen, Confidence: 0.9,
 	}
 	pose := trackmodel.Waypoint{X: 0, Y: 0}
-	got := DetectionToWorld(
+	got := cfg.DetectionToWorld(
 		det,
 		pose,
 		0,
@@ -85,11 +87,11 @@ func TestDetectionToWorld_Bearing(t *testing.T) {
 	if got == nil {
 		t.Fatal("DetectionToWorld = nil")
 	}
-	wantTheta := (cx/CameraWidthPX - 0.5) * CameraHFOVRad
-	wantDist := (cameraFocalPX * SignHeightM) / 42.0
+	wantTheta := (cx/cfg.CameraWidthPX - 0.5) * cfg.CameraHFOVRad
+	wantDist := (cfg.CameraFocalPX() * cfg.SignHeightM) / 42.0
 	// At yaw 0 the mount offset is entirely along +x (forward), so the
-	// sensor origin is (LidarMountXOffsetM, 0); only x carries the offset.
-	wantX := LidarMountXOffsetM + wantDist*math.Cos(wantTheta)
+	// sensor origin is (cfg.SensorMountXOffsetM, 0); only x carries the offset.
+	wantX := cfg.SensorMountXOffsetM + wantDist*math.Cos(wantTheta)
 	wantY := wantDist * math.Sin(wantTheta)
 	if math.Abs(got.X-wantX) > 1e-6 {
 		t.Errorf("x = %v, want %v", got.X, wantX)

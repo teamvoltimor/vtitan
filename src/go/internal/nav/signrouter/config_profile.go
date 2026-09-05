@@ -41,6 +41,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		cfg.TrackCornerMinM = tc.Track.CornerMin
 		cfg.TrackCornerMaxM = tc.Track.CornerMax
 		signWidthM = tc.Sign.Width
+		cfg.SignHeightM = tc.Sign.Height
 	}
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
@@ -50,6 +51,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	} else {
 		cfg.ChassisHalfDiagonalM = chassisHalfDiagonalM(rc.Chassis.Length, rc.Chassis.Width)
 		cfg.BehindToleranceM = behindToleranceM(rc.Chassis.Length)
+		cfg.CameraHFOVRad = rc.Camera.Hfov
+		cfg.CameraWidthPX = float64(rc.Camera.Width)
+		cfg.CameraFarClipM = rc.Camera.FarClip
+		cfg.SensorMountXOffsetM = rc.Camera.MountXOffset
 	}
 
 	signClearanceMarginM := DefaultSignClearanceMarginM

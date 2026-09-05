@@ -13,6 +13,24 @@ import (
 // src.navigation.planning.sign_router.config's SignRouterConfig and
 // SignRouterConstants.
 type Config struct {
+	// CameraHFOVRad is the camera's horizontal field of view, from
+	// robot.toml's [camera] hfov. The shipped sensor is a Raspberry Pi
+	// Camera Module 3 Wide at 1.7802 rad (102 deg).
+	CameraHFOVRad float64
+	// CameraWidthPX is the sensor pixel width, from robot.toml's
+	// [camera] width.
+	CameraWidthPX float64
+	// CameraFarClipM is the LIDAR-fusion validity ceiling, from
+	// robot.toml's [camera] far_clip.
+	CameraFarClipM float64
+	// SensorMountXOffsetM is how far forward of the chassis centre the
+	// camera/LIDAR sit, from robot.toml's [camera] mount_x_offset, so a
+	// projection starts at the sensor rather than the body origin.
+	SensorMountXOffsetM float64
+	// SignHeightM is the real-world height of a WRO traffic sign, from
+	// track.toml's [sign] height -- the only dimension the pinhole range
+	// model needs.
+	SignHeightM float64
 	// LateralOffsetM is the lateral deformation magnitude (m), matching
 	// SignRouterConfig.lateral_offset. Not a raw tunable: it is chassis
 	// half-diagonal + sign half-width + SIGN_CLEARANCE_MARGIN_M, computed
@@ -86,7 +104,7 @@ type Config struct {
 
 // Default* mirror the shipped literal defaults this package's Python
 // counterpart is built from: SignRouterParams' Pydantic field defaults for
-// the tuning knobs, and the CURRENT platform/shared/config/robot.toml
+// the tuning knobs, and the CURRENT platform/config/robot.toml
 // [chassis] / track.toml [track]/[sign] values for geometry. Like
 // internal/nav/waypoints.DefaultConfig, these are a fallback for when no
 // config root is available -- ConfigFor prefers the live TOML values, which
@@ -107,6 +125,16 @@ const (
 	DefaultPinCornerGuard       = true
 	DefaultPinHeadingGuard      = true
 	DefaultPinHeadingGuardDeg   = 35.0
+	// DefaultCameraHFOVRad/DefaultCameraWidthPX/DefaultCameraFarClipM/
+	// DefaultSensorMountXOffsetM mirror robot.toml's [camera] section, and
+	// DefaultSignHeightM mirrors track.toml's [sign] height. They are the
+	// fallback for a run with no config root, not a second source of truth.
+	DefaultCameraHFOVRad       = 1.7802
+	DefaultCameraWidthPX       = 1536.0
+	DefaultCameraFarClipM      = 10.0
+	DefaultSensorMountXOffsetM = 0.1222
+	DefaultSignHeightM         = 0.10
+
 	DefaultRelabelUnsatisfiable = true
 	DefaultDepthConsistent      = true
 	DefaultTrackMinCoordM       = 0.0
@@ -152,6 +180,11 @@ func DefaultConfig() Config {
 		CommitHysteresis:        DefaultCommitHysteresis,
 		CorridorFlipTicks:       DefaultCorridorFlipTicks,
 		SettleTicks:             DefaultSettleTicks,
+		CameraHFOVRad:           DefaultCameraHFOVRad,
+		CameraWidthPX:           DefaultCameraWidthPX,
+		CameraFarClipM:          DefaultCameraFarClipM,
+		SensorMountXOffsetM:     DefaultSensorMountXOffsetM,
+		SignHeightM:             DefaultSignHeightM,
 		RelabelUnsatisfiable:    DefaultRelabelUnsatisfiable,
 		DepthConsistentCorridor: DefaultDepthConsistent,
 		WallClearanceMarginM:    DefaultWallClearanceMarginM,
