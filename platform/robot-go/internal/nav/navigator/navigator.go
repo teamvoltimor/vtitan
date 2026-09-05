@@ -9,6 +9,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/directionestimator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
@@ -80,6 +81,25 @@ type Params struct {
 	// case handleFinish holds position once NumLaps is reached, matching
 	// _handle_finish's `pc is None` branch.
 	ParkController *parking.ParkController
+	// CorridorFollowerConfig tunes the BLIND_CREEP corridor follower.
+	// Nil takes corridorfollower.DefaultConfig(). These four blind-phase
+	// configs are Params rather than being read at the call site so a
+	// caller that HAS loaded the shipped TOML can hand it over: the call
+	// sites used to hardcode DefaultConfig(), which silently pinned the
+	// whole blind path to Go literals whatever --config-root said.
+	CorridorFollowerConfig *corridorfollower.Config
+	// DirectionEstimatorConfig tunes the blind direction vote and the
+	// parking-bay read. Nil takes directionestimator.DefaultConfig().
+	DirectionEstimatorConfig *directionestimator.Config
+	// BayExitConfig tunes the boxed-in-bay exit maneuver. Nil takes
+	// bayexit.DefaultConfig().
+	BayExitConfig *bayexit.Config
+	// CorridorEstimatorConfig gates the creep-phase width readings. Nil
+	// takes corridorestimator.DefaultConfig().
+	CorridorEstimatorConfig *corridorestimator.Config
+	// StartMeasurementConfig tunes the post-settle start-pose measurement.
+	// Nil takes startmeasurement.DefaultConfig().
+	StartMeasurementConfig *startmeasurement.Config
 	// Logger receives the lap/escape/refusal messages CoreNavigator logs;
 	// nil falls back to slog.Default().
 	Logger *slog.Logger
@@ -96,6 +116,13 @@ type Navigator struct {
 
 	cfg           Config
 	signRouterCfg signrouter.Config
+	// The blind-phase configs, resolved once in New rather than rebuilt
+	// from DefaultConfig() at each per-tick call site.
+	followerCfg  corridorfollower.Config
+	dirEstCfg    directionestimator.Config
+	bayExitCfg   bayexit.Config
+	widthMeasCfg corridorestimator.Config
+	startMeasCfg startmeasurement.Config
 
 	// waypoints is the path currently being driven; laneBaseWaypoints is
 	// the path as PLANNED, before any sign-lane transform. Kept separately
@@ -167,9 +194,16 @@ type Navigator struct {
 	poseTrail []trackmodel.Pose
 	retracing bool
 
+	// creepWidths are corridor-width readings taken during BLIND_CREEP,
+	// before a direction exists to file them under. See CreepWidth.
+	creepWidths []CreepWidth
+
 	waypointController  *controllers.WaypointController
 	collisionController *controllers.CollisionAvoidanceController
 	stuckDetector       *controllers.StuckDetector
+	// cornerLatch holds the corner-turn preview open until the turn it
+	// promised has actually been driven. See CornerLatch.
+	cornerLatch CornerLatch
 
 	debug DebugSnapshot
 }
@@ -254,30 +288,63 @@ func New(p Params) (*Navigator, error) {
 	// so a drivetrain without headroom to spare needs no special case.
 	cfg := p.Config.ForChallenge(p.SignRouter != nil)
 
+	followerCfg := corridorfollower.DefaultConfig()
+	if p.CorridorFollowerConfig != nil {
+		followerCfg = *p.CorridorFollowerConfig
+	}
+	dirEstCfg := directionestimator.DefaultConfig()
+	if p.DirectionEstimatorConfig != nil {
+		dirEstCfg = *p.DirectionEstimatorConfig
+	}
+	bayExitCfg := bayexit.DefaultConfig()
+	if p.BayExitConfig != nil {
+		bayExitCfg = *p.BayExitConfig
+	}
+	widthMeasCfg := corridorestimator.DefaultConfig()
+	if p.CorridorEstimatorConfig != nil {
+		widthMeasCfg = *p.CorridorEstimatorConfig
+	}
+	startMeasCfg := startmeasurement.DefaultConfig()
+	if p.StartMeasurementConfig != nil {
+		startMeasCfg = *p.StartMeasurementConfig
+	}
+
+	pursuitCfg := p.ControllersConfig
+	if p.SignRouter == nil {
+		pursuitCfg = pursuitCfg.ForOpenChallenge()
+	}
+
 	n := &Navigator{
-		logger:              logger,
-		gateway:             p.Gateway,
-		vision:              p.Vision,
-		cfg:                 cfg,
-		signRouterCfg:       p.SignRouterConfig,
-		waypoints:           slices.Clone(p.Waypoints),
-		laneBaseWaypoints:   slices.Clone(p.Waypoints),
-		numLaps:             numLaps,
-		signRouter:          p.SignRouter,
-		parkController:      p.ParkController,
-		direction:           p.Direction,
-		waypointThreshold:   cfg.MainLoopReachedDistanceM,
-		escapeSteerSign:     1.0,
-		waypointController:  p.ControllersConfig.NewWaypointController(),
+		logger:            logger,
+		gateway:           p.Gateway,
+		vision:            p.Vision,
+		cfg:               cfg,
+		signRouterCfg:     p.SignRouterConfig,
+		followerCfg:       followerCfg,
+		dirEstCfg:         dirEstCfg,
+		bayExitCfg:        bayExitCfg,
+		widthMeasCfg:      widthMeasCfg,
+		startMeasCfg:      startMeasCfg,
+		waypoints:         slices.Clone(p.Waypoints),
+		laneBaseWaypoints: slices.Clone(p.Waypoints),
+		numLaps:           numLaps,
+		signRouter:        p.SignRouter,
+		parkController:    p.ParkController,
+		direction:         p.Direction,
+		waypointThreshold: cfg.MainLoopReachedDistanceM,
+		escapeSteerSign:   1.0,
+		// The Open Challenge has its own straight lookahead. Resolved on the
+		// same discriminator as the speed ladder above -- an attached sign
+		// router is what identifies Obstacles -- and resolved HERE, once,
+		// rather than at each site that reads a lookahead.
+		waypointController:  pursuitCfg.NewWaypointController(),
 		collisionController: collisionCfg.NewCollisionAvoidanceController(),
 		stuckDetector:       stuckDetector,
 	}
 	// Blind bootstrap: build the direction estimator and (when a router is
 	// attached) the discovery map so camera signs accumulate while creeping.
 	if n.direction == nil {
-		n.dirEstimator = directionestimator.NewEstimator(
-			directionestimator.DefaultConfig().MinVotes,
-		)
+		n.dirEstimator = directionestimator.NewEstimator(dirEstCfg.MinVotes)
 		if n.signRouter != nil {
 			n.discovery = signrouter.NewObservedSignMap(
 				signrouter.DefaultDiscoveryConfig(),
@@ -570,6 +637,13 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 		n.discovery.Publish()
 	}
 
+	// Take width readings during the creep as well. They cannot be filed
+	// under a corridor yet -- that needs the direction -- but they are the
+	// cleanest readings of the whole round. See recordCreepWidth.
+	if haveScan {
+		n.recordCreepWidth(ranges, angles, robotYaw)
+	}
+
 	// Resolve the direction: a boxed-in parking bay names it outright;
 	// otherwise vote on scans. The parking-bay check is tested ONCE (the
 	// first tick a scan is available) -- see bayStartChecked's doc comment;
@@ -579,20 +653,20 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 		boxed := false
 		if !n.bayStartChecked && haveScan {
 			n.bayStartChecked = true
-			if dir, ok := directionestimator.DirectionFromParkingBay(ranges, angles, directionestimator.DefaultConfig()); ok {
+			if dir, ok := directionestimator.DirectionFromParkingBay(ranges, angles, n.dirEstCfg); ok {
 				n.dirEstimator.Settle(dir)
 				n.exitingBay = true
 				boxed = true
 			}
 		}
 		if !boxed && !n.exitingBay && haveScan {
-			n.dirEstimator.Observe(ranges, angles, robotYaw, directionestimator.DefaultConfig())
+			n.dirEstimator.Observe(ranges, angles, robotYaw, n.dirEstCfg)
 		}
 
 		// Out of the pocket. Falls through to the settle block below rather
 		// than returning, so the path is rebuilt for the committed
 		// direction once the maneuver ends -- see bayexit.IsClear.
-		bxCfg := bayexit.DefaultConfig()
+		bxCfg := n.bayExitCfg
 		if n.exitingBay && haveScan && bayexit.IsClear(ranges, angles, bxCfg) {
 			n.exitingBay = false
 		}
@@ -625,7 +699,7 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 			// is corrected before the planned path is followed.
 			if haveScan {
 				if measured, measuredOK := startmeasurement.MeasureStartPose(
-					ranges, angles, dir, trackmodel.South, startmeasurement.DefaultConfig(),
+					ranges, angles, dir, trackmodel.South, n.startMeasCfg,
 				); measuredOK {
 					n.ApplyBelievedStart(
 						trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: robotYaw},
@@ -633,6 +707,35 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 					)
 				}
 			}
+			// Resync the path to where the chassis actually is, UNCONDITIONALLY
+			// -- including when the inferred direction agreed with the
+			// provisional one and the path is unchanged. The navigator did not
+			// follow the path during the creep, so its waypoint index is still
+			// 0 while the robot has driven a metre past it: it would resume by
+			// chasing a waypoint behind itself. Measured in Python: this alone
+			// cost fixtures that had inferred the direction perfectly.
+			//
+			// The yaw is passed so the nearest-waypoint search breaks ties by
+			// heading agreement -- at the end of a corridor the waypoint behind
+			// and the one ahead are near-equidistant, and position alone picks
+			// between them arbitrarily.
+			// Resync the path to where the chassis actually is, UNCONDITIONALLY
+			// -- including when the inferred direction agreed with the
+			// provisional one and the path is unchanged. The navigator did not
+			// follow the path during the creep, so its waypoint index is still
+			// 0 while the robot has driven a metre past it: it would resume by
+			// chasing a waypoint behind itself. Measured in Python: this alone
+			// cost fixtures that had inferred the direction perfectly.
+			//
+			// The yaw is passed so the nearest-waypoint search breaks ties by
+			// heading agreement -- at the end of a corridor the waypoint behind
+			// and the one ahead are near-equidistant, and position alone picks
+			// between them arbitrarily.
+			n.ReplacePath(
+				n.waypoints,
+				trackmodel.Waypoint{X: robotX, Y: robotY},
+				&robotYaw,
+			)
 			n.debug = debug
 			return
 		}
@@ -648,12 +751,139 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 		return
 	}
 	yaw := robotYaw
-	cmd := corridorfollower.FollowCorridor(ranges, angles, corridorfollower.Params{
-		SpeedMPS: n.cfg.CreepSpeedMPS(),
-		Yaw:      &yaw,
-	}, corridorfollower.DefaultConfig())
+	followParams := corridorfollower.Params{
+		SpeedMPS:       n.cfg.CreepSpeedMPS(),
+		Yaw:            &yaw,
+		ForcedTurnSide: n.signDodgeSide(robotX, robotY),
+	}
+	if believed, ok := n.BelievedCreepWidthM(); ok {
+		followParams.BelievedWidthM = &believed
+	}
+	cmd := corridorfollower.FollowCorridor(ranges, angles, followParams, n.followerCfg)
 	n.gateway.PublishDrive(cmd)
 	debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
 	debug.CommandedSteerNorm = new(cmd.SteeringNorm)
 	n.debug = debug
+}
+
+// CreepWidth is one corridor-width reading taken during BLIND_CREEP, kept
+// with the heading it was taken at.
+//
+// The heading is what makes it usable later: attribution needs a corridor,
+// a corridor needs the travel direction, and the whole point of the creep is
+// that the direction is not known yet. Holding the yaw lets the reading be
+// filed the moment the direction settles, via
+// corridorestimator.SectionFromHeading.
+type CreepWidth struct {
+	// Yaw is the chassis heading the reading was taken at (world frame).
+	Yaw float64
+	// WidthM is the measured corridor width.
+	WidthM float64
+}
+
+// BelievedCreepWidthM is the mean of the creep-phase width readings, and
+// ok=false before any has been taken.
+//
+// Fed to the corridor follower as its believed corridor width, which is what
+// selects the NARROW turn clearance. Without it the follower commits every
+// corner at the WIDE clearance, so a narrow corridor is turned with an arc
+// sized for a corridor 20 cm wider than the one the robot is in.
+func (n *Navigator) BelievedCreepWidthM() (widthM float64, ok bool) {
+	if len(n.creepWidths) == 0 {
+		return 0.0, false
+	}
+	total := 0.0
+	for _, w := range n.creepWidths {
+		total += w.WidthM
+	}
+	return total / float64(len(n.creepWidths)), true
+}
+
+// TakeCreepWidths returns the buffered creep readings and clears the buffer,
+// handing ownership to the caller.
+//
+// Draining rather than copying: these are replayed into the width estimator
+// exactly once, the tick the direction settles, and a second replay would
+// vote the same readings twice.
+func (n *Navigator) TakeCreepWidths() []CreepWidth {
+	taken := n.creepWidths
+	n.creepWidths = nil
+	return taken
+}
+
+// recordCreepWidth takes a width reading during the creep, if this tick's
+// scan yields a usable one.
+//
+// These are the cleanest readings of the whole round -- taken driving
+// straight down a corridor -- and they cannot be filed yet, because that
+// needs the direction. Discarding them instead leaves the first surviving
+// readings to be taken at a CORNER, where the side rays span the next
+// corridor and get attributed to this one. Measured in Python: that alone
+// mislearned the starting corridor on fixtures whose direction was inferred
+// perfectly.
+//
+// Capped at MaxStartSamples (corridor_estimator.MAX_START_SAMPLES), oldest
+// dropped first, matching TrackNavigatorNode. A creep that never settles
+// would otherwise buffer without bound, and -- more to the point -- the mean
+// the follower acts on should describe the corridor the robot is in NOW, not
+// be dragged back by readings from a corridor several turns ago.
+func (n *Navigator) recordCreepWidth(rangesM, anglesRad []float64, robotYaw float64) {
+	m, ok := corridorestimator.MeasureCorridorWidth(rangesM, anglesRad, robotYaw, n.widthMeasCfg)
+	if !ok {
+		return
+	}
+	n.creepWidths = append(n.creepWidths, CreepWidth{Yaw: robotYaw, WidthM: m.WidthM})
+	if cap := n.widthMeasCfg.MaxStartSamples; cap > 0 && len(n.creepWidths) > cap {
+		n.creepWidths = slices.Delete(n.creepWidths, 0, len(n.creepWidths)-cap)
+	}
+}
+
+// signDodgeSide is which side BLIND_CREEP should turn toward to honor the
+// WRO pass-side rule, or TurnSideNone to defer to the follower's own
+// clearance heuristic.
+//
+// FollowCorridor treats every close obstacle the same way -- turn toward
+// whichever side has more LIDAR clearance -- because it never sees vision
+// detections and has no notion of sign color. That is correct for a plain
+// wall but wrong for a red/green traffic sign, which has a fixed pass-side
+// rule instead.
+//
+// The rule is TRAVEL-RELATIVE: the vehicle passes to its own RIGHT of a red
+// pillar and its own LEFT of a green one (rule 9.19). So in the chassis's own
+// frame it needs no geometry at all -- red means steer right, green means
+// steer left. The body-frame form is what keeps this usable in BLIND_CREEP,
+// whose whole reason for existing is that the travel direction is not known
+// yet.
+//
+// Ports TrackNavigatorNode._sign_dodge_side. Returns TurnSideNone for the
+// Open Challenge, which has no signs, and when no sign is close enough to
+// matter.
+func (n *Navigator) signDodgeSide(robotX, robotY float64) corridorfollower.TurnSide {
+	if n.signRouter == nil {
+		return corridorfollower.TurnSideNone
+	}
+
+	var nearest *signrouter.TrafficSignObservation
+	nearestDist := math.Inf(1)
+	for _, obs := range n.visionDetections() {
+		if obs.Color != signrouter.SignColorRed && obs.Color != signrouter.SignColorGreen {
+			continue
+		}
+		if obs.Confidence < n.signRouterCfg.MinConfidence {
+			continue
+		}
+		dist := math.Hypot(obs.WorldXM-robotX, obs.WorldYM-robotY)
+		if dist < nearestDist {
+			nearestDist = dist
+			found := obs
+			nearest = &found
+		}
+	}
+	if nearest == nil || nearestDist > n.signRouterCfg.ActivationDistM {
+		return corridorfollower.TurnSideNone
+	}
+	if nearest.Color == signrouter.SignColorRed {
+		return corridorfollower.TurnSideRight
+	}
+	return corridorfollower.TurnSideLeft
 }

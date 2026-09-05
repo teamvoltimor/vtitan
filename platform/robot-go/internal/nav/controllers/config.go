@@ -32,8 +32,12 @@ type Config struct {
 	ControlHz float64
 
 	// Pursuit (motion/pursuit.toml).
-	LookaheadShort         float64
-	LookaheadLong          float64
+	LookaheadShort float64
+	LookaheadLong  float64
+	// OpenLookaheadLong REPLACES LookaheadLong on an Open Challenge run,
+	// via ForOpenChallenge. Zero means no override, so an Obstacles run and
+	// every direct DefaultConfig() caller keep the base value.
+	OpenLookaheadLong      float64
 	LookaheadTransition    float64
 	LookaheadBlendStart    float64
 	SteerKp                float64
@@ -91,8 +95,10 @@ const (
 
 	DefaultControlHz = 20.0
 
-	DefaultLookaheadShort         = 0.16
-	DefaultLookaheadLong          = 0.32
+	DefaultLookaheadShort = 0.16
+	DefaultLookaheadLong  = 0.32
+	// DefaultOpenLookaheadLong matches open_lookahead_long.
+	DefaultOpenLookaheadLong      = 0.24
 	DefaultLookaheadTransition    = 0.30
 	DefaultLookaheadBlendStart    = 0.70
 	DefaultSteerKp                = 1.2
@@ -161,6 +167,7 @@ func DefaultConfig() Config {
 
 		LookaheadShort:         DefaultLookaheadShort,
 		LookaheadLong:          DefaultLookaheadLong,
+		OpenLookaheadLong:      DefaultOpenLookaheadLong,
 		LookaheadTransition:    DefaultLookaheadTransition,
 		LookaheadBlendStart:    DefaultLookaheadBlendStart,
 		SteerKp:                DefaultSteerKp,
@@ -296,4 +303,24 @@ func (c Config) sectorGeometry() SectorGeometry {
 		BlindWedgeRightMinRad:   c.BlindWedgeRightMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		BlindWedgeRightMaxRad:   c.BlindWedgeRightMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
 	}
+}
+
+// ForOpenChallenge resolves the Open Challenge's pursuit overrides,
+// matching PurePursuitParams.for_open_challenge.
+//
+// Only the straight lookahead has one. Obstacles reads the base parameters
+// and its resolution path is untouched, so this cannot shadow the base
+// constant on an Obstacles sweep.
+//
+// Resolved ONCE, where the controller is built, rather than at each site
+// that reads a lookahead -- for the same reason the speed ladder is: a
+// lookahead read mid-run cannot then disagree with one read at startup.
+//
+// The identity when no override is configured, so a caller need not branch.
+func (c Config) ForOpenChallenge() Config {
+	if c.OpenLookaheadLong == 0.0 {
+		return c
+	}
+	c.LookaheadLong = c.OpenLookaheadLong
+	return c
 }

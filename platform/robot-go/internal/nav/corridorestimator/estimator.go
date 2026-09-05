@@ -22,6 +22,10 @@ type Config struct {
 	// width may fall and still be treated as a plausibility FAILURE (a
 	// corner) rather than accepted.
 	PlausibleWidthMarginM float64
+	// MaxStartSamples caps the creep-phase width buffer -- the readings
+	// taken before any direction exists to file them under. See
+	// navigator.Navigator's creep buffer.
+	MaxStartSamples int
 	// DecisionBoundaryM is the width at which a raw measurement snaps to WIDE
 	// rather than NARROW. The midpoint of the two legal widths by default,
 	// but tunable independently of them: shifting it off-center trades a
@@ -57,6 +61,8 @@ const (
 	DefaultPlausibleWidthMarginM = 0.25
 	// DefaultDecisionBoundaryM matches decision_boundary_m.
 	DefaultDecisionBoundaryM = 0.80
+	// DefaultMaxStartSamples matches max_start_samples.
+	DefaultMaxStartSamples = 20
 	// DefaultNarrowWidthM matches track.toml's [corridor] narrow.
 	DefaultNarrowWidthM = 0.6
 	// DefaultWideWidthM matches track.toml's [corridor] wide.
@@ -71,6 +77,7 @@ func DefaultConfig() Config {
 	return Config{
 		MinSamples:            DefaultMinSamples,
 		PlausibleWidthMarginM: DefaultPlausibleWidthMarginM,
+		MaxStartSamples:       DefaultMaxStartSamples,
 		DecisionBoundaryM:     DefaultDecisionBoundaryM,
 		AlignmentToleranceRad: DefaultAlignmentToleranceDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		NarrowWidthM:          DefaultNarrowWidthM,

@@ -37,6 +37,11 @@ type Config struct {
 	// cycle, and after the simulator was calibrated those wanted opposite
 	// values.
 	MaxCornerSteerDeg float64
+	// SteerCapFromCommitDistance re-derives each branch's steering cap from
+	// the distance at which that branch commits, instead of every branch
+	// sharing MaxCornerSteerDeg. See SteerCapNorm. Matches
+	// steer_cap_from_commit_distance.
+	SteerCapFromCommitDistance bool
 	// CornerSpeedScale and ReverseSpeedScale scale the creep speed in the
 	// corner and back-off branches.
 	CornerSpeedScale  float64
@@ -179,6 +184,9 @@ const (
 	DefaultMaxCenteringSteerDeg = 13.75
 	// DefaultMaxCornerSteerDeg matches max_corner_steer_deg.
 	DefaultMaxCornerSteerDeg = 21.25
+	// DefaultSteerCapFromCommitDistance matches
+	// steer_cap_from_commit_distance.
+	DefaultSteerCapFromCommitDistance = true
 	// DefaultCornerSpeedScale matches corner_speed_scale.
 	DefaultCornerSpeedScale = 0.6
 	// DefaultReverseSpeedScale matches reverse_speed_scale.
@@ -252,13 +260,15 @@ func DefaultConfig() Config {
 		HeadingGain:          DefaultHeadingGain,
 		MaxCenteringSteerDeg: DefaultMaxCenteringSteerDeg,
 		MaxCornerSteerDeg:    DefaultMaxCornerSteerDeg,
-		CornerSpeedScale:     DefaultCornerSpeedScale,
-		ReverseSpeedScale:    DefaultReverseSpeedScale,
-		TurnArcHalfFovDeg:    DefaultTurnArcHalfFovDeg,
-		TurnOpenRangeM:       DefaultTurnOpenRangeM,
-		CornerLeakMarginM:    DefaultCornerLeakMarginM,
-		MinForwardClearanceM: DefaultMinForwardClearanceM,
-		MinReverseClearanceM: DefaultMinReverseClearanceM,
+
+		SteerCapFromCommitDistance: DefaultSteerCapFromCommitDistance,
+		CornerSpeedScale:           DefaultCornerSpeedScale,
+		ReverseSpeedScale:          DefaultReverseSpeedScale,
+		TurnArcHalfFovDeg:          DefaultTurnArcHalfFovDeg,
+		TurnOpenRangeM:             DefaultTurnOpenRangeM,
+		CornerLeakMarginM:          DefaultCornerLeakMarginM,
+		MinForwardClearanceM:       DefaultMinForwardClearanceM,
+		MinReverseClearanceM:       DefaultMinReverseClearanceM,
 
 		WideWidthM:        DefaultWideWidthM,
 		NarrowWidthM:      DefaultNarrowWidthM,

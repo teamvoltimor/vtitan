@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorestimator"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
@@ -66,6 +68,8 @@ type NativeRunner struct {
 	wpCfg      waypoints.Config
 	srCfg      signrouter.Config
 	startCfg   startconditions.Config
+	followCfg  corridorfollower.Config
+	estCfg     corridorestimator.Config
 	kinParams  kinematics.Params
 	collCfg    collision.Config
 	recordRoot string
@@ -170,6 +174,14 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		hc.ControlHz = navCfg.ControlHz
 	}
 
+	// Same reasoning one step further out: the SENSOR the simulated gateway
+	// models must be the sensor robot.toml describes, or the run is tuned
+	// against a machine that does not exist. Applied after the caller's
+	// Harness override for the same reason SensorErrors is -- an explicit
+	// Config should compose with the shipped spec, not be silently replaced --
+	// but before maxSteps, which is derived from the resolved rate.
+	hc = harness.ApplyRobotProfile(logger, hc, cfg.ConfigRoot, cfg.HardwareProfiles)
+
 	// AFTER the rate is resolved: the budget is a duration, so the tick count
 	// it becomes depends on the rate the run will actually step at.
 	maxSteps := cfg.MaxSteps
@@ -186,6 +198,8 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		wpCfg:      waypoints.ConfigFor(logger, cfg.ConfigRoot),
 		srCfg:      signrouter.ConfigFor(logger, cfg.ConfigRoot),
 		startCfg:   startconditions.ConfigFor(logger, cfg.ConfigRoot),
+		followCfg:  corridorfollower.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		estCfg:     corridorestimator.ConfigFor(logger, cfg.ConfigRoot),
 		kinParams:  kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		collCfg:    collision.ConfigFor(logger, cfg.ConfigRoot),
 		seed:       cfg.Seed,
@@ -296,8 +310,13 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		Config:            r.navCfg,
 		ControllersConfig: r.ctrlCfg,
 		SignRouterConfig:  r.srCfg,
-		SignRouter:        signRouter,
-		ParkController:    pc,
+		// The blind phase reads the shipped TOML too. These used to be
+		// DefaultConfig() at the navigator's own call sites, which pinned
+		// the whole creep to Go literals whatever --config-root said.
+		CorridorFollowerConfig:  &r.followCfg,
+		CorridorEstimatorConfig: &r.estCfg,
+		SignRouter:              signRouter,
+		ParkController:          pc,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("native runner: building navigator %s: %w", sc.ID, err)

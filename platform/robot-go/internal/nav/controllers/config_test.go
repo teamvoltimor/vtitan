@@ -177,3 +177,44 @@ func TestForObstaclesChallenge(t *testing.T) {
 			got.SlowDist, got.FastDist, base.SlowDist, base.FastDist)
 	}
 }
+
+// The Open Challenge's straight lookahead REPLACES the base one, so an Open
+// run does not silently drive the Obstacles value.
+func TestForOpenChallenge_ReplacesTheStraightLookahead(t *testing.T) {
+	cfg := controllers.DefaultConfig()
+
+	open := cfg.ForOpenChallenge()
+
+	if open.LookaheadLong != cfg.OpenLookaheadLong {
+		t.Errorf("LookaheadLong = %v, want the Open override %v",
+			open.LookaheadLong, cfg.OpenLookaheadLong)
+	}
+	if open.LookaheadShort != cfg.LookaheadShort {
+		t.Errorf("LookaheadShort = %v, want it untouched at %v",
+			open.LookaheadShort, cfg.LookaheadShort)
+	}
+}
+
+// Obstacles reads the base parameters: the override must not be able to
+// shadow the base constant on an Obstacles sweep.
+func TestForOpenChallenge_LeavesTheBaseConfigUnchanged(t *testing.T) {
+	cfg := controllers.DefaultConfig()
+	before := cfg.LookaheadLong
+
+	_ = cfg.ForOpenChallenge()
+
+	if cfg.LookaheadLong != before {
+		t.Errorf("base LookaheadLong = %v, want %v", cfg.LookaheadLong, before)
+	}
+}
+
+// With no override configured the resolution is the identity, so a caller
+// need not branch on whether one is set.
+func TestForOpenChallenge_IsTheIdentityWithoutAnOverride(t *testing.T) {
+	cfg := controllers.DefaultConfig()
+	cfg.OpenLookaheadLong = 0.0
+
+	if got := cfg.ForOpenChallenge(); got.LookaheadLong != cfg.LookaheadLong {
+		t.Errorf("LookaheadLong = %v, want the base %v", got.LookaheadLong, cfg.LookaheadLong)
+	}
+}

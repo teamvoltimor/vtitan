@@ -45,6 +45,10 @@ func (n *Navigator) ReplacePath(
 	// layout would read as "already applied" and leave the new path bare.
 	n.laneBaseWaypoints = slices.Clone(path)
 	n.laneFingerprint, n.laneFingerprintSet = nil, false
+	// A corner held open by the latch was previewed on the OLD centerline
+	// and need not exist on this one, so holding it would keep the short
+	// lookahead armed against a turn the robot is no longer going to make.
+	n.cornerLatch.Reset()
 	n.applyPathWallBudget()
 
 	distances := make([]float64, len(path))
@@ -135,6 +139,7 @@ func (n *Navigator) Reset() {
 	n.waypointIndex = 0
 	n.lapsCompleted = 0
 	n.suppressNextWrap = false
+	n.cornerLatch.Reset()
 	n.parkingEngaged = false
 	n.activeManeuver = nil
 	n.maneuverFramesLeft = 0

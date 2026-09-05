@@ -79,6 +79,14 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 		n.waypointIndex,
 		n.cfg.CornerPreviewDistanceM,
 	)
+	// The preview decays to zero once the chassis is INSIDE the arc, which
+	// un-arms the short lookahead mid-corner -- and crosstrack cannot cover
+	// for it there, because the robot is on the path and merely pointing
+	// the wrong way. Hold the preview open until the turn it promised has
+	// actually been driven. See CornerLatch for the hardware trace.
+	turnAhead = n.cornerLatch.Update(
+		turnAhead, robotYaw, n.waypointController.CornerTurnThresholdRad,
+	)
 	signAhead := n.signAhead(robotX, robotY, robotYaw)
 	lookahead := n.waypointController.SelectLookahead(crosstrack, turnAhead, signAhead)
 	// Full waypoint list, not a slice from waypointIndex -- SelectTargetPoint

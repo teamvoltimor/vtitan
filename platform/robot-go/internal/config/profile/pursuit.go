@@ -12,6 +12,11 @@ type PursuitConfig struct {
 	LookaheadShort float64 `mapstructure:"lookahead_short"`
 	// LookaheadLong matches LOOKAHEAD_LONG -- straight lookahead (m).
 	LookaheadLong float64 `mapstructure:"lookahead_long"`
+	// OpenLookaheadLong matches OPEN_LOOKAHEAD_LONG -- the Open Challenge's
+	// own straight lookahead (m), which REPLACES LookaheadLong on an Open
+	// run. Obstacles is untouched, so this cannot shadow the base constant
+	// on an Obstacles sweep.
+	OpenLookaheadLong float64 `mapstructure:"open_lookahead_long"`
 	// LookaheadTransition matches LOOKAHEAD_TRANSITION -- crosstrack
 	// threshold ceiling (m).
 	LookaheadTransition float64 `mapstructure:"lookahead_transition"`

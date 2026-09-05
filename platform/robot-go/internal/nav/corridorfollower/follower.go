@@ -53,14 +53,21 @@ func FollowCorridor(
 	// recalibrating the servo silently retuned the loop.
 	maxCenteringRad := cfg.MaxCenteringSteerDeg * math.Pi / navutil.DegreesPerHalfTurn
 	centeringGainRadPerM := cfg.CenteringGainDegPerM * math.Pi / navutil.DegreesPerHalfTurn
-	maxCorner := navutil.SteeringNormFromAngleRad(
-		cfg.MaxCornerSteerDeg*math.Pi/navutil.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
-	)
-
 	turnClearance := cfg.TurnClearanceM
 	if params.BelievedWidthM != nil && *params.BelievedWidthM < cfg.DecisionBoundaryM {
 		turnClearance = cfg.NarrowTurnClearanceM
 	}
+	// The corner and back-off branches steer AT their own angle rather than
+	// sharing the centering clamp: one is sized by the arc having to fit
+	// inside turnClearance, the other by the 2026-08-07 limit cycle.
+	//
+	// They then took the SAME value anyway, because one constant was applied
+	// to branches that commit at two different distances -- so lowering it to
+	// 21.25 deg to make the corner arc fit 0.60 m also cut the back-off
+	// branch, which commits at 0.30 m and is where the colliding runs spend
+	// 59% of their creep ticks. Each branch now derives its own cap from its
+	// own commit distance; see SteerCapNorm.
+	maxCorner := SteerCapNorm(turnClearance, cfg)
 
 	forward := navutil.ForwardClearance(
 		rangesM,
@@ -77,7 +84,7 @@ func FollowCorridor(
 	// corner branch below, which no longer fires on every close wall and so
 	// can no longer be relied on to reach this.
 	if forward < cfg.MinForwardClearanceM {
-		return backOff(params, cfg, left, right, maxCorner, turnClearance)
+		return backOff(params, cfg, left, right, turnClearance)
 	}
 
 	if forward < turnClearance && !wayThrough(rangesM, anglesRad, cfg) {
@@ -129,6 +136,38 @@ func FollowCorridor(
 	}
 }
 
+// SteerCapNorm is the steering cap for a branch that commits its turn at
+// commitDistanceM.
+//
+// MaxCornerSteerDeg is sized by geometry against ONE distance,
+// TurnClearanceM: the arc has to fit inside the room left ahead when the turn
+// is committed. The branches commit at different distances and all shared
+// that one angle, so the shorter ones drive an arc that cannot fit.
+//
+// Holding the radius proportional to the commit distance keeps the argument
+// and re-derives the angle:
+//
+//	tan(cap) = tan(MaxCornerSteerDeg) * TurnClearanceM / d
+//
+// At d == TurnClearanceM this returns MaxCornerSteerDeg exactly, so the
+// measured wide-corner case is untouched and only the shorter commits move.
+// The ratio form also cancels the (1 + RearSteerRatio) * YawGain factor in
+// the radius, so it inherits the anchor's calibration rather than depending
+// on those two separately.
+//
+// Ports corridor_follower.steer_cap_norm. Returns a normalized steering
+// magnitude, clamped to the servo's reach.
+func SteerCapNorm(commitDistanceM float64, cfg Config) float64 {
+	anchorRad := cfg.MaxCornerSteerDeg * math.Pi / navutil.DegreesPerHalfTurn
+	if !cfg.SteerCapFromCommitDistance || commitDistanceM <= 0.0 {
+		return navutil.SteeringNormFromAngleRad(anchorRad, cfg.MaxSteeringAngleRad)
+	}
+	scaled := math.Atan(math.Tan(anchorRad) * cfg.TurnClearanceM / commitDistanceM)
+	return navutil.SteeringNormFromAngleRad(
+		math.Min(scaled, cfg.MaxSteeringAngleRad), cfg.MaxSteeringAngleRad,
+	)
+}
+
 // backOff handles the too-close-ahead branch.
 //
 // Reversing swings the nose AWAY from the steer direction, so the command
@@ -137,9 +176,15 @@ func FollowCorridor(
 func backOff(
 	params Params,
 	cfg Config,
-	left, right, maxCorner, turnClearance float64,
+	left, right, turnClearance float64,
 ) controllers.DriveCommand {
-	steering := cornerSteer(params.ForcedTurnSide, left, right, maxCorner)
+	// Sized by MinForwardClearanceM, not the corner's clearance: this branch
+	// has already let the wall get closer than the corner branch ever commits
+	// at, so the arc it needs is correspondingly tighter. At the corner cap it
+	// was a quarter of full lock, on a radius half again too wide to clear the
+	// wall.
+	backoffCap := SteerCapNorm(cfg.MinForwardClearanceM, cfg)
+	steering := cornerSteer(params.ForcedTurnSide, left, right, backoffCap)
 
 	// ok=false means the rear sector is unreadable on this mount, which is
 	// NOT permission to reverse into it. This was once a single raw ray

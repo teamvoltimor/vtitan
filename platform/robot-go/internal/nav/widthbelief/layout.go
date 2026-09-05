@@ -30,6 +30,10 @@ type Layout struct {
 	centerBiasM   *float64
 	maxCoordM     float64
 	lastReplanned map[trackmodel.Section]float64
+	// creepReplayed records that the navigator's creep-phase width buffer
+	// has been drained. Once only: the readings are votes, and replaying
+	// them a second time would count each one twice.
+	creepReplayed bool
 }
 
 // Params is everything Layout needs to replan a believed path.
@@ -113,6 +117,26 @@ func (l *Layout) Update(
 	// reading that would have corrected it and the error locks in. Heading
 	// comes from the IMU and owes nothing to the map.
 	section := corridorestimator.SectionFromHeading(pose.Yaw, *direction)
+
+	// Fold in the readings taken during BLIND_CREEP, now that there is a
+	// direction to attribute them by. They were taken driving straight down
+	// a corridor and are the cleanest of the round; without them the first
+	// readings the estimator ever sees are whatever this tick happens to
+	// offer, which on a round that settled its direction at a CORNER is a
+	// side ray running off down the NEXT corridor, filed against this one.
+	//
+	// Attributed per reading by its OWN heading, not this tick's: the buffer
+	// can span a turn, and one section label for all of them would file the
+	// pre-turn readings against the post-turn corridor.
+	if !l.creepReplayed {
+		l.creepReplayed = true
+		for _, cw := range nav.TakeCreepWidths() {
+			l.estimator.ObserveMeasurement(
+				corridorestimator.SectionFromHeading(cw.Yaw, *direction), cw.WidthM,
+			)
+		}
+	}
+
 	l.estimator.Observe(section, scan.RangesM, scan.AnglesRad, pose.Yaw)
 
 	// Gated every tick rather than only when Observe reports a change: a
