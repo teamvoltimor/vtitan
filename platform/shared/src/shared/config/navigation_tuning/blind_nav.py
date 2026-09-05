@@ -429,23 +429,31 @@ class CorridorFollowerParams(BaseModel):
     """
 
     BAY_EXIT_ARC_STEER_NORM: float = Field(
-        default=0.3, ge=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_ARC_STEER_NORM")
+        default=1.0, ge=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_ARC_STEER_NORM")
     )
-    """Steering magnitude for the cycle manoeuvre's forward arc, 0..1 of full lock.
+    """Steering magnitude both bay-exit legs hold, 0..1 of full lock.
 
-    Moderate on purpose. Turn radius is ``wheelbase / tan(delta)``: at full lock
-    (85 deg) that is **17 mm**, so the chassis pivots about its own centre and
-    translates nothing, which is the opposite of what a 0.20 m deep pocket
-    needs. 0.5 is ~42 deg and ~0.21 m of radius, which actually moves the body
-    sideways. Only meaningful with ``BAY_EXIT_CYCLE``.
+    **FULL LOCK, and the reasoning that said otherwise was answering a different
+    question.** Turn radius at 85 deg is 17 mm, so in FREE space the chassis
+    pivots about its own centre and translates nothing -- which is why this
+    shipped at 0.3 while the exit relied on arcing its way out. Under
+    ``BAY_EXIT_CLEARANCE_GUARD`` the rotation is not free: the wall behind the
+    pocket clips the yaw at 1.15 deg, and the manoeuvre's whole output is the
+    outward creep the chassis makes while PINNED against that clip. What the
+    angle buys is therefore how fast the yaw crosses from one side of the clip
+    to the other at a leg change, and that crossing is dead distance -- the
+    outward gain over it cancels by symmetry.
 
-    REFUTED as a way to cut the servo standstill, 2026-09-03. The pause is
-    proportional to this angle, so a smaller arc does shorten each one -- and
-    loses more than it saves, because a shallower arc needs more cycles and the
-    pause is charged per leg change. At the shipped forward distance: 0.2 ->
-    203 ticks, 0.25 -> 213, 0.35 -> 199, 0.45 -> 199, against 0.3's 195. The
-    lever that reaches the standstill is ``BAY_EXIT_FORWARD_M``, which removes
-    whole cycles.
+    The crossing costs ``2 theta_max L / (tan(delta) YAW_GAIN)``: 14.5 mm at
+    0.3, 4.1 mm at 0.7, **0.6 mm at full lock**, against a leg the fin clearance
+    bounds to roughly 12-20 mm. At 0.3 the crossing IS the leg, so nothing is
+    ever pinned and the ratchet runs at a fifth of its rate. Measured 2026-09-04,
+    solid walls, guard on, speed scale 0.35, over the committed set: 0.3 -> 0/4
+    out of the bay after 8.09 m of shuffling and 0.03 m of outward travel, 0.6 ->
+    0/4 after 7.38 m, **1.0 -> 3/4 out in 127 ticks**. The earlier standstill
+    sweep (0.2 -> 203 ticks, 0.3 -> 195, 0.45 -> 199) measured the OPPOSITE-lock
+    cycle, where this angle also sized the servo swing between legs; holding one
+    angle makes that swing zero and the sweep with it.
     """
 
     BAY_EXIT_FORWARD_M: float = Field(default=0.08, gt=0.0, validation_alias=_alias("BAY_EXIT_FORWARD_M"))
@@ -520,7 +528,7 @@ class CorridorFollowerParams(BaseModel):
     manoeuvre.
     """
 
-    BAY_EXIT_SPEED_SCALE: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_SPEED_SCALE"))
+    BAY_EXIT_SPEED_SCALE: float = Field(default=0.35, gt=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_SPEED_SCALE"))
     """Extra speed scale applied to BOTH cycle legs, on top of the corner/reverse scales.
 
     The pocket is short of stopping distance, not of speed. A leg ends by
@@ -539,18 +547,24 @@ class CorridorFollowerParams(BaseModel):
     turn and the back-off branch also read -- slowing the bay exit must not slow
     ordinary cornering.
 
-    **REFUTED as a fix, 2026-09-03. Left at 1.0.** Slowing makes the fin
-    clearance WORSE, monotonically: 1.0 -> -0.0005 m, 0.5 -> -0.0007,
-    0.25 -> -0.0011. The coast is real -- 31 mm of travel after the command to
-    stop -- but speed trades it against something larger. The servo slews at a
-    fixed rate in RADIANS PER SECOND while the leg is bounded in METRES, so at
-    half speed the wheels turn twice as far per metre travelled; the extra yaw
-    grows the swept extent along the wall faster than the shorter coast shrinks
-    the travel. Same time-versus-distance coupling that made
-    ``BAY_EXIT_STEER_NORM`` read as inert.
+    The 2026-09-03 refutation is VOID: it was measured against the
+    contact-bounded cycle, where the servo slewed while the leg ran, so halving
+    the speed doubled the wheel angle reached per metre and the extra yaw grew
+    the swept extent faster than the shorter coast shrank the travel. The
+    guarded exit holds ONE angle, so that coupling is gone and only the coast
+    is left.
+
+    **Now the manoeuvre's sharpest cliff.** Measured 2026-09-04, guard on, full
+    lock, solid walls, committed set: **1.0 -> 0/8 and the chassis never moves
+    at all** (the coast alone exceeds the along-wall slack, so no leg is
+    admissible and the guard correctly refuses), 0.5 -> 0/8 with 7 collisions,
+    0.35 -> 7/8 out of the bay with 9.0 mm of fin clearance to spare,
+    0.2 -> 7/8 with only 3.5 mm. 0.35 rather than 0.2 because they escape
+    equally often and 0.35 keeps twice the margin against the dead-reckoning
+    error the guard cannot see.
     """
 
-    BAY_EXIT_CLEARANCE_GUARD: bool = Field(default=False, validation_alias=_alias("BAY_EXIT_CLEARANCE_GUARD"))
+    BAY_EXIT_CLEARANCE_GUARD: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_CLEARANCE_GUARD"))
     """Bound the cycle legs by PREDICTED FIN CLEARANCE instead of by contact.
 
     The shipped manoeuvre ends each leg on the stall backstop, which fires
@@ -568,7 +582,19 @@ class CorridorFollowerParams(BaseModel):
     wheel odometry and the steering it commanded (slew included), models the two
     fins from ``ParkingLotSpecs``, and reverses the leg when the NEXT pose would
     come within ``BAY_EXIT_CLEARANCE_MARGIN_M`` of one. No LIDAR -- the pocket
-    cannot be sensed from inside it -- and no contact.
+    cannot be sensed from inside it -- and no fin contact.
+
+    **Default since 2026-09-04, and it now supersedes both older exits rather
+    than merely bounding one.** It is answered before either of them, so
+    ``BAY_EXIT_CYCLE`` and the reverse-then-swing exit are only reachable with
+    this off. What changed is that the guarded manoeuvre stopped trying to
+    escape in free space, which is impossible -- see ``_guarded_command`` -- and
+    started ratcheting against the OUTER WALL, which 9.18 permits. Measured on
+    the committed set with solid walls, full lock and speed scale 0.35: **7/8
+    out of the bay, 5/8 driving a lap, fins TOUCHED 0/8**, against 0/8 and a
+    motionless chassis before. The two constants matter as much as the flag:
+    at the previous arc it is 0/4 and at the previous speed scale it does not
+    move.
     """
 
     BAY_EXIT_CLEARANCE_MARGIN_M: float = Field(
@@ -647,7 +673,7 @@ class CorridorFollowerParams(BaseModel):
 
     ``BayExit`` is the only maneuver in the stack with no give-up path.
     ``ParkController`` has ``max_frames``; escape recovery has
-    ``MAX_ESCAPE_FRAMES`` and ``ESCALATE_AFTER_ATTEMPTS``. This one releases
+    ``MAX_ESCAPE_S`` and ``ESCALATE_AFTER_ATTEMPTS``. This one releases
     only when ``BayExit.is_clear`` reports forward clearance above
     ``MIN_FORWARD_CLEARANCE_M`` -- which cannot happen while the chassis is
     boxed in by a fin.
