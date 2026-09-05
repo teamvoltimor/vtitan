@@ -43,6 +43,9 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 BEHIND_TOLERANCE = behind_tolerance_m()
+# Fewest overlapping corridors a position must sit in before the depth-violation
+# tie-break has anything to choose between.
+_MIN_CANDIDATES_TO_DISAMBIGUATE = 2
 
 # Per-(corridor, direction) routing table.
 # axis: Axis.Y means deform the y-coordinate; Axis.X deforms x.
@@ -195,7 +198,9 @@ def depth_consistent_corridor(x: float, y: float, fallback: Section) -> Section:
     ``corridor_for_position`` put it.
     """
     candidates = candidate_corridors(x, y)
-    if len(candidates) < 2:
+    # One candidate is already unambiguous; disambiguating by depth violation
+    # needs at least two to choose between.
+    if len(candidates) < _MIN_CANDIDATES_TO_DISAMBIGUATE:
         return fallback
     best = min(candidates, key=lambda section: _depth_violation(x, y, section))
     if _depth_violation(x, y, best) < _depth_violation(x, y, fallback):

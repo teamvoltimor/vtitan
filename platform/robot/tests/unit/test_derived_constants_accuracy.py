@@ -49,7 +49,7 @@ def test_chassis_half_diagonal_derivation() -> None:
 
 def test_camera_focal_length_derivation() -> None:
     """Verify camera focal length calculation from HFOV."""
-    # Formula: f = (width / 2) / tan(HFOV / 2)
+    # Focal length is half the frame width over the tangent of half the HFOV.
     focal_length = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
     # Should be positive and reasonable for a camera (typically 100-500px for our resolution)

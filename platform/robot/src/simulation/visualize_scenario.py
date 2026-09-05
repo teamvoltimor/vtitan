@@ -76,7 +76,6 @@ from src.simulation.scenario_catalog import (
     NamedScenario,
     all_obstacles_demo_scenarios,
     all_open_scenarios,
-    all_test_scenarios,
     find_scenario,
 )
 from src.simulation.scenario_constants import WIDE_MM

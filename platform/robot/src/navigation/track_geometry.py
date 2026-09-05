@@ -17,7 +17,6 @@ Geometry recap (WRO 2026, bottom-left origin, 3.0 x 3.0 m track):
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
@@ -29,6 +28,8 @@ from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata,
 from src.navigation.utils import wrap_angle
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from shared.domain.enums import Section
 
 

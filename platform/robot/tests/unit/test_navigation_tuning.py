@@ -10,6 +10,7 @@ section) — competition-day tuning changes never actually applied.
 from __future__ import annotations
 
 import json
+from typing import ClassVar
 
 import pytest
 import yaml
@@ -234,7 +235,7 @@ class TestConfiguredValuesAreActuallyRead:
     """
 
     _SEARCH_ROOTS = ("src", "tests", "scripts")
-    _KNOWN_UNREAD = {
+    _KNOWN_UNREAD: ClassVar[set[str]] = {
         # Declared, configurable, and read by nothing. Left failing-visible here
         # rather than silently excluded: each is either dead config to delete or
         # a limit someone believed was in force. Speed limits in particular look
@@ -306,9 +307,11 @@ class TestConfiguredValuesAreActuallyRead:
         # attribute for the same reason, so a resolver that stops existing
         # (or that nothing in robot code calls) still fails this check rather
         # than excusing the four fields it would have applied.
-        for prefix in ("OPEN", "OBSTACLES"):
-            if field.startswith(f"{prefix}_"):
-                candidates.append(f"for_{prefix.lower()}_challenge")
+        candidates.extend(
+            f"for_{prefix.lower()}_challenge"
+            for prefix in ("OPEN", "OBSTACLES")
+            if field.startswith(f"{prefix}_")
+        )
         names.extend(
             accessor for accessor in candidates if accessor != field and callable(getattr(group, accessor, None))
         )

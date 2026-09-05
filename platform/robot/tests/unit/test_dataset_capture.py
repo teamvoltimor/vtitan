@@ -18,7 +18,7 @@ def _frame(width: int = 32, height: int = 24) -> np.ndarray:
     return np.zeros((height, width, 3), dtype=np.uint8)
 
 
-def test_no_run_path_never_saves(tmp_path) -> None:
+def test_no_run_path_never_saves() -> None:
     capture = DatasetFrameCapture(interval_s=10.0, subdir="captures")
 
     capture.maybe_capture(0.0, _frame(), run_path=None, require_detection=False, has_detection=False)

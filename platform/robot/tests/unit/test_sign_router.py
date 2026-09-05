@@ -40,8 +40,8 @@ from src.navigation.planning.sign_router.deformation import (
     match_detection_to_sign,
 )
 from src.navigation.planning.sign_router.routing import ROUTING_TABLE, depth_consistent_corridor
-from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.planning.waypoints import corridor_for_position
+from src.navigation.race_tracker import TRAVEL_DIRS
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
     CORRIDOR_DEPTH_MIDPOINT,

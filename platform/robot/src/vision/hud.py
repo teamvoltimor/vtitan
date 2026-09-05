@@ -138,6 +138,11 @@ class HudConfig(HardwareBaseSettings):
 
 
 _LOGO_PATH = ROBOT_ROOT / "assets" / "vision" / "voltimor-mark.png"
+# A loadable logo is a 3-dimensional array (height, width, channel) whose
+# channel axis carries all four of B, G, R and alpha -- anything else is a
+# non-RGBA asset the alpha compositing in draw_logo cannot use.
+_LOGO_NDIM = 3
+_LOGO_CHANNELS = 4
 
 
 def _load_logo_rgba(path: object) -> np.ndarray | None:
@@ -149,7 +154,7 @@ def _load_logo_rgba(path: object) -> np.ndarray | None:
     asset re-read on every frame otherwise.
     """
     bgra = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
-    if bgra is None or bgra.ndim != 3 or bgra.shape[2] != 4:
+    if bgra is None or bgra.ndim != _LOGO_NDIM or bgra.shape[2] != _LOGO_CHANNELS:
         return None
     b, g, r, a = cv2.split(bgra)
     return cv2.merge([r, g, b, a])

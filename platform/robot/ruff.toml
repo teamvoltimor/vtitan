@@ -116,6 +116,59 @@ extend = "../ruff.toml"
 # SignRouterConfig.__post_init__ (and mypy-visible there), not a bypassable check.
 "src/navigation/planning/sign_router/router.py" = ["S101"]
 
+# Optional hardware and heavy backends are imported inside the function that
+# needs them: HailoRT and the GPIO libraries only exist on-device, and importing
+# them at module scope would make the module unimportable on a dev machine (and
+# break every test that merely imports it).
+"src/vision/__init__.py" = ["PLC0415"]
+"src/vision/detector.py" = ["PLC0415"]
+"src/hardware/hailo/__init__.py" = ["PLC0415"]
+"src/hardware/hailo/inferences.py" = ["PLC0415"]
+"src/hardware/motors/bts7960/driver.py" = ["PLC0415", "S603"]
+"src/hardware/motors/l298n/driver.py" = ["PLC0415"]
+"src/hardware/motors/encoder/driver.py" = ["PLC0415"]
+
+# `LidarScan.sector_ranges` delegates to the collision-avoidance controller,
+# which imports the ports module back -- a module-scope import here is a cycle.
+"src/navigation/ports.py" = ["PLC0415"]
+
+# rpicam-vid is invoked with an argv this module builds itself from typed
+# config; no shell, and no caller-supplied string reaches it.
+"src/hardware/camera/rpicam/driver.py" = ["S603"]
+
+# Optional lifecycle hooks: a backend that needs to open or release hardware
+# overrides them, and most have nothing to do. Marking them @abstractmethod
+# would force every backend to write an empty body.
+"src/hardware/motors/base.py" = ["B027"]
+
+# `assert self._input is not None` narrows an invariant the connect() above it
+# has just established, so mypy can see it too -- not a bypassable check.
+"src/hardware/challenge_mode/driver.py" = ["S101"]
+
+# A driver teardown path must release what it can and keep going: a failure
+# deinitialising the bus is logged, not propagated into the caller's shutdown.
+"src/hardware/imu/bno08x/mcp2221/i2c.py" = ["BLE001"]
+"src/ros2/hardware_node.py" = ["BLE001"]
+
+# ROS2 node callbacks run on the executor: an exception escaping one kills the
+# node mid-race, so they log and continue. The asserts narrow invariants
+# established at construction; the lazy imports keep optional vision backends
+# off the module-import path (see src/vision above).
+"src/ros2/vision/node.py" = ["BLE001", "PLC0415", "S101", "PLR0915"]
+"src/ros2/navigation/track_navigator_node.py" = [
+    "BLE001",
+    "PLC0415",
+    "S101",
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0915",
+]
+
+# `_control_points` is a branch per lane geometry -- splitting it would scatter
+# one contiguous decision across helpers that only ever have one caller.
+"src/navigation/planning/sign_lane.py" = ["C901"]
+
 # isort configuration
 [lint.isort]
 known-first-party = ["src"]

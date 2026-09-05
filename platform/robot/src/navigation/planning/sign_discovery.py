@@ -325,9 +325,11 @@ class ObservedSignMap:
         self._robot_corridor_flip_streak: tuple[Section, int] | None = None
 
     def _settle_robot_corridor(self, raw: Section) -> Section:
-        """Debounce the robot's own corridor the same way ``SignRouter._settled_corridor``
-        debounces a sign's -- see ``ROBOT_CORRIDOR_FLIP_TICKS``'s docstring for why the
-        robot's own per-tick classification needs it even though a sign's does not.
+        """Debounce the robot's own corridor classification.
+
+        Mirrors ``SignRouter._settled_corridor``, which debounces a sign's -- see
+        ``ROBOT_CORRIDOR_FLIP_TICKS``'s docstring for why the robot's own per-tick
+        classification needs it even though a sign's does not.
         """
         if self._robot_corridor is None or raw == self._robot_corridor:
             self._robot_corridor_flip_streak = None

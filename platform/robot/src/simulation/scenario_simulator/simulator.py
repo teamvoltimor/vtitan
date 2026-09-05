@@ -33,10 +33,8 @@ from src.navigation.corridor_estimator import (
 )
 from src.navigation.corridor_follower import follow_corridor
 from src.navigation.deferred_width_belief import DeferredWidthBelief
-from src.navigation.maneuvers.bay_exit import BayExit
-from src.navigation.ports import DriveCommand
-from src.navigation.utils import _forward_clearance, _nearest_ray, clamp
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
+from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import (
     SignRouter,
@@ -70,7 +68,7 @@ if TYPE_CHECKING:
 
     from shared.config.navigation_tuning import NavigationTuning
 
-    from src.navigation.ports import LidarScan
+    from src.navigation.ports import DriveCommand, LidarScan
 
 
 @dataclass(frozen=True, slots=True)
@@ -536,7 +534,7 @@ class ScenarioSimulator(PassSideScorer):
         scan = self._gateway.get_lidar_scan()
         pose = self._gateway.get_current_pose()
         if scan is None or pose is None:
-            return True if not estimator.is_settled else False
+            return not estimator.is_settled
 
         # Settle the direction EARLY, hand over control LATE. Boxed in the
         # parking bay the geometry names the direction outright, but the

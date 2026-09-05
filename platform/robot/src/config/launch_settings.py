@@ -31,7 +31,9 @@ from src.hardware.settings_base import ROBOT_ROOT, HardwareBaseSettings
 
 
 def _default_bag_topics() -> list[str]:
-    """Topics worth keeping for post-run analysis: sensor input, the vision and
+    """Return the topics worth keeping for post-run analysis.
+
+    Sensor input, the vision and
     navigation decisions derived from it, the resulting drive command, the
     state machine/telemetry view of what the robot thought was happening,
     and the motor node's own measured speed/steering (the only ground truth

@@ -37,13 +37,13 @@ from src.navigation.control.controllers import (
     bumper_gap_ahead,
     mask_mapped_obstacles,
 )
+from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
 from src.navigation.corridor_estimator import classify_width
 from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand, LidarScan
-from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.track_geometry import cross_track_error, path_turn_ahead
 from src.navigation.utils import wrap_angle
 
@@ -1138,10 +1138,9 @@ class CoreNavigator(EscapeRecovery):
         # it -- see HeadingErrorZones. Re-graduating means adding them back,
         # which should take a measurement that beats the times above.
         abs_error = abs(angle_error)
-        if abs_error >= self._tuning.heading.CRAWL:
-            heading_speed = self._speed.creep_mps()
-        else:
-            heading_speed = self._speed.fast_mps()
+        heading_speed = (
+            self._speed.creep_mps() if abs_error >= self._tuning.heading.CRAWL else self._speed.fast_mps()
+        )
         speed = min(speed, heading_speed)
 
         # Bound the selected cruise speed by the configured envelope. MIN_MPS

@@ -148,7 +148,7 @@ class DriveDriver(ABC):
         """Get current drive speed in degrees/s."""
 
     @abstractmethod
-    def run_drive_forward(self, speed: int | float | None = None) -> None:
+    def run_drive_forward(self, speed: float | None = None) -> None:
         """Run drive motor forward at ``speed`` percent duty (default backend-chosen).
 
         Accepts a float as well as an int so a closed loop (``ClosedLoopDrive``)
@@ -157,7 +157,7 @@ class DriveDriver(ABC):
         """
 
     @abstractmethod
-    def run_drive_reverse(self, speed: int | float | None = None) -> None:
+    def run_drive_reverse(self, speed: float | None = None) -> None:
         """Run drive motor in reverse at ``speed`` percent duty (default backend-chosen)."""
 
     @abstractmethod
@@ -253,7 +253,9 @@ class ClosedLoopDrive:
         """
         measured = self._encoder.get_rpm()
         duty = self._pid.update(rpm, measured, dt=dt)
-        logger.debug(f"PID step: target_rpm={rpm:.1f} measured_rpm={measured:.1f} duty={duty:.3f}")
+        logger.debug(
+            "PID step: target_rpm=%.1f measured_rpm=%.1f duty=%.3f", rpm, measured, duty
+        )
         if duty >= 0:
             self._drive.run_drive_forward(duty * 100.0)
         else:

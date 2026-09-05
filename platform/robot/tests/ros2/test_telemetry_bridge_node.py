@@ -100,7 +100,8 @@ def _window(center_idx: int, half_width: int, n: int) -> range:
 class TestLidarClearancesCm:
     """Ported from oled_display_node's now-deleted _lidar_callback tests -- same logic, relocated."""
 
-    # angles = linspace(-pi, pi, n, endpoint=False) + _LIDAR_YAW_OFFSET_RAD
+    # Bearings are a full sweep from -pi, endpoint excluded, shifted by
+    # _LIDAR_YAW_OFFSET_RAD
     # (180deg, the C1's mount offset) -- 0.5deg/index at n=720. Since the
     # offset is exactly pi, corrected_angle(i) = i * (2*pi/n) exactly: front
     # sits at index 0 (angle 0, wrapping through n-1), left at n/4 (+90deg),

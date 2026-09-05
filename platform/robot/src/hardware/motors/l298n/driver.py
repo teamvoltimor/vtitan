@@ -190,11 +190,11 @@ class Driver(DriveDriver):
             msg = f"PWM duty_cycle write failed: {err}"
             raise self._fail(msg) from err
 
-    def run_drive_forward(self, speed: int | float | None = None) -> None:
+    def run_drive_forward(self, speed: float | None = None) -> None:
         """Open-loop forward at ``speed`` percent duty (default 50%)."""
         self._set_output((50 if speed is None else speed) / 100.0)
 
-    def run_drive_reverse(self, speed: int | float | None = None) -> None:
+    def run_drive_reverse(self, speed: float | None = None) -> None:
         """Open-loop reverse at ``speed`` percent duty (default 50%)."""
         self._set_output(-(50 if speed is None else speed) / 100.0)
 

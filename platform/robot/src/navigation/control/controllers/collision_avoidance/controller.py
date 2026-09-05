@@ -153,6 +153,9 @@ class CollisionAvoidanceController:
             blind_wedge_left_max_deg: End bearing (deg) of the rear-left wedge
             blind_wedge_right_min_deg: Start bearing (deg) of the rear-right wedge
             blind_wedge_right_max_deg: End bearing (deg) of the rear-right wedge
+            ahead_of_bumper: Measure the forward driving lane from the front
+                bumper face rather than from the LIDAR, so clearance means
+                distance to contact rather than distance to the sensor
         """
         self.contact_dist = contact_dist
         self.slow_dist = slow_dist

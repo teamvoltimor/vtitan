@@ -78,9 +78,11 @@ class SpeedEstimator:
         self._rpm = 0.0
 
     def update(self, counts: int, dt: float) -> float:
-        """Fold in a new count reading; return the smoothed RPM once enough
-        window has accumulated, otherwise the held value from the last
-        completed window."""
+        """Fold in a new count reading and return the smoothed RPM.
+
+        Reports the smoothed value once enough window has accumulated,
+        otherwise the held value from the last completed window.
+        """
         if dt <= 0:
             return self._rpm
         if self._prev_counts is None:

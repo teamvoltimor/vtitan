@@ -550,7 +550,7 @@ class TestUnconfirmedWidthInnerBias:
         margin than was checked, and would do so exactly on the runs where the
         belief is still wrong.
         """
-        with pytest.raises(ValueError, match="narrow|width|fit|feasib"):
+        with pytest.raises(ValueError, match=r"narrow|width|fit|feasib"):
             calculate_waypoints(
                 sample_metadata_open,
                 num_laps=1,

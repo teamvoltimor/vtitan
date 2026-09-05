@@ -94,7 +94,7 @@ class TestRobotConstantsProfileOverlay:
         """A config error is only useful if it carries its own cure."""
         monkeypatch.setenv("VTITAN_HARDWARE_PROFILE", "")
 
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(ValueError, match="VTITAN_HARDWARE_PROFILE") as excinfo:
             RobotConstants.load_default()
 
         message = str(excinfo.value)

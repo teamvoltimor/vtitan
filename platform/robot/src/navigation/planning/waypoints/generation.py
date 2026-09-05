@@ -296,7 +296,7 @@ def calculate_waypoints(
     # as "Too many arguments for corner_arc_radius" against a call that passes
     # exactly the four it wants.
     effective: Callable[[float, float], tuple[float, float]] = (
-        (lambda entry_w, exit_w: (CorridorDimensions.WIDE, CorridorDimensions.WIDE))
+        (lambda _entry_w, _exit_w: (CorridorDimensions.WIDE, CorridorDimensions.WIDE))
         if tuning.waypoints.CORNER_ARC_ASSUME_WIDE
         else (lambda entry_w, exit_w: (entry_w, exit_w))
     )

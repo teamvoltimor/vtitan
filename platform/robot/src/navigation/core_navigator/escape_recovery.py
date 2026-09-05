@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import replace
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from shared.domain.enums import NavigatorPhase
 from shared.domain.models import NavigatorDebugSnapshot, Pose, Waypoint
@@ -29,6 +29,7 @@ from src.navigation.utils import trail_clearance_behind
 
 if TYPE_CHECKING:
     from collections import deque
+    from collections.abc import Callable
 
     from shared.config.navigation_tuning import NavigationTuning
     from shared.config.navigation_tuning.motion import ClearanceZones
