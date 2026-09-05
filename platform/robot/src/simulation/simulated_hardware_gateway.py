@@ -147,6 +147,13 @@ class SimulatedHardwareGateway:
         # Full 360 sweep, robot frame, 0 = forward, +pi/2 = left, -pi/2 = right.
         self._angles = np.linspace(-math.pi, math.pi, lidar_rays)
         self._angles_list = self._angles.tolist()
+        # The bearings never change, so the tuple every LidarScan carries is
+        # built once here rather than per tick. Besides saving the rebuild, it
+        # gives consumers a STABLE object to key a per-fan cache on -- which is
+        # what lets ``_nearest_ray`` memoise its bearing lookup (a fresh tuple
+        # each tick would miss that cache every time). Safe to share because a
+        # tuple is immutable.
+        self._angles_tuple = tuple(self._angles_list)
 
         # Position estimation, mirroring ``ROS2HardwareGateway`` in
         # ``src/ros2/navigation/node.py``: heading from the IMU, position from
@@ -297,7 +304,7 @@ class SimulatedHardwareGateway:
 
     def get_lidar_scan(self) -> LidarScan | None:
         """Return the most recent simulated LIDAR sweep (ranges, robot-frame angles)."""
-        return LidarScan(ranges_m=tuple(self._scan_ranges), angles_rad=tuple(self._angles_list))
+        return LidarScan(ranges_m=tuple(self._scan_ranges), angles_rad=self._angles_tuple)
 
     def get_imu_reading(self) -> IMUReading | None:
         """Return the IMU yaw (pitch/roll are zero on a flat mat).

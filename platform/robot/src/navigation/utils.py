@@ -74,9 +74,56 @@ def _as_waypoint(point: Distanceable | tuple[float, float, float]) -> Waypoint:
     return point.to_waypoint()
 
 
+# Per-bearing-fan cache of resolved ray indices, keyed on the identity of the
+# bearing sequence. A scan's bearings are fixed for the life of a LIDAR, but
+# _nearest_ray was rescanning all of them and calling wrap_angle (an atan2 plus
+# a sin and a cos) once PER BEARING, on every call, for a handful of fixed
+# targets -- about a quarter of a simulated run's total runtime, and the same
+# cost on the robot's own control loop.
+#
+# Keyed on identity rather than value so the lookup stays O(1): hashing a
+# 360-bearing tuple per call would give back much of the saving. The entry
+# holds a strong reference to the sequence itself, which both pins the id
+# against reuse by a later object and lets the lookup confirm the match. Bounded
+# and cleared wholesale because a process sees one or two fans, not a stream of
+# them; a caller that passes a fresh sequence every call simply never hits.
+_NEAREST_RAY_INDEX_CACHE: dict[int, tuple[Sequence[float], dict[float, int]]] = {}
+_NEAREST_RAY_CACHE_MAX_FANS = 8
+
+
+def _nearest_ray_index(angles_rad: Sequence[float], target: float) -> int:
+    """Index of the bearing closest to ``target``, memoised per bearing fan.
+
+    Returns exactly what the original ``min``-over-``wrap_angle`` scan returned,
+    including its tie-breaking: on a miss that scan is what computes the answer.
+    """
+    # Only a tuple is cached. Identity is a safe key exactly when the contents
+    # cannot change behind it; a list or ndarray mutated in place would keep an
+    # id whose cached index is silently wrong, and no cheap check would catch
+    # it. LidarScan carries its bearings as a tuple, so the hot path qualifies.
+    if not isinstance(angles_rad, tuple):
+        return min(range(len(angles_rad)), key=lambda i: abs(wrap_angle(angles_rad[i] - target)))
+
+    key = id(angles_rad)
+    entry = _NEAREST_RAY_INDEX_CACHE.get(key)
+    # `is not` rather than `!=`: a stale id whose object was replaced must miss,
+    # and comparing 360 floats for equality would cost what this saves.
+    if entry is None or entry[0] is not angles_rad:
+        if len(_NEAREST_RAY_INDEX_CACHE) >= _NEAREST_RAY_CACHE_MAX_FANS:
+            _NEAREST_RAY_INDEX_CACHE.clear()
+        entry = (angles_rad, {})
+        _NEAREST_RAY_INDEX_CACHE[key] = entry
+
+    by_target = entry[1]
+    index = by_target.get(target)
+    if index is None:
+        index = min(range(len(angles_rad)), key=lambda i: abs(wrap_angle(angles_rad[i] - target)))
+        by_target[target] = index
+    return index
+
+
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
-    index = min(range(len(angles_rad)), key=lambda i: abs(wrap_angle(angles_rad[i] - target)))
-    return ranges_m[index]
+    return ranges_m[_nearest_ray_index(angles_rad, target)]
 
 
 def trail_clearance_behind(
