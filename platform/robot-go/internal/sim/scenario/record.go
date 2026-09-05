@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"math"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
 	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
@@ -29,6 +31,7 @@ const (
 	imuTopic        = "/imu/data"
 	tfTopic         = "/tf"
 	ackermannTopic  = "/ackermann_cmd"
+	planTopic       = "/plan"
 	driveSpeedTopic = "/motor/drive_speed"
 	steeringTopic   = "/motor/steering_position"
 )
@@ -83,6 +86,13 @@ type simRecorder struct {
 	// robot.toml's [lidar] mount offsets.
 	lidarXOffsetM float64
 	lidarZOffsetM float64
+	// lastPlan is the most recently published route, so /plan is written on
+	// REPLANS rather than every tick. A three-lap round is ~1800 ticks and a
+	// plan is ~100 poses; republishing an unchanged route would be most of
+	// the bag and would hide the thing worth seeing, which is WHEN the path
+	// moved. Foxglove holds the last message on a topic, so the drawn plan
+	// is still correct between replans.
+	lastPlan []trackmodel.Waypoint
 	// prevYawRad backs the yaw RATE published on /imu/data, which the
 	// kinematic state does not carry directly.
 	prevYawRad float64
@@ -247,6 +257,27 @@ func (r *simRecorder) tick(
 		recording.EncodeFloat32(float32(state.Steer*degreesPerRadian)), logTime,
 	); err != nil {
 		return fmt.Errorf("sim recorder: writing steering_position: %w", err)
+	}
+
+	// The plan is drawn in the same frame the pose is reported in, which is
+	// what makes the two comparable. On a BLIND run that frame is the
+	// robot's believed one -- it plans from an assumed start -- so the path
+	// appears where the navigator thinks it is going, which is exactly the
+	// view that explains a blind failure.
+	if plan := nav.Waypoints(); !slices.Equal(plan, r.lastPlan) {
+		points := make([]recording.PathPointCDR, len(plan))
+		for i, wp := range plan {
+			points[i] = recording.PathPointCDR{X: wp.X, Y: wp.Y}
+		}
+		if err := r.run.WriteROS2(
+			planTopic, recording.PathType, recording.PathSchema,
+			recording.EncodePath(recording.PathCDR{
+				FrameID: mapFrame, StampSec: sec, StampNanosec: nsec, Points: points,
+			}), logTime,
+		); err != nil {
+			return fmt.Errorf("sim recorder: writing plan: %w", err)
+		}
+		r.lastPlan = slices.Clone(plan)
 	}
 
 	if err := r.run.WriteMessage(

@@ -2,8 +2,10 @@ package recording
 
 import (
 	"bytes"
+	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,5 +110,53 @@ func TestRunRecorderMCAPRoundTrip(t *testing.T) {
 	}
 	if fi.Size() == 0 {
 		t.Errorf("bag is empty")
+	}
+}
+
+// TestEncodePath_LaysOutTheNestedHeaders guards the shape a positional
+// format makes fragile: nav_msgs/Path is a header followed by a COUNT and
+// then that many PoseStamped, each of which carries its OWN header. Omitting
+// the inner headers still produces a buffer of plausible length, and every
+// field after the first pose lands in the wrong place -- a plan drawn as
+// scattered points rather than a route.
+//
+// Checked by walking the bytes here; the authoritative check is that the
+// real rclpy nav_msgs/Path deserializer reads it back, which is how this
+// encoding was validated when written.
+func TestEncodePath_LaysOutTheNestedHeaders(t *testing.T) {
+	t.Parallel()
+
+	const frame = "map"
+	points := []PathPointCDR{{X: 1, Y: 2}, {X: 3, Y: 4}}
+	raw := EncodePath(PathCDR{
+		FrameID: frame, StampSec: 1, StampNanosec: 2, Points: points,
+	})
+
+	// 4 encapsulation + header(4 sec + 4 nsec + 4 len + 4 "map\0") = 20,
+	// then the uint32 pose count.
+	const headerEnd = 20
+	if len(raw) < headerEnd+4 {
+		t.Fatalf("encoded Path is %d bytes, too short to hold a header and a count", len(raw))
+	}
+	count := binary.LittleEndian.Uint32(raw[headerEnd : headerEnd+4])
+	if int(count) != len(points) {
+		t.Errorf("pose count = %d, want %d", count, len(points))
+	}
+	// A pose WITH its own header costs materially more than one without:
+	// the bare Pose is 7 float64 = 56 bytes, and the header adds a stamp and
+	// a frame string on top. Measuring the per-pose GROWTH rather than
+	// restating the byte layout keeps this a check on the encoder instead of
+	// a copy of it -- and 56 is exactly what the buggy version would give.
+	const barePoseBytes = 7 * 8
+	three := EncodePath(PathCDR{
+		FrameID: frame, StampSec: 1, StampNanosec: 2,
+		Points: []PathPointCDR{{X: 1, Y: 2}, {X: 3, Y: 4}, {X: 5, Y: 6}},
+	})
+	if growth := len(three) - len(raw); growth <= barePoseBytes {
+		t.Errorf("one more pose added %d bytes, want more than %d -- each pose must carry its own header",
+			growth, barePoseBytes)
+	}
+	if !strings.Contains(string(raw), frame) {
+		t.Errorf("encoded Path does not contain the frame id %q", frame)
 	}
 }

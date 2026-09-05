@@ -378,3 +378,72 @@ func EncodeAckermannDriveStamped(cmd AckermannCDR) []byte {
 	w.writeF32(0)
 	return w.buf
 }
+
+// PathType/PathSchema describe nav_msgs/msg/Path, the message Foxglove
+// draws a planned route from and the one the Python live visualizer
+// publishes its plan on.
+const (
+	PathType   = "nav_msgs/msg/Path"
+	PathSchema = `std_msgs/Header header
+geometry_msgs/PoseStamped[] poses
+================================================================================
+MSG: std_msgs/Header
+builtin_interfaces/Time stamp
+string frame_id
+================================================================================
+MSG: builtin_interfaces/Time
+int32 sec
+uint32 nanosec
+================================================================================
+MSG: geometry_msgs/PoseStamped
+std_msgs/Header header
+geometry_msgs/Pose pose
+================================================================================
+MSG: geometry_msgs/Pose
+geometry_msgs/Point position
+geometry_msgs/Quaternion orientation
+================================================================================
+MSG: geometry_msgs/Point
+float64 x
+float64 y
+float64 z
+================================================================================
+MSG: geometry_msgs/Quaternion
+float64 x
+float64 y
+float64 z
+float64 w
+`
+)
+
+// PathPointCDR is one waypoint of a planned route. Only a position: the
+// planner produces points to drive through, not headings to hold at them,
+// and inventing an orientation per point would draw a confidence the plan
+// does not express.
+type PathPointCDR struct {
+	X, Y float64
+}
+
+// PathCDR is a nav_msgs/msg/Path.
+type PathCDR struct {
+	FrameID      string
+	Points       []PathPointCDR
+	StampSec     int32
+	StampNanosec uint32
+}
+
+// EncodePath serializes a Path. Every pose carries its own header, which is
+// redundant with the outer one and is what the message definition requires;
+// omitting it would shift every field after the first pose.
+func EncodePath(path PathCDR) []byte {
+	w := newCDRWriter()
+	w.writeHeader(path.StampSec, path.StampNanosec, path.FrameID)
+	w.writeU32(uint32(len(path.Points)))
+	for _, p := range path.Points {
+		w.writeHeader(path.StampSec, path.StampNanosec, path.FrameID)
+		w.writeVector3(p.X, p.Y, 0)
+		// Identity orientation: see PathPointCDR.
+		w.writeQuaternion(0, 0, 0, 1)
+	}
+	return w.buf
+}
