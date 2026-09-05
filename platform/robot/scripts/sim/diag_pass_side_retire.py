@@ -39,6 +39,7 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import logging
 import math
@@ -768,7 +769,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     are ``"<router>/<truth>"`` over ``ok``/``wrong``, plus ``retreat`` and
     ``pass`` for the along-track split.
     """
-    path_str, no_terminate, known_start = args_tuple
+    path_str, no_terminate, known_start, yaw_gain_comp = args_tuple
     logging.disable(logging.CRITICAL)
     if no_terminate:
         _disable_termination()
@@ -783,7 +784,21 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     # this, never against the router's belief -- the scorer must not share its
     # convention with the thing it scores.
     true_direction = metadata.starting_conditions.direction
-    sim = ScenarioSimulator(metadata, num_laps=3, seed=0, blind=True, known_start=known_start)
+    tuning = None
+    if yaw_gain_comp is not None:
+        # Compensate the plant's under-turn in the pure-pursuit demand. 40 of 46
+        # violations are plan-ok/chassis-wrong, so the chassis missing a correct
+        # plan is what this arm is aimed at; see PurePursuitParams.
+        # model_copy, not assignment: the params models are frozen. Copying the
+        # ONE field keeps the rest of the shipped tree intact -- unlike --tuning,
+        # which replaces the tree with Pydantic defaults.
+        base = NavigationTuning.load_default()
+        tuning = dataclasses.replace(
+            base, pursuit=base.pursuit.model_copy(update={"YAW_GAIN_COMPENSATION": yaw_gain_comp})
+        )
+    sim = ScenarioSimulator(
+        metadata, num_laps=3, seed=0, blind=True, known_start=known_start, tuning=tuning
+    )
 
     signs = sign_router_module.signs_from_metadata(metadata)
     # Per sign: the closest approach seen so far, and what the navigator was
@@ -1188,6 +1203,12 @@ def main() -> None:
     """Aggregate retirement geometry across a scenario directory."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenarios-dir", required=True)
+    parser.add_argument(
+        "--yaw-gain-compensation",
+        type=float,
+        default=None,
+        help="Override pursuit.YAW_GAIN_COMPENSATION (0.55 = full understeer compensation).",
+    )
     parser.add_argument("--limit", type=int, default=64)
     parser.add_argument("--workers", type=int, default=14)
     parser.add_argument(
@@ -1204,7 +1225,12 @@ def main() -> None:
 
     paths = sorted(Path(args.scenarios_dir).glob("*_metadata.json"))[: args.limit]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        results = list(pool.map(_run_one, [(str(p), args.no_terminate, args.known_start) for p in paths]))
+        results = list(
+            pool.map(
+                _run_one,
+                [(str(p), args.no_terminate, args.known_start, args.yaw_gain_compensation) for p in paths],
+            )
+        )
 
     counts: Counter[str] = Counter()
     for result in results:

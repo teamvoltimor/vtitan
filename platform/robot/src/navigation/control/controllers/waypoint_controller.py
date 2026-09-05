@@ -59,6 +59,7 @@ class WaypointController:
         waypoint_reached_distance_m: float,
         corner_turn_threshold_rad: float,
         lookahead_blend_start: float = 1.0,
+        yaw_gain_compensation: float = 1.0,
     ):
         """Initialize pure pursuit controller.
 
@@ -82,6 +83,7 @@ class WaypointController:
                 caller that does not pass it is unaffected.
         """
         self.max_steering_angle = max_steering_angle
+        self.yaw_gain_compensation = yaw_gain_compensation
         self.lookahead_short = lookahead_short
         self.lookahead_long = lookahead_long
         self.lookahead_transition = lookahead_transition
@@ -127,6 +129,7 @@ class WaypointController:
             waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
             corner_turn_threshold_rad=pursuit.CORNER_TURN_THRESHOLD_RAD,
             lookahead_blend_start=pursuit.LOOKAHEAD_BLEND_START,
+            yaw_gain_compensation=pursuit.YAW_GAIN_COMPENSATION,
         )
 
     def select_lookahead(
@@ -423,7 +426,11 @@ class WaypointController:
 
         if x_local > 0:
             steering_normalized_raw = pure_pursuit_steer(
-                x_local, y_local, self.waypoint_reached_distance_m, self.max_steering_angle
+                x_local,
+                y_local,
+                self.waypoint_reached_distance_m,
+                self.max_steering_angle,
+                self.yaw_gain_compensation,
             )
         else:
             # Target behind the robot: the curvature formula is only valid for a

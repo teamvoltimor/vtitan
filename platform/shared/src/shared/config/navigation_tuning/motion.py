@@ -255,6 +255,26 @@ class PurePursuitParams(BaseModel):
     crosstrack error minimization.
 
     Attributes:
+        YAW_GAIN_COMPENSATION: Fraction of the geometrically predicted yaw the
+            chassis actually delivers, divided out of the pure-pursuit steering
+            demand. Pure pursuit is a bicycle model and assumes the plant turns
+            exactly as predicted; ``RobotSpecs.YAW_GAIN`` says it delivers 0.55
+            of that, so every demanded curvature comes out ~1.8x too wide. That
+            is the leading candidate for the systematic OUTWARD displacement at
+            sign passes (+7.53 cm median, 84% outward, against 5.6 cm of plan
+            margin), which is concentrated on boundary signs near corners where
+            the curvature demand is largest.
+
+            ``bay_exit`` already applies ``YAW_GAIN`` in its dead reckoning and
+            ``corridor_follower`` sizes its corner arc with it; pure pursuit was
+            the one consumer ignoring it.
+
+            Defaults 1.0 = OFF, the uncompensated geometric answer, because
+            asking for 1.8x more steering everywhere is not a free change: it
+            saturates against the steering limit sooner and touches Open (639/640)
+            as much as Obstacles. Set to ``RobotSpecs.YAW_GAIN`` (0.55) for full
+            compensation. Score it on SIGNED RADIAL at passes, not |error| and
+            not pass-side counts, which are too coarse to screen on.
         LOOKAHEAD_SHORT: Lookahead distance for sharp corners (m)
         LOOKAHEAD_LONG: Lookahead distance for straights (m)
         LOOKAHEAD_TRANSITION: Crosstrack error threshold to switch modes (m).
@@ -365,6 +385,7 @@ class PurePursuitParams(BaseModel):
     # caller constructing NavigationTuning() without the TOML silently drove a
     # configuration nobody chose -- which is what TestFieldDefaultsMatchShippedToml
     # exists to catch, and had been failing on.
+    YAW_GAIN_COMPENSATION: float = Field(default=1.0, validation_alias=_alias("YAW_GAIN_COMPENSATION"))
     LOOKAHEAD_SHORT: float = Field(default=0.16, validation_alias=_alias("LOOKAHEAD_SHORT"))  # Close to corner
     LOOKAHEAD_LONG: float = Field(default=0.32, validation_alias=_alias("LOOKAHEAD_LONG"))  # Normal straight
     LOOKAHEAD_TRANSITION: float = Field(
