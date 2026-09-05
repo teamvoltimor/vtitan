@@ -282,6 +282,7 @@ class BayExit:
         travelled_m: float,
         tuning: NavigationTuning,
         from_norm: float,
+        to_norm: float,
     ) -> None:
         """Switch legs and budget the standstill needed to reach the new angle.
 
@@ -291,12 +292,13 @@ class BayExit:
         from the geometry and moves correctly if either constant changes. A
         hand-set constant here would silently under-budget the moment somebody
         widened the arc.
+
+        Both angles are passed IN rather than re-derived here, because the two
+        manoeuvres disagree about what a reverse leg steers: ``_cycle_command``
+        takes the opposite lock, the wall ratchet in ``_guarded_command`` HOLDS
+        the forward one. A single convention baked in here would hand the other
+        manoeuvre the wrong swing, and so the wrong standstill.
         """
-        follower = tuning.corridor_follower
-        arc = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
-        back = clamp(follower.BAY_EXIT_CYCLE_REVERSE_STEER_NORM, 0.0, 1.0)
-        sign = 1.0 if self._open_is_left else -1.0
-        to_norm = -back * sign if is_reverse else arc * sign
         swing_rad = abs(to_norm - from_norm) * math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
         per_tick_rad = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
         self._settle_ticks = math.ceil(swing_rad / per_tick_rad) if per_tick_rad > 0 else 0
@@ -314,14 +316,16 @@ class BayExit:
         tuning: NavigationTuning,
         open_is_left: bool,
     ) -> DriveCommand:
-        """Shuffle out of the pocket bounded by PREDICTED CLEARANCE, never by contact.
+        """Ratchet out of the pocket against the OUTER WALL, never touching a fin.
 
         The legal replacement for the stall-bounded cycle. Same shape -- steer
         toward the open side, alternate forward and reverse -- but the leg ends
         when the NEXT pose would come within
         ``BAY_EXIT_CLEARANCE_MARGIN_M`` of a fin, which is a prediction rather
         than a collision. 9.24.7 ends the round on the touch the old backstop
-        waited for.
+        waited for. The wall behind the pocket is a different matter: 9.18
+        expressly permits touching a wall the vehicle does not move, and leaning
+        on it is not incidental here but the entire mechanism.
 
         Why bounding the DISTANCE instead cannot work: the swept extent along
         the wall is ``(L cos t + W sin t) / 2`` -- 0.150 m square, 0.177 m at 25
@@ -332,43 +336,74 @@ class BayExit:
         note in ``_cycle_command``. A flat sweep meant an unreachable code path,
         not a refuted idea.)
 
-        The legs are ASYMMETRIC, and that is the whole manoeuvre rather than a
-        detail. A shuffle at constant steering magnitude is a closed cycle:
-        ``dy/dtheta = sin(theta) / (k tan(delta))`` depends on neither speed nor
+        FREE SPACE CANNOT DO IT, and that is arithmetic rather than tuning. At
+        constant steering magnitude the shuffle is a closed cycle:
+        ``dy/dtheta = L sin(theta) / tan(delta)`` depends on neither speed nor
         its sign, so ``y`` is a state function of ``theta`` and returning theta
-        returns y with it. Holding one lock on both legs -- which is what this
-        did until 2026-09-04 -- therefore cannot escape a pocket no matter how
-        many cycles it runs, which is exactly what it measured: TOUCHED 0/16 and
-        2.78 m of shuffling for no net gain. The reverse takes the OPPOSITE
-        lock, the three-point turn: backing with the wheels the other way swings
-        the tail the other way, so the nose keeps turning the SAME sense on both
-        legs and yaw accumulates instead of cancelling.
+        returns y with it. Varying the magnitude BETWEEN legs does break that --
+        the net is ``L (1 - cos a) (1/tan(d_fwd) - 1/tan(d_rev))`` -- but it
+        buys outward displacement at a fixed exchange rate of ``a / 2`` per
+        metre travelled ALONG the wall, in the same direction every cycle. The
+        pocket grants ~0.032 m of along-wall slack each way against
+        ``a <= 1.15 deg`` at the judges' placement, which is ~0.7 mm of the
+        78.6 mm that frees the rotation. No leg schedule closes that gap.
 
-        That matters because of which axis is short. Escaping needs ~0.10 m
-        across the bay mouth while only ~0.065 m of slack exists along the wall,
-        so the chassis has to ROTATE nearly in place rather than translate: the
-        along-wall extent peaks at 0.179 m at 32.9 degrees and falls to 0.097 m
-        by 90, so the whole sweep fits inside 0.215 m -- but only if each cycle's
-        along-wall excursion stays inside the ~0.036 m the peak leaves.
+        The wall does. It CLIPS the yaw (``_wall_feasible_yaw_rad``) while
+        leaving the translation free, which is exactly what ``allowed_step``
+        does against a solid surface, and a clipped rotation is precisely the
+        non-holonomic constraint the conservation argument assumes away. So both
+        legs run pinned to the clip and both PAY OUT: the forward leg sits at
+        ``+theta_max`` and gains ``ds sin(theta_max)`` outward, the reverse leg
+        settles at ``-theta_max`` and gains ``|ds| sin(theta_max)`` outward
+        again, while the along-wall excursion cancels between them. The yaw won
+        relaxes the clip for the next cycle -- ``d(out)/d(travel) =
+        tan(theta_max(out))``, exponential with a 0.15 m length scale, free
+        rotation after roughly half a metre of shuffling.
+
+        Reaching ``-theta_max`` is why the reverse HOLDS the forward lock rather
+        than reversing it. Backing with the wheels where they are swings the
+        nose the other way, so yaw crosses zero and pins against the far side of
+        the clip. Opposite lock -- what this did until 2026-09-04 -- drives yaw
+        the SAME sense on both legs, so it saturates at one side of the clip and
+        never reaches the side the reverse leg's gain lives on. It also charges
+        a full servo swing at every leg change, ~25 ticks of standstill against
+        an ~11-tick leg, so most of the manoeuvre was spent stationary. Holding
+        costs nothing, for the same reason ``BAY_EXIT_HOLD_STEER`` was worth
+        0 -> 187 of 256 on the older exit.
+
+        The crossing between the two sides of the clip is DEAD DISTANCE -- the
+        outward gain over it cancels by symmetry -- so what the steering angle
+        buys is how cheaply the yaw gets across, which is the reverse of what
+        this manoeuvre wanted when it arced through free space. It costs
+        ``2 theta_max L / (tan(delta) YAW_GAIN)``: 14.5 mm at
+        ``BAY_EXIT_ARC_STEER_NORM`` 0.3, 0.6 mm at full lock, against a leg the
+        fin clearance bounds to 12-20 mm. At 0.3 the crossing IS the leg and
+        nothing is ever pinned, which is why the ratchet measured 8.09 m of
+        shuffling for 0.03 m of outward travel there and escaped in 127 ticks at
+        1.0. Both bay-exit constants moved on 2026-09-04 for this reason; see
+        their fields for the numbers.
         """
         follower = tuning.corridor_follower
         margin = follower.BAY_EXIT_CLEARANCE_MARGIN_M
         sign = 1.0 if open_is_left else -1.0
         arc = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
-        back = clamp(follower.BAY_EXIT_CYCLE_REVERSE_STEER_NORM, 0.0, 1.0)
-        # Signed in the dead-reckoned frame, where +yaw is toward the open side,
-        # so the guard's geometry needs no left/right case split; the
-        # caller-facing command is re-signed on the way out.
-        wheel_norm = -back if self._leg_is_reverse else arc
+        # ONE angle for both legs -- see the docstring; the reverse holds it
+        # rather than mirroring it. Signed in the dead-reckoned frame, where
+        # +yaw is toward the open side, so the guard's geometry needs no
+        # left/right case split; the caller-facing command is re-signed on the
+        # way out. ``BAY_EXIT_CYCLE_REVERSE_STEER_NORM`` deliberately does not
+        # appear here: it belongs to ``_cycle_command``, whose reverse leg is a
+        # different manoeuvre with a different sign convention.
+        wheel_norm = arc
 
-        # Slew at a STANDSTILL, as ``_cycle_command`` does. Skipping it was
-        # survivable while both legs held one lock, because then there was no
-        # swing to pay for. With opposite lock the swing is twice the arc angle
-        # -- ~25 ticks at MAX_STEERING_RATE against a leg lasting ~11 at creep
-        # -- so a leg that slewed while it drove would end at roughly the angle
-        # it started from, and the cycle would be symmetric again by accident.
-        # Dead-reckoned during the pause too: travel is zero, but the wheel is
-        # moving and the model has to follow it there as much as anywhere.
+        # Slew at a STANDSTILL, as ``_cycle_command`` does. Holding the lock
+        # makes it free -- ``_begin_leg`` budgets zero ticks when both legs ask
+        # for the same angle -- and that is the point rather than a reason to
+        # delete it: the budget is COMPUTED, so widening the arc or making the
+        # reverse angle differ again reinstates the pause automatically instead
+        # of silently slewing while the leg runs. Dead-reckoned through the
+        # pause too: travel is zero, but the wheel is moving and the model has
+        # to follow it there as much as anywhere.
         if self._settle_ticks > 0:
             self._settle_ticks -= 1
             self._dead_reckon(travelled_m, wheel_norm, tuning)
@@ -416,12 +451,13 @@ class BayExit:
                 travelled_m=travelled_m,
                 tuning=tuning,
                 from_norm=wheel_norm * sign,
+                to_norm=wheel_norm * sign,
             )
             self._guard_flips += 1
             self._cycles += 1
             return DriveCommand(
                 speed_mps=0.0,
-                steering_norm=(-back if self._leg_is_reverse else arc) * sign,
+                steering_norm=wheel_norm * sign,
             )
 
         if self._leg_is_reverse:
@@ -522,7 +558,13 @@ class BayExit:
             leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
             self._reverse_progress_m = leg_start - travelled_m
             if stalled or self._reverse_progress_m >= follower.BAY_EXIT_CYCLE_REVERSE_M:
-                self._begin_leg(is_reverse=False, travelled_m=travelled_m, tuning=tuning, from_norm=target)
+                self._begin_leg(
+                    is_reverse=False,
+                    travelled_m=travelled_m,
+                    tuning=tuning,
+                    from_norm=target,
+                    to_norm=arc * sign,
+                )
                 self._cycles += 1
             # Straight back at 0 (the reverse then returns no rotation, so the
             # arc's gain is kept), or OPPOSITE lock, which is the classic
@@ -552,7 +594,13 @@ class BayExit:
         # above is bounded by the lot's own dimensions rather than measured.
         leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
         if stalled or travelled_m - leg_start >= follower.BAY_EXIT_FORWARD_M:
-            self._begin_leg(is_reverse=True, travelled_m=travelled_m, tuning=tuning, from_norm=target)
+            self._begin_leg(
+                is_reverse=True,
+                travelled_m=travelled_m,
+                tuning=tuning,
+                from_norm=target,
+                to_norm=-back * sign,
+            )
         return DriveCommand(
             speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
             steering_norm=target,

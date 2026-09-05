@@ -484,11 +484,12 @@ def main() -> None:
         path = Path(args.metadata_file)
         metadata = json.loads(path.read_text())
         # Seeded from the scenario's own id, as every headless sweep does, not
-        # from a fixed 0. The seed drives LIDAR noise, and on a manoeuvre living
-        # this close to its margin -- the in-bay exit clears the pocket in 46 of
-        # 64 corpus scenarios with nothing in the layout separating the two
-        # groups -- a different seed is a different outcome. A fixed 0 here
-        # meant a run watched in RViz was not the run the sweep had scored.
+        # from a fixed 0: the seed drives LIDAR noise, so a fixed 0 here meant a
+        # run watched in RViz was not the run the sweep had scored. The in-bay
+        # exit itself no longer turns on it -- since the wall ratchet landed
+        # 2026-09-04 it is blind and geometric, taking 127 ticks in 254 of 256
+        # corpus scenarios with no spread at all -- but what happens after the
+        # handover still does, and that is where its 46 remaining failures are.
         scenario = NamedScenario(
             label=path.name,
             metadata=metadata,

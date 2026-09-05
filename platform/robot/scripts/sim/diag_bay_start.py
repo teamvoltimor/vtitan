@@ -109,6 +109,20 @@ class BayStartRow:
     a whole-run minimum. ``None`` when the scenario has no lot or the exit never
     ran.
     """
+    hand_yaw_deg: float | None = None
+    """Chassis yaw at the tick the manoeuvre HANDED OVER, against the start heading.
+
+    The release pose, which is what the outcome actually turns on. Outward
+    displacement was excluded as the discriminator on 2026-09-04: every arc
+    releases at ~0.07 m out, and gating on that made the exit strictly worse
+    (7/8 -> 0/8, all stuck), because the ratchet cannot finish alone -- the
+    navigator drives the last of it. So what separates a run that laps from one
+    that dies inside 0.35 m has to be the rest of the pose, and heading is the
+    part the wall clip was holding.
+    """
+    hand_out_m: float | None = None
+    """Outward displacement at handover, on the bay's outward axis."""
+
     surface: str = ""
     """Which surface ENDED the run, or "" if contact did not end it.
 
@@ -233,9 +247,20 @@ def _fin_polygons(raw: dict) -> list[list[tuple[float, float]]]:
     return polys
 
 
-def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool, float, float]) -> BayStartRow:
+def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool, float, float, float]) -> BayStartRow:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
-    path_str, in_bay, laps, changes, known_start, solid_walls, slide, scrub, bay_offset_m = payload
+    (
+        path_str,
+        in_bay,
+        laps,
+        changes,
+        known_start,
+        solid_walls,
+        slide,
+        scrub,
+        bay_offset_m,
+        no_progress_s,
+    ) = payload
     path = Path(path_str)
     raw = json.loads(path.read_text())
 
@@ -263,10 +288,21 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         moved = True
 
     meta = ScenarioMetadata.model_validate(raw)
+    # The bay ratchet nets millimetres per second by construction, so the
+    # simulator's own no-progress bailout -- 0.08 m of net displacement inside
+    # 30 s -- ends the run long before the manoeuvre can be judged. That bound
+    # is an artefact of the harness, not a rule: 9.4 gives the round three
+    # minutes. Raised only when asked for, so every other arm stays comparable
+    # with every previously measured one.
+    tuning = tuning_with_overrides(changes)
+    if no_progress_s > 0.0:
+        tuning = tuning_with_overrides(
+            {"NO_PROGRESS_WINDOW_S": no_progress_s}, group="simulation", base=tuning
+        )
     sim = ScenarioSimulator(
         meta,
         num_laps=laps,
-        tuning=tuning_with_overrides(changes),
+        tuning=tuning,
         seed=raw["scenario_id"],
         blind=True,
         known_start=known_start,
@@ -291,17 +327,28 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
     fins = _fin_polygons(raw)
     min_fin_m: float | None = None
     prev_bex = 0
+    # Pose on the LAST tick the manoeuvre drove, i.e. what it handed the
+    # navigator. Rewritten every such tick rather than latched on a transition,
+    # because the release is a fall-through in the caller and the observer never
+    # sees a "handover" event of its own.
+    hand_yaw: float | None = None
+    hand_out: float | None = None
 
     def _observe(state: AckermannState, _scan: LidarScan) -> None:
         nonlocal best_exit_m, min_fin_m, prev_bex
         # Only ticks the MANOEUVRE drove. `bay_exit_ticks` advances exactly while
         # it holds control, so a tick that raised it is one it is answerable for
         # -- and the parking phase later in the round is correctly excluded.
+        nonlocal hand_yaw, hand_out
         bex = sim.bay_exit_ticks
-        if fins and bex > prev_bex:
-            corners = _chassis_corners((state.x, state.y, state.yaw))
-            gap = min(_convex_gap(corners, fin) for fin in fins)
-            min_fin_m = gap if min_fin_m is None else min(min_fin_m, gap)
+        if bex > prev_bex:
+            if fins:
+                corners = _chassis_corners((state.x, state.y, state.yaw))
+                gap = min(_convex_gap(corners, fin) for fin in fins)
+                min_fin_m = gap if min_fin_m is None else min(min_fin_m, gap)
+            hand_yaw = math.degrees(wrap_angle(state.yaw - start["yaw"]))
+            if centre is not None and outward is not None:
+                hand_out = bay_exit_clearance((state.x, state.y, state.yaw), centre, outward)
         prev_bex = bex
         if centre is None or outward is None:
             return
@@ -327,6 +374,8 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         dyaw_deg=math.degrees(abs(wrap_angle(fyaw - start["yaw"]))),
         net_m=math.hypot(fx - sx, fy - sy),
         exit_m=best_exit_m,
+        hand_yaw_deg=hand_yaw,
+        hand_out_m=hand_out,
         bex=sim.bay_exit_ticks,
         rev_ticks=sim.bay_exit.legs[0],
         fwd_ticks=sim.bay_exit.legs[1],
@@ -353,19 +402,21 @@ def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
     print(f"\n=== {name} ===")
     print(
         f"| {'#':>4} | {'dist m':>7} | {'net m':>6} | {'exit m':>6} | {'bex':>5} | {'rev':>5} | {'fwd':>5} | "
-        f"{'rev m':>6} | {'flip':>5} | {'dyaw':>6} | "
+        f"{'rev m':>6} | {'flip':>5} | {'h.yaw':>6} | {'h.out':>6} | {'dyaw':>6} | "
         f"{'end x':>6} | {'end y':>6} | {'laps':>4} | {'coll':>4} | {'stuck':>5} | {'t/o':>3} | {'pass':>4} |"
     )
     print(
         f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 7}|{'-' * 7}|{'-' * 7}|{'-' * 8}|"
-        f"{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
+        f"{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
     )
     for r in sorted(live, key=lambda x: int(x.id)):
         exit_cell = f"{r.exit_m:>6.2f}" if r.exit_m is not None else f"{'--':>6}"
+        hyaw = f"{r.hand_yaw_deg:>6.1f}" if r.hand_yaw_deg is not None else f"{'--':>6}"
+        hout = f"{r.hand_out_m:>6.3f}" if r.hand_out_m is not None else f"{'--':>6}"
         print(
             f"| {r.id:>4} | {r.dist:>7.2f} | {r.net_m:>6.2f} | {exit_cell} | {r.bex:>5} | "
             f"{r.rev_ticks:>5} | {r.fwd_ticks:>5} | {r.rev_m:>6.3f} | {r.flips:>5} | "
-            f"{r.dyaw_deg:>6.1f} | {r.fx:>6.2f} | {r.fy:>6.2f} | {r.laps:>4} | "
+            f"{hyaw} | {hout} | {r.dyaw_deg:>6.1f} | {r.fx:>6.2f} | {r.fy:>6.2f} | {r.laps:>4} | "
             f"{'Y' if r.collided else '.':>4} | {'Y' if r.stuck else '.':>5} | "
             f"{'Y' if r.timed_out else '.':>3} | {'Y' if r.pass_side else '.':>4} |"
         )
@@ -566,6 +617,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "friction threshold, so it bounds the benefit rather than modelling it.",
     )
     parser.add_argument(
+        "--no-progress-window",
+        type=float,
+        default=0.0,
+        help="seconds of under-0.08 m net displacement the simulator tolerates before calling "
+        "the run stuck; 0 keeps the shipped 30 s. The wall ratchet nets ~10 mm in its first "
+        "30 s and only accelerates after that, so the shipped bound ends it mid-manoeuvre and "
+        "reports 'stuck' for a chassis that is working.",
+    )
+    parser.add_argument(
         "--parallel-only",
         action="store_true",
         help="skip the in-bay arm (control alone, to confirm the probe is inert)",
@@ -657,7 +717,18 @@ def main() -> None:
 
     for name, in_bay, changes, known in arms:
         payloads = [
-            (str(p), in_bay, args.laps, changes, known, args.solid_walls, args.slide, args.scrub, args.bay_offset)
+            (
+                str(p),
+                in_bay,
+                args.laps,
+                changes,
+                known,
+                args.solid_walls,
+                args.slide,
+                args.scrub,
+                args.bay_offset,
+                args.no_progress_window,
+            )
             for p in paths
         ]
         rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
