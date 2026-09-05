@@ -123,6 +123,28 @@ class BayStartRow:
     hand_out_m: float | None = None
     """Outward displacement at handover, on the bay's outward axis."""
 
+    sign_color: str = ""
+    """Colour of the first sign AHEAD of the chassis at handover, or "" if none is.
+
+    The remaining discriminator, by elimination. The release pose is identical
+    in all 256 scenarios -- yaw 25.5-25.6 deg, displacement -0.200 m -- and the
+    bay sits at a fixed place on the mat, so the chassis is handed over in the
+    SAME position and heading every time. Nothing about the manoeuvre can
+    therefore explain why 44 runs die on a pass-side violation inside the first
+    metre and 210 do not. What differs between scenarios is the layout ahead,
+    and the first sign is what the router commits a lane for.
+    """
+    sign_range_m: float | None = None
+    """Distance to that sign at handover. How much room the router had to work with."""
+    sign_lat_m: float | None = None
+    """Its lateral offset from the chassis's heading axis, POSITIVE TO THE LEFT.
+
+    Colour alone cannot say whether the required side was the reachable one:
+    the rule is travel-relative (see the 2026-09-03 pass-side correction), so
+    what matters is the colour together with which side the sign already sits
+    on when the navigator takes over.
+    """
+
     surface: str = ""
     """Which surface ENDED the run, or "" if contact did not end it.
 
@@ -247,6 +269,32 @@ def _fin_polygons(raw: dict) -> list[list[tuple[float, float]]]:
     return polys
 
 
+def _first_sign_ahead(pose: tuple[float, float, float], signs: Sequence[dict]) -> tuple[str, float, float] | None:
+    """Colour, range and signed lateral offset of the nearest sign in FRONT of ``pose``.
+
+    "In front" is the half-plane the chassis is facing, not the nearest sign
+    outright: a sign the robot has already passed cannot be the one whose lane
+    the router is about to commit. Lateral offset is positive to the LEFT, in
+    the chassis frame, so it reads directly against the travel-relative
+    pass-side rule. ``None`` when the scenario has no sign ahead at all, which
+    is a real outcome rather than missing data -- the run then cannot fail on
+    9.24.5 at handover.
+    """
+    x, y, yaw = pose
+    cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
+    best: tuple[str, float, float] | None = None
+    for sign in signs:
+        dx, dy = float(sign["x"]) - x, float(sign["y"]) - y
+        ahead = dx * cos_yaw + dy * sin_yaw
+        if ahead <= 0.0:
+            continue
+        left = -dx * sin_yaw + dy * cos_yaw
+        rng = math.hypot(dx, dy)
+        if best is None or rng < best[1]:
+            best = (str(sign.get("color", "?")), rng, left)
+    return best
+
+
 def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool, float, float, float]) -> BayStartRow:
     """Run one scenario from one start. Returns a row, never raises on outcome."""
     (
@@ -296,9 +344,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
     # with every previously measured one.
     tuning = tuning_with_overrides(changes)
     if no_progress_s > 0.0:
-        tuning = tuning_with_overrides(
-            {"NO_PROGRESS_WINDOW_S": no_progress_s}, group="simulation", base=tuning
-        )
+        tuning = tuning_with_overrides({"NO_PROGRESS_WINDOW_S": no_progress_s}, group="simulation", base=tuning)
     sim = ScenarioSimulator(
         meta,
         num_laps=laps,
@@ -333,9 +379,11 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
     # sees a "handover" event of its own.
     hand_yaw: float | None = None
     hand_out: float | None = None
+    hand_sign: tuple[str, float, float] | None = None
+    signs = raw.get("sign_positions") or []
 
     def _observe(state: AckermannState, _scan: LidarScan) -> None:
-        nonlocal best_exit_m, min_fin_m, prev_bex
+        nonlocal best_exit_m, min_fin_m, prev_bex, hand_sign
         # Only ticks the MANOEUVRE drove. `bay_exit_ticks` advances exactly while
         # it holds control, so a tick that raised it is one it is answerable for
         # -- and the parking phase later in the round is correctly excluded.
@@ -347,6 +395,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
                 gap = min(_convex_gap(corners, fin) for fin in fins)
                 min_fin_m = gap if min_fin_m is None else min(min_fin_m, gap)
             hand_yaw = math.degrees(wrap_angle(state.yaw - start["yaw"]))
+            hand_sign = _first_sign_ahead((state.x, state.y, state.yaw), signs)
             if centre is not None and outward is not None:
                 hand_out = bay_exit_clearance((state.x, state.y, state.yaw), centre, outward)
         prev_bex = bex
@@ -376,6 +425,9 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         exit_m=best_exit_m,
         hand_yaw_deg=hand_yaw,
         hand_out_m=hand_out,
+        sign_color=hand_sign[0] if hand_sign else "",
+        sign_range_m=hand_sign[1] if hand_sign else None,
+        sign_lat_m=hand_sign[2] if hand_sign else None,
         bex=sim.bay_exit_ticks,
         rev_ticks=sim.bay_exit.legs[0],
         fwd_ticks=sim.bay_exit.legs[1],
@@ -402,21 +454,27 @@ def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
     print(f"\n=== {name} ===")
     print(
         f"| {'#':>4} | {'dist m':>7} | {'net m':>6} | {'exit m':>6} | {'bex':>5} | {'rev':>5} | {'fwd':>5} | "
-        f"{'rev m':>6} | {'flip':>5} | {'h.yaw':>6} | {'h.out':>6} | {'dyaw':>6} | "
+        f"{'rev m':>6} | {'flip':>5} | {'h.yaw':>6} | {'h.out':>6} | "
+        f"{'s.col':>5} | {'s.rng':>6} | {'s.lat':>6} | {'dyaw':>6} | "
         f"{'end x':>6} | {'end y':>6} | {'laps':>4} | {'coll':>4} | {'stuck':>5} | {'t/o':>3} | {'pass':>4} |"
     )
     print(
         f"|{'-' * 6}|{'-' * 9}|{'-' * 8}|{'-' * 8}|{'-' * 7}|{'-' * 7}|{'-' * 7}|{'-' * 8}|"
-        f"{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
+        f"{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 7}|{'-' * 8}|{'-' * 8}|"
+        f"{'-' * 8}|{'-' * 8}|{'-' * 8}|{'-' * 6}|{'-' * 6}|{'-' * 7}|{'-' * 5}|{'-' * 6}|"
     )
     for r in sorted(live, key=lambda x: int(x.id)):
         exit_cell = f"{r.exit_m:>6.2f}" if r.exit_m is not None else f"{'--':>6}"
         hyaw = f"{r.hand_yaw_deg:>6.1f}" if r.hand_yaw_deg is not None else f"{'--':>6}"
         hout = f"{r.hand_out_m:>6.3f}" if r.hand_out_m is not None else f"{'--':>6}"
+        scol = f"{r.sign_color[:5] or '--':>5}"
+        srng = f"{r.sign_range_m:>6.2f}" if r.sign_range_m is not None else f"{'--':>6}"
+        slat = f"{r.sign_lat_m:>6.2f}" if r.sign_lat_m is not None else f"{'--':>6}"
         print(
             f"| {r.id:>4} | {r.dist:>7.2f} | {r.net_m:>6.2f} | {exit_cell} | {r.bex:>5} | "
             f"{r.rev_ticks:>5} | {r.fwd_ticks:>5} | {r.rev_m:>6.3f} | {r.flips:>5} | "
-            f"{hyaw} | {hout} | {r.dyaw_deg:>6.1f} | {r.fx:>6.2f} | {r.fy:>6.2f} | {r.laps:>4} | "
+            f"{hyaw} | {hout} | {scol} | {srng} | {slat} | "
+            f"{r.dyaw_deg:>6.1f} | {r.fx:>6.2f} | {r.fy:>6.2f} | {r.laps:>4} | "
             f"{'Y' if r.collided else '.':>4} | {'Y' if r.stuck else '.':>5} | "
             f"{'Y' if r.timed_out else '.':>3} | {'Y' if r.pass_side else '.':>4} |"
         )
@@ -456,6 +514,32 @@ def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
     if surfaces:
         breakdown = "  ".join(f"{name}={count}" for name, count in sorted(surfaces.items()))
         print(f"  ended by surface: {breakdown}")
+    # Does the FIRST SIGN AHEAD explain the pass-side deaths? By elimination it
+    # is the only candidate left: the release pose is identical in all 256, so
+    # the manoeuvre cannot be what separates them. Split by colour and by which
+    # side the sign already sits on, because the rule is travel-relative -- a
+    # colour that demands the far side is a different problem from one that
+    # demands the side the chassis is already on.
+    seen = [r for r in live if r.sign_range_m is not None]
+    if seen:
+        print("  first sign ahead at handover:")
+        for color in sorted({r.sign_color for r in seen}):
+            group = [r for r in seen if r.sign_color == color]
+            for side, want_left in (("left", True), ("right", False)):
+                arm = [r for r in group if ((r.sign_lat_m or 0.0) > 0.0) == want_left]
+                if not arm:
+                    continue
+                bad = sum(1 for r in arm if r.pass_side)
+                ranges = sorted(r.sign_range_m for r in arm)  # type: ignore[misc]
+                print(
+                    f"    {color:>6} on the {side:<5} n={len(arm):>3}  "
+                    f"pass-side {bad}/{len(arm)} ({100.0 * bad / len(arm):.0f}%)  "
+                    f"range min {ranges[0]:.2f} / median {ranges[len(ranges) // 2]:.2f} m"
+                )
+        blind = [r for r in live if r.sign_range_m is None]
+        if blind:
+            bad = sum(1 for r in blind if r.pass_side)
+            print(f"    no sign ahead      n={len(blind):>3}  pass-side {bad}/{len(blind)}")
     # The legality verdict. A single touch ends the round and voids the parking
     # points, so the aggregate that matters is the WORST margin any run got to,
     # not an average.
