@@ -8,33 +8,18 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
 )
 
-// Camera pinhole geometry. The Python source reads these from
-// shared.config.constants.RobotSpecs / TrafficSignSpecs, which is not vendored
-// into this Go tree. They are restated here as documented TODOs until a Go
-// profile mirror lands (see plan §5b): the values below match the shipped
-// robot.toml / track.toml / sign.toml as of 2026-08-30.
-const (
-	// CameraWidthPX is RobotSpecs.CAMERA_WIDTH (sensor pixel width).
-	CameraWidthPX = 1536.0
-	// CameraHFOVRad is RobotSpecs.CAMERA_HFOV. TODO: sourced as a default;
-	// the real value lives in robot.toml's [camera] section and must be
-	// mirrored into internal/config/profile before these become authoritative.
-	CameraHFOVRad = 1.0472 // 60 deg -- TODO: confirm against robot.toml
-	// SignHeightM is TrafficSignSpecs.HEIGHT: the real-world height of a WRO
-	// traffic sign, the only dimension the pinhole model needs for range.
-	SignHeightM = 0.10
-	// LidarMountXOffsetM is RobotSpecs.LIDAR_MOUNT_X_OFFSET: the camera/LIDAR
-	// sit this far forward of the chassis centre, so projections start from
-	// the sensor, not the body origin.
-	LidarMountXOffsetM = 0.1222
-	// CameraFarClipM is RobotSpecs.CAMERA_FAR_CLIP, used as the LIDAR-fusion
-	// validity ceiling (matches LIDAR_MAX_RANGE).
-	CameraFarClipM = 12.0
-)
-
-// cameraFocalPX is the pinhole focal length in pixels, derived from HFOV and
-// image width, matching sign_discovery.py's _CAMERA_FOCAL_PX.
-var cameraFocalPX = (CameraWidthPX / 2.0) / math.Tan(CameraHFOVRad/2.0)
+// CameraFocalPX is the pinhole focal length in pixels, derived from the
+// configured HFOV and image width, matching sign_discovery.py's
+// _CAMERA_FOCAL_PX.
+//
+// Derived rather than stored so it cannot fall out of step with the HFOV it
+// is computed from: these values used to be package constants carrying a
+// 60 deg placeholder while the shipped robot.toml said 102 deg (a Raspberry
+// Pi Camera Module 3 Wide), and nothing raised because a constant has no
+// loader to disagree with.
+func (c Config) CameraFocalPX() float64 {
+	return (c.CameraWidthPX / 2.0) / math.Tan(c.CameraHFOVRad/2.0)
+}
 
 // DetectionToWorld projects a pixel bounding box to an approximate world
 // position, matching sign_discovery.py's _detection_to_world. Bearing is
@@ -42,7 +27,7 @@ var cameraFocalPX = (CameraWidthPX / 2.0) / math.Tan(CameraHFOVRad/2.0)
 // estimated from the bbox height via the pinhole model (error grows with
 // range), optionally overridden by a coincident LIDAR ray. Returns nil when
 // the bbox is too small to trust.
-func DetectionToWorld(
+func (c Config) DetectionToWorld(
 	det BoundingBox,
 	robotPos trackmodel.Waypoint,
 	robotYaw,
@@ -56,22 +41,22 @@ func DetectionToWorld(
 	}
 
 	// Range from the pinhole model: d = (f * real_h) / pixel_h.
-	distance := (cameraFocalPX * SignHeightM) / pixelHeight
+	distance := (c.CameraFocalPX() * c.SignHeightM) / pixelHeight
 
 	// Horizontal angle from image centre.
 	cx := det.CenterX
-	thetaH := (cx/CameraWidthPX - 0.5) * CameraHFOVRad
+	thetaH := (cx/c.CameraWidthPX - 0.5) * c.CameraHFOVRad
 
 	if len(lidarRangesM) > 0 && len(lidarAnglesRad) > 0 {
 		lidarRange := navutil.NearestRay(lidarRangesM, lidarAnglesRad, thetaH)
-		if minValidLidarRangeM < lidarRange && lidarRange < CameraFarClipM {
+		if minValidLidarRangeM < lidarRange && lidarRange < c.CameraFarClipM {
 			distance = lidarRange
 		}
 	}
 
 	// Project from the sensor, not the body centre.
-	sensorX := robotPos.X + LidarMountXOffsetM*math.Cos(robotYaw)
-	sensorY := robotPos.Y + LidarMountXOffsetM*math.Sin(robotYaw)
+	sensorX := robotPos.X + c.SensorMountXOffsetM*math.Cos(robotYaw)
+	sensorY := robotPos.Y + c.SensorMountXOffsetM*math.Sin(robotYaw)
 	bearing := robotYaw + thetaH
 	wx := sensorX + distance*math.Cos(bearing)
 	wy := sensorY + distance*math.Sin(bearing)
@@ -82,7 +67,7 @@ func DetectionToWorld(
 // TrafficSignObservation, matching sign_discovery.py's
 // detection_to_observation. Returns nil for a non-sign class or an
 // unprojectable bbox.
-func DetectionToObservation(
+func (c Config) DetectionToObservation(
 	det BoundingBox,
 	robotPos trackmodel.Waypoint,
 	robotYaw,
@@ -93,7 +78,7 @@ func DetectionToObservation(
 	if det.Color != SignColorRed && det.Color != SignColorGreen {
 		return nil
 	}
-	world := DetectionToWorld(
+	world := c.DetectionToWorld(
 		det, robotPos, robotYaw,
 		minReliableBBoxHeightPX, minValidLidarRangeM,
 		lidarRangesM, lidarAnglesRad,
