@@ -964,6 +964,75 @@ tasks:
     cmds:
       - go test ./...
 
+  robot-go:todo:
+    desc: "Print the Go-migration punch list: what's still stubbed/missing, verified against the tree on 2026-09-04."
+    cmds:
+      - cmd: |
+          cat <<'EOF'
+          robot-go (Python/ROS2 -> Go/NATS) migration -- remaining work, 2026-09-04
+          ===========================================================================
+          Stage 6 (nav stack) is otherwise essentially ported and tested; these are
+          the real gaps left, verified against the tree (not the stale plan doc's
+          checkboxes, see docs/internal/plans/go-migration-plan.md).
+
+          1. cmd/pi5 only supervises "capture" (camera). IMU/LIDAR/vision/nav/
+             state-machine each still run as their OWN separate binaries
+             (cmd/imu-node, cmd/lidar-node, cmd/track-navigator, cmd/state-machine)
+             and are not yet combined into one production Pi 5 process.
+
+          2. internal/nav/navigator is only exercised end-to-end via
+             cmd/track-navigator (the bag-replay/parity harness) -- never run as
+             part of a full race loop on cmd/pi5.
+
+          3. internal/sim/harness: LIDAR-based relocalization is NOT implemented
+             (Localize=true unsupported, see gateway.go TODO) -- sim runner is
+             perfect-odometry only.
+
+          4. internal/statemachine/robotcmd/convert.go: pause/resume/
+             return_to_start/reboot/shutdown all map to KindUnimplemented.
+
+          5. internal/node/statemachine/channel_sink.go: SetVisionDebug/
+             ToggleTelemetryChannel/DisableCommandChannel are a deliberate
+             UnimplementedChannelSink -- vision debug has no Go-side NATS subject
+             yet, and telemetry-channel toggling needs cross-process signaling to
+             cmd/telemetry-node that doesn't exist yet.
+
+          6. internal/driver/lidar: only the legacy Dense-mode request is
+             implemented; GET_LIDAR_CONF-selected named scan modes are not.
+
+          7. internal/transport/nats is still a thin/one-line stub in places --
+             blocks internal/driver/display/ssd1306 (OLED page rendering) and
+             internal/telemetry/diag from actually publishing over NATS.
+
+          8. internal/nav/signrouter/discovery.go: a couple of hardcoded
+             constants (e.g. CameraHFOVRad) are flagged "TODO: confirm against
+             robot.toml / navigation_tuning.toml" -- not blocking, just unverified
+             defaults inherited from the port.
+
+          NATS-to-Foxglove topic mapping (separate from the above, see
+          cmd/foxglove-bridge and internal/recording/roscdr.go):
+            - The sim-runner's MCAP recorder hand-encodes 5 topics to real ROS2
+              CDR (LaserScan/Imu/TFMessage/AckermannDriveStamped/Float32) so
+              Foxglove Studio's 3D panel renders them natively; everything else
+              is raw vtitan.* protobuf, Raw-Messages-panel only.
+            - cmd/foxglove-bridge (the LIVE NATS websocket bridge) does NOT do
+              this conversion -- every subject is advertised as protobuf, so live
+              3D rendering doesn't work today, only offline bag playback does.
+            - There is no shared abstraction/config table for this mapping by
+              design (see feedback_go_code_style_maps_config_constants): both
+              bridgeAllSubjects() in cmd/foxglove-bridge/main.go and the encoder
+              calls in internal/sim/scenario/record.go are explicit, hand-written
+              per-topic call sites, not a dynamic registry. Porting CDR rendering
+              to the live bridge, or centralizing the mapping into one static
+              typed table, is still an open design decision, not started.
+
+          Corrected vs. older notes: cmd/foxglove-bridge itself IS a real
+          implementation now (connects NATS, bridges every declared subject,
+          serves the Foxglove WebSocket protocol) -- it is not a stub, only its
+          schema encoding is limited to protobuf (see above).
+          EOF
+        silent: true
+
   robot-go:test:hw:
     desc: >-
       Cross-compile the //go:build hw hardware tests for linux/arm64 so each
@@ -1202,57 +1271,67 @@ tasks:
   robot:pull-runs:
     desc: >-
       Pull recorded rosbag runs (mcaps) from the Pi 5's ~/vtitan_runs into
-      vtitan_runs_pulled/ (usage: task robot:pull-runs [PATTERN=run_20260809]
-      [PI5_HOST=user@host]). Run FROM a dev machine. Lists runs on the Pi 5
-      and skips any that already exist locally -- only copies what's missing.
-      PATTERN defaults to every run; pass a run name or timestamp prefix to
-      narrow it.
+      data/runs_pulled/ (usage: task robot:pull-runs [PATTERN=run_20260809]
+      [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Lists
+      runs on the Pi 5 and skips any that already exist locally -- only
+      copies what's missing. PATTERN defaults to every run; pass a run name
+      or timestamp prefix to narrow it. RUNS_DIR overrides the local target
+      dir, e.g. if data/ moves again.
     dir: robot
     env:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
+      RUNS_DIR: '{{.RUNS_DIR | default ""}}'
     cmds:
-      - '"{{.BASH}}" vtitan_runs_pulled/pull-runs-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+      - '"{{.BASH}}" scripts/sync/pull-runs-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
 
   robot:push-runs:
     desc: >-
-      Push locally-held rosbag runs (mcaps) from vtitan_runs_pulled/ up into
+      Push locally-held rosbag runs (mcaps) from data/runs_pulled/ up into
       the Pi 5's ~/vtitan_runs (usage: task robot:push-runs [PATTERN=run_20260809]
-      [PI5_HOST=user@host]). Run FROM a dev machine. Keeps both sides in sync
-      so a Pi 5 reformat/reflash doesn't strand the only copy of a run --
-      skips any run that already exists on the Pi 5. PATTERN defaults to
-      every local run; pass a run name or timestamp prefix to narrow it.
+      [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Keeps both
+      sides in sync so a Pi 5 reformat/reflash doesn't strand the only copy of
+      a run -- skips any run that already exists on the Pi 5. PATTERN defaults
+      to every local run; pass a run name or timestamp prefix to narrow it.
+      RUNS_DIR overrides the local source dir, e.g. if data/ moves again.
     dir: robot
     env:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
+      RUNS_DIR: '{{.RUNS_DIR | default ""}}'
     cmds:
-      - '"{{.BASH}}" vtitan_runs_pulled/push-runs-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+      - '"{{.BASH}}" scripts/sync/push-runs-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
 
   robot:pull-videos:
     desc: >-
       Pull per-run videos (mp4 only, no bag -- see src/vision/video_recorder.py)
-      from the Pi 5's ~/vtitan_runs into vtitan_videos_pulled/ (usage: task
-      robot:pull-videos [PATTERN=run_20260809] [PI5_HOST=user@host]). Run FROM
-      a dev machine. A separate tree from vtitan_runs_pulled/ on purpose -- see
-      pull-videos-from-pi5.sh's own comment. Skips any run whose video is
-      already local; only lists runs that actually recorded one.
+      from the Pi 5's ~/vtitan_runs into data/videos_pulled/ (usage: task
+      robot:pull-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
+      [VIDEOS_DIR=path]). Run FROM a dev machine. A separate tree from
+      data/runs_pulled/ on purpose -- see pull-videos-from-pi5.sh's own
+      comment. Skips any run whose video is already local; only lists runs
+      that actually recorded one. VIDEOS_DIR overrides the local target dir,
+      e.g. if data/ moves again.
     dir: robot
     env:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
+      VIDEOS_DIR: '{{.VIDEOS_DIR | default ""}}'
     cmds:
-      - '"{{.BASH}}" vtitan_videos_pulled/pull-videos-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+      - '"{{.BASH}}" scripts/sync/pull-videos-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
 
   robot:push-videos:
     desc: >-
-      Push locally-held per-run videos from vtitan_videos_pulled/ back up into
+      Push locally-held per-run videos from data/videos_pulled/ back up into
       their matching run directory under the Pi 5's ~/vtitan_runs (usage: task
-      robot:push-videos [PATTERN=run_20260809] [PI5_HOST=user@host]). Run FROM
-      a dev machine. Skips a run with no matching remote run directory (push
-      the bag first) and any video already present on the Pi 5.
+      robot:push-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
+      [VIDEOS_DIR=path]). Run FROM a dev machine. Skips a run with no matching
+      remote run directory (push the bag first) and any video already present
+      on the Pi 5. VIDEOS_DIR overrides the local source dir, e.g. if data/
+      moves again.
     dir: robot
     env:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
+      VIDEOS_DIR: '{{.VIDEOS_DIR | default ""}}'
     cmds:
-      - '"{{.BASH}}" vtitan_videos_pulled/push-videos-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+      - '"{{.BASH}}" scripts/sync/push-videos-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
 
   robot:bench-hud:start:
     desc: >-
@@ -1276,7 +1355,7 @@ tasks:
       [PI5_HOST=user@host]). Run FROM a dev machine. Simulates long_press to
       enter FINISHED (finalizing the video), tears down the bench launch,
       restores vtitan-pi5.service if it was running before, and pulls the
-      recorded video into vtitan_videos_pulled/.
+      recorded video into data/videos_pulled/.
     dir: robot
     env:
       PI5_HOST: '{{.PI5_HOST | default ""}}'

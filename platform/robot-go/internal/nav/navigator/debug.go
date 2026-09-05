@@ -37,7 +37,6 @@ type Phase int
 // (and left nil) while an escape maneuver is latched. The pointers are what
 // preserve that distinction, which Python gets from `float | None` -- a
 // plain 0.0 would read as a real measurement.
-//
 type DebugSnapshot struct {
 	Phase Phase
 
