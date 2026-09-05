@@ -453,17 +453,18 @@ width="350">
 
 ### Consumo Energético
 
-| **Componente**                    | **Cantidad** | **Voltaje** | **Coriente sin Carga** | **Corriente Nominal** | **Corriente Pico** |
+| **Componente**                    | **Cantidad** | **Voltaje** | **Corrente sin Carga** | **Corriente Nominal** | **Corriente Pico** |
 |-----------------------------------|--------------|-------------|------------------------|-----------------------|--------------------|
 | Raspberry Pi 5                    |      1       | 5.0V        | ~0.50A                 | ~1.50A - 2.50A        | 5.00A              |
 | Raspberry Pi Zero 2W              |      1       | 5.0V        | ~0.10A                 | ~0.35A - 0.50A        | 0.70A              |
 | Raspberry Pi Camera Module 3 Wide |      1       | 3.3V        | ~0.05A                 | ~0.25A                | 0.30A              |
 | Raspberry Pi AI HAT+ (26 TOPS)    |      1       | 5.0V        | ~0.10A                 | ~1.00A - 1.50A        | 2.50A              |
 | RPLiDAR C1                        |      1       | 5.0V        | ~0.20A                 | ~0.40A                | 0.60A              |
-| INJORA 14KG INJS014 Micro Servo   |      1       | 4.8V - 8.4V | ~0.02A                 | ~0.30A - 0.50A        | 1.80A (Stall)      |
+| INJORA 14KG INJS014 Micro Servo   |      1       | 4.8V - 8.4V | ~0.02A                 | ~0.30A - 0.50A        | 1.80A              |
 | 9-Axis IMU Gyroscope GY-BNO085    |      1       | 3.3V - 5.0V | ~0.003A                | ~0.015A               | 0.03A              |
-| Puente H L298N                    |      1       | 5V / 5-35V  | ~0.036A (Lógica)       | Según motor           | 2.00A por canal    |
-| **TOTAL**                         |    **8**     | **3.3V-5V** | **~1.009A**            | **~3.815A - 5.165A**  | **12.93A**         |
+| Driver Motor BTS7960              |      1       | 5.0V / 12V  | ~0.05A                 | Según motor           | 43.00A             |
+| REV HD Hex Motor                  |      1       | 12.0V       | ~0.40A                 | ~1.50A - 2.50A        | 8.50A              |
+| **TOTAL**                         |    **9**     | **3.3V-12V**| **~1.423A**            | **~5.315A** - **8.215A**  | **19.43A**         |
 
 # Movilidad y Diseño Mecánico
 
