@@ -41,3 +41,12 @@ collision_margin_m = 0.0
 
 # |cos(yaw)| below this counts as a quarter-turn for ObstacleBox.from_pose.
 axis_align_tolerance = 1e-6
+
+# The simulator's no-progress bailout: a run is abandoned once the robot moves
+# less than no_progress_displacement_m within no_progress_window_s. A HARNESS
+# artefact, not a robot behaviour -- it ends a manoeuvre that is working but
+# slow, which is exactly what the bay-exit ratchet looks like (diag_bay_start
+# grew --no-progress-window for this). Written out 2026-09-05; both existed
+# only as Python literals, at these same shipped values.
+no_progress_window_s = 30.0
+no_progress_displacement_m = 0.08

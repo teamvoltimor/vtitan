@@ -217,3 +217,29 @@ finish_approach_m = 0.40
 # where finishing the corner only needed ~90 deg, right after a blind round's
 # direction inference committed.
 replan_heading_tie_margin_m = 0.15
+
+# --- Written out 2026-09-05 ---
+#
+# All six existed only as Python literals, so no edit to this file could reach
+# them. Shipped values, so naming them changed nothing.
+
+# Inward bias applied to the Obstacles Challenge's planned path, in metres.
+# The Open Challenge passes None here instead and uses its own clearance-driven
+# bias, so this key is Obstacles-only.
+obstacles_center_bias_m = 0.15
+
+# Corner caution: slow the approach to a corner. Restricted to the FIRST lap,
+# where the layout belief is still forming; all_laps applies it for the whole
+# round, narrow_only restricts it to corridors believed narrow.
+first_lap_corner_caution = true
+corner_caution_all_laps = false
+first_lap_corner_caution_narrow_only = false
+
+# Advance the waypoint index past one already passed. Off: measured to stall
+# the index at corners.
+advance_past_passed_waypoint = false
+
+# Ticks over which a replaced path is blended into the old one. 0 = hard
+# switch. REFUTED twice (2026-08-31) as a fix for anything -- kept
+# configurable, not kept as a lever.
+replan_blend_ticks = 0

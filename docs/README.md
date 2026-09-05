@@ -40,7 +40,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
 
 - En la carpeta `3d-models` se encuentran todos los modelos de las piezas 3d que fueron impresas para V-Titan, esta carpeta está dividida para los planos de las piezas, y el archivo para imprimirlas, además de, estar organizadas por cada prototipo.
 
-- En la carpeta `schemes` están los diagramas de flujo, y los diagramas de conexiones.
+- En la carpeta `schemes` están los diagramas de flujo, y los diagramas de conexiones. En `schemes/flowcharts/` viven las fuentes Mermaid y sus renders PNG, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera.
 
 - En la carpeta `t-photos` están las fotos del equipo.
 
@@ -443,14 +443,23 @@ La batería de 11.1V de la marca Ovonic, cumple la función de ser la fuente de 
 
 ## Diagrama de Conexiones
 
+El arnés completo de V-Titan está trazado como un esquemático generado por código, no dibujado a mano: la fuente vive en [`schemes/wiring/tscircuit/circuit.tsx`](schemes/wiring/tscircuit/circuit.tsx) y se exporta con [tscircuit](https://tscircuit.com/). Esto nos permite versionar el cableado igual que el resto del código: cualquier cambio de pin queda en el historial de git y el render se regenera desde la misma fuente.
+
 <p align="center">
-	<img src="schemes\schematics\harness.schematic.png" alt="Diagrama de Conexiones" 
-width="350">
-	<br>
-	<i>Diagrama de Conexiones</i>
+    <img src="schemes/wiring/harness.schematic.svg" alt="Diagrama de conexiones de V-Titan" width="1000">
+    <br>
+    <i>Arnés de conexiones de V-Titan — <a href="schemes/wiring/harness.schematic.png">versión PNG</a></i>
 </p>
 
-*Nota: Se recomienda abrir esta imagen por separado para que sea legible*
+Para regenerar los artefactos tras editar `circuit.tsx`:
+
+```bash
+cd docs/schemes/wiring/tscircuit
+npm install
+npm run artifacts   # netlist legible + SVG (fondo blanco) + PNG a 2400 px
+```
+
+Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se comitean en `schemes/wiring/`, ya que son lo que se lee en esta documentación y reconstruirlos exige toda la cadena de herramientas de tscircuit.
 
 ### Consumo Energético
 

@@ -4,7 +4,9 @@
 // -f schematic-svg`; see the "svg" script in package.json.
 import { readFileSync, writeFileSync } from "node:fs";
 
-const FILE = "harness.schematic.svg";
+// One level up: the committed exports live in docs/schemes/wiring/, beside
+// this toolchain folder rather than inside it.
+const FILE = "../harness.schematic.svg";
 const CANVAS = /rgb\(245, ?241, ?237\)/g;
 
 const svg = readFileSync(FILE, "utf8");

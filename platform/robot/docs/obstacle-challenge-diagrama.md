@@ -2,7 +2,7 @@
 
 Diagramas Mermaid que documentan el flujo de control del **Obstacle Challenge**, en lenguaje natural. Comparte toda la máquina del [Open Challenge](open-challenge-diagrama.md) — arranque en **modo ciego**, inferencia obligatoria de dirección, conducción normal, escape/atasco y conteo de vueltas — y agrega dos piezas exclusivas: la esquiva de señales de tránsito y la maniobra de estacionamiento.
 
-La lógica compartida entre ambos desafíos (inferencia de dirección, vigilancia de colisión/atasco, conteo de vueltas) vive una sola vez en [`diagrams/common/`](diagrams/common/mermaid/) y se referencia desde aquí, en vez de redibujarse.
+La lógica compartida entre ambos desafíos (inferencia de dirección, vigilancia de colisión/atasco, conteo de vueltas) vive una sola vez en [`docs/schemes/flowcharts/common/`](../../../docs/schemes/flowcharts/common/mermaid/) y se referencia desde aquí, en vez de redibujarse.
 
 El flujo completo se dividió en dos diagramas porque, de una sola pieza, resultaba demasiado largo para leerse cómodo: **Parte 1** cubre conducción + señales + vueltas, **Parte 2** cubre el estacionamiento (subestados STAGE/ENTER/DONE incluidos ahí mismo — se eliminó un diagrama de estados aparte porque duplicaba exactamente esa misma información y quedaba saturado).
 
@@ -10,23 +10,23 @@ Cada archivo `.mmd` trae al inicio un bloque de comentarios `%%` (no se renderiz
 
 ## Diagramas
 
-Fuente Mermaid en `diagrams/obstacles/mermaid/`, renders PNG en `diagrams/obstacles/png/` (generados con `task robot:diagrams`).
+Fuente Mermaid en `docs/schemes/flowcharts/obstacles/mermaid/`, renders PNG en `docs/schemes/flowcharts/obstacles/png/` (generados con `task docs:diagrams`).
 
 | Diagrama | Fuente `.mmd` | PNG |
 |---|---|---|
-| Máquina de estados de alto nivel (incluye estacionamiento) | [`diagrams/obstacles/mermaid/maquina-estados.mmd`](diagrams/obstacles/mermaid/maquina-estados.mmd) | `diagrams/obstacles/png/maquina-estados.png` |
-| Flujo — Parte 1: conducción, señales y vueltas | [`diagrams/obstacles/mermaid/flujo-parte1-conduccion.mmd`](diagrams/obstacles/mermaid/flujo-parte1-conduccion.mmd) | `diagrams/obstacles/png/flujo-parte1-conduccion.png` |
-| Flujo — Parte 2: estacionamiento | [`diagrams/obstacles/mermaid/flujo-parte2-estacionamiento.mmd`](diagrams/obstacles/mermaid/flujo-parte2-estacionamiento.mmd) | `diagrams/obstacles/png/flujo-parte2-estacionamiento.png` |
-| Detalle — regla de paso por señal (rojo vs. verde) | [`diagrams/obstacles/mermaid/regla-senales.mmd`](diagrams/obstacles/mermaid/regla-senales.mmd) | `diagrams/obstacles/png/regla-senales.png` |
+| Máquina de estados de alto nivel (incluye estacionamiento) | [`docs/schemes/flowcharts/obstacles/mermaid/maquina-estados.mmd`](../../../docs/schemes/flowcharts/obstacles/mermaid/maquina-estados.mmd) | `docs/schemes/flowcharts/obstacles/png/maquina-estados.png` |
+| Flujo — Parte 1: conducción, señales y vueltas | [`docs/schemes/flowcharts/obstacles/mermaid/flujo-parte1-conduccion.mmd`](../../../docs/schemes/flowcharts/obstacles/mermaid/flujo-parte1-conduccion.mmd) | `docs/schemes/flowcharts/obstacles/png/flujo-parte1-conduccion.png` |
+| Flujo — Parte 2: estacionamiento | [`docs/schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd`](../../../docs/schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd) | `docs/schemes/flowcharts/obstacles/png/flujo-parte2-estacionamiento.png` |
+| Detalle — regla de paso por señal (rojo vs. verde) | [`docs/schemes/flowcharts/obstacles/mermaid/regla-senales.mmd`](../../../docs/schemes/flowcharts/obstacles/mermaid/regla-senales.mmd) | `docs/schemes/flowcharts/obstacles/png/regla-senales.png` |
 
 ### Detalle común (compartido con Open Challenge)
 
 | Diagrama | Fuente `.mmd` | PNG |
 |---|---|---|
-| Inferencia de dirección (horario vs. antihorario) | [`diagrams/common/mermaid/inferencia-direccion.mmd`](diagrams/common/mermaid/inferencia-direccion.mmd) | `diagrams/common/png/inferencia-direccion.png` |
-| Vigilancia de colisión y atasco | [`diagrams/common/mermaid/escape-colision.mmd`](diagrams/common/mermaid/escape-colision.mmd) | `diagrams/common/png/escape-colision.png` |
-| Esquiva genérica ante un obstáculo | [`diagrams/common/mermaid/esquiva-generica.mmd`](diagrams/common/mermaid/esquiva-generica.mmd) | `diagrams/common/png/esquiva-generica.png` |
-| Conteo de vueltas | [`diagrams/common/mermaid/conteo-vueltas.mmd`](diagrams/common/mermaid/conteo-vueltas.mmd) | `diagrams/common/png/conteo-vueltas.png` |
+| Inferencia de dirección (horario vs. antihorario) | [`docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd`](../../../docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd) | `docs/schemes/flowcharts/common/png/inferencia-direccion.png` |
+| Vigilancia de colisión y atasco | [`docs/schemes/flowcharts/common/mermaid/escape-colision.mmd`](../../../docs/schemes/flowcharts/common/mermaid/escape-colision.mmd) | `docs/schemes/flowcharts/common/png/escape-colision.png` |
+| Esquiva genérica ante un obstáculo | [`docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd`](../../../docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd) | `docs/schemes/flowcharts/common/png/esquiva-generica.png` |
+| Conteo de vueltas | [`docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd`](../../../docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd) | `docs/schemes/flowcharts/common/png/conteo-vueltas.png` |
 
 ## Notas
 

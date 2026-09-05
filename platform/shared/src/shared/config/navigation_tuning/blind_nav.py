@@ -564,6 +564,46 @@ class CorridorFollowerParams(BaseModel):
     error the guard cannot see.
     """
 
+    ASSUME_BAY_START: bool = Field(default=True, validation_alias=_alias("ASSUME_BAY_START"))
+    """Begin an OBSTACLES round believing the robot was placed inside the bay.
+
+    The rules allow two starts and the in-bay one is worth 7 points (1 lap
+    required), so it is the one we intend to use -- see
+    ``wro_2026_scoring_parking_and_bay_start``. This constant makes that
+    intention the DEFAULT rather than something the robot has to recognise.
+
+    Until now the pocket was entered only when ``direction_from_parking_bay``
+    recognised it, and that function asks two questions: is forward blocked,
+    and do the +/-90 deg rays read wall-on-one-side/open-on-the-other. The
+    first is the real one. The second exists to name the travel DIRECTION --
+    inner block on the left is counterclockwise -- and as a gate it is the
+    fragile half: a single dropped side ray reads as open corridor, both sides
+    then read open, and the function returns ``None``. The cost of that miss is
+    not a slower start but a DEADLOCK, which is the whole reason
+    ``direction_from_parking_bay`` exists: forward is 0.05-0.19 m against a
+    fin, below the gate that authorises the creep, there is no rear sensing to
+    reverse on, and nothing moves for the rest of the round.
+
+    With this on, forward-blocked alone starts the exit. The direction is no
+    longer needed at that moment -- ``BayExit`` ratchets against the outer wall
+    without one, and the estimator settles normally once the chassis is clear.
+
+    **Assuming wrongly is self-correcting, which is why the default is safe.**
+    A parallel start is a start with forward clearance, and ``BayExit.is_clear``
+    is exactly that same threshold, tested on the tick after this latches: the
+    belief is dropped before a single command is issued. The failure this
+    removes is silent and total; the failure it can introduce is one tick long.
+
+    Off restores recognition-only entry, which is the arm every pre-2026-09-05
+    Obstacles measurement was taken on.
+
+    NOT yet measured on the corpus: in simulation the side-ray test passes in
+    the scenarios that matter, so this flag is expected to be inert there and
+    the numbers in ``BAY_EXIT_CLEARANCE_GUARD`` below still describe the exit.
+    It is a HARDWARE robustness change -- the dropout it defends against is a
+    property of the real LIDAR, not of the simulator.
+    """
+
     BAY_EXIT_CLEARANCE_GUARD: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_CLEARANCE_GUARD"))
     """Bound the cycle legs by PREDICTED FIN CLEARANCE instead of by contact.
 

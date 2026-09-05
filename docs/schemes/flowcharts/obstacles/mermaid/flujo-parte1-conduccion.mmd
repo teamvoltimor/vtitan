@@ -1,18 +1,18 @@
 %% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
 %% Fase 1 (inferir dirección) -- detalle común en:
-%%   docs/diagrams/common/mermaid/inferencia-direccion.mmd
+%%   docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd
 %% SignRouter: platform/robot/src/navigation/planning/sign_router.py
 %%   descubrimiento en vivo: platform/robot/src/navigation/planning/sign_discovery.py (ObservedSignMap)
 %%   selección de señal activa: SignRouter._active_sign_candidates()
-%%   deformación del waypoint y regla rojo/verde: ver docs/diagrams/obstacles/mermaid/regla-senales.mmd
+%%   deformación del waypoint y regla rojo/verde: ver docs/schemes/flowcharts/obstacles/mermaid/regla-senales.mmd
 %%   enmascarado de LIDAR: mask_mapped_obstacles() (control/controllers), escape_mask_radius_m = 0.12 m
 %%     -- platform/shared/config/navigation/signs/sign_router.toml
 %%   rearme por vuelta: SignRouter.reset_for_new_lap()
 %% Vigilancia de colisión/atasco -- detalle común en:
-%%   docs/diagrams/common/mermaid/escape-colision.mmd
+%%   docs/schemes/flowcharts/common/mermaid/escape-colision.mmd
 %% Conteo de vueltas -- detalle común en:
-%%   docs/diagrams/common/mermaid/conteo-vueltas.mmd
-%% Continúa en: docs/diagrams/obstacles/mermaid/flujo-parte2-estacionamiento.mmd
+%%   docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd
+%% Continúa en: docs/schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd
 %% Nota: incluso en la Fase 1, antes de fijar la dirección, una señal roja o
 %% verde en el camino se esquiva por su lado correcto -- la regla no depende
 %% del sentido de la vuelta (mismo eje/multiplicador para CW y CCW en
