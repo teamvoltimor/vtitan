@@ -264,6 +264,22 @@ class SweepConfig:
     steer_kp: float | None = None
     max_steering_rate: float | None = None
 
+    yaw_gain_compensation: float | None = None
+    """Override the pure-pursuit under-turn compensation (shipped: Obstacles 0.55).
+
+    Applied to BOTH ``YAW_GAIN_COMPENSATION`` and its Obstacles override,
+    because the shipped tree sets the latter and the Obstacles resolution path
+    applies it OVER the base -- setting the base alone would be shadowed here
+    and the arm would measure nothing, the failure ``OBSTACLES_CONTACT_DIST``
+    once caused.
+
+    Exists because the 46 -> 6 result that shipped the compensation was scored
+    by ``diag_pass_side_retire``'s own truth scorer with enforcement DISABLED,
+    while the verdict that actually ends a round is the simulator's
+    ``pass_side_violation``. Those are different scorers and had never been
+    compared on the same arm.
+    """
+
     corner_steer_deg: float | None = None
     """Override ``CorridorFollowerParams.MAX_CORNER_STEER_DEG`` (shipped 21.25).
 
@@ -810,6 +826,8 @@ class SweepConfig:
             LOOKAHEAD_LONG=self.lookahead_long,
             STEER_KP=self.steer_kp,
             MAX_STEERING_RATE=self.max_steering_rate,
+            YAW_GAIN_COMPENSATION=self.yaw_gain_compensation,
+            OBSTACLES_YAW_GAIN_COMPENSATION=self.yaw_gain_compensation,
         )
         corridor_follower = _with(
             base.corridor_follower,
@@ -5102,6 +5120,16 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     "blind": [
         SweepConfig("sighted (signs from metadata)"),
         SweepConfig("blind (track, direction, signs)", blind=True),
+    ],
+    # Does the shipped under-turn compensation reduce the verdict that actually
+    # ENDS a round? It shipped on diag_pass_side_retire's own truth scorer with
+    # enforcement disabled (46 -> 6 wrong-side passes); the simulator's
+    # pass_side_violation is a different scorer and was never A/B'd against it.
+    # BOTH ARMS BLIND: sighted skips the creep entirely, and the compensated
+    # value only reaches the Obstacles resolution path.
+    "yaw-comp": [
+        SweepConfig("compensation OFF (1.0)", blind=True, yaw_gain_compensation=1.0),
+        SweepConfig("compensation SHIPPED (0.55)", blind=True, yaw_gain_compensation=0.55),
     ],
     # Is the 2026-08-29 corner-steer split worth anything on OBSTACLES? It is
     # shipped and live on the robot on the strength of an OPEN result alone
