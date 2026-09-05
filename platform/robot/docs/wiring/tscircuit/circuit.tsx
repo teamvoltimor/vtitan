@@ -91,6 +91,15 @@
 // above ~20 A at 12 V DC -- an automotive/marine-style switch quotes DC
 // directly and removes the AC-to-DC guesswork above.
 //
+// SCHEMATIC LAYOUT: schX/schY are hand-placed in three bands -- Pi 5 and its
+// sensors on top, the battery spine through the middle in supply order, the
+// Zero and everything it drives along the bottom. Placement is driven by NET
+// LABELS, not by the component boxes: tscircuit renders a label box on every
+// pin, on both sides of a chip, so two chips in the same row need roughly 8
+// units between centres or their labels collide while the boxes themselves sit
+// nowhere near each other. Checking for box overlap alone will pass a drawing
+// that is unreadable. Budget for the labels, and re-render to check.
+//
 // Board split: the Pi Zero 2 W owns motor/servo/button/encoder/OLED. The
 // Pi 5 owns the Hailo AI+ 26 TOPS module (its header/PCIe slot), the camera
 // (Pi Camera Module 3 Wide, CSI), the LIDAR (RPLIDAR Slamtec C1, via a
@@ -153,8 +162,8 @@ export default () => (
       manufacturerPartNumber="Ovonic 3S LiPo 11.1V (2200mAh or 3000mAh)"
       footprint="pinrow2"
       pinLabels={{ pin1: "BATT_POS", pin2: "BATT_NEG" }}
-      schX={-18}
-      schY={0}
+      schX={-20}
+      schY={1}
     />
 
     {/* Inline power switch on the positive lead, ahead of the first split.
@@ -172,7 +181,7 @@ export default () => (
       footprint="pinrow2"
       pinLabels={{ pin1: "IN", pin2: "OUT" }}
       schX={-14}
-      schY={0}
+      schY={1}
     />
 
     {/* Y-split: one leg to the Pi 5's 5V buck, the other to a second split
@@ -188,8 +197,8 @@ export default () => (
         pin5: "OUT2_POS",
         pin6: "OUT2_NEG",
       }}
-      schX={-9}
-      schY={0}
+      schX={-8}
+      schY={1}
     />
 
     {/* 12/24V -> 5V@5A buck, USB-C output, dedicated to the Pi 5. */}
@@ -198,8 +207,8 @@ export default () => (
       manufacturerPartNumber="KL89576"
       footprint="pinrow4"
       pinLabels={{ pin1: "VIN_POS", pin2: "VIN_NEG", pin3: "VOUT_POS", pin4: "VOUT_NEG" }}
-      schX={-9}
-      schY={8}
+      schX={-8}
+      schY={4}
     />
 
     {/* Second Y-split: servo regulator + drive H-bridge share the battery rail. */}
@@ -214,8 +223,8 @@ export default () => (
         pin5: "OUT2_POS",
         pin6: "OUT2_NEG",
       }}
-      schX={-4}
-      schY={-5}
+      schX={0}
+      schY={1}
     />
 
     {/* Buck regulator feeding the steering servo's own supply rail --
@@ -225,8 +234,8 @@ export default () => (
       manufacturerPartNumber="Mini-560 Pro"
       footprint="pinrow4"
       pinLabels={{ pin1: "VIN_POS", pin2: "VIN_NEG", pin3: "VOUT_POS", pin4: "VOUT_NEG" }}
-      schX={1}
-      schY={-2}
+      schX={8}
+      schY={1}
     />
 
     <chip
@@ -259,8 +268,8 @@ export default () => (
         pin15: "USB_OTG_D",
         pin16: "USB_OTG_VBUS",
       }}
-      schX={0}
-      schY={-11}
+      schX={-12}
+      schY={-7}
     />
 
     {/* Pi 5: Hailo AI+ 26 TOPS on the header/PCIe slot, camera on CSI, LIDAR
@@ -285,8 +294,8 @@ export default () => (
         pin8: "PWR_USBC_POS",
         pin9: "PWR_USBC_NEG",
       }}
-      schX={-9}
-      schY={16}
+      schX={-13}
+      schY={7}
     />
 
     {/* Hailo-8 AI+ 26 TOPS module on the Pi 5's header/PCIe slot. */}
@@ -295,8 +304,8 @@ export default () => (
       manufacturerPartNumber="Hailo-8 (AI HAT+ 26 TOPS)"
       footprint="pinrow2"
       pinLabels={{ pin1: "HEADER", pin2: "NC" }}
-      schX={-18}
-      schY={16}
+      schX={-20}
+      schY={7}
     />
 
     <chip
@@ -304,8 +313,8 @@ export default () => (
       manufacturerPartNumber="Raspberry Pi Camera Module 3 Wide"
       footprint="pinrow2"
       pinLabels={{ pin1: "CSI", pin2: "NC" }}
-      schX={-9}
-      schY={23}
+      schX={-20}
+      schY={12}
     />
 
     {/* USB-to-UART adapter between the Pi 5 and the LIDAR -- the C1 is NOT
@@ -317,8 +326,8 @@ export default () => (
       manufacturerPartNumber="Slamtec USB adapter (bundled with RPLIDAR C1)"
       footprint="pinrow5"
       pinLabels={{ pin1: "USB", pin2: "VCC", pin3: "GND", pin4: "TX", pin5: "RX" }}
-      schX={0}
-      schY={16}
+      schX={-4}
+      schY={12}
     />
 
     <chip
@@ -326,8 +335,8 @@ export default () => (
       manufacturerPartNumber="Slamtec RPLIDAR C1"
       footprint="pinrow4"
       pinLabels={{ pin1: "VCC", pin2: "GND", pin3: "RX", pin4: "TX" }}
-      schX={0}
-      schY={23}
+      schX={4}
+      schY={12}
     />
 
     {/* Bidirectional logic-level converter: BTS7960 IN/EN pins are 5V,
@@ -360,8 +369,8 @@ export default () => (
         pin10: "LV3",
         pin11: "LV4",
       }}
-      schX={10}
-      schY={-11}
+      schX={-3}
+      schY={-7}
     />
 
     {/* Drive H-bridge. Pin roles and the RPWM/LPWM independence rationale
@@ -384,8 +393,8 @@ export default () => (
         pin11: "M_POS",
         pin12: "M_NEG",
       }}
-      schX={17}
-      schY={-11}
+      schX={5}
+      schY={-7}
     />
 
     {/* Drive motor with integrated quadrature encoder. CORRECTED 2026-09-03:
@@ -406,8 +415,8 @@ export default () => (
         pin5: "ENC_A",
         pin6: "ENC_B",
       }}
-      schX={24}
-      schY={-11}
+      schX={13}
+      schY={-7}
     />
 
     {/* Steering servo, 270deg / 35kg-cm. Hardware profile
@@ -419,7 +428,7 @@ export default () => (
       manufacturerPartNumber="Hiwonder HPS-3527SG"
       footprint="pinrow3"
       pinLabels={{ pin1: "SIGNAL", pin2: "VCC", pin3: "GND" }}
-      schX={10}
+      schX={5}
       schY={-2}
     />
 
@@ -427,8 +436,8 @@ export default () => (
       name="BUTTON"
       footprint="pinrow2"
       pinLabels={{ pin1: "SIGNAL", pin2: "GND" }}
-      schX={-9}
-      schY={-11}
+      schX={-20}
+      schY={-8}
     />
 
     {/* Challenge-mode select: a bare 2-pin jumper cap, GPIO23 to an adjacent
@@ -440,8 +449,8 @@ export default () => (
       name="JUMPER"
       footprint="pinrow2"
       pinLabels={{ pin1: "SIGNAL", pin2: "GND" }}
-      schX={-9}
-      schY={-16}
+      schX={-20}
+      schY={-11}
     />
 
     {/* 128x64 mono OLED, I2C1 @ 0x3C, per config/hardware/display/
@@ -451,8 +460,8 @@ export default () => (
       manufacturerPartNumber="SSD1306 128x64"
       footprint="pinrow4"
       pinLabels={{ pin1: "VCC", pin2: "GND", pin3: "SDA", pin4: "SCL" }}
-      schX={-18}
-      schY={-11}
+      schX={-20}
+      schY={-4}
     />
 
     {/* USB-to-UART bridge for the IMU, hosted off the Pi 5's USB, not the
@@ -464,8 +473,8 @@ export default () => (
       manufacturerPartNumber="MCP2221A"
       footprint="pinrow5"
       pinLabels={{ pin1: "USB", pin2: "3V3", pin3: "GND", pin4: "TX", pin5: "RX" }}
-      schX={10}
-      schY={16}
+      schX={-4}
+      schY={7}
     />
 
     {/* 9-DoF IMU, run in UART-RVC mode (115200 baud) off the bridge above. */}
@@ -474,8 +483,8 @@ export default () => (
       manufacturerPartNumber="BNO085"
       footprint="pinrow4"
       pinLabels={{ pin1: "VCC", pin2: "GND", pin3: "RX", pin4: "TX" }}
-      schX={10}
-      schY={23}
+      schX={4}
+      schY={7}
     />
 
     {/* ---- Power distribution ---- */}
