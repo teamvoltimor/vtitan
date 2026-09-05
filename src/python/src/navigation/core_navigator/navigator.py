@@ -145,6 +145,17 @@ class CoreNavigator(EscapeRecovery):
         )
         self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
         self._current_corridor: Section | None = None
+        # Forward waypoints DRIVEN, accumulated independently of _waypoint_index.
+        # The index is the steering target and is re-seeked by replace_path; it
+        # therefore cannot also be the lap odometer. Measured 2026-08-31: width
+        # belief replans knock the index BACK 1-9 places 4-5 times a round, so it
+        # never reaches the end of the list, never wraps, and 21 of 640 Open runs
+        # drove 20-26 m of a ~9 m loop and scored ZERO laps. Separating the two
+        # jobs fixes the credit without constraining where the controller aims --
+        # constraining the index instead (REPLAN_MONOTONIC_INDEX) fixed 17 of the
+        # 21 and cost 43 other runs, because sometimes the nearest waypoint is
+        # genuinely behind.
+        self._path_progress = 0
         self._park_controller = park_controller
         self._parking_engaged = False
         # Must clear the chassis's minimum turning radius with real margin: engaging any
@@ -292,6 +303,25 @@ class CoreNavigator(EscapeRecovery):
             max(budget, self._tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M),
         )
 
+    def _credit_path_progress(self) -> None:
+        """Count one waypoint of DRIVEN progress, and a lap once a full path is covered.
+
+        Called only where the index advances by driving, never from
+        ``replace_path``, so a re-seek moves the steering target without either
+        granting or destroying lap credit.
+        """
+        if not self._tuning.waypoints.LAP_CREDIT_FROM_PROGRESS or not self._waypoints:
+            return
+        self._path_progress += 1
+        if self._path_progress < len(self._waypoints):
+            return
+        self._path_progress -= len(self._waypoints)
+        if self._suppress_next_wrap:
+            # Seeded past the seam by replace_path, not driven -- see there.
+            self._suppress_next_wrap = False
+        elif self._lap_detector is not None:
+            self._lap_detector.notify_waypoint_wrapped()
+
     def replace_path(
         self,
         waypoints: list[Waypoint],
@@ -382,6 +412,25 @@ class CoreNavigator(EscapeRecovery):
                 candidates,
                 key=lambda i: abs(wrap_angle(_outgoing_bearing(waypoints, i) - robot_yaw)),
             )
+
+        # Nearest-by-position can land BEHIND the progress already made: the
+        # rebuilt path shifts laterally under a new width belief, so the closest
+        # point on it may be one the robot has already driven past. A single
+        # replan hides that, repeated ones ratchet. Measured 2026-08-31 over the
+        # 640-case Open space -- every one of the 21 `incomplete` runs drove
+        # 20-26 m of a ~9 m loop and scored ZERO laps, because width-belief
+        # replans knocked the index back 1-9 places 4-5 times per round
+        # (#80: 9->7, 11->6, 8->5) so it never reached the end of the list, never
+        # wrapped, and the lap gate's waypoint half never armed. The same stall
+        # parks the steer target -- 1176 ticks on one waypoint -- which is what
+        # produced the corner dithering and the sub-creep average speed.
+        #
+        # Holding the index is the conservative half of the trade: the robot
+        # keeps aiming at a waypoint slightly ahead of the nearest rather than
+        # re-driving ground it has covered. The seam guard below is untouched --
+        # it fires on a large FORWARD jump, which this never creates.
+        if self._tuning.waypoints.REPLAN_MONOTONIC_INDEX and nearest_index < previous_index:
+            nearest_index = previous_index
 
         self._waypoint_index = nearest_index
 
@@ -848,7 +897,11 @@ class CoreNavigator(EscapeRecovery):
         if self._waypoint_index >= len(self._waypoints):
             self._waypoint_index = 0
             self._stuck_detector.reset()
-            if self._suppress_next_wrap:
+            if self._tuning.waypoints.LAP_CREDIT_FROM_PROGRESS:
+                # _credit_path_progress owns the credit; the index only wraps
+                # the steering target here.
+                pass
+            elif self._suppress_next_wrap:
                 # Seeded past the seam by replace_path, not driven — see there.
                 self._suppress_next_wrap = False
             elif self._lap_detector is not None:
@@ -970,6 +1023,7 @@ class CoreNavigator(EscapeRecovery):
             if not next_closer and not raw_behind:
                 break
             self._waypoint_index = next_index
+            self._credit_path_progress()
             if next_index >= count:
                 # Seam crossed. Leave raw_wp on the final waypoint and let the
                 # wrap branch count the lap next tick — walking on into the new
@@ -1059,6 +1113,7 @@ class CoreNavigator(EscapeRecovery):
         dist_to_wp = raw_wp.distance_to_xy(robot_x, robot_y)
         if dist_to_wp < self._waypoint_threshold:
             self._waypoint_index += 1
+            self._credit_path_progress()
             self._debug = self._base_debug(robot_x, robot_y, robot_yaw)
             self._debug.phase = NavigatorPhase.WAYPOINT_REACHED
             self._debug.forward_clearance_m = forward_clearance

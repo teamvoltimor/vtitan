@@ -331,6 +331,41 @@ class WaypointParams(BaseModel):
     not free.
     """
 
+    REPLAN_MONOTONIC_INDEX: bool = Field(default=False, validation_alias=_alias("REPLAN_MONOTONIC_INDEX"))
+    """Forbid ``replace_path``'s re-seek from moving the waypoint index BACKWARDS.
+
+    A rebuilt path shifts laterally under a new width belief, so the nearest
+    point on it can be one the robot has already driven past. One replan hides
+    that; repeated ones ratchet the index backwards so it never reaches the end
+    of the list and never wraps.
+
+    **Default False: measured as a net loss.** Over the 640-case Open space it
+    fixed 17 of the 21 zero-lap `incomplete` runs but cost 43 others, because
+    sometimes the nearest waypoint is genuinely behind and holding the index
+    aims the controller at ground it has not reached. Kept as a flag because it
+    isolates the mechanism, not because it should be switched on.
+
+    Prefer ``LAP_CREDIT_FROM_PROGRESS``, which fixes the lap credit without
+    constraining where the controller aims.
+    """
+
+    LAP_CREDIT_FROM_PROGRESS: bool = Field(default=False, validation_alias=_alias("LAP_CREDIT_FROM_PROGRESS"))
+    """Credit laps from waypoints DRIVEN rather than from the index wrapping.
+
+    The waypoint index is the steering target and is re-seeked by
+    ``replace_path``, so it cannot also serve as the lap odometer. Measured
+    2026-08-31: width-belief replans knock the index back 1-9 places 4-5 times
+    per round, so 21 of 640 Open runs drove 20-26 m of a ~9 m loop and scored
+    ZERO laps.
+
+    This accumulates a separate ``_path_progress`` counter that only advances
+    when the index advances by driving, never from a re-seek, and credits a lap
+    once a full path length has been covered.
+
+    **Default False -- NOT yet validated across the full space.** Enable only
+    alongside a re-measured Open baseline.
+    """
+
     FIRST_LAP_CORNER_CAUTION: bool = Field(default=True, validation_alias=_alias("FIRST_LAP_CORNER_CAUTION"))
     """Cap the FIRST lap's corners at ``slow_mps``, on the lap never yet driven.
 
