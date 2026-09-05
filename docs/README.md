@@ -18,7 +18,7 @@
 
 ---
 
-# Team Voldemor
+# Team Voltimor
 <p align="center">
     <img src="../assets/voltimor-logo-square.png" alt="" width="400">
     <br>
@@ -442,7 +442,14 @@ La batería de 11.1V de la marca Ovonic, cumple la función de ser la fuente de 
 
 ## Diagrama de Conexiones
 
-WIP
+<p align="center">
+	<img src="schemes\schematics\harness.schematic.png" alt="Diagrama de Conexiones" 
+width="350">
+	<br>
+	<i>Diagrama de Conexiones</i>
+</p>
+
+*Nota: Se recomienda abrir esta imagen por separado para que sea legible*
 
 ### Consumo Energético
 
