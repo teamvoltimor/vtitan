@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Push locally-held rosbag runs (pulled via pull-runs-from-pi5.sh, or recorded
-# elsewhere) back up into ~/vtitan_runs on the Pi 5, so a reformat/reflash
-# doesn't strand the only copy on whichever side happens to have it.
+# elsewhere) from the shared repo-root data/runs_pulled tree back up into
+# ~/vtitan/data/runs_pulled on the Pi 5, so a reformat/reflash doesn't strand the only
+# copy on whichever side happens to have it.
 #
 # Usage:
 #   bash push-runs-to-pi5.sh                       # push every local run
@@ -9,20 +10,23 @@
 #   bash push-runs-to-pi5.sh run_2026080            # push every run matching a prefix
 #   PI5_HOST=rpi-5-direct bash push-runs-to-pi5.sh  # use a different configured host
 #   PI5_HOST=user@1.2.3.4 bash push-runs-to-pi5.sh  # bypass ~/.ssh/config entirely
+#   RUNS_DIR=/tmp/runs bash push-runs-to-pi5.sh     # push from a different local dir
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROBOT_DIR="$(cd "$HERE/.." && pwd)"
+ROBOT_DIR="$(cd "$HERE/../.." && pwd)"
+REPO_ROOT="$(cd "$ROBOT_DIR/../.." && pwd)"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan_runs}"
+REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/runs_pulled}"
+RUNS_DIR="${RUNS_DIR:-$REPO_ROOT/data/runs_pulled}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[push-runs] $*"; }
 die() { echo "[push-runs] ERROR: $*" >&2; exit 1; }
 
-# shellcheck source=../scripts/provisioning/_ssh_preflight.sh
+# shellcheck source=../provisioning/_ssh_preflight.sh
 . "$ROBOT_DIR/scripts/provisioning/_ssh_preflight.sh"
 pi5_preflight "$PI5_HOST" "${SSH_OPTS[@]}" || exit 1
 
@@ -30,10 +34,10 @@ PATTERN="${1:-run_*}"
 [ "$PATTERN" = "${PATTERN%\**}" ] && [[ "$PATTERN" != run_* ]] && PATTERN="${PATTERN}*"
 
 shopt -s nullglob
-RUNS=("$HERE"/$PATTERN/)
+RUNS=("$RUNS_DIR"/$PATTERN/)
 shopt -u nullglob
 
-[ "${#RUNS[@]}" -eq 0 ] && die "no local runs matching '$PATTERN' found in $HERE"
+[ "${#RUNS[@]}" -eq 0 ] && die "no local runs matching '$PATTERN' found in $RUNS_DIR"
 
 ssh "${SSH_OPTS[@]}" "$PI5_HOST" "mkdir -p $REMOTE_BAG_DIR" ||
   die "could not create $REMOTE_BAG_DIR on $PI5_HOST"

@@ -23,7 +23,7 @@ It needs the per-corridor width belief the run used, passed via
 default -- the belief is whatever that specific run settled on).
 
 Usage:
-    pixi run -e dev python scripts/bag/diag_bag_review.py vtitan_runs_pulled/run_XXXXXXXX_XXXXXX
+    pixi run -e dev python scripts/bag/diag_bag_review.py data/runs_pulled/run_XXXXXXXX_XXXXXX
     pixi run -e dev python scripts/bag/diag_bag_review.py RUN_DIR --stats
     pixi run -e dev python scripts/bag/diag_bag_review.py RUN_DIR --center-bias \
         --widths north=1.0,south=0.6,east=1.0,west=0.6

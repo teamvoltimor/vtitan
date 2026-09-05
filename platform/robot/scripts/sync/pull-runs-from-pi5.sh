@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Pull rosbag runs recorded on the Pi 5 (see bag_recorder_node.py, default
-# ~/vtitan_runs on the robot, one dir per race: run_<timestamp>/) down into
-# this folder for local diagnosis. The runs themselves are gitignored --
-# only this script (and the .gitkeep placeholder) are tracked.
+# ~/vtitan/data/runs_pulled on the robot, one dir per race: run_<timestamp>/) down into
+# the shared repo-root data/runs_pulled tree for local diagnosis (see
+# platform/robot-go/internal/recording/root.go for the Go side of this same
+# tree). The runs themselves are gitignored -- only this script is tracked.
 #
 # Usage:
 #   bash pull-runs-from-pi5.sh                       # pull every run
@@ -10,20 +11,23 @@
 #   bash pull-runs-from-pi5.sh run_2026080            # pull every run matching a prefix
 #   PI5_HOST=rpi-5-direct bash pull-runs-from-pi5.sh  # use a different configured host
 #   PI5_HOST=user@1.2.3.4 bash pull-runs-from-pi5.sh  # bypass ~/.ssh/config entirely
+#   RUNS_DIR=/tmp/runs bash pull-runs-from-pi5.sh     # pull into a different local dir
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROBOT_DIR="$(cd "$HERE/.." && pwd)"
+ROBOT_DIR="$(cd "$HERE/../.." && pwd)"
+REPO_ROOT="$(cd "$ROBOT_DIR/../.." && pwd)"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan_runs}"
+REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/runs_pulled}"
+RUNS_DIR="${RUNS_DIR:-$REPO_ROOT/data/runs_pulled}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[pull-runs] $*"; }
 die() { echo "[pull-runs] ERROR: $*" >&2; exit 1; }
 
-# shellcheck source=../scripts/provisioning/_ssh_preflight.sh
+# shellcheck source=../provisioning/_ssh_preflight.sh
 . "$ROBOT_DIR/scripts/provisioning/_ssh_preflight.sh"
 pi5_preflight "$PI5_HOST" "${SSH_OPTS[@]}" || exit 1
 
@@ -43,14 +47,15 @@ mapfile -t RUNS < <(ssh "${SSH_OPTS[@]}" "$PI5_HOST" \
 
 [ "${#RUNS[@]}" -eq 0 ] && die "no runs matching '$PATTERN' found in $REMOTE_BAG_DIR on $PI5_HOST"
 
-log "Pulling ${#RUNS[@]} run(s) from $PI5_HOST:$REMOTE_BAG_DIR -> $HERE"
+mkdir -p "$RUNS_DIR"
+log "Pulling ${#RUNS[@]} run(s) from $PI5_HOST:$REMOTE_BAG_DIR -> $RUNS_DIR"
 for run in "${RUNS[@]}"; do
-  if [ -d "$HERE/$run" ]; then
+  if [ -d "$RUNS_DIR/$run" ]; then
     log "  $run (already present locally, skipping)"
     continue
   fi
   log "  $run"
-  scp -r "${SSH_OPTS[@]}" -q "$PI5_HOST:$REMOTE_BAG_DIR/$run" "$HERE/" ||
+  scp -r "${SSH_OPTS[@]}" -q "$PI5_HOST:$REMOTE_BAG_DIR/$run" "$RUNS_DIR/" ||
     die "copy of $run failed"
 done
 

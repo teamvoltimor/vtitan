@@ -10,7 +10,7 @@ per-round metadata path that doesn't exist until the round is set up.
 By default this also records a rosbag of every topic relevant to a run
 (sensor input, vision detections, drive commands, state machine, telemetry)
 so a bad run can be replayed and inspected afterwards. Bags land in
-``bag_dir`` (default ``~/vtitan_runs``) under a timestamped
+``bag_dir`` (default the repo-root ``data/runs_pulled``) under a timestamped
 ``run_<metadata-stem>_<YYYYmmdd_HHMMSS>`` directory. Disable with
 ``record:=false``.
 

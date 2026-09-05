@@ -8,7 +8,7 @@ crosstrack spike that only then pulls the lookahead short.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_corner_overshoot.py \
-        vtitan_runs_pulled/run_XXXXXXXX_XXXXXX
+        data/runs_pulled/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

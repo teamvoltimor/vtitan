@@ -7,7 +7,7 @@ sampled over time, plus the set of keys the bag actually carries.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_state_timeline.py \
-        vtitan_runs_pulled/run_XXXXXXXX_XXXXXX
+        data/runs_pulled/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

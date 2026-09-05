@@ -10,7 +10,7 @@ package bagreplay_test
 // and (where the Go port surfaces one) the believed yaw offset.
 //
 // IMPORTANT — no real blind bag is available in this repo. The pulled
-// vtitan_runs_pulled corpus is entirely SIGHTED Open/Obstacles runs, and the
+// data/runs_pulled corpus is entirely SIGHTED Open/Obstacles runs, and the
 // Go NavigatorDebug does not yet surface blind-belief fields (corridor width
 // belief, direction gate verdict) on every tick. Per the plan's instruction we
 // must NOT invent fake parity assertions: this test is wired to run whenever a

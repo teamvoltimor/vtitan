@@ -23,8 +23,8 @@ them. For each pulled run:
 
 Usage (from ``platform/robot``, with PYTHONPATH=.)::
 
-    python scripts/bag/diag_localizer_guard_replay.py vtitan_runs_pulled/run_20260804_213147
-    python scripts/bag/diag_localizer_guard_replay.py vtitan_runs_pulled/*  # every pulled run
+    python scripts/bag/diag_localizer_guard_replay.py data/runs_pulled/run_20260804_213147
+    python scripts/bag/diag_localizer_guard_replay.py data/runs_pulled/*  # every pulled run
 """
 
 from __future__ import annotations

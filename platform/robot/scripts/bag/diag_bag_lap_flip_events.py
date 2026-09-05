@@ -8,7 +8,7 @@ said it was somewhere else".
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_lap_flip_events.py \
-        vtitan_runs_pulled/run_XXXXXXXX_XXXXXX --origin measured
+        data/runs_pulled/run_XXXXXXXX_XXXXXX --origin measured
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ the pose the stuck detector is being fed, so a wedged run can be read as a
 sequence of maneuver decisions rather than a sampled timeline.
 
 Usage:
-    pixi run -e dev python scripts/bag/diag_bag_escape.py vtitan_runs_pulled/run_XXXXXXXX_XXXXXX
+    pixi run -e dev python scripts/bag/diag_bag_escape.py data/runs_pulled/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

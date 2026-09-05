@@ -8,7 +8,7 @@ candidate crossing, so it is clear which.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_lap_gate.py \
-        vtitan_runs_pulled/run_XXXXXXXX_XXXXXX
+        data/runs_pulled/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

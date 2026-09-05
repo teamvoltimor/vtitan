@@ -14,7 +14,7 @@ which is a different defect from any single threshold being wrong.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_direction_gate_cooccurrence.py \
-        vtitan_runs_pulled/run_A vtitan_runs_pulled/run_B ...
+        data/runs_pulled/run_A data/runs_pulled/run_B ...
 """
 
 from __future__ import annotations
