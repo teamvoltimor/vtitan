@@ -86,7 +86,13 @@ type NativeRunnerConfig struct {
 	// Seed is the RNG seed for LIDAR noise/dropout (parity default 0, matching
 	// the Python np.random.default_rng(0)).
 	Seed uint64
-	// MaxSteps bounds a single run (parity default 4000 ≈ 200 s at 20 Hz).
+	// MaxSteps bounds a single run, in TICKS. Zero derives it from
+	// DefaultMaxRunS at the resolved control rate, which is what a caller
+	// almost always wants: a step budget is a frame count, and a frame count
+	// silently means a different amount of DRIVING at a different loop rate
+	// -- 4000 ticks is 200 s at 20 Hz and 80 s at 50 Hz, short enough to
+	// time out runs that were finishing comfortably. Set it explicitly only
+	// to bound ticks as such.
 	MaxSteps int
 	// Blind withholds the scenario's direction and corridor widths from the
 	// navigator, which must then infer both from LIDAR -- the way a real
@@ -143,11 +149,6 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	if cfg.SensorErrors.Any() {
 		hc.SensorErrors = cfg.SensorErrors
 	}
-	maxSteps := cfg.MaxSteps
-	if maxSteps <= 0 {
-		maxSteps = 4000
-	}
-
 	// Every ConfigFor already treats an empty root as "use the literal
 	// defaults" and logs its own reason on a load failure, so there is no
 	// branch here: passing "" reproduces the previous all-defaults runner
@@ -156,6 +157,25 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	// per-package load line from each would bury the report.
 	logger := discardingLogger()
 	kinParams := kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles)
+	navCfg := navigator.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles)
+
+	// The SIMULATED gateway must step at the same rate the navigator thinks
+	// it is running at. harness.Config carried its own hardcoded 20.0, which
+	// is the exact divergence control.toml warns about: the controller
+	// rate-limits steering with dt, so the two drifting apart would not raise
+	// anything -- it would tune the robot against a cadence the simulator
+	// never ran at. Taking it from the same loaded config makes that
+	// impossible rather than merely unlikely.
+	if cfg.ConfigRoot != "" && navCfg.ControlHz > 0 {
+		hc.ControlHz = navCfg.ControlHz
+	}
+
+	// AFTER the rate is resolved: the budget is a duration, so the tick count
+	// it becomes depends on the rate the run will actually step at.
+	maxSteps := cfg.MaxSteps
+	if maxSteps <= 0 {
+		maxSteps = int(math.Round(DefaultMaxRunS * hc.ControlHz))
+	}
 
 	return &NativeRunner{
 		cfg:        hc,
@@ -173,6 +193,12 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		blind:      cfg.Blind,
 	}
 }
+
+// DefaultMaxRunS is the wall-clock budget a single scenario gets before it
+// is scored as timed out. 200 s, comfortably past the WRO round limit of
+// 180 s, so a run that would have been over time on the mat is still driven
+// far enough to see what it did rather than cut off mid-recovery.
+const DefaultMaxRunS = 200.0
 
 // Run builds and drives one scenario, returning a Result.
 func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error) {

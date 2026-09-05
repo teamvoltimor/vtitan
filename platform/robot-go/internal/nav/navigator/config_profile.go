@@ -69,16 +69,16 @@ type navWaypointsTOML struct {
 // rather than a duplicate: these are the fields its doc comment names as
 // belonging to this package.
 type navEscapeTOML struct {
-	PoseTrailMinStepM               float64 `mapstructure:"pose_trail_min_step_m"`
-	PoseTrailLen                    int     `mapstructure:"pose_trail_len"`
-	RevSpeed                        float64 `mapstructure:"rev_speed"`
-	RevSteerDeg                     float64 `mapstructure:"rev_steer_deg"`
-	KTurnMinFrames                  int     `mapstructure:"k_turn_min_frames"`
-	EscalateAfterAttempts           int     `mapstructure:"escalate_after_attempts"`
-	EscapeSideCommitAttempts        int     `mapstructure:"escape_side_commit_attempts"`
-	MaxEscapeFrames                 int     `mapstructure:"max_escape_frames"`
-	StuckEscalationFramesPerAttempt int     `mapstructure:"stuck_escalation_frames_per_attempt"`
-	StuckMoveThreshold              float64 `mapstructure:"stuck_move_threshold"`
+	PoseTrailMinStepM          float64 `mapstructure:"pose_trail_min_step_m"`
+	PoseTrailLen               int     `mapstructure:"pose_trail_len"`
+	RevSpeed                   float64 `mapstructure:"rev_speed"`
+	RevSteerDeg                float64 `mapstructure:"rev_steer_deg"`
+	KTurnMinS                  float64 `mapstructure:"k_turn_min_s"`
+	EscalateAfterAttempts      int     `mapstructure:"escalate_after_attempts"`
+	EscapeSideCommitAttempts   int     `mapstructure:"escape_side_commit_attempts"`
+	MaxEscapeS                 float64 `mapstructure:"max_escape_s"`
+	StuckEscalationPerAttemptS float64 `mapstructure:"stuck_escalation_per_attempt_s"`
+	StuckMoveThreshold         float64 `mapstructure:"stuck_move_threshold"`
 }
 
 // navSignRouterTOML mirrors the sign_router.toml / SignRouterParams fields
@@ -358,11 +358,11 @@ func applyEscapeTOML(cfg *Config, loaded navEscapeTOML) {
 	cfg.PoseTrailLen = loaded.PoseTrailLen
 	cfg.RevSpeed = loaded.RevSpeed
 	cfg.RevSteerDeg = loaded.RevSteerDeg
-	cfg.KTurnMinFrames = loaded.KTurnMinFrames
+	cfg.KTurnMinFrames = profile.Frames(loaded.KTurnMinS, cfg.ControlHz)
 	cfg.EscalateAfterAttempts = loaded.EscalateAfterAttempts
 	cfg.EscapeSideCommitAttempts = loaded.EscapeSideCommitAttempts
-	cfg.MaxEscapeFrames = loaded.MaxEscapeFrames
-	cfg.StuckEscalationFramesPerAttempt = loaded.StuckEscalationFramesPerAttempt
+	cfg.MaxEscapeFrames = profile.Frames(loaded.MaxEscapeS, cfg.ControlHz)
+	cfg.StuckEscalationFramesPerAttempt = profile.Frames(loaded.StuckEscalationPerAttemptS, cfg.ControlHz)
 	cfg.StuckMoveThreshold = loaded.StuckMoveThreshold
 }
 

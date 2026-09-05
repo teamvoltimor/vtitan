@@ -39,16 +39,16 @@ class EscapeManeuverParams(BaseModel):
             normalised, so it meant 44 deg of road wheel on the bench-measured
             55 deg chassis and would have silently become 68 deg on a 270 deg
             servo
-        K_TURN_MIN_FRAMES: Minimum frames for K-turn maneuver (OBSTACLE risk)
-        K_TURN_MAX_FRAMES: Maximum frames for K-turn maneuver (CRITICAL risk)
-        SLALOM_REVERSE_FRAMES: Frames spent reversing during slalom
-        SLALOM_FORWARD_FRAMES: Frames spent forward turning during slalom
+        K_TURN_MIN_S: Minimum K-turn duration, seconds (OBSTACLE risk)
+        K_TURN_MAX_S: Maximum K-turn duration, seconds (CRITICAL risk)
+        SLALOM_REVERSE_S: Time spent reversing during slalom, seconds
+        SLALOM_FORWARD_S: Time spent forward turning during slalom, seconds
         STUCK_MOVE_THRESHOLD: Distance threshold to detect stuck (m)
-        STUCK_TIMEOUT_FRAMES: Frames without movement before stuck (20Hz)
+        STUCK_TIMEOUT_S: Time without movement before declaring stuck
         SIDE_CORRECTION_STEER_DEG: Road-wheel steering angle for a side-threat
             correction. Physical degrees for the same reason as REV_STEER_DEG
         SIDE_CORRECTION_SPEED: Forward speed during a side-threat correction
-        SIDE_CORRECTION_FRAMES: Duration of a side-threat correction (frames)
+        SIDE_CORRECTION_S: Duration of a side-threat correction, seconds
         ESCALATE_AFTER_ATTEMPTS: Consecutive escapes before escalating (longer
             duration, opposite side) instead of repeating an identical pulse
         ESCAPE_SIDE_COMMIT_ATTEMPTS: Consecutive escape attempts made toward one
@@ -57,10 +57,10 @@ class EscapeManeuverParams(BaseModel):
             ways and cancelled out -- measured on real hardware as 40 s of
             rocking in place with zero net translation. Committing to a side for
             more than one attempt is what lets a wedged robot actually walk out
-        MAX_ESCAPE_FRAMES: Hard cap on any single escalated escape duration
+        MAX_ESCAPE_S: Hard cap on any single escalated escape, seconds
         STUCK_CONFIRMATION_CHECKS: Consecutive below-threshold stuck checks
             required before StuckDetector declares the robot stuck
-        STUCK_ESCALATION_FRAMES_PER_ATTEMPT: Frames added to a stuck-reverse
+        STUCK_ESCALATION_PER_ATTEMPT_S: Time added to a stuck-reverse
             maneuver's duration per repeated stuck-escape attempt
     """
 
@@ -74,36 +74,85 @@ class EscapeManeuverParams(BaseModel):
     REV_STEER_DEG: float = Field(
         default=44.0, validation_alias=_alias("REV_STEER_DEG")
     )  # Road-wheel angle while reversing
-    K_TURN_MIN_FRAMES: int = Field(default=6, validation_alias=_alias("K_TURN_MIN_FRAMES"))  # Minimum K-turn
-    K_TURN_MAX_FRAMES: int = Field(default=12, validation_alias=_alias("K_TURN_MAX_FRAMES"))  # Maximum K-turn
-    SLALOM_REVERSE_FRAMES: int = Field(
-        default=8, validation_alias=_alias("SLALOM_REVERSE_FRAMES")
-    )  # Reverse duration in slalom
-    SLALOM_FORWARD_FRAMES: int = Field(
-        default=10, validation_alias=_alias("SLALOM_FORWARD_FRAMES")
-    )  # Forward turn duration
+    K_TURN_MIN_S: float = Field(default=0.30, gt=0.0, validation_alias=_alias("K_TURN_MIN_S"))
+    K_TURN_MAX_S: float = Field(default=0.60, gt=0.0, validation_alias=_alias("K_TURN_MAX_S"))
+    SLALOM_REVERSE_S: float = Field(default=0.40, gt=0.0, validation_alias=_alias("SLALOM_REVERSE_S"))
+    SLALOM_FORWARD_S: float = Field(default=0.50, gt=0.0, validation_alias=_alias("SLALOM_FORWARD_S"))
     STUCK_MOVE_THRESHOLD: float = Field(
         default=0.03, validation_alias=_alias("STUCK_MOVE_THRESHOLD")
     )  # 3cm movement threshold
-    STUCK_TIMEOUT_FRAMES: int = Field(default=40, validation_alias=_alias("STUCK_TIMEOUT_FRAMES"))  # ~2 seconds at 20Hz
+    STUCK_TIMEOUT_S: float = Field(default=2.0, gt=0.0, validation_alias=_alias("STUCK_TIMEOUT_S"))
     # 16.5 deg == the previous normalised 0.3 at the 55 deg road-wheel limit.
     SIDE_CORRECTION_STEER_DEG: float = Field(default=16.5, validation_alias=_alias("SIDE_CORRECTION_STEER_DEG"))
     SIDE_CORRECTION_SPEED: float = Field(default=0.1, validation_alias=_alias("SIDE_CORRECTION_SPEED"))
-    SIDE_CORRECTION_FRAMES: int = Field(default=4, validation_alias=_alias("SIDE_CORRECTION_FRAMES"))
+    SIDE_CORRECTION_S: float = Field(default=0.20, gt=0.0, validation_alias=_alias("SIDE_CORRECTION_S"))
     ESCALATE_AFTER_ATTEMPTS: int = Field(default=3, validation_alias=_alias("ESCALATE_AFTER_ATTEMPTS"))
     ESCAPE_SIDE_COMMIT_ATTEMPTS: int = Field(default=2, ge=1, validation_alias=_alias("ESCAPE_SIDE_COMMIT_ATTEMPTS"))
-    MAX_ESCAPE_FRAMES: int = Field(default=20, validation_alias=_alias("MAX_ESCAPE_FRAMES"))
+    MAX_ESCAPE_S: float = Field(default=1.0, gt=0.0, validation_alias=_alias("MAX_ESCAPE_S"))
     STUCK_CONFIRMATION_CHECKS: int = Field(default=3, validation_alias=_alias("STUCK_CONFIRMATION_CHECKS"))
-    STUCK_ESCALATION_FRAMES_PER_ATTEMPT: int = Field(
-        default=2, validation_alias=_alias("STUCK_ESCALATION_FRAMES_PER_ATTEMPT")
+    STUCK_ESCALATION_PER_ATTEMPT_S: float = Field(
+        default=0.10, gt=0.0, validation_alias=_alias("STUCK_ESCALATION_PER_ATTEMPT_S")
     )
     MIN_HISTORY_FOR_DISTANCE: int = Field(
         default=2, validation_alias=_alias("MIN_HISTORY_FOR_DISTANCE")
     )  # Poses needed before StuckDetector can measure distance travelled
-    STUCK_HISTORY_FLOOR: int = Field(
-        default=60, validation_alias=_alias("STUCK_HISTORY_FLOOR")
-    )  # Minimum position history (frames) the StuckDetector keeps, even when
-    # STUCK_TIMEOUT_FRAMES * 2 would be smaller
+    STUCK_HISTORY_FLOOR_S: float = Field(
+        default=3.0, gt=0.0, validation_alias=_alias("STUCK_HISTORY_FLOOR_S")
+    )
+
+    @staticmethod
+    def frames(seconds: float, control_hz: float) -> int:
+        """Convert a duration into control ticks at ``control_hz``.
+
+        Every escape duration is stored in SECONDS and converted here, rather
+        than stored as a frame count. A frame count silently means a different
+        thing at a different loop rate: at the shipped 20 Hz a
+        ``stuck_timeout`` of 40 frames is 2 s, and at 50 Hz the same 40 frames
+        is 0.8 s -- so raising CONTROL_HZ would make the robot declare itself
+        stuck two and a half times sooner, truncate every escape, and give up
+        on parking early, with nothing raising and no config edited.
+
+        Rounds rather than truncates, and floors at one tick: a duration
+        shorter than a single tick is still a maneuver the caller asked for,
+        and zero frames would skip it entirely.
+        """
+        return max(1, round(seconds * control_hz))
+
+    def k_turn_min_frames(self, control_hz: float) -> int:
+        """Minimum K-turn duration in ticks (OBSTACLE risk)."""
+        return self.frames(self.K_TURN_MIN_S, control_hz)
+
+    def k_turn_max_frames(self, control_hz: float) -> int:
+        """Maximum K-turn duration in ticks (CRITICAL risk)."""
+        return self.frames(self.K_TURN_MAX_S, control_hz)
+
+    def slalom_reverse_frames(self, control_hz: float) -> int:
+        """Ticks spent reversing during a slalom."""
+        return self.frames(self.SLALOM_REVERSE_S, control_hz)
+
+    def slalom_forward_frames(self, control_hz: float) -> int:
+        """Ticks spent forward-turning during a slalom."""
+        return self.frames(self.SLALOM_FORWARD_S, control_hz)
+
+    def stuck_timeout_frames(self, control_hz: float) -> int:
+        """Ticks without movement before declaring the robot stuck."""
+        return self.frames(self.STUCK_TIMEOUT_S, control_hz)
+
+    def side_correction_frames(self, control_hz: float) -> int:
+        """Duration of a side-threat correction, in ticks."""
+        return self.frames(self.SIDE_CORRECTION_S, control_hz)
+
+    def max_escape_frames(self, control_hz: float) -> int:
+        """Hard cap on any single escalated escape, in ticks."""
+        return self.frames(self.MAX_ESCAPE_S, control_hz)
+
+    def stuck_escalation_per_attempt_frames(self, control_hz: float) -> int:
+        """Ticks added to a stuck-reverse per repeated attempt."""
+        return self.frames(self.STUCK_ESCALATION_PER_ATTEMPT_S, control_hz)
+
+    def stuck_history_floor_frames(self, control_hz: float) -> int:
+        """Minimum pose history the StuckDetector keeps, in ticks."""
+        return self.frames(self.STUCK_HISTORY_FLOOR_S, control_hz)
 
     def rev_steer_norm(self) -> float:
         """Reverse-escape steering as a normalised command for the actuator.

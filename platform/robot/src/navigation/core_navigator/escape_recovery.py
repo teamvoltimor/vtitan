@@ -332,7 +332,7 @@ class EscapeRecovery:
         return replace(
             maneuver,
             steering=steering,
-            duration_frames=min(maneuver.duration_frames * 2, self._tuning.escape.MAX_ESCAPE_FRAMES),
+            duration_frames=min(maneuver.duration_frames * 2, self._tuning.escape.max_escape_frames(self._tuning.control.CONTROL_HZ)),
         )
 
     def _handle_stuck_escape(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:
@@ -416,7 +416,7 @@ class EscapeRecovery:
         # what runs when the rear IS occluded, which is still every bearing
         # inside the wedges.
         stuck_reverse_distance = (
-            abs(self._tuning.escape.REV_SPEED) * self._tuning.escape.MAX_ESCAPE_FRAMES / self._tuning.control.CONTROL_HZ
+            abs(self._tuning.escape.REV_SPEED) * self._tuning.escape.max_escape_frames(self._tuning.control.CONTROL_HZ) / self._tuning.control.CONTROL_HZ
         )
         blind_rear_unconfirmed = rear_blind and not self._trail_confirms_reverse(
             reverse_distance=stuck_reverse_distance
@@ -444,9 +444,9 @@ class EscapeRecovery:
                     self._escape_sequence_start_xy = (robot_x, robot_y)
                 self._escape_count += 1
                 frames = min(
-                    self._tuning.escape.K_TURN_MIN_FRAMES
-                    + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
-                    self._tuning.escape.MAX_ESCAPE_FRAMES,
+                    self._tuning.escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
+                    + self._tuning.escape.stuck_escalation_per_attempt_frames(self._tuning.control.CONTROL_HZ) * (self._escape_count - 1),
+                    self._tuning.escape.max_escape_frames(self._tuning.control.CONTROL_HZ),
                 )
                 steering = self._tuning.escape.rev_steer_norm() * self._escape_steer_sign_for_attempt()
                 self._begin_maneuver(
@@ -482,9 +482,9 @@ class EscapeRecovery:
                 self._escape_sequence_start_xy = (robot_x, robot_y)
             self._escape_count += 1
             frames = min(
-                self._tuning.escape.K_TURN_MIN_FRAMES
-                + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
-                self._tuning.escape.MAX_ESCAPE_FRAMES,
+                self._tuning.escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
+                + self._tuning.escape.stuck_escalation_per_attempt_frames(self._tuning.control.CONTROL_HZ) * (self._escape_count - 1),
+                self._tuning.escape.max_escape_frames(self._tuning.control.CONTROL_HZ),
             )
             logger.warning(
                 "Stuck escape both-blocked: rear %.2f m, forward %.2f m - stop-and-steer pivot (sign %.1f)",
@@ -513,9 +513,9 @@ class EscapeRecovery:
             self._escape_sequence_start_xy = (robot_x, robot_y)
         self._escape_count += 1
         frames = min(
-            self._tuning.escape.K_TURN_MIN_FRAMES
-            + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
-            self._tuning.escape.MAX_ESCAPE_FRAMES,
+            self._tuning.escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
+            + self._tuning.escape.stuck_escalation_per_attempt_frames(self._tuning.control.CONTROL_HZ) * (self._escape_count - 1),
+            self._tuning.escape.max_escape_frames(self._tuning.control.CONTROL_HZ),
         )
         steering = self._tuning.escape.rev_steer_norm() * self._escape_steer_sign_for_attempt()
         self._begin_maneuver(

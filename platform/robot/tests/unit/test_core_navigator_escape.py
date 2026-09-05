@@ -267,7 +267,7 @@ class TestStuckDetectionDuringParking:
         nav._park_controller = _StubParkController()
         nav._parking_engaged = True
 
-        for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 15):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 15):
             nav.step()
 
         assert any(cmd.speed_mps < 0 for cmd in gateway.commands), (
@@ -283,7 +283,7 @@ class TestStuckDetectionDuringParking:
         nav._park_controller = _StubParkController(done=True)
         nav._parking_engaged = True
 
-        for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 10):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 10):
             nav.step()
 
         assert all(cmd.speed_mps == 0.0 for cmd in gateway.commands)
@@ -306,7 +306,7 @@ class TestStuckEscapeRearBlocked:
         )
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
-        for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 5):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 5):
             nav.step()
 
         escape_cmds = [c for c in gateway.commands if c.speed_mps > 0 and abs(c.steering_norm) > 0.5]
@@ -322,7 +322,7 @@ class TestStuckEscapeRearBlocked:
         )
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
-        for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 5):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 5):
             nav.step()
 
         assert all(c.speed_mps >= 0 for c in gateway.commands), "must not reverse into an unseen rear wall"
@@ -414,7 +414,7 @@ class TestEscapeEscalation:
 
         result = nav._maybe_escalate(maneuver)
 
-        assert result.duration_frames == min(6 * 2, nav._tuning.escape.MAX_ESCAPE_FRAMES)
+        assert result.duration_frames == min(6 * 2, nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ))
         assert math.copysign(1.0, result.steering) == -starting_sign
         assert abs(result.steering) == pytest.approx(abs(maneuver.steering))
         assert result.maneuver_type == maneuver.maneuver_type
@@ -451,12 +451,12 @@ class TestEscapeEscalation:
 
     def test_duration_caps_at_max_escape_frames(self, waypoints, tuning):
         nav = self._navigator(waypoints, tuning)
-        maneuver = self._maneuver(steering=0.4, duration=nav._tuning.escape.MAX_ESCAPE_FRAMES)
+        maneuver = self._maneuver(steering=0.4, duration=nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ))
         nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
 
         result = nav._maybe_escalate(maneuver)
 
-        assert result.duration_frames == nav._tuning.escape.MAX_ESCAPE_FRAMES
+        assert result.duration_frames == nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ)
 
     def test_straight_reverse_has_no_side_to_flip(self, waypoints, tuning):
         """A zero-steering escape (e.g. a straight stuck-reverse) stays at zero

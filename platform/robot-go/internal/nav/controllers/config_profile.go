@@ -79,15 +79,15 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	} else {
 		cfg.RevSpeed = loaded.RevSpeed
 		cfg.RevSteerDeg = loaded.RevSteerDeg
-		cfg.KTurnMinFrames = loaded.KTurnMinFrames
-		cfg.KTurnMaxFrames = loaded.KTurnMaxFrames
+		cfg.KTurnMinFrames = profile.Frames(loaded.KTurnMinS, cfg.ControlHz)
+		cfg.KTurnMaxFrames = profile.Frames(loaded.KTurnMaxS, cfg.ControlHz)
 		cfg.StuckMoveThreshold = loaded.StuckMoveThreshold
-		cfg.StuckTimeoutFrames = loaded.StuckTimeoutFrames
+		cfg.StuckTimeoutFrames = profile.Frames(loaded.StuckTimeoutS, cfg.ControlHz)
 		cfg.SideCorrectionSteerDeg = loaded.SideCorrectionSteerDeg
 		cfg.SideCorrectionSpeed = loaded.SideCorrectionSpeed
-		cfg.SideCorrectionFrames = loaded.SideCorrectionFrames
+		cfg.SideCorrectionFrames = profile.Frames(loaded.SideCorrectionS, cfg.ControlHz)
 		cfg.StuckConfirmationChecks = loaded.StuckConfirmationChecks
-		cfg.StuckHistoryFloor = loaded.StuckHistoryFloor
+		cfg.StuckHistoryFloor = profile.Frames(loaded.StuckHistoryFloorS, cfg.ControlHz)
 		cfg.MinHistoryForDistance = loaded.MinHistoryForDistance
 	}
 

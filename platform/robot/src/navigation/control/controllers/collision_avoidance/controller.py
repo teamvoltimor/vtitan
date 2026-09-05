@@ -199,6 +199,9 @@ class CollisionAvoidanceController:
             CollisionAvoidanceController with values from tuning.
         """
         clearance = clearance if clearance is not None else tuning.clearance
+        # Escape durations are stored in seconds and converted here: a frame
+        # count would mean a different duration if CONTROL_HZ ever moved.
+        hz = tuning.control.CONTROL_HZ
         return cls(
             contact_dist=clearance.CONTACT_DIST,
             slow_dist=clearance.SLOW_DIST,
@@ -207,11 +210,11 @@ class CollisionAvoidanceController:
             escape_steer_scale=tuning.escape.rev_steer_norm(),
             stuck_threshold=tuning.escape.STUCK_MOVE_THRESHOLD,
             path_margin=clearance.PATH_MARGIN,
-            k_turn_min_frames=tuning.escape.K_TURN_MIN_FRAMES,
-            k_turn_max_frames=tuning.escape.K_TURN_MAX_FRAMES,
+            k_turn_min_frames=tuning.escape.k_turn_min_frames(hz),
+            k_turn_max_frames=tuning.escape.k_turn_max_frames(hz),
             side_correction_steer=tuning.escape.side_correction_steer_norm(),
             side_correction_speed=tuning.escape.SIDE_CORRECTION_SPEED,
-            side_correction_frames=tuning.escape.SIDE_CORRECTION_FRAMES,
+            side_correction_frames=tuning.escape.side_correction_frames(hz),
             front_half_fov_deg=tuning.lidar_sectors.FRONT_HALF_FOV_DEG,
             threat_half_fov_deg=tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
             self_detection_threshold_m=tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,

@@ -239,8 +239,8 @@ class TestConfiguredValuesAreActuallyRead:
         # rather than silently excluded: each is either dead config to delete or
         # a limit someone believed was in force. Speed limits in particular look
         # like they bound the robot and do not.
-        "SLALOM_REVERSE_FRAMES",
-        "SLALOM_FORWARD_FRAMES",
+        "SLALOM_REVERSE_S",
+        "SLALOM_FORWARD_S",
     }
 
     @staticmethod
@@ -292,6 +292,13 @@ class TestConfiguredValuesAreActuallyRead:
         candidates = [field.lower()]
         if field.endswith("_DEG"):
             candidates.append(f"{field[: -len('_DEG')].lower()}_norm")
+        # Same shape again for durations: an escape length is STORED in
+        # seconds and READ as a tick count, because the loop is discrete and
+        # a frame count stored directly would silently mean a different
+        # duration if CONTROL_HZ ever moved. K_TURN_MIN_S is read as
+        # k_turn_min_frames().
+        if field.endswith("_S"):
+            candidates.append(f"{field[: -len('_S')].lower()}_frames")
         # A per-challenge tier override is read through the resolver that
         # applies it, not under its own name: OPEN_FAST_MPS reaches the
         # navigator as for_open_challenge().fast_mps(). Same indirection as the

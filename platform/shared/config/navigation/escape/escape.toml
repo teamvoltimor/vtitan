@@ -26,21 +26,28 @@ rev_speed = -0.20             # Reverse speed during escapes (m/s)
 # 55 deg limit, 68 deg on a 270 deg servo. 44.0 preserves the 55 deg
 # behaviour exactly.
 rev_steer_deg = 44.0
-k_turn_min_frames = 6         # Minimum K-turn duration (OBSTACLE risk)
-k_turn_max_frames = 12        # Maximum K-turn duration (CRITICAL risk)
-slalom_reverse_frames = 8     # Frames spent reversing during slalom
-slalom_forward_frames = 10    # Frames spent forward-turning during slalom
+# Escape durations are in SECONDS, converted to control ticks at load by
+# EscapeManeuverParams.frames(). They used to be frame counts, which silently
+# mean a different duration at a different loop rate: 40 frames is 2 s at the
+# shipped 20 Hz and 0.8 s at 50 Hz, so raising control_hz would have made the
+# robot declare itself stuck 2.5x sooner and truncate every escape, with
+# nothing raising and no value here edited. Each value below is the old frame
+# count divided by 20, so behaviour at the shipped rate is unchanged.
+k_turn_min_s = 0.30           # Minimum K-turn duration (OBSTACLE risk)
+k_turn_max_s = 0.60           # Maximum K-turn duration (CRITICAL risk)
+slalom_reverse_s = 0.40       # Time spent reversing during slalom
+slalom_forward_s = 0.50       # Time spent forward-turning during slalom
 stuck_move_threshold = 0.03   # Distance threshold (m) to detect stuck
-stuck_timeout_frames = 40     # Frames without movement before "stuck" (~2s @ 20Hz)
+stuck_timeout_s = 2.0         # Time without movement before "stuck"
 # Road-wheel steering angle for a side-threat correction, in DEGREES.
 # Was side_correction_steer = 0.3 normalised; 16.5 deg is that value at the
 # 55 deg road-wheel limit it was tuned against.
 side_correction_steer_deg = 16.5
 side_correction_speed = 0.1   # Forward speed during a side-threat correction
-side_correction_frames = 4    # Duration of a side-threat correction (frames)
+side_correction_s = 0.20      # Duration of a side-threat correction
 escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
 escape_side_commit_attempts = 2  # Attempts spent on one side before trying the other (1 = alternate every attempt, which cancels itself out)
-max_escape_frames = 20        # Hard cap on any single escalated escape duration
+max_escape_s = 1.0            # Hard cap on any single escalated escape duration
 stuck_confirmation_checks = 3            # Consecutive below-threshold checks before declaring "stuck"
-stuck_escalation_frames_per_attempt = 2  # Frames added to a stuck-reverse duration per repeated attempt
-stuck_history_floor = 60                 # Minimum position history (frames), even when timeout*2 < 60
+stuck_escalation_per_attempt_s = 0.10    # Time added to a stuck-reverse duration per repeated attempt
+stuck_history_floor_s = 3.0              # Minimum position history kept, even when timeout*2 is smaller

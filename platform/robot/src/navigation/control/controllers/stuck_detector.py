@@ -91,10 +91,12 @@ class StuckDetector:
         Returns:
             StuckDetector with values from tuning.
         """
+        # Seconds -> ticks at the loop rate; see EscapeManeuverParams.frames.
+        hz = tuning.control.CONTROL_HZ
         return cls(
             move_threshold=tuning.escape.STUCK_MOVE_THRESHOLD,
-            timeout_frames=tuning.escape.STUCK_TIMEOUT_FRAMES,
-            history_size=max(tuning.escape.STUCK_TIMEOUT_FRAMES * 2, tuning.escape.STUCK_HISTORY_FLOOR),
+            timeout_frames=tuning.escape.stuck_timeout_frames(hz),
+            history_size=max(tuning.escape.stuck_timeout_frames(hz) * 2, tuning.escape.stuck_history_floor_frames(hz)),
             confirmation_checks=tuning.escape.STUCK_CONFIRMATION_CHECKS,
             tuning=tuning,
         )

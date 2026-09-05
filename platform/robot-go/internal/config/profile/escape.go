@@ -13,8 +13,8 @@ import (
 // actually read (internal/nav/controllers.StuckDetector/
 // CollisionAvoidanceController's Go equivalents). The remaining ~10 fields
 // (POSE_TRAIL_MIN_STEP_M, POSE_TRAIL_LEN, SLALOM_*_FRAMES,
-// ESCALATE_AFTER_ATTEMPTS, ESCAPE_SIDE_COMMIT_ATTEMPTS, MAX_ESCAPE_FRAMES,
-// STUCK_ESCALATION_FRAMES_PER_ATTEMPT) belong to the pose-trail
+// ESCALATE_AFTER_ATTEMPTS, ESCAPE_SIDE_COMMIT_ATTEMPTS, MAX_ESCAPE_S,
+// STUCK_ESCALATION_PER_ATTEMPT_S) belong to the pose-trail
 // retrace-reverse and escalating-escape logic in the not-yet-ported core
 // navigator, so they're omitted here rather than mirrored unused.
 type EscapeConfig struct {
@@ -24,27 +24,27 @@ type EscapeConfig struct {
 	// while reversing out (deg); converted to a normalised command via
 	// RevSteerNorm.
 	RevSteerDeg float64 `mapstructure:"rev_steer_deg"`
-	// KTurnMinFrames matches K_TURN_MIN_FRAMES -- OBSTACLE-risk K-turn duration.
-	KTurnMinFrames int `mapstructure:"k_turn_min_frames"`
-	// KTurnMaxFrames matches K_TURN_MAX_FRAMES -- CRITICAL-risk K-turn duration.
-	KTurnMaxFrames int `mapstructure:"k_turn_max_frames"`
+	// KTurnMinS matches K_TURN_MIN_S -- OBSTACLE-risk K-turn duration.
+	KTurnMinS float64 `mapstructure:"k_turn_min_s"`
+	// KTurnMaxS matches K_TURN_MAX_S -- CRITICAL-risk K-turn duration.
+	KTurnMaxS float64 `mapstructure:"k_turn_max_s"`
 	// StuckMoveThreshold matches STUCK_MOVE_THRESHOLD -- movement distance
 	// threshold (m) below which the robot is considered not moving.
 	StuckMoveThreshold float64 `mapstructure:"stuck_move_threshold"`
-	// StuckTimeoutFrames matches STUCK_TIMEOUT_FRAMES.
-	StuckTimeoutFrames int `mapstructure:"stuck_timeout_frames"`
+	// StuckTimeoutS matches STUCK_TIMEOUT_S.
+	StuckTimeoutS float64 `mapstructure:"stuck_timeout_s"`
 	// SideCorrectionSteerDeg matches SIDE_CORRECTION_STEER_DEG -- road-wheel
 	// angle for a side-threat correction (deg); converted via
 	// SideCorrectionSteerNorm.
 	SideCorrectionSteerDeg float64 `mapstructure:"side_correction_steer_deg"`
 	// SideCorrectionSpeed matches SIDE_CORRECTION_SPEED.
 	SideCorrectionSpeed float64 `mapstructure:"side_correction_speed"`
-	// SideCorrectionFrames matches SIDE_CORRECTION_FRAMES.
-	SideCorrectionFrames int `mapstructure:"side_correction_frames"`
+	// SideCorrectionS matches SIDE_CORRECTION_S.
+	SideCorrectionS float64 `mapstructure:"side_correction_s"`
 	// StuckConfirmationChecks matches STUCK_CONFIRMATION_CHECKS.
 	StuckConfirmationChecks int `mapstructure:"stuck_confirmation_checks"`
-	// StuckHistoryFloor matches STUCK_HISTORY_FLOOR.
-	StuckHistoryFloor int `mapstructure:"stuck_history_floor"`
+	// StuckHistoryFloorS matches STUCK_HISTORY_FLOOR_S.
+	StuckHistoryFloorS float64 `mapstructure:"stuck_history_floor_s"`
 	// MinHistoryForDistance matches MIN_HISTORY_FOR_DISTANCE.
 	MinHistoryForDistance int `mapstructure:"min_history_for_distance"`
 }
@@ -72,4 +72,24 @@ func (c EscapeConfig) SideCorrectionSteerNorm(maxSteeringAngleRad float64) float
 		c.SideCorrectionSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
 		maxSteeringAngleRad,
 	)
+}
+
+// Frames converts one of this config's SECOND-valued durations into control
+// ticks at controlHz, mirroring EscapeManeuverParams.frames.
+//
+// Durations are stored in seconds and converted at the point of use because
+// a stored frame count silently means a different duration at a different
+// loop rate: 40 frames is 2 s at the shipped 20 Hz and 0.8 s at 50 Hz. Every
+// escape length, the stuck timeout and the parking give-up would shift
+// together, with nothing raising and no config edited.
+//
+// Rounds rather than truncates, and floors at one tick: a duration shorter
+// than a single tick is still a maneuver the caller asked for, and zero
+// frames would skip it entirely.
+func Frames(seconds, controlHz float64) int {
+	frames := int(math.Round(seconds * controlHz))
+	if frames < 1 {
+		return 1
+	}
+	return frames
 }
