@@ -99,6 +99,49 @@ ICS switcher. WiFi (separate subnet) carries internet + first-contact SSH.
 (Migrated off `10.250.250.0/24` — a VPN was intercepting all `10.0.0.0/8`
 traffic and silently blackholing the direct link.)
 
+### Getting internet on the road (away from the home network)
+
+Three ways to *reach* the boards from Windows, only one of which gives the
+boards themselves internet:
+
+| Link | SSH alias | Subnet | Gives the Pi internet? |
+|---|---|---|---|
+| Home WiFi | `rpi-5-local`, `rpi-zero-local` | home router's LAN | Yes, if that WiFi has internet |
+| Direct cable/USB-gadget | `rpi-5-direct`, `rpi-zero-direct` | `192.168.251.0/24` (Windows↔Pi5), `192.168.250.0/24` (Pi5↔Zero) | **No** — private point-to-point link only |
+| Cloudflare Tunnel | `rpi-5-remote` | over the internet | N/A — this is *outbound from* the Pi, so it only works once the Pi already has internet via its own WiFi |
+
+The direct links exist so you can always reach a board even with **no WiFi at
+all** — that's also what makes them useful for bootstrapping WiFi at a new
+location:
+
+1. Plug the Ethernet cable Windows↔Pi 5 (`task windows:ethernet:setup-link` once,
+   if `rpi-5-direct`'s static IP isn't already configured on this Windows
+   machine).
+2. Set the Pi 5's new WiFi credentials over that cable — works even though
+   the Pi 5 has no WiFi connection yet:
+   `task windows:set-wifi:pi5 SSID=name PASSWORD=pass`
+3. Set the Pi Zero's new WiFi credentials the same way, hopping through the
+   Pi 5 over the USB gadget link — works even though the Zero has no WiFi
+   connection yet:
+   `task windows:set-wifi:zero SSID=name PASSWORD=pass`
+4. Both boards now have internet through the new network. `rpi-5-local` /
+   `rpi-zero-local` will only resolve once you know each board's new IP on
+   that network (DHCP-assigned, so it can differ from the home values baked
+   into `Taskfile.yml`'s `RPI_LOCAL_IP` / `ZERO_WIFI_IP`) — check the new
+   router's client list, or SSH in over the direct link and run
+   `task rpi:iface-ip IFACE=wlan0`.
+
+**Gotcha:** the Pi Zero is **2.4 GHz-only**. A phone hotspot or router that's
+5 GHz-only (or dual-band under one SSID that prefers 5 GHz) will connect the
+Pi 5 but leave the Zero unable to join — pick/force a 2.4 GHz network or SSID
+for the Zero.
+
+Remote SSH from anywhere (`rpi-5-remote`, via `cloudflared`) only reaches the
+Pi 5, and only after step 2 has given it working internet; it doesn't help
+bootstrap a brand-new location and doesn't reach the Zero directly (hop
+through Pi 5 once connected, same as `rpi-zero-direct` does over the gadget
+link).
+
 ---
 
 ## Coverage matrix — what provisioning does / doesn't cover
