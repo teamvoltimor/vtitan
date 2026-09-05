@@ -177,18 +177,16 @@ func (c *RobotConfig) MaxSteeringAngle() float64 {
 	return limitDeg * math.Pi / navutil.DegreesPerHalfTurn
 }
 
-// LidarYawOffsetRad mirrors
-// shared.config.constants.robot.RobotSpecs.lidar_yaw_offset_rad(): rotates
-// raw scan bearings into the robot frame (0 rad = forward) by combining the
-// mandatory 180deg for an upside-down mount with any residual
-// miscalibration, in that order, not interchangeably.
-func (c *RobotConfig) LidarYawOffsetRad() float64 {
-	invertedDeg := 0.0
-	if c.Lidar.Inverted {
-		invertedDeg = navutil.DegreesPerHalfTurn
-	}
-	return (invertedDeg + c.Lidar.MountYawOffsetDeg) * math.Pi / navutil.DegreesPerHalfTurn
-}
+// LidarYawOffsetRad was removed deliberately: an upside-down mount reverses
+// the sensor's apparent spin direction, which no single additive offset can
+// express -- see lidar.correctAngleDeg, whose comment records the 2026-08-31
+// eight-bearing hardware test that found a constant +180 leaves left/right
+// correct while swapping front and back. Returning one scalar invited every
+// caller to add it and believe the frame was corrected.
+//
+// Consumers do not need a replacement. The correction is applied once in the
+// driver, from Lidar.Inverted/Lidar.MountYawOffsetDeg below, so scans are
+// already in the robot frame by the time anything else sees them.
 
 // LidarToFrontBumper mirrors RobotSpecs.LIDAR_TO_FRONT_BUMPER: meters from
 // the sensor to the front bumper face.

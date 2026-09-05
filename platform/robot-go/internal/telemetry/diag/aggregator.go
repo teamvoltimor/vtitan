@@ -57,18 +57,22 @@ func (a *Aggregator) Summarize(ctx context.Context) TelemetrySummary {
 // rays reports 0, matching `front = left = right = 0.0`'s fallback.
 func (a *Aggregator) fillLidarClearances(summary *TelemetrySummary, scan *sensorv1.Scan) {
 	ranges := scan.GetRanges()
+	// The bearing origin comes from the message rather than being assumed:
+	// see sector.go's fullSweepRad comment for the half-turn error the old
+	// hardcoded -pi produced against this stack's [0, 2pi) publisher.
+	angleMinRad := float64(scan.GetAngleMin())
 
-	frontM := sectorMeanM(ranges, a.config, sectorQuery{
+	frontM := sectorMeanM(ranges, angleMinRad, a.config, sectorQuery{
 		CenterRad:           frontCenterRad,
 		HalfFOVRad:          a.config.FrontHalfFOVRad,
 		FilterSelfDetection: false,
 	})
-	leftM := sectorMeanM(ranges, a.config, sectorQuery{
+	leftM := sectorMeanM(ranges, angleMinRad, a.config, sectorQuery{
 		CenterRad:           leftCenterRad,
 		HalfFOVRad:          a.config.FrontHalfFOVRad,
 		FilterSelfDetection: true,
 	})
-	rightM := sectorMeanM(ranges, a.config, sectorQuery{
+	rightM := sectorMeanM(ranges, angleMinRad, a.config, sectorQuery{
 		CenterRad:           rightCenterRad,
 		HalfFOVRad:          a.config.FrontHalfFOVRad,
 		FilterSelfDetection: true,

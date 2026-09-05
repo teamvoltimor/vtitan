@@ -43,10 +43,22 @@ func (f fakeSource) LatestDetections(context.Context) ([]diag.Detection, bool) {
 	return f.detections, f.detectionsOK
 }
 
-// eightRaySweep builds an 8-ray scan (45 deg apart, angle(i) = -180 + i*45,
-// matching sector.go's fullSweepRad synthesis with zero yaw offset) with
-// every ray below the minimum valid range, so a test can set exactly the
-// indices it cares about.
+// eightRaySweep builds an 8-ray scan (45 deg apart, angle(i) = -180 + i*45)
+// with every ray below the minimum valid range, so a test can set exactly
+// the indices it cares about. Pair it with sweepScan, which states that
+// -180 origin on the message instead of leaving it implied: sector.go reads
+// angle_min rather than assuming one, so a fixture that omits it is
+// describing a scan starting at 0 rad, not at -pi.
+// sweepScan wraps eightRaySweep's ranges in a Scan whose angle_min matches
+// the -180 deg origin those bearings are numbered from.
+func sweepScan(ranges []float32) *sensorv1.Scan {
+	return &sensorv1.Scan{
+		Ranges:         ranges,
+		AngleMin:       -math.Pi,
+		AngleIncrement: 2 * math.Pi / float32(len(ranges)),
+	}
+}
+
 func eightRaySweep() []float32 {
 	const rayCount = 8
 	ranges := make([]float32, rayCount)
@@ -89,7 +101,7 @@ func TestAggregatorSummarizeLidarSectors(t *testing.T) {
 	ranges[rightIndex] = rightRangeM
 
 	source := fakeSource{
-		scan:   &sensorv1.Scan{Ranges: ranges},
+		scan:   sweepScan(ranges),
 		scanOK: true,
 	}
 	aggregator := diag.NewAggregator(source, diag.DefaultConfig())
@@ -125,7 +137,7 @@ func TestAggregatorSummarizeLidarSectorMeansMultipleRays(t *testing.T) {
 	ranges[secondFrontIndex] = secondRangeM
 
 	source := fakeSource{
-		scan:   &sensorv1.Scan{Ranges: ranges},
+		scan:   sweepScan(ranges),
 		scanOK: true,
 	}
 	aggregator := diag.NewAggregator(source, diag.DefaultConfig())

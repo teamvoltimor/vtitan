@@ -51,42 +51,22 @@ func TestRobotConfig_DerivedValues(t *testing.T) {
 	}
 }
 
-func TestRobotConfig_LidarYawOffsetRad(t *testing.T) {
+func TestRobotConfig_LidarMountFields(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name       string
-		inverted   bool
-		offsetDeg  float64
-		wantRadian float64
-	}{
-		{name: "upright, no residual", inverted: false, offsetDeg: 0, wantRadian: 0},
-		{name: "inverted, no residual", inverted: true, offsetDeg: 0, wantRadian: math.Pi},
-		{
-			name:       "upright with residual",
-			inverted:   false,
-			offsetDeg:  5,
-			wantRadian: 5 * math.Pi / 180,
-		},
-		{
-			name:       "inverted with residual",
-			inverted:   true,
-			offsetDeg:  5,
-			wantRadian: 185 * math.Pi / 180,
-		},
+	// LidarYawOffsetRad() used to live here and combine these two into one
+	// additive offset. It was removed because an upside-down mount reverses
+	// the sensor's apparent spin direction, which an offset cannot express
+	// (lidar.correctAngleDeg). What this type still owes its callers is the
+	// two raw facts, unmodified, so the driver can build the correction.
+	cfg := &profile.RobotConfig{}
+	cfg.Lidar.Inverted = true
+	cfg.Lidar.MountYawOffsetDeg = 5
+
+	if !cfg.Lidar.Inverted {
+		t.Error("Lidar.Inverted = false, want true")
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := &profile.RobotConfig{}
-			cfg.Lidar.Inverted = tt.inverted
-			cfg.Lidar.MountYawOffsetDeg = tt.offsetDeg
-
-			if got := cfg.LidarYawOffsetRad(); math.Abs(got-tt.wantRadian) > 1e-9 {
-				t.Errorf("LidarYawOffsetRad() = %v, want %v", got, tt.wantRadian)
-			}
-		})
+	if got := cfg.Lidar.MountYawOffsetDeg; got != 5 {
+		t.Errorf("Lidar.MountYawOffsetDeg = %v, want 5", got)
 	}
 }

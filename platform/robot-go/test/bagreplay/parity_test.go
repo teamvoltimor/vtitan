@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"testing"
@@ -12,7 +13,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	navnode "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/nav"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/telemetry/diag"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
 )
 
@@ -34,8 +35,27 @@ const repoRootFromPackageDir = "../../../.."
 // Memoized with sync.OnceValue: toLidarScan runs once per scan row (tens of
 // thousands of times per bag), and re-parsing robot.toml through viper on
 // every call is not just slow but crashes mapstructure under the load.
+//
+// This deliberately models the PYTHON stack, so it stays a rotation even
+// though the Go driver corrects an upside-down mount with a mirror (see
+// lidar.correctAngleDeg). The two are not in conflict and must not be
+// unified: Python consumes sllidar_ros2's output, which has already applied
+// its own `inverted` mirror at the driver, and adds 180deg on top; Go
+// consumes raw serial and applies the whole correction itself. Replay has to
+// reproduce the frame Python's navigator actually saw, not the frame Go
+// would have built from the same sensor.
 var lidarYawOffsetRadForBags = sync.OnceValue(func() float64 {
-	return diag.LidarYawOffsetRadFor(slog.Default(), repoRootFromPackageDir)
+	basePath := filepath.Join(repoRootFromPackageDir, profile.DefaultRobotTOMLPath)
+	cfg, err := profile.Load[profile.RobotConfig](basePath, profile.ActiveNames())
+	if err != nil {
+		slog.Default().Warn("bagreplay: loading robot.toml, replaying with no LIDAR yaw offset",
+			"error", err)
+		return 0
+	}
+	if !cfg.Lidar.Inverted {
+		return cfg.Lidar.MountYawOffsetDeg * math.Pi / 180
+	}
+	return (180 + cfg.Lidar.MountYawOffsetDeg) * math.Pi / 180
 })
 
 // parityGateway is the in-memory controllers.HardwareGateway the replay drives

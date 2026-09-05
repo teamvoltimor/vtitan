@@ -34,11 +34,18 @@ type Config struct {
 	// stored. Zero means no residual correction.
 	//
 	// The single source of truth is robot.toml's [lidar] section:
-	// Inverted/MountYawOffsetDeg. Only the interactive hardware tests set
-	// these so decoded angles read in the robot frame directly; production
-	// lidar-node keeps them at the zero value and publishes raw C1
-	// bearings, with consumers (telemetry diag, the nav gateway) applying
-	// the same correction via profile.RobotConfig.
+	// Inverted/MountYawOffsetDeg, resolved by ConfigFor. Decoded angles
+	// therefore read in the robot frame directly and every consumer --
+	// lidar-node's published Scan, the nav gateway, telemetry diag -- sees
+	// one already-corrected frame.
+	//
+	// This used to be the opposite: production published raw C1 bearings
+	// and left each consumer to correct them. That is precisely how the
+	// nav gateway came to apply no correction at all (scanToLidarScan
+	// expanded angle_min/angle_increment untouched) while telemetry
+	// applied a constant rotation -- the form correctAngleDeg's comment
+	// records as refuted on hardware 2026-08-31. Correcting once, at the
+	// source, is what makes those two unable to disagree again.
 	YawOffsetDeg float64
 }
 

@@ -26,13 +26,18 @@ const (
 	// rightCenterRad is -pi/2 (robot's right), matching clearances_from_scan's
 	// right sector.
 	rightCenterRad = -math.Pi / 2
-	// fullSweepRad is the angular span sector.py's own synthesized-angle
-	// fallback assumes (np.linspace(-pi, pi, n, endpoint=False)): a full
-	// 360 deg scan indexed from angle_min = -pi, regardless of what the
-	// Scan message's own angle_min/angle_increment say. This matches
-	// _lidar_clearances (telemetry_bridge_node.py), which always
-	// synthesizes angles this way for the OLED summary rather than reading
-	// LaserScan.angle_min/angle_increment.
+	// fullSweepRad is the angular span of one revolution, used to derive
+	// the per-ray step from the ray count.
+	//
+	// This used to also carry an assumed angle_min of -pi, porting
+	// _lidar_clearances (telemetry_bridge_node.py), which synthesizes
+	// np.linspace(-pi, pi, n, endpoint=False) rather than reading the
+	// message's own angle_min/angle_increment. That assumption is a
+	// property of the ROS2 publisher Python listens to (sllidar_ros2, which
+	// does publish -pi..pi), not of a scan in general: this stack's
+	// lidar-node sorts by corrected bearing and publishes [0, 2pi), so the
+	// same synthesis put every bearing half a turn out. The origin now
+	// comes from the message.
 	fullSweepRad = 2 * math.Pi
 )
 
@@ -44,7 +49,7 @@ const (
 // platform/robot/src/navigation/control/controllers/collision_avoidance/sectors.py,
 // scoped to what the OLED summary path actually exercises (mean aggregate,
 // no rear-sector logic — the back reading is never part of TelemetrySummaryWire).
-func sectorMeanM(ranges []float32, cfg Config, query sectorQuery) float64 {
+func sectorMeanM(ranges []float32, angleMinRad float64, cfg Config, query sectorQuery) float64 {
 	rayCount := len(ranges)
 	if rayCount == 0 {
 		return 0
@@ -60,7 +65,7 @@ func sectorMeanM(ranges []float32, cfg Config, query sectorQuery) float64 {
 	validCount := 0
 	for index, rawRangeM := range ranges {
 		rangeM := float64(rawRangeM)
-		bearingRad := -math.Pi + float64(index)*angleStepRad + cfg.LidarYawOffsetRad
+		bearingRad := navutil.WrapAngle(angleMinRad + float64(index)*angleStepRad)
 
 		if !isValidRangeM(rangeM, lowerBoundM, cfg.MaxValidRangeM) {
 			continue

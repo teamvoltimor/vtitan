@@ -34,11 +34,6 @@ type Config struct {
 	// FrontHalfFOVRad is the half-width of the front/left/right sectors,
 	// matching LidarSectorsTuning.FRONT_HALF_FOV_DEG.
 	FrontHalfFOVRad float64
-	// LidarYawOffsetRad rotates raw scan bearings into the robot frame (0
-	// rad = forward), matching RobotSpecs.lidar_yaw_offset_rad(). Defaults
-	// to 0 (upright mount, no residual offset); a caller with real
-	// hardware-profile data should use LidarYawOffsetRadFor instead.
-	LidarYawOffsetRad float64
 	// MinValidRangeM is the lower bound below which a range reading is
 	// treated as invalid/no-return, matching LidarSectorsTuning.MIN_VALID_RANGE_M.
 	// Used for the front sector, which does not filter self-detection.
@@ -81,13 +76,18 @@ const (
 )
 
 // DefaultConfig returns a Config seeded with LidarSectorsTuning's shipped
-// defaults, blind wedges disabled (see AngleWedge) and LidarYawOffsetRad
-// left at 0 (see LidarYawOffsetRadFor for the hardware-profile-driven
-// value).
+// defaults and blind wedges disabled (see AngleWedge).
+//
+// There is deliberately no LIDAR mount correction here. Scans reach this
+// package already in the robot frame -- lidar.ConfigFor resolves
+// robot.toml's [lidar].inverted/mount_yaw_offset_deg into the driver, so
+// the correction is applied once, at the source. This package used to
+// re-apply it from its own copy of the config, which is how it came to use
+// a constant rotation after the driver had established that the mount
+// needs a mirror.
 func DefaultConfig() Config {
 	return Config{
 		FrontHalfFOVRad:         DefaultFrontHalfFOVRad,
-		LidarYawOffsetRad:       0,
 		MinValidRangeM:          DefaultMinValidRangeM,
 		SelfDetectionThresholdM: DefaultSelfDetectionThresholdM,
 		MaxValidRangeM:          DefaultMaxValidRangeM,
