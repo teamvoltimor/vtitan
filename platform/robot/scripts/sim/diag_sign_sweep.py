@@ -5243,6 +5243,73 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
             clear_obstacles_contact_dist=True,
         ),
     ],
+    # SLOW_DIST alone, at the SHIPPED contact threshold -- the one variable
+    # `escape-gate` above cannot isolate, because every arm there clears
+    # OBSTACLES_CONTACT_DIST and so moves the contact rung at the same time.
+    #
+    # The claim under test: SLOW_DIST = 0.25 was tuned in the pre-fix
+    # body-centred frame and never re-measured after the LIDAR-mount
+    # correction moved every forward reading 12.2 cm CLOSER. A threshold that
+    # did not move while the readings did is now effectively 12.2 cm wider
+    # than it was designed to be, and `diag_escape_mask.py --census --corpus`
+    # measures the consequence: 57.5% of all 329,428 speed-capped ticks exist
+    # ONLY because of the correction, and failing runs sit capped for 50.1% of
+    # their ticks. This is the speed-cap zone, NOT the escape gate -- the
+    # CRITICAL fraction at the RESOLVED obstacles threshold (0.05) is 0.0% in
+    # every outcome bucket, so no CONTACT_DIST value reaches these ticks.
+    #
+    # SCREEN ON `in-time`, NOT on escapes or capped-tick share. The capped
+    # fraction is the mechanism, not the goal, and it falls by construction as
+    # the threshold drops -- reading it as the result would confirm the
+    # intervention rather than test it. Read wall collisions alongside: this
+    # trades clock against margin, and the compensated default already pays
+    # for its 8 in-time runs with wall collisions 19 -> 30.
+    #
+    # 0.35 is an ANCHOR, not a candidate. It is the direction check -- if
+    # `in-time` improves going UP as well as down, the metric is not
+    # responding to this constant at all and the whole mode is noise.
+    #
+    # SHARED WITH OPEN. There is no `open_slow_dist` and no obstacles-specific
+    # override, unlike OBSTACLES_CONTACT_DIST, so a winner here is a SCREEN
+    # only -- adoption needs the 640-case Open run before it can ship.
+    #
+    # BLIND, matching `escape-gate` and `corner-steer`, so the arms compare.
+    #
+    # MEASURED 2026-09-05, 256 corpus, one invocation, as in-time/clean/laps>=3
+    # /wall/park/timeouts/stuck:
+    #
+    #   0.35  65 / 114 / 158 / 25 / 19 / 106 / 28
+    #   0.25  62 / 112 / 159 / 30 / 19 / 110 / 26   <- shipped
+    #   0.20  65 / 108 / 153 / 30 / 17 / 108 / 29
+    #   0.15  67 / 112 / 154 / 29 / 15 / 105 / 32
+    #   0.13  64 / 110 / 155 / 31 / 15 / 107 / 30
+    #
+    # REFUTED. `in-time` spans 62-67 across a 2.7x range of the threshold with
+    # NO ordering, and the shipped value sits at the BOTTOM of that band --
+    # i.e. every perturbation "wins" by 2-5 runs, in both directions. Timeouts
+    # (105-110) and wall collisions (25-31) are equally flat. The 57.5%
+    # capped-tick figure is a correct measurement of a mechanism that does not
+    # reach the outcome; retuning this constant buys nothing, and since it is
+    # shared with Open there is no case for spending a 640-case Open run to
+    # adopt a value inside the noise band.
+    #
+    # The 0.35 ANCHOR is what makes that call safe, and it is why the row is
+    # kept. Dropping it leaves 62 -> 65 -> 67 descending and reads as a clean
+    # monotone trend; with it, the two arms at OPPOSITE ends of the sweep both
+    # beat shipped by ~3, which is the signature of noise. Any future arm added
+    # here must keep a wrong-direction anchor for the same reason.
+    #
+    # The one ordered column is park collisions (19/19/17/15/15), monotone
+    # across all five arms where nothing else is. Not chased: parking is
+    # separately geometry-blocked (0.194 m chassis into a 0.20 m bay), so the
+    # gradient has nothing to buy.
+    "slow-dist": [
+        SweepConfig("blind, slow 0.35 (anchor, wrong way)", blind=True, slow_dist=0.35),
+        SweepConfig("blind, slow 0.25 (shipped)", blind=True, slow_dist=0.25),
+        SweepConfig("blind, slow 0.20", blind=True, slow_dist=0.20),
+        SweepConfig("blind, slow 0.15", blind=True, slow_dist=0.15),
+        SweepConfig("blind, slow 0.13", blind=True, slow_dist=0.13),
+    ],
     # The SHIPPABLE form of the escape-gate result. `escape-gate` above moves
     # the shared ClearanceZones.CONTACT_DIST, which is also the Open Challenge's
     # contact zone, so its numbers cannot be adopted without re-measuring Open.
