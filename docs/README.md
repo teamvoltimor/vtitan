@@ -19,6 +19,7 @@
 ---
 
 # Team Voltimor
+
 <p align="center">
     <img src="../assets/voltimor-logo-square.png" alt="" width="400">
     <br>
@@ -83,13 +84,13 @@ Ahora bien, la estructura de los archivos es la siguiente:
 
 4. **Arquitectura de software y estrategia para superar obstáculos**
 	1. [Modelo de Detección YOLO](README.md#modelo-de-detección-yolo)
-        2. [Simulador](README.md#sim)
+	2. [Algoritmo PID](README.md#algoritmo-pid)
+	3.
 
 5. **Pensamiento sistémico y decisiones de ingeniería**
-        1.[]
+	1.[]
 
 6. **[Vídeos](docs/videos.es.md)**
-7. **[Software](docs/software.es.md)**
 
 # Historial del equipo
 
