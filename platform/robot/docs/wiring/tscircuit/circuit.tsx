@@ -134,11 +134,19 @@
 // crosses that boundary routes through the level converter (U_LVL), not
 // directly to GPIO.
 //
-// Regulator grounds: DCDC_5V5A and U_REG are both non-isolated buck
-// converters, so VIN_NEG and VOUT_NEG are the same physical node inside each
-// module. That tie is drawn explicitly below -- without it the servo's GPIO12
-// signal has no return path to the Zero, and the Pi 5 has no reference to the
-// battery at all.
+// GROUND is drawn as a ground symbol per pin (<netlabel net="GND">), not as
+// pairwise <trace> wiring. It is one 26-pin node, and daisy-chaining it cost 26
+// of the drawing's 73 traces and dragged long return runs across the whole
+// canvas for no information. The symbols carry the same netlist -- verify by
+// counting members of NET: GND in harness.netlist.txt, not by looking for wires.
+//
+// Regulator grounds: DCDC_5V5A and U_REG are both non-isolated buck converters,
+// so VIN_NEG and VOUT_NEG are the same physical node inside each module. Under
+// the old pairwise wiring that tie had to be drawn explicitly or the net split
+// in two; on the GND symbol it is implicit, since both pins land on the same
+// node by construction. It still matters physically: without it the servo's
+// GPIO12 signal has no return path to the Zero, and the Pi 5 has no reference
+// to the battery at all.
 //
 // NOT modeled: GPIO pull-up/pull-down config from /boot/firmware/config.txt
 // (e.g. the `gpio=5,6,26=op,dl` boot-float fix), the button's
@@ -490,7 +498,6 @@ export default () => (
     {/* ---- Power distribution ---- */}
     <trace from=".BATT > .BATT_POS" to=".SW1 > .IN" />
     <trace from=".SW1 > .OUT" to=".SPLIT_MAIN > .IN_POS" />
-    <trace from=".BATT > .BATT_NEG" to=".SPLIT_MAIN > .IN_NEG" />
 
     {/* Both SPLIT_* parts are Y-cable splices, not active devices: each
         IN conductor is physically the SAME node as both of its OUT
@@ -500,35 +507,23 @@ export default () => (
         open pair IS the switch contact. */}
     <trace from=".SPLIT_MAIN > .IN_POS" to=".SPLIT_MAIN > .OUT1_POS" />
     <trace from=".SPLIT_MAIN > .IN_POS" to=".SPLIT_MAIN > .OUT2_POS" />
-    <trace from=".SPLIT_MAIN > .IN_NEG" to=".SPLIT_MAIN > .OUT1_NEG" />
-    <trace from=".SPLIT_MAIN > .IN_NEG" to=".SPLIT_MAIN > .OUT2_NEG" />
 
     <trace from=".SPLIT_DRIVE > .IN_POS" to=".SPLIT_DRIVE > .OUT1_POS" />
     <trace from=".SPLIT_DRIVE > .IN_POS" to=".SPLIT_DRIVE > .OUT2_POS" />
-    <trace from=".SPLIT_DRIVE > .IN_NEG" to=".SPLIT_DRIVE > .OUT1_NEG" />
-    <trace from=".SPLIT_DRIVE > .IN_NEG" to=".SPLIT_DRIVE > .OUT2_NEG" />
 
     <trace from=".SPLIT_MAIN > .OUT1_POS" to=".DCDC_5V5A > .VIN_POS" />
-    <trace from=".SPLIT_MAIN > .OUT1_NEG" to=".DCDC_5V5A > .VIN_NEG" />
     <trace from=".DCDC_5V5A > .VOUT_POS" to=".PI5 > .PWR_USBC_POS" />
-    <trace from=".DCDC_5V5A > .VOUT_NEG" to=".PI5 > .PWR_USBC_NEG" />
     {/* Non-isolated buck: input and output ground are one node internally.
         This is what references the Pi 5 to the battery at all. */}
-    <trace from=".DCDC_5V5A > .VIN_NEG" to=".DCDC_5V5A > .VOUT_NEG" />
 
     <trace from=".SPLIT_MAIN > .OUT2_POS" to=".SPLIT_DRIVE > .IN_POS" />
-    <trace from=".SPLIT_MAIN > .OUT2_NEG" to=".SPLIT_DRIVE > .IN_NEG" />
 
     <trace from=".SPLIT_DRIVE > .OUT1_POS" to=".U_REG > .VIN_POS" />
-    <trace from=".SPLIT_DRIVE > .OUT1_NEG" to=".U_REG > .VIN_NEG" />
     <trace from=".U_REG > .VOUT_POS" to=".SERVO > .VCC" />
-    <trace from=".U_REG > .VOUT_NEG" to=".SERVO > .GND" />
     {/* Mini-560 Pro is likewise non-isolated. Without this tie the servo's
         GPIO12 signal has no return path to the Zero. */}
-    <trace from=".U_REG > .VIN_NEG" to=".U_REG > .VOUT_NEG" />
 
     <trace from=".SPLIT_DRIVE > .OUT2_POS" to=".U_MOTOR > .B_POS" />
-    <trace from=".SPLIT_DRIVE > .OUT2_NEG" to=".U_MOTOR > .B_NEG" />
 
     {/* The Zero's whole 5V rail is USB VBUS off the Pi 5 -- see the header
         note. This is the only thing sourcing PI's 5V pin. */}
@@ -537,11 +532,9 @@ export default () => (
         are one rail, no regulator between them. Drawn so the connector and
         the header pin stay separately identifiable. */}
     <trace from=".PI > .USB_OTG_VBUS" to=".PI > .5V" />
-    <trace from=".PI5 > .USB_GND" to=".PI > .GND" />
     {/* Pi 5 board ground: its USB ground and its USB-C power return are the
         same node, which is what puts the Zero, the LIDAR adapter and the IMU
         bridge on the battery's ground rather than three floating islands. */}
-    <trace from=".PI5 > .USB_GND" to=".PI5 > .PWR_USBC_NEG" />
 
     <trace from=".PI > .5V" to=".U_MOTOR > .VCC" />
     <trace from=".PI > .5V" to=".U_LVL > .HV" />
@@ -552,16 +545,9 @@ export default () => (
         to land directly on GPIO16/20 with no level shifting. */}
     <trace from=".PI > .3V3" to=".MOTOR > .ENC_VCC" />
 
-    <trace from=".PI > .GND" to=".U_LVL > .GND" />
     {/* H-bridge LOGIC ground -- distinct from B_NEG, which is the motor
         supply return. Without this the level-shifted RPWM/LPWM/R_EN/L_EN
         signals and the 5V VCC feed have no reference to the Zero. */}
-    <trace from=".PI > .GND" to=".U_MOTOR > .GND" />
-    <trace from=".PI > .GND" to=".BUTTON > .GND" />
-    <trace from=".PI > .GND" to=".JUMPER > .GND" />
-    <trace from=".PI > .GND" to=".OLED > .GND" />
-    <trace from=".PI > .GND" to=".MOTOR > .ENC_GND" />
-    <trace from=".BATT > .BATT_NEG" to=".PI > .GND" />
 
     {/* ---- Motor control, through the level converter ---- */}
     <trace from=".PI > .GPIO13" to=".U_LVL > .LV1" />
@@ -607,9 +593,7 @@ export default () => (
     <trace from=".PI5 > .USB_LIDAR_ADAPTER" to=".ADAPTER > .USB" />
     {/* The adapter's ground is the Pi 5's USB ground -- the LIDAR's return
         path runs back through the adapter to the host, not to a local net. */}
-    <trace from=".PI5 > .USB_GND" to=".ADAPTER > .GND" />
     <trace from=".ADAPTER > .VCC" to=".LIDAR > .VCC" />
-    <trace from=".ADAPTER > .GND" to=".LIDAR > .GND" />
     <trace from=".ADAPTER > .TX" to=".LIDAR > .RX" />
     <trace from=".ADAPTER > .RX" to=".LIDAR > .TX" />
 
@@ -621,10 +605,37 @@ export default () => (
         Nothing on this leg crosses a voltage boundary, so like the encoder
         it stays clear of the level converter. ---- */}
     <trace from=".PI5 > .USB_IMU_BRIDGE" to=".MCP2221A > .USB" />
-    <trace from=".PI5 > .USB_GND" to=".MCP2221A > .GND" />
     <trace from=".MCP2221A > .3V3" to=".BNO085 > .VCC" />
-    <trace from=".MCP2221A > .GND" to=".BNO085 > .GND" />
     <trace from=".MCP2221A > .TX" to=".BNO085 > .RX" />
     <trace from=".MCP2221A > .RX" to=".BNO085 > .TX" />
+
+    {/* System ground, drawn as a ground symbol per pin. */}
+    <netlabel net="GND" connectsTo=".BATT > .BATT_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".SPLIT_MAIN > .IN_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".SPLIT_MAIN > .OUT1_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".SPLIT_MAIN > .OUT2_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".DCDC_5V5A > .VIN_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".DCDC_5V5A > .VOUT_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".SPLIT_DRIVE > .IN_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".SPLIT_DRIVE > .OUT1_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".SPLIT_DRIVE > .OUT2_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".U_REG > .VIN_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".U_REG > .VOUT_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".PI > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".PI5 > .USB_GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".PI5 > .PWR_USBC_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".ADAPTER > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".LIDAR > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".U_LVL > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".U_MOTOR > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".U_MOTOR > .B_NEG" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".MOTOR > .ENC_GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".SERVO > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".BUTTON > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".JUMPER > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".OLED > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".MCP2221A > .GND" anchorSide="bottom" />
+    <netlabel net="GND" connectsTo=".BNO085 > .GND" anchorSide="bottom" />
+
   </board>
 )
