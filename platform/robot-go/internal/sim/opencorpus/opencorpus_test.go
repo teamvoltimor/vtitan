@@ -259,3 +259,130 @@ func readGolden(t *testing.T) []goldenRow {
 	}
 	return rows
 }
+
+// TestBalanced128_MatchesPython is the cross-language parity gate for the
+// screening corpus, and the only thing that makes its SEED meaningful.
+//
+// The golden is scripts.common.open_cases.balanced_128_cases dumped at four
+// seeds. Matching at one seed could be luck in the round-robin; matching at
+// four, in order, means the Mersenne Twister reimplementation in pyrandom.go
+// is reproducing CPython's stream rather than merely producing a plausible
+// permutation.
+func TestBalanced128_MatchesPython(t *testing.T) {
+	t.Parallel()
+
+	bySeed := map[uint64][]balancedGoldenRow{}
+	var seeds []uint64
+	for _, row := range readBalancedGolden(t) {
+		if _, seen := bySeed[row.seed]; !seen {
+			seeds = append(seeds, row.seed)
+		}
+		bySeed[row.seed] = append(bySeed[row.seed], row)
+	}
+	if len(seeds) < 2 {
+		t.Fatalf("golden covers %d seeds, want several", len(seeds))
+	}
+
+	for _, seed := range seeds {
+		want := bySeed[seed]
+		got, err := opencorpus.Balanced128(seed)
+		if err != nil {
+			t.Fatalf("seed %d: Balanced128: %v", seed, err)
+		}
+		if len(got) != len(want) {
+			t.Fatalf("seed %d: got %d scenarios, want %d", seed, len(got), len(want))
+		}
+		for i, p := range got {
+			row := want[i]
+			gotWidths := [4]int{
+				p.Widths.WidthMMFor(simconfig.SectionSouth),
+				p.Widths.WidthMMFor(simconfig.SectionNorth),
+				p.Widths.WidthMMFor(simconfig.SectionEast),
+				p.Widths.WidthMMFor(simconfig.SectionWest),
+			}
+			if gotWidths != row.widthsMM || string(p.Section) != row.section ||
+				p.Direction.String() != row.direction || p.StartCell != row.startCell {
+				t.Fatalf("seed %d case %d: got widths %v %s/%s cell %d, want %v %s/%s cell %d",
+					seed, i, gotWidths, p.Section, p.Direction, p.StartCell,
+					row.widthsMM, row.section, row.direction, row.startCell)
+			}
+		}
+	}
+}
+
+// TestBalanced128_CoversTheGridExactlyOnce is the property the corpus is
+// named for: 16 layouts x 4 sections x 2 directions, each appearing once.
+// A uniform sample of 128 from the full 640 would also be 128 scenarios and
+// would NOT have this, which is the whole reason this corpus exists.
+func TestBalanced128_CoversTheGridExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	got, err := opencorpus.Balanced128(0)
+	if err != nil {
+		t.Fatalf("Balanced128: %v", err)
+	}
+	if len(got) != opencorpus.Balanced128Size {
+		t.Fatalf("got %d scenarios, want %d", len(got), opencorpus.Balanced128Size)
+	}
+	type combo struct {
+		widths    opencorpus.WidthSet
+		section   simconfig.Section
+		direction string
+	}
+	seen := map[combo]int{}
+	cells := map[int]int{}
+	for _, p := range got {
+		seen[combo{p.Widths, p.Section, p.Direction.String()}]++
+		cells[p.StartCell]++
+	}
+	if len(seen) != opencorpus.Balanced128Size {
+		t.Errorf("covered %d distinct layout/section/direction combos, want %d",
+			len(seen), opencorpus.Balanced128Size)
+	}
+	for c, n := range seen {
+		if n != 1 {
+			t.Errorf("%v appears %d times, want exactly once", c, n)
+		}
+	}
+	// And the cell actually VARIES -- the failure this corpus replaced was
+	// every scenario pinned to cell 0.
+	if len(cells) < 4 {
+		t.Errorf("start cells used = %v, want the cell to vary across the corpus", cells)
+	}
+}
+
+// balancedGoldenRow is one line of the Python balanced128 dump.
+type balancedGoldenRow struct {
+	section   string
+	direction string
+	widthsMM  [4]int
+	seed      uint64
+	startCell int
+}
+
+func readBalancedGolden(t *testing.T) []balancedGoldenRow {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join("testdata", "python_balanced128.csv"))
+	if err != nil {
+		t.Fatalf("reading the balanced128 golden: %v", err)
+	}
+	var rows []balancedGoldenRow
+	for _, line := range strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		var r balancedGoldenRow
+		n, scanErr := fmt.Sscanf(
+			strings.ReplaceAll(line, ",", " "),
+			"%d %d %d %d %d %s %s %d",
+			&r.seed, &r.widthsMM[0], &r.widthsMM[1], &r.widthsMM[2], &r.widthsMM[3],
+			&r.section, &r.direction, &r.startCell,
+		)
+		if scanErr != nil || n != 8 {
+			t.Fatalf("parsing golden line %q: got %d fields, err %v", line, n, scanErr)
+		}
+		rows = append(rows, r)
+	}
+	return rows
+}

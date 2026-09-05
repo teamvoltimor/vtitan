@@ -50,6 +50,7 @@ type cliConfig struct {
 	configRoot   string
 	hwProfiles   string
 	recordDir    string
+	openSeed     uint64
 	yawBiasDeg   float64
 	imuDriftDPM  float64
 	gyroScaleErr float64
@@ -67,9 +68,10 @@ type cliConfig struct {
 // corpus in either language — the space is enumerable from the rules, so it
 // is generated rather than stored. See internal/sim/opencorpus.
 const (
-	openSpaceNone = ""
-	openSpaceFull = "full"
-	openSpace128  = "open128"
+	openSpaceNone     = ""
+	openSpaceFull     = "full"
+	openSpace128      = "open128"
+	openSpaceBalanced = "balanced128"
 )
 
 // exit codes: 0 means the orchestrator successfully produced a report, even
@@ -242,6 +244,13 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		"generate the Open Challenge corpus instead of loading --corpus: "+
 			"'full' is the whole 640-case space, 'open128' the legacy start-cell-0 grid",
 	)
+	flags.Uint64Var(
+		&cfg.openSeed,
+		"open-space-seed",
+		0,
+		"--open-space balanced128 only: seed for the start-cell assignment; vary it to confirm "+
+			"a result is not an artefact of one spawn assignment",
+	)
 	flags.StringVar(
 		&cfg.openDir,
 		"open-space-dir",
@@ -269,14 +278,14 @@ func validate(cfg cliConfig) error {
 		if cfg.corpusPath == "" {
 			return errors.New("sim-runner: one of --corpus or --open-space is required")
 		}
-	case openSpaceFull, openSpace128:
+	case openSpaceFull, openSpace128, openSpaceBalanced:
 		if cfg.corpusPath != "" {
 			return errors.New("sim-runner: --corpus and --open-space are mutually exclusive")
 		}
 	default:
 		return fmt.Errorf(
-			"sim-runner: unknown --open-space %q (want %q or %q)",
-			cfg.openSpace, openSpaceFull, openSpace128,
+			"sim-runner: unknown --open-space %q (want %q, %q or %q)",
+			cfg.openSpace, openSpaceFull, openSpaceBalanced, openSpace128,
 		)
 	}
 
@@ -310,8 +319,15 @@ func resolveCorpus(logger *slog.Logger, cfg cliConfig) (scenarios []corpus.Scena
 	}
 
 	params := opencorpus.Space()
-	if cfg.openSpace == openSpace128 {
+	switch cfg.openSpace {
+	case openSpace128:
 		params = opencorpus.OuterWallCells(params)
+	case openSpaceBalanced:
+		balanced, balErr := opencorpus.Balanced128(cfg.openSeed)
+		if balErr != nil {
+			return nil, noop, fmt.Errorf("sim-runner: %w", balErr)
+		}
+		params = balanced
 	}
 
 	dir := cfg.openDir
