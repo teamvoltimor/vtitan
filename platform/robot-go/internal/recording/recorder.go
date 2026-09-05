@@ -29,6 +29,17 @@ type RunRecorder struct {
 	channels      map[string]uint16
 	nextChannelID uint16
 	nextSchemaID  uint16
+	// topics/minLogTime/maxLogTime back the rosbag2 metadata.yaml sidecar,
+	// which can only be written at Close because it states message counts
+	// and the time span.
+	topics map[string]topicInfo
+	// haveSpan distinguishes "no messages yet" from "the first message was
+	// logged at 0". A zero-valued min/max cannot: the simulation clock
+	// starts AT zero, so treating (0, 0) as the empty state let the second
+	// message overwrite the start time and halved every reported duration.
+	haveSpan   bool
+	minLogTime uint64
+	maxLogTime uint64
 }
 
 // RunOptions configures a new run.
@@ -78,6 +89,7 @@ func NewRun(runsRoot string, opts RunOptions) (*RunRecorder, error) {
 		dir:          dir,
 		stamp:        stamp,
 		stem:         stem,
+		topics:       make(map[string]topicInfo),
 		channels:     make(map[string]uint16),
 		nextSchemaID: 1,
 	}
@@ -177,6 +189,7 @@ func (r *RunRecorder) WriteROS2(
 	if err != nil {
 		return err
 	}
+	r.noteMessage(topic, schemaName, logTime)
 	return r.mcapW.WriteMessage(&mcap.Message{
 		ChannelID:   channelID,
 		Sequence:    0,
@@ -265,10 +278,35 @@ func (r *RunRecorder) Video() *VideoWriter { return r.video }
 func (r *RunRecorder) Photos() *PhotoCapture { return r.photos }
 
 // Close finalizes the bag, video, and any open handles. Safe to call once.
+// noteMessage accumulates the per-topic counts and the time span
+// metadata.yaml needs. Callers hold r.mu.
+func (r *RunRecorder) noteMessage(topic, typeName string, logTime uint64) {
+	info := r.topics[topic]
+	info.typeName = typeName
+	info.count++
+	r.topics[topic] = info
+	if !r.haveSpan {
+		r.haveSpan = true
+		r.minLogTime, r.maxLogTime = logTime, logTime
+		return
+	}
+	if logTime < r.minLogTime {
+		r.minLogTime = logTime
+	}
+	if logTime > r.maxLogTime {
+		r.maxLogTime = logTime
+	}
+}
+
 func (r *RunRecorder) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var firstErr error
+	// Before the writer is torn down, so a metadata failure is reported
+	// rather than lost behind a successful close.
+	if err := r.writeMetadata(); err != nil {
+		firstErr = err
+	}
 	if r.video != nil {
 		if err := r.video.Close(); err != nil && firstErr == nil {
 			firstErr = err

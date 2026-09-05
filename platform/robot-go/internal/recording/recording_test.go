@@ -160,3 +160,58 @@ func TestEncodePath_LaysOutTheNestedHeaders(t *testing.T) {
 		t.Errorf("encoded Path does not contain the frame id %q", frame)
 	}
 }
+
+// TestWriteMetadata_MakesTheRunDirectoryABag checks the rosbag2 sidecar,
+// which is what lets a diag_bag_*.py script take the run DIRECTORY the way
+// it does for a pulled hardware bag. Without it rosbag2 reports "No storage
+// could be initialized for the input URI" and every script has to be handed
+// the .mcap path instead.
+func TestWriteMetadata_MakesTheRunDirectoryABag(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	run, err := NewRun(dir, RunOptions{Name: "open_0007"})
+	if err != nil {
+		t.Fatalf("NewRun: %v", err)
+	}
+	const oneSecond = 1_000_000_000
+	for i, logTime := range []uint64{0, oneSecond / 2, oneSecond} {
+		if err := run.WriteROS2(
+			"/motor/drive_speed", Float32Type, Float32Schema, EncodeFloat32(float32(i)), logTime,
+		); err != nil {
+			t.Fatalf("WriteROS2: %v", err)
+		}
+	}
+	if err := run.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "open_0007", "metadata.yaml"))
+	if err != nil {
+		t.Fatalf("reading metadata.yaml: %v", err)
+	}
+	meta := string(raw)
+
+	for _, want := range []string{
+		"storage_identifier: mcap",
+		"name: /motor/drive_speed",
+		"type: " + Float32Type,
+		"serialization_format: cdr",
+		// Required by the v9 schema: rosbag2 rejects the entire file when
+		// this key is missing, which is how it was found.
+		"type_description_hash:",
+		// The bag file must be named as a RELATIVE path, or rosbag2 looks
+		// for it in the wrong place.
+		"- open_0007_0.mcap",
+		"message_count: 3",
+	} {
+		if !strings.Contains(meta, want) {
+			t.Errorf("metadata.yaml is missing %q:\n%s", want, meta)
+		}
+	}
+	// The span is measured from the messages, not the wall clock: these
+	// three were logged across one simulated second.
+	if !strings.Contains(meta, "nanoseconds: 1000000000") {
+		t.Errorf("metadata.yaml does not report the 1 s message span:\n%s", meta)
+	}
+}
