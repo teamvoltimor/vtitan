@@ -554,7 +554,18 @@ width="350">
 	<i>Sistema de Dirección, visto desde arriba</i>
 </p>
 
-Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. Resumidamente, todo el movimiento lo transmitimos a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque es necesario un servo con mucha capacidad de torque para poder ejercer fuerza en las 4 ruedas. En primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado a un engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con las dos ruedas, ya sean delanteras o traseras.
+Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. Resumidamente, todo el movimiento lo transmitimos a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque es necesario un servo con mucha capacidad de torque para poder ejercer fuerza en las 4 ruedas, razón por la cual, tuvimos que cambiar nuestro servo que tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. En primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje indidivual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
+
+## Chasis Inferior 
+
+<p align="center">
+	<img src="/3d-models/piñon-33-dientes-dirección.png" alt="Piñon de 33 dientes de dirección" 
+width="350">
+	<br>
+	<i>Piñon de 33 dientes de dirección</i>
+</p>
+
+También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
 
 ## Chasis Inferior 
 
@@ -569,7 +580,7 @@ Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de tra
 
 ## Relación de Torque y Velocidad 
 
-En el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de puesto de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a V-Titan?
+Ahora bien, en el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a V-Titan?
 
 La fórmula general para calcular el torque necesario es:
 
@@ -583,7 +594,7 @@ Donde:
 
 "a" es la aceleración deseada (para la cual optamos por $1 \text{ m/s}^2$ por preferencia de control en pista)
 
-"g" es la gravedad ($2.94 \text{ m/s}^2$)
+"g" es la gravedad ($9.81 \text{ m/s}^2$)
 
 "$\mu$" representa el cociente de fricción (para el cual estimamos a 0.3 para unas ruedas de ASA en una lona de PVC flexible)
 
@@ -602,7 +613,7 @@ width="350">
 	<i>Relación de Engranajes</i>
 </p>
 
-El torque fin al será igual a la multiplicación del torque inicial por la misma relación de engranajes, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se multiplican todas:
+El torque final será igual a la multiplicación del torque inicial por la misma relación de engranajes, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se multiplican todas:
 
 El motor cuenta con un eje de 33 dientes, el cual va a una correa de 33 dientes para cada eje, por lo que la relación sería: 33 / 50 = 0.66
 
@@ -622,7 +633,7 @@ Por ende el Torque de bloqueo final será:
 
 $T_{final}$ = $T$ * $R_{total}$ = 0.105Nm * 3.29 = 0.345Nm
 
-Un éstandar en los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, 0.345Nm * 0.5 < 0.207Nm, por ende, esta relación de engranajes no es suficiente por sí sola para cumplir con este estándar, sin embargo, los motores DC están diseñados para soportar picos de 60% por unos breves segundos sin ningún riesgo.
+Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, 0.345Nm * 0.5 < 0.207Nm, por ende, esta relación de engranajes no es suficiente por sí sola para cumplir con este estándar, sin embargo, los motores DC están diseñados para soportar picos de 60% por unos breves segundos sin ningún riesgo, siempre y cuando el trabajo del motor disminuya a lo largo de este período de tiempo.
 
 # Arquitectura de software y estrategia para superar obstáculos
 
