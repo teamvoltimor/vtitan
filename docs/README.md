@@ -25,7 +25,7 @@
     <i>Logo del Equipo</i>
 </p>
 
-Bienvenidos al repositorio de V-Titan, el robot del Team Voldemor, que compite en la World Robot Olympiad 2026 en la categoría Futuros Ingenieros. Aquí encontrarás toda la información sobre el robot, incluyendo su código, modelos 3D, esquemas y documentación.
+Bienvenidos al repositorio de V-Titan, el robot del Team Voltimor, que compite en la World Robot Olympiad 2026 en la categoría Futuros Ingenieros. Aquí encontrarás toda la información sobre el robot, incluyendo su código, modelos 3D, esquemas y documentación.
 
 ## Estructura de la documentación
 
@@ -75,10 +75,11 @@ Ahora bien, la estructura de los archivos es la siguiente:
          
 3. **Movilidad y Diseño Mecanico**      
 	1. [Métodos de Prototipaje](README.md#diseño-e-impresión-3d)
-	2. [Evolución y Justificación del Diseño](README.md#evolución-y-justificación-del-diseño) 
+	2. [Evolución y Justificación del Diseño](README.md#evolución-y-justificación-del-diseño)
 	3. [Sistema de Transmición](README.md#sistema-de-transmición)
 	4. [Sistema de Dirección](README.md#sistema-de-dirección)
-        5. [Monochasis](README.md#monochasis)
+	5. [Monochasis](README.md#monochasis)
+	6. [Relación del Torque y Velocidad](README.md#relacion-del-torque-y-velocidad)
 
 4. **Arquitectura de software y estrategia para superar obstáculos**
 	1. [Modelo de Detección YOLO](README.md#modelo-de-detección-yolo)
@@ -542,7 +543,7 @@ width="350">
 
 Para poder diseñar nuestro sistema de transmisión, tuvimos que tener en cuenta nuestra meta inicial de nuestro alcance de dirección, para poder transmitir el movimiento del motor hacia las ruedas aún cuando éstas estén rotadas a un ángulo de 90 grados. 
 
-Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción en cada rueda, éste sistema es controlado por un único motor cuyo movimiento es transmitido mediante dos correas de movimiento (una para las ruedas delanteras, y otra para las ruedas traseras), este movimiento se va a su eje correspondiente (para el cual utilizamos unos pernos de transmisión de LEGO) cada eje transmite a dos sisteams de engranajes (uno a la izquierda, otro a la derecha) y este eje tiene un engranaje cónico con un ángulo de 90 grados de 15 dientes, y este movimiento luego es transmitido directamente a la rueda (la cual en lugar de ser un caucho regular, recibe la tracción mediante sus dientes internos)
+Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción en cada rueda, éste sistema es controlado por un único motor cuyo movimiento es transmitido mediante dos correas dentadas de movimiento (una para las ruedas delanteras, y otra para las ruedas traseras), este movimiento se va a su eje correspondiente (para el cual utilizamos unos pernos de transmisión de LEGO) y, a su vez cada eje transmite a dos sistemas de engranajes perpendiculares (uno por rueda) y este eje tiene un engranaje cónico perpendicular de 15 dientes, y este movimiento luego es transmitido directamente a la rueda (la cual en lugar de ser un caucho regular, recibe la tracción mediante sus dientes internos) de tal manera que cada rueda recibe la misma potencia, como último detalle, el rin cumple la función de ser un soporte para la rueda dentada y los engranajes cónicos perpendiculares.
 
 ## Sistema de Dirección
 
@@ -564,7 +565,64 @@ width="350">
 	<i>Chasis Inferior</i>
 </p>
 
-Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en la mitad del chasis 
+Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis de pueden aprecias dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernas de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
+
+## Relación de Torque y Velocidad 
+
+En el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de puesto de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a V-Titan?
+
+La fórmula general para calcular el torque necesario es:
+
+$$T = \frac{m \cdot (a + g \cdot (\mu \cos\theta + \sin\theta)) \cdot r}{N}$$
+
+Donde: 
+
+"m" es la masa del vehículo (en kg)
+
+"r" es el radio de la rueda (en metros, cuyo radio en V-Titan miden 0.035 metros)
+
+"a" es la aceleración deseada (para la cual optamos por $1 \text{ m/s}^2$ por preferencia de control en pista)
+
+"g" es la gravedad ($2.94 \text{ m/s}^2$)
+
+"$\mu$" representa el cociente de fricción (para el cual estimamos a 0.3 para unas ruedas de ASA en una lona de PVC flexible)
+
+"$\theta$" representa el ángulo de inclinación (para el cual $\theta = 0^\circ$ en esta competición)
+
+"N" es el número de motores en tracción (en V-Titan solo hay uno)
+
+Al efectuar toda la operación obtenemos como resultado que se necesita un torque de 0.207Nm.
+
+Así que, es claramente evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de manera mecánica, la forma en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
+
+<p align="center">
+	<img src="/docs/assets/images/misc/relacion-de-engranajes.jpg" alt="Relación de Engranajes" 
+width="350">
+	<br>
+	<i>Relación de Engranajes</i>
+</p>
+
+El torque fin al será igual a la multiplicación del torque inicial por la misma relación de engranajes, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se multiplican todas:
+
+El motor cuenta con un eje de 33 dientes, el cual va a una correa de 33 dientes para cada eje, por lo que la relación sería: 33 / 50 = 0.66
+
+Este eje tiene en el centro unos pernos de transmisión de LEGO los cuales a su vez, tienen un engranaje cónico de 10 dientes, que transmiten a un engranaje de 15 dientes, por ende su relación de transmisión será: 15 / 10 = 1.5
+
+Este engranaje de 15 dientes a su vez, conduce a un engranaje de 20 dientes, por ende su relación de transmisión es: 20 / 15 = 1.33
+
+Este engranaje de 20 dientes conduce otro engranaje de 20 dientes, por ende su relación de transmisión será: 20 / 20 = 1
+
+Finalmente este engranaje de 20 dientes, conduce a la rueda dentada la cual cuenta con 50 dientes, por ende su relación de transmisión es: 50 / 20 = 2.5
+
+Ahora la relación de transmisión total será:
+
+$R_{total}$ = 0.66 * 1.5 * 1.33 * 1 * 2.5 = 3.29
+
+Por ende el Torque de bloqueo final será:
+
+$T_{final}$ = $T$ * $R_{total}$ = 0.105Nm * 3.29 = 0.345Nm
+
+Un éstandar en los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, 0.345Nm * 0.5 < 0.207Nm, por ende, esta relación de engranajes no es suficiente por sí sola para cumplir con este estándar, sin embargo, los motores DC están diseñados para soportar picos de 60% por unos breves segundos sin ningún riesgo.
 
 # Arquitectura de software y estrategia para superar obstáculos
 
