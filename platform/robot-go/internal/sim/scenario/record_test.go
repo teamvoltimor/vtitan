@@ -11,7 +11,6 @@ import (
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
-	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
 )
@@ -175,7 +174,10 @@ func TestSimRecorder_WritesBothSubjectsOnASimClock(t *testing.T) {
 		); err != nil {
 			t.Fatalf("writing scan: %v", err)
 		}
-		if err := rec.run.WriteMessage(navv1.NavigatorDebugSubject, &navv1.NavigatorDebug{}, logTime); err != nil {
+		if err := rec.run.WriteROS2(
+			navDebugTopic, recording.StringType, recording.StringSchema,
+			recording.EncodeString(`{"phase":"normal_drive"}`), logTime,
+		); err != nil {
 			t.Fatalf("writing nav debug: %v", err)
 		}
 		rec.simClockNanos += uint64(dt * nanosPerSecond)
@@ -209,12 +211,12 @@ func TestSimRecorder_WritesBothSubjectsOnASimClock(t *testing.T) {
 	for _, ch := range info.Channels {
 		topics[ch.Topic] = ch.MessageEncoding
 	}
-	// /scan is ROS2 CDR because that is what Foxglove renders natively and
-	// what the diag_bag_*.py suite reads; nav debug stays protobuf because
-	// no ROS message describes it.
+	// EVERY topic is ROS2 CDR. rosbag2 refuses to open a bag whose topics
+	// do not share one serialization format, so a single protobuf channel
+	// would make the whole bag unreadable by the Python diag suite.
 	for topic, wantEncoding := range map[string]string{
-		scanTopic:                   recording.ROS2MessageEncoding,
-		navv1.NavigatorDebugSubject: "protobuf",
+		scanTopic:     recording.ROS2MessageEncoding,
+		navDebugTopic: recording.ROS2MessageEncoding,
 	} {
 		encoding, ok := topics[topic]
 		if !ok {

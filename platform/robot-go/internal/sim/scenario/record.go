@@ -14,7 +14,6 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
-	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
 )
 
@@ -32,6 +31,7 @@ const (
 	tfTopic         = "/tf"
 	ackermannTopic  = "/ackermann_cmd"
 	planTopic       = "/plan"
+	navDebugTopic   = "/nav_debug"
 	driveSpeedTopic = "/motor/drive_speed"
 	steeringTopic   = "/motor/steering_position"
 )
@@ -280,10 +280,29 @@ func (r *simRecorder) tick(
 		r.lastPlan = slices.Clone(plan)
 	}
 
-	if err := r.run.WriteMessage(
-		navv1.NavigatorDebugSubject, debug.ToProto(), logTime,
+	// /nav_debug is the std_msgs/String JSON the Python navigator publishes,
+	// and carrying it is what lets the existing diag_bag_*.py suite -- corner
+	// overshoot, escape, steer headroom, direction gates, a dozen more -- run
+	// against a SIMULATED run unmodified.
+	//
+	// The snapshot used to ALSO go out as protobuf on its NATS subject, which
+	// is the Go stack's own representation. That is gone, and not for tidiness:
+	// rosbag2 refuses to open a bag whose topics do not share one serialization
+	// format ("Topics with different rmw serialization format have been
+	// found"), so the single protobuf channel made the bag unreadable by every
+	// Python script -- the exact tooling this topic exists to unlock. Foxglove
+	// tolerates the mix; rosbag2 does not, and rosbag2 is the stricter
+	// consumer. Nothing reads the protobuf channel today, and a Go consumer
+	// can parse the JSON.
+	wire, err := debug.MarshalWireJSON()
+	if err != nil {
+		return fmt.Errorf("sim recorder: encoding nav debug JSON: %w", err)
+	}
+	if err := r.run.WriteROS2(
+		navDebugTopic, recording.StringType, recording.StringSchema,
+		recording.EncodeString(string(wire)), logTime,
 	); err != nil {
-		return fmt.Errorf("sim recorder: writing nav debug: %w", err)
+		return fmt.Errorf("sim recorder: writing nav debug JSON: %w", err)
 	}
 	r.simClockNanos += uint64(dt * nanosPerSecond)
 	return nil

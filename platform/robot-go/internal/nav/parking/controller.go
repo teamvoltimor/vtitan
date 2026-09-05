@@ -342,3 +342,19 @@ func ParkControllerFromMetadata(
 	}
 	return NewParkController(*lot, section, direction, cfg, 0, 0)
 }
+
+// String returns the phase's wire name, matching
+// shared.domain.enums.ParkPhase's values. Crosses a language boundary via
+// NavigatorDebugSnapshot.park_phase, so the spelling is a contract.
+func (p Phase) String() string {
+	switch p {
+	case PhaseStage:
+		return "stage"
+	case PhaseEnter:
+		return "enter"
+	case PhaseDone:
+		return "done"
+	default:
+		return "unknown"
+	}
+}

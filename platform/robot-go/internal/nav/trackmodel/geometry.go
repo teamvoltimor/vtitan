@@ -85,3 +85,22 @@ func CorridorGeometryFromWidths(widths map[Section]float64, maxCoord float64) Co
 		},
 	}
 }
+
+// String returns the section's wire name, matching
+// shared.domain.enums.Section's values. Used wherever a section crosses a
+// language boundary -- scenario metadata, the /nav_debug JSON snapshot --
+// so the spelling is a contract, not a log label.
+func (s Section) String() string {
+	switch s {
+	case North:
+		return "north"
+	case South:
+		return "south"
+	case East:
+		return "east"
+	case West:
+		return "west"
+	default:
+		return "unknown"
+	}
+}

@@ -447,3 +447,18 @@ func EncodePath(path PathCDR) []byte {
 	}
 	return w.buf
 }
+
+// StringType/StringSchema describe std_msgs/msg/String, the envelope the
+// Python stack publishes its JSON telemetry inside (/nav_debug,
+// /race_metrics, /robot_state).
+const (
+	StringType   = "std_msgs/msg/String"
+	StringSchema = "string data\n"
+)
+
+// EncodeString serializes a std_msgs/msg/String.
+func EncodeString(s string) []byte {
+	w := newCDRWriter()
+	w.writeString(s)
+	return w.buf
+}
