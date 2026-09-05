@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CompetitionSpecs
-from shared.domain.enums import ScenarioType
+from shared.domain.enums import ScenarioType, Section
 
 from src.simulation.track_model import ContactSurface
 
@@ -96,6 +96,24 @@ class SimResult:
     round-end condition (the wrong-side pass), so escapes and U-turns could
     reverse arbitrarily far and still be graded clean.
     """
+
+    reverse_run_origin_step: int | None = None
+    """Step at which the CURRENT opposite-travel episode began, or ``None``.
+
+    Rule 9.21's allowance is measured from where the chassis started driving
+    against the round, so this is the step the offence STARTS on; the step it
+    ends on is ``steps``, because the violation breaks the run loop. Cleared
+    whenever the chassis travels in the round direction again, so on a clean run
+    it reports the last unfinished episode rather than the whole history.
+
+    Exists to pair the offence against per-tick events a diagnostic collects
+    separately (U-turns, escape phases): a per-RUN flag can only show that two
+    things co-occurred, never that one preceded the other.
+    """
+
+    reverse_run_origin_section: Section | None = None
+    """Section the chassis was in when that episode began -- the origin rule 9.21
+    measures the two-section allowance from."""
 
     pass_side_violation_signs: list[int] = field(default_factory=list)
     """Indices (into the scenario's ``sign_positions``) passed on the wrong side."""

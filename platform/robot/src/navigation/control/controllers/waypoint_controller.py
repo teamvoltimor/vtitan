@@ -59,6 +59,7 @@ class WaypointController:
         waypoint_reached_distance_m: float,
         corner_turn_threshold_rad: float,
         lookahead_blend_start: float = 1.0,
+        yaw_gain_compensation: float = 1.0,
     ):
         """Initialize pure pursuit controller.
 
@@ -80,8 +81,15 @@ class WaypointController:
                 lookahead starts sliding from long toward short. 1.0 (the
                 default) reproduces the original hard switch exactly, so a
                 caller that does not pass it is unaffected.
+            yaw_gain_compensation: Fraction of the geometrically predicted yaw
+                the chassis actually delivers, divided out of the pure-pursuit
+                demand. 1.0 (the default) is the uncompensated bicycle-model
+                answer and is bit-identical to not applying it at all. Resolved
+                per challenge by :meth:`from_tuning` -- see
+                ``PurePursuitParams.OBSTACLES_YAW_GAIN_COMPENSATION``.
         """
         self.max_steering_angle = max_steering_angle
+        self.yaw_gain_compensation = yaw_gain_compensation
         self.lookahead_short = lookahead_short
         self.lookahead_long = lookahead_long
         self.lookahead_transition = lookahead_transition
@@ -107,16 +115,19 @@ class WaypointController:
         Args:
             tuning: NavigationTuning instance (usually from load_default).
             for_open: Resolve the Open Challenge's pursuit overrides
-                (``OPEN_LOOKAHEAD_LONG``). Defaults False so every existing
-                caller -- the bag replay scripts, and Obstacles -- keeps the
-                base values byte-identical. ``for_open_challenge()`` is itself
-                the identity when no override is set, so this is a no-op until
-                one is configured.
+                (``OPEN_LOOKAHEAD_LONG``) rather than the Obstacles ones
+                (``OBSTACLES_YAW_GAIN_COMPENSATION``). Both resolvers are the
+                identity when their override is unset, so a challenge with no
+                override configured stays byte-identical either way. Defaults
+                False, which now means "resolve Obstacles". The bag replay
+                scripts take that default, but they exercise
+                ``select_target_point``, which reads no compensated value, so
+                the change does not reach them.
 
         Returns:
             WaypointController with values from tuning.
         """
-        pursuit = tuning.pursuit.for_open_challenge() if for_open else tuning.pursuit
+        pursuit = tuning.pursuit.for_open_challenge() if for_open else tuning.pursuit.for_obstacles_challenge()
         return cls(
             max_steering_angle=RobotSpecs.MAX_STEERING_ANGLE,
             lookahead_short=pursuit.LOOKAHEAD_SHORT,
@@ -127,6 +138,7 @@ class WaypointController:
             waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
             corner_turn_threshold_rad=pursuit.CORNER_TURN_THRESHOLD_RAD,
             lookahead_blend_start=pursuit.LOOKAHEAD_BLEND_START,
+            yaw_gain_compensation=pursuit.YAW_GAIN_COMPENSATION,
         )
 
     def select_lookahead(
@@ -423,7 +435,11 @@ class WaypointController:
 
         if x_local > 0:
             steering_normalized_raw = pure_pursuit_steer(
-                x_local, y_local, self.waypoint_reached_distance_m, self.max_steering_angle
+                x_local,
+                y_local,
+                self.waypoint_reached_distance_m,
+                self.max_steering_angle,
+                self.yaw_gain_compensation,
             )
         else:
             # Target behind the robot: the curvature formula is only valid for a

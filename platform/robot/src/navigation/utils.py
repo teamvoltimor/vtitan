@@ -257,7 +257,11 @@ def _wedge_median(
 
 
 def pure_pursuit_steer(
-    x_local: float, y_local: float, min_lookahead_dist: float, max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE
+    x_local: float,
+    y_local: float,
+    min_lookahead_dist: float,
+    max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE,
+    yaw_gain_compensation: float = 1.0,
 ) -> float:
     """Curvature-based pure pursuit steering toward a local-frame target (normalised [-1, 1]).
 
@@ -285,6 +289,18 @@ def pure_pursuit_steer(
         y_local: Leftward distance to the target (metres).
         min_lookahead_dist: Floor on the effective lookahead distance, avoiding a
             near-zero-distance curvature blow-up when the target is very close.
+        yaw_gain_compensation: Fraction of the geometrically predicted yaw the
+            chassis actually delivers, in (0, 1]. The formula above is a pure
+            bicycle model, so it assumes the plant turns exactly as predicted;
+            ``RobotSpecs.YAW_GAIN`` says it delivers 0.55 of that, which makes
+            every demanded curvature come out ~1.8x too wide. Dividing by this
+            asks for the angle that yields the curvature actually wanted.
+            Defaults to 1.0 -- the uncompensated geometric answer -- so this is
+            inert until a caller opts in.
+
+            ``bay_exit`` already multiplies by ``YAW_GAIN`` in its dead
+            reckoning and ``corridor_follower`` sizes its corner arc with it;
+            pure pursuit was the one consumer ignoring it.
         max_steering_angle: Steering limit to clamp against and normalise by.
             Defaults to the physical robot spec, but ``WaypointController``
             allows a per-instance override (used by its tests), which must be
@@ -293,6 +309,9 @@ def pure_pursuit_steer(
     """
     lookahead = max(math.hypot(x_local, y_local), min_lookahead_dist)
     curvature = 2.0 * y_local / (lookahead**2)
-    steer_angle = math.atan(curvature * RobotSpecs.WHEELBASE / 2.0)
+    # Divide by the fraction of predicted yaw the plant actually delivers, so the
+    # angle asked for is the one that produces THIS curvature rather than the one
+    # a perfect bicycle would need. 1.0 leaves the geometric answer untouched.
+    steer_angle = math.atan(curvature * RobotSpecs.WHEELBASE / 2.0 / yaw_gain_compensation)
     steer_angle = max(-max_steering_angle, min(max_steering_angle, steer_angle))
     return steer_angle / max_steering_angle

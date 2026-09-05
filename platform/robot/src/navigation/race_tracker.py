@@ -65,6 +65,35 @@ class LapDetector:
         self._prev_dot: float | None = None
         self._waypoint_pending: bool = False
 
+    def approaching_finish(
+        self,
+        robot_pos: Waypoint,
+        current_section: Section,
+        within_m: float,
+    ) -> bool:
+        """Is the robot inside ``within_m`` of the finish line, still short of it?
+
+        Lives here because this class already owns where the finish line is and
+        which way the round is driven; a caller reconstructing that from the
+        origin and the travel normal would be a second copy of the geometry,
+        free to drift from the one that counts laps.
+
+        The section test is NOT redundant with the distance test. ``dot`` is a
+        projection onto a single travel normal, so the opposite straight
+        projects onto the same window: for SOUTH/CCW the normal is +x and
+        ``dot = x - 1.5``, which sweeps the same -0.5..+0.5 range while the
+        robot drives the NORTH straight. Distance alone would slow the robot on
+        the far side of the track, one straight early, every lap.
+
+        Returns True only while the robot is short of the line (``dot < 0``),
+        so this stops applying the moment the crossing is registered.
+        """
+        if current_section is not self._start_section:
+            return False
+        nx, ny = self._normal.nx, self._normal.ny
+        dot = (robot_pos.x - self._origin.x) * nx + (robot_pos.y - self._origin.y) * ny
+        return -within_m <= dot < 0.0
+
     def notify_waypoint_wrapped(self) -> None:
         """Call this when the waypoint sequence index wraps to 0."""
         self._waypoint_pending = True

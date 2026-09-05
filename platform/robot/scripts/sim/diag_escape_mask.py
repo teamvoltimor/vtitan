@@ -136,6 +136,17 @@ class _Census:
     """Between ``contact_dist`` and ``slow_dist``: no escape, but the speed
     ladder caps the tick to slow. This is the clock cost of the same shift."""
 
+    would_slow_body_frame: int
+    """OBSTACLE ticks that would still be speed-capped in the body-centred frame.
+
+    The counterfactual that matters once ``crit_ticks`` turns out to be zero.
+    The escape gate never fires, but the SLOW band does -- 27% of ticks in a
+    winning run and 50% in a failing one -- and it is read in the same shifted
+    frame: a 0.25 m threshold on readings that start ~12.2 cm further forward
+    caps the speed at what was ~0.37 m body-centred. If this is much smaller
+    than ``obstacle_ticks``, most of the clock cost is frame, not geometry.
+    """
+
     would_fire_body_frame: int
     """Ticks that would still be CRITICAL if the gate were read in the OLD
     body-centred frame, i.e. ``min_range - LIDAR_MOUNT_X_OFFSET < contact``.
@@ -189,7 +200,13 @@ def census(args: tuple[int, str | None]) -> _Census:
     sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
     nav = sim._navigator  # noqa: SLF001 - a probe, by design
     tuning = NavigationTuning.load_default()
-    contact, slow = tuning.clearance.CONTACT_DIST, tuning.clearance.SLOW_DIST
+    # RESOLVED for Obstacles, not the base field. OBSTACLES_CONTACT_DIST ships
+    # 0.05 over a base of 0.10, and CoreNavigator resolves it, so reading the
+    # base recomputes every gate column at TWICE the threshold these runs
+    # actually used -- the shadowing failure OBSTACLES_CONTACT_DIST has caused
+    # twice before, and it reads as a real result rather than as an error.
+    clearance = tuning.clearance.for_obstacles_challenge()
+    contact, slow = clearance.CONTACT_DIST, clearance.SLOW_DIST
     offset = RobotSpecs.LIDAR_MOUNT_X_OFFSET
 
     controller = nav._collision_controller  # noqa: SLF001
@@ -198,7 +215,7 @@ def census(args: tuple[int, str | None]) -> _Census:
     pending: list[float] = []
     starts: list[int] = []
     ticks = 0
-    crit = obstacle = body_frame = 0
+    crit = obstacle = body_frame = slow_body_frame = 0
     early_crit = early_obstacle = 0
     mins: list[float] = []
 
@@ -215,7 +232,7 @@ def census(args: tuple[int, str | None]) -> _Census:
     nav._begin_maneuver = begin  # type: ignore[method-assign]  # noqa: SLF001
 
     def on_step(_state: Any, _scan: Any) -> None:
-        nonlocal ticks, crit, obstacle, body_frame, early_crit, early_obstacle
+        nonlocal ticks, crit, obstacle, body_frame, slow_body_frame, early_crit, early_obstacle
         ticks += 1
         # The MASKED scan is the escape gate (`step` assesses raw first, then
         # masked). Reading the raw one here would count threats the navigator
@@ -233,6 +250,8 @@ def census(args: tuple[int, str | None]) -> _Census:
             # only if THAT was inside contact range.
             if masked + offset < contact:
                 body_frame += 1
+            elif masked + offset < slow:
+                slow_body_frame += 1
             if ticks <= _EARLY_WINDOW_TICKS:
                 if masked < contact:
                     early_crit += 1
@@ -262,6 +281,7 @@ def census(args: tuple[int, str | None]) -> _Census:
         escape_episodes=episodes,
         crit_ticks=crit,
         obstacle_ticks=obstacle,
+        would_slow_body_frame=slow_body_frame,
         would_fire_body_frame=body_frame,
         min_range_p10=percentile(mins, 0.1) if mins else 0.0,
         min_range_p50=percentile(mins, 0.5) if mins else 0.0,
@@ -288,9 +308,10 @@ def report_census(workers: int, scenarios_dir: str | None) -> None:
         rows = list(pool.map(census, [(i, scenarios_dir) for i in range(count)]))
 
     tuning = NavigationTuning.load_default()
+    clearance = tuning.clearance.for_obstacles_challenge()
     print(
-        f"GATE contact_dist={tuning.clearance.CONTACT_DIST:.2f}m  "
-        f"slow_dist={tuning.clearance.SLOW_DIST:.2f}m  "
+        f"GATE contact_dist={clearance.CONTACT_DIST:.2f}m  "
+        f"slow_dist={clearance.SLOW_DIST:.2f}m  "
         f"lidar mount offset={RobotSpecs.LIDAR_MOUNT_X_OFFSET:.4f}m  n={len(rows)}",
         flush=True,
     )
@@ -345,6 +366,16 @@ def report_census(workers: int, scenarios_dir: str | None) -> None:
 
     fired = sum(r.crit_ticks for r in rows)
     body = sum(r.would_fire_body_frame for r in rows)
+    slowed = sum(r.obstacle_ticks for r in rows)
+    slow_body = sum(r.would_slow_body_frame for r in rows)
+    print(
+        f"FRAME  SLOW ticks now {slowed}  "
+        f"of which would ALSO cap body-centred {slow_body} "
+        f"({slow_body / slowed * 100 if slowed else 0.0:.1f}%)  "
+        f"-> {slowed - slow_body} are capped only because forward readings moved "
+        f"{RobotSpecs.LIDAR_MOUNT_X_OFFSET * 100:.1f}cm closer",
+        flush=True,
+    )
     print(
         f"FRAME  CRITICAL ticks now {fired}  "
         f"of which would ALSO fire body-centred {body} ({body / fired * 100 if fired else 0.0:.1f}%)  "

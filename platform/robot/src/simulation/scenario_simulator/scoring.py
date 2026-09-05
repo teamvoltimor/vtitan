@@ -74,6 +74,12 @@ class PassSideScorer:
     # Rule 9.21 state: where the chassis began travelling against the round.
     _opposite_origin: Section | None
     _reverse_run_violation: bool
+    # The step at which the CURRENT opposite-travel episode began, cleared
+    # whenever the chassis travels in the round direction again. Kept so a
+    # diagnostic can ask what happened just BEFORE the illegal run started;
+    # the step it ENDS on is already `SimResult.steps`, because the violation
+    # breaks the run loop.
+    _opposite_origin_step: int | None
 
     def _check_pass_side_violation(self, state: AckermannState) -> list[int] | None:
         """Return offending sign indices if the run must stop for a wrong-side pass.
@@ -175,7 +181,7 @@ class PassSideScorer:
             return Axis.X, (1 if heading.nx > 0 else -1), lateral_axis, permitted
         return Axis.Y, (1 if heading.ny > 0 else -1), lateral_axis, permitted
 
-    def _check_reverse_run_violation(self, state: AckermannState) -> bool:
+    def _check_reverse_run_violation(self, state: AckermannState, step: int) -> bool:
         """Has the vehicle driven opposite the round direction past its allowance?
 
         Rule 9.21: the vehicle may drive against the round direction "for two
@@ -221,9 +227,11 @@ class PassSideScorer:
             return self._reverse_run_violation
         if along >= 0.0:
             self._opposite_origin = None
+            self._opposite_origin_step = None
             return self._reverse_run_violation
         if self._opposite_origin is None:
             self._opposite_origin = section
+            self._opposite_origin_step = step
         allowed = {self._opposite_origin, _ring_step(self._opposite_origin, self._start.direction, -1)}
         # "Completely out" is a footprint test, like the pass-side radius: while
         # any corner is still in an allowed section the round stands.

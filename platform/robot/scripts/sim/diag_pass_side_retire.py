@@ -39,6 +39,7 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import logging
 import math
@@ -55,7 +56,7 @@ from scripts.common.provenance import environment
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from shared.config.constants import TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import Axis
+from shared.domain.enums import Axis, Direction
 from src.navigation.planning import sign_router as sign_router_module
 from src.navigation.planning.sign_lane import _axis_coords, _in_lane_span, _lane_span
 from src.navigation.planning.waypoints import corridor_for_position
@@ -135,11 +136,19 @@ class _BeliefSign:
     color: object
 
 
-def _side_of(sign: object, x: float, y: float) -> bool | None:
-    """Is ``(x, y)`` on the forbidden side of ``sign``? ``None`` if no rule applies."""
-    rule = sign_router_module.outward_lateral_axis(
+def _side_of(sign: object, x: float, y: float, direction: Direction | None) -> bool | None:
+    """Is ``(x, y)`` on the forbidden side of ``sign``? ``None`` if no rule applies.
+
+    ``direction`` is the round's TRUE travel direction, not the router's belief.
+    The pass-side rule is travel-relative, so a judge must evaluate it under the
+    direction actually driven -- scoring it under the direction the robot merely
+    believed is the shared-convention mistake that hid the routing bug for two
+    months. ``None`` direction means the rule cannot be evaluated, not "legal".
+    """
+    rule = sign_router_module.pass_side_lateral_axis(
         corridor_for_position(sign.x, sign.y),  # type: ignore[attr-defined]
         sign.color,  # type: ignore[attr-defined]
+        direction,
     )
     if rule is None:
         return None
@@ -151,7 +160,7 @@ def _side_of(sign: object, x: float, y: float) -> bool | None:
     return (1 if robot_lat > sign_lat else -1) != permitted
 
 
-def _signed_clearance(sign: object, x: float, y: float) -> float | None:
+def _signed_clearance(sign: object, x: float, y: float, direction: Direction | None) -> float | None:
     """Signed lateral clearance of ``(x, y)`` from ``sign``, + on the permitted side.
 
     The bucket label says only WHICH side the plan is on. The magnitude says what
@@ -160,9 +169,10 @@ def _signed_clearance(sign: object, x: float, y: float) -> float | None:
     sitting a full lane width onto the forbidden side (spec is +18.14/+27.86 cm)
     is a lane built on the wrong side to begin with.
     """
-    rule = sign_router_module.outward_lateral_axis(
+    rule = sign_router_module.pass_side_lateral_axis(
         corridor_for_position(sign.x, sign.y),  # type: ignore[attr-defined]
         sign.color,  # type: ignore[attr-defined]
+        direction,
     )
     if rule is None:
         return None
@@ -226,7 +236,11 @@ def _spec_depth_error(sim: object, believed_sign: object) -> tuple[float, float]
     if not specs:
         return None
     corridor = corridor_for_position(believed_sign.x, believed_sign.y)  # type: ignore[attr-defined]
-    rule = sign_router_module.outward_lateral_axis(corridor, believed_sign.color)  # type: ignore[attr-defined]
+    # The router's OWN believed direction, not the truth: these helpers measure
+    # whether the planner delivered the instruction it built, so they must read
+    # the rule under the direction it planned with. Judging helpers take the
+    # true direction instead -- see ``_side_of``.
+    rule = sign_router_module.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
     if rule is None:
         return None
     lateral_axis, _permitted = rule
@@ -267,7 +281,14 @@ def _plateau_stats(sim: object, believed_sign: object) -> tuple[int, int, bool, 
     from the nearest section boundary.
     """
     corridor = corridor_for_position(believed_sign.x, believed_sign.y)  # type: ignore[attr-defined]
-    rule = sign_router_module.outward_lateral_axis(corridor, believed_sign.color)  # type: ignore[attr-defined]
+    router = sim.navigator.sign_router  # type: ignore[attr-defined]
+    if router is None:
+        return None
+    # The router's OWN believed direction, not the truth: these helpers measure
+    # whether the planner delivered the instruction it built, so they must read
+    # the rule under the direction it planned with. Judging helpers take the
+    # true direction instead -- see ``_side_of``.
+    rule = sign_router_module.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
     if rule is None:
         return None
     lateral_axis, permitted = rule
@@ -318,7 +339,14 @@ def _shift_reference_error(sim: object, believed_sign: object) -> tuple[float, f
     is what distinguishes a confirmed identity from an assumed one.
     """
     corridor = corridor_for_position(believed_sign.x, believed_sign.y)  # type: ignore[attr-defined]
-    rule = sign_router_module.outward_lateral_axis(corridor, believed_sign.color)  # type: ignore[attr-defined]
+    router = sim.navigator.sign_router  # type: ignore[attr-defined]
+    if router is None:
+        return None
+    # The router's OWN believed direction, not the truth: these helpers measure
+    # whether the planner delivered the instruction it built, so they must read
+    # the rule under the direction it planned with. Judging helpers take the
+    # true direction instead -- see ``_side_of``.
+    rule = sign_router_module.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
     if rule is None:
         return None
     lateral_axis, permitted = rule
@@ -385,7 +413,7 @@ def _spec_frame_clearance(sim: object) -> list[tuple]:
         distance = math.hypot(spec.x - pose.x, spec.y - pose.y)
         if distance > _PASSED_NEAR_M:
             continue
-        rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+        rule = sign_router_module.pass_side_lateral_axis(corridor, spec.color, router.direction)
         if rule is None:
             continue
         lateral_axis, permitted = rule
@@ -515,7 +543,8 @@ def _lane_shape(sim: object, believed_sign: object) -> str:
 
 
 def _attribute(
-    sim: object, sign: object, chassis_wrong: bool, true_pose: tuple[float, float, float]
+    sim: object, sign: object, chassis_wrong: bool, true_pose: tuple[float, float, float],
+    direction: Direction | None,
 ) -> tuple[str, float | None, float | None, str | None, tuple | None, tuple | None, tuple | None]:
     """Bucket one true violation: whose mistake was it?
 
@@ -535,16 +564,16 @@ def _attribute(
     plan_point = _nearest_on_path(sim.navigator._waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
     if plan_point is None:
         return "no-plan", None, None, None, None, None, None
-    plan_wrong = _side_of(believed_sign, *plan_point)
+    plan_wrong = _side_of(believed_sign, *plan_point, direction)
     if plan_wrong is None:
         return "no-rule", None, None, None, None, None, None
-    plan_clearance = _signed_clearance(believed_sign, *plan_point)
+    plan_clearance = _signed_clearance(believed_sign, *plan_point, direction)
     # How much of the lane's specified offset actually reaches the pass. The
     # base path is the same polyline before apply_sign_lanes moved it sideways,
     # so the difference is the delivered offset -- against a spec of 0.2786 m at
     # the shipped SIGN_LANE_OFFSET_FRAC.
     base_point = _nearest_on_path(sim.navigator._lane_base_waypoints, believed_sign)  # type: ignore[attr-defined]  # noqa: SLF001
-    base_clearance = None if base_point is None else _signed_clearance(believed_sign, *base_point)
+    base_clearance = None if base_point is None else _signed_clearance(believed_sign, *base_point, direction)
     delivered = None if base_clearance is None or plan_clearance is None else plan_clearance - base_clearance
     lane_shape = _lane_shape(sim, believed_sign)
     depth_error = _spec_depth_error(sim, believed_sign)
@@ -594,7 +623,7 @@ SIGN_LANE_OFFSET_FRAC`` with ``SIGN_LANE_PLANNER`` True -- restated here only as
 the denominator of the delivery ratio."""
 
 
-def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float) -> bool:
+def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float, direction: Direction | None) -> bool:
     """Would nudging the sign's corridor label change the wrong-side VERDICT?
 
     Label instability on its own means nothing: 94.9% of corpus signs sit
@@ -611,9 +640,10 @@ def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float) -> bool:
     """
     verdicts = set()
     for dx, dy in ((0.0, 0.0), (_CORRIDOR_PROBE_M, 0.0), (-_CORRIDOR_PROBE_M, 0.0), (0.0, _CORRIDOR_PROBE_M), (0.0, -_CORRIDOR_PROBE_M)):
-        rule = sign_router_module.outward_lateral_axis(
+        rule = sign_router_module.pass_side_lateral_axis(
             corridor_for_position(sign.x + dx, sign.y + dy),  # type: ignore[attr-defined]
             sign.color,  # type: ignore[attr-defined]
+            direction,
         )
         if rule is None:
             continue
@@ -655,7 +685,9 @@ def _truth_violations(
         near_x, near_y = trail[near_i]
         if math.hypot(sign.x - near_x, sign.y - near_y) > _PASSED_NEAR_M:
             continue
-        rule = sign_router_module.outward_lateral_axis(corridor_for_position(sign.x, sign.y), sign.color)
+        rule = sign_router_module.pass_side_lateral_axis(
+            corridor_for_position(sign.x, sign.y), sign.color, metadata.starting_conditions.direction
+        )
         if rule is None:
             continue
         axis, permitted = rule
@@ -674,7 +706,7 @@ def _truth_violations(
                     str(sign.color),
                     str(corridor_for_position(sign.x, sign.y)),
                     abs(robot_lat - sign_lat),
-                    _verdict_is_ambiguous(sign, near_x, near_y),
+                    _verdict_is_ambiguous(sign, near_x, near_y, metadata.starting_conditions.direction),
                     phases[near_i] if near_i < len(phases) else "unknown",
                 )
             )
@@ -737,7 +769,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     are ``"<router>/<truth>"`` over ``ok``/``wrong``, plus ``retreat`` and
     ``pass`` for the along-track split.
     """
-    path_str, no_terminate, known_start = args_tuple
+    path_str, no_terminate, known_start, yaw_gain_comp = args_tuple
     logging.disable(logging.CRITICAL)
     if no_terminate:
         _disable_termination()
@@ -748,7 +780,25 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     trail: list[tuple[float, float]] = []
     phases: list[str] = []
     metadata = ScenarioMetadata.model_validate(json.loads(Path(path_str).read_text()))
-    sim = ScenarioSimulator(metadata, num_laps=3, seed=0, blind=True, known_start=known_start)
+    # The round's TRUE direction. Every wrong-side verdict below is scored against
+    # this, never against the router's belief -- the scorer must not share its
+    # convention with the thing it scores.
+    true_direction = metadata.starting_conditions.direction
+    tuning = None
+    if yaw_gain_comp is not None:
+        # Compensate the plant's under-turn in the pure-pursuit demand. 40 of 46
+        # violations are plan-ok/chassis-wrong, so the chassis missing a correct
+        # plan is what this arm is aimed at; see PurePursuitParams.
+        # model_copy, not assignment: the params models are frozen. Copying the
+        # ONE field keeps the rest of the shipped tree intact -- unlike --tuning,
+        # which replaces the tree with Pydantic defaults.
+        base = NavigationTuning.load_default()
+        tuning = dataclasses.replace(
+            base, pursuit=base.pursuit.model_copy(update={"YAW_GAIN_COMPENSATION": yaw_gain_comp})
+        )
+    sim = ScenarioSimulator(
+        metadata, num_laps=3, seed=0, blind=True, known_start=known_start, tuning=tuning
+    )
 
     signs = sign_router_module.signs_from_metadata(metadata)
     # Per sign: the closest approach seen so far, and what the navigator was
@@ -791,18 +841,32 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
                 continue
             believed = sim.gateway.get_current_pose()
             pose_error = math.inf if believed is None else math.hypot(believed.x - state.x, believed.y - state.y)
-            chassis_wrong = bool(_side_of(sign, state.x, state.y))
+            chassis_wrong = bool(_side_of(sign, state.x, state.y, true_direction))
             bucket, plan_clearance, delivered, lane_shape, depth_error, plateau, shift_ref = _attribute(
-                sim, sign, chassis_wrong, (state.x, state.y, state.yaw)
+                sim, sign, chassis_wrong, (state.x, state.y, state.yaw), true_direction
             )
             best[index] = (
                 distance, bucket, pose_error, plan_clearance, delivered, lane_shape, depth_error,
                 plateau, shift_ref,
             )
 
-    sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
+    run_result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
+
 
     counts: Counter[str] = Counter()
+    # How the run ENDED, not just how its passes scored. --no-terminate
+    # suppresses only the pass-side stop, so rule 9.21 and a terminal contact
+    # still cut a run short: an arm that lowered the wrong-side rate by ending
+    # its runs sooner would otherwise read as an improvement. Counted per run,
+    # in the same Counter, so every arm reports it without a signature change.
+    counts["term:runs"] += 1
+    if run_result.collided:
+        counts["term:collision"] += 1
+    if run_result.reverse_run_violation:
+        counts["term:rev-run"] += 1
+    if run_result.over_time:
+        counts["term:over-time"] += 1
+    counts["term:laps"] += run_result.laps_completed
     alongs: list[float] = []
     for along, violation, _tx, _ty, _colour in records:
         alongs.append(along)
@@ -832,7 +896,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
         plateau, shift_ref,
     ) in best.items():
         near_x, near_y = min(trail, key=lambda p: math.hypot(signs[index].x - p[0], signs[index].y - p[1]))
-        violated = bool(_side_of(signs[index], near_x, near_y))
+        violated = bool(_side_of(signs[index], near_x, near_y, true_direction))
         # Delivery is recorded for CLEAN passes too. Attribution runs only on
         # violations, so measuring delivery there alone asks whether the runs
         # that went wrong had a weak lane -- which is the circularity that kept
@@ -881,6 +945,11 @@ def _report_retirement_summary(
         print(f"    median {statistics.median(alongs):+.2f} m")
     print(f"  ROUTER (believed frame, discovered colour): {counts['router_wrong']:>4} wrong-side of {total} retirements")
     print(f"  TRUTH  (true layout, true trajectory):      {counts['truth_wrong']:>4} wrong-side of {counts['truth_passed']} signs actually passed")
+    runs = counts["term:runs"]
+    print(
+        f"  TERMINAL: rule 9.21 {counts['term:rev-run']:>3}/{runs}   collision {counts['term:collision']:>3}/{runs}   "
+        f"over-time {counts['term:over-time']:>3}/{runs}   laps {counts['term:laps']}/{3 * runs}"
+    )
     print("  per-run:")
     print(f"    runs the router ended on pass-side  {counts['run_ended_by_router']:>4}/{len(paths)}")
     print(f"    runs with a REAL wrong-side pass    {counts['run_truly_violated']:>4}/{len(paths)}")
@@ -1153,6 +1222,12 @@ def main() -> None:
     """Aggregate retirement geometry across a scenario directory."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenarios-dir", required=True)
+    parser.add_argument(
+        "--yaw-gain-compensation",
+        type=float,
+        default=None,
+        help="Override pursuit.YAW_GAIN_COMPENSATION (0.55 = full understeer compensation).",
+    )
     parser.add_argument("--limit", type=int, default=64)
     parser.add_argument("--workers", type=int, default=14)
     parser.add_argument(
@@ -1169,7 +1244,12 @@ def main() -> None:
 
     paths = sorted(Path(args.scenarios_dir).glob("*_metadata.json"))[: args.limit]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        results = list(pool.map(_run_one, [(str(p), args.no_terminate, args.known_start) for p in paths]))
+        results = list(
+            pool.map(
+                _run_one,
+                [(str(p), args.no_terminate, args.known_start, args.yaw_gain_compensation) for p in paths],
+            )
+        )
 
     counts: Counter[str] = Counter()
     for result in results:

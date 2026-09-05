@@ -29,7 +29,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs
 
-from scripts.common.diag_base import add_sweep_args, add_tuning_arg, load_tuning, resolve_jobs, run_pool, select_cases
+from scripts.common.diag_base import (
+    add_sweep_args,
+    add_tuning_arg,
+    add_yaw_gain_compensation_arg,
+    load_tuning,
+    resolve_jobs,
+    run_pool,
+    select_cases,
+)
 from scripts.common.open_cases import SIDES, case_space
 from scripts.common.tables import print_table
 from scripts.sim.diag_open_exhaustive import _summarise, _verdict
@@ -56,7 +64,7 @@ class _CaseResult:
     label: str
 
 
-def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None]) -> _CaseResult:
+def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None, float | None]) -> _CaseResult:
     """Run one scenario. Module-level and primitive-valued, so it can be pickled.
 
     Mirrors diag_open_exhaustive's loop body exactly, including seeding the
@@ -67,12 +75,12 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
     """
     from shared.domain.enums import Direction, Section
 
-    index, widths, section_value, direction_value, cell, laps, tuning_path = payload
+    index, widths, section_value, direction_value, cell, laps, tuning_path, yaw_gain_comp = payload
     section = Section(section_value)
     direction = Direction(direction_value)
     widths_mm = dict(zip(SIDES, widths, strict=True))
     meta = build_open_metadata(widths_mm, section, direction, scenario_id=index, start_cell=cell)
-    tuning = load_tuning(tuning_path)
+    tuning = load_tuning(tuning_path, yaw_gain_comp)
     result = ScenarioSimulator(meta, num_laps=laps, tuning=tuning, seed=index, blind=True).run()
     return _CaseResult(
         index=index,
@@ -111,10 +119,11 @@ def main() -> None:
         jobs=True,
     )
     add_tuning_arg(parser)
+    add_yaw_gain_compensation_arg(parser)
     args = parser.parse_args()
 
     # Fail on a bad --tuning here, before spending a sweep on it.
-    load_tuning(args.tuning)
+    load_tuning(args.tuning, args.yaw_gain_compensation)
 
     population = case_space()
     cases = select_cases(population, sample=args.sample, seed=args.seed, all_=args.all, case=args.case)
@@ -123,7 +132,7 @@ def main() -> None:
     print(f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers\n", flush=True)
 
     payloads = [
-        (i, widths, section.value, direction.value, cell, args.laps, args.tuning)
+        (i, widths, section.value, direction.value, cell, args.laps, args.tuning, args.yaw_gain_compensation)
         for i, (widths, section, direction, cell) in cases
     ]
 

@@ -1164,6 +1164,31 @@ class CoreNavigator(EscapeRecovery):
         if risk != RiskLevel.SAFE:
             speed = min(speed, self._speed.slow_mps())
 
+        # Come to rest INSIDE the finish section, which rule 1.3 pays 3 points
+        # for. The robot cannot brake; commanding zero starts an exponential
+        # decay with speed_response_tau_s = 0.35 s, so the resting place is set
+        # by the speed carried across the line, not by anything done after it.
+        # The line sits at the along-track centre of a 1 m straight, leaving
+        # 0.50 m: a 0.50 m/s Open ladder coasts ~0.175 m and fits, but the
+        # 2026-09-01 bags measured ~0.6 m of real drift, which does not.
+        #
+        # Applied only on the LAST lap and only while short of the line, so it
+        # costs nothing on laps 1..n-1 and stops applying the moment the
+        # crossing registers. The section test inside approaching_finish is what
+        # keeps the opposite straight -- which projects onto the same distance
+        # window -- from triggering it a straight early, every lap.
+        finish_approach_m = self._tuning.waypoints.FINISH_APPROACH_M
+        if (
+            finish_approach_m > 0.0
+            and self._lap_detector is not None
+            and self._current_corridor is not None
+            and self._laps_completed == self._num_laps - 1
+            and self._lap_detector.approaching_finish(
+                Waypoint(robot_x, robot_y), self._current_corridor, finish_approach_m
+            )
+        ):
+            speed = min(speed, self._speed.slow_mps())
+
         # Give the pursuit controller more time to close a sign-avoidance
         # offset. Neither clearance nor heading-error speed reacts to one:
         # a sign deformation biases the STEERING TARGET sideways without

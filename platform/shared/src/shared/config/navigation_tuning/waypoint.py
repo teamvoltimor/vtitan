@@ -18,6 +18,12 @@ class WaypointParams(BaseModel):
             assertion in ``calculate_waypoints``.
         DEDUPE_DISTANCE_M: Distance below which consecutive generated
             waypoints are treated as duplicates and merged.
+        FINISH_APPROACH_M: How far (m) short of the finish line the robot drops
+            to ``slow_mps`` on its LAST lap, so it comes to rest inside the
+            finish section. Scoring rule 1.3 pays 3 points for stopping in that
+            section and the section is only 1 m long, with the line at its
+            centre -- so the whole budget past the line is 0.50 m. Set to 0.0
+            to disable the approach entirely.
         WIDE_CENTER_BIAS_M: How far (m) to shift corridor centreline waypoints
             off centre, for corridors ABOVE NARROW_WIDTH_THRESHOLD_M.
             Magnitude only -- which side it shifts toward is
@@ -263,6 +269,7 @@ class WaypointParams(BaseModel):
     STRAIGHT_WAYPOINT_COUNT: int = Field(default=8, validation_alias=_alias("STRAIGHT_WAYPOINT_COUNT"))
     MAIN_LOOP_REACHED_DISTANCE_M: float = Field(default=0.20, validation_alias=_alias("MAIN_LOOP_REACHED_DISTANCE_M"))
     CONTROLLER_REACHED_DISTANCE_M: float = Field(default=0.01, validation_alias=_alias("CONTROLLER_REACHED_DISTANCE_M"))
+    FINISH_APPROACH_M: float = Field(default=0.40, validation_alias=_alias("FINISH_APPROACH_M"))
     REPLAN_HEADING_TIE_MARGIN_M: float = Field(default=0.15, validation_alias=_alias("REPLAN_HEADING_TIE_MARGIN_M"))
 
     CORNER_CAUTION_ALL_LAPS: bool = Field(default=False, validation_alias=_alias("CORNER_CAUTION_ALL_LAPS"))

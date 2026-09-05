@@ -34,7 +34,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs
 
-from scripts.common.diag_base import add_sweep_args, add_tuning_arg, load_tuning, select_cases
+from scripts.common.diag_base import (
+    add_sweep_args,
+    add_tuning_arg,
+    add_yaw_gain_compensation_arg,
+    load_tuning,
+    select_cases,
+)
 from scripts.common.open_cases import SIDES, case_space
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -44,9 +50,22 @@ _DEFAULT_SEED = 0
 
 
 def _verdict(result: Any) -> str:
-    """Why this run failed, or ``ok``. One label, most severe first."""
+    """Why this run failed, or ``ok``. One label, most severe first.
+
+    The round-enders come before ``incomplete``, because they CAUSE it: rule
+    9.21 stops the round where it fires, so the run necessarily finishes short
+    of its lap target. Testing laps first labels every one of them
+    ``incomplete``, which reads as "the robot could not get round" when what
+    happened is "the robot was legally stopped" -- a different failure with a
+    different fix. Measured 2026-09-05: all four failures of one Open sweep
+    were rule 9.21 terminations reported under the ``incomplete`` label.
+    """
     if result.collided:
         return "collision"
+    if result.reverse_run_violation:
+        return "rev-run"
+    if result.pass_side_violation:
+        return "pass-side"
     if result.laps_completed < result.target_laps:
         return "incomplete"
     if result.over_time:
@@ -73,9 +92,10 @@ def main() -> None:
         default_seed=_DEFAULT_SEED,
     )
     add_tuning_arg(parser)
+    add_yaw_gain_compensation_arg(parser)
     args = parser.parse_args()
 
-    tuning = load_tuning(args.tuning)
+    tuning = load_tuning(args.tuning, args.yaw_gain_compensation)
     population = case_space()
     cases = select_cases(population, sample=args.sample, seed=args.seed, all_=args.all, case=args.case)
 
