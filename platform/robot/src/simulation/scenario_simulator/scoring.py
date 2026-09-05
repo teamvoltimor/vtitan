@@ -132,6 +132,22 @@ class PassSideScorer:
                 # the vehicle fix its side from here, so nothing is decided.
                 self._pass_side_engaged.add(index)
                 continue
+            if index not in self._pass_side_engaged:
+                # Beyond the radius without this scorer ever having seen the
+                # chassis on the approach side, so no crossing HAPPENED here.
+                # Two ways to arrive in that state, and neither is a pass:
+                # the vehicle was PLACED beyond the line -- the in-bay start
+                # sits inside the 1.20 m approach radius of a sign whose radius
+                # is already behind the pocket -- or a lap boundary cleared the
+                # state above while the chassis stood just past one.
+                #
+                # Deliberately NOT added to ``_pass_side_scored``: marking it
+                # would consume the sign, and the genuine crossing later in the
+                # same lap -- a sign 0.8 m "behind" the start is one the round
+                # reaches at the END of lap 1 -- would then go unjudged. Left
+                # untouched, it engages and scores normally when the chassis
+                # actually drives up to it.
+                continue
             self._pass_side_scored.add(index)
             robot_lat = state.x if lateral_axis == Axis.X else state.y
             sign_lat = sign.x if lateral_axis == Axis.X else sign.y

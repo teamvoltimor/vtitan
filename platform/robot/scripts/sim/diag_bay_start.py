@@ -145,6 +145,25 @@ class BayStartRow:
     on when the navigator takes over.
     """
 
+    viol_sign: int | None = None
+    """Index of the sign that ENDED the run under 9.24.5, or ``None``."""
+    viol_ahead_m: float | None = None
+    """That sign's along-corridor offset from the START, positive in the travel direction.
+
+    The decisive number for the in-bay arm. The scorer fires when the chassis
+    COMPLETELY crosses a sign's radius -- the line across the corridor at the
+    sign -- while on the forbidden side, and it only tests signs within
+    ``_PASS_SIDE_APPROACH_M`` (1.20 m). The bay sits at the same along-corridor
+    depth as the parallel start and differs from it only ACROSS the corridor,
+    against the outer wall. So a sign whose radius lies at or behind the start
+    is one the in-bay chassis crosses from the outer side without ever driving
+    up to it, while the control crosses the same line from the centreline. A
+    value near zero or negative means the run was lost to where the bay IS, not
+    to anything the navigator did.
+    """
+    viol_lat_m: float | None = None
+    """Its lateral offset from the start axis, positive LEFT. Which side had to be taken."""
+
     surface: str = ""
     """Which surface ENDED the run, or "" if contact did not end it.
 
@@ -414,6 +433,18 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
     # meant to be driving down.
     fx, fy, fyaw = result.final_pose
     sx, sy = start["position"]["x"], start["position"]["y"]
+    # Measured from the PARALLEL start on both arms, never from the bay: the two
+    # differ only across the corridor, so a common origin is what makes "the
+    # offending sign is level with the start" mean the same thing in each.
+    viol_sign = result.pass_side_violation_signs[0] if result.pass_side_violation_signs else None
+    viol_ahead: float | None = None
+    viol_lat: float | None = None
+    if viol_sign is not None and viol_sign < len(signs):
+        offender = signs[viol_sign]
+        dx = float(offender["x"]) - parallel_xy[0]
+        dy = float(offender["y"]) - parallel_xy[1]
+        viol_ahead = dx * math.cos(start["yaw"]) + dy * math.sin(start["yaw"])
+        viol_lat = -dx * math.sin(start["yaw"]) + dy * math.cos(start["yaw"])
     return BayStartRow(
         id=raw["scenario_id"],
         skipped=False,
@@ -428,6 +459,9 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         sign_color=hand_sign[0] if hand_sign else "",
         sign_range_m=hand_sign[1] if hand_sign else None,
         sign_lat_m=hand_sign[2] if hand_sign else None,
+        viol_sign=viol_sign,
+        viol_ahead_m=viol_ahead,
+        viol_lat_m=viol_lat,
         bex=sim.bay_exit_ticks,
         rev_ticks=sim.bay_exit.legs[0],
         fwd_ticks=sim.bay_exit.legs[1],
@@ -540,6 +574,31 @@ def _summarise(name: str, rows: Sequence[BayStartRow]) -> None:
         if blind:
             bad = sum(1 for r in blind if r.pass_side)
             print(f"    no sign ahead      n={len(blind):>3}  pass-side {bad}/{len(blind)}")
+    # WHERE the offending sign was, which is the test that separates "the
+    # navigator drove badly" from "the bay is on the wrong side of a line the
+    # chassis was always going to cross". Printed for BOTH arms -- it needs only
+    # the result and the layout, not a handover -- so the control answers the
+    # same question on the same signs.
+    # Split by whether the run had gone ANYWHERE, because the offsets only mean
+    # what they look like for the runs that died on the spot. The corridor is a
+    # loop with corners, so projecting a sign in another section onto the start
+    # heading returns a number with no geometric meaning, and a run that drives
+    # three laps legitimately reaches signs "behind" its start. Under a metre of
+    # travel neither applies: the chassis is still beside the bay, so the
+    # offending radius has to be one within reach of it.
+    offenders = [r for r in live if r.viol_ahead_m is not None]
+    early = [r for r in offenders if r.dist < 1.0]
+    late = [r for r in offenders if r.dist >= 1.0]
+    if offenders:
+        print(f"  pass-side offenders n={len(offenders)}  died under 1 m {len(early)}  after {len(late)}")
+    if early:
+        aheads = sorted(r.viol_ahead_m for r in early)  # type: ignore[misc]
+        lats = sorted(r.viol_lat_m for r in early)  # type: ignore[misc]
+        print(
+            f"    under 1 m -- offending sign along {aheads[0]:+.2f} / "
+            f"{aheads[len(aheads) // 2]:+.2f} / {aheads[-1]:+.2f} m, "
+            f"across {lats[0]:+.2f} / {lats[len(lats) // 2]:+.2f} / {lats[-1]:+.2f} m (+ = left of start)"
+        )
     # The legality verdict. A single touch ends the round and voids the parking
     # points, so the aggregate that matters is the WORST margin any run got to,
     # not an average.
