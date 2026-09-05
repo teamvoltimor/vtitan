@@ -15,6 +15,7 @@ whatever population and worker function a caller supplies.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -65,9 +66,38 @@ def add_tuning_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--tuning", help="Optional navigation tuning YAML override; defaults to the checked-in profile.")
 
 
-def load_tuning(path: str | None) -> NavigationTuning:
-    """Resolve ``--tuning``'s value the same way ``track_navigator_node.py`` does."""
-    return NavigationTuning.load_from_yaml(path) if path else NavigationTuning.load_default()
+def add_yaw_gain_compensation_arg(parser: argparse.ArgumentParser) -> None:
+    """Add ``--yaw-gain-compensation``, the one-field override ``--tuning`` cannot express.
+
+    ``--tuning`` replaces the whole tree with a YAML file's contents over
+    Pydantic defaults, so a file naming one key silently drops the shipped
+    value of every other key. Measuring a single knob needs the opposite: the
+    shipped tree with exactly one field changed.
+    """
+    parser.add_argument(
+        "--yaw-gain-compensation",
+        type=float,
+        default=None,
+        help="Override pursuit.YAW_GAIN_COMPENSATION (1.0 = shipped/off, 0.55 = full understeer compensation).",
+    )
+
+
+def load_tuning(path: str | None, yaw_gain_compensation: float | None = None) -> NavigationTuning:
+    """Resolve ``--tuning``'s value the same way ``track_navigator_node.py`` does.
+
+    ``yaw_gain_compensation`` overrides that one pursuit field on top of the
+    resolved tree. ``NavigationTuning`` is a dataclass wrapping frozen Pydantic
+    models, so the override needs ``replace`` outside and ``model_copy`` inside
+    -- assignment raises, and rebuilding the model from scratch would reset
+    every sibling field to its default.
+    """
+    tuning = NavigationTuning.load_from_yaml(path) if path else NavigationTuning.load_default()
+    if yaw_gain_compensation is None:
+        return tuning
+    return dataclasses.replace(
+        tuning,
+        pursuit=tuning.pursuit.model_copy(update={"YAW_GAIN_COMPENSATION": yaw_gain_compensation}),
+    )
 
 
 def draw_sample[T](population: Sequence[T], *, sample: int, seed: int, all_: bool) -> list[T]:

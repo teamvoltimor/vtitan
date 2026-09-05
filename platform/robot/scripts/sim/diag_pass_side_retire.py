@@ -850,9 +850,23 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
                 plateau, shift_ref,
             )
 
-    sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
+    run_result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
+
 
     counts: Counter[str] = Counter()
+    # How the run ENDED, not just how its passes scored. --no-terminate
+    # suppresses only the pass-side stop, so rule 9.21 and a terminal contact
+    # still cut a run short: an arm that lowered the wrong-side rate by ending
+    # its runs sooner would otherwise read as an improvement. Counted per run,
+    # in the same Counter, so every arm reports it without a signature change.
+    counts["term:runs"] += 1
+    if run_result.collided:
+        counts["term:collision"] += 1
+    if run_result.reverse_run_violation:
+        counts["term:rev-run"] += 1
+    if run_result.over_time:
+        counts["term:over-time"] += 1
+    counts["term:laps"] += run_result.laps_completed
     alongs: list[float] = []
     for along, violation, _tx, _ty, _colour in records:
         alongs.append(along)
@@ -931,6 +945,11 @@ def _report_retirement_summary(
         print(f"    median {statistics.median(alongs):+.2f} m")
     print(f"  ROUTER (believed frame, discovered colour): {counts['router_wrong']:>4} wrong-side of {total} retirements")
     print(f"  TRUTH  (true layout, true trajectory):      {counts['truth_wrong']:>4} wrong-side of {counts['truth_passed']} signs actually passed")
+    runs = counts["term:runs"]
+    print(
+        f"  TERMINAL: rule 9.21 {counts['term:rev-run']:>3}/{runs}   collision {counts['term:collision']:>3}/{runs}   "
+        f"over-time {counts['term:over-time']:>3}/{runs}   laps {counts['term:laps']}/{3 * runs}"
+    )
     print("  per-run:")
     print(f"    runs the router ended on pass-side  {counts['run_ended_by_router']:>4}/{len(paths)}")
     print(f"    runs with a REAL wrong-side pass    {counts['run_truly_violated']:>4}/{len(paths)}")
