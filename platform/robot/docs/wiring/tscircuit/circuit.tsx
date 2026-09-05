@@ -1,6 +1,12 @@
 // vtitan robot wiring harness, ported from the WireViz draft.
+//
+// THIS FILE IS THE ONLY TRACKED SOURCE. harness.netlist.txt, .svg and .png are
+// gitignored build output -- regenerate all three with `npm run artifacts`
+// (see package.json) after any change here, or they silently go stale and
+// `git status` will NOT warn you, because git cannot see them.
+//
 // Pin/signal sources (do not restate literals elsewhere -- update these files
-// instead and re-run `tsci build`):
+// instead and re-run `npm run build`):
 //   config/hardware/motors/servo.toml         -> servo PWM: GPIO12
 //   config/hardware/motors/bts7960.toml       -> RPWM GPIO13, LPWM GPIO26, R_EN GPIO6, L_EN GPIO5
 //   config/hardware/motors/encoder.toml       -> quadrature pin_a GPIO16, pin_b GPIO20
@@ -13,11 +19,12 @@
 //                                                 R_IS/L_IS deliberately unwired (no ADC)
 //   docs/challenge-mode-jumper-spec.md        -> jumper polarity + boot-time read
 //
-// CONFLICT, resolved in favour of the TOML: challenge-mode-jumper-spec.md says
-// the GPIO23 jumper is on the "Pi 5"; challenge_mode.toml says "Wired to the PI
-// ZERO; this file matters on the Zero's checkout, not Pi 5's". The TOML is the
-// narrower and later statement, and every other GPIO in this drawing is the
-// Zero's, so JUMPER hangs off PI below. Worth a physical confirmation.
+// CONFIRMED by the user: the GPIO23 jumper is on the PI ZERO, matching
+// challenge_mode.toml. docs/challenge-mode-jumper-spec.md used to say "Pi 5";
+// that was the wrong board and has been corrected. Consistent with the rest of
+// this drawing, where every other GPIO is the Zero's -- and with the spec's own
+// no-conflict list (button=4, servo=12, motor PWM=13, IN3/IN4=5/6,
+// encoders=16/20), all of which are Zero pins. JUMPER hangs off PI below.
 //
 // Power tree (as described by the user, not derived from repo docs -- the
 // repo has no power/harness documentation of its own):
@@ -29,6 +36,60 @@
 //          -> SPLIT_DRIVE (Y-split)
 //               -> U_REG (Mini-560 Pro, 5V) -> SERVO (Hiwonder)
 //               -> U_MOTOR (BTS7960) B_POS/B_NEG (motor supply)
+//
+// Parts identification is COMPLETE as of 2026-09-05. Every component that has
+// a model number carries it as a manufacturerPartNumber prop. The three that
+// do NOT -- SW1, U_LVL and BUTTON -- are generic unbranded parts with no model
+// number to record (confirmed by the user); their blank prop is a finding, not
+// a gap still being worked. Do not go looking for those three again.
+//
+// SW1 is rated 10 A / 125 V AC (user, 2026-09-05). Note the AC: this is an
+// AC-rated switch used on an 11.1 V DC circuit, and an AC rating does not
+// transfer to DC unchanged. The usual reason is arc quenching -- AC current
+// crosses zero 100-120x/second and self-extinguishes the arc, DC does not, so
+// AC-rated switches are conventionally derated hard for DC.
+//
+// That conventional derate is MILDER here than the rule of thumb implies,
+// because it is mostly a high-voltage effect: sustaining an arc across
+// separating contacts needs roughly 12-15 V, and this pack is 11.1 V nominal
+// (12.6 V charged). The circuit sits right around the threshold, so break arcs
+// should be weak-to-absent rather than the sustained arc that destroys an
+// AC-rated switch at 125 V DC. Low voltage is doing the work here, not the
+// switch's rating.
+//
+// So the real exposure is THERMAL CARRY and CONTACT EROSION, not arc-over:
+//   - 10 A is a continuous-carry figure, and drive draw is ~10 A average at
+//     max_duty = 0.5 with ~20 A instantaneous peaks -- at, or over, rating.
+//   - Switch-on inrush into DCDC_5V5A's input capacitance is a make-arc /
+//     contact-pitting event on every power-up, independent of drive current.
+// None of this is settled: 125 V AC is the only rating on the part, and its DC
+// carry rating is unknown. Treat the above as reasoning, not measurement.
+//
+// The 10 A figure makes SW1 the LOWEST-rated element
+// in the power path by a wide margin: the BTS7960 is a 43 A part and a 3S 50C
+// 2200mAh pack can deliver ~110 A, so the switch, not the H-bridge or the
+// battery, is the weakest link in series with the drive branch.
+//
+// Whether 10 A is sufficient depends on drive-motor stall current, which THIS
+// REPO DOES NOT RECORD anywhere -- there is no current figure in
+// config/hardware/motors/ at all, only pins, duty and PID gains. The REV HD Hex
+// datasheet figure is ~20 A stall at 12 V; that is from the part's datasheet,
+// NOT from this repo, and should be confirmed against the actual motor before
+// anyone relies on it. If it holds, then:
+//   - max_duty = 0.5 (config/hardware/motors/encoder.toml:27) caps AVERAGE
+//     current at roughly half stall, i.e. ~10 A -- right at the switch rating,
+//     with instantaneous peaks at the full ~20 A each PWM cycle.
+//   - Stall is a REAL operating condition on this robot, not a theoretical
+//     one: wedging against a wall is a known, repeatedly observed failure mode.
+// So the margin is thin-to-negative under a sustained wall push. This is NOT a
+// call to change anything -- it is the number to have in hand if SW1 ever runs
+// warm, pits or arcs on make/break, or the robot browns out under hard
+// acceleration. Failure stays confined to SW1 (contacts welding closed, or the
+// housing melting); it does not propagate into the rest of the tree.
+//
+// If it ever DOES need replacing, the spec to buy against is a DC rating at or
+// above ~20 A at 12 V DC -- an automotive/marine-style switch quotes DC
+// directly and removes the AC-to-DC guesswork above.
 //
 // Board split: the Pi Zero 2 W owns motor/servo/button/encoder/OLED. The
 // Pi 5 owns the Hailo AI+ 26 TOPS module (its header/PCIe slot), the camera
@@ -53,11 +114,12 @@
 // line -- rather than a single abstract link, because VBUS is what sources
 // the Zero's whole 5V rail (U_MOTOR VCC, U_LVL HV, OLED, encoder).
 //
-// OPEN QUESTION, deliberately not resolved here: this is the DEV power path.
-// Nothing in the repo documents how the Zero is powered during a competition
-// run, when it is not tethered to a laptop-side Pi 5 arrangement. If the Zero
-// gets its own regulator off the battery for racing, that is a second, as-yet
-// undrawn feed into PI's 5V rail.
+// SETTLED by the user: USB VBUS off the Pi 5 is the Zero's ONLY 5V feed, at
+// race time as well as during development -- there is no second regulator off
+// the battery, so node 5 has exactly the one source drawn below. The Zero's
+// other micro-USB port (PWR IN) stays unused. Note the consequence: the whole
+// Zero side (U_MOTOR logic VCC, U_LVL HV, OLED, encoder) is powered through the
+// Pi 5's USB port, and its budget is therefore that port's, not the battery's.
 //
 // BTS7960 IN/EN pins are 5V logic; Pi Zero GPIO is 3.3V -- every signal that
 // crosses that boundary routes through the level converter (U_LVL), not
@@ -95,7 +157,16 @@ export default () => (
       schY={0}
     />
 
-    {/* Inline power switch on the positive lead, ahead of the first split. */}
+    {/* Inline power switch on the positive lead, ahead of the first split.
+        GENERIC, unbranded part -- manufacturerPartNumber is left off on
+        purpose, not by omission; there is no model number to record.
+        Position matters more than identity here: SW1 is upstream of
+        SPLIT_MAIN, so it is in series with BOTH the 5V@5A buck and the whole
+        drive branch, and therefore carries drive-motor stall current -- the
+        largest current in the build, and well above the running draw. Rated
+        10 A / 125 V AC -- an AC rating on a DC circuit, and the lowest rating
+        anywhere in the power path; see the
+        margin analysis in the header block. */}
     <chip
       name="SW1"
       footprint="pinrow2"
@@ -184,7 +255,7 @@ export default () => (
         // The Zero's USB/OTG micro-USB connector, split into its two roles:
         // the gadget-Ethernet data pair, and the VBUS conductor that actually
         // powers the board. The Zero's OTHER micro-USB port (PWR IN) is
-        // unused in this build -- see the race-power open question above.
+        // unused in this build, at race time too -- see the power tree above.
         pin15: "USB_OTG_D",
         pin16: "USB_OTG_VBUS",
       }}
@@ -265,6 +336,11 @@ export default () => (
     {/* Real part: a single 4-channel bidirectional logic-level converter
         breakout (4x HV + 4x LV, the MOSFET/BSS138 style with no output-enable
         pin -- NOT a TXS0108E, which is 8-channel and needs OE pulled high).
+        GENERIC, unbranded part -- manufacturerPartNumber is left off on
+        purpose, not by omission; there is no model number to record. The
+        MOSFET style is the slow one, and motor PWM (GPIO13 -> RPWM) crosses
+        it, so if PWM ever looks rounded or weak at the H-bridge this part is
+        a candidate before the H-bridge itself is suspected.
         ONE board on the car, and all four channels are spoken for: RPWM,
         LPWM, R_EN, L_EN. There is no spare channel here -- anything new that
         crosses the 3.3V/5V boundary needs a second converter. */}
@@ -387,7 +463,7 @@ export default () => (
       name="MCP2221A"
       manufacturerPartNumber="MCP2221A"
       footprint="pinrow5"
-      pinLabels={{ pin1: "USB", pin2: "VCC", pin3: "GND", pin4: "TX", pin5: "RX" }}
+      pinLabels={{ pin1: "USB", pin2: "3V3", pin3: "GND", pin4: "TX", pin5: "RX" }}
       schX={10}
       schY={16}
     />
@@ -529,10 +605,15 @@ export default () => (
     <trace from=".ADAPTER > .RX" to=".LIDAR > .TX" />
 
     {/* ---- IMU bridge, hosted off the Pi 5's USB. VCC/GND/UART for the IMU
-        all come from the bridge board itself, not straight off either Pi. ---- */}
+        all come from the bridge board itself, not straight off either Pi.
+        Supply is the bridge's 3V3 output and its GND (user, 2026-09-05) --
+        so the IMU leg is entirely 3.3V, bus-powered off the Pi 5's USB via
+        the MCP2221A's own regulator, and never touches the battery side.
+        Nothing on this leg crosses a voltage boundary, so like the encoder
+        it stays clear of the level converter. ---- */}
     <trace from=".PI5 > .USB_IMU_BRIDGE" to=".MCP2221A > .USB" />
     <trace from=".PI5 > .USB_GND" to=".MCP2221A > .GND" />
-    <trace from=".MCP2221A > .VCC" to=".BNO085 > .VCC" />
+    <trace from=".MCP2221A > .3V3" to=".BNO085 > .VCC" />
     <trace from=".MCP2221A > .GND" to=".BNO085 > .GND" />
     <trace from=".MCP2221A > .TX" to=".BNO085 > .RX" />
     <trace from=".MCP2221A > .RX" to=".BNO085 > .TX" />

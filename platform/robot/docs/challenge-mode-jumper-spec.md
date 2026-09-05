@@ -14,7 +14,10 @@ of relying on someone passing the right launch file by hand.
 
 ## Hardware
 
-- **Pin**: GPIO23 (physical pin 16 on the 40-pin header), Pi 5.
+- **Pin**: GPIO23 (physical pin 16 on the 40-pin header), **Pi Zero** — matching
+  `config/hardware/challenge_mode.toml`. (This line previously said "Pi 5"; that was
+  wrong, and is consistent with neither the TOML nor the no-conflict list below, whose
+  GPIOs are all the Zero's.)
 - **Wiring**: 2-pin jumper cap between GPIO23 and an adjacent GND pin (e.g. physical pin 14
   or 20). No external resistor — GPIO23 is configured as input with the **internal pull-up**
   enabled (same mechanism already used for the start button on GPIO4, see
