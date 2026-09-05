@@ -206,9 +206,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	pub := nats.NewPublisher[*uiv1.TelemetrySummary](conn, uiv1.TelemetrySummarySubject)
 
 	source := &natsSource{}
-	aggCfg := diag.DefaultConfig()
-	aggCfg.LidarYawOffsetRad = diag.LidarYawOffsetRadFor(logger, cfg.configRoot)
-	aggregator := diag.NewAggregator(source, aggCfg)
+	// No LIDAR mount correction is applied here: lidar-node publishes in the
+	// robot frame already (lidar.ConfigFor). Re-applying it would double it.
+	aggregator := diag.NewAggregator(source, diag.DefaultConfig())
 
 	logger.Info("telemetry-node: connected", "nats_url", cfg.natsURL, "rate_hz", cfg.rateHz)
 
