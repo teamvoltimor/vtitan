@@ -11,7 +11,7 @@
 > — *Ramón Álvarez*
 
 <p align="center">
-    <img src="assets/kaucrow-banner.png" alt="Javier Pérez (@kaucrow)" width="600">
+    <img src="../assets/kaucrow-banner.png" alt="Javier Pérez (@kaucrow)" width="600">
     <br>
     <i>Javier Pérez — <a href="https://github.com/kaucrow">@kaucrow</a></i>
 </p>
