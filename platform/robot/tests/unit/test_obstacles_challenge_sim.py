@@ -302,10 +302,22 @@ class TestBlindSignDiscovery:
 
         assert discovered, f"{scenario.label}: discovered nothing"
 
+        # Compare in the frame the ROBOT is driving in, not the world frame.
+        # A blind run is seeded at the fixed SOUTH guess while the chassis is
+        # placed at the true start, and absolute section is not observable on
+        # either challenge -- the mat is four-fold symmetric -- so navigation is
+        # relative by design and the two frames differ by a rigid transform.
+        # Asserting against world truth measured that transform, not discovery:
+        # it failed on all 13 non-south fixtures and passed on the 3 south ones,
+        # an exact match to the start section and nothing to do with sign
+        # quality. In the believed frame the same runs land 0/190 signs outside
+        # tolerance. See ScenarioSimulator.to_believed_frame.
+        believed_truth = [(sim.to_believed_frame(t.x, t.y), t) for t in truth]
+
         failures = []
         for spec in discovered:
-            nearest = min(truth, key=lambda t: math.dist((t.x, t.y), (spec.x, spec.y)))
-            error = math.dist((nearest.x, nearest.y), (spec.x, spec.y))
+            nearest_xy, nearest = min(believed_truth, key=lambda e: math.dist(e[0], (spec.x, spec.y)))
+            error = math.dist(nearest_xy, (spec.x, spec.y))
             # A sign sits on a grid whose lanes are ~0.20 m apart, so an
             # error near that would put it in the wrong lane and route the
             # robot to the wrong side of it. 10 cm keeps a clear margin.

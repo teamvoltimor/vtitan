@@ -342,6 +342,9 @@ class ScenarioSimulator(PassSideScorer):
         """(yaw, measured width) taken before the direction was known."""
         self._start = start
         self._believed_start = believed_start
+        # ((true_x, true_y, true_yaw), (believed_x, believed_y, believed_yaw))
+        # latched on the first tick -- see _capture_frame_anchor.
+        self._frame_anchor: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         # Provisional until inference settles. Everything built from it -- the
         # path and the lap detector's finish-line normal -- is rebuilt then.
         self._direction = start.direction
@@ -796,6 +799,59 @@ class ScenarioSimulator(PassSideScorer):
         """The bay-exit manoeuvre this scenario drives, for diagnostics."""
         return self._bay_exit
 
+    def to_believed_frame(self, x: float, y: float) -> tuple[float, float]:
+        """Map a WORLD point into the frame the robot believes it is driving in.
+
+        A blind run is seeded at ``assumed_start_conditions``' fixed SOUTH guess
+        while the chassis is physically placed at the scenario's true start, so
+        everything the robot computes -- discovered signs, its plan, its pose --
+        lives in a frame rigidly rotated and translated away from the world.
+
+        That is not an error to be corrected. **Absolute section is not
+        observable** on either challenge: the mat is four-fold symmetric, and no
+        amount of inference at t=0 can tell north from south. Navigation is
+        therefore relative by design, and SOUTH is simply the label the blind
+        prior uses for "wherever I started".
+
+        The consequence for tests and diagnostics is that comparing a robot-
+        derived position against ground truth is only meaningful once one side
+        has been brought into the other's frame. Measured 2026-09-04 over the 16
+        obstacles fixtures: discovered signs sit a median 0.200 m from world
+        truth with 107/190 beyond the 10 cm tolerance, and a median 0.010 m with
+        **0/190** beyond it once mapped through here. The discovery was always
+        accurate; only the frame was wrong.
+
+        Returns the point unchanged on a sighted or ``known_start`` run, where
+        the believed start IS the true start.
+        """
+        if self._frame_anchor is None:
+            return (x, y)
+        (tx, ty, tyaw), (bx, by, byaw) = self._frame_anchor
+        delta_yaw = byaw - tyaw
+        cos_d, sin_d = math.cos(delta_yaw), math.sin(delta_yaw)
+        dx, dy = x - tx, y - ty
+        return (bx + cos_d * dx - sin_d * dy, by + sin_d * dx + cos_d * dy)
+
+    def _capture_frame_anchor(self, gw: SimulatedHardwareGateway) -> None:
+        """Latch the true/believed pose pair the frame transform is built from.
+
+        Taken on the first tick a pose exists, and never revisited. Deliberately
+        NOT ``_believed_start``: that is only the SEED the blind prior starts
+        from (a canonical 1.500, 0.400), and the localizer immediately fits the
+        scan against its believed wall model and lands somewhere else -- 1.781,
+        0.494 on a south-start fixture whose true start is 1.775, 0.500. Using
+        the seed put a 29 cm error into a frame that should have been identity.
+
+        Both halves are read at the SAME instant so the pair describes one rigid
+        offset rather than mixing two moments of a moving chassis.
+        """
+        if self._frame_anchor is not None:
+            return
+        pose = self._gateway.get_current_pose()
+        if pose is None:
+            return
+        self._frame_anchor = ((gw.state.x, gw.state.y, gw.state.yaw), (pose.x, pose.y, pose.yaw))
+
     @property
     def track(self) -> TrackModel:
         """The track geometry model for this scenario."""
@@ -930,6 +986,7 @@ class ScenarioSimulator(PassSideScorer):
 
         step = 0
         while step < max_steps:
+            self._capture_frame_anchor(gw)
             if self._resolve_direction():
                 # Direction still unknown: the corridor follower published this
                 # tick's command, and there is no usable plan to step yet. The
