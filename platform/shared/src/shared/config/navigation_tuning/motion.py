@@ -271,10 +271,13 @@ class PurePursuitParams(BaseModel):
 
             Defaults 1.0 = OFF, the uncompensated geometric answer, because
             asking for 1.8x more steering everywhere is not a free change: it
-            saturates against the steering limit sooner and touches Open (639/640)
-            as much as Obstacles. Set to ``RobotSpecs.YAW_GAIN`` (0.55) for full
-            compensation. Score it on SIGNED RADIAL at passes, not |error| and
-            not pass-side counts, which are too coarse to screen on.
+            saturates against the steering limit sooner. Measured 2026-09-05,
+            it helps one challenge and hurts the other, so it is applied PER
+            CHALLENGE -- see ``OBSTACLES_YAW_GAIN_COMPENSATION``. Score it on
+            SIGNED RADIAL at passes, not |error| and not pass-side counts,
+            which are too coarse to screen on.
+        OBSTACLES_YAW_GAIN_COMPENSATION: ``YAW_GAIN_COMPENSATION`` for the
+            Obstacles Challenge only. ``None`` keeps the base value.
         LOOKAHEAD_SHORT: Lookahead distance for sharp corners (m)
         LOOKAHEAD_LONG: Lookahead distance for straights (m)
         LOOKAHEAD_TRANSITION: Crosstrack error threshold to switch modes (m).
@@ -386,6 +389,41 @@ class PurePursuitParams(BaseModel):
     # configuration nobody chose -- which is what TestFieldDefaultsMatchShippedToml
     # exists to catch, and had been failing on.
     YAW_GAIN_COMPENSATION: float = Field(default=1.0, validation_alias=_alias("YAW_GAIN_COMPENSATION"))
+
+    OBSTACLES_YAW_GAIN_COMPENSATION: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_YAW_GAIN_COMPENSATION")
+    )
+    """Compensation for the Obstacles Challenge only. ``None`` keeps the base value.
+
+    The two challenges want OPPOSITE values, so one number costs whichever
+    challenge does not get it. Measured 2026-09-05, both arms paired against
+    the same seeded cases, full compensation (0.55) against the base 1.0:
+
+    * **Obstacles, 256 corpus, 64 scenarios:** real wrong-side passes
+      **46 -> 6** (of 301/311 signs actually passed), runs with a violation
+      **33 -> 6** of 64, rule 9.21 terminations **9 -> 0**, collisions flat
+      (14 vs 15), laps credited 131 -> 196. Pass-side is the dominant Obstacles
+      failure mode and this is by far the largest move anything has made on it.
+    * **Open, all 640 cases:** WORSE -- **638 -> 615**. Rule 9.21 goes 1 -> 15
+      and nine more runs time out at 200 s. The 128-case screen showed only
+      127 -> 124, understating the cost EIGHTFOLD; this is why Open decides on
+      640, not on the screen.
+
+    Rule 9.21 therefore moves in opposite directions by challenge, so
+    "compensation causes reverse-runs" is not supported in either direction --
+    something challenge-specific mediates it, and that is not yet understood.
+
+    On the OBSTACLES side, unlike ``OPEN_LOOKAHEAD_LONG``: Open is the arm that
+    must not regress (638/640), and leaving its resolution path on the base
+    value keeps it bit-identical. That does mean this CAN shadow the base
+    constant on an Obstacles sweep, the way ``OBSTACLES_CONTACT_DIST`` did --
+    ``diag_base.load_tuning`` sets both fields together for that reason.
+
+    HARDWARE TRANSFERABILITY IS UNSETTLED: in the sim the compensation is
+    exactly correct because the plant IS ``yaw_gain = 0.55``. On the real robot
+    the same 1.8x is unresolved between ``rear_steer_ratio`` and
+    ``linkage_ratio`` and needs the bench test.
+    """
     LOOKAHEAD_SHORT: float = Field(default=0.16, validation_alias=_alias("LOOKAHEAD_SHORT"))  # Close to corner
     LOOKAHEAD_LONG: float = Field(default=0.32, validation_alias=_alias("LOOKAHEAD_LONG"))  # Normal straight
     LOOKAHEAD_TRANSITION: float = Field(
@@ -446,6 +484,18 @@ class PurePursuitParams(BaseModel):
         if self.OPEN_LOOKAHEAD_LONG is None:
             return self
         return self.model_copy(update={"LOOKAHEAD_LONG": self.OPEN_LOOKAHEAD_LONG})
+
+    def for_obstacles_challenge(self) -> PurePursuitParams:
+        """These parameters as the Obstacles Challenge should run them.
+
+        Returns ``self`` unchanged when no Obstacles override is set, so the
+        Open path and the un-overridden Obstacles path stay byte-identical.
+        """
+        if self.OBSTACLES_YAW_GAIN_COMPENSATION is None:
+            return self
+        return self.model_copy(
+            update={"YAW_GAIN_COMPENSATION": self.OBSTACLES_YAW_GAIN_COMPENSATION}
+        )
 
 
 class SpeedControlParams(BaseModel):

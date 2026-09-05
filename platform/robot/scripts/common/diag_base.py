@@ -94,9 +94,20 @@ def load_tuning(path: str | None, yaw_gain_compensation: float | None = None) ->
     tuning = NavigationTuning.load_from_yaml(path) if path else NavigationTuning.load_default()
     if yaw_gain_compensation is None:
         return tuning
+    # BOTH fields, deliberately. The shipped tree sets
+    # OBSTACLES_YAW_GAIN_COMPENSATION, which the Obstacles resolution path
+    # applies OVER the base field -- so overriding the base alone would be
+    # shadowed there and the sweep would measure nothing, exactly the failure
+    # OBSTACLES_CONTACT_DIST once caused. Setting both means this flag says
+    # "this compensation, whichever challenge is running".
     return dataclasses.replace(
         tuning,
-        pursuit=tuning.pursuit.model_copy(update={"YAW_GAIN_COMPENSATION": yaw_gain_compensation}),
+        pursuit=tuning.pursuit.model_copy(
+            update={
+                "YAW_GAIN_COMPENSATION": yaw_gain_compensation,
+                "OBSTACLES_YAW_GAIN_COMPENSATION": yaw_gain_compensation,
+            }
+        ),
     )
 
 
