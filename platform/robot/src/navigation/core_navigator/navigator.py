@@ -1420,8 +1420,23 @@ class CoreNavigator(EscapeRecovery):
         False if the robot should keep navigating toward the parking corridor.
         """
         pc = self._park_controller
-        if pc is None:
-            # Open challenge: no parking maneuver — hold position.
+        if pc is None or not self._tuning.parking.ATTEMPT_AFTER_FINAL_LAP:
+            # Nothing left to drive for: hold where the final lap left us.
+            #
+            # Two ways to get here. The Open challenge never has a controller.
+            # The Obstacles challenge has one but ships with the pursuit
+            # DEFERRED (ParkingParams.ATTEMPT_AFTER_FINAL_LAP), because the bay
+            # is geometrically unreachable and chasing it burns the clock and
+            # the chassis after the laps are already banked -- blind on the 256
+            # corpus, in-time 158 vs 62 and collisions 4 vs 51 against an
+            # IDENTICAL laps>=3 of 159.
+            #
+            # Holding HERE is what rule 1.3 pays 3 points for, and the position
+            # is already right: the lap counter increments at the along-track
+            # centre of the 1 m start straight, and FINISH_APPROACH_M has
+            # capped the last-lap approach to slow_mps so the coast fits in the
+            # 0.50 m of section ahead. The stop needs no travel, only the
+            # absence of a reason to keep driving.
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             debug = self._base_debug(robot_x, robot_y, robot_yaw)
             debug.phase = NavigatorPhase.FINISHED_HOLD

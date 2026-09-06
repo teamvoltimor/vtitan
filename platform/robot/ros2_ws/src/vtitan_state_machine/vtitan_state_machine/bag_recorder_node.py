@@ -75,11 +75,11 @@ class BagRecorderNode(Node):
 
         self.declare_parameter("topics", _DEFAULT_TOPICS)  # list param -- no scalar params.py getter fits
 
-        # Default now points at the repo-root data/runs_pulled tree, shared by
+        # Default now points at the repo-root data/live/runs tree, shared by
         # the Python and Go stacks (see repo-root .gitignore). Resolved relative
         # to this file so a Pi deployment and a dev checkout both write to the
         # same place without an absolute path or ~/vtitan_runs.
-        _default_bag_dir = str(Path(__file__).resolve().parents[6] / "data" / "runs_pulled")
+        _default_bag_dir = str(Path(__file__).resolve().parents[6] / "data" / "live" / "runs")
         self._bag_dir = Path(declare_and_get_str_param(self, "bag_dir", _default_bag_dir)).expanduser()
         self._topics = list(self.get_parameter("topics").value)
         self._max_runs = declare_and_get_int_param(self, "max_runs", 20)

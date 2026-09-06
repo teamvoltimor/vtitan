@@ -14,7 +14,7 @@ the pose trace's winding about the mat centre.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_direction_counterfactual.py \
-        data/runs_pulled/run_XXXXXXXX_XXXXXX
+        data/live/runs/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

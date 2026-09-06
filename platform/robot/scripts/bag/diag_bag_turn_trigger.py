@@ -18,7 +18,7 @@ guessed.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_turn_trigger.py \
-        data/runs_pulled/run_XXXXXXXX_XXXXXX
+        data/live/runs/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

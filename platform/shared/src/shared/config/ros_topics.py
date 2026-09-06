@@ -84,9 +84,6 @@ class SensorTopics(BaseModel):
     imu: str
     """IMU data from the BNO085."""
 
-    hailo_fps: str
-    """Hailo inference FPS, published by the vision/detector stack."""
-
     vision_detections: str
     """Vision detections (std_msgs/String, JSON), published by vision_node."""
 

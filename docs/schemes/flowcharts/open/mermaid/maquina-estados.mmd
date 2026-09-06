@@ -1,11 +1,37 @@
 %% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
 %% Fuente: platform/robot/src/state_machine/core.py (StateMachine, _VALID_TRANSITIONS)
-%%         platform/robot/src/state_machine/types.py (los 4 estados)
+%%         platform/robot/src/state_machine/types.py (los 4 estados y los 6 motivos)
 %% Máquina de alto nivel compartida por Open y Obstacle Challenge.
+%% Las 8 transiciones dibujadas aquí son exactamente las de _VALID_TRANSITIONS:
+%% cualquier otra combinación estado/motivo es rechazada por can_transition().
 
 stateDiagram-v2
     [*] --> BOOT_CHECK
+
     BOOT_CHECK --> READY: autodiagnóstico correcto
+    BOOT_CHECK --> FINISHED: falla el autodiagnóstico
+
     READY --> RACING: se pulsa el botón de inicio
+    READY --> BOOT_CHECK: reinicio del sistema
+
     RACING --> FINISHED: se completan las 3 vueltas
+    RACING --> FINISHED: parada de emergencia
+    RACING --> BOOT_CHECK: reinicio del sistema
+
+    FINISHED --> BOOT_CHECK: reinicio del sistema
+
     FINISHED --> [*]
+
+    note right of BOOT_CHECK
+        Un autodiagnóstico fallido no deja
+        al robot en un estado intermedio:
+        pasa directo a FINISHED, para que
+        nunca pueda arrancar a medio verificar.
+    end note
+
+    note right of RACING
+        Único estado en el que el robot
+        se mueve. Se sale de él por las
+        3 vueltas o por parada de
+        emergencia; ambas van a FINISHED.
+    end note

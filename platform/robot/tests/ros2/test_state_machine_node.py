@@ -51,7 +51,6 @@ def _mark_all_sensors_ready(node) -> None:
     node.imu_last_msg_time = now
     node.lidar_last_msg_time = now
     node.hailo_last_msg_time = now
-    node.hailo_fps = 30.0
     node.ip_fetch_complete = True
     node.ip_address = "192.0.2.1"
     node.challenge_mode = ScenarioType.OPEN

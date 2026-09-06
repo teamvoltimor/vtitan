@@ -10,7 +10,7 @@ Topics:
         - /imu/data (sensor_msgs/Imu) - IMU data
         - /scan (sensor_msgs/LaserScan) - LiDAR data
         - /hailo/detections (vision_msgs/Detection2DArray) - Hailo AI detections
-        - /hailo/fps (std_msgs/Float32) - Hailo inference FPS
+        - /vision/detections (std_msgs/String, JSON) - vision pipeline liveness
     Subscribed:
         - /button/event (std_msgs/String) — button events from button_node (Pi Zero)
         - /challenge_mode/jumper_inserted (std_msgs/Bool) — challenge-mode jumper (Pi Zero)
@@ -44,7 +44,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CompetitionSpecs
 from shared.config.ros_topics import RosTopicConfig
-from std_msgs.msg import Bool, Float32, Int32, String
+from std_msgs.msg import Bool, Int32, String
 
 from src.hardware.settings_base import CONFIG_DIR, SAFE_SHUTDOWN_BOTH_SCRIPT, HardwareBaseSettings
 from src.ros2.params import declare_and_get_bool_param, declare_and_get_float_param, declare_and_get_int_param
@@ -239,10 +239,19 @@ class StateMachineNode(Node, ResettableNode):
             self._lidar_callback,
             qos_profile_sensor_data,
         )
-        self.hailo_fps_sub: Subscription[Float32] = self.create_subscription(
-            Float32,
-            self._topics.sensors.hailo_fps,
-            self._hailo_fps_callback,
+        # Vision liveness is read off the DETECTIONS stream, not /hailo/fps.
+        # Nothing has ever published /hailo/fps -- the topic exists in
+        # ros_topics.toml and here, and nowhere else in the repo -- so the
+        # readiness test below could never pass on hardware. It went unnoticed
+        # because the BOOT_CHECK gate exempts the Open Challenge, which is the
+        # only challenge that had ever been run on the robot; the first
+        # Obstacles boot sat in BOOT_CHECK forever with vision healthy and
+        # publishing at 15 Hz. Topic name comes from the config, like every
+        # other subscription here.
+        self.vision_detections_sub: Subscription[String] = self.create_subscription(
+            String,
+            self._topics.sensors.vision_detections,
+            self._vision_detections_callback,
             qos_profile_sensor_data,
         )
         self.button_sub: Subscription[String] = self.create_subscription(
@@ -279,8 +288,11 @@ class StateMachineNode(Node, ResettableNode):
         # Sensor status tracking
         self.imu_last_msg_time: float | None = None
         self.lidar_last_msg_time: float | None = None
+        # Timestamp of the last vision detection message. Kept under the hailo_
+        # name because it is the Hailo pipeline's liveness that BOOT_CHECK
+        # gates on; what changed is the SIGNAL, from an FPS topic nobody
+        # publishes to the detections the vision node really emits.
         self.hailo_last_msg_time: float | None = None
-        self.hailo_fps: float = 0.0
 
         # Skipped entirely under simulation: scenario_catalog.py already encodes
         # open-vs-obstacles per scenario.
@@ -299,6 +311,11 @@ class StateMachineNode(Node, ResettableNode):
         )
         self._challenge_mode_samples: deque[bool] = deque(maxlen=_CHALLENGE_MODE_SAMPLES_REQUIRED)
         self._challenge_mode_error: str | None = None
+        self._challenge_mode_provisional: bool = False
+        """True while the mode was DEFAULTED rather than read from the jumper.
+
+        Keeps ``_sample_challenge_mode`` running so a late jumper reading can
+        still correct it; cleared the moment a real reading stabilises."""
         self.challenge_mode: ScenarioType | None = None
 
         # Network status
@@ -438,10 +455,15 @@ class StateMachineNode(Node, ResettableNode):
         """Handle LiDAR scan data."""
         self.lidar_last_msg_time = time.time()
 
-    def _hailo_fps_callback(self, msg: Float32) -> None:
-        """Handle Hailo FPS updates."""
+    def _vision_detections_callback(self, msg: String) -> None:
+        """Note that the vision pipeline is alive.
+
+        The message CONTENT is deliberately ignored: an empty detection list is
+        a perfectly healthy frame -- most frames on an empty stretch of track
+        carry no signs -- so arrival is the liveness signal, not payload.
+        """
+        del msg
         self.hailo_last_msg_time = time.time()
-        self.hailo_fps = msg.data
 
     def _button_event_callback(self, msg: String) -> None:
         """Handle button events published by button_node on the Pi Zero."""
@@ -578,6 +600,12 @@ class StateMachineNode(Node, ResettableNode):
         self.challenge_mode = None
         self._challenge_mode_samples.clear()
         self._challenge_mode_error = None
+        # The next round re-resolves from scratch, so it is not carrying a
+        # guess forward -- and the timeout is re-armed with it, or a reset made
+        # after the first boot's window had already expired would fall straight
+        # back to Open instead of waiting for the jumper again.
+        self._challenge_mode_provisional = False
+        self._challenge_mode_wait_started = self.get_clock().now().nanoseconds / 1e9
 
     def _sample_challenge_mode(self) -> None:
         """Sample the jumper state published by the Pi Zero; stop once it stabilizes.
@@ -599,25 +627,46 @@ class StateMachineNode(Node, ResettableNode):
         this fallback BOOT_CHECK could wait on 3 consecutive agreeing
         samples forever and the robot would never reach READY.
         """
-        if self.is_simulation or self.challenge_mode is not None:
+        # A PROVISIONAL mode keeps sampling. The fallback below is a guess made
+        # because the Zero had not published yet, and it used to be terminal:
+        # once challenge_mode was set this returned forever, so a jumper that
+        # arrived one second late was ignored for the rest of the round and the
+        # robot raced Open with the jumper physically in. That is a silent
+        # wrong-challenge run -- no in-bay start, no sign router, the wrong
+        # speed ladder -- and the boot race is routine, not exotic: the timeout
+        # is 60 s and a measured cold boot took 41 s just to reach the jumper
+        # GPIO. So a guess is held only until the real reading turns up.
+        if self.is_simulation:
+            return
+        if self.challenge_mode is not None and not self._challenge_mode_provisional:
             return
 
         inserted = self._jumper_inserted
         if inserted is None:
-            if self._challenge_mode_timed_out():
+            # Only guess ONCE. Re-latching every tick would spam the log and
+            # republish the same fallback; the guess already stands, and this
+            # method keeps running purely to notice the real reading arriving.
+            if self._challenge_mode_timed_out() and not self._challenge_mode_provisional:
                 self._latch_challenge_mode(inserted=False, reason="no reading from the Pi Zero")
                 return
             self._challenge_mode_error = "waiting for /challenge_mode/jumper_inserted from the Pi Zero"
             self._challenge_mode_samples.clear()
             return
 
-        self._challenge_mode_error = None
+        # A reading arriving clears the "still waiting" message -- but NOT a
+        # fallback's error, which must stand until the mode is actually
+        # corrected. Otherwise a jumper that bounces forever would keep wiping
+        # the fault off the OLED on every sample while the robot still held a
+        # guessed challenge, which is the one situation the operator most needs
+        # to see. _latch_challenge_mode clears it on a real resolution.
+        if not self._challenge_mode_provisional:
+            self._challenge_mode_error = None
         self._challenge_mode_samples.append(inserted)
         if (
             len(self._challenge_mode_samples) < _CHALLENGE_MODE_SAMPLES_REQUIRED
             or len(set(self._challenge_mode_samples)) != 1
         ):
-            if self._challenge_mode_timed_out():
+            if self._challenge_mode_timed_out() and not self._challenge_mode_provisional:
                 self._latch_challenge_mode(inserted=False, reason="jumper reading never stabilized (bounce/noise)")
             return
 
@@ -629,8 +678,27 @@ class StateMachineNode(Node, ResettableNode):
         return waited >= _CHALLENGE_MODE_TIMEOUT_SEC
 
     def _latch_challenge_mode(self, *, inserted: bool, reason: str | None = None) -> None:
-        """Fix the challenge mode for this run and derive the lap count."""
+        """Fix the challenge mode for this run and derive the lap count.
+
+        ``reason`` marks the resolution PROVISIONAL: it was defaulted, not
+        read. A provisional mode is replaced as soon as the Zero's jumper
+        reading arrives and stabilises (see ``_sample_challenge_mode``), which
+        is what stops a slow-booting Zero from silently costing a whole round.
+        """
+        was_provisional = self._challenge_mode_provisional
+        previous = self.challenge_mode
+        self._challenge_mode_provisional = reason is not None
         self.challenge_mode = ScenarioType.OBSTACLES if inserted else ScenarioType.OPEN
+        if was_provisional and reason is None:
+            # The real reading arrived after a fallback. Say so at WARNING even
+            # when the corrected value equals the guess: the operator was shown
+            # a jumper fault, and "it resolved itself" is the thing they need
+            # to see to trust the mode on the display.
+            self.get_logger().warning(
+                f"Challenge mode CORRECTED from the provisional {previous.value if previous else 'none'} "
+                f"to {(ScenarioType.OBSTACLES if inserted else ScenarioType.OPEN).value} -- "
+                "the Pi Zero's jumper reading arrived after the boot-check timeout.",
+            )
         # Latched (TRANSIENT_LOCAL): track_navigator_node may subscribe before
         # or after this fires and either way must see the current value. Fires
         # on every resolution, detected or defaulted, and again after each
@@ -739,16 +807,16 @@ class StateMachineNode(Node, ResettableNode):
                 error_message=None if lidar_ready else "No LiDAR data received",
             )
 
-            # Check Hailo (includes model loading verification via FPS > 0)
+            # Check the vision pipeline: detections arriving recently. Same
+            # shape as the IMU and LiDAR tests above, and for the same reason --
+            # a stream that has stopped is what "not ready" means here.
             hailo_ready = (
-                self.hailo_last_msg_time is not None
-                and (current_time - self.hailo_last_msg_time) < timeout
-                and self.hailo_fps > 0.0
+                self.hailo_last_msg_time is not None and (current_time - self.hailo_last_msg_time) < timeout
             )
             hailo_status = SensorStatus(
                 name="Hailo",
                 is_ready=hailo_ready,
-                error_message=None if hailo_ready else "Hailo model not loaded or no inference",
+                error_message=None if hailo_ready else "No vision detections received",
             )
 
             challenge_mode_ready = self.challenge_mode is not None

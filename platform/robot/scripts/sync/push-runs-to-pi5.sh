@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Push locally-held rosbag runs (pulled via pull-runs-from-pi5.sh, or recorded
-# elsewhere) from the shared repo-root data/runs_pulled tree back up into
-# ~/vtitan/data/runs_pulled on the Pi 5, so a reformat/reflash doesn't strand the only
+# elsewhere) from the shared repo-root data/live/runs tree back up into
+# ~/vtitan/data/live/runs on the Pi 5, so a reformat/reflash doesn't strand the only
 # copy on whichever side happens to have it.
 #
 # Usage:
@@ -19,8 +19,8 @@ ROBOT_DIR="$(cd "$HERE/../.." && pwd)"
 REPO_ROOT="$(cd "$ROBOT_DIR/../.." && pwd)"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/runs_pulled}"
-RUNS_DIR="${RUNS_DIR:-$REPO_ROOT/data/runs_pulled}"
+REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/live/runs}"
+RUNS_DIR="${RUNS_DIR:-$REPO_ROOT/data/live/runs}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[push-runs] $*"; }

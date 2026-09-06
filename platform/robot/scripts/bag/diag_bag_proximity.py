@@ -11,7 +11,7 @@ Groups the result into episodes rather than listing ticks, because a slowdown
 that matters is a stretch of seconds, not one sample.
 
 Usage:
-    pixi run -e dev python scripts/bag/diag_bag_proximity.py data/runs_pulled/run_XXXXXXXX_XXXXXX
+    pixi run -e dev python scripts/bag/diag_bag_proximity.py data/live/runs/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

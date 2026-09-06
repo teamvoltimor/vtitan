@@ -405,9 +405,27 @@ class OLEDDisplayNode(LifecycleNode):
         self.current_state = msg.data
 
     def _diagnostics_callback(self, msg: DiagnosticArray) -> None:
-        """Handle system diagnostics updates."""
+        """Handle system diagnostics updates.
+
+        The level is normalised to an int HERE, at the boundary, because
+        ``DiagnosticStatus.level`` is a ROS ``byte`` field and rclpy hands it
+        over as ``bytes`` -- ``b"\\x00"``, not ``0``. Every downstream test in
+        this node is ``level == 0``, and ``b"\\x00" == 0`` is False, so storing
+        the raw field made OK indistinguishable from a fault: the component
+        row rendered "✗" for every subsystem no matter how healthy, and
+        ChallengeMode -- whose else-branch escalates -- sat on the CHECK JUMPER
+        page permanently, reporting a wiring fault that did not exist while the
+        state machine was publishing ``ChallengeMode OBSTACLES level 0`` on the
+        wire. Measured on the robot 2026-09-05.
+
+        Converting at ingest rather than at each comparison keeps the fix in one
+        place; both spellings are accepted because the field arrives as an int
+        when a message is built in-process (tests) and as bytes when it comes
+        off the wire.
+        """
         for status in msg.status:
-            self.system_status[status.name] = {"level": status.level, "message": status.message, "values": {}}
+            level = status.level if isinstance(status.level, int) else int.from_bytes(status.level, "big")
+            self.system_status[status.name] = {"level": level, "message": status.message, "values": {}}
 
             # Extract key-value pairs
             for kv in status.values:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Push locally-held per-run videos (pulled via pull-videos-from-pi5.sh, in the
-# shared repo-root data/videos_pulled tree) back up into their matching
-# ~/vtitan/data/runs_pulled/run_<timestamp>/ on the Pi 5 -- e.g. after re-encoding/
+# shared repo-root data/live/videos tree) back up into their matching
+# ~/vtitan/data/live/runs/run_<timestamp>/ on the Pi 5 -- e.g. after re-encoding/
 # trimming one locally and wanting the copy alongside its run's mcap bag back
 # in sync.
 #
@@ -20,8 +20,8 @@ ROBOT_DIR="$(cd "$HERE/../.." && pwd)"
 REPO_ROOT="$(cd "$ROBOT_DIR/../.." && pwd)"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/runs_pulled}"
-VIDEOS_DIR="${VIDEOS_DIR:-$REPO_ROOT/data/videos_pulled}"
+REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/live/runs}"
+VIDEOS_DIR="${VIDEOS_DIR:-$REPO_ROOT/data/live/videos}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[push-videos] $*"; }

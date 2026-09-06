@@ -160,21 +160,26 @@ opencode.json
 # Internal programs configuration
 .rsk/
 
-# Shared pulled-data tree (runs/videos/photos pulled off the robot). Both the
-# Python and Go stacks reference this as siblings, never the robot module's own
-# dir. Large binary data, never committed; the .gitkeep markers are tracked.
-data/runs_pulled/*
-!data/runs_pulled/.gitkeep
-data/videos_pulled/*
-!data/videos_pulled/.gitkeep
-data/photos_pulled/*
-!data/photos_pulled/.gitkeep
+# Shared data tree, split by provenance (live = pulled off the robot,
+# sim = sim-runner output), each with runs/videos/photos siblings. Both the
+# Python and Go stacks reference this, never the robot module's own dir.
+# Large binary data, never committed; the .gitkeep markers are tracked.
+data/live/runs/*
+!data/live/runs/.gitkeep
+data/live/videos/*
+!data/live/videos/.gitkeep
+data/live/photos/*
+!data/live/photos/.gitkeep
 # Simulator-recorded bags (sim-runner --record). Kept apart from
-# runs_pulled/ because a single 640-case sweep writes ~1.2 GB across 640
+# data/live/ because a single 640-case sweep writes ~1.2 GB across 640
 # bags, and burying the handful of expensive real track runs under that is
 # how one gets deleted by accident.
-data/runs_sim/*
-!data/runs_sim/.gitkeep
+data/sim/runs/*
+!data/sim/runs/.gitkeep
+data/sim/videos/*
+!data/sim/videos/.gitkeep
+data/sim/photos/*
+!data/sim/photos/.gitkeep
 
 # Internal docs
 docs/internal/

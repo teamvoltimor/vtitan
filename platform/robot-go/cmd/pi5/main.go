@@ -70,7 +70,7 @@ func runMain() int {
 	fs := flag.NewFlagSet("pi5", flag.ContinueOnError)
 	fs.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
 	fs.StringVar(&cfg.nodeName, "name", "pi5", "NATS client name")
-	fs.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir (default: repo-root data/runs_pulled)")
+	fs.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir (default: repo-root data/live/runs)")
 	fs.StringVar(&cfg.configRoot, "config-root", "", "repo root for robot.toml (VTITAN_HARDWARE_PROFILE selects the active profile)")
 	fs.StringVar(&cfg.profiles, "profiles", "", "comma-separated hardware profiles (overrides VTITAN_HARDWARE_PROFILE)")
 	fs.Float64Var(&cfg.fps, "fps", 15.0, "capture frame rate")

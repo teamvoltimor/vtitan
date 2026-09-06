@@ -370,11 +370,11 @@ func scanToCDR(scan controllers.LidarScan, stampNanos uint64) recording.LaserSca
 
 // SimRunsRootFor resolves where a sweep's bags go: the caller's explicit
 // directory, else a timestamped sweep directory under the repo-root
-// data/runs_sim tree.
+// data/sim/runs tree.
 //
 // The sweep gets its own directory because a sweep is the unit anyone
 // compares: "the 640 cases I ran before the change" against "the 640 after".
-// Dropping every scenario straight into runs_sim/ would interleave two
+// Dropping every scenario straight into data/sim/runs/ would interleave two
 // sweeps' bags under names that collide on the scenario ID.
 func SimRunsRootFor(explicit string, now time.Time) (string, error) {
 	if explicit != "" {
