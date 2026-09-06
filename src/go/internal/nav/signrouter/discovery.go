@@ -128,17 +128,19 @@ type DiscoveryConfig struct {
 	CornerMaxM float64
 }
 
-// Default* mirror NavigationTuning.sign_discovery / lidar_sectors shipped
-// defaults (MAX_INGEST_RANGE_M=2.0, ASSOCIATION_DIST_M=0.25, MIN_HITS=3,
-// ROBOT_CORRIDOR_FLIP_TICKS defaulted here to 1, MIN_RELIABLE_BBOX_HEIGHT_PX
-// defaulted to 8.0 -- TODO: confirm against navigation_tuning.toml).
+// Default* mirror the shipped sign_discovery.toml / lidar_sectors values.
 // DefaultMinConfidence is reused from this package's sighted router config.
+//
+// RobotCorridorFlipTicks and MinReliableBBoxHeightPX carried unconfirmed
+// placeholders (1 and 8.0) against the shipped 5 and 5 until 2026-09-06;
+// DiscoveryConfigFor now reads the file, so these are the no-config-root
+// fallback rather than a second source of truth.
 const (
 	DefaultMaxIngestRangeM         = 2.0
 	DefaultAssociationDistM        = 0.25
 	DefaultMinHits                 = 3
-	DefaultRobotCorridorFlipTicks  = 1
-	DefaultMinReliableBBoxHeightPX = 8.0
+	DefaultRobotCorridorFlipTicks  = 5
+	DefaultMinReliableBBoxHeightPX = 5.0
 	DefaultMinValidLidarRangeM     = 0.05
 	DefaultCornerMinM              = 1.0
 	DefaultCornerMaxM              = 2.0
