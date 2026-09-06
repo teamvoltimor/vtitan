@@ -237,7 +237,18 @@ class VisionNode(Node):
         sets.
         """
         topics = self._topics
-        pub = self.create_publisher(DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE)
+        # HELD ON THE INSTANCE, not a local. TRANSIENT_LOCAL retains the latched
+        # sample on the PUBLISHER, so a publisher that goes out of scope at the
+        # end of this method takes the retained value with it and no late
+        # subscriber can ever receive it -- and this publishes exactly once, at
+        # startup. The OLED's READY page showed "Model: ?" for precisely that
+        # reason: every time that node restarted it joined after the one-shot,
+        # with nothing left to replay to it. Keeping the reference alive is what
+        # makes the latch mean anything.
+        self._model_status_pub = self.create_publisher(
+            DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE
+        )
+        pub = self._model_status_pub
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
         status = DiagnosticStatus()
