@@ -12,6 +12,26 @@ slow_dist = 0.25       # Reduced speed zone
 medium_dist = 0.50     # Normal speed zone
 fast_dist = 1.00       # Full speed capability (> this)
 path_margin = 0.10     # Extra clearance beyond chassis half-width still counted as "in the forward path"
+# Back off when the chassis has closed to contact_dist, instead of creeping
+# forward into it. ~0.4 s / 25 mm at creep, with a cooldown that only counts
+# down while CLEAR so the pair cannot oscillate against the same obstacle.
+#
+# SHIPS DISABLED (0). Measured back-to-back on the 256 corpus 2026-09-06:
+#
+#            ticks=0   ticks=8
+#   in-time    149       150      flat (1 case is noise)
+#   laps>=3    150       151      flat
+#   stuck       26        15      BETTER -- this is what it is for
+#   collisions   8        13      WORSE (wall 4 -> 10)
+#   timeouts    65        70      worse
+#
+# It does unstick the chassis, and it pays for that by reversing into walls:
+# the leg is centred and blind, and this mount has no rear sensing. Enabling it
+# wants `trail_clearance_behind` (src/navigation/utils.py) as a gate, so the
+# reverse only runs over ground the footprint has already occupied. Until then
+# the headline is flat and the composition is worse, which is not a change.
+contact_reverse_ticks = 0
+contact_reverse_cooldown_ticks = 20
 
 # Obstacles-Challenge contact zone. Resolved by
 # ClearanceZones.for_obstacles_challenge(), which CoreNavigator calls once at

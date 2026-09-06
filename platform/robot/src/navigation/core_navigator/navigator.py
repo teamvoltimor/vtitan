@@ -196,6 +196,11 @@ class CoreNavigator(EscapeRecovery):
         )
 
         self._stuck_detector = StuckDetector.from_tuning(self._tuning)
+        # Backing off an obstacle the chassis has closed on. Ticks still owed,
+        # and the cooldown that stops a back-off/drive-forward pair oscillating
+        # against the same pillar.
+        self._contact_reverse_left = 0
+        self._contact_reverse_cooldown = 0
 
         # Full internal state of the most recent step(), for telemetry -- see
         # NavigatorDebugSnapshot's own docstring for why this exists.
@@ -626,6 +631,8 @@ class CoreNavigator(EscapeRecovery):
         self._escape_count = 0
         self._escape_steer_sign = 1.0
         self._escape_sequence_start_xy = None
+        self._contact_reverse_left = 0
+        self._contact_reverse_cooldown = 0
         self._stuck_detector.reset()
         self._waypoint_controller.reset()
         if self._sign_router is not None:
@@ -1104,6 +1111,21 @@ class CoreNavigator(EscapeRecovery):
 
         # Determine speed
         if forward_clearance < self._clearance.CONTACT_DIST:
+            # Creeping FORWARD at contact is how the chassis ends up leaning on
+            # what it was avoiding. Measured on run_20260906_121254: forward
+            # clearance 0.023-0.037 m, risk CRITICAL, and the commanded speed
+            # stayed +0.152 m/s for ten seconds against a green pillar until the
+            # operator intervened. Nothing in this path ever reverses.
+            #
+            # So contact backs OFF, for a bounded run of ticks, then hands the
+            # tick back to normal driving. Bounded rather than "reverse until
+            # clear" for the same reason the bay exit's recovery is: the reading
+            # that would end it is the one that just went unreliable.
+            # `_contact_reverse_cooldown` stops the pair from oscillating
+            # against the same pillar -- back off once, then drive, and only
+            # re-arm after the chassis has actually been clear again.
+            if self._contact_reverse_left <= 0 and self._contact_reverse_cooldown <= 0:
+                self._contact_reverse_left = self._clearance.CONTACT_REVERSE_TICKS
             speed = self._speed.creep_mps()
         elif forward_clearance < self._clearance.SLOW_DIST:
             speed = self._speed.slow_mps()
@@ -1111,6 +1133,22 @@ class CoreNavigator(EscapeRecovery):
             speed = self._speed.medium_mps()
         else:
             speed = self._speed.fast_mps()
+
+        # Clear of contact: the cooldown only counts down out here, so a chassis
+        # still against the obstacle cannot time its way back to a second
+        # reverse without having been clear in between.
+        if forward_clearance >= self._clearance.CONTACT_DIST:
+            self._contact_reverse_cooldown = max(0, self._contact_reverse_cooldown - 1)
+
+        # Spend the backing-off run. Steering is centred: the point of the leg
+        # is ROOM, and a steered reverse swings the tail into whatever the
+        # chassis has not yet seen.
+        if self._contact_reverse_left > 0:
+            self._contact_reverse_left -= 1
+            if self._contact_reverse_left == 0:
+                self._contact_reverse_cooldown = self._clearance.CONTACT_REVERSE_COOLDOWN_TICKS
+            speed = -self._speed.creep_mps()
+
         # Captured before the heading limiter, the envelope clamp and the risk
         # cap all fold into `speed`. Reporting the post-min value under this
         # name made the two debug fields satisfy final <= heading_speed by
@@ -1414,6 +1452,10 @@ class CoreNavigator(EscapeRecovery):
         ):
             self._escape_count = 0
             self._escape_sequence_start_xy = None
+        if speed < 0.0:
+            # Centred while backing off: a steered reverse swings the tail into
+            # ground the chassis has not seen, and the leg exists to buy room.
+            steering_normalized = 0.0
         self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))
         debug.phase = NavigatorPhase.NORMAL_DRIVE
         debug.commanded_speed_mps = speed
