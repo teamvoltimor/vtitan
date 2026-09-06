@@ -141,3 +141,67 @@ corridor_flip_ticks = 1
 # Obstacles-only by construction: it gates on a deformation the router applied,
 # and Open never deforms, so this cannot touch the Open ladder.
 sign_aware_speed = true
+
+# =====================================================================
+# Written out 2026-09-05
+#
+# Every key below existed ONLY as a Python literal: SignRouterParams carried
+# the value, this file did not name it, and so no edit here reached the robot.
+# They are written at their shipped values, which means adding them changed
+# nothing -- what changed is that they are now tunable without a code edit.
+#
+# The measured rationale for each lives in SignRouterParams' own docstrings
+# (platform/shared/src/shared/config/navigation_tuning/signs.py). Several are
+# REFUTED experiments kept configurable so the refutation stays reproducible;
+# those are marked. Do not read a `false` here as "unfinished".
+# =====================================================================
+
+# --- Lane planner (the shipped sign-avoidance path) ---
+sign_lane_planner = true
+# Fraction of the full lane offset actually applied.
+sign_lane_offset_frac = 1.0
+# Metres over which the lane offset ramps in, and is then held.
+sign_lane_ramp_m = 0.9
+sign_lane_hold_m = 0.25
+# Commit the lane this far ahead of the sign; 0 = at the sign.
+sign_lane_commit_ahead_m = 0.0
+# Distance from a corner at which lane entry is suppressed.
+sign_lane_corner_entry_m = 0.5
+# Suppress the older per-waypoint deformation while the lane planner drives.
+sign_lane_suppress_deform = true
+# Re-label a lane that cannot be satisfied rather than skipping it outright.
+sign_lane_relabel_unsatisfiable = true
+sign_lane_skip_unsatisfiable = false
+# Require the corridor's depth reading to agree before committing a lane.
+sign_lane_depth_consistent_corridor = true
+# Allow two lanes to overlap. REFUTED -- kept off.
+sign_lane_split_overlap = false
+
+# --- Guards on the depth/heading pin ---
+depth_pin = true
+pin_corner_guard = true
+pin_heading_guard = true
+# Heading disagreement, in degrees, above which the pin is refused.
+pin_heading_guard_deg = 35.0
+
+# --- Deformation and speed coupling ---
+# Minimum deformation, in metres, that counts as the router having moved the
+# path -- what sign_aware_speed above gates on.
+sign_deform_speed_threshold_m = 0.02
+# Speed fraction during the exploratory first lap. 1.0 = no reduction.
+explore_lap_speed_frac = 1.0
+
+# --- Refuted experiments, kept configurable and OFF ---
+# Retrace on escape: REFUTED (see steer_cap_from_commit_distance's note in
+# corridor_follower.toml -- same session, same 640-case sweep).
+retrace_escape = false
+retrace_dist_m = 0.25
+retrace_steer_gain_deg = 55.0
+# Evade a sign on contact rather than routing around it in advance.
+sign_contact_evade = false
+sign_contact_dist_m = 0.6
+sign_contact_steer_deg = 19.25
+# Extend the lookahead when a sign is engaged.
+sign_aware_lookahead = false
+# Rescue a target that has gone stale mid-approach.
+stale_target_rescue = false

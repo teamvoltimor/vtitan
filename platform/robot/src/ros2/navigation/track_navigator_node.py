@@ -662,6 +662,18 @@ class TrackNavigator(Node, ResettableNode):
                 logger.info("direction settled from parking-bay geometry: %s", boxed.value)
                 estimator.settle(boxed)
                 self._exiting_bay = True
+            elif not self._is_open_challenge and self._tuning.corridor_follower.ASSUME_BAY_START:
+                # The in-bay start is the one we intend to use on Obstacles, so
+                # believe it rather than requiring the scan to prove it. Only
+                # the DIRECTION half of the test failed here -- a dropped side
+                # ray reads as open corridor -- and the direction is not needed
+                # to ratchet out; the estimator settles once the chassis is
+                # clear. If the belief is wrong the very next line drops it,
+                # because a parallel start is one with forward clearance and
+                # that is precisely what BayExit.is_clear tests. See
+                # ASSUME_BAY_START.
+                logger.info("assuming an in-bay start (Obstacles); bay geometry did not name a direction")
+                self._exiting_bay = True
 
         # Out of the pocket. Falls THROUGH to the settle block rather than
         # returning, so the path is rebuilt for the committed direction; see

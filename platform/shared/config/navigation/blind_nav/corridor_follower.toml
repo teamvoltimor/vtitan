@@ -226,3 +226,69 @@ min_forward_clearance_m = 0.30
 # robot must never cover ground backwards -- a robot reversing down a
 # corridor is going the wrong way regardless of which way it is pointing.
 min_reverse_clearance_m = 0.30
+
+# --- In-bay start and the bay-exit manoeuvre ---
+#
+# Every key below existed ONLY as a Python literal until 2026-09-05: the
+# Pydantic model carried the value, this file did not name it, and so no edit
+# here reached the robot. They are written out at their shipped values, which
+# means adding them changed nothing -- what changed is that they are now
+# tunable without a code edit, and that the Go mirror can load them.
+#
+# The measured rationale for each lives in CorridorFollowerParams' own
+# docstrings (platform/shared/src/shared/config/navigation_tuning/blind_nav.py),
+# which are far longer than a comment here should be; the notes below say what
+# the key is and where it is a cliff, not why.
+
+# Side clearance below which a start counts as boxed against the bay wall,
+# for direction_from_parking_bay's wall-against-open test.
+bay_wall_clearance_m = 0.20
+
+# Begin an OBSTACLES round believing the robot was placed inside the bay,
+# rather than waiting for the scan to prove it. The in-bay start is the
+# 7-point one and is the start we intend to use; an unrecognised bay start
+# DEADLOCKS, and believing wrongly costs nothing because a parallel start has
+# forward clearance and is dropped by is_clear on the next tick. Set false for
+# the recognition-only control arm.
+assume_bay_start = true
+
+# Bound each exit leg by PREDICTED fin clearance instead of by contact -- a
+# contact-bounded leg-end IS the 9.24.7 violation. Supersedes both older
+# exits: with this on, bay_exit_cycle and the reverse-then-swing exit are
+# unreachable.
+bay_exit_clearance_guard = true
+# Fin clearance the guard refuses to go below, absorbing dead-reckoning error.
+bay_exit_clearance_margin_m = 0.005
+
+# Steering both guarded legs hold, as a fraction of full lock. A CLIFF at 1.0:
+# 0.3-0.9 all give 0/8 out of the bay, and 0.9 collides rather than stalling.
+# The margin is ~2 degrees -- see the docstring before touching it.
+bay_exit_arc_steer_norm = 1.0
+# Extra speed scale on both guarded legs. Also a cliff: 1.0 never moves at all
+# (the coast alone exceeds the along-wall slack), 0.5 collides, 0.2 leaves
+# only 3.5 mm of fin margin against this value's 9.0 mm.
+bay_exit_speed_scale = 0.35
+
+# The legacy contact-bounded exits, reachable only with the clearance guard
+# off. Kept configurable because which one a real chassis needs is unproven.
+bay_exit_cycle = true
+bay_exit_cycle_reverse_m = 0.09
+bay_exit_cycle_reverse_steer_norm = 0.0
+bay_exit_forward_m = 0.08
+bay_exit_reverse_m = 0.05
+bay_exit_steer_norm = 1.0
+# Opposite lock on the reverse leg -- REFUTED 2026-08-29. Held forward lock
+# (bay_exit_hold_steer) is what makes the yaw cross and the ratchet bite.
+bay_exit_reverse_steer_norm = 0.0
+bay_exit_hold_steer = true
+
+# Ticks of no wheel travel that end a leg (1 is a cliff -- no leg ever runs).
+bay_exit_leg_stall_ticks = 6
+# Decide which side is open once, not every tick: once the chassis rotates,
+# the +/-90 deg comparison is noise and a flip turns the escape into a
+# re-entry.
+bay_exit_latch_direction = true
+bay_exit_latch_reverse = false
+# Ticks before switching to the other legacy exit / handing over; 0 = never.
+bay_exit_fallback_frames = 0
+bay_exit_max_frames = 0

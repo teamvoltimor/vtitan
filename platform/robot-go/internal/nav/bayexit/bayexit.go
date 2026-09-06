@@ -237,11 +237,16 @@ func (b *BayExit) guardedCommand(
 		b.guardMinGap = &g
 	}
 
+	// BayExitSpeedScale multiplies BOTH legs on top of the corner/reverse
+	// scale, matching _guarded_command. It is the lever on the COAST the
+	// guard has to predict past: commanding zero does not stop the
+	// chassis, it decays with tau and travels a further v*tau, against an
+	// along-wall budget of tens of millimetres.
 	speedScale := f.CornerSpeedScale
 	if b.legIsReverse {
 		speedScale = f.ReverseSpeedScale
 	}
-	speed := creepSpeedMPS * speedScale
+	speed := creepSpeedMPS * speedScale * f.BayExitSpeedScale
 	step := speed / cfg.ControlHz
 	if b.legIsReverse {
 		step = -speed / cfg.ControlHz
@@ -258,7 +263,7 @@ func (b *BayExit) guardedCommand(
 		if b.legIsReverse {
 			speedScale = f.ReverseSpeedScale
 		}
-		speed = creepSpeedMPS * speedScale
+		speed = creepSpeedMPS * speedScale * f.BayExitSpeedScale
 	}
 	if b.legIsReverse {
 		b.reverseTicks++
@@ -341,7 +346,7 @@ func (b *BayExit) cycleCommand(
 			b.cyclesN++
 		}
 		return controllers.DriveCommand{
-			SpeedMPS:     -creepSpeedMPS * f.ReverseSpeedScale,
+			SpeedMPS:     -creepSpeedMPS * f.ReverseSpeedScale * f.BayExitSpeedScale,
 			SteeringNorm: target,
 		}
 	}
@@ -364,7 +369,10 @@ func (b *BayExit) cycleCommand(
 	if stalled || travelledM-legStart >= f.BayExitForwardM {
 		b.beginLeg(true, travelledM, cfg, target)
 	}
-	return controllers.DriveCommand{SpeedMPS: creepSpeedMPS * f.CornerSpeedScale, SteeringNorm: target}
+	return controllers.DriveCommand{
+		SpeedMPS:     creepSpeedMPS * f.CornerSpeedScale * f.BayExitSpeedScale,
+		SteeringNorm: target,
+	}
 }
 
 // IsClear reports whether the chassis is out of the pocket and normal

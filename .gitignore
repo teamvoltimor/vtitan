@@ -207,10 +207,11 @@ landing/
 /latch_*.txt
 /latchsweep_*.txt
 
-# Generated doc artifacts (rendered SVGs, wiring exports) — sources are the
-# mermaid/png siblings that are tracked; these are build output.
-platform/robot/docs/diagrams/common/svg-editorial/
-# NOT platform/robot/docs/wiring/ as a whole: that blanket rule also hid the
-# tscircuit harness SOURCE (circuit.tsx), which is hand-written, not build
-# output. Its generated exports are ignored by the nested
-# docs/wiring/tscircuit/.gitignore instead.
+# Generated doc artifacts (rendered SVGs) — sources are the mermaid/png
+# siblings that are tracked; these are build output.
+docs/schemes/flowcharts/common/svg-editorial/
+# NOT docs/schemes/wiring/ as a whole: the harness schematic exports
+# (harness.schematic.png/.svg) ARE committed, because they are what the WRO
+# judges read and rebuilding them needs the whole tscircuit toolchain. The
+# toolchain's own throwaway output stays ignored by the nested
+# docs/schemes/wiring/tscircuit/.gitignore.

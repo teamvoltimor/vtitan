@@ -23,9 +23,14 @@ import (
 // failure domains: an operator tuning corridor_follower.toml should not be
 // blocked by a typo in lidar_sectors.toml.
 //
-// The bay-exit fields are not overlaid here -- they belong to
-// internal/nav/bayexit's own TOML and loader, and are mirrored on this
-// Config only because FollowCorridor's callers hand it one config.
+// The bay-exit fields ARE overlaid here as of 2026-09-05. They were left out
+// on the grounds that they belonged to "internal/nav/bayexit's own TOML and
+// loader" -- neither of which was ever written, so in practice every bay
+// constant read a Go literal, corridor_follower.toml did not name them
+// either, and Go drifted from Python unnoticed: the clearance guard was still
+// OFF and the arc still 0.3 while Python shipped the solved full-lock
+// ratchet. They live on this Config (see bayexit.Config.Follower), so this is
+// the loader that owns them.
 func ConfigFor(
 	logger *slog.Logger,
 	configRoot string,
@@ -57,6 +62,25 @@ func ConfigFor(
 		cfg.CornerLeakMarginM = cf.CornerLeakMarginM
 		cfg.MinForwardClearanceM = cf.MinForwardClearanceM
 		cfg.MinReverseClearanceM = cf.MinReverseClearanceM
+
+		cfg.AssumeBayStart = cf.AssumeBayStart
+		cfg.BayExitClearanceGuard = cf.BayExitClearanceGuard
+		cfg.BayExitClearanceMarginM = cf.BayExitClearanceMarginM
+		cfg.BayExitArcSteerNorm = cf.BayExitArcSteerNorm
+		cfg.BayExitSpeedScale = cf.BayExitSpeedScale
+		cfg.BayExitCycle = cf.BayExitCycle
+		cfg.BayExitCycleReverseM = cf.BayExitCycleReverseM
+		cfg.BayExitCycleReverseSteerNorm = cf.BayExitCycleReverseSteerNorm
+		cfg.BayExitForwardM = cf.BayExitForwardM
+		cfg.BayExitReverseM = cf.BayExitReverseM
+		cfg.BayExitSteerNorm = cf.BayExitSteerNorm
+		cfg.BayExitReverseSteerNorm = cf.BayExitReverseSteerNorm
+		cfg.BayExitHoldSteer = cf.BayExitHoldSteer
+		cfg.BayExitLegStallTicks = cf.BayExitLegStallTicks
+		cfg.BayExitLatchDirection = cf.BayExitLatchDirection
+		cfg.BayExitLatchReverse = cf.BayExitLatchReverse
+		cfg.BayExitFallbackFrames = cf.BayExitFallbackFrames
+		cfg.BayExitMaxFrames = cf.BayExitMaxFrames
 	}
 
 	cePath := filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath)

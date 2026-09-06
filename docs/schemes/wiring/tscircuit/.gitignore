@@ -1,0 +1,10 @@
+# Toolchain + throwaway output. The tracked source is circuit.tsx; the
+# committed schematic exports live one level up in docs/schemes/wiring/ (the
+# npm scripts write them there), so nothing here needs to be kept.
+node_modules/
+dist/
+.tscircuit/
+*.svg
+*.png
+*.netlist.txt
+package-lock.json
