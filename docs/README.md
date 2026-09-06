@@ -492,7 +492,15 @@ El Mini-560 Pro es el regulador que alimenta el riel propio del servo de direcci
 
 **También es un reemplazo, y aquí el criterio fue el peso.** El regulador original era un XLC4016, un módulo notablemente más grande y pesado. El peso fue un problema recurrente en nuestros prototipos —llegamos a estar 200 gramos por encima del límite— así que revisamos la lista de componentes buscando piezas que estuvieran sobredimensionadas para su función. El regulador del servo era una de ellas: la corriente que realmente necesita esa rama es muy inferior a lo que el XLC4016 podía entregar, de modo que estábamos pagando peso por una capacidad que nunca íbamos a usar.
 
-El Mini-560 Pro cubre la demanda real del servo en un encapsulado mucho más compacto. Es el mismo razonamiento que aplicamos en la transmisión y en el chasis: **dimensionar cada pieza contra la carga medida, no contra el peor caso imaginable.**
+El Mini-560 Pro cubre la demanda real del servo en un encapsulado mucho más compacto. La diferencia medida es de **24 g a 5 g: 19 gramos menos, casi un 80% del peso del módulo anterior**, por una capacidad que la rama del servo no necesitaba.
+
+| **Regulador** | **Peso** |
+|---------------|----------|
+| XLC4016 (anterior) | 24 g |
+| Mini-560 Pro (actual) | 5 g |
+| **Diferencia** | **-19 g** |
+
+Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el punto: **el peso no se recupera de un solo golpe, sino sumando decisiones pequeñas**. Llegamos a estar 200 g por encima del límite, y ninguna pieza individual explicaba esos 200 g. Salir de ahí consistió en repetir este mismo ejercicio pieza por pieza —¿cuánta capacidad usa realmente esta rama, y cuánto peso estamos pagando por la que sobra?—. Es el mismo razonamiento que aplicamos en la transmisión y en el chasis: **dimensionar cada pieza contra la carga medida, no contra el peor caso imaginable.**
 
 ### SSD1306 OLED Display
 
