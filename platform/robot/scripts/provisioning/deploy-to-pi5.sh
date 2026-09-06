@@ -42,6 +42,13 @@ BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 HEF="${HEF-auto-annotator/ml-service/models/gmr/gmr.hef}"
 HEF_DEST="${HEF_DEST:-/usr/local/hailo/models/gmr.hef}"
 SERVICE="${SERVICE:-vtitan-pi5.service}"
+# The NAVIGATOR does not run in $SERVICE. vtitan-pi5.service carries the state
+# machine, vision, IMU and bridge; track_navigator_node runs under
+# vtitan-race.service, which this script never restarted. On 2026-09-06 that
+# shipped a navigator change, restarted only vtitan-pi5, and left the OLD
+# navigator running -- a round was then measured against code that was not on
+# the robot. Both restart together now.
+RACE_SERVICE="${RACE_SERVICE:-vtitan-race.service}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[deploy-pi5] $*"; }
@@ -121,17 +128,29 @@ esac
 
 # 4. Service.
 if [ -n "${SKIP_RESTART:-}" ]; then
-  log "SKIP_RESTART set; leaving $SERVICE alone"
+  log "SKIP_RESTART set; leaving $SERVICE and $RACE_SERVICE alone"
   exit 0
 fi
-log "Restarting $SERVICE..."
-ssh "${SSH_OPTS[@]}" "$PI5_HOST" "sudo systemctl reset-failed '$SERVICE' 2>/dev/null; \
-  sudo systemctl restart '$SERVICE'"
+log "Restarting $SERVICE and $RACE_SERVICE..."
+ssh "${SSH_OPTS[@]}" "$PI5_HOST" "sudo systemctl reset-failed '$SERVICE' '$RACE_SERVICE' 2>/dev/null; \
+  sudo systemctl restart '$SERVICE' '$RACE_SERVICE'"
 sleep 15
 
 STATE="$(ssh "${SSH_OPTS[@]}" "$PI5_HOST" "systemctl is-active '$SERVICE'")"
 log "  service: $STATE"
 [ "$STATE" = "active" ] || die "$SERVICE is $STATE"
+
+# Checked as hard as the other one: a navigator that dies on startup leaves the
+# button working, the state machine happy and the robot motionless, which reads
+# as a navigation failure rather than a crash. That is how an AttributeError in
+# __init__ survived a full round on 2026-09-06.
+RACE_STATE="$(ssh "${SSH_OPTS[@]}" "$PI5_HOST" "systemctl is-active '$RACE_SERVICE'")"
+log "  race service: $RACE_STATE"
+[ "$RACE_STATE" = "active" ] || die "$RACE_SERVICE is $RACE_STATE"
+
+log "Navigator startup:"
+ssh "${SSH_OPTS[@]}" "$PI5_HOST" "journalctl -u '$RACE_SERVICE' --since '1 min ago' --no-pager 2>/dev/null \
+  | grep -iE 'Navigator ready|Assumed start|Traceback|process has died' | tail -5" || true
 
 log "Vision node startup:"
 ssh "${SSH_OPTS[@]}" "$PI5_HOST" "journalctl -u '$SERVICE' --since '1 min ago' --no-pager 2>/dev/null \
