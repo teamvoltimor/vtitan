@@ -201,7 +201,32 @@ retrace_steer_gain_deg = 55.0
 sign_contact_evade = false
 sign_contact_dist_m = 0.6
 sign_contact_steer_deg = 19.25
-# Extend the lookahead when a sign is engaged.
-sign_aware_lookahead = false
+# Use the SHORT pursuit lookahead while a routed sign is engaged (the comment
+# here said "extend" until 2026-09-06; it shortens). Crosstrack is measured
+# against the RAW path, so it never rises during a sign pass and never arms the
+# short lookahead on its own -- a long lookahead flattens the slope to a lateral
+# offset, and the chassis arrives level with the pillar still inside the line it
+# was given.
+#
+# Enabled 2026-09-06 on hardware evidence: abeam a committed sign the chassis
+# achieves only 35-40% of its commanded lateral offset (0.12-0.14 m of
+# 0.32-0.38 m, runs _112704 and _085551), and a THIRD of passes go within 10 cm
+# of the pillar. Measured back-to-back on the 256 corpus, false -> true:
+#
+#                   off    on
+#   in-time         149   148     flat
+#   laps>=3         150   149     flat
+#   pass-side         2     0     round-enders under 9.24.5
+#   rev-run           5     1
+#   collisions        8     5
+#     of which wall   4     0
+#   stuck            26    32     the cost
+#   timeouts         65    69     the cost
+#
+# Shipped ON deliberately against a FLAT headline: a pass-side violation ends
+# the round for zero, a timeout keeps the laps already driven. 7 round-enders
+# become 1. Open is structurally unaffected (no sign router): 127/127 cases
+# byte-identical, 0.0 s delta.
+sign_aware_lookahead = true
 # Rescue a target that has gone stale mid-approach.
 stale_target_rescue = false
