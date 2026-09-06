@@ -183,11 +183,58 @@ class BayExit:
         # wall, which is a different problem from touching it once.
         self._recovery_ticks_left = 0
         self._contact_recoveries = 0
+        # Rotation achieved since placement, from MEASURED yaw. Accumulated
+        # rather than differenced so a wrap at +/-pi does not read as a 360 deg
+        # jump, and kept separate from `_dr_yaw` (which is dead-reckoned for the
+        # fin guard and understates the real rotation by ~10%).
+        self._start_yaw_rad: float | None = None
+        self._prev_yaw_rad: float | None = None
+        self._rotation_rad = 0.0
 
     @property
     def contact_recoveries(self) -> int:
         """How many times the nose-against-wall reverse has fired this exit."""
         return self._contact_recoveries
+
+    @property
+    def rotation_deg(self) -> float:
+        """Rotation from the placement heading, in degrees, from measured yaw."""
+        return math.degrees(abs(self._rotation_rad))
+
+    def rotation_complete(self, tuning: NavigationTuning | None = None) -> bool:
+        """Whether the chassis has turned far enough to leave the pocket.
+
+        The completion test the manoeuvre actually needs. ``is_clear`` asks
+        whether the way ahead is open, which is unanswerable in the pocket --
+        the wall is inside ``MIN_VALID_RANGE_M`` and the forward arc reports
+        nothing at all. Rotation is measurable throughout, so it is what says
+        the exit has done its job.
+
+        Returns False while no yaw has been supplied, which keeps the manoeuvre
+        on its previous behaviour rather than releasing on an unmeasured claim.
+        """
+        if self._start_yaw_rad is None:
+            return False
+        tuning = get_tuning(tuning)
+        return self.rotation_deg >= tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG
+
+    def _track_rotation(self, yaw_rad: float | None) -> None:
+        """Accumulate rotation since placement, unwrapping at +/-pi."""
+        if yaw_rad is None:
+            return
+        if self._start_yaw_rad is None:
+            self._start_yaw_rad = yaw_rad
+            self._prev_yaw_rad = yaw_rad
+            return
+        previous = self._prev_yaw_rad
+        if previous is not None:
+            step = yaw_rad - previous
+            if step > math.pi:
+                step -= 2.0 * math.pi
+            elif step < -math.pi:
+                step += 2.0 * math.pi
+            self._rotation_rad += step
+        self._prev_yaw_rad = yaw_rad
 
     @property
     def guard_stats(self) -> tuple[int, float | None, float]:
@@ -701,6 +748,7 @@ class BayExit:
         travelled_m: float,
         creep_speed_mps: float,
         tuning: NavigationTuning | None = None,
+        yaw_rad: float | None = None,
     ) -> DriveCommand:
         """Back out of the parking pocket, then swing the nose to the open side.
 
@@ -755,6 +803,7 @@ class BayExit:
         open_is_left = self._resolve_open_side(ranges_m, angles_rad, tuning)
 
         self._ticks += 1
+        self._track_rotation(yaw_rad)
 
         # Nose against the wall is a STATE, not an absence of data, and it is
         # answered before any leg logic: a chassis in contact cannot steer its
@@ -780,6 +829,23 @@ class BayExit:
             self._recovery_ticks_left -= 1
             return DriveCommand(
                 speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+                steering_norm=0.0,
+            )
+
+        # Turned far enough. Past BAY_EXIT_TARGET_YAW_DEG the chassis lies along
+        # the parking walls rather than across them, and every further degree
+        # carries the nose back toward the outer wall -- run_20260906_112613
+        # rotated well past this and ended up pointing at it. Drive STRAIGHT out
+        # and let the caller release; continuing to steer is what over-rotates.
+        #
+        # AFTER the contact check, not before: a chassis that has turned far
+        # enough AND is touching must still back off first. Driving forward out
+        # of contact is the exact failure this whole path exists to stop, and
+        # ordering these the other way round reintroduced it -- caught by
+        # test_contact_recovery_still_wins_over_a_completed_rotation.
+        if self.rotation_complete(tuning):
+            return DriveCommand(
+                speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
                 steering_norm=0.0,
             )
 

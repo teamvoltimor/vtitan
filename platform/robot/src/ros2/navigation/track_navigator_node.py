@@ -756,9 +756,22 @@ class TrackNavigator(Node, ResettableNode):
             self._bay_exit_ticks += 1
         budget = self._tuning.corridor_follower.BAY_EXIT_MAX_FRAMES
         bay_exit_spent = bool(budget) and self._bay_exit_ticks > budget
+        # Rotation is the release this manoeuvre actually needs. `is_clear` asks
+        # whether the way ahead is open, which the pocket cannot answer -- the
+        # wall sits inside MIN_VALID_RANGE_M and the forward arc reports nothing
+        # -- so it releases late, or on a reading taken mid-rotation. Yaw is
+        # measurable throughout and says when the turn is done.
+        turned_out = self._bay_exit.rotation_complete(self._tuning)
         if self._exiting_bay and (
-            bay_exit_spent or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
+            bay_exit_spent
+            or turned_out
+            or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
         ):
+            if turned_out:
+                logger.info(
+                    "bay exit complete: turned %.1f deg from placement",
+                    self._bay_exit.rotation_deg,
+                )
             if bay_exit_spent:
                 logger.warning(
                     "bay exit released on its %d-frame budget, not on clearance -- "
@@ -785,6 +798,7 @@ class TrackNavigator(Node, ResettableNode):
                 odom.distance_m,
                 self._blind_follow_speed,
                 self._tuning,
+                yaw_rad=pose.yaw,
             )
             self._gateway.publish_drive(command)
             # Publishing a snapshot here is what makes the manoeuvre visible at

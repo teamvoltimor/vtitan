@@ -708,6 +708,28 @@ class CorridorFollowerParams(BaseModel):
     is already why ``_reverse_start_m`` exists; this is the other half of it.
     """
 
+    BAY_EXIT_TARGET_YAW_DEG: float = Field(
+        default=70.0, gt=0.0, validation_alias=_alias("BAY_EXIT_TARGET_YAW_DEG")
+    )
+    """Rotation from the placement heading at which the exit has turned ENOUGH.
+
+    The chassis is placed along the pocket; leaving it means rotating out of
+    that and onto the corridor. Past roughly this much rotation the vehicle is
+    aligned with the parking walls rather than across them, and further turning
+    carries the nose back around toward the outer wall -- which is what
+    run_20260906_112613 did after it had already turned out.
+
+    A yaw threshold rather than a clearance one because IN THE POCKET YAW IS THE
+    ONLY SIGNAL THAT WORKS. Forward clearance is the quantity the manoeuvre
+    cannot measure there: the wall sits inside MIN_VALID_RANGE_M, so the arc
+    reports nothing at all (see ``_nose_in_contact``), while the IMU is
+    unaffected by how close the surface is.
+
+    70 deg, not 90: the exit does not need to be square to the corridor before
+    driving out, only clear of the pocket and pointing out of it, and the last
+    20 deg are the ones taken closest to the far fin.
+    """
+
     BAY_EXIT_CONTACT_DIST_M: float = Field(
         default=0.08, gt=0.0, validation_alias=_alias("BAY_EXIT_CONTACT_DIST_M")
     )

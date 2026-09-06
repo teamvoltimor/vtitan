@@ -265,3 +265,61 @@ def test_a_clear_arc_does_not_trigger_recovery() -> None:
     exit_maneuver = BayExit()
     exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
     assert exit_maneuver.contact_recoveries == 0
+
+
+def test_rotation_is_measured_from_placement_and_unwraps() -> None:
+    """Accumulated, not differenced: a wrap at +/-pi must not read as 360 deg."""
+    tuning = tuning_with_overrides({})
+    exit_maneuver = BayExit()
+    for yaw in (3.0, 3.1, -3.1, -3.0):  # crosses +pi going one way
+        exit_maneuver.command(
+            _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=yaw
+        )
+    # 3.0->3.1 is +0.1, 3.1->-3.1 CROSSES +pi and is +(2pi - 6.2), -3.1->-3.0 is +0.1.
+    # Differencing the endpoints instead would read -6.0 rad: the bug being guarded.
+    expected = 0.1 + (2.0 * math.pi - 6.2) + 0.1
+    assert exit_maneuver.rotation_deg == pytest.approx(math.degrees(expected), abs=1e-6)
+
+
+def test_turning_far_enough_drives_straight_out_instead_of_steering() -> None:
+    """Past the target the nose comes back around toward the outer wall."""
+    tuning = tuning_with_overrides({})
+    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    exit_maneuver = BayExit()
+    exit_maneuver.command(
+        _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0
+    )
+    assert not exit_maneuver.rotation_complete(tuning)
+    command = exit_maneuver.command(
+        _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning,
+        yaw_rad=-(target + 0.05),
+    )
+    assert exit_maneuver.rotation_complete(tuning)
+    assert command.speed_mps > 0.0
+    assert command.steering_norm == pytest.approx(0.0)
+
+
+def test_rotation_release_needs_a_measurement() -> None:
+    """No yaw supplied means no claim: the manoeuvre keeps its old behaviour."""
+    tuning = tuning_with_overrides({})
+    exit_maneuver = BayExit()
+    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    assert not exit_maneuver.rotation_complete(tuning)
+    assert exit_maneuver.rotation_deg == pytest.approx(0.0)
+
+
+def test_contact_recovery_still_wins_over_a_completed_rotation() -> None:
+    """Backing off the wall comes first -- driving out of it forward does not work."""
+    tuning = tuning_with_overrides({})
+    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    exit_maneuver = BayExit()
+    exit_maneuver.command(
+        _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0
+    )
+    command = exit_maneuver.command(
+        (float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning,
+        yaw_rad=-(target + 0.05),
+    )
+    assert exit_maneuver.rotation_complete(tuning)
+    assert command.speed_mps < 0.0
+    assert exit_maneuver.contact_recoveries == 1
