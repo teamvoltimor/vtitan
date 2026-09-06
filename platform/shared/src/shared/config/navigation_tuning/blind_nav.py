@@ -708,6 +708,34 @@ class CorridorFollowerParams(BaseModel):
     is already why ``_reverse_start_m`` exists; this is the other half of it.
     """
 
+    BAY_EXIT_CONTACT_DIST_M: float = Field(
+        default=0.08, gt=0.0, validation_alias=_alias("BAY_EXIT_CONTACT_DIST_M")
+    )
+    """Forward clearance at or below which the bay exit treats the nose as touching.
+
+    0.08 m sits above the readings a chassis in contact actually produces and
+    below the 0.10-0.14 m the manoeuvre holds while merely close to the wall
+    (measured across run_20260906_094342 and _112613). NO valid returns counts
+    as contact regardless of this value -- see ``_nose_in_contact``.
+
+    Deliberately NOT ``MIN_FORWARD_CLEARANCE_M`` (0.30), which asks a different
+    question: that one is "is the pocket behind me", this one is "am I touching".
+    A pocket the chassis is still inside satisfies neither.
+    """
+
+    BAY_EXIT_CONTACT_RECOVERY_TICKS: int = Field(
+        default=12, ge=1, validation_alias=_alias("BAY_EXIT_CONTACT_RECOVERY_TICKS")
+    )
+    """Ticks of straight reverse commanded when the nose reads as touching.
+
+    12 ticks is ~0.6 s at the node's 20 Hz, about 40 mm at the exit's commanded
+    0.067 m/s -- roughly half the pocket's 7.5 cm of end slack, so the leg buys
+    room to rotate without crossing the pocket it is trying to leave. Held for a
+    fixed count rather than until the arc clears: the arc is SILENT in contact,
+    so "reverse until it reads clear" would be waiting on the sensor that just
+    went blind.
+    """
+
     BAY_EXIT_MAX_FRAMES: int = Field(default=900, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))
     """Ticks the bay-exit maneuver may hold control before handing over. 0 = forever.
 

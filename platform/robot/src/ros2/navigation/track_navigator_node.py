@@ -655,6 +655,23 @@ class TrackNavigator(Node, ResettableNode):
         scan = self._gateway.get_lidar_scan()
         pose = self._gateway.get_current_pose()
         if scan is None or pose is None:
+            if self._exiting_bay:
+                # An exit ALREADY IN PROGRESS holds. Handing this tick to normal
+                # driving abandons the manoeuvre silently -- `_exiting_bay` stays
+                # True, but nothing ever routes back to it -- and normal driving
+                # does not know it is in a pocket. Measured on
+                # run_20260906_112613: the exit stopped without ever reporting
+                # clear, and the chassis then drove FORWARD at 0.26 m/s into a
+                # wall 0.02 m away. Holding is the conservative answer: the
+                # manoeuvre reverses toward a fin, so guessing without sensing
+                # is the one thing it must not do.
+                self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+                self._latest_debug = NavigatorDebugSnapshot(
+                    phase=NavigatorPhase.BAY_EXIT,
+                    commanded_speed_mps=0.0,
+                    commanded_steering_norm=0.0,
+                )
+                return True
             if estimator is None or already_settled:
                 # Normal driving owns this tick; only the creep path may hold
                 # for a missing scan. Leave `_bay_start_checked` alone so the
@@ -781,6 +798,15 @@ class TrackNavigator(Node, ResettableNode):
                 commanded_speed_mps=command.speed_mps,
                 commanded_steering_norm=command.steering_norm,
                 forward_clearance_m=_forward_clearance(scan.ranges_m, scan.angles_rad, self._tuning),
+                # Pose is what says whether the chassis is MOVING under these
+                # commands; escape_count carries the contact-recovery tally, so
+                # a manoeuvre that keeps backing off the wall is visible without
+                # replaying the raw topics. Both exist because reconstructing
+                # this run needed /ackermann_cmd, /scan and /imu/data.
+                pose_x=pose.x,
+                pose_y=pose.y,
+                pose_yaw=pose.yaw,
+                escape_count=self._bay_exit.contact_recoveries,
             )
             return True
 

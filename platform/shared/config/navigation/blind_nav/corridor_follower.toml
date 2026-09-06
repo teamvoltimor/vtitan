@@ -296,3 +296,8 @@ bay_exit_fallback_frames = 0
 # stopped by the operator, not by the robot. Nothing else bounds this: the exit
 # owns the tick and CoreNavigator never steps while it does.
 bay_exit_max_frames = 900
+# Nose-against-wall recovery. A forward arc below this distance -- or reporting
+# NOTHING, which is the same wall closer than MIN_VALID_RANGE_M -- backs the
+# chassis straight off before any leg logic runs.
+bay_exit_contact_dist_m = 0.08
+bay_exit_contact_recovery_ticks = 12

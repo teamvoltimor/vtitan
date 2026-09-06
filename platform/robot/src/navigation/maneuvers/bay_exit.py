@@ -177,6 +177,17 @@ class BayExit:
         self._dr_wheel_rad = 0.0
         self._guard_flips = 0
         self._guard_min_gap: float | None = None
+        # Straight-reverse recovery from wall contact. Ticks still owed, and how
+        # many times it has fired -- the count is the diagnostic: a manoeuvre
+        # recovering repeatedly is one whose legs keep driving it back into the
+        # wall, which is a different problem from touching it once.
+        self._recovery_ticks_left = 0
+        self._contact_recoveries = 0
+
+    @property
+    def contact_recoveries(self) -> int:
+        """How many times the nose-against-wall reverse has fired this exit."""
+        return self._contact_recoveries
 
     @property
     def guard_stats(self) -> tuple[int, float | None, float]:
@@ -639,6 +650,25 @@ class BayExit:
             return False
         return clearance >= tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
 
+    @staticmethod
+    def _nose_in_contact(
+        ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning
+    ) -> bool:
+        """Whether the forward arc says the nose is touching, or too close to see.
+
+        Two readings mean the same thing here and both must count. A forward
+        clearance BELOW ``BAY_EXIT_CONTACT_DIST_M`` is a wall within a chassis
+        nose of the bumper. NO valid returns at all is the same wall, closer
+        still: ``_forward_clearance`` drops everything under ``MIN_VALID_RANGE_M``
+        and reports ``inf``, so the arc goes silent exactly when the obstacle is
+        most present. Reading that second case as open space is what let a
+        manoeuvre finish with the nose buried in the wall.
+        """
+        clearance = _forward_clearance(ranges_m, angles_rad, tuning)
+        if math.isinf(clearance):
+            return True
+        return clearance < tuning.corridor_follower.BAY_EXIT_CONTACT_DIST_M
+
     def _resolve_open_side(
         self,
         ranges_m: Sequence[float],
@@ -725,6 +755,34 @@ class BayExit:
         open_is_left = self._resolve_open_side(ranges_m, angles_rad, tuning)
 
         self._ticks += 1
+
+        # Nose against the wall is a STATE, not an absence of data, and it is
+        # answered before any leg logic: a chassis in contact cannot steer its
+        # way out, because the wheels that would turn it are the ones being
+        # held. Back straight off first, then let the normal legs resume with
+        # room to rotate in.
+        #
+        # Measured on run_20260906_112613: the forward arc fell to 0.052 m
+        # (returns below MIN_VALID_RANGE_M are dropped, so a wall closer than
+        # 5 cm reads as NOTHING AT ALL), then to zero valid rays for every
+        # remaining tick of the round. Until now that blindness ended the
+        # manoeuvre by the back door and normal driving -- which does not know
+        # it is in a pocket -- drove FORWARD into the wall at 0.26 m/s.
+        #
+        # Straight, not steered: a steered reverse sweeps the tail across the
+        # pocket, and the point of this leg is to buy room, not heading. The
+        # turn that follows is the manoeuvre's own, toward the open side it
+        # already identifies correctly.
+        if self._recovery_ticks_left > 0 or self._nose_in_contact(ranges_m, angles_rad, tuning):
+            if self._recovery_ticks_left <= 0:
+                self._recovery_ticks_left = follower.BAY_EXIT_CONTACT_RECOVERY_TICKS
+                self._contact_recoveries += 1
+            self._recovery_ticks_left -= 1
+            return DriveCommand(
+                speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+                steering_norm=0.0,
+            )
+
         # The clearance guard supersedes both contact-bounded exits, so it is
         # answered before their fallback bookkeeping runs at all.
         if follower.BAY_EXIT_CLEARANCE_GUARD:
