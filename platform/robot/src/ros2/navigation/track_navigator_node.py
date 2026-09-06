@@ -619,12 +619,31 @@ class TrackNavigator(Node, ResettableNode):
         estimator = self._direction_estimator
         if estimator is None:
             return self._commit_told_direction() if self._pending_known_commit else False
-        if estimator.is_settled:
+
+        # Whether the robot was PLACED in the pocket is a fact about placement,
+        # not about whether the travel direction is known -- so the in-bay test
+        # below must not sit behind a settled-direction gate. It did until
+        # 2026-09-06, and on hardware that made ASSUME_BAY_START dead code:
+        # run_20260905_214855 and _214920 both report a settled direction on
+        # their FIRST nav_debug tick (clockwise at 0.05 s, counterclockwise at
+        # 0.21 s), so `is_settled` returned before the bay branch every time.
+        # The 214855 chassis then drove into the parking structure and stayed
+        # there for 8.9 s, wheels turning at 310 deg/s with the pose frozen to
+        # the millimetre. The ratchet itself was fine and would have engaged:
+        # BayExit.is_clear reads False at the 0.09-0.15 m of forward clearance
+        # measured in the pocket, against MIN_FORWARD_CLEARANCE_M = 0.30.
+        already_settled = estimator.is_settled
+        if already_settled and self._bay_start_checked and not self._exiting_bay:
             return False
 
         scan = self._gateway.get_lidar_scan()
         pose = self._gateway.get_current_pose()
         if scan is None or pose is None:
+            if already_settled:
+                # Normal driving owns this tick; only the creep path may hold
+                # for a missing scan. Leave `_bay_start_checked` alone so the
+                # placement test still gets its one look once a scan arrives.
+                return False
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             self._latest_debug = NavigatorDebugSnapshot(
                 phase=NavigatorPhase.NO_POSE,
@@ -638,7 +657,7 @@ class TrackNavigator(Node, ResettableNode):
         # driving straight down a corridor. Buffer and replay them, or the
         # first surviving readings are taken at a corner where the side rays
         # span the *next* corridor and get attributed to this one.
-        if self._width_estimator is not None:
+        if self._width_estimator is not None and not already_settled:
             m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
             if m is not None:
                 self._creep_widths.append((pose.yaw, m.width_m))
@@ -698,6 +717,13 @@ class TrackNavigator(Node, ResettableNode):
                 )
             )
             return True
+
+        # Out of the pocket, or never in it, with the direction already known:
+        # hand the tick back to normal driving. Falling into the vote/creep
+        # block below would run BLIND_CREEP against a direction that is already
+        # committed.
+        if already_settled:
+            return False
 
         if boxed is not None or estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
             inferred = estimator.direction
