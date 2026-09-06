@@ -217,6 +217,7 @@ class NavigatorPhase(StrEnum):
     NOT_YET_STEPPED = "not_yet_stepped"
     NO_POSE = "no_pose"
     BLIND_CREEP = "blind_creep"
+    BAY_EXIT = "bay_exit"
     ACTIVE_MANEUVER = "active_maneuver"
     STUCK_ESCAPE_HOLDING = "stuck_escape_holding"
     STUCK_ESCAPE_MANEUVER = "stuck_escape_maneuver"

@@ -178,3 +178,32 @@ def test_full_speed_guarded_exit_refuses_to_move_rather_than_touch() -> None:
     """
     pocket, _ = _drive(200, _guard_tuning(BAY_EXIT_SPEED_SCALE=1.0))
     assert pocket.travelled_m == pytest.approx(0.0, abs=1e-6)
+
+
+def test_a_forward_arc_with_no_returns_is_blocked_not_clear() -> None:
+    """The state that ended a real exit mid-reverse, facing the wall.
+
+    ``_forward_clearance`` reports ``inf`` when nothing in the forward arc
+    survives ``MIN_VALID_RANGE_M``, and ``inf`` compares as clear against any
+    threshold. In a pocket that is exactly backwards: no returns means the wall
+    is inside the sensor's minimum range. Measured on run_20260906_094342 --
+    the arc read 0.050-0.052 m (self-detection) for seconds, then dropped out
+    for one tick, and that tick released the manoeuvre.
+    """
+    tuning = tuning_with_overrides({})
+    blind = (float("inf"),) * 3
+    assert not BayExit.is_clear(blind, _ANGLES_RAD, tuning)
+
+
+def test_a_genuinely_open_arc_still_releases_the_maneuver() -> None:
+    """The no-return rule must not swallow the real exit condition."""
+    tuning = tuning_with_overrides({})
+    open_ahead = (1.0, 1.0, tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M + 0.5)
+    assert BayExit.is_clear(open_ahead, _ANGLES_RAD, tuning)
+
+
+def test_a_blocked_arc_inside_the_threshold_is_not_clear() -> None:
+    """Unchanged behaviour: a real return below the threshold still holds."""
+    tuning = tuning_with_overrides({})
+    boxed = (1.0, 1.0, tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M - 0.05)
+    assert not BayExit.is_clear(boxed, _ANGLES_RAD, tuning)

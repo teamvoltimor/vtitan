@@ -55,6 +55,7 @@ from src.navigation.planning.sign_router import (
 from src.navigation.planning.waypoints import corridor_widths_dict_to_model, plan_believed_path
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
+from src.navigation.utils import _forward_clearance
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
@@ -339,6 +340,21 @@ class TrackNavigator(Node, ResettableNode):
         self._bay_start_checked = False
         self._exiting_bay = False
         self._bay_exit = BayExit()
+        # Ticks the manoeuvre has run, against BAY_EXIT_MAX_FRAMES. The
+        # simulator has always carried this budget and this node never did, so
+        # `is_clear` was the ONLY release here -- survivable while a no-return
+        # arc read as clear, and a round-ending hang once it correctly reads as
+        # blocked.
+        self._bay_exit_ticks = 0
+        # Sign of the last bay-exit command published. The exit must not be
+        # declared complete on a REVERSE leg: the chassis rotates one way going
+        # forward and back the other going in reverse, so releasing mid-reverse
+        # leaves the nose pointed at whatever the manoeuvre was backing away
+        # from. Observed on run_20260906_094342 -- the open side was correctly
+        # identified as the left and the robot still finished facing the wall.
+        # None until the first command, so a parallel start (never in a pocket)
+        # still releases on its first tick.
+        self._bay_exit_last_speed_mps: float | None = None
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
         # _told_geometry is None exactly when blind (and then _width_estimator
         # is set instead), so geometry is never actually None here -- just not
@@ -710,7 +726,29 @@ class TrackNavigator(Node, ResettableNode):
         # Out of the pocket. Falls THROUGH to the settle block rather than
         # returning, so the path is rebuilt for the committed direction; see
         # BayExit.is_clear.
-        if self._exiting_bay and BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning):
+        #
+        # Two guards beyond the clearance test itself. The release is only
+        # accepted on a FORWARD leg, because the legs rotate the chassis in
+        # opposite senses and stopping mid-reverse leaves the nose pointed back
+        # at the pocket. And the whole manoeuvre is bounded by
+        # BAY_EXIT_MAX_FRAMES, the budget the simulator has always had and this
+        # node never did -- without it, a forward arc that legitimately never
+        # returns would hold the robot in the pocket for the whole round.
+        if self._exiting_bay:
+            self._bay_exit_ticks += 1
+        budget = self._tuning.corridor_follower.BAY_EXIT_MAX_FRAMES
+        bay_exit_spent = bool(budget) and self._bay_exit_ticks > budget
+        on_forward_leg = self._bay_exit_last_speed_mps is None or self._bay_exit_last_speed_mps > 0.0
+        if self._exiting_bay and (
+            bay_exit_spent
+            or (on_forward_leg and BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning))
+        ):
+            if bay_exit_spent:
+                logger.warning(
+                    "bay exit released on its %d-frame budget, not on clearance -- "
+                    "the chassis may still be in the pocket",
+                    budget,
+                )
             self._exiting_bay = False
 
         if self._exiting_bay:
@@ -719,15 +757,32 @@ class TrackNavigator(Node, ResettableNode):
                 # No odometry means the reverse leg cannot be bounded, and this
                 # manoeuvre reverses toward a fin. Hold rather than guess.
                 self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
-                return True
-            self._gateway.publish_drive(
-                self._bay_exit.command(
-                    scan.ranges_m,
-                    scan.angles_rad,
-                    odom.distance_m,
-                    self._blind_follow_speed,
-                    self._tuning,
+                self._latest_debug = NavigatorDebugSnapshot(
+                    phase=NavigatorPhase.BAY_EXIT,
+                    commanded_speed_mps=0.0,
+                    commanded_steering_norm=0.0,
                 )
+                return True
+            command = self._bay_exit.command(
+                scan.ranges_m,
+                scan.angles_rad,
+                odom.distance_m,
+                self._blind_follow_speed,
+                self._tuning,
+            )
+            self._gateway.publish_drive(command)
+            self._bay_exit_last_speed_mps = command.speed_mps
+            # Publishing a snapshot here is what makes the manoeuvre visible at
+            # all. Until 2026-09-06 this branch returned without touching
+            # _latest_debug, so nav_debug held whatever phase preceded it --
+            # a 32.5 s exit was recorded as 32.5 s of `not_yet_stepped`, and
+            # reconstructing it needed the raw /ackermann_cmd, /scan and
+            # /imu/data topics.
+            self._latest_debug = NavigatorDebugSnapshot(
+                phase=NavigatorPhase.BAY_EXIT,
+                commanded_speed_mps=command.speed_mps,
+                commanded_steering_norm=command.steering_norm,
+                forward_clearance_m=_forward_clearance(scan.ranges_m, scan.angles_rad, self._tuning),
             )
             return True
 

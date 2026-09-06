@@ -708,7 +708,7 @@ class CorridorFollowerParams(BaseModel):
     is already why ``_reverse_start_m`` exists; this is the other half of it.
     """
 
-    BAY_EXIT_MAX_FRAMES: int = Field(default=0, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))
+    BAY_EXIT_MAX_FRAMES: int = Field(default=900, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))
     """Ticks the bay-exit maneuver may hold control before handing over. 0 = forever.
 
     ``BayExit`` is the only maneuver in the stack with no give-up path.
@@ -730,8 +730,19 @@ class CorridorFollowerParams(BaseModel):
     Releasing without that hands the planner a stale plan still pointing at
     waypoint 0.
 
-    Ships 0 (unchanged behaviour). Raising it is a real behaviour change on the
-    in-bay start ONLY, which currently scores 0 laps in 64/64 scenarios.
+    Shipped 0 (unbounded) until 2026-09-06, and only the simulator read it --
+    ``track_navigator_node`` never counted the ticks at all, so on hardware
+    ``is_clear`` really was the sole release. That was survivable only while a
+    no-return forward arc read as CLEAR, which released the manoeuvre by
+    accident. Now that ``BayExit.is_clear`` correctly calls a blind arc BLOCKED,
+    an unbounded exit can hold the chassis in the pocket for the entire round,
+    so this ships non-zero and the node counts against it.
+
+    900 ticks is ~45 s at the node's 20 Hz. The one measured hardware exit
+    (run_20260906_094342) took 650 ticks including 24 s of net-zero shuffling,
+    and a simulator exit takes ~127 -- so the budget is well clear of a healthy
+    manoeuvre and bounds an unhealthy one inside the 180 s round. Expiry is
+    logged at WARNING: it means the robot gave up rather than got out.
     """
 
     BAY_WALL_CLEARANCE_M: float = Field(default=0.20, validation_alias=_alias("BAY_WALL_CLEARANCE_M"))

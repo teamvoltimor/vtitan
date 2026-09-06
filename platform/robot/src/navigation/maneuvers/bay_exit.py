@@ -617,9 +617,27 @@ class BayExit:
         ``replace_path``, and skipping it hands the planner a stale plan still
         pointing at waypoint 0 while the robot has driven out of the bay.
         Measured: it drove straight back into a marker, 0.24-0.30 m every run.
+
+        A forward arc with NO valid returns reads as BLOCKED, not clear.
+        ``_forward_clearance`` reports ``inf`` when nothing in the arc survives
+        ``MIN_VALID_RANGE_M``, which compares as clear against any threshold --
+        and in a parking pocket that is exactly backwards. Measured on
+        run_20260906_094342: the forward arc returned nothing but self-detection
+        at 0.050-0.052 m for seconds (the nose was inside the sensor's minimum
+        range, hard against the wall), then dropped out entirely for one tick.
+        That tick ended the manoeuvre mid-reverse with the nose still pointed at
+        the wall, which is what the operator watched happen. Same failure class
+        as the escape path's whole-cone no-return, fixed there 2026-08-28.
+
+        The caller must bound how long this can hold -- see
+        ``BAY_EXIT_MAX_FRAMES``. Refusing to release on no evidence is only safe
+        while something else can still time the manoeuvre out.
         """
         tuning = get_tuning(tuning)
-        return _forward_clearance(ranges_m, angles_rad, tuning) >= tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
+        clearance = _forward_clearance(ranges_m, angles_rad, tuning)
+        if math.isinf(clearance):
+            return False
+        return clearance >= tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
 
     def _resolve_open_side(
         self,
