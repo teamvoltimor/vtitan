@@ -4,25 +4,25 @@ Diagramas Mermaid que documentan el flujo de control del **Open Challenge**, en 
 
 La lógica compartida entre ambos desafíos (inferencia de dirección, vigilancia de colisión/atasco, conteo de vueltas) vive una sola vez en [`docs/schemes/flowcharts/common/`](../../../docs/schemes/flowcharts/common/mermaid/) y se referencia desde aquí, en vez de redibujarse.
 
-Cada archivo `.mmd` trae al inicio un bloque de comentarios `%%` (no se renderiza en el PNG) con las referencias exactas al código y a las constantes usadas, para poder ubicarlas rápido si algún valor cambia.
+Cada archivo `.mmd` trae al inicio un bloque de comentarios `%%` (no se renderiza en la imagen) con las referencias exactas al código y a las constantes usadas, para poder ubicarlas rápido si algún valor cambia.
 
 ## Diagramas
 
-Fuente Mermaid en `docs/schemes/flowcharts/open/mermaid/`, renders PNG en `docs/schemes/flowcharts/open/png/` (generados con `task docs:diagrams`).
+Fuente Mermaid en `docs/schemes/flowcharts/open/mermaid/`, renders WebP en `docs/schemes/flowcharts/open/webp/` (generados con `task docs:diagrams`).
 
-| Diagrama | Fuente `.mmd` | PNG |
+| Diagrama | Fuente `.mmd` | WebP |
 |---|---|---|
-| Máquina de estados de alto nivel | [`docs/schemes/flowcharts/open/mermaid/maquina-estados.mmd`](../../../docs/schemes/flowcharts/open/mermaid/maquina-estados.mmd) | `docs/schemes/flowcharts/open/png/maquina-estados.png` |
-| Flujo completo por tick de control | [`docs/schemes/flowcharts/open/mermaid/flujo-completo.mmd`](../../../docs/schemes/flowcharts/open/mermaid/flujo-completo.mmd) | `docs/schemes/flowcharts/open/png/flujo-completo.png` |
+| Máquina de estados de alto nivel | [`docs/schemes/flowcharts/open/mermaid/maquina-estados.mmd`](../../../docs/schemes/flowcharts/open/mermaid/maquina-estados.mmd) | `docs/schemes/flowcharts/open/webp/maquina-estados.webp` |
+| Flujo completo por tick de control | [`docs/schemes/flowcharts/open/mermaid/flujo-completo.mmd`](../../../docs/schemes/flowcharts/open/mermaid/flujo-completo.mmd) | `docs/schemes/flowcharts/open/webp/flujo-completo.webp` |
 
 ### Detalle común (compartido con Obstacle Challenge)
 
-| Diagrama | Fuente `.mmd` | PNG |
+| Diagrama | Fuente `.mmd` | WebP |
 |---|---|---|
-| Inferencia de dirección (horario vs. antihorario) | [`docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd`](../../../docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd) | `docs/schemes/flowcharts/common/png/inferencia-direccion.png` |
-| Vigilancia de colisión y atasco | [`docs/schemes/flowcharts/common/mermaid/escape-colision.mmd`](../../../docs/schemes/flowcharts/common/mermaid/escape-colision.mmd) | `docs/schemes/flowcharts/common/png/escape-colision.png` |
-| Esquiva genérica ante un obstáculo | [`docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd`](../../../docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd) | `docs/schemes/flowcharts/common/png/esquiva-generica.png` |
-| Conteo de vueltas | [`docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd`](../../../docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd) | `docs/schemes/flowcharts/common/png/conteo-vueltas.png` |
+| Inferencia de dirección (horario vs. antihorario) | [`docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd`](../../../docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd) | `docs/schemes/flowcharts/common/webp/inferencia-direccion.webp` |
+| Vigilancia de colisión y atasco | [`docs/schemes/flowcharts/common/mermaid/escape-colision.mmd`](../../../docs/schemes/flowcharts/common/mermaid/escape-colision.mmd) | `docs/schemes/flowcharts/common/webp/escape-colision.webp` |
+| Esquiva genérica ante un obstáculo | [`docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd`](../../../docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd) | `docs/schemes/flowcharts/common/webp/esquiva-generica.webp` |
+| Conteo de vueltas | [`docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd`](../../../docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd) | `docs/schemes/flowcharts/common/webp/conteo-vueltas.webp` |
 
 ## Notas
 

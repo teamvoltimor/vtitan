@@ -53,27 +53,33 @@ tasks:
   docs:diagrams:
     desc: >-
       Render every docs/schemes/flowcharts/{common,open,obstacles}/mermaid/*.mmd
-      file to a PNG in the matching .../png/ folder (usage: task
+      file to a lossless WebP in the matching .../webp/ folder (usage: task
       docs:diagrams). common/ holds logic shared by both challenges (direction
       inference, collision/stuck escape, lap counting) — open/ and obstacles/
       reference it instead of redrawing it, to avoid duplication. Requires the
       Mermaid CLI (npx @mermaid-js/mermaid-cli, aka mmdc) — no local install
       needed, npx fetches it on first run. Re-run after editing or adding a
-      .mmd file; output filenames mirror the source (foo.mmd -> foo.png). %%
+      .mmd file; output filenames mirror the source (foo.mmd -> foo.webp).
+      mmdc only emits PNG/SVG, so each diagram is rendered to a temporary PNG
+      and re-encoded with `cwebp -lossless` (pixel-identical, ~66% smaller);
+      the temporary PNG is deleted. Requires cwebp (libwebp) on PATH. %%
       comment lines inside a .mmd are code/constant references for maintainers
       and are never rendered. The wiring harness is NOT rendered here: it is a
       tscircuit project, see docs/schemes/wiring/tscircuit/.
     vars:
       DIAGRAMS_DIR: docs/schemes/flowcharts
     cmds:
-      - cmd: mkdir -p "{{.DIAGRAMS_DIR}}/common/png" "{{.DIAGRAMS_DIR}}/open/png" "{{.DIAGRAMS_DIR}}/obstacles/png"
+      - cmd: mkdir -p "{{.DIAGRAMS_DIR}}/common/webp" "{{.DIAGRAMS_DIR}}/open/webp" "{{.DIAGRAMS_DIR}}/obstacles/webp"
       - cmd: |
           for challenge in common open obstacles; do
             for f in "{{.DIAGRAMS_DIR}}/$challenge/mermaid"/*.mmd; do
               name="${f##*\\}"
               name="${name%.mmd}"
-              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/png/$name.png"
-              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "{{.DIAGRAMS_DIR}}/$challenge/png/$name.png" -b white -s 3
+              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/webp/$name.webp"
+              tmp="{{.DIAGRAMS_DIR}}/$challenge/webp/$name.png"
+              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "$tmp" -b white -s 3
+              cwebp -quiet -mt -lossless -z 9 "$tmp" -o "{{.DIAGRAMS_DIR}}/$challenge/webp/$name.webp"
+              rm -f "$tmp"
             done
           done
         platforms: [windows]
@@ -82,8 +88,11 @@ tasks:
             for f in "{{.DIAGRAMS_DIR}}/$challenge/mermaid"/*.mmd; do
               name="${f##*/}"
               name="${name%.mmd}"
-              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/png/$name.png"
-              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "{{.DIAGRAMS_DIR}}/$challenge/png/$name.png" -b white -s 3
+              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/webp/$name.webp"
+              tmp="{{.DIAGRAMS_DIR}}/$challenge/webp/$name.png"
+              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "$tmp" -b white -s 3
+              cwebp -quiet -mt -lossless -z 9 "$tmp" -o "{{.DIAGRAMS_DIR}}/$challenge/webp/$name.webp"
+              rm -f "$tmp"
             done
           done
         platforms: [linux, darwin]

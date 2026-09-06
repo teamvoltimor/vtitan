@@ -7,7 +7,7 @@
 		<tr>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-front-view.png"
+					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-front-view.webp"
 alt="Vista delantera de Klevor v1.0" width="600">
 					<br>
 					<i>Vista delantera de Klevor v1.0</i>
@@ -15,7 +15,7 @@ alt="Vista delantera de Klevor v1.0" width="600">
 			</td>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-back-view.png"
+					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-back-view.webp"
 alt="Vista trasera de Klevor v1.0" width="600">
 					<br>
 					<i>Vista trasera de Klevor v1.0</i>
@@ -25,7 +25,7 @@ alt="Vista trasera de Klevor v1.0" width="600">
 		<tr>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-right-view.png"
+					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-right-view.webp"
 alt="Vista derecha de Klevor v1.0" width="600">
 					<br>
 					<i>Vista derecha de Klevor v1.0</i>
@@ -33,7 +33,7 @@ alt="Vista derecha de Klevor v1.0" width="600">
 			</td>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-left-view.png"
+					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-left-view.webp"
 alt="Vista izquierda de Klevor v1.0" width="600">
 					<br>
 					<i>Vista izquierda de Klevor v1.0</i>
@@ -43,7 +43,7 @@ alt="Vista izquierda de Klevor v1.0" width="600">
 		<tr>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-top-view.png"
+					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-top-view.webp"
 alt="Vista superior de Klevor v1.0" width="600">
 					<br>
 					<i>Vista superior de Klevor v1.0</i>
@@ -51,7 +51,7 @@ alt="Vista superior de Klevor v1.0" width="600">
 			</td>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-bottom-view.png"
+					<img src="../../v-photos/previous-prototypes/klevor-v1.0/klevor-bottom-view.webp"
 alt="Vista inferior de Klevor v1.0" width="600">
 					<br>
 					<i>Vista inferior de Klevor v1.0</i>
