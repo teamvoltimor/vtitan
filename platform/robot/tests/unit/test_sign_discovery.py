@@ -19,11 +19,12 @@ import math
 from dataclasses import replace
 
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import SignColor, TrafficSignObservation, Waypoint
+from shared.domain.models import Detection, Pose, SignColor, TrafficSignObservation, Waypoint
 
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
+    detection_to_observation,
 )
 from src.simulation.vision_emulator import emulate_sign_observations
 
@@ -236,3 +237,71 @@ class TestIndexStability:
         indices = sorted(t.published_index for t in sign_map.published())
         assert indices == [0, 1]
         assert math.dist((published[0].x, published[0].y), (first.x, first.y)) < 0.05
+
+
+class TestPillarAspectGate:
+    """Boxes wider than tall are scenery, not pillars.
+
+    The magenta parking-lot barrier reads as RED under motion blur: on
+    ``run_20260905_214920`` 199 of 383 red detections were wider than tall,
+    against 0.6% of greens, and every accepted box can seed a sign
+    (``active_sign_count`` climbed 5 -> 50 on an 8-sign track). Neither colour
+    nor confidence separates them -- those boxes carry the RED label at p50
+    confidence 0.79 -- so the shape gate is the only filter the measurement
+    supports.
+
+    These are hand-built bboxes rather than ``vision_emulator`` ones, unlike
+    the rest of this module, because the emulator has no bbox at all: it builds
+    ``TrafficSignObservation`` straight from ground truth, which is exactly why
+    the simulator cannot exercise this gate and the corpus reports it as a
+    no-op.
+    """
+
+    @staticmethod
+    def _detection(width_px: float, height_px: float, colour: SignColor = SignColor.RED) -> Detection:
+        """A detection of the given box shape, centred where a sign would be."""
+        centre_x, centre_y = 700.0, 400.0
+        return Detection(
+            class_name=colour,
+            confidence=0.79,
+            bbox=(
+                centre_x - width_px / 2,
+                centre_y - height_px / 2,
+                centre_x + width_px / 2,
+                centre_y + height_px / 2,
+            ),
+            x=centre_x,
+            y=centre_y,
+            width=width_px,
+            height=height_px,
+            area=width_px * height_px,
+        )
+
+    def test_pillar_shaped_box_is_accepted(self) -> None:
+        # w/h 0.71 -- the median shape of a real green pillar in that run.
+        det = self._detection(100.0, 140.0)
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is not None
+
+    def test_barrier_shaped_box_is_rejected(self) -> None:
+        # w/h 1.76 -- the median shape of the magenta parking barrier.
+        det = self._detection(176.0, 100.0)
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is None
+
+    def test_marginally_wide_box_is_rejected(self) -> None:
+        # w/h 1.01 is the MEDIAN red detection in that run, i.e. the gate has to
+        # bite just above square or it keeps half the bad boxes.
+        det = self._detection(101.0, 100.0)
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is None
+
+    def test_boundary_is_inclusive(self) -> None:
+        det = self._detection(100.0, 100.0)
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is not None
+
+    def test_zero_disables_the_gate(self) -> None:
+        tuning = NavigationTuning.load_default()
+        disabled = replace(
+            tuning,
+            sign_discovery=tuning.sign_discovery.model_copy(update={"MAX_PILLAR_ASPECT": 0.0}),
+        )
+        det = self._detection(176.0, 100.0)
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), tuning=disabled) is not None

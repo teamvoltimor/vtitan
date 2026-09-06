@@ -55,6 +55,7 @@ from src.navigation.planning.sign_router import (
 from src.navigation.planning.waypoints import corridor_widths_dict_to_model, plan_believed_path
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
+from src.navigation.utils import _forward_clearance
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
@@ -339,6 +340,12 @@ class TrackNavigator(Node, ResettableNode):
         self._bay_start_checked = False
         self._exiting_bay = False
         self._bay_exit = BayExit()
+        # Ticks the manoeuvre has run, against BAY_EXIT_MAX_FRAMES. The
+        # simulator has always carried this budget and this node never did, so
+        # `is_clear` was the ONLY release here -- survivable while a no-return
+        # arc read as clear, and a round-ending hang once it correctly reads as
+        # blocked.
+        self._bay_exit_ticks = 0
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
         # _told_geometry is None exactly when blind (and then _width_estimator
         # is set instead), so geometry is never actually None here -- just not
@@ -617,14 +624,59 @@ class TrackNavigator(Node, ResettableNode):
             was driven by the corridor follower and there is no plan to step.
         """
         estimator = self._direction_estimator
-        if estimator is None:
-            return self._commit_told_direction() if self._pending_known_commit else False
-        if estimator.is_settled:
-            return False
+
+        # Whether the robot was PLACED in the pocket is a fact about placement,
+        # not about whether the travel direction is known -- so the in-bay test
+        # below must not sit behind a settled-direction gate. It did until
+        # 2026-09-06, and on hardware that made ASSUME_BAY_START dead code:
+        # run_20260905_214855 and _214920 both report a settled direction on
+        # their FIRST nav_debug tick (clockwise at 0.05 s, counterclockwise at
+        # 0.21 s), so `is_settled` returned before the bay branch every time.
+        # The 214855 chassis then drove into the parking structure and stayed
+        # there for 8.9 s, wheels turning at 310 deg/s with the pose frozen to
+        # the millimetre. The ratchet itself was fine and would have engaged:
+        # BayExit.is_clear reads False at the 0.09-0.15 m of forward clearance
+        # measured in the pocket, against MIN_FORWARD_CLEARANCE_M = 0.30.
+        # BOTH direction gates have to yield to it, not just the settled one.
+        # run_..._214855 is the run that started in the bay, and it reports NO
+        # estimator at all -- votes, gate verdict and width belief are all None
+        # against a direction of `clockwise` on tick 1 -- so it left through the
+        # `estimator is None` return, above everything the settled-direction
+        # gate controls. Covering only that gate fixes the case that did not
+        # happen.
+        already_settled = estimator is not None and estimator.is_settled
+        bay_pending = not self._is_open_challenge and (not self._bay_start_checked or self._exiting_bay)
+        if not bay_pending:
+            if estimator is None:
+                return self._commit_told_direction() if self._pending_known_commit else False
+            if already_settled:
+                return False
 
         scan = self._gateway.get_lidar_scan()
         pose = self._gateway.get_current_pose()
         if scan is None or pose is None:
+            if self._exiting_bay:
+                # An exit ALREADY IN PROGRESS holds. Handing this tick to normal
+                # driving abandons the manoeuvre silently -- `_exiting_bay` stays
+                # True, but nothing ever routes back to it -- and normal driving
+                # does not know it is in a pocket. Measured on
+                # run_20260906_112613: the exit stopped without ever reporting
+                # clear, and the chassis then drove FORWARD at 0.26 m/s into a
+                # wall 0.02 m away. Holding is the conservative answer: the
+                # manoeuvre reverses toward a fin, so guessing without sensing
+                # is the one thing it must not do.
+                self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+                self._latest_debug = NavigatorDebugSnapshot(
+                    phase=NavigatorPhase.BAY_EXIT,
+                    commanded_speed_mps=0.0,
+                    commanded_steering_norm=0.0,
+                )
+                return True
+            if estimator is None or already_settled:
+                # Normal driving owns this tick; only the creep path may hold
+                # for a missing scan. Leave `_bay_start_checked` alone so the
+                # placement test still gets its one look once a scan arrives.
+                return False
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             self._latest_debug = NavigatorDebugSnapshot(
                 phase=NavigatorPhase.NO_POSE,
@@ -638,7 +690,7 @@ class TrackNavigator(Node, ResettableNode):
         # driving straight down a corridor. Buffer and replay them, or the
         # first surviving readings are taken at a corner where the side rays
         # span the *next* corridor and get attributed to this one.
-        if self._width_estimator is not None:
+        if self._width_estimator is not None and estimator is not None and not already_settled:
             m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
             if m is not None:
                 self._creep_widths.append((pose.yaw, m.width_m))
@@ -660,7 +712,11 @@ class TrackNavigator(Node, ResettableNode):
             boxed = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
             if boxed is not None:
                 logger.info("direction settled from parking-bay geometry: %s", boxed.value)
-                estimator.settle(boxed)
+                # No estimator on a told-direction round: the direction is
+                # already known and there is nothing to settle. The bay geometry
+                # still names the placement, which is the half that matters here.
+                if estimator is not None:
+                    estimator.settle(boxed)
                 self._exiting_bay = True
             elif not self._is_open_challenge and self._tuning.corridor_follower.ASSUME_BAY_START:
                 # The in-bay start is the one we intend to use on Obstacles, so
@@ -678,7 +734,50 @@ class TrackNavigator(Node, ResettableNode):
         # Out of the pocket. Falls THROUGH to the settle block rather than
         # returning, so the path is rebuilt for the committed direction; see
         # BayExit.is_clear.
-        if self._exiting_bay and BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning):
+        #
+        # Bounded by BAY_EXIT_MAX_FRAMES -- the budget the simulator has always
+        # had and this node never did. Nothing else bounds the manoeuvre: it
+        # owns the tick and CoreNavigator never steps while it does.
+        #
+        # The release does NOT also require a forward leg. That was tried
+        # (2026-09-06) on the reasoning that the legs rotate the chassis in
+        # opposite senses, so ending mid-reverse leaves the nose pointed back at
+        # the pocket -- true, and it DEADLOCKED: run_20260906_105056 held one
+        # continuous reverse with forward clearance above 1 m from 45 s onward,
+        # so "clear" and "on a forward leg" were never true on the same tick.
+        # 1832 of 1834 ticks in the manoeuvre, -420 deg of yaw, ended by the
+        # operator. A conjunction of two conditions the manoeuvre never
+        # satisfies together is worse than the heading it was protecting.
+        #
+        # The blind-tick release that motivated it is already closed inside
+        # ``is_clear``, which now reads a no-return arc as BLOCKED -- and that
+        # alone would have released this run cleanly at 45 s.
+        if self._exiting_bay:
+            self._bay_exit_ticks += 1
+        budget = self._tuning.corridor_follower.BAY_EXIT_MAX_FRAMES
+        bay_exit_spent = bool(budget) and self._bay_exit_ticks > budget
+        # Rotation is the release this manoeuvre actually needs. `is_clear` asks
+        # whether the way ahead is open, which the pocket cannot answer -- the
+        # wall sits inside MIN_VALID_RANGE_M and the forward arc reports nothing
+        # -- so it releases late, or on a reading taken mid-rotation. Yaw is
+        # measurable throughout and says when the turn is done.
+        turned_out = self._bay_exit.rotation_complete(self._tuning)
+        if self._exiting_bay and (
+            bay_exit_spent
+            or turned_out
+            or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
+        ):
+            if turned_out:
+                logger.info(
+                    "bay exit complete: turned %.1f deg from placement",
+                    self._bay_exit.rotation_deg,
+                )
+            if bay_exit_spent:
+                logger.warning(
+                    "bay exit released on its %d-frame budget, not on clearance -- "
+                    "the chassis may still be in the pocket",
+                    budget,
+                )
             self._exiting_bay = False
 
         if self._exiting_bay:
@@ -687,17 +786,56 @@ class TrackNavigator(Node, ResettableNode):
                 # No odometry means the reverse leg cannot be bounded, and this
                 # manoeuvre reverses toward a fin. Hold rather than guess.
                 self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
-                return True
-            self._gateway.publish_drive(
-                self._bay_exit.command(
-                    scan.ranges_m,
-                    scan.angles_rad,
-                    odom.distance_m,
-                    self._blind_follow_speed,
-                    self._tuning,
+                self._latest_debug = NavigatorDebugSnapshot(
+                    phase=NavigatorPhase.BAY_EXIT,
+                    commanded_speed_mps=0.0,
+                    commanded_steering_norm=0.0,
                 )
+                return True
+            command = self._bay_exit.command(
+                scan.ranges_m,
+                scan.angles_rad,
+                odom.distance_m,
+                self._blind_follow_speed,
+                self._tuning,
+                yaw_rad=pose.yaw,
+            )
+            self._gateway.publish_drive(command)
+            # Publishing a snapshot here is what makes the manoeuvre visible at
+            # all. Until 2026-09-06 this branch returned without touching
+            # _latest_debug, so nav_debug held whatever phase preceded it --
+            # a 32.5 s exit was recorded as 32.5 s of `not_yet_stepped`, and
+            # reconstructing it needed the raw /ackermann_cmd, /scan and
+            # /imu/data topics.
+            self._latest_debug = NavigatorDebugSnapshot(
+                phase=NavigatorPhase.BAY_EXIT,
+                commanded_speed_mps=command.speed_mps,
+                commanded_steering_norm=command.steering_norm,
+                forward_clearance_m=_forward_clearance(scan.ranges_m, scan.angles_rad, self._tuning),
+                # Pose is what says whether the chassis is MOVING under these
+                # commands; escape_count carries the contact-recovery tally, so
+                # a manoeuvre that keeps backing off the wall is visible without
+                # replaying the raw topics. Both exist because reconstructing
+                # this run needed /ackermann_cmd, /scan and /imu/data.
+                pose_x=pose.x,
+                pose_y=pose.y,
+                pose_yaw=pose.yaw,
+                escape_count=self._bay_exit.contact_recoveries,
             )
             return True
+
+        # Out of the pocket, or never in it, with the direction already known:
+        # hand the tick back to normal driving. Falling into the vote/creep
+        # block below would run BLIND_CREEP against a direction already
+        # committed, and would dereference an estimator a told-direction round
+        # does not have. `_commit_told_direction` is the told-direction
+        # analogue of the `_commit_direction` call below -- both rebuild the
+        # plan, which BayExit.is_clear's docstring requires on the way out of
+        # the pocket (skipping it drove back into a marker, 0.24-0.30 m).
+        if estimator is None:
+            return self._commit_told_direction() if self._pending_known_commit else False
+        if already_settled:
+            return False
 
         if boxed is not None or estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
             inferred = estimator.direction
@@ -1272,6 +1410,24 @@ class TrackNavigator(Node, ResettableNode):
         # and one that spent it must not start the next round already spent.
         self._measured_start = None
         self._start_measurement_ticks_left = 0
+
+        # Where the robot was PLACED is a fact about this round, not the last
+        # one. None of this was cleared until 2026-09-06, so the second and
+        # every later race of a session skipped the in-bay start entirely:
+        # `_bay_start_checked` was already True, and the placement test is
+        # deliberately one-shot. The operator restarts with the button, not by
+        # restarting the service, so this is the ordinary case rather than the
+        # exotic one -- and it silently made the bay exit a first-run-only
+        # feature while looking like a manoeuvre that had stopped working.
+        #
+        # The BayExit instance is REPLACED rather than reset: it accumulates
+        # rotation from the placement heading, latches which side is open, and
+        # counts its own ticks. Carrying any of that into a new round starts the
+        # next exit already believing it has turned out.
+        self._bay_start_checked = False
+        self._exiting_bay = False
+        self._bay_exit_ticks = 0
+        self._bay_exit = BayExit()
 
         # A blind round may be running a different challenge than the last one
         # -- the operator can move the jumper and long-press reset between

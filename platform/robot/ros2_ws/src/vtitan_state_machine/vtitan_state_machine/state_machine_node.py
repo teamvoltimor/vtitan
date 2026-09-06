@@ -124,7 +124,7 @@ class NodeConfig(HardwareBaseSettings):
     sample loop)."""
 
     challenge_mode_timeout_sec: float = Field(
-        default=60.0, validation_alias=AliasChoices("CHALLENGE_MODE_TIMEOUT_SEC", "challenge_mode_timeout_sec"),
+        default=180.0, validation_alias=AliasChoices("CHALLENGE_MODE_TIMEOUT_SEC", "challenge_mode_timeout_sec"),
     )
     """How long to wait for the Pi Zero's jumper reading before defaulting to Open.
 
@@ -138,10 +138,21 @@ class NodeConfig(HardwareBaseSettings):
     every such cold boot, not just flaky ones (see also
     scripts/discovery-watchdog.sh, which repairs the separate, rarer case
     where the USB-gadget link itself comes up half-dead and never completes
-    ROS2 discovery no matter how long this waits). The topic is
-    TRANSIENT_LOCAL, so a value published before this node subscribed still
-    arrives immediately -- this ceiling only matters for how long BOOT_CHECK
-    is willing to wait when it hasn't yet.
+    ROS2 discovery no matter how long this waits).
+
+    60 s then proved short too, and the cost is not a slow start but a round
+    run as the WRONG CHALLENGE. Measured 2026-09-06: the fallback fired 92 s
+    in, the operator raced 58 s later, and that round went out as Open --
+    which silently disables the sign router and, with it, the in-bay start,
+    because both are gated on ``_is_open_challenge``. A SYSTEM_RESET a minute
+    afterwards re-sampled and read the jumper in 200 ms, so nothing was
+    broken; the Zero had simply not finished coming up inside the ceiling.
+    Hence 180 s: long enough that only a genuinely dead link reaches the
+    fallback, which is the only case the fallback is meant for.
+
+    The topic is TRANSIENT_LOCAL, so a value published before this node
+    subscribed still arrives immediately -- this ceiling only matters for how
+    long BOOT_CHECK is willing to wait when it hasn't yet.
     """
 
 

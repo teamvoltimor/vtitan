@@ -708,7 +708,57 @@ class CorridorFollowerParams(BaseModel):
     is already why ``_reverse_start_m`` exists; this is the other half of it.
     """
 
-    BAY_EXIT_MAX_FRAMES: int = Field(default=0, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))
+    BAY_EXIT_TARGET_YAW_DEG: float = Field(
+        default=70.0, gt=0.0, validation_alias=_alias("BAY_EXIT_TARGET_YAW_DEG")
+    )
+    """Rotation from the placement heading at which the exit has turned ENOUGH.
+
+    The chassis is placed along the pocket; leaving it means rotating out of
+    that and onto the corridor. Past roughly this much rotation the vehicle is
+    aligned with the parking walls rather than across them, and further turning
+    carries the nose back around toward the outer wall -- which is what
+    run_20260906_112613 did after it had already turned out.
+
+    A yaw threshold rather than a clearance one because IN THE POCKET YAW IS THE
+    ONLY SIGNAL THAT WORKS. Forward clearance is the quantity the manoeuvre
+    cannot measure there: the wall sits inside MIN_VALID_RANGE_M, so the arc
+    reports nothing at all (see ``_nose_in_contact``), while the IMU is
+    unaffected by how close the surface is.
+
+    70 deg, not 90: the exit does not need to be square to the corridor before
+    driving out, only clear of the pocket and pointing out of it, and the last
+    20 deg are the ones taken closest to the far fin.
+    """
+
+    BAY_EXIT_CONTACT_DIST_M: float = Field(
+        default=0.08, gt=0.0, validation_alias=_alias("BAY_EXIT_CONTACT_DIST_M")
+    )
+    """Forward clearance at or below which the bay exit treats the nose as touching.
+
+    0.08 m sits above the readings a chassis in contact actually produces and
+    below the 0.10-0.14 m the manoeuvre holds while merely close to the wall
+    (measured across run_20260906_094342 and _112613). NO valid returns counts
+    as contact regardless of this value -- see ``_nose_in_contact``.
+
+    Deliberately NOT ``MIN_FORWARD_CLEARANCE_M`` (0.30), which asks a different
+    question: that one is "is the pocket behind me", this one is "am I touching".
+    A pocket the chassis is still inside satisfies neither.
+    """
+
+    BAY_EXIT_CONTACT_RECOVERY_TICKS: int = Field(
+        default=12, ge=1, validation_alias=_alias("BAY_EXIT_CONTACT_RECOVERY_TICKS")
+    )
+    """Ticks of straight reverse commanded when the nose reads as touching.
+
+    12 ticks is ~0.6 s at the node's 20 Hz, about 40 mm at the exit's commanded
+    0.067 m/s -- roughly half the pocket's 7.5 cm of end slack, so the leg buys
+    room to rotate without crossing the pocket it is trying to leave. Held for a
+    fixed count rather than until the arc clears: the arc is SILENT in contact,
+    so "reverse until it reads clear" would be waiting on the sensor that just
+    went blind.
+    """
+
+    BAY_EXIT_MAX_FRAMES: int = Field(default=900, ge=0, validation_alias=_alias("BAY_EXIT_MAX_FRAMES"))
     """Ticks the bay-exit maneuver may hold control before handing over. 0 = forever.
 
     ``BayExit`` is the only maneuver in the stack with no give-up path.
@@ -730,8 +780,19 @@ class CorridorFollowerParams(BaseModel):
     Releasing without that hands the planner a stale plan still pointing at
     waypoint 0.
 
-    Ships 0 (unchanged behaviour). Raising it is a real behaviour change on the
-    in-bay start ONLY, which currently scores 0 laps in 64/64 scenarios.
+    Shipped 0 (unbounded) until 2026-09-06, and only the simulator read it --
+    ``track_navigator_node`` never counted the ticks at all, so on hardware
+    ``is_clear`` really was the sole release. That was survivable only while a
+    no-return forward arc read as CLEAR, which released the manoeuvre by
+    accident. Now that ``BayExit.is_clear`` correctly calls a blind arc BLOCKED,
+    an unbounded exit can hold the chassis in the pocket for the entire round,
+    so this ships non-zero and the node counts against it.
+
+    900 ticks is ~45 s at the node's 20 Hz. The one measured hardware exit
+    (run_20260906_094342) took 650 ticks including 24 s of net-zero shuffling,
+    and a simulator exit takes ~127 -- so the budget is well clear of a healthy
+    manoeuvre and bounds an unhealthy one inside the 180 s round. Expiry is
+    logged at WARNING: it means the robot gave up rather than got out.
     """
 
     BAY_WALL_CLEARANCE_M: float = Field(default=0.20, validation_alias=_alias("BAY_WALL_CLEARANCE_M"))

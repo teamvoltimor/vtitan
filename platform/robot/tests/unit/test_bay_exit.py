@@ -178,3 +178,148 @@ def test_full_speed_guarded_exit_refuses_to_move_rather_than_touch() -> None:
     """
     pocket, _ = _drive(200, _guard_tuning(BAY_EXIT_SPEED_SCALE=1.0))
     assert pocket.travelled_m == pytest.approx(0.0, abs=1e-6)
+
+
+def test_a_forward_arc_with_no_returns_is_blocked_not_clear() -> None:
+    """The state that ended a real exit mid-reverse, facing the wall.
+
+    ``_forward_clearance`` reports ``inf`` when nothing in the forward arc
+    survives ``MIN_VALID_RANGE_M``, and ``inf`` compares as clear against any
+    threshold. In a pocket that is exactly backwards: no returns means the wall
+    is inside the sensor's minimum range. Measured on run_20260906_094342 --
+    the arc read 0.050-0.052 m (self-detection) for seconds, then dropped out
+    for one tick, and that tick released the manoeuvre.
+    """
+    tuning = tuning_with_overrides({})
+    blind = (float("inf"),) * 3
+    assert not BayExit.is_clear(blind, _ANGLES_RAD, tuning)
+
+
+def test_a_genuinely_open_arc_still_releases_the_maneuver() -> None:
+    """The no-return rule must not swallow the real exit condition."""
+    tuning = tuning_with_overrides({})
+    open_ahead = (1.0, 1.0, tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M + 0.5)
+    assert BayExit.is_clear(open_ahead, _ANGLES_RAD, tuning)
+
+
+def test_a_blocked_arc_inside_the_threshold_is_not_clear() -> None:
+    """Unchanged behaviour: a real return below the threshold still holds."""
+    tuning = tuning_with_overrides({})
+    boxed = (1.0, 1.0, tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M - 0.05)
+    assert not BayExit.is_clear(boxed, _ANGLES_RAD, tuning)
+
+
+def _contact_ranges(forward_m: float) -> tuple[float, ...]:
+    """Side rays unchanged, forward ray at ``forward_m``."""
+    return (1.0, ParkingLotSpecs.WALL_OFFSET, forward_m)
+
+
+def test_a_silent_forward_arc_backs_off_instead_of_steering() -> None:
+    """No returns means the wall is INSIDE minimum range, not that it is gone.
+
+    This is the state that ended run_20260906_112613 with the nose buried and
+    normal driving then accelerating into the wall.
+    """
+    tuning = tuning_with_overrides({})
+    exit_maneuver = BayExit()
+    command = exit_maneuver.command(
+        (float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning
+    )
+    assert command.speed_mps < 0.0
+    assert command.steering_norm == pytest.approx(0.0)
+    assert exit_maneuver.contact_recoveries == 1
+
+
+def test_contact_range_backs_off_straight() -> None:
+    """A reading below BAY_EXIT_CONTACT_DIST_M is contact, and reverses STRAIGHT."""
+    tuning = tuning_with_overrides({})
+    contact = tuning.corridor_follower.BAY_EXIT_CONTACT_DIST_M - 0.01
+    exit_maneuver = BayExit()
+    command = exit_maneuver.command(
+        _contact_ranges(contact), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning
+    )
+    assert command.speed_mps < 0.0
+    assert command.steering_norm == pytest.approx(0.0)
+
+
+def test_the_recovery_is_held_for_its_full_count() -> None:
+    """Held for a fixed count, because the arc is SILENT while in contact --
+    'reverse until it reads clear' waits on the sensor that just went blind."""
+    tuning = tuning_with_overrides({})
+    ticks = tuning.corridor_follower.BAY_EXIT_CONTACT_RECOVERY_TICKS
+    exit_maneuver = BayExit()
+    exit_maneuver.command((float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    # Clear ahead from here on; the recovery must still run out its count.
+    for _ in range(ticks - 1):
+        command = exit_maneuver.command(
+            _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning
+        )
+        assert command.speed_mps < 0.0
+        assert command.steering_norm == pytest.approx(0.0)
+    assert exit_maneuver.contact_recoveries == 1
+
+
+def test_a_clear_arc_does_not_trigger_recovery() -> None:
+    """The normal manoeuvre is untouched when nothing is against the nose."""
+    tuning = tuning_with_overrides({})
+    exit_maneuver = BayExit()
+    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    assert exit_maneuver.contact_recoveries == 0
+
+
+def test_rotation_is_measured_from_placement_and_unwraps() -> None:
+    """Accumulated, not differenced: a wrap at +/-pi must not read as 360 deg."""
+    tuning = tuning_with_overrides({})
+    exit_maneuver = BayExit()
+    for yaw in (3.0, 3.1, -3.1, -3.0):  # crosses +pi going one way
+        exit_maneuver.command(
+            _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=yaw
+        )
+    # 3.0->3.1 is +0.1, 3.1->-3.1 CROSSES +pi and is +(2pi - 6.2), -3.1->-3.0 is +0.1.
+    # Differencing the endpoints instead would read -6.0 rad: the bug being guarded.
+    expected = 0.1 + (2.0 * math.pi - 6.2) + 0.1
+    assert exit_maneuver.rotation_deg == pytest.approx(math.degrees(expected), abs=1e-6)
+
+
+def test_turning_far_enough_drives_straight_out_instead_of_steering() -> None:
+    """Past the target the nose comes back around toward the outer wall."""
+    tuning = tuning_with_overrides({})
+    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    exit_maneuver = BayExit()
+    exit_maneuver.command(
+        _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0
+    )
+    assert not exit_maneuver.rotation_complete(tuning)
+    command = exit_maneuver.command(
+        _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning,
+        yaw_rad=-(target + 0.05),
+    )
+    assert exit_maneuver.rotation_complete(tuning)
+    assert command.speed_mps > 0.0
+    assert command.steering_norm == pytest.approx(0.0)
+
+
+def test_rotation_release_needs_a_measurement() -> None:
+    """No yaw supplied means no claim: the manoeuvre keeps its old behaviour."""
+    tuning = tuning_with_overrides({})
+    exit_maneuver = BayExit()
+    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    assert not exit_maneuver.rotation_complete(tuning)
+    assert exit_maneuver.rotation_deg == pytest.approx(0.0)
+
+
+def test_contact_recovery_still_wins_over_a_completed_rotation() -> None:
+    """Backing off the wall comes first -- driving out of it forward does not work."""
+    tuning = tuning_with_overrides({})
+    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    exit_maneuver = BayExit()
+    exit_maneuver.command(
+        _contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0
+    )
+    command = exit_maneuver.command(
+        (float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning,
+        yaw_rad=-(target + 0.05),
+    )
+    assert exit_maneuver.rotation_complete(tuning)
+    assert command.speed_mps < 0.0
+    assert exit_maneuver.contact_recoveries == 1

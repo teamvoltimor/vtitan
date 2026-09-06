@@ -291,4 +291,17 @@ bay_exit_latch_direction = true
 bay_exit_latch_reverse = false
 # Ticks before switching to the other legacy exit / handing over; 0 = never.
 bay_exit_fallback_frames = 0
-bay_exit_max_frames = 0
+# Hard bound on the whole manoeuvre. 0 (never) let run_20260906_105056 hold the
+# chassis for 1832 of 1834 ticks -- 91.7 s spinning through -420 deg of yaw,
+# stopped by the operator, not by the robot. Nothing else bounds this: the exit
+# owns the tick and CoreNavigator never steps while it does.
+bay_exit_max_frames = 900
+# Nose-against-wall recovery. A forward arc below this distance -- or reporting
+# NOTHING, which is the same wall closer than MIN_VALID_RANGE_M -- backs the
+# chassis straight off before any leg logic runs.
+bay_exit_contact_dist_m = 0.08
+bay_exit_contact_recovery_ticks = 12
+# Rotation from the placement heading at which the exit has turned enough to
+# leave. In the pocket this is the ONLY signal that works -- the wall sits
+# inside the LIDAR's minimum range, so forward clearance reports nothing.
+bay_exit_target_yaw_deg = 70.0

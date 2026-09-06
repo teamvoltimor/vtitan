@@ -5,4 +5,4 @@
 # not this file.
 
 challenge_mode_samples_required = 3
-challenge_mode_timeout_sec = 60.0
+challenge_mode_timeout_sec = 180.0

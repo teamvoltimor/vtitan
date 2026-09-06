@@ -11,9 +11,42 @@
 > — *Ramón Álvarez*
 
 <p align="center">
-    <img src="../assets/kaucrow-banner.png" alt="Javier Pérez (@kaucrow)" width="600">
+    <img src="../assets/kaucrow-banner.webp" alt="Javier Pérez (@kaucrow)" width="600">
     <br>
-    <i>Javier Pérez — <a href="https://github.com/kaucrow">@kaucrow</a></i>
+    <i>Javier Pérez — <a href="https://github.com/kaucrow">@kaucrow</a> — 2 de enero de 2005 — 31 de agosto de 2026</i>
+</p>
+
+> Y también a nuestra compañera de tantos años:
+>
+> **Luna Margarita**
+>
+> Casi doce años siendo parte de nuestra familia. Gracias por tu compañía, tu nobleza y todo el cariño que nos diste sin pedir nada a cambio. Te vamos a extrañar siempre.
+>
+> — *Ramón Álvarez y Sebastián Álvarez*
+
+<table>
+    <tbody>
+        <tr>
+            <td>
+                <p align="center">
+                    <img src="../assets/luna-baby.webp" alt="Luna Margarita de cachorra" height="500">
+                    <br>
+                    <i>Luna Margarita, de cachorra</i>
+                </p>
+            </td>
+            <td>
+                <p align="center">
+                    <img src="../assets/luna-senior.webp" alt="Luna Margarita en sus últimos años" height="500">
+                    <br>
+                    <i>Luna Margarita, en sus últimos años</i>
+                </p>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<p align="center">
+    <i>Luna Margarita — 12 de diciembre de 2014 — 5 de septiembre de 2026</i>
 </p>
 
 ---
@@ -108,7 +141,7 @@ En este apartado, discutimos brevemente nuestras experiencias pasadas con la cat
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-front-view.png"
+                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-front-view.webp"
 alt="Vista delantera de Klevor" width="600">
                                         <br>
                                         <i>Vista delantera de Klevor</i>
@@ -116,7 +149,7 @@ alt="Vista delantera de Klevor" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-back-view.png"
+                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-back-view.webp"
 alt="Vista trasera de Klevor" width="600">
                                         <br>
                                         <i>Vista trasera de Klevor</i>
@@ -126,7 +159,7 @@ alt="Vista trasera de Klevor" width="600">
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-right-view.png"
+                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-right-view.webp"
 alt="Vista derecha de Klevor" width="600">
                                         <br>
                                         <i>Vista derecha de Klevor</i>
@@ -134,7 +167,7 @@ alt="Vista derecha de Klevor" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-left-view.png"
+                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-left-view.webp"
 alt="Vista izquierda de Klevor" width="600">
                                         <br>
                                         <i>Vista izquierda de Klevor</i>
@@ -144,7 +177,7 @@ alt="Vista izquierda de Klevor" width="600">
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-top-view.png"
+                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-top-view.webp"
 alt="Vista superior de Klevor" width="600">
                                         <br>
                                         <i>Vista superior de Klevor</i>
@@ -152,7 +185,7 @@ alt="Vista superior de Klevor" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-bottom-view.png"
+                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-bottom-view.webp"
 alt="Vista inferior de Klevor" width="600">
                                         <br>
                                         <i>Vista inferior de Klevor</i>
@@ -187,7 +220,7 @@ Debido a la gran cantidad de cambios que necesitamos, por diferentes motivos, te
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-front-view.png"
+                                        <img src="v-photos/v-titan/v-titan-front-view.webp"
 alt="Vista delantera de V-Titan" width="600">
                                         <br>
                                         <i>Vista delantera de V-Titan</i>
@@ -195,7 +228,7 @@ alt="Vista delantera de V-Titan" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-back-view.png"
+                                        <img src="v-photos/v-titan/v-titan-rear-view.webp"
 alt="Vista trasera de V-Titan" width="600">
                                         <br>
                                         <i>Vista trasera de V-Titan</i>
@@ -205,7 +238,7 @@ alt="Vista trasera de V-Titan" width="600">
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-right-view.png"
+                                        <img src="v-photos/v-titan/v-titan-right-view.webp"
 alt="Vista derecha de V-Titan" width="600">
                                         <br>
                                         <i>Vista derecha de V-Titan</i>
@@ -213,7 +246,7 @@ alt="Vista derecha de V-Titan" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-left-view.png"
+                                        <img src="v-photos/v-titan/v-titan-left-view.webp"
 alt="Vista izquierda de V-Titan" width="600">
                                         <br>
                                         <i>Vista izquierda de V-Titan</i>
@@ -223,7 +256,7 @@ alt="Vista izquierda de V-Titan" width="600">
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-top-view.png"
+                                        <img src="v-photos/v-titan/v-titan-top-view.webp"
 alt="Vista superior de V-Titan" width="600">
                                         <br>
                                         <i>Vista superior de V-Titan</i>
@@ -231,7 +264,7 @@ alt="Vista superior de V-Titan" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-bottom-view.png"
+                                        <img src="v-photos/v-titan/v-titan-bottom-view.webp"
 alt="Vista inferior de V-Titan" width="600">
                                         <br>
                                         <i>Vista inferior de V-Titan</i>
@@ -255,7 +288,7 @@ A continuación, está la descripción de todos los componentes principales de V
 ### Raspberry Pi 5 (16GB RAM)
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-5.png" alt="Raspberry Pi 5" 
+	<img src="../assets/images/components/raspberry-pi-5.webp" alt="Raspberry Pi 5" 
 width="350">
 	<br>
 	<i>Raspberry Pi 5</i>
@@ -279,7 +312,7 @@ Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 
 ### Raspberry Pi Camera Module 3 Wide
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-camera-module-3.png" alt="Raspberry Pi Camera Module 3" 
+	<img src="../assets/images/components/raspberry-pi-camera-module-3.webp" alt="Raspberry Pi Camera Module 3" 
 width="350">
 	<br>
 	<i>Raspberry Pi Camera Module 3</i>
@@ -297,7 +330,7 @@ La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como l
 ### Raspberry Pi AI HAT+ (26 TOPS)
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-ai-hat-plus.png" alt="Raspberry Pi AI HAT+ 26 TOPS" 
+	<img src="../assets/images/components/raspberry-pi-ai-hat-plus.webp" alt="Raspberry Pi AI HAT+ 26 TOPS" 
 width="350">
 	<br>
 	<i>Raspberry Pi AI HAT+ 26 TOPS</i>
@@ -317,7 +350,7 @@ El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones 
 ### Raspberry Pi Zero 2 W
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-zero-w.png" alt="Raspberry Pi Zero W" 
+	<img src="../assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero W" 
 width="350">
 	<br>
 	<i>Raspberry Pi Zero W</i>
@@ -339,7 +372,7 @@ Incorpora conectividad Wi-Fi/Bluetooth y cabezales de pines GPIO soldados. Esto 
 ### RPLiDAR C1
 
 <p align="center">
-	<img src="assets/images/components/rplidar-c1.png" alt="RPLiDAR C1" 
+	<img src="../assets/images/components/rplidar-c1.webp" alt="RPLiDAR C1" 
 width="350">
 	<br>
 	<i>RPLiDAR C1</i>
@@ -369,7 +402,7 @@ Especificaciones técnicas:
 
 <!-- github-only-start -->
 <p align="center">
-	<img src="assets/images/components/hi-wonder-hps-3527sg-35kg-servo.png" alt="Hiwonder HPS-3527SG 35kg Servo" 
+	<img src="../assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Hiwonder HPS-3527SG 35kg Servo" 
 width="350">
 	<br>
 	<i>Hiwonder HPS-3527SG 35kg Servo</i>
@@ -392,7 +425,7 @@ Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
 ### HD Hex Motor
 
 <p align="center">
-	<img src="assets/images/components/hd-hex-motor.png" alt="HD Hex Motor" 
+	<img src="../assets/images/components/hd-hex-motor.webp" alt="HD Hex Motor" 
 width="350">
 	<br>
 	<i>HD Hex Motor</i>
@@ -409,7 +442,7 @@ Después de probar distintos modelos de motor, al final optamos por utilizar el 
 ### 9-Axis IMU Gyroscope GY-BNO085
 
 <p align="center">
-	<img src="assets/images/components/bno08x.png" alt="Giroscopio BNO085" 
+	<img src="../assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
 width="350">
 	<br>
 	<i>Giroscopio BNO085</i>
@@ -431,7 +464,7 @@ La forma en la que lo implementamos es bastante sencilla, el giroscopio siempre 
 ### Ovonic Air 11.1V Li-Po Battery
 
 <p align="center">
-	<img src="assets/images/components/ovonic-air-11.1v-lipo-battery.png" alt="Ovonic Air 11.1V Li-Po Battery" 
+	<img src="../assets/images/components/ovonic-air-11.1v-lipo-battery.webp" alt="Ovonic Air 11.1V Li-Po Battery" 
 width="350">
 	<br>
 	<i>Ovonic Air 11.1V Li-Po Battery</i>
@@ -449,7 +482,7 @@ La batería de 11.1V de la marca Ovonic, cumple la función de ser la fuente de 
 ### Puente H BTS7960 / IBT-2
 
 <p align="center">
-	<img src="assets/images/components/h-bridge-bts7960.png" alt="Puente H BTS7960 / IBT-2" width="350">
+	<img src="../assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
 	<br>
 	<i>Puente H BTS7960 / IBT-2 (el que monta V-Titan actualmente)</i>
 </p>
@@ -457,7 +490,7 @@ La batería de 11.1V de la marca Ovonic, cumple la función de ser la fuente de 
 El BTS7960 es el puente H que controla el motor de tracción. **No fue nuestra primera opción: reemplazó al L298N, y el motivo fue puramente de corriente.**
 
 <p align="center">
-	<img src="assets/images/components/puente-h-l298n.png" alt="Puente H L298N" width="300">
+	<img src="../assets/images/components/puente-h-l298n.webp" alt="Puente H L298N" width="300">
 	<br>
 	<i>Puente H L298N — el diseño anterior, descartado por corriente insuficiente</i>
 </p>
@@ -478,7 +511,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 ### Step Down Mini-560 Pro
 
 <p align="center">
-	<img src="assets/images/components/step-down-mini-560-pro.png" alt="Step Down Mini-560 Pro" width="350">
+	<img src="../assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
 	<br>
 	<i>Step Down Mini-560 Pro (el que monta V-Titan actualmente)</i>
 </p>
@@ -486,7 +519,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 El Mini-560 Pro es el regulador que alimenta el riel propio del servo de dirección, separándolo del riel de 5V de la Raspberry Pi para que los picos de corriente del servo no lleguen al computador.
 
 <p align="center">
-	<img src="assets/images/components/step-down-xlc4016.png" alt="Step Down XLC4016" width="300">
+	<img src="../assets/images/components/step-down-xlc4016.webp" alt="Step Down XLC4016" width="300">
 	<br>
 	<i>Step Down XLC4016 — el regulador anterior, descartado por peso</i>
 </p>
@@ -506,7 +539,7 @@ Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el pun
 ### SSD1306 OLED Display
 
 <p align="center">
-	<img src="assets/images/components/ssd1306-oled-display.png" alt="SSD1306 OLED Display" width="350">
+	<img src="../assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="350">
 	<br>
 	<i>SSD1306 OLED Display 128x64</i>
 </p>
@@ -580,7 +613,7 @@ Con todos estos componentes en mente, queríamos implementar esta idea en un sis
 #### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
 
 <p align="center">
-	<img src="assets/images/development/early-direction-system-design.jpg" alt="Sistema de Transmisión" 
+	<img src="../assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Primer Prototipo del Sistema de Dirección</i>
@@ -632,7 +665,7 @@ width="350">
 ## Sistema de Transmisión
 
 <p align="center">
-	<img src="assets/images/development/transmission-system-top-view.jpg" alt="Sistema de Transmisión" 
+	<img src="../assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Sistema de Transmisión, visto desde arriba</i>
@@ -645,7 +678,7 @@ Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción e
 ## Sistema de Dirección
 
 <p align="center">
-	<img src="assets/images/development/direction-system-top-view.jpg" alt="Sistema de Dirección" 
+	<img src="../assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
 width="350">
 	<br>
 	<i>Sistema de Dirección, visto desde arriba</i>
@@ -656,7 +689,7 @@ Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema
 ## Chasis Inferior 
 
 <p align="center">
-	<img src="../3d-models/current-models/piñon-33-dientes-dirección.png" alt="Piñon de 33 dientes de dirección" 
+	<img src="../3d-models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
 width="350">
 	<br>
 	<i>Piñon de 33 dientes de dirección</i>
@@ -667,7 +700,7 @@ También es importante recalcar la base dentada del rin de las ruedas, o mejor d
 ## Monochasis 
 
 <p align="center">
-	<img src="../3d-models/current-models/chasis-inferior.png" alt="Chasis Inferior" 
+	<img src="../3d-models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
 width="350">
 	<br>
 	<i>Chasis Inferior</i>
@@ -704,7 +737,7 @@ Al efectuar toda la operación obtenemos como resultado que se necesita un torqu
 Así que, como el torque de bloqueo del motor (0.105Nm) es menor al torque mínimo (0.154Nm), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
 
 <p align="center">
-	<img src="assets/images/misc/relacion-de-engranajes.jpg" alt="Relación de Engranajes" 
+	<img src="../assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
 width="350">
 	<br>
 	<i>Relación de Engranajes</i>
@@ -772,6 +805,12 @@ El robot arranca **sin mapa y sin saber hacia qué lado se corre la pista**. Tod
 
 Es la primera decisión de cada ronda y condiciona todas las demás. El robot avanza despacio y centrado, y compara cuánto espacio libre mide el LIDAR a izquierda y derecha: el lado que **deja de ser pared** indica dónde está el bloque interior, y el bloque interior fija el sentido de giro.
 
+<p align="center">
+    <img src="schemes/flowcharts/common/webp/inferencia-direccion.webp" alt="Inferencia del sentido de la vuelta" width="700">
+    <br>
+    <i>Inferencia del sentido de la vuelta — fuente Mermaid: <a href="schemes/flowcharts/common/mermaid/inferencia-direccion.mmd"><code>inferencia-direccion.mmd</code></a></i>
+</p>
+
 Lo interesante no es la comparación, sino todo lo que hay que descartar antes de creerla. Una lectura solo cuenta como voto si supera cuatro filtros ([`inferencia-direccion.mmd`](schemes/flowcharts/common/mermaid/inferencia-direccion.mmd)):
 
 1. **El chasis está alineado con el pasillo** (error menor a 25°). De lado, los rayos laterales cortan en diagonal y miden de más.
@@ -785,8 +824,66 @@ Y aun así una sola lectura no decide: hacen falta **5 votos coincidentes**. Un 
 
 Con el sentido resuelto, el robot sigue el pasillo manteniéndose centrado, cuenta las vueltas por el paso acumulado alrededor del circuito, y vigila permanentemente dos condiciones de fallo: **colisión** y **atasco**. Ambas comparten una misma rutina de escape, documentada una sola vez en `common/` y referenciada desde los dos desafíos en vez de redibujarse.
 
+<p align="center">
+    <img src="schemes/flowcharts/common/webp/conteo-vueltas.webp" alt="Conteo de vueltas" width="700">
+    <br>
+    <i>Conteo de vueltas por paso acumulado alrededor del circuito</i>
+</p>
+
+<p align="center">
+    <img src="schemes/flowcharts/common/webp/escape-colision.webp" alt="Escape de colision y atasco" width="700">
+    <br>
+    <i>Rutina de escape compartida ante colisión y atasco</i>
+</p>
+
+<p align="center">
+    <img src="schemes/flowcharts/common/webp/esquiva-generica.webp" alt="Esquiva generica" width="700">
+    <br>
+    <i>Esquiva genérica de obstáculo</i>
+</p>
+
 En el Desafío de Obstáculos se añade la regla de color: el robot debe pasar por un lado determinado de cada señal según sea roja o verde. La consecuencia de equivocarse no es perder puntos, es **terminar la ronda**, así que el criterio de paso es una de las partes más conservadoras del sistema.
 
+<p align="center">
+    <img src="schemes/flowcharts/obstacles/webp/regla-senales.webp" alt="Regla de paso por senales de color" width="700">
+    <br>
+    <i>Regla de paso por señales de color (Desafío de Obstáculos)</i>
+</p>
+
+
+### Vista completa de cada desafío
+
+Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los flujos completos y las máquinas de estado de cada desafío, renderizados desde las mismas fuentes Mermaid de [`schemes/flowcharts/`](schemes/flowcharts/).
+
+<p align="center">
+    <img src="schemes/flowcharts/open/webp/flujo-completo.webp" alt="Flujo completo del Open Challenge" width="800">
+    <br>
+    <i>Open Challenge — flujo completo</i>
+</p>
+
+<p align="center">
+    <img src="schemes/flowcharts/open/webp/maquina-estados.webp" alt="Maquina de estados del Open Challenge" width="800">
+    <br>
+    <i>Open Challenge — máquina de estados</i>
+</p>
+
+<p align="center">
+    <img src="schemes/flowcharts/obstacles/webp/flujo-parte1-conduccion.webp" alt="Obstacle Challenge, parte 1: conduccion" width="800">
+    <br>
+    <i>Obstacle Challenge — parte 1: conducción y señales</i>
+</p>
+
+<p align="center">
+    <img src="schemes/flowcharts/obstacles/webp/flujo-parte2-estacionamiento.webp" alt="Obstacle Challenge, parte 2: estacionamiento" width="800">
+    <br>
+    <i>Obstacle Challenge — parte 2: estacionamiento</i>
+</p>
+
+<p align="center">
+    <img src="schemes/flowcharts/obstacles/webp/maquina-estados.webp" alt="Maquina de estados del Obstacle Challenge" width="800">
+    <br>
+    <i>Obstacle Challenge — máquina de estados</i>
+</p>
 ## Grabación y análisis de carreras
 
 Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale mal, mirar el robot no dice por qué. Por eso todo lo que ocurre a bordo queda grabado.

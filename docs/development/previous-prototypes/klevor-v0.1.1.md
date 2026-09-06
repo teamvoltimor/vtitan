@@ -4,32 +4,32 @@ Este es un segundo prototipo de Klevor, donde se le hicieron correcciones esenci
 
 <div class="vehicle-views-container">
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-front-view.png"
+		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-front-view.webp"
 alt="Vista delantera" class="vehicle-view-image">
 		<i>Vista delantera</i>
 	</div>
 	<div class="hcenter"> 
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-back-view.png" 
+		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-back-view.webp" 
 alt="Vista Trasera" class="vehicle-view-image">
 		<i>Vista trasera</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-right-view.png" 
+		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-right-view.webp" 
 alt="Vista derecha" class="vehicle-view-image">
 		<i>Vista derecha</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-left-view.png" 
+		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-left-view.webp" 
 alt="Vista izquierda" class="vehicle-view-image">
 		<i>Vista izquierda</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-top-view.png"
+		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-top-view.webp"
 alt="Vista superior" class="vehicle-view-image">
 		<i>Vista superior</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-bottom-view.png"
+		<img src="../../v-photos/previous-prototypes/klevor-v0.1.1/prototype2-bottom-view.webp"
 alt="Vista inferior" class="vehicle-view-image">
 		<i>Vista inferior</i>
 	</div>

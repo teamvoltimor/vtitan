@@ -1063,6 +1063,9 @@ class CoreNavigator(EscapeRecovery):
         # mask reads), none of which the lane transform replaces.
         sign_deform_magnitude: float | None = None
         active_sign_count: int | None = None
+        wrong_side_pass_count: int | None = None
+        committed_sign: Waypoint | None = None
+        sign_target: tuple[float, float] | None = None
         suppress_deform = (
             self._tuning.sign_router.SIGN_LANE_PLANNER and self._tuning.sign_router.SIGN_LANE_SUPPRESS_DEFORM
         )
@@ -1080,6 +1083,15 @@ class CoreNavigator(EscapeRecovery):
                 steer_target = deformed
             sign_deform_magnitude = math.hypot(deformed[0] - raw_target[0], deformed[1] - raw_target[1])
             active_sign_count = self._sign_router.active_sign_count
+            # Magnitude alone cannot say WHICH SIDE the robot was aimed at, so
+            # it cannot tell a correct command the chassis failed to reach from
+            # a command pointed the wrong way. The deformed target and the
+            # committed sign's believed position close that, and the router's
+            # own wrong-side tally says whether the robot agreed with the
+            # camera. See NavigatorDebugSnapshot.wrong_side_pass_count.
+            wrong_side_pass_count = len(self._sign_router.wrong_side_violations)
+            committed_sign = self._sign_router.committed_sign_position
+            sign_target = deformed
 
         # Get steering from waypoint controller
         steering_normalized, _, angle_error = self._waypoint_controller.compute_steering(
@@ -1286,6 +1298,13 @@ class CoreNavigator(EscapeRecovery):
         debug.heading_speed_mps = heading_speed
         debug.sign_deform_magnitude_m = sign_deform_magnitude
         debug.active_sign_count = active_sign_count
+        debug.wrong_side_pass_count = wrong_side_pass_count
+        if committed_sign is not None:
+            debug.committed_sign_x_m = committed_sign.x
+            debug.committed_sign_y_m = committed_sign.y
+        if sign_target is not None:
+            debug.sign_target_x_m = sign_target[0]
+            debug.sign_target_y_m = sign_target[1]
 
         # Last-resort geometric guard against clipping a routed sign. The two
         # responses that already exist both assume the planner has the sign
