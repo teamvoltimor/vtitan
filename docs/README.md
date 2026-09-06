@@ -687,9 +687,9 @@ Donde:
 
 "m" es la masa del vehículo (en kg)
 
-"r" es el radio de la rueda (en metros, cuyo radio en V-Titan miden 0.035 metros)
+"r" es el radio de la rueda (en metros, cuyo radio en V-Titan mide 0.035 metros)
 
-"a" es la aceleración deseada (para la cual optamos por $1 \text{ m/s}^2$ por preferencia de control en pista)
+"a" es la aceleración deseada
 
 "g" es la gravedad ($9.81 \text{ m/s}^2$)
 
@@ -699,9 +699,9 @@ Donde:
 
 "N" es el número de motores en tracción (en V-Titan solo hay uno)
 
-Al efectuar toda la operación obtenemos como resultado que se necesita un torque de 0.207Nm.
+Al efectuar toda la operación obtenemos como resultado que se necesita un torque mínimo de 0.154Nm para que V-Titan tenga aceleración.
 
-Así que, es claramente evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de manera mecánica, la forma en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
+Así que, como el torque de bloqueo del motor (0.105Nm) es menor al torque mínimo (0.154Nm), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
 
 <p align="center">
 	<img src="assets/images/misc/relacion-de-engranajes.jpg" alt="Relación de Engranajes" 
@@ -710,27 +710,27 @@ width="350">
 	<i>Relación de Engranajes</i>
 </p>
 
-El torque final será igual a la multiplicación del torque inicial por la misma relación de engranajes, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se multiplican todas:
+El torque final, o de salida será igual a la multiplicación del torque inicial por la misma relación de engranajes total, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se efectúa el producto de ese conjunto:
 
-El motor cuenta con un eje de 33 dientes, el cual va a una correa de 33 dientes para cada eje, por lo que la relación sería: 33 / 50 = 0.66
+El motor cuenta con un eje de 50 dientes, el cual va a una correa de 33 dientes para cada eje, por lo que la relación sería: 33 / 50 = 0.66
 
-Este eje tiene en el centro unos pernos de transmisión de LEGO los cuales a su vez, tienen un engranaje cónico de 10 dientes, que transmiten a un engranaje de 15 dientes, por ende su relación de transmisión será: 15 / 10 = 1.5
+Este eje tiene en el centro unos pernos de transmisión de LEGO los cuales a su vez, tienen un engranaje cónico de 10 dientes, que transmiten a un engranaje de 20 dientes, por ende su relación de transmisión será: 20 / 10 = 2
 
-Este engranaje de 15 dientes a su vez, conduce a un engranaje de 20 dientes, por ende su relación de transmisión es: 20 / 15 = 1.33
+Este engranaje de 20 dientes a su vez, conduce a un engranaje de 15 dientes, por ende su relación de transmisión es: 15 / 20 = 0.75
 
-Este engranaje de 20 dientes conduce otro engranaje de 20 dientes, por ende su relación de transmisión será: 20 / 20 = 1
+Este engranaje de 15 dientes, la cual conduce otro engranaje de 20 dientes, por ende su relación de transmisión será: 20 / 15 = 1.33
 
 Finalmente este engranaje de 20 dientes, conduce a la rueda dentada la cual cuenta con 50 dientes, por ende su relación de transmisión es: 50 / 20 = 2.5
 
 Ahora la relación de transmisión total será:
 
-$R_{total}$ = 0.66 * 1.5 * 1.33 * 1 * 2.5 = 3.29
+$R_{total}$ = 0.66 * 2 * 0.75 * 1.33 * 2.5 = 3.29
 
 Por ende el Torque de bloqueo final será:
 
 $T_{final}$ = $T$ * $R_{total}$ = 0.105Nm * 3.29 = 0.345Nm
 
-Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, 0.345Nm * 0.5 < 0.207Nm, por ende, esta relación de engranajes no es suficiente por sí sola para cumplir con este estándar, sin embargo, los motores DC están diseñados para soportar picos de 60% por unos breves segundos sin ningún riesgo, siempre y cuando el trabajo del motor disminuya a lo largo de este período de tiempo.
+Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, 0.345Nm * 0.5 > 0.154Nm, por ende, esta relación de engranajes es suficiente por sí sola para cumplir con este estándar, aunque, en caso de no cumplir con esta recomendación, los motores DC pueden soportar ejercer picos de torque por unos breves segundos, ya que, a medida que el vehículo gana tracción, el cociente de fricción disminuye considerablemente (alrededor de un 15%) por lo que, el torque necesario baja considerablemente y es más fácil que el vehículo gane aceleración.
 
 # Arquitectura de software y estrategia para superar obstáculos
 
