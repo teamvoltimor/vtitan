@@ -323,3 +323,42 @@ def test_contact_recovery_still_wins_over_a_completed_rotation() -> None:
     assert exit_maneuver.rotation_complete(tuning)
     assert command.speed_mps < 0.0
     assert exit_maneuver.contact_recoveries == 1
+
+
+def test_turning_far_enough_is_not_enough_if_the_way_out_is_blocked() -> None:
+    """70 deg says the chassis is no longer across the pocket, NOT that it is
+    aimed down the corridor. Measured on run_20260906_145909: the exit released
+    and normal driving took forward clearance 0.54 -> 0.08 m into the outer
+    wall. Keep ratcheting instead -- the next reverse buys more angle.
+    """
+    tuning = tuning_with_overrides({})
+    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    blocked = tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M - 0.05
+    exit_maneuver = BayExit()
+    exit_maneuver.command(
+        _contact_ranges(blocked), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0
+    )
+    command = exit_maneuver.command(
+        _contact_ranges(blocked), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning,
+        yaw_rad=-(target + 0.05),
+    )
+    assert exit_maneuver.rotation_complete(tuning)
+    # Still ratcheting: a steered leg, not the straight drive-out.
+    assert command.steering_norm != pytest.approx(0.0)
+
+
+def test_turned_and_clear_drives_straight_out() -> None:
+    """Both conditions together are what release means."""
+    tuning = tuning_with_overrides({})
+    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    clear = tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M + 0.5
+    exit_maneuver = BayExit()
+    exit_maneuver.command(
+        _contact_ranges(clear), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0
+    )
+    command = exit_maneuver.command(
+        _contact_ranges(clear), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning,
+        yaw_rad=-(target + 0.05),
+    )
+    assert command.speed_mps > 0.0
+    assert command.steering_norm == pytest.approx(0.0)

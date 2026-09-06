@@ -761,11 +761,23 @@ class TrackNavigator(Node, ResettableNode):
         # wall sits inside MIN_VALID_RANGE_M and the forward arc reports nothing
         # -- so it releases late, or on a reading taken mid-rotation. Yaw is
         # measurable throughout and says when the turn is done.
+        #
+        # Both, not either. Rotation alone released run_20260906_145909 at just
+        # -19.9 deg on a clearance reading taken mid-turn, and normal driving
+        # then took forward clearance 0.54 m -> 0.08 m into the outer wall.
+        # Clearance alone is the reading the pocket cannot give. Together they
+        # say "turned out AND something to drive into open space toward".
+        #
+        # The exception is the FIRST tick, which is how a parallel start leaves:
+        # ASSUME_BAY_START believes the placement rather than proving it, and a
+        # parallel start is exactly one that already has forward clearance. It
+        # must not be made to ratchet 70 deg to discover it was never in a
+        # pocket -- see the ASSUME_BAY_START branch above, which relies on this.
         turned_out = self._bay_exit.rotation_complete(self._tuning)
+        way_out_clear = BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
+        never_started = self._bay_exit_ticks <= 1
         if self._exiting_bay and (
-            bay_exit_spent
-            or turned_out
-            or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
+            bay_exit_spent or (way_out_clear and (turned_out or never_started))
         ):
             if turned_out:
                 logger.info(
