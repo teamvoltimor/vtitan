@@ -63,3 +63,10 @@ path_margin = 0.10     # Extra clearance beyond chassis half-width still counted
 # reverse, this whole mechanism IS a reverse, and reverse has never been
 # observed on hardware.
 obstacles_contact_dist = 0.05
+
+# How many ADJACENT rays in the forward lane must corroborate a short return
+# before it counts as an obstacle. The bare minimum over a noisy sweep is an
+# extreme-value statistic, not a clearance: with sigma=0.03 m of range noise
+# across ~500 rays the smallest reading in the lane sits 2-3 sigma below the
+# nearest real surface. 1 restores that bare minimum.
+risk_ray_window = 1

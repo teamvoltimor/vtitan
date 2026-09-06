@@ -30,6 +30,11 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.SlowDist = loaded.SlowDist
 		cfg.FastDist = loaded.FastDist
 		cfg.PathMargin = loaded.PathMargin
+		// Absent from the file means 0, which RobustMinRange reads as the bare
+		// minimum -- keep the shipped default instead of silently disabling it.
+		if loaded.RiskRayWindow > 0 {
+			cfg.RiskRayWindow = loaded.RiskRayWindow
+		}
 	}
 
 	controlPath := filepath.Join(configRoot, profile.DefaultControlTOMLPath)

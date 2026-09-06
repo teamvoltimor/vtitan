@@ -20,6 +20,11 @@ class ClearanceZones(BaseModel):
 
     Attributes:
         CONTACT_DIST: Robot creeps forward (< 0.10m) - immediate danger
+        RISK_RAY_WINDOW: How many ADJACENT rays in the forward lane must
+            corroborate a short return before ``assess_risk`` treats it as an
+            obstacle. The bare minimum over a noisy sweep is an extreme-value
+            statistic, not a clearance -- see ``sectors.robust_min_range``.
+            1 restores that bare minimum.
         SLOW_DIST: Robot enters slow zone (0.10-0.25m)
         MEDIUM_DIST: Robot enters medium speed zone (0.25-0.50m)
         FAST_DIST: Robot can go full speed (> 0.50m)
@@ -33,6 +38,7 @@ class ClearanceZones(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     CONTACT_DIST: float = Field(default=0.10, validation_alias=_alias("CONTACT_DIST"))  # Creep forward zone
+    RISK_RAY_WINDOW: int = Field(default=5, ge=1, validation_alias=_alias("RISK_RAY_WINDOW"))
     SLOW_DIST: float = Field(default=0.25, validation_alias=_alias("SLOW_DIST"))  # Reduced speed
     MEDIUM_DIST: float = Field(default=0.50, validation_alias=_alias("MEDIUM_DIST"))  # Normal speed
     FAST_DIST: float = Field(default=1.00, validation_alias=_alias("FAST_DIST"))  # Full speed capability

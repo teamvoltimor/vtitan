@@ -24,9 +24,12 @@ type Config struct {
 	// ObstaclesContactDist supersedes ContactDist on the Obstacles Challenge;
 	// nil leaves it alone. See ForObstaclesChallenge.
 	ObstaclesContactDist *float64
-	SlowDist             float64
-	FastDist             float64
-	PathMargin           float64
+	// RiskRayWindow is the adjacency window AssessRisk corroborates a short
+	// return over, from clearance.toml's risk_ray_window.
+	RiskRayWindow int
+	SlowDist      float64
+	FastDist      float64
+	PathMargin    float64
 
 	// Control (motion/control.toml).
 	ControlHz float64
@@ -105,6 +108,9 @@ type Config struct {
 // Default* match the shipped TOML values (platform/config/
 // navigation/** and platform/config/robot.toml) as of this port.
 const (
+	// DefaultRiskRayWindow matches clearance.toml's risk_ray_window.
+	DefaultRiskRayWindow = 5
+
 	DefaultContactDist = 0.10
 	DefaultSlowDist    = 0.25
 	DefaultFastDist    = 1.00
@@ -178,10 +184,11 @@ const (
 // defaults.
 func DefaultConfig() Config {
 	return Config{
-		ContactDist: DefaultContactDist,
-		SlowDist:    DefaultSlowDist,
-		FastDist:    DefaultFastDist,
-		PathMargin:  DefaultPathMargin,
+		ContactDist:   DefaultContactDist,
+		RiskRayWindow: DefaultRiskRayWindow,
+		SlowDist:      DefaultSlowDist,
+		FastDist:      DefaultFastDist,
+		PathMargin:    DefaultPathMargin,
 
 		ControlHz: DefaultControlHz,
 
@@ -261,6 +268,7 @@ func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController 
 	pathHalfWidth := c.ChassisWidthM/navutil.Half + c.PathMargin
 	return &CollisionAvoidanceController{
 		ContactDist:    c.ContactDist,
+		RiskRayWindow:  c.RiskRayWindow,
 		SlowDist:       c.SlowDist,
 		FastDist:       c.FastDist,
 		EscapeRevSpeed: c.RevSpeed,

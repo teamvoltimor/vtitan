@@ -21,6 +21,7 @@ from src.navigation.control.controllers.collision_avoidance.bumper import bumper
 from src.navigation.control.controllers.collision_avoidance.sectors import (
     _forward_path_has_rays,
     _forward_path_ranges,
+    robust_min_range,
     _sector_to_model,
     forward_path_nearest_ray,
     sector_ranges,
@@ -79,6 +80,8 @@ class CollisionAvoidanceController:
 
     Attributes:
         contact_dist: Critical collision distance (m)
+        risk_ray_window: Adjacent lane rays that must corroborate a short
+            return before it counts -- see sectors.robust_min_range
         slow_dist: Begin avoiding (m)
         escape_rev_speed: Reverse speed during escape
         escape_steer_scale: Steering aggressiveness
@@ -90,6 +93,7 @@ class CollisionAvoidanceController:
     def __init__(
         self,
         contact_dist: float,
+        risk_ray_window: int,
         slow_dist: float,
         fast_dist: float,
         escape_rev_speed: float,
@@ -158,6 +162,7 @@ class CollisionAvoidanceController:
                 distance to contact rather than distance to the sensor
         """
         self.contact_dist = contact_dist
+        self.risk_ray_window = risk_ray_window
         self.slow_dist = slow_dist
         self.fast_dist = fast_dist
         self.escape_rev_speed = escape_rev_speed
@@ -207,6 +212,7 @@ class CollisionAvoidanceController:
         hz = tuning.control.CONTROL_HZ
         return cls(
             contact_dist=clearance.CONTACT_DIST,
+            risk_ray_window=clearance.RISK_RAY_WINDOW,
             slow_dist=clearance.SLOW_DIST,
             fast_dist=clearance.FAST_DIST,
             escape_rev_speed=tuning.escape.REV_SPEED,
@@ -307,7 +313,10 @@ class CollisionAvoidanceController:
         # Judged as a gap from the BUMPER, not as a raw sensor range: the
         # thresholds are statements about how close the chassis may come to
         # something, and the sensor is 12.2 cm ahead of the chassis centre.
-        gap = bumper_gap_ahead(float(np.min(path)))
+        # Corroborated by adjacent rays rather than the bare minimum: see
+        # sectors.robust_min_range for why a noisy sweep makes the raw
+        # minimum a phantom obstacle.
+        gap = bumper_gap_ahead(robust_min_range(path, self.risk_ray_window))
 
         if gap < self.contact_dist:
             return RiskLevel.CRITICAL

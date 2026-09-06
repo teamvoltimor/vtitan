@@ -28,6 +28,10 @@ type ClearanceConfig struct {
 	// PathMargin matches PATH_MARGIN -- extra clearance beyond the chassis
 	// half-width still counted as "in the robot's forward path" (m).
 	PathMargin float64 `mapstructure:"path_margin"`
+	// RiskRayWindow matches RISK_RAY_WINDOW: how many ADJACENT lane rays must
+	// corroborate a short return before AssessRisk treats it as an obstacle.
+	// 1 is the bare minimum, which a noisy sweep turns into a phantom.
+	RiskRayWindow int `mapstructure:"risk_ray_window"`
 }
 
 // DefaultClearanceTOMLPath is
