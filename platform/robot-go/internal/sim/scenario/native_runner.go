@@ -15,6 +15,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
@@ -111,6 +112,10 @@ type NativeRunnerConfig struct {
 	// corpus sweep measured, so turning this on is an explicit A/B rather
 	// than a silent change to what "the native runner" means.
 	Blind bool
+	// Localize navigates on the LIDAR scan-matcher's estimate instead of
+	// ground truth -- ScenarioSimulator's own default, and the harder
+	// condition, so a cross-stack comparison needs it set.
+	Localize bool
 	// ConfigRoot is the repo root the shipped TOML tree is read from, and
 	// HardwareProfiles names one profile per component (drive motor,
 	// steering servo) to overlay on it -- the two inputs every nav package's
@@ -187,7 +192,18 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	// Harness override for the same reason SensorErrors is -- an explicit
 	// Config should compose with the shipped spec, not be silently replaced --
 	// but before maxSteps, which is derived from the resolved rate.
+	if cfg.Localize {
+		hc.Localize = true
+	}
 	hc = harness.ApplyRobotProfile(logger, hc, cfg.ConfigRoot, cfg.HardwareProfiles)
+
+	// The scan-matcher reads the same shipped localization.toml and robot.toml
+	// [lidar] geometry the real navigator's does, so a localized sim run is
+	// not quietly matching against a differently-mounted sensor.
+	if hc.Localize && hc.LocalizationConfig == nil {
+		locCfg := localization.ConfigFor(logger, cfg.ConfigRoot)
+		hc.LocalizationConfig = &locCfg
+	}
 
 	// AFTER the rate is resolved: the budget is a duration, so the tick count
 	// it becomes depends on the rate the run will actually step at.

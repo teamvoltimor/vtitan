@@ -44,6 +44,9 @@ func ApplyRobotProfile(
 	// Each guarded on being positive: a section absent from the TOML
 	// deserializes to a zero that would otherwise install a 0 m LIDAR or a
 	// zero-width chassis, which is strictly worse than the default it replaced.
+	if loaded.Lidar.MountXOffset > 0 {
+		cfg.LidarMountXOffsetM = loaded.Lidar.MountXOffset
+	}
 	if loaded.Lidar.MinRange > 0 {
 		cfg.LidarMinRangeM = loaded.Lidar.MinRange
 	}
