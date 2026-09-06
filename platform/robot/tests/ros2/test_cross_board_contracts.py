@@ -216,7 +216,6 @@ class TestButtonNodeToStateMachine:
         sm_node.imu_last_msg_time = now
         sm_node.lidar_last_msg_time = now
         sm_node.hailo_last_msg_time = now
-        sm_node.hailo_fps = 30.0
         sm_node.ip_fetch_complete = True
 
         from src.state_machine import RobotState, ScenarioType

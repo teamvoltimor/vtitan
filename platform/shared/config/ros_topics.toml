@@ -37,8 +37,6 @@ nav_debug = "/nav_debug"
 scan = "/scan"
 # IMU data from the BNO085.
 imu = "/imu/data"
-# Hailo inference FPS, published by the vision/detector stack.
-hailo_fps = "/hailo/fps"
 # Vision detections (std_msgs/String, JSON), published by vision_node.
 vision_detections = "/vision/detections"
 # Raw camera image, published by the vision stack (for diagnostics/monitoring).

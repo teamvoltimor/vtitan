@@ -10,7 +10,7 @@ Topics:
         - /imu/data (sensor_msgs/Imu) - IMU data
         - /scan (sensor_msgs/LaserScan) - LiDAR data
         - /hailo/detections (vision_msgs/Detection2DArray) - Hailo AI detections
-        - /hailo/fps (std_msgs/Float32) - Hailo inference FPS
+        - /vision/detections (std_msgs/String, JSON) - vision pipeline liveness
     Subscribed:
         - /button/event (std_msgs/String) — button events from button_node (Pi Zero)
         - /challenge_mode/jumper_inserted (std_msgs/Bool) — challenge-mode jumper (Pi Zero)
@@ -44,7 +44,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CompetitionSpecs
 from shared.config.ros_topics import RosTopicConfig
-from std_msgs.msg import Bool, Float32, Int32, String
+from std_msgs.msg import Bool, Int32, String
 
 from src.hardware.settings_base import CONFIG_DIR, SAFE_SHUTDOWN_BOTH_SCRIPT, HardwareBaseSettings
 from src.ros2.params import declare_and_get_bool_param, declare_and_get_float_param, declare_and_get_int_param
@@ -239,10 +239,19 @@ class StateMachineNode(Node, ResettableNode):
             self._lidar_callback,
             qos_profile_sensor_data,
         )
-        self.hailo_fps_sub: Subscription[Float32] = self.create_subscription(
-            Float32,
-            self._topics.sensors.hailo_fps,
-            self._hailo_fps_callback,
+        # Vision liveness is read off the DETECTIONS stream, not /hailo/fps.
+        # Nothing has ever published /hailo/fps -- the topic exists in
+        # ros_topics.toml and here, and nowhere else in the repo -- so the
+        # readiness test below could never pass on hardware. It went unnoticed
+        # because the BOOT_CHECK gate exempts the Open Challenge, which is the
+        # only challenge that had ever been run on the robot; the first
+        # Obstacles boot sat in BOOT_CHECK forever with vision healthy and
+        # publishing at 15 Hz. Topic name comes from the config, like every
+        # other subscription here.
+        self.vision_detections_sub: Subscription[String] = self.create_subscription(
+            String,
+            self._topics.sensors.vision_detections,
+            self._vision_detections_callback,
             qos_profile_sensor_data,
         )
         self.button_sub: Subscription[String] = self.create_subscription(
@@ -279,8 +288,11 @@ class StateMachineNode(Node, ResettableNode):
         # Sensor status tracking
         self.imu_last_msg_time: float | None = None
         self.lidar_last_msg_time: float | None = None
+        # Timestamp of the last vision detection message. Kept under the hailo_
+        # name because it is the Hailo pipeline's liveness that BOOT_CHECK
+        # gates on; what changed is the SIGNAL, from an FPS topic nobody
+        # publishes to the detections the vision node really emits.
         self.hailo_last_msg_time: float | None = None
-        self.hailo_fps: float = 0.0
 
         # Skipped entirely under simulation: scenario_catalog.py already encodes
         # open-vs-obstacles per scenario.
@@ -438,10 +450,15 @@ class StateMachineNode(Node, ResettableNode):
         """Handle LiDAR scan data."""
         self.lidar_last_msg_time = time.time()
 
-    def _hailo_fps_callback(self, msg: Float32) -> None:
-        """Handle Hailo FPS updates."""
+    def _vision_detections_callback(self, msg: String) -> None:
+        """Note that the vision pipeline is alive.
+
+        The message CONTENT is deliberately ignored: an empty detection list is
+        a perfectly healthy frame -- most frames on an empty stretch of track
+        carry no signs -- so arrival is the liveness signal, not payload.
+        """
+        del msg
         self.hailo_last_msg_time = time.time()
-        self.hailo_fps = msg.data
 
     def _button_event_callback(self, msg: String) -> None:
         """Handle button events published by button_node on the Pi Zero."""
@@ -739,16 +756,16 @@ class StateMachineNode(Node, ResettableNode):
                 error_message=None if lidar_ready else "No LiDAR data received",
             )
 
-            # Check Hailo (includes model loading verification via FPS > 0)
+            # Check the vision pipeline: detections arriving recently. Same
+            # shape as the IMU and LiDAR tests above, and for the same reason --
+            # a stream that has stopped is what "not ready" means here.
             hailo_ready = (
-                self.hailo_last_msg_time is not None
-                and (current_time - self.hailo_last_msg_time) < timeout
-                and self.hailo_fps > 0.0
+                self.hailo_last_msg_time is not None and (current_time - self.hailo_last_msg_time) < timeout
             )
             hailo_status = SensorStatus(
                 name="Hailo",
                 is_ready=hailo_ready,
-                error_message=None if hailo_ready else "Hailo model not loaded or no inference",
+                error_message=None if hailo_ready else "No vision detections received",
             )
 
             challenge_mode_ready = self.challenge_mode is not None
