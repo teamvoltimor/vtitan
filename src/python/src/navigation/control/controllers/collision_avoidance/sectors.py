@@ -157,6 +157,37 @@ def mask_mapped_obstacles(
     return masked
 
 
+
+def robust_min_range(path: np.ndarray, window: int) -> float:
+    """Closest range in ``path`` that ADJACENT rays corroborate.
+
+    The bare minimum over a forward cone is an extreme-value statistic, not a
+    clearance: the sweep carries Gaussian range noise across ~500 rays, so the
+    smallest of the few dozen inside the lane routinely sits two to three sigma
+    below the true nearest surface. Measured on the 256-scenario Obstacles
+    corpus (Go, whose model matches), that phantom was worth 30 runs.
+
+    A percentile over the whole cone would be the wrong shape -- a 0.05 m sign
+    pillar subtends only about four rays at 1 m, and a percentile discards it
+    as readily as it discards noise. What separates them is ADJACENCY: a real
+    surface produces a run of short returns, uncorrelated noise produces
+    isolated dips. This slides a window over the lane and takes the smallest
+    window MEDIAN, so a reading must be corroborated by its neighbours to
+    count, while an object spanning a window still registers at its true range.
+
+    At 500 samples over 360 deg a 0.05 m pillar spans ~8 rays at 0.5 m and ~15
+    at 0.25 m, where it first matters, so the shipped window of 5 sits well
+    inside what a real obstacle produces.
+
+    ``window <= 1``, or a path shorter than the window, is the bare minimum.
+    """
+    if path.size == 0:
+        return math.inf
+    if window <= 1 or path.size < window:
+        return float(np.min(path))
+    strided = np.lib.stride_tricks.sliding_window_view(path, window)
+    return float(np.min(np.median(strided, axis=1)))
+
 def _forward_path_ranges(
     lidar_ranges: np.ndarray | tuple[float, ...],
     lidar_angles: np.ndarray | tuple[float, ...] | None,

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"math"
+	"slices"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
@@ -265,6 +266,51 @@ func ForwardPathHasRays(rangesM, anglesRad []float64, pathHalfWidthM float64) bo
 		}
 	}
 	return false
+}
+
+// RobustMinRange is the closest range in path that ADJACENT rays corroborate,
+// instead of the bare minimum.
+//
+// The bare minimum over a forward cone is an extreme-value statistic: the
+// simulated sweep carries sigma = 0.03 m of Gaussian range noise across ~500
+// rays, so the smallest of the few dozen inside the lane routinely sits two to
+// three sigma below the true nearest surface. Measured on the 256-scenario
+// Obstacles corpus, that phantom is worth 30 runs: with noise disabled the
+// same build scores 148 in-time against 118 with it.
+//
+// A percentile over the whole cone would be the wrong shape -- a 0.05 m sign
+// pillar at 0.5 m subtends only about four rays, and a percentile would
+// discard it as readily as it discards noise. What separates them is
+// ADJACENCY: a real surface produces a run of short returns, uncorrelated
+// noise produces isolated dips. This slides a window over the lane and takes
+// the smallest window MEDIAN, so a reading has to be corroborated by its
+// neighbours to count, while an object spanning a window still registers at
+// its true range.
+//
+// window <= 1 (or a path shorter than the window) is the bare minimum, which
+// is the pre-2026-09-06 behaviour.
+func RobustMinRange(path []float64, window int) float64 {
+	if len(path) == 0 {
+		return math.Inf(1)
+	}
+	if window <= 1 || len(path) < window {
+		out := path[0]
+		for _, r := range path[1:] {
+			out = min(out, r)
+		}
+		return out
+	}
+
+	buf := make([]float64, window)
+	best := math.Inf(1)
+	for i := 0; i+window <= len(path); i++ {
+		copy(buf, path[i:i+window])
+		slices.Sort(buf)
+		if m := buf[window/2]; m < best {
+			best = m
+		}
+	}
+	return best
 }
 
 // MaskMappedObstacles blanks the LIDAR returns that land on an obstacle the

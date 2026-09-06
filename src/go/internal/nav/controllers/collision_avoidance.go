@@ -44,6 +44,10 @@ type ParkingGate struct {
 type CollisionAvoidanceController struct {
 	// ContactDist is the critical distance threshold (m).
 	ContactDist float64
+	// RiskRayWindow is how many ADJACENT lane rays must corroborate a short
+	// reading before it counts as an obstacle. See RobustMinRange; 1 is the
+	// bare minimum this used before 2026-09-06.
+	RiskRayWindow int
 	// SlowDist is the begin-avoiding distance (m).
 	SlowDist float64
 	// FastDist is the normal-speed distance (m); unused by this
@@ -116,10 +120,9 @@ func (c *CollisionAvoidanceController) AssessRisk(rangesM, anglesRad []float64) 
 		return RiskSafe
 	}
 
-	minPath := path[0]
-	for _, r := range path[1:] {
-		minPath = min(minPath, r)
-	}
+	// Corroborated by adjacent rays rather than the bare minimum: see
+	// RobustMinRange for why a noisy sweep makes the raw minimum a phantom.
+	minPath := RobustMinRange(path, c.RiskRayWindow)
 	gap := BumperGapAhead(minPath, c.LidarToFrontBumperM)
 
 	if gap < c.ContactDist {
