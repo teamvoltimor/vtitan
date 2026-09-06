@@ -313,7 +313,18 @@ bay_exit_max_frames = 900
 # commanded speed, and reports 0.086 m/s colliding in 32/32 scenarios. Raise it
 # on the robot, watch /motor/drive_speed actually leave zero, and watch the fin
 # clearance: the leg still has to stop inside the pocket.
-bay_exit_speed_mps = 0.0
+# 0.10 chosen on hardware evidence 2026-09-06, against the simulator's advice.
+# The sim says 0.10 collides 32/32 at 0.27 m of travel -- but its failure is
+# OVERRUN, and it assumes the commanded speed is delivered instantly and
+# exactly. On this robot that assumption is false: at 0.067 commanded the
+# encoder read 0 deg/s on 92-97% of bay-exit ticks. The sim cannot see the
+# floor and the robot cannot ignore it, so this value is set from the hardware
+# side and the sim's objection is recorded rather than obeyed.
+#
+# WATCH ON THE NEXT RUN: /motor/drive_speed leaving zero (the point), and fin
+# clearance holding (the risk). If the chassis now overruns the pocket the sim
+# was right and this comes back down.
+bay_exit_speed_mps = 0.10
 bay_exit_contact_dist_m = 0.08
 # SHIPS DISABLED (0). The recovery returns its reverse BEFORE the clearance
 # guard, so it reverses blind into a fin. Measured on diag_bay_start --corpus
