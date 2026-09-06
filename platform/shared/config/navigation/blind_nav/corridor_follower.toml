@@ -291,4 +291,8 @@ bay_exit_latch_direction = true
 bay_exit_latch_reverse = false
 # Ticks before switching to the other legacy exit / handing over; 0 = never.
 bay_exit_fallback_frames = 0
-bay_exit_max_frames = 0
+# Hard bound on the whole manoeuvre. 0 (never) let run_20260906_105056 hold the
+# chassis for 1832 of 1834 ticks -- 91.7 s spinning through -420 deg of yaw,
+# stopped by the operator, not by the robot. Nothing else bounds this: the exit
+# owns the tick and CoreNavigator never steps while it does.
+bay_exit_max_frames = 900
