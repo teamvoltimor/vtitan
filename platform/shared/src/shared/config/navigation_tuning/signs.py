@@ -524,6 +524,59 @@ class SignRouterParams(BaseModel):
     PIN_CORNER_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_CORNER_GUARD"))
     PIN_HEADING_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_HEADING_GUARD"))
     SIGN_AWARE_LOOKAHEAD: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_LOOKAHEAD"))
+
+    SIGN_LIDAR_ALIGN: bool = Field(default=False, validation_alias=_alias("SIGN_LIDAR_ALIGN"))
+    """Steer toward a narrow LIDAR object ahead that the camera has not classified.
+
+    The LIDAR resolves the pillars: measured on run_20260906_163641 and _163854,
+    a return exists at the camera's own bearing on 98-100% of red/green
+    detections, and the object there is 3.8-6.6 cm across at the median -- the
+    5 cm sign itself, not the wall behind it. So the LIDAR can say "pillar-sized
+    thing ahead" before the classifier can say what colour it is, and bringing
+    it toward the centre of frame helps because the classifier is worst at the
+    edge (see SignDiscoveryParams.FRAME_EDGE_TOLERANCE_PX).
+
+    Suppressed once the router has COMMITTED to a sign, because then the
+    pass-side lane owns the lateral decision and turning toward a pillar to look
+    at it would steer into the obstacle the lane is avoiding. Written for the
+    opposite case: run_20260906_163854, where a red was never classified at all
+    and was passed on the wrong side.
+    """
+
+    SIGN_LIDAR_ALIGN_MIN_M: float = Field(default=0.40, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MIN_M"))
+    """Closest range that still leaves room to act on the alignment."""
+
+    SIGN_LIDAR_ALIGN_MAX_M: float = Field(default=1.50, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MAX_M"))
+    """Furthest range considered. Beyond this the bearing error is small anyway."""
+
+    SIGN_LIDAR_ALIGN_FOV_DEG: float = Field(default=45.0, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_FOV_DEG"))
+    """Half-angle searched ahead. Wider than the deadband so an off-centre pillar is seen."""
+
+    SIGN_LIDAR_ALIGN_DEPTH_M: float = Field(default=0.08, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_DEPTH_M"))
+    """How far behind the closest return a ray may be and still count as the same surface."""
+
+    SIGN_LIDAR_ALIGN_MAX_WIDTH_M: float = Field(
+        default=0.15, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MAX_WIDTH_M")
+    )
+    """Arc width above which the object is a wall, not a pillar.
+
+    15 cm against a measured p50 of 3.8-6.6 cm: generous enough for a partly
+    occluded sign, far below a wall run. 79-81% of the objects at a camera
+    detection's bearing fall under it."""
+
+    SIGN_LIDAR_ALIGN_DEADBAND_DEG: float = Field(
+        default=8.0, ge=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_DEADBAND_DEG")
+    )
+    """Bearing error below which nothing is done -- a centred pillar needs no help."""
+
+    SIGN_LIDAR_ALIGN_GAIN: float = Field(default=0.35, ge=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_GAIN"))
+    """Steering per radian of bearing error."""
+
+    SIGN_LIDAR_ALIGN_MAX_STEER: float = Field(
+        default=0.15, ge=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MAX_STEER")
+    )
+    """Hard cap on the nudge. Small on purpose: this is a look-at-it bias, not a manoeuvre."""
+
     SIGN_AWARE_SPEED: bool = Field(default=True, validation_alias=_alias("SIGN_AWARE_SPEED"))
     STALE_TARGET_RESCUE: bool = Field(default=False, validation_alias=_alias("STALE_TARGET_RESCUE"))
     SIGN_LANE_PLANNER: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_PLANNER"))

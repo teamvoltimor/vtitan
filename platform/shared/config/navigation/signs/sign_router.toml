@@ -228,5 +228,29 @@ sign_contact_steer_deg = 19.25
 # become 1. Open is structurally unaffected (no sign router): 127/127 cases
 # byte-identical, 0.0 s delta.
 sign_aware_lookahead = true
+# Steer toward a narrow LIDAR object ahead that the camera has not classified.
+# Suppressed once a sign is committed -- then the pass-side lane owns the
+# lateral decision.
+#
+# SHIPS OFF: the sensor premise is sound and this control law is not. Measured
+# back-to-back on the 256 corpus 2026-09-06, false -> true:
+#
+#            off    on
+#   in-time  148   146
+#   laps>=1  179   172
+#   U-TURNS    2    38   (27/256 runs)
+#   rev-run    1     7
+#   unscored   1     7
+#   timeouts  69    65   the only real gain
+#   stuck     32    30
+#
+# Steering toward a narrow return turns the robot around: U-turns 19x and
+# rev-runs 7x, both of which end rounds, against a handful of recovered
+# timeouts. The LIDAR really does resolve the pillars -- a return exists at the
+# camera's bearing on 98-100% of detections at a median 3.8-6.6 cm width -- so
+# the information is there. Acting on it by STEERING is what fails; feeding it
+# to discovery, or using it to bias the classifier's region of interest, does
+# not require pointing the chassis at the sign.
+sign_lidar_align = false
 # Rescue a target that has gone stale mid-approach.
 stale_target_rescue = false

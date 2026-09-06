@@ -488,6 +488,59 @@ class CoreNavigator(EscapeRecovery):
         self._apply_path_wall_budget()
         logger.info("Sign lanes replanned for %d sign(s)", len(fingerprint))
 
+    def _lidar_align_steer(self, scan: LidarScan | None) -> float | None:
+        """Steer toward a narrow object ahead the camera has not classified yet.
+
+        The LIDAR resolves the pillars. Measured on run_20260906_163641 and
+        _163854: a return exists at the camera's own bearing on 98-100% of
+        red/green detections, and the object at that bearing measures 3.8-6.6 cm
+        across at the median -- a 5 cm sign, not the wall behind it. So the
+        sensor can say "something pillar-sized is ahead" before the classifier
+        can say what colour it is.
+
+        Bringing it toward the centre of frame is worth doing because the
+        classifier is worst at the edge: a box clipped by the frame border is
+        exactly where detection was being lost -- see
+        ``SignDiscoveryParams.FRAME_EDGE_TOLERANCE_PX``.
+
+        Deliberately does NOTHING once the router has committed to a sign. Then
+        the pass-side lane owns the lateral decision, and turning toward a pillar
+        to look at it would steer into the obstacle the lane is routing around.
+        This exists for the case where the camera has classified NOTHING --
+        run_20260906_163854, where a red was never detected at all and was
+        passed on the wrong side.
+
+        Returns the steering nudge, or ``None`` when there is nothing to align to.
+        """
+        signs = self._tuning.sign_router
+        if scan is None or not signs.SIGN_LIDAR_ALIGN:
+            return None
+        if self._sign_router is not None and self._sign_router.committed_sign_position is not None:
+            return None
+        half_fov = math.radians(signs.SIGN_LIDAR_ALIGN_FOV_DEG)
+        near = [
+            (r, a)
+            for r, a in zip(scan.ranges_m, scan.angles_rad, strict=False)
+            if abs(wrap_angle(a)) <= half_fov
+            and signs.SIGN_LIDAR_ALIGN_MIN_M <= r <= signs.SIGN_LIDAR_ALIGN_MAX_M
+        ]
+        if not near:
+            return None
+        closest = min(r for r, _ in near)
+        # Rays on the nearest surface. A pillar is a short arc, a wall a long
+        # one, and the arc WIDTH is what separates them.
+        cluster = [a for r, a in near if r - closest < signs.SIGN_LIDAR_ALIGN_DEPTH_M]
+        if len(cluster) < 2:
+            return None
+        span = max(cluster) - min(cluster)
+        if closest * span > signs.SIGN_LIDAR_ALIGN_MAX_WIDTH_M:
+            return None
+        bearing = (max(cluster) + min(cluster)) / 2.0
+        if abs(bearing) < math.radians(signs.SIGN_LIDAR_ALIGN_DEADBAND_DEG):
+            return None
+        cap = signs.SIGN_LIDAR_ALIGN_MAX_STEER
+        return max(-cap, min(cap, signs.SIGN_LIDAR_ALIGN_GAIN * bearing))
+
     def _sign_evade_steer(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
         """Steering to swing the chassis clear of a routed sign it is about to clip.
 
@@ -1369,6 +1422,12 @@ class CoreNavigator(EscapeRecovery):
         # contact range, too late for any steering command to matter, which is
         # why a risk-gated version of this measured flat. The router already
         # knows where the sign is, so predict the clip instead.
+        # Align to an unclassified pillar BEFORE the router commits to one --
+        # see _lidar_align_steer for why the two cannot both act.
+        align = self._lidar_align_steer(scan)
+        if align is not None:
+            steering_normalized = max(-1.0, min(1.0, steering_normalized + align))
+
         if self._tuning.sign_router.SIGN_CONTACT_EVADE and self._sign_router is not None:
             evade = self._sign_evade_steer(robot_x, robot_y, robot_yaw)
             if evade is not None:
