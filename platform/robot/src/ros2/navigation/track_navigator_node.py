@@ -270,10 +270,6 @@ class TrackNavigator(Node, ResettableNode):
         self._initial_direction = start_direction
         self._start_xy = Waypoint(start_x, start_y)
         self._start_section = start_section
-        # The parking lot sits in the corridor the robot started in, and that is
-        # what lets the detection shape gate stop rejecting wide RED boxes in
-        # corridors where no barrier can be. See detection_to_observation.
-        self._gateway.set_parking_corridor(start_section)
         # The Obstacles Challenge fixes every corridor at 1.0 m, so a blind run
         # there starts from that rather than from the Open Challenge's
         # fail-safe narrow prior -- assuming narrow is not conservative when
@@ -370,6 +366,13 @@ class TrackNavigator(Node, ResettableNode):
             stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
             localization=tuning.localization,
         )
+        # The parking lot sits in the corridor the robot started in, and that is
+        # what lets the detection shape gate stop rejecting wide RED boxes in
+        # corridors where no barrier can be. See detection_to_observation.
+        # MUST follow the gateway's construction -- it was set at the
+        # `_start_section` assignment above until 2026-09-06, which runs ~90
+        # lines earlier and crashed the node on startup with AttributeError.
+        self._gateway.set_parking_corridor(start_section)
         waypoints = self._plan(self._believed_geometry())
 
         self._core_navigator = self._build_core_navigator(
