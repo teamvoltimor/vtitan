@@ -18,6 +18,9 @@ type WaypointController struct {
 	MaxSteeringAngle float64
 	// WheelbaseM is the chassis wheelbase (m), fed to navutil.PurePursuitSteer.
 	WheelbaseM float64
+	// YawGainCompensation is the fraction of predicted yaw the chassis
+	// delivers; see controllers.Config.YawGainCompensation.
+	YawGainCompensation float64
 	// LookaheadShort/LookaheadLong are the lookahead distances for sharp
 	// corners / straight sections (m).
 	LookaheadShort, LookaheadLong float64
@@ -46,7 +49,8 @@ type WaypointController struct {
 // WaypointController.__init__'s default.
 func NewWaypointController(
 	maxSteeringAngle, wheelbaseM, lookaheadShort, lookaheadLong, lookaheadTransition,
-	maxSteeringRate, waypointReachedDistanceM, cornerTurnThresholdRad float64,
+	maxSteeringRate, waypointReachedDistanceM, cornerTurnThresholdRad,
+	yawGainCompensation float64,
 ) *WaypointController {
 	const defaultLookaheadBlendStart = 1.0
 	return &WaypointController{
@@ -58,6 +62,7 @@ func NewWaypointController(
 		MaxSteeringRate:          maxSteeringRate,
 		WaypointReachedDistanceM: waypointReachedDistanceM,
 		CornerTurnThresholdRad:   cornerTurnThresholdRad,
+		YawGainCompensation:      yawGainCompensation,
 		LookaheadBlendStart:      defaultLookaheadBlendStart,
 	}
 }
@@ -182,6 +187,7 @@ func (w *WaypointController) ComputeSteering(
 	if xLocal > 0 {
 		steeringNormalizedRaw = navutil.PurePursuitSteer(
 			xLocal, yLocal, w.WaypointReachedDistanceM, w.WheelbaseM, w.MaxSteeringAngle,
+			w.YawGainCompensation,
 		)
 	} else {
 		// Target behind the robot: the curvature formula is only valid

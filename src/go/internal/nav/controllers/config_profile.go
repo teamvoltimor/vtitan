@@ -46,6 +46,8 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.LookaheadShort = loaded.LookaheadShort
 		cfg.LookaheadLong = loaded.LookaheadLong
 		cfg.OpenLookaheadLong = loaded.OpenLookaheadLong
+		cfg.YawGainCompensation = loaded.YawGainCompensation
+		cfg.ObstaclesYawGainCompensation = loaded.ObstaclesYawGainCompensation
 		cfg.LookaheadTransition = loaded.LookaheadTransition
 		cfg.LookaheadBlendStart = loaded.LookaheadBlendStart
 		cfg.SteerKp = loaded.SteerKp
