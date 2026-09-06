@@ -135,6 +135,45 @@ def _wall_feasible_yaw_rad(out_m: float) -> float:
     return max(0.0, math.asin(sin_sum) - math.atan2(RobotSpecs.WIDTH, RobotSpecs.LENGTH))
 
 
+def _leg_speed(
+    creep_speed_mps: float, follower: object, *, reverse: bool, exit_scale: bool = True
+) -> float:
+    """Speed for one bay-exit leg, as a POSITIVE magnitude.
+
+    The manoeuvre inherits the driving ladder's creep speed and scales it down
+    twice, which lands at 0.067 m/s -- and the drivetrain does not deliver that.
+    Measured on run_20260906_181613/_181839: the navigator commanded 0.067 m/s
+    on 876 of 882 ticks, never pausing more than 0.1 s, while /motor/drive_speed
+    read 0 deg/s on 92-97% of them against the ~110 deg/s that speed implies on
+    a 7 cm wheel. The chassis was not waiting; it was being asked for a speed
+    below the motor's usable range, and it lurched only when a leg happened to
+    break static friction.
+
+    ``BAY_EXIT_SPEED_MPS`` overrides the whole chain with an ABSOLUTE value,
+    because what this manoeuvre needs is set by torque against static friction
+    at full lock, not by any relationship to cruising speed. 0 keeps the
+    inherited scaling.
+
+    The tension is real and is not resolved by picking a big number: the leg has
+    to STOP inside the pocket, the drivetrain coasts v * SPEED_RESPONSE_TAU_S,
+    and the fin guard refuses any leg it cannot stop in time. In the simulator
+    -- which has no deadband and so moves at any commanded speed -- 0.086 m/s
+    already collides in 32/32 scenarios. The working window may be narrow, and
+    only the robot can say where it is.
+    """
+    absolute = follower.BAY_EXIT_SPEED_MPS
+    if absolute > 0.0:
+        # Absolute means absolute: the point is to ask for a speed the
+        # drivetrain delivers, and re-scaling it would put it back under the
+        # deadband this exists to clear.
+        return absolute
+    scale = follower.REVERSE_SPEED_SCALE if reverse else follower.CORNER_SPEED_SCALE
+    # `exit_scale` is False on the legacy pre-guard paths, which never applied
+    # BAY_EXIT_SPEED_SCALE; keeping that lets the override reach them without
+    # changing what they do when it is unset.
+    return creep_speed_mps * scale * (follower.BAY_EXIT_SPEED_SCALE if exit_scale else 1.0)
+
+
 class BayExit:
     """Drives the reverse-then-swing exit, holding the reverse leg's origin.
 
@@ -471,11 +510,7 @@ class BayExit:
         if self._guard_min_gap is None:
             self._guard_min_gap = self._predicted_gap(0.0, wheel_norm, tuning)
 
-        speed = (
-            creep_speed_mps
-            * (follower.REVERSE_SPEED_SCALE if self._leg_is_reverse else follower.CORNER_SPEED_SCALE)
-            * follower.BAY_EXIT_SPEED_SCALE
-        )
+        speed = _leg_speed(creep_speed_mps, follower, reverse=self._leg_is_reverse)
         step = (-speed if self._leg_is_reverse else speed) / tuning.control.CONTROL_HZ
         # Look a STOPPING DISTANCE ahead, not a single tick. Commanding zero
         # does not stop the chassis -- the drivetrain decays with
@@ -637,7 +672,7 @@ class BayExit:
             # setting to the same reachable angle -- the same trap that made
             # BAY_EXIT_STEER_NORM read as inert -- not the idea failing.
             return DriveCommand(
-                speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+                speed_mps=-_leg_speed(creep_speed_mps, follower, reverse=True),
                 steering_norm=target,
             )
 
@@ -660,7 +695,7 @@ class BayExit:
                 to_norm=-back * sign,
             )
         return DriveCommand(
-            speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+            speed_mps=_leg_speed(creep_speed_mps, follower, reverse=False),
             steering_norm=target,
         )
 
@@ -830,7 +865,7 @@ class BayExit:
                 self._contact_recoveries += 1
             self._recovery_ticks_left -= 1
             return DriveCommand(
-                speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+                speed_mps=-_leg_speed(creep_speed_mps, follower, reverse=True),
                 steering_norm=0.0,
             )
 
@@ -857,7 +892,7 @@ class BayExit:
         # cheap way to be wrong.
         if self.rotation_complete(tuning) and self.is_clear(ranges_m, angles_rad, tuning):
             return DriveCommand(
-                speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
+                speed_mps=_leg_speed(creep_speed_mps, follower, reverse=False),
                 steering_norm=0.0,
             )
 
@@ -926,7 +961,7 @@ class BayExit:
                 # refuted 2026-08-29, every non-zero value collapsing to 0.02 m.
                 reverse_norm = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0) * (1.0 if open_is_left else -1.0)
             return DriveCommand(
-                speed_mps=-creep_speed_mps * follower.REVERSE_SPEED_SCALE,
+                speed_mps=-_leg_speed(creep_speed_mps, follower, reverse=True, exit_scale=False),
                 steering_norm=reverse_norm,
             )
 
@@ -937,6 +972,6 @@ class BayExit:
         self._forward_ticks += 1
         magnitude = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0)
         return DriveCommand(
-            speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE,
+            speed_mps=_leg_speed(creep_speed_mps, follower, reverse=False, exit_scale=False),
             steering_norm=magnitude if open_is_left else -magnitude,
         )

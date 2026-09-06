@@ -299,6 +299,21 @@ bay_exit_max_frames = 900
 # Nose-against-wall recovery. A forward arc below this distance -- or reporting
 # NOTHING, which is the same wall closer than MIN_VALID_RANGE_M -- backs the
 # chassis straight off before any leg logic runs.
+# ABSOLUTE speed for the bay-exit legs, m/s. 0 = keep the inherited scaling
+# (creep * corner/reverse scale * bay_exit_speed_scale = 0.067 m/s).
+#
+# 0.067 m/s is BELOW WHAT THE DRIVETRAIN DELIVERS. Measured on
+# run_20260906_181613 and _181839: commanded on 876 of 882 ticks with no pause
+# longer than 0.1 s, while /motor/drive_speed read 0 deg/s on 92-97% of them
+# against the ~110 deg/s that speed implies. The chassis was not waiting between
+# legs -- it was never moving. Rotation over 27-44 s was -8.8 / +1.6 / -8.1 deg.
+#
+# Set this to a speed the motor actually turns at. It is a HARDWARE number and
+# the simulator cannot choose it -- the sim has no deadband, moves at any
+# commanded speed, and reports 0.086 m/s colliding in 32/32 scenarios. Raise it
+# on the robot, watch /motor/drive_speed actually leave zero, and watch the fin
+# clearance: the leg still has to stop inside the pocket.
+bay_exit_speed_mps = 0.0
 bay_exit_contact_dist_m = 0.08
 # SHIPS DISABLED (0). The recovery returns its reverse BEFORE the clearance
 # guard, so it reverses blind into a fin. Measured on diag_bay_start --corpus

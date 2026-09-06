@@ -529,6 +529,32 @@ class CorridorFollowerParams(BaseModel):
     """
 
     BAY_EXIT_SPEED_SCALE: float = Field(default=0.35, gt=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_SPEED_SCALE"))
+
+    BAY_EXIT_SPEED_MPS: float = Field(default=0.0, ge=0.0, validation_alias=_alias("BAY_EXIT_SPEED_MPS"))
+    """ABSOLUTE speed for the bay-exit legs. 0 keeps the inherited scaling.
+
+    The manoeuvre otherwise takes the driving ladder's creep speed and scales it
+    down twice, landing at 0.067 m/s -- and the drivetrain does not deliver that.
+    Measured on run_20260906_181613 and _181839: the navigator commanded
+    0.067 m/s on 876 of 882 ticks, never pausing longer than 0.1 s, while
+    /motor/drive_speed read 0 deg/s on 92-97% of them, against the ~110 deg/s
+    that speed implies on a 7 cm wheel. The chassis was not waiting between legs
+    -- it was being asked for a speed below the motor's usable range and moved
+    only when a leg broke static friction. Rotation over 27-44 s was -8.8, +1.6
+    and -8.1 degrees.
+
+    Absolute rather than another scale because what this manoeuvre needs is set
+    by TORQUE against static friction at full lock, not by any relationship to
+    cruising speed. Scaling a number that is already too small cannot fix it.
+
+    The tension is real: the leg must STOP inside the pocket, the drivetrain
+    coasts v * SPEED_RESPONSE_TAU_S, and the fin guard refuses any leg it cannot
+    stop in time. The simulator has no deadband, so it moves at any commanded
+    speed and reports 0.086 m/s colliding in 32/32 scenarios -- it cannot see
+    the floor this constant exists to clear, and cannot choose the value. Only
+    the robot can.
+    """
+
     """Extra speed scale applied to BOTH cycle legs, on top of the corner/reverse scales.
 
     The pocket is short of stopping distance, not of speed. A leg ends by
