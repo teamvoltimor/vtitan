@@ -617,8 +617,6 @@ class TrackNavigator(Node, ResettableNode):
             was driven by the corridor follower and there is no plan to step.
         """
         estimator = self._direction_estimator
-        if estimator is None:
-            return self._commit_told_direction() if self._pending_known_commit else False
 
         # Whether the robot was PLACED in the pocket is a fact about placement,
         # not about whether the travel direction is known -- so the in-bay test
@@ -632,14 +630,25 @@ class TrackNavigator(Node, ResettableNode):
         # the millimetre. The ratchet itself was fine and would have engaged:
         # BayExit.is_clear reads False at the 0.09-0.15 m of forward clearance
         # measured in the pocket, against MIN_FORWARD_CLEARANCE_M = 0.30.
-        already_settled = estimator.is_settled
-        if already_settled and self._bay_start_checked and not self._exiting_bay:
-            return False
+        # BOTH direction gates have to yield to it, not just the settled one.
+        # run_..._214855 is the run that started in the bay, and it reports NO
+        # estimator at all -- votes, gate verdict and width belief are all None
+        # against a direction of `clockwise` on tick 1 -- so it left through the
+        # `estimator is None` return, above everything the settled-direction
+        # gate controls. Covering only that gate fixes the case that did not
+        # happen.
+        already_settled = estimator is not None and estimator.is_settled
+        bay_pending = not self._is_open_challenge and (not self._bay_start_checked or self._exiting_bay)
+        if not bay_pending:
+            if estimator is None:
+                return self._commit_told_direction() if self._pending_known_commit else False
+            if already_settled:
+                return False
 
         scan = self._gateway.get_lidar_scan()
         pose = self._gateway.get_current_pose()
         if scan is None or pose is None:
-            if already_settled:
+            if estimator is None or already_settled:
                 # Normal driving owns this tick; only the creep path may hold
                 # for a missing scan. Leave `_bay_start_checked` alone so the
                 # placement test still gets its one look once a scan arrives.
@@ -657,7 +666,7 @@ class TrackNavigator(Node, ResettableNode):
         # driving straight down a corridor. Buffer and replay them, or the
         # first surviving readings are taken at a corner where the side rays
         # span the *next* corridor and get attributed to this one.
-        if self._width_estimator is not None and not already_settled:
+        if self._width_estimator is not None and estimator is not None and not already_settled:
             m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
             if m is not None:
                 self._creep_widths.append((pose.yaw, m.width_m))
@@ -679,7 +688,11 @@ class TrackNavigator(Node, ResettableNode):
             boxed = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
             if boxed is not None:
                 logger.info("direction settled from parking-bay geometry: %s", boxed.value)
-                estimator.settle(boxed)
+                # No estimator on a told-direction round: the direction is
+                # already known and there is nothing to settle. The bay geometry
+                # still names the placement, which is the half that matters here.
+                if estimator is not None:
+                    estimator.settle(boxed)
                 self._exiting_bay = True
             elif not self._is_open_challenge and self._tuning.corridor_follower.ASSUME_BAY_START:
                 # The in-bay start is the one we intend to use on Obstacles, so
@@ -720,8 +733,14 @@ class TrackNavigator(Node, ResettableNode):
 
         # Out of the pocket, or never in it, with the direction already known:
         # hand the tick back to normal driving. Falling into the vote/creep
-        # block below would run BLIND_CREEP against a direction that is already
-        # committed.
+        # block below would run BLIND_CREEP against a direction already
+        # committed, and would dereference an estimator a told-direction round
+        # does not have. `_commit_told_direction` is the told-direction
+        # analogue of the `_commit_direction` call below -- both rebuild the
+        # plan, which BayExit.is_clear's docstring requires on the way out of
+        # the pocket (skipping it drove back into a marker, 0.24-0.30 m).
+        if estimator is None:
+            return self._commit_told_direction() if self._pending_known_commit else False
         if already_settled:
             return False
 
