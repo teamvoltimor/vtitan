@@ -77,7 +77,15 @@ from shared.domain.models import (
 )
 
 import src.navigation.planning.sign_router as sign_router_module
-import src.simulation.scenario_simulator as gateway_module
+# The SUBMODULE, not the package. Every gateway_module.X below patches a name
+# that `simulator.py` imported and calls -- SignRouter, SignRouterConfig,
+# TrackModel, obstacles_from_metadata -- and the package `__init__` re-exports
+# only ScenarioSimulator, so aiming at the package raised AttributeError on the
+# first mode to use it (`offset`, 2026-09-06) and would have silently missed the
+# rest. Patching where the name is BOUND is also the point made in the
+# lateral_offset block below: patching the defining module never reaches a
+# caller that bound the name at import time.
+import src.simulation.scenario_simulator.simulator as gateway_module
 from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.provenance import environment as _provenance
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
