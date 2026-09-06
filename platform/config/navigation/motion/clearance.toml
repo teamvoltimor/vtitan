@@ -62,7 +62,15 @@ path_margin = 0.10     # Extra clearance beyond chassis half-width still counted
 # so. Its preflight matters: verify reverse on blocks FIRST -- nav commands
 # reverse, this whole mechanism IS a reverse, and reverse has never been
 # observed on hardware.
-obstacles_contact_dist = 0.05
+# 0.04 only works PAIRED with min_valid_range_m = 0.044. Alone it is a
+# threshold the guard can never observe -- the sector filter discarded
+# everything below 0.05 -- which measured +3 collisions on Go sighted. With the
+# floor reading valid the threshold becomes actionable and collisions FALL.
+#
+# HARDWARE CAUTION: this sits 5 mm below the C1's rated minimum, where a real
+# sensor is least trustworthy. The sim clips cleanly at 0.045 and cannot model
+# that, so bench the sensor at close range before racing on this value.
+obstacles_contact_dist = 0.04
 
 # --- Written out 2026-09-05 ---
 #
