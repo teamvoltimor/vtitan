@@ -293,6 +293,15 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		vision = &simVisionGateway{gw: gw, signs: signs, cfg: visionsim.ConfigFrom(r.srCfg, r.cfg.DetectionConfidence)}
 	}
 
+	// Rule 9.24.5 is enforced from the TRUE layout against the TRUE pose,
+	// and it ENDS THE ROUND -- see passSideScorer for why the router's own
+	// set cannot do either job.
+	passSide := newPassSideScorer(
+		signs, startPose.Direction,
+		r.srCfg.TrackCornerMinM, r.srCfg.TrackCornerMaxM,
+		r.cfg.ChassisLengthM, r.cfg.ChassisWidthM,
+	)
+
 	targetLaps := defaultLaps(meta)
 	pc := parkControllerFromMetadata(meta, startPose.Section, startPose.Direction)
 
@@ -358,7 +367,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		}
 	}()
 
-	return r.loop(sc, gw, nav, track, targetLaps, startPose, layout, rec)
+	return r.loop(sc, gw, nav, track, targetLaps, startPose, layout, rec, passSide)
 }
 
 // simVisionGateway implements navigator.VisionGateway by emulating sign
@@ -498,6 +507,7 @@ func (r *NativeRunner) loop(
 	startPose scenarioStart,
 	layout *widthbelief.Layout,
 	rec *simRecorder,
+	passSide *passSideScorer,
 ) (Result, error) {
 	dt := r.cfg.ControlDt()
 
@@ -517,6 +527,7 @@ func (r *NativeRunner) loop(
 	anchorX, anchorY := prevX, prevY
 	anchorStep := 0
 
+	prevLaps := nav.LapsCompleted()
 	for steps < r.maxSteps {
 		nav.Step()
 		// Driven every tick, not only when the estimator speaks: a deferred
@@ -559,6 +570,19 @@ func (r *NativeRunner) loop(
 			contactCount++
 		}
 
+		// Pass-side, checked EVERY tick and terminal, matching the Python run
+		// loop's `if violation_signs is not None: break`. Re-armed per lap so
+		// each lap is judged on its own crossings, while committed violations
+		// persist.
+		if lapsNow := nav.LapsCompleted(); lapsNow != prevLaps {
+			passSide.resetForNewLap()
+			prevLaps = lapsNow
+		}
+		if v := passSide.check(st.X, st.Y, st.Yaw); len(v) > 0 {
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, v)
+			return res, nil
+		}
+
 		// Terminal surface: any wall contact ends the run. A traffic-sign
 		// touch does not -- WRO 9.20 allows the pillar to be nudged, and the
 		// run stands as long as no sign's accumulated push exceeds
@@ -569,7 +593,7 @@ func (r *NativeRunner) loop(
 		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		if surface != collision.SurfaceNone {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, surface, false)
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, surface, false, passSide.violations())
 			return res, nil
 		}
 
@@ -585,7 +609,7 @@ func (r *NativeRunner) loop(
 		// number in-time is measured against.
 		if nav.LapsCompleted() >= targetLaps &&
 			(pc == nil || !pc.AttemptAfterFinalLap() || pc.IsDone()) {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false)
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations())
 			return res, nil
 		}
 
@@ -594,13 +618,13 @@ func (r *NativeRunner) loop(
 			anchorX, anchorY = st.X, st.Y
 			anchorStep = steps
 		} else if (steps - anchorStep) >= noProgressWindow {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, true)
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, true, passSide.violations())
 			return res, nil
 		}
 	}
 
 	// Timed out.
-	res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false)
+	res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations())
 	res.TimedOut = nav.LapsCompleted() < targetLaps
 	return res, nil
 }
@@ -616,6 +640,7 @@ func (r *NativeRunner) score(
 	targetLaps int,
 	surface collision.ContactSurface,
 	stuck bool,
+	passSideWrong []int,
 ) Result {
 	// collided is derived from the surface rather than passed alongside it,
 	// so the two can never disagree about whether the run ended in contact.
@@ -628,14 +653,21 @@ func (r *NativeRunner) score(
 	// Obstacles Challenge run (nav.SignRouter() nil for Open), matching
 	// SimResult's own fields -- an empty sign-router-less run reports zero
 	// violations, not "unknown."
-	var wrongSideSigns []int
+	// The VERDICT is passSideWrong, scored by passSideScorer from the true
+	// layout against the true pose, and it is what ended the run. The
+	// router's own set is reported alongside as a measure of DISCOVERY
+	// quality only -- it is computed in the believed frame and is cleared
+	// every lap, so it can neither end a round nor be counted as one.
+	var routerWrongSide []int
+	var passRecords []signrouter.PassRecord
 	if sr := nav.SignRouter(); sr != nil {
 		for index := range sr.WrongSideViolations() {
-			wrongSideSigns = append(wrongSideSigns, index)
+			routerWrongSide = append(routerWrongSide, index)
 		}
-		slices.Sort(wrongSideSigns)
+		slices.Sort(routerWrongSide)
+		passRecords = sr.PassRecords()
 	}
-	passSideViolation := len(wrongSideSigns) > 0
+	passSideViolation := len(passSideWrong) > 0
 
 	success := !collided && !stuck && !passSideViolation && !resTimedOut(steps, r.maxSteps, laps, targetLaps)
 
@@ -657,7 +689,9 @@ func (r *NativeRunner) score(
 	return Result{
 		TerminalSurface:        surface.String(),
 		Scenario:               sc.ID,
-		PassSideViolationSigns: wrongSideSigns,
+		PassSideViolationSigns: passSideWrong,
+		RouterWrongSideSigns:   routerWrongSide,
+		PassRecords:            passRecords,
 		CollisionXY:            []float64{cx, cy},
 		FinalPose:              []float64{st.X, st.Y, st.Yaw},
 		Parked:                 parked,

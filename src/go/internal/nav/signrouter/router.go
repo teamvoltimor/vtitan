@@ -8,6 +8,7 @@ package signrouter
 
 import (
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
@@ -34,6 +35,18 @@ type SignRouter struct {
 	engaged   map[int]struct{}
 	lapTick   int
 	wrongSide map[int]struct{}
+	// passRecords accumulates one entry per retired pass. Diagnostic only --
+	// nothing in routing reads it. It exists because wrongSide alone cannot
+	// tell a near-miss (aim bias, small negative margin) from a pass routed
+	// down the wrong side entirely (large negative), and those need different
+	// fixes.
+	//
+	// Deliberately NOT cleared by ResetForNewLap, unlike wrongSide: a
+	// per-lap map is emptied at every lap boundary, so a run reading it at
+	// the end sees only its final partial lap. That biases the sample
+	// savagely toward runs that ENDED mid-lap -- i.e. the failures -- which
+	// is precisely the population a baseline rate must not be drawn from.
+	passRecords []PassRecord
 
 	// committed is the sign index currently being routed around, kept
 	// across ticks so the commanded line does not jump between two legal
@@ -192,6 +205,24 @@ func (r *SignRouter) WrongSideViolations() map[int]struct{} {
 	return out
 }
 
+// PassRecord is one retired sign pass, for diagnostics only.
+type PassRecord struct {
+	SignIndex int     `json:"sign_index"`
+	MarginM   float64 `json:"margin_m"`
+	RobotX    float64 `json:"robot_x"`
+	RobotY    float64 `json:"robot_y"`
+	SignX     float64 `json:"sign_x"`
+	SignY     float64 `json:"sign_y"`
+	Lap       int     `json:"lap"`
+}
+
+// PassRecords returns every pass retired over the whole run, in order.
+// MarginM is the signed lateral clearance in metres, positive on the
+// permitted side. Diagnostic only.
+func (r *SignRouter) PassRecords() []PassRecord {
+	return slices.Clone(r.passRecords)
+}
+
 // DeformWaypoint returns a (possibly laterally deformed) version of the
 // target waypoint, matching deform_waypoint. Checks all uncleared signs;
 // the NEAREST active sign within activation distance drives the
@@ -323,6 +354,20 @@ func (r *SignRouter) recordPassSide(index int, robotPos trackmodel.Waypoint) {
 	if entry.Axis == AxisY {
 		robotLat, signLat = robotPos.Y, sign.Y
 	}
+	// Signed so that positive is always the permitted side, whichever way
+	// the rule points for this colour and direction. RobotX/Y are kept so a
+	// margin can be checked against where the robot actually was: a margin
+	// at whole-mat scale means the side was judged from another corridor,
+	// which is a retirement bug rather than an aiming one.
+	r.passRecords = append(r.passRecords, PassRecord{
+		SignIndex: index,
+		MarginM:   (robotLat - signLat) * float64(permitted),
+		RobotX:    robotPos.X,
+		RobotY:    robotPos.Y,
+		SignX:     sign.X,
+		SignY:     sign.Y,
+		Lap:       r.lapTick,
+	})
 	side := 0
 	switch {
 	case robotLat > signLat:

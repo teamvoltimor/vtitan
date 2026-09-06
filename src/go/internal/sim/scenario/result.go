@@ -3,6 +3,8 @@ package scenario
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
 )
 
 // Result is one scenario run's outcome, as reported by the Python simulator.
@@ -17,10 +19,19 @@ type Result struct {
 	TerminalSurface string `json:"terminal_surface"`
 	Scenario        string `json:"scenario"`
 
-	PassSideViolationSigns []int     `json:"pass_side_violation_signs"`
-	LapStepIndices         []int     `json:"lap_step_indices"`
-	CollisionXY            []float64 `json:"collision_xy"`
-	FinalPose              []float64 `json:"final_pose"`
+	PassSideViolationSigns []int `json:"pass_side_violation_signs"`
+	// RouterWrongSideSigns is what the SignRouter believed it did, kept as a
+	// measure of DISCOVERY quality. It is computed in the believed frame and
+	// cleared every lap, so it is neither the verdict nor comparable to it.
+	RouterWrongSideSigns []int `json:"router_wrong_side_signs,omitempty"`
+	// PassRecords is one entry per retired sign pass over the WHOLE run,
+	// carrying the signed lateral margin (positive on the permitted side)
+	// and where the robot was when the side was judged. Diagnostic only --
+	// no scoring reads it.
+	PassRecords    []signrouter.PassRecord `json:"pass_records,omitempty"`
+	LapStepIndices []int                   `json:"lap_step_indices"`
+	CollisionXY    []float64               `json:"collision_xy"`
+	FinalPose      []float64               `json:"final_pose"`
 
 	// Parked is nil when the scenario has no parking lot (SimResult.parked
 	// is None in that case) rather than false, which would misreport a
