@@ -1411,6 +1411,24 @@ class TrackNavigator(Node, ResettableNode):
         self._measured_start = None
         self._start_measurement_ticks_left = 0
 
+        # Where the robot was PLACED is a fact about this round, not the last
+        # one. None of this was cleared until 2026-09-06, so the second and
+        # every later race of a session skipped the in-bay start entirely:
+        # `_bay_start_checked` was already True, and the placement test is
+        # deliberately one-shot. The operator restarts with the button, not by
+        # restarting the service, so this is the ordinary case rather than the
+        # exotic one -- and it silently made the bay exit a first-run-only
+        # feature while looking like a manoeuvre that had stopped working.
+        #
+        # The BayExit instance is REPLACED rather than reset: it accumulates
+        # rotation from the placement heading, latches which side is open, and
+        # counts its own ticks. Carrying any of that into a new round starts the
+        # next exit already believing it has turned out.
+        self._bay_start_checked = False
+        self._exiting_bay = False
+        self._bay_exit_ticks = 0
+        self._bay_exit = BayExit()
+
         # A blind round may be running a different challenge than the last one
         # -- the operator can move the jumper and long-press reset between
         # rounds with no process restart (see CoreNavigator.replace_sign_router
