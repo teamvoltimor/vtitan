@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pull rosbag runs recorded on the Pi 5 (see bag_recorder_node.py, default
-# ~/vtitan/data/runs_pulled on the robot, one dir per race: run_<timestamp>/) down into
-# the shared repo-root data/runs_pulled tree for local diagnosis (see
+# ~/vtitan/data/live/runs on the robot, one dir per race: run_<timestamp>/) down into
+# the shared repo-root data/live/runs tree for local diagnosis (see
 # platform/robot-go/internal/recording/root.go for the Go side of this same
 # tree). The runs themselves are gitignored -- only this script is tracked.
 #
@@ -20,8 +20,8 @@ ROBOT_DIR="$(cd "$HERE/../.." && pwd)"
 REPO_ROOT="$(cd "$ROBOT_DIR/../.." && pwd)"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/runs_pulled}"
-RUNS_DIR="${RUNS_DIR:-$REPO_ROOT/data/runs_pulled}"
+REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/live/runs}"
+RUNS_DIR="${RUNS_DIR:-$REPO_ROOT/data/live/runs}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[pull-runs] $*"; }

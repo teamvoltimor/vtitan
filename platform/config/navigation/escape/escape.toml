@@ -51,3 +51,7 @@ max_escape_s = 1.0            # Hard cap on any single escalated escape duration
 stuck_confirmation_checks = 3            # Consecutive below-threshold checks before declaring "stuck"
 stuck_escalation_per_attempt_s = 0.10    # Time added to a stuck-reverse duration per repeated attempt
 stuck_history_floor_s = 3.0              # Minimum position history kept, even when timeout*2 is smaller
+
+# Written out 2026-09-05; existed only as a Python literal, so no edit to this
+# file could reach it. Shipped value, so naming it changed nothing.
+min_history_for_distance = 2             # Position samples needed before recent-movement distance is trusted

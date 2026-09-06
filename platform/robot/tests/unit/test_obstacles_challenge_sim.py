@@ -50,11 +50,13 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
+from shared.domain.enums import Section
 from shared.domain.models import SignColor, Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.simulated_hardware_gateway as gateway_module
 from src.navigation.planning.sign_router import signs_from_metadata
+from src.navigation.planning.waypoints.classification import corridor_for_position
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -76,10 +78,10 @@ _SCENARIO_IDS = [s.label for s in _ALL_OBSTACLES_SCENARIOS]
 
 
 class TestObstaclesDemoScenariosRun:
-    """Every demo scenario must complete 3 laps, not collide, and park cleanly."""
+    """Every demo scenario must complete 3 laps, not collide, and stop on the line."""
 
     @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
-    def test_scenarios_complete_and_park(self, scenario: Any) -> None:
+    def test_scenarios_complete_and_stop_in_finish_section(self, scenario: Any) -> None:
         result = ScenarioSimulator(
             scenario.metadata,
             num_laps=scenario.laps,
@@ -95,8 +97,33 @@ class TestObstaclesDemoScenariosRun:
             result.stuck,
             result.parked,
         )
-        failed = result.collided or result.laps_completed < scenario.laps or result.parked is None
-        assert not failed, (scenario.label, result.collision_xy or result.final_pose)
+        # `parked is None` USED to be this test's parking check, and stopped
+        # being one when ParkingParams.ATTEMPT_AFTER_FINAL_LAP shipped False:
+        # the controller is still wired, so `parked` is False rather than None
+        # and the clause can no longer fail. Asserting the round the robot now
+        # actually drives instead of leaving a condition that reads like cover
+        # and tests nothing.
+        assert not result.collided, (scenario.label, result.collision_xy or result.final_pose)
+        assert result.laps_completed >= scenario.laps, (scenario.label, result.laps_completed)
+
+        # Rule 1.3 pays for coming to rest inside the finish section. The run
+        # must therefore END on the final lap rather than expire, and it must
+        # end near the line.
+        assert not result.timed_out, (scenario.label, result.final_pose)
+
+        # Rest INSIDE the starting section, asked of the same classifier the
+        # navigator uses rather than of a distance from the start pose. A
+        # radius would be a second copy of the geometry RaceTracker owns, and
+        # it would also be wrong at the edges: the robot is placed somewhere
+        # inside the 1 m starting cell, not necessarily on the line, so a fixed
+        # radius about its start point is not the section.
+        final_x, final_y, _ = result.final_pose
+        start_section = Section.from_string(scenario.metadata["starting_conditions"]["section"])
+        assert corridor_for_position(final_x, final_y) is start_section, (
+            scenario.label,
+            result.final_pose,
+            start_section,
+        )
 
     @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
     def test_signs_actually_deform_the_path(self, scenario: Any, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -11,3 +11,10 @@ speed = 0.12                      # constant driving speed during the maneuver (
 min_lookahead_dist_m = 0.02       # floor distance to avoid curvature blow-up
 wall_standoff_m = 0.05            # closest approach to the field wall
 marker_standoff_m = 0.01          # closest approach to a parking-bay marker fin
+
+# Pursue the parking bay after the final lap, or stop in the finish section.
+# False ships: the bay is geometrically unreachable (0.194 m chassis, 0.20 m
+# bay) and chasing it costs far more than it can pay. Blind, 256 corpus,
+# OFF vs ON: in-time 158 vs 62, collisions 4 vs 51, timeouts 61 vs 110, with
+# laps>=3 identical at 159.
+attempt_after_final_lap = false

@@ -14,22 +14,26 @@ import (
 	"path/filepath"
 )
 
-// RunsDir, VideosDir, PhotosDir are the three pulled-artifact subtrees under
-// the repo-root data/ directory. Large binary data; gitignored, .gitkeep kept.
+// LiveDir and SimDir are the two provenance roots under the repo-root data/
+// directory: artifacts pulled off the robot vs. artifacts recorded by the
+// simulator. Kept apart on purpose: a sim sweep can emit hundreds of bags in
+// seconds, and mixing them into the hardware tree would bury the handful of
+// real track runs that tree exists to hold -- and those are expensive to
+// re-record. The bags themselves are the same format, so a sim bag opens in
+// Foxglove Studio and replays through test/bagreplay exactly like a hardware
+// one.
 const (
-	RunsDir   = "runs_pulled"
-	VideosDir = "videos_pulled"
-	PhotosDir = "photos_pulled"
+	LiveDir = "live"
+	SimDir  = "sim"
 )
 
-// SimRunsDir holds bags recorded by the SIMULATOR rather than pulled off the
-// robot. Separate from RunsDir on purpose: a sim sweep can emit hundreds of
-// bags in seconds, and mixing them into the pulled-hardware tree would bury
-// the handful of real track runs that tree exists to hold -- and those are
-// expensive to re-record. The bags themselves are the same format, so a sim
-// bag opens in Foxglove Studio and replays through test/bagreplay exactly
-// like a hardware one.
-const SimRunsDir = "runs_sim"
+// RunsDir, VideosDir, PhotosDir are the three artifact subtrees nested under
+// either LiveDir or SimDir. Large binary data; gitignored, .gitkeep kept.
+const (
+	RunsDir   = "runs"
+	VideosDir = "videos"
+	PhotosDir = "photos"
+)
 
 // dataDirName is the repo-root directory that holds every pulled artifact.
 const dataDirName = "data"
@@ -57,22 +61,22 @@ func RunRoot() (string, error) {
 	}
 }
 
-// RunsRoot is RunRoot joined with RunsDir.
+// RunsRoot is RunRoot joined with LiveDir/RunsDir (data/live/runs).
 func RunsRoot() (string, error) {
 	root, err := RunRoot()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, RunsDir), nil
+	return filepath.Join(root, LiveDir, RunsDir), nil
 }
 
-// SimRunsRoot is RunRoot joined with SimRunsDir.
+// SimRunsRoot is RunRoot joined with SimDir/RunsDir (data/sim/runs).
 func SimRunsRoot() (string, error) {
 	root, err := RunRoot()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, SimRunsDir), nil
+	return filepath.Join(root, SimDir, RunsDir), nil
 }
 
 // statDir reports whether path exists and is a directory.

@@ -1051,8 +1051,18 @@ class ScenarioSimulator(PassSideScorer):
                 reverse_run_violation = True
                 break
 
+            # Mirror CoreNavigator._handle_finish exactly: the round is over
+            # when the navigator has nothing left to drive for. Reading the
+            # same tuning flag rather than only `is_done` matters -- with the
+            # parking pursuit deferred the controller exists and never
+            # completes, so a `is_done`-only test would keep stepping a robot
+            # that is already parked on the line and charge the whole 300 s
+            # budget to `sim_time_s`, which is what `in-time` is measured
+            # against.
             if nav.laps_completed >= self._num_laps and (
-                self._park_controller is None or self._park_controller.is_done
+                self._park_controller is None
+                or not self._tuning.parking.ATTEMPT_AFTER_FINAL_LAP
+                or self._park_controller.is_done
             ):
                 break
 
@@ -1094,7 +1104,15 @@ class ScenarioSimulator(PassSideScorer):
         nav = self._navigator
         pc = self._park_controller
         parked = None if pc is None else (pc.is_done and not pc.is_timed_out)
-        timed_out = step >= max_steps and (nav.laps_completed < self._num_laps or (pc is not None and not pc.is_done))
+        # An unfinished PARK only counts as a timeout when the park was
+        # actually being pursued; with the pursuit deferred the controller is
+        # wired but never engaged, so `not pc.is_done` is its resting state
+        # rather than an unmet objective. Unreachable today -- the loop breaks
+        # on the final lap in that mode -- but wrong the moment it isn't.
+        pursuing_park = pc is not None and self._tuning.parking.ATTEMPT_AFTER_FINAL_LAP
+        timed_out = step >= max_steps and (
+            nav.laps_completed < self._num_laps or (pursuing_park and not pc.is_done)
+        )
         return SimResult(
             target_laps=self._num_laps,
             laps_completed=nav.laps_completed,

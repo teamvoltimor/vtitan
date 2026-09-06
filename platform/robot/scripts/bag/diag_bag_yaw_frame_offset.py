@@ -16,7 +16,7 @@ distribution so the two can be told apart rather than guessed at.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_yaw_frame_offset.py \
-        data/runs_pulled/run_A data/runs_pulled/run_B ...
+        data/live/runs/run_A data/live/runs/run_B ...
 """
 
 from __future__ import annotations

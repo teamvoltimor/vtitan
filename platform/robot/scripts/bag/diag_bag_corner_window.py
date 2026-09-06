@@ -12,7 +12,7 @@ ranges, then summarises how often the three preconditions held together.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_corner_window.py \
-        data/runs_pulled/run_XXXXXXXX_XXXXXX
+        data/live/runs/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

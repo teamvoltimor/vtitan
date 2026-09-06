@@ -173,7 +173,6 @@ tasks:
           task robot:calibrate-encoder Interactive counts_per_rev calibration against a tape-measured distance — run on Pi 5
           task robot:sweep-open-loop Open-loop H-bridge duty + servo range sweep, bypasses the closed-loop PID — run ON THE PI ZERO, service stopped first
           task robot:joystick-setup Pair a Bluetooth joystick (e.g. 8BitDo Ultimate 2) — run on Pi 5, once
-          task robot:diagrams       Render docs/diagrams/{common,open,obstacles}/mermaid/*.mmd to matching png/ folders (requires mermaid-cli)
 
         ROBOT REMOTE (run FROM a dev machine, target the Pi 5 over SSH)
           task robot:deploy         Ship code + detector HEF, rebuild ros2_ws, restart the service
@@ -1271,7 +1270,7 @@ tasks:
   robot:pull-runs:
     desc: >-
       Pull recorded rosbag runs (mcaps) from the Pi 5's ~/vtitan_runs into
-      data/runs_pulled/ (usage: task robot:pull-runs [PATTERN=run_20260809]
+      data/live/runs/ (usage: task robot:pull-runs [PATTERN=run_20260809]
       [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Lists
       runs on the Pi 5 and skips any that already exist locally -- only
       copies what's missing. PATTERN defaults to every run; pass a run name
@@ -1286,7 +1285,7 @@ tasks:
 
   robot:push-runs:
     desc: >-
-      Push locally-held rosbag runs (mcaps) from data/runs_pulled/ up into
+      Push locally-held rosbag runs (mcaps) from data/live/runs/ up into
       the Pi 5's ~/vtitan_runs (usage: task robot:push-runs [PATTERN=run_20260809]
       [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Keeps both
       sides in sync so a Pi 5 reformat/reflash doesn't strand the only copy of
@@ -1303,10 +1302,10 @@ tasks:
   robot:pull-videos:
     desc: >-
       Pull per-run videos (mp4 only, no bag -- see src/vision/video_recorder.py)
-      from the Pi 5's ~/vtitan_runs into data/videos_pulled/ (usage: task
+      from the Pi 5's ~/vtitan_runs into data/live/videos/ (usage: task
       robot:pull-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
       [VIDEOS_DIR=path]). Run FROM a dev machine. A separate tree from
-      data/runs_pulled/ on purpose -- see pull-videos-from-pi5.sh's own
+      data/live/runs/ on purpose -- see pull-videos-from-pi5.sh's own
       comment. Skips any run whose video is already local; only lists runs
       that actually recorded one. VIDEOS_DIR overrides the local target dir,
       e.g. if data/ moves again.
@@ -1319,7 +1318,7 @@ tasks:
 
   robot:push-videos:
     desc: >-
-      Push locally-held per-run videos from data/videos_pulled/ back up into
+      Push locally-held per-run videos from data/live/videos/ back up into
       their matching run directory under the Pi 5's ~/vtitan_runs (usage: task
       robot:push-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
       [VIDEOS_DIR=path]). Run FROM a dev machine. Skips a run with no matching
@@ -1355,7 +1354,7 @@ tasks:
       [PI5_HOST=user@host]). Run FROM a dev machine. Simulates long_press to
       enter FINISHED (finalizing the video), tears down the bench launch,
       restores vtitan-pi5.service if it was running before, and pulls the
-      recorded video into data/videos_pulled/.
+      recorded video into data/live/videos/.
     dir: robot
     env:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
@@ -1512,44 +1511,6 @@ tasks:
     dir: robot
     cmds:
       - pixi run setup-joystick
-
-  robot:diagrams:
-    desc: >-
-      Render every docs/diagrams/{common,open,obstacles}/mermaid/*.mmd file
-      to a PNG in the matching .../png/ folder (usage: task robot:diagrams).
-      common/ holds logic shared by both challenges (direction inference,
-      collision/stuck escape, lap counting) — open/ and obstacles/ reference
-      it instead of redrawing it, to avoid duplication. Requires the Mermaid
-      CLI (npx @mermaid-js/mermaid-cli, aka mmdc) — no local install needed,
-      npx fetches it on first run. Re-run after editing or adding a .mmd
-      file; output filenames mirror the source (foo.mmd -> foo.png). %%
-      comment lines inside a .mmd are code/constant references for
-      maintainers and are never rendered.
-    dir: robot
-    vars:
-      DIAGRAMS_DIR: docs/diagrams
-    cmds:
-      - cmd: mkdir -p "{{.DIAGRAMS_DIR}}/common/png" "{{.DIAGRAMS_DIR}}/open/png" "{{.DIAGRAMS_DIR}}/obstacles/png"
-      - cmd: |
-          for challenge in common open obstacles; do
-            for f in "{{.DIAGRAMS_DIR}}/$challenge/mermaid"/*.mmd; do
-              name="${f##*\\}"
-              name="${name%.mmd}"
-              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/png/$name.png"
-              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "{{.DIAGRAMS_DIR}}/$challenge/png/$name.png" -b white -s 3
-            done
-          done
-        platforms: [windows]
-      - cmd: |
-          for challenge in common open obstacles; do
-            for f in "{{.DIAGRAMS_DIR}}/$challenge/mermaid"/*.mmd; do
-              name="${f##*/}"
-              name="${name%.mmd}"
-              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/png/$name.png"
-              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "{{.DIAGRAMS_DIR}}/$challenge/png/$name.png" -b white -s 3
-            done
-          done
-        platforms: [linux, darwin]
 
   # RECORD (video + frame pipeline)
 

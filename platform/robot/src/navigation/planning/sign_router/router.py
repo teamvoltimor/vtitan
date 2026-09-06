@@ -383,6 +383,19 @@ class SignRouter:
         """
         return set(self._wrong_side)
 
+    @property
+    def committed_sign_position(self) -> Waypoint | None:
+        """Believed world position of the sign currently being routed around.
+
+        BELIEVED, not true: a sign seeded from a misclassified parking barrier
+        appears here like any other, which is what makes it readable against the
+        camera track that produced it. ``None`` when no sign is committed.
+        """
+        if self._committed is None or not 0 <= self._committed < len(self._signs):
+            return None
+        spec = self._signs[self._committed]
+        return Waypoint(spec.x, spec.y)
+
     def _record_pass_side(self, index: int, robot_pos: Waypoint) -> None:
         """Decide whether ``index`` was cleared on its permitted side.
 

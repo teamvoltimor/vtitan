@@ -100,6 +100,16 @@ def detection_to_observation(
     if det.class_name not in (SignColor.RED, SignColor.GREEN):
         return None
     tuning = get_tuning(tuning)
+    # A pillar is taller than it is wide. Rejecting the rest is what keeps the
+    # magenta parking-lot barrier -- which reads as RED under motion blur -- from
+    # seeding a sign every frame it is in view. Colour and confidence cannot do
+    # it: those boxes carry the RED label at p50 confidence 0.79. See
+    # SignDiscoveryParams.MAX_PILLAR_ASPECT for the measurement.
+    bbox_for_shape = det.as_bbox()
+    height_px = bbox_for_shape.y_max - bbox_for_shape.y_min
+    max_aspect = tuning.sign_discovery.MAX_PILLAR_ASPECT
+    if max_aspect > 0.0 and height_px > 0 and (bbox_for_shape.x_max - bbox_for_shape.x_min) / height_px > max_aspect:
+        return None
     world = _detection_to_world(
         det,
         (robot_pose.x, robot_pose.y),

@@ -50,6 +50,8 @@ from src.vision.overlay import annotate
 from src.vision.video_recorder import FrameSnapshot, VideoRecorder
 
 if TYPE_CHECKING:
+    from rclpy.publisher import Publisher
+
     from src.hardware.camera.base import Driver as CameraDriver
 
 class Config(HardwareBaseSettings):
@@ -103,6 +105,14 @@ class Config(HardwareBaseSettings):
     capture_subdir: str = "captures"
 
 
+_MODEL_STATUS_REPUBLISH_S = 5.0
+"""How often the loaded model name is republished to /system_status.
+
+Not a heartbeat anyone consumes -- it exists solely so a late-joining
+subscriber (the OLED, which restarts independently of this node) learns the
+model, since the topic's BEST_EFFORT QoS means the TRANSIENT_LOCAL latch is
+not replayed to late joiners. One tiny message per period."""
+
 class VisionNode(Node):
     """ROS2 node that runs YOLO detection on camera images."""
 
@@ -112,6 +122,12 @@ class VisionNode(Node):
         defaults = Config()
         topics = RosTopicConfig.load_default()
         self._topics = topics
+        # Declared before _publish_model_status runs (it is called from further
+        # down this constructor) so the publisher and its republish timer are
+        # created once and outlive that call -- see _publish_model_status.
+        self._model_status_pub: Publisher[DiagnosticArray] | None = None
+        self._model_status_timer: Timer | None = None
+        self._model_status_msg_name: str | None = None
         camera_topic = declare_and_get_str_param(self, "camera_topic", defaults.camera_topic)
         detections_topic = declare_and_get_str_param(self, "detections_topic", topics.sensors.vision_detections)
         model_path = declare_and_get_str_param(self, "model_path", defaults.model_path)
@@ -237,7 +253,34 @@ class VisionNode(Node):
         sets.
         """
         topics = self._topics
-        pub = self.create_publisher(DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE)
+        # HELD ON THE INSTANCE, not a local. TRANSIENT_LOCAL retains the latched
+        # sample on the PUBLISHER, so a publisher that goes out of scope at the
+        # end of this method takes the retained value with it and no late
+        # subscriber can ever receive it -- and this publishes exactly once, at
+        # startup. The OLED's READY page showed "Model: ?" for precisely that
+        # reason: every time that node restarted it joined after the one-shot,
+        # with nothing left to replay to it. Keeping the reference alive is what
+        # makes the latch mean anything.
+        self._model_status_pub = self.create_publisher(
+            DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE
+        )
+        pub = self._model_status_pub
+        # REPUBLISHED on a timer, because this topic's QoS is TRANSIENT_LOCAL
+        # *and BEST_EFFORT*, and a best-effort writer does not replay its
+        # history to a late joiner -- the resend mechanism rides on the
+        # reliable protocol. So the "latch" does not latch for anyone who
+        # subscribes after this fires, and this fires once at startup. That is
+        # why the OLED still read "Model: ?" with the publisher held alive:
+        # keeping the reference was necessary, not sufficient. The state
+        # machine's own diagnostics reach the same display only because it
+        # republishes every tick, and this is the cheap equivalent -- one small
+        # message every few seconds, so any subscriber learns the model within
+        # one period however late it starts.
+        self._model_status_msg_name = model_name
+        if self._model_status_timer is None:
+            self._model_status_timer = self.create_timer(
+                _MODEL_STATUS_REPUBLISH_S, self._republish_model_status
+            )
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
         status = DiagnosticStatus()
@@ -246,6 +289,19 @@ class VisionNode(Node):
         status.message = model_name
         msg.status.append(status)
         pub.publish(msg)
+
+    def _republish_model_status(self) -> None:
+        """Re-send the cached model status; see _publish_model_status."""
+        if self._model_status_pub is None or self._model_status_msg_name is None:
+            return
+        msg = DiagnosticArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        status = DiagnosticStatus()
+        status.name = "VisionModel"
+        status.level = DiagnosticStatus.OK
+        status.message = self._model_status_msg_name
+        msg.status.append(status)
+        self._model_status_pub.publish(msg)
 
     @staticmethod
     def _detection_threshold(backend: str) -> float:

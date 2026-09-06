@@ -31,7 +31,7 @@ func main() {
 		device        = flag.String("device", "/dev/video0", "V4L2 device node (v4l2 backend)")
 		natsURL       = flag.String("nats-url", nats.DefaultDevURL, "nats-server URL (topic backend)")
 		nodeName      = flag.String("name", "capture-node", "NATS client name")
-		runsRoot      = flag.String("runs-root", "", "runs root dir (default: repo-root data/runs_pulled)")
+		runsRoot      = flag.String("runs-root", "", "runs root dir (default: repo-root data/live/runs)")
 		fps           = flag.Float64("fps", 15.0, "capture/video frame rate")
 		photoInterval = flag.Duration("photo-interval", 10*time.Second, "periodic dataset-photo cadence (0 = off)")
 		photoSubdir   = flag.String("photo-subdir", "captures", "subdir under run dir for photos")

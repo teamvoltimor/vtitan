@@ -1,0 +1,57 @@
+%% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
+%% Fuente: platform/robot/src/navigation/direction_estimator.py
+%%   infer_direction() -- aplica los 4 filtros de abajo, en este mismo orden
+%%   DirectionEstimator.observe() -- registra un voto por lectura aceptada
+%%   DirectionEstimator.is_settled -- se cumple cuando el mismo lado gana MIN_VOTES veces
+%% Constantes: platform/shared/config/navigation/blind_nav/direction_estimator.toml
+%%   alignment_tolerance_rad   = 0.4363 (25 grados)
+%%   max_in_track_range_m      = 4.5
+%%   plausible_span_threshold_m= 1.25
+%%   min_asymmetry_m           = 0.20
+%%   min_votes                 = 5
+%% Avance ciego previo: platform/robot/src/navigation/corridor_follower.py (follow_corridor)
+%% Esquiva ante obstáculo (incluye la regla de color) -- detalle común en:
+%%   docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd
+%% Común a Open Challenge y Obstacle Challenge -- ambos arrancan en modo ciego
+%% y usan exactamente esta misma lógica para decidir el sentido de la vuelta.
+%% NOTA: la decisión NO es "cuál lado está más lejos" sino "cuál lado dejó de
+%% ser pared", medido sobre la SUMA de ambos rayos. Ver el filtro 3.
+
+flowchart TD
+    A["El robot avanza despacio,<br/>centrado entre las paredes"] --> Block{"¿Hay un obstáculo<br/>físico muy cerca,<br/>justo adelante?"}
+
+    Block -- "No" --> G1
+    Block -- "Sí" --> Avoid[["Esquiva ante obstáculo"]]
+    Avoid --> A
+
+    G1{"FILTRO 1<br/>¿El chasis está alineado<br/>con el pasillo?<br/>(error &lt; 25 grados)"}
+    G1 -- "No: de lado los rayos<br/>cortan en diagonal<br/>y miden de más" --> A
+    G1 -- "Sí" --> M
+
+    M["El LIDAR mide el espacio libre<br/>a la izquierda y a la derecha"] --> G2
+
+    G2{"FILTRO 2<br/>¿Algún rayo mide<br/>más de 4.5 m?"}
+    G2 -- "Sí: en esta pista de 3 m<br/>eso no es una pared, es un<br/>fallo de lectura leído como<br/>'lado despejado'" --> A
+    G2 -- "No" --> G3
+
+    G3{"FILTRO 3<br/>izquierda + derecha<br/>¿supera 1.25 m?"}
+    G3 -- "No: la suma sigue siendo<br/>el ancho del pasillo,<br/>ambos lados son pared" --> A
+    G3 -- "Sí: un lado dejó<br/>de ser pared" --> G4
+
+    G4{"FILTRO 4<br/>¿La diferencia entre<br/>ambos lados supera<br/>0.20 m?"}
+    G4 -- "No: es ruido,<br/>no evidencia" --> A
+    G4 -- "Sí" --> C
+
+    C{"¿Qué lado<br/>se abrió?"}
+    C -- "La derecha" --> D["Anota un voto a favor<br/>del sentido HORARIO"]
+    C -- "La izquierda" --> E["Anota un voto a favor<br/>del sentido ANTIHORARIO"]
+
+    D --> F{"¿El mismo sentido<br/>ganó 5 lecturas?"}
+    E --> F
+
+    F -- "Todavía no" --> A
+    F -- "Sí" --> G["Dirección de la pista<br/>asentada (is_settled)"]
+
+    G --> H{"¿Cuál sentido<br/>ganó?"}
+    H -- "Horario" --> I(["Sentido de carrera:<br/>HORARIO (CW)"])
+    H -- "Antihorario" --> J(["Sentido de carrera:<br/>ANTIHORARIO (CCW)"])

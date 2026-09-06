@@ -1,0 +1,22 @@
+{
+  "name": "vtitan-wiring-harness",
+  "version": "1.0.0",
+  "description": "tscircuit port of the vtitan robot wiring harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "mise exec bun@1.4.0 -- tsci build circuit.tsx",
+    "netlist": "mise exec bun@1.4.0 -- tsci export circuit.tsx -f readable-netlist -o harness.netlist.txt",
+    "svg": "mise exec bun@1.4.0 -- tsci export circuit.tsx -f schematic-svg -o ../harness.schematic.svg && node whiten-svg.mjs",
+    "png": "rsvg-convert -w 2400 -b white ../harness.schematic.svg -o ../harness.schematic.png",
+    "artifacts": "npm run netlist && npm run svg && npm run png"
+  },
+  "devDependencies": {
+    "@tscircuit/cli": "^0.1.2021",
+    "@tscircuit/schematic-autolayout": "^0.0.8",
+    "tscircuit": "^0.0.2460"
+  },
+  "overrides": {
+    "circuit-json": "^0.0.479"
+  }
+}

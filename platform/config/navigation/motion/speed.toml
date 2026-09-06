@@ -76,3 +76,17 @@ medium_mps = 0.1326
 # Open track: >0.50 m clearance, and every heading error below the 57 deg crawl
 # threshold. At the ceiling today. Was fast_frac = 1.0.
 fast_mps = 0.156
+
+# --- Per-challenge ladder overrides are NOT set here, deliberately ---
+#
+# open_max_mps / open_slow_mps / open_medium_mps / open_fast_mps,
+# obstacles_*_mps and corner_mps all default to None, meaning "no override,
+# use the base tiers above". TOML has no null, so naming a key here cannot
+# express that default -- it can only turn the override ON, for every profile.
+#
+# The Open ladder IS already config-driven, one layer up: it is set per
+# DRIVETRAIN in the motor profile (profiles/rev-hd-hex-motor-6000rpm/
+# motion/speed.toml ships 0.26/0.38/0.50/0.55), because what the robot can
+# safely carry on the open track depends on the motor. Writing those values
+# here would force them onto every other profile, including motors that have
+# no such headroom.

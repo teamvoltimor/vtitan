@@ -64,6 +64,21 @@ path_margin = 0.10     # Extra clearance beyond chassis half-width still counted
 # observed on hardware.
 obstacles_contact_dist = 0.05
 
+# --- Written out 2026-09-05 ---
+#
+# Both existed only as Python literals, so no edit to this file could reach
+# them. Shipped values, so naming them changed nothing.
+
+# Measure forward clearance from the BUMPER rather than the LIDAR. Off: the
+# gates above already subtract the mount offset where they need to, and
+# flipping this would double-apply it.
+forward_path_ahead_of_bumper = false
+
+# Treat a forward cone that returns NOTHING as degraded rather than clear. A
+# whole-cone no-return is the LIDAR failing to see, not open track -- reading
+# it as "wide open" drove the robot into walls (fixed 2026-08-28).
+forward_no_data_is_degraded = true
+
 # How many ADJACENT rays in the forward lane must corroborate a short return
 # before it counts as an obstacle. The bare minimum over a noisy sweep is an
 # extreme-value statistic, not a clearance: with sigma=0.03 m of range noise

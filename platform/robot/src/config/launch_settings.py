@@ -217,11 +217,11 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     params: str = ""
     tuning: str = ""
     record: bool = True
-    # Runs land in the repo-root data/runs_pulled tree (shared by the Python and
+    # Runs land in the repo-root data/live/runs tree (shared by the Python and
     # Go stacks as siblings, never the robot module's own dir -- see repo-root
     # .gitignore). Resolved relative to the repo root so a fresh clone or the Pi
     # both write to the same place without an absolute path.
-    bag_dir: str = str(Path(__file__).resolve().parents[4] / "data" / "runs_pulled")
+    bag_dir: str = str(Path(__file__).resolve().parents[4] / "data" / "live" / "runs")
     # Retention caps for bag_recorder_node. Recording is race-gated, but a
     # competition day is many rounds and the Pi 5's card is not large, so old
     # runs are pruned oldest-first once either cap is exceeded.

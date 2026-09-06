@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Pull recorded per-run videos (see src/vision/video_recorder.py, written as
-# ~/vtitan/data/runs_pulled/run_<timestamp>/video.mp4 alongside that run's mcap bag) down
-# into the shared repo-root data/videos_pulled tree for local review, WITHOUT
+# ~/vtitan/data/live/runs/run_<timestamp>/video.mp4 alongside that run's mcap bag) down
+# into the shared repo-root data/live/videos tree for local review, WITHOUT
 # the (often much larger) bag.
 #
-# Deliberately a separate tree from data/runs_pulled/, not a filter added to
+# Deliberately a separate tree from data/live/runs/, not a filter added to
 # pull-runs-from-pi5.sh: that script's skip logic is "does run_<timestamp>/
 # already exist locally", and a video-only pull creating that same directory
 # would make a later full run pull skip the whole run -- silently never
@@ -26,8 +26,8 @@ ROBOT_DIR="$(cd "$HERE/../.." && pwd)"
 REPO_ROOT="$(cd "$ROBOT_DIR/../.." && pwd)"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/runs_pulled}"
-VIDEOS_DIR="${VIDEOS_DIR:-$REPO_ROOT/data/videos_pulled}"
+REMOTE_BAG_DIR="${REMOTE_BAG_DIR:-~/vtitan/data/live/runs}"
+VIDEOS_DIR="${VIDEOS_DIR:-$REPO_ROOT/data/live/videos}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[pull-videos] $*"; }

@@ -40,11 +40,59 @@ type CorridorFollowerConfig struct {
 	CornerLeakMarginM float64 `mapstructure:"corner_leak_margin_m"`
 	// MinReverseClearanceM matches MIN_REVERSE_CLEARANCE_M.
 	MinReverseClearanceM float64 `mapstructure:"min_reverse_clearance_m"`
-	// BayWallClearanceM matches BAY_WALL_CLEARANCE_M. Not present in the
-	// checked-in corridor_follower.toml -- every deployment currently
-	// relies on the Pydantic model's own 0.20 default, applied here via
-	// LoadWithDefaults rather than silently reading as 0.0.
+	// BayWallClearanceM matches BAY_WALL_CLEARANCE_M.
 	BayWallClearanceM float64 `mapstructure:"bay_wall_clearance_m"`
+
+	// The in-bay start and bay-exit family. Absent from this mirror until
+	// 2026-09-05, and absent from corridor_follower.toml too, so both
+	// stacks read their own literals and the two silently drifted apart --
+	// Go still had the clearance guard OFF and the arc at 0.3 while Python
+	// shipped the solved full-lock ratchet. They are TOML-driven now, so
+	// the shipped file is the single source and a drift like that cannot
+	// recur without an edit that shows up in a diff.
+	//
+	// LoadWithDefaults supplies each one's shipped value, so a TOML that
+	// omits a key still yields the shipped behaviour rather than a Go zero
+	// value -- which for the bools and the arc would silently be the
+	// REFUTED configuration.
+
+	// AssumeBayStart matches ASSUME_BAY_START.
+	AssumeBayStart bool `mapstructure:"assume_bay_start"`
+	// BayExitClearanceGuard matches BAY_EXIT_CLEARANCE_GUARD.
+	BayExitClearanceGuard bool `mapstructure:"bay_exit_clearance_guard"`
+	// BayExitClearanceMarginM matches BAY_EXIT_CLEARANCE_MARGIN_M.
+	BayExitClearanceMarginM float64 `mapstructure:"bay_exit_clearance_margin_m"`
+	// BayExitArcSteerNorm matches BAY_EXIT_ARC_STEER_NORM. A cliff at 1.0.
+	BayExitArcSteerNorm float64 `mapstructure:"bay_exit_arc_steer_norm"`
+	// BayExitSpeedScale matches BAY_EXIT_SPEED_SCALE. A cliff at both ends.
+	BayExitSpeedScale float64 `mapstructure:"bay_exit_speed_scale"`
+	// BayExitCycle matches BAY_EXIT_CYCLE.
+	BayExitCycle bool `mapstructure:"bay_exit_cycle"`
+	// BayExitCycleReverseM matches BAY_EXIT_CYCLE_REVERSE_M.
+	BayExitCycleReverseM float64 `mapstructure:"bay_exit_cycle_reverse_m"`
+	// BayExitCycleReverseSteerNorm matches BAY_EXIT_CYCLE_REVERSE_STEER_NORM.
+	BayExitCycleReverseSteerNorm float64 `mapstructure:"bay_exit_cycle_reverse_steer_norm"`
+	// BayExitForwardM matches BAY_EXIT_FORWARD_M.
+	BayExitForwardM float64 `mapstructure:"bay_exit_forward_m"`
+	// BayExitReverseM matches BAY_EXIT_REVERSE_M.
+	BayExitReverseM float64 `mapstructure:"bay_exit_reverse_m"`
+	// BayExitSteerNorm matches BAY_EXIT_STEER_NORM.
+	BayExitSteerNorm float64 `mapstructure:"bay_exit_steer_norm"`
+	// BayExitReverseSteerNorm matches BAY_EXIT_REVERSE_STEER_NORM. REFUTED
+	// at any non-zero value; 0.0 keeps the refutation recorded.
+	BayExitReverseSteerNorm float64 `mapstructure:"bay_exit_reverse_steer_norm"`
+	// BayExitHoldSteer matches BAY_EXIT_HOLD_STEER.
+	BayExitHoldSteer bool `mapstructure:"bay_exit_hold_steer"`
+	// BayExitLegStallTicks matches BAY_EXIT_LEG_STALL_TICKS. 1 is a cliff.
+	BayExitLegStallTicks int `mapstructure:"bay_exit_leg_stall_ticks"`
+	// BayExitLatchDirection matches BAY_EXIT_LATCH_DIRECTION.
+	BayExitLatchDirection bool `mapstructure:"bay_exit_latch_direction"`
+	// BayExitLatchReverse matches BAY_EXIT_LATCH_REVERSE.
+	BayExitLatchReverse bool `mapstructure:"bay_exit_latch_reverse"`
+	// BayExitFallbackFrames matches BAY_EXIT_FALLBACK_FRAMES; 0 = never.
+	BayExitFallbackFrames int `mapstructure:"bay_exit_fallback_frames"`
+	// BayExitMaxFrames matches BAY_EXIT_MAX_FRAMES; 0 = forever.
+	BayExitMaxFrames int `mapstructure:"bay_exit_max_frames"`
 }
 
 // DefaultCorridorFollowerTOMLPath is
@@ -54,12 +102,40 @@ type CorridorFollowerConfig struct {
 const DefaultCorridorFollowerTOMLPath = "platform/config/navigation/blind_nav/corridor_follower.toml"
 
 // DefaultBayWallClearanceM matches CorridorFollowerParams.BAY_WALL_CLEARANCE_M's
-// Pydantic default -- see CorridorFollowerConfig.BayWallClearanceM's doc
-// comment for why this needs a code default at all.
+// Pydantic default.
 const DefaultBayWallClearanceM = 0.20
 
 // CorridorFollowerDefaults is the LoadWithDefaults defaults map for
 // CorridorFollowerConfig.
+//
+// Every bay key is listed because a Go zero value is not a neutral fallback
+// here: `false` for the guard and the latches, and 0.0 for the arc, are all
+// REFUTED configurations that measure 0/256 out of the pocket. A TOML missing
+// a key must yield the shipped behaviour, not the worst one.
+//
+// These are literals rather than references to corridorfollower's Default*
+// constants because corridorfollower imports this package, not the other way
+// round. internal/config/profile's own test asserts the two agree.
 func CorridorFollowerDefaults() map[string]any {
-	return map[string]any{"bay_wall_clearance_m": DefaultBayWallClearanceM}
+	return map[string]any{
+		"bay_wall_clearance_m":              DefaultBayWallClearanceM,
+		"assume_bay_start":                  true,
+		"bay_exit_clearance_guard":          true,
+		"bay_exit_clearance_margin_m":       0.005,
+		"bay_exit_arc_steer_norm":           1.0,
+		"bay_exit_speed_scale":              0.35,
+		"bay_exit_cycle":                    true,
+		"bay_exit_cycle_reverse_m":          0.09,
+		"bay_exit_cycle_reverse_steer_norm": 0.0,
+		"bay_exit_forward_m":                0.08,
+		"bay_exit_reverse_m":                0.05,
+		"bay_exit_steer_norm":               1.0,
+		"bay_exit_reverse_steer_norm":       0.0,
+		"bay_exit_hold_steer":               true,
+		"bay_exit_leg_stall_ticks":          6,
+		"bay_exit_latch_direction":          true,
+		"bay_exit_latch_reverse":            false,
+		"bay_exit_fallback_frames":          0,
+		"bay_exit_max_frames":               0,
+	}
 }

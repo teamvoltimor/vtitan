@@ -266,6 +266,6 @@ func parityBagDir(t *testing.T) string {
 		return override
 	}
 	// Documented complete sighted bag from an earlier session, in the shared
-	// repo-root data/runs_pulled tree (see internal/recording/root.go).
-	return filepath.Join(repoRootFromPackageDir, "data", "runs_pulled", "run_20260829_140424")
+	// repo-root data/live/runs tree (see internal/recording/root.go).
+	return filepath.Join(repoRootFromPackageDir, "data", "live", "runs", "run_20260829_140424")
 }

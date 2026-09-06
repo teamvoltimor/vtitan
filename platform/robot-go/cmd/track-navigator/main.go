@@ -102,8 +102,8 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	)
 	flags.Float64Var(&cfg.rateHz, "rate-hz", 20.0, "navigator Step rate")
 	flags.BoolVar(&cfg.record, "record", false,
-		"record the run to data/runs_pulled as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node")
-	flags.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir for --record (default: repo-root data/runs_pulled)")
+		"record the run to data/live/runs as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node")
+	flags.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir for --record (default: repo-root data/live/runs)")
 
 	return cmd
 }
