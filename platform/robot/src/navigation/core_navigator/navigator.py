@@ -1077,7 +1077,7 @@ class CoreNavigator(EscapeRecovery):
             self._tuning.sign_router.SIGN_LANE_PLANNER and self._tuning.sign_router.SIGN_LANE_SUPPRESS_DEFORM
         )
         if self._sign_router is not None and self._current_corridor is not None:
-            observations = self._gateway.get_vision_detections()
+            observations = self._gateway.get_vision_detections(self._current_corridor)
             raw_target = steer_target
             deformed = self._sign_router.deform_waypoint(
                 waypoint=steer_target,

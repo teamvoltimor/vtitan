@@ -14,6 +14,8 @@ now decodes/encodes the same ``steering_norm: float  # [-1, 1], + = left``.
 
 from __future__ import annotations
 
+from shared.domain.enums import Section
+
 import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
@@ -220,7 +222,9 @@ class HardwareGateway(Protocol):
     def get_imu_reading(self) -> IMUReading | None:
         """Get the latest IMU orientation."""
 
-    def get_vision_detections(self) -> list[TrafficSignObservation]:
+    def get_vision_detections(
+        self, current_corridor: Section | None = None
+    ) -> list[TrafficSignObservation]:
         """Get the latest sign observations from the camera."""
 
     def get_localizer_inputs(self) -> LocalizerInputs | None:

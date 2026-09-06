@@ -78,6 +78,7 @@ def detection_to_observation(
     tuning: NavigationTuning | None = None,
     lidar_ranges_m: Sequence[float] | None = None,
     lidar_angles_rad: Sequence[float] | None = None,
+    barrier_possible: bool = True,
 ) -> TrafficSignObservation | None:
     """Convert a Detection (pixel bbox) to a TrafficSignObservation (world coords).
 
@@ -129,7 +130,21 @@ def detection_to_observation(
         or bbox_for_shape.x_max >= frame_w - edge
         or bbox_for_shape.y_max >= frame_h - edge
     )
-    if max_aspect > 0.0 and not clipped and height_px > 0 and width_px / height_px > max_aspect:
+    # The shape test only makes sense where the thing it is filtering can BE.
+    # There is exactly one parking lot and it sits in the corridor the robot
+    # started in; a wide red box seen from any other corridor cannot be the
+    # barrier, and rejecting it only throws away a pillar. Measured across
+    # run_20260906_145546 and _145909: wall-shaped reds sit at corridor `None`
+    # 72% of the time -- the start, in and around the bay -- exactly where the
+    # magenta barrier detections sit (67%), while pillar-shaped reds spread
+    # across the driving corridors (south 62-73%, west 11-24%).
+    if (
+        barrier_possible
+        and max_aspect > 0.0
+        and not clipped
+        and height_px > 0
+        and width_px / height_px > max_aspect
+    ):
         return None
     world = _detection_to_world(
         det,

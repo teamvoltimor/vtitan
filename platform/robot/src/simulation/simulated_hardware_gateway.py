@@ -9,6 +9,8 @@ without Gazebo, ROS2, or a physics engine.
 
 from __future__ import annotations
 
+from shared.domain.enums import Section
+
 import math
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
@@ -369,7 +371,9 @@ class SimulatedHardwareGateway:
             stamp_s=self._elapsed_s,
         )
 
-    def get_vision_detections(self) -> list[TrafficSignObservation]:
+    def get_vision_detections(
+        self, current_corridor: Section | None = None
+    ) -> list[TrafficSignObservation]:
         """Return synthetic sign observations, or ``[]`` if none were provided.
 
         Visibility (is a sign in frame, how far away) is judged from the TRUE

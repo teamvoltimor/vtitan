@@ -86,6 +86,10 @@ class ROS2HardwareGateway(HardwareGateway):
         self._localizer = make_localizer(TrackWalls(geom), self._localization_params)
         self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
+        # Corridor holding the parking lot, set by the node from the start
+        # section. None means "unknown", which keeps the shape gate strict
+        # everywhere rather than relaxing it on an unproven belief.
+        self._parking_corridor: Section | None = None
         self._latest_imu: IMUReading | None = None
         self._latest_wheel: WheelOdometry | None = None
         self._localizer_inputs: LocalizerInputs | None = None
@@ -320,7 +324,16 @@ class ROS2HardwareGateway(HardwareGateway):
         """Get the latest IMU orientation."""
         return self._latest_imu
 
-    def get_vision_detections(self) -> list[TrafficSignObservation]:
+    def set_parking_corridor(self, corridor: Section | None) -> None:
+        """Tell the ingest path which corridor holds the parking lot.
+
+        There is exactly one lot and it sits in the corridor the robot started
+        in. Knowing that is what lets the shape gate stop rejecting wide RED
+        boxes everywhere else, where no barrier can be.
+        """
+        self._parking_corridor = corridor
+
+    def get_vision_detections(self, current_corridor: Section | None = None) -> list[TrafficSignObservation]:
         """Convert latest pixel detections to world-coordinate observations.
 
         Fuses in the same tick's LIDAR sweep for range -- the camera alone
@@ -338,7 +351,22 @@ class ROS2HardwareGateway(HardwareGateway):
 
         result: list[TrafficSignObservation] = []
         for det in self._latest_detections:
-            obs = detection_to_observation(det, pose, lidar_ranges_m=lidar_ranges, lidar_angles_rad=lidar_angles)
+            # An unknown corridor counts as "the barrier could be here": the
+            # label is unset at the start, in and around the bay, which is
+            # exactly where the barrier is. Measured: 72% of wall-shaped red
+            # detections carry no corridor label.
+            barrier_possible = (
+                self._parking_corridor is None
+                or current_corridor is None
+                or current_corridor == self._parking_corridor
+            )
+            obs = detection_to_observation(
+                det,
+                pose,
+                lidar_ranges_m=lidar_ranges,
+                lidar_angles_rad=lidar_angles,
+                barrier_possible=barrier_possible,
+            )
             if obs is not None:
                 result.append(obs)
         return result

@@ -338,3 +338,22 @@ class TestPillarAspectGate:
         )
         det = self._detection(176.0, 100.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), tuning=disabled) is not None
+
+
+    def test_a_wide_box_is_kept_where_no_barrier_can_be(self) -> None:
+        """There is one parking lot, in the corridor the robot started in.
+
+        A wide RED box seen from any other corridor cannot be the barrier, so
+        rejecting it only throws away a pillar. Measured across
+        run_20260906_145546 and _145909: wall-shaped reds carry no corridor
+        label 72% of the time -- the start, around the bay, exactly where the
+        magenta barrier detections sit -- while pillar-shaped reds spread
+        across the driving corridors.
+        """
+        det = self._detection(176.0, 100.0)  # w/h 1.76, the barrier's shape
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), barrier_possible=False) is not None
+
+    def test_the_same_wide_box_is_rejected_where_the_barrier_lives(self) -> None:
+        """Unchanged where it matters: in the lot's own corridor the gate bites."""
+        det = self._detection(176.0, 100.0)
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), barrier_possible=True) is None
