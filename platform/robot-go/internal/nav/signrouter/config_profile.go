@@ -86,3 +86,54 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	cfg.LateralOffsetM = cfg.ChassisHalfDiagonalM + signWidthM/2 + signClearanceMarginM
 	return cfg
 }
+
+// DiscoveryConfigFor resolves the DiscoveryConfig to run with:
+// DefaultDiscoveryConfig's literals overlaid with sign_discovery.toml and the
+// track geometry from track.toml, when configRoot is non-empty and loading
+// succeeds; otherwise the literal defaults, logging why.
+//
+// The corridor bounds come from track.toml rather than being restated, for the
+// same reason ConfigFor takes them from there: the association gate settles the
+// robot's corridor with them, so a discovery map disagreeing with the router
+// about where a corridor ends would associate observations to the wrong one.
+func DiscoveryConfigFor(logger *slog.Logger, configRoot string) DiscoveryConfig {
+	cfg := DefaultDiscoveryConfig()
+	if configRoot == "" {
+		return cfg
+	}
+
+	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
+	if tc, err := profile.Load[profile.TrackConfig](trackPath, nil); err != nil {
+		logger.Warn("signrouter: loading track.toml for discovery, falling back to defaults",
+			"config_root", configRoot, "error", err)
+	} else {
+		cfg.CornerMinM = tc.Track.CornerMin
+		cfg.CornerMaxM = tc.Track.CornerMax
+	}
+
+	sdPath := filepath.Join(configRoot, profile.DefaultSignDiscoveryTOMLPath)
+	if sd, err := profile.LoadWithDefaults[profile.SignDiscoveryConfig](
+		sdPath, nil, profile.SignDiscoveryDefaults(),
+	); err != nil {
+		logger.Warn("signrouter: loading sign_discovery.toml, falling back to defaults",
+			"config_root", configRoot, "error", err)
+	} else {
+		cfg.MinReliableBBoxHeightPX = sd.MinReliableBBoxHeightPX
+		cfg.MaxIngestRangeM = sd.MaxIngestRangeM
+		cfg.AssociationDistM = sd.AssociationDistM
+		cfg.MinHits = sd.MinHits
+		cfg.RobotCorridorFlipTicks = sd.RobotCorridorFlipTicks
+	}
+
+	srPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
+	if sr, err := profile.LoadWithDefaults[profile.SignRouterConfig](
+		srPath, nil, profile.SignRouterDefaults(),
+	); err != nil {
+		logger.Warn("signrouter: loading sign_router.toml for discovery, falling back to defaults",
+			"config_root", configRoot, "error", err)
+	} else {
+		cfg.MinConfidence = sr.MinConfidence
+	}
+
+	return cfg
+}

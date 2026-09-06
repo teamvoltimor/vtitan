@@ -69,6 +69,11 @@ type Params struct {
 	Config Config
 	// ControllersConfig builds the waypoint/collision/stuck controllers.
 	ControllersConfig controllers.Config
+	// SignDiscoveryConfig gates the camera-discovery map that accumulates
+	// signs during the blind creep. Nil takes signrouter's own defaults,
+	// which are the no-config-root fallback rather than the shipped values --
+	// prefer signrouter.DiscoveryConfigFor so a run reads sign_discovery.toml.
+	SignDiscoveryConfig *signrouter.DiscoveryConfig
 	// SignRouterConfig parameterizes the lane transform and supplies the
 	// chassis half-diagonal the lane offset is derived from. Ignored when
 	// SignRouter is nil.
@@ -351,10 +356,11 @@ func New(p Params) (*Navigator, error) {
 	if n.direction == nil {
 		n.dirEstimator = directionestimator.NewEstimator(dirEstCfg.MinVotes)
 		if n.signRouter != nil {
-			n.discovery = signrouter.NewObservedSignMap(
-				signrouter.DefaultDiscoveryConfig(),
-				n.signRouter,
-			)
+			discoveryCfg := signrouter.DefaultDiscoveryConfig()
+			if p.SignDiscoveryConfig != nil {
+				discoveryCfg = *p.SignDiscoveryConfig
+			}
+			n.discovery = signrouter.NewObservedSignMap(discoveryCfg, n.signRouter)
 		}
 	}
 	n.applyPathWallBudget()

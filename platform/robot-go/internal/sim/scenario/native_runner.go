@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
@@ -63,16 +65,21 @@ type NativeRunner struct {
 	// runs hundreds of scenarios, and re-reading the same TOML tree for each
 	// would be both wasteful and a source of per-scenario divergence if a
 	// file changed mid-sweep.
-	navCfg     navigator.Config
-	ctrlCfg    controllers.Config
-	wpCfg      waypoints.Config
-	srCfg      signrouter.Config
-	startCfg   startconditions.Config
-	followCfg  corridorfollower.Config
-	estCfg     corridorestimator.Config
-	kinParams  kinematics.Params
-	collCfg    collision.Config
-	recordRoot string
+	navCfg  navigator.Config
+	ctrlCfg controllers.Config
+	wpCfg   waypoints.Config
+	srCfg   signrouter.Config
+	discCfg signrouter.DiscoveryConfig
+	// roundTimeLimitS is competition_specs.toml's round_time_limit_s, the
+	// rule-book budget a run is scored against -- NOT maxSteps, which is the
+	// harness's own runaway guard and is deliberately looser.
+	roundTimeLimitS float64
+	startCfg        startconditions.Config
+	followCfg       corridorfollower.Config
+	estCfg          corridorestimator.Config
+	kinParams       kinematics.Params
+	collCfg         collision.Config
+	recordRoot      string
 	// recGeom is chassis geometry only the BAG needs -- wheel size, steering
 	// limit, LIDAR mount. None of it belongs in kinematics.Params: a bicycle
 	// model turns on wheelbase, not wheel size, and knows nothing of where a
@@ -190,21 +197,23 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	}
 
 	return &NativeRunner{
-		cfg:        hc,
-		recordRoot: cfg.RecordRoot,
-		recGeom:    recorderGeometryFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles, kinParams.MaxSteerRad),
-		navCfg:     navigator.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
-		ctrlCfg:    controllers.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
-		wpCfg:      waypoints.ConfigFor(logger, cfg.ConfigRoot),
-		srCfg:      signrouter.ConfigFor(logger, cfg.ConfigRoot),
-		startCfg:   startconditions.ConfigFor(logger, cfg.ConfigRoot),
-		followCfg:  corridorfollower.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
-		estCfg:     corridorestimator.ConfigFor(logger, cfg.ConfigRoot),
-		kinParams:  kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
-		collCfg:    collision.ConfigFor(logger, cfg.ConfigRoot),
-		seed:       cfg.Seed,
-		maxSteps:   maxSteps,
-		blind:      cfg.Blind,
+		cfg:             hc,
+		recordRoot:      cfg.RecordRoot,
+		recGeom:         recorderGeometryFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles, kinParams.MaxSteerRad),
+		navCfg:          navigator.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		ctrlCfg:         controllers.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		wpCfg:           waypoints.ConfigFor(logger, cfg.ConfigRoot),
+		srCfg:           signrouter.ConfigFor(logger, cfg.ConfigRoot),
+		discCfg:         signrouter.DiscoveryConfigFor(logger, cfg.ConfigRoot),
+		roundTimeLimitS: roundTimeLimitSFor(logger, cfg.ConfigRoot),
+		startCfg:        startconditions.ConfigFor(logger, cfg.ConfigRoot),
+		followCfg:       corridorfollower.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		estCfg:          corridorestimator.ConfigFor(logger, cfg.ConfigRoot),
+		kinParams:       kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		collCfg:         collision.ConfigFor(logger, cfg.ConfigRoot),
+		seed:            cfg.Seed,
+		maxSteps:        maxSteps,
+		blind:           cfg.Blind,
 	}
 }
 
@@ -302,14 +311,15 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	}
 
 	nav, err := navigator.New(navigator.Params{
-		Gateway:           gw,
-		Vision:            vision,
-		Waypoints:         path,
-		Direction:         direction,
-		NumLaps:           targetLaps,
-		Config:            r.navCfg,
-		ControllersConfig: r.ctrlCfg,
-		SignRouterConfig:  r.srCfg,
+		Gateway:             gw,
+		Vision:              vision,
+		Waypoints:           path,
+		Direction:           direction,
+		NumLaps:             targetLaps,
+		Config:              r.navCfg,
+		ControllersConfig:   r.ctrlCfg,
+		SignRouterConfig:    r.srCfg,
+		SignDiscoveryConfig: &r.discCfg,
 		// The blind phase reads the shipped TOML too. These used to be
 		// DefaultConfig() at the navigator's own call sites, which pinned
 		// the whole creep to Go literals whatever --config-root said.
@@ -644,7 +654,7 @@ func (r *NativeRunner) score(
 		TimedOut:               resTimedOut(steps, r.maxSteps, laps, targetLaps),
 		Stuck:                  stuck,
 		Success:                success,
-		OverTime:               false,
+		OverTime:               float64(steps)*dt > r.roundTimeLimitS,
 	}
 }
 
@@ -834,3 +844,24 @@ func defaultLaps(_ generate.Metadata) int { return navigator.DefaultOpenChalleng
 
 // compile-time assertion that NativeRunner satisfies Runner.
 var _ Runner = (*NativeRunner)(nil)
+
+// roundTimeLimitSFor reads competition_specs.toml's round_time_limit_s, or
+// falls back to the shipped default when there is no config root or the file
+// will not load. Scoring a run against a hardcoded limit is the same class of
+// bug as reading a hardcoded sensor spec: the rule book is a file.
+func roundTimeLimitSFor(logger *slog.Logger, configRoot string) float64 {
+	fallback, _ := profile.CompetitionDefaults()["round_time_limit_s"].(float64)
+	if configRoot == "" {
+		return fallback
+	}
+	path := filepath.Join(configRoot, profile.DefaultCompetitionTOMLPath)
+	cc, err := profile.LoadWithDefaults[profile.CompetitionConfig](
+		path, nil, profile.CompetitionDefaults(),
+	)
+	if err != nil {
+		logger.Warn("native runner: loading competition_specs.toml, falling back to default",
+			"config_root", configRoot, "error", err)
+		return fallback
+	}
+	return cc.RoundTimeLimitS
+}
