@@ -1030,6 +1030,41 @@ class NavigatorDebugSnapshot(BaseModel):
     active_sign_count: int | None = None
     sign_deform_magnitude_m: float | None = None
 
+    wrong_side_pass_count: int | None = None
+    """Signs retired THIS LAP that the router itself judged passed on the wrong side.
+
+    The robot's own verdict, not a replay's. That distinction is the whole
+    point: on the 2026-09-05 hardware runs the camera showed 16 of 16 green
+    pillars passed on the forbidden side, and nothing in the bag said whether
+    the robot KNEW. If this counter tracks what the video shows, the pass-side
+    rule and the sign positions are being evaluated correctly and the fault is
+    in EXECUTION -- the documented lateral lag in ``apply_deformation``. If it
+    reads zero while the video shows violations, the robot's belief about
+    where the sign is, or which way it is travelling, is wrong instead.
+    Two opposite fixes, and this is what separates them."""
+
+    committed_sign_x_m: float | None = None
+    """World x of the sign the router is currently routing around, as BELIEVED."""
+
+    committed_sign_y_m: float | None = None
+    """World y of the sign the router is currently routing around, as BELIEVED.
+
+    Paired with ``committed_sign_x_m``. Believed, not true: a sign seeded from a
+    misclassified parking barrier still appears here, which is what makes the
+    pair readable against the camera track that produced it."""
+
+    sign_target_x_m: float | None = None
+    """World x of the DEFORMED steering target this tick."""
+
+    sign_target_y_m: float | None = None
+    """World y of the DEFORMED steering target this tick.
+
+    With the pose and the committed sign position, this closes the loop the bag
+    could not: which side of the sign the robot was AIMED at, against which side
+    it actually reached. ``sign_deform_magnitude_m`` gives only the size of the
+    correction, never its direction, so it cannot distinguish a correct command
+    the chassis failed to reach from a command pointed the wrong way."""
+
     # Blind creep / direction inference -- set only on the "blind_creep" phase,
     # before the travel direction has settled and CoreNavigator.step() has ever
     # run (see corridor_follower.follow_corridor and direction_estimator.py).
