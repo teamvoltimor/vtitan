@@ -20,6 +20,12 @@ type Result struct {
 	Scenario        string `json:"scenario"`
 
 	PassSideViolationSigns []int `json:"pass_side_violation_signs"`
+	// DiscoveredSigns is how many signs the router KNEW at the end of the run,
+	// against TrueSigns in the scenario. In blind they start at 0 and rise as
+	// the camera confirms each one; in sighted they are equal from tick 0.
+	// Diagnostic only.
+	DiscoveredSigns int `json:"discovered_signs"`
+	TrueSigns       int `json:"true_signs"`
 	// RouterWrongSideSigns is what the SignRouter believed it did, kept as a
 	// measure of DISCOVERY quality. It is computed in the believed frame and
 	// cleared every lap, so it is neither the verdict nor comparable to it.
