@@ -11,7 +11,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
-from shared.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.domain.models import SectorRanges
 
 from src.config.tuning_helpers import get_tuning
@@ -121,6 +121,24 @@ def mask_mapped_obstacles(
 
     robot_x, robot_y, robot_yaw = robot_pose.x, robot_pose.y, robot_pose.yaw
     robot_corridor = corridor_for_position(robot_x, robot_y)
+    # Inside a corner square the chassis straddles two legs, and
+    # corridor_for_position tie-breaks to the nearest inner FACE rather than to
+    # the leg being driven -- a robot 4 cm past x=2.0 while running west along
+    # the south straight reads as EAST. The corridor gate below then refuses to
+    # mask the south sign it is in the middle of passing, the reactive layer
+    # sees a routed sign as an unmapped frontal threat, and the escape fires
+    # into a forward/reverse limit cycle that never clears it. Measured over
+    # the 256-scenario corpus: every lap-0 stall sat within 0.35 m of a sign,
+    # and in 85-94% of them (both stacks, sighted and blind) the robot's
+    # corridor disagreed with that sign's.
+    #
+    # So the gate is only relaxed where the classification is genuinely
+    # ambiguous. Outside a corner it still applies in full -- measured
+    # identical to dropping it entirely, which is what says the gate never
+    # discriminated anywhere else.
+    in_corner = (
+        not TrackDimensions.CORNER_MIN <= robot_x <= TrackDimensions.CORNER_MAX
+    ) and (not TrackDimensions.CORNER_MIN <= robot_y <= TrackDimensions.CORNER_MAX)
     # Only finite returns have an endpoint to attribute; inf rays are already
     # no-returns and feeding them through cos/sin yields inf-inf = nan.
     finite = np.isfinite(ranges)
@@ -130,7 +148,7 @@ def mask_mapped_obstacles(
 
     attributed = np.zeros(ranges.shape, dtype=bool)
     for mapped_wp, mapped_corridor in mapped_xy:
-        if mapped_corridor != robot_corridor:
+        if not in_corner and mapped_corridor != robot_corridor:
             continue
         attributed |= np.hypot(end_x - mapped_wp.x, end_y - mapped_wp.y) < radius_m
 

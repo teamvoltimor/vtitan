@@ -301,7 +301,13 @@ func MaskMappedObstacles(
 	// that is checked after the endpoint -- a Cos, a Sin and a Hypot per ray --
 	// has already been computed. When none qualify the loop below provably
 	// cannot write to out, so the whole sweep is skippable.
-	masksAnything := false
+	// AB-PROBE option 2: inside a corner square the robot straddles two legs,
+	// and CorridorForPosition tie-breaks to the nearest inner face rather than
+	// to the leg being driven -- so a sign on the other face is not masked
+	// exactly while it is being passed. Accept any mapped obstacle there.
+	inCorner := (robotPose.X < cornerMinM || robotPose.X > cornerMaxM) &&
+		(robotPose.Y < cornerMinM || robotPose.Y > cornerMaxM)
+	masksAnything := inCorner
 	for _, mapped := range mappedXY {
 		if mapped.Corridor == robotCorridor {
 			masksAnything = true
@@ -324,7 +330,7 @@ func MaskMappedObstacles(
 		endY := robotPose.Y + r*math.Sin(bearing)
 
 		for _, mapped := range mappedXY {
-			if mapped.Corridor != robotCorridor {
+			if !inCorner && mapped.Corridor != robotCorridor {
 				continue
 			}
 			if math.Hypot(endX-mapped.Position.X, endY-mapped.Position.Y) < radiusM {
