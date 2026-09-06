@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
 	"math"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
@@ -22,6 +23,11 @@ type Config struct {
 	// LidarMinRangeM / LidarMaxRangeM are the sensor's floor/ceiling.
 	LidarMinRangeM float64
 	LidarMaxRangeM float64
+	// LidarMountXOffsetM is how far forward of the chassis centre the sensor
+	// sits, from robot.toml's [lidar] mount_x_offset. Rays are cast from
+	// THERE, not from the body origin, matching
+	// SimulatedHardwareGateway's own Pose.sensor_origin call.
+	LidarMountXOffsetM float64
 	// LidarNoiseStd is the Gaussian range noise stddev (meters). Mirrors
 	// RobotSpecs.LIDAR_NOISE_STDDEV; that constant is not ported to Go yet
 	// (see plan §2), so it is supplied here rather than read from a spec.
@@ -30,13 +36,19 @@ type Config struct {
 	// no-return model). Mirrors simulation.LIDAR_INVALID_RAY_RATE; unported
 	// (plan §2), defaulted to 0.01.
 	InvalidRayRate float64
-	// Localize enables LIDAR-matched pose estimation. Off by default so the
-	// navigator sees perfect odometry (ground truth), isolating control
-	// behaviour from state-estimation error, exactly as the Python gateway's
-	// localize=False arm. wall_heading localization is NOT implemented yet
-	// (see gateway.go TODO), so Localize=true is currently unsupported and
-	// falls back to ground truth.
+	// Localize runs the LIDAR scan-matcher and reports its estimate as the
+	// robot's pose, instead of handing the navigator ground truth.
+	//
+	// Off by default here, which is NOT the Python default: ScenarioSimulator
+	// takes use_lidar_localization=True and forces it on for blind. True is
+	// the HARDER condition (the robot navigates on an estimate that can
+	// drift) and is what the real robot does, so a cross-stack comparison
+	// against the Python oracle needs this ON to be like-for-like.
 	Localize bool
+	// LocalizationConfig parameterizes that scan-matcher. Nil takes
+	// localization.DefaultConfig(); prefer localization.ConfigFor so a run
+	// reads the shipped localization.toml and robot.toml [lidar] geometry.
+	LocalizationConfig *localization.Config
 	// CollisionMarginM is the keep-out margin handed to collision.TrackModel.
 	// Mirrors simulation.COLLISION_MARGIN_M; unported (plan §2), defaulted 0.0.
 	CollisionMarginM float64

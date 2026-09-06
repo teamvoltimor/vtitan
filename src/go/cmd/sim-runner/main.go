@@ -59,6 +59,7 @@ type cliConfig struct {
 	concurrency  int
 	timeout      time.Duration
 	jsonOutput   bool
+	localize     bool
 	record       bool
 	runner       string
 	blind        bool
@@ -162,6 +163,14 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		"runner",
 		"python",
 		"scenario runner backend: 'python' (subprocess oracle, default) or 'native' (Go-native harness)",
+	)
+	flags.BoolVar(
+		&cfg.localize,
+		"localize",
+		false,
+		"--runner native only: navigate on the LIDAR scan-matcher's pose estimate instead of "+
+			"ground truth. This is what ScenarioSimulator does by default (and forces for blind), "+
+			"so a like-for-like comparison against the Python oracle needs it",
 	)
 	flags.BoolVar(
 		&cfg.blind,
@@ -404,6 +413,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{
 			RecordRoot:       recordRoot,
 			Blind:            cfg.blind,
+			Localize:         cfg.localize,
 			ConfigRoot:       cfg.configRoot,
 			HardwareProfiles: splitCSV(cfg.hwProfiles),
 			SensorErrors:     sensorErrorsFor(cfg),

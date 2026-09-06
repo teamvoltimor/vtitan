@@ -5,6 +5,7 @@ import (
 	"math/rand/v2"
 
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
@@ -37,6 +38,12 @@ type SimHardwareGateway struct {
 	kin    *kinematics.AckermannKinematics
 	rng    *rand.Rand
 	angles []float64
+
+	// localizer is nil unless cfg.Localize; when set, believed carries the
+	// scan-matched estimate the navigator is given in place of the true pose.
+	localizer    *localization.LidarLocalizer
+	believed     trackmodel.Waypoint
+	haveBelieved bool
 
 	state     kinematics.AckermannState
 	command   controllers.DriveCommand
@@ -86,6 +93,18 @@ func NewSimHardwareGateway(
 	}
 	g.initSensorErrors(seed)
 	g.buildAngles()
+	if cfg.Localize {
+		locCfg := localization.DefaultConfig()
+		if cfg.LocalizationConfig != nil {
+			locCfg = *cfg.LocalizationConfig
+		}
+		g.localizer = localization.New(track.Walls(), locCfg)
+		// Seed the prior at the true start: a race begins with the robot
+		// placed where the crew believes it is, and Python's gateway
+		// likewise starts from the scenario pose rather than the origin.
+		g.believed = trackmodel.Waypoint{X: initial.X, Y: initial.Y}
+		g.haveBelieved = true
+	}
 	g.refreshSensors()
 	return g
 }
@@ -133,17 +152,49 @@ func (g *SimHardwareGateway) PublishDrive(command controllers.DriveCommand) {
 	g.command = command
 }
 
-// GetCurrentPose returns the ground-truth kinematic pose. localize is not
-// implemented (TODO below), so this is always perfect odometry.
-func (g *SimHardwareGateway) GetCurrentPose() (trackmodel.Pose, bool) {
+// reportedYaw is the heading the robot BELIEVES it has: ground truth with no
+// arithmetic when no IMU error model is configured, otherwise the model's
+// drifted answer. The localizer takes yaw as accurate and does not search
+// over it, so it must be given the same value the navigator steers on.
+func (g *SimHardwareGateway) reportedYaw() float64 {
 	if g.imu == nil {
-		return trackmodel.Pose{X: g.state.X, Y: g.state.Y, Yaw: g.state.Yaw}, true
+		return g.state.Yaw
+	}
+	return g.imu.Yaw(g.state.Yaw, g.elapsedS, g.rotationRad)
+}
+
+// GetCurrentPose returns the pose the robot believes it has: the LIDAR
+// scan-matcher's estimate when cfg.Localize is set, otherwise the kinematic
+// pose (perfect odometry, offset by any configured start-placement error).
+func (g *SimHardwareGateway) GetCurrentPose() (trackmodel.Pose, bool) {
+	yaw := g.reportedYaw()
+	if g.localizer != nil && g.haveBelieved {
+		return trackmodel.Pose{X: g.believed.X, Y: g.believed.Y, Yaw: yaw}, true
+	}
+	if g.imu == nil {
+		return trackmodel.Pose{X: g.state.X, Y: g.state.Y, Yaw: yaw}, true
 	}
 	return trackmodel.Pose{
 		X:   g.state.X + g.startPosErrorX,
 		Y:   g.state.Y + g.startPosErrorY,
-		Yaw: g.imu.Yaw(g.state.Yaw, g.elapsedS, g.rotationRad),
+		Yaw: yaw,
 	}, true
+}
+
+// updateBelievedPose scan-matches the freshest sweep against the track walls
+// and carries the result forward as the robot's own position estimate. The
+// prior is the PREVIOUS estimate, never ground truth: feeding truth back in
+// would silently re-anchor the robot every tick and hide exactly the drift
+// this models.
+func (g *SimHardwareGateway) updateBelievedPose() {
+	if g.localizer == nil || len(g.scan.RangesM) == 0 {
+		return
+	}
+	nowS := g.elapsedS
+	g.believed = g.localizer.EstimatePosition(
+		g.believed, g.reportedYaw(), g.scan.RangesM, g.scan.AnglesRad, &nowS,
+	)
+	g.haveBelieved = true
 }
 
 // GetLidarScan returns the most recent simulated sweep (ranges + angles).
@@ -229,12 +280,18 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 
 func (g *SimHardwareGateway) lenScan() int { return len(g.scan.RangesM) }
 
-// refreshSensors casts rays from the sensor origin (chassis centre, matching
-// the simplified Go model — the LIDAR mount offset is NOT yet applied here;
-// TODO: offset the cast by RobotSpecs.LIDAR_MOUNT_X_OFFSET) and applies the
-// Gaussian noise + invalid-ray dropout the Python oracle models.
+// refreshSensors casts rays from the SENSOR origin -- LidarMountXOffsetM
+// forward of the chassis centre, matching SimulatedHardwareGateway's own
+// Pose.sensor_origin(LIDAR_MOUNT_X_OFFSET) -- and applies the Gaussian noise
+// + invalid-ray dropout the Python oracle models.
+//
+// Casting from the body centre instead (which this did until 2026-09-06) puts
+// every return 12.2 cm further away than the real sensor would see it, and
+// makes the LIDAR scan-matcher, which predicts ranges FROM the mount offset,
+// match against a sensor that does not exist.
 func (g *SimHardwareGateway) refreshSensors() {
-	sensorX, sensorY := g.state.X, g.state.Y
+	sensorX := g.state.X + g.cfg.LidarMountXOffsetM*math.Cos(g.state.Yaw)
+	sensorY := g.state.Y + g.cfg.LidarMountXOffsetM*math.Sin(g.state.Yaw)
 	ranges := g.track.RaycastScan(
 		sensorX, sensorY, g.state.Yaw,
 		g.angles, g.cfg.LidarMinRangeM, g.cfg.LidarMaxRangeM,
@@ -263,6 +320,8 @@ func (g *SimHardwareGateway) refreshSensors() {
 	ranges = controllers.SanitizeLidarRanges(ranges, g.cfg.LidarMaxRangeM)
 
 	g.scan = controllers.LidarScan{RangesM: ranges, AnglesRad: g.angles}
+
+	g.updateBelievedPose()
 }
 
 // Collided reports whether the chassis is currently touching a terminal
