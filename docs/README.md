@@ -61,6 +61,18 @@
 
 Bienvenidos al repositorio de V-Titan, el robot del Team Voltimor, que compite en la World Robot Olympiad 2026 en la categoría Futuros Ingenieros. Aquí encontrarás toda la información sobre el robot, incluyendo su código, modelos 3D, esquemas y documentación.
 
+<p align="center">
+    <img src="t-photos/team-photo.jpeg" alt="" width="400">
+    <br>
+    <i>Foto del Equipo, de izquierda a derecha: Ramón Álvarez, Sebastián Álvarez, Jesús Pérez (Padre, Mentor), Jesús Pérez</i>
+</p>
+
+Actualmente, este equipo está conformado por 3 miembros:
+
+- **Ramón Álvarez**, 20 años. [ralvarezdev](https://github.com/ralvarezdev). Ejerce como líder del equipo y es el encargado de la programación. Actualmente, trabaja en Automation Labs, y finalizó sus estudios en Ingeniería en Computación en URU.
+- **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado tanto de la programación, como de la documentación y la toma de decisiones con respecto a la lógica del robot. Actualmente, cursa el 1er trimestre de Ingeniería en Computación en URU.
+- **Jesús Pérez**, 16 años. [Ottorafaelpg](https://https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
+
 ## Estructura de la documentación
 
 Esta documentación es bastante extensa, por lo que decidimos dividir los contenidos de esta documentación en múltiples archivos para facilitar la lectura, los cuales están ubicados en la carpeta `docs`.
