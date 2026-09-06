@@ -286,7 +286,23 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	var signRouter *signrouter.SignRouter
 	var vision navigator.VisionGateway
 	if len(signs) > 0 {
-		signRouter, err = signrouter.NewSignRouter(signs, r.srCfg, startPose.Direction)
+		// BLIND withholds the sign LAYOUT, matching SweepConfig.blind's
+		// "withhold the corridor widths, the travel direction AND the sign
+		// layout": no scenario file exists on the mat, so the router starts
+		// EMPTY and ObservedSignMap.Publish appends each sign as the camera
+		// confirms it. Until 2026-09-06 the router was handed the true
+		// positions in blind too, which made discovery redundant and Go's
+		// blind arm a strictly easier round than Python's.
+		//
+		// The router is still constructed (non-nil is what identifies the
+		// Obstacles Challenge to Navigator) and the emulated camera still
+		// sees the TRUE signs -- that is the sensor, not knowledge. The
+		// pass-side scorer likewise keeps scoring against the true layout.
+		routerSigns := signs
+		if r.blind {
+			routerSigns = nil
+		}
+		signRouter, err = signrouter.NewSignRouter(routerSigns, r.srCfg, startPose.Direction)
 		if err != nil {
 			return Result{}, fmt.Errorf("native runner: building sign router %s: %w", sc.ID, err)
 		}
@@ -580,7 +596,7 @@ func (r *NativeRunner) loop(
 			prevLaps = lapsNow
 		}
 		if v := passSide.check(st.X, st.Y, st.Yaw); len(v) > 0 {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, v)
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, v, len(passSide.signs))
 			return res, nil
 		}
 
@@ -594,7 +610,7 @@ func (r *NativeRunner) loop(
 		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		if surface != collision.SurfaceNone {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, surface, false, passSide.violations())
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, surface, false, passSide.violations(), len(passSide.signs))
 			return res, nil
 		}
 
@@ -610,7 +626,7 @@ func (r *NativeRunner) loop(
 		// number in-time is measured against.
 		if nav.LapsCompleted() >= targetLaps &&
 			(pc == nil || !pc.AttemptAfterFinalLap() || pc.IsDone()) {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations())
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations(), len(passSide.signs))
 			return res, nil
 		}
 
@@ -619,13 +635,13 @@ func (r *NativeRunner) loop(
 			anchorX, anchorY = st.X, st.Y
 			anchorStep = steps
 		} else if (steps - anchorStep) >= noProgressWindow {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, true, passSide.violations())
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, true, passSide.violations(), len(passSide.signs))
 			return res, nil
 		}
 	}
 
 	// Timed out.
-	res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations())
+	res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations(), len(passSide.signs))
 	res.TimedOut = nav.LapsCompleted() < targetLaps
 	return res, nil
 }
@@ -642,6 +658,7 @@ func (r *NativeRunner) score(
 	surface collision.ContactSurface,
 	stuck bool,
 	passSideWrong []int,
+	trueSigns int,
 ) Result {
 	// collided is derived from the surface rather than passed alongside it,
 	// so the two can never disagree about whether the run ended in contact.
@@ -661,12 +678,14 @@ func (r *NativeRunner) score(
 	// every lap, so it can neither end a round nor be counted as one.
 	var routerWrongSide []int
 	var passRecords []signrouter.PassRecord
+	var discoveredSigns int
 	if sr := nav.SignRouter(); sr != nil {
 		for index := range sr.WrongSideViolations() {
 			routerWrongSide = append(routerWrongSide, index)
 		}
 		slices.Sort(routerWrongSide)
 		passRecords = sr.PassRecords()
+		discoveredSigns = len(sr.Signs())
 	}
 	passSideViolation := len(passSideWrong) > 0
 
@@ -692,6 +711,8 @@ func (r *NativeRunner) score(
 		Scenario:               sc.ID,
 		PassSideViolationSigns: passSideWrong,
 		RouterWrongSideSigns:   routerWrongSide,
+		DiscoveredSigns:        discoveredSigns,
+		TrueSigns:              trueSigns,
 		PassRecords:            passRecords,
 		CollisionXY:            []float64{cx, cy},
 		FinalPose:              []float64{st.X, st.Y, st.Yaw},
