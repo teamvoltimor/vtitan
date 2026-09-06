@@ -85,7 +85,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
 4. **Arquitectura de software y estrategia para superar obstáculos**
 	1. [Modelo de Detección YOLO](README.md#modelo-de-detección-yolo)
 	2. [Algoritmo PID](README.md#algoritmo-pid)
-	3.
+	3. []
 
 5. **Pensamiento sistémico y decisiones de ingeniería**
 	1.[]
@@ -577,7 +577,7 @@ Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema
 ## Chasis Inferior 
 
 <p align="center">
-	<img src="/3d-models/piñon-33-dientes-dirección.png" alt="Piñon de 33 dientes de dirección" 
+	<img src="../3d-models/current-models/piñon-33-dientes-dirección.png" alt="Piñon de 33 dientes de dirección" 
 width="350">
 	<br>
 	<i>Piñon de 33 dientes de dirección</i>
@@ -588,7 +588,7 @@ También es importante recalcar la base dentada del rin de las ruedas, o mejor d
 ## Chasis Inferior 
 
 <p align="center">
-	<img src="/3d-models/chasis-inferior.png" alt="Chasis Inferior" 
+	<img src="../3d-models/current-models/chasis-inferior.png" alt="Chasis Inferior" 
 width="350">
 	<br>
 	<i>Chasis Inferior</i>
@@ -625,7 +625,7 @@ Al efectuar toda la operación obtenemos como resultado que se necesita un torqu
 Así que, es claramente evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de manera mecánica, la forma en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
 
 <p align="center">
-	<img src="/docs/assets/images/misc/relacion-de-engranajes.jpg" alt="Relación de Engranajes" 
+	<img src="../docs/assets/images/misc/relacion-de-engranajes.jpg" alt="Relación de Engranajes" 
 width="350">
 	<br>
 	<i>Relación de Engranajes</i>
