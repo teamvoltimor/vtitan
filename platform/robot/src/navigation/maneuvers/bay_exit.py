@@ -822,7 +822,9 @@ class BayExit:
         # pocket, and the point of this leg is to buy room, not heading. The
         # turn that follows is the manoeuvre's own, toward the open side it
         # already identifies correctly.
-        if self._recovery_ticks_left > 0 or self._nose_in_contact(ranges_m, angles_rad, tuning):
+        if follower.BAY_EXIT_CONTACT_RECOVERY_TICKS > 0 and (
+            self._recovery_ticks_left > 0 or self._nose_in_contact(ranges_m, angles_rad, tuning)
+        ):
             if self._recovery_ticks_left <= 0:
                 self._recovery_ticks_left = follower.BAY_EXIT_CONTACT_RECOVERY_TICKS
                 self._contact_recoveries += 1

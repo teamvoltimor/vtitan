@@ -746,7 +746,7 @@ class CorridorFollowerParams(BaseModel):
     """
 
     BAY_EXIT_CONTACT_RECOVERY_TICKS: int = Field(
-        default=12, ge=1, validation_alias=_alias("BAY_EXIT_CONTACT_RECOVERY_TICKS")
+        default=0, ge=0, validation_alias=_alias("BAY_EXIT_CONTACT_RECOVERY_TICKS")
     )
     """Ticks of straight reverse commanded when the nose reads as touching.
 

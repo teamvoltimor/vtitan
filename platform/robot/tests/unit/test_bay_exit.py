@@ -220,7 +220,7 @@ def test_a_silent_forward_arc_backs_off_instead_of_steering() -> None:
     This is the state that ended run_20260906_112613 with the nose buried and
     normal driving then accelerating into the wall.
     """
-    tuning = tuning_with_overrides({})
+    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
     exit_maneuver = BayExit()
     command = exit_maneuver.command(
         (float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning
@@ -232,7 +232,7 @@ def test_a_silent_forward_arc_backs_off_instead_of_steering() -> None:
 
 def test_contact_range_backs_off_straight() -> None:
     """A reading below BAY_EXIT_CONTACT_DIST_M is contact, and reverses STRAIGHT."""
-    tuning = tuning_with_overrides({})
+    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
     contact = tuning.corridor_follower.BAY_EXIT_CONTACT_DIST_M - 0.01
     exit_maneuver = BayExit()
     command = exit_maneuver.command(
@@ -245,7 +245,7 @@ def test_contact_range_backs_off_straight() -> None:
 def test_the_recovery_is_held_for_its_full_count() -> None:
     """Held for a fixed count, because the arc is SILENT while in contact --
     'reverse until it reads clear' waits on the sensor that just went blind."""
-    tuning = tuning_with_overrides({})
+    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
     ticks = tuning.corridor_follower.BAY_EXIT_CONTACT_RECOVERY_TICKS
     exit_maneuver = BayExit()
     exit_maneuver.command((float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
@@ -261,7 +261,7 @@ def test_the_recovery_is_held_for_its_full_count() -> None:
 
 def test_a_clear_arc_does_not_trigger_recovery() -> None:
     """The normal manoeuvre is untouched when nothing is against the nose."""
-    tuning = tuning_with_overrides({})
+    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
     exit_maneuver = BayExit()
     exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
     assert exit_maneuver.contact_recoveries == 0
@@ -310,7 +310,7 @@ def test_rotation_release_needs_a_measurement() -> None:
 
 def test_contact_recovery_still_wins_over_a_completed_rotation() -> None:
     """Backing off the wall comes first -- driving out of it forward does not work."""
-    tuning = tuning_with_overrides({})
+    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
     target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
     exit_maneuver = BayExit()
     exit_maneuver.command(
