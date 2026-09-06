@@ -309,9 +309,14 @@ func New(p Params) (*Navigator, error) {
 		startMeasCfg = *p.StartMeasurementConfig
 	}
 
+	// A SignRouter is what identifies the Obstacles Challenge (see p.SignRouter),
+	// so the two challenges resolve their own pursuit overrides here, matching
+	// waypoint_controller.py's own for_open/for_obstacles split.
 	pursuitCfg := p.ControllersConfig
 	if p.SignRouter == nil {
 		pursuitCfg = pursuitCfg.ForOpenChallenge()
+	} else {
+		pursuitCfg = pursuitCfg.ForObstaclesChallenge()
 	}
 
 	n := &Navigator{

@@ -309,6 +309,9 @@ func PurePursuitSteer(xLocal, yLocal float64, cfg Config) float64 {
 		cfg.MinLookaheadDistM,
 		cfg.WheelbaseM,
 		cfg.MaxSteeringAngleRad,
+		// Uncompensated, matching parking's own Python call: it passes no
+		// yaw_gain_compensation, so it takes the shared default of 1.0.
+		1.0,
 	)
 }
 

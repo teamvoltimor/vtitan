@@ -36,6 +36,11 @@ type PursuitConfig struct {
 	CornerPreviewDistanceM float64 `mapstructure:"corner_preview_distance_m"`
 	// CornerTurnThresholdRad matches CORNER_TURN_THRESHOLD_RAD (rad).
 	CornerTurnThresholdRad float64 `mapstructure:"corner_turn_threshold_rad"`
+	// YawGainCompensation matches YAW_GAIN_COMPENSATION -- the base/Open
+	// value. ObstaclesYawGainCompensation matches
+	// OBSTACLES_YAW_GAIN_COMPENSATION and replaces it on an Obstacles run.
+	YawGainCompensation          float64 `mapstructure:"yaw_gain_compensation"`
+	ObstaclesYawGainCompensation float64 `mapstructure:"obstacles_yaw_gain_compensation"`
 }
 
 // DefaultPursuitTOMLPath is

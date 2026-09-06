@@ -34,11 +34,18 @@ const curvatureCoefficient = 2.0
 // explicit parameter here instead -- callers (WaypointController) thread
 // their own configured value through.
 func PurePursuitSteer(
-	xLocal, yLocal, minLookaheadDist, wheelbaseM, maxSteeringAngle float64,
+	xLocal, yLocal, minLookaheadDist, wheelbaseM, maxSteeringAngle, yawGainCompensation float64,
 ) float64 {
+	if yawGainCompensation <= 0.0 {
+		yawGainCompensation = 1.0
+	}
 	lookahead := max(math.Hypot(xLocal, yLocal), minLookaheadDist)
 	curvature := curvatureCoefficient * yLocal / (lookahead * lookahead)
-	steerAngle := math.Atan(curvature * wheelbaseM / wheelbaseHalfDivisor)
+	// Divide by the fraction of predicted yaw the plant actually delivers, so
+	// the angle asked for is the one that produces THIS curvature rather than
+	// the one a perfect bicycle would need. 1.0 leaves the geometric answer
+	// untouched, matching pure_pursuit_steer's own default.
+	steerAngle := math.Atan(curvature * wheelbaseM / wheelbaseHalfDivisor / yawGainCompensation)
 	steerAngle = Clamp(steerAngle, -maxSteeringAngle, maxSteeringAngle)
 	return steerAngle / maxSteeringAngle
 }

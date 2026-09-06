@@ -37,12 +37,29 @@ type Config struct {
 	// OpenLookaheadLong REPLACES LookaheadLong on an Open Challenge run,
 	// via ForOpenChallenge. Zero means no override, so an Obstacles run and
 	// every direct DefaultConfig() caller keep the base value.
-	OpenLookaheadLong      float64
-	LookaheadTransition    float64
-	LookaheadBlendStart    float64
-	SteerKp                float64
-	MaxSteeringRate        float64
-	CornerTurnThresholdRad float64
+	OpenLookaheadLong float64
+	// YawGainCompensation is the fraction of the geometrically predicted yaw
+	// the chassis actually delivers, in (0, 1]. Pure pursuit is a bicycle
+	// model, so it assumes the plant turns exactly as predicted; dividing by
+	// this asks for the angle that yields the curvature actually wanted.
+	// 1.0 is the uncompensated geometric answer.
+	YawGainCompensation float64
+	// ObstaclesYawGainCompensation REPLACES YawGainCompensation on an
+	// Obstacles run, via ForObstaclesChallenge. Zero means no override, so
+	// the Open path and every direct DefaultConfig() caller keep the base
+	// value.
+	//
+	// Deliberately NOT given a Default* constant: Python's own
+	// OBSTACLES_YAW_GAIN_COMPENSATION defaults to None and the shipped 0.55
+	// comes from pursuit.toml, so baking it in here would be a second source
+	// of truth AND would make ForObstaclesChallenge stop being the identity
+	// on an un-overridden config.
+	ObstaclesYawGainCompensation float64
+	LookaheadTransition          float64
+	LookaheadBlendStart          float64
+	SteerKp                      float64
+	MaxSteeringRate              float64
+	CornerTurnThresholdRad       float64
 
 	// Lidar sectors (sensors/lidar_sectors.toml).
 	FrontHalfFovDeg         float64
@@ -98,11 +115,14 @@ const (
 	DefaultLookaheadShort = 0.16
 	DefaultLookaheadLong  = 0.32
 	// DefaultOpenLookaheadLong matches open_lookahead_long.
-	DefaultOpenLookaheadLong      = 0.24
-	DefaultLookaheadTransition    = 0.30
-	DefaultLookaheadBlendStart    = 0.70
-	DefaultSteerKp                = 1.2
-	DefaultMaxSteeringRate        = 1.2
+	DefaultOpenLookaheadLong   = 0.24
+	DefaultLookaheadTransition = 0.30
+	DefaultLookaheadBlendStart = 0.70
+	DefaultSteerKp             = 1.2
+	DefaultMaxSteeringRate     = 1.2
+	// DefaultYawGainCompensation matches pursuit.toml's yaw_gain_compensation:
+	// the base/Open value, i.e. compensation OFF.
+	DefaultYawGainCompensation    = 1.0
 	DefaultCornerTurnThresholdRad = 0.35
 
 	DefaultFrontHalfFovDeg         = 30.0
@@ -173,6 +193,7 @@ func DefaultConfig() Config {
 		SteerKp:                DefaultSteerKp,
 		MaxSteeringRate:        DefaultMaxSteeringRate,
 		CornerTurnThresholdRad: DefaultCornerTurnThresholdRad,
+		YawGainCompensation:    DefaultYawGainCompensation,
 
 		FrontHalfFovDeg:         DefaultFrontHalfFovDeg,
 		ThreatHalfFovDeg:        DefaultThreatHalfFovDeg,
@@ -220,6 +241,13 @@ func DefaultConfig() Config {
 // routes PAST at ~0.175 m, so the shared value fires on geometry the planner
 // chose on purpose.
 func (c Config) ForObstaclesChallenge() Config {
+	// Also carries PurePursuitParams.for_obstacles_challenge: Obstacles is
+	// the only challenge that compensates for the plant's yaw gain, so an
+	// uncompensated pursuit command comes out ~1.8x too wide there and the
+	// chassis corners wider than the planned lane.
+	if c.ObstaclesYawGainCompensation != 0.0 {
+		c.YawGainCompensation = c.ObstaclesYawGainCompensation
+	}
 	if c.ObstaclesContactDist == nil {
 		return c
 	}
@@ -270,6 +298,7 @@ func (c Config) NewWaypointController() *WaypointController {
 		c.MaxSteeringRate,
 		c.ControllerReachedDistanceM,
 		c.CornerTurnThresholdRad,
+		c.YawGainCompensation,
 	)
 }
 
