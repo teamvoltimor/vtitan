@@ -73,6 +73,21 @@ type Config struct {
 	// simulation.toml's detection_confidence; unported (plan §2), defaulted
 	// to 0.9.
 	DetectionConfidence float64
+
+	// NoProgressWindowS / NoProgressDisplacementM end a run early, scored as
+	// stuck, when the chassis fails to move NoProgressDisplacementM in
+	// NoProgressWindowS. They mirror SimulationParams.NO_PROGRESS_WINDOW_S
+	// (30.0) and NO_PROGRESS_DISPLACEMENT_M (0.08).
+	//
+	// These were hardcoded at 2.0 s / 0.05 m until 2026-09-06 -- a FIFTEENFOLD
+	// shorter window than Python's. An escape manoeuvre reverses, reorients
+	// and re-approaches, which cannot finish inside two seconds, so the runner
+	// killed the run mid-escape: 142/256 blind runs ended stuck, 138 of them
+	// in a CORNER, at the LIDAR's 0.045 m floor, with ZERO collisions, having
+	// travelled a median 4.63 m. Python escapes 33 times a lap on the same
+	// corpus and recovers.
+	NoProgressWindowS       float64
+	NoProgressDisplacementM float64
 }
 
 // DefaultConfig returns the all-default Config: 20 Hz control, 360-ray LIDAR
@@ -81,19 +96,21 @@ type Config struct {
 // unported simulation.toml fields (plan §2), not measured values.
 func DefaultConfig() Config {
 	return Config{
-		ControlHz:           20.0,
-		LidarHz:             0.0,
-		LidarSamples:        360,
-		LidarMinRangeM:      0.15,
-		LidarMaxRangeM:      8.0,
-		LidarNoiseStd:       0.03,
-		InvalidRayRate:      0.01,
-		Localize:            false,
-		CollisionMarginM:    0.0,
-		TrackMaxCoordM:      3.0,
-		ChassisLengthM:      0.30,
-		ChassisWidthM:       0.194,
-		DetectionConfidence: 0.9,
+		ControlHz:               20.0,
+		NoProgressWindowS:       30.0,
+		NoProgressDisplacementM: 0.08,
+		LidarHz:                 0.0,
+		LidarSamples:            360,
+		LidarMinRangeM:          0.15,
+		LidarMaxRangeM:          8.0,
+		LidarNoiseStd:           0.03,
+		InvalidRayRate:          0.01,
+		Localize:                false,
+		CollisionMarginM:        0.0,
+		TrackMaxCoordM:          3.0,
+		ChassisLengthM:          0.30,
+		ChassisWidthM:           0.194,
+		DetectionConfidence:     0.9,
 	}
 }
 
