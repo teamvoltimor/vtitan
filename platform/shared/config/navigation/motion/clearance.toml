@@ -16,20 +16,30 @@ path_margin = 0.10     # Extra clearance beyond chassis half-width still counted
 # forward into it. ~0.4 s / 25 mm at creep, with a cooldown that only counts
 # down while CLEAR so the pair cannot oscillate against the same obstacle.
 #
-# SHIPS DISABLED (0). Measured back-to-back on the 256 corpus 2026-09-06:
+# SHIPS DISABLED (0), and the trail gate did not rescue it. Three back-to-back
+# passes over the 256 corpus, 2026-09-06, differing only in this value and the
+# gate:
 #
-#            ticks=0   ticks=8
-#   in-time    149       150      flat (1 case is noise)
-#   laps>=3    150       151      flat
-#   stuck       26        15      BETTER -- this is what it is for
-#   collisions   8        13      WORSE (wall 4 -> 10)
-#   timeouts    65        70      worse
+#                  off(0)   ungated(8)   trail-gated(8)
+#   in-time         149        150           150
+#   laps>=3         150        151           151
+#   stuck            26         15            24
+#   collisions        8         13            11
+#     of which wall   4         10             9
+#   timeouts         65         70            66
+#   rev-run           5          4             2
 #
-# It does unstick the chassis, and it pays for that by reversing into walls:
-# the leg is centred and blind, and this mount has no rear sensing. Enabling it
-# wants `trail_clearance_behind` (src/navigation/utils.py) as a gate, so the
-# reverse only runs over ground the footprint has already occupied. Until then
-# the headline is flat and the composition is worse, which is not a change.
+# Gating gave back the timeouts and most of the extra collisions, and gave back
+# the stall benefit with them -- the trail rarely confirms 6.1 cm of covered
+# ground at the moment the chassis is against something, which is precisely
+# when it has stopped moving and stopped laying trail. What survives is +5 wall
+# contacts against a FLAT headline, so the behaviour is not earned in either
+# form. The code stays, measured and documented; the value stays 0.
+#
+# The hardware case it was written for (run_20260906_121254: ten seconds of
+# +0.152 m/s against a green pillar) is real and still unaddressed -- but the
+# sim says a blind reverse is not the answer, and this mount has no rear
+# sensing to make a seeing one.
 contact_reverse_ticks = 0
 contact_reverse_cooldown_ticks = 20
 

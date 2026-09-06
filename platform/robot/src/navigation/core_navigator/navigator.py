@@ -1124,7 +1124,19 @@ class CoreNavigator(EscapeRecovery):
             # `_contact_reverse_cooldown` stops the pair from oscillating
             # against the same pillar -- back off once, then drive, and only
             # re-arm after the chassis has actually been clear again.
-            if self._contact_reverse_left <= 0 and self._contact_reverse_cooldown <= 0:
+            # Gated on the TRAIL, not on a rear sensor this mount does not
+            # have. Ungated, the leg is centred and blind and backs into
+            # whatever is behind: measured on the 256 corpus, it took stalls
+            # 26 -> 15 and wall collisions 4 -> 10, for a flat headline. The
+            # trail is a record of where the footprint has actually BEEN, so
+            # reversing over it needs no rear vision -- the same gate the
+            # stuck-escape reverse already uses, and an empty trail refuses.
+            reverse_m = self._speed.creep_mps() * self._clearance.CONTACT_REVERSE_TICKS / self._tuning.control.CONTROL_HZ
+            if (
+                self._contact_reverse_left <= 0
+                and self._contact_reverse_cooldown <= 0
+                and self._trail_confirms_reverse(reverse_m)
+            ):
                 self._contact_reverse_left = self._clearance.CONTACT_REVERSE_TICKS
             speed = self._speed.creep_mps()
         elif forward_clearance < self._clearance.SLOW_DIST:
