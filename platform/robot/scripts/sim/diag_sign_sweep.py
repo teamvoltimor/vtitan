@@ -519,7 +519,7 @@ class SweepConfig:
     that distance without touching the deformation itself.
     """
 
-    park: bool = True
+    park: bool = False
     """Attempt the parking maneuver after the final lap.
 
     ``False`` scores the run on laps alone. The parking blocks stay on the mat
@@ -527,6 +527,17 @@ class SweepConfig:
     open problem and parking sits downstream of it, so while avoidance is being
     measured a clean three-lap run should read as a clean three-lap run instead
     of as a ParkController give-up.
+
+    Drives ``ParkingParams.ATTEMPT_AFTER_FINAL_LAP`` as well as the controller
+    wiring, so the two cannot disagree.
+
+    DEFAULT FLIPPED TO FALSE 2026-09-05, tracking the shipped default. It has
+    to track it: a sweep whose baseline is not the round the robot actually
+    drives measures a configuration nobody ships. Every arm measured before
+    that date pursued the bay after its laps, and on the 256 corpus that alone
+    accounts for ``in-time`` 62 against 158 and 51 collisions against 4 -- so
+    NO pre-flip sweep number is comparable to a post-flip one, whatever else
+    the arm changed.
     """
 
     known_signs: bool = False
@@ -898,6 +909,13 @@ class SweepConfig:
                 None if self.wall_clearance is None else self.wall_clearance - chassis_half_diagonal_m()
             ),
         )
+        # The harness switch and the shipped tuning flag are ONE knob, not two.
+        # `park` already decides whether the controller is wired at all; making
+        # it drive ATTEMPT_AFTER_FINAL_LAP too keeps a `park=True` arm actually
+        # pursuing the bay. Without this the flag silently wins and every
+        # "with parking" arm measures the same round as its control -- which is
+        # exactly what the first smoke run after the change reported.
+        parking = _with(base.parking, ATTEMPT_AFTER_FINAL_LAP=self.park)
         sign_discovery = _with(
             base.sign_discovery,
             MAX_INGEST_RANGE_M=self.ingest_range,
@@ -914,6 +932,7 @@ class SweepConfig:
             sign_router=sign_router,
             sign_discovery=sign_discovery,
             corridor_follower=corridor_follower,
+            parking=parking,
         )
 
 
@@ -5390,9 +5409,9 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # cornering defect anywhere and every reversal ever seen is the parking
     # maneuver.
     "lane-park": [
-        SweepConfig("lane, sighted, parking ON", sign_lane_planner=True),
+        SweepConfig("lane, sighted, parking ON", sign_lane_planner=True, park=True),
         SweepConfig("lane, sighted, parking OFF", sign_lane_planner=True, park=False),
-        SweepConfig("lane, blind, parking ON", sign_lane_planner=True, blind=True),
+        SweepConfig("lane, blind, parking ON", sign_lane_planner=True, blind=True, park=True),
         SweepConfig("lane, blind, parking OFF", sign_lane_planner=True, blind=True, park=False),
     ],
     # Sign avoidance on its own, with parking deferred until it is solved.
@@ -5400,8 +5419,8 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     "no-park": [
         SweepConfig("laps only, sighted", park=False),
         SweepConfig("laps only, blind", blind=True, park=False),
-        SweepConfig("with parking, sighted"),
-        SweepConfig("with parking, blind", blind=True),
+        SweepConfig("with parking, sighted", park=True),
+        SweepConfig("with parking, blind", blind=True, park=True),
     ],
     # What commit hysteresis is worth. Both arms in one run, deliberately.
     "hysteresis": [
