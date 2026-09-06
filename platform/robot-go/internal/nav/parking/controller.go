@@ -69,6 +69,14 @@ const (
 // NewParkController builds a ParkController from explicit geometry and tuning.
 // speed defaults to cfg.DefaultSpeedMPS when zero; maxFrames defaults to
 // cfg.DefaultMaxFrames when zero.
+// AttemptAfterFinalLap reports whether the round should pursue the bay once
+// the final lap is banked, mirroring ParkingParams.ATTEMPT_AFTER_FINAL_LAP.
+// The controller is constructed either way -- deferring the pursuit must not
+// change what the scenario contains -- so both the navigator's finish branch
+// and the sim runner's stop condition consult this rather than the
+// controller's mere existence.
+func (p *ParkController) AttemptAfterFinalLap() bool { return p.cfg.AttemptAfterFinalLap }
+
 func NewParkController(
 	lot ParkingLot,
 	section trackmodel.Section,

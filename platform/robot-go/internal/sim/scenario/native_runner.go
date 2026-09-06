@@ -578,7 +578,13 @@ func (r *NativeRunner) loop(
 		// cleanly or gave up), matching the Python run loop's
 		// `laps_completed >= num_laps and (pc is None or pc.is_done)`.
 		pc := nav.ParkController()
-		if nav.LapsCompleted() >= targetLaps && (pc == nil || pc.IsDone()) {
+		// The runner must read the same flag as handleFinish, not just
+		// IsDone: with the pursuit deferred the controller exists and never
+		// completes, so an IsDone-only break keeps stepping a robot already
+		// at rest and charges the whole budget to sim_time_s -- the exact
+		// number in-time is measured against.
+		if nav.LapsCompleted() >= targetLaps &&
+			(pc == nil || !pc.AttemptAfterFinalLap() || pc.IsDone()) {
 			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false)
 			return res, nil
 		}

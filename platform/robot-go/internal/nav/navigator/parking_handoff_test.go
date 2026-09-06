@@ -23,7 +23,12 @@ func TestParkingHandoff_EngagesNearStagingAndDrivesTheManeuver(t *testing.T) {
 		Block1: parking.BlockPosition{X: 1.00, Y: 0.10},
 		Block2: parking.BlockPosition{X: 1.45, Y: 0.10},
 	}
-	pc := parking.NewParkController(lot, trackmodel.South, trackmodel.Counterclockwise, parking.DefaultConfig(), 0, 0)
+	// The pursuit ships DEFERRED, so this test opts in explicitly: it is
+	// about the handoff mechanism, which only runs when the bay is pursued.
+	// See TestParkingHandoff_DeferredHoldsInsteadOfPursuing for the default.
+	cfg := parking.DefaultConfig()
+	cfg.AttemptAfterFinalLap = true
+	pc := parking.NewParkController(lot, trackmodel.South, trackmodel.Counterclockwise, cfg, 0, 0)
 
 	// A single-waypoint "lap" at (1.225, 0.5): CornerForPosition classifies
 	// it South (default CornerMinM/MaxM 1.0/2.0), matching pc.Section(), and
@@ -93,6 +98,48 @@ func TestParkingHandoff_NilParkControllerHoldsAtFinish(t *testing.T) {
 	debug := nav.DebugSnapshot()
 	if debug.Phase != navigator.PhaseFinishedHold {
 		t.Fatalf("Phase = %v, want PhaseFinishedHold", debug.Phase)
+	}
+	cmd, ok := gateway.lastDrive()
+	if !ok || cmd.SpeedMPS != 0.0 || cmd.SteeringNorm != 0.0 {
+		t.Errorf("lastDrive() = %+v, ok=%v, want a zero DriveCommand", cmd, ok)
+	}
+}
+
+// TestParkingHandoff_DeferredHoldsInsteadOfPursuing pins the SHIPPED default:
+// a ParkController is attached and the robot is parked right next to the
+// staging point, yet the round ends holding in the finish section rather than
+// engaging. This is the same geometry as
+// TestParkingHandoff_EngagesNearStagingAndDrivesTheManeuver -- the ONLY
+// difference is AttemptAfterFinalLap -- so if the default ever flips back,
+// one of the two fails rather than both quietly agreeing.
+func TestParkingHandoff_DeferredHoldsInsteadOfPursuing(t *testing.T) {
+	t.Parallel()
+
+	lot := parking.ParkingLot{
+		Block1: parking.BlockPosition{X: 1.00, Y: 0.10},
+		Block2: parking.BlockPosition{X: 1.45, Y: 0.10},
+	}
+	cfg := parking.DefaultConfig()
+	if cfg.AttemptAfterFinalLap {
+		t.Fatal("DefaultConfig().AttemptAfterFinalLap = true, want the shipped false")
+	}
+	pc := parking.NewParkController(lot, trackmodel.South, trackmodel.Counterclockwise, cfg, 0, 0)
+
+	const wpX, wpY = 1.225, 0.5
+	nav, gateway := newNavigator(t, func(p *navigator.Params) {
+		p.Waypoints = []trackmodel.Waypoint{{X: wpX, Y: wpY}}
+		p.NumLaps = 1
+		p.ParkController = pc
+	})
+	gateway.setPose(wpX, wpY, 0.0)
+
+	nav.Step() // reach the waypoint
+	nav.Step() // wrap the lap
+	nav.Step() // finish: pursuit deferred, so hold
+
+	debug := nav.DebugSnapshot()
+	if debug.Phase != navigator.PhaseFinishedHold {
+		t.Fatalf("Phase = %v, want PhaseFinishedHold (pursuit deferred)", debug.Phase)
 	}
 	cmd, ok := gateway.lastDrive()
 	if !ok || cmd.SpeedMPS != 0.0 || cmd.SteeringNorm != 0.0 {

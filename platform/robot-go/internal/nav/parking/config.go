@@ -90,6 +90,11 @@ type Config struct {
 	// WallStandoffM is the closest approach to the field wall before ENTER
 	// gives up.
 	WallStandoffM float64
+	// AttemptAfterFinalLap reports whether the navigator should pursue the
+	// bay at all once the final lap is banked. False holds position in the
+	// finish section instead, which is what ships.
+	AttemptAfterFinalLap bool
+
 	// MarkerStandoffM is the closest approach to a parking-bay marker fin
 	// before ENTER gives up.
 	MarkerStandoffM float64
@@ -125,6 +130,8 @@ const (
 	DefaultWallStandoffM = 0.05
 	// DefaultMarkerStandoffM matches MARKER_STANDOFF_M.
 	DefaultMarkerStandoffM = 0.01
+	// DefaultAttemptAfterFinalLap matches ATTEMPT_AFTER_FINAL_LAP.
+	DefaultAttemptAfterFinalLap = false
 
 	// DefaultApproachClearanceM matches waypoints.ARC_RADIUS -- the staging
 	// standoff in front of the bay opening.
@@ -198,6 +205,7 @@ func DefaultConfig() Config {
 		WheelbaseM:              DefaultWheelbaseM,
 		WallStandoffM:           DefaultWallStandoffM,
 		MarkerStandoffM:         DefaultMarkerStandoffM,
+		AttemptAfterFinalLap:    DefaultAttemptAfterFinalLap,
 		DefaultSpeedMPS:         DefaultDefaultSpeedMPS,
 		ChassisLengthM:          DefaultChassisLengthM,
 		ChassisWidthM:           DefaultChassisWidthM,
@@ -236,6 +244,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.MinLookaheadDistM = loaded.MinLookaheadDistM
 		cfg.WallStandoffM = loaded.WallStandoffM
 		cfg.MarkerStandoffM = loaded.MarkerStandoffM
+		cfg.AttemptAfterFinalLap = loaded.AttemptAfterFinalLap
 		// Yaw tolerance tracks the wheelbase that feeds it; default keeps the
 		// literal value until robot.toml is applied below.
 		cfg.YawTolerance = math.Atan2(loaded.ParallelToleranceM, cfg.WheelbaseM)
