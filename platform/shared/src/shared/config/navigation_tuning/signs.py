@@ -661,6 +661,29 @@ class SignDiscoveryParams(BaseModel):
     ASSOCIATION_DIST_M: float = Field(default=0.25, validation_alias=_alias("ASSOCIATION_DIST_M"))
     MIN_HITS: int = Field(default=3, validation_alias=_alias("MIN_HITS"))
     MAX_PILLAR_ASPECT: float = Field(default=1.0, validation_alias=_alias("MAX_PILLAR_ASPECT"))
+
+    FRAME_EDGE_TOLERANCE_PX: float = Field(
+        default=2.0, ge=0.0, validation_alias=_alias("FRAME_EDGE_TOLERANCE_PX")
+    )
+    """How close to the frame border a box edge must be to count as CLIPPED.
+
+    A clipped box's aspect ratio is not a measurement of the object's shape, so
+    ``MAX_PILLAR_ASPECT`` is not applied to one. A pillar the robot is closing
+    on grows until it runs out of frame: its height stops increasing while its
+    width keeps going, and the ratio crosses 1.0 with nothing about the pillar
+    having changed.
+
+    Measured on run_20260906_145546 (23.4-24.6 s): a red pillar, confidence
+    0.47-0.84, x_max pinned at 1536 for every frame, w/h climbing 0.33 -> 1.27
+    as it approached -- rejected exactly when nearest. Across that run and
+    _145909, 304 of the 500 red detections the aspect gate rejects (61%) are
+    frame-clipped, against 22 of 43 for green, which is why the gate cost red
+    so much more than green.
+
+    2 px rather than 0: the detector's boxes are floats and land a fraction
+    short of the border as often as exactly on it.
+    """
+
     """Widest box (width/height) still accepted as a traffic-sign pillar.
 
     A pillar is taller than it is wide by construction, so a box wider than tall

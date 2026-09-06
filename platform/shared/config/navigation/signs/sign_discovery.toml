@@ -14,4 +14,10 @@ robot_corridor_flip_ticks = 5     # ticks the robot's own corridor must settle b
 # genuine green pillars sit at w/h p90 = 0.85. Neither area nor confidence
 # separates the two -- only aspect does. 0.0 disables.
 max_pillar_aspect = 1.0
+# A CLIPPED box is exempt from the aspect test: its ratio is not a measurement
+# of the object's shape. A pillar being approached runs out of frame, its height
+# stops growing while its width does not, and w/h crosses 1.0 with nothing about
+# the pillar having changed. 61% of the red detections the gate was rejecting
+# were clipped (run_20260906_145546 / _145909).
+frame_edge_tolerance_px = 2.0
 

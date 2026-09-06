@@ -105,10 +105,31 @@ def detection_to_observation(
     # seeding a sign every frame it is in view. Colour and confidence cannot do
     # it: those boxes carry the RED label at p50 confidence 0.79. See
     # SignDiscoveryParams.MAX_PILLAR_ASPECT for the measurement.
+    #
+    # The test is SKIPPED for a box clipped by the frame, because the aspect
+    # ratio of a clipped box is not a measurement of the object's shape. A
+    # pillar the robot is closing on grows until it runs out of frame: its
+    # height then stops increasing while its width keeps going, and the ratio
+    # crosses 1.0 with nothing about the pillar having changed. Traced on
+    # run_20260906_145546 at 23.4-24.6 s -- a red pillar detected at 0.47-0.84
+    # confidence, x_max pinned at the frame edge for every frame, w/h climbing
+    # 0.33 -> 1.27 as it approached, rejected exactly when it was nearest and
+    # mattered most. Across two runs, 304 of the 500 red detections this gate
+    # rejects (61%) are frame-clipped.
     bbox_for_shape = det.as_bbox()
     height_px = bbox_for_shape.y_max - bbox_for_shape.y_min
+    width_px = bbox_for_shape.x_max - bbox_for_shape.x_min
     max_aspect = tuning.sign_discovery.MAX_PILLAR_ASPECT
-    if max_aspect > 0.0 and height_px > 0 and (bbox_for_shape.x_max - bbox_for_shape.x_min) / height_px > max_aspect:
+    frame_w = float(RobotSpecs.CAMERA_WIDTH)
+    frame_h = float(RobotSpecs.CAMERA_HEIGHT)
+    edge = tuning.sign_discovery.FRAME_EDGE_TOLERANCE_PX
+    clipped = (
+        bbox_for_shape.x_min <= edge
+        or bbox_for_shape.y_min <= edge
+        or bbox_for_shape.x_max >= frame_w - edge
+        or bbox_for_shape.y_max >= frame_h - edge
+    )
+    if max_aspect > 0.0 and not clipped and height_px > 0 and width_px / height_px > max_aspect:
         return None
     world = _detection_to_world(
         det,

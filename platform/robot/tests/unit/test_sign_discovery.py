@@ -18,6 +18,7 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, Pose, SignColor, TrafficSignObservation, Waypoint
 
@@ -296,6 +297,38 @@ class TestPillarAspectGate:
     def test_boundary_is_inclusive(self) -> None:
         det = self._detection(100.0, 100.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is not None
+
+    @staticmethod
+    def _clipped_detection(width_px: float, height_px: float) -> Detection:
+        """A wide box running off the RIGHT edge of the frame, as a near pillar does."""
+        x_max = float(RobotSpecs.CAMERA_WIDTH)
+        y_centre = 500.0
+        return Detection(
+            class_name=SignColor.RED,
+            confidence=0.83,
+            bbox=(x_max - width_px, y_centre - height_px / 2, x_max, y_centre + height_px / 2),
+            x=x_max - width_px / 2,
+            y=y_centre,
+            width=width_px,
+            height=height_px,
+            area=width_px * height_px,
+        )
+
+    def test_a_clipped_wide_box_is_kept(self) -> None:
+        """A clipped box's aspect ratio is not a measurement of its shape.
+
+        run_20260906_145546, 23.4-24.6 s: a red pillar with x_max pinned at the
+        frame edge every frame, w/h climbing 0.33 -> 1.27 as the robot closed on
+        it, rejected exactly when it was nearest. 61% of the red detections this
+        gate rejected across two runs were frame-clipped.
+        """
+        det = self._clipped_detection(428.0, 337.0)  # w/h 1.27, the measured shape
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is not None
+
+    def test_an_unclipped_wide_box_is_still_rejected(self) -> None:
+        """The gate still does its original job on boxes fully inside the frame."""
+        det = self._detection(428.0, 337.0)
+        assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is None
 
     def test_zero_disables_the_gate(self) -> None:
         tuning = NavigationTuning.load_default()
