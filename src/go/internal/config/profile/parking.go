@@ -33,6 +33,13 @@ type ParkingConfig struct {
 	// MarkerStandoffM matches MARKER_STANDOFF_M -- closest approach to a
 	// parking-bay marker fin before the maneuver gives up.
 	MarkerStandoffM float64 `mapstructure:"marker_standoff_m"`
+	// AttemptAfterFinalLap matches ATTEMPT_AFTER_FINAL_LAP -- whether to
+	// pursue the parking bay once the final lap is banked. Ships false: the
+	// bay is geometrically unreachable, so the pursuit only spends clock and
+	// contact after the laps are already won (4e061f6f). Mirrored here
+	// 2026-09-06; Go had never read the key, so the Python-side fix was
+	// invisible to every Go corpus number taken since.
+	AttemptAfterFinalLap bool `mapstructure:"attempt_after_final_lap"`
 }
 
 // DefaultParkingTOMLPath is

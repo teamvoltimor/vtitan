@@ -158,8 +158,10 @@ func (n *Navigator) Reset() {
 // false if the robot should keep navigating toward the parking corridor.
 func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) bool {
 	pc := n.parkController
-	if pc == nil {
-		// Open Challenge: no parking maneuver -- hold position.
+	if pc == nil || !pc.AttemptAfterFinalLap() {
+		// Open Challenge (no maneuver), or Obstacles with the pursuit
+		// deferred: hold position in the finish section. Matches
+		// _handle_finish's `pc is None or not ATTEMPT_AFTER_FINAL_LAP`.
 		n.holdFinished(robotX, robotY, robotYaw)
 		return true
 	}
