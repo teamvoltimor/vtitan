@@ -34,7 +34,7 @@ instead of merging into one. Fixed here by wrapping the bin centre back into
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_side_ray_robustness.py \
-        data/runs_pulled/run_XXXXXXXX_XXXXXX [--window-deg 5] [--near-histogram] [--dropout-symmetry]
+        data/live/runs/run_XXXXXXXX_XXXXXX [--window-deg 5] [--near-histogram] [--dropout-symmetry]
 """
 
 from __future__ import annotations

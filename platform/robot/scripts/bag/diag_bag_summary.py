@@ -2,7 +2,7 @@
 trajectory (direction/section changes, pose extent), and drive command stats.
 
 Usage:
-    pixi run -e dev python scripts/bag/diag_bag_summary.py data/runs_pulled/run_XXXXXXXX_XXXXXX
+    pixi run -e dev python scripts/bag/diag_bag_summary.py data/live/runs/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

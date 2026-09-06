@@ -13,7 +13,7 @@ re-fit: a heading that is wrong by pi does not merely cost more on one scan, it
 walks the position estimate the wrong way down the corridor.
 
 Usage:
-    pixi run -e dev python scripts/bag/diag_yaw_flip_replay.py data/runs_pulled/run_XXXXXXXX_XXXXXX
+    pixi run -e dev python scripts/bag/diag_yaw_flip_replay.py data/live/runs/run_XXXXXXXX_XXXXXX
 """
 
 from __future__ import annotations

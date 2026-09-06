@@ -14,7 +14,7 @@ position estimate's displacement projected onto its own heading must be
 positive. A run that violates it is mislocalising in the one way the rest of
 the stack cannot detect or recover from.
 
-Bags live in the repo-root ``data/runs_pulled/`` and are gitignored (pulled
+Bags live in the repo-root ``data/live/runs/`` and are gitignored (pulled
 from the Pi 5 with ``scripts/sync/pull-runs-from-pi5.sh``), so these tests
 skip when absent rather than fail.
 """
@@ -36,7 +36,7 @@ from shared.config.constants import RobotSpecs
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
-_BAG_ROOT = Path(__file__).resolve().parents[4] / "data" / "runs_pulled"
+_BAG_ROOT = Path(__file__).resolve().parents[4] / "data" / "live" / "runs"
 _NAV_DEBUG_TOPIC = RosTopicConfig.load_default().navigation.nav_debug
 # The window that matters is the opening drive, before any escape maneuver has
 # had a chance to reorient the robot: escapes reverse on purpose, so "moved

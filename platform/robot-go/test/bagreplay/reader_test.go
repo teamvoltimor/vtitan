@@ -15,7 +15,7 @@ import (
 // must not go red over a missing local artifact.
 //
 // VTITAN_BAG_DIR overrides the default, which is the newest run under the
-// repo-root data/runs_pulled tree (shared by the Python and Go stacks).
+// repo-root data/live/runs tree (shared by the Python and Go stacks).
 func bagDir(t *testing.T) string {
 	t.Helper()
 

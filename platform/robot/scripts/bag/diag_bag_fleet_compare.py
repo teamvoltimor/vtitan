@@ -12,7 +12,7 @@ start was measured.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_fleet_compare.py \
-        data/runs_pulled/run_A data/runs_pulled/run_B ...
+        data/live/runs/run_A data/live/runs/run_B ...
 """
 
 from __future__ import annotations

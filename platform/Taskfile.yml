@@ -1270,7 +1270,7 @@ tasks:
   robot:pull-runs:
     desc: >-
       Pull recorded rosbag runs (mcaps) from the Pi 5's ~/vtitan_runs into
-      data/runs_pulled/ (usage: task robot:pull-runs [PATTERN=run_20260809]
+      data/live/runs/ (usage: task robot:pull-runs [PATTERN=run_20260809]
       [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Lists
       runs on the Pi 5 and skips any that already exist locally -- only
       copies what's missing. PATTERN defaults to every run; pass a run name
@@ -1285,7 +1285,7 @@ tasks:
 
   robot:push-runs:
     desc: >-
-      Push locally-held rosbag runs (mcaps) from data/runs_pulled/ up into
+      Push locally-held rosbag runs (mcaps) from data/live/runs/ up into
       the Pi 5's ~/vtitan_runs (usage: task robot:push-runs [PATTERN=run_20260809]
       [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Keeps both
       sides in sync so a Pi 5 reformat/reflash doesn't strand the only copy of
@@ -1302,10 +1302,10 @@ tasks:
   robot:pull-videos:
     desc: >-
       Pull per-run videos (mp4 only, no bag -- see src/vision/video_recorder.py)
-      from the Pi 5's ~/vtitan_runs into data/videos_pulled/ (usage: task
+      from the Pi 5's ~/vtitan_runs into data/live/videos/ (usage: task
       robot:pull-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
       [VIDEOS_DIR=path]). Run FROM a dev machine. A separate tree from
-      data/runs_pulled/ on purpose -- see pull-videos-from-pi5.sh's own
+      data/live/runs/ on purpose -- see pull-videos-from-pi5.sh's own
       comment. Skips any run whose video is already local; only lists runs
       that actually recorded one. VIDEOS_DIR overrides the local target dir,
       e.g. if data/ moves again.
@@ -1318,7 +1318,7 @@ tasks:
 
   robot:push-videos:
     desc: >-
-      Push locally-held per-run videos from data/videos_pulled/ back up into
+      Push locally-held per-run videos from data/live/videos/ back up into
       their matching run directory under the Pi 5's ~/vtitan_runs (usage: task
       robot:push-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
       [VIDEOS_DIR=path]). Run FROM a dev machine. Skips a run with no matching
@@ -1354,7 +1354,7 @@ tasks:
       [PI5_HOST=user@host]). Run FROM a dev machine. Simulates long_press to
       enter FINISHED (finalizing the video), tears down the bench launch,
       restores vtitan-pi5.service if it was running before, and pulls the
-      recorded video into data/videos_pulled/.
+      recorded video into data/live/videos/.
     dir: robot
     env:
       PI5_HOST: '{{.PI5_HOST | default ""}}'

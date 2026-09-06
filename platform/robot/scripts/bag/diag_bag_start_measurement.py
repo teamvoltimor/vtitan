@@ -16,7 +16,7 @@ not span the mat) and what pose it would have produced.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_start_measurement.py \
-        data/runs_pulled/run_XXXXXXXX_XXXXXX [--section south] [--window 15]
+        data/live/runs/run_XXXXXXXX_XXXXXX [--section south] [--window 15]
 """
 
 from __future__ import annotations
