@@ -2,7 +2,23 @@
 #
 # See shared.config.navigation_tuning.SignRouterParams.
 
-sign_clearance_margin_m = 0.075   # extra margin beyond chassis+sign half-widths
+# Extra margin beyond chassis+sign half-widths. Raised 0.075 -> 0.10 on
+# 2026-09-06 from hardware, not from the sweep.
+#
+# run_20260906_184717 is the first round this robot drove properly, and it
+# showed the LATERAL SHORTFALL IS GONE: abeam a committed sign the chassis
+# achieved 0.247 m against 0.239 m commanded (it was 0.12-0.14 of 0.32-0.38
+# that morning), and sat on the commanded side 87% of the time. What remains is
+# SCATTER, not bias -- p10 of the achieved offset is 0.033 m against a p50 of
+# 0.247, so a tail of passes still arrives near-contact: 21% within 10 cm of the
+# pillar, against a chassis half-width of 0.097 m.
+#
+# More commanded margin is the direct answer to a scatter tail. 256 corpus,
+# 0.075 -> 0.10: laps>=3 149 -> 151, in-time 148 -> 149, sign collisions 5 -> 4,
+# stuck 32 -> 30, U-turns 2 -> 1, pass-side 0 -> 1, timeouts unchanged. Each
+# delta is near noise alone; they move together, and the reason to expect them
+# to came from the robot.
+sign_clearance_margin_m = 0.10
 wall_clearance_margin_m = 0.04    # margin beyond chassis half-diagonal from a wall
 
 # Tuned 2026-08-01 against the 256-scenario corpus: 27 -> 47 three-lap finishes
