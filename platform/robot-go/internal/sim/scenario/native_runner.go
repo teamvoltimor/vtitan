@@ -519,11 +519,12 @@ func (r *NativeRunner) loop(
 	prevX, prevY := gw.State().X, gw.State().Y
 	nudge := newSignNudgeState(prevX, prevY)
 
-	// No-progress bailout (mirrors the Python run's NO_PROGRESS_* policy). The
-	// unported NO_PROGRESS_WINDOW_S / NO_PROGRESS_DISPLACEMENT_M constants are
-	// hardcoded parity defaults here (plan §2).
-	noProgressWindow := int(math.Round(2.0 / dt))
-	noProgressDisp := 0.05
+	// No-progress bailout, mirroring the Python run's NO_PROGRESS_* policy.
+	// The window must outlast an ESCAPE: reverse, reorient and re-approach do
+	// not fit in a couple of seconds, and a runner that gives up first scores
+	// a recoverable stall as terminal.
+	noProgressWindow := int(math.Round(r.cfg.NoProgressWindowS / dt))
+	noProgressDisp := r.cfg.NoProgressDisplacementM
 	anchorX, anchorY := prevX, prevY
 	anchorStep := 0
 
