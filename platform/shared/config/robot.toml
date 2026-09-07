@@ -195,9 +195,9 @@ size = [0.0256, 0.0227, 0.0046]
 [camera]
 # Raspberry Pi Camera Module 3 Wide, mounted directly above the LIDAR.
 mount_x_offset = 0.1222
-mount_z_offset = 0.16
-# ~30 degrees, tilted down. Magnitude is still an estimate pending a real measurement.
-mount_pitch = 0.5236
+mount_z_offset = 0.20
+# ~10 degrees, tilted down. Approximate measurement (2026-09-07).
+mount_pitch = 0.1745
 # Horizontal field of view (rad).
 hfov = 1.7802
 # Sensor resolution (pixels).

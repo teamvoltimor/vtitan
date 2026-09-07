@@ -38,8 +38,8 @@
   </link>
 
   <!-- ─────────────────────── camera_link ──────────────────────────────── -->
-  <!-- Over the LIDAR, tilted down ~30deg (measured 2026-07-11; x/z are an estimate --
-       see RobotSpecs.CAMERA_MOUNT_* in shared/config/constants.py) -->
+  <!-- Over the LIDAR, tilted down ~10deg (approximate measurement 2026-09-07 --
+        see RobotSpecs.CAMERA_MOUNT_* in shared/config/constants.py) -->
   <link name="camera_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -60,7 +60,7 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link"/>
-    <origin xyz="0.1222 0 0.16" rpy="0 0.5236 0"/>
+    <origin xyz="0.1222 0 0.20" rpy="0 0.1745 0"/>
   </joint>
 
   <!-- ────────────────────── lidar_link (laser_frame) ─────────────────── -->

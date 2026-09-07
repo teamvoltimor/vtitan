@@ -51,6 +51,6 @@ const (
 
 	// Camera mounted directly over the LIDAR, tilted down.
 	RobotCameraMountXOffset = 0.1222
-	RobotCameraMountZOffset = 0.16
-	RobotCameraPitchRad     = 0.5236 // ~30°, tilted down
+	RobotCameraMountZOffset = 0.20
+	RobotCameraPitchRad     = 0.1745 // ~10°, tilted down
 )
