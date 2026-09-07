@@ -418,6 +418,10 @@ class ScenarioSimulator(PassSideScorer):
             lidar_hz=lidar_hz,
             lidar_invalid_rate=lidar_invalid_rate,
             wall_heading=wall_heading,
+            # The gateway builds the kinematics, so it needs THIS run's tuning.
+            # Omitting it silently fell back to the process default and made
+            # every tuning-sourced kinematics field unreachable from a sweep.
+            tuning=self._tuning,
         )
         if blind:
             if self._width_estimator:

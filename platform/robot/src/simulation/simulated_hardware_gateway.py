@@ -26,7 +26,7 @@ from src.navigation.utils import wrap_angle as _wrap_angle
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.simulation.collision_stepping import allowed_step
 from src.simulation.imu_error_model import ImuErrorModel, SensorErrors
-from src.simulation.kinematics import AckermannKinematics, AckermannState
+from src.simulation.kinematics import AckermannKinematics, AckermannState, KinematicsContext
 from src.simulation.track_model import ContactSurface, TrackModel
 from src.navigation.planning.sign_discovery import detection_to_observation
 from src.simulation.vision_emulator import emulate_sign_detections, emulate_sign_observations
@@ -142,7 +142,11 @@ class SimulatedHardwareGateway:
         self._slide_on_contact = slide_on_contact
         self._scrub_yaw_gain = scrub_yaw_gain
         self._state = initial_state
-        self._kin = kinematics or AckermannKinematics()
+        # Build the kinematics from THIS simulator's tuning, not the process
+        # default. Constructing it bare made every tuning-sourced kinematics
+        # field inert under an override, which is why a --min-turn-radius
+        # sweep produced output byte-identical to its control.
+        self._kin = kinematics or AckermannKinematics(context=KinematicsContext(self.tuning))
         self._rng = rng or np.random.default_rng(0)
         self._lidar_noise_std = lidar_noise_std
         self._signs = signs
