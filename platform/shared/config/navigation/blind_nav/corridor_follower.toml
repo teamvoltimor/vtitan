@@ -257,8 +257,25 @@ assume_bay_start = true
 # exits: with this on, bay_exit_cycle and the reverse-then-swing exit are
 # unreachable.
 bay_exit_clearance_guard = true
-# Fin clearance the guard refuses to go below, absorbing dead-reckoning error.
-bay_exit_clearance_margin_m = 0.005
+# Fin clearance the guard refuses to go below. Lowered 0.005 -> 0.001 on
+# 2026-09-06: at 0.005 there is a band of outward positions where a step of the
+# leg's own size lands just under the margin in BOTH directions, so both legs
+# are refused while the modelled pose is still CLEAR, nothing moves, and the
+# refusal is permanent. The band opens at dr_out = 0.0365 m and the ratchet
+# drives out straight through it. In the unit fixture 0.005 stalls for 795
+# consecutive ticks of 900 and 0.003 for 786; at 0.001 the longest block is 1.
+# Costs 9.0 mm -> 5.6 mm of true fin clearance, still 16/16 with TOUCHED 0/16.
+bay_exit_clearance_margin_m = 0.001
+# Let a leg that IMPROVES an already-violated gap run. _predicted_gap takes the
+# min over BOTH fins, so once the modelled body overlaps one, the fin being
+# moved AWAY from vetoes the leg as hard as the one ahead -- run_20260906_192358
+# stood still for 14.2 s of a 16.6 s exit at a frozen 44 mm overlap.
+bay_exit_guard_overlap_recovery = true
+# Unbroken ticks of the guard refusing BOTH legs before handing over to the
+# contact-bounded exits. 0 = never, and that is deliberate: the handover buys
+# motion by spending fin contact, which 9.24.7 ends the round on. Inert on the
+# corpus; 40 (2 s) is the value to try first, with TOUCHED read alongside.
+bay_exit_guard_block_ticks = 0
 
 # Steering both guarded legs hold, as a fraction of full lock. A CLIFF at 1.0:
 # 0.3-0.9 all give 0/8 out of the bay, and 0.9 collides rather than stalling.
@@ -288,6 +305,18 @@ bay_exit_leg_stall_ticks = 6
 # the +/-90 deg comparison is noise and a flip turns the escape into a
 # re-entry.
 bay_exit_latch_direction = true
+# ...but POLL before latching, and score the side over a SECTOR rather than one
+# ray. The gateway substitutes max range for a dropout, and the ray facing the
+# near pocket wall drops out on 21-37% of ticks against 0-5% for the one facing
+# open space -- so 12 m beat 0.84 m and run_20260906_192424 ratcheted into the
+# wall all round. valid_fraction * median over +/-15 deg scores 100% of the 383
+# hardware bay scans; the shipped single ray scored 70.6/72.9/71.2%. Do not
+# widen far: at +/-30 the sector reaches the pocket's END walls.
+bay_exit_open_side_sector_deg = 15.0
+# Ticks polled before the latch. 1 restores the old tick-1 latch, which rested
+# the round on the first scan the node ever receives -- the one frame no bag can
+# show, since recording began 1.9-2.6 s after the exit in two of three runs.
+bay_exit_open_side_votes = 5
 bay_exit_latch_reverse = false
 # Ticks before switching to the other legacy exit / handing over; 0 = never.
 bay_exit_fallback_frames = 0

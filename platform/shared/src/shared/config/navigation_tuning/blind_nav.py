@@ -664,14 +664,38 @@ class CorridorFollowerParams(BaseModel):
     """
 
     BAY_EXIT_CLEARANCE_MARGIN_M: float = Field(
-        default=0.005, ge=0.0, validation_alias=_alias("BAY_EXIT_CLEARANCE_MARGIN_M")
+        default=0.001, ge=0.0, validation_alias=_alias("BAY_EXIT_CLEARANCE_MARGIN_M")
     )
     """Fin clearance the guard refuses to go below, in metres.
 
-    Absorbs the dead-reckoning error the guard cannot see: wheel slip, the
-    servo's true angle versus the modelled slew, and the placement tolerance of
-    the start pose. 5 mm against the pocket's 65 mm of slack per side. Only
-    meaningful with ``BAY_EXIT_CLEARANCE_GUARD``.
+    Nominally absorbs the dead-reckoning error the guard cannot see: wheel slip,
+    the servo's true angle versus the modelled slew, and the placement tolerance
+    of the start pose. Only meaningful with ``BAY_EXIT_CLEARANCE_GUARD``.
+
+    **Lowered 0.005 -> 0.001 on 2026-09-06, because the margin was OPENING A
+    DEADLOCK.** Every leg is bounded by ``reach``, and there is a band of
+    outward positions where a step of that size lands just under the margin in
+    BOTH directions -- so both legs are refused while the modelled pose is still
+    perfectly clear, nothing moves, the dead-reckoned pose never changes, and
+    the refusal is permanent. Enumerated over the guard's state space, the band
+    opens at ``_dr_out`` = 0.0365 m and is 6.0 mm wide at 0.05, and the ratchet
+    drives ``out`` straight through it by design.
+
+    Reproduced in the unit fixture: at 0.005 the ratchet freezes at
+    ``out`` = 36.9 mm and the guard then refuses both legs for **795 consecutive
+    ticks out of 900**. At 0.003 it still stalls (786). At 0.001 the longest
+    unbroken block is **1** and the chassis leaves the pocket.
+
+    The size is a real cost and a small one: on the committed set with solid
+    walls the exit is 16/16 out of the bay at both values with **fins TOUCHED
+    0/16**, and the true minimum fin clearance falls only 9.0 mm -> 5.6 mm.
+
+    The DR error this was meant to absorb is not reachable by any value here
+    anyway -- the error measured on run_20260906_192358 was **44 mm**, an order
+    above the whole range, and it is bounded by ``_along_slack_m`` instead.
+
+    0.0 also closes the band; 0.001 keeps a nonzero refusal for the case where
+    the model is exactly on a fin face.
     """
 
     BAY_EXIT_LEG_STALL_TICKS: int = Field(default=6, ge=1, validation_alias=_alias("BAY_EXIT_LEG_STALL_TICKS"))
@@ -691,6 +715,109 @@ class CorridorFollowerParams(BaseModel):
     2 ticks of the ~195-tick exit, which is not a trade worth taking one step
     from that cliff on a constant that is also the jam backstop on hardware,
     where a real chassis has friction and noise this simulator does not.
+    """
+
+    BAY_EXIT_GUARD_OVERLAP_RECOVERY: bool = Field(
+        default=True, validation_alias=_alias("BAY_EXIT_GUARD_OVERLAP_RECOVERY")
+    )
+    """Let a leg that IMPROVES a already-violated fin gap run, instead of refusing it.
+
+    ``_predicted_gap`` takes the ``min`` over BOTH fins, so once the modelled
+    body overlaps one, the gap is negative at every reach and the fin the
+    manoeuvre is moving AWAY from vetoes the leg exactly as hard as the one
+    ahead. Both legs refused means no travel, no travel means the dead-reckoned
+    pose never changes, and the refusal is then permanent by construction.
+
+    Measured on hardware bag ``run_20260906_192358``: 285 consecutive
+    zero-speed ticks, **14.2 s of a 16.6 s exit**, frozen at a 44 mm overlap,
+    net rotation 7.5 deg where the two escaping runs of the same session turned
+    60-70. The manoeuvre had no way out -- ``_guarded_command`` is answered
+    ABOVE the ``BAY_EXIT_FALLBACK_FRAMES`` switch, and that constant ships at 0.
+
+    Off restores the plain margin test, which is the arm every pre-2026-09-06
+    bay measurement was taken on.
+
+    Expected INERT in simulation for the same reason ``ASSUME_BAY_START`` is:
+    the overlap is fed by wheel slip against a chassis the wall is holding, and
+    the contact model does not slip. It is a HARDWARE fix. It is also strictly
+    narrower than it sounds -- it applies only where the margin test has already
+    stopped describing the situation, and it still never approves a step that
+    reduces the gap.
+    """
+
+    BAY_EXIT_GUARD_BLOCK_TICKS: int = Field(default=0, ge=0, validation_alias=_alias("BAY_EXIT_GUARD_BLOCK_TICKS"))
+    """Unbroken ticks of the guard refusing BOTH legs before it hands over.
+
+    The escape hatch the guarded exit did not have. ``_guarded_command`` was
+    answered ABOVE the ``BAY_EXIT_FALLBACK_FRAMES`` switch, and that constant
+    ships at 0, so a guard that trapped itself could not be timed out by
+    anything -- ``BAY_EXIT_MAX_FRAMES`` (900, i.e. 45 s) fired in none of the
+    2026-09-06 hardware runs, one of which stood still for 14.2 s of a 16.6 s
+    exit and never left the pocket.
+
+    A guard that is BOUNDING legs alternates block and motion; only one that has
+    trapped itself blocks without interruption. 40 ticks is 2 s at 20 Hz, and
+    the servo settle is budgeted separately and does not count here.
+
+    Enumerated over the guard's own state space (86400 poses on a 5 mm / 1 deg
+    grid): ``BAY_EXIT_GUARD_OVERLAP_RECOVERY`` clears **1200 of the 2440**
+    both-legs-blocked poses, and the residue is a band where the modelled pose
+    is CLEAR but every step lands just under the margin. No speed change reaches
+    that band -- halving the leg speed takes the blocked set from 2440 to
+    **12621**, because a shorter step cannot cross it -- so a handover is what
+    is left.
+
+    **Ships at 0, i.e. OFF, and that is a deliberate trade rather than caution.**
+    Turning it on breaks the guard's defining invariant: with it at 40,
+    ``test_guarded_exit_never_steers_the_modelled_pose_into_a_fin`` fails, and so
+    does ``test_full_speed_guarded_exit_refuses_to_move_rather_than_touch``,
+    whose whole point is that refusing to move IS the correct outcome when the
+    coast exceeds the pocket. The handover buys motion by spending fin contact,
+    and 9.24.7 ends the round on that touch.
+
+    It is here, reachable and measured, because the hardware failure it answers
+    is real and the alternative was a manoeuvre with NO timeout at all. The
+    deadlock actually observed (run_20260906_192358) is the overlap class, which
+    ``BAY_EXIT_GUARD_OVERLAP_RECOVERY`` clears without touching anything, so
+    nothing needs this today. Turn it on only with a corpus measurement of
+    TOUCHED alongside the escape count, and expect to trade one against the
+    other.
+
+    40 (2 s at 20 Hz) is the value to try first.
+    """
+
+    BAY_EXIT_OPEN_SIDE_SECTOR_DEG: float = Field(
+        default=15.0, gt=0.0, le=90.0, validation_alias=_alias("BAY_EXIT_OPEN_SIDE_SECTOR_DEG")
+    )
+    """Half-width of the sector each side of +/-90 deg that scores the open side.
+
+    15 deg. Measured over the 383 bay-exit scans of the three 2026-09-06
+    hardware runs, ``_open_side_score`` is correct on 100% of ticks at this
+    width with a worst-tick margin of 1.15x and a median near 10x.
+
+    **Do not widen it far.** At +/-30 and +/-45 the sector reaches the pocket's
+    END walls rather than the corridor, and a sector MINIMUM collapses outright
+    there -- 23.5%/54.2%/50.8% at +/-30, and 2.4%/0.8% on two runs at +/-45.
+    The valid-fraction-times-median score survives wider sectors (98.8-100%),
+    but its worst-tick margin falls to 0.95x at +/-30, i.e. it inverts on some
+    tick. 15 deg is the width at which both halves of the score are still
+    reading wall against corridor.
+    """
+
+    BAY_EXIT_OPEN_SIDE_VOTES: int = Field(default=5, ge=1, validation_alias=_alias("BAY_EXIT_OPEN_SIDE_VOTES"))
+    """Ticks to poll before latching which side of the pocket is open.
+
+    The latch is correct and worth keeping -- the rays stop meaning wall against
+    corridor as soon as the chassis rotates -- but taking it on tick 1 rests the
+    whole round on the FIRST scan the node ever receives. That is also the one
+    frame no diagnostic can see: on ``run_20260906_192315`` and ``_192424``
+    recording began 2.6 s and 1.9 s after the exit did, so the deciding tick is
+    absent from both bags.
+
+    5 ticks is ~0.5 s at the ~10 Hz scan rate. The measured rule needs no votes
+    at all (N=1 suffices on all three runs), so this buys robustness against a
+    single corrupt frame at a cost the 180 s round does not notice. Set to 1 to
+    restore the tick-1 latch.
     """
 
     BAY_EXIT_LATCH_DIRECTION: bool = Field(default=True, validation_alias=_alias("BAY_EXIT_LATCH_DIRECTION"))
@@ -734,9 +861,7 @@ class CorridorFollowerParams(BaseModel):
     is already why ``_reverse_start_m`` exists; this is the other half of it.
     """
 
-    BAY_EXIT_TARGET_YAW_DEG: float = Field(
-        default=70.0, gt=0.0, validation_alias=_alias("BAY_EXIT_TARGET_YAW_DEG")
-    )
+    BAY_EXIT_TARGET_YAW_DEG: float = Field(default=70.0, gt=0.0, validation_alias=_alias("BAY_EXIT_TARGET_YAW_DEG"))
     """Rotation from the placement heading at which the exit has turned ENOUGH.
 
     The chassis is placed along the pocket; leaving it means rotating out of
@@ -756,9 +881,7 @@ class CorridorFollowerParams(BaseModel):
     20 deg are the ones taken closest to the far fin.
     """
 
-    BAY_EXIT_CONTACT_DIST_M: float = Field(
-        default=0.08, gt=0.0, validation_alias=_alias("BAY_EXIT_CONTACT_DIST_M")
-    )
+    BAY_EXIT_CONTACT_DIST_M: float = Field(default=0.08, gt=0.0, validation_alias=_alias("BAY_EXIT_CONTACT_DIST_M"))
     """Forward clearance at or below which the bay exit treats the nose as touching.
 
     0.08 m sits above the readings a chassis in contact actually produces and

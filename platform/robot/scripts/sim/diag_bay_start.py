@@ -681,7 +681,40 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="*",
         help="sweep BAY_EXIT_SPEED_SCALE: extra scale on both cycle legs. The pocket is short "
         "of STOPPING distance -- a leg ends by commanding zero but the drivetrain coasts "
-        "v*tau ~ 40 mm at creep, twice the 20 mm leg. Stopping distance is linear in speed.",
+        "v*tau ~ 40 mm at creep, twice the 20 mm leg. Stopping distance is linear in speed. "
+        "INERT while BAY_EXIT_SPEED_MPS is non-zero, which is the shipped state -- "
+        "`_leg_speed` returns the absolute value before any scale applies, so sweep "
+        "--exit-speed-mps instead, or pin it to 0 to reach this axis at all.",
+    )
+    parser.add_argument(
+        "--clearance-margin",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_CLEARANCE_MARGIN_M: fin clearance the guard refuses to go below. "
+        "Absorbs dead-reckoning error, and also OPENS A DEADLOCK BAND -- at the shipped 0.005 "
+        "every step from out=0.0365..0.067 m lands just under it, so both legs are refused and "
+        "the ratchet freezes with the modelled pose still CLEAR. The band shrinks with the "
+        "margin and is gone at 0.",
+    )
+    parser.add_argument(
+        "--guard-block-ticks",
+        type=int,
+        nargs="*",
+        help="sweep BAY_EXIT_GUARD_BLOCK_TICKS: unbroken ticks of the clearance guard refusing "
+        "BOTH legs before it hands over to the contact-bounded exits. Ships at 0 (never), because "
+        "the handover buys motion by spending fin contact and 9.24.7 ends the round on that touch. "
+        "Read TOUCHED alongside OUT OF BAY on this axis -- they are the two sides of the trade.",
+    )
+    parser.add_argument(
+        "--exit-speed-mps",
+        type=float,
+        nargs="*",
+        help="sweep BAY_EXIT_SPEED_MPS: ABSOLUTE leg speed, overriding the whole scale chain. "
+        "0 restores the inherited scaling and so re-arms --exit-speed. The shipped 0.1 was "
+        "chosen for TORQUE against static friction at full lock on hardware, where the motor "
+        "will not turn at the 0.067 m/s the scales produce; the simulator has no deadband and "
+        "already collides in 32/32 at 0.086, so the two disagree BY CONSTRUCTION and this axis "
+        "is how you reach the regime where the sim exit works at all.",
     )
     parser.add_argument(
         "--bay-offset",
@@ -839,6 +872,9 @@ def main() -> None:
             ("BAY_EXIT_LEG_STALL_TICKS", "stall", args.leg_stall),
             ("BAY_EXIT_CLEARANCE_GUARD", "guard", args.clearance_guard),
             ("BAY_EXIT_SPEED_SCALE", "spd", args.exit_speed),
+            ("BAY_EXIT_SPEED_MPS", "spd-mps", args.exit_speed_mps),
+            ("BAY_EXIT_GUARD_BLOCK_TICKS", "blk", args.guard_block_ticks),
+            ("BAY_EXIT_CLEARANCE_MARGIN_M", "margin", args.clearance_margin),
         )
         combos: list[dict[str, float]] = [{}]
         labels: list[str] = [""]

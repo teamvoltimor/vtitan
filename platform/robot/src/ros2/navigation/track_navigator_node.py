@@ -789,9 +789,7 @@ class TrackNavigator(Node, ResettableNode):
         turned_out = self._bay_exit.rotation_complete(self._tuning)
         way_out_clear = BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
         never_started = self._bay_exit_ticks <= 1
-        if self._exiting_bay and (
-            bay_exit_spent or (way_out_clear and (turned_out or never_started))
-        ):
+        if self._exiting_bay and (bay_exit_spent or (way_out_clear and (turned_out or never_started))):
             if turned_out:
                 logger.info(
                     "bay exit complete: turned %.1f deg from placement",
@@ -826,6 +824,7 @@ class TrackNavigator(Node, ResettableNode):
                 yaw_rad=pose.yaw,
             )
             self._gateway.publish_drive(command)
+            open_is_left, dr_along, dr_out, guard_gap, leg_is_reverse = self._bay_exit.debug_state
             # Publishing a snapshot here is what makes the manoeuvre visible at
             # all. Until 2026-09-06 this branch returned without touching
             # _latest_debug, so nav_debug held whatever phase preceded it --
@@ -846,6 +845,11 @@ class TrackNavigator(Node, ResettableNode):
                 pose_y=pose.y,
                 pose_yaw=pose.yaw,
                 escape_count=self._bay_exit.contact_recoveries,
+                bay_open_is_left=open_is_left,
+                bay_dr_along_m=dr_along,
+                bay_dr_out_m=dr_out,
+                bay_guard_gap_m=guard_gap,
+                bay_leg_is_reverse=leg_is_reverse,
             )
             return True
 

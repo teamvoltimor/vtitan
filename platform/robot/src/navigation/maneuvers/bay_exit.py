@@ -24,7 +24,7 @@ from shared.config.constants import ParkingLotSpecs, RobotSpecs
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
-from src.navigation.utils import _forward_clearance, _nearest_ray, clamp
+from src.navigation.utils import _forward_clearance, clamp, wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -109,6 +109,80 @@ def _fin_rects() -> list[list[tuple[float, float]]]:
     ]
 
 
+def _open_side_score(
+    ranges_m: Sequence[float],
+    angles_rad: Sequence[float],
+    center_rad: float,
+    half_width_rad: float,
+) -> float:
+    """How open a sector is: valid fraction times median valid range.
+
+    A NO-RETURN AT THE POCKET WALL IS THE SIGNAL, NOT AN ABSENCE OF ONE. The
+    gateway substitutes ``LIDAR_MAX_RANGE`` for every dropout (see
+    ``_lidar_callback``), and the wall in the pocket sits at 0.08-0.13 m, close
+    enough that the C1 returns nothing on a large share of rays. Compared as
+    ranges, the substituted 12 m beats the open corridor's real 0.84 m and the
+    side reads BACKWARDS -- and ``BAY_EXIT_LATCH_DIRECTION`` then freezes that
+    verdict for the whole round, steering the ratchet into the wall.
+
+    Measured over the 383 bay-exit scans of the 2026-09-06 hardware runs, the
+    ray facing the near wall dropped out on 21-37% of ticks against 0-5% for the
+    ray facing open space. The shipped single-ray comparison scored 70.6/72.9/
+    71.2% per tick and was WRONG ON THE FIRST TICK OF TWO OF THE THREE RUNS.
+
+    Both halves of this score carry signal and they are multiplied because they
+    fail independently: the valid FRACTION is the dropout signal read the right
+    way up (the closed side keeps only 62-78% of its returns), and the MEDIAN is
+    the distance signal, which is far stronger but is exactly what a dropout
+    corrupts. Their product scores 100% of all 383 scans with a worst-tick
+    margin of 1.15x and a median of ~10x, where the count alone reaches a 1.00
+    dead tie and the median alone still trusts a corrupted ray.
+
+    Validity is ``isfinite`` and non-zero, taken here as "below the substituted
+    max range" because the substitution has already happened by the time a scan
+    reaches this code. The scan's own ``range_min`` must NOT be used: genuine
+    returns as short as 0.0075 m appear in these bags, well under the declared
+    0.05, and honouring it discards the near-wall returns this depends on.
+    """
+    ceiling = RobotSpecs.LIDAR_MAX_RANGE * 0.99
+    total = 0
+    valid: list[float] = []
+    for r, a in zip(ranges_m, angles_rad, strict=False):
+        if abs(wrap_angle(a - center_rad)) > half_width_rad:
+            continue
+        total += 1
+        if 0.0 < r < ceiling:
+            valid.append(r)
+    if not valid or total == 0:
+        return 0.0
+    valid.sort()
+    middle = len(valid) // 2
+    median = valid[middle] if len(valid) % 2 else (valid[middle - 1] + valid[middle]) / 2.0
+    return len(valid) / total * median
+
+
+def _along_slack_m() -> float:
+    """Greatest along-wall displacement the pocket physically admits.
+
+    The fins' inner faces stand at ``half_spacing - WIDTH / 2`` either side of
+    the placement, and the chassis is ``LENGTH`` long, so its centre cannot pass
+    ``inner - LENGTH / 2`` without the body being inside a fin. 65 mm at the
+    shipped geometry, and a STRICT outer bound: any yaw only grows the swept
+    extent, so the true limit is tighter, never wider.
+
+    Dead reckoning has no way to notice it has exceeded this. ``_dr_along``
+    integrates wheel travel, and a wheel that spins against a chassis the wall
+    is holding reports travel the body never made -- measured on
+    run_20260906_192358, ``_dr_along`` reached 0.106 m, 63% beyond the entire
+    slack the bay has, while the chassis moved ~0.05 m of net path. A modelled
+    pose outside this bound is not merely uncertain, it is impossible, and
+    ``_predicted_gap`` taken there vetoes every leg (see ``_guarded_command``).
+    """
+    half_spacing = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
+    inner = half_spacing - ParkingLotSpecs.WIDTH / 2.0
+    return max(0.0, inner - RobotSpecs.LENGTH / 2.0)
+
+
 def _wall_feasible_yaw_rad(out_m: float) -> float:
     """Greatest yaw the pocket's DEPTH allows at this outward displacement.
 
@@ -135,9 +209,7 @@ def _wall_feasible_yaw_rad(out_m: float) -> float:
     return max(0.0, math.asin(sin_sum) - math.atan2(RobotSpecs.WIDTH, RobotSpecs.LENGTH))
 
 
-def _leg_speed(
-    creep_speed_mps: float, follower: object, *, reverse: bool, exit_scale: bool = True
-) -> float:
+def _leg_speed(creep_speed_mps: float, follower: object, *, reverse: bool, exit_scale: bool = True) -> float:
     """Speed for one bay-exit leg, as a POSITIVE magnitude.
 
     The manoeuvre inherits the driving ladder's creep speed and scales it down
@@ -191,6 +263,11 @@ class BayExit:
         self._reverse_progress_m = 0.0
         self._open_is_left: bool | None = None
         self._open_flips = 0
+        # Ballot for the open side, counted until the latch is taken. Kept as
+        # two counters rather than a list so the manoeuvre carries no unbounded
+        # state; only their comparison is ever read.
+        self._open_votes_left = 0
+        self._open_votes_right = 0
         # Cycle manoeuvre state. Starts on the FORWARD leg: the steered wheels
         # are at the front, so a forward move is the one that rotates the nose
         # out, and the reverse exists only to buy back the room it spends.
@@ -216,6 +293,14 @@ class BayExit:
         self._dr_wheel_rad = 0.0
         self._guard_flips = 0
         self._guard_min_gap: float | None = None
+        # Consecutive ticks the guard has refused BOTH legs. The manoeuvre's
+        # only deadlock detector: a guard that is merely bounding legs alternates
+        # block and motion, while one that has trapped itself never moves again.
+        self._guard_block_ticks = 0
+        # Gap the most recent leg bound was judged against, for the bag. Distinct
+        # from `_guard_min_gap`, which is the run's minimum: a per-tick value is
+        # what separates "a leg ended" from "every leg is ending".
+        self._last_gap_m: float | None = None
         # Straight-reverse recovery from wall contact. Ticks still owed, and how
         # many times it has fired -- the count is the diagnostic: a manoeuvre
         # recovering repeatedly is one whose legs keep driving it back into the
@@ -276,6 +361,23 @@ class BayExit:
         self._prev_yaw_rad = yaw_rad
 
     @property
+    def debug_state(self) -> tuple[bool | None, float, float, float | None, bool]:
+        """``(open_is_left, dr_along_m, dr_out_m, last_gap_m, leg_is_reverse)``.
+
+        Published every tick by ``track_navigator_node`` so the manoeuvre's own
+        frame reaches the bag. Nothing else can reconstruct it: the pose is dead
+        reckoned in the BAY frame from wheel odometry, and the localizer's pose
+        is a different quantity in a different frame.
+        """
+        return (
+            self._open_is_left,
+            self._dr_along,
+            self._dr_out,
+            self._last_gap_m,
+            self._leg_is_reverse,
+        )
+
+    @property
     def guard_stats(self) -> tuple[int, float | None, float]:
         """``(direction_flips, min_predicted_gap_m, outward_travel_m)`` for the guard."""
         return self._guard_flips, self._guard_min_gap, self._dr_out
@@ -314,7 +416,14 @@ class BayExit:
         # because the guard rejected the leg before its value could matter.
         limit = _wall_feasible_yaw_rad(self._dr_out)
         self._dr_yaw = clamp(self._dr_yaw, -limit, limit)
-        self._dr_along += step * math.cos(self._dr_yaw)
+        # Bounded for the same reason the yaw is: a modelled pose the pocket
+        # forbids is not one the guard may act on. Wheel slip against a chassis
+        # the wall is holding accumulates along-wall travel the body never made,
+        # and unbounded that walks the model straight through a fin -- past
+        # which `_predicted_gap` is negative at every reach and refuses BOTH
+        # legs forever. See `_along_slack_m`.
+        slack = _along_slack_m()
+        self._dr_along = clamp(self._dr_along + step * math.cos(self._dr_yaw), -slack, slack)
         self._dr_out += step * math.sin(self._dr_yaw)
 
     def _predicted_gap(self, step_m: float, wheel_norm: float, tuning: NavigationTuning) -> float:
@@ -533,7 +642,24 @@ class BayExit:
         # yaw is already the conservative reading.
         gap = self._predicted_gap(reach, wheel_norm, tuning)
         self._guard_min_gap = min(self._guard_min_gap, gap)
-        if gap <= margin:
+        self._last_gap_m = gap
+        # "Will this step be clear" is the right question only while the MODEL
+        # is clear. Once the dead-reckoned body overlaps a fin, `_predicted_gap`
+        # is negative at EVERY reach -- it takes the `min` over both fins, so a
+        # fin the manoeuvre is moving AWAY from vetoes the leg just as hard as
+        # the one ahead -- and both legs are refused. Nothing moves, so the pose
+        # never changes, so the refusal is permanent. Measured on
+        # run_20260906_192358: 285 consecutive zero-speed ticks, 14.2 s of a
+        # 16.6 s exit, frozen at a 44 mm overlap with both legs blocked.
+        #
+        # Reachable from inside the fault, the admissible leg is the one that
+        # IMPROVES the gap rather than the one that clears the margin. That is
+        # strictly weaker than the margin test and only where the margin test
+        # has already failed to describe the situation; it still never approves
+        # a step deeper into a fin, which is the property the guard exists for.
+        held = self._predicted_gap(0.0, wheel_norm, tuning)
+        recovering = follower.BAY_EXIT_GUARD_OVERLAP_RECOVERY and held <= margin and gap > held
+        if gap <= margin and not recovering:
             # End the leg on the PREDICTION -- nothing has been touched -- and
             # pay the servo swing before the next one moves. Flipping the flag
             # inline, as this did until 2026-09-04, skipped ``_begin_leg``
@@ -548,11 +674,13 @@ class BayExit:
             )
             self._guard_flips += 1
             self._cycles += 1
+            self._guard_block_ticks += 1
             return DriveCommand(
                 speed_mps=0.0,
                 steering_norm=wheel_norm * sign,
             )
 
+        self._guard_block_ticks = 0
         if self._leg_is_reverse:
             self._reverse_ticks += 1
         else:
@@ -733,9 +861,7 @@ class BayExit:
         return clearance >= tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
 
     @staticmethod
-    def _nose_in_contact(
-        ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning
-    ) -> bool:
+    def _nose_in_contact(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning) -> bool:
         """Whether the forward arc says the nose is touching, or too close to see.
 
         Two readings mean the same thing here and both must count. A forward
@@ -766,10 +892,25 @@ class BayExit:
         turning the escape into a re-entry. Hence the latch, and hence counting
         the flips rather than assuming stability.
         """
-        left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
-        right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
+        follower = tuning.corridor_follower
+        half_width = math.radians(follower.BAY_EXIT_OPEN_SIDE_SECTOR_DEG)
+        left = _open_side_score(ranges_m, angles_rad, math.pi / 2, half_width)
+        right = _open_side_score(ranges_m, angles_rad, -math.pi / 2, half_width)
         open_is_left = left > right
-        if tuning.corridor_follower.BAY_EXIT_LATCH_DIRECTION and self._open_is_left is not None:
+        if self._open_is_left is None:
+            # Vote before latching. A latch taken on tick 1 is decided by the
+            # very first scan the node ever receives, which is also the one no
+            # bag can show: on run_20260906_192315 and _192424 recording started
+            # 2.6 s and 1.9 s AFTER the exit did, so the deciding tick is absent
+            # from both. A handful of ticks costs half a second and removes the
+            # dependence on a single frame entirely.
+            self._open_votes_left += 1 if open_is_left else 0
+            self._open_votes_right += 0 if open_is_left else 1
+            votes = self._open_votes_left + self._open_votes_right
+            if follower.BAY_EXIT_LATCH_DIRECTION and votes < follower.BAY_EXIT_OPEN_SIDE_VOTES:
+                return open_is_left
+            open_is_left = self._open_votes_left > self._open_votes_right
+        elif follower.BAY_EXIT_LATCH_DIRECTION:
             open_is_left = self._open_is_left
         if self._open_is_left is not None and open_is_left != self._open_is_left:
             self._open_flips += 1
@@ -897,8 +1038,25 @@ class BayExit:
             )
 
         # The clearance guard supersedes both contact-bounded exits, so it is
-        # answered before their fallback bookkeeping runs at all.
-        if follower.BAY_EXIT_CLEARANCE_GUARD:
+        # answered before their fallback bookkeeping runs at all -- but only
+        # while it is still BOUNDING legs rather than refusing every one of
+        # them. Answering it unconditionally, as this did until 2026-09-06, put
+        # the guard above the fallback switch AND above
+        # ``BAY_EXIT_FALLBACK_FRAMES``, which ships at 0: a guard that trapped
+        # itself had no way out at any budget, and ``BAY_EXIT_MAX_FRAMES``
+        # (900, 45 s) fired in none of the 2026-09-06 hardware runs. One of
+        # them stood still for 14.2 s of a 16.6 s exit.
+        #
+        # A guard doing its job alternates block and motion, so a long UNBROKEN
+        # run of blocks is the signature that separates the two. Past it the
+        # contact-bounded exits are strictly better than not moving: they may
+        # touch a fin, which ends the round under 9.24.7, but a manoeuvre that
+        # never leaves the pocket has already lost the round and the 7 points
+        # the in-bay start was worth.
+        guard_trapped = (
+            follower.BAY_EXIT_GUARD_BLOCK_TICKS > 0 and self._guard_block_ticks >= follower.BAY_EXIT_GUARD_BLOCK_TICKS
+        )
+        if follower.BAY_EXIT_CLEARANCE_GUARD and not guard_trapped:
             return self._guarded_command(travelled_m, creep_speed_mps, tuning, open_is_left)
 
         # Which exit is driving. After BAY_EXIT_FALLBACK_FRAMES the OTHER one

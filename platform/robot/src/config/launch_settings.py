@@ -61,6 +61,15 @@ def _default_bag_topics() -> list[str]:
         topics.state_machine.system_status,
         topics.actuators.drive_speed,
         topics.actuators.steering_position,
+        # The bay-exit clearance guard's ONLY state input. It dead-reckons the
+        # pocket pose from `get_wheel_odometry().distance_m`, which is this
+        # topic's drive-wheel position -- not `drive_speed`, which is a smoothed
+        # estimate with a different bias. Absent from the 2026-09-06 bags, an
+        # offline replay of a 14.2 s deadlock could not be made faithful:
+        # reconstructions that reproduced the stall destroyed the runs that
+        # escaped, and no single one exceeded 90% agreement on all three.
+        # Cheap to record -- a handful of floats, nowhere near /camera/image_raw.
+        topics.actuators.joint_states,
         "/tf",
         "/tf_static",
     ]

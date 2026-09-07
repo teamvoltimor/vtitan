@@ -1021,6 +1021,42 @@ class NavigatorDebugSnapshot(BaseModel):
     maneuver_frames_left: int | None = None
     escape_count: int | None = None
 
+    # In-bay start -- set only on the "bay_exit" phase. The manoeuvre reasons
+    # entirely in a DEAD-RECKONED bay frame that no other topic can reconstruct:
+    # /joint_states carries its input, but not the pocket pose it integrates to,
+    # nor which side it decided was open, nor why a leg ended. Diagnosing the
+    # 2026-09-06 runs needed an offline replay that could not be made faithful,
+    # and the answer -- `bay_dr_along_m` = 0.106 in a pocket with 0.065 m of
+    # slack -- is a one-glance read once it is published.
+    bay_open_is_left: bool | None = None
+    """Which side the exit LATCHED as the open corridor, not which side is open.
+
+    The two came apart on run_20260906_192424: the corridor was measurably open
+    to the RIGHT (0.839 m against 0.128 m) and the manoeuvre ratcheted left, into
+    the wall, for its whole exit. Nothing in the bag said so -- the side had to be
+    inferred from the sign of `commanded_steering_norm`."""
+
+    bay_dr_along_m: float | None = None
+    """Dead-reckoned along-wall position in the bay frame."""
+
+    bay_dr_out_m: float | None = None
+    """Dead-reckoned outward position in the bay frame.
+
+    Paired with `bay_dr_along_m`. The pocket admits |along| <= 0.065 m, so a
+    larger magnitude is not uncertainty, it is a model that has integrated wheel
+    travel the chassis never made -- which puts the guard's predicted gap inside
+    a fin, where it refuses BOTH legs and can never recover."""
+
+    bay_guard_gap_m: float | None = None
+    """Predicted fin clearance the leg bound was judged against, this tick.
+
+    Negative means the MODELLED body overlaps a fin. `<= BAY_EXIT_CLEARANCE_
+    MARGIN_M` is why a leg ended; a long run of them with no motion between is
+    the deadlock, and telling those two apart was the whole diagnosis."""
+
+    bay_leg_is_reverse: bool | None = None
+    """Which leg of the ratchet is running. Alternation with no travel is a stall."""
+
     # Parking -- set once a ParkController exists.
     parking_engaged: bool | None = None
     park_phase: ParkPhase | None = None
