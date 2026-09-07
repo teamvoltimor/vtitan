@@ -79,11 +79,11 @@ Esta documentación es bastante extensa, por lo que decidimos dividir los conten
 
 Ahora bien, la estructura de los archivos es la siguiente:
 
-- En la carpeta `docs`, como ya se ha mencionado, se encuentra todo lo documentado sobre V-Titan, dividido en 4 secciones, la electrónica, la mecánica, la programación, además de estas secciones, también contamos con algunos archivos que detallan, por ejemplo, el software utilizado, los "gadgets" o herramientas que utilizamos, cómo nos pueden contactar, y demás, **estos archivos están listados al final del índice**.
+- En la carpeta `docs`, como ya se ha mencionado, se encuentra todo lo documentado sobre V-Titan, dividido en 4 secciones, la electrónica, la mecánica, la programación, además de estas secciones, también contamos con algunos archivos que detallan, por ejemplo, el software utilizado, cómo nos pueden contactar, y demás, **estos archivos están listados al final del índice**.
 
 - En la carpeta `3d-models` se encuentran todos los modelos de las piezas 3d que fueron impresas para V-Titan, esta carpeta está dividida para los planos de las piezas, y el archivo para imprimirlas, además de, estar organizadas por cada prototipo.
 
-- En la carpeta `schemes` están los diagramas de flujo, y los diagramas de conexiones. En `schemes/flowcharts/` viven las fuentes Mermaid y sus renders PNG, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera.
+- En la carpeta `schemes` están los diagramas de flujo, y los diagramas de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders PNG, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera.
 
 - En la carpeta `t-photos` están las fotos del equipo.
 
@@ -98,7 +98,7 @@ Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el 
 - [Task](https://taskfile.dev) (`go install github.com/go-task/task/v3/cmd/task@latest` o el instalador de la página)
 - [Pixi](https://pixi.sh) (gestiona los entornos de Python + ROS2 en el robot y la simulación)
 - [Go](https://go.dev) 1.25+ (backend de telemetría, generador de escenarios y binarios del robot)
-- Node.js 22+ (dashboard de telemetría)
+- Node.js 22+ (dashboard, el panel de telemetría)
 
 ### Desarrollo y simulación (en el computador de desarrollo)
 
@@ -132,9 +132,9 @@ task platform:robot:pull-runs      # Descargar los bags MCAP de las carreras
 task rpi:stack ACTION=up           # Levantar la pila de servicios en orden correcto
 task rpi:stack ACTION=status       # Estado de la pila
 task rpi:stack ACTION=logs         # Últimos logs de todos los servicios
-task rpi:health                    # Snapshot de salud: temperatura, throttle, disco, RAM
+task rpi:health                    # Captura de salud: temperatura, throttle, disco, RAM
 task robot:calibrate-encoder       # Calibración de pulsos/vuelta contra distancia medida
-task robot:test-motors             # Smoke test de hardware: rango de servo + pulso de motor
+task robot:test-motors             # Prueba de humo de hardware: rango de servo + pulso de motor
 ```
 
 ### Provisionado desde cero (instalar el sistema en las Raspberry Pi)
@@ -355,7 +355,7 @@ alt="Vista inferior de V-Titan" width="600">
 
 V-Titan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Steel Bot, y es un proyecto que se encuentra evolucionando hasta el día de hoy.
 
-V-Titan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, V-Titan conserva muchos de los componentes electrónicos que utilizó Klevor, tales la Raspberry Pi 5, y el RPLiDAR C1.
+V-Titan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, V-Titan conserva muchos de los componentes electrónicos que utilizó Klevor, tales como la Raspberry Pi 5, y el RPLiDAR C1.
 
 # Arquitectura de energía y sensores 
 
@@ -406,9 +406,9 @@ La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como l
 | Ancho      | 12.4 mm   |
 | Peso       | 4 g       |
 
-**Montaje.** La cámara va montada directamente sobre el LIDAR (mismo offset frontal, x = 0.1222 m), a unos **20 cm del suelo** e inclinada **~10° hacia abajo**. La posición alta cumple dos funciones: despeja la línea de visión sobre el propio chasis y sobre los obstáculos bajos de la pista, y junto con la inclinación leve hacia abajo equilibra el cuadro entre la pista cercana (donde viven las señales que hay que leer a tiempo para decidir el lado de paso) y el horizonte del pasillo. El ángulo es lo bastante pequeño para que las señales a distancia de decisión (~1.4 m de radio de activación) queden bien dentro del encuadre, sin sacrificar la visión lejana que da la versión Wide. Las constantes de montaje viven en `platform/shared/config/robot.toml` (`[camera]`), y son las mismas que consumen la simulación y la TF estática.
+**Montaje.** La cámara va montada directamente sobre el LIDAR (mismo desplazamiento frontal, x = 0.1222 m), a unos **20 cm del suelo** e inclinada **~10° hacia abajo**. La posición alta cumple dos funciones: despeja la línea de visión sobre el propio chasis y sobre los obstáculos bajos de la pista, y junto con la inclinación leve hacia abajo equilibra el cuadro entre la pista cercana (donde aparecen las señales que hay que leer a tiempo para decidir el lado de paso) y el horizonte del pasillo. El ángulo es lo bastante pequeño para que las señales a distancia de decisión (~1.4 m de radio de activación) queden bien dentro del encuadre, sin sacrificar la visión lejana que da la versión Wide. Las constantes de montaje viven en `platform/shared/config/robot.toml` (`[camera]`), y son las mismas que consumen la simulación y la TF estática.
 
-**Calibración.** No hacemos calibración intrínseca de fábrica: el detector no necesita proyectar píxeles con precisión métrica, porque la decisión de la distancia al obstáculo la toma el LIDAR (la visión **no** es la red de seguridad de colisiones). Para las señales, la cámara aporta rumbo (preciso: la posición horizontal en el cuadro no depende de la profundidad) y color, mientras que la distancia por altura del bounding box es un modelo pinhole cuyo error crece con el rango (~3.6 cm a 1.5 m, ~14 cm a 3 m). Por eso el sistema fusiona ambas fuentes: cuando hay barrido LIDAR en el tick, se confía en el rango del rayo más cercano al rumbo de la cámara, y el pinhole queda como respaldo. Su limitación conocida (asume cámara nivelada) está documentada honestamente en `platform/robot/docs/robot-physical-constants.md`.
+**Calibración.** No hacemos calibración intrínseca de fábrica: el detector no necesita proyectar píxeles con precisión métrica, porque la decisión de la distancia al obstáculo la toma el LIDAR (la visión **no** es la red de seguridad de colisiones). Para las señales, la cámara aporta rumbo (preciso: la posición horizontal en el cuadro no depende de la profundidad) y color, mientras que la distancia por altura del cuadro delimitador (bounding box) es un modelo pinhole (proyección estenopeica) cuyo error crece con el rango (~3.6 cm a 1.5 m, ~14 cm a 3 m). Por eso el sistema fusiona ambas fuentes: cuando hay barrido LIDAR en el ciclo de muestreo, se confía en el rango del rayo más cercano al rumbo de la cámara, y el pinhole queda como respaldo. Su limitación conocida (asume cámara nivelada) está documentada honestamente en `platform/robot/docs/robot-physical-constants.md`.
 
 ### Raspberry Pi AI HAT+ (26 TOPS)
 
@@ -419,7 +419,7 @@ width="350">
 	<i>Raspberry Pi AI HAT+ 26 TOPS</i>
 </p>
 
-Si bien la Raspberry Pi 5 es capaz de procesar imágenes en tiempo real, tras algunas pruebas, descubrimos que su tasa de procesamiento era bastante baja (alrededor de 1 a 2 fotos por segundo, con varias optimizaciones implementadas) por ende, tuvimos en cuenta que necesitaba un poco más de poder, por lo cual decidimos incorporar la AI HAT+ a la Raspberry Pi 5 para poder alcanzar el nivel de procesamiento necesario.
+Si bien la Raspberry Pi 5 es capaz de procesar imágenes en tiempo real, tras algunas pruebas, descubrimos que su tasa de procesamiento era bastante baja (alrededor de 1 a 2 fotos por segundo, con varias optimizaciones implementadas) por ende, tuvimos en cuenta que necesitaba más capacidad de cómputo, por lo cual decidimos incorporar la AI HAT+ a la Raspberry Pi 5 para poder alcanzar el nivel de procesamiento necesario.
 
 El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones por Segundo (TOPS) y otra de 26 TOPS. Como se menciona en el índice, V-Titan posee un Raspberry Pi AI HAT+ de 26 TOPS, gracias a este procesador de imágenes, V-Titan puede analizar imágenes de 640 px × 640 px a 15 Hz de punta a punta (captura, inferencia y publicación), con el modelo rindiendo 101 FPS en inferencia pura. La medición completa está en la [sección del modelo de detección](README.md#modelo-de-detección-yolo).
 
@@ -463,7 +463,7 @@ width="350">
 
 El RPLiDAR C1 es un escáner de rango láser de 360 grados, el cual puede detectar superficies que están hasta 12 metros de distancia, su punto ciego es de tan solo 5 centímetros alrededor del mismo, todos estos factores hacen que el RPLiDAR C1 sea una gran opción para poder guíar a V-Titan por la pista.
 
-Este RPLiDAR C1 permite a V-Titan poder identificar exactamente dónde está ubicado en la pista, gracias a que nos ofrece una visión de al menos 180 grados para poder manejar la navegación por la pista con una mayor autonomía, la prioridad para el uso apropiado de este sensor, en el caso de la categoría Futuros Ingenieros es colocarlo de tal manera que su laser esté por debajo de los 10cm sobre el suelo, de tal manera que sea capaz de realizar mediciones a las paredes y los bloques, ademàs de colocarlo lo más hacia el frente posible, y priorizar que nada lo esté tapando para que su visión sea despejada.
+Este RPLiDAR C1 permite a V-Titan poder identificar exactamente dónde está ubicado en la pista, gracias a que nos ofrece una visión de al menos 180 grados para poder manejar la navegación por la pista con una mayor autonomía, la prioridad para el uso apropiado de este sensor, en el caso de la categoría Futuros Ingenieros es colocarlo de tal manera que su láser esté por debajo de los 10 cm sobre el suelo, de tal manera que sea capaz de realizar mediciones a las paredes y los bloques, además de colocarlo lo más hacia el frente posible, y priorizar que nada lo esté tapando para que su visión sea despejada.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -533,12 +533,12 @@ width="350">
 
 El GY-BNO085 es nuestro sensor de orientación inercial (IMU). Lo usamos para que el robot mantenga rumbo en los cruces y cuente las vueltas dadas tanto en el Desafío sin Obstáculos como en el Desafío Cerrado, aunque exista algún problema mecánico que lo desvíe de su trayectoria.
 
-**Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un heading por campo magnético sería vulnerable a todo eso. La contrapartida es el drift del datasheet (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `platform/robot/docs/blind-navigation-evaluation.md`.
+**Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un rumbo por campo magnético sería vulnerable a todo eso. La contrapartida es la deriva del datasheet (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `platform/robot/docs/blind-navigation-evaluation.md`.
 
 **Calibración y referencia de rumbo.** El modo RVC no expone rutinas de calibración al usuario: la calibración de gyro/acelerómetro la hace el chip en su arranque. Nuestra parte del proceso es la **referencia de yaw**, y es deliberadamente simple:
 
-1. El robot se enciende y se coloca en la pose de salida (puede quedar girado 90° o 180° respecto al pasillo; da igual).
-2. Al presionar el botón de inicio, el estimador fija un offset: ese rumbo pasa a ser 0°. Todo el yaw del robot es relativo a esa referencia (`reset_heading_reference` en `platform/robot/src/state_machine/estimator.py`).
+1. El robot se enciende y se coloca en la pose de salida (puede quedar girado 90° o 180° respecto al pasillo; es irrelevante).
+2. Al presionar el botón de inicio, el estimador fija un desplazamiento (offset): ese rumbo pasa a ser 0°. Todo el yaw del robot es relativo a esa referencia (`reset_heading_reference` en `platform/robot/src/state_machine/estimator.py`).
 3. Durante la ronda, el drift se acota con un filtro complementario contra el mundo "Manhattan" de la pista: cada pared es paralela o perpendicular al pasillo, así que el promedio circular de los ángulos medidos por el LIDAR recupera el heading absoluto y corrige la deriva del IMU.
 
 La implementación maneja dos variables: `yaw_deg` (orientación relativa desde el inicio de la ronda) y `relative_yaw`, que acumula las vueltas sin saltar en ±180°. Dividiendo `relative_yaw` entre 90 y redondeando hacia abajo sabemos cuántos tramos rectos recorrió; cuando el cociente llega a ±12, el robot sabe que está en su zona de estacionamiento y avanza un poco más hasta detenerse (en el Desafío sin Obstáculos).
@@ -559,7 +559,7 @@ width="350">
 	<i>Ovonic Air 11.1V Li-Po Battery</i>
 </p>
 
-La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal: de ella cuelgan la Raspberry Pi 5 y todos sus componentes embebidos, además del motor de tracción. Usamos **dos modelos de la misma serie 3S**, con un rol distinto cada uno:
+La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal: de ella se alimentan la Raspberry Pi 5 y todos sus componentes embebidos, además del motor de tracción. Usamos **dos modelos de la misma serie 3S**, con un rol distinto cada uno:
 
 | **Característica** | **Competencia: Ovonic 3S Short 2200 mAh 120C** | **Prácticas: Ovonic 3S 3000 mAh 50C** |
 |--------------------|------------------------------------------------|----------------------------------------|
@@ -570,14 +570,14 @@ La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal
 | Dimensiones        | 77.17 × 34.06 × 25.12 mm                       | 107 × 24 × 33 mm                       |
 | Peso               | 140 g                                          | 186 g                                  |
 
-**Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia** (formato "shorty" con conector XT60): menos capacidad, pero **46 g menos en la balanza** (140 g contra 186 g) y un C-rating doble, que es lo que importa en pista.
+**Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia**, en formato compacto ("shorty") y con conector XT60: menos capacidad, pero 46 g menos en la balanza (140 g contra 186 g) y un C-rating doble, que es lo que importa en pista.
 
 **Por qué es suficiente.** El presupuesto de potencia real del robot es de ~5 A sostenidos con picos de ~20 A en arranques (ver la [sección de consumo energético](README.md#consumo-energ%C3%A9tico)). Con la batería de competencia:
 
 - **Autonomía**: 2200 mAh a ~5 A sostenidos da ~26 minutos de operación continua; una ronda completa dura pocos minutos, incluyendo esperas en mesa. El límite práctico en un día de competencia no es la descarga de una ronda sino el ciclo de recargas entre rondas.
 - **Corriente de pico**: el C-rating de 120C anunciado representa 264 A, cifra de marketing en condiciones ideales; incluso descontando la mitad por realismo continuo, la batería puede entregar más de 100 A, más de 5 veces los picos de ~20 A del tren motriz. La entrega de corriente no es el cuello de botella en ninguna parte del sistema.
 
-Usar packs más pequeños no tiene sentido (el margen energético ya es holgado), y usar la de prácticas en competencia solo pagaría el peso y el volumen extra de un pack más grande, sin ningún beneficio en pista.
+Usar baterías más pequeñas no tiene sentido (el margen energético ya es holgado), y usar la de prácticas en competencia solo pagaría el peso y el volumen extra de una batería más grande, sin ningún beneficio en pista.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -602,7 +602,7 @@ El BTS7960 es el puente H que controla el motor de tracción. **No fue nuestra p
 	<i>Puente H L298N - el diseño anterior, descartado por corriente insuficiente</i>
 </p>
 
-El L298N entrega **2 A por canal**. Cuando pasamos a medir de verdad lo que consume el tren motriz con el motor actual, el número no daba: la rama de tracción consume del orden de **10 A promedio** al 50% del ciclo de trabajo, con **picos instantáneos cercanos a 20 A** en los arranques y en los cambios de sentido. Eso es un orden de magnitud por encima de lo que el L298N puede sostener, y explicaba los cortes y el calentamiento que veíamos: el puente no estaba fallando, estaba operando muy por encima de su especificación.
+El L298N entrega **2 A por canal**. Cuando pasamos a medir realmente lo que consume el tren motriz con el motor actual, los números no cuadraban: la rama de tracción consume del orden de **10 A promedio** al 50% del ciclo de trabajo, con **picos instantáneos cercanos a 20 A** en los arranques y en los cambios de sentido. Eso es un orden de magnitud por encima de lo que el L298N puede sostener, y explicaba los cortes y el calentamiento que veíamos: el puente no estaba fallando, estaba operando muy por encima de su especificación.
 
 El BTS7960 está clasificado a **43 A**, lo que deja un margen amplio incluso sobre los picos. La otra diferencia importante es la caída de tensión: el L298N usa transistores bipolares y pierde cerca de 2 V en el puente, mientras que el BTS7960 usa MOSFET y esa pérdida es mucho menor, de modo que llega más tensión útil al motor con la misma batería.
 
@@ -641,7 +641,7 @@ El Mini-560 Pro cubre la demanda real del servo en un encapsulado mucho más com
 | Mini-560 Pro (actual) | 5 g |
 | **Diferencia** | **-19 g** |
 
-Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el punto: **el peso no se recupera de un solo golpe, sino sumando decisiones pequeñas**. Llegamos a estar 200 g por encima del límite, y ninguna pieza individual explicaba esos 200 g. Salir de ahí consistió en repetir este mismo ejercicio pieza por pieza (¿cuánta capacidad usa realmente esta rama, y cuánto peso estamos pagando por la que sobra?). Es el mismo razonamiento que aplicamos en la transmisión y en el chasis: **dimensionar cada pieza contra la carga medida, no contra el peor caso imaginable.**
+Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el punto: **el peso no se recupera de un solo golpe, sino sumando decisiones pequeñas**. Llegamos a estar 200 g por encima del límite, y ninguna pieza individual explicaba esos 200 g. Resolver eso consistió en repetir este mismo ejercicio pieza por pieza (¿cuánta capacidad usa realmente esta rama, y cuánto peso estamos pagando por la que sobra?). Es el mismo razonamiento que aplicamos en la transmisión y en el chasis: **dimensionar cada pieza contra la carga medida, no contra el peor caso imaginable.**
 
 ### SSD1306 OLED Display
 
@@ -659,11 +659,11 @@ Convertidor reductor que toma la tensión de la batería y entrega **5 V a 5 A p
 
 El dimensionamiento merece una aclaración, porque el pico de la tabla anterior suma por componente y aquí sería una suma engañosa. El AI HAT+, la cámara, el LIDAR y el puente IMU no se alimentan del KL89576 directamente: se alimentan del riel de 5 V de la propia Pi 5, y la Pi Zero entera (motor, nivel-shifter, OLED, encoder) recibe su alimentación por el VBUS del puerto USB de la Pi 5. Es decir, los 5 A de la especificación de la Pi 5 **ya incluyen** a todo lo conectado a la placa, y el pico del AI HAT+ (2.5 A) no se suma dos veces. El presupuesto real de la rama es: pico de la placa con sus periféricos (5 A, valor de especificación oficial que cubre el AI HAT+) más LIDAR (0.6 A) e IMU (0.03 A), ambos casi constantes, contra los 5 A del convertidor.
 
-Ese margen es deliberadamente fino y lo monitoreamos en vez de sobredimensionarlo sin medir: el indicador `vcgencmd get_throttled` de la Pi 5 reporta cualquier caída de tensión, y es la misma señal con la que verificamos (0x0, sin eventos) que la Pi Zero alimentada por VBUS funciona sin undervoltage en carrera. Si el margen algún día se cerrara, el punto de vigilancia es el consumo conjunto placa+NPU, no el convertidor.
+Ese margen es deliberadamente fino y lo monitoreamos en vez de sobredimensionarlo sin medir: el indicador `vcgencmd get_throttled` de la Pi 5 reporta cualquier caída de tensión, y es la misma señal con la que verificamos (0x0, sin eventos) que la Pi Zero alimentada por VBUS funciona sin caída de tensión (undervoltage) en carrera. Si el margen algún día se cerrara, el punto de vigilancia es el consumo conjunto placa+NPU, no el convertidor.
 
 ## Diagrama de Conexiones
 
-El arnés completo de V-Titan está trazado como un esquemático generado por código, no dibujado a mano: la fuente vive en [`schemes/wiring/tscircuit/circuit.tsx`](schemes/wiring/tscircuit/circuit.tsx) y se exporta con [tscircuit](https://tscircuit.com/). Esto nos permite versionar el cableado igual que el resto del código: cualquier cambio de pin queda en el historial de git y el render se regenera desde la misma fuente.
+El arnés completo de V-Titan está trazado como un esquemático generado por código, no dibujado a mano: la fuente reside en [`schemes/wiring/tscircuit/circuit.tsx`](schemes/wiring/tscircuit/circuit.tsx) y se exporta con [tscircuit](https://tscircuit.com/). Esto nos permite versionar el cableado igual que el resto del código: cualquier cambio de pin queda en el historial de git y el render se regenera desde la misma fuente.
 
 <p align="center">
     <img src="schemes/wiring/harness.schematic.svg" alt="Diagrama de conexiones de V-Titan" width="1000">
@@ -699,11 +699,11 @@ Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se comitean e
 >
 > **Nota sobre la rama del computador.** Los picos de la Raspberry Pi 5 (5.00 A) y del AI HAT+ (2.50 A) **no se suman**: el AI HAT+ se alimenta del riel de 5 V de la propia Pi 5, y el pico de 5 A de la placa ya cubre por especificación a todo lo conectado a ella, incluida la Pi Zero, que recibe su alimentación por el VBUS de un puerto USB de la Pi 5. Los 5 A del KL89576 dimensionan esta rama completa; ver la [sección del convertidor](README.md#convertidor-kl89576-dc-a-usb-c).
 >
-> Estas tres ramas (computador, servo y tracción) cuelgan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
+> Estas tres ramas (computador, servo y tracción) se alimentan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
 
 # Movilidad y Diseño Mecánico
 
-En este apartado se discuten todos los aspectos con lo que a movilidad y diseño se refiere, la evolución de éste, los prototipados realizados, etc...
+En este apartado se discuten todos los aspectos con lo que a movilidad y diseño se refiere, la evolución de éste, los prototipados realizados, etcétera.
 
 ## Métodos de Prototipaje
 
@@ -719,9 +719,9 @@ Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 
 
 * **Reglamento de tracción y dirección:** Permitido tracción 4x4 impulsada por un **único motor** (o dos conectados en el mismo árbol de transmisión) y sistema de dirección para las 4 ruedas accionado por un **único servomotor**.
 
-Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#9-axis-imu-gyroscope-gy-bno085) como componentes principales para la navegación de V-Titan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de V-Titan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-2-w) como microcontrolador para el manejo de el [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
+Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#9-axis-imu-gyroscope-gy-bno085) como componentes principales para la navegación de V-Titan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de V-Titan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-2-w) como microcontrolador para el manejo del [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
 
-Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita general el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Desafío Cerrado sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación decidimos dividir el proceso en 4 fases:
+Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita generar el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Desafío Cerrado sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación decidimos dividir el proceso en 4 fases:
 
 #### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
 
@@ -827,9 +827,9 @@ width="350">
 	<i>Ejemplo de sistema de dirección en contrafase</i>
 </p>
 
-V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema funciona en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
+V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema se basa en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
 
-En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje indidivual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
+En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
 ## Chasis Inferior 
 
@@ -840,7 +840,7 @@ width="350">
 	<i>Piñon de 33 dientes de dirección</i>
 </p>
 
-También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
+También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
 
 ## Monochasis 
 
@@ -851,9 +851,9 @@ width="350">
 	<i>Chasis Inferior</i>
 </p>
 
-Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis de pueden aprecias dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernas de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
+Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis se pueden apreciar dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernos de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
 
-**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (wheelbase de 0.19 m entre ejes, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) vive en `platform/shared/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
+**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `platform/shared/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
 
 ## Relación de Torque y Velocidad 
 
@@ -902,7 +902,7 @@ Y el torque de bloqueo final:
 
 $$T_{final} = T_{stall} \cdot R_{total} = 0.105\ \text{Nm} \cdot 3.29 = 0.345\ \text{Nm}$$
 
-Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm}$, que queda por debajo del requerimiento con la aceleración sostenida medida ($0.207\ \text{Nm}$). Esto no invalida el diseño, y los bags lo confirman: la recomendación del 50% es para **duty continuo prolongado** (donde el calentamiento del devanado manda), mientras que la demanda real de una ronda es de tramos cortos de aceleración entre cruces; para eso están los picos de torque que los motores DC toleran por breves segundos. Contra el torque de bloqueo completo ($0.345\ \text{Nm}$), el margen es holgado incluso con $a = 1.0\ \text{m/s}^2$. La prueba final es empírica: los mismos bags de donde salió la aceleración muestran al robot sosteniendo esos $1.0\ \text{m/s}^2$ en pista, con este mismo motor y esta misma relación. Además, a medida que el vehículo gana velocidad, el cociente de fricción disminuye considerablemente (alrededor de un 15%), por lo que el torque necesario baja y es más fácil que el vehículo gane aceleración.
+Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm}$, que queda por debajo del requerimiento con la aceleración sostenida medida ($0.207\ \text{Nm}$). Esto no invalida el diseño, y los bags lo confirman: la recomendación del 50% es para **funcionamiento continuo prolongado** (donde el calentamiento del devanado manda), mientras que la demanda real de una ronda es de tramos cortos de aceleración entre cruces; para eso están los picos de torque que los motores DC toleran por breves segundos. Contra el torque de bloqueo completo ($0.345\ \text{Nm}$), el margen es holgado incluso con $a = 1.0\ \text{m/s}^2$. La prueba final es empírica: los mismos bags de donde salió la aceleración muestran al robot sosteniendo esos $1.0\ \text{m/s}^2$ en pista, con este mismo motor y esta misma relación. Además, a medida que el vehículo gana velocidad, el cociente de fricción disminuye considerablemente (alrededor de un 15%), por lo que el torque necesario baja y es más fácil que el vehículo gane aceleración.
 
 # Arquitectura de software y estrategia para superar obstáculos
 
@@ -928,13 +928,13 @@ Los nodos se comunican por **29 tópicos declarados en un único archivo de conf
 
 Un detalle que ilustra el nivel de restricción real: el SoC de la Pi Zero 2 W tiene **exactamente dos generadores de PWM por hardware**. Uno está tomado por el servo de dirección, que necesita mantener una posición absoluta y no tolera fluctuaciones. El otro se asigna a la marcha adelante del motor. La marcha atrás, que solo se usa en maniobras de estacionamiento y recuperación a baja velocidad, funciona con PWM por software y sí tolera esa fluctuación. Es un reparto deliberado de un recurso escaso, no una casualidad.
 
-### El segundo stack en Go, y por qué no corre en carrera
+### La segunda pila (stack) en Go, y por qué no corre en carrera
 
 Existe una segunda implementación de la pila en Go (con NATS como transporte en lugar de ROS2/DDS), y conviene ser explícitos sobre su estado: **no es la que compite**. La pila en carrera es la de Python + ROS2 descrita arriba, en todos los componentes: visión, navegación, máquina de estados y drivers en ambas placas.
 
-La única pieza de Go que corre en producción es el **backend de telemetría** (`vtitan-backend.service`), un binario compilado que la Pi 5 sirve al dashboard.
+La única pieza de Go que corre en producción es el **backend de telemetría** (`vtitan-backend.service`), un binario compilado que la Pi 5 sirve al panel de telemetría (dashboard).
 
-La migración a Go se tomó como un reemplazo a largo plazo de ROS2 (arranque más rápido, menor consumo de recursos y de memoria en las placas), pero con una política deliberada: **migración en vía paralela con corte único, sin híbridos**. El stack de Python sigue siendo el de competencia y ahí continúan los ajustes de temporada; el de Go solo cortará a producción cuando alcance paridad completa, y entonces se conmutará de una vez con `vtitan-robot@go`, con el stack de Python documentado como camino de reversión. Al día de hoy, lo portado (incluida la navegación) está verificado contra bags de carreras reales en un arnés de paridad, pero el navegador de Go todavía no ha corrido dentro de un lazo completo de carrera en el robot, y ese es justamente el criterio de paridad que falta para el corte.
+La migración a Go se tomó como un reemplazo a largo plazo de ROS2 (arranque más rápido, menor consumo de recursos y de memoria en las placas), pero con una política deliberada: **migración en vía paralela con corte único, sin híbridos**. La pila de Python sigue siendo el de competencia y ahí continúan los ajustes de temporada; el de Go solo cortará a producción cuando alcance paridad completa, y entonces se conmutará de una vez con `vtitan-robot@go`, con la pila de Python documentada como camino de reversión. Al día de hoy, lo portado (incluida la navegación) está verificado contra bags de carreras reales en un arnés de paridad, pero el navegador de Go todavía no ha corrido dentro de un lazo completo de carrera en el robot, y ese es justamente el criterio de paridad que falta para el corte.
 
 ## Modelo de Detección YOLO
 
@@ -949,15 +949,15 @@ Para detectar los obstáculos del Desafío Cerrado de manera confiable usamos un
 | Formato desplegado | ONNX compilado a HEF (Hailo-8) con Hailo Model Zoo |
 | NMS | Embebido en el HEF, score 0.20, IoU 0.70 |
 | Umbral de despliegue | 0.45 en el detector (las detecciones por debajo no llegan al navegador); 0.25 en el router de señales, para confirmación tardía |
-| Throughput | 101.5 FPS el HEF solo (`hailortcli run`); el pipeline completo (captura → letterbox → NPU → decode → publicar) corre a **15 Hz**, limitado por el timer de captura, no por el modelo |
+| Rendimiento (throughput) | 101.5 FPS el HEF solo (`hailortcli run`); la cadena completa (captura → escala tipo letterbox → NPU → decodificación → publicación) corre a **15 Hz**, limitada por el temporizador de captura, no por el modelo |
 
-Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), demasiado lento para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos el pipeline: el nodo de visión abre la cámara directamente y alimenta los frames al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
+Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), demasiado lento para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos el pipeline: el nodo de visión abre la cámara directamente y alimenta los fotogramas al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
 
 ### Datos de entrenamiento
 
-El modelo actual se entrenó sobre **1,340 imágenes propias** de los prismas de la pista (verde, magenta y rojo), anotadas **manualmente con Label Studio** en formato YOLO. Es un dataset heredado de Klevor, que sigue siendo la base del detector actual.
+El modelo actual se entrenó sobre **1,340 imágenes propias** de los prismas de la pista (verde, magenta y rojo), anotadas **manualmente con Label Studio** en formato YOLO. Es un conjunto de datos heredado de Klevor, que sigue siendo la base del detector actual.
 
-En paralelo construimos el **auto-annotator**, una herramienta de anotación asistida con SAM2 (orquestación en Go, servicio de ML en Python, frontend propio). No la usamos para el modelo actual: las anotaciones de este fueron a mano. La construimos pensando en la siguiente iteración del dataset, porque anotar 1,340 imágenes a mano fue la parte más lenta del entrenamiento y un modelo nuevo empieza por ahí. Las imágenes del dataset viven en el repositorio del auto-annotator y sirven también como datos de calibración para la cuantización del HEF.
+En paralelo construimos el **auto-annotator**, una herramienta de anotación asistida con SAM2 (orquestación en Go, servicio de ML en Python, frontend (interfaz) propio). No la usamos para el modelo actual: las anotaciones de este fueron a mano. La construimos pensando en la siguiente iteración del conjunto de datos, porque anotar 1,340 imágenes a mano fue la parte más lenta del entrenamiento y un modelo nuevo empieza por ahí. Las imágenes del conjunto de datos viven en el repositorio del auto-annotator y sirven también como datos de calibración para la cuantización del HEF.
 
 ### Cómo lo medimos (y qué cambió por eso)
 
@@ -973,12 +973,12 @@ La decisión de desplegar la variante de nivel 0 salió directamente de esta tab
 
 Dos hallazgos de esta evaluación nos parecieron los más valiosos:
 
-- **El orden de canales RGB/BGR casi pasa inadvertido.** Con el orden de canales equivocado, el mAP de la clase roja caía de 0.99 a **0.17**, y el sistema no falla de forma estridente: detecta "algo" con confianza razonable, solo que peor. Lo detectamos comparando mAP por clase entre variantes, no mirando imágenes.
+- **El orden de canales RGB/BGR casi pasa inadvertido.** Con el orden de canales equivocado, el mAP de la clase roja caía de 0.99 a **0.17**, y el sistema no falla de forma evidente: detecta "algo" con confianza razonable, solo que peor. Lo detectamos comparando mAP por clase entre variantes, no mirando imágenes.
 - **Errar el color es peor que omitir la señal.** Clasificar un prisma rojo como verde invierte el lado de paso reglamentario; omitir la detección no lo hace, porque la red de seguridad en colisiones es el LIDAR, no la visión. Sobre 600 imágenes, el modelo desplegado jamás confundió rojo con verde y omitió 2 señales; los falsos positivos a umbral 0.25 fueron 119 (muchos atribuibles a etiquetado incompleto del conjunto de prueba), y el umbral de despliegue de 0.45 los suprime antes de que lleguen al navegador.
 
 ### Qué pasa cuando la visión falla
 
-La visión no es la red de seguridad contra colisiones y la diseñamos como tal. Una detección falsa dentro del radio de activación (1.40 m) fuerza el lado de esquiva según su color, con el riesgo de una esquiva innecesaria; una detección omitida deja la esquiva sin invocar, pero el controlador de colisión por LIDAR sigue activo y los escapes escalan (retroceso y reintento) si el contacto ocurre igualmente. La máquina de estados, además, marca la visión como caída si deja de recibir detecciones dentro de su ventana de tiempo, de modo que una cámara o NPU muerto no pasa inadvertido en el autodiagnóstico de arranque.
+La visión no es la red de seguridad contra colisiones y la diseñamos como tal. Una detección falsa dentro del radio de activación (1.40 m) fuerza el lado de esquiva según su color, con el riesgo de una esquiva innecesaria; una detección omitida deja la esquiva sin invocar, pero el controlador de colisión por LIDAR sigue activo y los escapes escalan (retroceso y reintento) si el contacto ocurre igualmente. La máquina de estados, además, marca la visión como caída si deja de recibir detecciones dentro de su ventana de tiempo, de modo que una cámara o NPU averiada no pasa inadvertido en el autodiagnóstico de arranque.
 
 ## Algoritmo PID
 
@@ -986,11 +986,11 @@ El control de V-Titan tiene dos lazos con exigencias distintas, y solo uno de el
 
 ### Control de velocidad: PI sobre RPM
 
-El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `PIDController` implementa un PI con saturación de salida (límite de duty en 50%) y anti-windup por integración condicional: el término integral solo acumula cuando la salida no está saturada, de modo que el viento-up no puede persistir contra el límite.
+El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `PIDController` implementa un PI con saturación de salida (límite de ciclo de trabajo en 50%) y anti-windup por integración condicional: el término integral solo acumula cuando la salida no está saturada, de modo que el windup no puede crecer contra el límite.
 
-Sobre el PI va un **feedforward afín** medido en banco, `duty = 0.20 + 0.8 · rpm/max_rpm`, con el deadband medido cargado (`rpm = 434.6·duty − 86.7`). El lazo integral solo corrige lo que el feedforward no modela; un setpoint de cero devuelve duty cero, así que el robot no se desliza al detenerse.
+Sobre el PI va una **prealimentación (feedforward) afín** medida en banco, `duty = 0.20 + 0.8 · rpm/max_rpm`, con la zona muerta (deadband) medida con carga (`rpm = 434.6·duty − 86.7`). El lazo integral solo corrige lo que la prealimentación no modela; una consigna de cero devuelve ciclo de trabajo cero, así que el robot no sufre avance residual al detenerse.
 
-Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el duty oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un log por paso del PID (consigna, medida, duty) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
+Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el duty oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un log por paso del PID (consigna, medida, ciclo de trabajo) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
 
 ### Dirección: de PID a pure pursuit
 
@@ -1000,16 +1000,16 @@ La solución no fue ajustar la ganancia, sino cambiar la ley de control: **pure 
 
 Dos refinamientos más, ambos dictados por evidencia de hardware:
 
-- **Mezcla del lookahead en vez de conmutación.** Los dos valores de lookahead (0.16 m corto, 0.32 m largo) conmutaban a ~2.5 Hz, y cada conmutación multiplicaba la curvatura por cuatro, produciendo un zigzag visible (pico medio de |steer| de 0.306 a 0.398 sin ganancia lateral real). Se reemplazó la conmutación por una rampa de mezcla continua.
-- **Vista previa de esquina.** Con la señal de error lateral (una señal rezagada), el robot sostenía 0.9 rad de error de rumbo durante 3 s antes de reaccionar en las esquinas. Se añadió una vista previa geométrica de la pista a 0.80 m adelante para armar el lookahead corto antes, sin alargarlo más porque otra prueba midió un tejido lateral de ±0.18 m con preview excesivo.
+- **Mezcla de la anticipación (lookahead) en vez de conmutación.** Los dos valores de anticipación (0.16 m corto, 0.32 m largo) conmutaban a ~2.5 Hz, y cada conmutación multiplicaba la curvatura por cuatro, produciendo un zigzag visible (pico medio de |steer| de 0.306 a 0.398 sin ganancia lateral real). Se reemplazó la conmutación por una rampa de mezcla continua.
+- **Vista previa de esquina.** Con la señal de error lateral (una señal rezagada), el robot sostenía 0.9 rad de error de rumbo durante 3 s antes de reaccionar en las esquinas. Se añadió una vista previa geométrica de la pista a 0.80 m adelante para activar la anticipación corta antes, sin alargarla más porque otra prueba midió un tejido lateral de ±0.18 m con vista previa excesiva.
 
 ### El modo ciego: P de centrado eliminada por medición
 
-En la fase inicial, antes de que la inferencia de dirección se estabilice, el robot sigue el pasillo solo con LIDAR. Ahí probamos un controlador P de dos términos (centrado + amortiguación de rumbo) y la ganancia de centrado resultó ser el peor error de ajuste del proyecto: con el centrado en 2.0, una barra de 128 escenarios perdió 12 casos su dirección y provocó 9 choques contra una pared; en hardware se midieron **112 inversiones de signo del steering en 177 s, con el 45% de los ciclos clavados en el límite**. El fix fue eliminar el término de centrado (ganancia en 0) y quedarse solo con la amortiguación de rumbo: la misma barra pasó a 0 fallos y el avance lento inicial bajó de 6.7 s a 3.4 s. La lección registrada: corregir posición sin tener en cuenta el rumbo siempre sobrepasa y vuelve, porque el steering fija la tasa de guiñada, no la posición.
+En la fase inicial, antes de que la inferencia de dirección se estabilice, el robot sigue el pasillo solo con LIDAR. Ahí probamos un controlador P de dos términos (centrado + amortiguación de rumbo) y la ganancia de centrado resultó ser el peor error de ajuste del proyecto: con el centrado en 2.0, una barra de 128 escenarios perdió 12 casos su dirección y provocó 9 choques contra una pared; en hardware se midieron **112 inversiones de signo del steering en 177 s, con el 45% de los ciclos saturados en el límite**. La corrección fue eliminar el término de centrado (ganancia en 0) y quedarse solo con la amortiguación de rumbo: la misma barra pasó a 0 fallos y el avance lento inicial bajó de 6.7 s a 3.4 s. La lección registrada: corregir posición sin tener en cuenta el rumbo siempre sobrecorrige y el error reaparece, porque el steering fija la tasa de guiñada, no la posición.
 
 ### El rol del giroscopio
 
-El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Su yaw relativo (ajustado por el offset al inicio de la ronda) se fusiona con odometría del encoder y con el LIDAR para producir la posición y rumbo que consume el pure pursuit; en el modo ciego entra solo por el término de amortiguación. En los cruces, el alineamiento con el eje del pasillo (medido contra el yaw del IMU) es lo que autoriza la velocidad normal, y un desalineamiento mayor a ~57° obliga a avance lento, que es donde vive la protección contra el sobrepaso que antes se le atribuía al PID.
+El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Su yaw relativo (ajustado por el desplazamiento de referencia al inicio de la ronda) se fusiona con odometría del encoder y con el LIDAR para producir la posición y rumbo que consume el pure pursuit; en el modo ciego entra solo por el término de amortiguación. En los cruces, el alineamiento con el eje del pasillo (medido contra el yaw del IMU) es lo que autoriza la velocidad normal, y un desalineamiento mayor a ~57° obliga a avance lento, que es donde vive la protección contra el sobrepaso que antes se le atribuía al PID.
 
 ## Estrategia en pista
 
@@ -1028,11 +1028,11 @@ Es la primera decisión de cada ronda y condiciona todas las demás. El robot av
 Lo interesante no es la comparación, sino todo lo que hay que descartar antes de creerla. Una lectura solo cuenta como voto si supera cuatro filtros ([`inferencia-direccion.mmd`](schemes/flowcharts/common/mermaid/inferencia-direccion.mmd)):
 
 1. **El chasis está alineado con el pasillo** (error menor a 25°). De lado, los rayos laterales cortan en diagonal y miden de más.
-2. **Ningún rayo supera los 4.5 m.** En una pista de 3 m eso no puede ser una pared. Importa porque **un fallo de lectura del LIDAR se sustituye por el rango máximo**, que es exactamente la señal de «este lado está despejado» que el módulo busca: sin este filtro, un sensor mudo parece un pasillo abierto.
+2. **Ningún rayo supera los 4.5 m.** En una pista de 3 m eso no puede ser una pared. Importa porque **un fallo de lectura del LIDAR se sustituye por el rango máximo**, que es exactamente la señal de «este lado está despejado» que el módulo busca: sin este filtro, un sensor sin respuesta parece un pasillo abierto.
 3. **La suma de ambos lados supera 1.25 m.** La decisión se toma sobre la *suma*, no sobre cada rayo por separado, y este es el punto fino: dos paredes suman el ancho del pasillo sin importar dónde esté el robot entre ellas, así que la suma solo salta cuando un lado deja de ser pared. Comparar los rayos directamente no funciona: un robot desviado hacia el bloque interior lee 0.27 m a su izquierda y 0.72 m a su derecha, y «el lado más lejano está abierto» elige la pared exterior y devuelve exactamente la respuesta contraria.
 4. **La diferencia entre lados supera 0.20 m**, para que el ruido no cuente como evidencia.
 
-Y aun así una sola lectura no decide: hacen falta **5 votos coincidentes**. Un rayo que se cuela por la esquina de un bloque produce errores breves y agrupados, y uno de esos llegando primero no puede decidir la ronda.
+Y aun así una sola lectura no decide: hacen falta **5 votos coincidentes**. Un rayo que entra por la esquina de un bloque produce errores breves y agrupados, y uno de esos llegando primero no puede decidir la ronda.
 
 ### Seguimiento de pasillo, vueltas y escapes
 
@@ -1100,11 +1100,11 @@ Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los f
 </p>
 ## Grabación y análisis de carreras
 
-Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale mal, mirar el robot no dice por qué. Por eso todo lo que ocurre a bordo queda grabado.
+Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale mal, observar el robot no revela la causa. Por eso todo lo que ocurre a bordo queda grabado.
 
 Cada ejecución escribe un *bag* en formato **MCAP** con todos los tópicos: barridos del LIDAR, pose estimada, comandos de dirección y velocidad, estado de la máquina de estados y detecciones de visión. Los bags se descargan del robot a `data/` y se analizan en frío, fuera de la pista.
 
-Sobre esos bags corren **68 scripts de diagnóstico** especializados: uno reconstruye el conteo de vueltas, otro mide el sobrepaso en las esquinas, otro compara la dirección inferida contra lo que realmente ocurrió, otro revisa la robustez de los rayos laterales. Para inspección visual, los bags se abren en **Foxglove**.
+Sobre esos bags corren **68 scripts de diagnóstico** especializados: uno reconstruye el conteo de vueltas, otro mide la sobrecorrección en las esquinas, otro compara la dirección inferida contra lo que realmente ocurrió, otro revisa la robustez de los rayos laterales. Para inspección visual, los bags se abren en **Foxglove**.
 
 La diferencia práctica es grande: un fallo no se resuelve repitiendo la ronda y esperando que se manifieste de nuevo, sino **reproduciendo el instante exacto tantas veces como haga falta**, con los mismos datos, hasta encontrar la causa. Varios de los hallazgos listados más abajo salieron de un bag, no de la pista.
 
@@ -1188,7 +1188,7 @@ Los errores más costosos del proyecto no fueron de programación, sino **suposi
 | El encoder daba **60 pulsos por vuelta, no 86** | Toda medición de distancia y velocidad estaba mal por ese factor. Se descubrió midiendo con cinta métrica una distancia conocida y comparándola con lo que el robot creía haber recorrido. |
 | El «techo de 0.45 m/s» **no era un límite físico** | Era un artefacto del error anterior. Con el valor correcto, el techo real resultó ser **~0.58 m/s**. Estuvimos limitando el robot por un error de cuentas, no por el motor. |
 | Un LIDAR montado invertido necesita **espejar las lecturas, no rotarlas 180°** | Rotar deja los ángulos invertidos en un sentido que parece plausible: el robot no falla de golpe, sino que interpreta mal la pista de forma sutil. Fue de los fallos que más costó localizar. |
-| Un fallo de lectura del LIDAR **se sustituye por el rango máximo** | Es decir, un sensor mudo se lee como «lado completamente despejado», justo la señal que usamos para decidir el sentido de la vuelta. Sin filtrarlo, el robot podía salir a dar vueltas al revés con total confianza. |
+| Un fallo de lectura del LIDAR **se sustituye por el rango máximo** | Es decir, un sensor sin respuesta se lee como «lado completamente despejado», justo la señal que usamos para decidir el sentido de la vuelta. Sin filtrarlo, el robot podía salir a dar vueltas al revés con total confianza. |
 | El puente H **operaba diez veces por encima de su especificación** | Medir el consumo real del tren motriz (~10 A, con picos de ~20 A) contra los 2 A por canal del L298N explicó de golpe los cortes y el calentamiento. |
 | Sobredimensionar una pieza **no elimina el cuello de botella** | Al pasar a un puente de 43 A, el elemento más débil de la ruta de potencia pasó a ser el interruptor de encendido. El límite se movió de sitio; no desapareció. |
 
@@ -1200,7 +1200,7 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 
 | Riesgo | Impacto | Mitigación | Estado |
 |--------|---------|------------|--------|
-| Undervoltage de la Pi 5 (consumo conjunto placa + AI HAT+ cerca del margen) | Reinicios o throttling en plena ronda | Presupuesto de potencia por riel; monitoreo con `vcgencmd get_throttled` | Vigilado |
+| Caída de tensión (undervoltage) en la Pi 5 (consumo conjunto placa + AI HAT+ cerca del margen) | Reinicios o reducción de frecuencia (throttling) en plena ronda | Presupuesto de potencia por riel; monitoreo con `vcgencmd get_throttled` | Vigilado |
 | Fallo de la cámara o la NPU durante la ronda | Ciegas ante señales y obstáculos visuales | La visión está marcada como caída si no hay detecciones en su ventana; la colisión la cubre el LIDAR, no la visión | Mitigado |
 | Lectura fallida del LIDAR que se reporta como rango máximo | El robot interpreta un lado despejado que no lo está | Cuatro filtros de voto + 5 votos coincidentes antes de inferir dirección | Mitigado |
 | Lecturas fantasma del LIDAR (rangos alternando sin causa clara) | Navegación con datos esporádicamente erróneos | Los mismos filtros de voto absorben lecturas aisladas | **Abierto** - causa raíz sin identificar |
