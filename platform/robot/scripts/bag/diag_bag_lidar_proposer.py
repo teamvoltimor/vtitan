@@ -107,6 +107,7 @@ from scripts.common.bag_io import (
     open_reader,
 )
 from scripts.common.lidar_clusters import (
+    ProposerParams,
     Track,
     associate,
     corridor_walls,
@@ -199,6 +200,30 @@ def _fmt(values: Sequence[float], unit: str = "m") -> str:
     return f"{percentile(values, 0.5):.2f} / {percentile(values, 0.9):.2f} {unit}"
 
 
+
+def _params(args: argparse.Namespace) -> ProposerParams:
+    """The shipped detector's parameters, driven by this diagnostic's flags.
+
+    Built from `args` rather than taken as defaults so a sweep can move one knob
+    without editing the robot -- but it is the ROBOT'S dataclass, so a field
+    added there cannot be silently missed here.
+    """
+    return ProposerParams(
+        min_range_m=args.min_range,
+        max_range_m=args.max_range,
+        depth_m=args.depth,
+        isolation_m=args.isolation,
+        min_chord_m=args.min_chord,
+        max_chord_m=args.max_chord,
+        wall_window_deg=args.wall_window_deg,
+        max_wall_range_m=args.max_wall_m,
+        corridor_width_m=args.corridor_width_m,
+        width_tol_m=args.width_tol_m,
+        lattice_offset_m=args.lattice_offset_m,
+        lattice_tol_m=args.lattice_tol_m,
+    )
+
+
 def build_tracks(
     scans: Sequence[tuple[float, LidarScan]],
     rows: Sequence[tuple[float, NavigatorDebugSnapshot]],
@@ -206,30 +231,17 @@ def build_tracks(
 ) -> tuple[list[Track], int]:
     """World-associated LIDAR tracks, plus the raw cluster count they came from."""
     series, times = pose_series(rows)
-    observations: list[tuple[float, float, float, float, float]] = []
+    params = _params(args)
+    observations: list[tuple[float, float, float, float, float, float | None, float | None]] = []
     raw = 0
     for t, scan in scans:
-        clusters = find_clusters(
-            scan,
-            min_m=args.min_range,
-            max_m=args.max_range,
-            depth_m=args.depth,
-            isolation_m=args.isolation,
-        )
+        clusters = find_clusters(scan, params)
         raw += len(clusters)
         pose = nearest_by_time(series, times, t, tolerance=args.pose_tolerance)
         if pose is None:
             continue
-        walls = corridor_walls(
-            scan,
-            math.radians(args.wall_window_deg),
-            args.max_wall_m,
-            expected_width_m=args.corridor_width_m,
-            width_tol_m=args.width_tol_m,
-        )
+        walls = corridor_walls(scan, params)
         for c in clusters:
-            if not args.min_chord <= c.chord_m <= args.max_chord:
-                continue
             x, y = to_world(pose, c.range_m, c.bearing_rad)
             observations.append((t, x, y, c.chord_m, c.range_m, wall_distance(c, walls), width_of(walls)))
     return associate(observations, args.assoc_radius), raw

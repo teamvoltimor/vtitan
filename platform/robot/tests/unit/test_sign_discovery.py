@@ -470,3 +470,64 @@ class TestCameraTimeAlignment:
         at_capture = pose_at_time(history, target_s=1.9 - 0.85, fallback=Pose(x=99.0, y=0.0, yaw=0.0))
         assert at_receipt.x != at_capture.x
         assert at_receipt.x - at_capture.x == pytest.approx(8.0, abs=1.0)
+
+
+class TestLidarProposals:
+    """A LIDAR proposal is a POSITION with no colour: it refines, it never routes.
+
+    The split these assert is the whole point of the proposer -- the LIDAR sees
+    an object ~0.6 m before the camera can classify it, so geometry can be
+    settled early while the pass side still waits for a colour it cannot invent.
+    """
+
+    def test_proposal_alone_is_never_published(self) -> None:
+        """Even far past min_hits: a colourless sign has no pass side."""
+        sign_map = ObservedSignMap(_CONFIDENCE)
+        for _ in range(_MIN_HITS * 3):
+            sign_map.propose([(1.0, 0.4)], Waypoint(1.0, 1.0))
+
+        assert sign_map.newly_confirmed() == []
+
+    def test_proposal_reports_unknown_until_the_camera_votes(self) -> None:
+        sign_map = ObservedSignMap(_CONFIDENCE)
+        sign_map.propose([(1.0, 0.4)], Waypoint(1.0, 1.0))
+
+        assert sign_map._tracks[0].color is SignColor.UNKNOWN
+        assert sign_map._tracks[0].as_spec().color is SignColor.UNKNOWN
+
+    def test_one_camera_frame_publishes_a_proposed_track(self) -> None:
+        """POSITION EARLY, COLOUR LATE -- the proposal has already done the hits."""
+        sign_map = ObservedSignMap(_CONFIDENCE)
+        for _ in range(_MIN_HITS):
+            sign_map.propose([(1.0, 0.4)], Waypoint(1.0, 1.0))
+        _observe(sign_map, [SignSpec(1.0, 0.4, "red")], (1.0, 1.0), -math.pi / 2, times=1)
+
+        published = _publish(sign_map)
+        assert [s.color for s in published] == [SignColor.RED]
+
+    def test_camera_votes_colour_but_cannot_move_a_lidar_fixed_position(self) -> None:
+        """The camera's range is a pinhole estimate; the LIDAR measured it.
+
+        Guards the hardware defect where monocular range over-read put believed
+        pillars on the walls -- a nearer camera look must not reintroduce it.
+        """
+        sign_map = ObservedSignMap(_CONFIDENCE)
+        sign_map.propose([(1.0, 0.4)], Waypoint(1.0, 1.0))
+        # A camera observation offset well inside the association distance, so
+        # it folds into the same track rather than starting a new one.
+        sign_map.observe(
+            [
+                TrafficSignObservation(
+                    world_x_m=1.0 + _ASSOCIATION_DIST / 2,
+                    world_y_m=0.4,
+                    color=SignColor.RED,
+                    confidence=0.9,
+                    detected_at_timestamp=0.0,
+                )
+            ],
+            Waypoint(1.0, 0.6),
+        )
+
+        track = sign_map._tracks[0]
+        assert track.color is SignColor.RED, "the camera still gets to say WHAT it is"
+        assert (track.x, track.y) == (1.0, 0.4), "but not WHERE it is"

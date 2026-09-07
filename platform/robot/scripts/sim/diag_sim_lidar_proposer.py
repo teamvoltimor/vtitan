@@ -62,6 +62,7 @@ from shared.config.constants import CorridorDimensions
 from shared.domain.models import ScenarioMetadata
 
 from scripts.common.lidar_clusters import (
+    ProposerParams,
     Track,
     associate,
     corridor_walls,
@@ -80,6 +81,30 @@ if TYPE_CHECKING:
 _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
 
 
+
+def _params(args: argparse.Namespace) -> ProposerParams:
+    """The shipped detector's parameters, driven by this diagnostic's flags.
+
+    Built from `args` rather than taken as defaults so a sweep can move one knob
+    without editing the robot -- but it is the ROBOT'S dataclass, so a field
+    added there cannot be silently missed here.
+    """
+    return ProposerParams(
+        min_range_m=args.min_range,
+        max_range_m=args.max_range,
+        depth_m=args.depth,
+        isolation_m=args.isolation,
+        min_chord_m=args.min_chord,
+        max_chord_m=args.max_chord,
+        wall_window_deg=args.wall_window_deg,
+        max_wall_range_m=args.max_wall_m,
+        corridor_width_m=args.corridor_width_m,
+        width_tol_m=args.width_tol_m,
+        lattice_offset_m=args.lattice_offset_m,
+        lattice_tol_m=args.lattice_tol_m,
+    )
+
+
 def collect(metadata: ScenarioMetadata, args: argparse.Namespace) -> list[tuple[float, float, float, float, float, float | None, float | None]]:
     """Run one scenario, returning a cluster observation per detection per tick.
 
@@ -89,25 +114,12 @@ def collect(metadata: ScenarioMetadata, args: argparse.Namespace) -> list[tuple[
     estimated pose would fold localizer error into the answer.
     """
     observations: list[tuple[float, float, float, float, float, float | None, float | None]] = []
+    params = _params(args)
 
     def on_step(state, scan) -> None:  # noqa: ANN001
         pose = (state.x, state.y, state.yaw)
-        walls = corridor_walls(
-            scan,
-            math.radians(args.wall_window_deg),
-            args.max_wall_m,
-            expected_width_m=args.corridor_width_m,
-            width_tol_m=args.width_tol_m,
-        )
-        for c in find_clusters(
-            scan,
-            min_m=args.min_range,
-            max_m=args.max_range,
-            depth_m=args.depth,
-            isolation_m=args.isolation,
-        ):
-            if not args.min_chord <= c.chord_m <= args.max_chord:
-                continue
+        walls = corridor_walls(scan, params)
+        for c in find_clusters(scan, params):
             x, y = to_world(pose, c.range_m, c.bearing_rad)
             observations.append((0.0, x, y, c.chord_m, c.range_m, wall_distance(c, walls), width_of(walls)))
 

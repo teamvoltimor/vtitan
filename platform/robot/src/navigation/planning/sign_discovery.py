@@ -336,15 +336,30 @@ class _SignTrack:
     published_index: int | None = None
     """Index in the router's sign list once published, or None while pending."""
 
+    lidar_fixed: bool = False
+    """Whether this track's position came from a LIDAR proposal.
+
+    Once set, camera observations contribute COLOUR ONLY and never move the
+    position. The LIDAR measures range directly; the camera infers it from bbox
+    height through a pinhole model whose error put believed pillars ON THE WALLS
+    on hardware. Letting a nearer camera reading overwrite a LIDAR fix would
+    reintroduce exactly that error at the moment it matters most."""
+
     @property
     def color(self) -> SignColor:
-        """The winning colour vote, as the enum the votes were cast from.
+        """The winning colour vote, or UNKNOWN while no camera has voted.
 
         ``votes`` is keyed by ``SignColor.value`` (see ``_fold_observation``),
         so the winner is always a valid member; converting here keeps the
         ``str`` keys the dict is built with while handing callers the enum
         ``SignSpec.color`` is declared as.
+
+        A LIDAR-proposed track has a position and no votes. UNKNOWN is the
+        honest answer for it -- ``max()`` over an empty dict would raise, and
+        any default colour would be a coin flip on a round-ending rule.
         """
+        if not self.votes:
+            return SignColor.UNKNOWN
         return SignColor(max(self.votes, key=lambda name: self.votes[name]))
 
     def as_spec(self) -> SignSpec:
@@ -451,6 +466,45 @@ class ObservedSignMap:
 
             self._fold(world, observed_range, obs, robot_corridor)
 
+    def propose(self, positions: list[tuple[float, float]] | None, robot_pos: Waypoint) -> None:
+        """Fold LIDAR-proposed POSITIONS into the map, casting no colour vote.
+
+        The LIDAR says an object is there, roughly 0.6 m before the camera can
+        say what it is. A proposal therefore refines geometry and nothing else:
+        it starts or updates a track, marks the position LIDAR-fixed so no later
+        pinhole estimate can move it, and leaves ``votes`` empty so the track
+        reports ``SignColor.UNKNOWN``.
+
+        A track with no votes is never published (see ``newly_confirmed``), so
+        proposals CANNOT reach the router on their own -- which is what makes
+        this safe at the detector's measured 84% precision. What they buy is
+        that when the camera finally votes, the position is already settled
+        instead of being established from scratch inside the last 0.3 m.
+
+        Args:
+            positions: World ``(x, y)`` candidates from ``lidar_proposer.propose``.
+            robot_pos: Robot position, used for range gating and corridor keying.
+        """
+        if not positions:
+            return
+        robot_corridor = self._settle_robot_corridor(corridor_for_position(robot_pos.x, robot_pos.y))
+        for x, y in positions:
+            world = Waypoint(x, y)
+            observed_range = _dist2d(world, robot_pos)
+            if observed_range > self._max_ingest_range_m:
+                continue
+            track = self._nearest_track(world, robot_corridor)
+            if track is None:
+                track = _SignTrack(x=world.x, y=world.y, best_range=observed_range, corridor=robot_corridor)
+                self._tracks.append(track)
+            track.hits += 1
+            # Closest LIDAR look wins, on the same monotone-error argument the
+            # camera path uses -- but between LIDAR readings only.
+            if not track.lidar_fixed or observed_range <= track.best_range:
+                track.best_range = observed_range
+                track.x, track.y = world.x, world.y
+            track.lidar_fixed = True
+
     def _fold(
         self,
         world: Waypoint,
@@ -466,6 +520,12 @@ class ObservedSignMap:
 
         track.hits += 1
         track.votes[obs.color.value] = track.votes.get(obs.color.value, 0.0) + obs.confidence
+
+        # A LIDAR-fixed position is not up for revision by a camera estimate --
+        # see `_SignTrack.lidar_fixed`. The camera still votes on colour above,
+        # which is the whole point of the split.
+        if track.lidar_fixed:
+            return
 
         # Closest observation wins outright: pinhole range error is monotone in
         # range, so a nearer reading is strictly better evidence than the
@@ -539,8 +599,17 @@ class ObservedSignMap:
         upstream of publication (e.g. resolving WHY the robot's settled
         corridor is unstable at a re-detection, not what to do once it
         already forked a track) rather than a third downstream dedup variant.
+
+        A track also needs a COLOUR before it is published. A LIDAR-proposed
+        track accumulates hits with no colour vote, and can cross ``min_hits``
+        on geometry alone; publishing it would hand the router a sign with no
+        pass side, whose every routing decision would then decline. Holding it
+        back until the camera votes keeps the router's world exactly as it was
+        while still letting the proposal refine the position in the meantime.
         """
-        return [t for t in self._tracks if t.published_index is None and t.hits >= self._min_hits]
+        return [
+            t for t in self._tracks if t.published_index is None and t.hits >= self._min_hits and t.votes
+        ]
 
     def published(self) -> list[_SignTrack]:
         """Tracks already handed to the router, for in-place position refinement."""
