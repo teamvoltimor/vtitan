@@ -12,6 +12,7 @@ either.
 from __future__ import annotations
 
 import json
+from collections import deque
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -26,6 +27,7 @@ from shared.domain.models import CorridorGeometry, Detection, IMUReading, Locali
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
+from src.config.tuning_helpers import get_tuning
 from src.hardware.motors.enums import DRIVE_JOINT
 from src.navigation.localization import make_localizer
 from src.navigation.planning.sign_discovery import detection_to_observation
@@ -35,10 +37,12 @@ from src.navigation.utils import clamp
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.ros2.params import declare_and_get_str_param
 from src.ros2.qos import QOS_ACKERMANN_CMD, QOS_STREAM
-from src.ros2.vision.detection_payload_keys import parse_detection
+from src.ros2.vision.detection_payload_keys import CAPTURED_AT_KEY, parse_detection
 from src.state_machine.estimator import StateEstimator
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from rclpy.node import Node
     from shared.domain.enums import Section
 
@@ -59,6 +63,34 @@ core_navigator.py, and estimate_yaw_from_walls) documents and requires 0 rad
 built. Invisible in simulation, which synthesizes scan angles already in the
 correct robot frame and never models a raw LIDAR mounting frame at all.
 """
+
+
+_POSE_HISTORY_LEN: int = 120
+"""Poses retained for camera time-alignment: 6 s at the 20 Hz control rate.
+
+Comfortably longer than the measured 0.85 s capture-to-receipt lag, so a
+detection is still matchable after a scheduling hiccup, and small enough that
+the whole buffer is a few kilobytes.
+"""
+
+
+def pose_at_time(
+    history: Sequence[tuple[float, Pose]],
+    target_s: float,
+    fallback: Pose,
+) -> Pose:
+    """The recorded pose nearest ``target_s``, or ``fallback`` if none is old enough.
+
+    Pure so it can be tested without a ROS node. Falls back rather than
+    extrapolating: before the buffer covers the camera's lag -- the first
+    second or so of a round -- the honest answer is the current pose, and
+    inventing one backwards would be worse than the error it replaces.
+    """
+    if not history:
+        return fallback
+    if target_s < history[0][0]:
+        return fallback
+    return min(history, key=lambda entry: abs(entry[0] - target_s))[1]
 
 
 class ROS2HardwareGateway(HardwareGateway):
@@ -86,6 +118,16 @@ class ROS2HardwareGateway(HardwareGateway):
         self._localizer = make_localizer(TrackWalls(geom), self._localization_params)
         self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
+        # When the FRAME behind `_latest_detections` was grabbed, and a short
+        # history of poses to look that instant up in. The camera pipeline is
+        # not instant: measured 0.85 s from capture to the box arriving here on
+        # run_20260906_232408/_232748. Pairing a detection with the pose at
+        # RECEIPT put every sign where the robot had already moved to, which was
+        # the whole of the bearing residual left after the mirror fix -- the
+        # recovered cx-vs-bearing slope read -309 px/rad, a value no real lens
+        # can produce, against a physical floor of ~620.
+        self._detections_captured_at: float | None = None
+        self._pose_history: deque[tuple[float, Pose]] = deque(maxlen=_POSE_HISTORY_LEN)
         # Corridor holding the parking lot, set by the node from the start
         # section. None means "unknown", which keeps the shape gate strict
         # everywhere rather than relaxing it on an unproven belief.
@@ -261,6 +303,11 @@ class ROS2HardwareGateway(HardwareGateway):
             now_s=self._now(),
         )
         self._estimator.update_position(est_x, est_y)
+        # One entry per SCAN, not per `get_current_pose()` call: the navigator
+        # asks several times a tick, and appending there would fill the buffer
+        # with a fraction of a second of duplicates instead of the seconds of
+        # history the camera lag needs.
+        self._pose_history.append((self._lidar_stamp, self._estimator.estimate_pose()))
 
     def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
@@ -270,8 +317,14 @@ class ROS2HardwareGateway(HardwareGateway):
         try:
             raw_data = json.loads(msg.data)
             self._latest_detections = [det for d in raw_data if (det := parse_detection(d)) is not None]
-        except (json.JSONDecodeError, TypeError):
+            # Every box in one payload comes from one frame, so the first
+            # carries the stamp for all of them. Absent on an older vision_node,
+            # which `_pose_when_seen` falls back for.
+            stamp = raw_data[0].get(CAPTURED_AT_KEY) if raw_data else None
+            self._detections_captured_at = float(stamp) if stamp is not None else None
+        except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
             self._latest_detections = []
+            self._detections_captured_at = None
 
     def publish_drive(self, command: DriveCommand) -> None:
         """Publish drive command as an AckermannDriveStamped on the ackermann_cmd topic.
@@ -333,6 +386,28 @@ class ROS2HardwareGateway(HardwareGateway):
         """
         self._parking_corridor = corridor
 
+    def _pose_when_seen(self) -> Pose | None:
+        """The pose the CAMERA saw from, not the pose by the time a box arrives.
+
+        A detection is only useful as a bearing plus a range; turning that into a
+        world position needs the pose at CAPTURE. The pipeline takes time --
+        measured 0.85 s end to end on run_20260906_232408/_232748 -- and at
+        0.3 m/s through a corner that is most of a sign's lateral offset.
+
+        Uses the frame's own ``captured_at`` when the vision node supplied one,
+        and otherwise steps back by ``VISION_LATENCY_S``, so an older vision_node
+        still gets the correction rather than silently reverting to the receipt
+        pose. Falls back to the current pose when the history has nothing old
+        enough, which is only true in the first seconds of a round.
+        """
+        current = self.get_current_pose()
+        if current is None or not self._pose_history:
+            return current
+        target = self._detections_captured_at
+        if target is None:
+            target = self._now() - get_tuning(None).sign_discovery.VISION_LATENCY_S
+        return pose_at_time(self._pose_history, target, current)
+
     def get_vision_detections(self, current_corridor: Section | None = None) -> list[TrafficSignObservation]:
         """Convert latest pixel detections to world-coordinate observations.
 
@@ -341,7 +416,7 @@ class ROS2HardwareGateway(HardwareGateway):
         far more precisely than depth-from-bbox-height does. See
         ``_detection_to_world``'s docstring.
         """
-        pose = self.get_current_pose()
+        pose = self._pose_when_seen()
         if pose is None or not self._latest_detections:
             return []
 
@@ -356,9 +431,7 @@ class ROS2HardwareGateway(HardwareGateway):
             # exactly where the barrier is. Measured: 72% of wall-shaped red
             # detections carry no corridor label.
             barrier_possible = (
-                self._parking_corridor is None
-                or current_corridor is None
-                or current_corridor == self._parking_corridor
+                self._parking_corridor is None or current_corridor is None or current_corridor == self._parking_corridor
             )
             obs = detection_to_observation(
                 det,

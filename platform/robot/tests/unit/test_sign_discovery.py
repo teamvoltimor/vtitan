@@ -30,6 +30,7 @@ from src.navigation.planning.sign_discovery import (
     _detection_to_world,
     detection_to_observation,
 )
+from src.ros2.navigation.ros2_hardware_gateway import pose_at_time
 from src.simulation.vision_emulator import emulate_sign_observations
 
 # These were module constants until tuning was threaded through; the values are
@@ -129,14 +130,20 @@ class TestAssociation:
         the corridor gate on ``_SignTrack.corridor`` must keep them apart
         whenever the robot itself was in a different corridor for each.
         """
-        # robot_corridor_flip_ticks=1: this test is about the corridor GATE,
-        # not the debounce that settles it.
-        sign_map = ObservedSignMap(_CONFIDENCE, robot_corridor_flip_ticks=1)
+        # Both unrelated gates are PINNED, because this test is about the
+        # corridor gate alone: `robot_corridor_flip_ticks=1` disables the
+        # debounce that settles it, and `max_ingest_range_m=2.0` keeps the
+        # range gate out of the way. The range pin is load-bearing -- standing
+        # in NORTH (y > 2.0) is necessarily >= 1.6 m from a sign at y = 0.4, so
+        # under the shipped 1.5 m gate the second vantage is unreachable and
+        # this assertion would pass for the wrong reason (only phase 1's track
+        # ever existing), which is the very trap the comment below records.
+        sign_map = ObservedSignMap(_CONFIDENCE, robot_corridor_flip_ticks=1, max_ingest_range_m=2.0)
         # Same reprojected world XY both times -- well inside association_dist
         # -- but the robot itself was standing in a different corridor
         # (SOUTH, then NORTH) when it made each observation. NORTH position is
         # 1.7 m from the sign, not 2.1 m (e.g. y=2.5) -- the latter silently
-        # drops every phase-2 observation at MAX_INGEST_RANGE_M's 2.0 m gate
+        # drops every phase-2 observation at the pinned 2.0 m ingest gate
         # before association ever runs, which let this assertion pass for the
         # wrong reason (only phase 1's track ever existed) until traced here.
         aliased = [TrafficSignObservation(1.5, 0.4, SignColor.RED, 1.0, 0.0)]
@@ -426,3 +433,40 @@ def test_the_pinhole_range_carries_the_measured_scale() -> None:
     assert scaled is not None
     sensor_x = RobotSpecs.LIDAR_MOUNT_X_OFFSET
     assert scaled[0] - sensor_x == pytest.approx(2.0 * (raw[0] - sensor_x), rel=1e-6)
+
+
+class TestCameraTimeAlignment:
+    """The pose a detection is decoded against must be the pose it was SEEN from.
+
+    `/vision/detections` is a `std_msgs/String` with no header, so until
+    2026-09-07 every detection was paired with the pose at RECEIPT. Measured on
+    run_20260906_232408/_232748 the camera pipeline runs **0.85 s** behind, and
+    at 0.3 m/s through a corner that is most of a sign's lateral offset -- it
+    was the entire bearing residual left after the mirror fix (20.2 deg -> 5.4
+    deg once corrected). The check that was not fitted to the lag: the recovered
+    `cx`-vs-bearing slope reads -309 px/rad at zero lag, which no real lens can
+    produce, and -679 at 0.85 s.
+    """
+
+    @staticmethod
+    def _history() -> list[tuple[float, Pose]]:
+        return [(float(i) / 10.0, Pose(x=float(i), y=0.0, yaw=0.0)) for i in range(20)]
+
+    def test_the_pose_is_taken_from_when_the_frame_was_captured(self) -> None:
+        history = self._history()
+        chosen = pose_at_time(history, target_s=1.0, fallback=Pose(x=99.0, y=0.0, yaw=0.0))
+        assert chosen.x == pytest.approx(10.0)
+
+    def test_a_stamp_older_than_the_buffer_falls_back_rather_than_extrapolating(self) -> None:
+        """Only true in the opening second of a round, and inventing a pose is worse."""
+        fallback = Pose(x=99.0, y=0.0, yaw=0.0)
+        assert pose_at_time(self._history(), target_s=-5.0, fallback=fallback) is fallback
+        assert pose_at_time([], target_s=1.0, fallback=fallback) is fallback
+
+    def test_the_lag_actually_changes_which_pose_is_used(self) -> None:
+        """Guards the whole point: receipt and capture must not resolve alike."""
+        history = self._history()
+        at_receipt = pose_at_time(history, target_s=1.9, fallback=Pose(x=99.0, y=0.0, yaw=0.0))
+        at_capture = pose_at_time(history, target_s=1.9 - 0.85, fallback=Pose(x=99.0, y=0.0, yaw=0.0))
+        assert at_receipt.x != at_capture.x
+        assert at_receipt.x - at_capture.x == pytest.approx(8.0, abs=1.0)

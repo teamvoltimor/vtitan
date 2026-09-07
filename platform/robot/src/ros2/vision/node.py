@@ -36,6 +36,7 @@ from src.ros2.race_state import RacingState, subscribe_to_race_state
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
     BBOX_KEY,
+    CAPTURED_AT_KEY,
     CLASS_NAME_KEY,
     CONFIDENCE_KEY,
     HEIGHT_KEY,
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
     from rclpy.publisher import Publisher
 
     from src.hardware.camera.base import Driver as CameraDriver
+
 
 class Config(HardwareBaseSettings):
     """Fallback defaults for VisionNode's ROS2 parameters.
@@ -112,6 +114,7 @@ Not a heartbeat anyone consumes -- it exists solely so a late-joining
 subscriber (the OLED, which restarts independently of this node) learns the
 model, since the topic's BEST_EFFORT QoS means the TRANSIENT_LOCAL latch is
 not replayed to late joiners. One tiny message per period."""
+
 
 class VisionNode(Node):
     """ROS2 node that runs YOLO detection on camera images."""
@@ -278,9 +281,7 @@ class VisionNode(Node):
         # one period however late it starts.
         self._model_status_msg_name = model_name
         if self._model_status_timer is None:
-            self._model_status_timer = self.create_timer(
-                _MODEL_STATUS_REPUBLISH_S, self._republish_model_status
-            )
+            self._model_status_timer = self.create_timer(_MODEL_STATUS_REPUBLISH_S, self._republish_model_status)
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
         status = DiagnosticStatus()
@@ -367,11 +368,12 @@ class VisionNode(Node):
         # is set -- guaranteed non-None whenever this timer callback fires.
         assert self._camera is not None
         try:
+            captured_at = self.get_clock().now().nanoseconds / 1e9
             frame = self._camera.capture_frame().frame
         except Exception as err:
             self.get_logger().error(f"Camera capture failed: {err}", throttle_duration_sec=5.0)
             return
-        self._process(self._camera.to_rgb(frame))
+        self._process(self._camera.to_rgb(frame), captured_at=captured_at)
 
     def _on_robot_state(self, msg: String) -> None:
         """Start/stop the per-run video recording.
@@ -497,15 +499,24 @@ class VisionNode(Node):
             if msg.encoding == "bgr8":
                 img = img[:, :, ::-1]  # Convert BGR to RGB
 
-            self._process(img)
+            self._process(img, captured_at=self.get_clock().now().nanoseconds / 1e9)
 
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
         except Exception as e:
             self.get_logger().error(f"Unexpected error processing image: {e}")
 
-    def _process(self, rgb: np.ndarray) -> None:
-        """Detect on one RGB frame, publish detections and any debug video."""
+    def _process(self, rgb: np.ndarray, captured_at: float | None = None) -> None:
+        """Detect on one RGB frame, publish detections and any debug video.
+
+        ``captured_at`` is the clock reading taken WHEN THE FRAME WAS GRABBED,
+        before inference. It is published with the detections because the
+        consumer needs the pose the camera actually saw from, not the pose by
+        the time a box comes out the far end of the pipeline. Measured on
+        run_20260906_232408/_232748, that gap is **0.85 s** -- at 0.3 m/s and in
+        a corner it is most of a sign's lateral offset, and it was the whole of
+        the residual bearing error left after the mirror fix.
+        """
         try:
             detections = self.detector.detect(rgb)
 
@@ -518,8 +529,10 @@ class VisionNode(Node):
                     has_detection=bool(detections),
                 )
 
+            stamp = captured_at if captured_at is not None else self.get_clock().now().nanoseconds / 1e9
             data = [
                 {
+                    CAPTURED_AT_KEY: stamp,
                     CLASS_NAME_KEY: det.class_name,
                     CONFIDENCE_KEY: det.confidence,
                     BBOX_KEY: det.bbox,
@@ -577,9 +590,7 @@ class VisionNode(Node):
         scan = self._scan
         scan_ranges = list(scan.ranges) if scan is not None else None
         scan_angles = (
-            [scan.angle_min + i * scan.angle_increment for i in range(len(scan.ranges))]
-            if scan is not None
-            else None
+            [scan.angle_min + i * scan.angle_increment for i in range(len(scan.ranges))] if scan is not None else None
         )
         return FrameSnapshot(
             frame=annotated,

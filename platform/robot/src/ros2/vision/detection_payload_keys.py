@@ -10,6 +10,18 @@ Y_KEY = "y"
 WIDTH_KEY = "width"
 HEIGHT_KEY = "height"
 AREA_KEY = "area"
+CAPTURED_AT_KEY = "captured_at"
+"""Clock reading when the FRAME WAS GRABBED, not when the box was published.
+
+The consumer converts a bearing into a world position using the pose the
+camera saw from. Pairing a detection with the pose at RECEIPT instead measured
+**0.85 s** late on run_20260906_232408/_232748 -- enough that the recovered
+`cx`-vs-bearing slope came out at -309 px/rad, which no real lens can produce
+(the physical floor is ~620 px/rad). Correcting the pairing restores it to
+-679 and takes the bearing residual from 20.2 deg to 5.4 deg.
+
+Absent from payloads written by an older vision_node, so every reader must
+treat it as optional and fall back to ``VISION_LATENCY_S``."""
 
 
 def parse_detection(d: dict) -> Detection | None:

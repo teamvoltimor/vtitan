@@ -3,7 +3,14 @@
 # See shared.config.navigation_tuning.SignDiscoveryParams.
 
 min_reliable_bbox_height_px = 5   # minimum bbox height for a reliable distance estimate
-max_ingest_range_m = 2.0          # max distance to accept a sign observation
+# Max distance at which a sign observation is accepted. 2.0 until 2026-09-07,
+# lowered because the pinhole range correction above stops holding past ~1.5 m:
+# binned error is -7 cm at 1.1-1.5 m but -77 cm beyond, so a far detection seeds
+# a track most of a metre out and the router then routes around a phantom.
+# 1.5 rather than the 1.2 where the correction is tightest, because
+# sign_router.toml's activation_dist_m is 1.40 -- ingesting only inside 1.2 m
+# would discover a sign AFTER the point it must already be routed around.
+max_ingest_range_m = 1.5
 association_dist_m = 0.25         # max distance between two observations of the same sign
 min_hits = 3                      # confirming observations before a sign is published
 robot_corridor_flip_ticks = 5     # ticks the robot's own corridor must settle before discovery accepts the change
@@ -22,18 +29,29 @@ max_pillar_aspect = 1.0
 frame_edge_tolerance_px = 2.0
 
 
-# Empirical correction on the PINHOLE RANGE, applied to the result. 1.0 = the
-# raw pinhole, which is what SHIPS -- deliberately, even though the pinhole is
-# measurably wrong. On run_20260906_192424 it UNDER-reads by ~2x (radial bias
-# -43.7 cm), but correcting that with a scalar DOUBLES the lateral error
-# (9.8 -> 18.6 cm p50, p90 28 -> 53 cm) because the residual ~12 deg bearing
-# error is ANGULAR: a longer ray lengthens the lateral miss proportionally.
-# Lateral is the component the router acts on -- pass side, lane, and whether
-# the estimate lands on a wall. Fix the bearing error first.
-# The coefficient is also unstable: 1.81 / 2.14 / 2.59 fitted per encounter,
-# 2.22 globally, from THREE encounters on ONE run. Revisit with >=3 runs spread
-# over the mat, and fit the object height rather than a magic multiplier.
-range_scale = 1.0
+# Empirical correction on the PINHOLE RANGE, applied to the result. The
+# detector's boxes are ~2x taller than a 0.10 m pillar projects to -- implied
+# sign height is p50 19.8 cm against the assumed 10.0 -- so the raw pinhole
+# UNDER-reads by about half. 1.95 is the best scalar, median |range error|
+# 6.3 cm, measured against 8 LIDAR-located pillars on run_20260906_232408 and
+# _232748.
+#
+# THIS ONLY WORKS PAIRED WITH THE CAMERA TIME ALIGNMENT, and shipping it alone
+# is worse than shipping nothing. Measured 2D position error p50 / share inside
+# ASSOCIATION_DIST_M:
+#     shipped (neither)      47.1 cm / 19%
+#     range scale alone      47.6 cm / 19%     <- no better
+#     time alignment alone   47.1 cm / 19%     <- no better
+#     BOTH                   15.3 cm / 61%
+# A longer ray magnifies any angular error, so before the 0.85 s lag was
+# corrected this scale doubled LATERAL error (9.8 -> 18.6 cm) and was rejected
+# for it. With the pose aligned, lateral is 3.6 cm and goes only to 6.8 cm.
+#
+# Not a true scale: log(bbox_h) vs log(range) has slope -0.40, not -1. Binned
+# error is +/-5 cm out to 1.1 m, -7 cm at 1.1-1.5 m and -77 cm beyond 1.5 m,
+# which is what max_ingest_range_m below is for. Prefer fixing the detector's
+# box convention and returning this to 1.0.
+range_scale = 1.95
 # Take the sign's range from the LIDAR ray at the camera's bearing. Shipped TRUE
 # until 2026-09-06 and measured to make the estimate WORSE: at the camera's
 # bearing the return is wall-shaped 51% of the time and pillar-shaped 27%,
@@ -43,3 +61,14 @@ range_scale = 1.0
 # signs to the walls. Costs 28 cm of median position error with the corrected
 # bearing.
 lidar_range_fusion = false
+
+# Camera capture-to-consumption lag, used ONLY when a detection payload carries
+# no capture stamp (an older vision_node). /vision/detections is a headerless
+# std_msgs/String, so until 2026-09-07 every detection was decoded against the
+# pose at RECEIPT. Measured 0.85 s on run_20260906_232408/_232748 (0.78 and 0.95
+# found independently in the two runs); at 0.3 m/s through a corner that is most
+# of a sign's lateral offset, and it was the ENTIRE bearing residual left after
+# the mirror fix -- 20.2 deg -> 5.4 deg once aligned. The check that was not
+# fitted to it: the recovered cx-vs-bearing slope reads -309 px/rad at zero lag,
+# which no real lens can produce (floor ~620), and -679 at 0.85 s.
+vision_latency_s = 0.85

@@ -706,12 +706,33 @@ class SignDiscoveryParams(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     MIN_RELIABLE_BBOX_HEIGHT_PX: int = Field(default=5, validation_alias=_alias("MIN_RELIABLE_BBOX_HEIGHT_PX"))
-    MAX_INGEST_RANGE_M: float = Field(default=2.0, validation_alias=_alias("MAX_INGEST_RANGE_M"))
+    MAX_INGEST_RANGE_M: float = Field(default=1.5, validation_alias=_alias("MAX_INGEST_RANGE_M"))
     ASSOCIATION_DIST_M: float = Field(default=0.25, validation_alias=_alias("ASSOCIATION_DIST_M"))
     MIN_HITS: int = Field(default=3, validation_alias=_alias("MIN_HITS"))
     MAX_PILLAR_ASPECT: float = Field(default=1.0, validation_alias=_alias("MAX_PILLAR_ASPECT"))
 
-    RANGE_SCALE: float = Field(default=1.0, gt=0.0, validation_alias=_alias("RANGE_SCALE"))
+    VISION_LATENCY_S: float = Field(default=0.85, ge=0.0, validation_alias=_alias("VISION_LATENCY_S"))
+    """Camera capture-to-consumption lag, used only when a frame carries no stamp.
+
+    `/vision/detections` is a `std_msgs/String` with no header, so until
+    2026-09-07 every detection was paired with the pose at RECEIPT. Measured on
+    run_20260906_232408/_232748 the true gap is **0.85 s** (0.78 and 0.95
+    found independently in the two runs), and at 0.3 m/s through a corner that
+    is most of a sign's lateral offset.
+
+    It was the whole of the bearing residual left after the mirror fix: the
+    residual falls **20.2 deg -> 5.4 deg** once the pose is aligned, and the
+    share of detections within 10 deg goes 20% -> 73%. The check that is not
+    fitted to the lag: the recovered `cx`-vs-true-bearing slope reads
+    **-309 px/rad** at zero lag, which NO real lens can produce -- the physical
+    floor is ~620 -- and 0.85 s restores it to -679, inside the physical band.
+
+    The vision node now stamps each frame at capture (`CAPTURED_AT_KEY`), which
+    is the real fix; this is the fallback for a payload from an older build, so
+    a version skew degrades to a fixed correction rather than to none.
+    """
+
+    RANGE_SCALE: float = Field(default=1.95, gt=0.0, validation_alias=_alias("RANGE_SCALE"))
     """Empirical correction on the pinhole range, applied to the RESULT.
 
     **Ships at 1.0 -- the raw pinhole -- even though the pinhole is measurably
