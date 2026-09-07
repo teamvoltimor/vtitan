@@ -180,6 +180,8 @@ class SimulatedHardwareGateway:
         seed_seq = cast("SeedSequence", self._rng.bit_generator.seed_seq)
         self._error_rng = np.random.default_rng(seed_seq.spawn(1)[0])
         self._imu_model = ImuErrorModel(self._errors, self._error_rng)
+        # Its own stream too, for the same reason -- see _detectable_signs.
+        self._vision_rng = np.random.default_rng(seed_seq.spawn(1)[0])
         self._elapsed_s = 0.0
         # Signed rotation the body has actually turned through, unwrapped, so
         # three laps of one-way cornering accumulate rather than cancel.
@@ -376,6 +378,32 @@ class SimulatedHardwareGateway:
             stamp_s=self._elapsed_s,
         )
 
+
+    def _detectable_signs(self) -> list[SignSpec]:
+        """The signs the camera actually resolves THIS frame.
+
+        Off (the default) this is every sign, and the emulator's own
+        ``CAMERA_FAR_CLIP`` visibility check is the only range limit -- 10 m,
+        against a real detector whose measured median detection range is 0.70 m.
+
+        On, each sign is drawn independently per frame against a logistic in its
+        TRUE range, so a distant pillar is seen intermittently and a far one
+        effectively never. Drawn from a stream of its own rather than ``_rng``:
+        consuming from the LIDAR's generator would shift its noise sequence and
+        silently change every scan in the run, which is the same trap the IMU
+        error model is spawned apart to avoid.
+        """
+        if not self.tuning.simulation.VISION_RANGE_MODEL:
+            return list(self._signs or [])
+        sim = self.tuning.simulation
+        kept: list[SignSpec] = []
+        for sign in self._signs or []:
+            distance = math.hypot(sign.x - self._state.x, sign.y - self._state.y)
+            p_detect = 1.0 / (1.0 + math.exp((distance - sim.VISION_DETECT_R50_M) / sim.VISION_DETECT_FALLOFF_M))
+            if self._vision_rng.random() < p_detect:
+                kept.append(sign)
+        return kept
+
     def get_vision_detections(self, current_corridor: Section | None = None) -> list[TrafficSignObservation]:
         """Return synthetic sign observations, or ``[]`` if none were provided.
 
@@ -391,6 +419,9 @@ class SimulatedHardwareGateway:
         """
         if not self._signs:
             return []
+        signs = self._detectable_signs()
+        if not signs:
+            return []
         believed = self.get_current_pose()
         if self.tuning.simulation.VISION_THROUGH_PINHOLE:
             # Boxes decoded by the SHIPPED perception code, so the corpus
@@ -401,7 +432,7 @@ class SimulatedHardwareGateway:
             observations = [
                 detection_to_observation(det, pose, tuning=self.tuning)
                 for det in emulate_sign_detections(
-                    self._signs,
+                    signs,
                     Waypoint(self._state.x, self._state.y),
                     self._state.yaw,
                     tuning=self.tuning,
@@ -409,7 +440,7 @@ class SimulatedHardwareGateway:
             ]
             return [obs for obs in observations if obs is not None]
         return emulate_sign_observations(
-            self._signs,
+            signs,
             Waypoint(self._state.x, self._state.y),
             self._state.yaw,
             tuning=self.tuning,

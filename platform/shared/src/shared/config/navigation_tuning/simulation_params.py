@@ -87,6 +87,63 @@ class SimulationParams(BaseModel):
     the real arc at that angle is ~0.66 m and does NOT fit).
     """
 
+    VISION_RANGE_MODEL: bool = Field(default=False, validation_alias=_alias("VISION_RANGE_MODEL"))
+    """Make the emulated camera GO BLIND with distance, the way the real one does.
+
+    Off, a sign is detected out to ``CAMERA_FAR_CLIP`` -- **10 m** -- with no
+    misses, no dropout and fixed 0.9 confidence. The real detector's measured
+    range distribution over the 09-07 runs is **p50 0.70 m, p90 1.06-1.31 m,
+    with 3.6% of detections beyond 1.4 m**: the deployed HEF stops resolving a
+    pillar at a bit over a metre (running the tracked ONNX on identical pixels
+    finds 1.6-2.0x more far detections, so it is the quantized model, not the
+    framing). The simulated camera therefore sees roughly TEN TIMES further than
+    the real one.
+
+    That single gap decides whether a sign experiment means anything. Anything
+    that trades on the camera being blind at range -- ``SIGN_LIDAR_PROPOSE``
+    above all, whose entire value is that the LIDAR spots a pillar at a median
+    1.31 m -- has NO measurable benefit in a sim where the camera already saw it
+    at 10 m, and will read as pure cost. An A/B run with this off can refute
+    such a feature only on cost, never confirm it on benefit.
+
+    OFF by default because turning it on invalidates every existing Obstacles
+    baseline: the robot loses sign vision it was scored with and never had on
+    the mat. Those numbers were always optimistic; this is the sim getting
+    honest, not a regression.
+    """
+
+    VISION_DETECT_R50_M: float = Field(default=1.10, gt=0.0, validation_alias=_alias("VISION_DETECT_R50_M"))
+    """Range at which a sign is detected on half of frames (``VISION_RANGE_MODEL``).
+
+    A per-frame logistic, not a hard cutoff, because the real failure is
+    gradual: the detector's recall falls off with range rather than stopping.
+
+    Calibrated by replaying ONE fixed trajectory's in-frame sign ranges and
+    subsampling them offline, NOT by sweeping the live simulator: each candidate
+    changes how the robot drives and therefore which geometry it samples, which
+    made a live sweep non-monotonic (a tighter model returned a LONGER median
+    range than no model at all). Calibrate against a fixed trajectory.
+
+        fitted 1.10 / 0.15   p50 0.55 m   p90 1.14 m   1.4% beyond 1.4 m
+        hardware target      p50 0.70 m   p90 1.06-1.31 m   3.6% beyond 1.4 m
+
+    KNOWN LIMITATION: p50 comes out ~0.15 m low because this curve is monotone
+    in range, so it can only ever REMOVE far detections. The real detector also
+    loses NEAR ones -- a pillar being closed on overflows the frame and the
+    aspect gate rejects the clipped box (61% of the reds it rejects are
+    frame-clipped). Modelling that would need a near-field term as well; until
+    then the simulated camera is slightly too good up close.
+    """
+
+    VISION_DETECT_FALLOFF_M: float = Field(
+        default=0.15, gt=0.0, validation_alias=_alias("VISION_DETECT_FALLOFF_M")
+    )
+    """Width of the logistic falloff around ``VISION_DETECT_R50_M``.
+
+    Smaller is a sharper cliff. Detection probability is
+    ``1 / (1 + exp((range - R50) / FALLOFF))``.
+    """
+
     VISION_THROUGH_PINHOLE: bool = Field(default=False, validation_alias=_alias("VISION_THROUGH_PINHOLE"))
     """Emulate camera BOUNDING BOXES and decode them with the shipped code.
 
