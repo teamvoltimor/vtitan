@@ -39,6 +39,27 @@ Measured over the six 09-07 runs (525 persistent tracks, 244 camera tracks):
     lead in first-see range  p50 0.59 m, p90 1.30 m   MATCHED, per object
     precision (upper bound)  49%
 
+**THE LATTICE FILTER IS UNDECIDED, NOT REFUTED, AND THE INSTRUMENT CHECK IS WHY.**
+Signs stand on a 6-point lattice (0.4/0.6 m lateral, 1.0/1.5/2.0 m depth), so a
+sign is 0.4 m from its nearer lateral border and a corner is at ~0. Filtering on
+that keeps 33% of tracks and moves precision only 47% -> 52%, at a recall cost of
+91% -> 72%. But the check below says that number cannot be read as a verdict on
+the prior:
+
+    measured corridor width      p50 1.06 m   against a known 1.00 m -- SOUND
+    wall dist, camera-CONFIRMED  p50 0.27 m   the prior predicts ~0.40 m
+    wall dist, UNCONFIRMED       p50 0.25 m   ** THE SAME DISTRIBUTION **
+
+The wall estimator is fine, so the failure is the ANCHOR: if camera confirmation
+selected real signs, confirmed tracks would pile up at 0.4 m and unconfirmed ones
+would not. They are indistinguishable, which is what "half of hardware RED
+detections are wall-shaped" predicts. A 5-point precision move scored against an
+anchor that cannot separate signs from walls is noise.
+
+**Deciding the prior needs GROUND TRUTH, not a better filter** -- a staged run
+with recorded sign placement, or the simulator, where the layout is known.
+Do not tune `--lattice-tol-m` against this anchor; it cannot answer.
+
 The lead is a MATCHED per-object comparison -- the same object seen by both
 sensors -- not the difference of two unpaired medians, which is what the
 earlier "0.4-0.6 m earlier" estimate was and which cannot support a claim
@@ -90,6 +111,10 @@ VISION_DETECTIONS = "/vision/detections"
 _MIN_SCAN_POINTS = 3
 """Below this a scan cannot contain a cluster with a step on both sides."""
 
+_MIN_WALL_RANGE_M = 0.10
+"""Returns nearer than this are rear self-returns off the chassis (the mount
+scalar sits at ~0.08 m, INSIDE the body) and would read as a narrow corridor."""
+
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 """Duplicated from `sign_discovery` rather than imported, so this measurement of
 the camera's geometry cannot be silently changed by a tuning edit to that module."""
@@ -111,12 +136,33 @@ class Track:
     xs: list[float] = field(default_factory=list)
     ys: list[float] = field(default_factory=list)
     chords: list[float] = field(default_factory=list)
+    wall_dists: list[float] = field(default_factory=list)
+    """Distance to the NEARER corridor wall, on the ticks where both walls were
+    measurable. Shorter than `xs`: a mid-corner or one-wall tick contributes a
+    position but no usable lateral offset."""
+    widths: list[float] = field(default_factory=list)
+    """Corridor width measured on those same ticks, to audit the wall estimate."""
     first_range_m: float = 0.0
     first_t_s: float = 0.0
 
     @property
     def hits(self) -> int:
         return len(self.xs)
+
+    @property
+    def wall_dist_m(self) -> float | None:
+        """Median distance to the nearer wall, or None if never measurable.
+
+        The lattice prior in track coordinates: a sign stands 0.4 m from one
+        lateral border or the other, so its distance to the NEARER wall is 0.4 m
+        whichever slot it occupies. A wall corner sits at ~0.
+        """
+        return percentile(self.wall_dists, 0.5) if self.wall_dists else None
+
+    @property
+    def width_m(self) -> float | None:
+        """Median corridor width measured while this track was in view."""
+        return percentile(self.widths, 0.5) if self.widths else None
 
     @property
     def x(self) -> float:
@@ -192,6 +238,37 @@ def _as_cluster(run: Sequence[tuple[float, float]]) -> Cluster:
     )
 
 
+def corridor_walls(scan: LidarScan, window_rad: float, max_wall_m: float) -> tuple[float, float] | None:
+    """Perpendicular distance to the LEFT and RIGHT walls, or None if either is missing.
+
+    A WINDOWED MEDIAN either side of +/-90 deg, never a single ray: the -90 deg
+    ray alone drops out on 66% of hardware ticks, and a dropout reads as a 12 m
+    "open" side -- the same failure that ratcheted a bay exit into a wall.
+    Requiring BOTH walls is what makes the result a corridor width rather than
+    one unverified number.
+
+    Returns are measured perpendicular to the robot's heading, so this is only
+    a corridor width while the robot is roughly aligned with the corridor; a
+    mid-corner tick returns a widened, meaningless pair and the caller drops it
+    via `max_wall_m`.
+    """
+    left: list[float] = []
+    right: list[float] = []
+    for r, a in zip(scan.ranges_m, scan.angles_rad, strict=True):
+        # Rear self-returns sit INSIDE the chassis at ~0.08 m and would read as
+        # an impossibly narrow corridor.
+        if not math.isfinite(r) or r < _MIN_WALL_RANGE_M or r > max_wall_m:
+            continue
+        norm = math.atan2(math.sin(a), math.cos(a))
+        if abs(norm - math.pi / 2) <= window_rad:
+            left.append(r * math.sin(norm))
+        elif abs(norm + math.pi / 2) <= window_rad:
+            right.append(-r * math.sin(norm))
+    if not left or not right:
+        return None
+    return percentile(left, 0.5), percentile(right, 0.5)
+
+
 def pose_series(
     rows: Sequence[tuple[float, NavigatorDebugSnapshot]],
 ) -> tuple[list[tuple[float, tuple[float, float, float]]], list[float]]:
@@ -218,16 +295,16 @@ def to_world(pose: tuple[float, float, float], range_m: float, bearing_rad: floa
 
 
 def associate(
-    observations: Sequence[tuple[float, float, float, float, float]], radius_m: float
+    observations: Sequence[tuple[float, float, float, float, float, float | None, float | None]], radius_m: float
 ) -> list[Track]:
-    """Group world-frame observations `(t, x, y, chord, range)` into tracks.
+    """Group world-frame observations `(t, x, y, chord, range, wall_dist, width)` into tracks.
 
     Greedy nearest-centroid association against the running mean, the same rule
     the sign map itself uses. Ordered by time, so `first_range_m` is genuinely
     the range at which the candidate first became available.
     """
     tracks: list[Track] = []
-    for t, x, y, chord, rng in observations:
+    for t, x, y, chord, rng, wall, width in observations:
         match = min(
             (tr for tr in tracks if math.hypot(tr.x - x, tr.y - y) <= radius_m),
             key=lambda tr: math.hypot(tr.x - x, tr.y - y),
@@ -239,6 +316,10 @@ def associate(
         match.xs.append(x)
         match.ys.append(y)
         match.chords.append(chord)
+        if wall is not None:
+            match.wall_dists.append(wall)
+        if width is not None:
+            match.widths.append(width)
     return tracks
 
 
@@ -312,12 +393,37 @@ def build_tracks(
         pose = nearest_by_time(series, times, t, tolerance=args.pose_tolerance)
         if pose is None:
             continue
+        walls = corridor_walls(scan, math.radians(args.wall_window_deg), args.max_wall_m)
         for c in clusters:
             if not args.min_chord <= c.chord_m <= args.max_chord:
                 continue
             x, y = to_world(pose, c.range_m, c.bearing_rad)
-            observations.append((t, x, y, c.chord_m, c.range_m))
+            observations.append((t, x, y, c.chord_m, c.range_m, _wall_distance(c, walls), _width(walls)))
     return associate(observations, args.assoc_radius), raw
+
+
+def _width(walls: tuple[float, float] | None) -> float | None:
+    """Measured corridor width, for auditing the wall estimate against the known 1.0 m."""
+    return None if walls is None else walls[0] + walls[1]
+
+
+def _wall_distance(c: Cluster, walls: tuple[float, float] | None) -> float | None:
+    """How far this cluster sits from the NEARER corridor wall, in metres.
+
+    The cluster's lateral offset is `r * sin(bearing)`, positive to the left.
+    Adding the measured left-wall distance puts it on an axis running from the
+    right wall (0) to the left wall (the corridor width), so the distance to
+    the nearer wall is the smaller of the two -- which is 0.4 m for a sign in
+    either lattice slot, and ~0 for a wall corner.
+    """
+    if walls is None:
+        return None
+    left_m, right_m = walls
+    from_right = right_m + c.range_m * math.sin(c.bearing_rad)
+    from_left = left_m - c.range_m * math.sin(c.bearing_rad)
+    if from_right < 0 or from_left < 0:
+        return None  # Outside the measured corridor: another section, or a bad wall pair.
+    return min(from_right, from_left)
 
 
 def camera_tracks(
@@ -333,7 +439,7 @@ def camera_tracks(
         if pose is None:
             continue
         x, y = to_world(pose, rng, bearing)
-        observations.append((t, x, y, 0.0, rng))
+        observations.append((t, x, y, 0.0, rng, None, None))
     return associate(observations, args.assoc_radius)
 
 
@@ -358,12 +464,35 @@ def main() -> None:
     parser.add_argument("--confirm-radius", type=float, default=0.30, help="Distance within which a camera track confirms a LIDAR track.")
     parser.add_argument("--latency", type=float, default=0.85, help="Fallback capture latency when captured_at is absent (VISION_LATENCY_S).")
     parser.add_argument("--range-scale", type=float, default=1.95, help="Camera RANGE_SCALE.")
+    parser.add_argument("--wall-window-deg", type=float, default=20.0, help="Half-window either side of +/-90 deg for the wall medians.")
+    parser.add_argument("--max-wall-m", type=float, default=1.50, help="Ranges beyond this are not a corridor wall.")
+    parser.add_argument(
+        "--lattice-offset-m",
+        type=float,
+        default=0.40,
+        help="Distance from the nearer lateral border a real sign stands at (GRID_WIDTH_OUTER).",
+    )
+    parser.add_argument("--lattice-tol-m", type=float, default=0.12, help="Tolerance around --lattice-offset-m.")
     args = parser.parse_args()
 
     yaw_offset = RobotSpecs.lidar_yaw_offset_rad()
     print(f"{'run':<22} {'scans':>6} {'raw':>6} {'trk':>5} {'persist':>7} {'stable':>6} {'conf':>5} {'cam':>4}  {'lidar first-see':>15}  {'camera first-see':>16}  lead")
-    totals = {"persist": 0, "stable": 0, "confirmed": 0, "confirmed_unfiltered": 0, "cam": 0, "recalled": 0}
+    totals = {
+        "persist": 0,
+        "stable": 0,
+        "confirmed": 0,
+        "confirmed_unfiltered": 0,
+        "cam": 0,
+        "recalled": 0,
+        "lattice": 0,
+        "lattice_confirmed": 0,
+        "lattice_recalled": 0,
+        "wall_measurable": 0,
+    }
     all_leads: list[float] = []
+    wall_confirmed: list[float] = []
+    wall_unconfirmed: list[float] = []
+    corridor_widths: list[float] = []
 
     for run_dir in args.bag_dirs:
         scans, rows, dets = read_run(run_dir, yaw_offset, args.latency, args.range_scale)
@@ -387,6 +516,22 @@ def main() -> None:
         # selectively, this rate matches the filtered one and the filter is
         # inert -- a stricter threshold would then be measuring nothing.
         confirmed_unfiltered = [t for t in persistent if is_confirmed(t)]
+
+        # The LATTICE filter, applied to `persistent` (NOT stacked on the
+        # refuted shape filter) so its effect is attributable to it alone.
+        def on_lattice(t: Track) -> bool:
+            d = t.wall_dist_m
+            return d is not None and abs(d - args.lattice_offset_m) <= args.lattice_tol_m
+
+        lattice = [t for t in persistent if on_lattice(t)]
+        lattice_confirmed = [t for t in lattice if is_confirmed(t)]
+        # How many camera objects survive the same test -- the recall cost of
+        # the filter, which a precision number alone would hide.
+        lattice_recalled = sum(
+            1
+            for c in cams
+            if any(math.hypot(t.x - c.x, t.y - c.y) <= args.confirm_radius for t in lattice)
+        )
         # Recall runs the other way: a camera track is only WORTH proposing early
         # if a LIDAR track was already sitting on it.
         leads: list[float] = []
@@ -402,6 +547,19 @@ def main() -> None:
         totals["stable"] += len(stable)
         totals["confirmed"] += len(confirmed)
         totals["confirmed_unfiltered"] += len(confirmed_unfiltered)
+        totals["lattice"] += len(lattice)
+        totals["lattice_confirmed"] += len(lattice_confirmed)
+        totals["lattice_recalled"] += lattice_recalled
+        totals["wall_measurable"] += sum(1 for t in persistent if t.wall_dist_m is not None)
+        # Instrument check. If the prior is right, CONFIRMED tracks pile up at
+        # the lattice offset and unconfirmed ones do not. If both are spread,
+        # the wall estimate is the problem and the filter above is measuring
+        # this script rather than the track.
+        wall_confirmed.extend(t.wall_dist_m for t in persistent if t.wall_dist_m is not None and is_confirmed(t))
+        wall_unconfirmed.extend(
+            t.wall_dist_m for t in persistent if t.wall_dist_m is not None and not is_confirmed(t)
+        )
+        corridor_widths.extend(w for w in (t.width_m for t in persistent) if w is not None)
         totals["cam"] += len(cams)
         totals["recalled"] += recalled
         all_leads.extend(leads)
@@ -413,13 +571,18 @@ def main() -> None:
             f"{_fmt(leads)}"
         )
 
-    _print_summary(totals, all_leads, args.min_hits)
+    _print_summary(totals, all_leads, args)
+    print()
+    print("INSTRUMENT CHECK -- is the wall estimate trustworthy at all?")
+    print(f"  measured corridor width:           {_fmt(corridor_widths)}   (known truth: 1.00 m)")
+    print(f"  wall dist, camera-CONFIRMED:       {_fmt(wall_confirmed)}   (prior predicts ~{args.lattice_offset_m:.2f} m)")
+    print(f"  wall dist, UNCONFIRMED:            {_fmt(wall_unconfirmed)}")
 
 
-def _print_summary(totals: dict[str, int], all_leads: Sequence[float], min_hits: int) -> None:
+def _print_summary(totals: dict[str, int], all_leads: Sequence[float], args) -> None:  # noqa: ANN001
     """The corpus-wide verdict, including the control that judges the filter."""
     print()
-    print(f"persistent tracks (hits>={min_hits}):  {totals['persist']}")
+    print(f"persistent tracks (hits>={args.min_hits}):  {totals['persist']}")
     print(f"  after the stability filter:      {totals['stable']}"
           f"   ({_pct(totals['stable'], totals['persist'])} kept)")
     print(f"  of those, camera-confirmed:      {totals['confirmed']}"
@@ -429,6 +592,17 @@ def _print_summary(totals: dict[str, int], all_leads: Sequence[float], min_hits:
     print(f"camera tracks with a LIDAR proposal: {totals['recalled']}/{totals['cam']}"
           f"   ({_pct(totals['recalled'], totals['cam'])} recall)")
     print(f"lead in first-detection range:       {_fmt(all_leads)}")
+    print()
+    print(f"LATTICE filter ({args.lattice_offset_m:.2f} +/- {args.lattice_tol_m:.2f} m from the nearer wall),")
+    print("applied to the persistent tracks directly, NOT stacked on the shape filter:")
+    print(f"  tracks with a measurable corridor: {totals['wall_measurable']}/{totals['persist']}"
+          f"   ({_pct(totals['wall_measurable'], totals['persist'])} -- the rest never saw both walls)")
+    print(f"  tracks ON the lattice:             {totals['lattice']}"
+          f"   ({_pct(totals['lattice'], totals['persist'])} kept)")
+    print(f"  of those, camera-confirmed:        {totals['lattice_confirmed']}"
+          f"   ({_pct(totals['lattice_confirmed'], totals['lattice'])} vs the {_pct(totals['confirmed_unfiltered'], totals['persist'])} control)")
+    print(f"  camera tracks still proposed:      {totals['lattice_recalled']}/{totals['cam']}"
+          f"   ({_pct(totals['lattice_recalled'], totals['cam'])} recall, was {_pct(totals['recalled'], totals['cam'])})")
 
 
 def _pct(n: int, d: int) -> str:
