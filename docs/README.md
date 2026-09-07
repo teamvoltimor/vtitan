@@ -1022,21 +1022,80 @@ Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que
 
 <section style="display: block; width: 100%;">
   <table align="left" style="border-collapse: collapse; border: none; margin-top: 0px; width: 100%;">
+    
     <tr style="border: none;">
       <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://www.youtube.com/watch?v=6KLVCvldxfE" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/6KLVCvldxfE/0.jpg" alt="Open Challenge Video 3" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+        <a href="https://youtu.be/tpZ2MUb4gyc" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/tpZ2MUb4gyc/0.jpg" alt="Open Challenge Video 6" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
           <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #1 - V-Titan's PoV</span>
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #6</span>
         </a>
       </td>
       <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://www.youtube.com/watch?v=nuieYqMm9Z0" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/nuieYqMm9Z0/0.jpg" alt="Open Challenge Video 4" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+        <a href="https://youtu.be/wWfganqnq8A" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/wWfganqnq8A/0.jpg" alt="Open Challenge Video 4" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
           <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #2 - V-Titan PoV</span>
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #4</span>
         </a>
       </td>
+    </tr>
+    <tr style="border: none;">
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtu.be/28cxIb5Uug4" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/28cxIb5Uug4/0.jpg" alt="Open Challenge Video 2" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #2</span>
+        </a>
+      </td>
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtube.com/shorts/dpk2NokeFFs" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/dpk2NokeFFs/0.jpg" alt="Parking Challenge Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Parking Challenge #1</span>
+        </a>
+      </td>
+    </tr>
+    <tr style="border: none;">
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtube.com/shorts/K51M7iB6rWM" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/K51M7iB6rWM/0.jpg" alt="Counter Phase Steering Video" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Counter Phase Steering</span>
+        </a>
+      </td>
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtube.com/shorts/xrTShkQfnUk" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/xrTShkQfnUk/0.jpg" alt="Open Challenge Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #1</span>
+        </a>
+      </td>
+    </tr>
+    <tr style="border: none;">
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtube.com/shorts/MQwCzlizyTI" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/MQwCzlizyTI/0.jpg" alt="Previous Prototypes Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Previous Prototypes #1</span>
+        </a>
+      </td>
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtube.com/shorts/JDZCLhUOZ_Q" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/JDZCLhUOZ_Q/0.jpg" alt="Open Challenge Video 3" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #3</span>
+        </a>
+      </td>
+    </tr>
+    <tr style="border: none;">
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtube.com/shorts/0JTcstQ5lVM" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/0JTcstQ5lVM/0.jpg" alt="Open Challenge Video 5" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #5</span>
+        </a>
+      </td>
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;"></td>
     </tr>
   </table>
 </section>
