@@ -1095,6 +1095,38 @@ Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que
           <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #5</span>
         </a>
       </td>
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtu.be/u9PNsfgKNgM" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/u9PNsfgKNgM/0.jpg" alt="Robot POV Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Robot POV Nº1</span>
+        </a>
+      </td>
+    </tr>
+    <tr style="border: none;">
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtu.be/c7y4DL4ijQ8" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/c7y4DL4ijQ8/0.jpg" alt="Foxglove Studio Replay Video" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Foxglove Studio Replay</span>
+        </a>
+      </td>
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtu.be/fb5zcayUf0A" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/fb5zcayUf0A/0.jpg" alt="Obstacles Challenge Simulation Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Obstacles Challenge Simulation Nº1</span>
+        </a>
+      </td>
+    </tr>
+    <tr style="border: none;">
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://youtu.be/S0tjWiyK1bM" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/S0tjWiyK1bM/0.jpg" alt="Open Challenge Simulation Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge Simulation Nº1</span>
+        </a>
+      </td>
       <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;"></td>
     </tr>
   </table>
