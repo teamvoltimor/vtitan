@@ -56,7 +56,9 @@ class RobotSpecs:
     CHASSIS_MASS: Final[float] = _robot.chassis.mass  # body alone, without wheels
     WHEEL_COUNT: Final[int] = 4
     TOTAL_MASS: Final[float] = CHASSIS_MASS + WHEEL_COUNT * WHEEL_MASS
-    """Assembled car, 1.5 kg measured 2026-08-01.
+    """Assembled car: ~1.51 kg with the practice battery, ~1.46 kg with the
+    competition one (measured 2026-09-07); the modelled 1.5 kg total is a
+    deliberate middle value between both battery configurations.
 
     Derived rather than declared: the URDF and the Gazebo model build the robot
     out of a body plus four wheels, so the total is a consequence of those

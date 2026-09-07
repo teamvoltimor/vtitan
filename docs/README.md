@@ -853,7 +853,7 @@ width="350">
 
 Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis de pueden aprecias dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernas de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
 
-**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm, y pesa **1.5 kg** contra el límite de 1500 g. La geometría que consume el control (wheelbase de 0.19 m entre ejes, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) vive en `platform/shared/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
+**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (wheelbase de 0.19 m entre ejes, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) vive en `platform/shared/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
 
 ## Relación de Torque y Velocidad 
 
@@ -865,7 +865,7 @@ $$T = \frac{m \cdot \left( a + g \cdot \left( \mu \cos\theta + \sin\theta \right
 
 Donde:
 
-- $m$ es la masa del vehículo (en kg; en V-Titan son **1.5 kg medidos en el robot ensamblado** el 2026-08-01, y es la misma masa que usa la simulación: chasis de 1.3 kg más 4 ruedas de 0.05 kg, `platform/shared/config/robot.toml`)
+- $m$ es la masa del vehículo (en kg; en V-Titan son **~1.51 kg con la batería de prácticas y ~1.46 kg con la de competencia**, medidos en el robot ensamblado). La simulación usa 1.5 kg fijos (`platform/shared/config/robot.toml`: chasis de 1.3 kg más 4 ruedas de 0.05 kg), un punto medio conservador entre ambas configuraciones: calcular con la masa mayor nunca subestima el torque necesario
 - $r$ es el radio de la rueda (en metros; en V-Titan mide $0.035\ \text{m}$)
 - $a$ es la aceleración deseada
 - $g$ es la gravedad, $9.81\ \text{m/s}^2$
