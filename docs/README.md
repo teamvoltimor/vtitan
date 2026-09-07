@@ -71,15 +71,13 @@ Actualmente, este equipo está conformado por 3 miembros:
 
 - **Ramón Álvarez**, 20 años. [ralvarezdev](https://github.com/ralvarezdev). Ejerce como líder del equipo y es el encargado de la programación. Actualmente, trabaja en Automation Labs, y finalizó sus estudios en Ingeniería en Computación en URU.
 - **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado tanto de la programación, como de la documentación y la toma de decisiones con respecto a la lógica del robot. Actualmente, cursa el 1er trimestre de Ingeniería en Computación en URU.
-- **Jesús Pérez**, 16 años. [Ottorafaelpg](https://https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
+- **Jesús Pérez**, 16 años. [JesusPerez15](https://https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
 
 ## Estructura de la documentación
 
 Esta documentación es bastante extensa, por lo que decidimos dividir los contenidos de esta documentación en múltiples archivos para facilitar la lectura, los cuales están ubicados en la carpeta `docs`.
 
 Ahora bien, la estructura de los archivos es la siguiente:
-
-- En la carpeta `devices` se encuentra todo el código utilizado por Voltimor, dividido en dos carpetas, una para la Raspberry Pi 5, y la otra para la Raspberry Pi Zero W.
 
 - En la carpeta `docs`, como ya se ha mencionado, se encuentra todo lo documentado sobre V-Titan, dividido en 4 secciones, la electrónica, la mecánica, la programación, además de estas secciones, también contamos con algunos archivos que detallan, por ejemplo, el software utilizado, los "gadgets" o herramientas que utilizamos, cómo nos pueden contactar, y demás, **estos archivos están listados al final del índice**.
 
@@ -141,7 +139,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
     3. [Ciclo de trabajo: idea → simulación → pista](README.md#ciclo-de-trabajo-idea--simulación--pista)
     4. [Hallazgos de ingeniería](README.md#hallazgos-de-ingeniería)
     5. [Tecnologías utilizadas](README.md#tecnologías-utilizadas)
-6. **[Youtube](README.md#youtube)
+6. **[Videos de V-Titan](README.md#videos-de-v-titan)**
 
 # Historial del equipo
 
@@ -697,7 +695,18 @@ width="350">
 	<i>Sistema de Dirección, visto desde arriba</i>
 </p>
 
-Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. Resumidamente, todo el movimiento lo transmitimos a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque es necesario un servo con mucha capacidad de torque para poder ejercer fuerza en las 4 ruedas, razón por la cual, tuvimos que cambiar nuestro servo que tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. En primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje indidivual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
+Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. 
+
+<p align="center">
+	<img src="../docs/schemes/counter-phase-steering-system.png" alt="Ejemplo de sistema de dirección en Contrafase" 
+width="350">
+	<br>
+	<i>Ejemplo de sistema de dirección en contrafase</i>
+</p>
+
+V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema funciona en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
+
+En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje indidivual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
 ## Chasis Inferior 
 
@@ -1007,7 +1016,7 @@ El patrón es siempre el mismo: **el sistema se comportaba de forma coherente co
 | **Task** | Automatización | Un único punto de entrada para compilar, probar, desplegar y simular |
 | **tscircuit** | Esquemático de conexiones | El arnés se define en código y se versiona igual que el software |
 
-# Videos
+# Videos de V-Titan
 
 Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a V-Titan y los desafíos de la WRO.
 
