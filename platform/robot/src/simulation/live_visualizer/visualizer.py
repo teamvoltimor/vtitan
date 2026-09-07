@@ -897,9 +897,11 @@ class LiveScenarioVisualizer(Node):
         return m
 
     def _robot_lidar_marker(self) -> Marker:
-        # HEIGHT + LIDAR_MOUNT_Z_OFFSET = 0.12, matching static_tfs.launch.py /
+        # HEIGHT + LIDAR_MOUNT_Z_OFFSET = 0.08, matching static_tfs.launch.py /
         # the Go SDF generator. Read from config, not the 0.02 literal that used
-        # to sit here beside a comment naming the value it duplicated.
+        # to sit here beside a comment naming the value it duplicated. The offset
+        # is NEGATIVE: the unit is recessed, and the beam measures 0.08 m off the
+        # floor, not the 0.12 this comment asserted until 2026-09-07.
         m = Marker()
         m.header.frame_id = TfFrames.BASE_LINK
         m.ns = "robot"

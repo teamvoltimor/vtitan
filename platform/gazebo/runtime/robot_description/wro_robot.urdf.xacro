@@ -272,7 +272,7 @@
   <joint name="lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="lidar_link"/>
-    <!-- z = chassis_height + lidar_mount_z = 0.12: matches static_tfs.launch.py / the Go
+    <!-- z = chassis_height + lidar_mount_z = 0.08: matches static_tfs.launch.py / the Go
          SDF generator's RobotHeight + RobotLidarMountZOffset. Previously chassis_height/2
          + 0.025 = 0.075 here only, a pre-existing drift from those other two sources,
          found and fixed alongside the mount-offset measurements (see

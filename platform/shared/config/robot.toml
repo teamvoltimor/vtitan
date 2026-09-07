@@ -133,11 +133,27 @@ height = 0.0413
 # Slamtec C1, flush with the front edge, centered left/right.
 # Derived as chassis.length/2 - lidar mesh radius (0.0278, matching the xacro cylinder mesh).
 mount_x_offset = 0.1222
-# LIDAR sits 20mm above the chassis top -- add to chassis.height for the LIDAR's absolute
-# mount z. Was hand-duplicated as simconfig.RobotLidarZOffset (Go) and a hardcoded 0.12
-# (= chassis.height + this) in static_tfs.launch.py and the URDF xacro; consolidated here
-# 2026-07-30 so all three consumers derive from one value instead of three that could drift.
-mount_z_offset = 0.02
+# Added to chassis.height for the LIDAR's absolute mount z, i.e. the height of the
+# SCAN PLANE off the floor. Was hand-duplicated as simconfig.RobotLidarZOffset (Go)
+# and a hardcoded 0.12 (= chassis.height + this) in static_tfs.launch.py and the URDF
+# xacro; consolidated here 2026-07-30 so all three consumers derive from one value
+# instead of three that could drift.
+#
+# NEGATIVE because the unit is recessed, not stacked on the chassis top: the beam
+# MEASURES ~0.08 m off the floor, so it sits 20mm BELOW chassis.height (0.10), not
+# 20mm above it as this field claimed until 2026-09-07.
+#
+# The old +0.02 put the scan plane at 0.12 m. Every object on the field is 0.10 m
+# tall -- wall.height, the pillars and the blocks all -- so the repo's own geometry
+# said the beam clears the entire track and the robot is blind. It plainly is not:
+# over run_20260907_031019 the +/-90 deg rays read p10 0.20 / median 0.58 / p90 1.79 m
+# in a 1.0 m corridor, exactly the walls. At the real 0.08 m the beam crosses a
+# 0.10 m sign 2 cm below its top, on the body.
+#
+# This is load-bearing for reasoning, not just for TF: from the wrong 0.12 it
+# follows that the LIDAR cannot see traffic signs at all, which is false and would
+# rule out using it to propose obstacle candidates ahead of the camera.
+mount_z_offset = -0.02
 # The chassis is physically mounted upside-down, which is why an "inverted" correction
 # exists at all. Confirmed 2026-08-02: the mount IS upside-down, so `inverted = true`.
 # An earlier same-day measurement had found `false` matching behavior, but that was
