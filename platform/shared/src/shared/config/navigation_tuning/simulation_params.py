@@ -53,7 +53,7 @@ class SimulationParams(BaseModel):
     LIDAR_INVALID_RAY_RATE: float = Field(default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE"))
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
 
-    MIN_TURN_RADIUS_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("MIN_TURN_RADIUS_M"))
+    MIN_TURN_RADIUS_M: float = Field(default=0.29, ge=0.0, validation_alias=_alias("MIN_TURN_RADIUS_M"))
     """Floor on the chassis's turn radius, in metres. 0 disables (the old model).
 
     The bicycle term has no floor: at the shipped 85 deg lock it gives
@@ -78,9 +78,13 @@ class SimulationParams(BaseModel):
     intended way) where hardware ranges 5-44 s and sometimes rotates the WRONG
     way entirely.
 
-    **Ships at 0.0 until the corpus is re-baselined on it**, because it changes
-    every contact- and corner-dependent number in the repo. 0.29 is the measured
-    value to use. Two shipped constants were sized against the un-floored model
+    **NOW SHIPS AT THE MEASURED 0.29** (2026-09-07). It changes every contact- and
+    corner-dependent number in the repo, so ANY Obstacles figure recorded before
+    this date was measured on a chassis that could pivot in 1.5 cm and is not
+    comparable. Measured cost of the floor alone, 16 scenarios x 3 seeds: in-time
+    29 -> 26 and collisions 5 -> 8. That is the sim becoming honest, not a
+    regression -- and it is what finally exposed the escape manoeuvre being
+    unable to rotate out of a corner (see `escape.MAX_ESCAPE_S`). Two shipped constants were sized against the un-floored model
     and should be re-derived once it is on: ``BAY_EXIT_ARC_STEER_NORM`` (1.0,
     whose "cliff at full lock" was a sim result) and ``max_corner_steer_deg``
     (21.25, chosen so a predicted 0.45 m arc fits a 0.60 m commit clearance --

@@ -74,8 +74,8 @@ class EscapeManeuverParams(BaseModel):
     REV_STEER_DEG: float = Field(
         default=44.0, validation_alias=_alias("REV_STEER_DEG")
     )  # Road-wheel angle while reversing
-    K_TURN_MIN_S: float = Field(default=0.30, gt=0.0, validation_alias=_alias("K_TURN_MIN_S"))
-    K_TURN_MAX_S: float = Field(default=0.60, gt=0.0, validation_alias=_alias("K_TURN_MAX_S"))
+    K_TURN_MIN_S: float = Field(default=0.54, gt=0.0, validation_alias=_alias("K_TURN_MIN_S"))
+    K_TURN_MAX_S: float = Field(default=1.08, gt=0.0, validation_alias=_alias("K_TURN_MAX_S"))
     SLALOM_REVERSE_S: float = Field(default=0.40, gt=0.0, validation_alias=_alias("SLALOM_REVERSE_S"))
     SLALOM_FORWARD_S: float = Field(default=0.50, gt=0.0, validation_alias=_alias("SLALOM_FORWARD_S"))
     STUCK_MOVE_THRESHOLD: float = Field(
@@ -88,7 +88,40 @@ class EscapeManeuverParams(BaseModel):
     SIDE_CORRECTION_S: float = Field(default=0.20, gt=0.0, validation_alias=_alias("SIDE_CORRECTION_S"))
     ESCALATE_AFTER_ATTEMPTS: int = Field(default=3, validation_alias=_alias("ESCALATE_AFTER_ATTEMPTS"))
     ESCAPE_SIDE_COMMIT_ATTEMPTS: int = Field(default=2, ge=1, validation_alias=_alias("ESCAPE_SIDE_COMMIT_ATTEMPTS"))
-    MAX_ESCAPE_S: float = Field(default=1.0, gt=0.0, validation_alias=_alias("MAX_ESCAPE_S"))
+    MAX_ESCAPE_S: float = Field(default=1.8, gt=0.0, validation_alias=_alias("MAX_ESCAPE_S"))
+    """Hard cap on any single escalated escape, seconds. Raised 1.0 -> 1.8 (2026-09-07).
+
+    An escape is terminated by ELAPSED TIME, and 1.0 s could not deliver the
+    rotation the manoeuvre exists to produce. At `REV_SPEED` 0.2 m/s that is
+    0.20 m of path, which at the chassis's MEASURED 0.29 m minimum turn radius
+    (`simulation.MIN_TURN_RADIUS_M`) is **40 deg** -- against the 90 deg+ needed
+    to clear a corner. Hardware agreed: over 90 escape episodes on the 09-07
+    runs an escape achieved a median **27.4 deg**, 39% under 20 deg, and
+    re-triggered up to 50 times because the same corner was still there. Escape
+    windows covered 34-65% of every run.
+
+    Swept over 240 runs at the honest turn radius (`diag_escape_duration.py`):
+
+        MAX_ESCAPE_S  in-time  laps>=3  collided  stuck  timed
+        1.0 (was)         26       28         8      1      9
+        1.8 (now)         29       34        11      0      0
+        2.3               31       33        11      0      0
+        3.0               22       22        15      0      1
+
+    **Timeouts collapse to ZERO at 1.8 s.** 2.3 s is not better once noise is
+    allowed for, and 3.0 s is clearly worse, so the optimum is real rather than
+    "longer is better". 1.8 is chosen as the shortest manoeuvre that clears them.
+
+    COST: collisions 8 -> 11, and that is INTRINSIC -- it appears at every
+    duration that clears the timeouts. Terminating on achieved YAW was tried to
+    recover it and is REFUTED: a 60 deg target is byte-identical to off, because
+    the escape never gets that far before the time cap binds. It under-rotates;
+    it does not overshoot. The open candidate is terminating on the TRIGGERING
+    OBSTACLE BEING CLEAR.
+
+    `K_TURN_MIN_S`/`K_TURN_MAX_S` were scaled with it (0.54/1.08), so the
+    manoeuvre that spends this budget can actually reach it.
+    """
     STUCK_CONFIRMATION_CHECKS: int = Field(default=3, validation_alias=_alias("STUCK_CONFIRMATION_CHECKS"))
     STUCK_ESCALATION_PER_ATTEMPT_S: float = Field(
         default=0.10, gt=0.0, validation_alias=_alias("STUCK_ESCALATION_PER_ATTEMPT_S")

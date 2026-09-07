@@ -56,8 +56,8 @@ class TestCounterPhaseDoublesTheYawRate:
     """The headline property, and the one that regressed before."""
 
     def test_counter_phase_turns_twice_as_sharply_as_front_steer(self):
-        counter = AckermannKinematics(rear_steer_ratio=1.0)
-        front_only = AckermannKinematics(rear_steer_ratio=0.0)
+        counter = AckermannKinematics(rear_steer_ratio=1.0, min_turn_radius_m=0.0)
+        front_only = AckermannKinematics(rear_steer_ratio=0.0, min_turn_radius_m=0.0)
 
         assert _radius_of_curvature(counter, _STEER_NORM) == pytest.approx(
             _radius_of_curvature(front_only, _STEER_NORM) / 2, rel=1e-3
@@ -70,9 +70,15 @@ class TestCounterPhaseDoublesTheYawRate:
         shipped gain is a measured slip factor sitting on top of it (see
         :class:`TestMeasuredDeparturesFromTheIdealModel`); leaving it in would
         make a geometry regression and a re-measured tyre look identical here.
+
+        ``min_turn_radius_m`` is pinned to 0.0 for the same reason. The shipped
+        floor (``simulation.MIN_TURN_RADIUS_M`` 0.29, the MEASURED saturation of
+        the real chassis) clamps the curvature this formula predicts -- at the
+        steer used here the ideal geometry gives 0.207 m and the floor returns
+        0.29 -- so leaving it on would assert the clamp rather than the model.
         """
         for ratio in (0.0, 0.5, 1.0):
-            kin = AckermannKinematics(rear_steer_ratio=ratio, yaw_gain=1.0)
+            kin = AckermannKinematics(rear_steer_ratio=ratio, yaw_gain=1.0, min_turn_radius_m=0.0)
             expected_l_eff = RobotSpecs.WHEELBASE / (1.0 + ratio)
             steer = _STEER_NORM * RobotSpecs.MAX_STEERING_ANGLE
 
@@ -102,9 +108,13 @@ class TestMeasuredDeparturesFromTheIdealModel:
     """
 
     def test_yaw_gain_scales_the_turn_radius_inversely(self):
-        """Half the yaw for the same speed and angle is twice the radius."""
-        ideal = AckermannKinematics(yaw_gain=1.0)
-        slipping = AckermannKinematics(yaw_gain=0.5)
+        """Half the yaw for the same speed and angle is twice the radius.
+
+        The turn-radius floor is off here: a clamp would cap BOTH arms at 0.29 m
+        and the doubling this asserts would vanish into it.
+        """
+        ideal = AckermannKinematics(yaw_gain=1.0, min_turn_radius_m=0.0)
+        slipping = AckermannKinematics(yaw_gain=0.5, min_turn_radius_m=0.0)
 
         assert _radius_of_curvature(slipping, _STEER_NORM) == pytest.approx(
             _radius_of_curvature(ideal, _STEER_NORM) * 2, rel=1e-3

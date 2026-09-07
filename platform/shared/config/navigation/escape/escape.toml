@@ -33,8 +33,8 @@ rev_steer_deg = 44.0
 # robot declare itself stuck 2.5x sooner and truncate every escape, with
 # nothing raising and no value here edited. Each value below is the old frame
 # count divided by 20, so behaviour at the shipped rate is unchanged.
-k_turn_min_s = 0.30           # Minimum K-turn duration (OBSTACLE risk)
-k_turn_max_s = 0.60           # Maximum K-turn duration (CRITICAL risk)
+k_turn_min_s = 0.54           # Minimum K-turn duration (OBSTACLE risk)
+k_turn_max_s = 1.08           # Maximum K-turn duration (CRITICAL risk)
 slalom_reverse_s = 0.40       # Time spent reversing during slalom
 slalom_forward_s = 0.50       # Time spent forward-turning during slalom
 stuck_move_threshold = 0.03   # Distance threshold (m) to detect stuck
@@ -47,7 +47,7 @@ side_correction_speed = 0.1   # Forward speed during a side-threat correction
 side_correction_s = 0.20      # Duration of a side-threat correction
 escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
 escape_side_commit_attempts = 2  # Attempts spent on one side before trying the other (1 = alternate every attempt, which cancels itself out)
-max_escape_s = 1.0            # Hard cap on any single escalated escape duration
+max_escape_s = 1.8            # Hard cap on any single escalated escape duration
 stuck_confirmation_checks = 3            # Consecutive below-threshold checks before declaring "stuck"
 stuck_escalation_per_attempt_s = 0.10    # Time added to a stuck-reverse duration per repeated attempt
 stuck_history_floor_s = 3.0              # Minimum position history kept, even when timeout*2 is smaller
