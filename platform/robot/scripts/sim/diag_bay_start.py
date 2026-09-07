@@ -451,7 +451,19 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         moved=moved,
         fx=fx,
         fy=fy,
-        dyaw_deg=math.degrees(abs(wrap_angle(fyaw - start["yaw"]))),
+        # SIGNED, deliberately. This threw the sign away until 2026-09-07, which
+        # made the probe blind to the failure it most needs to catch: the exit's
+        # rotation direction is EMERGENT, not commanded -- the ratchet alternates
+        # forward and reverse legs at the same steering lock, so the net depends
+        # on which leg accumulates more travel. `BayExit.rotation_complete` also
+        # tests |rotation|, so an exit that turned the WRONG WAY still reports
+        # done, and `direction_from_parking_bay` then commits a travel direction
+        # from `open_is_left` that the chassis is not pointing along. Measured on
+        # run_20260907_030519: open side correctly read LEFT (0.870 vs 0.082),
+        # correctly committed counterclockwise, and the robot drove CLOCKWISE for
+        # all 280 s. With the magnitude alone that run looks like a clean 77 deg
+        # exit.
+        dyaw_deg=math.degrees(wrap_angle(fyaw - start["yaw"])),
         net_m=math.hypot(fx - sx, fy - sy),
         exit_m=best_exit_m,
         hand_yaw_deg=hand_yaw,

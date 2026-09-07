@@ -1539,3 +1539,56 @@ class TestMinimumClearance:
             f"edge-to-edge clearance between chassis and sign — below the "
             f"{_MIN_SIGN_EDGE_CLEARANCE_M}m minimum"
         )
+
+
+class TestDirectionAdoption:
+    """A blind round builds the router on the CLOCKWISE provisional.
+
+    `track_navigator_node` cannot know the travel direction until LIDAR
+    inference settles seconds into the round, so it builds the router on a
+    placeholder. `_commit_direction` rebuilt the path, the lap detector, the
+    width estimator and the start measurement -- but not the router, so
+    `SignRouter._direction` stayed at the placeholder for the whole race.
+
+    That does not degrade the lane, it MIRRORS it: every clockwise row of
+    ROUTING_TABLE is the negation of its counterclockwise partner, so red and
+    green swap sides. Measured across four hardware bags -- on the two rounds
+    that inferred counterclockwise the commanded lane matched the CLOCKWISE row
+    on 24 of 28 sign passes, and 22 of the 28 illegal passes are that mirror,
+    against 2 caused by phantom signs and 0 by colour errors. The one round that
+    inferred clockwise, agreeing with the placeholder by luck, passed 19 of 26
+    legally.
+    """
+
+    def test_adopting_a_direction_flips_the_pass_side(self) -> None:
+        """The whole point: the rule is travel-relative and must re-key."""
+        spec = SignSpec(x=1.5, y=0.5, color=SignColor.RED)
+        router = SignRouter(signs=[spec], direction=Direction.CLOCKWISE)
+        clockwise = pass_side_lateral_axis(router._sign_corridors[0], SignColor.RED, router.direction)
+        router.adopt_direction(Direction.COUNTERCLOCKWISE)
+        counterclockwise = pass_side_lateral_axis(router._sign_corridors[0], SignColor.RED, router.direction)
+        assert clockwise is not None
+        assert counterclockwise is not None
+        # Same axis, opposite permitted side -- that is the mirror.
+        assert clockwise[0] == counterclockwise[0]
+        assert clockwise[1] == -counterclockwise[1]
+
+    def test_adoption_keeps_the_discovered_map(self) -> None:
+        """In place, NOT via replace_sign_router, which drops discovered state.
+
+        The map is built during the blind creep -- before the direction is even
+        known -- and sign POSITIONS do not depend on which way the robot ends up
+        driving. Throwing them away would make the fix cost a re-discovery.
+        """
+        router = SignRouter(signs=[], direction=Direction.CLOCKWISE, discover=True)
+        before = router._sign_map
+        router.adopt_direction(Direction.COUNTERCLOCKWISE)
+        assert router._sign_map is before
+
+    def test_adopting_the_same_direction_is_a_no_op(self) -> None:
+        """A sighted round already has the right direction; it must not be disturbed."""
+        spec = SignSpec(x=1.5, y=0.5, color=SignColor.RED)
+        router = SignRouter(signs=[spec], direction=Direction.COUNTERCLOCKWISE)
+        router._passed.add(0)
+        router.adopt_direction(Direction.COUNTERCLOCKWISE)
+        assert router._passed == {0}

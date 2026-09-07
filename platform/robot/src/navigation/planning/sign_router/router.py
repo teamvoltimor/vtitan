@@ -127,6 +127,50 @@ class SignRouter:
         else:
             self._sign_map = None
 
+    def adopt_direction(self, direction: Direction) -> None:
+        """Re-key the travel-relative pass-side rule once inference settles.
+
+        A blind round builds this router on a PROVISIONAL direction --
+        ``Direction.CLOCKWISE`` (``track_navigator_node`` line ~191) -- because
+        the real one is not known until the LIDAR settles it seconds later.
+        ``_commit_direction`` then rebuilt the path, the lap detector, the width
+        estimator and the start measurement, but NOT this router, so
+        ``self._direction`` stayed at the placeholder for the whole race.
+
+        The pass-side rule is travel-relative: ``ROUTING_TABLE`` is keyed on
+        ``(corridor, direction)`` and every clockwise row is the negation of its
+        counterclockwise partner. A stale direction therefore does not degrade
+        the lane, it MIRRORS it -- red and green swap sides for every sign.
+
+        Measured on four hardware bags: on the two rounds that inferred
+        counterclockwise, the commanded lane matched the clockwise row on 24 of
+        28 sign passes, and 22 of the 28 illegal passes are that mirrored
+        command -- against 2 caused by phantom signs and 0 by colour errors. The
+        one round that inferred CLOCKWISE, and so agreed with the placeholder by
+        luck, passed 19 of 26 legally.
+
+        In place rather than by rebuilding through
+        ``CoreNavigator.replace_sign_router``, which explicitly drops discovered
+        state: that is right between races, and wrong here, where the map
+        accumulated during the blind creep is exactly what the round needs and
+        is direction-INDEPENDENT anyway.
+
+        What IS direction-derived is cleared: the per-sign corridor labels come
+        from ``satisfiable_corridor``, and the commit/engagement bookkeeping and
+        the wrong-side verdicts were all recorded under the mirrored rule.
+        ``_passed`` is deliberately kept -- a sign already behind the robot is
+        behind it whichever way the round turned out to run.
+        """
+        if direction == self._direction:
+            return
+        self._direction = direction
+        self._sign_corridors = [self._corridor_for_spec(spec) for spec in self._signs]
+        self._corridor_flip_streak.clear()
+        self._wrong_side.clear()
+        self._commit_yaw.clear()
+        self._engaged.clear()
+        self._committed = None
+
     @property
     def direction(self) -> Direction:
         """The travel direction this router routes for.

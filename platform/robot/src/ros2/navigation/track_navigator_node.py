@@ -1002,6 +1002,19 @@ class TrackNavigator(Node, ResettableNode):
         previous = self._direction
         changed = inferred is not previous
         self._direction = inferred
+        # Re-key the sign router's travel-relative rule. A blind round builds it
+        # on the CLOCKWISE provisional above, and until 2026-09-07 nothing here
+        # told it otherwise -- so every round that inferred COUNTERCLOCKWISE ran
+        # the whole race with red and green swapped, because each clockwise row
+        # of ROUTING_TABLE is the negation of its counterclockwise partner.
+        # Measured across four hardware bags: on the two rounds that inferred
+        # counterclockwise the commanded lane matched the CLOCKWISE row on 24 of
+        # 28 passes, and 22 of the 28 illegal passes are that mirror -- against
+        # 2 from phantom signs and 0 from colour errors. In place rather than via
+        # replace_sign_router, which drops the map discovered during the creep.
+        router = self._core_navigator.sign_router
+        if router is not None:
+            router.adopt_direction(inferred)
         # Computed before the width readings are filed, not with the heading
         # correction further down where it is applied. The buffered yaws were
         # recorded against the *old* direction's reference frame, and CW and
