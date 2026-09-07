@@ -393,7 +393,7 @@ width="350">
 	<i>Raspberry Pi Camera Module 3</i>
 </p>
 
-La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como los demás componentes Raspberry, esta se destaca por ser bastante ligera y portátil, ya que, pues es una cámara bastante pequeña, midiendo apenas 25 mm × 24 mm × 12.4 mm y pesando 4 gramos, sin perder absolutamente ni una pizca de eficiencia, porque puede grabar a 1536 x 864p120, ahora bien, decidimos utilizar la versión Wide por su campo de visión horizontal de 102 grados, porque nos permite tener un rango de visión óptimo para poder detectar todos los obstáculos de la pista y lograr una mayor autonomía.
+La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como los demás componentes Raspberry, esta se destaca por ser bastante ligera y portátil, ya que es una cámara bastante pequeña, midiendo apenas 25 mm × 24 mm × 12.4 mm y pesando 4 gramos, sin perder absolutamente ni una pizca de eficiencia, porque puede grabar a 1536 x 864p120, ahora bien, decidimos utilizar la versión Wide por su campo de visión horizontal de 102 grados, porque nos permite tener un rango de visión óptimo para poder detectar todos los obstáculos de la pista y lograr una mayor autonomía.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -485,7 +485,7 @@ width="350">
 
 El Hiwonder HPS-3527SG 35kg Servo es el servomotor encargado de controlar la dirección de V-Titan, decidimos utilizar este modelo debido a su reducido tamaño y peso, además de una precisión más que suficiente para poder manejar a V-Titan.
 
-No solo estos aspectos definieron la elección, el Hiwonder HPS-3527SG 35kg ofrece también una gran precisión a pesar de su reducido tamaño, algo esencialmente vital en esta competencia.
+No solo estos aspectos definieron la elección, el Hiwonder HPS-3527SG 35kg ofrece también una gran precisión a pesar de su reducido tamaño, algo esencial en esta competencia.
 
 Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
 `servo`, nos permiten configurar el servo a nuestra elección, convirtiendo el uso de funciones para controlar el servo previamente establecido mucho más fácil de leer sin arriesgar el rendimiento del programa.
@@ -506,7 +506,7 @@ width="350">
 	<i>HD Hex Motor</i>
 </p>
 
-Después de probar distintos modelos de motor, al final optamos por utilizar el motor HD Hex Motor, ya que éste cuenta con todos los requisitos que teníamos en mente para un motor (principalmente que cuente con un encoder y tenga una alta cantidad de RPM) ya que debido a nuestro sistema de transmisición, no era necesario que el motor cuente con un torque alto, ya que éste se puede compensar en nuestro sistema de transmisión con alguna relación de transmisión, valga la redundancia, además de ser un motor que ya se podía implementar con facilidad en el monochasis que habíamos diseñado, sólamente teniendo que cambiar su encaje.
+Después de probar distintos modelos de motor, al final optamos por utilizar el motor HD Hex Motor, ya que éste cuenta con todos los requisitos que teníamos en mente para un motor (principalmente que cuente con un encoder y tenga una alta cantidad de RPM) ya que debido a nuestro sistema de transmisición, no era necesario que el motor cuente con un torque alto, ya que éste se puede compensar en nuestro sistema de transmisión con alguna relación de transmisión, además de ser un motor que ya se podía implementar con facilidad en el monochasis que habíamos diseñado, sólamente teniendo que cambiar su encaje.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -625,9 +625,9 @@ Pantalla monocroma de 128x64 píxeles conectada por I2C. Cumple una función de 
 
 Convertidor reductor que toma la tensión de la batería y entrega **5 V a 5 A por salida USB-C**, dedicado exclusivamente a la Raspberry Pi 5. Es una rama independiente de la del servo y la del motor: las tres cuelgan de la batería por separado, de modo que el consumo del tren motriz no puede provocar una caída de tensión en el computador y reiniciarlo a mitad de una ronda.
 
-El dimensionamiento merece una aclaración, porque el pico de la tabla anterior suma por componente y aquí sería una suma engañosa. El AI HAT+, la cámara, el LIDAR y el puente IMU no se alimentan del KL89576 directamente: cuelgan del riel de 5 V de la propia Pi 5, y la Pi Zero entera (motor, nivel-shifter, OLED, encoder) se alimenta por el VBUS del puerto USB de la Pi 5. Es decir, los 5 A de la especificación de la Pi 5 **ya incluyen** a todo lo colgado de la placa, y el pico del AI HAT+ (2.5 A) no se suma dos veces. El presupuesto real de la rama es: pico de la placa con sus periféricos (5 A, valor de especificación oficial que cubre el AI HAT+) más LIDAR (0.6 A) e IMU (0.03 A), ambos casi constantes, contra los 5 A del convertidor.
+El dimensionamiento merece una aclaración, porque el pico de la tabla anterior suma por componente y aquí sería una suma engañosa. El AI HAT+, la cámara, el LIDAR y el puente IMU no se alimentan del KL89576 directamente: se alimentan del riel de 5 V de la propia Pi 5, y la Pi Zero entera (motor, nivel-shifter, OLED, encoder) recibe su alimentación por el VBUS del puerto USB de la Pi 5. Es decir, los 5 A de la especificación de la Pi 5 **ya incluyen** a todo lo conectado a la placa, y el pico del AI HAT+ (2.5 A) no se suma dos veces. El presupuesto real de la rama es: pico de la placa con sus periféricos (5 A, valor de especificación oficial que cubre el AI HAT+) más LIDAR (0.6 A) e IMU (0.03 A), ambos casi constantes, contra los 5 A del convertidor.
 
-Ese margen es deliberadamente fino y lo monitoreamos en vez de sobredimensionarlo a ciegas: el indicador `vcgencmd get_throttled` de la Pi 5 reporta cualquier caída de tensión, y es la misma señal con la que verificamos (0x0, sin eventos) que la Pi Zero alimentada por VBUS funciona sin undervoltage en carrera. Si el margen algún día se cerrara, el punto de vigilancia es el consumo conjunto placa+NPU, no el convertidor.
+Ese margen es deliberadamente fino y lo monitoreamos en vez de sobredimensionarlo sin medir: el indicador `vcgencmd get_throttled` de la Pi 5 reporta cualquier caída de tensión, y es la misma señal con la que verificamos (0x0, sin eventos) que la Pi Zero alimentada por VBUS funciona sin undervoltage en carrera. Si el margen algún día se cerrara, el punto de vigilancia es el consumo conjunto placa+NPU, no el convertidor.
 
 ## Diagrama de Conexiones
 
@@ -665,7 +665,7 @@ Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se comitean e
 
 > **Nota sobre la rama de tracción.** El salto respecto de la tabla anterior no es un cambio de consumo del robot, sino una corrección: el puente anterior figuraba con «según motor» en la columna nominal, de modo que la corriente de tracción, que es la mayor del sistema con diferencia, nunca entraba en el total. Los ~10 A nominales y ~20 A de pico son la rama del motor medida al 50% del ciclo de trabajo, y son exactamente el motivo por el que el L298N de 2 A por canal tuvo que ser reemplazado. El valor de 43 A del BTS7960 es la clasificación de la pieza, no un consumo: no se suma aquí.
 >
-> **Nota sobre la rama del computador.** Los picos de la Raspberry Pi 5 (5.00 A) y del AI HAT+ (2.50 A) **no se suman**: el AI HAT+ se alimenta del riel de 5 V de la propia Pi 5, y el pico de 5 A de la placa ya cubre por especificación a todo lo colgado de ella, incluida la Pi Zero, que recibe su alimentación por el VBUS de un puerto USB de la Pi 5. Los 5 A del KL89576 dimensionan esta rama completa; ver la [sección del convertidor](README.md#convertidor-kl89576-dc-a-usb-c).
+> **Nota sobre la rama del computador.** Los picos de la Raspberry Pi 5 (5.00 A) y del AI HAT+ (2.50 A) **no se suman**: el AI HAT+ se alimenta del riel de 5 V de la propia Pi 5, y el pico de 5 A de la placa ya cubre por especificación a todo lo conectado a ella, incluida la Pi Zero, que recibe su alimentación por el VBUS de un puerto USB de la Pi 5. Los 5 A del KL89576 dimensionan esta rama completa; ver la [sección del convertidor](README.md#convertidor-kl89576-dc-a-usb-c).
 >
 > Estas tres ramas (computador, servo y tracción) cuelgan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
 
@@ -677,7 +677,7 @@ En este apartado se discuten todos los aspectos con lo que a movilidad y diseño
 
 Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas pre-fabricadas o impresas en 3D, ya que nos permite minimizar el peso de V-Titan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
 
-Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que tiene un montón de funciones útiles para el diseño de prototipos mecánicos, y, era el programa con el que teníamos mejor afinidad.
+Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que tiene una gran cantidad de funciones útiles para el diseño de prototipos mecánicos, y, era el programa con el que teníamos mejor afinidad.
 
 ## Evolución y Justificación Del Diseño
 
@@ -896,7 +896,7 @@ Para detectar los obstáculos del Desafío Cerrado de manera confiable usamos un
 | Umbral de despliegue | 0.45 en el detector (las detecciones por debajo no llegan al navegador); 0.25 en el router de señales, para confirmación tardía |
 | Throughput | 101.5 FPS el HEF solo (`hailortcli run`); el pipeline completo (captura → letterbox → NPU → decode → publicar) corre a **15 Hz**, limitado por el timer de captura, no por el modelo |
 
-Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), inservible para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos el pipeline: el nodo de visión abre la cámara directamente y alimenta los frames al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
+Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), demasiado lento para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos el pipeline: el nodo de visión abre la cámara directamente y alimenta los frames al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
 
 ### Datos de entrenamiento
 
@@ -906,11 +906,11 @@ En paralelo construimos el **auto-annotator**, una herramienta de anotación asi
 
 ### Cómo lo medimos (y qué cambió por eso)
 
-Evaluamos el modelo sobre 600 imágenes con IoU ≥ 0.5, comparando el techo en punto flotante contra dos variantes cuantizadas del compilador de Hailo:
+Evaluamos el modelo sobre 600 imágenes con IoU ≥ 0.5, comparando el resultado en punto flotante, tomado como referencia, contra dos variantes cuantizadas del compilador de Hailo:
 
 | Variante | mAP@0.5 | mAP@0.5:0.95 | Clasificaciones erróneas | Omitidas |
 |---|---|---|---|---|
-| Punto flotante (techo) | 0.9955 | 0.8885 | 0 | — |
+| Punto flotante (referencia) | 0.9955 | 0.8885 | 0 | — |
 | Nivel 0, la desplegada | 0.9954 | 0.8808 | 0 | 2 |
 | Nivel 2 + QAT | 0.9689 | 0.8096 | 2 (magenta↔rojo) | 23 |
 
@@ -931,26 +931,26 @@ El control de V-Titan tiene dos lazos con exigencias distintas, y solo uno de el
 
 ### Control de velocidad: PI sobre RPM
 
-El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `PIDController` implementa un PI con saturación de salida (tope de duty en 50%) y anti-windup por integración condicional: el término integral solo acumula cuando la salida no está saturada, de modo que el viento-up no puede persistir contra el tope.
+El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `PIDController` implementa un PI con saturación de salida (límite de duty en 50%) y anti-windup por integración condicional: el término integral solo acumula cuando la salida no está saturada, de modo que el viento-up no puede persistir contra el límite.
 
 Sobre el PI va un **feedforward afín** medido en banco, `duty = 0.20 + 0.8 · rpm/max_rpm`, con el deadband medido cargado (`rpm = 434.6·duty − 86.7`). El lazo integral solo corrige lo que el feedforward no modela; un setpoint de cero devuelve duty cero, así que el robot no se desliza al detenerse.
 
-Las ganancias son perfiles por motor y su historia ilustra por qué "los valores vivieron en el código" era un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el duty oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un log por paso del PID (consigna, medida, duty) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra el techo: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de un rail), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
+Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el duty oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un log por paso del PID (consigna, medida, duty) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
 
 ### Dirección: de PID a pure pursuit
 
 La dirección de V-Titan no es un lazo P sobre error angular, aunque lo fue. Con `steering = kp · angle_error`, el sistema era estable solo por debajo de ~0.07 m/s: a velocidad de carrera, el lazo se volvía un oscilador no amortiguado que saturaba el servo entre −70.2° y +70.2° durante carreras completas. La causa tenía un detalle fino: la ganancia se había ajustado contra un modelo de simulación con dirección delantera, mientras el chasis real es de 4 ruedas direccionales en contrafase, que gira aproximadamente al doble de rápido para el mismo ángulo de servo.
 
-La solución no fue ajustar la ganancia, sino cambiar la ley de control: **pure pursuit** sobre el punto de mira del camino planificado, con la distancia efectiva `L = wheelbase/2` para compensar el doble de tasa de guiñada del chasis en contrafase. La curvatura se convierte en ángulo de servo con saturación en ±70.2° y un limitador de tasa de 1.2 rad/s (bajado de 2.0 tras ver en un bag real que el controlador tocaba el tope de tasa en cada esquina, lo que se leía como "demasiado brusco" en pista).
+La solución no fue ajustar la ganancia, sino cambiar la ley de control: **pure pursuit** sobre el punto de mira del camino planificado, con la distancia efectiva `L = wheelbase/2` para compensar el doble de tasa de guiñada del chasis en contrafase. La curvatura se convierte en ángulo de servo con saturación en ±70.2° y un limitador de tasa de 1.2 rad/s (bajado de 2.0 tras ver en un bag real que el controlador alcanzaba el límite de tasa en cada esquina, lo que en pista se percibía como una conducción demasiado brusca).
 
 Dos refinamientos más, ambos dictados por evidencia de hardware:
 
-- **Mezcla del lookahead en vez de conmutación.** Los dos valores de lookahead (0.16 m corto, 0.32 m largo) conmutaban a ~2.5 Hz, y cada conmutación saltaba la curvatura 4×, produciendo un zigzag visible (pico medio de |steer| de 0.306 a 0.398 sin ganancia lateral real). Se reemplazó la conmutación por una rampa de mezcla continua.
-- **Vista previa de esquina.** Con la señal de error lateral (una señal rezagada), el robot sostenía 0.9 rad de error de rumbo durante 3 s a fondo antes de reaccionar en las esquinas. Se añadió una vista previa geométrica de la pista a 0.80 m adelante para armar el lookahead corto antes, sin alargarlo más porque otra prueba midió un tejido lateral de ±0.18 m con preview excesivo.
+- **Mezcla del lookahead en vez de conmutación.** Los dos valores de lookahead (0.16 m corto, 0.32 m largo) conmutaban a ~2.5 Hz, y cada conmutación multiplicaba la curvatura por cuatro, produciendo un zigzag visible (pico medio de |steer| de 0.306 a 0.398 sin ganancia lateral real). Se reemplazó la conmutación por una rampa de mezcla continua.
+- **Vista previa de esquina.** Con la señal de error lateral (una señal rezagada), el robot sostenía 0.9 rad de error de rumbo durante 3 s antes de reaccionar en las esquinas. Se añadió una vista previa geométrica de la pista a 0.80 m adelante para armar el lookahead corto antes, sin alargarlo más porque otra prueba midió un tejido lateral de ±0.18 m con preview excesivo.
 
 ### El modo ciego: P de centrado eliminada por medición
 
-En la fase inicial, antes de que la inferencia de dirección se estabilice, el robot sigue el pasillo solo con LIDAR. Ahí probamos un controlador P de dos términos (centrado + amortiguación de rumbo) y la ganancia de centrado resultó ser el peor error de tuning del proyecto: con el centrado en 2.0, una barra de 128 escenarios perdió 12 casos su dirección y metió 9 a una pared; en hardware se midieron **112 inversiones de signo del steering en 177 s, con el 45% de los ciclos clavados en el tope**. El fix fue eliminar el término de centrado (ganancia en 0) y quedarse solo con la amortiguación de rumbo: la misma barra pasó a 0 fallos y el creep inicial bajó de 6.7 s a 3.4 s. La lección registrada: corregir posición sin tener en cuenta el rumbo siempre sobrepasa y vuelve, porque el steering fija la tasa de guiñada, no la posición.
+En la fase inicial, antes de que la inferencia de dirección se estabilice, el robot sigue el pasillo solo con LIDAR. Ahí probamos un controlador P de dos términos (centrado + amortiguación de rumbo) y la ganancia de centrado resultó ser el peor error de ajuste del proyecto: con el centrado en 2.0, una barra de 128 escenarios perdió 12 casos su dirección y provocó 9 choques contra una pared; en hardware se midieron **112 inversiones de signo del steering en 177 s, con el 45% de los ciclos clavados en el límite**. El fix fue eliminar el término de centrado (ganancia en 0) y quedarse solo con la amortiguación de rumbo: la misma barra pasó a 0 fallos y el avance lento inicial bajó de 6.7 s a 3.4 s. La lección registrada: corregir posición sin tener en cuenta el rumbo siempre sobrepasa y vuelve, porque el steering fija la tasa de guiñada, no la posición.
 
 ### El rol del giroscopio
 
@@ -1051,7 +1051,7 @@ Cada ejecución escribe un *bag* en formato **MCAP** con todos los tópicos: bar
 
 Sobre esos bags corren **68 scripts de diagnóstico** especializados: uno reconstruye el conteo de vueltas, otro mide el sobrepaso en las esquinas, otro compara la dirección inferida contra lo que realmente ocurrió, otro revisa la robustez de los rayos laterales. Para inspección visual, los bags se abren en **Foxglove**.
 
-La diferencia práctica es grande: un fallo no se resuelve repitiendo la ronda a ver si se repite, sino **reproduciendo el instante exacto tantas veces como haga falta**, con los mismos datos, hasta encontrar la causa. Varios de los hallazgos listados más abajo salieron de un bag, no de la pista.
+La diferencia práctica es grande: un fallo no se resuelve repitiendo la ronda y esperando que se manifieste de nuevo, sino **reproduciendo el instante exacto tantas veces como haga falta**, con los mismos datos, hasta encontrar la causa. Varios de los hallazgos listados más abajo salieron de un bag, no de la pista.
 
 ## Simulador y corpus de escenarios
 
@@ -1078,7 +1078,7 @@ La regla que más impacto tuvo en la calidad del sistema es simple de enunciar: 
 
 Hoy son **203 constantes repartidas en 21 archivos TOML**, acompañadas de **1093 líneas de comentario**: algo más de **cinco líneas de explicación por cada valor**.
 
-No es documentación decorativa. Un número suelto en el código es imposible de auditar: nadie recuerda, tres meses después, si `0.20` se midió, se calculó o se puso a ojo. Al obligarnos a escribir la justificación junto al valor, cada constante lleva su propia historia (qué se midió, con qué método, qué pasó cuando valía otra cosa). Un ejemplo real, del archivo que gobierna la inferencia de dirección:
+No es documentación decorativa. Un número suelto en el código es imposible de auditar: nadie recuerda, tres meses después, si `0.20` se midió, se calculó o simplemente se estimó sin medir. Al obligarnos a escribir la justificación junto al valor, cada constante lleva su propia historia (qué se midió, con qué método, qué pasó cuando valía otra cosa). Un ejemplo real, del archivo que gobierna la inferencia de dirección:
 
 ```toml
 # Diferencia mínima entre izquierda y derecha para que un barrido cuente como
@@ -1118,7 +1118,7 @@ Nuestro método de trabajo se estabilizó en tres pasos, y el orden importa:
 2. **Contrastar contra el corpus completo**, no contra un caso. Un cambio se evalúa sobre los 640 escenarios, y se compara siempre contra la versión inmediatamente anterior, no contra una medición vieja tomada en otras condiciones.
 3. **Verificar en la pista.** El simulador orienta; no decide. Solo la pista confirma.
 
-Dos disciplinas que aprendimos por las malas:
+Dos disciplinas que aprendimos a costa de errores:
 
 **El simulador se calibra contra la realidad, no al revés.** Al comparar grabaciones reales con simuladas descubrimos que el simulador giraba más de lo que gira el robot y alcanzaba su velocidad al instante, cosa que el robot no hace. Era **optimista**: aprobaba comportamientos que en pista fallaban. Lo corregimos contra datos medidos y **descartamos las conclusiones anteriores a esa calibración**, porque estaban tomadas contra un robot que no existe.
 
