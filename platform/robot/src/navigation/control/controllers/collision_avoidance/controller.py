@@ -22,6 +22,7 @@ from src.navigation.control.controllers.collision_avoidance.sectors import (
     _forward_path_has_rays,
     _forward_path_ranges,
     _sector_to_model,
+    chassis_exit_range_m,
     forward_path_nearest_ray,
     sector_ranges,
 )
@@ -112,6 +113,7 @@ class CollisionAvoidanceController:
         blind_wedge_right_min_deg: float,
         blind_wedge_right_max_deg: float,
         ahead_of_bumper: bool = False,
+        rear_self_detection_from_chassis: bool = True,
     ):
         """Initialize collision avoidance controller.
 
@@ -156,6 +158,11 @@ class CollisionAvoidanceController:
             ahead_of_bumper: Measure the forward driving lane from the front
                 bumper face rather than from the LIDAR, so clearance means
                 distance to contact rather than distance to the sensor
+            rear_self_detection_from_chassis: Filter the rear sector's
+                self-detection by chassis geometry at each bearing instead of by
+                the single ``self_detection_threshold_m`` scalar, which sits far
+                inside the body. See
+                ``LidarSectorParams.REAR_SELF_DETECTION_FROM_CHASSIS``.
         """
         self.contact_dist = contact_dist
         self.slow_dist = slow_dist
@@ -172,6 +179,7 @@ class CollisionAvoidanceController:
         self.front_half_fov_rad = math.radians(front_half_fov_deg)
         self.threat_half_fov_rad = math.radians(threat_half_fov_deg)
         self.self_detection_threshold_m = self_detection_threshold_m
+        self.rear_self_detection_from_chassis = rear_self_detection_from_chassis
         self.min_valid_range_m = min_valid_range_m
         self.threat_no_detection_range_m = threat_no_detection_range_m
         self.no_data_range_m = no_data_range_m
@@ -221,6 +229,7 @@ class CollisionAvoidanceController:
             front_half_fov_deg=tuning.lidar_sectors.FRONT_HALF_FOV_DEG,
             threat_half_fov_deg=tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
             self_detection_threshold_m=tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,
+            rear_self_detection_from_chassis=tuning.lidar_sectors.REAR_SELF_DETECTION_FROM_CHASSIS,
             min_valid_range_m=tuning.lidar_sectors.MIN_VALID_RANGE_M,
             threat_no_detection_range_m=tuning.lidar_sectors.THREAT_NO_DETECTION_RANGE_M,
             no_data_range_m=tuning.lidar_sectors.NO_DATA_RANGE_M,
@@ -242,7 +251,10 @@ class CollisionAvoidanceController:
         instance's ``path_half_width`` and ``min_valid_range_m``.
         """
         return _forward_path_ranges(
-            lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m,
+            lidar_ranges,
+            lidar_angles,
+            self.path_half_width,
+            self.min_valid_range_m,
             self.ahead_of_bumper,
         )
 
@@ -259,7 +271,10 @@ class CollisionAvoidanceController:
         ``sectors.forward_path_nearest_ray``.
         """
         return forward_path_nearest_ray(
-            lidar_ranges, lidar_angles, self.path_half_width, self.min_valid_range_m,
+            lidar_ranges,
+            lidar_angles,
+            self.path_half_width,
+            self.min_valid_range_m,
             self.ahead_of_bumper,
         )
 
@@ -400,7 +415,37 @@ class CollisionAvoidanceController:
         the distance alone still reads as open road. ``measured`` is what tells
         them apart.
         """
-        return self.sector(lidar_ranges, lidar_angles, math.pi, filter_self_detection=True)
+        # Self-detection gated by CHASSIS GEOMETRY rather than the global scalar,
+        # and kept in the SENSOR frame like every other sector so
+        # `most_constrained_side` still compares like with like.
+        #
+        # The scalar (0.08 m) sits far inside the body: the chassis rear face is
+        # 0.2722 m behind the sensor and this sector's boundary runs to 0.137 m
+        # at its edges, so the robot's own structure survived the filter.
+        # Measured on run_20260906_192424 the rear minimum was the CHASSIS on
+        # 100% of scans (-157 deg / 0.125 m on 76% of them, -172 deg / 0.187 m on
+        # 18%), so `back_m` read ~0.127 m all run, `most_constrained_side` was
+        # BACK on 59% of driving ticks and on ALL FIVE contact episodes -- and
+        # `compute_escape_maneuver` has no BACK branch, so it returned None every
+        # time. 212 ticks of `escape_risk = critical`, across exactly the five
+        # moments the robot hit a pillar, produced ZERO manoeuvres.
+        #
+        # Still the SENSOR frame, so callers judging a reverse keep converting
+        # with `bumper_gap_behind` -- an obstacle touching the rear bumper reads
+        # 0.2722 m here, and that conversion is what makes CONTACT_DIST reachable.
+        if not self.rear_self_detection_from_chassis:
+            return self.sector(lidar_ranges, lidar_angles, math.pi, filter_self_detection=True)
+        ranges = np.asarray(lidar_ranges, dtype=float)
+        if ranges.size == 0:
+            return self._sector_to_model(lidar_ranges, lidar_angles, math.pi, self.threat_half_fov_rad)
+        angles = (
+            np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+            if lidar_angles is None
+            else np.asarray(lidar_angles, dtype=float)
+        )
+        inside_body = np.isfinite(ranges) & (ranges <= chassis_exit_range_m(angles))
+        kept = np.where(inside_body, float("inf"), ranges)
+        return self._sector_to_model(kept, angles, math.pi, self.threat_half_fov_rad)
 
     def front_sector(
         self,

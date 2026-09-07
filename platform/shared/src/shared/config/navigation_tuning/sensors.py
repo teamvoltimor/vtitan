@@ -66,6 +66,39 @@ class LidarSectorParams(BaseModel):
     FRONT_HALF_FOV_DEG: float = Field(default=30.0, validation_alias=_alias("FRONT_HALF_FOV_DEG"))
     THREAT_HALF_FOV_DEG: float = Field(default=45.0, validation_alias=_alias("THREAT_HALF_FOV_DEG"))
     SELF_DETECTION_THRESHOLD_M: float = Field(default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M"))
+
+    REAR_SELF_DETECTION_FROM_CHASSIS: bool = Field(
+        default=True, validation_alias=_alias("REAR_SELF_DETECTION_FROM_CHASSIS")
+    )
+    """Gate the REAR sector's self-detection by chassis geometry, per bearing.
+
+    ``SELF_DETECTION_THRESHOLD_M`` is one scalar (0.08 m) and the rear cannot be
+    described by one: over the rear +/-45 deg sector the chassis boundary runs
+    from **0.137 m** at the sector edges to **0.2722 m** straight back. 0.08 sits
+    far inside the body everywhere in that sector, so the robot's own structure
+    survives the filter.
+
+    Measured on run_20260906_192424: the rear minimum came from -157 deg at
+    0.125 m (76% of scans) and -172 deg at 0.187 m (18%), and lay INSIDE the
+    chassis footprint on **100%** of them. ``back_m`` therefore read ~0.127 m for
+    the whole run, ``most_constrained_side`` was BACK on **84%** of driving ticks
+    and on ALL FIVE contact episodes, and ``compute_escape_maneuver`` has no BACK
+    branch -- so it returned ``None`` every time. The robot held
+    ``escape_risk = critical`` for 212 ticks, across exactly the five moments it
+    hit a pillar, and never manoeuvred once. Only the speed band responded.
+
+    With this on the threshold is the ray-vs-rectangle exit distance at each
+    bearing (``chassis_exit_range_m``) -- a geometric fact rather than a fitted
+    number, since nothing outside the robot can return closer.
+
+    Widening the blind wedges was the alternative and is worse: they stop at
+    -155/+160 deg and the structure continues past them, so covering it closes
+    the ~25 deg rear slot entirely and ``rear_sector.measured`` goes permanently
+    false, removing reverse authorisation rather than fixing it.
+
+    False restores the scalar threshold, the arm every pre-2026-09-06
+    measurement was taken on.
+    """
     MIN_VALID_RANGE_M: float = Field(default=0.05, validation_alias=_alias("MIN_VALID_RANGE_M"))
     # These four track sensors/lidar_sectors.toml, and the gap between them
     # mattered: the old bare defaults (-180..-115 and 115..180) blinded the

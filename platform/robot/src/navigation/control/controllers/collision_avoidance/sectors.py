@@ -275,6 +275,37 @@ def _forward_path_has_rays(
     return bool(np.any(ahead & (lateral < path_half_width)))
 
 
+def chassis_exit_range_m(angles_rad: np.ndarray) -> np.ndarray:
+    """Distance from the LIDAR to the CHASSIS BOUNDARY along each bearing.
+
+    Nothing outside the robot can return closer than this, so a shorter reading
+    at that bearing is the robot seeing itself -- a geometric fact, not a tuned
+    threshold. Ray-vs-rectangle exit distance, with the sensor at the origin and
+    the chassis offset by ``LIDAR_MOUNT_X_OFFSET`` (the LIDAR sits 0.1222 m
+    FORWARD of centre, so the body is mostly behind it).
+
+    Why a scalar threshold cannot do this job: over the rear +/-45 deg sector the
+    boundary runs from 0.137 m at the sector edges to 0.272 m straight back, a
+    factor of two. Measured on run_20260906_192424, the chassis showed up at
+    0.125 m near -157 deg AND at 0.187 m near -172 deg -- either side of any
+    single value, so one number either leaks the first or rejects real obstacles
+    around the second.
+    """
+    half_length = RobotSpecs.LENGTH / 2.0
+    offset = RobotSpecs.LIDAR_MOUNT_X_OFFSET
+    x_forward = half_length - offset
+    x_rear = -(half_length + offset)
+    y_side = RobotSpecs.WIDTH / 2.0
+    cos = np.cos(angles_rad)
+    sin = np.sin(angles_rad)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # Slab exit distance per axis; a ray parallel to an axis never leaves
+        # through it, hence the infinities.
+        along = np.where(cos > 0.0, x_forward / cos, np.where(cos < 0.0, x_rear / cos, np.inf))
+        across = np.where(sin > 0.0, y_side / sin, np.where(sin < 0.0, -y_side / sin, np.inf))
+    return np.minimum(along, across)
+
+
 def sector_ranges(
     lidar_ranges: np.ndarray | tuple[float, ...],
     lidar_angles: np.ndarray | tuple[float, ...] | None,
@@ -341,11 +372,7 @@ def sector_ranges(
     if ranges.size == 0:
         return ranges
 
-    if (
-        self_detection_threshold_m is None
-        or min_valid_range_m is None
-        or blind_wedge_left_min_rad is None
-    ):
+    if self_detection_threshold_m is None or min_valid_range_m is None or blind_wedge_left_min_rad is None:
         tuning = get_tuning(None)
         if self_detection_threshold_m is None:
             self_detection_threshold_m = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M

@@ -5,6 +5,15 @@
 front_half_fov_deg = 30.0          # compute_forward_clearance's cone
 threat_half_fov_deg = 45.0         # detect_threat_direction's sectors
 self_detection_threshold_m = 0.08  # chassis/cable self-reflection floor
+# Gate the REAR sector's self-detection by chassis geometry instead, per
+# bearing. One scalar cannot describe the rear: the chassis boundary runs from
+# 0.137 m at the sector edges to 0.2722 m straight back, and 0.08 is inside the
+# body everywhere in between. Measured on run_20260906_192424 the rear minimum
+# was the ROBOT on 100% of scans (-157 deg / 0.125 m, -172 deg / 0.187 m), so
+# most_constrained_side read BACK on 84% of driving ticks -- and there is no
+# BACK escape branch, so no maneuver was ever generated. 212 ticks of
+# escape_risk=critical across the five pillar contacts produced zero escapes.
+rear_self_detection_from_chassis = true
 min_valid_range_m = 0.05           # no-return / invalid reading floor -- matches RobotSpecs.LIDAR_MIN_RANGE (Slamtec C1's real rated minimum); readings below this are physically below what the sensor can validly report
 threat_no_detection_range_m = 1.0  # beyond this, a sector's nearest reading isn't a threat
 no_data_range_m = 10.0             # sentinel when a sector has no valid rays at all

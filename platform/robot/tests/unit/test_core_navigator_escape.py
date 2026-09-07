@@ -68,7 +68,7 @@ class TestCriticalEscapeRearGate:
         (0.08 m, see CA-4) so this is a genuine wall, not a filtered chassis
         reflection — otherwise the rear-gate would never see it as blocked.
         """
-        ranges = create_scan_with_sectors(front=0.06, back=0.09)
+        ranges = create_scan_with_sectors(front=0.06, back=REAR_BLOCKED_M)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
@@ -289,6 +289,16 @@ class TestStuckDetectionDuringParking:
         assert all(cmd.speed_mps == 0.0 for cmd in gateway.commands)
 
 
+# A rear obstacle has to be OUTSIDE the chassis to exist at all: the rear face
+# sits RobotSpecs.LIDAR_TO_REAR_BUMPER = 0.2722 m behind the sensor, so the
+# 0.09 m these fixtures used until 2026-09-06 was inside the robot. Rear
+# self-detection is chassis geometry now rather than a 0.08 m scalar, so that
+# value is filtered as the body -- correctly. 0.30 m is 0.028 m behind the
+# BUMPER, which is what `bumper_gap_behind` compares against CONTACT_DIST, so
+# this is still "rear blocked" and the assertions below are unchanged.
+REAR_BLOCKED_M = 0.30
+
+
 class TestStuckEscapeRearBlocked:
     """2026-08-04: a robot wedged with reverse blocked used to just hold and
     reset the stuck detector forever, re-arming the same forward command that
@@ -299,7 +309,9 @@ class TestStuckEscapeRearBlocked:
     """
 
     def test_forward_room_forces_a_forward_escape_instead_of_holding(self, waypoints, tuning):
-        ranges = create_scan_with_sectors(back=0.09)  # rear blocked, front stays LIDAR_DEFAULT_FAR
+        ranges = create_scan_with_sectors(
+            back=REAR_BLOCKED_M
+        )  # blocked: 0.03 m behind the bumper  # rear blocked, front stays LIDAR_DEFAULT_FAR
         gateway = FakeGateway(
             Pose(x=0.0, y=0.0, yaw=0.0),
             LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
@@ -315,7 +327,7 @@ class TestStuckEscapeRearBlocked:
 
     def test_both_ends_blocked_still_holds(self, waypoints, tuning):
         """Genuinely sandwiched (front AND rear blocked): holding is still correct."""
-        ranges = create_scan_with_sectors(front=0.06, back=0.09)
+        ranges = create_scan_with_sectors(front=0.06, back=REAR_BLOCKED_M)
         gateway = FakeGateway(
             Pose(x=0.0, y=0.0, yaw=0.0),
             LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
@@ -414,7 +426,9 @@ class TestEscapeEscalation:
 
         result = nav._maybe_escalate(maneuver)
 
-        assert result.duration_frames == min(6 * 2, nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ))
+        assert result.duration_frames == min(
+            6 * 2, nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ)
+        )
         assert math.copysign(1.0, result.steering) == -starting_sign
         assert abs(result.steering) == pytest.approx(abs(maneuver.steering))
         assert result.maneuver_type == maneuver.maneuver_type
@@ -451,7 +465,9 @@ class TestEscapeEscalation:
 
     def test_duration_caps_at_max_escape_frames(self, waypoints, tuning):
         nav = self._navigator(waypoints, tuning)
-        maneuver = self._maneuver(steering=0.4, duration=nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ))
+        maneuver = self._maneuver(
+            steering=0.4, duration=nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ)
+        )
         nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
 
         result = nav._maybe_escalate(maneuver)
