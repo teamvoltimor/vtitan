@@ -53,6 +53,40 @@ class SimulationParams(BaseModel):
     LIDAR_INVALID_RAY_RATE: float = Field(default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE"))
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
 
+    MIN_TURN_RADIUS_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("MIN_TURN_RADIUS_M"))
+    """Floor on the chassis's turn radius, in metres. 0 disables (the old model).
+
+    The bicycle term has no floor: at the shipped 85 deg lock it gives
+    ``L_eff / (tan(85) * yaw_gain)`` = **1.5 cm** of radius, which a 30 x 19.4 cm
+    four-wheeled chassis cannot do. The real car SATURATES instead.
+
+    Measured from `/joint_states` drive-wheel travel against pose yaw over five
+    hardware bags:
+
+    | steer band | effective R | model R | ratio |
+    |---|---|---|---|
+    | 15-30 deg | 66.0 cm | 41.7 cm | 1.6x |
+    | 30-45 deg | 38.2 cm | 22.5 cm | 1.7x |
+    | **75-90 deg** | **28.9 cm** | **2.3 cm** | **12.7x** |
+
+    Per bay exit, all at full lock, the effective radius came out 27-70 cm --
+    and 746 cm on run_20260907_044405, which spent 44.1 s and rotated 2.2 deg.
+    Steering past ~30 deg buys the real car almost nothing while the model keeps
+    rewarding lock, so EVERY full-lock manoeuvre in simulation is optimistic by
+    more than an order of magnitude. The in-bay exit is deterministic in sim (91
+    ticks, 42 reverse, 44 forward, in all 16 scenarios, always rotating the
+    intended way) where hardware ranges 5-44 s and sometimes rotates the WRONG
+    way entirely.
+
+    **Ships at 0.0 until the corpus is re-baselined on it**, because it changes
+    every contact- and corner-dependent number in the repo. 0.29 is the measured
+    value to use. Two shipped constants were sized against the un-floored model
+    and should be re-derived once it is on: ``BAY_EXIT_ARC_STEER_NORM`` (1.0,
+    whose "cliff at full lock" was a sim result) and ``max_corner_steer_deg``
+    (21.25, chosen so a predicted 0.45 m arc fits a 0.60 m commit clearance --
+    the real arc at that angle is ~0.66 m and does NOT fit).
+    """
+
     VISION_THROUGH_PINHOLE: bool = Field(default=False, validation_alias=_alias("VISION_THROUGH_PINHOLE"))
     """Emulate camera BOUNDING BOXES and decode them with the shipped code.
 

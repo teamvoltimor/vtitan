@@ -327,6 +327,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         scrub,
         bay_offset_m,
         no_progress_s,
+        min_turn_radius,
     ) = payload
     path = Path(path_str)
     raw = json.loads(path.read_text())
@@ -364,6 +365,8 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
     tuning = tuning_with_overrides(changes)
     if no_progress_s > 0.0:
         tuning = tuning_with_overrides({"NO_PROGRESS_WINDOW_S": no_progress_s}, group="simulation", base=tuning)
+    if min_turn_radius > 0.0:
+        tuning = tuning_with_overrides({"MIN_TURN_RADIUS_M": min_turn_radius}, group="simulation", base=tuning)
     sim = ScenarioSimulator(
         meta,
         num_laps=laps,
@@ -699,6 +702,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--exit-speed-mps instead, or pin it to 0 to reach this axis at all.",
     )
     parser.add_argument(
+        "--min-turn-radius",
+        type=float,
+        default=0.0,
+        help="floor the chassis turn radius (m). 0 = the un-floored bicycle model, which gives "
+        "1.5 cm of radius at the shipped 85 deg lock -- impossible for a 30x19.4 cm four-wheeled "
+        "chassis. Measured on hardware the real radius SATURATES near 0.29 m, so every full-lock "
+        "manoeuvre in sim is optimistic by >1 order of magnitude. Try 0.29.",
+    )
+    parser.add_argument(
         "--clearance-margin",
         type=float,
         nargs="*",
@@ -919,6 +931,7 @@ def main() -> None:
                 args.scrub,
                 args.bay_offset,
                 args.no_progress_window,
+                args.min_turn_radius,
             )
             for p in paths
         ]

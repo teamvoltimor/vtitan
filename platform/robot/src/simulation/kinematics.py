@@ -75,6 +75,7 @@ class _KinematicsConstants:
     rear_steer_ratio: float
     speed_tau_s: float
     yaw_gain: float
+    min_turn_radius_m: float
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
@@ -86,6 +87,7 @@ class _KinematicsConstants:
             rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
             speed_tau_s=RobotSpecs.SPEED_RESPONSE_TAU_S,
             yaw_gain=RobotSpecs.YAW_GAIN,
+            min_turn_radius_m=get_tuning(tuning).simulation.MIN_TURN_RADIUS_M,
         )
 
 
@@ -174,6 +176,7 @@ class AckermannKinematics:
         max_speed_mps: float | None = None,
         speed_tau_s: float | None = None,
         yaw_gain: float | None = None,
+        min_turn_radius_m: float | None = None,
         context: KinematicsContext | None = None,
     ) -> None:
         if context is None:
@@ -192,6 +195,8 @@ class AckermannKinematics:
             speed_tau_s = c.speed_tau_s
         if yaw_gain is None:
             yaw_gain = c.yaw_gain
+        if min_turn_radius_m is None:
+            min_turn_radius_m = c.min_turn_radius_m
 
         self._speed_tau_s = speed_tau_s
         self._yaw_gain = yaw_gain
@@ -207,6 +212,7 @@ class AckermannKinematics:
         # with equal angles pivots about the chassis centre (L_eff = L/2), i.e.
         # twice the yaw rate for the same steering angle.
         self._turn_reference_len = wheelbase / (1.0 + abs(rear_steer_ratio))
+        self._min_turn_radius_m = min_turn_radius_m
 
     def step(
         self,
@@ -249,7 +255,29 @@ class AckermannKinematics:
 
             x += v * math.cos(yaw) * h
             y += v * math.sin(yaw) * h
-            yaw += self._yaw_gain * (v / self._turn_reference_len) * math.tan(steer) * h
+            # Curvature, floored by the chassis's MINIMUM TURN RADIUS. The
+            # bicycle term alone has no floor: at the shipped 85 deg lock it
+            # gives L_eff / (tan(85) * yaw_gain) = 1.5 cm of radius, which a
+            # 30 x 19.4 cm four-wheeled chassis cannot do.
+            #
+            # Measured from `/joint_states` drive-wheel travel against pose yaw
+            # over five hardware bags, the real radius SATURATES:
+            #
+            #   |steer|   effective R   model R    ratio
+            #    15-30       66.0 cm     41.7 cm    1.6x
+            #    30-45       38.2 cm     22.5 cm    1.7x
+            #    75-90       28.9 cm      2.3 cm   12.7x
+            #
+            # so past ~30 deg the real car buys almost nothing while the model
+            # keeps rewarding lock. Without this floor every full-lock manoeuvre
+            # in simulation is optimistic by more than an order of magnitude --
+            # the in-bay exit completes in a deterministic 91 ticks in sim where
+            # hardware takes 5-44 s and once managed 2.2 deg in 44.1 s.
+            curvature = math.tan(steer) * self._yaw_gain / self._turn_reference_len
+            if self._min_turn_radius_m > 0.0:
+                limit = 1.0 / self._min_turn_radius_m
+                curvature = _clamp(curvature, -limit, limit)
+            yaw += curvature * v * h
 
         yaw = _wrap_angle(yaw)
         return replace(state, x=x, y=y, yaw=yaw, v=v, steer=steer)
