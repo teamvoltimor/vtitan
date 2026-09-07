@@ -1,6 +1,6 @@
 ---
 title: "Software Proposals"
-description: "Software strategies and frameworks — ROS2, vision algorithms, control strategies, simulation approaches, and best practices."
+description: "Software strategies and frameworks - ROS2, vision algorithms, control strategies, simulation approaches, and best practices."
 date: 2024-06-17
 ---
 

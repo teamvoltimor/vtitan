@@ -1,6 +1,6 @@
 ---
 title: "Complete System Proposals"
-description: "End-to-end robot system proposals combining hardware, software, and control strategies — architectures, comparisons, and implementation guides."
+description: "End-to-end robot system proposals combining hardware, software, and control strategies - architectures, comparisons, and implementation guides."
 date: 2026-01-17
 ---
 
@@ -51,7 +51,7 @@ Here you'll find detailed, end-to-end robot system proposals that combine hardwa
 ---
 
 > **Tip:**  
-> For most teams, Proposal 4 (ROS2 Edge Racer) is the best starting point—100% hardware reuse, professional software stack, and high win probability.
+> For most teams, Proposal 4 (ROS2 Edge Racer) is the best starting point-100% hardware reuse, professional software stack, and high win probability.
 
 ---
 

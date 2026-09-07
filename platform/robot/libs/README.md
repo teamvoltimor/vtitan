@@ -1,4 +1,4 @@
-# robot/libs — vendored wheels
+# robot/libs - vendored wheels
 
 Pre-built HailoRT Python wheels vendored here because they are not published to PyPI and require a Hailo Developer Zone account to download.
 
@@ -13,7 +13,7 @@ Pre-built HailoRT Python wheels vendored here because they are not published to 
 
 ## Provenance
 
-Downloaded from the [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) — Software Downloads → HailoRT → Python API wheel.
+Downloaded from the [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) - Software Downloads → HailoRT → Python API wheel.
 
 Current version: **HailoRT 4.23.0**, targeting the **Hailo 8** NPU (M.2 / PCIe).
 

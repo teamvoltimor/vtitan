@@ -1,6 +1,6 @@
 ---
 title: "vTitan Documentation"
-description: "Official documentation portal for vTitan v2 — browse versioned guides, proposals, and technical references."
+description: "Official documentation portal for vTitan v2 - browse versioned guides, proposals, and technical references."
 ---
 
 # Welcome to the Documentation

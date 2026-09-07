@@ -5,10 +5,10 @@ decides where a script can execute and what it can tell you.
 
 | folder | needs | what lives here |
 |---|---|---|
-| `bag/` | a recorded `.mcap` run | replay diagnostics — drive the real navigation classes over a bag and report what they did |
+| `bag/` | a recorded `.mcap` run | replay diagnostics - drive the real navigation classes over a bag and report what they did |
 | `sim/` | nothing | closed-loop simulation sweeps and scenario harnesses |
 | `hardware/` | the real robot | live probes and motor/vision utilities that talk to ROS2 topics or peripherals |
-| `lib/` | — | shared helpers imported by the above, not run directly |
+| `lib/` | - | shared helpers imported by the above, not run directly |
 | `*.sh` | SSH to a Pi | deploy, bootstrap, shutdown and link-verification ops |
 
 The shell ops scripts stay at the top level because `pixi.toml` tasks, the
@@ -25,7 +25,7 @@ pixi run -e dev python scripts/sim/diag_open_laps.py
 pixi run -e vision python scripts/hardware/diag_hailo_detector.py IMAGE...
 ```
 
-`scripts/hardware/diag_hailo_detector.py` needs the `vision` env — `hailo_platform`
+`scripts/hardware/diag_hailo_detector.py` needs the `vision` env - `hailo_platform`
 is only installed there and on the Pi 5.
 
 ## Adding one
@@ -42,7 +42,7 @@ from scripts.common.bag_io import load_nav_debug_rows, print_table
 
 ## Checking the tree still imports
 
-A folder move or a renamed helper breaks imports silently — nothing runs these
+A folder move or a renamed helper breaks imports silently - nothing runs these
 in CI. `scripts/common/check_imports.py` loads every script's top level (without
 running `main()`) and reports what failed:
 

@@ -11,7 +11,7 @@ GMR detector, on Windows 11 + Docker Desktop.
 
 ## One-time: load the suite image
 
-The image is a manual download from the Hailo Developer Zone — it is not on any
+The image is a manual download from the Hailo Developer Zone - it is not on any
 registry, so `docker pull` will never find it. You get a directory containing a
 ~9.3 GB tarball and a vendor run script:
 
@@ -21,7 +21,7 @@ hailo8_ai_sw_suite_2025-10_docker/
   hailo_ai_sw_suite_docker_run.sh
 ```
 
-Load it — do not copy it into the repo:
+Load it - do not copy it into the repo:
 
 ```sh
 task docker:load          # docker load -i $SUITE_TARBALL
@@ -33,7 +33,7 @@ nothing is normal until the very end. Budget ~18 GB of disk for the loaded image
 
 ## Start the container
 
-**On Linux**, use the full run — it carries the device, X11 and dbus mounts the
+**On Linux**, use the full run - it carries the device, X11 and dbus mounts the
 suite expects:
 
 ```sh
@@ -50,7 +50,7 @@ task docker:run-compile-only
 ```
 
 This starts a detached container with only the shared mount, plus the GPU flags
-described below. Dropping the device passthrough costs nothing for a compile —
+described below. Dropping the device passthrough costs nothing for a compile -
 the Dataflow Compiler never touches the NPU. Only `hailomz eval --target hailo8`
 does, and that needs a real Linux host with the Hailo PCIe/USB device anyway.
 
@@ -81,7 +81,7 @@ classes and the HEF decodes garbage.
 
 ## Failure modes
 
-### `uv run hailo` — "program not found"
+### `uv run hailo` - "program not found"
 
 `pyproject.toml` declares `[project.scripts] hailo = "main:main"`, but uv skips
 entry points for a project with no build backend:
@@ -114,7 +114,7 @@ or run from PowerShell, which does not do this.
 ### Optimization silently drops to level 0
 
 > **Measured caveat, GMR 2026-07-26.** Everything below is the vendor's
-> reasoning, and it is a sound default — but it did not hold for this model.
+> reasoning, and it is a sound default - but it did not hold for this model.
 > Level 0 came out near-lossless and the fully optimized build was *worse*. See
 > "Measured: level 0 beat level 2" at the end of this document before spending
 > hours on a GPU compile.
@@ -151,8 +151,8 @@ $ nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader,no
 0, 657, 6141          # 10.7% -> rejected -> CUDA_VISIBLE_DEVICES=99 -> CPU
 ```
 
-Nothing about this is Windows-specific — any GPU also driving a display sits
-above the threshold — so both `task docker:run` and
+Nothing about this is Windows-specific - any GPU also driving a display sits
+above the threshold - so both `task docker:run` and
 `task docker:run-compile-only` pass `--cuda-device 0`.
 
 The guard is the fix: setting `CUDA_VISIBLE_DEVICES` explicitly skips the
@@ -168,12 +168,12 @@ $ docker exec -e CUDA_VISIBLE_DEVICES=0 $C python -c "...same..."
 0 [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
 ```
 
-After a compile, confirm the level-0 warning is absent from the log — that, not
+After a compile, confirm the level-0 warning is absent from the log - that, not
 the env var alone, is what proves the optimization actually ran.
 
 ### Container flags appear to have no effect
 
-`docker run` reuses an existing container of the same name — it `docker start`s
+`docker run` reuses an existing container of the same name - it `docker start`s
 it rather than recreating it, so anything baked in at creation time (the GPU
 flags, `CUDA_VISIBLE_DEVICES`, the shared mount) keeps its old value however you
 change the command line. Symptom: `--cuda-device` is passed, yet the compile
@@ -202,7 +202,7 @@ emitted by `_gpu_args()`. Use `--no-gpu` on hosts with no NVIDIA GPU, where
 ```
 
 64 is the SDK's default `calibset_size`, not a bug, and `hailomz compile` has no
-flag for it — it lives in the `.alls` model script. To raise it, pass
+flag for it - it lives in the `.alls` model script. To raise it, pass
 `--model-script`. Note that a custom script *replaces* the zoo's
 `cfg/alls/generic/<model>.alls` rather than extending it, so it must restate that
 file's contents (for `yolov11n`: `normalization1`, three
@@ -237,7 +237,7 @@ context, so it is split across three and swapped at inference time. It costs
 throughput relative to a single-context HEF.
 
 Artifacts land in `shared_with_docker/`, named after the *zoo* model rather than
-the registry key — so a GMR compile writes `yolov11n.har` / `yolov11n.hef`.
+the registry key - so a GMR compile writes `yolov11n.har` / `yolov11n.hef`.
 Rename on the way to `platform/robot` to avoid confusing it with the stock
 COCO-trained `yolov11n.hef`.
 
@@ -252,7 +252,7 @@ Both builds of the same checkpoint, evaluated through identical preprocessing in
 | level 0, CPU | 0.9954 | 0.9741 | 0.8808 | 0.986 |
 | level 2 + QAT, GPU | 0.9689 | 0.9468 | 0.8096 | 0.930 |
 
-Level 0 is within 0.01% of float at mAP@0.5 and 0.8% at mAP@0.5:0.95 — there was
+Level 0 is within 0.01% of float at mAP@0.5 and 0.8% at mAP@0.5:0.95 - there was
 almost no quantization error left to recover. Quantization-Aware Fine-Tuning
 optimizes a distillation loss over *unlabelled* calibration images, and with that
 little headroom it moved the weights away from the optimum instead of toward it.
@@ -277,13 +277,13 @@ red as green inverts the pass side while merely *missing* a sign does not
 | level 2 + QAT | magenta→red 1, red→magenta 1 | 23 | 31 |
 
 Neither model ever confuses red with green. QAT's lower false-positive count is
-not better precision — it detects less across the board, which is also where its
+not better precision - it detects less across the board, which is also where its
 23 missed detections come from. The level-0 build's 119 false positives are
 unaudited: with multiple prisms per image and one folder per dominant class,
 some may be unlabelled ground truth rather than true errors. A deployment
 confidence threshold above 0.25 suppresses most of them.
 
-The lesson is not "skip optimization" — it is that the optimization level is an
+The lesson is not "skip optimization" - it is that the optimization level is an
 empirical question per model, and cheap to settle. Compile both and measure
 before shipping either.
 
@@ -298,7 +298,7 @@ sees nothing else. Two traps they encode:
   in its own; `LABEL_TO_MODEL` bridges them. See "Class ordering" below.
 - Ultralytics reads numpy input as **BGR**. Feeding RGB silently collapses the
   red class (AP 0.99 → 0.17) and makes the float model look worse than its own
-  quantization — a wrong conclusion that looks entirely plausible.
+  quantization - a wrong conclusion that looks entirely plausible.
 
 ## Class ordering
 
@@ -312,6 +312,6 @@ Three orderings are in circulation and only one is authoritative:
 
 The checkpoint wins: running it on the per-class image folders predicts "green"
 on `green_prism`, "red" on `red_prism`. The `data.yaml` in the dataset directory
-is stale — its `path` points at an archived OneDrive location. Consuming the HEF
+is stale - its `path` points at an archived OneDrive location. Consuming the HEF
 with the dataset ordering swaps red and green, which inverts the WRO pass-side
 rule on every obstacle, and nothing about it fails loudly.

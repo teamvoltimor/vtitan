@@ -1,11 +1,11 @@
-# DEPLOY-CHECKLIST.md — vTitan Go robot-go → Pi
+# DEPLOY-CHECKLIST.md - vTitan Go robot-go → Pi
 
 Generated: 2026-08-30 (agent J, §5c). No Pi is reachable from this environment;
 these are the **manual on-device steps** an operator runs. Do NOT push from CI.
 
 ## Prerequisites (verified here)
 - `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ./cmd/...` exits **0**.
-- `go build ./...` (whole tree) is **GREEN** — no Go source edited for this task.
+- `go build ./...` (whole tree) is **GREEN** - no Go source edited for this task.
 - Binaries produced (11): `motor-node`, `imu-node`, `lidar-node`, `navigator`?
   Actual: `bench-harness` `foxglove-bridge` `imu-node` `lidar-node` `motor-node`
   `pi-zero` `pi5` `sim-runner` `state-machine` `telemetry-node` `track-navigator`.
@@ -19,10 +19,10 @@ these are the **manual on-device steps** an operator runs. Do NOT push from CI.
 
 ## Config drift check (pre-flip)
 - Go `profile` package TOMLs are loaded from `configs/profiles/` (deploy copies them).
-  Note: `configs/profiles/` currently holds only `.gitkeep` — the live profile values
+  Note: `configs/profiles/` currently holds only `.gitkeep` - the live profile values
   are embedded via `internal/config/profile/*.go` + viper. Confirm your deployment
   overlays are present before flipping.
-- Unported sim fields (drift, expected — harness §5a not yet consuming them):
+- Unported sim fields (drift, expected - harness §5a not yet consuming them):
   `start_collision_window_s`, `start_collision_grace_s`, `lidar_invalid_ray_rate`,
   `detection_confidence`. Rule these out in any parity comparison.
 

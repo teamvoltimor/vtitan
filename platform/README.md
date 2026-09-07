@@ -1,4 +1,4 @@
-# vTitan v2 — Platform
+# vTitan v2 - Platform
 
 WRO 2026 Future Engineers simulation and robot platform.
 
@@ -9,7 +9,7 @@ platform/
 ├── backend/           # Go telemetry API server (HTTP + gRPC)
 ├── frontend/          # 3D telemetry dashboard (React + Three.js + Vite)
 ├── gazebo/
-│   ├── generator/     # simgen — scenario & track SDF generator (Go)
+│   ├── generator/     # simgen - scenario & track SDF generator (Go)
 │   └── runtime/       # Gazebo/ROS2 simulation runtime (Python)
 ├── robot/             # ROS2 on-robot platform (Pixi + RoboStack)
 ├── proto/             # buf-managed protobuf definitions

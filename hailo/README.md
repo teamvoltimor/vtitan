@@ -50,8 +50,8 @@ hailo/
 │   └── log.py            # Structured JSON logging
 ├── eval/                 # Accuracy comparison between compiled builds
 │   ├── metrics.py        # mAP, per-class AP, class confusion (no SDK deps)
-│   ├── compare_hars.py   # Scores quantized HARs — runs inside the container
-│   └── float_anchor.py   # Scores the float checkpoint — runs on the host
+│   ├── compare_hars.py   # Scores quantized HARs - runs inside the container
+│   └── float_anchor.py   # Scores the float checkpoint - runs on the host
 ├── pyproject.toml
 ├── Taskfile.yml          # Task runner workflows
 ├── shared_with_docker/   # Mounted into the Hailo suite container
@@ -79,7 +79,7 @@ The Hailo AI Software Suite ships as a Linux container image, so `docker run`,
 exists on a Linux host. On Docker Desktop use `task docker:run-compile-only`,
 which starts a minimal detached container carrying just the shared mount.
 
-The suite image itself is a manual download from the Hailo Developer Zone —
+The suite image itself is a manual download from the Hailo Developer Zone -
 `docker pull` will not find it. Load it once with `task docker:load`.
 
 > Compiling on Windows has several non-obvious failure modes, including one that
@@ -220,7 +220,7 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 ### Accuracy Evaluation
 
 Distinct from `eval:*` above, which wraps `hailomz eval` against a target.
-These score detections and compare compiled builds against the float ceiling —
+These score detections and compare compiled builds against the float ceiling -
 the optimization level that produces the most accurate HEF is an empirical
 question per model, not a given. See
 [docs/hef-compile-runbook.md](docs/hef-compile-runbook.md).
@@ -228,7 +228,7 @@ question per model, not a given. See
 | Task | Description |
 |---|---|
 | `task gmr:stage-eval` | Stage GMR images **and labels** for the evaluators |
-| `task accuracy:float` | Score the float checkpoint (host) — the ceiling |
+| `task accuracy:float` | Score the float checkpoint (host) - the ceiling |
 | `task accuracy:compare` | Score every compiled HAR (in the container) |
 | `task accuracy:all` | Float ceiling, then every HAR |
 
@@ -261,17 +261,17 @@ their export metadata and Hailo Model Zoo identifiers:
 | `yolo11n` | detect | 13 | `yolov11n` | Ultralytics defaults |
 | `yolo11s` | detect | 13 | `yolov11s` | Ultralytics defaults |
 | `yolo12n` | detect | 11 | `yolov12n` | `nms=False`, `simplify=True` |
-| `yolo26n` | detect | 11 | — | No zoo entry |
-| `yolo26l` | detect | 11 | — | No zoo entry |
-| `yolo26l-seg` | segment | 11 | — | Segmentation variant |
+| `yolo26n` | detect | 11 | - | No zoo entry |
+| `yolo26l` | detect | 11 | - | No zoo entry |
+| `yolo26l-seg` | segment | 11 | - | Segmentation variant |
 | `gmr` | detect | 13 | `yolov11n` | Retrained, 3 classes |
 
 Models without a zoo name require `--zoo-name` when calling `compile`/`eval`/`profile`.
 
 ### Retrained models
 
-`gmr` is the auto-annotator's retrained YOLO11n — green / red / magenta
-rectangular prism — living at
+`gmr` is the auto-annotator's retrained YOLO11n - green / red / magenta
+rectangular prism - living at
 `../auto-annotator/ml-service/models/gmr/best.pt`. It shares the stock
 `yolo11n` architecture, so it compiles against the zoo's `yolov11n` graph
 config; only the class count differs. The registry entry carries
@@ -284,7 +284,7 @@ Two things differ from the stock workflow:
   auto-annotator's own prism photographs, not COCO. Quantisation ranges
   derived from out-of-domain images cost real accuracy on a colour-critical
   detector. The images are nested per class, so `stage` walks the source
-  directory recursively and flattens it — `hailomz` reads calibration images
+  directory recursively and flattens it - `hailomz` reads calibration images
   from a single flat directory.
 - **The staged calibration set is namespaced.** `--calib-name calib_data_gmr`
   keeps it from overwriting the COCO set used by the stock models. Pass the
@@ -303,16 +303,16 @@ the zoo name of its base architecture, and its `classes` count.
 The Hailo AI Software Suite runs inside a Linux Docker container. The pipeline
 manages the full lifecycle:
 
-1. **Start the container** — `task docker:run` mounts `shared_with_docker/` at
+1. **Start the container** - `task docker:run` mounts `shared_with_docker/` at
    `/local/shared_with_docker/` inside the container, forwards X11 for GUI
    tools, and exposes GPU devices.
-2. **Stage files** — `task stage:run` copies the ONNX model and calibration
+2. **Stage files** - `task stage:run` copies the ONNX model and calibration
    data into `shared_with_docker/`.
-3. **Compile** — `task compile:run` executes `hailomz compile` via `docker exec`,
+3. **Compile** - `task compile:run` executes `hailomz compile` via `docker exec`,
    producing a `.har` (Hailo Archive) and `.hef` (Hailo Executable Format) file.
-4. **Evaluate** — `task eval:run` runs `hailomz eval` on the emulator or
+4. **Evaluate** - `task eval:run` runs `hailomz eval` on the emulator or
    connected Hailo-8 hardware.
-5. **Profile** — `task profile:run` measures inference performance.
+5. **Profile** - `task profile:run` measures inference performance.
 
 All docker commands accept `--docker CONTAINER` to target a specific container,
 or omit it to print the equivalent shell command for manual execution.

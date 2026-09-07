@@ -8,7 +8,7 @@ historia del proyecto de memoria en las últimas semanas.
 
 Está basada en el **Apéndice C** del reglamento WRO Future Engineers 2026 ("Engineering
 Journal and Documentation Requirements"). Cuando el reglamento y esta guía difieran, manda
-el reglamento — actualizar esta guía si eso pasa.
+el reglamento - actualizar esta guía si eso pasa.
 
 ---
 
@@ -46,10 +46,10 @@ queda registrado en algún lado, para efectos de evaluación **no existió**.
 
 Escala por criterio:
 
-- **0 — Sin evidencia:** falta, es irrelevante, o no se puede evaluar.
-- **2 — Evidencia limitada:** hay información, pero incompleta o sin justificar.
-- **4 — Ingeniería competente:** claro, estructurado, reproducible.
-- **6 — Ingeniería avanzada:** decisiones, pruebas, trade-offs y pensamiento sistémico
+- **0 - Sin evidencia:** falta, es irrelevante, o no se puede evaluar.
+- **2 - Evidencia limitada:** hay información, pero incompleta o sin justificar.
+- **4 - Ingeniería competente:** claro, estructurado, reproducible.
+- **6 - Ingeniería avanzada:** decisiones, pruebas, trade-offs y pensamiento sistémico
   completamente justificados.
 
 Máximo total: **30 puntos**. Aplica igual a todas las edades (14–22); el reconocimiento por
@@ -200,7 +200,7 @@ Ejemplo real ya disponible en el proyecto (criterio 3, nivel 6):
 > `slide` (`ae15ee3e`) que también resuelve la salida y es más conservador respecto al
 > comportamiento físico esperado.
 
-Este tipo de entrada ya casi escribe sola el párrafo de journal — solo falta trasladarla del
+Este tipo de entrada ya casi escribe sola el párrafo de journal - solo falta trasladarla del
 formato técnico interno al lenguaje narrativo para jueces.
 
 ---
@@ -249,7 +249,7 @@ formato técnico interno al lenguaje narrativo para jueces.
 
 ## 7. Glosario rápido (para nivelar el equipo)
 
-- **Constraint (restricción):** límite dentro del cual hay que trabajar — peso máximo,
+- **Constraint (restricción):** límite dentro del cual hay que trabajar - peso máximo,
   batería, presupuesto, tiempo.
 - **Trade-off:** elegir entre dos cosas donde mejorar una empeora la otra (ej. más velocidad,
   menos precisión de frenado).
@@ -284,7 +284,7 @@ Consecuencia práctica: cada sección del journal y del README debería dejar **
 criterio corresponde** (aunque sea con un encabezado tipo "Mecánica y chasis" / "Potencia y
 sensores" / "Software y estrategia de obstáculos" / "Decisiones de sistema"), para que el
 jurado no tenga que inferirlo. La calidad del idioma no afecta el puntaje salvo que impida
-entender el razonamiento — pero como el journal será en español y el jurado puede no serlo,
+entender el razonamiento - pero como el journal será en español y el jurado puede no serlo,
 conviene evaluar si conviene una versión o resumen en inglés para el journal final (fuera del
 alcance de esta guía interna).
 

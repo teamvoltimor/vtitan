@@ -1,6 +1,6 @@
 ---
 title: "Getting Started"
-description: "Set up your environment and start using vTitan v2 — prerequisites, installation, and first steps."
+description: "Set up your environment and start using vTitan v2 - prerequisites, installation, and first steps."
 ---
 
 # Getting Started

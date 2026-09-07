@@ -1,6 +1,6 @@
 ---
 title: "Usage Guide"
-description: "Practical instructions and examples for using vTitan v2 — workflows, configuration, and troubleshooting."
+description: "Practical instructions and examples for using vTitan v2 - workflows, configuration, and troubleshooting."
 ---
 
 # Usage Guide

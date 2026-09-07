@@ -7,28 +7,28 @@ isolation catches bad readings that would otherwise get masked once everything r
 ## Order and rationale
 
 Test passive/observation-only sensors first, motion-capable ones next, and the most
-setup-intensive one (vision) last regardless of its own passive/active nature — it needs more
+setup-intensive one (vision) last regardless of its own passive/active nature - it needs more
 work to stand up (Hailo runtime, model file, framing a target) than the other passive sensors, so
 there's no benefit blocking on it before everything cheaper to test is already validated:
 
-1. **`/imu/data`** (BNO08x, Pi 5) — passive, no motion required.
-2. **`/scan`** (Slamtec C1 LIDAR, Pi 5) — passive.
-3. **`/button/event`** (Pi Zero) — physical button press.
-4. **`/ui/oled_mirror`** (Pi Zero) — visual check against the physical display.
-5. **Motor/encoder topics** (Pi Zero) — first real motion risk. Do this with wheels off the
+1. **`/imu/data`** (BNO08x, Pi 5) - passive, no motion required.
+2. **`/scan`** (Slamtec C1 LIDAR, Pi 5) - passive.
+3. **`/button/event`** (Pi Zero) - physical button press.
+4. **`/ui/oled_mirror`** (Pi Zero) - visual check against the physical display.
+5. **Motor/encoder topics** (Pi Zero) - first real motion risk. Do this with wheels off the
    ground / robot secured.
 6. **State machine integration** (`/robot_state`, `/ackermann_cmd`, `/system_status`,
-   `/race_metrics`) — only after 1–5 pass individually.
-7. **Telemetry bridge → backend/frontend** — confirm the dashboard reflects live values
+   `/race_metrics`) - only after 1–5 pass individually.
+7. **Telemetry bridge → backend/frontend** - confirm the dashboard reflects live values
    end-to-end. Note: this exercises the `/hailo/detections` forwarding path too, but without real
-   vision data behind it until phase 8 passes — re-check this once vision is validated.
-8. **`/hailo/detections`, `/hailo/fps`** (vision, Pi 5) — passive, but deferred to last given the
+   vision data behind it until phase 8 passes - re-check this once vision is validated.
+8. **`/hailo/detections`, `/hailo/fps`** (vision, Pi 5) - passive, but deferred to last given the
    extra setup work (Hailo runtime, model file, framing a target in view).
 
 Each node also has an isolated `pixi run -e dev run-<node>` task (see `pixi.toml`) that runs it
-standalone, bypassing systemd and the rest of the node graph — use this when a topic looks wrong
+standalone, bypassing systemd and the rest of the node graph - use this when a topic looks wrong
 and you need to debug that node alone. Exception: `run-vision` needs `-e vision` instead of `-e
-dev` — ultralytics/hailort are feature-gated out of `dev` so the Pi Zero's environment doesn't
+dev` - ultralytics/hailort are feature-gated out of `dev` so the Pi Zero's environment doesn't
 have to install them (see `pixi.toml`'s `[feature.vision...]` sections).
 
 ## Prerequisites (per Pi, easy to forget on a fresh checkout)
@@ -39,15 +39,15 @@ have to install them (see `pixi.toml`'s `[feature.vision...]` sections).
 - **`.env` must exist**: `cp platform/robot/.env.example platform/robot/.env` (per-Pi, gitignored,
   not templated by any task). Symptom if missing: pydantic `ValidationError` for whatever field
   the driver's `Config` needed first. Nothing auto-loads `.env` unless the entry point imports
-  something that pulls in `src/logger/config.py` or `src/env.py` — `EnvironmentFile=-.../.env` in
+  something that pulls in `src/logger/config.py` or `src/env.py` - `EnvironmentFile=-.../.env` in
   the systemd units is belt-and-suspenders for the same reason.
 - Check `systemctl is-active vtitan-pi5.service` / `-pi-zero.service` before assuming a node
-  is running — a Pi can have the repo cloned and built but the service never installed/enabled.
+  is running - a Pi can have the repo cloned and built but the service never installed/enabled.
 - **Passwordless `sudo` must be set up per Pi** before the service unit files can be installed or
   managed remotely (`systemctl enable`/`start`/`restart` need root, and there's no way to supply a
   password over a non-interactive SSH session). Raspberry Pi OS's own imager sets this up for the
   default user automatically on first boot (`/etc/sudoers.d/010_pi-nopasswd`), but it isn't
-  guaranteed on every image/provisioning path — verify with `sudo -n true` (silent exit 0 = already
+  guaranteed on every image/provisioning path - verify with `sudo -n true` (silent exit 0 = already
   passwordless). If it prompts for a password, set it up once interactively:
   ```bash
   echo 'ralvarezdev ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/010_pi-nopasswd
@@ -58,21 +58,21 @@ have to install them (see `pixi.toml`'s `[feature.vision...]` sections).
 
 - **`pkill -f pattern` can kill itself.** If `pattern` is a literal substring of the `pkill`
   command's own invocation (e.g. `pkill -f sllidar` run as `bash -c "pkill -f sllidar; ..."`),
-  `-f` matches against the full command line — including its own — and the whole SSH session dies
+  `-f` matches against the full command line - including its own - and the whole SSH session dies
   before printing anything (looks exactly like a network drop: exit 255, no output). Use the
   bracket trick to avoid self-matching: `pkill -f '[s]llidar'`.
 - **`cd dir && cmd &` only changes directory inside the backgrounded subshell.** The parent
   shell's CWD is unaffected, so a *second* backgrounded command later in the same SSH invocation
-  needs its own explicit `cd` — it does not inherit the first command's directory change.
+  needs its own explicit `cd` - it does not inherit the first command's directory change.
 - This particular Pi's WiFi link drops mid-session often enough that a command can fail with exit
   255 for no reason related to the command itself. If a command that worked moments ago suddenly
   returns exit 255 with zero output, retry once or twice before assuming it's a real bug.
 
-## Phase 1 — `/imu/data` (BNO08x UART RVC, Pi 5)
+## Phase 1 - `/imu/data` (BNO08x UART RVC, Pi 5)
 
 ### Bugs found and fixed
 
-1. **`ros2_ws` never built on Pi 5** — see prerequisite above. Not a code bug, just a missing
+1. **`ros2_ws` never built on Pi 5** - see prerequisite above. Not a code bug, just a missing
    provisioning step; `build-ws` fixed it.
 2. **`Driver.__init__` config bug** (`src/hardware/imu/bno08x/mcp2221/uart_rvc.py`): built the
    inner `UARTRVCConfig` from raw ternary fallbacks (`quaternion=config.quaternion if config else
@@ -83,12 +83,12 @@ have to install them (see `pixi.toml`'s `[feature.vision...]` sections).
 
 ### Validation method: blind rotation test
 
-Rate (`ros2 topic hz`) and a single `ros2 topic echo --once` only prove the topic is alive — they
+Rate (`ros2 topic hz`) and a single `ros2 topic echo --once` only prove the topic is alive - they
 don't prove the orientation math is *correct*. The useful test is a **before/after snapshot around
 a known physical rotation**, checked two ways:
 
 1. **Angle/axis check**: capture a quaternion, physically rotate the robot by some amount (a
-   known amount if validating, an unknown amount if double-checking — see below), capture another
+   known amount if validating, an unknown amount if double-checking - see below), capture another
    quaternion, then compute the relative rotation:
    ```python
    from scipy.spatial.transform import Rotation as R
@@ -119,16 +119,16 @@ a known physical rotation**, checked two ways:
 **A "blind" variant is useful**: have a second person rotate the robot by an amount they don't
 tell you, then calculate the angle from the IMU data alone and have them confirm it against what
 they actually did. This caught nothing wrong here (one anomalous early result didn't reproduce on
-retest — likely the robot wasn't fully settled that one time), but it's a good trust-but-verify
+retest - likely the robot wasn't fully settled that one time), but it's a good trust-but-verify
 habit before relying on this data for navigation.
 
 ### Live-streaming test scripts don't work over this SSH setup
 
 Don't use a script that prints a countdown then streams readings for N seconds while asking the
-other person to react to a "GO" printed mid-script — if you (the one running the script over SSH)
+other person to react to a "GO" printed mid-script - if you (the one running the script over SSH)
 are the one watching the terminal, the other person **can't see that output live** and has no way
 to time their action against it. Every attempt at this (5s buffer, 15s buffer, countdown, even
-unbuffered `python3 -u`) produced zero captured motion — the window always elapsed before they
+unbuffered `python3 -u`) produced zero captured motion - the window always elapsed before they
 could react to a signal they never actually saw.
 
 **Use the before/after snapshot method instead**: capture a reading, ask them to move it and say
@@ -139,16 +139,16 @@ could react to a signal they never actually saw.
 BNO08x RVC mode computes yaw/pitch/roll internally via Euler angles, which are subject to gimbal
 lock near ±90° pitch (yaw and roll become coupled/ambiguous). If a future test shows a rotation's
 magnitude captured correctly but landing on the wrong axis, check whether pitch approached ±90°
-during the motion before assuming it's a code bug — verify with the raw-angle driver script above.
+during the motion before assuming it's a code bug - verify with the raw-angle driver script above.
 
-## Phase 2 — `/scan` (Slamtec C1 LIDAR, Pi 5)
+## Phase 2 - `/scan` (Slamtec C1 LIDAR, Pi 5)
 
 ### Bugs found and fixed
 
-1. **`sllidar_ros2` never fetched on Pi 5** — the third-party driver package isn't part of this
+1. **`sllidar_ros2` never fetched on Pi 5** - the third-party driver package isn't part of this
    repo; it's fetched into `ros2_ws/src` via the `fetch-lidar-driver` pixi task (idempotent),
    which must run once **before** `build-ws`. Symptom if skipped: `ros2_ws/src/` only has the
-   `vtitan_*` packages (at the time, a single `vtitan_robot` — since split into
+   `vtitan_*` packages (at the time, a single `vtitan_robot` - since split into
    `vtitan_drivers`/`vtitan_navigation`/`vtitan_vision`/`vtitan_state_machine`/
    `vtitan_bringup`), and the LIDAR launch fails looking for the `sllidar_ros2` package /
    `sllidar_node` executable.
@@ -160,29 +160,29 @@ during the motion before assuming it's a code bug — verify with the raw-angle 
    transform into `lidar_link`. None of these matched, so TF lookups for the actual published scan
    frame would have failed regardless of which path was running. Standardized all three on
    `lidar_link` (matching the URDF/SDF naming convention already used for `camera_link`/`imu_link`).
-3. **`static_tfs.launch.py` existed in source but was never installed** — missing from
+3. **`static_tfs.launch.py` existed in source but was never installed** - missing from
    `setup.py`'s `data_files`, so `ros2 launch vtitan_bringup static_tfs.launch.py` failed with
-   *"file 'static_tfs.launch.py' was not found in the share directory"* — and critically,
+   *"file 'static_tfs.launch.py' was not found in the share directory"* - and critically,
    `wro_state_machine_launch.py` also includes it via `get_package_share_directory(...)`, so the
    **full integration bringup was silently missing all sensor-frame transforms**, not just the
    standalone LIDAR test. Added to `data_files` and rebuilt.
 4. **`static_tfs.launch.py` used the wrong `static_transform_publisher` CLI convention for this
    ROS2 distro.** It passed positional arguments (`arguments=["0.14", "0", "0.10", "0", "0", "0",
    "base_link", "camera_link"]`), but this distro's `static_transform_publisher` only accepts
-   **named** arguments (`--x`, `--yaw`, `--frame-id`, `--child-frame-id`, etc. — confirmed via
+   **named** arguments (`--x`, `--yaw`, `--frame-id`, `--child-frame-id`, etc. - confirmed via
    `ros2 run tf2_ros static_transform_publisher --help`). The old positional form would have failed
    outright once install was fixed. Rewritten to use named args.
-5. **C1 mounted inverted** — needs two independent corrections, not one:
-   - **180° yaw offset** on the `base_link -> lidar_link` static TF (a pure rotation) — fixes
+5. **C1 mounted inverted** - needs two independent corrections, not one:
+   - **180° yaw offset** on the `base_link -> lidar_link` static TF (a pure rotation) - fixes
      where "front" lands. Made configurable via `LIDAR_YAW_OFFSET_DEG` (default `180`) in `.env`,
      read through a pydantic-settings `BaseSettings` class (same mechanism every hardware driver
      uses; `.env` itself is loaded as a side effect of importing `src.logger.config`).
    - **`inverted:=true`** on the `sllidar_node` launch parameter (both `run-lidar`'s pixi task and
-     `lidar_launch.py`'s `Node` parameters) — fixes a **left/right mirror** that the yaw offset
+     `lidar_launch.py`'s `Node` parameters) - fixes a **left/right mirror** that the yaw offset
      alone cannot correct. A pure Z-axis rotation can shift where front/back land but can never
      swap left and right; that requires a reflection, which is exactly what mounting a 2D LIDAR
      upside-down causes and exactly what the driver's own `inverted` flag exists to correct.
-     Discovered by validating against real measured distances in four directions (see below) —
+     Discovered by validating against real measured distances in four directions (see below) -
      front/back matched immediately with just the yaw offset, but left and right came out swapped
      until `inverted:=true` was added.
 
@@ -190,7 +190,7 @@ during the motion before assuming it's a code bug — verify with the raw-angle 
 
 Rate (`ros2 topic hz`, ~10 Hz for the C1's Standard mode) and range plausibility (values within
 `range_min`/`range_max`, `.inf` for no-return) only prove the topic is alive with sane-looking
-numbers — they don't prove the angle mapping is correct. The useful test: have someone stand next
+numbers - they don't prove the angle mapping is correct. The useful test: have someone stand next
 to the robot, tell you the actual measured distance to a wall/object in each of front/left/right/
 back, then compare against the scan data bucketed into narrow sectors around each of those
 directions (0°/+90°/-90°/±180° in the frame you expect to be robot-relative):
@@ -200,7 +200,7 @@ directions (0°/+90°/-90°/±180° in the frame you expect to be robot-relative
 base_angle = ((raw_angle_deg + yaw_offset_deg + 180) % 360) - 180
 ```
 
-This is what actually caught the left/right mirror bug above — a structural check (rate, range
+This is what actually caught the left/right mirror bug above - a structural check (rate, range
 bounds, "front has the biggest numbers") would have passed even with left/right swapped, since
 swapping two sectors doesn't break any of those invariants. Only checking against real,
 independently-known distances in specific directions surfaces a mirror/reflection bug.
@@ -208,52 +208,52 @@ independently-known distances in specific directions surfaces a mirror/reflectio
 ### Self-occlusion from the robot's own chassis
 
 Some angular range will read implausibly short distances that are the robot's own parts, not real
-obstacles — figure out which range by physically clearing everything else out of range (or
+obstacles - figure out which range by physically clearing everything else out of range (or
 knowing the true distances are large) and treating anything under some threshold (25cm here, since
 the real walls were never that close) as self-occlusion. It came out as **~73 scattered small
-clusters** (2–10 points each, likely thin structural elements — wiring, brackets, screw heads) —
-not one solid block — spanning from about **+117° to +172°** on one side and **-122° to -177°** on
+clusters** (2–10 points each, likely thin structural elements - wiring, brackets, screw heads) -
+not one solid block - spanning from about **+117° to +172°** on one side and **-122° to -177°** on
 the other (i.e., concentrated around the rear, symmetric about 180°/back). Don't try to mask each
-tiny cluster individually (fragile, overfits to one measurement — thin parts can clip a different
+tiny cluster individually (fragile, overfits to one measurement - thin parts can clip a different
 exact point on a re-scan); mask the full contiguous extent with margin instead, e.g. exclude
 `abs(angle) > 115°` as a single check. Front/left/right (everything within ±115°) had zero
 readings under the threshold.
 
-Note the two rearward clusters don't quite meet at dead-back — they stop at `172.2°` and start at
+Note the two rearward clusters don't quite meet at dead-back - they stop at `172.2°` and start at
 `-176.7°`, leaving an ~11° window (`172°` through `180°` to `-177°`) with no recorded occlusion in
 this particular scan. Mask through that gap too rather than treating it as a confirmed-clear
 notch: the occlusion pattern is already sparse (thin parts, not a solid panel), so a gap between
 two clusters more likely means a thin element missed a ray at that exact angle than a genuinely
-reliable clear sightline — a re-scan could easily register a point there instead. A single
+reliable clear sightline - a re-scan could easily register a point there instead. A single
 contiguous `abs(angle) > 115°` mask already covers this for free; don't special-case a "clear"
 notch out of it.
 
-## Phase 3 — `/button/event` (Pi Zero)
+## Phase 3 - `/button/event` (Pi Zero)
 
 ### Bugs found and fixed
 
 1. **`get_state()` never reset `_last_event` after reading it**, in both the GPIO driver
    (`src/hardware/button/gpio/driver.py`) and the MCP2221 variant
    (`src/hardware/button/mcp2221/driver.py`). `button_node._poll()` runs at 20 Hz and publishes
-   whenever `state.last_event` is truthy — since the field was never cleared, the very first real
+   whenever `state.last_event` is truthy - since the field was never cleared, the very first real
    event would have republished forever, once per poll, flooding `/button/event` with the same
    stale message indefinitely. Fixed by having `get_state()` read-and-clear the field atomically
    under the driver's lock (the GPIO driver's lock existed but was never actually used to protect
-   this state — also added locking around the `_on_pressed`/`_on_released` callbacks themselves,
+   this state - also added locking around the `_on_pressed`/`_on_released` callbacks themselves,
    since without it a callback could write a new event in the narrow window between `get_state()`'s
    read and its clear, silently losing that event).
 2. **`BUTTON_GPIO_PIN` was configured for GPIO 17, but the button is physically wired to GPIO 4.**
-   `gpiozero.Button(17)` connects with no error — nothing about a missing physical connection
-   raises an exception — so the driver reports "Button connected successfully" and the node runs
+   `gpiozero.Button(17)` connects with no error - nothing about a missing physical connection
+   raises an exception - so the driver reports "Button connected successfully" and the node runs
    fine forever, just never sees a real edge transition no matter how many times the physical
    button is pressed. This is the same class of bug as Phase 1's `Config` issue in spirit (silent
    "success" hiding a real problem), but a hardware-wiring mismatch instead of a code defect.
    Fixed by changing `BUTTON_GPIO_PIN` from `17` to `4` in `.env`/`.env.example`.
 
-   Notably, `setup-pi-architecture.md` (marked "historical design spec — partially superseded")
-   had GPIO 4 listed all along — its header explicitly calls out *"Pin assignments and hardware
+   Notably, `setup-pi-architecture.md` (marked "historical design spec - partially superseded")
+   had GPIO 4 listed all along - its header explicitly calls out *"Pin assignments and hardware
    architecture below are still accurate"* even though other parts of that doc have drifted from
-   the real implementation. Don't discount a whole doc as stale just because part of it is —
+   the real implementation. Don't discount a whole doc as stale just because part of it is -
    check what it specifically claims is still current. The current `.env.example`, despite being
    live code rather than a doc, was the one that had actually gone stale here.
 
@@ -261,28 +261,28 @@ notch out of it.
 
 For a discrete, momentary event (as opposed to a continuous stream like `/imu/data` or `/scan`),
 a background listener with a generous window (60s) and "press whenever ready, tell me when done"
-worked better than trying to synchronize a live countdown — same lesson as Phase 1's
+worked better than trying to synchronize a live countdown - same lesson as Phase 1's
 live-streaming problem, just with a longer passive window instead of a snapshot pair.
 
 When the full `/button/event` topic kept showing zero events even after both fixes above, the
 useful technique was bisecting top-down through the stack, one layer at a time, until finding
 where the signal actually disappeared:
 
-1. **Raw GPIO read**, bypassing the driver class entirely — plain `gpiozero.Button(pin).is_pressed`
+1. **Raw GPIO read**, bypassing the driver class entirely - plain `gpiozero.Button(pin).is_pressed`
    polled in a loop. Confirms the physical wiring and pin number are actually correct.
-2. **The driver class directly**, bypassing ROS/`button_node` — instantiate `Driver()`, call
+2. **The driver class directly**, bypassing ROS/`button_node` - instantiate `Driver()`, call
    `.connect()`, poll `.get_state()` in a loop. Confirms the driver's callback registration and
    event/state logic work correctly in isolation.
-3. **The full ROS topic**, via `ros2 topic echo` — confirms the node wrapper and publish path
+3. **The full ROS topic**, via `ros2 topic echo` - confirms the node wrapper and publish path
    work end-to-end.
 
 In this case, layers 1 and 2 both worked cleanly on the first proper attempt, and a subsequent
-retest of layer 3 also succeeded — meaning the earlier "zero events" results were most likely
+retest of layer 3 also succeeded - meaning the earlier "zero events" results were most likely
 timing misses (the same "did I actually press it inside the window" issue seen throughout this
 runbook), not a real remaining bug. The bisection was still valuable: it positively confirmed the
 wiring and the driver logic before writing off the ROS layer as broken, rather than guessing.
 
-Don't conclude a topic is broken from one "zero events" result on a momentary/discrete signal —
+Don't conclude a topic is broken from one "zero events" result on a momentary/discrete signal -
 unlike a continuous stream (where you can just wait longer), a single missed press looks identical
 to a real failure. Retry at least once, and bisect down a layer if it keeps failing, before
 treating it as a genuine bug.
@@ -293,7 +293,7 @@ The Pi Zero 2 W has ~415MB usable RAM. Resolving/installing the full `dev`
 pixi environment (ROS2 Kilted base + opencv/scipy/pydantic/etc. via
 robostack/conda) or rebuilding `ros2_ws` there directly is heavy enough to
 swap-thrash the SD card into double-digit load averages, make SSH
-unresponsive for many minutes at a stretch, and — confirmed the hard way —
+unresponsive for many minutes at a stretch, and - confirmed the hard way -
 crash the board with an unclean shutdown (fsck found a dirty bit and a
 corrupted systemd-journald file on the next boot; no reported ext4 data
 corruption that time, but repeat hard resets are a real risk to the
@@ -304,25 +304,25 @@ filesystem, not just an inconvenience).
    anything.** If `vtitan-pi-zero.service` is `enabled` and the Zero
    reboots (e.g. mid-recovery) with an incomplete `dev` env, the service
    auto-starts on boot and its `pixi run -e dev launch-rpi-zero` immediately
-   re-triggers a full install in the background — silently fighting any
+   re-triggers a full install in the background - silently fighting any
    manual recovery attempt for the same disk I/O. **Always
    `sudo systemctl disable vtitan-pi-zero.service` before doing any
    maintenance on the Zero's pixi env**, and only re-enable once it's
    confirmed working standalone.
 2. Aggressively retrying SSH connections against an already I/O-starved board
-   compounds the problem — each connection spawns a new sshd session with its
+   compounds the problem - each connection spawns a new sshd session with its
    own overhead. Prefer long, sparse, patient checks over tight retry loops
    when the board is already struggling.
 
 ### Setting up a freshly-flashed Pi Zero
 
 Automated via `pixi run -e dev bootstrap-fresh-zero`, run **on Pi 5** (see
-`scripts/provisioning/bootstrap-fresh-zero.sh`). Idempotent — safe to re-run on a Zero
+`scripts/provisioning/bootstrap-fresh-zero.sh`). Idempotent - safe to re-run on a Zero
 that's already set up. Covers, in order:
 
 1. Trusting Pi 5's SSH key into the Zero's `~/.ssh/authorized_keys` (needs
-   *some* existing trusted path in first — e.g. Raspberry Pi Imager's own SSH
-   key customization on first boot — the script can't bootstrap first contact
+   *some* existing trusted path in first - e.g. Raspberry Pi Imager's own SSH
+   key customization on first boot - the script can't bootstrap first contact
    from nothing).
 2. Verifying passwordless sudo on both boards.
 3. Copying `platform/robot` **and `platform/shared`** onto the Zero via
@@ -334,15 +334,15 @@ that's already set up. Covers, in order:
    editable dependency (`vtitan-shared = { path = "../shared" }`), so
    anything importing `shared.*` (e.g. `oled_display_node`'s
    `shared.config.constants`) fails with `ModuleNotFoundError: No module
-   named 'shared'` if only `platform/robot` was copied — confirmed the hard
+   named 'shared'` if only `platform/robot` was copied - confirmed the hard
    way testing the merged `pi_zero_node` on a freshly re-imaged Zero.
 4. `cp .env.example .env` on the Zero, **only if `.env` doesn't already
-   exist** — never overwrites a hand-tuned one.
+   exist** - never overwrites a hand-tuned one.
 5. Installing the `pixi` CLI itself on the Zero (just the ~20MB binary via
-   `curl -fsSL https://pixi.sh/install.sh | sh` — NOT `pixi install`, which
+   `curl -fsSL https://pixi.sh/install.sh | sh` - NOT `pixi install`, which
    is the heavy conda/mamba resolve step this whole deployment approach
    exists to avoid running on the Zero; see below).
-6. Enabling I2C — **off by default on a fresh Raspberry Pi OS image**,
+6. Enabling I2C - **off by default on a fresh Raspberry Pi OS image**,
    required for the SSD1306 OLED display. `dtparam=i2c_arm=on` in
    `/boot/firmware/config.txt` loads the `i2c_bcm2835` bus driver, but the
    `/dev/i2c-*` character device nodes additionally need the `i2c-dev` kernel
@@ -352,13 +352,13 @@ that's already set up. Covers, in order:
    `.env`'s `SSD1306_I2C_ADDRESS`.
 7. Templating `systemd/vtitan-pi-zero.service`'s `__TARGET_USER__` /
    `__TARGET_HOME__` placeholders and installing it to
-   `/etc/systemd/system/` — left **disabled**. Don't `systemctl enable` it
+   `/etc/systemd/system/` - left **disabled**. Don't `systemctl enable` it
    until you've confirmed `sudo systemctl start
    vtitan-pi-zero.service` works standalone (same reasoning as the
-   "two compounding traps" above — an enabled service auto-starting mid
+   "two compounding traps" above - an enabled service auto-starting mid
    troubleshooting fights you for the same constrained resources).
 
-A reboot is needed after step 6 for the I2C change to take effect — use
+A reboot is needed after step 6 for the I2C change to take effect - use
 `safe-shutdown-zero` (below), never pull power directly.
 
 **The fix: build on Pi 5, ship the result to the Zero as tarballs.** Pi 5 has
@@ -371,16 +371,16 @@ any conda/mamba resolution happening on the Zero at all.
 Automated via `pixi run -e dev deploy-dev-env-to-zero`, run **on Pi 5**
 (see `scripts/provisioning/deploy-dev-env-to-zero.sh`). One-time prerequisite: Pi 5's own
 SSH key needs to be in the Zero's `~/.ssh/authorized_keys` (they don't trust
-each other by default) — generate one with `ssh-keygen -t ed25519` on Pi 5 if
+each other by default) - generate one with `ssh-keygen -t ed25519` on Pi 5 if
 `~/.ssh/id_ed25519.pub` doesn't already exist, then append it on the Zero.
 Transferring over the USB-gadget link (`192.168.250.1`, wired) rather than
-the Zero's own WiFi radio is markedly more reliable — the ~850MB compressed
+the Zero's own WiFi radio is markedly more reliable - the ~850MB compressed
 `dev` env transfer is large enough that WiFi drops repeatedly restart it from
 scratch (`scp` doesn't resume).
 
 The script extracts under `_new`-suffixed names and atomically renames them
 into place (`dev` → `dev_old_<timestamp>`, `dev_new` → `dev`, same for
-`ros2_ws/build`/`install`) rather than deleting the old broken env first —
+`ros2_ws/build`/`install`) rather than deleting the old broken env first -
 `rm -rf` on a large, deeply-nested conda env (e.g. bundled Qt/WebEngine
 license trees with huge file counts) can itself hang for a very long time on
 the Zero's slow SD card. Clean up the timestamped `*_old_*` leftovers
@@ -394,12 +394,12 @@ mismatches and a stale orphan-file flag (`e2fsck -f` fixed it), and the board wo
 up on its own because boot was hung waiting on an interactive fsck prompt with no display
 attached. Repeat occurrences risk worse (real ext4 data-structure corruption, not just accounting).
 
-Run `bash scripts/provisioning/safe-shutdown-zero.sh` **on Pi 5** before ever removing power from the Zero — it
+Run `bash scripts/provisioning/safe-shutdown-zero.sh` **on Pi 5** before ever removing power from the Zero - it
 stops `vtitan-pi-zero.service`, syncs, issues a clean `shutdown -h now`, and polls until the
 Zero is actually offline before telling you it's safe to unplug it.
 
 To power both boards down in one command (e.g. before switching the robot from wall/USB power to
-battery), run `bash scripts/provisioning/safe-shutdown-both.sh` **on Pi 5** instead — it runs the same Zero
+battery), run `bash scripts/provisioning/safe-shutdown-both.sh` **on Pi 5** instead - it runs the same Zero
 shutdown first, then syncs and shuts Pi 5 itself down last, once the Zero is confirmed offline. Also
 available as `task robot:zero ACTION=shutdown-both` from the repo root.
 
@@ -408,7 +408,7 @@ it into another Pi (or a USB reader) that can mount ext4 natively, and run
 `sudo e2fsck -n -f /dev/<partition>` read-only first to see what's wrong, then `sudo e2fsck -f -y
 /dev/<partition>` to fix it.
 
-### Merged `pi_zero_node` — verification and resource baseline
+### Merged `pi_zero_node` - verification and resource baseline
 
 Verified end-to-end on a freshly-flashed Zero (bootstrap → deploy →
 `systemctl restart vtitan-pi-zero.service`): the motor, button, and OLED
@@ -419,13 +419,13 @@ status` cgroup output confirms one Python PID owns all three lifecycle
 nodes; the `ros2 launch` parent process is normal launch-file overhead, not
 a second node.
 
-Idle resource baseline (no driving, no LIDAR/vision — just motor+button+OLED
+Idle resource baseline (no driving, no LIDAR/vision - just motor+button+OLED
 holding steady state), sampled ~19 minutes after boot on the Pi Zero 2 W's
 415MB usable RAM:
 
 - **CPU**: ~65-70% of one core sustained (fluctuates 50-75%), i.e. roughly
   16-19% of total system CPU capacity on the quad-core Zero 2 W. Higher than
-  it might look at a glance — likely GPIO/encoder polling loops rather than
+  it might look at a glance - likely GPIO/encoder polling loops rather than
   a leak; not yet root-caused, worth profiling if it becomes a bottleneck
   once LIDAR/vision are running concurrently.
 - **Memory**: ~106MB RSS for the node process (~25% of total RAM), ~247MB
@@ -441,40 +441,40 @@ running. Checks, in order: SSH reachability over both the USB-gadget IP (`192.16
 `usb0` carrier state, ping, and `dmesg` for `cdc_ether` TX-watchdog faults; the systemd service's
 active/enabled state and `--as-is` `ExecStart`; ROS2 topic discovery across the two boards; and a
 real `AckermannDriveStamped` publish → motor driver → feedback round-trip (safe with motors
-unpowered — it only checks the software position-tracking value, not physical motion).
+unpowered - it only checks the software position-tracking value, not physical motion).
 
 #### Bug found and fixed
 
 **`set -uo pipefail` + sourcing `ros2_ws/install/setup.bash` kills the whole script.** ROS2/colcon's
-generated setup scripts reference unset variables internally and are not `set -u` safe — sourcing
+generated setup scripts reference unset variables internally and are not `set -u` safe - sourcing
 one under `-u` throws an "unbound variable" error that terminates the entire script immediately,
 silently, with no useful output (looks exactly like the script hanging, not erroring). Fixed by
 wrapping just the `source` line in `set +u` / `set -u`. Any script in this repo that sources a ROS2
 setup file needs the same guard if it also uses `set -u`.
 
-#### Isolating "over USB" from "over WiFi" — the duplicate-node false alarm
+#### Isolating "over USB" from "over WiFi" - the duplicate-node false alarm
 
 Both boards can have `usb0` and `wlan0` up simultaneously, which makes it easy to *think* something
 is working over USB when WiFi is silently carrying the traffic instead. Two things worth knowing:
 
 - **To actually prove USB-only operation**, disable WiFi on the Zero (`sudo nmcli radio wifi off`)
-  and re-run discovery — don't just trust that the USB path "looks" reachable while WiFi is also up.
+  and re-run discovery - don't just trust that the USB path "looks" reachable while WiFi is also up.
   All topics (`/ackermann_cmd`, `/motor/*`, `/button/event`, `/ui/oled_mirror`, etc.) stayed fully
   discoverable and functional with the Zero's WiFi fully off, confirming the ROS2 graph genuinely
   works over the USB-gadget link alone, not just alongside WiFi.
 - **`ros2 node list` showing `/pi_zero_node` three times, with a "nodes share an exact name"
-  warning, is a DDS multi-locator discovery artifact, not three real processes** — this persisted
+  warning, is a DDS multi-locator discovery artifact, not three real processes** - this persisted
   even with the Zero's WiFi off, because the *Pi 5* side still had both `usb0` and `wlan0` active,
   so CycloneDDS advertises/discovers the same single participant via multiple network paths. Verify
   with `ps aux | grep pi_zero_node` (one PID) and `ros2 topic info <topic> --verbose` (publisher
   count: 1, one `Node name` entry) before assuming duplicate nodes are actually publishing
-  duplicate/racing messages — they aren't; `ros2 topic hz` on affected topics showed a single clean
+  duplicate/racing messages - they aren't; `ros2 topic hz` on affected topics showed a single clean
   steady rate with no doubling.
 
 #### Measured latency
 
 - Raw USB-gadget link (ICMP ping, Pi 5 → Zero): **avg 0.22ms, min 0.15ms, max 0.28ms**, 0% loss over
-  20 pings — effectively negligible for control-loop purposes.
+  20 pings - effectively negligible for control-loop purposes.
 - ROS2-level round-trip (publish `/ackermann_cmd` → observe the matching value land on
   `/motor/steering_position`, averaged over 5 distinct steering angles) at the default 20Hz feedback
   rate: **avg 41.15ms, min 22.12ms, max 60.57ms**. The gap between this and the raw ping time
@@ -487,7 +487,7 @@ is working over USB when WiFi is silently carrying the traffic instead. Two thin
 (`self.steering`) and the drive motor (`self.drive`), each independently backend-configurable
 (`steering_backend`, `drive_backend` params). One shared `_publish_feedback` timer, running at
 `PUBLISHER_RATE_HZ` (module constant, default `20.0`), publishes both `/motor/steering_position` and
-`/motor/drive_speed` together — bumping that one constant affects both feedback streams at once. On
+`/motor/drive_speed` together - bumping that one constant affects both feedback streams at once. On
 the BuildHAT backend specifically, a single `CombinedDriver` object satisfies both the
 `SteeringDriver` and `DriveDriver` interfaces, so steering and drive can be literally the same
 underlying hardware object accessed through two different type interfaces.
@@ -495,14 +495,14 @@ underlying hardware object accessed through two different type interfaces.
 ### Feedback-rate tuning: CPU/latency tradeoff (tested, not currently adopted)
 
 `pi_zero_node` already runs `ackermann`/`button`/`oled` under one `MultiThreadedExecutor`
-(`pi_zero_node.py`) rather than a single-threaded spin — each node gets its own default callback
+(`pi_zero_node.py`) rather than a single-threaded spin - each node gets its own default callback
 group, so e.g. a slow OLED I2C write can't block the motor feedback timer. This gives real
 concurrency for I/O-bound hardware calls (most driver-level GPIO/I2C/serial calls release the GIL
-while blocked on the bus), but **not** genuine CPU-bound multicore parallelism — it's still one
+while blocked on the bus), but **not** genuine CPU-bound multicore parallelism - it's still one
 Python process/one GIL, so pure-Python compute across all three sub-nodes is still serialized
 regardless of the Zero 2 W's 4 cores. True multicore parallelism would require splitting back into
 separate OS processes, which is exactly what the `pi_zero_node` merge undid (fewer DDS participants,
-one systemd unit, simpler ops) — not worth reverting unless a specific sub-node becomes CPU-starved.
+one systemd unit, simpler ops) - not worth reverting unless a specific sub-node becomes CPU-starved.
 
 Measured on live hardware, `PUBLISHER_RATE_HZ` 20 vs 30 (steady-state, `pi_zero_node` idle otherwise):
 
@@ -513,20 +513,20 @@ Measured on live hardware, `PUBLISHER_RATE_HZ` 20 vs 30 (steady-state, `pi_zero_
 | Round-trip latency max       | 60.57ms              | 49.01ms (-19%)        |
 
 CPU scales roughly linearly with the rate. 30Hz leaves only ~22% headroom on that core, which is
-shared with button and OLED callback threads — under real competition load (driving + button
+shared with button and OLED callback threads - under real competition load (driving + button
 presses + OLED refresh concurrently) this is close enough to saturation to risk jitter or a delayed
 watchdog check (`_watchdog_check` runs on a fixed 500ms timer looking for stale commands), which is
-a worse failure mode than the current ~41ms latency. **Decision: reverted to 20Hz for now** — the
+a worse failure mode than the current ~41ms latency. **Decision: reverted to 20Hz for now** - the
 ~30% latency win isn't worth the headroom risk without also splitting the motor node out.
 
 **If lower feedback latency is needed later**, the concrete next step is splitting
 `AckermannMotorNode` (steering+drive, since they're already merged as one responsibility) into its
-own process, separate from button+OLED — giving it a dedicated core — rather than raising
+own process, separate from button+OLED - giving it a dedicated core - rather than raising
 `PUBLISHER_RATE_HZ` on the current shared-process setup. Not yet implemented.
 
 ### Drive-motor characterisation on battery power (2026-07-25)
 
-First tests with the drive motor actually powered — it is wired **only** to the battery, so every
+First tests with the drive motor actually powered - it is wired **only** to the battery, so every
 prior session's "motor" testing had exercised the software path with no current reaching the motor
 at all. Run with `scripts/hardware/test_motors.py` (see below); all figures are `/motor/drive_speed` encoder
 feedback averaged over the steady-state portion of a 5s hold.
@@ -534,7 +534,7 @@ feedback averaged over the steady-state portion of a 5s hold.
 #### Direction was inverted (fixed via config, not rewiring)
 
 A positive commanded speed drove the robot **backwards**. Fixed by setting
-`MOTOR_DRIVE__REVERSED=true` (note the double underscore — it is a nested pydantic-settings field;
+`MOTOR_DRIVE__REVERSED=true` (note the double underscore - it is a nested pydantic-settings field;
 the single-underscore `MOTOR_REVERSE_DRIVE` named in the node's docstring never existed and was
 silently ignored. Docstring corrected). No rewiring needed. `.env.example` now ships `true`, since
 `.env` is gitignored and a fresh bootstrap would otherwise silently drive the robot in reverse.
@@ -544,7 +544,7 @@ silently ignored. Docstring corrected). No rewiring needed. `.env.example` now s
 Stepping upward from 0.02 m/s, **every** command from 0.02 through 0.6 m/s produced zero encoder
 movement; 0.7 m/s was the first to move the wheels. With `MOTOR_DRIVE__SPEED_SCALE=30.0` that is
 `int(0.7 * 30) = 21`, i.e. roughly a **21% duty-cycle stiction threshold**. Commands below this are
-not "slow", they are "nothing happens" — speed-control logic (navigator speed tables, any future
+not "slow", they are "nothing happens" - speed-control logic (navigator speed tables, any future
 PID) must treat sub-0.7 m/s as a dead command rather than a small one. 0.7 m/s itself is marginal
 and did not reliably sustain motion over a 5s hold; ~1.4 m/s was the lowest speed that moved
 dependably.
@@ -572,10 +572,10 @@ correspondingly less than a symmetric model would predict.
 #### Known inconsistency: feedback sign vs command sign
 
 With `MOTOR_DRIVE__REVERSED=true`, `_ackermann_callback` negates the command sent to the hardware
-but `get_drive_speed()` still reports the encoder's raw *physical* direction — so commanding `+3.5`
+but `get_drive_speed()` still reports the encoder's raw *physical* direction - so commanding `+3.5`
 publishes `-346 deg/s`. Harmless today (nothing subscribes to `/motor/drive_speed`;
 `ROS2HardwareGateway` takes position from LIDAR and yaw from the IMU only), but it must be resolved
-before any consumer — telemetry, or the encoder-feedback ideas discussed for the navigator — relies
+before any consumer - telemetry, or the encoder-feedback ideas discussed for the navigator - relies
 on that topic, since an inverted feedback sign in a closed loop is a runaway.
 
 #### Measure steady-state, not a single sample
@@ -584,7 +584,7 @@ The first version of `test_motors.py` reported one end-of-hold feedback sample a
 inconsistent numbers (e.g. 48 deg/s at 2.8 m/s but 144 deg/s at 3.0 m/s). The signal is noisy enough
 (stdev ~40 deg/s) that a lone sample says almost nothing. The script now records every sample via
 the subscription callback, discards a `--spinup-s` acceleration window, and reports mean/min/max/
-stdev — which is what made the forward/reverse asymmetry above legible rather than looking like
+stdev - which is what made the forward/reverse asymmetry above legible rather than looking like
 scatter.
 
 ### Drive encoder calibration -- counts_per_rev was 3.5x wrong (2026-07-25)
@@ -716,10 +716,10 @@ Hardware smoke test driving the real `ackermann_motor_node` over ROS2, run **on 
 - Steering sweep (left/center/right/center) checking `/motor/steering_position` converges to each
   commanded angle. Safe with the robot stationary.
 - Drive hold at `--drive-speed` for `--drive-duration-s`, reporting steady-state statistics, then a
-  stop check. **Spins the wheels** — prompts for typed confirmation unless `--yes` is passed;
+  stop check. **Spins the wheels** - prompts for typed confirmation unless `--yes` is passed;
   `--skip-drive` omits it.
 - `--find-min-speed` steps through `--min-speed-candidates` (ascending) and reports the first that
-  actually moves the motor — how the deadband above was found.
+  actually moves the motor - how the deadband above was found.
 
 Two gotchas it encodes, both learned the hard way:
 

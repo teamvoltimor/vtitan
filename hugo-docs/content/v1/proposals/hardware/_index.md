@@ -1,6 +1,6 @@
 ---
 title: "Hardware Proposals"
-description: "Hardware options and configurations — platforms, sensors, motors, calibration guides, and component comparisons."
+description: "Hardware options and configurations - platforms, sensors, motors, calibration guides, and component comparisons."
 date: 2024-06-11
 ---
 
