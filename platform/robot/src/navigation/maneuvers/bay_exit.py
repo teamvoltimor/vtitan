@@ -822,7 +822,9 @@ class BayExit:
         # pocket, and the point of this leg is to buy room, not heading. The
         # turn that follows is the manoeuvre's own, toward the open side it
         # already identifies correctly.
-        if self._recovery_ticks_left > 0 or self._nose_in_contact(ranges_m, angles_rad, tuning):
+        if follower.BAY_EXIT_CONTACT_RECOVERY_TICKS > 0 and (
+            self._recovery_ticks_left > 0 or self._nose_in_contact(ranges_m, angles_rad, tuning)
+        ):
             if self._recovery_ticks_left <= 0:
                 self._recovery_ticks_left = follower.BAY_EXIT_CONTACT_RECOVERY_TICKS
                 self._contact_recoveries += 1
@@ -843,7 +845,17 @@ class BayExit:
         # of contact is the exact failure this whole path exists to stop, and
         # ordering these the other way round reintroduced it -- caught by
         # test_contact_recovery_still_wins_over_a_completed_rotation.
-        if self.rotation_complete(tuning):
+        #
+        # Rotation alone is NOT enough to drive out on. 70 deg is where the
+        # chassis stops lying across the pocket, not where it is guaranteed to
+        # be aimed down the corridor -- the placement heading and the lot's
+        # geometry decide that. Measured on run_20260906_145909: the exit
+        # released and normal driving then took forward clearance from 0.54 m
+        # to 0.08 m in three seconds, nose into the outer wall, because nothing
+        # asked whether the way out was actually open. Turned AND clear, or
+        # keep ratcheting -- the next reverse buys more angle, which is the
+        # cheap way to be wrong.
+        if self.rotation_complete(tuning) and self.is_clear(ranges_m, angles_rad, tuning):
             return DriveCommand(
                 speed_mps=creep_speed_mps * follower.CORNER_SPEED_SCALE * follower.BAY_EXIT_SPEED_SCALE,
                 steering_norm=0.0,

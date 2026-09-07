@@ -443,6 +443,12 @@ class FakeGateway:
         """Return the latest IMU reading."""
         return IMUReading(yaw=self.pose.yaw, pitch=0.0, roll=0.0)
 
-    def get_vision_detections(self) -> list[Detection]:
-        """Return vision detections."""
+    def get_vision_detections(self, current_corridor: object = None) -> list[Detection]:
+        """Return vision detections.
+
+        Takes the corridor the real gateway now uses to decide whether the
+        parking barrier could be in view, and ignores it: this fake returns
+        nothing, so there is nothing to filter.
+        """
+        del current_corridor
         return []

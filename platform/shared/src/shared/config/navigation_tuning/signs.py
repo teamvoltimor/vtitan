@@ -524,6 +524,59 @@ class SignRouterParams(BaseModel):
     PIN_CORNER_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_CORNER_GUARD"))
     PIN_HEADING_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_HEADING_GUARD"))
     SIGN_AWARE_LOOKAHEAD: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_LOOKAHEAD"))
+
+    SIGN_LIDAR_ALIGN: bool = Field(default=False, validation_alias=_alias("SIGN_LIDAR_ALIGN"))
+    """Steer toward a narrow LIDAR object ahead that the camera has not classified.
+
+    The LIDAR resolves the pillars: measured on run_20260906_163641 and _163854,
+    a return exists at the camera's own bearing on 98-100% of red/green
+    detections, and the object there is 3.8-6.6 cm across at the median -- the
+    5 cm sign itself, not the wall behind it. So the LIDAR can say "pillar-sized
+    thing ahead" before the classifier can say what colour it is, and bringing
+    it toward the centre of frame helps because the classifier is worst at the
+    edge (see SignDiscoveryParams.FRAME_EDGE_TOLERANCE_PX).
+
+    Suppressed once the router has COMMITTED to a sign, because then the
+    pass-side lane owns the lateral decision and turning toward a pillar to look
+    at it would steer into the obstacle the lane is avoiding. Written for the
+    opposite case: run_20260906_163854, where a red was never classified at all
+    and was passed on the wrong side.
+    """
+
+    SIGN_LIDAR_ALIGN_MIN_M: float = Field(default=0.40, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MIN_M"))
+    """Closest range that still leaves room to act on the alignment."""
+
+    SIGN_LIDAR_ALIGN_MAX_M: float = Field(default=1.50, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MAX_M"))
+    """Furthest range considered. Beyond this the bearing error is small anyway."""
+
+    SIGN_LIDAR_ALIGN_FOV_DEG: float = Field(default=45.0, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_FOV_DEG"))
+    """Half-angle searched ahead. Wider than the deadband so an off-centre pillar is seen."""
+
+    SIGN_LIDAR_ALIGN_DEPTH_M: float = Field(default=0.08, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_DEPTH_M"))
+    """How far behind the closest return a ray may be and still count as the same surface."""
+
+    SIGN_LIDAR_ALIGN_MAX_WIDTH_M: float = Field(
+        default=0.15, gt=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MAX_WIDTH_M")
+    )
+    """Arc width above which the object is a wall, not a pillar.
+
+    15 cm against a measured p50 of 3.8-6.6 cm: generous enough for a partly
+    occluded sign, far below a wall run. 79-81% of the objects at a camera
+    detection's bearing fall under it."""
+
+    SIGN_LIDAR_ALIGN_DEADBAND_DEG: float = Field(
+        default=8.0, ge=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_DEADBAND_DEG")
+    )
+    """Bearing error below which nothing is done -- a centred pillar needs no help."""
+
+    SIGN_LIDAR_ALIGN_GAIN: float = Field(default=0.35, ge=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_GAIN"))
+    """Steering per radian of bearing error."""
+
+    SIGN_LIDAR_ALIGN_MAX_STEER: float = Field(
+        default=0.15, ge=0.0, validation_alias=_alias("SIGN_LIDAR_ALIGN_MAX_STEER")
+    )
+    """Hard cap on the nudge. Small on purpose: this is a look-at-it bias, not a manoeuvre."""
+
     SIGN_AWARE_SPEED: bool = Field(default=True, validation_alias=_alias("SIGN_AWARE_SPEED"))
     STALE_TARGET_RESCUE: bool = Field(default=False, validation_alias=_alias("STALE_TARGET_RESCUE"))
     SIGN_LANE_PLANNER: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_PLANNER"))
@@ -661,6 +714,29 @@ class SignDiscoveryParams(BaseModel):
     ASSOCIATION_DIST_M: float = Field(default=0.25, validation_alias=_alias("ASSOCIATION_DIST_M"))
     MIN_HITS: int = Field(default=3, validation_alias=_alias("MIN_HITS"))
     MAX_PILLAR_ASPECT: float = Field(default=1.0, validation_alias=_alias("MAX_PILLAR_ASPECT"))
+
+    FRAME_EDGE_TOLERANCE_PX: float = Field(
+        default=2.0, ge=0.0, validation_alias=_alias("FRAME_EDGE_TOLERANCE_PX")
+    )
+    """How close to the frame border a box edge must be to count as CLIPPED.
+
+    A clipped box's aspect ratio is not a measurement of the object's shape, so
+    ``MAX_PILLAR_ASPECT`` is not applied to one. A pillar the robot is closing
+    on grows until it runs out of frame: its height stops increasing while its
+    width keeps going, and the ratio crosses 1.0 with nothing about the pillar
+    having changed.
+
+    Measured on run_20260906_145546 (23.4-24.6 s): a red pillar, confidence
+    0.47-0.84, x_max pinned at 1536 for every frame, w/h climbing 0.33 -> 1.27
+    as it approached -- rejected exactly when nearest. Across that run and
+    _145909, 304 of the 500 red detections the aspect gate rejects (61%) are
+    frame-clipped, against 22 of 43 for green, which is why the gate cost red
+    so much more than green.
+
+    2 px rather than 0: the detector's boxes are floats and land a fraction
+    short of the border as often as exactly on it.
+    """
+
     """Widest box (width/height) still accepted as a traffic-sign pillar.
 
     A pillar is taller than it is wide by construction, so a box wider than tall

@@ -38,6 +38,36 @@ class ClearanceZones(BaseModel):
     FAST_DIST: float = Field(default=1.00, validation_alias=_alias("FAST_DIST"))  # Full speed capability
     PATH_MARGIN: float = Field(default=0.10, validation_alias=_alias("PATH_MARGIN"))  # Forward-path margin
 
+    CONTACT_REVERSE_TICKS: int = Field(default=8, ge=0, validation_alias=_alias("CONTACT_REVERSE_TICKS"))
+    """Ticks of straight reverse commanded once forward clearance reaches CONTACT_DIST.
+
+    Creeping FORWARD at contact is how the chassis ends up leaning on what it
+    was avoiding. Measured on run_20260906_121254: 0.023-0.037 m of clearance,
+    risk CRITICAL, and +0.152 m/s commanded for ten seconds against a green
+    pillar. Nothing in the normal-drive path reversed.
+
+    8 ticks is ~0.4 s at 20 Hz, about 25 mm at creep -- enough to unstick a
+    chassis that has just closed on an obstacle, and far short of retracing the
+    corridor. 0 disables the behaviour entirely.
+
+    Bounded rather than "reverse until clear" because at contact the forward arc
+    is the reading that has just gone unreliable: below MIN_VALID_RANGE_M it
+    returns nothing at all, and the clearance the caller sees is a substituted
+    constant rather than a measurement.
+    """
+
+    CONTACT_REVERSE_COOLDOWN_TICKS: int = Field(
+        default=20, ge=0, validation_alias=_alias("CONTACT_REVERSE_COOLDOWN_TICKS")
+    )
+    """Ticks after a back-off before another may arm, counted only while CLEAR.
+
+    Without it the pair oscillates: reverse to clear, drive forward into the
+    same pillar, reverse again. The cooldown decrements only on ticks where
+    clearance is at or above CONTACT_DIST, so a chassis still against the
+    obstacle cannot time its way to a second reverse without having actually
+    got clear in between -- the escape machinery owns that case.
+    """
+
     FORWARD_PATH_AHEAD_OF_BUMPER: bool = Field(
         default=False, validation_alias=_alias("FORWARD_PATH_AHEAD_OF_BUMPER")
     )

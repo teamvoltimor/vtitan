@@ -196,6 +196,11 @@ class CoreNavigator(EscapeRecovery):
         )
 
         self._stuck_detector = StuckDetector.from_tuning(self._tuning)
+        # Backing off an obstacle the chassis has closed on. Ticks still owed,
+        # and the cooldown that stops a back-off/drive-forward pair oscillating
+        # against the same pillar.
+        self._contact_reverse_left = 0
+        self._contact_reverse_cooldown = 0
 
         # Full internal state of the most recent step(), for telemetry -- see
         # NavigatorDebugSnapshot's own docstring for why this exists.
@@ -483,6 +488,59 @@ class CoreNavigator(EscapeRecovery):
         self._apply_path_wall_budget()
         logger.info("Sign lanes replanned for %d sign(s)", len(fingerprint))
 
+    def _lidar_align_steer(self, scan: LidarScan | None) -> float | None:
+        """Steer toward a narrow object ahead the camera has not classified yet.
+
+        The LIDAR resolves the pillars. Measured on run_20260906_163641 and
+        _163854: a return exists at the camera's own bearing on 98-100% of
+        red/green detections, and the object at that bearing measures 3.8-6.6 cm
+        across at the median -- a 5 cm sign, not the wall behind it. So the
+        sensor can say "something pillar-sized is ahead" before the classifier
+        can say what colour it is.
+
+        Bringing it toward the centre of frame is worth doing because the
+        classifier is worst at the edge: a box clipped by the frame border is
+        exactly where detection was being lost -- see
+        ``SignDiscoveryParams.FRAME_EDGE_TOLERANCE_PX``.
+
+        Deliberately does NOTHING once the router has committed to a sign. Then
+        the pass-side lane owns the lateral decision, and turning toward a pillar
+        to look at it would steer into the obstacle the lane is routing around.
+        This exists for the case where the camera has classified NOTHING --
+        run_20260906_163854, where a red was never detected at all and was
+        passed on the wrong side.
+
+        Returns the steering nudge, or ``None`` when there is nothing to align to.
+        """
+        signs = self._tuning.sign_router
+        if scan is None or not signs.SIGN_LIDAR_ALIGN:
+            return None
+        if self._sign_router is not None and self._sign_router.committed_sign_position is not None:
+            return None
+        half_fov = math.radians(signs.SIGN_LIDAR_ALIGN_FOV_DEG)
+        near = [
+            (r, a)
+            for r, a in zip(scan.ranges_m, scan.angles_rad, strict=False)
+            if abs(wrap_angle(a)) <= half_fov
+            and signs.SIGN_LIDAR_ALIGN_MIN_M <= r <= signs.SIGN_LIDAR_ALIGN_MAX_M
+        ]
+        if not near:
+            return None
+        closest = min(r for r, _ in near)
+        # Rays on the nearest surface. A pillar is a short arc, a wall a long
+        # one, and the arc WIDTH is what separates them.
+        cluster = [a for r, a in near if r - closest < signs.SIGN_LIDAR_ALIGN_DEPTH_M]
+        if len(cluster) < 2:
+            return None
+        span = max(cluster) - min(cluster)
+        if closest * span > signs.SIGN_LIDAR_ALIGN_MAX_WIDTH_M:
+            return None
+        bearing = (max(cluster) + min(cluster)) / 2.0
+        if abs(bearing) < math.radians(signs.SIGN_LIDAR_ALIGN_DEADBAND_DEG):
+            return None
+        cap = signs.SIGN_LIDAR_ALIGN_MAX_STEER
+        return max(-cap, min(cap, signs.SIGN_LIDAR_ALIGN_GAIN * bearing))
+
     def _sign_evade_steer(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
         """Steering to swing the chassis clear of a routed sign it is about to clip.
 
@@ -626,6 +684,8 @@ class CoreNavigator(EscapeRecovery):
         self._escape_count = 0
         self._escape_steer_sign = 1.0
         self._escape_sequence_start_xy = None
+        self._contact_reverse_left = 0
+        self._contact_reverse_cooldown = 0
         self._stuck_detector.reset()
         self._waypoint_controller.reset()
         if self._sign_router is not None:
@@ -1070,7 +1130,7 @@ class CoreNavigator(EscapeRecovery):
             self._tuning.sign_router.SIGN_LANE_PLANNER and self._tuning.sign_router.SIGN_LANE_SUPPRESS_DEFORM
         )
         if self._sign_router is not None and self._current_corridor is not None:
-            observations = self._gateway.get_vision_detections()
+            observations = self._gateway.get_vision_detections(self._current_corridor)
             raw_target = steer_target
             deformed = self._sign_router.deform_waypoint(
                 waypoint=steer_target,
@@ -1104,6 +1164,33 @@ class CoreNavigator(EscapeRecovery):
 
         # Determine speed
         if forward_clearance < self._clearance.CONTACT_DIST:
+            # Creeping FORWARD at contact is how the chassis ends up leaning on
+            # what it was avoiding. Measured on run_20260906_121254: forward
+            # clearance 0.023-0.037 m, risk CRITICAL, and the commanded speed
+            # stayed +0.152 m/s for ten seconds against a green pillar until the
+            # operator intervened. Nothing in this path ever reverses.
+            #
+            # So contact backs OFF, for a bounded run of ticks, then hands the
+            # tick back to normal driving. Bounded rather than "reverse until
+            # clear" for the same reason the bay exit's recovery is: the reading
+            # that would end it is the one that just went unreliable.
+            # `_contact_reverse_cooldown` stops the pair from oscillating
+            # against the same pillar -- back off once, then drive, and only
+            # re-arm after the chassis has actually been clear again.
+            # Gated on the TRAIL, not on a rear sensor this mount does not
+            # have. Ungated, the leg is centred and blind and backs into
+            # whatever is behind: measured on the 256 corpus, it took stalls
+            # 26 -> 15 and wall collisions 4 -> 10, for a flat headline. The
+            # trail is a record of where the footprint has actually BEEN, so
+            # reversing over it needs no rear vision -- the same gate the
+            # stuck-escape reverse already uses, and an empty trail refuses.
+            reverse_m = self._speed.creep_mps() * self._clearance.CONTACT_REVERSE_TICKS / self._tuning.control.CONTROL_HZ
+            if (
+                self._contact_reverse_left <= 0
+                and self._contact_reverse_cooldown <= 0
+                and self._trail_confirms_reverse(reverse_m)
+            ):
+                self._contact_reverse_left = self._clearance.CONTACT_REVERSE_TICKS
             speed = self._speed.creep_mps()
         elif forward_clearance < self._clearance.SLOW_DIST:
             speed = self._speed.slow_mps()
@@ -1111,6 +1198,22 @@ class CoreNavigator(EscapeRecovery):
             speed = self._speed.medium_mps()
         else:
             speed = self._speed.fast_mps()
+
+        # Clear of contact: the cooldown only counts down out here, so a chassis
+        # still against the obstacle cannot time its way back to a second
+        # reverse without having been clear in between.
+        if forward_clearance >= self._clearance.CONTACT_DIST:
+            self._contact_reverse_cooldown = max(0, self._contact_reverse_cooldown - 1)
+
+        # Spend the backing-off run. Steering is centred: the point of the leg
+        # is ROOM, and a steered reverse swings the tail into whatever the
+        # chassis has not yet seen.
+        if self._contact_reverse_left > 0:
+            self._contact_reverse_left -= 1
+            if self._contact_reverse_left == 0:
+                self._contact_reverse_cooldown = self._clearance.CONTACT_REVERSE_COOLDOWN_TICKS
+            speed = -self._speed.creep_mps()
+
         # Captured before the heading limiter, the envelope clamp and the risk
         # cap all fold into `speed`. Reporting the post-min value under this
         # name made the two debug fields satisfy final <= heading_speed by
@@ -1319,6 +1422,12 @@ class CoreNavigator(EscapeRecovery):
         # contact range, too late for any steering command to matter, which is
         # why a risk-gated version of this measured flat. The router already
         # knows where the sign is, so predict the clip instead.
+        # Align to an unclassified pillar BEFORE the router commits to one --
+        # see _lidar_align_steer for why the two cannot both act.
+        align = self._lidar_align_steer(scan)
+        if align is not None:
+            steering_normalized = max(-1.0, min(1.0, steering_normalized + align))
+
         if self._tuning.sign_router.SIGN_CONTACT_EVADE and self._sign_router is not None:
             evade = self._sign_evade_steer(robot_x, robot_y, robot_yaw)
             if evade is not None:
@@ -1414,6 +1523,10 @@ class CoreNavigator(EscapeRecovery):
         ):
             self._escape_count = 0
             self._escape_sequence_start_xy = None
+        if speed < 0.0:
+            # Centred while backing off: a steered reverse swings the tail into
+            # ground the chassis has not seen, and the leg exists to buy room.
+            steering_normalized = 0.0
         self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))
         debug.phase = NavigatorPhase.NORMAL_DRIVE
         debug.commanded_speed_mps = speed

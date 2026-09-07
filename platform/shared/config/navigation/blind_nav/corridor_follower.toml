@@ -300,7 +300,21 @@ bay_exit_max_frames = 900
 # NOTHING, which is the same wall closer than MIN_VALID_RANGE_M -- backs the
 # chassis straight off before any leg logic runs.
 bay_exit_contact_dist_m = 0.08
-bay_exit_contact_recovery_ticks = 12
+# SHIPS DISABLED (0). The recovery returns its reverse BEFORE the clearance
+# guard, so it reverses blind into a fin. Measured on diag_bay_start --corpus
+# --limit 32, ticks 12 -> 0:
+#
+#                     12       0
+#   distance median   0.06m   23.52m
+#   laps>=1           0       22
+#   collided          32      2
+#   fins TOUCHED      32/32   0/32
+#
+# Touching a parking-lot limitation voids ALL parking points, so this was
+# expensive as well as immobilising. Re-enabling it requires routing the
+# reverse through the same fin-gap prediction _guarded_command uses, not
+# around it.
+bay_exit_contact_recovery_ticks = 0
 # Rotation from the placement heading at which the exit has turned enough to
 # leave. In the pocket this is the ONLY signal that works -- the wall sits
 # inside the LIDAR's minimum range, so forward clearance reports nothing.

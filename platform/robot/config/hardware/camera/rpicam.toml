@@ -17,6 +17,51 @@ camera_vflip = false
 camera_read_timeout_sec = 5.0
 # Seconds to wait for a complete frame before reporting the stream dead.
 
+# Focus. The Module 3 Wide's autofocus hunts continuously while the robot is
+# driving and only settles once it stops, which reads as a blurred frame for
+# most of a run. MANUAL parks the voice coil at a fixed dioptre instead.
+#
+# 0.8 D is ~1.25 m, the lens's hyperfocal distance (f=2.75mm, f/2.2, 1.4um
+# pixels, 2px circle of confusion): sharp from ~0.6 m to infinity, which
+# spans the whole useful sign-detection range. Bench-verify before racing --
+# the theoretical hyperfocal assumes this module's dioptre scale is calibrated.
+camera_af_mode = "manual"              # "manual" | "auto" | "continuous"
+camera_lens_position = 0.8             # dioptres (1/distance_m); required when af_mode is manual
+# camera_af_speed = "fast"             # "normal" | "fast" -- only applies in auto/continuous
+
+# Colour and noise. These reach the Hailo detector, so the shipped values are
+# the ones that leave today's image UNCHANGED (they match rpicam-vid's own
+# defaults) -- the keys exist so the settings stop being unreachable, not to
+# move the vision baseline behind your back.
+#
+# The intended race setting is camera_awb_mode = "fluorescent": red/green sign
+# classification is threshold-based, and auto AWB re-tints the frame as the
+# framing changes. Flip it only after re-checking those thresholds against
+# venue footage -- a wrong fixed preset is worse than "auto".
+camera_awb_mode = "auto"               # "auto" | "tungsten" | "fluorescent" | "indoor" | "daylight" | "cloudy"
+camera_noise_reduction_mode = "auto"   # "auto" | "off" | "fast" | "high_quality" | "minimal"
+camera_sharpness = 1.0                 # 1.0 is neutral; the Picamera2 profile wants 1.2, unvalidated here
+
+# Auto-exposure steering. Both are IGNORED once camera_exposure_time_us is set,
+# because that turns AE off entirely -- which is the real answer if the white
+# mat is fooling the meter. Correcting a fooled meter with +ev instead just
+# lengthens the shutter, and a long shutter is what smears signs in corners.
+camera_metering_mode = "centre"        # "centre" | "spot" | "average" | "custom"
+# "spot" is tempting when the mat dominates, but it meters the frame CENTRE and
+# signs are not reliably centred -- it often ends up metering bare mat.
+camera_exposure_value = 0.0            # stops of compensation; positive lifts an under-exposed frame
+
+# Mains flicker. Venue lighting pulses at twice the mains frequency, so this
+# only bites once the shutter is short. 10000 = 10 ms for 50 Hz mains,
+# 8333 for 60 Hz. Leave unset outdoors.
+# camera_flicker_period_us = 10000
+
+# Fixed white balance, as red,blue gains. This is the precise alternative to
+# picking a named camera_awb_mode preset: read what auto AWB settles on under
+# venue lighting, then pin exactly that. Setting it OVERRIDES camera_awb_mode
+# (the two together are rejected at load).
+# camera_awb_gains = [1.8, 1.6]
+
 camera_exposure_mode = "short"       # "normal" | "short" | "long" -- venue is well-lit, bias toward less motion blur
 # camera_exposure_time_us = 8000     # set together with camera_analogue_gain to disable AE entirely
 camera_analogue_gain = 1.0

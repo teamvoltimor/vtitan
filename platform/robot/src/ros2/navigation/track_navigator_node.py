@@ -340,6 +340,12 @@ class TrackNavigator(Node, ResettableNode):
         self._bay_start_checked = False
         self._exiting_bay = False
         self._bay_exit = BayExit()
+        # Whether `_commit_direction` has actually run for the settled
+        # direction. The estimator being settled is NOT the same thing: the bay
+        # geometry settles it on the first tick and the manoeuvre then owns
+        # every tick until it releases, so without this the settled answer is
+        # never adopted and the round drives on its provisional direction.
+        self._direction_committed = False
         # Ticks the manoeuvre has run, against BAY_EXIT_MAX_FRAMES. The
         # simulator has always carried this budget and this node never did, so
         # `is_clear` was the ONLY release here -- survivable while a no-return
@@ -366,6 +372,13 @@ class TrackNavigator(Node, ResettableNode):
             stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
             localization=tuning.localization,
         )
+        # The parking lot sits in the corridor the robot started in, and that is
+        # what lets the detection shape gate stop rejecting wide RED boxes in
+        # corridors where no barrier can be. See detection_to_observation.
+        # MUST follow the gateway's construction -- it was set at the
+        # `_start_section` assignment above until 2026-09-06, which runs ~90
+        # lines earlier and crashed the node on startup with AttributeError.
+        self._gateway.set_parking_corridor(start_section)
         waypoints = self._plan(self._believed_geometry())
 
         self._core_navigator = self._build_core_navigator(
@@ -761,11 +774,23 @@ class TrackNavigator(Node, ResettableNode):
         # wall sits inside MIN_VALID_RANGE_M and the forward arc reports nothing
         # -- so it releases late, or on a reading taken mid-rotation. Yaw is
         # measurable throughout and says when the turn is done.
+        #
+        # Both, not either. Rotation alone released run_20260906_145909 at just
+        # -19.9 deg on a clearance reading taken mid-turn, and normal driving
+        # then took forward clearance 0.54 m -> 0.08 m into the outer wall.
+        # Clearance alone is the reading the pocket cannot give. Together they
+        # say "turned out AND something to drive into open space toward".
+        #
+        # The exception is the FIRST tick, which is how a parallel start leaves:
+        # ASSUME_BAY_START believes the placement rather than proving it, and a
+        # parallel start is exactly one that already has forward clearance. It
+        # must not be made to ratchet 70 deg to discover it was never in a
+        # pocket -- see the ASSUME_BAY_START branch above, which relies on this.
         turned_out = self._bay_exit.rotation_complete(self._tuning)
+        way_out_clear = BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
+        never_started = self._bay_exit_ticks <= 1
         if self._exiting_bay and (
-            bay_exit_spent
-            or turned_out
-            or BayExit.is_clear(scan.ranges_m, scan.angles_rad, self._tuning)
+            bay_exit_spent or (way_out_clear and (turned_out or never_started))
         ):
             if turned_out:
                 logger.info(
@@ -834,6 +859,26 @@ class TrackNavigator(Node, ResettableNode):
         # the pocket (skipping it drove back into a marker, 0.24-0.30 m).
         if estimator is None:
             return self._commit_told_direction() if self._pending_known_commit else False
+        # A settled estimator whose answer was never ADOPTED. The bay geometry
+        # settles it on the very first tick -- open side left is
+        # counterclockwise, right is clockwise, and the lot's opening always
+        # faces the inner block, so it is readable before the robot moves. But
+        # the exit manoeuvre then owns every tick until it releases, and
+        # `already_settled` was computed at the top of this method, so the
+        # settle block below is never reached and `_commit_direction` never
+        # runs. Measured on run_20260906_163244 and _163533: the estimator
+        # recorded ZERO vote ticks and the round drove on the provisional
+        # CLOCKWISE both times -- including out of a bay whose open side was the
+        # LEFT, which sent it at the corner.
+        #
+        # The direction is travel-relative, so getting it wrong also inverts the
+        # pass-side rule for every sign in the round.
+        if estimator.is_settled and not self._direction_committed:
+            inferred = estimator.direction
+            if inferred is not None:
+                logger.info("adopting the direction the bay geometry named: %s", inferred.value)
+                self._commit_direction(inferred, pose, scan)
+            return False
         if already_settled:
             return False
 
@@ -949,6 +994,7 @@ class TrackNavigator(Node, ResettableNode):
             scan: The scan inference settled on, reused to measure where the
                 robot actually is rather than assume it.
         """
+        self._direction_committed = True
         previous = self._direction
         changed = inferred is not previous
         self._direction = inferred
@@ -1428,6 +1474,7 @@ class TrackNavigator(Node, ResettableNode):
         self._exiting_bay = False
         self._bay_exit_ticks = 0
         self._bay_exit = BayExit()
+        self._direction_committed = False
 
         # A blind round may be running a different challenge than the last one
         # -- the operator can move the jumper and long-press reset between

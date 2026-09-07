@@ -21,9 +21,13 @@ camera_vflip = false
 # not natural/daylight. Re-tune camera_awb_mode (and re-check the red/green
 # sign colour thresholds downstream) if testing near windows or outdoors --
 # daylight/cloudy colour temperature is not what these values assume.
-camera_af_mode = "continuous"          # "manual" | "auto" | "continuous"
-# camera_lens_position = 2.0           # dioptres (1/distance_m); switch af_mode to "manual" once bench-tested
-camera_af_speed = "fast"               # "normal" | "fast" -- shortens AF hunting/settle time while in auto/continuous
+camera_af_mode = "manual"              # "manual" | "auto" | "continuous"
+camera_lens_position = 0.8             # dioptres (1/distance_m) -- ~1.25 m, the lens's hyperfocal
+# Continuous AF hunts for the whole run and only settles when the robot stops.
+# 0.8 D (f=2.75mm, f/2.2, 1.4um pixels, 2px CoC) is sharp from ~0.6 m to
+# infinity, spanning the useful sign-detection range. Bench-verify the dioptre
+# scale on this module before racing.
+# camera_af_speed = "fast"             # "normal" | "fast" -- only applies in auto/continuous
 
 camera_ae_exposure_mode = "short"      # "normal" | "short" | "long" -- venue is well-lit, bias toward less motion blur
 # camera_exposure_time_us = 8000       # set together with camera_analogue_gain to disable AE entirely
