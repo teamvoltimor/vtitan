@@ -71,7 +71,7 @@ Actualmente, este equipo está conformado por 3 miembros:
 
 - **Ramón Álvarez**, 20 años. [ralvarezdev](https://github.com/ralvarezdev). Ejerce como líder del equipo y es el encargado de la programación. Actualmente, trabaja en Automation Labs, y finalizó sus estudios en Ingeniería en Computación en URU.
 - **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado tanto de la programación, como de la documentación y la toma de decisiones con respecto a la lógica del robot. Actualmente, cursa el 1er trimestre de Ingeniería en Computación en URU.
-- **Jesús Pérez**, 16 años. [JesusPerez15](https://https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
+- **Jesús Pérez**, 16 años. [JesusPerez15](https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
 
 ## Estructura de la documentación
 
@@ -89,9 +89,73 @@ Ahora bien, la estructura de los archivos es la siguiente:
 
 - En la carpeta `v-photos` están las fotos de V-Titan.
 
+## Arranque rápido y reproducibilidad
+
+Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el despliegue al robot y la operación en pista, está automatizado con [Task](https://taskfile.dev) (Taskfile) y [Pixi](https://pixi.sh) / [uv](https://docs.astral.sh/uv/). Los comandos principales son `task`, y cada uno admite `task --list` para descubrirlos. Nada de lo que hacemos depende de pasos manuales no documentados: otra persona puede clonar el repositorio y llegar del código al robot con estos comandos.
+
+### Requisitos previos (una sola vez)
+
+- [Task](https://taskfile.dev) (`go install github.com/go-task/task/v3/cmd/task@latest` o el instalador de la página)
+- [Pixi](https://pixi.sh) (gestiona los entornos de Python + ROS2 en el robot y la simulación)
+- [Go](https://go.dev) 1.25+ (backend de telemetría, generador de escenarios y binarios del robot)
+- Node.js 22+ (dashboard de telemetría)
+
+### Desarrollo y simulación (en el computador de desarrollo)
+
+```bash
+task platform:install          # Dependencias de simulación, robot y backend Go
+task platform:init:dev         # Setup completo: install + lint
+
+# Generar la pista y el corpus de escenarios (semilla fija → resultados repetibles)
+task platform:gen:corpus:all   # 640 escenarios Open + 256 Obstacles, seed 2026
+
+# Visualizar una carrera cerrada en RViz (simulador del navegador)
+task platform:sim:navigate:visualize:all -- --challenge open --interactive
+
+# Pruebas: todas, o por subsistema
+task platform:test             # Python + Go, todos los módulos
+task platform:robot:test SCOPE=navigation
+task platform:robot:test SCOPE=unit
+```
+
+### Despliegue al robot (desde el computador, por SSH)
+
+```bash
+task platform:robot:deploy         # Código + detector HEF → rebuild colcon → restart del servicio
+task platform:robot:watch-vision   # Detecciones en vivo, una línea por frame
+task platform:robot:pull-runs      # Descargar los bags MCAP de las carreras
+```
+
+### Operación en pista (directamente en la Raspberry Pi 5, vía SSH)
+
+```bash
+task rpi:stack ACTION=up           # Levantar la pila de servicios en orden correcto
+task rpi:stack ACTION=status       # Estado de la pila
+task rpi:stack ACTION=logs         # Últimos logs de todos los servicios
+task rpi:health                    # Snapshot de salud: temperatura, throttle, disco, RAM
+task robot:calibrate-encoder       # Calibración de pulsos/vuelta contra distancia medida
+task robot:test-motors             # Smoke test de hardware: rango de servo + pulso de motor
+```
+
+### Provisionado desde cero (instalar el sistema en las Raspberry Pi)
+
+```bash
+task windows:provision:pi5         # Provisionar la Pi 5 con Ansible (tags opcionales)
+task rpi:provision:all             # Ambas placas, en tmux, tras reflashear la SD
+task rpi:ansible:check TARGET=pi5  # Dry-run + diff del provisionador
+```
+
+### Documentación
+
+```bash
+task docs:diagrams                 # Re-renderizar todos los diagramas Mermaid a WebP
+cd docs/schemes/wiring/tscircuit && npm run artifacts   # Regenerar el esquemático del arnés
+```
+
 ## Índice
 
-1. **[Historial del equipo](README.md#historial-del-equipo)**
+1. **[Arranque rápido y reproducibilidad](README.md#arranque-rápido-y-reproducibilidad)**
+2. **[Historial del equipo](README.md#historial-del-equipo)**
     1. [Klevor (WRO 2025)](README.md#klevor-wro-2025)
         1. [Klevor v0.1](development/previous-prototypes/klevor-v0.1.md)
         2. [Klevor v0.1.1](development/previous-prototypes/klevor-v0.1.1.md)
@@ -535,7 +599,7 @@ El Mini-560 Pro es el regulador que alimenta el riel propio del servo de direcci
 	<i>Step Down XLC4016 — el regulador anterior, descartado por peso</i>
 </p>
 
-**También es un reemplazo, y aquí el criterio fue el peso.** El regulador original era un XLC4016, un módulo notablemente más grande y pesado. El peso fue un problema recurrente en nuestros prototipos —llegamos a estar 200 gramos por encima del límite— así que revisamos la lista de componentes buscando piezas que estuvieran sobredimensionadas para su función. El regulador del servo era una de ellas: la corriente que realmente necesita esa rama es muy inferior a lo que el XLC4016 podía entregar, de modo que estábamos pagando peso por una capacidad que nunca íbamos a usar.
+**También es un reemplazo, y aquí el criterio fue el peso.** El regulador original era un XLC4016, un módulo notablemente más grande y pesado. El peso fue un problema recurrente en nuestros prototipos (llegamos a estar 200 gramos por encima del límite), así que revisamos la lista de componentes buscando piezas que estuvieran sobredimensionadas para su función. El regulador del servo era una de ellas: la corriente que realmente necesita esa rama es muy inferior a lo que el XLC4016 podía entregar, de modo que estábamos pagando peso por una capacidad que nunca íbamos a usar.
 
 El Mini-560 Pro cubre la demanda real del servo en un encapsulado mucho más compacto. La diferencia medida es de **24 g a 5 g: 19 gramos menos, casi un 80% del peso del módulo anterior**, por una capacidad que la rama del servo no necesitaba.
 
@@ -545,7 +609,7 @@ El Mini-560 Pro cubre la demanda real del servo en un encapsulado mucho más com
 | Mini-560 Pro (actual) | 5 g |
 | **Diferencia** | **-19 g** |
 
-Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el punto: **el peso no se recupera de un solo golpe, sino sumando decisiones pequeñas**. Llegamos a estar 200 g por encima del límite, y ninguna pieza individual explicaba esos 200 g. Salir de ahí consistió en repetir este mismo ejercicio pieza por pieza —¿cuánta capacidad usa realmente esta rama, y cuánto peso estamos pagando por la que sobra?—. Es el mismo razonamiento que aplicamos en la transmisión y en el chasis: **dimensionar cada pieza contra la carga medida, no contra el peor caso imaginable.**
+Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el punto: **el peso no se recupera de un solo golpe, sino sumando decisiones pequeñas**. Llegamos a estar 200 g por encima del límite, y ninguna pieza individual explicaba esos 200 g. Salir de ahí consistió en repetir este mismo ejercicio pieza por pieza (¿cuánta capacidad usa realmente esta rama, y cuánto peso estamos pagando por la que sobra?). Es el mismo razonamiento que aplicamos en la transmisión y en el chasis: **dimensionar cada pieza contra la carga medida, no contra el peor caso imaginable.**
 
 ### SSD1306 OLED Display
 
@@ -595,9 +659,9 @@ Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se comitean e
 | Puente H BTS7960 / IBT-2          |      1       | 5V / 6-27V  | ~0.007A (Lógica)       | ~10.00A (tracción)    | ~20.00A (picos)    |
 | **TOTAL**                         |    **8**     | **3.3V-5V** | **~0.980A**            | **~13.82A - 15.67A**  | **~30.93A**        |
 
-> **Nota sobre la rama de tracción.** El salto respecto de la tabla anterior no es un cambio de consumo del robot, sino una corrección: el puente anterior figuraba con «según motor» en la columna nominal, de modo que la corriente de tracción —que es la mayor del sistema con diferencia— nunca entraba en el total. Los ~10 A nominales y ~20 A de pico son la rama del motor medida al 50% del ciclo de trabajo, y son exactamente el motivo por el que el L298N de 2 A por canal tuvo que ser reemplazado. El valor de 43 A del BTS7960 es la clasificación de la pieza, no un consumo: no se suma aquí.
+> **Nota sobre la rama de tracción.** El salto respecto de la tabla anterior no es un cambio de consumo del robot, sino una corrección: el puente anterior figuraba con «según motor» en la columna nominal, de modo que la corriente de tracción, que es la mayor del sistema con diferencia, nunca entraba en el total. Los ~10 A nominales y ~20 A de pico son la rama del motor medida al 50% del ciclo de trabajo, y son exactamente el motivo por el que el L298N de 2 A por canal tuvo que ser reemplazado. El valor de 43 A del BTS7960 es la clasificación de la pieza, no un consumo: no se suma aquí.
 >
-> Estas tres ramas —computador, servo y tracción— cuelgan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
+> Estas tres ramas (computador, servo y tracción) cuelgan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
 
 # Movilidad y Diseño Mecánico
 
@@ -795,7 +859,7 @@ En este apartado, describimos las estrategias que empleamos en pista para poder 
 
 V-Titan no corre sobre un solo computador, sino sobre dos, y el reparto no es por comodidad: es la decisión de arquitectura que sostiene todo lo demás.
 
-La **Raspberry Pi 5** se encarga de percepción y planificación —LIDAR, cámara, inferencia en el AI HAT+, decidir hacia dónde ir— y la **Raspberry Pi Zero 2 W** se encarga exclusivamente del control en tiempo real del motor y del servo. El motivo es que esas dos cargas tienen exigencias temporales incompatibles. La inferencia de visión es pesada y su tiempo de respuesta varía; el lazo de control del motor tiene que ejecutarse a ritmo constante o el robot se vuelve inestable. Si ambas cosas compiten por el mismo procesador, un fotograma lento se traduce en una corrección de dirección tardía. Separándolas, **ningún retraso de visión puede detener el lazo de control**.
+La **Raspberry Pi 5** se encarga de percepción y planificación (LIDAR, cámara, inferencia en el AI HAT+, decidir hacia dónde ir), y la **Raspberry Pi Zero 2 W** se encarga exclusivamente del control en tiempo real del motor y del servo. El motivo es que esas dos cargas tienen exigencias temporales incompatibles. La inferencia de visión es pesada y su tiempo de respuesta varía; el lazo de control del motor tiene que ejecutarse a ritmo constante o el robot se vuelve inestable. Si ambas cosas compiten por el mismo procesador, un fotograma lento se traduce en una corrección de dirección tardía. Separándolas, **ningún retraso de visión puede detener el lazo de control**.
 
 El software está organizado en cinco paquetes ROS2:
 
@@ -837,7 +901,7 @@ Lo interesante no es la comparación, sino todo lo que hay que descartar antes d
 
 1. **El chasis está alineado con el pasillo** (error menor a 25°). De lado, los rayos laterales cortan en diagonal y miden de más.
 2. **Ningún rayo supera los 4.5 m.** En una pista de 3 m eso no puede ser una pared. Importa porque **un fallo de lectura del LIDAR se sustituye por el rango máximo**, que es exactamente la señal de «este lado está despejado» que el módulo busca: sin este filtro, un sensor mudo parece un pasillo abierto.
-3. **La suma de ambos lados supera 1.25 m.** La decisión se toma sobre la *suma*, no sobre cada rayo por separado, y este es el punto fino: dos paredes suman el ancho del pasillo sin importar dónde esté el robot entre ellas, así que la suma solo salta cuando un lado deja de ser pared. Comparar los rayos directamente no funciona —un robot desviado hacia el bloque interior lee 0.27 m a su izquierda y 0.72 m a su derecha, y «el lado más lejano está abierto» elige la pared exterior y devuelve exactamente la respuesta contraria.
+3. **La suma de ambos lados supera 1.25 m.** La decisión se toma sobre la *suma*, no sobre cada rayo por separado, y este es el punto fino: dos paredes suman el ancho del pasillo sin importar dónde esté el robot entre ellas, así que la suma solo salta cuando un lado deja de ser pared. Comparar los rayos directamente no funciona: un robot desviado hacia el bloque interior lee 0.27 m a su izquierda y 0.72 m a su derecha, y «el lado más lejano está abierto» elige la pared exterior y devuelve exactamente la respuesta contraria.
 4. **La diferencia entre lados supera 0.20 m**, para que el ruido no cuente como evidencia.
 
 Y aun así una sola lectura no decide: hacen falta **5 votos coincidentes**. Un rayo que se cuela por la esquina de un bloque produce errores breves y agrupados, y uno de esos llegando primero no puede decidir la ronda.
@@ -941,7 +1005,7 @@ La regla que más impacto tuvo en la calidad del sistema es simple de enunciar: 
 
 Hoy son **203 constantes repartidas en 21 archivos TOML**, acompañadas de **1093 líneas de comentario**: algo más de **cinco líneas de explicación por cada valor**.
 
-No es documentación decorativa. Un número suelto en el código es imposible de auditar: nadie recuerda, tres meses después, si `0.20` se midió, se calculó o se puso a ojo. Al obligarnos a escribir la justificación junto al valor, cada constante lleva su propia historia —qué se midió, con qué método, qué pasó cuando valía otra cosa—. Un ejemplo real, del archivo que gobierna la inferencia de dirección:
+No es documentación decorativa. Un número suelto en el código es imposible de auditar: nadie recuerda, tres meses después, si `0.20` se midió, se calculó o se puso a ojo. Al obligarnos a escribir la justificación junto al valor, cada constante lleva su propia historia (qué se midió, con qué método, qué pasó cuando valía otra cosa). Un ejemplo real, del archivo que gobierna la inferencia de dirección:
 
 ```toml
 # Diferencia mínima entre izquierda y derecha para que un barrido cuente como
@@ -950,7 +1014,7 @@ No es documentación decorativa. Un número suelto en el código es imposible de
 min_asymmetry_m = 0.20
 ```
 
-Y otro, del perfil del motor actual, que muestra el caso contrario —una constante marcada explícitamente como *todavía no medida*:
+Y otro, del perfil del motor actual, que muestra el caso contrario, una constante marcada explícitamente como *todavía no medida*:
 
 ```toml
 # TODAVÍA NO MEDIDA EN BANCO. 0.234 es la velocidad medida del motor anterior
@@ -971,14 +1035,14 @@ El robot cambió de servo y de motor durante el desarrollo. Para que eso no obli
 | `generic-motor-1500rpm` | Motor de tracción de 1500 rpm |
 | `rev-hd-hex-motor-6000rpm` | Motor de tracción HD Hex de 6000 rpm (actual) |
 
-Se combinan al arrancar. Cambiar de servo es seleccionar otro perfil, no editar código —y, sobre todo, significa que **los dos servos siguen siendo probables** después del cambio: si el de 35 kg falla en competencia, volver al de 14 kg es una línea de configuración, no una tarde de reescritura.
+Se combinan al arrancar. Cambiar de servo es seleccionar otro perfil, no editar código, y, sobre todo, significa que **los dos servos siguen siendo probables** después del cambio: si el de 35 kg falla en competencia, volver al de 14 kg es una línea de configuración, no una tarde de reescritura.
 
 ## Ciclo de trabajo: idea → simulación → pista
 
 Nuestro método de trabajo se estabilizó en tres pasos, y el orden importa:
 
 1. **Formular la hipótesis antes de medir.** Escribir qué esperamos que cambie y en qué dirección, *antes* de ejecutar nada. Sin esto es demasiado fácil ejecutar, mirar el resultado y construir después una explicación que lo justifique.
-2. **Contrastar contra el corpus completo**, no contra un caso. Un cambio se evalúa sobre los 640 escenarios, y se compara siempre contra la versión inmediatamente anterior —no contra una medición vieja tomada en otras condiciones.
+2. **Contrastar contra el corpus completo**, no contra un caso. Un cambio se evalúa sobre los 640 escenarios, y se compara siempre contra la versión inmediatamente anterior, no contra una medición vieja tomada en otras condiciones.
 3. **Verificar en la pista.** El simulador orienta; no decide. Solo la pista confirma.
 
 Dos disciplinas que aprendimos por las malas:
@@ -996,7 +1060,7 @@ Los errores más costosos del proyecto no fueron de programación, sino **suposi
 | El encoder daba **60 pulsos por vuelta, no 86** | Toda medición de distancia y velocidad estaba mal por ese factor. Se descubrió midiendo con cinta métrica una distancia conocida y comparándola con lo que el robot creía haber recorrido. |
 | El «techo de 0.45 m/s» **no era un límite físico** | Era un artefacto del error anterior. Con el valor correcto, el techo real resultó ser **~0.58 m/s**. Estuvimos limitando el robot por un error de cuentas, no por el motor. |
 | Un LIDAR montado invertido necesita **espejar las lecturas, no rotarlas 180°** | Rotar deja los ángulos invertidos en un sentido que parece plausible: el robot no falla de golpe, sino que interpreta mal la pista de forma sutil. Fue de los fallos que más costó localizar. |
-| Un fallo de lectura del LIDAR **se sustituye por el rango máximo** | Es decir, un sensor mudo se lee como «lado completamente despejado» — justo la señal que usamos para decidir el sentido de la vuelta. Sin filtrarlo, el robot podía salir a dar vueltas al revés con total confianza. |
+| Un fallo de lectura del LIDAR **se sustituye por el rango máximo** | Es decir, un sensor mudo se lee como «lado completamente despejado», justo la señal que usamos para decidir el sentido de la vuelta. Sin filtrarlo, el robot podía salir a dar vueltas al revés con total confianza. |
 | El puente H **operaba diez veces por encima de su especificación** | Medir el consumo real del tren motriz (~10 A, con picos de ~20 A) contra los 2 A por canal del L298N explicó de golpe los cortes y el calentamiento. |
 | Sobredimensionar una pieza **no elimina el cuello de botella** | Al pasar a un puente de 43 A, el elemento más débil de la ruta de potencia pasó a ser el interruptor de encendido. El límite se movió de sitio; no desapareció. |
 
