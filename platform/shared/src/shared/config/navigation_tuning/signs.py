@@ -596,18 +596,14 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_SUPPRESS_DEFORM: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_SUPPRESS_DEFORM"))
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
     SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
-    SIGN_LANE_SPLIT_OVERLAP: bool = Field(
-        default=False, validation_alias=_alias("SIGN_LANE_SPLIT_OVERLAP")
-    )
+    SIGN_LANE_SPLIT_OVERLAP: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_SPLIT_OVERLAP"))
     SIGN_LANE_RELABEL_UNSATISFIABLE: bool = Field(
         default=True, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
     )
     SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR: bool = Field(
         default=True, validation_alias=_alias("SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR")
     )
-    SIGN_LANE_SKIP_UNSATISFIABLE: bool = Field(
-        default=False, validation_alias=_alias("SIGN_LANE_SKIP_UNSATISFIABLE")
-    )
+    SIGN_LANE_SKIP_UNSATISFIABLE: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_SKIP_UNSATISFIABLE"))
     SIGN_LANE_OFFSET_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("SIGN_LANE_OFFSET_FRAC"))
     SIGN_LANE_CORNER_ENTRY_M: float = Field(default=0.50, ge=0.0, validation_alias=_alias("SIGN_LANE_CORNER_ENTRY_M"))
     SIGN_DEFORM_SPEED_THRESHOLD_M: float = Field(default=0.02, validation_alias=_alias("SIGN_DEFORM_SPEED_THRESHOLD_M"))
@@ -715,9 +711,69 @@ class SignDiscoveryParams(BaseModel):
     MIN_HITS: int = Field(default=3, validation_alias=_alias("MIN_HITS"))
     MAX_PILLAR_ASPECT: float = Field(default=1.0, validation_alias=_alias("MAX_PILLAR_ASPECT"))
 
-    FRAME_EDGE_TOLERANCE_PX: float = Field(
-        default=2.0, ge=0.0, validation_alias=_alias("FRAME_EDGE_TOLERANCE_PX")
-    )
+    RANGE_SCALE: float = Field(default=1.0, gt=0.0, validation_alias=_alias("RANGE_SCALE"))
+    """Empirical correction on the pinhole range, applied to the RESULT.
+
+    **Ships at 1.0 -- the raw pinhole -- even though the pinhole is measurably
+    wrong.** That is a deliberate choice, not an untested default.
+
+    Measured on run_20260906_192424 against pillars located by LIDAR, the
+    pinhole UNDER-reads by roughly 2x: radial bias **-43.7 cm**, and all three
+    encounters agree on the direction. The defect is real.
+
+    But correcting it with a scalar makes the estimate WORSE where it matters.
+    Decomposing the error along and across the robot->sign ray:
+
+    | scale | 2D p50 | radial p50 | lateral p50 |
+    |-------|--------|------------|-------------|
+    | 1.00  | 47.7cm | 46.2 cm    | **9.8 cm**  |
+    | 1.90  | 35.0cm | 12.6 cm    | **18.6 cm** |
+
+    A residual ~12 degree bearing error survives the 2026-09-06 sign
+    correction, and it is ANGULAR -- so lengthening the ray lengthens the
+    lateral miss in proportion. **Lateral is the component the router acts on**:
+    pass side, lane assignment, and whether the estimate lands on a wall. A 2D
+    error metric hides this, because a large radial win masks a lateral loss.
+    Independently confirmed on a wall-proximity metric over the whole run:
+    estimates within 10 cm of a wall go 0% at scale 1.0 to 12% at 1.90.
+
+    So: **fix the bearing error before the range.** Until then this stays at 1.0.
+
+    The coefficient does not generalise either -- fitted per encounter it is
+    1.81 / 2.14 / 2.59, and the global least-squares fit is 2.22, from THREE
+    encounters on ONE run. When revisiting, fit the OBJECT HEIGHT (the boxes are
+    ~1.75x taller than a 0.10 m pillar subtends) rather than a multiplier, and
+    use at least three runs spread over the mat. An affine fit was tried and
+    rejected: it buys 0.8 cm of rms for a second free parameter.
+
+    **The lens is not the problem.** Focal solved from BEARINGS is 545-645 px,
+    consistent with the shipped 621.9. Focal solved from BBOX HEIGHTS is
+    1034-1088 px.
+    """
+
+    LIDAR_RANGE_FUSION: bool = Field(default=False, validation_alias=_alias("LIDAR_RANGE_FUSION"))
+    """Take the sign's range from the LIDAR ray at the camera's bearing.
+
+    **Shipped ON until 2026-09-06 and measured to make the estimate WORSE.**
+
+    A single ray at the camera's bearing is not the pillar. On
+    run_20260906_192424 the return at that bearing is wall-shaped (implied
+    chord > 30 cm) on **51%** of detections and pillar-shaped on **27%**,
+    median implied chord **34 cm** against a 5 cm sign. The override fired on
+    **92.5%** of detections -- the gate is ``0.05 < r < 10.0``, which is no gate
+    at all -- and cost 5 cm of median position error under the old bearing and
+    28 cm under the corrected one. A wall behind a sign is always FURTHER, so
+    this was the second half of the outward bias that pinned believed signs to
+    the walls. Even restricted to pillar-shaped returns, range error is p50
+    **-69 cm** with only 16% inside 10 cm.
+
+    Kept because the idea is sound and the implementation is what failed. A
+    version requiring a small ISOLATED cluster and agreement with the calibrated
+    pinhole is worth measuring -- but cluster shape alone discriminated pillar
+    from wall at **54%**, near chance, so it needs its own evidence first.
+    """
+
+    FRAME_EDGE_TOLERANCE_PX: float = Field(default=2.0, ge=0.0, validation_alias=_alias("FRAME_EDGE_TOLERANCE_PX"))
     """How close to the frame border a box edge must be to count as CLIPPED.
 
     A clipped box's aspect ratio is not a measurement of the object's shape, so

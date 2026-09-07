@@ -21,3 +21,25 @@ max_pillar_aspect = 1.0
 # were clipped (run_20260906_145546 / _145909).
 frame_edge_tolerance_px = 2.0
 
+
+# Empirical correction on the PINHOLE RANGE, applied to the result. 1.0 = the
+# raw pinhole, which is what SHIPS -- deliberately, even though the pinhole is
+# measurably wrong. On run_20260906_192424 it UNDER-reads by ~2x (radial bias
+# -43.7 cm), but correcting that with a scalar DOUBLES the lateral error
+# (9.8 -> 18.6 cm p50, p90 28 -> 53 cm) because the residual ~12 deg bearing
+# error is ANGULAR: a longer ray lengthens the lateral miss proportionally.
+# Lateral is the component the router acts on -- pass side, lane, and whether
+# the estimate lands on a wall. Fix the bearing error first.
+# The coefficient is also unstable: 1.81 / 2.14 / 2.59 fitted per encounter,
+# 2.22 globally, from THREE encounters on ONE run. Revisit with >=3 runs spread
+# over the mat, and fit the object height rather than a magic multiplier.
+range_scale = 1.0
+# Take the sign's range from the LIDAR ray at the camera's bearing. Shipped TRUE
+# until 2026-09-06 and measured to make the estimate WORSE: at the camera's
+# bearing the return is wall-shaped 51% of the time and pillar-shaped 27%,
+# median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of
+# detections (the gate is 0.05 < r < 10.0, i.e. no gate) and a wall behind a
+# sign is always FURTHER, so it was half the outward bias that pinned believed
+# signs to the walls. Costs 28 cm of median position error with the corrected
+# bearing.
+lidar_range_fusion = false

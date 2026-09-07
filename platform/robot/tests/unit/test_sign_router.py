@@ -21,6 +21,7 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
 from shared.domain.models import BBox, Detection, SignColor, TrafficSignObservation, Waypoint
 
+from src.config.tuning_helpers import get_tuning, tuning_with_overrides
 from src.navigation.planning.sign_discovery import (
     _CAMERA_FOCAL_PX,
     _detection_to_world,
@@ -780,9 +781,7 @@ class TestDepthPinCornerGuard:
         robot_depth = depth_max + 0.05  # past the buffered corner window
         lateral_y = TrackDimensions.CORNER_MIN - 0.05
         sign = _sign_at(sign_depth, lateral_y, "red")
-        tuning = replace(
-            _TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_CORNER_GUARD": False})
-        )
+        tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_CORNER_GUARD": False}))
 
         result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
@@ -882,9 +881,7 @@ class TestDepthPinHeadingGuard:
         waypoint_depth = depth_max - 0.05
         lateral_y = TrackDimensions.CORNER_MIN - 0.05
         sign = _sign_at(sign_depth, lateral_y, "red")
-        tuning = replace(
-            _TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_HEADING_GUARD": False})
-        )
+        tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_HEADING_GUARD": False}))
 
         result_x, _ = apply_deformation(
             (waypoint_depth, lateral_y),
@@ -915,9 +912,20 @@ def _detection_at_distance_bearing(
     color: str = "red",
     confidence: float = 0.9,
 ) -> Detection:
-    """Build a Detection whose bbox pinhole-decodes to the given distance/bearing."""
-    pixel_height = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / distance
-    cx = (theta_h / RobotSpecs.CAMERA_HFOV + 0.5) * RobotSpecs.CAMERA_WIDTH
+    """Build a Detection whose bbox pinhole-decodes to the given distance/bearing.
+
+    Inverts `_detection_to_world`, so it moves with it -- including the 2026-09-06
+    bearing-sign correction (`theta_h` is now POSITIVE TO THE LEFT, so a positive
+    bearing is a box LEFT of centre) and `RANGE_SCALE`. That is exactly why this
+    helper cannot be the only cover for either: a test built by inverting the
+    formula agrees with the formula whatever it says, which is how a mirrored
+    bearing survived in-tree. See
+    `test_a_box_left_of_centre_is_a_sign_on_the_robots_left`, which states the
+    convention from geometry instead of inheriting it.
+    """
+    scale = get_tuning(None).sign_discovery.RANGE_SCALE
+    pixel_height = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT * scale) / distance
+    cx = (0.5 - theta_h / RobotSpecs.CAMERA_HFOV) * RobotSpecs.CAMERA_WIDTH
     cy = RobotSpecs.CAMERA_HEIGHT / 2
     half = pixel_height / 2
     box = BBox(cx - half, cy - half, cx + half, cy + half)
@@ -1026,9 +1034,34 @@ def _single_ray_scan(theta_h: float, range_m: float, filler_range_m: float = 3.0
 
 class TestDetectionToWorldLidarFusion:
     """The camera alone gives bearing + colour; LIDAR range at that bearing
-    is trusted over the pinhole (bbox-height) distance estimate whenever the
-    ray is a plausible return -- see ``_detection_to_world``'s docstring.
+    was trusted over the pinhole (bbox-height) distance estimate whenever the
+    ray was a plausible return.
+
+    **Shipped ON until 2026-09-06 and now OFF by default**, because a single ray
+    at the camera's bearing is not the pillar: on run_20260906_192424 the return
+    there is wall-shaped 51% of the time and pillar-shaped 27%, and the override
+    fired on 92.5% of detections while costing 28 cm of median position error.
+    See ``SignDiscoveryParams.LIDAR_RANGE_FUSION``.
+
+    The mechanism is kept, so these still pin it -- with the flag ON explicitly,
+    rather than inherited, so they keep testing the code and not the default.
     """
+
+    def test_the_shipped_default_does_not_override_the_pinhole(self, router_config):
+        """The default must be measurable from the test, not assumed."""
+        distance, theta_h = 0.9, 0.15
+        det = _detection_at_distance_bearing(distance, theta_h)
+        ranges, angles = _single_ray_scan(theta_h, 0.6)
+
+        world = _detection_to_world(
+            det,
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            lidar_ranges_m=ranges,
+            lidar_angles_rad=angles,
+        )
+
+        assert world == pytest.approx(_expected_world(distance, theta_h), abs=1e-6)
 
     def test_lidar_range_preferred_over_wrong_pinhole_distance(self, router_config):
         true_distance, theta_h = 0.6, 0.15
@@ -1039,7 +1072,12 @@ class TestDetectionToWorldLidarFusion:
         ranges, angles = _single_ray_scan(theta_h, true_distance)
 
         world = _detection_to_world(
-            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
+            det,
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            lidar_ranges_m=ranges,
+            lidar_angles_rad=angles,
+            tuning=tuning_with_overrides({"LIDAR_RANGE_FUSION": True}, group="sign_discovery"),
         )
 
         expected = _expected_world(true_distance, theta_h)
@@ -1051,7 +1089,11 @@ class TestDetectionToWorldLidarFusion:
         ranges, angles = _single_ray_scan(theta_h, RobotSpecs.CAMERA_FAR_CLIP + 1.0)
 
         world = _detection_to_world(
-            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
+            det,
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            lidar_ranges_m=ranges,
+            lidar_angles_rad=angles,
         )
 
         expected = _expected_world(distance, theta_h)
@@ -1064,7 +1106,11 @@ class TestDetectionToWorldLidarFusion:
         ranges, angles = _single_ray_scan(theta_h, tiny)
 
         world = _detection_to_world(
-            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
+            det,
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            lidar_ranges_m=ranges,
+            lidar_angles_rad=angles,
         )
 
         expected = _expected_world(distance, theta_h)
@@ -1074,7 +1120,9 @@ class TestDetectionToWorldLidarFusion:
         distance, theta_h = 0.6, 0.15
         det = _detection_at_distance_bearing(distance, theta_h)
 
-        world = _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=None, lidar_angles_rad=None)
+        world = _detection_to_world(
+            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=None, lidar_angles_rad=None
+        )
 
         expected = _expected_world(distance, theta_h)
         assert world == pytest.approx(expected, abs=1e-6)

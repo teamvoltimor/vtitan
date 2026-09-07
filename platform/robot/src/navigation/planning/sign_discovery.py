@@ -138,13 +138,7 @@ def detection_to_observation(
     # 72% of the time -- the start, in and around the bay -- exactly where the
     # magenta barrier detections sit (67%), while pillar-shaped reds spread
     # across the driving corridors (south 62-73%, west 11-24%).
-    if (
-        barrier_possible
-        and max_aspect > 0.0
-        and not clipped
-        and height_px > 0
-        and width_px / height_px > max_aspect
-    ):
+    if barrier_possible and max_aspect > 0.0 and not clipped and height_px > 0 and width_px / height_px > max_aspect:
         return None
     world = _detection_to_world(
         det,
@@ -213,14 +207,53 @@ def _detection_to_world(
     if pixel_height < tuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX:
         return None
 
-    # Estimate distance using pinhole model: d = (f * real_h) / pixel_h
-    distance = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / pixel_height
+    # Estimate distance using pinhole model: d = (f * real_h) / pixel_h.
+    #
+    # RANGE_SCALE ships at 1.0, so this is the raw pinhole -- deliberately,
+    # even though it UNDER-reads by ~2x. Correcting the range with a scalar
+    # DOUBLES the lateral error, because the residual ~12 deg bearing error is
+    # angular and a longer ray lengthens the lateral miss in proportion. Lateral
+    # is what the router acts on. See RANGE_SCALE's docstring; fix the bearing
+    # error first.
+    distance = _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / pixel_height * tuning.sign_discovery.RANGE_SCALE
 
-    # Horizontal angle from image centre.
+    # Horizontal angle from image centre, POSITIVE TO THE LEFT to match the
+    # robot frame (`LidarScan`: 0 = forward, +pi/2 = left, CCW positive).
+    #
+    # This was `(cx / W - 0.5) * HFOV` until 2026-09-06, which is positive for a
+    # box on the RIGHT of the image -- the robot's right, i.e. a NEGATIVE CCW
+    # bearing. Every sign was therefore reflected across the robot's heading
+    # axis, which in a 1 m corridor lands it on the far wall. Nothing in-tree
+    # could catch it: `vision_emulator` reproduces the true geometry directly
+    # and the router's unit tests BUILD `cx` from this same formula, so both
+    # were self-consistent with the error.
+    #
+    # Measured on run_20260906_192424 by predicting the box's centre column from
+    # the true bearing to a LIDAR-located pillar: upright 174 px of error
+    # against 528 px mirrored, reproduced at three robot headings spanning 165
+    # degrees. Sign-position error p50 64 cm -> 48 cm, and the outward bias that
+    # pinned believed signs to the walls falls from +40 cm (77% outward) to
+    # -3 cm (47%).
     cx = bbox.center.x
-    theta_h = (cx / RobotSpecs.CAMERA_WIDTH - 0.5) * RobotSpecs.CAMERA_HFOV
+    theta_h = (0.5 - cx / RobotSpecs.CAMERA_WIDTH) * RobotSpecs.CAMERA_HFOV
 
-    if lidar_ranges_m and lidar_angles_rad:
+    # LIDAR range fusion, OFF by default -- it was measured to make the estimate
+    # WORSE. A single ray at the camera's bearing is not the pillar: at that
+    # bearing the return is wall-shaped (implied chord > 30 cm) on 51% of
+    # detections and pillar-shaped on 27%, median implied chord 34 cm against a
+    # 5 cm sign. It fired on 92.5% of detections and cost 5 cm of median
+    # position error with the old bearing and 28 cm with the corrected one,
+    # because a wall behind a sign is always FURTHER -- it was the second half
+    # of the outward bias. Even restricted to pillar-shaped returns the range
+    # error is p50 -69 cm, with only 16% within 10 cm.
+    #
+    # Kept rather than deleted because the idea is sound and the implementation
+    # is what failed: the gate is `0.05 < r < 10.0`, which is no gate at all.
+    # A version that required a small isolated cluster AND agreement with the
+    # calibrated pinhole would be worth measuring -- but the cluster-shape test
+    # alone discriminated pillar from wall at 54%, near chance, so that wants
+    # its own evidence before it ships.
+    if tuning.sign_discovery.LIDAR_RANGE_FUSION and lidar_ranges_m and lidar_angles_rad:
         lidar_range = _nearest_ray(lidar_ranges_m, lidar_angles_rad, theta_h)
         if tuning.lidar_sectors.MIN_VALID_RANGE_M < lidar_range < RobotSpecs.CAMERA_FAR_CLIP:
             distance = lidar_range

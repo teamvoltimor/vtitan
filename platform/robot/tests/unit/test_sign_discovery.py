@@ -18,13 +18,16 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
+import pytest
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, Pose, SignColor, TrafficSignObservation, Waypoint
 
+from src.config.tuning_helpers import tuning_with_overrides
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
+    _detection_to_world,
     detection_to_observation,
 )
 from src.simulation.vision_emulator import emulate_sign_observations
@@ -339,7 +342,6 @@ class TestPillarAspectGate:
         det = self._detection(176.0, 100.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), tuning=disabled) is not None
 
-
     def test_a_wide_box_is_kept_where_no_barrier_can_be(self) -> None:
         """There is one parking lot, in the corridor the robot started in.
 
@@ -357,3 +359,70 @@ class TestPillarAspectGate:
         """Unchanged where it matters: in the lot's own corridor the gate bites."""
         det = self._detection(176.0, 100.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), barrier_possible=True) is None
+
+
+def _box_at_column(cx: float, pixel_height: float = 40.0) -> Detection:
+    """A detection whose box sits at image column ``cx``, nothing else varying."""
+    cy = RobotSpecs.CAMERA_HEIGHT / 2
+    half = pixel_height / 2
+    return Detection(
+        class_name="red",
+        confidence=0.9,
+        bbox=(cx - half, cy - half, cx + half, cy + half),
+        x=cx,
+        y=cy,
+        width=pixel_height,
+        height=pixel_height,
+        area=pixel_height * pixel_height,
+    )
+
+
+def test_a_box_left_of_centre_is_a_sign_on_the_robots_left() -> None:
+    """The camera's bearing sign, stated from GEOMETRY rather than the formula.
+
+    Every other test of this path builds its bounding box by inverting
+    ``_detection_to_world``, so it agrees with that function whatever sign it
+    uses. ``vision_emulator`` reproduces the true geometry directly and never
+    touches a bbox at all. That is how a MIRRORED bearing survived in-tree and
+    reached the track: until 2026-09-06 ``theta_h`` was positive for a box on
+    the RIGHT of the image, which is the robot's right and therefore a NEGATIVE
+    CCW bearing, so every sign was reflected across the robot's heading axis and
+    landed on the far wall of a 1 m corridor.
+
+    So this test asserts the thing no other one can: a camera delivers an
+    UPRIGHT image (``camera_inverted`` is folded into the driver's flips at
+    capture), so an object to the robot's LEFT appears LEFT of centre -- and the
+    robot frame is CCW-positive with left positive (``LidarScan``: 0 = forward,
+    +pi/2 = left). Confirmed on run_20260906_192424 by predicting the box's
+    centre column from the true bearing to a LIDAR-located pillar: 174 px of
+    error upright against 528 px mirrored, at three headings spanning 165 deg.
+    """
+    robot_pos = (0.0, 0.0)
+    robot_yaw = 0.0  # facing +x, so +y is the robot's left
+    left_of_frame = _detection_to_world(_box_at_column(RobotSpecs.CAMERA_WIDTH * 0.25), robot_pos, robot_yaw)
+    right_of_frame = _detection_to_world(_box_at_column(RobotSpecs.CAMERA_WIDTH * 0.75), robot_pos, robot_yaw)
+    assert left_of_frame is not None
+    assert right_of_frame is not None
+    assert left_of_frame[1] > 0.0, "a box left of centre must place the sign to the robot's LEFT"
+    assert right_of_frame[1] < 0.0, "a box right of centre must place the sign to the robot's RIGHT"
+
+
+def test_the_pinhole_range_carries_the_measured_scale() -> None:
+    """RANGE_SCALE multiplies the pinhole result, and 1.0 is the raw model.
+
+    The pinhole UNDER-reads by about half on hardware -- the detector's boxes are
+    1.75x taller than a 0.10 m pillar subtends -- so the scale is not cosmetic.
+    Asserted as a RATIO between two tunings rather than against a fixed distance,
+    so re-fitting the constant does not break the test that guards it.
+    """
+    detection = _box_at_column(RobotSpecs.CAMERA_WIDTH / 2)
+    raw = _detection_to_world(
+        detection, (0.0, 0.0), 0.0, tuning=tuning_with_overrides({"RANGE_SCALE": 1.0}, group="sign_discovery")
+    )
+    scaled = _detection_to_world(
+        detection, (0.0, 0.0), 0.0, tuning=tuning_with_overrides({"RANGE_SCALE": 2.0}, group="sign_discovery")
+    )
+    assert raw is not None
+    assert scaled is not None
+    sensor_x = RobotSpecs.LIDAR_MOUNT_X_OFFSET
+    assert scaled[0] - sensor_x == pytest.approx(2.0 * (raw[0] - sensor_x), rel=1e-6)
