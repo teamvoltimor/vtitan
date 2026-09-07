@@ -18,12 +18,27 @@ with no appeal to the camera. That decides the two things the bag run left open:
    and one at ~0 is a wall corner. Against the camera anchor that filter kept
    33% of tracks to move precision 47% -> 52%, which was unreadable.
 
-**What this CANNOT tell you.** The simulator's LIDAR is a raycast against the
-true geometry, so it has none of the dropout that makes the -90 deg ray unusable
-on 66% of hardware ticks, and its vision emulator has PERFECT RANGE. So a
-precision figure here is an upper bound on the hardware detector, and the
-camera-vs-LIDAR range comparison that motivated the whole idea CANNOT be
-reproduced in sim at all. Read this for the geometry question only.
+**How far this transfers to hardware -- MEASURED, not assumed.** Running this
+exact detector over both, with neither side needing ground truth:
+
+    clusters per scan        hardware 3.10   sim 2.95    -- the SAME detector
+    persistent tracks        hardware  204   sim  198
+    first-see range p50      hardware 1.33 m sim 1.77 m  -- sim sees EARLIER
+    share in the sign band   hardware  23%   sim  35%    -- (0.375-0.5 m)
+
+Cluster YIELD matches, so the sim is a fair proxy for the detector itself. Two
+gaps are real and both make the 84% an UPPER BOUND: the sim spots a candidate
+~0.44 m earlier, and hardware's lattice-consistent population is a third
+thinner, so there is more clutter (or more position smear) to reject there.
+
+NOT a reason, though the obvious guess: side-ray dropout. Measured on the 09-07
+runs, the -90 deg window has no valid return on 12-19% of ticks for the SINGLE
+nearest ray, but only 0.0-1.7% across the +/-20 deg window this uses. The 66%
+figure recorded on 09-03 is a single-ray number and does not apply here. The
+windowed median already absorbs it.
+
+The vision emulator still has PERFECT RANGE, so the camera-vs-LIDAR range
+comparison that motivated the idea cannot be reproduced in sim at all.
 
 Usage::
 
