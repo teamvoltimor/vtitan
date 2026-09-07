@@ -124,15 +124,28 @@ class SimulationParams(BaseModel):
     made a live sweep non-monotonic (a tighter model returned a LONGER median
     range than no model at all). Calibrate against a fixed trajectory.
 
-        fitted 1.10 / 0.15   p50 0.55 m   p90 1.14 m   1.4% beyond 1.4 m
-        hardware target      p50 0.70 m   p90 1.06-1.31 m   3.6% beyond 1.4 m
+    Verified IN THE CLOSED LOOP at the shipped 1.10 / 0.15, not just offline:
 
-    KNOWN LIMITATION: p50 comes out ~0.15 m low because this curve is monotone
-    in range, so it can only ever REMOVE far detections. The real detector also
-    loses NEAR ones -- a pillar being closed on overflows the frame and the
-    aspect gate rejects the clipped box (61% of the reds it rejects are
-    frame-clipped). Modelling that would need a near-field term as well; until
-    then the simulated camera is slightly too good up close.
+        sim              p50 0.36 m   p90 1.07 m   1.0% beyond 1.4 m
+        hardware target  p50 0.70 m   p90 1.06-1.31 m   3.6% beyond 1.4 m
+
+    **The FAR end matches, which is the end that matters** -- whether the camera
+    can see a sign EARLY is what every range-dependent feature trades on.
+
+    KNOWN LIMITATION: p50 lands ~0.34 m low, and this is NOT fixable by tuning
+    R50 -- sweeping 0.55 to 1.10 moves p50 only 0.31 -> 0.36 while p90 moves
+    0.52 -> 1.07. A monotone curve can only REMOVE FAR detections, whereas
+    hardware also loses NEAR ones: the aspect gate rejects a frame-clipped box,
+    and 61% of the reds it rejects are clipped. Matching p50 needs a near-field
+    loss term, not a different R50.
+
+    MEASURE THIS POPULATION CAREFULLY -- it broke three attempts. The detected
+    range distribution is signs passing BOTH the range model AND the emulator's
+    own far-clip/HFOV test, measured as TRUE range from TRUE pose. Counting
+    signs behind the robot inflates the tail; and measuring an observation's
+    world position against the true robot state compares the BELIEVED frame to
+    the TRUE one, which in blind mode are rotated apart -- that read 1.16 m
+    where the truth was 0.36 m.
     """
 
     VISION_DETECT_FALLOFF_M: float = Field(
