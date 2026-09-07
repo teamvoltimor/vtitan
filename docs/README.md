@@ -881,6 +881,14 @@ Los nodos se comunican por **29 tópicos declarados en un único archivo de conf
 
 Un detalle que ilustra el nivel de restricción real: el SoC de la Pi Zero 2 W tiene **exactamente dos generadores de PWM por hardware**. Uno está tomado por el servo de dirección, que necesita mantener una posición absoluta y no tolera fluctuaciones. El otro se asigna a la marcha adelante del motor. La marcha atrás, que solo se usa en maniobras de estacionamiento y recuperación a baja velocidad, funciona con PWM por software y sí tolera esa fluctuación. Es un reparto deliberado de un recurso escaso, no una casualidad.
 
+### El segundo stack en Go, y por qué no corre en carrera
+
+Existe una segunda implementación de la pila en Go (con NATS como transporte en lugar de ROS2/DDS), y conviene ser explícitos sobre su estado: **no es la que compite**. La pila en carrera es la de Python + ROS2 descrita arriba, en todos los componentes: visión, navegación, máquina de estados y drivers en ambas placas.
+
+La única pieza de Go que corre en producción es el **backend de telemetría** (`vtitan-backend.service`), un binario compilado que la Pi 5 sirve al dashboard.
+
+La migración a Go se tomó como un reemplazo a largo plazo de ROS2 (arranque más rápido, menor consumo de recursos y de memoria en las placas), pero con una política deliberada: **migración en vía paralela con corte único, sin híbridos**. El stack de Python sigue siendo el de competencia y ahí continúan los ajustes de temporada; el de Go solo cortará a producción cuando alcance paridad completa, y entonces se conmutará de una vez con `vtitan-robot@go`, con el stack de Python documentado como camino de reversión. Al día de hoy, lo portado (incluida la navegación) está verificado contra bags de carreras reales en un arnés de paridad, pero el navegador de Go todavía no ha corrido dentro de un lazo completo de carrera en el robot, y ese es justamente el criterio de paridad que falta para el corte.
+
 ## Modelo de Detección YOLO
 
 Para detectar los obstáculos del Desafío Cerrado de manera confiable usamos un detector YOLO entrenado por nosotros y compilado para el AI HAT+. Esta sección documenta el modelo completo: qué es, con qué datos se entrenó, cómo lo medimos y qué decisiones tomamos a partir de esas mediciones.
@@ -1145,7 +1153,7 @@ El patrón es siempre el mismo: **el sistema se comportaba de forma coherente co
 |------------|-----|---------|
 | **ROS2 Kilted** | Middleware de todo el robot | Comunicación entre nodos, herramientas de grabación y ecosistema ya maduro |
 | **Python** | Navegación, visión, máquina de estados | Velocidad de iteración durante el desarrollo |
-| **Go** | Segunda implementación de la pila de navegación | Arranque más rápido y consumo de recursos menor en el robot |
+| **Go** | Backend de telemetría (en producción) y segunda implementación de la pila de navegación (en migración) | Reemplazo a largo plazo de ROS2: arranque más rápido y menor consumo de recursos en el robot; el corte a producción se hace cuando el stack de Go alcance paridad completa |
 | **Pixi / RoboStack** | Entorno de desarrollo | Permite trabajar el mismo proyecto en Windows, Linux y en la Raspberry sin divergencias |
 | **Gazebo** | Simulación física | Ejecutar el corpus de escenarios sin pista |
 | **Hailo + YOLO** | Detección de señales | Inferencia en NPU: de ~700 ms por imagen en CPU a un pipeline de 15 Hz de punta a punta |
