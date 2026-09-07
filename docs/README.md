@@ -1020,114 +1020,18 @@ El patrón es siempre el mismo: **el sistema se comportaba de forma coherente co
 
 Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a V-Titan y los desafíos de la WRO.
 
-<section style="display: block; width: 100%;">
-  <table align="left" style="border-collapse: collapse; border: none; margin-top: 0px; width: 100%;">
-    
-    <tr style="border: none;">
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtu.be/tpZ2MUb4gyc" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/tpZ2MUb4gyc/0.jpg" alt="Open Challenge Video 6" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #6</span>
-        </a>
-      </td>
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtu.be/wWfganqnq8A" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/wWfganqnq8A/0.jpg" alt="Open Challenge Video 4" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #4</span>
-        </a>
-      </td>
-    </tr>
-    <tr style="border: none;">
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtu.be/28cxIb5Uug4" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/28cxIb5Uug4/0.jpg" alt="Open Challenge Video 2" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #2</span>
-        </a>
-      </td>
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtube.com/shorts/dpk2NokeFFs" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/dpk2NokeFFs/0.jpg" alt="Parking Challenge Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Parking Challenge #1</span>
-        </a>
-      </td>
-    </tr>
-    <tr style="border: none;">
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtube.com/shorts/K51M7iB6rWM" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/K51M7iB6rWM/0.jpg" alt="Counter Phase Steering Video" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Counter Phase Steering</span>
-        </a>
-      </td>
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtube.com/shorts/xrTShkQfnUk" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/xrTShkQfnUk/0.jpg" alt="Open Challenge Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #1</span>
-        </a>
-      </td>
-    </tr>
-    <tr style="border: none;">
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtube.com/shorts/MQwCzlizyTI" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/MQwCzlizyTI/0.jpg" alt="Previous Prototypes Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Previous Prototypes #1</span>
-        </a>
-      </td>
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtube.com/shorts/JDZCLhUOZ_Q" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/JDZCLhUOZ_Q/0.jpg" alt="Open Challenge Video 3" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #3</span>
-        </a>
-      </td>
-    </tr>
-    <tr style="border: none;">
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtube.com/shorts/0JTcstQ5lVM" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/0JTcstQ5lVM/0.jpg" alt="Open Challenge Video 5" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #5</span>
-        </a>
-      </td>
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtu.be/u9PNsfgKNgM" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/u9PNsfgKNgM/0.jpg" alt="Robot POV Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Robot POV Nº1</span>
-        </a>
-      </td>
-    </tr>
-    <tr style="border: none;">
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtu.be/c7y4DL4ijQ8" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/c7y4DL4ijQ8/0.jpg" alt="Foxglove Studio Replay Video" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Foxglove Studio Replay</span>
-        </a>
-      </td>
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtu.be/fb5zcayUf0A" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/fb5zcayUf0A/0.jpg" alt="Obstacles Challenge Simulation Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Obstacles Challenge Simulation Nº1</span>
-        </a>
-      </td>
-    </tr>
-    <tr style="border: none;">
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
-        <a href="https://youtu.be/S0tjWiyK1bM" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="https://img.youtube.com/vi/S0tjWiyK1bM/0.jpg" alt="Open Challenge Simulation Video 1" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
-          <br />
-          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge Simulation Nº1</span>
-        </a>
-      </td>
-      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;"></td>
-    </tr>
-  </table>
-</section>
+| [![Open Challenge #6](https://img.youtube.com/vi/tpZ2MUb4gyc/0.jpg)](https://youtu.be/tpZ2MUb4gyc) | [![Open Challenge #4](https://img.youtube.com/vi/wWfganqnq8A/0.jpg)](https://youtu.be/wWfganqnq8A) |
+|:---:|:---:|
+| **Open Challenge #6** | **Open Challenge #4** |
+| [![Open Challenge #2](https://img.youtube.com/vi/28cxIb5Uug4/0.jpg)](https://youtu.be/28cxIb5Uug4) | [![Parking Challenge #1](https://img.youtube.com/vi/dpk2NokeFFs/0.jpg)](https://youtube.com/shorts/dpk2NokeFFs) |
+| **Open Challenge #2** | **Parking Challenge #1** |
+| [![Counter Phase Steering](https://img.youtube.com/vi/K51M7iB6rWM/0.jpg)](https://youtube.com/shorts/K51M7iB6rWM) | [![Open Challenge #1](https://img.youtube.com/vi/xrTShkQfnUk/0.jpg)](https://youtube.com/shorts/xrTShkQfnUk) |
+| **Counter Phase Steering** | **Open Challenge #1** |
+| [![Previous Prototypes #1](https://img.youtube.com/vi/MQwCzlizyTI/0.jpg)](https://youtube.com/shorts/MQwCzlizyTI) | [![Open Challenge #3](https://img.youtube.com/vi/JDZCLhUOZ_Q/0.jpg)](https://youtube.com/shorts/JDZCLhUOZ_Q) |
+| **Previous Prototypes #1** | **Open Challenge #3** |
+| [![Open Challenge #5](https://img.youtube.com/vi/0JTcstQ5lVM/0.jpg)](https://youtube.com/shorts/0JTcstQ5lVM) | [![Robot POV Nº1](https://img.youtube.com/vi/u9PNsfgKNgM/0.jpg)](https://youtu.be/u9PNsfgKNgM) |
+| **Open Challenge #5** | **Robot POV Nº1** |
+| [![Foxglove Studio Replay](https://img.youtube.com/vi/c7y4DL4ijQ8/0.jpg)](https://youtu.be/c7y4DL4ijQ8) | [![Obstacles Challenge Simulation Nº1](https://img.youtube.com/vi/fb5zcayUf0A/0.jpg)](https://youtu.be/fb5zcayUf0A) |
+| **Foxglove Studio Replay** | **Obstacles Challenge Simulation Nº1** |
+| [![Open Challenge Simulation Nº1](https://img.youtube.com/vi/S0tjWiyK1bM/0.jpg)](https://youtu.be/S0tjWiyK1bM) | |
+| **Open Challenge Simulation Nº1** | |
