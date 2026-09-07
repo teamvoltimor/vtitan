@@ -141,6 +141,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
     3. [Ciclo de trabajo: idea → simulación → pista](README.md#ciclo-de-trabajo-idea--simulación--pista)
     4. [Hallazgos de ingeniería](README.md#hallazgos-de-ingeniería)
     5. [Tecnologías utilizadas](README.md#tecnologías-utilizadas)
+6. **[Youtube](README.md#youtube)
 
 # Historial del equipo
 
@@ -1006,4 +1007,27 @@ El patrón es siempre el mismo: **el sistema se comportaba de forma coherente co
 | **Task** | Automatización | Un único punto de entrada para compilar, probar, desplegar y simular |
 | **tscircuit** | Esquemático de conexiones | El arnés se define en código y se versiona igual que el software |
 
+# Videos
 
+Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a V-Titan y los desafíos de la WRO.
+
+<section style="display: block; width: 100%;">
+  <table align="left" style="border-collapse: collapse; border: none; margin-top: 0px; width: 100%;">
+    <tr style="border: none;">
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://www.youtube.com/watch?v=6KLVCvldxfE" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/6KLVCvldxfE/0.jpg" alt="Open Challenge Video 3" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #1 - V-Titan's PoV</span>
+        </a>
+      </td>
+      <td align="center" style="padding: 10px; border: none; width: 50%; vertical-align: top;">
+        <a href="https://www.youtube.com/watch?v=nuieYqMm9Z0" target="_blank" style="text-decoration: none; display: inline-block;">
+          <img src="https://img.youtube.com/vi/nuieYqMm9Z0/0.jpg" alt="Open Challenge Video 4" style="width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e1e4e8;" />
+          <br />
+          <span style="color: #0366d6; font-size: 1.18em; font-weight: 500; display: inline-block; margin-top: 8px;">Open Challenge #2 - V-Titan PoV</span>
+        </a>
+      </td>
+    </tr>
+  </table>
+</section>
