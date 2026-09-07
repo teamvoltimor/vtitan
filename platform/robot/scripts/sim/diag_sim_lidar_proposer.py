@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import math
 import sys
 from pathlib import Path
@@ -61,6 +62,7 @@ import shared.domain.enums  # noqa: F401  (imported FIRST: models <-> enums is a
 from shared.config.constants import CorridorDimensions
 from shared.domain.models import ScenarioMetadata
 
+from scripts.common.diag_base import resolve_jobs, run_pool
 from scripts.common.lidar_clusters import (
     ProposerParams,
     Track,
@@ -77,6 +79,10 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+# Module level, NOT in main(): spawned workers re-import this module but never
+# run main(), so silencing there leaves every worker's navigator logs flooding.
+logging.disable(logging.CRITICAL)
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
 
@@ -133,9 +139,49 @@ def collect(metadata: ScenarioMetadata, args: argparse.Namespace) -> list[tuple[
     return observations
 
 
+def score_scenario(payload: tuple[str, argparse.Namespace]) -> dict | None:
+    """Run and score ONE scenario. Module-level so ProcessPoolExecutor can pickle it.
+
+    Returns per-scenario counts plus the raw samples the pooled percentiles need,
+    rather than `Track` objects: only these few float lists have to cross the
+    process boundary, and the parent stays free of simulator state.
+    """
+    path_str, args = payload
+    path = Path(path_str)
+    metadata = ScenarioMetadata.model_validate(json.loads(path.read_text()))
+    signs = [(s.x, s.y) for s in metadata.sign_positions]
+    if not signs:
+        return None
+    tracks = [t for t in associate(collect(metadata, args), args.assoc_radius) if t.hits >= args.min_hits]
+
+    def is_sign(t: Track) -> bool:
+        return any(math.hypot(t.x - sx, t.y - sy) <= args.match_radius for sx, sy in signs)
+
+    def found(pool: list[Track]) -> int:
+        return sum(1 for sx, sy in signs if any(math.hypot(t.x - sx, t.y - sy) <= args.match_radius for t in pool))
+
+    def on_lattice(t: Track) -> bool:
+        d = t.wall_dist_m
+        return d is not None and abs(d - args.lattice_offset_m) <= args.lattice_tol_m
+
+    tp = [t for t in tracks if is_sign(t)]
+    lat = [t for t in tracks if on_lattice(t)]
+    lat_tp = [t for t in lat if is_sign(t)]
+    return {
+        "name": path.stem.replace("_metadata", ""),
+        "signs": len(signs), "tracks": len(tracks), "hits": len(tp), "found": found(tracks),
+        "lat_tracks": len(lat), "lat_hits": len(lat_tp), "lat_found": found(lat),
+        "first_ranges": [t.first_range_m for t in tp],
+        "wall_true": [t.wall_dist_m for t in tp if t.wall_dist_m is not None],
+        "wall_false": [t.wall_dist_m for t in tracks if not is_sign(t) and t.wall_dist_m is not None],
+        "widths": [w for w in (t.width_m for t in tracks) if w is not None],
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--limit", type=int, default=8, help="Scenarios to run; 0 means all.")
+    parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
     parser.add_argument("--laps", type=int, default=1, help="Laps per scenario; 1 is enough to see every sign.")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--max-steps", type=int, default=OBSTACLES_MAX_STEPS)
@@ -172,46 +218,24 @@ def main() -> None:
     wall_false: list[float] = []
     widths: list[float] = []
 
+    jobs = resolve_jobs(args.jobs)
+    print(f"{len(paths)} scenarios over {jobs} workers")
+    scored = [r for r in run_pool(score_scenario, [(str(p), args) for p in paths], jobs) if r is not None]
+    scored.sort(key=lambda r: r["name"])
+
     print(f"{'scenario':<26} {'signs':>5} {'trk':>4} {'TP':>4} {'prec':>5} {'rec':>5}   {'lattice trk/TP/prec/rec':>24}")
-    for path in paths:
-        metadata = ScenarioMetadata.model_validate(json.loads(path.read_text()))
-        signs = [(s.x, s.y) for s in metadata.sign_positions]
-        if not signs:
-            continue
-        tracks = [t for t in associate(collect(metadata, args), args.assoc_radius) if t.hits >= args.min_hits]
-
-        def is_sign(t: Track, signs: list[tuple[float, float]] = signs) -> bool:
-            return any(math.hypot(t.x - sx, t.y - sy) <= args.match_radius for sx, sy in signs)
-
-        def found(pool: list[Track], signs: list[tuple[float, float]] = signs) -> int:
-            return sum(
-                1 for sx, sy in signs if any(math.hypot(t.x - sx, t.y - sy) <= args.match_radius for t in pool)
-            )
-
-        def on_lattice(t: Track) -> bool:
-            d = t.wall_dist_m
-            return d is not None and abs(d - args.lattice_offset_m) <= args.lattice_tol_m
-
-        tp = [t for t in tracks if is_sign(t)]
-        lat = [t for t in tracks if on_lattice(t)]
-        lat_tp = [t for t in lat if is_sign(t)]
-
-        totals["tracks"] += len(tracks)
-        totals["hits"] += len(tp)
-        totals["signs"] += len(signs)
-        totals["found"] += found(tracks)
-        totals["lat_tracks"] += len(lat)
-        totals["lat_hits"] += len(lat_tp)
-        totals["lat_found"] += found(lat)
-        first_ranges.extend(t.first_range_m for t in tp)
-        wall_true.extend(t.wall_dist_m for t in tp if t.wall_dist_m is not None)
-        wall_false.extend(t.wall_dist_m for t in tracks if not is_sign(t) and t.wall_dist_m is not None)
-        widths.extend(w for w in (t.width_m for t in tracks) if w is not None)
-
+    for r in scored:
+        for key in ("tracks", "hits", "signs", "found", "lat_tracks", "lat_hits", "lat_found"):
+            totals[key] += r[key]
+        first_ranges.extend(r["first_ranges"])
+        wall_true.extend(r["wall_true"])
+        wall_false.extend(r["wall_false"])
+        widths.extend(r["widths"])
         print(
-            f"{path.stem.replace('_metadata',''):<26} {len(signs):>5} {len(tracks):>4} {len(tp):>4} "
-            f"{_pct(len(tp), len(tracks)):>5} {_pct(found(tracks), len(signs)):>5}   "
-            f"{len(lat):>6} {len(lat_tp):>4} {_pct(len(lat_tp), len(lat)):>5} {_pct(found(lat), len(signs)):>5}"
+            f"{r['name']:<26} {r['signs']:>5} {r['tracks']:>4} {r['hits']:>4} "
+            f"{_pct(r['hits'], r['tracks']):>5} {_pct(r['found'], r['signs']):>5}   "
+            f"{r['lat_tracks']:>6} {r['lat_hits']:>4} {_pct(r['lat_hits'], r['lat_tracks']):>5} "
+            f"{_pct(r['lat_found'], r['signs']):>5}"
         )
 
     print()
