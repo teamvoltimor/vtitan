@@ -559,7 +559,24 @@ width="350">
 	<i>Ovonic Air 11.1V Li-Po Battery</i>
 </p>
 
-La batería de 11.1V de la marca Ovonic, cumple la función de ser la fuente de alimentación principal, ya que a partir de ésta, podemos alimentar a la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y todos sus componentes embebidos, además de alimentar a nuestro motor
+La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal: de ella cuelgan la Raspberry Pi 5 y todos sus componentes embebidos, además del motor de tracción. Usamos **dos modelos de la misma serie 3S**, con un rol distinto cada uno:
+
+| **Característica** | **Competencia: Ovonic 3S Short 2200 mAh 120C** | **Prácticas: Ovonic 3S 3000 mAh 50C** |
+|--------------------|------------------------------------------------|----------------------------------------|
+| Voltaje nominal    | 11.1 V (3S)                                    | 11.1 V (3S)                            |
+| Capacidad          | 2200 mAh (24.4 Wh)                             | 3000 mAh (33.3 Wh)                     |
+| C-rating           | 120C                                           | 50C                                    |
+| Conector           | XT60                                           | Deans (T-plug)                         |
+| Dimensiones        | 77 × 34 × 26 mm                                | 107 × 24 × 33 mm (190 g, medidos)      |
+
+**Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia** (formato "shorty" con conector XT60): menos capacidad, pero menor peso y un C-rating doble, que es lo que importa en pista.
+
+**Por qué es suficiente.** El presupuesto de potencia real del robot es de ~5 A sostenidos con picos de ~20 A en arranques (ver la [sección de consumo energético](README.md#consumo-energ%C3%A9tico)). Con la batería de competencia:
+
+- **Autonomía**: 2200 mAh a ~5 A sostenidos da ~26 minutos de operación continua; una ronda completa dura pocos minutos, incluyendo esperas en mesa. El límite práctico en un día de competencia no es la descarga de una ronda sino el ciclo de recargas entre rondas.
+- **Corriente de pico**: el C-rating de 120C anunciado representa 264 A, cifra de marketing en condiciones ideales; incluso descontando la mitad por realismo continuo, la batería puede entregar más de 100 A, más de 5 veces los picos de ~20 A del tren motriz. La entrega de corriente no es el cuello de botella en ninguna parte del sistema.
+
+Usar packs más pequeños no tiene sentido (el margen energético ya es holgado), y usar la de prácticas en competencia solo pagaría el peso y el volumen extra de un pack más grande, sin ningún beneficio en pista.
 
 | **Medida** | **Valor** |
 |------------|-----------|
