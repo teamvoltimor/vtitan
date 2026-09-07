@@ -458,11 +458,25 @@ class SignColor(StrEnum):
     same underlying detector output; :class:`TrafficSignObservation` only
     ever gets built from RED/GREEN (see
     ``src.navigation.planning.sign_discovery.detection_to_observation``).
+
+    UNKNOWN is NOT a detector output. It is an object whose POSITION is known
+    but whose COLOUR is not -- a LIDAR-proposed pillar awaiting camera
+    confirmation. It exists so that state is representable at all: without it
+    the only way to carry a colourless candidate was to pick a colour, and
+    every routing decision spelled that choice ``if RED else GREEN``, so an
+    unconfirmed sign silently became a GREEN one.
+
+    UNKNOWN HAS NO PASS SIDE. The WRO rule is colour-keyed, so no side can be
+    derived from it; `pass_side_lateral_axis` returns None for it, exactly as
+    it does for an unsettled direction, and for the same reason -- a coin flip
+    between two opposite answers ends the round under rule 9.24.5, while
+    declining to answer only falls back to generic obstacle avoidance.
     """
 
     RED = "red"
     GREEN = "green"
     MAGENTA = "magenta"
+    UNKNOWN = "unknown"
 
 
 # Class ids the retrained GMR detector emits, in the checkpoint's own declared

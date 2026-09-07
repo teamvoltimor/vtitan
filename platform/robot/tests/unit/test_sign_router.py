@@ -187,6 +187,27 @@ class TestDeformationDirections:
             assert rx == pytest.approx(_expected_lateral(sx + expected, low_side=low_side))
             assert ry == pytest.approx(sy)
 
+    @pytest.mark.parametrize("section", list(_SECTION_GEOMETRY))
+    @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
+    def test_unknown_colour_leaves_the_waypoint_undeformed(self, section, direction, router_config):
+        """A position-only proposal must not move the line at all.
+
+        UNKNOWN carries no side, so there is nothing to deform TOWARD. The
+        waypoint comes back untouched and the robot holds its course --
+        generic obstacle avoidance still applies, because declining to pick a
+        side is not declining to avoid the object.
+
+        Before UNKNOWN existed this went down the ``else green_mult`` branch
+        and shifted the waypoint to GREEN's side, silently, for an object the
+        camera had never classified.
+        """
+        _axis, (sx, sy), _red_mult = _SECTION_GEOMETRY[section]
+        sign = _sign_at(sx, sy, SignColor.UNKNOWN)
+        result = apply_deformation(
+            (sx, sy), sign, SignColor.UNKNOWN, section, direction, SIGN_LATERAL_OFFSET
+        )
+        assert result == (sx, sy)
+
 
 class TestPassSideLateralAxis:
     """Direction-KEYED lookup of the travel-relative pass-side rule.
@@ -223,6 +244,26 @@ class TestPassSideLateralAxis:
         """None, not a guess: a coin-flip here is a wrong-side pass half the
         time, and that ends the round under 9.24.5."""
         assert pass_side_lateral_axis(Section.SOUTH, color, None) is None
+
+    @pytest.mark.parametrize("section", list(Section))
+    @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
+    def test_unknown_colour_declines_to_answer(self, section, direction):
+        """A LIDAR-proposed pillar the camera has not confirmed has NO side.
+
+        The rule is colour-keyed, so an unconfirmed sign is the same situation
+        as an unsettled direction and gets the same answer. This must not
+        fall through to GREEN's side -- that was a coin flip on a
+        round-ending rule, and it is how the code read before UNKNOWN existed.
+        """
+        assert pass_side_lateral_axis(section, SignColor.UNKNOWN, direction) is None
+
+    @pytest.mark.parametrize("section", list(Section))
+    @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
+    def test_unknown_colour_is_not_routed_as_green(self, section, direction):
+        """Guards the specific regression: UNKNOWN must not equal GREEN's answer."""
+        green = pass_side_lateral_axis(section, SignColor.GREEN, direction)
+        assert green is not None
+        assert pass_side_lateral_axis(section, SignColor.UNKNOWN, direction) != green
 
 
 # 2. 36-scenario routing

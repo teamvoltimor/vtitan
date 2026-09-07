@@ -87,8 +87,18 @@ def apply_deformation(
         return waypoint
 
     entry = ROUTING_TABLE[(corridor, direction)]
-    axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult
-    mult = red_mult if color == SignColor.RED else green_mult
+    # Explicit colour match, not `if RED else GREEN`. An UNKNOWN sign is a
+    # position without a colour (a LIDAR proposal the camera has not confirmed);
+    # it has no pass side, so the waypoint is returned UNDEFORMED and the robot
+    # holds its line. Generic obstacle avoidance still applies -- declining to
+    # choose a side is not declining to avoid the object.
+    axis = entry.axis
+    if color == SignColor.RED:
+        mult = entry.red_mult
+    elif color == SignColor.GREEN:
+        mult = entry.green_mult
+    else:
+        return waypoint
 
     wx, wy = waypoint
     if axis == Axis.Y:

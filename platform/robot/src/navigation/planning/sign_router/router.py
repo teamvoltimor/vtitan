@@ -466,8 +466,17 @@ class SignRouter:
         entry = ROUTING_TABLE.get((self._sign_corridors[index], self._direction))
         if entry is None:
             return
-        axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult
-        permitted = red_mult if sign.color == SignColor.RED else green_mult
+        axis = entry.axis
+        # An UNKNOWN sign cannot violate a colour-keyed rule: with no colour
+        # there is no permitted side to be on the wrong side OF. Scoring it
+        # against GREEN's side (what `else green_mult` did) would invent
+        # round-ending violations for objects the camera never confirmed.
+        if sign.color == SignColor.RED:
+            permitted = entry.red_mult
+        elif sign.color == SignColor.GREEN:
+            permitted = entry.green_mult
+        else:
+            return
         robot_lat = robot_pos.x if axis == Axis.X else robot_pos.y
         sign_lat = sign.x if axis == Axis.X else sign.y
         side = 0 if robot_lat == sign_lat else (1 if robot_lat > sign_lat else -1)

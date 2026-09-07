@@ -96,14 +96,26 @@ def pass_side_lateral_axis(
         ``(axis, multiplier)`` where a positive multiplier along ``axis`` points
         to the vehicle's own RIGHT for red and its own LEFT for green, expressed
         in world coordinates for ``direction``. ``None`` if ``direction`` is
-        ``None`` or ``corridor`` has no routing entry.
+        ``None``, if ``corridor`` has no routing entry, or if ``color`` is not
+        RED/GREEN -- the pass-side rule is colour-keyed and cannot be evaluated
+        for an UNKNOWN (position-only) sign.
     """
     if direction is None:
         return None
     entry = ROUTING_TABLE.get((corridor, direction))
     if entry is None:
         return None
-    return entry.axis, entry.red_mult if color == SignColor.RED else entry.green_mult
+    # Colour is matched EXPLICITLY, never `if RED else GREEN`. The rule is
+    # colour-keyed, so a sign whose colour is not yet known (UNKNOWN, a
+    # LIDAR-proposed pillar) has no side -- and an `else` branch would hand it
+    # GREEN's side, which is a coin flip on a round-ending rule. Declining here
+    # is the same contract this function already applies to an unsettled
+    # direction, for the same reason.
+    if color == SignColor.RED:
+        return entry.axis, entry.red_mult
+    if color == SignColor.GREEN:
+        return entry.axis, entry.green_mult
+    return None
 
 
 def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | None = None) -> float:
