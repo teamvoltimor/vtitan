@@ -1,19 +1,19 @@
-﻿# 🕊️ *In Memoriam*
+# 🕊️ *In Memoriam*
 
 > Este proyecto, su arquitectura y cada línea de código que da vida a este robot están dedicados con profundo cariño y respeto a la memoria de mi gran amigo y colega:
 >
-> **Javier Pérez** — [@kaucrow](https://github.com/kaucrow)
+> **Javier Pérez** - [@kaucrow](https://github.com/kaucrow)
 >
 > Gracias por los años en las aulas, las incontables horas depurando código y esa pasión inquebrantable por la ingeniería que siempre nos unió. Llevar este sistema a la competencia es también llevar tu curiosidad, tu talento y tu recuerdo en cada desafío. 
 >
 > Aunque hoy no estés físicamente, tu huella sigue viva en este repositorio, en cada meta alcanzada y en mi memoria por el resto de mi vida. Descansa en paz, hermano.
 >
-> — *Ramón Álvarez*
+> - *Ramón Álvarez*
 
 <p align="center">
     <img src="../assets/kaucrow-banner.webp" alt="Javier Pérez (@kaucrow)" width="600">
     <br>
-    <i>Javier Pérez — <a href="https://github.com/kaucrow">@kaucrow</a> — 2 de enero de 2005 — 31 de agosto de 2026</i>
+    <i>Javier Pérez - <a href="https://github.com/kaucrow">@kaucrow</a> - 2 de enero de 2005 - 31 de agosto de 2026</i>
 </p>
 
 > Y también a nuestra compañera de tantos años:
@@ -22,7 +22,7 @@
 >
 > Casi doce años siendo parte de nuestra familia. Gracias por tu compañía, tu nobleza y todo el cariño que nos diste sin pedir nada a cambio. Te vamos a extrañar siempre.
 >
-> — *Ramón Álvarez y Sebastián Álvarez*
+> - *Ramón Álvarez y Sebastián Álvarez*
 
 <table>
     <tbody>
@@ -46,7 +46,7 @@
 </table>
 
 <p align="center">
-    <i>Luna Margarita — 12 de diciembre de 2014 — 5 de septiembre de 2026</i>
+    <i>Luna Margarita - 12 de diciembre de 2014 - 5 de septiembre de 2026</i>
 </p>
 
 ---
@@ -402,6 +402,10 @@ La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como l
 | Ancho      | 12.4 mm   |
 | Peso       | 4 g       |
 
+**Montaje.** La cámara va montada directamente sobre el LIDAR (mismo offset frontal, x = 0.1222 m), a unos **20 cm del suelo** e inclinada **~10° hacia abajo**. La posición alta cumple dos funciones: despeja la línea de visión sobre el propio chasis y sobre los obstáculos bajos de la pista, y junto con la inclinación leve hacia abajo equilibra el cuadro entre la pista cercana (donde viven las señales que hay que leer a tiempo para decidir el lado de paso) y el horizonte del pasillo. El ángulo es lo bastante pequeño para que las señales a distancia de decisión (~1.4 m de radio de activación) queden bien dentro del encuadre, sin sacrificar la visión lejana que da la versión Wide. Las constantes de montaje viven en `platform/shared/config/robot.toml` (`[camera]`), y son las mismas que consumen la simulación y la TF estática.
+
+**Calibración.** No hacemos calibración intrínseca de fábrica: el detector no necesita proyectar píxeles con precisión métrica, porque la decisión de la distancia al obstáculo la toma el LIDAR (la visión **no** es la red de seguridad de colisiones). Para las señales, la cámara aporta rumbo (preciso: la posición horizontal en el cuadro no depende de la profundidad) y color, mientras que la distancia por altura del bounding box es un modelo pinhole cuyo error crece con el rango (~3.6 cm a 1.5 m, ~14 cm a 3 m). Por eso el sistema fusiona ambas fuentes: cuando hay barrido LIDAR en el tick, se confía en el rango del rayo más cercano al rumbo de la cámara, y el pinhole queda como respaldo. Su limitación conocida (asume cámara nivelada) está documentada honestamente en `platform/robot/docs/robot-physical-constants.md`.
+
 ### Raspberry Pi AI HAT+ (26 TOPS)
 
 <p align="center">
@@ -514,7 +518,7 @@ Después de probar distintos modelos de motor, al final optamos por utilizar el 
 | Diámetro   | 37 mm     |
 | Peso       | 234 g     |  
 
-### 9-Axis IMU Gyroscope GY-BNO085
+### IMU GY-BNO085
 
 <p align="center">
 	<img src="../assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
@@ -523,11 +527,17 @@ width="350">
 	<i>Giroscopio BNO085</i>
 </p>
 
-El GY-BNO085 es un sensor de orientación inercial (IMU) de 9 Grados de Libertad (9DOF), ampliamente utilizado en aplicaciones que requieren un seguimiento de movimiento preciso. En el caso de V-Titan, optamos por utilizar este sensor para poder lograr una mayor autonomía del robot en los cruces, ya que este sensor le permite alinearse casi perfectamente y poder ajustarse.
+El GY-BNO085 es nuestro sensor de orientación inercial (IMU). Lo usamos para que el robot mantenga rumbo en los cruces y cuente las vueltas dadas tanto en el Desafío sin Obstáculos como en el Desafío Cerrado, aunque exista algún problema mecánico que lo desvíe de su trayectoria.
 
-Además de todo esto, el poder utilizar un giroscopio le permite a V-Titan contar las vueltas que ha dado tanto en el Desafío sin Obstáculos como el Desafío Cerrado de la forma más segura, ya que, a pesar de algún problema mecánico que impida que el robot sea capaz de ir completamente derecho, el giroscopio le puede hacer saber que tanto se está desvíando, siendo este uno de los componentes indispensables para poder completar este desafío.
+**Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un heading por campo magnético sería vulnerable a todo eso. La contrapartida es el drift del datasheet (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `platform/robot/docs/blind-navigation-evaluation.md`.
 
-La forma en la que lo implementamos es bastante sencilla, el giroscopio siempre está actualizando los datos de manera asíncrona cada 50 milisegundos, y V-Titan maneja dos variables, `yaw_deg` (la diferencia en grados en su orientación desde que inició en la pista hasta dónde está ubicado ahora mismo), y `relative_yaw` la cual utiliza el mismo `yaw_deg` para asignarse un valor, pero, en vez de reiniciarse cada vez que pasa de los -180 grados o 180 grados, simplemente le resta o suma (dependiendo del caso) 360 grados a `relative_yaw`, luego dividimos este número entre 90, y redondeamos hacia abajo (es decir, 10.57 pasa a ser simplemente 10), y si la división es igual a -12 o 12, sabemos que ya está casi en su zona de estacionamiento y V-Titan simplemente avanza un poquito y se detiene (en el caso del Desafío sin Obstáculos).
+**Calibración y referencia de rumbo.** El modo RVC no expone rutinas de calibración al usuario: la calibración de gyro/acelerómetro la hace el chip en su arranque. Nuestra parte del proceso es la **referencia de yaw**, y es deliberadamente simple:
+
+1. El robot se enciende y se coloca en la pose de salida (puede quedar girado 90° o 180° respecto al pasillo; da igual).
+2. Al presionar el botón de inicio, el estimador fija un offset: ese rumbo pasa a ser 0°. Todo el yaw del robot es relativo a esa referencia (`reset_heading_reference` en `platform/robot/src/state_machine/estimator.py`).
+3. Durante la ronda, el drift se acota con un filtro complementario contra el mundo "Manhattan" de la pista: cada pared es paralela o perpendicular al pasillo, así que el promedio circular de los ángulos medidos por el LIDAR recupera el heading absoluto y corrige la deriva del IMU.
+
+La implementación maneja dos variables: `yaw_deg` (orientación relativa desde el inicio de la ronda) y `relative_yaw`, que acumula las vueltas sin saltar en ±180°. Dividiendo `relative_yaw` entre 90 y redondeando hacia abajo sabemos cuántos tramos rectos recorrió; cuando el cociente llega a ±12, el robot sabe que está en su zona de estacionamiento y avanza un poco más hasta detenerse (en el Desafío sin Obstáculos).
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -567,7 +577,7 @@ El BTS7960 es el puente H que controla el motor de tracción. **No fue nuestra p
 <p align="center">
 	<img src="../assets/images/components/puente-h-l298n.webp" alt="Puente H L298N" width="300">
 	<br>
-	<i>Puente H L298N — el diseño anterior, descartado por corriente insuficiente</i>
+	<i>Puente H L298N - el diseño anterior, descartado por corriente insuficiente</i>
 </p>
 
 El L298N entrega **2 A por canal**. Cuando pasamos a medir de verdad lo que consume el tren motriz con el motor actual, el número no daba: la rama de tracción consume del orden de **10 A promedio** al 50% del ciclo de trabajo, con **picos instantáneos cercanos a 20 A** en los arranques y en los cambios de sentido. Eso es un orden de magnitud por encima de lo que el L298N puede sostener, y explicaba los cortes y el calentamiento que veíamos: el puente no estaba fallando, estaba operando muy por encima de su especificación.
@@ -596,7 +606,7 @@ El Mini-560 Pro es el regulador que alimenta el riel propio del servo de direcci
 <p align="center">
 	<img src="../assets/images/components/step-down-xlc4016.webp" alt="Step Down XLC4016" width="300">
 	<br>
-	<i>Step Down XLC4016 — el regulador anterior, descartado por peso</i>
+	<i>Step Down XLC4016 - el regulador anterior, descartado por peso</i>
 </p>
 
 **También es un reemplazo, y aquí el criterio fue el peso.** El regulador original era un XLC4016, un módulo notablemente más grande y pesado. El peso fue un problema recurrente en nuestros prototipos (llegamos a estar 200 gramos por encima del límite), así que revisamos la lista de componentes buscando piezas que estuvieran sobredimensionadas para su función. El regulador del servo era una de ellas: la corriente que realmente necesita esa rama es muy inferior a lo que el XLC4016 podía entregar, de modo que estábamos pagando peso por una capacidad que nunca íbamos a usar.
@@ -636,7 +646,7 @@ El arnés completo de V-Titan está trazado como un esquemático generado por c�
 <p align="center">
     <img src="schemes/wiring/harness.schematic.svg" alt="Diagrama de conexiones de V-Titan" width="1000">
     <br>
-    <i>Arnés de conexiones de V-Titan — <a href="schemes/wiring/harness.schematic.png">versión PNG</a></i>
+    <i>Arnés de conexiones de V-Titan - <a href="schemes/wiring/harness.schematic.png">versión PNG</a></i>
 </p>
 
 Para regenerar los artefactos tras editar `circuit.tsx`:
@@ -710,6 +720,13 @@ width="350">
 
 #### **Fase 2: Pruebas de Integración y Detección de Fallas**
 
+<p align="center">
+	<img src="../assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
+width="350">
+	<br>
+	<i>Iteración de diseño en CAD entre prototipos impresos</i>
+</p>
+
 * **Sistema de Dirección:** Diseñamos una relación de palancas y piñones para la inversión de movimiento simultáneo. Se integraron **sensores Hall** para monitorear con precisión el ángulo de giro ante la necesidad de usar un servo de más de 360 grados.
 
 * **Problemas Detectados:**
@@ -721,6 +738,13 @@ width="350">
 
 #### **Fase 3: Rediseño a Engranajes Perpendiculares, Coronas y Correa Dentada**
 
+<p align="center">
+	<img src="../assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
+width="350">
+	<br>
+	<i>Sistema de dirección por engranajes, vista inferior: coronas integradas a los rines</i>
+</p>
+
 * **Nuevo Sistema de Tracción:** Eliminación de guayas. Se optó por **engranajes perpendiculares** ajustando el punto de pivote sobre el centro de la rueda, manteniendo los 90 grados de giro sin perder tracción.
 
 * **Optimización de Dirección:**
@@ -731,6 +755,13 @@ width="350">
 * **Sincronización 4x4:** Se unificaron los árboles de transmisión delantero y trasero mediante una **correa dentada con poleas**, logrando accionar las 4 ruedas simultáneamente con un solo motor.
 
 #### **Fase 4: Optimización de Peso, Integración y Chasis Final**
+
+<p align="center">
+	<img src="../assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
+width="350">
+	<br>
+	<i>Integración de la electrónica sobre el monochasis agujereado</i>
+</p>
 
 * **Distribución de Componentes:** Se diseñó una plataforma elevada para separar la electrónica de la mecánica. Esta posición permitió ubicar el RPLiDAR garantizando aproximadamente 270 grados de visión frontal y un espejo de visión trasera.
 
@@ -800,6 +831,8 @@ width="350">
 
 Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis de pueden aprecias dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernas de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
 
+**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm, y pesa **1.5 kg** contra el límite de 1500 g. La geometría que consume el control (wheelbase de 0.19 m entre ejes, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) vive en `platform/shared/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
+
 ## Relación de Torque y Velocidad 
 
 Ahora bien, en el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a V-Titan?
@@ -810,7 +843,7 @@ $$T = \frac{m \cdot (a + g \cdot (\mu \cos\theta + \sin\theta)) \cdot r}{N}$$
 
 Donde: 
 
-"m" es la masa del vehículo (en kg)
+"m" es la masa del vehículo (en kg; en V-Titan son **1.5 kg medidos en el robot ensamblado** el 2026-08-01, y es la misma masa que usa la simulación: chasis de 1.3 kg más 4 ruedas de 0.05 kg, `platform/shared/config/robot.toml`)
 
 "r" es el radio de la rueda (en metros, cuyo radio en V-Titan mide 0.035 metros)
 
@@ -918,7 +951,7 @@ Evaluamos el modelo sobre 600 imágenes con IoU ≥ 0.5, comparando el resultado
 
 | Variante | mAP@0.5 | mAP@0.5:0.95 | Clasificaciones erróneas | Omitidas |
 |---|---|---|---|---|
-| Punto flotante (referencia) | 0.9955 | 0.8885 | 0 | — |
+| Punto flotante (referencia) | 0.9955 | 0.8885 | 0 | - |
 | Nivel 0, la desplegada | 0.9954 | 0.8808 | 0 | 2 |
 | Nivel 2 + QAT | 0.9689 | 0.8096 | 2 (magenta↔rojo) | 23 |
 
@@ -975,7 +1008,7 @@ Es la primera decisión de cada ronda y condiciona todas las demás. El robot av
 <p align="center">
     <img src="schemes/flowcharts/common/webp/inferencia-direccion.webp" alt="Inferencia del sentido de la vuelta" width="700">
     <br>
-    <i>Inferencia del sentido de la vuelta — fuente Mermaid: <a href="schemes/flowcharts/common/mermaid/inferencia-direccion.mmd"><code>inferencia-direccion.mmd</code></a></i>
+    <i>Inferencia del sentido de la vuelta - fuente Mermaid: <a href="schemes/flowcharts/common/mermaid/inferencia-direccion.mmd"><code>inferencia-direccion.mmd</code></a></i>
 </p>
 
 Lo interesante no es la comparación, sino todo lo que hay que descartar antes de creerla. Una lectura solo cuenta como voto si supera cuatro filtros ([`inferencia-direccion.mmd`](schemes/flowcharts/common/mermaid/inferencia-direccion.mmd)):
@@ -1025,31 +1058,31 @@ Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los f
 <p align="center">
     <img src="schemes/flowcharts/open/webp/flujo-completo.webp" alt="Flujo completo del Open Challenge" width="800">
     <br>
-    <i>Open Challenge — flujo completo</i>
+    <i>Open Challenge - flujo completo</i>
 </p>
 
 <p align="center">
     <img src="schemes/flowcharts/open/webp/maquina-estados.webp" alt="Maquina de estados del Open Challenge" width="800">
     <br>
-    <i>Open Challenge — máquina de estados</i>
+    <i>Open Challenge - máquina de estados</i>
 </p>
 
 <p align="center">
     <img src="schemes/flowcharts/obstacles/webp/flujo-parte1-conduccion.webp" alt="Obstacle Challenge, parte 1: conduccion" width="800">
     <br>
-    <i>Obstacle Challenge — parte 1: conducción y señales</i>
+    <i>Obstacle Challenge - parte 1: conducción y señales</i>
 </p>
 
 <p align="center">
     <img src="schemes/flowcharts/obstacles/webp/flujo-parte2-estacionamiento.webp" alt="Obstacle Challenge, parte 2: estacionamiento" width="800">
     <br>
-    <i>Obstacle Challenge — parte 2: estacionamiento</i>
+    <i>Obstacle Challenge - parte 2: estacionamiento</i>
 </p>
 
 <p align="center">
     <img src="schemes/flowcharts/obstacles/webp/maquina-estados.webp" alt="Maquina de estados del Obstacle Challenge" width="800">
     <br>
-    <i>Obstacle Challenge — máquina de estados</i>
+    <i>Obstacle Challenge - máquina de estados</i>
 </p>
 ## Grabación y análisis de carreras
 
@@ -1146,6 +1179,25 @@ Los errores más costosos del proyecto no fueron de programación, sino **suposi
 | Sobredimensionar una pieza **no elimina el cuello de botella** | Al pasar a un puente de 43 A, el elemento más débil de la ruta de potencia pasó a ser el interruptor de encendido. El límite se movió de sitio; no desapareció. |
 
 El patrón es siempre el mismo: **el sistema se comportaba de forma coherente con una suposición equivocada**, y por eso los síntomas nunca apuntaban a la causa. La conclusión que sacamos, y que ahora aplicamos por defecto, es medir antes de optimizar.
+
+## Gestión de riesgos
+
+Riesgos identificados del robot, con su mitigación o su estado. Incluimos también los abiertos sin solución completa: declararlos es parte de gestionarlos.
+
+| Riesgo | Impacto | Mitigación | Estado |
+|--------|---------|------------|--------|
+| Undervoltage de la Pi 5 (consumo conjunto placa + AI HAT+ cerca del margen) | Reinicios o throttling en plena ronda | Presupuesto de potencia por riel; monitoreo con `vcgencmd get_throttled` | Vigilado |
+| Fallo de la cámara o la NPU durante la ronda | Ciegas ante señales y obstáculos visuales | La visión está marcada como caída si no hay detecciones en su ventana; la colisión la cubre el LIDAR, no la visión | Mitigado |
+| Lectura fallida del LIDAR que se reporta como rango máximo | El robot interpreta un lado despejado que no lo está | Cuatro filtros de voto + 5 votos coincidentes antes de inferir dirección | Mitigado |
+| Lecturas fantasma del LIDAR (rangos alternando sin causa clara) | Navegación con datos esporádicamente erróneos | Los mismos filtros de voto absorben lecturas aisladas | **Abierto** - causa raíz sin identificar |
+| Watchdog DDS: nodo vivo pero silencioso (matcheados sin datos) | Robot sin comandos con todo "conectado" | Watchdog de BOOT_CHECK (3 fallos antes de actuar) y reinicio coordinado; watchdog de motores auto-frena a 1 s sin comandos | Mitigado |
+| Fallo del puente H o de la ruta de potencia | Pérdida de tracción | BTS7960 sobredimensionado (43 A); el eslabón débil actual es el interruptor de encendido | Mitigado - punto débil documentado |
+| Pull-down físico ausente en `LPWM` del BTS7960 | Pulso de motor espurio al arrancar la Pi | Ninguna aún | **Abierto** - acción en cola |
+| Sobrepeso cerca del límite de 1.5 kg | Descalificación | Pieza por pieza contra carga medida | Vigilado |
+| El simulador es optimista respecto a la pista real | Fallos en pista que la simulación no muestra | Calibración del simulador contra mediciones reales; ninguna conclusión se da por válida solo en sim | Mitigado parcialmente |
+| Modo ciego con FOV limitado (~2.3 m) | 78 % de los fallos blind ocurren en la primera vuelta | Velocidad reducida, prioridad de paso estrecho por seguridad | Conocido - aceptado |
+| Fallback de ronda equivocada (la ronda corrió como el challenge incorrecto, 2026-09-06) | Puntaje nulo en la ronda real | Re-muestreo del jumper en SYSTEM_RESET; timeout de 180 s | Mitigado tras el fallo |
+| Peso del stack: arranque lento y servicios caídos al boot | Robot no listo al llamar a pista | Unidades systemd con `Restart`/`on-failure`; boot reducido de ~3 min | Mitigado |
 
 ## Tecnologías utilizadas
 
