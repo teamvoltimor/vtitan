@@ -207,16 +207,23 @@ class SignRouter:
         self,
         observations: list[TrafficSignObservation] | None,
         robot_pos: Waypoint,
+        lidar_proposals: list[tuple[float, float]] | None = None,
     ) -> None:
         """Fold a frame of observations into the discovered sign list.
 
         Appending only ever grows ``_signs``, which is what keeps the
         index-keyed ``_passed``/``_engaged`` bookkeeping valid. A published
         sign's position is refined in place for the same reason.
+
+        ``lidar_proposals`` land BEFORE the camera frame so that a sign seen by
+        both this tick is positioned by the LIDAR and coloured by the camera,
+        rather than the camera creating the track and the proposal merely
+        joining it.
         """
         if self._sign_map is None:
             return
 
+        self._sign_map.propose(lidar_proposals, robot_pos)
         self._sign_map.observe(observations, robot_pos)
 
         for track in self._sign_map.newly_confirmed():
@@ -490,6 +497,7 @@ class SignRouter:
         robot_yaw: float,
         corridor: Section,
         observations: list[TrafficSignObservation] | None = None,
+        lidar_proposals: list[tuple[float, float]] | None = None,
     ) -> tuple[float, float]:
         """Return a (possibly laterally deformed) version of the target waypoint.
 
@@ -503,6 +511,9 @@ class SignRouter:
             robot_yaw: Robot heading (radians, 0 = east).
             corridor: Current track section.
             observations: Latest world-coordinate sign observations.
+            lidar_proposals: World ``(x, y)`` pillar candidates from
+                ``lidar_proposer.propose``. Position evidence only -- they carry
+                no colour and cannot themselves produce a deformation.
 
         Returns:
             Deformed waypoint (x, y). Unchanged if no active sign nearby.
@@ -511,7 +522,7 @@ class SignRouter:
         # sign about to be routed around, so it has to land before candidate
         # selection rather than after it.
         robot_wp = Waypoint(*robot_pos)
-        self._ingest_observations(observations, robot_wp)
+        self._ingest_observations(observations, robot_wp, lidar_proposals)
 
         candidates = self._prefer_committed(self._active_sign_candidates(robot_wp, robot_yaw, corridor))
 

@@ -41,6 +41,7 @@ from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
 from src.navigation.corridor_estimator import classify_width
 from src.navigation.geometry import chassis_half_diagonal_m
+from src.navigation.planning.lidar_proposer import propose as propose_sign_positions
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand, LidarScan
@@ -1131,6 +1132,15 @@ class CoreNavigator(EscapeRecovery):
         )
         if self._sign_router is not None and self._current_corridor is not None:
             observations = self._gateway.get_vision_detections(self._current_corridor)
+            # The LIDAR proposes WHERE, the camera decides WHAT. Position-only
+            # evidence: a proposal never publishes a sign by itself, so this
+            # cannot steer -- it only means the geometry is already settled by
+            # the time a colour arrives. See SIGN_LIDAR_PROPOSE.
+            lidar_proposals = (
+                propose_sign_positions(scan, (robot_x, robot_y, robot_yaw))
+                if scan is not None and self._tuning.sign_router.SIGN_LIDAR_PROPOSE
+                else None
+            )
             raw_target = steer_target
             deformed = self._sign_router.deform_waypoint(
                 waypoint=steer_target,
@@ -1138,6 +1148,7 @@ class CoreNavigator(EscapeRecovery):
                 robot_yaw=robot_yaw,
                 corridor=self._current_corridor,
                 observations=observations,
+                lidar_proposals=lidar_proposals,
             )
             if not suppress_deform:
                 steer_target = deformed

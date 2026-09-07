@@ -525,6 +525,28 @@ class SignRouterParams(BaseModel):
     PIN_HEADING_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_HEADING_GUARD"))
     SIGN_AWARE_LOOKAHEAD: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_LOOKAHEAD"))
 
+    SIGN_LIDAR_PROPOSE: bool = Field(default=False, validation_alias=_alias("SIGN_LIDAR_PROPOSE"))
+    """Let the LIDAR propose a sign's POSITION for the camera to colour.
+
+    The camera stops resolving signs past ~1.1 m while pillar-shaped LIDAR
+    clusters appear at a median 1.31 m, so this folds the earlier evidence in as
+    geometry only: a proposal casts no colour vote, is never published on its own
+    (``ObservedSignMap.newly_confirmed`` requires a vote), and cannot reach a
+    steering command, because the pass-side rule is colour-keyed. What it buys is
+    that when the colour does arrive, the position is already settled instead of
+    being established from scratch inside the last 0.3 m -- and that the position
+    is a LIDAR range rather than a pinhole estimate, which is what put believed
+    pillars ON THE WALLS on hardware.
+
+    Scored against the simulator's known layout, the detector finds 100% of signs
+    (84/84) at 46% precision, which the placement lattice lifts to 84%. It is
+    OFF by default until the corpus says what it does to laps and collisions.
+
+    DISTINCT from ``SIGN_LIDAR_ALIGN``, which STEERS toward the nearest narrow
+    cluster. That acts on an unconfirmed candidate; this one only records where
+    it was.
+    """
+
     SIGN_LIDAR_ALIGN: bool = Field(default=False, validation_alias=_alias("SIGN_LIDAR_ALIGN"))
     """Steer toward a narrow LIDAR object ahead that the camera has not classified.
 
