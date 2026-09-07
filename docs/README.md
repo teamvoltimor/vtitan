@@ -413,7 +413,7 @@ width="350">
 
 Si bien la Raspberry Pi 5 es capaz de procesar imágenes en tiempo real, tras algunas pruebas, descubrimos que su tasa de procesamiento era bastante baja (alrededor de 1 a 2 fotos por segundo, con varias optimizaciones implementadas) por ende, tuvimos en cuenta que necesitaba un poco más de poder, por lo cual decidimos incorporar la AI HAT+ a la Raspberry Pi 5 para poder alcanzar el nivel de procesamiento necesario.
 
-El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones por Segundo (TOPS) y otra de 26 TOPS. Como se menciona en el índice, V-Titan posee un Raspberry Pi AI HAT+ de 26 TOPS, gracias a este procesador de imágenes, V-Titan puede analizar hasta 30 imágenes por segundo con una resolución de 640 px × 640 px.
+El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones por Segundo (TOPS) y otra de 26 TOPS. Como se menciona en el índice, V-Titan posee un Raspberry Pi AI HAT+ de 26 TOPS, gracias a este procesador de imágenes, V-Titan puede analizar imágenes de 640 px × 640 px a 15 Hz de punta a punta (captura, inferencia y publicación), con el modelo rindiendo 101 FPS en inferencia pura. La medición completa está en la [sección del modelo de detección](README.md#modelo-de-detección-yolo).
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -877,11 +877,78 @@ Un detalle que ilustra el nivel de restricción real: el SoC de la Pi Zero 2 W t
 
 ## Modelo de Detección YOLO
 
-Para poder detectar los obstáculos del Desafío Cerrado de una manera confiable, decidimos implementar un modelo de detección YOLO (You Only Look Once) para poder mantener tracción de los obstáculos en pista, al principio, decidimos probar los modelos de prueba en la Raspberry Pi 5, utilizando la Raspberry Pi Camera Module 3 Wide para poder ejecutar los modelos de prueba, sin embargo tras las primeras pruebas notamos que el tiempo de detección era demasiado alto (alrededor de los 700ms por imágen) tras esto decidimos implementar un Raspberry Pi AI HAT+ (26 TOPS) con el cual, obtuvimos una tasa de detección de alrededor de 30 a 40 imágenes por segundo.
+Para detectar los obstáculos del Desafío Cerrado de manera confiable usamos un detector YOLO entrenado por nosotros y compilado para el AI HAT+. Esta sección documenta el modelo completo: qué es, con qué datos se entrenó, cómo lo medimos y qué decisiones tomamos a partir de esas mediciones.
+
+### El modelo y su pipeline
+
+| Aspecto | Valor |
+|---------|-------|
+| Arquitectura | YOLOv11n (nano), 3 clases: prisma verde, magenta y rojo |
+| Entrada | 640 × 640 × 3, UINT8 |
+| Formato desplegado | ONNX compilado a HEF (Hailo-8) con Hailo Model Zoo |
+| NMS | Embebido en el HEF, score 0.20, IoU 0.70 |
+| Umbral de despliegue | 0.45 en el detector (las detecciones por debajo no llegan al navegador); 0.25 en el router de señales, para confirmación tardía |
+| Throughput | 101.5 FPS el HEF solo (`hailortcli run`); el pipeline completo (captura → letterbox → NPU → decode → publicar) corre a **15 Hz**, limitado por el timer de captura, no por el modelo |
+
+Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), inservible para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos el pipeline: el nodo de visión abre la cámara directamente y alimenta los frames al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
+
+### Datos de entrenamiento
+
+El modelo actual se entrenó sobre **1,340 imágenes propias** de los prismas de la pista (verde, magenta y rojo), anotadas **manualmente con Label Studio** en formato YOLO. Es un dataset heredado de Klevor, que sigue siendo la base del detector actual.
+
+En paralelo construimos el **auto-annotator**, una herramienta de anotación asistida con SAM2 (orquestación en Go, servicio de ML en Python, frontend propio). No la usamos para el modelo actual: las anotaciones de este fueron a mano. La construimos pensando en la siguiente iteración del dataset, porque anotar 1,340 imágenes a mano fue la parte más lenta del entrenamiento y un modelo nuevo empieza por ahí. Las imágenes del dataset viven en el repositorio del auto-annotator y sirven también como datos de calibración para la cuantización del HEF.
+
+### Cómo lo medimos (y qué cambió por eso)
+
+Evaluamos el modelo sobre 600 imágenes con IoU ≥ 0.5, comparando el techo en punto flotante contra dos variantes cuantizadas del compilador de Hailo:
+
+| Variante | mAP@0.5 | mAP@0.5:0.95 | Clasificaciones erróneas | Omitidas |
+|---|---|---|---|---|
+| Punto flotante (techo) | 0.9955 | 0.8885 | 0 | — |
+| Nivel 0, la desplegada | 0.9954 | 0.8808 | 0 | 2 |
+| Nivel 2 + QAT | 0.9689 | 0.8096 | 2 (magenta↔rojo) | 23 |
+
+La decisión de desplegar la variante de nivel 0 salió directamente de esta tabla: la heurística "más optimización del compilador es mejor" era falsa para nuestro caso, y la variante de nivel 2, pese a llevar QAT, perdía mAP y, lo peor, introducía las únicas 2 confusiones entre clases del estudio.
+
+Dos hallazgos de esta evaluación nos parecieron los más valiosos:
+
+- **El orden de canales RGB/BGR casi pasa inadvertido.** Con el orden de canales equivocado, el mAP de la clase roja caía de 0.99 a **0.17**, y el sistema no falla de forma estridente: detecta "algo" con confianza razonable, solo que peor. Lo detectamos comparando mAP por clase entre variantes, no mirando imágenes.
+- **Errar el color es peor que omitir la señal.** Clasificar un prisma rojo como verde invierte el lado de paso reglamentario; omitir la detección no lo hace, porque la red de seguridad en colisiones es el LIDAR, no la visión. Sobre 600 imágenes, el modelo desplegado jamás confundió rojo con verde y omitió 2 señales; los falsos positivos a umbral 0.25 fueron 119 (muchos atribuibles a etiquetado incompleto del conjunto de prueba), y el umbral de despliegue de 0.45 los suprime antes de que lleguen al navegador.
+
+### Qué pasa cuando la visión falla
+
+La visión no es la red de seguridad contra colisiones y la diseñamos como tal. Una detección falsa dentro del radio de activación (1.40 m) fuerza el lado de esquiva según su color, con el riesgo de una esquiva innecesaria; una detección omitida deja la esquiva sin invocar, pero el controlador de colisión por LIDAR sigue activo y los escapes escalan (retroceso y reintento) si el contacto ocurre igualmente. La máquina de estados, además, marca la visión como caída si deja de recibir detecciones dentro de su ventana de tiempo, de modo que una cámara o NPU muerto no pasa inadvertido en el autodiagnóstico de arranque.
 
 ## Algoritmo PID
 
-Otro algoritmo fundamental que implementamos en nuestra estrategia para facilitar el buen desempeño de V-Titan en los desafíos es el PID (Proporcional, Integral y Derivativo) éste es utilizado principalmente para que, con ayuda del giroscopio, V-Titan siempre esté orientado de paralelamente a los bordes de la pista, además de esto, el PID es utilizado para suavizar los cruces en los desafíos (para evitar el "overshooting", es decir, que V-Titan, por inercia cruce 10 o 20 grados más de lo deseado por un giro brusco)
+El control de V-Titan tiene dos lazos con exigencias distintas, y solo uno de ellos es propiamente un PID. El de **velocidad** sí es un PI clásico sobre las RPM medidas por el encoder; el de **dirección** dejó de serlo: la ganancia proporcional pura resultó ser un lazo inestable a velocidad de carrera y fue reemplazada por *pure pursuit* basado en curvatura. Contar esa sustitución es, de hecho, la parte más instructiva de esta sección.
+
+### Control de velocidad: PI sobre RPM
+
+El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `PIDController` implementa un PI con saturación de salida (tope de duty en 50%) y anti-windup por integración condicional: el término integral solo acumula cuando la salida no está saturada, de modo que el viento-up no puede persistir contra el tope.
+
+Sobre el PI va un **feedforward afín** medido en banco, `duty = 0.20 + 0.8 · rpm/max_rpm`, con el deadband medido cargado (`rpm = 434.6·duty − 86.7`). El lazo integral solo corrige lo que el feedforward no modela; un setpoint de cero devuelve duty cero, así que el robot no se desliza al detenerse.
+
+Las ganancias son perfiles por motor y su historia ilustra por qué "los valores vivieron en el código" era un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el duty oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un log por paso del PID (consigna, medida, duty) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra el techo: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de un rail), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
+
+### Dirección: de PID a pure pursuit
+
+La dirección de V-Titan no es un lazo P sobre error angular, aunque lo fue. Con `steering = kp · angle_error`, el sistema era estable solo por debajo de ~0.07 m/s: a velocidad de carrera, el lazo se volvía un oscilador no amortiguado que saturaba el servo entre −70.2° y +70.2° durante carreras completas. La causa tenía un detalle fino: la ganancia se había ajustado contra un modelo de simulación con dirección delantera, mientras el chasis real es de 4 ruedas direccionales en contrafase, que gira aproximadamente al doble de rápido para el mismo ángulo de servo.
+
+La solución no fue ajustar la ganancia, sino cambiar la ley de control: **pure pursuit** sobre el punto de mira del camino planificado, con la distancia efectiva `L = wheelbase/2` para compensar el doble de tasa de guiñada del chasis en contrafase. La curvatura se convierte en ángulo de servo con saturación en ±70.2° y un limitador de tasa de 1.2 rad/s (bajado de 2.0 tras ver en un bag real que el controlador tocaba el tope de tasa en cada esquina, lo que se leía como "demasiado brusco" en pista).
+
+Dos refinamientos más, ambos dictados por evidencia de hardware:
+
+- **Mezcla del lookahead en vez de conmutación.** Los dos valores de lookahead (0.16 m corto, 0.32 m largo) conmutaban a ~2.5 Hz, y cada conmutación saltaba la curvatura 4×, produciendo un zigzag visible (pico medio de |steer| de 0.306 a 0.398 sin ganancia lateral real). Se reemplazó la conmutación por una rampa de mezcla continua.
+- **Vista previa de esquina.** Con la señal de error lateral (una señal rezagada), el robot sostenía 0.9 rad de error de rumbo durante 3 s a fondo antes de reaccionar en las esquinas. Se añadió una vista previa geométrica de la pista a 0.80 m adelante para armar el lookahead corto antes, sin alargarlo más porque otra prueba midió un tejido lateral de ±0.18 m con preview excesivo.
+
+### El modo ciego: P de centrado eliminada por medición
+
+En la fase inicial, antes de que la inferencia de dirección se estabilice, el robot sigue el pasillo solo con LIDAR. Ahí probamos un controlador P de dos términos (centrado + amortiguación de rumbo) y la ganancia de centrado resultó ser el peor error de tuning del proyecto: con el centrado en 2.0, una barra de 128 escenarios perdió 12 casos su dirección y metió 9 a una pared; en hardware se midieron **112 inversiones de signo del steering en 177 s, con el 45% de los ciclos clavados en el tope**. El fix fue eliminar el término de centrado (ganancia en 0) y quedarse solo con la amortiguación de rumbo: la misma barra pasó a 0 fallos y el creep inicial bajó de 6.7 s a 3.4 s. La lección registrada: corregir posición sin tener en cuenta el rumbo siempre sobrepasa y vuelve, porque el steering fija la tasa de guiñada, no la posición.
+
+### El rol del giroscopio
+
+El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Su yaw relativo (ajustado por el offset al inicio de la ronda) se fusiona con odometría del encoder y con el LIDAR para producir la posición y rumbo que consume el pure pursuit; en el modo ciego entra solo por el término de amortiguación. En los cruces, el alineamiento con el eje del pasillo (medido contra el yaw del IMU) es lo que autoriza la velocidad normal, y un desalineamiento mayor a ~57° obliga a avance lento, que es donde vive la protección contra el sobrepaso que antes se le atribuía al PID.
 
 ## Estrategia en pista
 
@@ -1075,7 +1142,7 @@ El patrón es siempre el mismo: **el sistema se comportaba de forma coherente co
 | **Go** | Segunda implementación de la pila de navegación | Arranque más rápido y consumo de recursos menor en el robot |
 | **Pixi / RoboStack** | Entorno de desarrollo | Permite trabajar el mismo proyecto en Windows, Linux y en la Raspberry sin divergencias |
 | **Gazebo** | Simulación física | Ejecutar el corpus de escenarios sin pista |
-| **Hailo + YOLO** | Detección de señales | Inferencia acelerada: de ~700 ms por imagen a 30-40 imágenes por segundo |
+| **Hailo + YOLO** | Detección de señales | Inferencia en NPU: de ~700 ms por imagen en CPU a un pipeline de 15 Hz de punta a punta |
 | **MCAP + Foxglove** | Grabación y análisis | Formato de bags y visualización posterior de cada ronda |
 | **Task** | Automatización | Un único punto de entrada para compilar, probar, desplegar y simular |
 | **tscircuit** | Esquemático de conexiones | El arnés se define en código y se versiona igual que el software |
