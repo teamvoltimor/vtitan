@@ -52,6 +52,34 @@ class SimulationParams(BaseModel):
     START_COLLISION_GRACE_S: float = Field(default=15.0, validation_alias=_alias("START_COLLISION_GRACE_S"))
     LIDAR_INVALID_RAY_RATE: float = Field(default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE"))
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
+
+    VISION_THROUGH_PINHOLE: bool = Field(default=False, validation_alias=_alias("VISION_THROUGH_PINHOLE"))
+    """Emulate camera BOUNDING BOXES and decode them with the shipped code.
+
+    Off, the emulator hands the router world coordinates built from the TRUE
+    range and bearing, so the simulator never runs ``_detection_to_world`` at
+    all -- no pinhole, no bearing formula, no bbox-height gate, no aspect test,
+    no frame-clip test. Every one of those is live on the robot.
+
+    That gap is not hypothetical. The camera's bearing formula was MIRRORED
+    until 2026-09-06 -- positive for a box on the RIGHT of the image, against a
+    robot frame where left is positive -- so every sign was reflected across the
+    heading axis onto the far wall of a 1 m corridor, and the 256-scenario
+    corpus could not see it. It survived because this emulator reproduced the
+    true geometry directly and the router's unit tests built their boxes by
+    INVERTING the same formula; both agreed with the error. Only a hardware bag
+    disagreed.
+
+    On, the emulated box round-trips EXACTLY (1e-15 m) through
+    ``detection_to_observation`` when the decode is correct, so the arm is not a
+    noise source -- it is a wiring change. What it adds is that a wrong decode
+    now shows up in the corpus.
+
+    **Ships False until the corpus has been re-baselined on it**, since it
+    changes which detections survive the discovery gates and therefore every
+    Obstacles number. Still deliberately optimistic about everything else: no
+    false positives, no wall confusion, no occlusion, no dropout.
+    """
     COLLISION_MARGIN_M: float = Field(default=0.0, validation_alias=_alias("COLLISION_MARGIN_M"))
     AXIS_ALIGN_TOLERANCE: float = Field(default=1e-6, validation_alias=_alias("AXIS_ALIGN_TOLERANCE"))
     NO_PROGRESS_WINDOW_S: float = Field(default=30.0, validation_alias=_alias("NO_PROGRESS_WINDOW_S"))

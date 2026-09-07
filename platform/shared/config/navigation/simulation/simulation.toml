@@ -50,3 +50,18 @@ axis_align_tolerance = 1e-6
 # only as Python literals, at these same shipped values.
 no_progress_window_s = 30.0
 no_progress_displacement_m = 0.08
+
+# Emulate camera BOUNDING BOXES and decode them with the shipped perception
+# code, instead of handing the router world coordinates built from the TRUE
+# range and bearing. Off, the simulator never runs _detection_to_world at all --
+# no pinhole, no bearing formula, no bbox-height gate, no aspect or frame-clip
+# test -- all of which are live on the robot. That is how a MIRRORED camera
+# bearing (fixed 2026-09-06) survived the 256-scenario corpus for weeks: the
+# emulator reproduced the true geometry and the router's unit tests built their
+# boxes by inverting the same formula, so both agreed with the error.
+# The emulated box round-trips EXACTLY (1e-15 m) through the correct decode, so
+# this is a wiring change rather than a noise source; with the historical mirror
+# reintroduced it puts a sign 0.600 m onto the WRONG SIDE of a 1 m corridor.
+# Ships false until the Obstacles corpus is re-baselined on it, since it changes
+# which detections survive the discovery gates.
+vision_through_pinhole = false

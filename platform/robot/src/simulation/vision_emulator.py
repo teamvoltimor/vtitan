@@ -16,8 +16,8 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from shared.config.constants import RobotSpecs
-from shared.domain.models import SignColor, TrafficSignObservation, Waypoint
+from shared.config.constants import RobotSpecs, TrafficSignSpecs
+from shared.domain.models import Detection, SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import wrap_angle as _wrap_angle
@@ -107,3 +107,88 @@ def emulate_sign_observations(
             ),
         )
     return observations
+
+
+def emulate_sign_detections(
+    signs: list[SignSpec],
+    robot_pos: Waypoint,
+    robot_yaw: float,
+    max_range: float = RobotSpecs.CAMERA_FAR_CLIP,
+    tuning: NavigationTuning | None = None,
+) -> list[Detection]:
+    """Synthetic BOUNDING BOXES, so the sim runs the real perception maths.
+
+    ``emulate_sign_observations`` hands back world coordinates built from the
+    TRUE range and bearing, which means the simulator never executes
+    ``_detection_to_world`` at all -- no pinhole, no bearing formula, no aspect
+    gate, no frame-clipping test. Every one of those is live on the robot, and
+    the corpus was structurally unable to see any of them.
+
+    That is not hypothetical. The camera's bearing formula was MIRRORED --
+    positive for a box on the RIGHT of the image against a robot frame where
+    left is positive -- so every sign was reflected across the heading axis onto
+    the far wall of a 1 m corridor. It survived in-tree because this emulator
+    reproduced the true geometry directly and the router's unit tests built
+    their bounding boxes by INVERTING the same formula. Both agreed with the
+    error. Only a hardware bag disagreed.
+
+    So this inverts the projection to a BOX and stops there, leaving the decode
+    to the shipped code. Anything wrong in that decode now shows up in the
+    corpus instead of waiting for a race.
+
+    Still deliberately optimistic about everything else: no false positives, no
+    wall confusion, no occlusion, no dropout, fixed high confidence. Those are
+    separate fidelity gaps and each wants its own measurement.
+    """
+    tuning = get_tuning(tuning)
+    confidence = tuning.simulation.DETECTION_CONFIDENCE
+    focal_px = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
+    # Measured FROM THE SENSOR, which is 0.1222 m forward of the chassis centre.
+    # `_detection_to_world` projects its ray from there, so a range taken at the
+    # centre comes back 12.2 cm long -- verified by round-tripping a sign at
+    # 1.000 m and getting 1.122 m. (`emulate_sign_observations` above still
+    # measures from the centre; it also REPORTS from the centre, so it is
+    # self-consistent, but it does disagree with the shipped decoder by that
+    # same offset.)
+    sensor_pos = Waypoint(
+        robot_pos.x + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(robot_yaw),
+        robot_pos.y + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(robot_yaw),
+    )
+    detections: list[Detection] = []
+    for sign in signs:
+        sign_pos = Waypoint(sign.x, sign.y)
+        distance = sensor_pos.distance_to(sign_pos)
+        if distance <= 0.0 or distance > max_range:
+            continue
+        theta_h = _wrap_angle(sensor_pos.bearing_to(sign_pos) - robot_yaw)
+        if abs(theta_h) > RobotSpecs.CAMERA_HFOV / 2:
+            continue
+
+        # The inverse of `_detection_to_world`: bearing -> centre column, range
+        # -> box height. Written against the shipped formulae rather than
+        # restating them, so the two move together -- but NOT shared with the
+        # decode, because a decoder tested only against its own inverse is what
+        # let the mirrored bearing through.
+        pixel_height = focal_px * TrafficSignSpecs.HEIGHT / distance
+        cx = (0.5 - theta_h / RobotSpecs.CAMERA_HFOV) * RobotSpecs.CAMERA_WIDTH
+        # A pillar is 0.05 m wide and 0.10 m tall, so the box is half as wide as
+        # it is high -- which also keeps it the right side of MAX_PILLAR_ASPECT.
+        pixel_width = pixel_height * TrafficSignSpecs.WIDTH / TrafficSignSpecs.HEIGHT
+        cy = RobotSpecs.CAMERA_HEIGHT / 2.0
+        x_min = cx - pixel_width / 2.0
+        x_max = cx + pixel_width / 2.0
+        y_min = cy - pixel_height / 2.0
+        y_max = cy + pixel_height / 2.0
+        detections.append(
+            Detection(
+                class_name=SignColor.RED if sign.color == "red" else SignColor.GREEN,
+                confidence=confidence,
+                bbox=(x_min, y_min, x_max, y_max),
+                x=cx,
+                y=cy,
+                width=pixel_width,
+                height=pixel_height,
+                area=pixel_width * pixel_height,
+            ),
+        )
+    return detections

@@ -28,7 +28,8 @@ from src.simulation.collision_stepping import allowed_step
 from src.simulation.imu_error_model import ImuErrorModel, SensorErrors
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel
-from src.simulation.vision_emulator import emulate_sign_observations
+from src.navigation.planning.sign_discovery import detection_to_observation
+from src.simulation.vision_emulator import emulate_sign_detections, emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
 
 if TYPE_CHECKING:
@@ -371,9 +372,7 @@ class SimulatedHardwareGateway:
             stamp_s=self._elapsed_s,
         )
 
-    def get_vision_detections(
-        self, current_corridor: Section | None = None
-    ) -> list[TrafficSignObservation]:
+    def get_vision_detections(self, current_corridor: Section | None = None) -> list[TrafficSignObservation]:
         """Return synthetic sign observations, or ``[]`` if none were provided.
 
         Visibility (is a sign in frame, how far away) is judged from the TRUE
@@ -389,6 +388,22 @@ class SimulatedHardwareGateway:
         if not self._signs:
             return []
         believed = self.get_current_pose()
+        if self.tuning.simulation.VISION_THROUGH_PINHOLE:
+            # Boxes decoded by the SHIPPED perception code, so the corpus
+            # exercises the pinhole, the bearing formula and the discovery gates
+            # instead of being handed the answer. See
+            # SimulationParams.VISION_THROUGH_PINHOLE.
+            pose = believed if believed is not None else Pose(x=self._state.x, y=self._state.y, yaw=self._state.yaw)
+            observations = [
+                detection_to_observation(det, pose, tuning=self.tuning)
+                for det in emulate_sign_detections(
+                    self._signs,
+                    Waypoint(self._state.x, self._state.y),
+                    self._state.yaw,
+                    tuning=self.tuning,
+                )
+            ]
+            return [obs for obs in observations if obs is not None]
         return emulate_sign_observations(
             self._signs,
             Waypoint(self._state.x, self._state.y),
