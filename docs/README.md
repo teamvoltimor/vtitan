@@ -152,6 +152,10 @@ task docs:diagrams                 # Re-renderizar todos los diagramas Mermaid a
 cd docs/schemes/wiring/tscircuit && npm run artifacts   # Regenerar el esquemático del arnés
 ```
 
+### Versionado
+
+Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para el evento regional de WRO 2026, y el historial entre tags es un registro continuo de commits con mensajes convencionales (`fix(robot):`, `docs(readme):`, `perf(nav):`, ...). Cualquier resultado medido en este documento (tasas del corpus, FPS del detector, consumo de potencia) puede rastrearse hasta el código exacto que lo produjo vía el historial.
+
 ## Índice
 
 1. **[Arranque rápido y reproducibilidad](README.md#arranque-rápido-y-reproducibilidad)**
