@@ -568,9 +568,9 @@ La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal
 | C-rating           | 120C                                           | 50C                                    |
 | Conector           | XT60                                           | Deans (T-plug)                         |
 | Dimensiones        | 77.17 × 34.06 × 25.12 mm                       | 107 × 24 × 33 mm                       |
-| Peso               | 140 g                                          | 190 g (medidos)                        |
+| Peso               | 140 g                                          | 186 g                                  |
 
-**Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia** (formato "shorty" con conector XT60): menos capacidad, pero **50 g menos en la balanza** (140 g contra 190 g, lo que representa un tercio de nuestro margen total de peso) y un C-rating doble, que es lo que importa en pista.
+**Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia** (formato "shorty" con conector XT60): menos capacidad, pero **46 g menos en la balanza** (140 g contra 186 g) y un C-rating doble, que es lo que importa en pista.
 
 **Por qué es suficiente.** El presupuesto de potencia real del robot es de ~5 A sostenidos con picos de ~20 A en arranques (ver la [sección de consumo energético](README.md#consumo-energ%C3%A9tico)). Con la batería de competencia:
 
