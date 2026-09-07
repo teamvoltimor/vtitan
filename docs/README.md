@@ -843,27 +843,21 @@ Ahora bien, en el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md
 
 La fórmula general para calcular el torque necesario es:
 
-$$T = \frac{m \cdot (a + g \cdot (\mu \cos\theta + \sin\theta)) \cdot r}{N}$$
+$$T = \frac{m \cdot \left( a + g \cdot \left( \mu \cos\theta + \sin\theta \right) \right) \cdot r}{N}$$
 
-Donde: 
+Donde:
 
-"m" es la masa del vehículo (en kg; en V-Titan son **1.5 kg medidos en el robot ensamblado** el 2026-08-01, y es la misma masa que usa la simulación: chasis de 1.3 kg más 4 ruedas de 0.05 kg, `platform/shared/config/robot.toml`)
+- $m$ es la masa del vehículo (en kg; en V-Titan son **1.5 kg medidos en el robot ensamblado** el 2026-08-01, y es la misma masa que usa la simulación: chasis de 1.3 kg más 4 ruedas de 0.05 kg, `platform/shared/config/robot.toml`)
+- $r$ es el radio de la rueda (en metros; en V-Titan mide $0.035\ \text{m}$)
+- $a$ es la aceleración deseada
+- $g$ es la gravedad, $9.81\ \text{m/s}^2$
+- $\mu$ es el cociente de fricción (estimamos $0.3$ para ruedas de ASA sobre lona de PVC flexible)
+- $\theta$ es el ángulo de inclinación ($\theta = 0°$ en esta competición)
+- $N$ es el número de motores en tracción (en V-Titan solo hay uno)
 
-"r" es el radio de la rueda (en metros, cuyo radio en V-Titan mide 0.035 metros)
+Al efectuar toda la operación obtenemos como resultado que se necesita un torque mínimo de $0.154\ \text{Nm}$ para que V-Titan tenga aceleración.
 
-"a" es la aceleración deseada
-
-"g" es la gravedad ($9.81 \text{ m/s}^2$)
-
-"$\mu$" representa el cociente de fricción (para el cual estimamos a 0.3 para unas ruedas de ASA en una lona de PVC flexible)
-
-"$\theta$" representa el ángulo de inclinación (para el cual $\theta = 0^\circ$ en esta competición)
-
-"N" es el número de motores en tracción (en V-Titan solo hay uno)
-
-Al efectuar toda la operación obtenemos como resultado que se necesita un torque mínimo de 0.154Nm para que V-Titan tenga aceleración.
-
-Así que, como el torque de bloqueo del motor (0.105Nm) es menor al torque mínimo (0.154Nm), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
+Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al torque mínimo ($0.154\ \text{Nm}$), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
 
 <p align="center">
 	<img src="../assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
@@ -874,25 +868,23 @@ width="350">
 
 El torque final, o de salida será igual a la multiplicación del torque inicial por la misma relación de engranajes total, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se efectúa el producto de ese conjunto:
 
-El motor cuenta con un eje de 50 dientes, el cual va a una correa de 33 dientes para cada eje, por lo que la relación sería: 33 / 50 = 0.66
+| Etapa | Transmisión | Relación |
+|-------|-------------|----------|
+| 1 | Eje del motor (50 dientes) → correa hacia cada eje (33 dientes) | $i_1 = 33/50 = 0.66$ |
+| 2 | Pernos de transmisión de LEGO con engranaje cónico de 10 dientes → engranaje de 20 dientes | $i_2 = 20/10 = 2$ |
+| 3 | Engranaje de 20 dientes → engranaje de 15 dientes | $i_3 = 15/20 = 0.75$ |
+| 4 | Engranaje de 15 dientes → engranaje de 20 dientes | $i_4 = 20/15 \approx 1.33$ |
+| 5 | Engranaje de 20 dientes → rueda dentada de 50 dientes | $i_5 = 50/20 = 2.5$ |
 
-Este eje tiene en el centro unos pernos de transmisión de LEGO los cuales a su vez, tienen un engranaje cónico de 10 dientes, que transmiten a un engranaje de 20 dientes, por ende su relación de transmisión será: 20 / 10 = 2
+La relación de transmisión total es el producto de las cinco etapas:
 
-Este engranaje de 20 dientes a su vez, conduce a un engranaje de 15 dientes, por ende su relación de transmisión es: 15 / 20 = 0.75
+$$R_{total} = i_1 \cdot i_2 \cdot i_3 \cdot i_4 \cdot i_5 = 0.66 \cdot 2 \cdot 0.75 \cdot 1.33 \cdot 2.5 = 3.29$$
 
-Este engranaje de 15 dientes, la cual conduce otro engranaje de 20 dientes, por ende su relación de transmisión será: 20 / 15 = 1.33
+Y el torque de bloqueo final:
 
-Finalmente este engranaje de 20 dientes, conduce a la rueda dentada la cual cuenta con 50 dientes, por ende su relación de transmisión es: 50 / 20 = 2.5
+$$T_{final} = T_{stall} \cdot R_{total} = 0.105\ \text{Nm} \cdot 3.29 = 0.345\ \text{Nm}$$
 
-Ahora la relación de transmisión total será:
-
-$R_{total}$ = 0.66 * 2 * 0.75 * 1.33 * 2.5 = 3.29
-
-Por ende el Torque de bloqueo final será:
-
-$T_{final}$ = $T$ * $R_{total}$ = 0.105Nm * 3.29 = 0.345Nm
-
-Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, 0.345Nm * 0.5 > 0.154Nm, por ende, esta relación de engranajes es suficiente por sí sola para cumplir con este estándar, aunque, en caso de no cumplir con esta recomendación, los motores DC pueden soportar ejercer picos de torque por unos breves segundos, ya que, a medida que el vehículo gana tracción, el cociente de fricción disminuye considerablemente (alrededor de un 15%) por lo que, el torque necesario baja considerablemente y es más fácil que el vehículo gane aceleración.
+Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm} > 0.154\ \text{Nm}$, por ende, esta relación de engranajes es suficiente por sí sola para cumplir con este estándar, aunque, en caso de no cumplir con esta recomendación, los motores DC pueden soportar ejercer picos de torque por unos breves segundos, ya que, a medida que el vehículo gana tracción, el cociente de fricción disminuye considerablemente (alrededor de un 15%) por lo que, el torque necesario baja considerablemente y es más fácil que el vehículo gane aceleración.
 
 # Arquitectura de software y estrategia para superar obstáculos
 
