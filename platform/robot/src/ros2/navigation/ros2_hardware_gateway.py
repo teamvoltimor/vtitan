@@ -23,7 +23,15 @@ from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.navigation_tuning import LocalizationParams, SensorHealthParams
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.models import CorridorGeometry, Detection, IMUReading, LocalizerInputs, Pose, TrafficSignObservation
+from shared.domain.models import (
+    CorridorGeometry,
+    Detection,
+    IMUReading,
+    LocalizerHealth,
+    LocalizerInputs,
+    Pose,
+    TrafficSignObservation,
+)
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
@@ -312,6 +320,18 @@ class ROS2HardwareGateway(HardwareGateway):
     def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
         return self._localizer_inputs
+
+    def get_localizer_health(self) -> LocalizerHealth:
+        """How well the last fix explained its scan, read live off the localizer.
+
+        Not cached alongside ``_localizer_inputs``: ``set_believed_walls``
+        replaces the localizer outright, and a cached copy would keep
+        reporting the retired one's numbers.
+        """
+        return LocalizerHealth(
+            fit_cost=self._localizer.last_fit_cost,
+            relocalization_count=self._localizer.relocalization_count,
+        )
 
     def _vision_callback(self, msg: String) -> None:
         try:

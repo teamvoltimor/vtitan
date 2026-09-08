@@ -9,18 +9,25 @@ without Gazebo, ROS2, or a physics engine.
 
 from __future__ import annotations
 
-from shared.domain.enums import Section
-
 import math
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.domain.models import IMUReading, LocalizerInputs, Pose, TrafficSignObservation, Waypoint
+from shared.domain.enums import Section
+from shared.domain.models import (
+    IMUReading,
+    LocalizerHealth,
+    LocalizerInputs,
+    Pose,
+    TrafficSignObservation,
+    Waypoint,
+)
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.localization import make_localizer
+from src.navigation.planning.sign_discovery import detection_to_observation
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry, sanitize_lidar_ranges
 from src.navigation.utils import wrap_angle as _wrap_angle
 from src.navigation.wall_heading import estimate_yaw_from_walls
@@ -28,7 +35,6 @@ from src.simulation.collision_stepping import allowed_step
 from src.simulation.imu_error_model import ImuErrorModel, SensorErrors
 from src.simulation.kinematics import AckermannKinematics, AckermannState, KinematicsContext
 from src.simulation.track_model import ContactSurface, TrackModel
-from src.navigation.planning.sign_discovery import detection_to_observation
 from src.simulation.vision_emulator import emulate_sign_detections, emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
 
@@ -656,6 +662,19 @@ class SimulatedHardwareGateway:
     def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
         return self._localizer_inputs
+
+    def get_localizer_health(self) -> LocalizerHealth | None:
+        """How well the last fix explained its scan, or ``None`` when localizing is off.
+
+        This gateway is constructed with ``localize=False`` in the scenarios
+        that drive on ground truth, and then there is no fit to report.
+        """
+        if self._localizer is None:
+            return None
+        return LocalizerHealth(
+            fit_cost=self._localizer.last_fit_cost,
+            relocalization_count=self._localizer.relocalization_count,
+        )
 
     @property
     def last_min_range(self) -> float:

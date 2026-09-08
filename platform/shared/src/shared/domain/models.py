@@ -582,6 +582,33 @@ class LocalizerInputs:
 
 
 @dataclass(slots=True, frozen=True)
+class LocalizerHealth:
+    """How well the localizer's answer explains the scan it came from.
+
+    Deliberately separate from :class:`LocalizerInputs`, which is what the
+    localizer was HANDED; this is what it made of it. Both are diagnostic, and
+    both exist because a wrong position estimate looks exactly like a right one
+    from the outside: on run_20260907_205830 the estimate latched 1.5-3 m off
+    and stayed there for 48 s, and no field the navigator published at the time
+    could have shown it -- the pose was self-consistent, merely wrong.
+    """
+
+    fit_cost: float | None
+    """Mean clipped squared residual (m^2) of the last match, real returns only.
+
+    ~0.010 on a healthy hardware run, ~0.043 on the run that lost the track.
+    ``None`` before the first scan.
+    """
+
+    relocalization_count: int
+    """How many times the global search has had to rescue the estimate.
+
+    Non-zero means the local search lost the pose and recovered. Resets when
+    the corridor-width belief is revised, because that rebuilds the localizer.
+    """
+
+
+@dataclass(slots=True, frozen=True)
 class LaneCoord:
     """A (lateral, depth) coordinate within a sign lane."""
 
@@ -1146,6 +1173,15 @@ class NavigatorDebugSnapshot(BaseModel):
     localizer_input_yaw_rad: float | None = None
     localizer_prior_x: float | None = None
     localizer_prior_y: float | None = None
+
+    # Whether the position fix actually explains the scan it came from, and how
+    # often the global search has had to rescue it. A latched-wrong estimate is
+    # self-consistent and every other field here reads normally through it --
+    # run_20260907_205830 drove 48 s on a pose 1.5-3 m off with nothing in this
+    # snapshot to show for it, and diagnosing it needed the bag replayed
+    # offline. These two would have said so on the tick it happened.
+    localizer_fit_cost: float | None = None
+    localizer_relocalization_count: int | None = None
 
     # Where the robot measured itself to be when direction inference settled,
     # against where it had assumed it was. The 2026-08-05 rounds were lost to a

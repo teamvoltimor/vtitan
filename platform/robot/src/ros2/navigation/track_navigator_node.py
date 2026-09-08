@@ -55,11 +55,10 @@ from src.navigation.planning.sign_router import (
 from src.navigation.planning.waypoints import corridor_widths_dict_to_model, plan_believed_path
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
-from src.navigation.utils import _forward_clearance
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
-from src.navigation.utils import _nearest_ray, axis_error_rad, wrap_angle
+from src.navigation.utils import _forward_clearance, _nearest_ray, axis_error_rad, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.params import declare_param
 from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT, QOS_STREAM
@@ -1630,6 +1629,10 @@ class TrackNavigator(Node, ResettableNode):
                 self._latest_debug.localizer_input_yaw_rad = yaw
                 self._latest_debug.localizer_prior_x = prior_x
                 self._latest_debug.localizer_prior_y = prior_y
+            localizer_health = self._gateway.get_localizer_health()
+            if localizer_health is not None:
+                self._latest_debug.localizer_fit_cost = localizer_health.fit_cost
+                self._latest_debug.localizer_relocalization_count = localizer_health.relocalization_count
             self._debug_pub.publish(String(data=self._latest_debug.model_dump_json()))
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:

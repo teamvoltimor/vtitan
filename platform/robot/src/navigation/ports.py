@@ -14,14 +14,13 @@ now decodes/encodes the same ``steering_norm: float  # [-1, 1], + = left``.
 
 from __future__ import annotations
 
-from shared.domain.enums import Section
-
 import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from shared.config.constants import RobotSpecs
+from shared.domain.enums import Section
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import (
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.models import (
         IMUReading,
+        LocalizerHealth,
         LocalizerInputs,
         Pose,
         SectorRanges,
@@ -234,6 +234,15 @@ class HardwareGateway(Protocol):
         the yaw it is given, so a heading wrong by pi yields a confidently
         tracked but wrong position, and the fused pose that comes back cannot
         show the mismatch. ``None`` before the first scan.
+        """
+
+    def get_localizer_health(self) -> LocalizerHealth | None:
+        """How well the last position fix explained the scan it came from.
+
+        Diagnostic only, and the companion to ``get_localizer_inputs``: that
+        one says what the localizer was given, this one says whether what it
+        produced holds up. ``None`` before the first scan, or on a gateway
+        running without a localizer at all.
         """
 
     def get_wheel_odometry(self) -> WheelOdometry | None:
