@@ -59,6 +59,7 @@ class Approach:
     """One commitment, reduced to the numbers the question needs."""
 
     run: str
+    anchor: tuple[float, float]
     best_lateral_m: float
     final_lateral_m: float
     closest_range_m: float
@@ -82,6 +83,7 @@ def _approaches(run: str, rows: list) -> list[Approach]:
     out: list[Approach] = []
     current: list[tuple[float, float, float]] = []  # (range, |lateral|, steering)
     anchor: tuple[float, float] | None = None
+    PILLAR_M = 0.35  # noqa: N806  (commitment anchors closer than this are one pillar)
 
     def flush() -> None:
         if len(current) < 3:
@@ -98,6 +100,7 @@ def _approaches(run: str, rows: list) -> list[Approach]:
         out.append(
             Approach(
                 run=run,
+                anchor=anchor if anchor is not None else (0.0, 0.0),
                 best_lateral_m=max(w[1] for w in window),
                 final_lateral_m=window[-1][1],
                 closest_range_m=current[closest_i][0],
@@ -161,6 +164,31 @@ def main() -> None:
     print(f"  best lateral m:   p10 {pct(best, .1):.3f} / median {pct(best, .5):.3f} / p90 {pct(best, .9):.3f}")
     print(f"  final lateral m:  p10 {pct(final, .1):.3f} / median {pct(final, .5):.3f} / p90 {pct(final, .9):.3f}")
     print(f"  given back m:     p10 {pct(back, .1):.3f} / median {pct(back, .5):.3f} / p90 {pct(back, .9):.3f}")
+
+    # PER PILLAR, not per commitment. A commitment is not an event on the
+    # track: the map publishes ~2.2 tracks per pillar and the router re-commits
+    # 4-14 times to one of them, so a per-commitment rate counts the same
+    # physical pass several times. Worse, anything that changes the CHURN moves
+    # that denominator on its own -- COMMIT_HYSTERESIS reduces commitments by
+    # design, so a per-commitment contact rate would appear to improve (or
+    # degrade) with no change in how the robot actually drove. Cluster first.
+    pillars: list[list[Approach]] = []
+    for a in approaches:
+        for group in pillars:
+            if math.hypot(a.anchor[0] - group[0].anchor[0], a.anchor[1] - group[0].anchor[1]) < 0.35:
+                group.append(a)
+                break
+        else:
+            pillars.append([a])
+    contacted = [g for g in pillars if min(x.final_lateral_m for x in g) < CONTACT_GAP_M]
+    print()
+    print(f"  PHYSICAL PILLARS (0.35 m clustering):        {len(pillars)}")
+    print(f"  commitments per pillar (churn):              {len(approaches) / max(len(pillars), 1):.1f}x")
+    print(f"  pillars passed INSIDE the contact gap:       {len(contacted)}/{len(pillars)}")
+    best_per_pillar = sorted(max(x.final_lateral_m for x in g) for g in pillars)
+    if best_per_pillar:
+        mid = best_per_pillar[len(best_per_pillar) // 2]
+        print(f"  best clearance achieved per pillar, median:  {mid:.3f} m")
 
     was_clear = [a for a in approaches if a.best_lateral_m >= CONTACT_GAP_M]
     lost_it = [a for a in was_clear if a.final_lateral_m < CONTACT_GAP_M]
