@@ -1056,6 +1056,34 @@ class LocalizationParams(BaseModel):
         JUMP_CONFIRM_TOLERANCE_M: How close two consecutive ticks' rejected
             candidates must be to count as the same correction confirming
             itself (see LidarLocalizer._reject_implausible_speed).
+        RELOCALIZE_COST_THRESHOLD: Mean clipped squared residual (m^2), over
+            real returns only, above which the winning candidate is judged not
+            to explain the scan at all -- i.e. the local search is in the wrong
+            basin, not merely imprecise. See LidarLocalizer._fit_cost for why
+            no-return rays are excluded. Measured by replaying three hardware
+            runs from 2026-09-07 through the localizer: the two that completed
+            three laps sat at a median 0.0097/0.0101 and a 99th percentile of
+            0.0244/0.0134, and across 1945 scans NEITHER ever crossed 0.03.
+            run_20260907_205830, whose estimate latched 1.5-3 m off at t=8.0 s
+            and stayed there for 48 s, sat at a median 0.0432.
+        RELOCALIZE_AFTER_SCANS: Consecutive scans over the threshold before a
+            global relocalization fires. The two healthy runs never produced a
+            streak of even 1, so this is headroom on top of headroom; it is
+            what keeps a burst of dropouts or a transient ambiguity from
+            triggering a jump the robot does not need.
+        RELOCALIZE_GRID_STEP_M: Candidate spacing (m) of the global search's
+            free-space grid. Replaying run_20260907_205830 seeded at its own
+            corrupted pose, 0.03 recovered it in a single relocalization: the
+            fit cost went 0.0432 -> 0.0101, matching the healthy runs, and the
+            fraction of beams projecting off-track went 72.4% -> 0.0%.
+        RELOCALIZE_ACCEPT_RATIO: How much better the global winner must fit
+            before it is allowed to replace the local estimate, as a fraction
+            of the local cost. Guards the case where the high cost means the
+            WALL MODEL is wrong rather than the pose -- routine during blind
+            operation, while corridor widths are still being estimated. Without
+            it the balanced-128 Open sweep dropped 128/128 -> 127/128; the
+            hardware rescue clears it with room to spare (0.0101 against a
+            0.0432 local cost, a ratio of 0.23).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -1066,6 +1094,10 @@ class LocalizationParams(BaseModel):
     RESIDUAL_CLIP_M: float = Field(default=0.25, validation_alias=_alias("RESIDUAL_CLIP_M"))
     MAX_SPEED_MPS: float = Field(default=0.60, validation_alias=_alias("MAX_SPEED_MPS"))
     JUMP_CONFIRM_TOLERANCE_M: float = Field(default=0.05, validation_alias=_alias("JUMP_CONFIRM_TOLERANCE_M"))
+    RELOCALIZE_COST_THRESHOLD: float = Field(default=0.03, validation_alias=_alias("RELOCALIZE_COST_THRESHOLD"))
+    RELOCALIZE_AFTER_SCANS: int = Field(default=15, validation_alias=_alias("RELOCALIZE_AFTER_SCANS"))
+    RELOCALIZE_GRID_STEP_M: float = Field(default=0.03, validation_alias=_alias("RELOCALIZE_GRID_STEP_M"))
+    RELOCALIZE_ACCEPT_RATIO: float = Field(default=0.5, validation_alias=_alias("RELOCALIZE_ACCEPT_RATIO"))
 
 
 class StateEstimatorParams(BaseModel):

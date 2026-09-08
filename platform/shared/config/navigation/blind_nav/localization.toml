@@ -22,3 +22,34 @@ residual_clip_m = 0.25    # per-ray residual clipping distance (outlier rejectio
 # measurements agreeing is not corroboration.
 max_speed_mps = 0.60             # ~1.5x headroom over the measured 0.4 m/s closed-loop ceiling
 jump_confirm_tolerance_m = 0.05  # how close two consecutive rejected candidates must be to confirm a real correction
+
+# Global relocalization. The local search above is a hill-climb reseeded from
+# its own previous answer, with nothing checking whether that answer is any
+# good in absolute terms -- so once it lands in the wrong basin it stays there
+# for the rest of the round. Measured on run_20260907_205830 (Open, 0 laps):
+# the estimate latched 1.5-3 m off at t=8.0 s and never came back, driving the
+# navigator into walls for 20 escape manoeuvres and 46 s of net-zero travel.
+#
+# The car cannot leave the track, so a pose whose predicted scan does not
+# match the real one is provably wrong, and a match landing off-track is
+# evidence the search is lost -- not a reason to stand still. Both now count
+# toward the same streak, and crossing it re-solves position over the whole
+# free space instead of the +-0.15 m window.
+#
+# Separation measured by replaying the three hardware runs of 2026-09-07
+# through the localizer (see LocalizationParams): across 1945 scans NEITHER
+# clean 3-lap run ever crossed the threshold even once, while the failed run
+# sat at a median 0.0432. Replayed from its own corrupted pose, one
+# relocalization took it back to a 0.0101 fit and 0% off-track beams.
+relocalize_cost_threshold = 0.03  # mean clipped squared residual (m^2), real returns only, that counts as "does not explain the scan"
+relocalize_after_scans = 15       # consecutive bad scans before re-solving globally (~1.5 s)
+relocalize_grid_step_m = 0.03     # free-space candidate spacing for the global search
+# A cost over the threshold does not always mean the POSE is lost -- it can
+# equally mean the WALL MODEL is wrong, which during blind operation (corridor
+# widths still being estimated) it usually does. Searching globally against a
+# wrong model finds the best explanation of a track that is not there, so the
+# result has to beat the local estimate by a real margin before it replaces it.
+# Without this the balanced-128 Open sweep went 128/128 -> 127/128 (scenario 94
+# turned into a reverse-run) and one case lost 17 s. The hardware rescue clears
+# it easily: 0.0101 against a 0.0432 local cost, a ratio of 0.23.
+relocalize_accept_ratio = 0.5     # global fit must cost at most this fraction of the local one

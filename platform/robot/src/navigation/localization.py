@@ -7,12 +7,21 @@ known from scenario metadata (see :class:`~src.navigation.track_geometry.TrackWa
 so position can be recovered directly by finding the pose whose *predicted*
 scan against that known geometry best matches the *real* scan.
 
-The search is local, not a global relocalization: the robot starts at a known
-position (from scenario metadata) and moves only a few centimetres between
-20 Hz ticks, so each estimate's prior is always a tight, reliable seed for the
-next. This also means the same local search handles corners and straight
-segments uniformly — there is no special-casing of "which wall is my nearest
-wall", which a direct geometric (wall-distance) approach would need.
+The search is local: the robot starts at a known position (from scenario
+metadata) and moves only a few centimetres between 20 Hz ticks, so each
+estimate's prior is normally a tight, reliable seed for the next. This also
+means the same local search handles corners and straight segments uniformly —
+there is no special-casing of "which wall is my nearest wall", which a direct
+geometric (wall-distance) approach would need.
+
+A local search reseeded from its own previous answer has no way back once that
+answer is wrong, so it is backed by a global relocalization that fires when the
+estimate stops explaining the scan (see
+:meth:`LidarLocalizer._relocalize_globally`). The physical invariant it rests on
+is that the robot cannot leave the track: the walls are known and the car is
+always inside them, so a pose whose predicted sweep does not match the real one
+is not merely imprecise, it is wrong, and position can be re-solved over the
+whole free space without any prior at all.
 """
 
 from __future__ import annotations
@@ -21,7 +30,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
-from shared.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.domain.models import Waypoint
 
 if TYPE_CHECKING:
@@ -54,8 +63,20 @@ class LidarLocalizer:
         self._residual_clip = params.RESIDUAL_CLIP_M
         self._max_speed_mps = params.MAX_SPEED_MPS
         self._jump_confirm_tolerance = params.JUMP_CONFIRM_TOLERANCE_M
+        self._relocalize_cost_threshold = params.RELOCALIZE_COST_THRESHOLD
+        self._relocalize_after_scans = params.RELOCALIZE_AFTER_SCANS
+        self._relocalize_grid_step_m = params.RELOCALIZE_GRID_STEP_M
+        self._relocalize_accept_ratio = params.RELOCALIZE_ACCEPT_RATIO
         self._last_estimate_time_s: float | None = None
         self._pending_jump_xy: Waypoint | None = None
+        self._bad_fit_streak = 0
+        self._relocalization_count = 0
+        self._last_fit_cost: float | None = None
+        # Built on first use rather than in __init__: a localizer is
+        # reconstructed every time the corridor-width belief is revised
+        # mid-round (see ros2_hardware_gateway.set_believed_walls), and most
+        # instances never need this grid at all.
+        self._free_space_grid: tuple[np.ndarray, np.ndarray] | None = None
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning, walls: TrackWalls) -> LidarLocalizer:
@@ -86,6 +107,31 @@ class LidarLocalizer:
         """
         self._pending_jump_xy = None
         self._last_estimate_time_s = None
+        # The streak counts consecutive scans the CURRENT estimate failed to
+        # explain. A re-seed replaces that estimate outright, so the count
+        # accrued against the old one says nothing about the new one.
+        self._bad_fit_streak = 0
+
+    @property
+    def relocalization_count(self) -> int:
+        """How many times the global search has had to rescue the estimate.
+
+        Diagnostic only. Non-zero means the local search lost the pose and was
+        recovered; the value belongs in the debug snapshot because the failure
+        it reports (run_20260907_205830) was invisible in every field the
+        navigator already published.
+        """
+        return self._relocalization_count
+
+    @property
+    def last_fit_cost(self) -> float | None:
+        """Mean clipped squared residual (m^2) of the last accepted match.
+
+        Diagnostic only. Around 0.010 on a healthy hardware run (measured
+        median over two clean 3-lap runs, 2026-09-07), 0.043 on the run whose
+        estimate had lost the track.
+        """
+        return self._last_fit_cost
 
     def estimate_position(
         self,
@@ -170,8 +216,11 @@ class LidarLocalizer:
             # Refine at the resolution just found, for the next pass.
             radius = 2.0 * radius / (n - 1)
 
+        best_cost = self._fit_cost(best_x, best_y, yaw, ranges, angles)
+        self._last_fit_cost = best_cost
+
         # The search is a local hill-climb reseeded from prior_xy every call,
-        # with no independent check on its own output: search_radius_m is
+        # and nothing in it bounds its own output: search_radius_m is
         # sized generously (0.15m) for search robustness, not as a physical
         # displacement bound, so a wrong-but-locally-cheap match (e.g. during
         # a K-turn's rapid reorientation, when the cost landscape shifts
@@ -188,7 +237,27 @@ class LidarLocalizer:
         # physically impossible as one landing outside the outer walls (the
         # robot cannot be inside a solid obstacle), so it gets the same
         # guard rather than a narrower bounds-only check.
-        if not self._walls.point_in_free_space(best_x, best_y):
+        off_track = not self._walls.point_in_free_space(best_x, best_y)
+
+        # Both symptoms count toward one streak, because both say the same
+        # thing: the search is no longer anywhere near the truth. An off-track
+        # winner is impossible outright -- the car cannot leave the track -- and
+        # a winner whose predicted sweep does not resemble the real one has not
+        # explained the scan, however cheap it was relative to its neighbours.
+        # Returning ``prior_xy`` handles a single bad tick; what it cannot do
+        # is end, because the next call reseeds from that same prior and the
+        # search never gets a look outside its own basin.
+        if off_track or best_cost > self._relocalize_cost_threshold:
+            self._bad_fit_streak += 1
+        else:
+            self._bad_fit_streak = 0
+
+        if self._bad_fit_streak >= self._relocalize_after_scans:
+            rescued = self._relocalize_globally(yaw, ranges, angles, best_cost)
+            if rescued is not None:
+                return rescued
+
+        if off_track:
             self._pending_jump_xy = None
             return prior_xy
 
@@ -197,6 +266,123 @@ class LidarLocalizer:
 
         self._pending_jump_xy = None
         return best_x, best_y
+
+    def _fit_cost(
+        self,
+        x: float,
+        y: float,
+        yaw: float,
+        ranges: np.ndarray,
+        angles: np.ndarray,
+    ) -> float:
+        """Mean clipped squared residual (m^2) at one pose, over real returns only.
+
+        Deliberately not the search's own cost. ``sanitize_lidar_ranges``
+        substitutes max range for every no-return ray, and on hardware that is
+        23-30% of the sweep -- rays carrying no information about where the
+        robot is, each contributing a full clipped residual whatever the pose.
+        Included, they add a large offset that swamps the very difference this
+        number exists to detect: measured over the three runs of 2026-09-07,
+        counting them compresses the gap between a healthy fit and a lost one
+        from 8x (0.006 vs 0.05) to 2x (0.023 vs 0.051).
+
+        The search's cost is left alone. It only ever compares candidates
+        against each other on one sweep, where a constant offset cancels; this
+        one is compared against an absolute threshold, where it does not.
+        """
+        informative = ranges < RobotSpecs.LIDAR_MAX_RANGE
+        if not informative.any():
+            return 0.0
+        predicted = self._walls.raycast_grid(
+            np.array([x + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(yaw)]),
+            np.array([y + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(yaw)]),
+            yaw,
+            angles[informative],
+        )
+        residual = np.abs(predicted[0] - ranges[informative])
+        np.minimum(residual, self._residual_clip, out=residual)
+        return float(np.mean(residual**2))
+
+    def _relocalize_globally(
+        self,
+        yaw: float,
+        ranges: np.ndarray,
+        angles: np.ndarray,
+        local_cost: float,
+    ) -> tuple[float, float] | None:
+        """Re-solve position over the whole track, with no prior at all.
+
+        The local search cannot recover from a wrong seed, because it is
+        reseeded from its own previous answer every call. This one is not
+        seeded: it scores every free-space candidate on the track against the
+        same cost the local search uses, so the answer does not depend on how
+        wrong the estimate had become. Yaw is still taken as given -- it is
+        corrected against the walls independently, upstream of this class.
+        Measured on run_20260907_205830, which the local search lost for 48 s:
+        this recovered a pose with a residual 10-15x lower than the latched
+        one at every sampled tick, and none of its beams landed off-track.
+
+        The speed guard is deliberately bypassed. It bounds motion between
+        consecutive estimates, and this is not motion -- it is the correction
+        of an estimate already known to be wrong, so the distance it covers
+        carries no information about how fast the robot went.
+
+        Returns ``None`` when the global winner does not fit MATERIALLY better
+        than the local one, which is the case that matters most: a cost above
+        the threshold does not always mean the estimate is lost, it can equally
+        mean the WALL MODEL is wrong -- and during blind operation, while the
+        corridor widths are still being estimated, it usually does. A global
+        search against a wrong model finds the best explanation of a track that
+        is not there, and jumping to it destroys a pose that was fine. Measured
+        on the balanced-128 Open sweep: without this check the sweep went
+        128/128 -> 127/128 (scenario 94, 1000-600-1000-1000 west/clockwise,
+        turned into a reverse-run) and one case lost 17 s. A wrong model raises
+        the floor for every candidate, so the global winner cannot beat the
+        local one by much -- which is exactly the signal this test reads.
+        """
+        informative = ranges < RobotSpecs.LIDAR_MAX_RANGE
+        gx, gy = self._free_space_candidates()
+        sensor_xs = gx + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(yaw)
+        sensor_ys = gy + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(yaw)
+        predicted = self._walls.raycast_grid(sensor_xs, sensor_ys, yaw, angles[informative])
+        residual = np.abs(predicted - ranges[informative][None, :])
+        np.minimum(residual, self._residual_clip, out=residual)
+        costs = np.mean(residual**2, axis=1)
+        best_idx = int(np.argmin(costs))
+        best_cost = float(costs[best_idx])
+
+        # Either way the streak restarts: the evidence has been acted on, and
+        # leaving it at the trigger would re-run this search on every tick.
+        self._bad_fit_streak = 0
+        if best_cost > local_cost * self._relocalize_accept_ratio:
+            return None
+
+        self._pending_jump_xy = None
+        self._relocalization_count += 1
+        self._last_fit_cost = best_cost
+        return float(gx[best_idx]), float(gy[best_idx])
+
+    def _free_space_candidates(self) -> tuple[np.ndarray, np.ndarray]:
+        """Every on-track position the global search considers, cached.
+
+        Filtered through ``point_in_free_space`` rather than re-deriving the
+        free-space rule here, so the inner block stays excluded by the same
+        definition the rest of the navigator uses.
+        """
+        if self._free_space_grid is None:
+            axis = np.arange(
+                TrackDimensions.MIN_COORD,
+                TrackDimensions.MAX_COORD + self._relocalize_grid_step_m,
+                self._relocalize_grid_step_m,
+            )
+            grid_x, grid_y = (a.ravel() for a in np.meshgrid(axis, axis, indexing="ij"))
+            free = np.fromiter(
+                (self._walls.point_in_free_space(x, y) for x, y in zip(grid_x, grid_y, strict=True)),
+                dtype=bool,
+                count=grid_x.size,
+            )
+            self._free_space_grid = (grid_x[free], grid_y[free])
+        return self._free_space_grid
 
     def _reject_implausible_speed(
         self,

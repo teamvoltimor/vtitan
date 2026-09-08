@@ -41,6 +41,7 @@ def _sensor_scan(walls: TrackWalls, x: float, y: float, yaw: float, angles: np.n
         angles,
     )
 
+
 _UNIFORM_1000 = {Section.NORTH: 1.0, Section.SOUTH: 1.0, Section.EAST: 1.0, Section.WEST: 1.0}
 _MIXED_WIDTHS = {Section.NORTH: 1.0, Section.SOUTH: 0.6, Section.EAST: 1.0, Section.WEST: 0.6}
 _NARROW = {Section.NORTH: 0.6, Section.SOUTH: 0.6, Section.EAST: 0.6, Section.WEST: 0.6}
@@ -262,3 +263,131 @@ def test_estimate_runs_within_control_tick_budget():
     elapsed_per_call = (time.perf_counter() - start) / 10
 
     assert elapsed_per_call < 0.05, f"estimate_position took {elapsed_per_call * 1000:.1f} ms, over the 50 ms budget"
+
+
+class TestGlobalRelocalization:
+    """Recovery from a seed the local search cannot walk back from.
+
+    The local search is a hill-climb reseeded from its own previous answer, so
+    a wrong seed is self-sustaining: run_20260907_205830 latched 1.5-3 m off at
+    t=8.0 s and held that position for the remaining 48 s of the round, driving
+    the navigator into walls for 20 escape manoeuvres. These cover the escape
+    hatch added for it, and the far more important half -- that a
+    correctly-tracking localizer never takes it.
+
+    ``_MIXED_WIDTHS`` throughout, not ``_UNIFORM_1000``: see
+    ``test_a_symmetric_layout_cannot_be_disambiguated_by_cost``.
+    """
+
+    @staticmethod
+    def _drive(localizer, walls, truth, seed, ticks, dt=0.05):
+        """Feed ``ticks`` copies of the scan taken at ``truth``, seeded at ``seed``."""
+        scan = _sensor_scan(walls, *truth, _ANGLES)
+        estimate = seed
+        for i in range(ticks):
+            estimate = localizer.estimate_position(estimate, truth[2], scan, _ANGLES, now_s=i * dt)
+        return estimate
+
+    def test_recovers_from_a_seed_the_local_search_cannot_reach(self) -> None:
+        localizer, walls = _localizer_for(_MIXED_WIDTHS)
+        truth = (2.5, 1.5, math.pi / 2)
+        # The opposite corridor, ~2 m away and far outside search_radius_m
+        # (0.15 m) -- the situation the local search has no answer for, and the
+        # one the hardware run was in.
+        seed = (0.3, 1.5)
+
+        params = LocalizationParams()
+        estimate = self._drive(localizer, walls, truth, seed, params.RELOCALIZE_AFTER_SCANS + 1)
+
+        assert localizer.relocalization_count == 1
+        assert math.hypot(estimate[0] - truth[0], estimate[1] - truth[1]) <= params.RELOCALIZE_GRID_STEP_M
+
+    def test_does_not_fire_while_the_estimate_is_tracking(self) -> None:
+        localizer, walls = _localizer_for(_MIXED_WIDTHS)
+        truth = (2.5, 1.5, math.pi / 2)
+        # A plausible per-tick displacement, i.e. exactly what the local search
+        # exists to absorb. Firing here would throw away a good estimate.
+        seed = (truth[0] - 0.02, truth[1] - 0.02)
+
+        self._drive(localizer, walls, truth, seed, LocalizationParams().RELOCALIZE_AFTER_SCANS * 3)
+
+        assert localizer.relocalization_count == 0
+        assert localizer.last_fit_cost is not None
+        assert localizer.last_fit_cost < LocalizationParams().RELOCALIZE_COST_THRESHOLD
+
+    def test_the_streak_has_to_be_consecutive(self) -> None:
+        """One explained scan resets the count, so scattered bad ticks cannot accumulate."""
+        localizer, walls = _localizer_for(_MIXED_WIDTHS)
+        truth = (2.5, 1.5, math.pi / 2)
+        good = _sensor_scan(walls, *truth, _ANGLES)
+        bad = _sensor_scan(walls, 0.3, 1.5, math.pi / 2, _ANGLES)
+
+        estimate = (truth[0], truth[1])
+        for i in range(LocalizationParams().RELOCALIZE_AFTER_SCANS * 4):
+            estimate = localizer.estimate_position(
+                estimate, truth[2], good if i % 3 == 0 else bad, _ANGLES, now_s=i * 0.05
+            )
+
+        assert localizer.relocalization_count == 0
+
+    def test_reset_tracking_clears_the_streak(self) -> None:
+        """A re-seed voids evidence accrued against the estimate it replaces."""
+        localizer, walls = _localizer_for(_MIXED_WIDTHS)
+        truth = (2.5, 1.5, math.pi / 2)
+        params = LocalizationParams()
+
+        self._drive(localizer, walls, truth, (0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
+        assert localizer.relocalization_count == 0
+        localizer.reset_tracking()
+        self._drive(localizer, walls, truth, (0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
+
+        assert localizer.relocalization_count == 0
+
+    def test_a_symmetric_layout_cannot_be_disambiguated_by_cost(self) -> None:
+        """The known limit of this guard, asserted rather than left to be rediscovered.
+
+        On a uniform layout the four corridors are congruent, so a pose in the
+        wrong one predicts very nearly the scan the right one produces -- 0.017
+        against a 0.03 threshold. The detector stays silent, correctly: nothing
+        in a single sweep distinguishes those poses, and relocalizing would be
+        a coin flip, not a correction. What rescues the real robot is that a
+        WRO Open layout has unequal corridors, which is also what
+        run_20260907_205830 had (0.6/0.6/1.0/0.6).
+        """
+        localizer, walls = _localizer_for(_UNIFORM_1000)
+        truth = (2.5, 1.5, math.pi / 2)
+
+        self._drive(localizer, walls, truth, (0.5, 1.5), LocalizationParams().RELOCALIZE_AFTER_SCANS * 2)
+
+        assert localizer.relocalization_count == 0
+        assert localizer.last_fit_cost is not None
+        assert localizer.last_fit_cost < LocalizationParams().RELOCALIZE_COST_THRESHOLD
+
+    def test_no_jump_when_the_global_winner_is_no_better(self) -> None:
+        """A high cost does not always mean the POSE is wrong.
+
+        It can equally mean the WALL MODEL is wrong -- routine during blind
+        operation, while corridor widths are still being estimated. Then every
+        candidate fits badly, including the correct one, and the global search
+        returns the best explanation of a track that is not there. Letting that
+        replace a pose that was fine cost the balanced-128 Open sweep a case
+        (128/128 -> 127/128, scenario 94 turned into a reverse-run) before
+        RELOCALIZE_ACCEPT_RATIO was added.
+
+        Stood up here with a sweep no pose on the track can produce, which is
+        the same condition -- nowhere fits, so nowhere is materially better.
+        """
+        localizer, walls = _localizer_for(_MIXED_WIDTHS)
+        truth = (2.5, 1.5, math.pi / 2)
+        unexplainable = np.full(len(_ANGLES), 1.0)
+
+        estimate = (truth[0], truth[1])
+        for i in range(LocalizationParams().RELOCALIZE_AFTER_SCANS * 3):
+            estimate = localizer.estimate_position(estimate, truth[2], unexplainable, _ANGLES, now_s=i * 0.05)
+
+        assert localizer.last_fit_cost is not None
+        assert localizer.last_fit_cost > LocalizationParams().RELOCALIZE_COST_THRESHOLD, (
+            "test is void unless the scan really does score badly everywhere"
+        )
+        assert localizer.relocalization_count == 0
+        assert walls.point_in_free_space(*estimate)
