@@ -91,7 +91,7 @@ class SimulationParams(BaseModel):
     the real arc at that angle is ~0.66 m and does NOT fit).
     """
 
-    VISION_RANGE_MODEL: bool = Field(default=False, validation_alias=_alias("VISION_RANGE_MODEL"))
+    VISION_RANGE_MODEL: bool = Field(default=True, validation_alias=_alias("VISION_RANGE_MODEL"))
     """Make the emulated camera GO BLIND with distance, the way the real one does.
 
     Off, a sign is detected out to ``CAMERA_FAR_CLIP`` -- **10 m** -- with no
@@ -110,10 +110,20 @@ class SimulationParams(BaseModel):
     at 10 m, and will read as pure cost. An A/B run with this off can refute
     such a feature only on cost, never confirm it on benefit.
 
-    OFF by default because turning it on invalidates every existing Obstacles
-    baseline: the robot loses sign vision it was scored with and never had on
-    the mat. Those numbers were always optimistic; this is the sim getting
-    honest, not a regression.
+    ON since 2026-09-07. It was off on the assumption that turning it on would
+    invalidate every existing Obstacles baseline -- the robot losing sign vision
+    it was scored with and never had on the mat. Priced with
+    ``scripts/sim/diag_vision_range_ab.py`` (16 fixtures x 6 seeds x 2 arms,
+    blind), that cost IS NOT THERE:
+
+        off   in_time 59   laps3 69   collided 21   pass_side 1
+        on    in_time 59   laps3 71   collided 18   pass_side 0
+
+    In-time is identical and the rest moves the favourable way by the margin
+    this corpus moves under reseeding, so it is FREE rather than better. Likely
+    because at 10 m the emulator was feeding the router detections from OTHER
+    corridors, and sign tracks are keyed on the robot's own corridor -- blinding
+    it removes cross-corridor phantoms about as fast as real early sightings.
     """
 
     VISION_DETECT_R50_M: float = Field(default=1.10, gt=0.0, validation_alias=_alias("VISION_DETECT_R50_M"))
