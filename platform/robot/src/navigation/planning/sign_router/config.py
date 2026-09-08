@@ -88,13 +88,13 @@ class SignRouterConfig:
     min_confidence: float = 0.25
     """Minimum detection confidence to accept a camera-based color update."""
 
-    commit_hysteresis: bool = False
+    commit_hysteresis: bool = True
     """Hold the engaged sign across ticks instead of re-racing every tick.
 
-    Matches signs/sign_router.toml's default -- was True here, contradicting the
-    TOML's False, so a bare ``SignRouterConfig()`` (only reachable now if a
-    caller constructs one directly rather than via ``from_tuning()``) silently
-    re-enabled hysteresis the config file disables.
+    Tracks signs/sign_router.toml, which turned this ON on 2026-09-07 -- these
+    two have disagreed before (True here against the TOML's False), so a bare
+    ``SignRouterConfig()`` silently ran a different policy from the one that
+    races. Keep them in step.
     """
 
     corridor_flip_ticks: int = 1

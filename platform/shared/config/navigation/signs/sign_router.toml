@@ -63,14 +63,30 @@ escape_mask_radius_m = 0.12
 # jump the commanded lateral line from one sign's required value to the other's
 # with no runway left to track it. Set true to hold the committed sign.
 #
-# DEFAULT OFF, measured 2026-08-01 over the 256-scenario corpus: sighted 229
-# collisions either way, blind 227 off vs 228 on. Flat sighted and marginally
-# worse blind, so the mechanism is not earning its place in a safety path. The
-# code stays so the `hysteresis` sweep arm can re-test it once the dominant
-# failure is understood -- the winner-switch case it targets is real (28 of the
-# corpus approaches switch mid-approach) but is evidently not what decides
-# those runs.
-commit_hysteresis = false
+# ON since 2026-09-07, and the reason it was off is worth keeping. Measured
+# 2026-08-01 over the corpus it read flat (sighted 229 collisions either way,
+# blind 227 off vs 228 on) and was dismissed as not earning its place. Re-run
+# 2026-09-07 the corpus still reads flat: in-time 59 = 59, laps>=3 71 -> 70,
+# collided 18 -> 19.
+#
+# What changed is the instrument, not the number. This holds the aim point still
+# when two tracks of the SAME pillar compete, and duplicate tracks exist in both
+# worlds at the same rate (sim 2.0x, hardware 2.2x) but NOT at the same
+# separation:
+#
+#     duplicate nearest-neighbour, p50:   sim 0.012 m    hardware 0.21 m
+#
+# So a winner-switch moves the commanded line 1.2 cm in the corpus and 21 cm on
+# the mat -- a factor of 17. The corpus was pricing a defect it barely has.
+# Replayed over recorded detections from the 09-07 runs (see
+# scripts/bag/diag_bag_sign_target_churn.py), holding the commitment cuts
+# aim-point jumps over 0.15 m from 38 to 21, with the committed-tick count
+# unchanged at 1538 -- so it is not buying that by disengaging.
+#
+# Reported from the track first: the robot lines up correctly to pass a sign,
+# keeps correcting, and arrives badly placed. It is not a hunting controller
+# (median steering flips during an approach is ZERO); the target was moving.
+commit_hysteresis = true
 
 
 # A discovered sign's corridor decides which world axis its avoidance

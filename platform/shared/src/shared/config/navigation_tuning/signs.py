@@ -472,8 +472,13 @@ class SignRouterParams(BaseModel):
             instead of re-running the nearest-wins race every tick. Prevents
             the commanded lateral line jumping between two legal values while
             the chassis is committed. See SignRouter._prefer_committed.
-            Defaults OFF: measured flat sighted and marginally worse blind
-            (see the note in sign_router.toml).
+            Defaults ON since 2026-09-07. The corpus reads FLAT both times it
+            has been measured (in-time 59 = 59), and that is the point: what
+            this holds still is the aim point when two tracks of the same
+            pillar compete, and duplicates sit 0.012 m apart in the sim against
+            0.21 m on hardware. The corpus was pricing a defect 17x smaller
+            than the real one. On recorded detections it cuts aim-point jumps
+            38 -> 21 with committed ticks unchanged. See sign_router.toml.
         ESCAPE_MASK_RADIUS_M: How close a LIDAR return must land to a routed
             sign to be attributed to it and withheld from the reactive escape
             trigger. Zero disables the mapped/unmapped split entirely, which
@@ -634,7 +639,7 @@ class SignRouterParams(BaseModel):
     MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
-    COMMIT_HYSTERESIS: bool = Field(default=False, validation_alias=_alias("COMMIT_HYSTERESIS"))
+    COMMIT_HYSTERESIS: bool = Field(default=True, validation_alias=_alias("COMMIT_HYSTERESIS"))
     CORRIDOR_FLIP_TICKS: int = Field(default=1, ge=1, validation_alias=_alias("CORRIDOR_FLIP_TICKS"))
 
     def sign_contact_steer_norm(self) -> float:
