@@ -90,12 +90,14 @@ class ParkController:
         parking_config: ParkingLot,
         start_section: Section,
         direction: Direction,
-        speed: float = 0.12,
+        speed: float | None = None,
         max_frames: int | None = None,
         tuning: NavigationTuning | None = None,
     ) -> None:
         self._tuning = get_tuning(tuning)
         self._context = ParkingContext(self._tuning)
+        if speed is None:
+            speed = self._tuning.parking.SPEED
         if max_frames is None:
             max_frames = self._context.constants.default_max_frames
         self._section = start_section
