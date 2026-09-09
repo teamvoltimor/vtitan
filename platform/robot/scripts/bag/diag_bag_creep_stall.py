@@ -31,6 +31,15 @@ Three measurements:
    matched the heading term (``heading_speed_mps``), which says whether the
    corner slowdown is what put the chassis under the floor.
 
+4. IS THE FLOOR A FUNCTION OF STEERING LOAD? The operator's reading is that
+   the minimum viable speed RISES at a crossing because turning costs torque.
+   If so the deadband is not one number but a curve, and a single higher
+   ``CREEP_MPS`` either overpays on a straight or still stalls at lock. A speed
+   x steering grid answers it: read DOWN a speed column, and a stall rate that
+   climbs with steering is load dependence. The two axes are correlated (the
+   heading cut fires when the robot is turning), so cells are reported with
+   their n and thin ones are not read as evidence.
+
 ``/motor/drive_speed`` is a smoothed velocity estimate in DEG/S, not raw
 counts, so a reading of exactly 0 is the estimator saying "not turning" rather
 than a quantisation artefact.
@@ -85,7 +94,21 @@ def _pct(values: list[float], q: float) -> float:
     return ordered[min(len(ordered) - 1, int(q * len(ordered)))]
 
 
-def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict) -> None:
+STEER_EDGES = (0.0, 0.15, 0.35, 0.60, 0.90, 1.01)
+"""|commanded_steering_norm| bands, from straight to full lock."""
+
+SPEED_EDGES = (0.10, 0.14, 0.16, 0.20, 0.25, 0.35, 1.00)
+"""Commanded-speed bands, placed so the 0.152 creep floor has its own column."""
+
+
+def _band(v: float, edges: tuple[float, ...]) -> str | None:
+    for lo, hi in zip(edges, edges[1:]):
+        if lo <= v < hi:
+            return f"{lo:.2f}-{hi:.2f}"
+    return None
+
+
+def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: dict) -> None:
     reader = open_reader(bag_dir)
     last_drive: float | None = None
     run_len = 0
@@ -121,6 +144,15 @@ def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict) -> Non
         if key is not None:
             fine[key].append((stalled, deg_s_to_mps(enc)))
 
+        st = snap.commanded_steering_norm
+        if st is not None:
+            sb = _band(abs(st), STEER_EDGES)
+            vb = _band(abs(cmd), SPEED_EDGES)
+            if sb is not None and vb is not None:
+                cell = grid[(sb, vb)]
+                cell[0] += 1
+                cell[1] += int(stalled)
+
         if phase != "normal_drive":
             if run_len >= MIN_EPISODE_TICKS:
                 episodes.append((run_len, run_cmds, run_heading))
@@ -152,8 +184,9 @@ def main() -> int:
     fine: dict[str, list] = defaultdict(list)
     episodes: list = []
     phase_ticks: dict[str, int] = defaultdict(int)
+    grid: dict = defaultdict(lambda: [0, 0])
     for bag in args.bag_dirs:
-        collect(Path(bag), fine, episodes, phase_ticks)
+        collect(Path(bag), fine, episodes, phase_ticks, grid)
 
     print("\n== 1. WHERE IS THE DEADBAND EDGE (all phases)")
     print(f"{'cmd bin':>12} {'n':>7} {'stall%':>8} {'delivered p50':>15}")
@@ -185,6 +218,19 @@ def main() -> int:
     heading_eps = sum(1 for _, _, h in episodes if h > 0)
     print(f"  stalled ticks whose command matched heading_speed_mps: {heading_ticks}/{stalled_ticks} ({100 * heading_ticks / stalled_ticks:.1f}%)")
     print(f"  episodes containing at least one such tick: {heading_eps}/{len(episodes)} ({100 * heading_eps / len(episodes):.1f}%)")
+
+    print()
+    print("== 4. STALL% BY STEERING LOAD x COMMANDED SPEED  (n in brackets)")
+    speed_bands = [f"{lo:.2f}-{hi:.2f}" for lo, hi in zip(SPEED_EDGES, SPEED_EDGES[1:])]
+    steer_bands = [f"{lo:.2f}-{hi:.2f}" for lo, hi in zip(STEER_EDGES, STEER_EDGES[1:])]
+    header = f"{'|steer|':>12}" + "".join(f"{b:>16}" for b in speed_bands)
+    print(header)
+    for sb in steer_bands:
+        row = f"{sb:>12}"
+        for vb in speed_bands:
+            n, stalls = grid.get((sb, vb), [0, 0])
+            row += f"{'-':>16}" if n == 0 else f"{f'{100 * stalls / n:.1f}% ({n})':>16}"
+        print(row)
     return 0
 
 
