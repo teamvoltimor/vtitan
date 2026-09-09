@@ -43,7 +43,7 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from shared.config.constants import RobotSpecs, TrafficSignSpecs
+from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.domain.models import Pose, SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import get_tuning
@@ -164,6 +164,69 @@ def detection_to_observation(
         bbox_xmax=int(bbox.x_max),
         bbox_ymax=int(bbox.y_max),
     )
+
+
+def legal_sign_positions() -> tuple[tuple[float, float], ...]:
+    """Every world position a pillar may legally stand at. 24 of them.
+
+    Built from the rulebook geometry rather than transcribed: the three depth
+    rows are ``GRID_DEPTH_NEAR/MIDDLE/FAR`` (1.0/1.5/2.0 m), which coincide
+    exactly with the inner square's own bounds, and the two width lines are the
+    corridor's division lines ``GRID_WIDTH_OUTER/INNER`` (0.4/0.6 m). Six per
+    section, four sections.
+
+    Deliberately returns ALL of them together with no section label. Snapping
+    to the nearest of the whole set needs no answer to "which corridor is this
+    sign in", which matters because that label is the known-flaky one --
+    ``current_corridor`` flips 37-39 times in a three-lap run holding twelve
+    real corners. A snap keyed on it would inherit the flapping it exists to
+    cure. The 24 points are far enough apart (0.20 m is the closest pair, the
+    two width lines) that nearest-point is unambiguous well past the estimate
+    error this corrects.
+    """
+    depths = (
+        TrafficSignSpecs.GRID_DEPTH_NEAR,
+        TrafficSignSpecs.GRID_DEPTH_MIDDLE,
+        TrafficSignSpecs.GRID_DEPTH_FAR,
+    )
+    near = (TrafficSignSpecs.GRID_WIDTH_OUTER, TrafficSignSpecs.GRID_WIDTH_INNER)
+    far = tuple(TrackDimensions.TRACK_SIZE - w for w in near)
+    points: list[tuple[float, float]] = []
+    for d in depths:
+        points.extend((d, w) for w in near)   # SOUTH
+        points.extend((d, w) for w in far)    # NORTH
+        points.extend((w, d) for w in near)   # WEST
+        points.extend((w, d) for w in far)    # EAST
+    return tuple(points)
+
+
+_LEGAL_SIGN_POSITIONS = legal_sign_positions()
+
+
+def snap_to_lattice(x: float, y: float, max_snap_m: float) -> tuple[float, float]:
+    """Pull a believed sign position onto the nearest legal lattice point.
+
+    A pillar does not move during a round, and it can only have been placed at
+    one of 24 positions. A believed position that wanders is therefore known to
+    be wrong, and quantising it to the lattice removes the wander by
+    construction rather than by damping it. Measured 2026-09-09: within a LIVE
+    commitment the believed position moves p50 7.7 cm, p90 60.9 cm, max 103 cm,
+    which is what drops the sign out of the router's candidate filter and makes
+    the commitment a 0.5 s duty cycle.
+
+    ``max_snap_m`` of 0 disables this. Above 0 it is also a REJECTION radius:
+    an estimate further than that from every legal point is left alone rather
+    than dragged onto one, because a wild estimate snapped confidently is worse
+    than a wild estimate that still looks wild. The pillar may itself be nudged
+    up to ``MAX_LEGAL_DISPLACEMENT_M`` (5.94 cm) and stay legal, so a radius
+    below that would refuse to snap a sign the robot has legitimately bumped.
+    """
+    if max_snap_m <= 0.0:
+        return x, y
+    best = min(_LEGAL_SIGN_POSITIONS, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)
+    if math.dist(best, (x, y)) > max_snap_m:
+        return x, y
+    return best
 
 
 def _clustered_range(
@@ -412,8 +475,21 @@ class _SignTrack:
             return SignColor.UNKNOWN
         return SignColor(max(self.votes, key=lambda name: self.votes[name]))
 
+    snap_m: float = 0.0
+    """Lattice snap radius this track publishes with. See ``snap_to_lattice``."""
+
     def as_spec(self) -> SignSpec:
-        return SignSpec(x=self.x, y=self.y, color=self.color)
+        """The track as the router sees it, snapped to the legal lattice.
+
+        Snapping HERE rather than on ingest keeps the raw estimate intact for
+        association and for the range/colour votes, and quantises only the
+        number the router acts on. An estimate that is drifting is still
+        allowed to drift back onto a better lattice point; what it can no
+        longer do is hand the router a position 60 cm from where any pillar
+        could physically be.
+        """
+        x, y = snap_to_lattice(self.x, self.y, self.snap_m)
+        return SignSpec(x=x, y=y, color=self.color)
 
 
 class ObservedSignMap:
@@ -460,6 +536,7 @@ class ObservedSignMap:
         self._max_ingest_range_m = max_ingest_range_m if max_ingest_range_m is not None else sd.MAX_INGEST_RANGE_M
         self._association_dist_m = association_dist_m if association_dist_m is not None else sd.ASSOCIATION_DIST_M
         self._min_hits = min_hits if min_hits is not None else sd.MIN_HITS
+        self._snap_m = sd.SNAP_TO_LATTICE_M
         self._robot_corridor_flip_ticks = (
             robot_corridor_flip_ticks if robot_corridor_flip_ticks is not None else sd.ROBOT_CORRIDOR_FLIP_TICKS
         )
@@ -545,7 +622,13 @@ class ObservedSignMap:
                 continue
             track = self._nearest_track(world, robot_corridor)
             if track is None:
-                track = _SignTrack(x=world.x, y=world.y, best_range=observed_range, corridor=robot_corridor)
+                track = _SignTrack(
+                x=world.x,
+                y=world.y,
+                best_range=observed_range,
+                corridor=robot_corridor,
+                snap_m=self._snap_m,
+            )
                 self._tracks.append(track)
             track.hits += 1
             # Closest LIDAR look wins, on the same monotone-error argument the
@@ -565,7 +648,13 @@ class ObservedSignMap:
         """Merge one projected observation into the nearest track, or start one."""
         track = self._nearest_track(world, robot_corridor)
         if track is None:
-            track = _SignTrack(x=world.x, y=world.y, best_range=observed_range, corridor=robot_corridor)
+            track = _SignTrack(
+                x=world.x,
+                y=world.y,
+                best_range=observed_range,
+                corridor=robot_corridor,
+                snap_m=self._snap_m,
+            )
             self._tracks.append(track)
 
         track.hits += 1

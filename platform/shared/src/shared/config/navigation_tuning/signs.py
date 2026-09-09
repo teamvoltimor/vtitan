@@ -820,6 +820,60 @@ class SignDiscoveryParams(BaseModel):
     1034-1088 px.
     """
 
+    SNAP_TO_LATTICE_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("SNAP_TO_LATTICE_M"))
+    """Radius within which a believed sign is pulled onto a legal lattice point.
+
+    A pillar does not move during a round and can only have been placed at one
+    of 24 positions -- three depth rows at 1.0/1.5/2.0 m crossed with the two
+    division lines at 0.4/0.6 m, in each of four sections. So a believed
+    position that WANDERS is known to be wrong, and quantising removes the
+    wander by construction instead of damping it.
+
+    What that fixes, measured 2026-09-09 over the 2026-09-08 obstacles runs:
+    within a LIVE commitment the believed position moves p50 7.7 cm, p90
+    60.9 cm, max 103 cm, with 47% of moves past 10 cm. That is what drops the
+    sign out of the router's candidate filter, which is why 83% of commitment
+    episodes (165 of 199) begin after a DROP rather than a switch, held
+    0.35-0.70 s and gone for ~0.50 s. The lateral offset is therefore commanded
+    intermittently, and 19% of approaches pass inside the contact gap.
+
+    Snapping is done against ALL 24 points with no section label, deliberately.
+    A snap keyed on the corridor would inherit the flapping it exists to cure
+    -- ``current_corridor`` flips 37-39 times in a three-lap run with twelve
+    real corners. The closest pair of lattice points is 0.20 m apart (the two
+    width lines), so nearest-point stays unambiguous well past the error this
+    corrects.
+
+    Also a REJECTION radius: an estimate further than this from every legal
+    point is left alone rather than dragged onto one, because a wild estimate
+    snapped confidently is worse than a wild estimate that still looks wild.
+    Do not set it below ``MAX_LEGAL_DISPLACEMENT_M`` (5.94 cm) -- a pillar the
+    robot has legitimately nudged is still legal and still wants snapping.
+
+    **Measured offline over the same runs, and it is a PARTIAL fix.** Replaying
+    the believed positions through the snap:
+
+    | radius | position changes | p50 | p90 | max | ticks snapped |
+    |---|---|---|---|---|---|
+    | off | 34 | 7.7 cm | 60.9 | 103 | - |
+    | 0.15 m | 32 | 13.9 cm | 60.9 | 103 | 27% |
+    | 0.25 m | **18** | 26.7 cm | 61.2 | 103 | 78% |
+    | 0.40 m | **11** | 20.0 cm | 51.4 | 94 | 97% |
+
+    It roughly HALVES the number of position changes, which is the quantity the
+    candidate filter reacts to. It does NOT remove the large jumps: p90 stays
+    near 60 cm because those are estimates far enough apart to land on
+    different lattice points, and quantising cannot merge them.
+
+    And the median of the surviving moves RISES, which is arithmetic rather
+    than a regression: a quantised estimate either does not move or moves a
+    whole lattice step, and the closest step is 0.20 m. Fewer, larger changes.
+    Whether that trade helps the router is not settled by a replay.
+
+    DEFAULTS TO 0, which disables it and is bit-identical to publishing the raw
+    estimate.
+    """
+
     LIDAR_RANGE_FUSION_CLUSTER: bool = Field(
         default=False, validation_alias=_alias("LIDAR_RANGE_FUSION_CLUSTER")
     )

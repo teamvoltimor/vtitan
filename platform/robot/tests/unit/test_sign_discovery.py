@@ -19,7 +19,7 @@ import math
 from dataclasses import replace
 
 import pytest
-from shared.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, Pose, SignColor, TrafficSignObservation, Waypoint
 
@@ -29,6 +29,8 @@ from src.navigation.planning.sign_discovery import (
     SignSpec,
     _detection_to_world,
     detection_to_observation,
+    legal_sign_positions,
+    snap_to_lattice,
 )
 from src.ros2.navigation.ros2_hardware_gateway import pose_at_time
 from src.simulation.vision_emulator import emulate_sign_observations
@@ -624,3 +626,43 @@ class TestClusteredLidarRangeFusion:
         shipped = NavigationTuning.load_default().sign_discovery
         assert shipped.LIDAR_RANGE_FUSION is False
         assert shipped.LIDAR_RANGE_FUSION_CLUSTER is False
+
+
+class TestLatticeSnap:
+    """A pillar cannot stand between the legal positions, so neither may its estimate.
+
+    Signs do not move during a round and there are only 24 places one can be:
+    three depth rows crossed with two division lines, in four sections. A
+    believed position that wanders is therefore known to be wrong.
+    """
+
+    def test_there_are_twenty_four_of_them_and_they_are_on_the_track(self):
+        points = legal_sign_positions()
+        assert len(points) == 24
+        assert len(set(points)) == 24
+        for x, y in points:
+            assert 0.0 < x < TrackDimensions.TRACK_SIZE
+            assert 0.0 < y < TrackDimensions.TRACK_SIZE
+
+    def test_zero_radius_is_a_no_op(self):
+        assert snap_to_lattice(1.234, 2.345, 0.0) == (1.234, 2.345)
+
+    def test_a_nearby_estimate_is_pulled_onto_its_point(self):
+        target = legal_sign_positions()[0]
+        drifted = (target[0] + 0.06, target[1] - 0.04)
+        assert snap_to_lattice(*drifted, 0.25) == target
+
+    def test_a_wild_estimate_is_left_alone(self):
+        """A rejection radius, not just a magnet -- see the field's docstring."""
+        wild = (1.5, 1.5)  # the middle of the mat, nowhere near any point
+        assert snap_to_lattice(*wild, 0.10) == wild
+
+    def test_snapping_removes_the_wander_it_targets(self):
+        """Two estimates 12 cm apart around one pillar collapse onto one point."""
+        target = legal_sign_positions()[0]
+        a = snap_to_lattice(target[0] + 0.06, target[1], 0.25)
+        b = snap_to_lattice(target[0] - 0.06, target[1], 0.25)
+        assert a == b == target
+
+    def test_ships_disabled(self):
+        assert NavigationTuning.load_default().sign_discovery.SNAP_TO_LATTICE_M == 0.0
