@@ -253,6 +253,9 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     # card so bag scripts can compare across sessions instead of finding the
     # evidence already pruned. Check free space before deploying to a Pi -- 50
     # GB does not fit on a small card, and the count cap alone will not save it.
-    bag_max_runs: int = 500
+    # The size cap is the one that binds here: measured 2026-09-09 over 215 real
+    # runs, mean 30.0 MB each, so 50 GB stops at ~1708 runs before the count
+    # ever reaches 2000. race.toml pins both and carries the full distribution.
+    bag_max_runs: int = 2000
     bag_max_total_gb: float = 50.0
     bag_topics: list[str] = Field(default_factory=_default_bag_topics)

@@ -15,7 +15,14 @@
 # the card holds up to bag_max_runs + 1 directories. Check free space before
 # raising bag_max_total_gb -- rpi-5 currently has ~407 GB free, but the count
 # cap alone will not protect a smaller card.
-bag_max_runs = 500
+#
+# The two caps are NOT independent, and at these values the SIZE cap is the one
+# that binds. Measured 2026-09-09 over the 215-run local corpus: mean 30.0 MB
+# per run, median 18.8 MB, p90 72.4 MB, max 223.4 MB. So 50 GB holds ~1708 runs
+# at the mean and ~2727 at the median -- 2000 runs is reachable only if the
+# session mix stays short. Raise bag_max_total_gb to ~64 if the COUNT is meant
+# to be the real limit.
+bag_max_runs = 2000
 bag_max_total_gb = 50.0
 
 # Deliberately NOT pinned here:
