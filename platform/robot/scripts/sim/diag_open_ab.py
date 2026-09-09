@@ -341,7 +341,24 @@ def main() -> None:
         jobs=True,
     )
     add_tuning_arg(parser)
+    parser.add_argument(
+        "--wide-count",
+        type=int,
+        choices=range(len(SIDES) + 1),
+        help=(
+            "Restrict both arms to layouts with exactly this many WIDE corridors. "
+            "4 is the uniform-wide bucket, 0 the uniform-narrow one."
+        ),
+    )
     args = parser.parse_args()
+
+    # --case comes from the shared sweep args, but this script seeds each case by
+    # its POSITION IN THE RUN (see _run_case's `seed=index`), so honouring it
+    # would run a different scenario than the number it names. Say so rather than
+    # accepting the flag and ignoring it, which is what happened until 2026-09-09
+    # and returned a plausible-looking sweep of the wrong corpus.
+    if getattr(args, "case", None):
+        parser.error("--case is not supported here; use --wide-count, --sample or --all")
 
     overrides: dict[str, str] = {}
     for item in args.overrides:
@@ -361,7 +378,17 @@ def main() -> None:
     # exhaustive 640, and an explicit `--sample N` still draws uniformly from it
     # for anyone who wants the old behaviour at a different size.
     explicit_sample = args.sample != _DEFAULT_SAMPLE_SIZE
-    if args.all or explicit_sample:
+    if args.wide_count is not None:
+        # A whole width bucket, exhaustively. The balanced 128 covers every
+        # layout once, which is the right corpus for "does this change anything
+        # overall" and the wrong one for "what does it do on THIS layout" --
+        # a bucket is 8 of its 128 cases. Both arms still share seeds, so the
+        # paired reading holds; only the case NUMBERS are local to this run and
+        # cannot be compared against a 640-case report.
+        population = [c for c in case_space() if sum(w == WIDE_MM for w in c[0]) == args.wide_count]
+        cases = list(population)
+        corpus = f"every layout with exactly {args.wide_count} wide corridor(s)"
+    elif args.all or explicit_sample:
         population = case_space()
         cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
         corpus = "uniform sample of the 640-case space"
