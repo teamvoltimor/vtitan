@@ -38,7 +38,7 @@ class ClearanceZones(BaseModel):
     FAST_DIST: float = Field(default=1.00, validation_alias=_alias("FAST_DIST"))  # Full speed capability
     PATH_MARGIN: float = Field(default=0.10, validation_alias=_alias("PATH_MARGIN"))  # Forward-path margin
 
-    CONTACT_REVERSE_TICKS: int = Field(default=8, ge=0, validation_alias=_alias("CONTACT_REVERSE_TICKS"))
+    CONTACT_REVERSE_TICKS: int = Field(default=0, ge=0, validation_alias=_alias("CONTACT_REVERSE_TICKS"))
     """Ticks of straight reverse commanded once forward clearance reaches CONTACT_DIST.
 
     Creeping FORWARD at contact is how the chassis ends up leaning on what it
@@ -46,9 +46,17 @@ class ClearanceZones(BaseModel):
     risk CRITICAL, and +0.152 m/s commanded for ten seconds against a green
     pillar. Nothing in the normal-drive path reversed.
 
+    SHIPS AT 0, i.e. disabled, matching ``clearance.toml``: the sim measured a
+    blind reverse as flat on the headline and +5 wall contacts, so the
+    behaviour is not earned. It was 8 here until 2026-09-09, which meant any
+    caller constructing the tuning bare -- a sweep arm, a unit test -- reversed
+    where a race does not.
+
     8 ticks is ~0.4 s at 20 Hz, about 25 mm at creep -- enough to unstick a
     chassis that has just closed on an obstacle, and far short of retracing the
-    corridor. 0 disables the behaviour entirely.
+    corridor -- and remains the value to restore if rear sensing ever makes a
+    SEEING reverse possible. The hardware case it was written for is real and
+    still unaddressed.
 
     Bounded rather than "reverse until clear" because at contact the forward arc
     is the reading that has just gone unreliable: below MIN_VALID_RANGE_M it

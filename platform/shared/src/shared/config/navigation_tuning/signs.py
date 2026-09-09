@@ -520,7 +520,7 @@ class SignRouterParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    SIGN_CLEARANCE_MARGIN_M: float = Field(default=0.075, validation_alias=_alias("SIGN_CLEARANCE_MARGIN_M"))
+    SIGN_CLEARANCE_MARGIN_M: float = Field(default=0.10, validation_alias=_alias("SIGN_CLEARANCE_MARGIN_M"))
     DEFORM_DEPTH_BUFFER_M: float = Field(default=0.5, validation_alias=_alias("DEFORM_DEPTH_BUFFER_M"))
     WALL_CLEARANCE_MARGIN_M: float = Field(default=0.04, validation_alias=_alias("WALL_CLEARANCE_MARGIN_M"))
     ACTIVATION_DIST_M: float = Field(default=1.40, validation_alias=_alias("ACTIVATION_DIST_M"))
@@ -528,7 +528,7 @@ class SignRouterParams(BaseModel):
     DEPTH_PIN: bool = Field(default=True, validation_alias=_alias("DEPTH_PIN"))
     PIN_CORNER_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_CORNER_GUARD"))
     PIN_HEADING_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_HEADING_GUARD"))
-    SIGN_AWARE_LOOKAHEAD: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_LOOKAHEAD"))
+    SIGN_AWARE_LOOKAHEAD: bool = Field(default=True, validation_alias=_alias("SIGN_AWARE_LOOKAHEAD"))
 
     SIGN_LIDAR_PROPOSE: bool = Field(default=False, validation_alias=_alias("SIGN_LIDAR_PROPOSE"))
     """Let the LIDAR propose a sign's POSITION for the camera to colour.
@@ -737,6 +737,27 @@ class SignDiscoveryParams(BaseModel):
     ASSOCIATION_DIST_M: float = Field(default=0.25, validation_alias=_alias("ASSOCIATION_DIST_M"))
     MIN_HITS: int = Field(default=3, validation_alias=_alias("MIN_HITS"))
     MAX_PILLAR_ASPECT: float = Field(default=1.0, validation_alias=_alias("MAX_PILLAR_ASPECT"))
+    """Widest box (width/height) still accepted as a traffic-sign pillar.
+
+    A pillar is taller than it is wide by construction, so a box wider than tall
+    is not one. Measured on the 2026-09-05 hardware run `run_20260905_214920`:
+    GREEN detections, which have no same-coloured scenery to be confused with,
+    show w/h p90 = 0.85 with only 0.6% above 1.0. RED, which shares its hue with
+    the magenta parking-lot barrier under motion blur, has **52% of its
+    detections wider than tall**, concentrated in the two corridors the parking
+    lot occupies (west 63%, south 34%) and absent from north entirely.
+
+    AREA CANNOT DO THIS JOB -- wall-shaped reds average 30251 px against
+    pillar-shaped reds' 32016, so a size gate keeps both or drops both.
+    Confidence cannot either: the bad boxes are CONFIDENT, p50 0.79. Aspect is
+    the only separator the data offers.
+
+    Consequence when they get through: every accepted box can seed a sign, and
+    `nav_debug.active_sign_count` climbed 5 -> 50 across that run on a track
+    holding at most 8, with the router deforming on 85% of ticks.
+
+    ``0.0`` disables the gate.
+    """
 
     VISION_LATENCY_S: float = Field(default=0.85, ge=0.0, validation_alias=_alias("VISION_LATENCY_S"))
     """Camera capture-to-consumption lag, used only when a frame carries no stamp.
@@ -839,28 +860,6 @@ class SignDiscoveryParams(BaseModel):
 
     2 px rather than 0: the detector's boxes are floats and land a fraction
     short of the border as often as exactly on it.
-    """
-
-    """Widest box (width/height) still accepted as a traffic-sign pillar.
-
-    A pillar is taller than it is wide by construction, so a box wider than tall
-    is not one. Measured on the 2026-09-05 hardware run `run_20260905_214920`:
-    GREEN detections, which have no same-coloured scenery to be confused with,
-    show w/h p90 = 0.85 with only 0.6% above 1.0. RED, which shares its hue with
-    the magenta parking-lot barrier under motion blur, has **52% of its
-    detections wider than tall**, concentrated in the two corridors the parking
-    lot occupies (west 63%, south 34%) and absent from north entirely.
-
-    AREA CANNOT DO THIS JOB -- wall-shaped reds average 30251 px against
-    pillar-shaped reds' 32016, so a size gate keeps both or drops both.
-    Confidence cannot either: the bad boxes are CONFIDENT, p50 0.79. Aspect is
-    the only separator the data offers.
-
-    Consequence when they get through: every accepted box can seed a sign, and
-    `nav_debug.active_sign_count` climbed 5 -> 50 across that run on a track
-    holding at most 8, with the router deforming on 85% of ticks.
-
-    ``0.0`` disables the gate.
     """
 
     ROBOT_CORRIDOR_FLIP_TICKS: int = Field(default=5, ge=1, validation_alias=_alias("ROBOT_CORRIDOR_FLIP_TICKS"))
