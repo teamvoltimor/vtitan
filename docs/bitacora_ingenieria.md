@@ -1,33 +1,27 @@
-# Bitácora de Ingeniería (borrador) - VTITAN, WRO Future Engineers 2026
+# Bitácora de Ingeniería - V-Titan, WRO Future Engineers 2026
 
-Este archivo es el **primer borrador poblado** del Engineering Journal, construido a partir
-del historial real del proyecto (commits en `git log` y las notas de sesión acumuladas
-durante el desarrollo). Sigue la plantilla de entrada y las cinco secciones de criterios del
-Apéndice C del reglamento WRO Future Engineers 2026.
+Esta bitácora recoge las decisiones de ingeniería de V-Titan tal como se tomaron: qué nos
+obligó a decidir, qué alternativas teníamos, qué elegimos y qué midió el cambio. Está
+construida sobre el historial real del proyecto, los commits y las notas que fuimos dejando
+mientras desarrollábamos, en vez de reconstruida de memoria al final.
 
-**Estado:** borrador de trabajo interno, en español, con lenguaje técnico crudo. Antes de
-entregarlo a los jueces hay que:
+Cada entrada sigue la misma plantilla: contexto o restricción, opciones consideradas, qué
+hicimos, por qué, resultado medido y la referencia al commit o a la nota donde vive el
+detalle. Varias entradas registran hallazgos incómodos -mediciones que refutaron una
+hipótesis nuestra, o riesgos que siguen abiertos- porque son parte del proceso tanto como los
+aciertos.
 
-1. Revisar que cada entrada tenga foto/diagrama/gráfico donde aplique (aquí solo hay texto).
-2. Suavizar el lenguaje interno del equipo hacia lenguaje explicativo para un jurado externo.
-3. Decidir si se traduce o resume al inglés.
-4. Producir el material que todavía no existe (fotos, diagrama de cableado, CAD) y con el que
-   cada sección cierra diciendo qué le falta.
-
-Cada entrada usa la plantilla: Contexto → Opciones → Qué hicimos → Por qué → Resultado
-medido → Referencia. Además de vivir bajo el criterio WRO al que pertenecen (secciones 1–5),
-cada entrada lleva una línea **Categorías** con etiquetas de tema - ver el índice abajo para
-navegar por tema en vez de por criterio.
+Las cinco secciones siguen los criterios de evaluación del reglamento. Como muchas decisiones
+son transversales, cada entrada lleva además una línea **Categorías**, y el índice siguiente
+agrupa las mismas entradas por tema técnico para quien quiera leer "todo lo del motor" o
+"todo lo del LIDAR" de corrido.
 
 ---
 
 ## Índice por categoría
 
-Las cinco secciones de este documento siguen los criterios de evaluación del reglamento
-(Mecánica, Potencia/Sensores, Software, Systems Thinking, Reproducibilidad). Muchas entradas
-son transversales (ej. un fallo del puente H es a la vez hardware eléctrico y una decisión de
-seguridad), así que este índice agrupa las mismas entradas por **tema técnico**, para quien
-busque "todo lo del motor" o "todo lo del LIDAR" sin recorrer las cinco secciones.
+Un fallo del puente H, por ejemplo, es a la vez hardware eléctrico y una decisión de
+seguridad, y aparece bajo ambas etiquetas.
 
 | Categoría | Entradas |
 |---|---|
@@ -44,9 +38,6 @@ busque "todo lo del motor" o "todo lo del LIDAR" sin recorrer las cinco seccione
 | `riesgo-abierto` | `MAX_STEERING_RATE` sin medir (2026-09-02) · Pass-side, convención bajo sospecha (2026-09-03) · Pull-down `LPWM` pendiente |
 | `metodología` / `pruebas` | Barridos no comparables entre corridas concurrentes (2026-09-03) |
 | `seguridad` | GPIO flotante del puente H, tres capas (2026-08) · Pull-down `LPWM` pendiente |
-
-*(Este índice es manual - si se agregan entradas nuevas con `**Categorías:**`, actualizarlo a
-mano o generarlo con un script simple que las recolecte del markdown.)*
 
 ---
 
@@ -250,7 +241,7 @@ Nos falta material gráfico. Hace falta un diagrama dimensionado del chasis (30 
 1.3 kg) y de la disposición de las ruedas (7 cm de diámetro), tomando `robot.toml` como fuente
 de verdad para las cotas. Hacen falta también fotos o el CAD de la dirección Ackermann que
 fabricamos, y conviene decir de forma explícita que **no** es el chasis LEGO Bugatti Bolide,
-porque a simple vista se parecen y no queremos que el jurado lo confunda.
+porque a simple vista se parecen y la diferencia es justo lo que fabricamos nosotros.
 
 Queda pendiente además escribir la sesión de banco de motor y servo del 28 de agosto como una
 iteración con datos de antes y después de la retonificación del PID. Esa entrada debe incluir
@@ -457,7 +448,7 @@ positivo documentado explícitamente en la detección de pass-side.
 **Referencia:** commit `78c1692e fix(robot): enable camera_inverted for upside-down camera
 mount`.
 
-### Arquitectura de sensores (resumen para el jurado)
+### Arquitectura de sensores
 
 - **Cómputo:** NPU Hailo-8 para aceleración de inferencia.
 - **Cámara:** Raspberry Pi Camera Module 3 Wide, 102° de campo de visión horizontal.
@@ -662,7 +653,7 @@ comportamiento de acantilado.
 
 ---
 
-### Arquitectura del software (resumen para el jurado)
+### Arquitectura del software
 
 - Control de trayectoria por **pure pursuit** (`waypoint_controller`), con un
   navegador central (`core_navigator`) que separa planificación de ruta, seguimiento de
@@ -681,7 +672,7 @@ diagrama de flujo.
 
 Falta también reunir en un solo lugar las métricas con las que ajustamos: tasa de colisión,
 vueltas completadas, error de trayectoria y tasa de paso por el lado correcto. Ahora mismo cada
-una se explica dentro de la entrada donde apareció, y un lector externo no tiene dónde
+una se explica dentro de la entrada donde apareció, y no hay un solo sitio donde
 consultarlas juntas.
 
 ---
@@ -789,7 +780,7 @@ pruebas dedicadas).
 (`go_nats_migration_plan`), con cada controlador de hardware portado y re-verificado
 individualmente contra el hardware real antes de avanzar (ej. el controlador de LIDAR en modo classic
 primero, luego un controlador aparte para el modo Dense cuando se detectó que el modo de escaneo
-importaba - ver `lidar_c1_dense_mode_scan_mismatch`). A la fecha de este borrador, ~99
+importaba - ver `lidar_c1_dense_mode_scan_mismatch`). A la fecha de esta entrada, ~99
 commits tocan el árbol `robot-go`, cubriendo transporte, controladores de todos los sensores y
 actuadores, un supervisor de reinicio con notificación a systemd, y agregación de
 telemetría.
@@ -813,7 +804,7 @@ el árbol antes de citar como terminado cualquier fase específica).
 Falta escribir el razonamiento de **por qué Go y no seguir en Python/ROS2** (rendimiento,
 tipado, consumo de recursos en la Pi Zero, concurrencia) como una entrada propia. Hoy vive
 implícito en las decisiones de código, y no como la comparación explícita de trade-offs que un
-jurado externo necesita para juzgarla.
+hace falta para juzgar la decisión desde fuera.
 
 ---
 
@@ -833,7 +824,7 @@ cubre el caso restante, y **todavía no está instalada** físicamente en el rob
 
 **Por qué se documenta como riesgo y no se cierra en falso:** una mitigación de software de
 tres capas se siente "casi completa", y es tentador reportarla como resuelta. Documentar
-explícitamente el caso que **no** cubre evita que el equipo (o el jurado) asuma una seguridad
+explícitamente el caso que **no** cubre evita asumir una seguridad
 que no existe todavía - especialmente relevante para un componente que puede mover el chasis
 a máxima velocidad sin comando del software.
 
@@ -887,34 +878,6 @@ competencia (`v1.0` para el regional, `v2.0` para el final internacional) y acom
 notas de versión. Falta también un `tests.md` que explique el flujo de pruebas de forma
 centralizada, porque hoy está repartido entre notas de sesión.
 
-Antes de entregar hay que comprobar dos cosas. Una, que el CAD y los diagramas de cableado que
-faltan en los criterios 1 y 2 acaben **dentro** del repositorio y no solo referenciados. Dos,
-que el README explique de punta a punta cómo instalar, simular y desplegar a hardware sin dar
-por sentado contexto que solo tenemos nosotros.
-
----
-
-## Qué falta antes de entregar
-
-El trabajo que queda es sobre todo material que aún no existe: las fotos, los diagramas, el
-CAD, el esquema de cableado, el presupuesto de potencia, el diagrama de la máquina de estados
-y los tags de versión que van pidiendo las secciones anteriores.
-
-Hay dos entradas que faltan por escribir. Una es la de estacionamiento, de la que hoy solo
-contamos la regla de contacto. La otra es la de visión para señales, que se queda en la
-corrección de la cámara invertida cuando en realidad hay bastante más. Y a la migración a Go le
-falta la entrada que importa: por qué Go y no seguir en Python/ROS2, con datos de rendimiento,
-de consumo de recursos en la Pi Zero y de concurrencia, en lugar del relato de cómo la
-ejecutamos.
-
-Queda además una tarea de lenguaje. Varias entradas usan jerga nuestra ("sweep", "arm", nombres
-de constantes del código) que hay que traducir a algo legible para el jurado sin perder
-precisión, y conviene hacerlo con el equipo delante para no cambiar el significado por el
-camino.
-
-Fuera del documento hay un pendiente físico: instalar el pull-down de `LPWM`. Es el riesgo de
-seguridad que sigue abierto en el criterio 4, y cuando esté puesto hay que actualizar esa
-entrada de "riesgo abierto" a "riesgo mitigado" con la fecha y la verificación.
-
-Por último, cuando el contenido esté cerrado hay que decidir el formato de entrega (exportar
-este markdown a PDF o preparar un documento aparte) y si se traduce o se resume al inglés.
+El CAD y los diagramas de cableado que faltan en los criterios 1 y 2 tienen que acabar
+**dentro** del repositorio, no solo referenciados desde él: una documentación que apunta a
+archivos que no viaja con ella no es reproducible.
