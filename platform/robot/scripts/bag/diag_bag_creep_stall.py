@@ -1,0 +1,192 @@
+r"""Does the robot momentarily STOP at a corner, and is the creep floor why?
+
+Reported from the track: the robot pauses briefly at crossings. Two candidate
+causes, and they want opposite fixes:
+
+* it is COMMANDED to stop -- something in the speed path writes a zero, or
+* it is commanded a speed the drivetrain cannot deliver, and the wheel simply
+  does not turn.
+
+The second is the live suspicion. ``diag_bag_drive_response.py`` measured 73.8%
+stall in the 0.09-0.11 m/s bin and 2.1% by 0.15-0.20, but binned nothing
+between 0.11 and 0.15 -- and the heading term's creep floor sits at **0.152
+m/s**, right against that unmeasured edge. The heading cut is what fires at a
+corner (``diag_bag_corner_speed.py``: heading binds 57.1% of ticks), so if the
+deadband reaches 0.152 then "slows for the corner" and "stops at the corner"
+are the same event.
+
+Three measurements:
+
+1. FINE BINS across 0.10-0.22 in 0.01 steps, so the deadband edge is located
+   rather than bracketed. Reported with the delivered speed, because a bin that
+   stalls half the time and delivers full speed the rest is a different
+   failure from one that delivers nothing.
+
+2. STOP EPISODES during ``normal_drive`` only: runs of consecutive ticks with
+   the encoder at zero while a non-zero speed is commanded. Counts, durations,
+   and what was commanded during them. Restricted to normal_drive because
+   bay_exit is a known separate failure and would dominate any pooled figure.
+
+3. ATTRIBUTION. Each stop episode is labelled by whether the commanded speed
+   matched the heading term (``heading_speed_mps``), which says whether the
+   corner slowdown is what put the chassis under the floor.
+
+``/motor/drive_speed`` is a smoothed velocity estimate in DEG/S, not raw
+counts, so a reading of exactly 0 is the estimator saying "not turning" rather
+than a quantisation artefact.
+
+Usage::
+
+    pixi run -e dev python scripts/bag/diag_bag_creep_stall.py \
+        data/live/runs/run_20260908_003520 data/live/runs/run_20260908_004023
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+from rclpy.serialization import deserialize_message
+from std_msgs.msg import Float32
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
+
+WHEEL_CIRCUM_M = 0.07 * 3.141592653589793
+"""7 cm wheel, the measured diameter in robot.toml."""
+
+STALL_DEG_S = 1.0
+"""Below this the wheel is not turning. The estimator reads exact zeros."""
+
+MIN_EPISODE_TICKS = 2
+"""Ticks of continuous stall before it counts as a stop rather than a sample."""
+
+CONTROL_HZ = 20.0
+
+
+def deg_s_to_mps(deg_s: float) -> float:
+    return (deg_s / 360.0) * WHEEL_CIRCUM_M
+
+
+def _fine_bin(v: float) -> str | None:
+    if v < 0.10 or v >= 0.22:
+        return None
+    lo = int(v * 100) / 100.0
+    return f"{lo:.2f}-{lo + 0.01:.2f}"
+
+
+def _pct(values: list[float], q: float) -> float:
+    if not values:
+        return float("nan")
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, int(q * len(ordered)))]
+
+
+def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict) -> None:
+    reader = open_reader(bag_dir)
+    last_drive: float | None = None
+    run_len = 0
+    run_cmds: list[float] = []
+    run_heading = 0
+
+    for _ in iter(int, 1):
+        if not reader.has_next():
+            break
+        topic, data, _t = reader.read_next()
+        if topic == Topics.MOTOR_DRIVE_SPEED:
+            last_drive = float(deserialize_message(data, Float32).data)
+            continue
+        if topic != Topics.NAV_DEBUG or last_drive is None:
+            continue
+
+        try:
+            snap = decode_nav_debug(data)
+        except Exception:  # noqa: BLE001
+            # A run killed mid-write leaves a truncated final JSON payload.
+            # Counted rather than silently swallowed: a bag losing many rows
+            # would make every percentage below a fraction of the wrong total.
+            phase_ticks["undecodable"] += 1
+            continue
+        cmd = snap.commanded_speed_mps
+        phase = str(getattr(snap.phase, "value", snap.phase))
+        if cmd is None or abs(cmd) < 1e-6:
+            continue
+        enc = abs(last_drive)
+        stalled = enc < STALL_DEG_S
+
+        key = _fine_bin(abs(cmd))
+        if key is not None:
+            fine[key].append((stalled, deg_s_to_mps(enc)))
+
+        if phase != "normal_drive":
+            if run_len >= MIN_EPISODE_TICKS:
+                episodes.append((run_len, run_cmds, run_heading))
+            run_len, run_cmds, run_heading = 0, [], 0
+            continue
+
+        phase_ticks["normal_drive"] += 1
+        if stalled:
+            run_len += 1
+            run_cmds.append(abs(cmd))
+            hs = snap.heading_speed_mps
+            if hs is not None and abs(abs(cmd) - abs(hs)) < 1e-6:
+                run_heading += 1
+        else:
+            if run_len >= MIN_EPISODE_TICKS:
+                episodes.append((run_len, run_cmds, run_heading))
+            run_len, run_cmds, run_heading = 0, [], 0
+
+    if run_len >= MIN_EPISODE_TICKS:
+        episodes.append((run_len, run_cmds, run_heading))
+
+
+def main() -> int:
+    parser = create_bags_parser(
+        description=__doc__ or "", formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    args = parser.parse_args()
+
+    fine: dict[str, list] = defaultdict(list)
+    episodes: list = []
+    phase_ticks: dict[str, int] = defaultdict(int)
+    for bag in args.bag_dirs:
+        collect(Path(bag), fine, episodes, phase_ticks)
+
+    print("\n== 1. WHERE IS THE DEADBAND EDGE (all phases)")
+    print(f"{'cmd bin':>12} {'n':>7} {'stall%':>8} {'delivered p50':>15}")
+    for key in sorted(fine):
+        rows = fine[key]
+        stalls = sum(1 for s, _ in rows if s)
+        delivered = [v for _, v in rows]
+        print(f"{key:>12} {len(rows):>7} {100 * stalls / len(rows):>7.1f}% {_pct(delivered, 0.5):>14.3f}")
+
+    total = phase_ticks["normal_drive"]
+    stalled_ticks = sum(n for n, _, _ in episodes)
+    print(f"\n== 2. STOP EPISODES IN normal_drive  (>= {MIN_EPISODE_TICKS} ticks)")
+    print(f"  normal_drive ticks: {total}")
+    if phase_ticks["undecodable"]:
+        print(f"  undecodable rows skipped: {phase_ticks['undecodable']}")
+    if not episodes:
+        print("  NO stop episodes found.")
+        return 0
+    durs = [n / CONTROL_HZ for n, _, _ in episodes]
+    print(f"  episodes: {len(episodes)}   ticks stalled: {stalled_ticks} ({100 * stalled_ticks / total:.1f}% of normal_drive)")
+    print(
+        f"  duration s: p50={_pct(durs, 0.5):.2f}  p90={_pct(durs, 0.9):.2f}  max={max(durs):.2f}"
+    )
+    cmds = [c for _, cs, _ in episodes for c in cs]
+    print(f"  commanded during a stop: p25={_pct(cmds, 0.25):.3f}  p50={_pct(cmds, 0.5):.3f}  p95={_pct(cmds, 0.95):.3f} m/s")
+
+    print("\n== 3. WAS THE HEADING CUT WHAT PUT IT THERE")
+    heading_ticks = sum(h for _, _, h in episodes)
+    heading_eps = sum(1 for _, _, h in episodes if h > 0)
+    print(f"  stalled ticks whose command matched heading_speed_mps: {heading_ticks}/{stalled_ticks} ({100 * heading_ticks / stalled_ticks:.1f}%)")
+    print(f"  episodes containing at least one such tick: {heading_eps}/{len(episodes)} ({100 * heading_eps / len(episodes):.1f}%)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
