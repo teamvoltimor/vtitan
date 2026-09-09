@@ -58,9 +58,16 @@ def arc_with_endpoints(
     radius: float,
     theta_start: float,
     theta_end: float,
-    num_intermediate: int = 3,
+    num_intermediate: int,
 ) -> list[Waypoint]:
-    """Generate arc points including entry and exit, with intermediate samples."""
+    """Generate arc points including entry and exit, with intermediate samples.
+
+    ``num_intermediate`` has no default: the production caller already sources
+    it from the tuning file (``waypoints.NUM_INTERMEDIATE_ARC_POINTS``), and a
+    local default here duplicated that shipped value, so a caller forgetting
+    the argument would silently plan past a corner with a different sample
+    count than the profile said without anything failing.
+    """
     cx, cy = center.x, center.y
     entry = Waypoint(
         round(cx + radius * math.cos(theta_start), 3),
@@ -101,7 +108,7 @@ def straight_waypoints(
     is_x: bool,
     start: float,
     end: float,
-    count: int = 8,
+    count: int,
 ) -> list[Waypoint]:
     """Generate evenly-spaced waypoints along a corridor centerline.
 
