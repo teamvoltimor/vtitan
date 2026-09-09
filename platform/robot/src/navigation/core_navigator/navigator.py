@@ -1263,10 +1263,21 @@ class CoreNavigator(EscapeRecovery):
         # The three intermediate thresholds this used to read were deleted with
         # it -- see HeadingErrorZones. Re-graduating means adding them back,
         # which should take a measurement that beats the times above.
+        # CRAWL_RAMP_START replaces the step with a linear interpolation when
+        # set; at 0 (the shipped value) this is exactly the two-valued cut
+        # above. Nothing in the physics is discontinuous -- the servo's slew
+        # time grows smoothly with the angle it must cover -- and the step is a
+        # 0.348 m/s change across one degree of heading error.
         abs_error = abs(angle_error)
-        heading_speed = (
-            self._speed.creep_mps() if abs_error >= self._tuning.heading.CRAWL else self._speed.fast_mps()
-        )
+        crawl = self._tuning.heading.CRAWL
+        ramp_start = self._tuning.heading.CRAWL_RAMP_START
+        if abs_error >= crawl:
+            heading_speed = self._speed.creep_mps()
+        elif 0.0 < ramp_start < crawl and abs_error > ramp_start:
+            span = (abs_error - ramp_start) / (crawl - ramp_start)
+            heading_speed = self._speed.fast_mps() + span * (self._speed.creep_mps() - self._speed.fast_mps())
+        else:
+            heading_speed = self._speed.fast_mps()
         speed = min(speed, heading_speed)
 
         # Bound the selected cruise speed by the configured envelope. MIN_MPS

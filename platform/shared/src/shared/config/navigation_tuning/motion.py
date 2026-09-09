@@ -277,6 +277,47 @@ class HeadingErrorZones(BaseModel):
 
     CRAWL: float = Field(default=1.0, validation_alias=_alias("CRAWL"))  # ~57° - worst case
 
+    CRAWL_RAMP_START: float = Field(default=0.0, ge=0.0, validation_alias=_alias("CRAWL_RAMP_START"))
+    """Heading error where the speed cut BEGINS, ramping linearly to ``CRAWL``.
+
+    0 keeps the step: below ``CRAWL`` full speed, at or above it the creep
+    floor, which is what shipped. Any value in ``(0, CRAWL)`` replaces that
+    cliff with a linear interpolation from full speed at ``CRAWL_RAMP_START``
+    to creep at ``CRAWL``.
+
+    The cliff is a 0.348 m/s change across ONE degree of heading error, and
+    nothing in the physics is discontinuous: the servo's slew time grows
+    smoothly with the angle it has to cover. Measured over the 4572
+    normal_drive ticks of the 2026-09-08 finishers, whose heading error runs
+    p25 24 deg / p50 65 / p75 82, mean commanded speed under each law:
+
+    | law                  | mean m/s | vs shipped | at creep | cliff  |
+    |----------------------|----------|------------|----------|--------|
+    | step (shipped)       | 0.301    |      -     |    57%   | 0.348  |
+    | ramp 30->75 deg      | 0.300    |    -0.3%   |    35%   | 0.007  |
+    | ramp 40->90 deg      | 0.344    |   +14.1%   |     4%   | 0.007  |
+    | hyperbolic           | 0.423    |   +40.4%   |     0%   | 0.009  |
+
+    So smoothness is available at NO speed cost -- a ramp over 30-75 deg is
+    within 0.3% of the step's mean while removing the discontinuity. Faster
+    settings exist but they buy speed by being less conservative, which is a
+    different decision and wants a track measurement.
+
+    SHIPS AT 0 (the step) deliberately. The table above is an OPEN-LOOP replay:
+    it re-scores recorded heading errors under a different law, and cannot see
+    that driving faster through a corner CHANGES the heading error the law then
+    reads. Only a run can settle that, so the mechanism ships inert and the
+    band is chosen on the track.
+
+    Read this against ``MAX_STEERING_RATE`` before tuning it: that constant is
+    the whole justification for cutting speed here, it ships at 1.2 rad/s, and
+    it has never been measured (a 35 kg servo is plausibly ~5). The 2026-09-08
+    bags cannot settle it -- steering-rate p95 is 1.206 rad/s, landing exactly
+    on the configured limit, so what they measure is OUR limiter and not the
+    servo. If the servo is in fact faster, raising that constant is a larger
+    and simpler win than any shape chosen here.
+    """
+
 
 class PurePursuitParams(BaseModel):
     """Pure pursuit controller parameters for waypoint following.
