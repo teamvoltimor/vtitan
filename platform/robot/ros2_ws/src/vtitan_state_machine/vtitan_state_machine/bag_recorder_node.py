@@ -57,7 +57,8 @@ from src.ros2.qos import QOS_LATCHED_STATE
 # detections for the purpose these bags serve (replaying a bad run's decisions).
 # Add it explicitly via the "topics" parameter if a specific investigation needs
 # imagery.
-_DEFAULT_TOPICS = RaceLaunchDefaults().bag_topics
+_RACE_DEFAULTS = RaceLaunchDefaults()
+_DEFAULT_TOPICS = _RACE_DEFAULTS.bag_topics
 
 _BYTES_PER_GB = 1024**3
 
@@ -77,13 +78,25 @@ class BagRecorderNode(Node):
 
         # Default now points at the repo-root data/live/runs tree, shared by
         # the Python and Go stacks (see repo-root .gitignore). Resolved relative
-        # to this file so a Pi deployment and a dev checkout both write to the
-        # same place without an absolute path or ~/vtitan_runs.
-        _default_bag_dir = str(Path(__file__).resolve().parents[6] / "data" / "live" / "runs")
-        self._bag_dir = Path(declare_and_get_str_param(self, "bag_dir", _default_bag_dir)).expanduser()
+        # to the repo root so a Pi deployment and a dev checkout both write to
+        # the same place without an absolute path or ~/vtitan_runs. Taken from
+        # RaceLaunchDefaults rather than counting parents[] a second time here:
+        # the two counts agree today only because nobody has moved either file,
+        # and a recorder writing somewhere the bag scripts do not read is a
+        # silent loss of the whole session's evidence.
+        self._bag_dir = Path(
+            declare_and_get_str_param(self, "bag_dir", _RACE_DEFAULTS.bag_dir),
+        ).expanduser()
         self._topics = list(self.get_parameter("topics").value)
-        self._max_runs = declare_and_get_int_param(self, "max_runs", 20)
-        self._max_total_bytes = int(declare_and_get_float_param(self, "max_total_gb", 4.0) * _BYTES_PER_GB)
+        # Fallbacks only -- race.launch.py passes these from the same settings
+        # object. Read from it rather than repeating the numbers: a literal here
+        # would silently diverge the day someone retunes retention in
+        # race.toml, and a node that quietly keeps a different number of runs
+        # than a race does is the kind of drift you only notice as missing bags.
+        self._max_runs = declare_and_get_int_param(self, "max_runs", _RACE_DEFAULTS.bag_max_runs)
+        self._max_total_bytes = int(
+            declare_and_get_float_param(self, "max_total_gb", _RACE_DEFAULTS.bag_max_total_gb) * _BYTES_PER_GB,
+        )
         self._enabled = declare_and_get_bool_param(self, "enabled", default=True)
 
         self._recorder: subprocess.Popen[bytes] | None = None

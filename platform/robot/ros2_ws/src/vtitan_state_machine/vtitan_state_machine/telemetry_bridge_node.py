@@ -26,6 +26,7 @@ from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import Detection, LidarClearances, MotorStateSnapshot
 from std_msgs.msg import String
 
+from src.config.launch_settings import TelemetryBridgeLaunchSettings
 from src.config.tuning_helpers import get_tuning
 from src.navigation.clearances import clearances_from_scan
 from src.navigation.control.controllers.collision_avoidance import CollisionAvoidanceController
@@ -274,6 +275,14 @@ def _best_detection(detections: list[Detection]) -> tuple[str, float] | None:
     return best
 
 
+# Fallbacks only -- the launch files pass these as node parameters from the
+# same settings object (as_node_parameters). Read from it rather than repeating
+# the hosts: a literal here would silently diverge the day the backend moves,
+# and a bridge that quietly points at a host nobody is running is a failure
+# that looks like a network problem.
+_TELEMETRY_DEFAULTS = TelemetryBridgeLaunchSettings()
+
+
 class TelemetryBridgeNode(Node):
     """Subscribes to robot topics and streams telemetry to the backend over gRPC."""
 
@@ -281,17 +290,12 @@ class TelemetryBridgeNode(Node):
         super().__init__("telemetry_bridge")
 
         # Configuration
-        self._backend_url = declare_and_get_str_param(self, "backend_url", "http://localhost:8010")
-        self._rate = declare_and_get_float_param(self, "publish_rate_hz", 10.0)
-        self._max_history = declare_and_get_int_param(self, "max_path_history", 120)
-        # Independent from publish_rate_hz above: that one drives the HTTP
-        # POST to the backend over WiFi/LAN. This one drives a small JSON
-        # blob to the Pi Zero over the USB-gadget link, kept decoupled so
-        # tuning one doesn't silently affect the other. Matched to the OLED's
-        # own 10Hz redraw rate -- the USB-gadget link and message size (a few
-        # hundred bytes) have plenty of headroom at 10Hz; a lower rate here
-        # was just making every other redraw show stale numbers.
-        self._ui_summary_rate = declare_and_get_float_param(self, "ui_summary_rate_hz", 10.0)
+        self._backend_url = declare_and_get_str_param(self, "backend_url", _TELEMETRY_DEFAULTS.backend_url)
+        self._rate = declare_and_get_float_param(self, "publish_rate_hz", _TELEMETRY_DEFAULTS.publish_rate_hz)
+        self._max_history = declare_and_get_int_param(self, "max_path_history", _TELEMETRY_DEFAULTS.max_path_history)
+        # Independent from publish_rate_hz above, and why is on the field in
+        # TelemetryBridgeLaunchSettings rather than repeated here.
+        self._ui_summary_rate = declare_and_get_float_param(self, "ui_summary_rate_hz", _TELEMETRY_DEFAULTS.ui_summary_rate_hz)
 
         self._topics = RosTopicConfig.load_default()
         # Matches compute_forward_clearance's own forward cone width, for
@@ -349,7 +353,9 @@ class TelemetryBridgeNode(Node):
 
         # Backend<->robot gRPC channels. host:port, not a URL -- gRPC
         # channels don't take a scheme, unlike backend_url.
-        command_channel_target = declare_and_get_str_param(self, "command_channel_target", "localhost:9010")
+        command_channel_target = declare_and_get_str_param(
+            self, "command_channel_target", _TELEMETRY_DEFAULTS.command_channel_target
+        )
         # Same backend process, same grpcSrv (see cmd/server/main.go), so the
         # ingest service listens on the same port as the command channel --
         # reusing command_channel_target's default rather than inventing a

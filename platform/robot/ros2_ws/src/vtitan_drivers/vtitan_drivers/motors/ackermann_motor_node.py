@@ -88,6 +88,7 @@ from shared.config.constants import RobotSpecs
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32
 
+from src.config.launch_settings import MotorBackendLaunchSettings
 from src.hardware.motors.base import ClosedLoopDrive
 from src.hardware.motors.config import Config
 from src.hardware.motors.encoder import EncoderConfig, PIDController, QuadratureEncoder
@@ -344,12 +345,20 @@ class AckermannMotorNode(LifecycleNode):
         self.config = config
 
         # Backend selection (with fallback), exposed as ROS2 params so
-        # `ros2 param get/set` and launch-time YAML overrides work.
+        # `ros2 param get/set` and launch-time YAML overrides work. The
+        # fallbacks come from MotorBackendLaunchSettings, which is the same
+        # object the launch files feed in through as_node_parameters and which
+        # already reads STEERING_BACKEND/DRIVE_BACKEND from the environment.
+        # Repeating the literals here is how a standalone `ros2 run` silently
+        # drives the WRONG H-bridge: pixi.toml documents exactly that failure,
+        # and a node that quietly falls back to l298n/servo on a robot wired
+        # for another backend looks like a hardware fault, not a config one.
+        _backends = MotorBackendLaunchSettings()
         self.steering_backend = _parse_steering_backend(
-            declare_and_get_str_param(self, "steering_backend", "servo"),
+            declare_and_get_str_param(self, "steering_backend", _backends.steering_backend),
         )
         self.drive_backend = _parse_drive_backend(
-            declare_and_get_str_param(self, "drive_backend", "l298n"),
+            declare_and_get_str_param(self, "drive_backend", _backends.drive_backend),
         )
 
         self.get_logger().info(

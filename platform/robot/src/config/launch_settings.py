@@ -133,6 +133,21 @@ class TelemetryBridgeLaunchSettings(BaseSettings):
 
     backend_url: str = "http://localhost:8010"
     command_channel_target: str = "localhost:9010"
+    publish_rate_hz: float = 10.0
+    """Rate of the HTTP POST to the backend, over WiFi/LAN."""
+
+    ui_summary_rate_hz: float = 10.0
+    """Rate of the JSON blob to the Pi Zero over the USB-gadget link.
+
+    Deliberately independent of ``publish_rate_hz``: that one crosses the
+    network, this one crosses a USB gadget with plenty of headroom at a few
+    hundred bytes. Matched to the OLED's own 10 Hz redraw -- anything lower was
+    just making every other redraw show stale numbers.
+    """
+
+    max_path_history: int = 120
+    """Pose samples the bridge keeps for the path overlay."""
+
     telemetry_channel_target: str | None = None
     """Falls back to command_channel_target when unset -- most setups run
     both channels through the same backend host."""
@@ -232,8 +247,12 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     # both write to the same place without an absolute path.
     bag_dir: str = str(Path(__file__).resolve().parents[4] / "data" / "live" / "runs")
     # Retention caps for bag_recorder_node. Recording is race-gated, but a
-    # competition day is many rounds and the Pi 5's card is not large, so old
-    # runs are pruned oldest-first once either cap is exceeded.
-    bag_max_runs: int = 20
-    bag_max_total_gb: float = 4.0
+    # competition day is many rounds and the card is finite, so old runs are
+    # pruned oldest-first once either cap is exceeded. Sized for a diagnosis
+    # session rather than a single day: a whole corpus of runs stays on the
+    # card so bag scripts can compare across sessions instead of finding the
+    # evidence already pruned. Check free space before deploying to a Pi -- 50
+    # GB does not fit on a small card, and the count cap alone will not save it.
+    bag_max_runs: int = 500
+    bag_max_total_gb: float = 50.0
     bag_topics: list[str] = Field(default_factory=_default_bag_topics)
