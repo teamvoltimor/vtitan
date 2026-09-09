@@ -35,7 +35,6 @@ Usage::
 
 from __future__ import annotations
 
-import json
 import math
 import statistics
 import sys
@@ -43,28 +42,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from rclpy.serialization import deserialize_message  # noqa: E402
-from std_msgs.msg import String  # noqa: E402
-
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
 
 from shared.domain.enums import Direction  # noqa: E402
-from shared.domain.models import Detection, Pose, SignColor, Waypoint  # noqa: E402
+from shared.domain.models import Pose, Waypoint  # noqa: E402
 
 from scripts.common.bag_io import (  # noqa: E402
-    Topics,
     create_bags_parser,
-    decode_nav_debug,
-    elapsed_seconds,
-    open_reader,
+    decode_detections,
+    read_vision_rows,
     settled_direction,
 )
 from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
 from src.navigation.planning.sign_discovery import detection_to_observation  # noqa: E402
 from src.navigation.planning.sign_router import SignRouter  # noqa: E402
-
-VISION_DETECTIONS = "/vision/detections"
 
 MOVE_EPS_M = 0.01
 """Below this a position update is numerical noise, not a re-aim."""
@@ -78,46 +70,10 @@ CLUSTER_M = 0.35
 
 def _load(bag_dir: Path) -> tuple[list, list]:
     """Read one bag once, returning nav_debug rows and detection frames."""
-    reader = open_reader(bag_dir)
-    t0 = None
-    rows: list[tuple[float, object]] = []
-    frames: list[tuple[float, list[dict]]] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        rel = elapsed_seconds(t, t0)
-        if topic == Topics.NAV_DEBUG:
-            rows.append((rel, decode_nav_debug(data)))
-        elif topic == VISION_DETECTIONS:
-            frames.append((rel, json.loads(deserialize_message(data, String).data) or []))
-    return rows, frames
+    return read_vision_rows(bag_dir)
 
 
-def _detections(payload: list[dict]) -> list[Detection]:
-    """Rebuild typed detections from the wire payload, skipping malformed ones."""
-    out: list[Detection] = []
-    for d in payload:
-        try:
-            colour = SignColor(d["class_name"]) if "class_name" in d else SignColor(d["class"])
-        except (KeyError, ValueError):
-            continue
-        bbox = d.get("bbox")
-        if not bbox or len(bbox) != 4:
-            continue
-        out.append(
-            Detection(
-                class_name=colour,
-                confidence=float(d.get("confidence", 0.0)),
-                bbox=tuple(float(v) for v in bbox),
-                x=float(d.get("x", 0.0)),
-                y=float(d.get("y", 0.0)),
-                width=float(d.get("width", 0.0)),
-                height=float(d.get("height", 0.0)),
-                area=float(d.get("area", 0.0)),
-            )
-        )
-    return out
+_detections = decode_detections
 
 
 def _replay(bag_dir: Path, *, limits: bool) -> tuple[list[float], float]:

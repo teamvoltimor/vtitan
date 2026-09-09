@@ -21,6 +21,7 @@ rather than inventing anonymous tuples/dicts:
 from __future__ import annotations
 
 import argparse
+import json
 import math
 from collections import Counter
 from dataclasses import dataclass, field
@@ -32,7 +33,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import RobotSpecs
-from shared.domain.models import NavigatorDebugSnapshot
+from shared.domain.models import Detection, NavigatorDebugSnapshot, SignColor
 from std_msgs.msg import Float32, String
 
 from src.navigation.ports import LidarScan
@@ -48,6 +49,7 @@ class Topics:
 
     NAV_DEBUG = "/nav_debug"
     SCAN = "/scan"
+    VISION_DETECTIONS = "/vision/detections"
     ACKERMANN_CMD = "/ackermann_cmd"
     ROBOT_STATE = "/robot_state"
     IMU_DATA = "/imu/data"
@@ -96,6 +98,73 @@ def decode_scan(
 def decode_nav_debug(data: bytes) -> NavigatorDebugSnapshot:
     """Decode a /nav_debug String message into the snapshot it was published from."""
     return NavigatorDebugSnapshot.model_validate_json(deserialize_message(data, String).data)
+
+
+def decode_detections(payload: list[dict]) -> list[Detection]:
+    """Rebuild typed :class:`Detection` models from the /vision/detections payload.
+
+    The topic publishes a JSON list of detection dicts (the vision node's own
+    wire shape, so the schema lives on the vision side, not here). Records
+    that fail to rebuild are SKIPPED, not raised: a detector frame is advisory
+    evidence and one malformed dict is routine (a class name of UNKNOWN, a
+    bbox dropped by the publisher), while failing the whole replay would hide
+    99 good detections behind 1 bad one.
+
+    The class of a record is read from ``class_name``, falling back to ``class``
+    (two generations of publisher both produced this topic); a record with
+    neither is not a detection.
+    """
+    out: list[Detection] = []
+    for d in payload:
+        try:
+            colour = SignColor(d["class_name"]) if "class_name" in d else SignColor(d["class"])
+        except (KeyError, ValueError):
+            continue
+        try:
+            x_min, y_min, x_max, y_max = (float(v) for v in d.get("bbox", ()))
+        except (TypeError, ValueError):
+            continue
+        out.append(
+            Detection(
+                class_name=colour,
+                confidence=float(d.get("confidence", 0.0)),
+                bbox=(x_min, y_min, x_max, y_max),
+                x=float(d.get("x", 0.0)),
+                y=float(d.get("y", 0.0)),
+                width=float(d.get("width", 0.0)),
+                height=float(d.get("height", 0.0)),
+                area=float(d.get("area", 0.0)),
+            )
+        )
+    return out
+
+
+def read_vision_rows(
+    bag_dir: Path,
+) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], list[tuple[float, list[dict]]]]:
+    """Replay one bag once, collecting /nav_debug rows AND /vision/detections frames.
+
+    Returns `(rows, frames)`, each `(elapsed_s, payload)`: rows decode to the
+    navigator snapshot, frames to the raw detection dicts a bag stores (pass
+    them to :func:`decode_detections`, which response-frames lazily and skips
+    malformed records). Scripts replaying the router over detections plus pose
+    need both in one pass; reading the bag twice costs a minute+ on the
+    hardware bags.
+    """
+    reader = open_reader(bag_dir)
+    t0 = None
+    rows: list[tuple[float, NavigatorDebugSnapshot]] = []
+    frames: list[tuple[float, list[dict]]] = []
+    while reader.has_next():
+        topic, data, t = reader.read_next()
+        if t0 is None:
+            t0 = t
+        rel = elapsed_seconds(t, t0)
+        if topic == Topics.NAV_DEBUG:
+            rows.append((rel, decode_nav_debug(data)))
+        elif topic == Topics.VISION_DETECTIONS:
+            frames.append((rel, json.loads(deserialize_message(data, String).data) or []))
+    return rows, frames
 
 
 def read_nav_debug_rows(
