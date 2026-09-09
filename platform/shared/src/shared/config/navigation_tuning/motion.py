@@ -713,18 +713,38 @@ class SpeedControlParams(BaseModel):
         MEDIUM_MPS: Moderate clearance.
         FAST_MPS: Open track.
         OPEN_MAX_MPS: Open-Challenge cap. ``None`` -> use ``MAX_MPS``.
+        OPEN_CREEP_MPS: Open-Challenge creep tier. ``None`` -> use ``CREEP_MPS``.
         OPEN_SLOW_MPS: Open-Challenge slow tier. ``None`` -> use ``SLOW_MPS``.
         OPEN_MEDIUM_MPS: Open-Challenge medium tier. ``None`` -> ``MEDIUM_MPS``.
         OPEN_FAST_MPS: Open-Challenge fast tier. ``None`` -> ``FAST_MPS``.
         OBSTACLES_MAX_MPS: Obstacles cap. ``None`` -> use ``MAX_MPS``.
+        OBSTACLES_CREEP_MPS: Obstacles creep tier. ``None`` -> use ``CREEP_MPS``.
         OBSTACLES_SLOW_MPS: Obstacles slow tier. ``None`` -> use ``SLOW_MPS``.
         OBSTACLES_MEDIUM_MPS: Obstacles medium tier. ``None`` -> ``MEDIUM_MPS``.
         OBSTACLES_FAST_MPS: Obstacles fast tier. ``None`` -> ``FAST_MPS``.
 
-    ``MIN_MPS`` and ``CREEP_MPS`` deliberately have NO per-challenge form. The
-    floor is stiction and the creep tier is a servo-slew budget argued in
-    centimetres of travel (see above); neither becomes different because the
-    robot is driving a different challenge with the same hardware.
+    ``MIN_MPS`` deliberately has NO per-challenge form: the floor is stiction,
+    and stiction does not know which challenge is running.
+
+    ``CREEP_MPS`` DID have that argument made for it too, and it no longer
+    holds. Creep does two unrelated jobs -- it is the contact-zone speed, argued
+    in centimetres of lateral margin, AND it is the heading limiter's floor. In
+    Obstacles the first job dominates: there are signs to approach and the
+    travel budget is real. In Open there are only walls, the binding constraint
+    is the 180 s limit, and the heading cut spends 44-64% of the round sitting
+    on this tier. So Open pays a value chosen for a job it barely does.
+
+    What forced the split is a measurement rather than a preference. The
+    2026-09-08 bags (``diag_bag_creep_stall.py``) put EVERY momentary stop in
+    normal_drive on this tier -- commanded 0.152 at the p25, p50 and p95, with
+    107 of 109 stalled ticks carrying a command equal to ``heading_speed_mps``
+    -- and the stall rate at that command depends on STEERING LOAD: 0.2%
+    straight against **19.4% at full lock**, same command, all normal_drive.
+    Clearing that needs a higher creep; the contact-zone argument wants a lower
+    one. One number cannot serve both, and until now Open silently lost.
+
+    Unset ships unset: both default to ``None``, so a drivetrain that declares
+    neither keeps one shared creep tier exactly as before.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -757,11 +777,15 @@ class SpeedControlParams(BaseModel):
     """
 
     OPEN_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MAX_MPS"))
+    OPEN_CREEP_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_CREEP_MPS"))
     OPEN_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_SLOW_MPS"))
     OPEN_MEDIUM_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MEDIUM_MPS"))
     OPEN_FAST_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_FAST_MPS"))
 
     OBSTACLES_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_MAX_MPS"))
+    OBSTACLES_CREEP_MPS: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_CREEP_MPS")
+    )
     OBSTACLES_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_SLOW_MPS"))
     OBSTACLES_MEDIUM_MPS: float | None = Field(
         default=None, gt=0.0, validation_alias=_alias("OBSTACLES_MEDIUM_MPS")
@@ -786,7 +810,7 @@ class SpeedControlParams(BaseModel):
         for prefix in self._CHALLENGE_PREFIXES:
             override_cap = getattr(self, f"{prefix}_MAX_MPS")
             cap = override_cap if override_cap is not None else self.MAX_MPS
-            for tier in ("SLOW", "MEDIUM", "FAST"):
+            for tier in ("CREEP", "SLOW", "MEDIUM", "FAST"):
                 name = f"{prefix}_{tier}_MPS"
                 value = getattr(self, name)
                 if value is not None and value > cap:
@@ -807,7 +831,7 @@ class SpeedControlParams(BaseModel):
         """
         overrides = {
             tier: value
-            for tier in ("MAX_MPS", "SLOW_MPS", "MEDIUM_MPS", "FAST_MPS")
+            for tier in ("MAX_MPS", "CREEP_MPS", "SLOW_MPS", "MEDIUM_MPS", "FAST_MPS")
             if (value := getattr(self, f"{prefix}_{tier}")) is not None
         }
         return self.model_copy(update=overrides) if overrides else self
@@ -836,13 +860,22 @@ class SpeedControlParams(BaseModel):
         The shipped config had exactly this: MIN_SPEED and CREEP_SPEED were
         both 0.05.
         """
-        if self.MIN_MPS > self.CREEP_MPS:
-            msg = (
-                f"speed.MIN_MPS ({self.MIN_MPS}) must not exceed speed.CREEP_MPS "
-                f"({self.CREEP_MPS}); the envelope clamp would swallow the creep tier "
-                "and mask any change made to it"
-            )
-            raise ValueError(msg)
+        creeps = {"CREEP_MPS": self.CREEP_MPS}
+        # The per-challenge creeps are clamped by the same floor, so a value
+        # below it is inert in exactly the same way and for the same reason.
+        for prefix in self._CHALLENGE_PREFIXES:
+            name = f"{prefix}_CREEP_MPS"
+            value = getattr(self, name)
+            if value is not None:
+                creeps[name] = value
+        for name, value in creeps.items():
+            if self.MIN_MPS > value:
+                msg = (
+                    f"speed.MIN_MPS ({self.MIN_MPS}) must not exceed speed.{name} "
+                    f"({value}); the envelope clamp would swallow the creep tier "
+                    "and mask any change made to it"
+                )
+                raise ValueError(msg)
         return self
 
     def mps_ceiling(self) -> float:

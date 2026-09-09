@@ -14,6 +14,7 @@ from typing import ClassVar
 
 import pytest
 import yaml
+from pydantic import ValidationError
 from shared.config.navigation_tuning import (
     ClearanceZones,
     EscapeManeuverParams,
@@ -405,3 +406,46 @@ class TestFieldDefaultsMatchShippedToml:
             f"to match the config file -- code that constructs tuning bare is "
             f"otherwise silently running values nobody chose."
         )
+
+
+class TestPerChallengeCreep:
+    """``CREEP_MPS`` splits by challenge because it does two conflicting jobs.
+
+    It is the contact-zone speed, argued in centimetres of lateral margin, and
+    it is the heading limiter's floor, which the 2026-09-08 bags put under
+    every momentary stop in normal_drive. Obstacles wants it low, Open spends
+    44-64% of the round on it. One number cannot serve both.
+    """
+
+    def test_unset_keeps_one_shared_tier(self):
+        """The fallback is the point, not a degenerate case."""
+        speed = NavigationTuning().speed
+        assert speed.OPEN_CREEP_MPS is None
+        assert speed.OBSTACLES_CREEP_MPS is None
+        assert speed.for_open_challenge().creep_mps() == speed.creep_mps()
+        assert speed.for_obstacles_challenge().creep_mps() == speed.creep_mps()
+
+    def test_each_challenge_reads_its_own_override(self):
+        speed = NavigationTuning().speed.model_copy(
+            update={"OPEN_CREEP_MPS": 0.20, "OBSTACLES_CREEP_MPS": 0.12}
+        )
+        assert speed.for_open_challenge().creep_mps() == pytest.approx(0.20)
+        assert speed.for_obstacles_challenge().creep_mps() == pytest.approx(0.12)
+
+    def test_one_override_does_not_move_the_other_challenge(self):
+        base = NavigationTuning().speed
+        speed = base.model_copy(update={"OPEN_CREEP_MPS": 0.20})
+        assert speed.for_open_challenge().creep_mps() == pytest.approx(0.20)
+        assert speed.for_obstacles_challenge().creep_mps() == base.creep_mps()
+
+    def test_a_creep_above_its_challenge_cap_is_rejected(self):
+        """Inert tuning must fail loudly -- the ladder clamps to max_mps()."""
+        base = NavigationTuning().speed.model_dump()
+        with pytest.raises(ValidationError, match="OPEN_CREEP_MPS"):
+            SpeedControlParams.model_validate(base | {"OPEN_CREEP_MPS": 0.90, "OPEN_MAX_MPS": 0.50})
+
+    def test_a_creep_below_the_friction_floor_is_rejected(self):
+        """The envelope clamp would swallow it, and hide any tuning done to it."""
+        base = NavigationTuning().speed.model_dump()
+        with pytest.raises(ValidationError, match="OPEN_CREEP_MPS"):
+            SpeedControlParams.model_validate(base | {"OPEN_CREEP_MPS": 0.001})
