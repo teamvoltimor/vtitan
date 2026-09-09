@@ -170,14 +170,28 @@ class TestObstaclesDemoScenariosRun:
         laps_seen_per_sign: dict[int, set[int]] = {}
         navigator_ref: list = [None]
 
-        def recording_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, observations=None):
+        def recording_deform_waypoint(
+            self,
+            waypoint,
+            robot_pos,
+            robot_yaw,
+            corridor,
+            observations=None,
+            lidar_proposals=None,
+        ):
+            # This wrapper MIRRORS SignRouter.deform_waypoint's signature, so it
+            # has to be widened whenever that one grows a parameter -- the
+            # navigator passes them by keyword, so a missing one is a TypeError
+            # at call time, not a silently dropped argument. c424c7d3 added
+            # lidar_proposals and left this stub behind, red for two days.
+            #
             # deform_waypoint takes robot_pos as a plain (x, y) tuple and
             # converts it before reaching the private helper, which requires a
             # Waypoint. A wrapper calling that helper directly has to do the
             # same conversion or it raises AttributeError on .distance_to.
             candidates = self._active_sign_candidates(Waypoint(*robot_pos), robot_yaw, corridor)
             nearest_idx = candidates[0][0] if candidates else -1
-            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations)
+            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations, lidar_proposals)
             if result != waypoint and nearest_idx >= 0:
                 laps_seen_per_sign.setdefault(nearest_idx, set()).add(
                     navigator_ref[0].laps_completed,

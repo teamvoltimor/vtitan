@@ -223,6 +223,17 @@ telemetry_sessions/
 backend/telemetry_sessions/
 shared/dist/
 fixtures/
+# ...except the scenario metadata, which IS the unit-test battery rather than
+# generated data. Ignoring it meant a clean checkout collected `1 skipped` for
+# the whole Obstacles suite and read GREEN, so every clean-checkout validation
+# of sign work proved nothing (found 2026-09-09 while bisecting
+# test_signs_engage_on_every_lap). The *_preview.svg alongside them stay
+# ignored: those are regenerable pictures, not inputs.
+!robot/tests/fixtures/
+!robot/tests/fixtures/scenarios/
+!robot/tests/fixtures/scenarios/*/
+robot/tests/fixtures/scenarios/*/*
+!robot/tests/fixtures/scenarios/*/*_metadata.json
 
 # Task checksum
 .task/

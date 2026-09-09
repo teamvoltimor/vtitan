@@ -1,0 +1,69 @@
+{
+  "challenge_type": "obstacles",
+  "seed": 2026,
+  "parking_lot": {
+    "block1_position": {
+      "x": 2.9,
+      "y": 2
+    },
+    "block2_position": {
+      "x": 2.9,
+      "y": 1.55
+    },
+    "block1_yaw": 0,
+    "block2_yaw": 0,
+    "depth": 2
+  },
+  "corridor_widths": {
+    "east": {
+      "type": "fixed",
+      "width_mm": 1000
+    },
+    "north": {
+      "type": "fixed",
+      "width_mm": 1000
+    },
+    "south": {
+      "type": "fixed",
+      "width_mm": 1000
+    },
+    "west": {
+      "type": "fixed",
+      "width_mm": 1000
+    }
+  },
+  "sign_positions": [
+    {
+      "color": "green",
+      "x": 1.5,
+      "y": 2.6
+    },
+    {
+      "color": "green",
+      "x": 1,
+      "y": 0.4
+    },
+    {
+      "color": "green",
+      "x": 0.6,
+      "y": 1
+    },
+    {
+      "color": "red",
+      "x": 0.6,
+      "y": 2
+    }
+  ],
+  "starting_conditions": {
+    "direction": "counterclockwise",
+    "section": "East",
+    "position": {
+      "x": 2.5,
+      "y": 1.775
+    },
+    "yaw": 1.5707963267948966
+  },
+  "scenario_id": 13,
+  "num_signs": 4,
+  "has_parking_lot": true
+}
