@@ -1195,14 +1195,18 @@ class CoreNavigator(EscapeRecovery):
             # trail is a record of where the footprint has actually BEEN, so
             # reversing over it needs no rear vision -- the same gate the
             # stuck-escape reverse already uses, and an empty trail refuses.
-            reverse_m = self._speed.creep_mps() * self._clearance.CONTACT_REVERSE_TICKS / self._tuning.control.CONTROL_HZ
+            reverse_m = (
+                self._speed.contact_reverse_mps()
+                * self._clearance.CONTACT_REVERSE_TICKS
+                / self._tuning.control.CONTROL_HZ
+            )
             if (
                 self._contact_reverse_left <= 0
                 and self._contact_reverse_cooldown <= 0
                 and self._trail_confirms_reverse(reverse_m)
             ):
                 self._contact_reverse_left = self._clearance.CONTACT_REVERSE_TICKS
-            speed = self._speed.creep_mps()
+            speed = self._speed.contact_mps()
         elif forward_clearance < self._clearance.SLOW_DIST:
             speed = self._speed.slow_mps()
         elif forward_clearance < self._clearance.MEDIUM_DIST:
@@ -1223,7 +1227,7 @@ class CoreNavigator(EscapeRecovery):
             self._contact_reverse_left -= 1
             if self._contact_reverse_left == 0:
                 self._contact_reverse_cooldown = self._clearance.CONTACT_REVERSE_COOLDOWN_TICKS
-            speed = -self._speed.creep_mps()
+            speed = -self._speed.contact_reverse_mps()
 
         # Captured before the heading limiter, the envelope clamp and the risk
         # cap all fold into `speed`. Reporting the post-min value under this
@@ -1460,7 +1464,7 @@ class CoreNavigator(EscapeRecovery):
             evade = self._sign_evade_steer(robot_x, robot_y, robot_yaw)
             if evade is not None:
                 steering_normalized = max(-1.0, min(1.0, steering_normalized + evade))
-                speed = min(speed, self._speed.creep_mps())
+                speed = min(speed, self._speed.sign_evade_mps())
 
         # Escape maneuvers if critical — judged on the masked scan, so a mapped
         # sign cannot trigger one, and steered by the masked scan too: the

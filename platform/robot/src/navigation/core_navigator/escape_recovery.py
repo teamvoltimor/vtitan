@@ -454,7 +454,7 @@ class EscapeRecovery:
                     EscapeManeuver(
                         maneuver_type=ManeuverType.STUCK_FORWARD,
                         steering=steering,
-                        speed=self._tuning.speed.creep_mps(),
+                        speed=self._tuning.speed.escape_nudge_mps(),
                         duration_frames=frames,
                     ),
                 )
@@ -497,7 +497,7 @@ class EscapeRecovery:
                 EscapeManeuver(
                     maneuver_type=ManeuverType.STUCK_FORWARD,
                     steering=self._tuning.escape.rev_steer_norm() * steer_sign,
-                    speed=self._tuning.speed.creep_mps(),
+                    speed=self._tuning.speed.escape_nudge_mps(),
                     duration_frames=frames,
                 )
             )

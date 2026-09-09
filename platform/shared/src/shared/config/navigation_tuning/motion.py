@@ -789,6 +789,40 @@ class SpeedControlParams(BaseModel):
     ``slow`` cannot express.
     """
 
+    CONTACT_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("CONTACT_MPS"))
+    """Forward speed inside the contact zone. ``None`` -> use ``creep_mps()``.
+
+    The job ``CREEP_MPS`` was named for, and the one whose budget is argued in
+    centimetres of lateral margin. Kept unset so it tracks the shared tier;
+    named so that raising the tier for a DIFFERENT job cannot move it by
+    accident.
+    """
+
+    CONTACT_REVERSE_MPS: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("CONTACT_REVERSE_MPS")
+    )
+    """Reverse speed out of the contact zone. ``None`` -> use ``creep_mps()``.
+
+    Read in TWO places that must agree: the commanded reverse speed, and the
+    distance ``CONTACT_REVERSE_TICKS`` is predicted to cover. Splitting them
+    would make the manoeuvre travel a different distance from the one it
+    reports, so both read this.
+    """
+
+    SIGN_EVADE_MPS: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("SIGN_EVADE_MPS")
+    )
+    """Speed cap while steering out of a sign contact. ``None`` -> ``creep_mps()``."""
+
+    ESCAPE_NUDGE_MPS: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("ESCAPE_NUDGE_MPS")
+    )
+    """Forward speed of the stuck-escape nudge. ``None`` -> use ``creep_mps()``.
+
+    Both ``STUCK_FORWARD`` sites read this: they are one manoeuvre reached by
+    two paths, not two jobs.
+    """
+
     HEADING_FLOOR_MPS: float | None = Field(
         default=None, gt=0.0, validation_alias=_alias("HEADING_FLOOR_MPS")
     )
@@ -944,15 +978,39 @@ class SpeedControlParams(BaseModel):
         """Contact-zone speed in m/s, and the heading floor's fallback."""
         return min(self.CREEP_MPS, RobotSpecs.MAX_SPEED_MPS)
 
-    def heading_floor_mps(self) -> float:
-        """Speed the heading limiter drops to, in m/s.
+    def _or_creep(self, value: float | None) -> float:
+        """Resolve one creep-derived job speed, falling back to the shared tier.
 
-        Falls back to ``creep_mps()`` when unset, which is what shipped before
-        the two were separable -- see ``HEADING_FLOOR_MPS``.
+        Every caller of ``creep_mps()`` now has its own optional field. Unset
+        means "track the shared tier", which is bit-identical to the coupled
+        behaviour they all had before, so a config that names none of them is
+        unaffected. The point of naming them is that moving ONE job cannot move
+        the others by accident -- the contact jobs fail as collisions and the
+        heading job fails as a slow lap, so they must be able to disagree.
         """
-        if self.HEADING_FLOOR_MPS is None:
+        if value is None:
             return self.creep_mps()
-        return min(self.HEADING_FLOOR_MPS, RobotSpecs.MAX_SPEED_MPS)
+        return min(value, RobotSpecs.MAX_SPEED_MPS)
+
+    def contact_mps(self) -> float:
+        """Forward speed inside the contact zone, in m/s."""
+        return self._or_creep(self.CONTACT_MPS)
+
+    def contact_reverse_mps(self) -> float:
+        """Reverse speed out of the contact zone, in m/s."""
+        return self._or_creep(self.CONTACT_REVERSE_MPS)
+
+    def sign_evade_mps(self) -> float:
+        """Speed cap while steering out of a sign contact, in m/s."""
+        return self._or_creep(self.SIGN_EVADE_MPS)
+
+    def escape_nudge_mps(self) -> float:
+        """Forward speed of the stuck-escape nudge, in m/s."""
+        return self._or_creep(self.ESCAPE_NUDGE_MPS)
+
+    def heading_floor_mps(self) -> float:
+        """Speed the heading limiter drops to, in m/s."""
+        return self._or_creep(self.HEADING_FLOOR_MPS)
 
     def slow_mps(self) -> float:
         """Slow-zone speed in m/s."""

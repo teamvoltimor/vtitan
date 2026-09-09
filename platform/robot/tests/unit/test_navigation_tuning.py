@@ -478,3 +478,48 @@ class TestHeadingFloorIsSeparableFromCreep:
         )
         assert speed.for_open_challenge().creep_mps() == pytest.approx(0.18)
         assert speed.for_open_challenge().heading_floor_mps() == pytest.approx(0.20)
+
+
+class TestEveryCreepJobIsNameable:
+    """All five readers of the creep tier have their own optional field.
+
+    Only the heading one is earned by evidence today (97.8% of the ticks that
+    reach the floor). The other four exist so that moving one job cannot move
+    another by accident -- the contact jobs fail as COLLISIONS and the heading
+    job fails as a SLOW LAP, so they have to be able to disagree.
+    """
+
+    JOBS: ClassVar[tuple[str, ...]] = (
+        "contact_mps",
+        "contact_reverse_mps",
+        "sign_evade_mps",
+        "escape_nudge_mps",
+        "heading_floor_mps",
+    )
+
+    def test_unset_every_job_tracks_the_shared_tier(self):
+        """The fallback is the shipped behaviour, bit for bit."""
+        speed = NavigationTuning().speed
+        for job in self.JOBS:
+            assert getattr(speed, job)() == speed.creep_mps(), job
+
+    def test_moving_one_job_moves_only_that_job(self):
+        base = NavigationTuning().speed
+        for job in self.JOBS:
+            field = job.upper()
+            speed = base.model_copy(update={field: 0.20})
+            assert getattr(speed, job)() == pytest.approx(0.20), job
+            others = [other for other in self.JOBS if other != job]
+            for other in others:
+                assert getattr(speed, other)() == base.creep_mps(), f"{job} moved {other}"
+
+    def test_the_contact_reverse_distance_uses_the_reverse_speed(self):
+        """The predicted distance and the commanded speed must not disagree.
+
+        CONTACT_REVERSE_TICKS is turned into metres with this speed, so a
+        manoeuvre reading one value and reporting the other would travel a
+        different distance from the one it claims.
+        """
+        speed = NavigationTuning().speed.model_copy(update={"CONTACT_REVERSE_MPS": 0.20})
+        assert speed.contact_reverse_mps() == pytest.approx(0.20)
+        assert speed.contact_mps() == speed.creep_mps()
