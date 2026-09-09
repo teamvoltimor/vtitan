@@ -2,8 +2,8 @@
 
 Este archivo es el **primer borrador poblado** del Engineering Journal, construido a partir
 del historial real del proyecto (commits en `git log` y las notas de sesión acumuladas
-durante el desarrollo). Sigue la plantilla y la estructura de criterios definida en
-[`documentacion_ingenieria_wro.md`](documentacion_ingenieria_wro.md).
+durante el desarrollo). Sigue la plantilla de entrada y las cinco secciones de criterios del
+Apéndice C del reglamento WRO Future Engineers 2026.
 
 **Estado:** borrador de trabajo interno, en español, con lenguaje técnico crudo. Antes de
 entregarlo a los jueces hay que:
@@ -11,8 +11,8 @@ entregarlo a los jueces hay que:
 1. Revisar que cada entrada tenga foto/diagrama/gráfico donde aplique (aquí solo hay texto).
 2. Suavizar el lenguaje interno del equipo hacia lenguaje explicativo para un jurado externo.
 3. Decidir si se traduce o resume al inglés.
-4. Completar las secciones que aún están vacías (marcadas `TODO`) con material que falta
-   producir (fotos, diagrama de cableado, CAD).
+4. Producir el material que todavía no existe (fotos, diagrama de cableado, CAD) y con el que
+   cada sección cierra diciendo qué le falta.
 
 Cada entrada usa la plantilla: Contexto → Opciones → Qué hicimos → Por qué → Resultado
 medido → Referencia. Además de vivir bajo el criterio WRO al que pertenecen (secciones 1–5),
@@ -244,15 +244,17 @@ error en `docs/servo-comparison-180-vs-270.md` que indicaba reiniciar el servici
 **Referencia:** commit `3a7d7cbe fix(robot): rename servo270 profile folder to match active
 profile name`.
 
-### TODO - pendientes de este criterio
+### Lo que falta de mecánica
 
-- [ ] Diagrama dimensionado del chasis (30 × 19.4 cm, 1.3 kg) y de la disposición de las ruedas
-      (diámetro 7 cm) - usar `robot.toml` como fuente de verdad.
-- [ ] Fotos o CAD del sistema de dirección Ackermann personalizado (aclarar explícitamente
-      que **no** es el chasis LEGO Bugatti Bolide, para evitar ambigüedad ante el jurado).
-- [ ] Registrar la sesión de banco de motor/servo (`motor_servo_bench_session_2026_08_28`)
-      como iteración con datos de antes/después de la retonificación del PID, incluyendo la
-      reverificación en vivo del reescalado de ganancias PID que quedó pendiente arriba.
+Nos falta material gráfico. Hace falta un diagrama dimensionado del chasis (30 × 19.4 cm,
+1.3 kg) y de la disposición de las ruedas (7 cm de diámetro), tomando `robot.toml` como fuente
+de verdad para las cotas. Hacen falta también fotos o el CAD de la dirección Ackermann que
+fabricamos, y conviene decir de forma explícita que **no** es el chasis LEGO Bugatti Bolide,
+porque a simple vista se parecen y no queremos que el jurado lo confunda.
+
+Queda pendiente además escribir la sesión de banco de motor y servo del 28 de agosto como una
+iteración con datos de antes y después de la retonificación del PID. Esa entrada debe incluir
+la reverificación en vivo del reescalado de ganancias, que sigue sin hacerse.
 
 ---
 
@@ -464,14 +466,15 @@ mount`.
 - **IMU:** BNO085.
 - **Chasis:** Ackermann personalizado, no un kit LEGO.
 
-### TODO - pendientes de este criterio
+### Lo que falta de potencia y sensores
 
-- [ ] Diagrama de cableado real (batería → reguladores → motores/electrónica), con el
-      presupuesto de corriente por rama.
-- [ ] Documentar el método de calibración de cámara e IMU paso a paso (actualmente vive
-      disperso en notas de sesión, falta consolidar).
-- [ ] Explicitar el presupuesto de potencia total (pico vs. reposo) - hoy no está calculado
-      formalmente, solo el tope de velocidad del tren motriz.
+El hueco más grande de este criterio es el presupuesto de potencia: hoy no lo tenemos
+calculado formalmente, solo conocemos el tope de velocidad del tren motriz. Hay que medir el
+consumo en pico y en reposo, y desglosarlo por rama sobre un diagrama de cableado real que vaya
+de la batería a los reguladores y de ahí a motores y electrónica.
+
+El método de calibración de la cámara y de la IMU sí existe, pero vive disperso en notas de
+sesión. Falta consolidarlo en un procedimiento paso a paso que otro equipo pueda seguir.
 
 ---
 
@@ -670,12 +673,16 @@ comportamiento de acantilado.
 - Migración en curso de partes del software de Python (ROS2/rclpy) a Go (`robot-go`) sobre
   transporte NATS, en fases documentadas.
 
-### TODO - pendientes de este criterio
+### Lo que falta de software
 
-- [ ] Diagrama de flujo de la máquina de estados completa (bay start → Open/Obstacles →
-      parking), hoy solo existe como código y notas dispersas.
-- [ ] Documentar explícitamente las métricas empleadas en el ajuste (tasa de colisión, vueltas
-      completadas, cross-track error, pass-side rate) en un solo lugar orientado a jurado.
+La máquina de estados completa, desde el arranque en la bahía hasta el estacionamiento pasando
+por Open y Obstacles, solo existe hoy como código y notas dispersas. Falta dibujarla como
+diagrama de flujo.
+
+Falta también reunir en un solo lugar las métricas con las que ajustamos: tasa de colisión,
+vueltas completadas, error de trayectoria y tasa de paso por el lado correcto. Ahora mismo cada
+una se explica dentro de la entrada donde apareció, y un lector externo no tiene dónde
+consultarlas juntas.
 
 ---
 
@@ -788,8 +795,8 @@ actuadores, un supervisor de reinicio con notificación a systemd, y agregación
 telemetría.
 
 **Por qué:** aunque las razones completas de negocio/ingeniería para elegir Go sobre seguir
-invirtiendo en Python/ROS2 no están consolidadas en un solo documento (queda como TODO, ver
-más abajo), la ejecución en sí demuestra dos decisiones de sistema explícitas: (1) migrar
+invirtiendo en Python/ROS2 no están consolidadas en un solo documento (ver el cierre de esta
+entrada), la ejecución en sí demuestra dos decisiones de sistema explícitas: (1) migrar
 **incrementalmente por componente**, no todo de una vez, para poder validar cada pieza contra
 hardware real de forma aislada; y (2) **no perder invariantes de seguridad ya ganadas** en el
 camino - el ejemplo más claro es que la corrección de secuenciación de habilitación del puente H
@@ -803,10 +810,10 @@ el árbol antes de citar como terminado cualquier fase específica).
 **Referencia:** `go_nats_migration_plan`, `go_migration_progress` (a través de Fase 5),
 `bts7960_connect_ordering_bug_2026_08_28`. Commit inicial: `258f1f9e`/`43662ee0`.
 
-**TODO:** consolidar en una sola entrada el razonamiento de **por qué Go y no seguir en
-Python/ROS2** (rendimiento, tipado, footprint en el Pi Zero, concurrencia) - hoy ese
-razonamiento vive implícito en decisiones de código, no como una comparación explícita de
-trade-offs apta para un jurado externo.
+Falta escribir el razonamiento de **por qué Go y no seguir en Python/ROS2** (rendimiento,
+tipado, consumo de recursos en la Pi Zero, concurrencia) como una entrada propia. Hoy vive
+implícito en las decisiones de código, y no como la comparación explícita de trade-offs que un
+jurado externo necesita para juzgarla.
 
 ---
 
@@ -858,52 +865,56 @@ FIXED").
 
 ## 5. Reproducibility and GitHub Quality
 
-### Estado actual (medido, no aspiracional)
+El repositorio acumula 1365 commits (medido el 2026-09-09), todos con la convención
+`tipo(alcance): mensaje` (`feat(nav):`, `fix(sim):`, `docs(readme):`, `perf(nav):`). El
+`README.md` ronda los 110.000 caracteres. Ambas cifras superan con holgura los mínimos
+cuantitativos del Apéndice C, aunque
+ese no era el objetivo: la convención de commits se adoptó porque el historial es nuestra
+primera fuente para reconstruir cuándo y por qué cambió algo, y varias entradas de esta
+bitácora se escribieron leyendo `git log`.
 
-- **Commits en el repositorio:** 1117 (`git log --oneline | wc -l`), con convención
-  `tipo(alcance): mensaje` consistente en todo el historial reciente (ej. `feat(nav):`,
-  `fix(sim):`, `docs(readme):`, `perf(nav):`) - muy por encima del mínimo de 3 commits
-  significativos exigido para nivel 4.
-- **README principal (`README.md`):** 21,818 caracteres - supera el mínimo de 5,000
-  caracteres para nivel 4.
-- **Estructura del repositorio:** separación clara entre `platform/robot` (sistema de navegación
-  Python/ROS2), migración en curso a Go (`robot-go`), `platform/shared` (configuración y
-  ajuste compartidos), y `docs/` con subcarpetas `internal`, `development`, `proposals`,
-  `reference`, `schemes`.
-- **Reproducibilidad de entorno:** gestión de dependencias vía `uv` (Python) y
-  Pixi/RoboStack (ROS2), con tareas encapsuladas en `Taskfile` (`task sim:navigate...`,
-  `task rpi:stack`, etc.) para evitar comandos ad-hoc no reproducibles.
+La estructura separa `platform/robot` (el sistema de navegación en Python/ROS2), `robot-go`
+(la migración en curso), `platform/shared` (la configuración y el ajuste que ambos comparten) y
+`docs/`, con sus subcarpetas `internal`, `development`, `proposals`, `reference` y `schemes`.
+Las dependencias se gestionan con `uv` en Python y con Pixi/RoboStack para ROS2, y las
+operaciones habituales están encapsuladas en el `Taskfile` (`task sim:navigate...`,
+`task rpi:stack`) para que nadie tenga que reconstruir de memoria un comando largo.
 
-### TODO - pendientes de este criterio
+### Lo que falta de reproducibilidad
 
-- [ ] **Versionado y notas de versión explícitas** (ej. tag `v1.0` para el evento regional,
-      `v2.0` para el final internacional) - hoy el historial es continuo pero no está
-      etiquetado por hito de competencia.
-- [ ] **Archivo `tests.md` o equivalente** que documente el flujo de pruebas de forma
-      centralizada para un lector externo (hoy vive repartido en notas de sesión).
-- [ ] Confirmar que CAD y diagramas de cableado (pendientes en Criterios 1 y 2) queden
-      efectivamente **dentro** del repositorio, no solo referenciados.
-- [ ] Revisar que el README explique explícitamente **cómo construir y correr** el sistema
-      de punta a punta (instalación, simulación, despliegue a hardware) - verificar que no
-      dé por sentado contexto interno del equipo.
+El historial es continuo pero no está etiquetado: hay que marcar con tags los hitos de
+competencia (`v1.0` para el regional, `v2.0` para el final internacional) y acompañarlos de
+notas de versión. Falta también un `tests.md` que explique el flujo de pruebas de forma
+centralizada, porque hoy está repartido entre notas de sesión.
+
+Antes de entregar hay que comprobar dos cosas. Una, que el CAD y los diagramas de cableado que
+faltan en los criterios 1 y 2 acaben **dentro** del repositorio y no solo referenciados. Dos,
+que el README explique de punta a punta cómo instalar, simular y desplegar a hardware sin dar
+por sentado contexto que solo tenemos nosotros.
 
 ---
 
-## Próximos pasos para completar este borrador
+## Qué falta antes de entregar
 
-1. Completar los `TODO` de cada sección (fotos, diagramas, CAD, cableado, presupuesto de
-   potencia, diagrama de flujo de la máquina de estados, tags de versión).
-2. Revisar con el equipo si alguna entrada usa lenguaje demasiado interno ("sweep", "arm",
-   nombres de constantes de código) y traducirlo a lenguaje más neutro para el jurado, sin
-   perder precisión técnica.
-3. Añadir entradas de las áreas donde todavía hay poco material narrativo: parking (más allá
-   de la regla de contacto) y visión por computador para señales (más allá de la corrección
-   de cámara invertida).
-4. Cerrar el TODO de la migración a Go: consolidar en una sola entrada el "por qué Go y no
-   seguir en Python/ROS2" con datos concretos (rendimiento, footprint en el Pi Zero,
-   concurrencia), no solo la descripción de cómo se ejecutó la migración.
-5. Instalar físicamente el pull-down de `LPWM` pendiente (riesgo de seguridad abierto,
-   Criterio 4) y, una vez instalado, actualizar la entrada correspondiente de "riesgo
-   abierto" a "riesgo mitigado" con la fecha y el resultado verificado.
-6. Una vez completo, decidir formato de entrega final (PDF export de este markdown, o
-   documento separado) y si se traduce/resume al inglés.
+El trabajo que queda es sobre todo material que aún no existe: las fotos, los diagramas, el
+CAD, el esquema de cableado, el presupuesto de potencia, el diagrama de la máquina de estados
+y los tags de versión que van pidiendo las secciones anteriores.
+
+Hay dos entradas que faltan por escribir. Una es la de estacionamiento, de la que hoy solo
+contamos la regla de contacto. La otra es la de visión para señales, que se queda en la
+corrección de la cámara invertida cuando en realidad hay bastante más. Y a la migración a Go le
+falta la entrada que importa: por qué Go y no seguir en Python/ROS2, con datos de rendimiento,
+de consumo de recursos en la Pi Zero y de concurrencia, en lugar del relato de cómo la
+ejecutamos.
+
+Queda además una tarea de lenguaje. Varias entradas usan jerga nuestra ("sweep", "arm", nombres
+de constantes del código) que hay que traducir a algo legible para el jurado sin perder
+precisión, y conviene hacerlo con el equipo delante para no cambiar el significado por el
+camino.
+
+Fuera del documento hay un pendiente físico: instalar el pull-down de `LPWM`. Es el riesgo de
+seguridad que sigue abierto en el criterio 4, y cuando esté puesto hay que actualizar esa
+entrada de "riesgo abierto" a "riesgo mitigado" con la fecha y la verificación.
+
+Por último, cuando el contenido esté cerrado hay que decidir el formato de entrega (exportar
+este markdown a PDF o preparar un documento aparte) y si se traduce o se resume al inglés.

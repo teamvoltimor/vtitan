@@ -53,7 +53,7 @@ vtitan/
 │   └── old-models/      #   Prototipos previos (Klevor)
 ├── src/               # → código de competencia (puntero a platform/robot/)
 ├── other/             # → simulador, telemetría, entrenamiento, provisionamiento
-├── docs/              # Bitácora, guía WRO, datasheets, prototipos previos
+├── docs/              # Bitácora, referencia de configuración, datasheets, prototipos
 ├── platform/          # El monorepo de código: robot, backend, frontend, config
 ├── deploy/ansible/ + infra/  # Despliegue: provisionamiento Ansible + tareas task rpi:*
 ├── data/              # Salidas de ejecución (bags, fotos, videos); vacía en el repo
@@ -87,7 +87,7 @@ Según lo que quieras revisar, esta es la ruta más corta:
 
 Además de las carpetas obligatorias, el repositorio contiene:
 
-- `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), el [documento de ingeniería WRO](docs/documentacion_ingenieria_wro.md), la [referencia de configuración TOML de navegación](docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
+- `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), la [referencia de configuración TOML de navegación](docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
 - `platform/` con el código: `platform/robot/` (la pila ROS2 de competencia), `platform/robot-go/` (la segunda implementación en Go), `platform/backend/` y `platform/frontend/` (telemetría), y `platform/shared/config/` (la configuración que gobierna al robot).
 - `hailo/` con el entrenamiento y la compilación del detector YOLO, `ml-models/` con los pesos publicados, `apps/auto-annotator/` con la herramienta de anotación asistida.
 - `deploy/ansible/` y `infra/` con el despliegue: el provisionamiento de las placas con Ansible, y las tareas de infraestructura (`task rpi:*`, `task windows:provision:*`) que lo ejecutan, definidas en `infra/Taskfile.yml`.
