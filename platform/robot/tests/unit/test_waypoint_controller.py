@@ -309,3 +309,68 @@ class TestLookaheadRampsRatherThanSwitching:
         t = controller.effective_transition
         assert controller.select_lookahead(t * 0.99) == pytest.approx(controller.lookahead_long)
         assert controller.select_lookahead(t * 1.01) == pytest.approx(controller.lookahead_short)
+
+
+class TestTargetMustBeReachable:
+    """``MIN_TARGET_RADIUS_M`` skips aim points the chassis cannot curve onto.
+
+    ``select_target_point`` accepted any candidate with ``x_local > 0``, so a
+    point barely ahead but far to the side qualified. Measured over the
+    2026-09-08 finishers, 57-59% of ticks aimed at a point demanding a radius
+    tighter than the chassis's 0.29 m, which is a bearing no steering command
+    can reduce -- and the heading speed cut fires on it every tick.
+    """
+
+    # 0.10 m ahead, 0.27 m to the side: the geometry measured at p50 on
+    # hardware. Its pure-pursuit circle is d / (2 sin a) ~ 0.16 m.
+    SIDEWAYS = (0.10, 0.27)
+    # Straight ahead down the same path, reachable by construction.
+    AHEAD = (0.60, 0.02)
+
+    def test_disabled_by_default_keeps_the_nearest_ahead_point(self):
+        controller = _make_controller(min_target_radius_m=0.0)
+        target = controller.select_target_point(
+            current_pos=(0.0, 0.0),
+            current_yaw=0.0,
+            waypoints=[self.SIDEWAYS, self.AHEAD],
+            waypoint_index=0,
+            lookahead_distance=0.16,
+        )
+        assert target == self.SIDEWAYS
+        assert controller.last_target_unreachable is False
+
+    def test_armed_filter_skips_to_the_reachable_point(self):
+        controller = _make_controller(min_target_radius_m=0.29)
+        target = controller.select_target_point(
+            current_pos=(0.0, 0.0),
+            current_yaw=0.0,
+            waypoints=[self.SIDEWAYS, self.AHEAD],
+            waypoint_index=0,
+            lookahead_distance=0.16,
+        )
+        assert target == self.AHEAD
+        assert controller.last_target_unreachable is False
+
+    def test_the_skipped_point_really_was_unreachable(self):
+        """Guards the premise, not just the branch."""
+        dx, dy = self.SIDEWAYS
+        dist = math.hypot(dx, dy)
+        demanded_radius = dist / (2.0 * (abs(dy) / dist))
+        assert demanded_radius < 0.29
+
+    def test_falls_back_rather_than_inventing_a_target(self):
+        """Every candidate unreachable: keep one, and say so.
+
+        The fallback tiers are themselves answers to measured hardware
+        failures, so the filter must narrow the choice and never remove it.
+        """
+        controller = _make_controller(min_target_radius_m=0.29)
+        target = controller.select_target_point(
+            current_pos=(0.0, 0.0),
+            current_yaw=0.0,
+            waypoints=[self.SIDEWAYS, (0.08, -0.30)],
+            waypoint_index=0,
+            lookahead_distance=0.16,
+        )
+        assert target in {self.SIDEWAYS, (0.08, -0.30)}
+        assert controller.last_target_unreachable is True

@@ -60,6 +60,7 @@ class WaypointController:
         corner_turn_threshold_rad: float,
         lookahead_blend_start: float = 1.0,
         yaw_gain_compensation: float = 1.0,
+        min_target_radius_m: float = 0.0,
     ):
         """Initialize pure pursuit controller.
 
@@ -81,6 +82,11 @@ class WaypointController:
                 lookahead starts sliding from long toward short. 1.0 (the
                 default) reproduces the original hard switch exactly, so a
                 caller that does not pass it is unaffected.
+            min_target_radius_m: Tightest pure-pursuit circle a target may
+                demand. Candidates needing a tighter one are skipped by
+                :meth:`select_target_point`. 0.0 (the default) disables the
+                filter and is bit-identical to not having it -- see
+                ``PurePursuitParams.MIN_TARGET_RADIUS_M``.
             yaw_gain_compensation: Fraction of the geometrically predicted yaw
                 the chassis actually delivers, divided out of the pure-pursuit
                 demand. 1.0 (the default) is the uncompensated bicycle-model
@@ -98,7 +104,13 @@ class WaypointController:
         self.waypoint_reached_distance_m = waypoint_reached_distance_m
         self.corner_turn_threshold_rad = corner_turn_threshold_rad
         self.lookahead_blend_start = lookahead_blend_start
+        self.min_target_radius_m = min_target_radius_m
         self._prev_steering_rad = 0.0
+        # True when select_target_point found NO reachable candidate and fell
+        # back to the old behaviour. Sizes how often the chassis would have to
+        # REVERSE to reposition rather than steer out of it, which is a
+        # manoeuvre decision and not this class's to make.
+        self.last_target_unreachable = False
         # How much crosstrack the current path can absorb before the chassis
         # reaches an outer wall. None until a path is set, meaning
         # ``lookahead_transition`` stands unmodified.
@@ -139,6 +151,7 @@ class WaypointController:
             corner_turn_threshold_rad=pursuit.CORNER_TURN_THRESHOLD_RAD,
             lookahead_blend_start=pursuit.LOOKAHEAD_BLEND_START,
             yaw_gain_compensation=pursuit.YAW_GAIN_COMPENSATION,
+            min_target_radius_m=pursuit.MIN_TARGET_RADIUS_M,
         )
 
     def select_lookahead(
@@ -349,6 +362,14 @@ class WaypointController:
         nearest_ahead_dist = math.inf
         nearest_any = waypoints[waypoint_index % n]
         nearest_any_dist = math.inf
+        # Candidates that pass "ahead" and the lookahead but demand a circle
+        # the chassis cannot drive. Kept separately so an unreachable one is
+        # still available as a fallback. NOTE the cost this carries: taking a
+        # later candidate takes a FARTHER one, and curvature divides by the
+        # target's squared distance, so the filter trades an impossible bearing
+        # for a weaker correction. Measured NEGATIVE at 0.29 -- see
+        # PurePursuitParams.MIN_TARGET_RADIUS_M -- which is why it ships off.
+        nearest_unreachable: tuple[float, float] | None = None
         for offset in range(n):
             wx, wy = waypoints[(waypoint_index + offset) % n]
             dx, dy = wx - cx, wy - cy
@@ -360,11 +381,51 @@ class WaypointController:
             if x_local <= 0:
                 continue
             if dist >= lookahead_distance:
-                return (wx, wy)
+                if self._reachable(dx, dy, x_local, cos_yaw, sin_yaw, dist):
+                    self.last_target_unreachable = False
+                    return (wx, wy)
+                if nearest_unreachable is None:
+                    nearest_unreachable = (wx, wy)
+                continue
             if dist < nearest_ahead_dist:
                 nearest_ahead_dist = dist
                 nearest_ahead = (wx, wy)
+        # Nothing reachable in a whole lap. Fall back exactly as before rather
+        # than inventing a target: the previous tiers are themselves the
+        # answers to measured hardware failures (see this method's docstring),
+        # and the flag says the chassis is in a position steering alone cannot
+        # resolve.
+        self.last_target_unreachable = nearest_unreachable is not None or nearest_ahead is None
+        if nearest_unreachable is not None:
+            return nearest_unreachable
         return nearest_ahead if nearest_ahead is not None else nearest_any
+
+    def _reachable(
+        self,
+        dx: float,
+        dy: float,
+        x_local: float,
+        cos_yaw: float,
+        sin_yaw: float,
+        dist: float,
+    ) -> bool:
+        """Can the chassis curve onto this target's pure-pursuit circle?
+
+        A target at distance ``d`` and bearing ``a`` lies on a circle of radius
+        ``d / (2 sin a)``. Below ``min_target_radius_m`` that circle does not
+        exist for this chassis, so the bearing it produces cannot be steered
+        away and simply re-fires the heading speed cut every tick.
+
+        Always True when ``min_target_radius_m`` is 0, which is the shipped
+        default and the pre-2026-09-09 behaviour.
+        """
+        if self.min_target_radius_m <= 0.0 or dist <= 0.0:
+            return True
+        y_local = -dx * sin_yaw + dy * cos_yaw
+        sin_bearing = abs(y_local) / dist
+        if sin_bearing <= 1e-9:
+            return True
+        return dist / (2.0 * sin_bearing) >= self.min_target_radius_m
 
     def reset(self) -> None:
         """Clear the steering-rate-limit memory.

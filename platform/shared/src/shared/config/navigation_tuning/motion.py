@@ -576,6 +576,52 @@ class PurePursuitParams(BaseModel):
             update={"YAW_GAIN_COMPENSATION": self.OBSTACLES_YAW_GAIN_COMPENSATION}
         )
 
+    MIN_TARGET_RADIUS_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("MIN_TARGET_RADIUS_M"))
+    """Tightest pure-pursuit circle a steering target may demand, in metres.
+
+    ``select_target_point`` accepts any candidate with ``x_local > 0``, which
+    means "ahead" by a millimetre counts. A point 10 cm ahead and 27 cm to the
+    side passes that filter and yields an 80 deg bearing, and pure pursuit puts
+    such a target on a circle of radius ``d / (2 sin bearing)`` that the chassis
+    cannot drive.
+
+    MEASURED 2026-09-09 over both 2026-09-08 finishers (4589 ticks,
+    ``diag_bag_angle_error.py``): the demanded radius is p50 **0.226 m** and
+    **57-59% of ticks demand less than the 0.29 m the chassis can deliver**.
+    The bearing is real -- recomputing it from the published pose and target
+    reproduces ``angle_error_rad`` to 0.000 deg on 100% of ticks -- and it is
+    what fires the heading speed cut on 45-65% of the round. It cannot be
+    steered away, because no command curves onto a circle that does not exist.
+
+    Setting this to the chassis minimum (0.29, see
+    ``SimulationParams.MIN_TURN_RADIUS_M``, measured on hardware) makes the
+    search skip unreachable candidates and take the nearest REACHABLE one
+    instead. Moving forward along the path raises ``d`` and lowers the bearing,
+    so a reachable point generally exists further along.
+
+    **MEASURED AND REJECTED at 0.29.** A/B over 128 Open cases, same seeded
+    sample both arms: verdicts 128/128 -> 127/128 (one new collision), and sim
+    time +26.61 s mean with **0 cases faster and 127 slower**. Unanimous, so it
+    is the mechanism and not the value.
+
+    The reason is the failure ``select_target_point`` already documents from
+    2026-08-03: skipping the nearest qualifying candidate means taking a LATER
+    one, which is FARTHER, and pure pursuit's curvature divides by the target's
+    squared distance -- so satisfying the geometry weakens exactly the
+    correction the corner needed. The claim that this filter "only narrows the
+    candidate set" was wrong; narrowing it moves the target outward.
+
+    What survives is the diagnosis, not this remedy. A target demanding an
+    impossible circle is not itself harmful -- pure pursuit simply saturates,
+    which is the right command. What is harmful is the HEADING SPEED CUT
+    treating that bearing as a tracking error and creeping. So the defect is
+    more likely in what ``CRAWL`` reads than in where the aim point sits.
+
+    DEFAULTS TO 0, which disables the filter and is bit-identical to the
+    previous behaviour. The code and this measurement stay so the idea is not
+    re-proposed from the same reasoning a third time.
+    """
+
 
 class SpeedControlParams(BaseModel):
     """Speed control parameters for different zones, in ABSOLUTE m/s.
