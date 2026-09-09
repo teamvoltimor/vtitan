@@ -203,6 +203,20 @@ def legal_sign_positions() -> tuple[tuple[float, float], ...]:
 _LEGAL_SIGN_POSITIONS = legal_sign_positions()
 
 
+def lattice_cell(x: float, y: float, max_snap_m: float) -> tuple[float, float] | None:
+    """Which legal position this estimate is claiming, or None if it claims none.
+
+    The identity behind :func:`snap_to_lattice`. Two estimates share a cell when
+    they are describing the same pillar; when they do not, they are describing
+    DIFFERENT pillars, and that is a fact about the world rather than about
+    measurement noise.
+    """
+    if max_snap_m <= 0.0:
+        return None
+    best = min(_LEGAL_SIGN_POSITIONS, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)
+    return best if math.dist(best, (x, y)) <= max_snap_m else None
+
+
 def snap_to_lattice(x: float, y: float, max_snap_m: float) -> tuple[float, float]:
     """Pull a believed sign position onto the nearest legal lattice point.
 
@@ -623,12 +637,12 @@ class ObservedSignMap:
             track = self._nearest_track(world, robot_corridor)
             if track is None:
                 track = _SignTrack(
-                x=world.x,
-                y=world.y,
-                best_range=observed_range,
-                corridor=robot_corridor,
-                snap_m=self._snap_m,
-            )
+                    x=world.x,
+                    y=world.y,
+                    best_range=observed_range,
+                    corridor=robot_corridor,
+                    snap_m=self._snap_m,
+                )
                 self._tracks.append(track)
             track.hits += 1
             # Closest LIDAR look wins, on the same monotone-error argument the
@@ -645,8 +659,31 @@ class ObservedSignMap:
         obs: TrafficSignObservation,
         robot_corridor: Section,
     ) -> None:
-        """Merge one projected observation into the nearest track, or start one."""
+        """Merge one projected observation into the nearest track, or start one.
+
+        An observation that claims a DIFFERENT legal position from the track it
+        would otherwise join is not that sign. Reported from the track: the
+        believed position jumps not because the pillar moved but because the
+        robot has picked up another one -- at the far end of the same channel,
+        or in the next section. The lattice makes that testable, since two legal
+        positions are 0.20 m apart and ``association_dist_m`` is 0.25 m, so the
+        neighbour is inside the association radius and folds in silently.
+
+        Splitting instead of folding is what turns those into two tracks the
+        router can tell apart, and is the half of the jump problem that snapping
+        alone cannot reach: snapping quantises ONE track's estimate, this stops
+        two pillars sharing a track in the first place.
+
+        Inert unless ``SNAP_TO_LATTICE_M`` is set, and silent when either side
+        claims no cell -- an estimate too far from every legal position makes no
+        claim, so it cannot contradict one.
+        """
         track = self._nearest_track(world, robot_corridor)
+        if track is not None and self._snap_m > 0.0:
+            here = lattice_cell(world.x, world.y, self._snap_m)
+            there = lattice_cell(track.x, track.y, self._snap_m)
+            if here is not None and there is not None and here != there:
+                track = None
         if track is None:
             track = _SignTrack(
                 x=world.x,

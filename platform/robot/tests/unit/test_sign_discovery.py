@@ -29,6 +29,7 @@ from src.navigation.planning.sign_discovery import (
     SignSpec,
     _detection_to_world,
     detection_to_observation,
+    lattice_cell,
     legal_sign_positions,
     snap_to_lattice,
 )
@@ -666,3 +667,67 @@ class TestLatticeSnap:
 
     def test_ships_disabled(self):
         assert NavigationTuning.load_default().sign_discovery.SNAP_TO_LATTICE_M == 0.0
+
+
+class TestLatticeConsistentAssociation:
+    """Two pillars 0.20 m apart must not share one track.
+
+    Reported from the track: the believed position jumps not because the pillar
+    moved but because another one was picked up -- the far end of the same
+    channel, or the next section. Two legal positions are 0.20 m apart and
+    ``ASSOCIATION_DIST_M`` is 0.25 m, so the neighbour lands inside the
+    association radius and folds in silently.
+    """
+
+    @staticmethod
+    def _map(snap_m: float) -> ObservedSignMap:
+        return ObservedSignMap(
+            min_confidence=0.3,
+            tuning=tuning_with_overrides({"SNAP_TO_LATTICE_M": snap_m}, group="sign_discovery"),
+        )
+
+    @staticmethod
+    def _obs(x: float, y: float, colour: SignColor = SignColor.RED) -> TrafficSignObservation:
+        return TrafficSignObservation(
+            world_x_m=x,
+            world_y_m=y,
+            color=colour,
+            confidence=0.9,
+            detected_at_timestamp=0.0,
+        )
+
+    def test_two_legal_positions_become_two_tracks(self):
+        near, far = legal_sign_positions()[0], legal_sign_positions()[1]
+        assert 0.0 < math.dist(near, far) < 0.25, "premise: the pair is inside the association radius"
+        sign_map = self._map(0.15)
+        robot = Waypoint(near[0], near[1] - 0.5)
+        sign_map.observe([self._obs(*near)], robot)
+        sign_map.observe([self._obs(*far)], robot)
+        assert len(sign_map._tracks) == 2
+
+    def test_disabled_they_still_merge(self):
+        """The shipped behaviour, so the change is visibly opt-in."""
+        near, far = legal_sign_positions()[0], legal_sign_positions()[1]
+        sign_map = self._map(0.0)
+        robot = Waypoint(near[0], near[1] - 0.5)
+        sign_map.observe([self._obs(*near)], robot)
+        sign_map.observe([self._obs(*far)], robot)
+        assert len(sign_map._tracks) == 1
+
+    def test_noise_around_one_pillar_still_merges(self):
+        """The rule must split PILLARS, not jitter."""
+        target = legal_sign_positions()[0]
+        sign_map = self._map(0.15)
+        robot = Waypoint(target[0], target[1] - 0.5)
+        sign_map.observe([self._obs(target[0] + 0.03, target[1])], robot)
+        sign_map.observe([self._obs(target[0] - 0.03, target[1])], robot)
+        assert len(sign_map._tracks) == 1
+
+    def test_an_estimate_claiming_no_cell_cannot_contradict_one(self):
+        """Too far from every legal point is not a claim, so it must not split."""
+        target = legal_sign_positions()[0]
+        sign_map = self._map(0.05)
+        robot = Waypoint(target[0], target[1] - 0.5)
+        sign_map.observe([self._obs(*target)], robot)
+        sign_map.observe([self._obs(target[0] + 0.12, target[1])], robot)
+        assert len(sign_map._tracks) == 1

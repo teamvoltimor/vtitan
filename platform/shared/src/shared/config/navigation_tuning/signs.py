@@ -870,6 +870,26 @@ class SignDiscoveryParams(BaseModel):
     whole lattice step, and the closest step is 0.20 m. Fewer, larger changes.
     Whether that trade helps the router is not settled by a replay.
 
+    **The other half of the jumps is a DIFFERENT PILLAR, not a moving one**, and
+    the lattice makes that testable. Classifying the same 34 observed jumps by
+    whether they land on the same legal position (radius 0.40 m, where nearly
+    every estimate claims one):
+
+    | the jump lands on | count | treatment |
+    |---|---|---|
+    | the SAME legal position | 23 (68%) | wander -- snapping removes it |
+    | ANOTHER legal position | 8 (24%), median 57 cm | a second pillar -- the association split catches it |
+    | no legal position | 3 (9%) | no claim, left alone |
+
+    57 cm is the lattice's own depth spacing, so those are the far end of the
+    same channel or the next section -- reported from the track before it was
+    measured. Snapping and lattice-consistent association therefore address
+    different halves of the same symptom, and neither alone is the fix.
+
+    A small radius makes both mechanisms mostly inert: at 0.15 m, 31 of the 34
+    jumps claim no cell at all, which is itself a statement about how far the
+    raw estimates sit from any position a pillar could occupy.
+
     DEFAULTS TO 0, which disables it and is bit-identical to publishing the raw
     estimate.
     """
