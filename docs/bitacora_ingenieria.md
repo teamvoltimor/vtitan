@@ -864,7 +864,7 @@ FIXED").
   `tipo(alcance): mensaje` consistente en todo el historial reciente (ej. `feat(nav):`,
   `fix(sim):`, `docs(readme):`, `perf(nav):`) - muy por encima del mínimo de 3 commits
   significativos exigido para nivel 4.
-- **README principal (`docs/README.md`):** 21,818 caracteres - supera el mínimo de 5,000
+- **README principal (`README.md`):** 21,818 caracteres - supera el mínimo de 5,000
   caracteres para nivel 4.
 - **Estructura del repo:** separación clara entre `platform/robot` (stack de navegación
   Python/ROS2), migración en curso a Go (`robot-go`), `platform/shared` (configuración y

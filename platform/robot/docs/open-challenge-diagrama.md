@@ -2,27 +2,27 @@
 
 Diagramas Mermaid que documentan el flujo de control del **Open Challenge**, en lenguaje natural. El robot corre siempre en **modo ciego**: al iniciar no conoce la dirección de la pista (horario/antihorario) ni tiene mapa, así que la primera fase obligatoria es un avance reactivo que infiere la dirección observando la asimetría del pasillo con el LIDAR. No hay señales de tránsito ni maniobra de estacionamiento - eso corresponde al Obstacle Challenge, documentado en [`obstacle-challenge-diagrama.md`](obstacle-challenge-diagrama.md).
 
-La lógica compartida entre ambos desafíos (inferencia de dirección, vigilancia de colisión/atasco, conteo de vueltas) vive una sola vez en [`docs/schemes/flowcharts/common/`](../../../docs/schemes/flowcharts/common/mermaid/) y se referencia desde aquí, en vez de redibujarse.
+La lógica compartida entre ambos desafíos (inferencia de dirección, vigilancia de colisión/atasco, conteo de vueltas) vive una sola vez en [`schemes/flowcharts/common/`](../../../schemes/flowcharts/common/mermaid/) y se referencia desde aquí, en vez de redibujarse.
 
 Cada archivo `.mmd` trae al inicio un bloque de comentarios `%%` (no se renderiza en la imagen) con las referencias exactas al código y a las constantes usadas, para poder ubicarlas rápido si algún valor cambia.
 
 ## Diagramas
 
-Fuente Mermaid en `docs/schemes/flowcharts/open/mermaid/`, renders WebP en `docs/schemes/flowcharts/open/webp/` (generados con `task docs:diagrams`).
+Fuente Mermaid en `schemes/flowcharts/open/mermaid/`, renders WebP en `schemes/flowcharts/open/webp/` (generados con `task docs:diagrams`).
 
 | Diagrama | Fuente `.mmd` | WebP |
 |---|---|---|
-| Máquina de estados de alto nivel | [`docs/schemes/flowcharts/open/mermaid/maquina-estados.mmd`](../../../docs/schemes/flowcharts/open/mermaid/maquina-estados.mmd) | `docs/schemes/flowcharts/open/webp/maquina-estados.webp` |
-| Flujo completo por tick de control | [`docs/schemes/flowcharts/open/mermaid/flujo-completo.mmd`](../../../docs/schemes/flowcharts/open/mermaid/flujo-completo.mmd) | `docs/schemes/flowcharts/open/webp/flujo-completo.webp` |
+| Máquina de estados de alto nivel | [`schemes/flowcharts/open/mermaid/maquina-estados.mmd`](../../../schemes/flowcharts/open/mermaid/maquina-estados.mmd) | `schemes/flowcharts/open/webp/maquina-estados.webp` |
+| Flujo completo por tick de control | [`schemes/flowcharts/open/mermaid/flujo-completo.mmd`](../../../schemes/flowcharts/open/mermaid/flujo-completo.mmd) | `schemes/flowcharts/open/webp/flujo-completo.webp` |
 
 ### Detalle común (compartido con Obstacle Challenge)
 
 | Diagrama | Fuente `.mmd` | WebP |
 |---|---|---|
-| Inferencia de dirección (horario vs. antihorario) | [`docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd`](../../../docs/schemes/flowcharts/common/mermaid/inferencia-direccion.mmd) | `docs/schemes/flowcharts/common/webp/inferencia-direccion.webp` |
-| Vigilancia de colisión y atasco | [`docs/schemes/flowcharts/common/mermaid/escape-colision.mmd`](../../../docs/schemes/flowcharts/common/mermaid/escape-colision.mmd) | `docs/schemes/flowcharts/common/webp/escape-colision.webp` |
-| Esquiva genérica ante un obstáculo | [`docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd`](../../../docs/schemes/flowcharts/common/mermaid/esquiva-generica.mmd) | `docs/schemes/flowcharts/common/webp/esquiva-generica.webp` |
-| Conteo de vueltas | [`docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd`](../../../docs/schemes/flowcharts/common/mermaid/conteo-vueltas.mmd) | `docs/schemes/flowcharts/common/webp/conteo-vueltas.webp` |
+| Inferencia de dirección (horario vs. antihorario) | [`schemes/flowcharts/common/mermaid/inferencia-direccion.mmd`](../../../schemes/flowcharts/common/mermaid/inferencia-direccion.mmd) | `schemes/flowcharts/common/webp/inferencia-direccion.webp` |
+| Vigilancia de colisión y atasco | [`schemes/flowcharts/common/mermaid/escape-colision.mmd`](../../../schemes/flowcharts/common/mermaid/escape-colision.mmd) | `schemes/flowcharts/common/webp/escape-colision.webp` |
+| Esquiva genérica ante un obstáculo | [`schemes/flowcharts/common/mermaid/esquiva-generica.mmd`](../../../schemes/flowcharts/common/mermaid/esquiva-generica.mmd) | `schemes/flowcharts/common/webp/esquiva-generica.webp` |
+| Conteo de vueltas | [`schemes/flowcharts/common/mermaid/conteo-vueltas.mmd`](../../../schemes/flowcharts/common/mermaid/conteo-vueltas.mmd) | `schemes/flowcharts/common/webp/conteo-vueltas.webp` |
 
 ## Notas
 

@@ -214,9 +214,9 @@ landing/
 
 # Generated doc artifacts (rendered SVGs) — sources are the mermaid/png
 # siblings that are tracked; these are build output.
-docs/schemes/flowcharts/common/svg-editorial/
-# NOT docs/schemes/wiring/ as a whole: the harness schematic exports
+schemes/flowcharts/common/svg-editorial/
+# NOT schemes/wiring/ as a whole: the harness schematic exports
 # (harness.schematic.png/.svg) ARE committed, because they are what the WRO
 # judges read and rebuilding them needs the whole tscircuit toolchain. The
 # toolchain's own throwaway output stays ignored by the nested
-# docs/schemes/wiring/tscircuit/.gitignore.
+# schemes/wiring/tscircuit/.gitignore.

@@ -36,8 +36,8 @@ includes:
     taskfile: ./hailo/Taskfile.yml
     dir: ./hailo
   models:
-    taskfile: ./models/Taskfile.yml
-    dir: ./models
+    taskfile: ./ml-models/Taskfile.yml
+    dir: ./ml-models
   hugo-docs:
     taskfile: ./hugo-docs/Taskfile.yml
     dir: ./hugo-docs
@@ -52,7 +52,7 @@ tasks:
 
   docs:diagrams:
     desc: >-
-      Render every docs/schemes/flowcharts/{common,open,obstacles}/mermaid/*.mmd
+      Render every schemes/flowcharts/{common,open,obstacles}/mermaid/*.mmd
       file to a lossless WebP in the matching .../webp/ folder (usage: task
       docs:diagrams). common/ holds logic shared by both challenges (direction
       inference, collision/stuck escape, lap counting) — open/ and obstacles/
@@ -65,9 +65,9 @@ tasks:
       the temporary PNG is deleted. Requires cwebp (libwebp) on PATH. %%
       comment lines inside a .mmd are code/constant references for maintainers
       and are never rendered. The wiring harness is NOT rendered here: it is a
-      tscircuit project, see docs/schemes/wiring/tscircuit/.
+      tscircuit project, see schemes/wiring/tscircuit/.
     vars:
-      DIAGRAMS_DIR: docs/schemes/flowcharts
+      DIAGRAMS_DIR: schemes/flowcharts
     cmds:
       - cmd: mkdir -p "{{.DIAGRAMS_DIR}}/common/webp" "{{.DIAGRAMS_DIR}}/open/webp" "{{.DIAGRAMS_DIR}}/obstacles/webp"
       - cmd: |

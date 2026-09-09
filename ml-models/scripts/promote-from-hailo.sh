@@ -7,8 +7,8 @@
 # gmr_cpu_opt0.hef vs gmr_gpu_qat.hef -- different optimization passes,
 # different bytes, only a human can judge which one is "the" model to ship).
 #
-# Usage: bash models/scripts/promote-from-hailo.sh <name> <hef-file> [onnx-file]
-#   bash models/scripts/promote-from-hailo.sh gmr gmr_cpu_opt0.hef gmr.onnx
+# Usage: bash ml-models/scripts/promote-from-hailo.sh <name> <hef-file> [onnx-file]
+#   bash ml-models/scripts/promote-from-hailo.sh gmr gmr_cpu_opt0.hef gmr.onnx
 
 set -euo pipefail
 

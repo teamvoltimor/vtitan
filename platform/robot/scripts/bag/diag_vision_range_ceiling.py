@@ -12,7 +12,7 @@ explanations survive that number and they need different fixes:
   them, plausibly because it was trained and quantized on 64 sharp, staged,
   close-range desk photos. Fixing that means retraining.
 
-This runs the tracked YOLO ONNX (``models/gmr/v1/best.onnx``) over the SAME
+This runs the tracked YOLO ONNX (``ml-models/gmr/v1/best.onnx``) over the SAME
 frames the HEF saw and compares the two range distributions. The bag's
 ``/vision/detections`` count matches the recorded video frame count 1:1, so
 frame *i* pairs with detection message *i* -- a paired comparison on identical

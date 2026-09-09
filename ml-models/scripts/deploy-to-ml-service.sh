@@ -3,9 +3,9 @@
 # the untracked working directory the ml-service and
 # platform/robot/scripts/provisioning/deploy-to-pi5.sh actually read from.
 #
-# Usage: bash models/scripts/deploy-to-ml-service.sh <name> [version]
-#   bash models/scripts/deploy-to-ml-service.sh gmr          # uses LATEST
-#   bash models/scripts/deploy-to-ml-service.sh gmr v1        # pin a specific version
+# Usage: bash ml-models/scripts/deploy-to-ml-service.sh <name> [version]
+#   bash ml-models/scripts/deploy-to-ml-service.sh gmr          # uses LATEST
+#   bash ml-models/scripts/deploy-to-ml-service.sh gmr v1        # pin a specific version
 
 set -euo pipefail
 

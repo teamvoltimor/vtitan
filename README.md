@@ -11,7 +11,7 @@
 > - *Ramón Álvarez*
 
 <p align="center">
-    <img src="../assets/kaucrow-banner.webp" alt="Javier Pérez (@kaucrow)" width="600">
+    <img src="assets/kaucrow-banner.webp" alt="Javier Pérez (@kaucrow)" width="600">
     <br>
     <i>Javier Pérez - <a href="https://github.com/kaucrow">@kaucrow</a> - 2 de enero de 2005 - 31 de agosto de 2026</i>
 </p>
@@ -29,14 +29,14 @@
         <tr>
             <td>
                 <p align="center">
-                    <img src="../assets/luna-baby.webp" alt="Luna Margarita de cachorra" height="500">
+                    <img src="assets/luna-baby.webp" alt="Luna Margarita de cachorra" height="500">
                     <br>
                     <i>Luna Margarita, de cachorra</i>
                 </p>
             </td>
             <td>
                 <p align="center">
-                    <img src="../assets/luna-senior.webp" alt="Luna Margarita en sus últimos años" height="500">
+                    <img src="assets/luna-senior.webp" alt="Luna Margarita en sus últimos años" height="500">
                     <br>
                     <i>Luna Margarita, en sus últimos años</i>
                 </p>
@@ -54,7 +54,7 @@
 # Team Voltimor
 
 <p align="center">
-    <img src="../assets/voltimor-logo-square.png" alt="" width="400">
+    <img src="assets/voltimor-logo-square.png" alt="" width="400">
     <br>
     <i>Logo del Equipo</i>
 </p>
@@ -73,21 +73,26 @@ Actualmente, este equipo está conformado por 3 miembros:
 - **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado tanto de la programación, como de la documentación y la toma de decisiones con respecto a la lógica del robot. Actualmente, cursa el 1er trimestre de Ingeniería en Computación en URU.
 - **Jesús Pérez**, 16 años. [JesusPerez15](https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
 
-## Estructura de la documentación
+## Estructura del repositorio
 
-Esta documentación es bastante extensa, por lo que decidimos dividir los contenidos de esta documentación en múltiples archivos para facilitar la lectura, los cuales están ubicados en la carpeta `docs`.
+La raíz del repositorio sigue la estructura que pide la categoría Futuros Ingenieros de la WRO. Cada carpeta obligatoria está en su sitio, y las que apuntan a un monorepo más grande llevan su propio `README.md` con la ruta exacta:
 
-Ahora bien, la estructura de los archivos es la siguiente:
+| Carpeta | Contenido |
+|---------|-----------|
+| `README.md` | Este documento: la documentación completa de ingeniería de V-Titan |
+| `t-photos/` | Fotos del equipo |
+| `v-photos/` | Fotos de V-Titan y de los prototipos anteriores |
+| `video/` | Enlaces a los videos de las rondas y del robot en funcionamiento ([`video/video.md`](video/video.md)) |
+| `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
+| `models/` | Modelos 3D de las piezas impresas: `current-models/` (V-Titan) y `old-models/` (prototipos previos), cada uno con `blueprints/` (planos) y `step-files/` (CAD para imprimir) |
+| `src/` | Puntero al código de competencia, que vive en `platform/robot/` dentro del monorepo. Ver [`src/README.md`](src/README.md) |
+| `other/` | Puntero al resto del proyecto: simulador, backend de telemetría, entrenamiento del detector y provisionamiento. Ver [`other/README.md`](other/README.md) |
 
-- En la carpeta `docs`, como ya se ha mencionado, se encuentra todo lo documentado sobre V-Titan, dividido en 4 secciones, la electrónica, la mecánica, la programación, además de estas secciones, también contamos con algunos archivos que detallan, por ejemplo, el software utilizado, cómo nos pueden contactar, y demás, **estos archivos están listados al final del índice**.
+Además de las carpetas obligatorias, el repositorio contiene:
 
-- En la carpeta `3d-models` se encuentran todos los modelos de las piezas 3d que fueron impresas para V-Titan, esta carpeta está dividida para los planos de las piezas, y el archivo para imprimirlas, además de, estar organizadas por cada prototipo.
-
-- En la carpeta `schemes` están los diagramas de flujo, y los diagramas de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders PNG, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera.
-
-- En la carpeta `t-photos` están las fotos del equipo.
-
-- En la carpeta `v-photos` están las fotos de V-Titan.
+- `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), el [documento de ingeniería WRO](docs/documentacion_ingenieria_wro.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
+- `platform/` con el código: `platform/robot/` (la pila ROS2 de competencia), `platform/robot-go/` (la segunda implementación en Go), `platform/backend/` y `platform/frontend/` (telemetría), y `platform/shared/config/` (la configuración que gobierna al robot).
+- `hailo/` con el entrenamiento y la compilación del detector YOLO, `ml-models/` con los pesos publicados, `auto-annotator/` con la herramienta de anotación asistida, y `ansible/` con el provisionamiento de las placas.
 
 ## Arranque rápido y reproducibilidad
 
@@ -149,7 +154,7 @@ task rpi:ansible:check TARGET=pi5  # Dry-run + diff del provisionador
 
 ```bash
 task docs:diagrams                 # Re-renderizar todos los diagramas Mermaid a WebP
-cd docs/schemes/wiring/tscircuit && npm run artifacts   # Regenerar el esquemático del arnés
+cd schemes/wiring/tscircuit && npm run artifacts   # Regenerar el esquemático del arnés
 ```
 
 ### Versionado
@@ -161,10 +166,10 @@ Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para 
 1. **[Arranque rápido y reproducibilidad](README.md#arranque-rápido-y-reproducibilidad)**
 2. **[Historial del equipo](README.md#historial-del-equipo)**
     1. [Klevor (WRO 2025)](README.md#klevor-wro-2025)
-        1. [Klevor v0.1](development/previous-prototypes/klevor-v0.1.md)
-        2. [Klevor v0.1.1](development/previous-prototypes/klevor-v0.1.1.md)
-        3. [Klevor v0.2](development/previous-prototypes/klevor-v0.2.md)
-        4. [Klevor v1.0](development/previous-prototypes/klevor-v1.0.md)
+        1. [Klevor v0.1](docs/development/previous-prototypes/klevor-v0.1.md)
+        2. [Klevor v0.1.1](docs/development/previous-prototypes/klevor-v0.1.1.md)
+        3. [Klevor v0.2](docs/development/previous-prototypes/klevor-v0.2.md)
+        4. [Klevor v1.0](docs/development/previous-prototypes/klevor-v1.0.md)
     2. [V-Titan (WRO 2026)](README.md#v-titan-wro-2026)
 2. **[Arquitectura de energía y sensores](README.md#arquitectura-de-energía-y-sensores)**
     1. [Lista de Componentes](README.md#lista-de-componentes)
@@ -367,7 +372,7 @@ A continuación, está la descripción de todos los componentes principales de V
 ### Raspberry Pi 5 (16GB RAM)
 
 <p align="center">
-	<img src="../assets/images/components/raspberry-pi-5.webp" alt="Raspberry Pi 5" 
+	<img src="assets/images/components/raspberry-pi-5.webp" alt="Raspberry Pi 5" 
 width="350">
 	<br>
 	<i>Raspberry Pi 5</i>
@@ -391,7 +396,7 @@ Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 
 ### Raspberry Pi Camera Module 3 Wide
 
 <p align="center">
-	<img src="../assets/images/components/raspberry-pi-camera-module-3.webp" alt="Raspberry Pi Camera Module 3" 
+	<img src="assets/images/components/raspberry-pi-camera-module-3.webp" alt="Raspberry Pi Camera Module 3" 
 width="350">
 	<br>
 	<i>Raspberry Pi Camera Module 3</i>
@@ -413,7 +418,7 @@ La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como l
 ### Raspberry Pi AI HAT+ (26 TOPS)
 
 <p align="center">
-	<img src="../assets/images/components/raspberry-pi-ai-hat-plus.webp" alt="Raspberry Pi AI HAT+ 26 TOPS" 
+	<img src="assets/images/components/raspberry-pi-ai-hat-plus.webp" alt="Raspberry Pi AI HAT+ 26 TOPS" 
 width="350">
 	<br>
 	<i>Raspberry Pi AI HAT+ 26 TOPS</i>
@@ -433,7 +438,7 @@ El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones 
 ### Raspberry Pi Zero 2 W
 
 <p align="center">
-	<img src="../assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero W" 
+	<img src="assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero W" 
 width="350">
 	<br>
 	<i>Raspberry Pi Zero W</i>
@@ -455,7 +460,7 @@ Incorpora conectividad Wi-Fi/Bluetooth y cabezales de pines GPIO soldados. Esto 
 ### RPLiDAR C1
 
 <p align="center">
-	<img src="../assets/images/components/rplidar-c1.webp" alt="RPLiDAR C1" 
+	<img src="assets/images/components/rplidar-c1.webp" alt="RPLiDAR C1" 
 width="350">
 	<br>
 	<i>RPLiDAR C1</i>
@@ -485,7 +490,7 @@ Especificaciones técnicas:
 
 <!-- github-only-start -->
 <p align="center">
-	<img src="../assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Hiwonder HPS-3527SG 35kg Servo" 
+	<img src="assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Hiwonder HPS-3527SG 35kg Servo" 
 width="350">
 	<br>
 	<i>Hiwonder HPS-3527SG 35kg Servo</i>
@@ -508,7 +513,7 @@ Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
 ### HD Hex Motor
 
 <p align="center">
-	<img src="../assets/images/components/hd-hex-motor.webp" alt="HD Hex Motor" 
+	<img src="assets/images/components/hd-hex-motor.webp" alt="HD Hex Motor" 
 width="350">
 	<br>
 	<i>HD Hex Motor</i>
@@ -525,7 +530,7 @@ Después de probar distintos modelos de motor, al final optamos por utilizar el 
 ### IMU GY-BNO085
 
 <p align="center">
-	<img src="../assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
+	<img src="assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
 width="350">
 	<br>
 	<i>Giroscopio BNO085</i>
@@ -553,7 +558,7 @@ La implementación maneja dos variables: `yaw_deg` (orientación relativa desde 
 ### Ovonic Air 11.1V Li-Po Battery
 
 <p align="center">
-	<img src="../assets/images/components/ovonic-air-11.1v-lipo-battery.webp" alt="Ovonic Air 11.1V Li-Po Battery" 
+	<img src="assets/images/components/ovonic-air-11.1v-lipo-battery.webp" alt="Ovonic Air 11.1V Li-Po Battery" 
 width="350">
 	<br>
 	<i>Ovonic Air 11.1V Li-Po Battery</i>
@@ -589,7 +594,7 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 ### Puente H BTS7960 / IBT-2
 
 <p align="center">
-	<img src="../assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
+	<img src="assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
 	<br>
 	<i>Puente H BTS7960 / IBT-2 (el que monta V-Titan actualmente)</i>
 </p>
@@ -597,7 +602,7 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 El BTS7960 es el puente H que controla el motor de tracción. **No fue nuestra primera opción: reemplazó al L298N, y el motivo fue puramente de corriente.**
 
 <p align="center">
-	<img src="../assets/images/components/puente-h-l298n.webp" alt="Puente H L298N" width="300">
+	<img src="assets/images/components/puente-h-l298n.webp" alt="Puente H L298N" width="300">
 	<br>
 	<i>Puente H L298N - el diseño anterior, descartado por corriente insuficiente</i>
 </p>
@@ -618,7 +623,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 ### Step Down Mini-560 Pro
 
 <p align="center">
-	<img src="../assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
+	<img src="assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
 	<br>
 	<i>Step Down Mini-560 Pro (el que monta V-Titan actualmente)</i>
 </p>
@@ -626,7 +631,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 El Mini-560 Pro es el regulador que alimenta el riel propio del servo de dirección, separándolo del riel de 5V de la Raspberry Pi para que los picos de corriente del servo no lleguen al computador.
 
 <p align="center">
-	<img src="../assets/images/components/step-down-xlc4016.webp" alt="Step Down XLC4016" width="300">
+	<img src="assets/images/components/step-down-xlc4016.webp" alt="Step Down XLC4016" width="300">
 	<br>
 	<i>Step Down XLC4016 - el regulador anterior, descartado por peso</i>
 </p>
@@ -646,7 +651,7 @@ Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el pun
 ### SSD1306 OLED Display
 
 <p align="center">
-	<img src="../assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="350">
+	<img src="assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="350">
 	<br>
 	<i>SSD1306 OLED Display 128x64</i>
 </p>
@@ -674,7 +679,7 @@ El arnés completo de V-Titan está trazado como un esquemático generado por c�
 Para regenerar los artefactos tras editar `circuit.tsx`:
 
 ```bash
-cd docs/schemes/wiring/tscircuit
+cd schemes/wiring/tscircuit
 npm install
 npm run artifacts   # netlist legible + SVG (fondo blanco) + PNG a 2400 px
 ```
@@ -726,7 +731,7 @@ Con todos estos componentes en mente, queríamos implementar esta idea en un sis
 #### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
 
 <p align="center">
-	<img src="../assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
+	<img src="assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Primer Prototipo del Sistema de Dirección</i>
@@ -743,7 +748,7 @@ width="350">
 #### **Fase 2: Pruebas de Integración y Detección de Fallas**
 
 <p align="center">
-	<img src="../assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
+	<img src="assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
 width="350">
 	<br>
 	<i>Iteración de diseño en CAD entre prototipos impresos</i>
@@ -761,7 +766,7 @@ width="350">
 #### **Fase 3: Rediseño a Engranajes Perpendiculares, Coronas y Correa Dentada**
 
 <p align="center">
-	<img src="../assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
+	<img src="assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
 width="350">
 	<br>
 	<i>Sistema de dirección por engranajes, vista inferior: coronas integradas a los rines</i>
@@ -779,7 +784,7 @@ width="350">
 #### **Fase 4: Optimización de Peso, Integración y Chasis Final**
 
 <p align="center">
-	<img src="../assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
+	<img src="assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
 width="350">
 	<br>
 	<i>Integración de la electrónica sobre el monochasis agujereado</i>
@@ -799,7 +804,7 @@ width="350">
 ## Sistema de Transmisión
 
 <p align="center">
-	<img src="../assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
+	<img src="assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Sistema de Transmisión, visto desde arriba</i>
@@ -812,7 +817,7 @@ Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción e
 ## Sistema de Dirección
 
 <p align="center">
-	<img src="../assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
+	<img src="assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
 width="350">
 	<br>
 	<i>Sistema de Dirección, visto desde arriba</i>
@@ -821,7 +826,7 @@ width="350">
 Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. 
 
 <p align="center">
-	<img src="../docs/schemes/counter-phase-steering-system.png" alt="Ejemplo de sistema de dirección en Contrafase" 
+	<img src="schemes/counter-phase-steering-system.png" alt="Ejemplo de sistema de dirección en Contrafase" 
 width="350">
 	<br>
 	<i>Ejemplo de sistema de dirección en contrafase</i>
@@ -834,7 +839,7 @@ En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 d
 ## Chasis Inferior 
 
 <p align="center">
-	<img src="../3d-models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
+	<img src="models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
 width="350">
 	<br>
 	<i>Piñon de 33 dientes de dirección</i>
@@ -845,7 +850,7 @@ También es importante recalcar la base dentada del rin de las ruedas, o mejor d
 ## Monochasis 
 
 <p align="center">
-	<img src="../3d-models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
+	<img src="models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
 width="350">
 	<br>
 	<i>Chasis Inferior</i>
@@ -878,7 +883,7 @@ Al efectuar toda la operación obtenemos como resultado que se necesita un torqu
 Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al torque mínimo ($0.207\ \text{Nm}$), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
 
 <p align="center">
-	<img src="../assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
+	<img src="assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
 width="350">
 	<br>
 	<i>Relación de Engranajes</i>
@@ -1230,6 +1235,8 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 # Videos de V-Titan
 
 Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a V-Titan y los desafíos de la WRO.
+
+Esta misma lista está disponible como [`video/video.md`](video/video.md), la carpeta que pide la categoría.
 
 ## Open Challenge
 
