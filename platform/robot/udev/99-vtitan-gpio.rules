@@ -1,4 +1,4 @@
-# Deployed identically to both boards by ansible/roles/common (see its "Install udev rules"
+# Deployed identically to both boards by deploy/ansible/roles/common (see its "Install udev rules"
 # task) -- a rule for hardware that isn't wired to a given board simply never matches, so one
 # shared file is safe. Per-rule board targeting, for reference:
 

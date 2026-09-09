@@ -27,7 +27,7 @@ from metrics import (
     summarise,
 )
 
-GMR_CHECKPOINT_PATH = "../auto-annotator/ml-service/models/gmr/best.pt"
+GMR_CHECKPOINT_PATH = "../apps/auto-annotator/ml-service/models/gmr/best.pt"
 
 
 def parse_args() -> argparse.Namespace:

@@ -25,7 +25,7 @@ IMAGE_SIZE = 640
 # Ground-truth files are written in the dataset's class space while the model
 # predicts in its own. The checkpoint's metadata is authoritative: running it
 # per class folder predicts "green" on green_prism and "red" on red_prism.
-# auto-annotator's data.yaml disagrees and is stale -- taking the order from
+# apps/auto-annotator's data.yaml disagrees and is stale -- taking the order from
 # there swaps red and green, which inverts the WRO pass-side rule.
 LABEL_TO_MODEL = {0: 2, 1: 0, 2: 1}
 MODEL_NAMES = {0: "green", 1: "magenta", 2: "red"}

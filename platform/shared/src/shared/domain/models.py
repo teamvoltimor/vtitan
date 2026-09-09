@@ -481,7 +481,7 @@ class SignColor(StrEnum):
 
 # Class ids the retrained GMR detector emits, in the checkpoint's own declared
 # order (confirmed over per-class image folders). Single source of truth: do NOT
-# take this from auto-annotator's data.yaml -- it lists (red, green, magenta) and
+# take this from apps/auto-annotator's data.yaml -- it lists (red, green, magenta) and
 # is stale, which would swap red/green and invert the WRO pass-side rule silently.
 GMR_CLASS_NAMES: dict[int, SignColor] = {
     0: SignColor.GREEN,

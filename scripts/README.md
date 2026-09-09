@@ -4,13 +4,13 @@ Two phases. **Raspberry Pi Imager** writes a bootable, reachable OS; Phase 2
 adds the vtitan layer (interfaces, USB-gadget link, ROS2 workspace, systemd
 services) on top. Neither phase 2 mechanism flashes or partitions anything.
 
-**Phase 2 is driven by Ansible** (`../ansible/`, via `task rpi:provision:pi5`
+**Phase 2 is driven by Ansible** (`../deploy/ansible/`, via `task rpi:provision:pi5`
 / `task rpi:provision:zero`) - idempotent, re-runnable, dry-runnable
 (`task rpi:ansible:check`). The old `setup_common.sh`/`setup_pi_5.sh`/
 `setup_pi_zero.sh` scp+ssh scripts the Ansible roles were ported from have
 been removed (2026-07-30) - Ansible is installed and reachable on the dev
 Pi 5, though the playbook itself is still pending its first real run (see
-`../ansible/README.md`).
+`../deploy/ansible/README.md`).
 
 ## Phase 1 - Raspberry Pi Imager (Windows)
 
@@ -43,7 +43,7 @@ task rpi:ansible:check TARGET=pi5     # dry-run + diff against an already-provis
 ```
 
 GitHub auth (private repo) and the Pi Zero's WiFi 2.4GHz band lock are
-handled automatically. See `../ansible/README.md` for the role/playbook
+handled automatically. See `../deploy/ansible/README.md` for the role/playbook
 layout.
 
 ## Networking

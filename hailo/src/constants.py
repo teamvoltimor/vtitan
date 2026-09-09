@@ -56,6 +56,6 @@ OPSET_YOLO11 = 13
 OPSET_YOLO12 = 11
 
 # Cross-repo checkpoints
-GMR_CHECKPOINT_PATH = "../auto-annotator/ml-service/models/gmr/best.pt"
+GMR_CHECKPOINT_PATH = "../apps/auto-annotator/ml-service/models/gmr/best.pt"
 # X11 display default now lives in src.settings.HailoSettings (host-specific,
 # HAILO_X11_DISPLAY-overridable), not here.

@@ -3,7 +3,7 @@
 Tracked, versioned archive of compiled Hailo models and the checkpoints they
 were compiled from. This is the single source of truth for "what model is
 this" - the ml-service's own `models/` directory
-(`auto-annotator/ml-service/models/`) and the compiler's scratch directory
+(`apps/auto-annotator/ml-service/models/`) and the compiler's scratch directory
 (`hailo/shared_with_docker/`) are both untracked working copies that get
 populated *from* here, not the other way around.
 
@@ -35,7 +35,7 @@ produced it).
   `hailo/`) that you want to keep.
 - `scripts/deploy-to-ml-service.sh <name> [version]` - copies a tracked
   version (defaults to `LATEST`) into
-  `auto-annotator/ml-service/models/<name>/`, where the ml-service and
+  `apps/auto-annotator/ml-service/models/<name>/`, where the ml-service and
   `platform/robot/scripts/provisioning/deploy-to-pi5.sh` actually read from.
   Run this to make a tracked version the one the ml-service (and, after a
   Pi 5 deploy, the robot) actually uses.

@@ -159,7 +159,7 @@ func (ts *testServer) grpcClient(t *testing.T) telemetryv1.TelemetryIngestServic
 }
 
 // httpGet issues a GET against the test server's HTTP edge router directly
-// (no live listener needed, matching auto-annotator/api's handler-test style).
+// (no live listener needed, matching apps/auto-annotator/api's handler-test style).
 func (ts *testServer) httpGet(t *testing.T, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, http.NoBody)

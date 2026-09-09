@@ -42,5 +42,5 @@ def test_parse_args_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_gmr_checkpoint_path_points_under_auto_annotator() -> None:
-    assert "auto-annotator" in float_anchor.GMR_CHECKPOINT_PATH
+    assert "apps/auto-annotator" in float_anchor.GMR_CHECKPOINT_PATH
     assert float_anchor.GMR_CHECKPOINT_PATH.endswith(".pt")

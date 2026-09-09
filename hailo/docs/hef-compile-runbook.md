@@ -307,7 +307,7 @@ Three orderings are in circulation and only one is authoritative:
 | Source | 0 | 1 | 2 |
 |---|---|---|---|
 | **Checkpoint / ONNX metadata (authoritative)** | green | magenta | red |
-| `auto-annotator/ml-service/data/data.yaml` + label files | red | green | magenta |
+| `apps/auto-annotator/ml-service/data/data.yaml` + label files | red | green | magenta |
 | `platform/robot` `_DEFAULT_CLASS_TO_COLOR` (before 2026-07-26) | red | green | magenta |
 
 The checkpoint wins: running it on the per-class image folders predicts "green"

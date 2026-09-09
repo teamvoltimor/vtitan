@@ -80,7 +80,7 @@ The Pi 5 also had 5 sibling `git worktree` checkouts of other branches
 plus a stale manual `vtitan-session-backup` dir from an older rename.
 All confirmed clean the same way - the `pi5` role removes them
 (`old_worktree_dirs` in `inventory/group_vars/robot_pi5.yml`) once the main migration
-succeeds, leaving a single `~/vtitan` checkout. `ansible/` and `scripts/`
+succeeds, leaving a single `~/vtitan` checkout. `deploy/ansible/` and `scripts/`
 both live on `master` now, so nothing else needs that separate worktree -
 `ANSIBLE_DIR`/`PLATFORM_SCRIPTS` in the root `Taskfile.yml` point straight
 at `~/vtitan`.

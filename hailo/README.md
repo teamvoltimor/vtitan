@@ -140,7 +140,7 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 | `HW_ARCH` | `hailo8` | Target hardware |
 | `TARGET` | `emulator` | Evaluation target |
 | `DATA_COUNT` | `512` | Evaluation samples |
-| `GMR_CALIB_SRC` | `../auto-annotator/ml-service/data/images` | Prism calibration images for `gmr` |
+| `GMR_CALIB_SRC` | `../apps/auto-annotator/ml-service/data/images` | Prism calibration images for `gmr` |
 | `GMR_CALIB_NAME` | `calib_data_gmr` | Staged calibration subdirectory for `gmr` |
 
 ### Environment
@@ -270,9 +270,9 @@ Models without a zoo name require `--zoo-name` when calling `compile`/`eval`/`pr
 
 ### Retrained models
 
-`gmr` is the auto-annotator's retrained YOLO11n - green / red / magenta
+`gmr` is the apps/auto-annotator's retrained YOLO11n - green / red / magenta
 rectangular prism - living at
-`../auto-annotator/ml-service/models/gmr/best.pt`. It shares the stock
+`../apps/auto-annotator/ml-service/models/gmr/best.pt`. It shares the stock
 `yolo11n` architecture, so it compiles against the zoo's `yolov11n` graph
 config; only the class count differs. The registry entry carries
 `classes=3`, which `compile` forwards as `hailomz --classes 3` so the NMS
@@ -281,7 +281,7 @@ config is regenerated for the real class count instead of COCO's 80.
 Two things differ from the stock workflow:
 
 - **Calibration data is domain-specific.** `task gmr:stage` calibrates on the
-  auto-annotator's own prism photographs, not COCO. Quantisation ranges
+  apps/auto-annotator's own prism photographs, not COCO. Quantisation ranges
   derived from out-of-domain images cost real accuracy on a colour-critical
   detector. The images are nested per class, so `stage` walks the source
   directory recursively and flattens it - `hailomz` reads calibration images

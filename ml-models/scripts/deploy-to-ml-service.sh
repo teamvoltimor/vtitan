@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copy a tracked model version into auto-annotator/ml-service/models/<name>/,
+# Copy a tracked model version into apps/auto-annotator/ml-service/models/<name>/,
 # the untracked working directory the ml-service and
 # platform/robot/scripts/provisioning/deploy-to-pi5.sh actually read from.
 #
@@ -14,7 +14,7 @@ NAME="${1:?usage: deploy-to-ml-service.sh <name> [version]}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_DIR="$(cd "$HERE/.." && pwd)"
 MODEL_DIR="$HERE/$NAME"
-DEST_DIR="$REPO_DIR/auto-annotator/ml-service/models/$NAME"
+DEST_DIR="$REPO_DIR/apps/auto-annotator/ml-service/models/$NAME"
 
 log() { echo "[deploy-to-ml-service] $*"; }
 die() { echo "[deploy-to-ml-service] ERROR: $*" >&2; exit 1; }

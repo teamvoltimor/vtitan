@@ -17,11 +17,11 @@ vars:
   HW_ARCH: hailo8
   TARGET: emulator
   DATA_COUNT: 512
-  GMR_CALIB_SRC: ../auto-annotator/ml-service/data/images
+  GMR_CALIB_SRC: ../apps/auto-annotator/ml-service/data/images
   GMR_CALIB_NAME: calib_data_gmr
-  GMR_LABEL_SRC: ../auto-annotator/ml-service/data/labels
+  GMR_LABEL_SRC: ../apps/auto-annotator/ml-service/data/labels
   GMR_LABEL_NAME: calib_labels_gmr
-  GMR_CHECKPOINT: ../auto-annotator/ml-service/models/gmr/best.pt
+  GMR_CHECKPOINT: ../apps/auto-annotator/ml-service/models/gmr/best.pt
   EVAL_LIMIT: 300
   EVAL_CONF: 0.01
   EVAL_BATCH_SIZE: 8
@@ -223,7 +223,7 @@ tasks:
 
 # GMR (retrained 3-class YOLO11n: green / red / magenta prism)
 #
-# Unlike the stock models, this one calibrates on the auto-annotator's own
+# Unlike the stock models, this one calibrates on the apps/auto-annotator's own
 # prism photographs rather than COCO — quantisation ranges derived from
 # out-of-domain images cost real accuracy on a colour-critical detector.
 

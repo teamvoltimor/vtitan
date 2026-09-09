@@ -31,7 +31,7 @@ Compile-side background lives in
 
 | Artifact | Where | Notes |
 |---|---|---|
-| `gmr.hef` | `auto-annotator/ml-service/models/gmr/gmr.hef` | The build to ship. Gitignored, so it is local-only - recompile with `task gmr:workflow` if lost |
+| `gmr.hef` | `apps/auto-annotator/ml-service/models/gmr/gmr.hef` | The build to ship. Gitignored, so it is local-only - recompile with `task gmr:workflow` if lost |
 | `gmr_cpu_opt0.hef` / `.har` | `hailo/shared_with_docker/` | Same build, original name |
 | `gmr_gpu_qat.hef` / `.har` | `hailo/shared_with_docker/` | Rejected, see below |
 | Class-colour map | `platform/robot/src/vision/detector.py` | `DEFAULT_CLASS_TO_COLOR`, already corrected |
@@ -132,7 +132,7 @@ the checkpoint's own metadata:
 | id | 0 | 1 | 2 |
 |---|---|---|---|
 | **model (authoritative)** | green | magenta | red |
-| `auto-annotator/.../data.yaml` (stale) | red | green | magenta |
+| `apps/auto-annotator/.../data.yaml` (stale) | red | green | magenta |
 | `_DEFAULT_CLASS_TO_COLOR` (before 2026-07-26) | red | green | magenta |
 | driver `class_map` fallback | red_pillar | green_pillar | wall |
 

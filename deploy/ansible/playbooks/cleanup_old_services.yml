@@ -1,7 +1,7 @@
 ---
 # Removes the pre-rename vtitan-*.service units. Run manually, once the
 # renamed vtitan-*.service units are confirmed working on both boards — see
-# ansible/roles/cleanup_old/tasks/main.yml for why this is separate from
+# deploy/ansible/roles/cleanup_old/tasks/main.yml for why this is separate from
 # provisioning.
 - name: Remove old vtitan-named systemd services (Pi 5)
   hosts: robot_pi5

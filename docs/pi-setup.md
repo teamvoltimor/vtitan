@@ -2,7 +2,7 @@
 
 Canonical record of how the three Raspberry Pis are configured: the developer /
 build machine (set up by hand) and the two robot nodes (provisioned by
-Ansible, `ansible/` - via `task rpi:provision:pi5` / `task rpi:provision:zero`
+Ansible, `deploy/ansible/` - via `task rpi:provision:pi5` / `task rpi:provision:zero`
 - which replaced the old `scripts/setup_pi_*.sh` scp+ssh scripts, removed
 2026-07-30). Also lists what provisioning **doesn't** cover, so nothing is
 silently missing.
@@ -12,8 +12,8 @@ silently missing.
 | Machine | Role | Provisioned by |
 |---|---|---|
 | **Dev / build Pi 5** (`ralvarezdev-raspberrypi`, user `ralvarezdev`) | Developer workstation: edits, builds, flashes, remote access | by hand (documented below) |
-| **Robot Pi 5** (user `ralvarezdev`) | State machine, vision (Hailo), IMU, LiDAR, telemetry bridge | `ansible/roles/pi5` (`task rpi:provision:pi5`) |
-| **Robot Pi Zero 2W** (user `ralvarezdev`) | Motors (servo + DC encoder), button, OLED | `ansible/roles/pi_zero` (`task rpi:provision:zero`) |
+| **Robot Pi 5** (user `ralvarezdev`) | State machine, vision (Hailo), IMU, LiDAR, telemetry bridge | `deploy/ansible/roles/pi5` (`task rpi:provision:pi5`) |
+| **Robot Pi Zero 2W** (user `ralvarezdev`) | Motors (servo + DC encoder), button, OLED | `deploy/ansible/roles/pi_zero` (`task rpi:provision:zero`) |
 
 All three run **Raspberry Pi OS Lite (64-bit)** / Debian 13 (trixie), arm64.
 64-bit is mandatory - pixi/conda-forge has no 32-bit ARM packages.
@@ -43,7 +43,7 @@ groups `gpio i2c spi dialout render video`.
 - `pixi` (per-user) - drives the ROS2 robot environment
 - `task` (go-task) - runs the repo Taskfiles
 - `ansible` + `community.general` collection - provisions the two robot Pis
-  (`task rpi:ansible:setup` installs both; see `ansible/README.md`)
+  (`task rpi:ansible:setup` installs both; see `deploy/ansible/README.md`)
 - Go (`/usr/local/go`), Node (bundled by the Zed editor)
 
 **AI accelerator (Hailo AI HAT+):** full stack via apt - `hailo-all 5.1.1`
@@ -72,7 +72,7 @@ SSH + public key, username (any name - the scripts derive it from
 ### Phase 2 - Ansible (run from the dev Pi 5, over SSH)
 
 `task rpi:provision:pi5 PI5_IP=x.x.x.x` / `task rpi:provision:zero` - see
-`ansible/README.md` for the role layout. Idempotent (`task rpi:ansible:check`
+`deploy/ansible/README.md` for the role layout. Idempotent (`task rpi:ansible:check`
 dry-runs with `--check --diff`), ported from and matching `scripts/setup_pi_*.sh`
 (kept as a manual fallback, see `scripts/README.md`):
 

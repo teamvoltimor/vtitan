@@ -96,7 +96,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         export_extras=((ExportExtra.SIMPLIFY, True), (ExportExtra.NMS, False)),
         zoo_name=None,
     ),
-    # Retrained YOLO11n owned by the auto-annotator: 3 classes
+    # Retrained YOLO11n owned by the apps/auto-annotator: 3 classes
     # (green / red / magenta rectangular prism). Same architecture as
     # `yolo11n`, so it reuses the zoo's yolov11n graph config; only the class
     # count differs, which `classes` feeds to `hailomz compile --classes`.

@@ -215,7 +215,7 @@ fi
 # both boards, there is no USB-level fault, but NetworkManager never
 # activates the usb0 connection profile, so the link looks completely dead
 # from either side. Same corruption pattern as the WiFi profile above: this
-# override existed once (see ansible/roles/pi_zero/tasks/main.yml, which now
+# override existed once (see deploy/ansible/roles/pi_zero/tasks/main.yml, which now
 # also provisions it on a fresh flash) and was lost the same way.
 udev_rules_dir="$ROOT_MNT/etc/udev/rules.d"
 udev_override="$udev_rules_dir/99-usb0-managed.rules"

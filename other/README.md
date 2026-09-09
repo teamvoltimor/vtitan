@@ -11,8 +11,8 @@ monorepo; esta carpeta indica dónde.
 | Historial de prototipos anteriores (Klevor v0.1 a v1.0) | [`docs/development/previous-prototypes/`](../docs/development/previous-prototypes/) |
 | Entrenamiento, cuantización y compilación del detector YOLO a HEF | [`hailo/`](../hailo/) |
 | Pesos publicados del detector (ONNX, HEF, PyTorch) | [`ml-models/`](../ml-models/) |
-| Auto-annotator: anotación asistida con SAM2 | [`auto-annotator/`](../auto-annotator/) |
-| Provisionamiento de las Raspberry Pi con Ansible | [`ansible/`](../ansible/) |
+| Auto-annotator: anotación asistida con SAM2 | [`apps/auto-annotator/`](../apps/auto-annotator/) |
+| Provisionamiento de las Raspberry Pi con Ansible | [`deploy/ansible/`](../deploy/ansible/) |
 | Scripts de diagnóstico sobre bags MCAP | [`platform/robot/scripts/bag/`](../platform/robot/scripts/bag/) |
 | Automatización completa del proyecto (un solo punto de entrada) | [`Taskfile.yml`](../Taskfile.yml) |
-| Sitio de documentación | [`hugo-docs/`](../hugo-docs/) |
+| Sitio de documentación | [`apps/hugo-docs/`](../apps/hugo-docs/) |

@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   # Distinct from the Pi5<->PiZero USB gadget subnet (also 192.168.250.0/24, see
-  # ansible/roles/pi5 and ansible/roles/pi_zero) to avoid both landing on Pi 5's
+  # deploy/ansible/roles/pi5 and deploy/ansible/roles/pi_zero) to avoid both landing on Pi 5's
   # usb0 and 'Wired connection 1' with the same address.
   WINDOWS_ETHERNET_IP: 192.168.251.1
   RPI_DIRECT_IP: 192.168.251.2
@@ -10,15 +10,15 @@ vars:
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
   ZERO_WIFI_IP: 192.168.0.51
-  # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see ansible/roles/pi_zero
+  # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see deploy/ansible/roles/pi_zero
   RPI_ZERO_GADGET_IP: 192.168.250.1
   RPI_5_GADGET_IP: 192.168.250.2
-  # scripts/ and ansible/ live on master alongside the robot runtime code, so
+  # scripts/ and deploy/ansible/ live on master alongside the robot runtime code, so
   # both are served from the single ~/vtitan checkout — no separate
   # dev-tooling worktree needed (the old ~/vtitan-platform "platform"
   # branch worktree this used to point at is being retired, see roles/pi5).
   PLATFORM_SCRIPTS: "{{.HOME}}/vtitan/scripts"
-  ANSIBLE_DIR: "{{.HOME}}/vtitan/ansible"
+  ANSIBLE_DIR: "{{.HOME}}/vtitan/deploy/ansible"
   WIFI_CONN: for
   WIFI_2G_BSSID: AA:D3:62:23:33:28
   FLEET_USER: ralvarezdev   # account created on every Pi via Raspberry Pi Imager (not "pi")
@@ -29,18 +29,18 @@ includes:
     dir: ./platform
   infra:
     taskfile: ./infra/Taskfile.yml
-  auto-annotator:
-    taskfile: ./auto-annotator/Taskfile.yml
-    dir: ./auto-annotator
+  apps/auto-annotator:
+    taskfile: ./apps/auto-annotator/Taskfile.yml
+    dir: ./apps/auto-annotator
   hailo:
     taskfile: ./hailo/Taskfile.yml
     dir: ./hailo
   models:
     taskfile: ./ml-models/Taskfile.yml
     dir: ./ml-models
-  hugo-docs:
-    taskfile: ./hugo-docs/Taskfile.yml
-    dir: ./hugo-docs
+  apps/hugo-docs:
+    taskfile: ./apps/hugo-docs/Taskfile.yml
+    dir: ./apps/hugo-docs
 
 tasks:
   default:
@@ -194,7 +194,7 @@ tasks:
   # 2026-08-10 as redundant and less safe. rpi:wifi:unlock stays: it's the
   # documented immediate-fix path if you're watching a lock get stuck mid-run
   # and don't want to wait for the failsafe (see wifi_lock_failsafe_seconds
-  # in ansible/inventory/group_vars/all.yml).
+  # in deploy/ansible/inventory/group_vars/all.yml).
 
   rpi:wifi:unlock:
     desc: "Restore Pi 5 WiFi to automatic band selection (run after provisioning)"
@@ -204,11 +204,11 @@ tasks:
       - sudo nmcli connection up {{.WIFI_CONN}}
       - echo "WiFi restored to auto band selection."
 
-  # Provisioning (Ansible, run from dev Pi 5 — playbooks live in ~/vtitan-platform/ansible/).
+  # Provisioning (Ansible, run from dev Pi 5 — playbooks live in ~/vtitan-platform/deploy/ansible/).
   # Ansible replaces the old scp+ssh setup_pi_*.sh flow: same coverage, but
   # idempotent (safe to re-run, --check/--diff dry-runs) and the Pi Zero's
   # WiFi 2.4GHz lock is now released even if provisioning fails partway (see
-  # ansible/playbooks/provision_pi_zero.yml's block/always). requires ansible
+  # deploy/ansible/playbooks/provision_pi_zero.yml's block/always). requires ansible
   # + community.general on the dev Pi 5 (task rpi:ansible:setup once).
 
   rpi:provision:zero:
@@ -648,7 +648,7 @@ tasks:
       IP: '{{.IP | default .RPI_DIRECT_IP}}'
 
 # rpi:set-static-ip:gadget removed 2026-08-10: duplicated the usb0 static-IP
-# setup ansible/roles/pi5 and roles/pi_zero now configure automatically, but
+# setup deploy/ansible/roles/pi5 and roles/pi_zero now configure automatically, but
 # was missing the routes4: [224.0.0.0/4] multicast route those roles added
 # to fix a real bug (DDS discovery following the default route instead of
 # the gadget link, so both boards ran healthy ROS2 graphs that couldn't see
@@ -770,9 +770,9 @@ tasks:
       reference files outside a project's own root, so each frontend needs
       its own copy; re-run this after replacing either source PNG.
     cmds:
-      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png auto-annotator/frontend/public/
+      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png apps/auto-annotator/frontend/public/
       - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png platform/frontend/public/
-      - echo "[OK] Synced logo assets to auto-annotator/frontend/public and platform/frontend/public"
+      - echo "[OK] Synced logo assets to apps/auto-annotator/frontend/public and platform/frontend/public"
 
   # Repos
 

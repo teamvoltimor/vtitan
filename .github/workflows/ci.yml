@@ -71,14 +71,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: auto-annotator/api
+        working-directory: apps/auto-annotator/api
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: auto-annotator/api/go.mod
-          cache-dependency-path: auto-annotator/api/go.sum
+          go-version-file: apps/auto-annotator/api/go.mod
+          cache-dependency-path: apps/auto-annotator/api/go.sum
 
       - name: Build
         run: go build ./...
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: auto-annotator/ml-service
+        working-directory: apps/auto-annotator/ml-service
     steps:
       - uses: actions/checkout@v4
 
@@ -175,14 +175,14 @@ jobs:
       matrix:
         include:
           - image: auto-annotator-api
-            context: auto-annotator
-            dockerfile: auto-annotator/Dockerfile.api
+            context: apps/auto-annotator
+            dockerfile: apps/auto-annotator/Dockerfile.api
           - image: auto-annotator-frontend
-            context: auto-annotator
-            dockerfile: auto-annotator/Dockerfile.frontend
+            context: apps/auto-annotator
+            dockerfile: apps/auto-annotator/Dockerfile.frontend
           - image: auto-annotator-ml-service
-            context: auto-annotator
-            dockerfile: auto-annotator/Dockerfile.ml-service
+            context: apps/auto-annotator
+            dockerfile: apps/auto-annotator/Dockerfile.ml-service
           - image: platform-frontend
             context: platform/frontend
             dockerfile: platform/frontend/Dockerfile

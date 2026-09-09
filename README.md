@@ -73,9 +73,46 @@ Actualmente, este equipo está conformado por 3 miembros:
 - **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado tanto de la programación, como de la documentación y la toma de decisiones con respecto a la lógica del robot. Actualmente, cursa el 1er trimestre de Ingeniería en Computación en URU.
 - **Jesús Pérez**, 16 años. [JesusPerez15](https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
 
+## V-Titan en números
+
+| Métrica | Valor | Contexto |
+|---------|-------|----------|
+| Detección de señales | **15 Hz** punta a punta | Captura 640x640 + inferencia NPU + publicación; 101.5 FPS el modelo solo |
+| Corpus de simulación | **638 / 640** escenarios Open | Semilla fija y resultados repetibles; los 2 casos restantes identificados uno por uno |
+| Peso del robot | **~1460 g** | Límite reglamentario 1500 g, con ~40 g de margen |
+| Techo de velocidad real | **~0.58 m/s** | Descubierto al corregir un error de cuantización que lo limitaba a 0.45 m/s |
+| Duración de una ronda | **180 s** sin pausa | Por eso todo lo que ocurre a bordo queda grabado en bags MCAP |
+| Lazo de velocidad en pista | **~2% de error** de seguimiento | Tres vueltas limpias en 132.5 s frente a 142.3 s antes del ajuste |
+
+Cada número es medido, no estimado, y puede rastrearse hasta el código y la medición que lo produjo vía el historial de git (ver [Versionado](#versionado)).
+
 ## Estructura del repositorio
 
 La raíz del repositorio sigue la estructura que pide la categoría Futuros Ingenieros de la WRO. Cada carpeta obligatoria está en su sitio, y las que apuntan a un monorepo más grande llevan su propio `README.md` con la ruta exacta:
+
+```text
+vtitan/
+├── README.md          # Este documento: la documentación completa de ingeniería
+├── t-photos/          # Fotos del equipo
+├── v-photos/          # Fotos de V-Titan y de los prototipos anteriores
+├── video/             # Enlaces a los videos de las rondas (video/video.md)
+├── schemes/           # Diagramas de flujo y esquemático de conexiones
+│   ├── flowcharts/    #   Fuentes Mermaid + renders WebP: common/, open/, obstacles/
+│   └── wiring/        #   Esquemático del arnés + proyecto tscircuit que lo genera
+├── models/            # Modelos 3D de las piezas impresas
+│   ├── current-models/  #   V-Titan: blueprints/ (planos) + step-files/ (CAD)
+│   └── old-models/      #   Prototipos previos (Klevor)
+├── src/               # → código de competencia (puntero a platform/robot/)
+├── other/             # → simulador, telemetría, entrenamiento, provisionamiento
+├── docs/              # Bitácora, guía WRO, datasheets, prototipos previos
+├── platform/          # El monorepo de código: robot, backend, frontend, config
+├── deploy/ansible/ + infra/  # Despliegue: provisionamiento Ansible + tareas task rpi:*
+├── data/              # Salidas de ejecución (bags, fotos, videos); vacía en el repo
+├── hailo/ ml-models/  # Entrenamiento del detector y pesos publicados
+├── apps/              # Herramientas con proceso propio: auto-annotator/, hugo-docs/
+├── scripts/ assets/   # Utilidades de desarrollo e imágenes del documento
+└── .github/           # Workflows de CI
+```
 
 | Carpeta | Contenido |
 |---------|-----------|
@@ -88,11 +125,25 @@ La raíz del repositorio sigue la estructura que pide la categoría Futuros Inge
 | `src/` | Puntero al código de competencia, que vive en `platform/robot/` dentro del monorepo. Ver [`src/README.md`](src/README.md) |
 | `other/` | Puntero al resto del proyecto: simulador, backend de telemetría, entrenamiento del detector y provisionamiento. Ver [`other/README.md`](other/README.md) |
 
+### Cómo explorar este repositorio
+
+Según lo que quieras revisar, esta es la ruta más corta:
+
+- **Código que corre en una ronda**: [`src/README.md`](src/README.md) mapea cada nodo ROS2 de la pila de competencia a su paquete y su rol (percepción, navegación, máquina de estados, drivers).
+- **Configuración que gobierna al robot**: `platform/shared/config/`, descrita en [Diseño gobernado por configuración](#diseño-gobernado-por-configuración). Los perfiles de hardware intercambiables están en [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables).
+- **Simulador y corpus de escenarios**: [`other/README.md`](other/README.md), sección del simulador; los resultados reproducibles están en [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios).
+- **Cómo se entrenó el detector**: `hailo/` (entrenamiento y compilación), `ml-models/` (pesos publicados), `apps/auto-annotator/` (anotación asistida).
+- **Cómo se instala el sistema en las placas**: [`docs/pi-setup.md`](docs/pi-setup.md) y `deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
+- **El historial del proyecto**: bitácora de ingeniería en [`docs/bitacora_ingenieria.md`](docs/bitacora_ingenieria.md), prototipos previos en [`docs/development/previous-prototypes/`](docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` post-regional) con mensajes de commit convencionales.
+
 Además de las carpetas obligatorias, el repositorio contiene:
 
 - `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), el [documento de ingeniería WRO](docs/documentacion_ingenieria_wro.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
 - `platform/` con el código: `platform/robot/` (la pila ROS2 de competencia), `platform/robot-go/` (la segunda implementación en Go), `platform/backend/` y `platform/frontend/` (telemetría), y `platform/shared/config/` (la configuración que gobierna al robot).
-- `hailo/` con el entrenamiento y la compilación del detector YOLO, `ml-models/` con los pesos publicados, `auto-annotator/` con la herramienta de anotación asistida, y `ansible/` con el provisionamiento de las placas.
+- `hailo/` con el entrenamiento y la compilación del detector YOLO, `ml-models/` con los pesos publicados, `apps/auto-annotator/` con la herramienta de anotación asistida.
+- `deploy/ansible/` y `infra/` con el despliegue: el provisionamiento de las placas con Ansible, y las tareas de infraestructura (`task rpi:*`, `task windows:provision:*`) que lo ejecutan, definidas en `infra/Taskfile.yml`.
+- `scripts/` con utilidades de desarrollo (setup de SSH para el robot), `assets/` con las imágenes que usa este documento, `.github/` con los workflows de CI, y `apps/hugo-docs/` con el sitio de documentación navegable.
+- `data/` es la carpeta de salida en runtime: `data/live/` y `data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task platform:robot:pull-runs` (bags desde la Pi 5), `task platform:robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
 
 ## Arranque rápido y reproducibilidad
 
@@ -163,56 +214,61 @@ Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para 
 
 ## Índice
 
-1. **[Arranque rápido y reproducibilidad](README.md#arranque-rápido-y-reproducibilidad)**
-2. **[Historial del equipo](README.md#historial-del-equipo)**
-    1. [Klevor (WRO 2025)](README.md#klevor-wro-2025)
+1. **[V-Titan en números](#v-titan-en-números)**
+2. **[Estructura del repositorio](#estructura-del-repositorio)**
+3. **[Arranque rápido y reproducibilidad](#arranque-rápido-y-reproducibilidad)**
+4. **[Historial del equipo](#historial-del-equipo)**
+    1. [Klevor (WRO 2025)](#klevor-wro-2025)
         1. [Klevor v0.1](docs/development/previous-prototypes/klevor-v0.1.md)
         2. [Klevor v0.1.1](docs/development/previous-prototypes/klevor-v0.1.1.md)
         3. [Klevor v0.2](docs/development/previous-prototypes/klevor-v0.2.md)
         4. [Klevor v1.0](docs/development/previous-prototypes/klevor-v1.0.md)
-    2. [V-Titan (WRO 2026)](README.md#v-titan-wro-2026)
-2. **[Arquitectura de energía y sensores](README.md#arquitectura-de-energía-y-sensores)**
-    1. [Lista de Componentes](README.md#lista-de-componentes)
-        1. [Raspberry Pi 5 (16GB RAM)](README.md#raspberry-pi-5-16gb-ram)
-        2. [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide)
-        3. [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops)
-        4. [Raspberry Pi Zero 2 W](README.md#raspberry-pi-zero-2-w)
-        5. [RPLiDAR C1](README.md#rplidar-c1)
-        6. [Hi Wonder HPS-3527SG 35kg Servo](README.md#hi-wonder-hps-3527sg-35kg-servo)
-        7. [HD Hex Motor](README.md#hd-hex-motor)
-        8. [9-Axis IMU Gyroscope GY-BNO085](README.md#9-axis-imu-gyroscope-gy-bno085)
-        9. [Ovonic Air 11.1V Li-Po Battery](README.md#ovonic-air-111v-li-po-battery)
-        10. [Puente H BTS7960 / IBT-2](README.md#puente-h-bts7960--ibt-2)
-        11. [Step Down Mini-560 Pro](README.md#step-down-mini-560-pro)
-        12. [SSD1306 OLED Display](README.md#ssd1306-oled-display)
-        13. [Convertidor KL89576 (DC a USB-C)](README.md#convertidor-kl89576-dc-a-usb-c)
-    2. [Diagrama de Conexiones](README.md#diagrama-de-conexiones)
-        1. [Consumo Energético](README.md#consumo-energético)
-3. **[Movilidad y Diseño Mecánico](README.md#movilidad-y-diseño-mecánico)**
-    1. [Métodos de Prototipaje](README.md#métodos-de-prototipaje)
-    2. [Evolución y Justificación Del Diseño](README.md#evolución-y-justificación-del-diseño)
-        1. [**Restricciones Iniciales**](README.md#restricciones-iniciales)
-    3. [Sistema de Transmisión](README.md#sistema-de-transmisión)
-    4. [Sistema de Dirección](README.md#sistema-de-dirección)
-    5. [Chasis Inferior](README.md#chasis-inferior)
-    6. [Monochasis](README.md#monochasis)
-    7. [Relación de Torque y Velocidad](README.md#relación-de-torque-y-velocidad)
-4. **[Arquitectura de software y estrategia para superar obstáculos](README.md#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
-    1. [Arquitectura ROS2 y reparto entre dos computadores](README.md#arquitectura-ros2-y-reparto-entre-dos-computadores)
-    2. [Modelo de Detección YOLO](README.md#modelo-de-detección-yolo)
-    3. [Algoritmo PID](README.md#algoritmo-pid)
-    4. [Estrategia en pista](README.md#estrategia-en-pista)
-        1. [Inferencia del sentido de la vuelta](README.md#inferencia-del-sentido-de-la-vuelta)
-        2. [Seguimiento de pasillo, vueltas y escapes](README.md#seguimiento-de-pasillo-vueltas-y-escapes)
-    5. [Grabación y análisis de carreras](README.md#grabación-y-análisis-de-carreras)
-    6. [Simulador y corpus de escenarios](README.md#simulador-y-corpus-de-escenarios)
-5. **[Pensamiento sistémico y decisiones de ingeniería](README.md#pensamiento-sistémico-y-decisiones-de-ingeniería)**
-    1. [Diseño gobernado por configuración](README.md#diseño-gobernado-por-configuración)
-    2. [Perfiles de hardware intercambiables](README.md#perfiles-de-hardware-intercambiables)
-    3. [Ciclo de trabajo: idea → simulación → pista](README.md#ciclo-de-trabajo-idea--simulación--pista)
-    4. [Hallazgos de ingeniería](README.md#hallazgos-de-ingeniería)
-    5. [Tecnologías utilizadas](README.md#tecnologías-utilizadas)
-6. **[Videos de V-Titan](README.md#videos-de-v-titan)**
+    2. [V-Titan (WRO 2026)](#v-titan-wro-2026)
+5. **[Arquitectura de energía y sensores](#arquitectura-de-energía-y-sensores)**
+    1. [Lista de Componentes](#lista-de-componentes)
+        1. [Raspberry Pi 5 (16GB RAM)](#raspberry-pi-5-16gb-ram)
+        2. [Raspberry Pi Camera Module 3 Wide](#raspberry-pi-camera-module-3-wide)
+        3. [Raspberry Pi AI HAT+ (26 TOPS)](#raspberry-pi-ai-hat-26-tops)
+        4. [Raspberry Pi Zero 2 W](#raspberry-pi-zero-2-w)
+        5. [RPLiDAR C1](#rplidar-c1)
+        6. [Hi Wonder HPS-3527SG 35kg Servo](#hi-wonder-hps-3527sg-35kg-servo)
+        7. [HD Hex Motor](#hd-hex-motor)
+        8. [9-Axis IMU Gyroscope GY-BNO085](#9-axis-imu-gyroscope-gy-bno085)
+        9. [Ovonic Air 11.1V Li-Po Battery](#ovonic-air-111v-li-po-battery)
+        10. [Puente H BTS7960 / IBT-2](#puente-h-bts7960--ibt-2)
+        11. [Step Down Mini-560 Pro](#step-down-mini-560-pro)
+        12. [SSD1306 OLED Display](#ssd1306-oled-display)
+        13. [Convertidor KL89576 (DC a USB-C)](#convertidor-kl89576-dc-a-usb-c)
+    2. [Diagrama de Conexiones](#diagrama-de-conexiones)
+        1. [Consumo Energético](#consumo-energético)
+6. **[Movilidad y Diseño Mecánico](#movilidad-y-diseño-mecánico)**
+    1. [Métodos de Prototipaje](#métodos-de-prototipaje)
+    2. [Evolución y Justificación Del Diseño](#evolución-y-justificación-del-diseño)
+        1. [**Restricciones Iniciales**](#restricciones-iniciales)
+    3. [Sistema de Transmisión](#sistema-de-transmisión)
+    4. [Sistema de Dirección](#sistema-de-dirección)
+    5. [Chasis Inferior](#chasis-inferior)
+    6. [Monochasis](#monochasis)
+    7. [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)
+7. **[Arquitectura de software y estrategia para superar obstáculos](#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
+    1. [Arquitectura ROS2 y reparto entre dos computadores](#arquitectura-ros2-y-reparto-entre-dos-computadores)
+    2. [Modelo de Detección YOLO](#modelo-de-detección-yolo)
+        1. [Qué pasa cuando la visión falla](#qué-pasa-cuando-la-visión-falla)
+    3. [Algoritmo PID](#algoritmo-pid)
+    4. [Estrategia en pista](#estrategia-en-pista)
+        1. [Inferencia del sentido de la vuelta](#inferencia-del-sentido-de-la-vuelta)
+        2. [Seguimiento de pasillo, vueltas y escapes](#seguimiento-de-pasillo-vueltas-y-escapes)
+        3. [Vista completa de cada desafío](#vista-completa-de-cada-desafío)
+    5. [Grabación y análisis de carreras](#grabación-y-análisis-de-carreras)
+    6. [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios)
+8. **[Pensamiento sistémico y decisiones de ingeniería](#pensamiento-sistémico-y-decisiones-de-ingeniería)**
+    1. [Diseño gobernado por configuración](#diseño-gobernado-por-configuración)
+    2. [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables)
+    3. [Ciclo de trabajo: idea → simulación → pista](#ciclo-de-trabajo-idea--simulación--pista)
+    4. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
+    5. [Gestión de riesgos](#gestión-de-riesgos)
+    6. [Tecnologías utilizadas](#tecnologías-utilizadas)
+9. **[Videos de V-Titan](#videos-de-v-titan)**
 
 # Historial del equipo
 
@@ -962,7 +1018,7 @@ Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi
 
 El modelo actual se entrenó sobre **1,340 imágenes propias** de los prismas de la pista (verde, magenta y rojo), anotadas **manualmente con Label Studio** en formato YOLO. Es un conjunto de datos heredado de Klevor, que sigue siendo la base del detector actual.
 
-En paralelo construimos el **auto-annotator**, una herramienta de anotación asistida con SAM2 (orquestación en Go, servicio de ML en Python, frontend (interfaz) propio). No la usamos para el modelo actual: las anotaciones de este fueron a mano. La construimos pensando en la siguiente iteración del conjunto de datos, porque anotar 1,340 imágenes a mano fue la parte más lenta del entrenamiento y un modelo nuevo empieza por ahí. Las imágenes del conjunto de datos viven en el repositorio del auto-annotator y sirven también como datos de calibración para la cuantización del HEF.
+En paralelo construimos el **apps/auto-annotator**, una herramienta de anotación asistida con SAM2 (orquestación en Go, servicio de ML en Python, frontend (interfaz) propio). No la usamos para el modelo actual: las anotaciones de este fueron a mano. La construimos pensando en la siguiente iteración del conjunto de datos, porque anotar 1,340 imágenes a mano fue la parte más lenta del entrenamiento y un modelo nuevo empieza por ahí. Las imágenes del conjunto de datos viven en el repositorio del apps/auto-annotator y sirven también como datos de calibración para la cuantización del HEF.
 
 ### Cómo lo medimos (y qué cambió por eso)
 
