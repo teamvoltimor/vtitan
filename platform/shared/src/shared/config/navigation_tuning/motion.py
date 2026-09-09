@@ -314,8 +314,21 @@ class HeadingErrorZones(BaseModel):
     SHIPS AT 0 (the step) deliberately. The table above is an OPEN-LOOP replay:
     it re-scores recorded heading errors under a different law, and cannot see
     that driving faster through a corner CHANGES the heading error the law then
-    reads. Only a run can settle that, so the mechanism ships inert and the
-    band is chosen on the track.
+    reads.
+
+    That caveat CASHED IN. Both bands A/B'd over 128 Open scenarios, closed
+    loop: 30->75 deg gives 128/128 verdicts, none changed, +0.02 s mean;
+    40->90 deg gives 128/128, none changed, -0.11 s mean. The replay promised
+    +14.1% mean speed for the second band and the lap time did not move at all.
+    Treat every open-loop re-scoring in this file the same way -- an upper
+    bound on a control change, never a forecast.
+
+    So the ramp is FREE, not fast. Its value is the one the simulator cannot
+    show: the creep floor is where the drivetrain stalls, 19.4% at full lock
+    against 0.2% straight (``diag_bag_creep_stall.py``), and the ramp cuts the
+    share of the round spent sitting on that floor from 57% to 35% (30->75) or
+    4% (40->90). That is a hardware argument, so the band is chosen on the
+    track.
 
     Read this against ``MAX_STEERING_RATE`` before tuning it: that constant is
     the whole justification for cutting speed here, it ships at 1.2 rad/s, and
