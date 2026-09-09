@@ -1271,11 +1271,17 @@ class CoreNavigator(EscapeRecovery):
         abs_error = abs(angle_error)
         crawl = self._tuning.heading.CRAWL
         ramp_start = self._tuning.heading.CRAWL_RAMP_START
+        # heading_floor_mps(), not creep_mps(): the floor this term drops to is
+        # separable from the contact zone's speed, and defaults to it. See
+        # SpeedControlParams.HEADING_FLOOR_MPS -- 97.8% of the ticks that reach
+        # the creep floor arrive through THIS term, and the contact jobs that
+        # share the constant fail as collisions rather than as slow laps.
+        floor = self._speed.heading_floor_mps()
         if abs_error >= crawl:
-            heading_speed = self._speed.creep_mps()
+            heading_speed = floor
         elif 0.0 < ramp_start < crawl and abs_error > ramp_start:
             span = (abs_error - ramp_start) / (crawl - ramp_start)
-            heading_speed = self._speed.fast_mps() + span * (self._speed.creep_mps() - self._speed.fast_mps())
+            heading_speed = self._speed.fast_mps() + span * (floor - self._speed.fast_mps())
         else:
             heading_speed = self._speed.fast_mps()
         speed = min(speed, heading_speed)

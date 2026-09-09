@@ -449,3 +449,32 @@ class TestPerChallengeCreep:
         base = NavigationTuning().speed.model_dump()
         with pytest.raises(ValidationError, match="OPEN_CREEP_MPS"):
             SpeedControlParams.model_validate(base | {"OPEN_CREEP_MPS": 0.001})
+
+
+class TestHeadingFloorIsSeparableFromCreep:
+    """``CREEP_MPS`` is read by five unrelated jobs; the heading one can leave.
+
+    Of 6105 ticks commanded at the creep floor across the 2026-09-08 session,
+    97.8% arrived through the heading term alone. The other readers are
+    emergencies whose failure is a collision, not a slow lap, so the corner
+    floor must be able to move without them.
+    """
+
+    def test_unset_is_the_coupled_behaviour(self):
+        speed = NavigationTuning().speed
+        assert speed.HEADING_FLOOR_MPS is None
+        assert speed.heading_floor_mps() == speed.creep_mps()
+
+    def test_set_moves_only_the_heading_floor(self):
+        base = NavigationTuning().speed
+        speed = base.model_copy(update={"HEADING_FLOOR_MPS": 0.20})
+        assert speed.heading_floor_mps() == pytest.approx(0.20)
+        assert speed.creep_mps() == base.creep_mps()
+
+    def test_it_composes_with_the_per_challenge_creep(self):
+        """One splits the tier by JOB, the other by CHALLENGE."""
+        speed = NavigationTuning().speed.model_copy(
+            update={"HEADING_FLOOR_MPS": 0.20, "OPEN_CREEP_MPS": 0.18}
+        )
+        assert speed.for_open_challenge().creep_mps() == pytest.approx(0.18)
+        assert speed.for_open_challenge().heading_floor_mps() == pytest.approx(0.20)

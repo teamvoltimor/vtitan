@@ -789,6 +789,37 @@ class SpeedControlParams(BaseModel):
     ``slow`` cannot express.
     """
 
+    HEADING_FLOOR_MPS: float | None = Field(
+        default=None, gt=0.0, validation_alias=_alias("HEADING_FLOOR_MPS")
+    )
+    """Speed the heading limiter drops to. ``None`` -> use ``creep_mps()``.
+
+    ``CREEP_MPS`` is read by five unrelated jobs: the contact zone's forward
+    creep and its reverse, the sign-contact evade cap, the stuck-escape nudge,
+    and this one. They are coupled by history, not by design, and they want
+    opposite things -- the contact jobs are emergencies whose cost is a
+    COLLISION, while this one is a corner and whose cost is TIME.
+
+    Measured over the 2026-09-08 session, of 6105 ticks commanded exactly at
+    the creep floor: **97.8% were the heading term alone**, 0.9% clearance
+    alone, 1.0% both, and 99.6% of them sat in ``normal_drive``. The escape
+    nudge contributed 2 ticks in the whole session. So raising the floor FOR
+    CORNERS is almost entirely a corner change already -- but "almost" is a
+    frequency argument, not a risk one: the contact jobs are rare BECAUSE they
+    are emergencies, and their failure mode is not a slow lap.
+
+    Separating them means the corner floor can clear the drivetrain's stall
+    band without moving the speed at which the chassis approaches something it
+    is trying not to hit. The stall band is why this matters: at the shipped
+    0.1521 the wheel fails 0.2% of ticks driving straight and **19.4% at full
+    lock** (``diag_bag_creep_stall.py``), and the heading cut fires precisely
+    when the steering is at lock -- the smallest command at the greatest load.
+
+    ``None`` ships, which resolves to ``creep_mps()`` and is bit-identical to
+    the coupled behaviour. Distinct from ``OPEN_CREEP_MPS``, which splits the
+    same tier by CHALLENGE: this splits it by JOB, and the two compose.
+    """
+
     OPEN_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MAX_MPS"))
     OPEN_CREEP_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_CREEP_MPS"))
     OPEN_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_SLOW_MPS"))
@@ -910,8 +941,18 @@ class SpeedControlParams(BaseModel):
         return min(self.MAX_MPS, RobotSpecs.MAX_SPEED_MPS)
 
     def creep_mps(self) -> float:
-        """Contact-zone / heading-floor speed in m/s."""
+        """Contact-zone speed in m/s, and the heading floor's fallback."""
         return min(self.CREEP_MPS, RobotSpecs.MAX_SPEED_MPS)
+
+    def heading_floor_mps(self) -> float:
+        """Speed the heading limiter drops to, in m/s.
+
+        Falls back to ``creep_mps()`` when unset, which is what shipped before
+        the two were separable -- see ``HEADING_FLOOR_MPS``.
+        """
+        if self.HEADING_FLOOR_MPS is None:
+            return self.creep_mps()
+        return min(self.HEADING_FLOOR_MPS, RobotSpecs.MAX_SPEED_MPS)
 
     def slow_mps(self) -> float:
         """Slow-zone speed in m/s."""
