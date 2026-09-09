@@ -100,6 +100,14 @@ from src.navigation.planning.sign_router import Axis, SignSpec, clamp_lateral, p
 
 __all__ = ["SignLaneParams", "apply_sign_lanes"]
 
+_POLICY_FIELDS: dict[str, str] = {
+    "split_overlap": "SIGN_LANE_SPLIT_OVERLAP",
+    "skip_unsatisfiable": "SIGN_LANE_SKIP_UNSATISFIABLE",
+    "corner_entry_m": "SIGN_LANE_CORNER_ENTRY_M",
+}
+"""Field name in ``SignLaneParams`` to the ``SignRouterParams`` attribute
+whose value it mirrors, for the __post_init__ auto-resolution above."""
+
 
 @dataclass(frozen=True, slots=True)
 class SignLaneParams:
@@ -119,7 +127,7 @@ class SignLaneParams:
     hold_m: float
     """Along-corridor half-width of the full-offset hold around a sign (m)."""
 
-    split_overlap: bool = False
+    split_overlap: bool | None = None
     """Split overlapping plateaux at their midpoint instead of letting one dip through another.
 
     Legal WRO geometry never overlaps -- a section holds at most two signs, 1.00 m
@@ -127,7 +135,7 @@ class SignLaneParams:
     artifact. See ``SIGN_LANE_SPLIT_OVERLAP``.
     """
 
-    skip_unsatisfiable: bool = False
+    skip_unsatisfiable: bool | None = None
     """Drop a sign whose clamped target is on the FORBIDDEN side of it.
 
     Such a sign cannot be satisfied by any lane geometry -- the instruction
@@ -135,9 +143,10 @@ class SignLaneParams:
     line and planning none. See ``SIGN_LANE_SKIP_UNSATISFIABLE``.
     """
 
-    corner_entry_m: float = 0.0
+    corner_entry_m: float | None = None
     """How far past the corridor's straight the lane may extend, into the
-    corner arcs either side (m). ``0.0`` confines it to the straight.
+    corner arcs either side (m). A bare construction resolves it from the
+    shipped ``SIGN_LANE_CORNER_ENTRY_M``; an explicit value overrides.
 
     Non-zero because 1211 of the corpus's 1282 signs sit at a section
     BOUNDARY, where the straight offers no near-side runway whatsoever: the
@@ -153,6 +162,26 @@ class SignLaneParams:
     what the robot must end up doing. ``clamp_lateral`` still bounds every
     point it moves.
     """
+
+    def __post_init__(self) -> None:
+        """Resolve unspecified policy fields from the shipped tuning group.
+
+        These three rested as dataclass defaults whose values restated
+        ``SignRouterParams`` (whose defaults come from
+        signs/sign_router.toml); the documented copies in this family have
+        diverged before, and ``corner_entry_m`` in fact disagrees with the
+        shipped 0.50. Resolving unset fields from the same group the
+        navigator passes from makes the bare construction agree with the one
+        that races by construction, instead of by concurrent manual edits.
+        """
+        unset = [name for name in _POLICY_FIELDS if getattr(self, name) is None]
+        if not unset:
+            return
+        from src.config.tuning_helpers import get_tuning  # noqa: PLC0415
+
+        params = get_tuning(None).sign_router
+        for name in unset:
+            object.__setattr__(self, name, getattr(params, _POLICY_FIELDS[name]))
 
 
 def _axis_coords(wp: Waypoint, axis: Axis) -> tuple[float, float]:

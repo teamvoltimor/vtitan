@@ -27,7 +27,12 @@ which is the COUNTERCLOCKWISE answer -- so pinning CCW here keeps every expected
 geometry below valid. Clockwise is the mirror image and is covered by
 ``test_sign_router.py::TestPassSideRule``."""
 
-_PARAMS = SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25)
+_PARAMS = SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25, corner_entry_m=0.0)
+"""Most of these assertions were written under a lane CONFINED to the straight
+(corner_entry_m=0.0, not the shipped 0.50), so the mode under test is pinned
+here explicitly rather than inherited from whatever the tuning profile
+resolves. Tests exercising the borrowed-corner behaviour pass their own
+larger entry (see TestCornerRunway below)."""
 
 # SOUTH corridor: depth is x, lateral is y, and the inner square is above, so
 # OUTWARD (red) is -y and INWARD (green) is +y.
