@@ -55,14 +55,12 @@ docs/internal/
 
 # Bag runs / videos / photos pulled from the robot now live in the repo-root
 # data/ tree (see repo-root .gitignore), referenced as siblings by both the
-# Python and Go stacks; the pull/push scripts live in scripts/sync/. These two
-# dirs are kept only for pre-existing local diagnostic artefacts that predate
-# the data/ migration and were never runs/videos themselves.
-vtitan_runs_pulled/*
-!vtitan_runs_pulled/.gitkeep
-!vtitan_runs_pulled/*.py
-vtitan_videos_pulled/*
-!vtitan_videos_pulled/.gitkeep
+# Python and Go stacks; the pull/push scripts live in scripts/sync/.
+
+# Legacy diagnostic-artefact dirs (untracked pcaps/journals left behind by the
+# data/ migration); candidates to move into data/ or delete.
+vtitan_runs_pulled/
+vtitan_videos_pulled/
 
 # Rendered output from local preview/diagnostic scripts (e.g.
 # scripts/vision/preview_hud.py) -- generated on demand, never committed.

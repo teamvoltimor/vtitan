@@ -20,7 +20,7 @@ Every script is run from `platform/robot/` with the repo root on `PYTHONPATH`,
 which the `dev` pixi env provides:
 
 ```
-pixi run -e dev python scripts/bag/diag_bag_lap_replay.py vtitan_runs_pulled/run_20260806_180154
+pixi run -e dev python scripts/bag/diag_bag_lap_replay.py data/live/runs/run_20260806_180154
 pixi run -e dev python scripts/sim/diag_open_laps.py
 pixi run -e vision python scripts/hardware/diag_hailo_detector.py IMAGE...
 ```
