@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from shared.config.constants import CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Direction, ScenarioType, Section
-from shared.domain.models import CorridorGeometry, Position2D, ScenarioMetadata, Waypoint
+from shared.domain.models import CorridorGeometry, CreepWidthSample, Position2D, ScenarioMetadata, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -336,7 +336,7 @@ class ScenarioSimulator(PassSideScorer):
         # 0.150 m/s this phase actually ran at, so keeping it here avoids
         # slowing every race start as a side effect of grading the ladder.
         self._blind_follow_speed = self._tuning.speed.medium_mps()
-        self._creep_widths: list[tuple[float, float]] = []
+        self._creep_widths: list[CreepWidthSample] = []
         """(yaw, measured width) taken before the direction was known."""
         self._start = start
         self._believed_start = believed_start
@@ -606,7 +606,7 @@ class ScenarioSimulator(PassSideScorer):
         if self._width_estimator is not None:
             m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
             if m is not None:
-                self._creep_widths.append((pose.yaw, m.width_m))
+                self._creep_widths.append(CreepWidthSample(yaw=pose.yaw, width_m=m.width_m))
 
         # Reached only once clear of the bay, so the bay case is already settled
         # above and this is the ordinary vote-based path.
@@ -634,10 +634,10 @@ class ScenarioSimulator(PassSideScorer):
                 self._navigator.set_travel_direction(inferred)
             # Replay the buffered widths now that they can be attributed.
             if self._width_estimator is not None and inferred is not None:
-                for buffered_yaw, buffered_width in self._creep_widths:
+                for sample in self._creep_widths:
                     self._width_estimator.observe_measurement(
-                        section_from_heading(buffered_yaw, inferred),
-                        buffered_width,
+                        section_from_heading(sample.yaw, inferred),
+                        sample.width_m,
                     )
                 self._creep_widths.clear()
                 self._waypoints = self._plan(
@@ -663,7 +663,7 @@ class ScenarioSimulator(PassSideScorer):
                 self._blind_follow_speed,
                 pose.yaw,
                 self._tuning,
-                believed_width_m=statistics.fmean(w for _, w in self._creep_widths) if self._creep_widths else None,
+                believed_width_m=statistics.fmean(s.width_m for s in self._creep_widths) if self._creep_widths else None,
             ),
         )
         return True

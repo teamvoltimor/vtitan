@@ -20,7 +20,7 @@ import rclpy
 from shared.config.constants import CorridorDimensions
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Direction, Section
-from shared.domain.models import IMUReading, Pose
+from shared.domain.models import CreepWidthSample, IMUReading, Pose
 
 from src.navigation.ports import DriveCommand, LidarScan
 from src.ros2.navigation.node import ROS2HardwareGateway
@@ -536,7 +536,7 @@ class TestResolveDirection:
             publish_mock.assert_called_once()
             # The reading is real (a plausible, aligned 1.0 m corridor) so it
             # must have been buffered for replay once the direction commits.
-            assert navigator._creep_widths == [(0.0, pytest.approx(1.0))]
+            assert navigator._creep_widths == [CreepWidthSample(yaw=0.0, width_m=pytest.approx(1.0))]
         finally:
             navigator.destroy_node()
 
@@ -575,7 +575,7 @@ class TestCommitDirectionFlushesBufferedWidths:
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=None)
         try:
-            navigator._creep_widths = [(0.0, 1.0), (0.01, 0.62)]
+            navigator._creep_widths = [CreepWidthSample(yaw=0.0, width_m=1.0), CreepWidthSample(yaw=0.01, width_m=0.62)]
             with mock.patch.object(navigator._width_estimator, "observe_measurement") as observe_mock:
                 navigator._commit_direction(
                     Direction.CLOCKWISE, Pose(x=1.5, y=0.25, yaw=0.0), _scan_at(1.25, 0.5, math.pi)

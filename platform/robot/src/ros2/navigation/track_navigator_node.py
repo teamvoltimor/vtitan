@@ -26,6 +26,7 @@ from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import Direction, NavigatorPhase, ScenarioType, Section
 from shared.domain.models import (
     CorridorGeometry,
+    CreepWidthSample,
     NavigatorDebugSnapshot,
     Pose,
     ScenarioMetadata,
@@ -318,7 +319,10 @@ class TrackNavigator(Node, ResettableNode):
         # from metadata and need neither.
         self._pending_known_commit = self._blind and self._direction_known
         self._direction_gate_log_counter = 0
-        self._creep_widths: list[tuple[float, float]] = []
+        # Buffered as CreepWidthSample, not a bare (yaw, width) pair: the pair
+        # is consumed in three places on three different frames and the model
+        # keeps the yaw/width naming honest at each one.
+        self._creep_widths: list[CreepWidthSample] = []
         # Set once direction inference settles; None until then, and left
         # None for a scan the measurement refused (see _commit_direction).
         self._measured_start: MeasuredStart | None = None
@@ -705,7 +709,7 @@ class TrackNavigator(Node, ResettableNode):
         if self._width_estimator is not None and estimator is not None and not already_settled:
             m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
             if m is not None:
-                self._creep_widths.append((pose.yaw, m.width_m))
+                self._creep_widths.append(CreepWidthSample(yaw=pose.yaw, width_m=m.width_m))
 
         # Conclusive on its own, so it settles the estimator rather than
         # voting; the block below then runs unchanged.
@@ -896,7 +900,7 @@ class TrackNavigator(Node, ResettableNode):
         if self._direction_gate_log_counter % self._tuning.direction_estimator.GATE_LOG_PERIOD_TICKS == 0:
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
-        corridor_width_belief_m = statistics.fmean(w for _, w in self._creep_widths) if self._creep_widths else None
+        corridor_width_belief_m = statistics.fmean(s.width_m for s in self._creep_widths) if self._creep_widths else None
         drive = follow_corridor(
             scan.ranges_m,
             scan.angles_rad,
@@ -967,11 +971,11 @@ class TrackNavigator(Node, ResettableNode):
         # at power-on decides the layout, and no amount of correctly placing it
         # afterwards could displace them. What matters is the last second
         # before the operator presses start, so old readings age out.
-        self._creep_widths.append((pose.yaw, m.width_m))
+        self._creep_widths.append(CreepWidthSample(yaw=pose.yaw, width_m=m.width_m))
         if len(self._creep_widths) > self._tuning.corridor_estimator.MAX_START_SAMPLES:
             del self._creep_widths[0]
 
-        widths = [w for _, w in self._creep_widths]
+        widths = [s.width_m for s in self._creep_widths]
         self.get_logger().info(
             f"Start corridor reads {statistics.fmean(widths):.2f}m over the last "
             f"{len(widths)} samples - this is what the layout belief will start from",
@@ -1031,10 +1035,10 @@ class TrackNavigator(Node, ResettableNode):
             new_yaw = math.atan2(new_normal.ny, new_normal.nx)
             heading_delta = wrap_angle(new_yaw - old_yaw)
         if self._width_estimator is not None:
-            for buffered_yaw, buffered_width in self._creep_widths:
+            for sample in self._creep_widths:
                 self._width_estimator.observe_measurement(
-                    section_from_heading(wrap_angle(buffered_yaw + heading_delta), inferred),
-                    buffered_width,
+                    section_from_heading(wrap_angle(sample.yaw + heading_delta), inferred),
+                    sample.width_m,
                 )
             self._creep_widths.clear()
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
@@ -1465,7 +1469,7 @@ class TrackNavigator(Node, ResettableNode):
         # than approximate: this method runs at the one instant the robot is
         # known to be sitting at its starting pose, so "the heading it has now"
         # and "the heading those readings were taken at" are the same.
-        self._creep_widths = [(0.0, width) for _, width in self._creep_widths]
+        self._creep_widths = [CreepWidthSample(yaw=0.0, width_m=s.width_m) for s in self._creep_widths]
         # Belongs to the round that just ended: the robot is picked up and put
         # down between rounds, so the next one measures its own. The retry
         # budget goes with it -- a round that never refused leaves it at zero,
