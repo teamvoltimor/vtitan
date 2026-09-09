@@ -74,7 +74,7 @@ chasis, no por el valor por defecto del simulador.
 **Categorías:** `mecánica` `dirección` `riesgo-abierto`
 
 **Contexto/restricción:** el limitador de velocidad de giro de la dirección (que actúa tanto
-como limitador de software como parámetro de "slew" en simulación) estaba fijado en 1.2
+como limitador de software como parámetro de rampa en simulación) estaba fijado en 1.2
 rad/s, un valor asumido, no medido en el servo real (~35 kg·cm).
 
 **Opciones consideradas:** dejarlo como estaba (arriesgando que el ajuste del zigzag ("weave")
@@ -156,23 +156,27 @@ obsoleta de golpe con el cambio físico.
 ojo hasta que "se sintiera bien", o (b) tratar el cambio de motor como un evento que invalida
 toda la cadena de calibración aguas abajo y volver a medir desde cero.
 
-**Qué hicimos:** primero, como medida de seguridad inmediata, se limitó el duty cycle en lazo
-cerrado a un techo de 50% (`EncoderConfig.max_duty`, independiente de la calibración vieja de
-encoder), porque el motor nuevo midió en hardware ~1 m/s, muy por encima de lo que la
-matemática de RPM (basada en el motor retirado) y el límite `drivetrain.max_speed_mps=0.234`
-(un valor "adivinado" que solo alimentaba navegación/simulación) podían anticipar. Con el
-robot ya protegido de una sobrevelocidad peligrosa, se rehizo la caracterización completa:
-`counts_per_rev` pasó de 676.0 a 86.0 y `max_rpm` de 42.5 a 123.0, derivados de datos de
-banco (velocidades comandadas sostenidas, medidas con cinta métrica, convergencia
-objetivo y medido en estado estable, adelante y reversa, con acuerdo dentro de ~3%). Las
-ganancias PID (`pid_kp`/`pid_ki`) se reescalaron proporcionalmente (~7.9x, redondeado a 8)
-porque bajar `counts_per_rev` hace que la lectura de RPM sea mucho más sensible por unidad de
-movimiento real de la rueda, y las ganancias viejas (dimensionadas para la escala menos
-sensible) producían oscilación visible una vez aplicada la corrección.
+**Qué hicimos:** lo primero fue contener el riesgo. Limitamos el ciclo de trabajo en lazo
+cerrado a un techo del 50% (`EncoderConfig.max_duty`), un tope independiente de la calibración
+vieja del encoder. Hacía falta porque el motor nuevo midió ~1 m/s en hardware, muy por encima
+de lo que podían anticipar tanto la matemática de RPM, basada en el motor retirado, como el
+límite `drivetrain.max_speed_mps=0.234`, un valor adivinado que solo alimentaba navegación y
+simulación.
+
+Con el robot ya protegido de una sobrevelocidad peligrosa, rehicimos la caracterización
+completa. `counts_per_rev` pasó de 676.0 a 86.0 y `max_rpm` de 42.5 a 123.0, derivados de
+datos de banco: velocidades comandadas sostenidas, medidas con cinta métrica, con el valor
+objetivo y el medido convergiendo en estado estable, adelante y en reversa, con un acuerdo
+dentro del ~3%.
+
+Las ganancias PID (`pid_kp`/`pid_ki`) se reescalaron en el mismo factor, ~7.9x redondeado a 8.
+Bajar `counts_per_rev` vuelve la lectura de RPM mucho más sensible por unidad de movimiento
+real de la rueda, y las ganancias viejas, dimensionadas para la escala menos sensible,
+producían una oscilación visible en cuanto se aplicaba la corrección.
 
 **Por qué:** un cambio de motor no es un ajuste de parámetro - invalida silenciosamente cada
 constante que dependía de las características físicas del motor anterior (relación
-encoder/vuelta, RPM máximo, ganancias de control). Tratar el duty-cap como medida de
+encoder/vuelta, RPM máximo, ganancias de control). Tratar el tope de ciclo de trabajo como medida de
 contención *antes* de recalibrar, en vez de recalibrar bajo presión con el robot ya
 acelerando fuera de rango, fue la decisión de seguridad correcta.
 
@@ -374,22 +378,22 @@ arranque limpio que los pines se mantienen bajos desde el arranque mismo, y que 
 los puede seguir reclamando después sin conflicto cuando el servicio arranca.
 
 **Capa 3 - flotación de GPIO al detener el servicio (`a55612b4`/`96020000`):** un
-`systemctl stop` normal (o cualquier crash/OOM-kill) libera los descriptores de archivo GPIO
-que `gpiozero` retiene para `LPWM`/`R_EN`/`L_EN`, y en el momento en que se liberan, el
-pull-up del nivel-shifter los vuelve a arrastrar a HIGH - reproducido en vivo, motor a máxima
-reversa en un `stop` rutinario, no solo en arranque en frío. La corrección de `config.txt`
-(`op,dl`) de la capa 2 solo cubre la ventana de arranque, porque es una instrucción de
-firmware de una sola vez, no un valor por defecto que se reaplique al liberar el pin. Se usó
-`ExecStopPost` de systemd (que se ejecuta después de que el proceso principal termina por
-cualquier razón que systemd conozca) para volver a forzar esos pines a bajo, cerrando la
-mayor parte del hueco sin tocar el ciclo de vida/apagado propio del nodo.
+`systemctl stop` normal, o cualquier caída del proceso, libera los descriptores de archivo
+GPIO que `gpiozero` retiene para `LPWM`/`R_EN`/`L_EN`. En el momento en que se liberan, el
+pull-up del nivel-shifter los vuelve a arrastrar a HIGH. Lo reprodujimos en vivo: motor a
+máxima reversa en un `stop` rutinario, no solo en arranque en frío. La corrección de
+`config.txt` (`op,dl`) de la capa 2 solo cubre la ventana de arranque, porque es una
+instrucción de firmware de una sola vez, no un valor por defecto que se reaplique al liberar
+el pin. Usamos
+`ExecStopPost` de systemd, que se ejecuta después de que el proceso principal termina por
+cualquier razón que systemd conozca, para volver a forzar esos pines a bajo. Eso cierra la
+mayor parte del hueco sin tocar el ciclo de vida ni el apagado propios del nodo.
 
-**Por qué importa (nivel 4 y no aún nivel 6):** el propio equipo documentó explícitamente que
-esta cadena de tres capas **no cubre todos los casos** - una pérdida de energía cruda
-seguiría dejando los pines flotando, y la mitigación completa (una resistencia pull-down
-física en `LPWM`) **todavía no está instalada**. Esto es exactamente el tipo de "modo de
-falla identificado, mitigación parcial, riesgo residual explícito" que el criterio de
-pensamiento sistémico busca - documentado aquí y repetido en la sección 4.
+**Por qué importa:** esta cadena de tres capas **no cubre todos los casos**, y lo dejamos
+dicho aquí en lugar de darla por cerrada. Una pérdida de energía cruda seguiría dejando los
+pines flotando, y la mitigación completa, una resistencia pull-down física en `LPWM`,
+**todavía no está instalada**. Es un modo de falla identificado con mitigación parcial y un
+riesgo residual que sigue vivo; queda repetido en la sección 4 para que no se pierda.
 
 **Referencia:** `gpio_boot_float_full_speed_motor_2026_08_27`,
 `gpio_float_reverse_on_script_to_service_handoff_2026_08_28`,
@@ -497,14 +501,16 @@ contacto que desliza.
 
 **Qué hicimos:** enviamos `ae15ee3e` (modelo *slide*) como comportamiento por defecto.
 
-**Por qué:** determinamos primero, por separado, que el simulador **nunca desliza** contra
-una pared (una limitación de fidelidad conocida - a 20° de incidencia el progreso es 56 veces
-menor que con deslizamiento real), y por otro lado que el reglamento WRO 2026 establece que
-**tocar los límites del cajón de estacionamiento anula todos los puntos de parking** - por lo
-tanto cualquier maniobra que dependa de contacto sostenido con la pared para "funcionar" en
-sim está, de hecho, modelando una infracción de reglamento, no una estrategia válida. Se
-descartó explícitamente usar el modelo `--solid-walls` (que premia el contacto) porque haría
-que el simulador puntuara como éxito algo que en la pista real sería descalificación.
+**Por qué:** dos hallazgos independientes se juntaron aquí. Por un lado determinamos que el
+simulador **nunca desliza** contra una pared, una limitación de fidelidad conocida: a 20° de
+incidencia el progreso es 56 veces menor que con deslizamiento real. Por otro, el reglamento
+WRO 2026 establece que **tocar los límites del cajón de estacionamiento anula todos los puntos
+de parking**.
+
+Juntos implican que cualquier maniobra que necesite contacto sostenido con la pared para
+"funcionar" en simulación está modelando una infracción, no una estrategia. Por eso
+descartamos el modelo `--solid-walls`, que premia el contacto: haría que el simulador puntuara
+como éxito algo que en la pista real es una descalificación.
 
 **Resultado medido:** ambas maniobras llegan a 254/256 en simulación bajo su modelo
 respectivo; la decisión de cuál enviar no se tomó por la métrica de simulación (empatada)
@@ -514,9 +520,9 @@ sino por cuál corresponde a comportamiento legal según el reglamento.
 `wro_2026_scoring_parking_and_bay_start_2026_09_03`. Commits:
 `0f277aa1`, `544958be`, `ae15ee3e feat(nav): ship the cycle bay exit`.
 
-Este es un ejemplo directo de razonamiento nivel 6 para el **Criterio 4** también: la
-decisión no se tomó por el resultado en simulación, sino por una restricción externa
-(reglamento) que la simulación por sí sola no podía revelar.
+Esta entrada pertenece también al **criterio 4**: la decisión no se tomó por el resultado en
+simulación, sino por una restricción externa, el reglamento, que la simulación por sí sola no
+podía revelar.
 
 ---
 
@@ -785,14 +791,17 @@ commits tocan el árbol `robot-go`, cubriendo transporte, controladores de todos
 actuadores, un supervisor de reinicio con notificación a systemd, y agregación de
 telemetría.
 
-**Por qué:** aunque las razones completas de negocio/ingeniería para elegir Go sobre seguir
-invirtiendo en Python/ROS2 no están consolidadas en un solo documento (ver el cierre de esta
-entrada), la ejecución en sí demuestra dos decisiones de sistema explícitas: (1) migrar
-**incrementalmente por componente**, no todo de una vez, para poder validar cada pieza contra
-hardware real de forma aislada; y (2) **no perder invariantes de seguridad ya ganadas** en el
-camino - el ejemplo más claro es que la corrección de secuenciación de habilitación del puente H
-(hallado y corregido en Python) se portó a Go con pruebas explícitas que codifican esa
-invariante, en vez de confiar en que "el nuevo código no tendrá el mismo fallo".
+**Por qué:** las razones completas para elegir Go en lugar de seguir invirtiendo en
+Python/ROS2 no están consolidadas en un solo documento, y eso sigue pendiente (ver el cierre
+de esta entrada). Pero la ejecución en sí ya contiene dos decisiones de sistema explícitas.
+
+La primera es migrar **incrementalmente por componente**, no todo de una vez, para poder
+validar cada pieza contra hardware real de forma aislada.
+
+La segunda es **no perder por el camino las invariantes de seguridad ya ganadas**. El ejemplo
+más claro es la corrección de secuenciación de habilitación del puente H: se halló y se
+corrigió en Python, y al portarla a Go la acompañamos de pruebas explícitas que codifican esa
+invariante, en vez de confiar en que el código nuevo no repetiría el fallo.
 
 **Resultado medido:** migración en curso, no completa (fases documentadas por separado,
 casillas de progreso ya desactualizadas respecto al código real - hay que verificar contra
