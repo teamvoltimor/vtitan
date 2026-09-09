@@ -190,6 +190,7 @@ Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para 
         13. [Convertidor KL89576 (DC a USB-C)](#convertidor-kl89576-dc-a-usb-c)
     2. [Diagrama de Conexiones](#diagrama-de-conexiones)
         1. [Consumo Energético](#consumo-energético)
+        2. [Calibración](#calibración)
 6. **[Movilidad y Diseño Mecánico](#movilidad-y-diseño-mecánico)**
     1. [Métodos de Prototipaje](#métodos-de-prototipaje)
     2. [Evolución y Justificación Del Diseño](#evolución-y-justificación-del-diseño)
@@ -199,6 +200,7 @@ Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para 
     5. [Chasis Inferior](#chasis-inferior)
     6. [Monochasis](#monochasis)
     7. [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)
+        1. [Velocidad: teórica contra real](#velocidad-teórica-contra-real)
 7. **[Arquitectura de software y estrategia para superar obstáculos](#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
     1. [Arquitectura ROS2 y reparto entre dos computadores](#arquitectura-ros2-y-reparto-entre-dos-computadores)
     2. [Modelo de Detección YOLO](#modelo-de-detección-yolo)
@@ -284,7 +286,7 @@ alt="Vista inferior de Klevor" width="600">
         </tbody>
 </table>
 
-Klevor es el **predecesor** de V-Titan, participando en la temporada 2025 de la World Robot Olympiad en la categoría de Futuros Ingenieros, con el Team Steel Bot (quienes ahora participan bajo el nombre de Team Voldemor) y como todo proyecto fue evolucionando hasta culminar con la versión que tenemos hoy en día. 
+Klevor es el **predecesor** de V-Titan, participando en la temporada 2025 de la World Robot Olympiad en la categoría de Futuros Ingenieros, con el Team Steel Bot (quienes ahora participan bajo el nombre de Team Voltimor) y como todo proyecto fue evolucionando hasta culminar con la versión que tenemos hoy en día. 
 
 Para conocer a nuestro prototipo actual, V-Titan, mejor, es importante recalcar que muchas de sus características, más específicamente en la electrónica y programación, son **directamente heredadas** de Klevor, con cambios nulos o mínimos entre un prototipo o el otro. Algunas de las **herencias** más importantes son:
 
@@ -363,7 +365,7 @@ alt="Vista inferior de V-Titan" width="600">
         </tbody>
 </table>
 
-V-Titan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Steel Bot, y es un proyecto que se encuentra evolucionando hasta el día de hoy.
+V-Titan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Voltimor (anteriormente Team Steel Bot), y es un proyecto que se encuentra evolucionando hasta el día de hoy.
 
 V-Titan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, V-Titan conserva muchos de los componentes electrónicos que utilizó Klevor, tales como la Raspberry Pi 5, y el RPLiDAR C1.
 
@@ -582,10 +584,10 @@ La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal
 
 **Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia**, en formato compacto ("shorty") y con conector XT60: menos capacidad, pero 46 g menos en la balanza (140 g contra 186 g) y un C-rating doble, que es lo que importa en pista.
 
-**Por qué es suficiente.** El presupuesto de potencia real del robot es de ~5 A sostenidos con picos de ~20 A en arranques (ver la [sección de consumo energético](README.md#consumo-energ%C3%A9tico)). Con la batería de competencia:
+**Por qué es suficiente.** El presupuesto de potencia del robot (ver la [sección de consumo energético](README.md#consumo-energ%C3%A9tico)) da un total nominal de ~14-16 A y picos de ~31 A, de los cuales la rama de tracción - el motor al 50% del ciclo de trabajo - aporta ~10 A nominales y ~20 A de pico, y el resto del sistema ~4-6 A. Con la batería de competencia:
 
-- **Autonomía**: 2200 mAh a ~5 A sostenidos da ~26 minutos de operación continua; una ronda completa dura pocos minutos, incluyendo esperas en mesa. El límite práctico en un día de competencia no es la descarga de una ronda sino el ciclo de recargas entre rondas.
-- **Corriente de pico**: el C-rating de 120C anunciado representa 264 A, cifra de marketing en condiciones ideales; incluso descontando la mitad por realismo continuo, la batería puede entregar más de 100 A, más de 5 veces los picos de ~20 A del tren motriz. La entrega de corriente no es el cuello de botella en ninguna parte del sistema.
+- **Autonomía**: 2200 mAh contra ~14 A nominales sostenidos da ~9 minutos de operación continua a plena demanda. Una ronda completa dura pocos minutos y la tracción no exige su nominal el 100% del tiempo, así que el margen real es mayor; el límite práctico en un día de competencia no es la descarga de una ronda sino el ciclo de recargas entre rondas.
+- **Corriente de pico**: el C-rating de 120C anunciado representa 264 A, cifra de marketing en condiciones ideales; incluso descontando la mitad por realismo continuo, la batería puede entregar más de 100 A, más de 3 veces el pico de ~31 A del presupuesto completo. La entrega de corriente no es el cuello de botella en ninguna parte del sistema.
 
 Usar baterías más pequeñas no tiene sentido (el margen energético ya es holgado), y usar la de prácticas en competencia solo pagaría el peso y el volumen extra de una batería más grande, sin ningún beneficio en pista.
 
@@ -594,7 +596,9 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 | Largo      | 107 mm    |
 | Alto       | 24 mm     |
 | Ancho      | 33 mm     |
-| Peso       | 190 g     |
+| Peso (medido, con conectores Deans) | 190 g |
+
+> Las medidas son de la batería de prácticas; el peso medido con conectores (190 g) sobre el listado de 186 g explica la diferencia entre ambas cifras.
 
 ### Puente H BTS7960 / IBT-2
 
@@ -710,6 +714,23 @@ Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se comitean e
 > **Nota sobre la rama del computador.** Los picos de la Raspberry Pi 5 (5.00 A) y del AI HAT+ (2.50 A) **no se suman**: el AI HAT+ se alimenta del riel de 5 V de la propia Pi 5, y el pico de 5 A de la placa ya cubre por especificación a todo lo conectado a ella, incluida la Pi Zero, que recibe su alimentación por el VBUS de un puerto USB de la Pi 5. Los 5 A del KL89576 dimensionan esta rama completa; ver la [sección del convertidor](README.md#convertidor-kl89576-dc-a-usb-c).
 >
 > Estas tres ramas (computador, servo y tracción) se alimentan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
+
+### Calibración
+
+Cada sensor del robot tiene una parte calibrada contra medición propia, no contra datasheet. Este es el inventario:
+
+| Qué | Método | Valor |
+|-----|--------|-------|
+| Pulsos por vuelta del encoder | Cinta métrica: distancia conocida recorrida contra la que el robot cree haber recorrido (`task robot:calibrate-encoder`) | 60 pulsos/vuelta (el valor previo, 676, estaba mal por ~11x) |
+| Ley motor-duty en banco | Motor cargado, duty barrido, rpm medidas contra cinta | $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$); zona muerta en duty 0.200 |
+| Referencia de yaw del IMU | Reset del offset al presionar el botón de inicio: ese rumbo pasa a ser 0° (`reset_heading_reference`) | Todo el yaw de la ronda es relativo a esa referencia |
+| Calibración gyro/acelerómetro | Rutina del chip (modo RVC) en su arranque; no intervenimos | De fábrica |
+| Latencia cámara→detección | Medida end-to-end sobre bags reales | **0.85 s** (runs 2026-09-06); el rango LIDAR del ciclo actual cubre el hueco |
+| Rango de la visión | Modelo pinhole contra barrido LIDAR: cuando hay medición LIDAR al rumbo de la cámara, manda el LIDAR; el pinhole queda de respaldo | Error del pinhole: ~3.6 cm a 1.5 m, ~14 cm a 3 m |
+| Radio de giro del chasis | Medido en banco | 0.29 m, usado como límite duro en simulación y control |
+| Simulador | Ajustado contra grabaciones reales; conclusiones previas a la calibración descartadas | Ver [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios) |
+
+La consecuencia de método: ninguna constante del robot es un número "de fábrica" sin justificación; cada una de estas mediciones tiene una historia de hallazgo documentada en la [sección de hallazgos](#hallazgos-de-ingeniería).
 
 # Movilidad y Diseño Mecánico
 
@@ -841,8 +862,6 @@ V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase
 
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
-## Chasis Inferior 
-
 <p align="center">
 	<img src="models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
 width="350">
@@ -852,7 +871,9 @@ width="350">
 
 También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
 
-## Monochasis 
+**Radio de giro: predicho contra medido.** El simulador originalmente permitía radios de giro virtualmente ilimitados (hasta ~8 mm), muy por debajo de lo que la geometría real puede cumplir. La medición en banco del chasis real fijó el radio mínimo en **0.29 m**, y ese valor vive ahora como límite duro (`MIN_TURN_RADIUS_M` en `platform/shared/config/`) tanto en la simulación como en el controlador: el simulador ya no aprueba curvas que el chasis no puede trazar. La consecuencia práctica se midió después sobre bags reales: entre 57 y 59% de los pasos del pure pursuit exigían un radio menor al que el chasis puede entregar, lo que disparaba el corte de velocidad por rumbo; el corrector que descarta puntos de mira inalcanzables (`MIN_TARGET_RADIUS_M`, medido y aceptado en A/B sobre 128 casos) nació de esa medición. Es la diferencia entre diseñar contra un chasis que existe y uno que no.
+
+## Chasis Inferior 
 
 <p align="center">
 	<img src="models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
@@ -862,6 +883,8 @@ width="350">
 </p>
 
 Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis se pueden apreciar dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernos de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
+
+## Monochasis 
 
 **Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `platform/shared/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
 
@@ -913,6 +936,18 @@ Y el torque de bloqueo final:
 $$T_{final} = T_{stall} \cdot R_{total} = 0.105\ \text{Nm} \cdot 3.29 = 0.345\ \text{Nm}$$
 
 Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm}$, que queda por debajo del requerimiento con la aceleración sostenida medida ($0.207\ \text{Nm}$). Esto no invalida el diseño, y los bags lo confirman: la recomendación del 50% es para **funcionamiento continuo prolongado** (donde el calentamiento del devanado manda), mientras que la demanda real de una ronda es de tramos cortos de aceleración entre cruces; para eso están los picos de torque que los motores DC toleran por breves segundos. Contra el torque de bloqueo completo ($0.345\ \text{Nm}$), el margen es holgado incluso con $a = 1.0\ \text{m/s}^2$. La prueba final es empírica: los mismos bags de donde salió la aceleración muestran al robot sosteniendo esos $1.0\ \text{m/s}^2$ en pista, con este mismo motor y esta misma relación. Además, a medida que el vehículo gana velocidad, el cociente de fricción disminuye considerablemente (alrededor de un 15%), por lo que el torque necesario baja y es más fácil que el vehículo gane aceleración.
+
+### Velocidad: teórica contra real
+
+La mitad de velocidad de esta relación se verifica igual que el torque: predicción, medición, y explicación de la brecha.
+
+**Techo cinemático.** Con el motor a su velocidad sin carga de 6000 RPM y la relación total $R_{total} = 3.29$, las ruedas girarían a $6000 / 3.29 \approx 1824$ RPM; con ruedas de 0.07 m de diámetro:
+
+$$v_{teórico} = \frac{1824}{60} \cdot \pi \cdot 0.07 \approx 6.7\ \text{m/s}$$
+
+**Medición en banco, con carga.** El motor nunca ve 6000 RPM en pista. La ley medida en banco (cargado, cinta métrica contra lo que el encoder cree recorrer) es afín: $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$), con zona muerta en duty 0.200 y un techo físico de 348 RPM de rueda a duty 1.0, es decir **1.28 m/s**. El robot opera además con el ciclo de trabajo limitado al 50% por térmica, y los perfiles de velocidad de carrera (CREEP/SLOW/MEDIUM/FAST) viven dentro de ese presupuesto: la prealimentación afín `duty = 0.20 + 0.8 · rpm/max_rpm` (medida, con la misma zona muerta) les asigna duties de 0.295 a 0.419.
+
+**Resultado en pista.** El techo real medido es **~0.58 m/s**. No es un límite físico del motor: es el resultado combinado del tope del 50% de duty, de la zona muerta con carga (20% del duty se gasta en vencer la fricción) y de los perfiles de velocidad que el gobernador impone. La brecha contra el techo cinemático (~11x) queda así explicada: es la diferencia entre el motor sin carga del datasheet y el motor cargado del banco con su ciclo de trabajo limitado. La cadena completa de esta medición (y del error de cuantización que antes la limitaba a 0.45 m/s) está en `platform/robot/config/hardware/motors/profiles/rev-hd-hex-motor-6000rpm/encoder.toml` y en la sección del [lazo de velocidad](#algoritmo-pid).
 
 # Arquitectura de software y estrategia para superar obstáculos
 
@@ -1216,7 +1251,7 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 | Lecturas fantasma del LIDAR (rangos alternando sin causa clara) | Navegación con datos esporádicamente erróneos | Los mismos filtros de voto absorben lecturas aisladas | **Abierto** - causa raíz sin identificar |
 | Watchdog DDS: nodo vivo pero silencioso (matcheados sin datos) | Robot sin comandos con todo "conectado" | Watchdog de BOOT_CHECK (3 fallos antes de actuar) y reinicio coordinado; watchdog de motores auto-frena a 1 s sin comandos | Mitigado |
 | Fallo del puente H o de la ruta de potencia | Pérdida de tracción | BTS7960 sobredimensionado (43 A); el eslabón débil actual es el interruptor de encendido | Mitigado - punto débil documentado |
-| Pull-down físico ausente en `LPWM` del BTS7960 | Pulso de motor espurio al arrancar la Pi | Ninguna aún | **Abierto** - acción en cola |
+| Pull-down físico ausente en `LPWM` del BTS7960 | Pulso de motor espurio al arrancar la Pi | `LPWM` solo se usa en reversa (estacionamiento/recuperación, jitter tolerado por diseño); la ruta de carrera usa `RPWM` por PWM de hardware | **Mitigado parcialmente** - pull-down físico en cola |
 | Sobrepeso cerca del límite de 1.5 kg | Descalificación | Pieza por pieza contra carga medida | Vigilado |
 | El simulador es optimista respecto a la pista real | Fallos en pista que la simulación no muestra | Calibración del simulador contra mediciones reales; ninguna conclusión se da por válida solo en sim | Mitigado parcialmente |
 | Modo ciego con FOV limitado (~2.3 m) | 78 % de los fallos blind ocurren en la primera vuelta | Velocidad reducida, prioridad de paso estrecho por seguridad | Conocido - aceptado |
