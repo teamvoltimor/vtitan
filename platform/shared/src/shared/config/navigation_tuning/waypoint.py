@@ -442,6 +442,54 @@ class WaypointParams(BaseModel):
     than hardware.
     """
 
+    FORWARD_ONLY_RESEEK: bool = Field(default=False, validation_alias=_alias("FORWARD_ONLY_RESEEK"))
+    """Stop a replan's waypoint re-seek from handing back a target already driven past.
+
+    ``CoreNavigator.replace_path`` seeks the nearest waypoint over the WHOLE
+    rebuilt path, so nothing prevents it landing BEHIND the chassis. Measured on
+    hardware 2026-09-08: ``19 -> 16`` in ``normal_drive``, corridor north, lap 0,
+    in BOTH 3-lap runs (``run_20260908_001541`` t=12.81 s, ``run_20260908_003041``
+    t=10.85 s), each while the yaw was swinging through a corner. The same index
+    pair in two independent runs is a reproduction, not noise.
+
+    The asymmetry is the point: a large FORWARD jump has been guarded since the
+    start/finish-seam fix, and the backward direction never was.
+
+    What makes it worth guarding rather than tolerating is downstream.
+    ``WaypointController`` treats a target behind the chassis as a special case
+    and *saturates* -- ``1.0 if y_local >= 0 else -1.0``, full lock toward
+    whichever side it is on, because the pure-pursuit curvature formula is only
+    valid for a roughly-forward target. Against the measured 0.29 m minimum turn
+    radius, full lock inside a 1.0 m corridor is a U-turn attempt. That is the
+    mechanism the operator describes coming out of the Open first-lap weave, and
+    the weave supplies the opportunities: ``current_corridor`` was measured
+    flapping 35 times against 12 real corners in those same two runs.
+
+    Bounded at half the path, mirroring the forward guard. A larger backward
+    delta is the seam, which the other guard already owns. Inactive when the
+    waypoint count changed, because the two indices then describe different
+    positions and "backward" is undefined.
+
+    **MEASURED AND NEGATIVE. Ships FALSE and should stay there.** A/B over the
+    balanced 128 on 2026-09-09: one verdict REGRESSED, case 50
+    (600-1000-1000-600, south/clockwise, c2) going ``ok`` -> ``rev-run``, and sim
+    time +1.72 s mean (89 slower against 35 faster). ``rev-run`` is
+    ``reverse_run_violation``, rule 9.21 -- so the guard built to prevent a
+    wrong-way run PRODUCED one.
+
+    The reason it backfires is the case the forward guard already documents: when
+    a wrong direction inference has the path rebuilt running the OTHER way, the
+    robot really is behind the new waypoint 0, and seeking BACKWARD is the
+    correct recovery. Refusing it pins the index to a stale target on a path that
+    no longer runs the way the index assumed. A backward seek is not always a
+    mistake, so "never go backward" is the wrong shape for this guard.
+
+    The DEFECT is still real -- the ``19 -> 16`` above is measured twice on
+    hardware -- so what needs replacing is the remedy, not the diagnosis. A
+    version that fires only when the path orientation is UNCHANGED would leave
+    the recovery case alone; that is untried.
+    """
+
     ADVANCE_PAST_PASSED_WAYPOINT: bool = Field(
         default=False, validation_alias=_alias("ADVANCE_PAST_PASSED_WAYPOINT")
     )

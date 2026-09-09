@@ -338,6 +338,7 @@ class CoreNavigator(EscapeRecovery):
                 is already safe.
         """
         previous_index = self._waypoint_index
+        previous_count = len(self._waypoints)
         # Fade the new geometry in rather than teleporting the steering target
         # onto it. The path is what crosstrack and the steer target are measured
         # against, so an instant swap steps both -- measured on hardware
@@ -383,6 +384,35 @@ class CoreNavigator(EscapeRecovery):
             )
 
         self._waypoint_index = nearest_index
+
+        # A SMALL backward step is never earned either, and unlike the forward
+        # case below it had no guard at all: the seek takes the nearest waypoint
+        # over the WHOLE path, so a replan mid-corner can hand back a target the
+        # robot has already driven past. Measured on hardware 2026-09-08 as
+        # 19 -> 16 in `normal_drive`, corridor north, lap 0, in BOTH 3-lap runs
+        # (run_20260908_001541 t=12.81 s, run_20260908_003041 t=10.85 s) while
+        # the yaw was swinging through the corner -- the same index pair twice,
+        # so it reproduces rather than being noise.
+        #
+        # It matters because of what sits downstream: WaypointController has a
+        # documented branch for a target BEHIND the chassis that abandons the
+        # curvature formula and saturates to FULL LOCK toward whichever side the
+        # target is on. Against the measured 0.29 m minimum turn radius, full
+        # lock inside a corridor is a U-turn attempt, which is what the operator
+        # reports coming out of the first-lap weave.
+        #
+        # Bounded at half the path for the same reason the forward guard is:
+        # beyond that it is the start/finish seam rather than a step backward,
+        # and the seam is the other guard's business. Skipped when the waypoint
+        # count changed, because then the two indices do not describe the same
+        # positions and "backward" has no meaning.
+        backward = previous_index - self._waypoint_index
+        if (
+            self._tuning.waypoints.FORWARD_ONLY_RESEEK
+            and previous_count == len(waypoints)
+            and 0 < backward <= len(waypoints) // 2
+        ):
+            self._waypoint_index = previous_index
 
         # A large forward jump is never earned progress — the robot cannot skip
         # most of a lap between two ticks. It means the re-seek landed on the
