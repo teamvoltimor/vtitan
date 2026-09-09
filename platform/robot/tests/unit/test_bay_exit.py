@@ -537,3 +537,51 @@ def test_the_guard_hands_over_once_it_has_refused_every_leg_for_long_enough() ->
     shut, _ = _drive(400, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=0))
     opened, _ = _drive(400, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=40))
     assert opened.out > shut.out
+
+
+def _drive_stalled(ticks: int, tuning) -> list[bool]:
+    """Run the manoeuvre with the wheel STALLED, returning the leg flag per tick.
+
+    ``_Pocket`` always moves, and the hardware failure this covers is the case
+    where it does not: measured 2026-09-08, the bay-exit wheel reads zero on a
+    median 73% of ticks, and stall rate by time since the last reversal runs
+    3.9% in the first 0.2 s to 99.7% by 4-8 s. Freezing ``travelled_m`` is that
+    condition exactly -- the manoeuvre commands motion and no travel arrives.
+
+    It is the CONJUNCTION that traps the guarded exit: ``_guarded_command`` ends
+    a leg only when the dead-reckoned fin gap closes, and the dead reckoning
+    integrates wheel travel, so a stalled leg cannot generate the evidence that
+    would end it. ``BAY_EXIT_LEG_STALL_TICKS`` covers this for
+    ``_cycle_command``, which ``BAY_EXIT_CLEARANCE_GUARD`` makes unreachable.
+    """
+    exit_maneuver = BayExit()
+    legs: list[bool] = []
+    for _ in range(ticks):
+        exit_maneuver.command(_RANGES_M, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+        legs.append(bool(exit_maneuver._leg_is_reverse))  # noqa: SLF001 - the flag under test
+    return legs
+
+
+def test_a_stalled_leg_still_reverses_within_the_time_bound() -> None:
+    """A leg whose wheel never turns must still end, or the exit deadlocks.
+
+    Without the bound the guarded exit holds ONE leg forever against a stalled
+    wheel -- legs reached 15.25 s on hardware and 68% of all bay-exit ticks sat
+    in legs older than 2 s, where the wheel is stalled 91-99.7% of the time.
+    """
+    tuning = _guard_tuning(BAY_EXIT_LEG_MAX_S=0.5)
+    legs = _drive_stalled(200, tuning)
+    assert any(legs) and not all(legs), "the ratchet never reversed against a stalled wheel"
+
+    flips = sum(1 for a, b in zip(legs, legs[1:]) if a != b)
+    bound_ticks = math.ceil(0.5 * tuning.control.CONTROL_HZ)
+    # 200 ticks of 10-tick legs, each paying a computed servo settle, so the
+    # count is bounded above by the bound alone and below by half of it.
+    assert flips >= len(legs) // (2 * bound_ticks), f"only {flips} reversals in 200 stalled ticks"
+
+
+def test_without_the_time_bound_a_stalled_leg_never_ends() -> None:
+    """The defect itself, pinned so the bound cannot be quietly removed."""
+    legs = _drive_stalled(200, _guard_tuning(BAY_EXIT_LEG_MAX_S=1000.0))
+    flips = sum(1 for a, b in zip(legs, legs[1:]) if a != b)
+    assert flips == 0, "the stalled-leg deadlock is gone; this test no longer pins anything"

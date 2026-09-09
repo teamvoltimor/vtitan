@@ -717,6 +717,36 @@ class CorridorFollowerParams(BaseModel):
     where a real chassis has friction and noise this simulator does not.
     """
 
+    BAY_EXIT_LEG_MAX_S: float = Field(default=0.5, gt=0.0, validation_alias=_alias("BAY_EXIT_LEG_MAX_S"))
+    """Wall-clock seconds a GUARDED leg may run before the ratchet reverses anyway.
+
+    ``BAY_EXIT_LEG_STALL_TICKS`` is the equivalent backstop for
+    ``_cycle_command``, and ``BAY_EXIT_CLEARANCE_GUARD`` makes that path
+    unreachable -- so on the shipped configuration the guarded leg had NO stall
+    bound, NO distance bound and no time bound at all. It ended only when the
+    predicted fin gap closed, and that prediction is dead-reckoned from wheel
+    travel, so a leg whose wheel is not turning cannot generate the evidence
+    that would end it. Measured 2026-09-08 over the session's 11 bay runs: legs
+    reached 15.25 s and 68% of all bay-exit ticks sat in legs older than 2 s.
+
+    A TIME bound rather than a stall bound because the failure is not that the
+    wheel reads zero -- it is that nothing ends the leg when it does, and time
+    is the one quantity that still advances when travel does not.
+
+    0.5 s from the breakaway profile measured on the same session: stall rate
+    by time since the last reversal runs 3.9% (0-0.2 s), 6.0% (0.2-0.5 s),
+    13.5% (0.5-1.0 s), 57.7% (1-2 s), 99.7% (4-8 s). The chassis moves in the
+    half second after a reversal and then stops, so a leg held past ~0.5 s is
+    spending ticks it cannot convert into travel. The two runs that got out of
+    the pocket are the two with the shortest legs (0.33 s, 0.36 s) and the most
+    reversals (16, 19).
+
+    Not free: every leg change costs the computed servo standstill
+    (``_begin_leg``), so a shorter bound buys breakaway torque with settle
+    ticks. Lower this only against a measured exit rate -- the bound that
+    maximises reversals is not the one that maximises escapes.
+    """
+
     BAY_EXIT_GUARD_OVERLAP_RECOVERY: bool = Field(
         default=True, validation_alias=_alias("BAY_EXIT_GUARD_OVERLAP_RECOVERY")
     )

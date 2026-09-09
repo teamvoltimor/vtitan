@@ -275,6 +275,8 @@ class BayExit:
         self._leg_start_m: float | None = None
         self._last_travelled_m = 0.0
         self._leg_stall_ticks = 0
+        # Moving ticks the current leg has run, bounded by BAY_EXIT_LEG_MAX_S.
+        self._leg_ticks = 0
         self._cycles = 0
         # Ticks of standstill still owed to the servo before this leg may move.
         # Starts at 0: the first arc begins from wherever the wheels already
@@ -479,6 +481,7 @@ class BayExit:
         self._leg_start_m = travelled_m
         self._last_travelled_m = travelled_m
         self._leg_stall_ticks = 0
+        self._leg_ticks = 0
         self._settle_ticks = 0
 
     def _begin_leg(
@@ -511,6 +514,7 @@ class BayExit:
         self._leg_is_reverse = is_reverse
         self._leg_start_m = travelled_m
         self._leg_stall_ticks = 0
+        self._leg_ticks = 0
         # The standstill would otherwise read as a stall on its very first
         # moving tick, since travel during it is zero by construction.
         self._last_travelled_m = travelled_m
@@ -618,6 +622,27 @@ class BayExit:
         self._dead_reckon(travelled_m, wheel_norm, tuning)
         if self._guard_min_gap is None:
             self._guard_min_gap = self._predicted_gap(0.0, wheel_norm, tuning)
+
+        # TIME bound on the leg, and the only bound this path has. The guard
+        # below ends a leg when the PREDICTED fin gap closes, and that
+        # prediction is dead-reckoned from wheel travel -- so a leg whose wheel
+        # has stalled cannot produce the evidence that would end it, and runs
+        # until the whole manoeuvre times out. ``BAY_EXIT_LEG_STALL_TICKS``
+        # covers this for ``_cycle_command``, which ``BAY_EXIT_CLEARANCE_GUARD``
+        # makes unreachable. Counted only on ticks past the settle, so the
+        # budget is the moving part of the leg rather than the servo swing.
+        self._leg_ticks += 1
+        leg_max_ticks = max(1, math.ceil(follower.BAY_EXIT_LEG_MAX_S * tuning.control.CONTROL_HZ))
+        if self._leg_ticks >= leg_max_ticks:
+            self._begin_leg(
+                is_reverse=not self._leg_is_reverse,
+                travelled_m=travelled_m,
+                tuning=tuning,
+                from_norm=wheel_norm * sign,
+                to_norm=wheel_norm * sign,
+            )
+            self._cycles += 1
+            return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
 
         speed = _leg_speed(creep_speed_mps, follower, reverse=self._leg_is_reverse)
         step = (-speed if self._leg_is_reverse else speed) / tuning.control.CONTROL_HZ
