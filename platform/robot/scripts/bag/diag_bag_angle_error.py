@@ -63,6 +63,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
+from scripts.common.stats import percentile
 
 CRAWL_RAD = 1.0
 """``HeadingErrorZones.CRAWL``: at or above this the heading term commands creep."""
@@ -77,21 +78,13 @@ An aim point whose pure-pursuit circle is tighter than this cannot be driven,
 however hard the servo is commanded."""
 
 
-def _pct(values: list[float], q: float) -> float:
-    if not values:
-        return float("nan")
-    ordered = sorted(values)
-    idx = min(len(ordered) - 1, int(q * len(ordered)))
-    return ordered[idx]
-
-
 def _describe(name: str, values: list[float], unit: str = "") -> str:
     if not values:
         return f"  {name:<26} (no ticks)"
     return (
         f"  {name:<26} n={len(values):<6} "
-        f"p25={_pct(values, 0.25):7.3f} p50={_pct(values, 0.50):7.3f} "
-        f"p75={_pct(values, 0.75):7.3f} p95={_pct(values, 0.95):7.3f}{unit}"
+        f"p25={percentile(values, 0.25):7.3f} p50={percentile(values, 0.50):7.3f} "
+        f"p75={percentile(values, 0.75):7.3f} p95={percentile(values, 0.95):7.3f}{unit}"
     )
 
 

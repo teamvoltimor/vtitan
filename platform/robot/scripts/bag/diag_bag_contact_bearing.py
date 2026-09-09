@@ -44,6 +44,7 @@ from sensor_msgs.msg import LaserScan
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, decode_scan, open_reader
+from scripts.common.stats import percentile
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 PATH_HALF_WIDTH_M = 0.197
@@ -177,14 +178,12 @@ def main() -> int:
             print(f"    {key} deg  {n:>6} ({100 * n / total:5.1f}%)")
 
     if all_steers:
-        ordered = sorted(all_steers)
-        def q(f: float) -> float:
-            return ordered[min(len(ordered) - 1, int(f * len(ordered)))]
         turning = sum(1 for v in all_steers if v >= 0.5)
         print()
         print(
             "  |steering| at the moment of contact: "
-            f"p25={q(0.25):.2f} p50={q(0.50):.2f} p75={q(0.75):.2f} p95={q(0.95):.2f}"
+            f"p25={percentile(all_steers, 0.25):.2f} p50={percentile(all_steers, 0.50):.2f} "
+            f"p75={percentile(all_steers, 0.75):.2f} p95={percentile(all_steers, 0.95):.2f}"
         )
         print(f"    at or past half lock: {turning}/{len(all_steers)} ({100 * turning / len(all_steers):.1f}%)")
     return 0

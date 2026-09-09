@@ -51,6 +51,7 @@ from shared.config.constants import TrafficSignSpecs  # noqa: E402
 from std_msgs.msg import String  # noqa: E402
 
 from scripts.common.bag_io import open_reader  # noqa: E402
+from scripts.common.stats import percentile  # noqa: E402
 from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
 from src.navigation.planning import sign_discovery as sd  # noqa: E402
 from src.vision.detector import letterbox  # noqa: E402
@@ -149,12 +150,9 @@ def main() -> None:
             return
         v = sorted(vals)
 
-        def p(q: float) -> float:
-            return v[min(len(v) - 1, int(q * len(v)))]
-
         beyond = {t: sum(1 for x in v if x > t) / len(v) for t in (1.4, 1.5, 2.0, 2.5)}
         print(
-            f"  {name:6s} n={len(v):5d}  p50 {statistics.median(v):.2f}  p90 {p(0.9):.2f}  max {v[-1]:.2f}   "
+            f"  {name:6s} n={len(v):5d}  p50 {statistics.median(v):.2f}  p90 {percentile(v, 0.9):.2f}  max {v[-1]:.2f}   "
             + "  ".join(f">{t}m {f:.1%}" for t, f in beyond.items())
         )
 

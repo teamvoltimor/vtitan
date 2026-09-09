@@ -63,6 +63,7 @@ from std_msgs.msg import Float32
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
+from scripts.common.stats import percentile
 
 WHEEL_CIRCUM_M = 0.07 * 3.141592653589793
 """7 cm wheel, the measured diameter in robot.toml."""
@@ -85,13 +86,6 @@ def _fine_bin(v: float) -> str | None:
         return None
     lo = int(v * 100) / 100.0
     return f"{lo:.2f}-{lo + 0.01:.2f}"
-
-
-def _pct(values: list[float], q: float) -> float:
-    if not values:
-        return float("nan")
-    ordered = sorted(values)
-    return ordered[min(len(ordered) - 1, int(q * len(ordered)))]
 
 
 STEER_EDGES = (0.0, 0.15, 0.35, 0.60, 0.90, 1.01)
@@ -194,7 +188,7 @@ def main() -> int:
         rows = fine[key]
         stalls = sum(1 for s, _ in rows if s)
         delivered = [v for _, v in rows]
-        print(f"{key:>12} {len(rows):>7} {100 * stalls / len(rows):>7.1f}% {_pct(delivered, 0.5):>14.3f}")
+        print(f"{key:>12} {len(rows):>7} {100 * stalls / len(rows):>7.1f}% {percentile(delivered, 0.5):>14.3f}")
 
     total = phase_ticks["normal_drive"]
     stalled_ticks = sum(n for n, _, _ in episodes)
@@ -208,10 +202,10 @@ def main() -> int:
     durs = [n / CONTROL_HZ for n, _, _ in episodes]
     print(f"  episodes: {len(episodes)}   ticks stalled: {stalled_ticks} ({100 * stalled_ticks / total:.1f}% of normal_drive)")
     print(
-        f"  duration s: p50={_pct(durs, 0.5):.2f}  p90={_pct(durs, 0.9):.2f}  max={max(durs):.2f}"
+        f"  duration s: p50={percentile(durs, 0.5):.2f}  p90={percentile(durs, 0.9):.2f}  max={max(durs):.2f}"
     )
     cmds = [c for _, cs, _ in episodes for c in cs]
-    print(f"  commanded during a stop: p25={_pct(cmds, 0.25):.3f}  p50={_pct(cmds, 0.5):.3f}  p95={_pct(cmds, 0.95):.3f} m/s")
+    print(f"  commanded during a stop: p25={percentile(cmds, 0.25):.3f}  p50={percentile(cmds, 0.5):.3f}  p95={percentile(cmds, 0.95):.3f} m/s")
 
     print("\n== 3. WAS THE HEADING CUT WHAT PUT IT THERE")
     heading_ticks = sum(h for _, _, h in episodes)

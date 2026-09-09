@@ -26,6 +26,7 @@ from shared.config.navigation_tuning import NavigationTuning
 from std_msgs.msg import String
 
 from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import percentile
 from scripts.common.tables import print_table
 
 _LOOKAHEAD_PRECISION = 0.02
@@ -36,13 +37,6 @@ _BELIEF_SAMPLE_INTERVAL_S = 20.0
 _SHORT_LOOKAHEAD_M = NavigationTuning.load_default().pursuit.LOOKAHEAD_SHORT
 _TURN_THRESHOLD_RAD = NavigationTuning.load_default().pursuit.CORNER_TURN_THRESHOLD_RAD
 _SPEED_LOW_THRESHOLD_MPS = 0.10
-
-
-def _pct(values: list[float], q: float) -> float:
-    if not values:
-        return float("nan")
-    ordered = sorted(values)
-    return ordered[min(len(ordered) - 1, int(q * len(ordered)))]
 
 
 def main() -> None:
@@ -102,8 +96,8 @@ def main() -> None:
         rows.append((
             key,
             len(v),
-            _pct(v, 0.5),
-            _pct(v, 0.9),
+            percentile(v, 0.5),
+            percentile(v, 0.9),
             max(v),
             sum(x > _STEER_HIGH_THRESHOLD for x in v) / len(v)
         ))
@@ -114,7 +108,7 @@ def main() -> None:
     rows = []
     for key in sorted(by_corridor):
         v = by_corridor[key]
-        rows.append((key, len(v), _pct(v, 0.5), _pct(v, 0.9), max(v)))
+        rows.append((key, len(v), percentile(v, 0.5), percentile(v, 0.9), max(v)))
     if rows:
         print_table(rows, ["corridor", "n", "median", "p90", "max"])
 
@@ -127,7 +121,7 @@ def main() -> None:
             deltas.append(abs(s1 - s0) / dt)
     if deltas:
         print(
-            f"\nsteering slew (norm/s): median={_pct(deltas, 0.5):.2f} p90={_pct(deltas, 0.9):.2f} "
+            f"\nsteering slew (norm/s): median={percentile(deltas, 0.5):.2f} p90={percentile(deltas, 0.9):.2f} "
             f"max={max(deltas):.2f}"
         )
 
@@ -171,7 +165,7 @@ def main() -> None:
     speeds = [snap.commanded_speed_mps for _, snap in rows if isinstance(snap.commanded_speed_mps, (int, float))]
     if speeds:
         print(
-            f"\ncommanded speed (m/s): median={_pct(speeds, 0.5):.3f} p90={_pct(speeds, 0.9):.3f} "
+            f"\ncommanded speed (m/s): median={percentile(speeds, 0.5):.3f} p90={percentile(speeds, 0.9):.3f} "
             f"max={max(speeds):.3f}  frac<{_SPEED_LOW_THRESHOLD_MPS}={sum(s < _SPEED_LOW_THRESHOLD_MPS for s in speeds) / len(speeds):.3f}"
         )
 

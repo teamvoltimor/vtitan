@@ -43,6 +43,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
 from scripts.common.bag_io import create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import percentile
 from scripts.common.tables import print_table
 
 _TRACK_GAP_S = 0.5
@@ -101,13 +102,6 @@ class Track:
     sections: list[str] = field(default_factory=list)
 
 
-def _pct(values: list[float], q: float) -> float:
-    """Quantile ``q``, or NaN when there is nothing to take one of."""
-    if not values:
-        return float("nan")
-    ordered = sorted(values)
-    return ordered[min(len(ordered) - 1, int(q * len(ordered)))]
-
 
 def _report_census(by_cls: dict[str, list]) -> None:
     """Per-class detection counts, confidence and box shape."""
@@ -118,7 +112,7 @@ def _report_census(by_cls: dict[str, list]) -> None:
                 cls,
                 len(group),
                 f"{statistics.median([g[2] for g in group]):.2f}",
-                f"{_pct([g[2] for g in group], 0.1):.2f}",
+                f"{percentile([g[2] for g in group], 0.1):.2f}",
                 f"{statistics.median([g[3] for g in group]):.0f}",
                 f"{statistics.median([g[4] for g in group]):.2f}",
             ]
@@ -191,7 +185,7 @@ def _report_blur(per_frame: list[tuple]) -> None:
             label,
             len(group),
             f"{statistics.median(confs):.2f}",
-            f"{_pct(confs, 0.1):.2f}",
+            f"{percentile(confs, 0.1):.2f}",
             f"{sum(1 for c in confs if c < _CONF_FLOOR) / len(confs):.1%}",
         ])
     print_table(rows, ["speed m/s", "detections", "conf p50", "conf p10", f"share conf<{_CONF_FLOOR}"])
@@ -225,8 +219,8 @@ def _report_box_shape(by_cls: dict[str, list]) -> None:
             [
                 cls,
                 len(group),
-                f"{_pct([g[4] for g in group], 0.5):.2f}",
-                f"{_pct([g[4] for g in group], 0.9):.2f}",
+                f"{percentile([g[4] for g in group], 0.5):.2f}",
+                f"{percentile([g[4] for g in group], 0.9):.2f}",
                 f"{sum(1 for g in group if g[4] > 1.0) / len(group):.1%}",
             ]
             for cls, group in sorted(by_cls.items())
@@ -239,7 +233,7 @@ def _report_shape_split(by_cls: dict[str, list], centre_x: float) -> None:
     """Each class partitioned into pillar- and wall-shaped boxes."""
     print("\nSHAPE SPLIT -- red detections partitioned by the aspect ratio green never shows:")
     print(
-        f"   (green's w/h p90 is {_pct([g[4] for g in by_cls.get('green', [])], 0.9):.2f}, so"
+        f"   (green's w/h p90 is {percentile([g[4] for g in by_cls.get('green', [])], 0.9):.2f}, so"
         f" anything above {_PILLAR_MAX_ASPECT} is a shape no genuine pillar produced in this run)"
     )
     rows = []
@@ -315,7 +309,7 @@ def _report_latency(tracks: list[Track]) -> None:
             cls,
             len(group),
             f"{statistics.median(windows):.2f}s",
-            f"{_pct(windows, 0.1):.2f}s",
+            f"{percentile(windows, 0.1):.2f}s",
         ])
     print_table(rows, ["class", "tracks", "confident window p50", "p10"])
 
