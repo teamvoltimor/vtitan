@@ -26,6 +26,21 @@ if TYPE_CHECKING:
 # diagonal, not the half-width.
 CHASSIS_HALF_DIAGONAL = chassis_half_diagonal_m()
 
+_PARAM_FIELDS: dict[str, str] = {
+    "activation_dist": "ACTIVATION_DIST_M",
+    "passed_dist": "PASSED_DIST_M",
+    "depth_pin": "DEPTH_PIN",
+    "detection_match_dist": "DETECTION_MATCH_DIST_M",
+    "min_confidence": "MIN_CONFIDENCE",
+    "commit_hysteresis": "COMMIT_HYSTERESIS",
+    "corridor_flip_ticks": "CORRIDOR_FLIP_TICKS",
+    "settle_ticks": "SETTLE_TICKS",
+}
+"""Field name in ``SignRouterConfig`` to the ``SignRouterParams`` attribute
+whose value it mirrors: one entry per auto-resolved default, so a parameter
+renamed in tuning fails the getattr here instead of rotting into a second
+code copy of the value."""
+
 
 @dataclass(frozen=True, slots=True)
 class SignRouterConstants:
@@ -61,18 +76,27 @@ _DEFAULT_SIGN_ROUTER_CONTEXT = SignRouterContext()
 
 @dataclass(frozen=True)
 class SignRouterConfig:
-    """Tuning parameters for the sign router."""
+    """Tuning parameters for the sign router.
+
+    Every raw tunable defaults to ``None`` and resolves from the shipped
+    ``SignRouterParams`` (signs/sign_router.toml) in ``__post_init__`` --
+    there is no second copy of the value in code to keep in step. These two
+    COPIES have disagreed before: ``commit_hysteresis`` was True here against
+    the TOML's False, so a bare ``SignRouterConfig()`` silently ran a
+    different policy from the one that races. Defaults reading from the same
+    group ``from_tuning`` passes through cannot diverge again.
+    """
 
     lateral_offset: float | None = None
     """Metres of lateral deformation perpendicular to the corridor."""
 
-    activation_dist: float = 1.40
+    activation_dist: float | None = None
     """Deformation activates when robot is within this distance of a sign (m)."""
 
-    passed_dist: float = 1.60
+    passed_dist: float | None = None
     """Sign is marked as passed once robot moves further than this from it (m)."""
 
-    depth_pin: bool = True
+    depth_pin: bool | None = None
     """Hold the commanded point abeam the sign instead of letting it recede.
 
     ``False`` restores the plain lookahead depth, which is the arm every figure
@@ -82,33 +106,32 @@ class SignRouterConfig:
     is exactly how the pin's own effect was first mistaken for a classifier fix.
     """
 
-    detection_match_dist: float = 0.30
+    detection_match_dist: float | None = None
     """Max world-frame distance to associate a camera detection with an expected sign (m)."""
 
-    min_confidence: float = 0.25
+    min_confidence: float | None = None
     """Minimum detection confidence to accept a camera-based color update."""
 
-    commit_hysteresis: bool = True
+    commit_hysteresis: bool | None = None
     """Hold the engaged sign across ticks instead of re-racing every tick.
 
-    Tracks signs/sign_router.toml, which turned this ON on 2026-09-07 -- these
-    two have disagreed before (True here against the TOML's False), so a bare
-    ``SignRouterConfig()`` silently ran a different policy from the one that
-    races. Keep them in step.
+    The shipped default is tracked by signs/sign_router.toml (turned ON on
+    2026-09-07); these two have disagreed before, which is why the default is
+    resolved from the TOML-backed group instead of restated here.
     """
 
-    corridor_flip_ticks: int = 1
+    corridor_flip_ticks: int | None = None
     """Consecutive ticks a refined sign estimate must agree on a NEW corridor
     before its label moves there. A sign's corridor picks which world axis its
     deformation treats as lateral, so on a corner boundary -- where two-thirds of
     legal WRO grid positions sit -- millimetres of estimate jitter otherwise
     swing the commanded waypoint between two orthogonal axes every tick.
 
-    Matches signs/sign_router.toml's default of 1, which leaves the mechanism
-    inert: the oscillation is real and traced, but damping it measured flat over
-    the corpus and cost a few new wall strikes. See that file for the numbers."""
+    The shipped default is 1, which leaves the mechanism inert: the oscillation
+    is real and traced, but damping it measured flat over the corpus and cost a
+    few new wall strikes. See that file for the numbers."""
 
-    settle_ticks: int = 150
+    settle_ticks: int | None = None
     """Ticks since this lap started (~7.5s at the standard 20Hz control loop)
     before a sign may be engaged/passed at all. Right after spawn (or a lap
     boundary), the robot can briefly swing toward a corridor it hasn't actually
@@ -121,7 +144,7 @@ class SignRouterConfig:
     ever registering."""
 
     def __post_init__(self) -> None:
-        """Compute derived tuning values and validate the configuration.
+        """Resolve every unspecified field from the shipped tuning group, then validate.
 
         ``_active_sign_candidates`` engages a sign once it is nearer than
         ``activation_dist`` and retires it once it is further than
@@ -148,6 +171,10 @@ class SignRouterConfig:
                 CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
             )
             object.__setattr__(self, "lateral_offset", default_offset)
+        if unset_fields := [name for name in _PARAM_FIELDS if getattr(self, name) is None]:
+            params = get_tuning(None).sign_router
+            for name in unset_fields:
+                object.__setattr__(self, name, getattr(params, _PARAM_FIELDS[name]))
         if self.activation_dist >= self.passed_dist:
             msg = (
                 f"activation_dist ({self.activation_dist}) must be < passed_dist "
