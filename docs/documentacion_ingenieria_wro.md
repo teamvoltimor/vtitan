@@ -7,8 +7,8 @@ límite ya exista material suficiente y bien organizado en vez de tener que reco
 historia del proyecto de memoria en las últimas semanas.
 
 Está basada en el **Apéndice C** del reglamento WRO Future Engineers 2026 ("Engineering
-Journal and Documentation Requirements"). Cuando el reglamento y esta guía difieran, manda
-el reglamento - actualizar esta guía si eso pasa.
+Journal and Documentation Requirements"). Cuando el reglamento y esta guía difieran, prevalece
+el reglamento; en tal caso, esta guía debe actualizarse.
 
 ---
 
@@ -27,10 +27,10 @@ con buen mensaje, un experimento fallido registrado y un `docs/internal/algorith
 actualizado valen más para el puntaje que una redacción pulida escrita de memoria tres
 semanas después.
 
-**Regla práctica:** cada vez que cerremos una decisión de diseño, un ajuste de tuning
-importante, o encontremos (y resolvamos) un bug de fondo, esa nota va a una de dos partes:
-el Engineering Journal (narrativa) o el repo (README/docs técnicos, CAD, wiring). Si no
-queda registrado en algún lado, para efectos de evaluación **no existió**.
+**Regla práctica:** cada vez que cerremos una decisión de diseño, un ajuste de calibración
+importante, o detectemos (y resolvamos) un fallo de fondo, esa nota va a una de dos partes:
+el Engineering Journal (narrativa) o el repositorio (README, documentación técnica, CAD,
+cableado). Si no queda registrado en algún lugar, a efectos de evaluación **no existió**.
 
 ---
 
@@ -39,10 +39,10 @@ queda registrado en algún lado, para efectos de evaluación **no existió**.
 | # | Criterio | Qué mide en una frase |
 |---|----------|------------------------|
 | 1 | Mobility & Mechanical Design | Chasis, dirección, tracción, torque/velocidad, iteración mecánica |
-| 2 | Power & Sensor Architecture | Presupuesto de potencia, selección/ubicación de sensores, calibración, wiring |
-| 3 | Software Architecture & Obstacle Strategy | Arquitectura de software, máquina de estados, algoritmos, manejo de obstáculos, tuning |
+| 2 | Power & Sensor Architecture | Presupuesto de potencia, selección y ubicación de sensores, calibración, cableado |
+| 3 | Software Architecture & Obstacle Strategy | Arquitectura de software, máquina de estados, algoritmos, gestión de obstáculos, ajuste de parámetros |
 | 4 | Systems Thinking & Engineering Decisions | Restricciones, trade-offs, iteración, riesgos y mitigación, "elegimos X en vez de Y porque…" |
-| 5 | Reproducibility & GitHub Quality | Estructura del repo, commits, README, CAD/código/wiring reproducibles |
+| 5 | Reproducibility & GitHub Quality | Estructura del repositorio, commits, README, CAD, código y cableado reproducibles |
 
 Escala por criterio:
 
@@ -80,15 +80,15 @@ sesión de banco de motor/servo (`motor_servo_bench_session`).
 Para nivel 6:
 
 - **Presupuesto de potencia**: consumo estimado/medido por subsistema (motores, Pi, LIDAR,
-  cámara, IMU) y por qué el regulador/batería elegidos alcanzan.
+  cámara, IMU) y por qué el regulador y la batería elegidos resultan suficientes.
 - **Trade-offs de sensores** y **justificación de ubicación** en función de la geometría del
-  campo (ej. altura y ángulo de cámara para evitar glare, zona ciega del LIDAR).
+  campo (ej. altura y ángulo de la cámara para evitar deslumbramiento, zona ciega del LIDAR).
 - **Método de calibración** de cada sensor.
 - Consideración de **puntos de falla** (interferencia, ruido, sombras, vibración) y cómo se
   mitigan.
 - Al menos un **diagrama de cableado**.
 
-Fuentes internas: hardware profiles, `lidar_offset_clearance_recalibration`,
+Fuentes internas: perfiles de hardware, `lidar_offset_clearance_recalibration`,
 `encoder_counts_per_rev`, `drive_feedforward_is_affine`, cualquier nota de calibración de
 IMU/cámara/LIDAR.
 
@@ -100,13 +100,20 @@ Para nivel 6:
 - Algoritmos **justificados** (por qué pure pursuit y no otro controlador, por qué ese
   método de visión, cómo se fusiona IMU).
 - **Casos límite** manejados explícitamente (señal ambigua, oclusión, pérdida de carril).
-- Proceso de **testing y tuning descrito**, con **métricas** usadas (tasa de colisión, cross
-  track error, laps completados, etc.), no solo "funciona".
+- Proceso de **pruebas y de ajuste descrito**, con las **métricas** empleadas (tasa de
+  colisión, error de trayectoria o *cross-track*, vueltas completadas, etc.), no solo
+  "funciona".
 
-Este es el criterio donde más material ya existe en el proyecto (sweeps, A/B, métricas de
-`SimResult`, diag scripts). El trabajo aquí es más de **curaduría y narrativa** que de
-generación: convertir hallazgos técnicos (memoria, commits, `docs/internal/algorithms/`) en
-explicación legible para un jurado que no conoce el código.
+Este es el criterio donde más material ya existe en el proyecto (barridos, comparaciones A/B,
+métricas de `SimResult`, scripts de diagnóstico). El trabajo aquí es más de **curaduría y
+narrativa** que de generación: convertir hallazgos técnicos (memoria, commits,
+`docs/internal/algorithms/`) en una explicación legible para un jurado que no conoce el
+código.
+
+Para la parte de ajuste de parámetros, la referencia versionada es
+[`configuracion_toml_navegacion.md`](configuracion_toml_navegacion.md): documenta qué variable
+gobierna cada comportamiento en pista, en qué fichero reside y con qué orden de precedencia se
+resuelve. Es material directamente citable en este criterio y en el 4.
 
 ### 3.4 Systems Thinking and Engineering Decisions
 
@@ -127,15 +134,15 @@ software interactúan como sistema, no como partes aisladas.
 Para nivel 6:
 
 - Robot **totalmente reproducible** desde la documentación.
-- Estructura de repo **clara**, mensajes de commit **significativos**.
-- Flujo de **testing documentado**.
-- **Versionado o release notes** (ej. v1.0 = regional, v2.0 = internacional).
+- Estructura de repositorio **clara**, mensajes de commit **significativos**.
+- Flujo de **pruebas documentado**.
+- **Versionado o notas de versión** (ej. v1.0 = regional, v2.0 = internacional).
 
 Mínimos de nivel 4 (no negociables, son criterios cuantitativos):
 
 - README con **al menos 5000 caracteres**.
 - Al menos **tres commits significativos** con mensajes claros.
-- CAD, código y wiring **incluidos** en el repo, no solo mencionados.
+- CAD, código y cableado **incluidos** en el repositorio, no solo mencionados.
 
 ---
 
@@ -149,8 +156,8 @@ insumo continuo:
    - Decisión de arquitectura/algoritmo → `docs/internal/algorithms/` (ya existe como fuente
      canónica interna) o el journal.
    - Cambio mecánico/eléctrico con antes/después → journal, con foto o diagrama.
-   - Resultado de un experimento (A/B, sweep, calibración) → journal, citando el
-     commit/rama donde vive el código y, si aplica, el archivo de resultados.
+   - Resultado de un experimento (A/B, barrido, calibración) → journal, citando el commit o
+     la rama donde reside el código y, si procede, el archivo de resultados.
 2. **Los commits sirven de bitácora cruda.** Un buen mensaje de commit (ver
    `feedback_commit_style`: sin `Co-Authored-By:`, logging estructurado, nunca `print()`) es
    la primera fuente para reconstruir *cuándo* y *por qué* cambió algo. Revisar
@@ -158,11 +165,11 @@ insumo continuo:
    código.
 3. **Cada 2–3 semanas, sesión de "traducción"**: tomar las notas técnicas acumuladas
    (memoria de sesiones de desarrollo, `docs/internal/`, commits) y convertir las que tengan
-   peso de **decisión de ingeniería** (no bugs internos triviales) en párrafos del journal,
+   peso de **decisión de ingeniería** (no fallos internos triviales) en párrafos del journal,
    usando el lenguaje de "constraint → trade-off → decisión → resultado medido".
-4. **Antes de la fecha límite**, pasar el checklist de la sección 6 y hacer una auditoría
-   cruzada: ¿cada criterio tiene al menos un ejemplo nivel 4, con evidencia concreta (dato,
-   diagrama, gráfico) y no solo afirmación?
+4. **Antes de la fecha límite**, aplicar la lista de verificación de la sección 6 y realizar
+   una auditoría cruzada: ¿cada criterio cuenta con al menos un ejemplo de nivel 4, con
+   evidencia concreta (dato, diagrama, gráfico) y no con una mera afirmación?
 
 Este enfoque evita el problema típico: llegar al final con un robot funcional pero sin
 memoria de *por qué* se tomó cada decisión, que es justo lo que más puntúa (criterios 1, 2,
@@ -185,7 +192,7 @@ un fallo observado en pista o en simulación...)
 
 **Qué hicimos:** la decisión tomada.
 
-**Por qué:** el razonamiento, apoyado en datos si existen (medición, sweep, prueba A/B).
+**Por qué:** el razonamiento, apoyado en datos si existen (medición, barrido, prueba A/B).
 
 **Resultado medido:** número, gráfico o comparación antes/después.
 
@@ -205,18 +212,18 @@ formato técnico interno al lenguaje narrativo para jueces.
 
 ---
 
-## 6. Checklist final antes de entregar
+## 6. Lista de verificación final antes de la entrega
 
 ### General
 
 - [ ] El Engineering Journal cuenta la **historia del proceso**, no solo pasos de ensamblaje.
-- [ ] El repo de GitHub tiene **estructura clara** y todos los archivos importantes.
+- [ ] El repositorio de GitHub tiene **estructura clara** y todos los archivos importantes.
 - [ ] La documentación explica **por qué**, no solo **qué**.
 
 ### Mobility and Mechanical Design
 
 - [ ] ¿Explicamos por qué elegimos este chasis y este sistema de dirección/tracción?
-- [ ] ¿Incluimos diagramas del layout mecánico?
+- [ ] ¿Incluimos diagramas de la disposición mecánica?
 - [ ] ¿Describimos pruebas o cambios que mejoraron el diseño?
 
 ### Power and Sensor Architecture
@@ -227,9 +234,9 @@ formato técnico interno al lenguaje narrativo para jueces.
 
 ### Software Architecture and Obstacle Strategy
 
-- [ ] ¿Mostramos un flowchart o máquina de estados del software?
-- [ ] ¿Explicamos cómo seguimos el carril y evitamos obstáculos?
-- [ ] ¿Incluimos descripciones de pruebas o tuning?
+- [ ] ¿Mostramos un diagrama de flujo o una máquina de estados del software?
+- [ ] ¿Explicamos cómo seguimos el carril y evitamos los obstáculos?
+- [ ] ¿Incluimos descripciones de las pruebas y del ajuste de parámetros?
 
 ### Systems Thinking and Engineering Decisions
 
@@ -243,7 +250,7 @@ formato técnico interno al lenguaje narrativo para jueces.
 - [ ] ¿El README explica cómo funciona el sistema y cómo construirlo? (mínimo 5000
       caracteres)
 - [ ] ¿Tenemos al menos tres commits significativos con mensajes claros?
-- [ ] ¿CAD, wiring y código están todos dentro del repo?
+- [ ] ¿CAD, cableado y código están todos dentro del repositorio?
 
 ---
 
@@ -275,8 +282,9 @@ formato técnico interno al lenguaje narrativo para jueces.
 
 Flujo típico del jurado (15–20 min por equipo):
 
-1. Abren el repo de GitHub y ubican el README y las carpetas principales.
-2. Revisan el Engineering Journal buscando secciones que calcen con los cinco criterios.
+1. Abren el repositorio de GitHub y localizan el README y las carpetas principales.
+2. Revisan el Engineering Journal buscando las secciones que correspondan a los cinco
+   criterios.
 3. Por cada criterio, buscan evidencia de nivel 0/2/4/6.
 4. Asignan un puntaje por criterio basado **solo en evidencia**, no en impresión general.
 
@@ -296,5 +304,5 @@ alcance de esta guía interna).
   la documentación final de competencia.
 - Si el reglamento 2026 cambia (nueva versión del Apéndice C), actualizar este archivo
   primero antes de seguir usándolo como referencia.
-- La fecha límite de documentación y el link exacto del repo que se entregará deben quedar
+- La fecha límite de documentación y el enlace exacto del repositorio que se entregará deben quedar
   registrados aparte (ej. en el journal o en `docs/internal/backlog.md`), no en esta guía.

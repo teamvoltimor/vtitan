@@ -87,11 +87,11 @@ Según lo que quieras revisar, esta es la ruta más corta:
 
 Además de las carpetas obligatorias, el repositorio contiene:
 
-- `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), el [documento de ingeniería WRO](docs/documentacion_ingenieria_wro.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
+- `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), el [documento de ingeniería WRO](docs/documentacion_ingenieria_wro.md), la [referencia de configuración TOML de navegación](docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
 - `platform/` con el código: `platform/robot/` (la pila ROS2 de competencia), `platform/robot-go/` (la segunda implementación en Go), `platform/backend/` y `platform/frontend/` (telemetría), y `platform/shared/config/` (la configuración que gobierna al robot).
 - `hailo/` con el entrenamiento y la compilación del detector YOLO, `ml-models/` con los pesos publicados, `apps/auto-annotator/` con la herramienta de anotación asistida.
 - `deploy/ansible/` y `infra/` con el despliegue: el provisionamiento de las placas con Ansible, y las tareas de infraestructura (`task rpi:*`, `task windows:provision:*`) que lo ejecutan, definidas en `infra/Taskfile.yml`.
-- `scripts/` con utilidades de desarrollo (setup de SSH para el robot), `assets/` con las imágenes que usa este documento, `.github/` con los workflows de CI, y `apps/hugo-docs/` con el sitio de documentación navegable.
+- `scripts/` con utilidades de desarrollo (configuración de SSH para el robot), `assets/` con las imágenes que usa este documento, `.github/` con los workflows de CI, y `apps/hugo-docs/` con el sitio de documentación navegable.
 - `data/` es la carpeta de salida en runtime: `data/live/` y `data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task platform:robot:pull-runs` (bags desde la Pi 5), `task platform:robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
 
 ## Arranque rápido y reproducibilidad
@@ -665,7 +665,7 @@ Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el pun
 	<i>SSD1306 OLED Display 128x64</i>
 </p>
 
-Pantalla monocroma de 128x64 píxeles conectada por I2C. Cumple una función de diagnóstico en pista: muestra el estado de la máquina de estados, el desafío seleccionado por el jumper y el resultado del autodiagnóstico de arranque, sin necesidad de conectar un computador ni depender de la red. En una mesa de competencia, poder leer en qué estado está el robot antes de pulsar el botón de inicio evita arrancar una ronda con un sensor caído.
+Pantalla monocroma de 128x64 píxeles conectada por I2C. Cumple una función de diagnóstico en pista: muestra el estado de la máquina de estados, el desafío seleccionado por el puente físico (jumper) y el resultado del autodiagnóstico de arranque, sin necesidad de conectar un computador ni depender de la red. En una mesa de competencia, poder leer en qué estado está el robot antes de pulsar el botón de inicio evita arrancar una ronda con un sensor caído.
 
 ### Convertidor KL89576 (DC a USB-C)
 
@@ -993,7 +993,7 @@ Para detectar los obstáculos del Desafío Cerrado de manera confiable usamos un
 | Entrada | 640 × 640 × 3, UINT8 |
 | Formato desplegado | ONNX compilado a HEF (Hailo-8) con Hailo Model Zoo |
 | NMS | Embebido en el HEF, score 0.20, IoU 0.70 |
-| Umbral de despliegue | 0.45 en el detector (las detecciones por debajo no llegan al navegador); 0.25 en el router de señales, para confirmación tardía |
+| Umbral de despliegue | 0.45 en el detector (las detecciones por debajo no llegan al navegador); 0.25 en el enrutador de señales, para confirmación tardía |
 | Rendimiento (throughput) | 101.5 FPS el HEF solo (`hailortcli run`); la cadena completa (captura → escala tipo letterbox → NPU → decodificación → publicación) corre a **15 Hz**, limitada por el temporizador de captura, no por el modelo |
 
 Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), demasiado lento para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos el pipeline: el nodo de visión abre la cámara directamente y alimenta los fotogramas al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
@@ -1035,7 +1035,7 @@ El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `P
 
 Sobre el PI va una **prealimentación (feedforward) afín** medida en banco, `duty = 0.20 + 0.8 · rpm/max_rpm`, con la zona muerta (deadband) medida con carga (`rpm = 434.6·duty − 86.7`). El lazo integral solo corrige lo que la prealimentación no modela; una consigna de cero devuelve ciclo de trabajo cero, así que el robot no sufre avance residual al detenerse.
 
-Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el duty oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un log por paso del PID (consigna, medida, ciclo de trabajo) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
+Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el ciclo de trabajo oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un registro por paso del PID (consigna, medida, ciclo de trabajo) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
 
 ### Dirección: de PID a pure pursuit
 
@@ -1255,8 +1255,8 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 | Sobrepeso cerca del límite de 1.5 kg | Descalificación | Pieza por pieza contra carga medida | Vigilado |
 | El simulador es optimista respecto a la pista real | Fallos en pista que la simulación no muestra | Calibración del simulador contra mediciones reales; ninguna conclusión se da por válida solo en sim | Mitigado parcialmente |
 | Modo ciego con FOV limitado (~2.3 m) | 78 % de los fallos blind ocurren en la primera vuelta | Velocidad reducida, prioridad de paso estrecho por seguridad | Conocido - aceptado |
-| Fallback de ronda equivocada (la ronda corrió como el challenge incorrecto, 2026-09-06) | Puntaje nulo en la ronda real | Re-muestreo del jumper en SYSTEM_RESET; timeout de 180 s | Mitigado tras el fallo |
-| Peso del stack: arranque lento y servicios caídos al boot | Robot no listo al llamar a pista | Unidades systemd con `Restart`/`on-failure`; boot reducido de ~3 min | Mitigado |
+| Contingencia de ronda equivocada (la ronda se ejecutó como el desafío incorrecto, 2026-09-06) | Puntaje nulo en la ronda real | Remuestreo del puente en SYSTEM_RESET; tiempo de espera de 180 s | Mitigado tras el fallo |
+| Peso del sistema: arranque lento y servicios caídos en el arranque | Robot no listo al llamar a pista | Unidades systemd con `Restart`/`on-failure`; boot reducido de ~3 min | Mitigado |
 
 ## Tecnologías utilizadas
 
@@ -1264,7 +1264,7 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 |------------|-----|---------|
 | **ROS2 Kilted** | Middleware de todo el robot | Comunicación entre nodos, herramientas de grabación y ecosistema ya maduro |
 | **Python** | Navegación, visión, máquina de estados | Velocidad de iteración durante el desarrollo |
-| **Go** | Backend de telemetría (en producción) y segunda implementación de la pila de navegación (en migración) | Reemplazo a largo plazo de ROS2: arranque más rápido y menor consumo de recursos en el robot; el corte a producción se hace cuando el stack de Go alcance paridad completa |
+| **Go** | Backend de telemetría (en producción) y segunda implementación de la pila de navegación (en migración) | Reemplazo a largo plazo de ROS2: arranque más rápido y menor consumo de recursos en el robot; el corte a producción se hace cuando la pila de Go alcance paridad completa |
 | **Pixi / RoboStack** | Entorno de desarrollo | Permite trabajar el mismo proyecto en Windows, Linux y en la Raspberry sin divergencias |
 | **Gazebo** | Simulación física | Ejecutar el corpus de escenarios sin pista |
 | **Hailo + YOLO** | Detección de señales | Inferencia en NPU: de ~700 ms por imagen en CPU a un pipeline de 15 Hz de punta a punta |
