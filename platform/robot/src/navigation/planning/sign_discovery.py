@@ -47,8 +47,10 @@ from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.domain.models import Pose, SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import get_tuning
+from src.navigation.planning.lidar_proposer import ProposerParams, find_clusters
 from src.navigation.planning.waypoints import corridor_for_position
-from src.navigation.utils import _dist2d, _nearest_ray
+from src.navigation.ports import LidarScan
+from src.navigation.utils import _dist2d, _nearest_ray, wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -164,6 +166,47 @@ def detection_to_observation(
     )
 
 
+def _clustered_range(
+    lidar_ranges_m: Sequence[float],
+    lidar_angles_rad: Sequence[float],
+    bearing_rad: float,
+    pinhole_m: float,
+    tuning: NavigationTuning,
+) -> float | None:
+    """Range of the pillar-shaped, ISOLATED cluster at ``bearing_rad``, if any.
+
+    The qualified half of the sensor split: the CAMERA has already said a sign
+    is at this bearing and what colour it is, and the LIDAR is asked only how
+    far away it is -- the one thing it measures directly, where the camera
+    infers it from bbox height through a focal that does not agree with the one
+    solved from bearings (1034-1088 px against 545-645).
+
+    Returns None, leaving the pinhole estimate standing, unless BOTH tests
+    pass. Two tests rather than one because each catches a different way the
+    unqualified version failed:
+
+    * SHAPE AND ISOLATION, via ``find_clusters`` -- a wall segment is
+      contiguous but never steps away at both ends, and the first attempt took
+      a wall on 51% of detections.
+    * AGREEMENT with the pinhole -- a pillar standing in front of a wall offers
+      two plausible clusters and the further one is the wall, which is why that
+      attempt's range error was p50 -69 cm.
+
+    The nearest cluster in ANGLE wins, not in range. The camera's claim is a
+    BEARING, so bearing is what identifies the object it is talking about;
+    choosing by range would re-import the very bias that broke the first
+    attempt, since the wall behind a sign is always further away.
+    """
+    scan = LidarScan(ranges_m=tuple(lidar_ranges_m), angles_rad=tuple(lidar_angles_rad))
+    clusters = find_clusters(scan, ProposerParams())
+    if not clusters:
+        return None
+    best = min(clusters, key=lambda c: abs(wrap_angle(c.bearing_rad - bearing_rad)))
+    if abs(best.range_m - pinhole_m) > tuning.sign_discovery.LIDAR_RANGE_FUSION_AGREEMENT * pinhole_m:
+        return None
+    return best.range_m
+
+
 def _detection_to_world(
     det: Detection,
     robot_pos: tuple[float, float],
@@ -254,8 +297,15 @@ def _detection_to_world(
     # alone discriminated pillar from wall at 54%, near chance, so that wants
     # its own evidence before it ships.
     if tuning.sign_discovery.LIDAR_RANGE_FUSION and lidar_ranges_m and lidar_angles_rad:
-        lidar_range = _nearest_ray(lidar_ranges_m, lidar_angles_rad, theta_h)
-        if tuning.lidar_sectors.MIN_VALID_RANGE_M < lidar_range < RobotSpecs.CAMERA_FAR_CLIP:
+        lidar_range = (
+            _clustered_range(lidar_ranges_m, lidar_angles_rad, theta_h, distance, tuning)
+            if tuning.sign_discovery.LIDAR_RANGE_FUSION_CLUSTER
+            else _nearest_ray(lidar_ranges_m, lidar_angles_rad, theta_h)
+        )
+        if (
+            lidar_range is not None
+            and tuning.lidar_sectors.MIN_VALID_RANGE_M < lidar_range < RobotSpecs.CAMERA_FAR_CLIP
+        ):
             distance = lidar_range
 
     # Project from where the SENSOR is, not from the body centre. `distance` is

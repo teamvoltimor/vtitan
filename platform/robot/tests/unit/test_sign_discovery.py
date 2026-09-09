@@ -531,3 +531,96 @@ class TestLidarProposals:
         track = sign_map._tracks[0]
         assert track.color is SignColor.RED, "the camera still gets to say WHAT it is"
         assert (track.x, track.y) == (1.0, 0.4), "but not WHERE it is"
+
+
+class TestClusteredLidarRangeFusion:
+    """Range from the LIDAR, colour from the camera -- but only when qualified.
+
+    The unqualified fusion took whatever ray sat at the camera's bearing, which
+    was a wall on 51% of detections and cost 28 cm of median position error.
+    The gated version demands a free-standing, pillar-width cluster whose range
+    AGREES with the pinhole, and otherwise leaves the pinhole standing.
+    """
+
+    CENTRE_X = 700.0
+    HEIGHT_PX = 90.0
+
+    @staticmethod
+    def _detection(centre_x: float, height_px: float) -> Detection:
+        width_px = height_px / 2
+        return Detection(
+            class_name=SignColor.RED,
+            confidence=0.8,
+            bbox=(
+                centre_x - width_px / 2,
+                400.0 - height_px / 2,
+                centre_x + width_px / 2,
+                400.0 + height_px / 2,
+            ),
+            x=centre_x,
+            y=400.0,
+            width=width_px,
+            height=height_px,
+            area=width_px * height_px,
+        )
+
+    @staticmethod
+    def _scan(pillar_range: float, pillar_bearing: float, *, background: float = 2.4):
+        """A wall at ``background`` with one pillar-width notch in front of it."""
+        n = 720
+        angles = [(-math.pi + 2 * math.pi * i / n) for i in range(n)]
+        ranges = []
+        for a in angles:
+            # 0.05 m sign subtends ~2.9 deg at 1 m; two samples either side of
+            # the bearing is a chord inside the proposer's 0.02-0.18 m band.
+            ranges.append(pillar_range if abs(a - pillar_bearing) <= math.radians(1.5) else background)
+        return ranges, angles
+
+    def _tuning(self, **overrides):
+        base = {"LIDAR_RANGE_FUSION": True, "LIDAR_RANGE_FUSION_CLUSTER": True}
+        return tuning_with_overrides({**base, **overrides}, group="sign_discovery")
+
+    def _bearing_of(self, centre_x: float) -> float:
+        return (0.5 - centre_x / RobotSpecs.CAMERA_WIDTH) * RobotSpecs.CAMERA_HFOV
+
+    def test_an_agreeing_pillar_supplies_the_range(self):
+        tuning = self._tuning()
+        det = self._detection(self.CENTRE_X, self.HEIGHT_PX)
+        pos, yaw = (1.0, 1.0), 0.0
+        bearing = self._bearing_of(self.CENTRE_X)
+        pinhole = _detection_to_world(det, pos, yaw, tuning=tuning_with_overrides({}, group="sign_discovery"))
+        ranges, angles = self._scan(0.9, bearing)
+        fused = _detection_to_world(det, pos, yaw, lidar_ranges_m=ranges, lidar_angles_rad=angles, tuning=tuning)
+        assert fused is not None and pinhole is not None
+        # The fused estimate must actually move -- a gate that never fires is
+        # indistinguishable from the mechanism being off.
+        assert math.dist(fused, pinhole) > 0.01
+
+    def test_a_wall_is_not_a_pillar(self):
+        """No isolated cluster anywhere: the pinhole must stand."""
+        tuning = self._tuning()
+        det = self._detection(self.CENTRE_X, self.HEIGHT_PX)
+        pos, yaw = (1.0, 1.0), 0.0
+        n = 720
+        angles = [(-math.pi + 2 * math.pi * i / n) for i in range(n)]
+        ranges = [2.4] * n
+        fused = _detection_to_world(det, pos, yaw, lidar_ranges_m=ranges, lidar_angles_rad=angles, tuning=tuning)
+        pinhole = _detection_to_world(det, pos, yaw, tuning=tuning_with_overrides({}, group="sign_discovery"))
+        assert fused == pytest.approx(pinhole)
+
+    def test_a_disagreeing_cluster_is_rejected(self):
+        """A real pillar, but at a range the camera cannot be describing."""
+        tuning = self._tuning(LIDAR_RANGE_FUSION_AGREEMENT=0.2)
+        det = self._detection(self.CENTRE_X, self.HEIGHT_PX)
+        pos, yaw = (1.0, 1.0), 0.0
+        bearing = self._bearing_of(self.CENTRE_X)
+        ranges, angles = self._scan(2.2, bearing, background=3.0)
+        fused = _detection_to_world(det, pos, yaw, lidar_ranges_m=ranges, lidar_angles_rad=angles, tuning=tuning)
+        pinhole = _detection_to_world(det, pos, yaw, tuning=tuning_with_overrides({}, group="sign_discovery"))
+        assert fused == pytest.approx(pinhole)
+
+    def test_ships_off_and_is_a_no_op(self):
+        """Both flags default off, so nothing above reaches a race."""
+        shipped = NavigationTuning.load_default().sign_discovery
+        assert shipped.LIDAR_RANGE_FUSION is False
+        assert shipped.LIDAR_RANGE_FUSION_CLUSTER is False

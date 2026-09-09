@@ -820,6 +820,70 @@ class SignDiscoveryParams(BaseModel):
     1034-1088 px.
     """
 
+    LIDAR_RANGE_FUSION_CLUSTER: bool = Field(
+        default=False, validation_alias=_alias("LIDAR_RANGE_FUSION_CLUSTER")
+    )
+    """Gate ``LIDAR_RANGE_FUSION`` on a pillar-shaped, ISOLATED cluster.
+
+    The unqualified fusion below takes whatever the LIDAR returns at the
+    camera's bearing, which is a wall on 51% of detections and cost 28 cm of
+    median position error. This is the version its own docstring asks for and
+    never got: instead of a single ray, require a free-standing cluster of
+    pillar width -- ``lidar_proposer.find_clusters``, which already bounds a
+    run on BOTH sides by an isolation step, so a flat wall cannot qualify --
+    and require its range to AGREE with the pinhole within
+    ``LIDAR_RANGE_FUSION_AGREEMENT``. Failing either test, the pinhole stands.
+
+    The division of labour is the point, and it follows the sensors' measured
+    strengths rather than a preference: RANGE from the LIDAR, which measures it
+    directly, and COLOUR from the camera, which is the only sensor that has it.
+    The camera's range comes from bbox height through a pinhole whose focal
+    solved from heights (1034-1088 px) disagrees with the one solved from
+    bearings (545-645 px), so it is the weakest number in the chain -- and it
+    is the number whose instability makes a believed sign teleport, measured
+    2026-09-09 at p90 60.9 cm WITHIN a live commitment.
+
+    Reuses the proposer's cluster finder rather than a second implementation:
+    that code is already measured (91% recall, 0.59 m lead) and its precision
+    problem is about which clusters are SIGNS, which is exactly the question
+    the camera answers here. Pairing them plays each to its strength -- the
+    camera says a sign is at this bearing, the LIDAR says how far.
+
+    **Measured offline over the 2026-09-08 obstacles runs, 899 detections
+    replayed against their own scans:**
+
+    | version | fires on | range shift vs pinhole p10/p50/p90 |
+    |---|---|---|
+    | nearest ray (the old one) | ~100% | -0.09 / **+0.50** / **+1.61** m |
+    | gated cluster (this) | **55.8%** | -0.28 / **-0.14** / +0.15 m |
+
+    That reproduces the documented failure and removes it. The old version's
+    systematic push OUTWARD -- a wall behind a sign is always further -- is
+    right there at +0.50 m median with a +1.61 m tail, and gating collapses it
+    to -0.14 m with a symmetric spread.
+
+    What this does NOT establish: there is no ground truth in that replay, so
+    it shows the gated range no longer carries the SIGNATURE that was measured
+    harmful, not that it is more accurate. A run settles that.
+
+    DEFAULTS OFF alongside the mechanism it gates.
+    """
+
+    LIDAR_RANGE_FUSION_AGREEMENT: float = Field(
+        default=0.5, gt=0.0, validation_alias=_alias("LIDAR_RANGE_FUSION_AGREEMENT")
+    )
+    """Fractional range disagreement above which the cluster is rejected.
+
+    0.5 means the cluster must sit within +-50% of the pinhole estimate. Wide
+    on purpose: the pinhole is known to under-read, so a tight band would
+    reject the very corrections this exists to make, while a band this size
+    still rejects the wall-behind-the-sign case that broke the first attempt
+    (median error there was -69 cm on a sub-metre sign).
+
+    Not yet measured on hardware -- it is a guard, not a tuned value, and the
+    first run that exercises it should re-read it.
+    """
+
     LIDAR_RANGE_FUSION: bool = Field(default=False, validation_alias=_alias("LIDAR_RANGE_FUSION"))
     """Take the sign's range from the LIDAR ray at the camera's bearing.
 
