@@ -455,7 +455,7 @@ class _SignTrack:
     than the boundary misses it recovers."""
 
     hits: int = 0
-    votes: dict[str, float] = field(default_factory=dict)
+    votes: dict[SignColor, float] = field(default_factory=dict)
     """Confidence-weighted colour votes. A sign's colour decides which side the
     robot must pass it, so a single mislabelled frame must not be able to flip
     it; summing confidence across frames makes that need sustained disagreement."""
@@ -476,10 +476,9 @@ class _SignTrack:
     def color(self) -> SignColor:
         """The winning colour vote, or UNKNOWN while no camera has voted.
 
-        ``votes`` is keyed by ``SignColor.value`` (see ``_fold_observation``),
-        so the winner is always a valid member; converting here keeps the
-        ``str`` keys the dict is built with while handing callers the enum
-        ``SignSpec.color`` is declared as.
+        ``votes`` is keyed by the ``SignColor`` that cast it (see
+        ``_fold_observation``); the winner is therefore always an enum member
+        that can be returned as ``SignSpec.color`` directly.
 
         A LIDAR-proposed track has a position and no votes. UNKNOWN is the
         honest answer for it -- ``max()`` over an empty dict would raise, and
@@ -487,7 +486,7 @@ class _SignTrack:
         """
         if not self.votes:
             return SignColor.UNKNOWN
-        return SignColor(max(self.votes, key=lambda name: self.votes[name]))
+        return max(self.votes, key=lambda color: self.votes[color])
 
     snap_m: float = 0.0
     """Lattice snap radius this track publishes with. See ``snap_to_lattice``."""
@@ -695,7 +694,7 @@ class ObservedSignMap:
             self._tracks.append(track)
 
         track.hits += 1
-        track.votes[obs.color.value] = track.votes.get(obs.color.value, 0.0) + obs.confidence
+        track.votes[obs.color] = track.votes.get(obs.color, 0.0) + obs.confidence
 
         # A LIDAR-fixed position is not up for revision by a camera estimate --
         # see `_SignTrack.lidar_fixed`. The camera still votes on colour above,
