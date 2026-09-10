@@ -31,6 +31,7 @@ from shared.domain.models import (
     LocalizerInputs,
     Pose,
     TrafficSignObservation,
+    Waypoint,
 )
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
@@ -303,14 +304,14 @@ class ROS2HardwareGateway(HardwareGateway):
         # these are the localizer's actual inputs, and the whole point is to be
         # able to tell them apart from the corrected pose the navigator reports.
         self._localizer_inputs = LocalizerInputs(prior_pose.yaw, prior_pose.x, prior_pose.y)
-        est_x, est_y = self._localizer.estimate_position(
-            (prior_pose.x, prior_pose.y),
+        est = self._localizer.estimate_position(
+            Waypoint(prior_pose.x, prior_pose.y),
             prior_pose.yaw,
             sanitized,
             angles,
             now_s=self._now(),
         )
-        self._estimator.update_position(est_x, est_y)
+        self._estimator.update_position(est.x, est.y)
         # One entry per SCAN, not per `get_current_pose()` call: the navigator
         # asks several times a tick, and appending there would fill the buffer
         # with a fraction of a second of duplicates instead of the seconds of

@@ -135,17 +135,17 @@ class LidarLocalizer:
 
     def estimate_position(
         self,
-        prior_xy: tuple[float, float],
+        prior: Waypoint,
         yaw: float,
         ranges_m: tuple[float, ...] | list[float],
         angles_rad: tuple[float, ...] | list[float],
         now_s: float | None = None,
-    ) -> tuple[float, float]:
+    ) -> Waypoint:
         """Return the (x, y) that best explains the given LIDAR sweep.
 
         Args:
-            prior_xy: Previous position estimate (or the known scenario start
-                position on the very first call) — the search seed.
+            prior: Previous position estimate (or the known scenario start
+                position on the very first call) -- the search seed.
             yaw: Current heading (radians), taken as accurate (IMU-fused).
             ranges_m: LIDAR range readings (robot frame).
             angles_rad: Per-ray bearings matching ``ranges_m`` (0 = forward).
@@ -160,10 +160,10 @@ class LidarLocalizer:
                 test_sensor_errors.py::TestStartPlacement).
 
         Returns:
-            The best-matching (x, y) found within the search window, or
-            ``prior_xy`` unchanged if that result fell outside the known
-            track, or if it implied impossible speed and was not yet
-            confirmed by a second tick agreeing (see below).
+            The best-matching (x, y) found within the search window as a
+            ``Waypoint``, or ``prior`` unchanged if that result fell outside
+            the known track, or if it implied impossible speed and was not
+            yet confirmed by a second tick agreeing (see below).
         """
         dt = None
         if now_s is not None:
@@ -174,7 +174,7 @@ class LidarLocalizer:
         ranges = np.asarray(ranges_m, dtype=float)
         angles = np.asarray(angles_rad, dtype=float)
 
-        best_x, best_y = prior_xy
+        best_x, best_y = prior.x, prior.y
         radius = self._search_radius
         n = self._grid_points
 
@@ -259,13 +259,13 @@ class LidarLocalizer:
 
         if off_track:
             self._pending_jump_xy = None
-            return prior_xy
+            return prior
 
-        if self._reject_implausible_speed(Waypoint(best_x, best_y), Waypoint(*prior_xy), dt):
-            return prior_xy
+        if self._reject_implausible_speed(Waypoint(best_x, best_y), prior, dt):
+            return prior
 
         self._pending_jump_xy = None
-        return best_x, best_y
+        return Waypoint(best_x, best_y)
 
     def _fit_cost(
         self,
@@ -309,7 +309,7 @@ class LidarLocalizer:
         ranges: np.ndarray,
         angles: np.ndarray,
         local_cost: float,
-    ) -> tuple[float, float] | None:
+    ) -> Waypoint | None:
         """Re-solve position over the whole track, with no prior at all.
 
         The local search cannot recover from a wrong seed, because it is
@@ -360,7 +360,7 @@ class LidarLocalizer:
         self._pending_jump_xy = None
         self._relocalization_count += 1
         self._last_fit_cost = best_cost
-        return float(gx[best_idx]), float(gy[best_idx])
+        return Waypoint(float(gx[best_idx]), float(gy[best_idx]))
 
     def _free_space_candidates(self) -> tuple[np.ndarray, np.ndarray]:
         """Every on-track position the global search considers, cached.

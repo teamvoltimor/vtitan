@@ -18,6 +18,7 @@ import pytest
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Section
+from shared.domain.models import Waypoint
 
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls
@@ -75,11 +76,11 @@ def test_recovers_exact_pose_from_clean_scan(x, y, yaw):
 
     # Prior offset by a plausible per-tick displacement (up to ~5 cm at 10 Hz
     # LIDAR refresh and FAST_SPEED), not the exact ground truth.
-    prior = (x - 0.03, y + 0.02)
-    est_x, est_y = localizer.estimate_position(prior, yaw, ranges, _ANGLES)
+    prior = Waypoint(x - 0.03, y + 0.02)
+    est = localizer.estimate_position(prior, yaw, ranges, _ANGLES)
 
-    assert est_x == pytest.approx(x, abs=0.02)
-    assert est_y == pytest.approx(y, abs=0.02)
+    assert est.x == pytest.approx(x, abs=0.02)
+    assert est.y == pytest.approx(y, abs=0.02)
 
 
 @pytest.mark.parametrize("widths", [_UNIFORM_1000, _MIXED_WIDTHS, _NARROW])
@@ -90,10 +91,10 @@ def test_recovers_pose_across_corridor_widths(widths):
     x, y, yaw = 1.5, 0.3, 0.2
     ranges = _sensor_scan(walls, x, y, yaw, _ANGLES)
 
-    est_x, est_y = localizer.estimate_position((x - 0.03, y - 0.03), yaw, ranges, _ANGLES)
+    est = localizer.estimate_position(Waypoint(x - 0.03, y - 0.03), yaw, ranges, _ANGLES)
 
-    assert est_x == pytest.approx(x, abs=0.02)
-    assert est_y == pytest.approx(y, abs=0.02)
+    assert est.x == pytest.approx(x, abs=0.02)
+    assert est.y == pytest.approx(y, abs=0.02)
 
 
 @pytest.mark.parametrize("x, y, yaw", _STRAIGHT_POSES + _CORNER_POSES)
@@ -108,13 +109,13 @@ def test_robust_to_realistic_lidar_noise(x, y, yaw):
         RobotSpecs.LIDAR_MAX_RANGE,
     )
 
-    prior = (x - 0.03, y + 0.02)
-    est_x, est_y = localizer.estimate_position(prior, yaw, noisy, _ANGLES)
+    prior = Waypoint(x - 0.03, y + 0.02)
+    est = localizer.estimate_position(prior, yaw, noisy, _ANGLES)
 
     # Noise widens the tolerance a little, but should still be well within
     # the chassis half-width (0.075 m) — good enough to drive on.
-    assert est_x == pytest.approx(x, abs=0.05)
-    assert est_y == pytest.approx(y, abs=0.05)
+    assert est.x == pytest.approx(x, abs=0.05)
+    assert est.y == pytest.approx(y, abs=0.05)
 
 
 def test_tracks_a_moving_pose_tick_by_tick():
@@ -125,15 +126,15 @@ def test_tracks_a_moving_pose_tick_by_tick():
     x, y, yaw = 0.5, 0.5, 0.0
     speed = 0.3  # m/s
     dt = 0.1  # 10 Hz LIDAR refresh
-    est = (x, y)  # first estimate seeded from the known scenario start position
+    est = Waypoint(x, y)  # first estimate seeded from the known scenario start position
 
     for _ in range(20):
         x += speed * dt
         clean = _sensor_scan(walls, x, y, yaw, _ANGLES)
         noisy = clean + rng.normal(0.0, RobotSpecs.LIDAR_NOISE_STDDEV, clean.shape)
         est = localizer.estimate_position(est, yaw, noisy, _ANGLES)
-        assert est[0] == pytest.approx(x, abs=0.05)
-        assert est[1] == pytest.approx(y, abs=0.05)
+        assert est.x == pytest.approx(x, abs=0.05)
+        assert est.y == pytest.approx(y, abs=0.05)
 
 
 class TestPlausibilityGuards:
@@ -164,7 +165,7 @@ class TestPlausibilityGuards:
 
     def test_rejects_result_outside_track_bounds(self):
         localizer, walls = _localizer_for(_UNIFORM_1000)
-        prior = (0.05, 1.5)
+        prior = Waypoint(0.05, 1.5)
         # A scan generated from a position outside the track (x < 0):
         # mathematically valid raycast geometry, physically impossible.
         ranges = _sensor_scan(walls, -0.2, 1.5, 0.0, _ANGLES)
@@ -180,7 +181,7 @@ class TestPlausibilityGuards:
         inside a solid obstacle. point_in_free_space rejects both.
         """
         localizer, walls = _localizer_for(_UNIFORM_1000)
-        prior = (0.9, 1.5)
+        prior = Waypoint(0.9, 1.5)
         # A scan generated from a position inside the inner block:
         # mathematically valid raycast geometry, physically impossible.
         ranges = _sensor_scan(walls, 1.5, 1.5, 0.0, _ANGLES)
@@ -200,14 +201,14 @@ class TestPlausibilityGuards:
         gradual process, not one call doing the whole correction.
         """
         localizer, walls = _localizer_for(_UNIFORM_1000)
-        prior = (1.35, 0.5)
+        prior = Waypoint(1.35, 0.5)
         true_x, true_y = 1.5, 0.5
         ranges = _sensor_scan(walls, true_x, true_y, 0.0, _ANGLES)
 
-        est_x, est_y = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
+        est = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
 
-        assert est_x == pytest.approx(true_x, abs=0.02)
-        assert est_y == pytest.approx(true_y, abs=0.02)
+        assert est.x == pytest.approx(true_x, abs=0.02)
+        assert est.y == pytest.approx(true_y, abs=0.02)
 
     def test_rejects_an_implausibly_fast_single_tick_jump(self):
         """A candidate implying far more speed than the drivetrain can produce
@@ -220,7 +221,7 @@ class TestPlausibilityGuards:
         localizer, walls = _localizer_for(_UNIFORM_1000)
         x0, y0 = 1.5, 0.5
         ranges0 = _sensor_scan(walls, x0, y0, 0.0, _ANGLES)
-        est0 = localizer.estimate_position((x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
+        est0 = localizer.estimate_position(Waypoint(x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
 
         # 0.15m in 0.05s implies 3 m/s -- far beyond max_speed_mps (0.25 default).
         far_x, far_y = x0 + 0.15, y0
@@ -238,7 +239,7 @@ class TestPlausibilityGuards:
         localizer, walls = _localizer_for(_UNIFORM_1000)
         x0, y0 = 1.5, 0.5
         ranges0 = _sensor_scan(walls, x0, y0, 0.0, _ANGLES)
-        est0 = localizer.estimate_position((x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
+        est0 = localizer.estimate_position(Waypoint(x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
 
         far_x, far_y = x0 + 0.15, y0
         ranges1 = _sensor_scan(walls, far_x, far_y, 0.0, _ANGLES)
@@ -247,8 +248,8 @@ class TestPlausibilityGuards:
 
         est2 = localizer.estimate_position(est1, 0.0, ranges1, _ANGLES, now_s=0.10)
 
-        assert est2[0] == pytest.approx(far_x, abs=0.02)
-        assert est2[1] == pytest.approx(far_y, abs=0.02)
+        assert est2.x == pytest.approx(far_x, abs=0.02)
+        assert est2.y == pytest.approx(far_y, abs=0.02)
 
 
 def test_estimate_runs_within_control_tick_budget():
@@ -259,7 +260,7 @@ def test_estimate_runs_within_control_tick_budget():
 
     start = time.perf_counter()
     for _ in range(10):
-        localizer.estimate_position((x - 0.03, y + 0.02), yaw, ranges, _ANGLES)
+        localizer.estimate_position(Waypoint(x - 0.03, y + 0.02), yaw, ranges, _ANGLES)
     elapsed_per_call = (time.perf_counter() - start) / 10
 
     assert elapsed_per_call < 0.05, f"estimate_position took {elapsed_per_call * 1000:.1f} ms, over the 50 ms budget"
@@ -294,20 +295,20 @@ class TestGlobalRelocalization:
         # The opposite corridor, ~2 m away and far outside search_radius_m
         # (0.15 m) -- the situation the local search has no answer for, and the
         # one the hardware run was in.
-        seed = (0.3, 1.5)
+        seed = Waypoint(0.3, 1.5)
 
         params = LocalizationParams()
         estimate = self._drive(localizer, walls, truth, seed, params.RELOCALIZE_AFTER_SCANS + 1)
 
         assert localizer.relocalization_count == 1
-        assert math.hypot(estimate[0] - truth[0], estimate[1] - truth[1]) <= params.RELOCALIZE_GRID_STEP_M
+        assert math.hypot(estimate.x - truth[0], estimate.y - truth[1]) <= params.RELOCALIZE_GRID_STEP_M
 
     def test_does_not_fire_while_the_estimate_is_tracking(self) -> None:
         localizer, walls = _localizer_for(_MIXED_WIDTHS)
         truth = (2.5, 1.5, math.pi / 2)
         # A plausible per-tick displacement, i.e. exactly what the local search
         # exists to absorb. Firing here would throw away a good estimate.
-        seed = (truth[0] - 0.02, truth[1] - 0.02)
+        seed = Waypoint(truth[0] - 0.02, truth[1] - 0.02)
 
         self._drive(localizer, walls, truth, seed, LocalizationParams().RELOCALIZE_AFTER_SCANS * 3)
 
@@ -322,7 +323,7 @@ class TestGlobalRelocalization:
         good = _sensor_scan(walls, *truth, _ANGLES)
         bad = _sensor_scan(walls, 0.3, 1.5, math.pi / 2, _ANGLES)
 
-        estimate = (truth[0], truth[1])
+        estimate = Waypoint(truth[0], truth[1])
         for i in range(LocalizationParams().RELOCALIZE_AFTER_SCANS * 4):
             estimate = localizer.estimate_position(
                 estimate, truth[2], good if i % 3 == 0 else bad, _ANGLES, now_s=i * 0.05
@@ -336,10 +337,10 @@ class TestGlobalRelocalization:
         truth = (2.5, 1.5, math.pi / 2)
         params = LocalizationParams()
 
-        self._drive(localizer, walls, truth, (0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
+        self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
         assert localizer.relocalization_count == 0
         localizer.reset_tracking()
-        self._drive(localizer, walls, truth, (0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
+        self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
 
         assert localizer.relocalization_count == 0
 
@@ -357,7 +358,7 @@ class TestGlobalRelocalization:
         localizer, walls = _localizer_for(_UNIFORM_1000)
         truth = (2.5, 1.5, math.pi / 2)
 
-        self._drive(localizer, walls, truth, (0.5, 1.5), LocalizationParams().RELOCALIZE_AFTER_SCANS * 2)
+        self._drive(localizer, walls, truth, Waypoint(0.5, 1.5), LocalizationParams().RELOCALIZE_AFTER_SCANS * 2)
 
         assert localizer.relocalization_count == 0
         assert localizer.last_fit_cost is not None
@@ -381,7 +382,7 @@ class TestGlobalRelocalization:
         truth = (2.5, 1.5, math.pi / 2)
         unexplainable = np.full(len(_ANGLES), 1.0)
 
-        estimate = (truth[0], truth[1])
+        estimate = Waypoint(truth[0], truth[1])
         for i in range(LocalizationParams().RELOCALIZE_AFTER_SCANS * 3):
             estimate = localizer.estimate_position(estimate, truth[2], unexplainable, _ANGLES, now_s=i * 0.05)
 
@@ -390,4 +391,4 @@ class TestGlobalRelocalization:
             "test is void unless the scan really does score badly everywhere"
         )
         assert localizer.relocalization_count == 0
-        assert walls.point_in_free_space(*estimate)
+        assert walls.point_in_free_space(estimate.x, estimate.y)

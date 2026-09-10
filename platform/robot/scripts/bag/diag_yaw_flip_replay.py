@@ -25,7 +25,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
+from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Section
+from shared.domain.models import Waypoint
 
 from scripts.bag.diag_localizer_guard_replay import (
     _final_walls,
@@ -34,7 +36,6 @@ from scripts.bag.diag_localizer_guard_replay import (
     _scan_to_ranges_angles,
 )
 from scripts.common.bag_io import create_bag_parser
-from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
@@ -81,7 +82,7 @@ def _replay(
 ) -> tuple[list[tuple[float, float, float]], float]:
     """Step the localizer through the run with ``yaw_offset`` added to every believed yaw."""
     localizer = LidarLocalizer(walls, LocalizationParams())
-    pos = seed
+    pos = Waypoint(*seed)
     track: list[tuple[float, float, float]] = []
     costs: list[float] = []
     t0 = snapshots[0][0]
@@ -96,8 +97,8 @@ def _replay(
             localizer._walls = active  # noqa: SLF001 - mirrors gateway.set_believed_walls
         ranges, angles = _scan_to_ranges_angles(_nearest_scan(scans, t))
         pos = localizer.estimate_position(pos, yaw, ranges.tolist(), angles.tolist(), now_s=(t - t0) / 1e9)
-        track.append(((t - t0) / 1e9, pos[0], pos[1]))
-        costs.append(_residual(active, pos[0], pos[1], yaw, ranges, angles))
+        track.append(((t - t0) / 1e9, pos.x, pos.y))
+        costs.append(_residual(active, pos.x, pos.y, yaw, ranges, angles))
     return track, float(np.median(costs)) if costs else float("nan")
 
 

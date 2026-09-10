@@ -20,7 +20,7 @@ import rclpy
 from shared.config.constants import CorridorDimensions
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Direction, Section
-from shared.domain.models import CreepWidthSample, IMUReading, Pose
+from shared.domain.models import CreepWidthSample, IMUReading, Pose, Waypoint
 
 from src.navigation.ports import DriveCommand, LidarScan
 from src.ros2.navigation.node import ROS2HardwareGateway
@@ -62,11 +62,11 @@ class TestGatewayBeliefUpdate:
         from src.simulation.track_model import TrackModel
 
         true_widths = dict.fromkeys(Section, CorridorDimensions.WIDE)
-        truth = (1.5, 0.5)
+        truth = Waypoint(x=1.5, y=0.5)
         # raycast_scan takes a numpy array; estimate_position accepts either.
         angles_arr = np.linspace(-math.pi, math.pi, 360)
         angles = angles_arr.tolist()
-        ranges = TrackModel(true_widths).raycast_scan(truth[0], truth[1], 0.0, angles_arr).tolist()
+        ranges = TrackModel(true_widths).raycast_scan(truth.x, truth.y, 0.0, angles_arr).tolist()
 
         right = LidarLocalizer(TrackWalls(true_widths), LocalizationParams()).estimate_position(truth, 0.0, ranges, angles)
         wrong = LidarLocalizer(
@@ -79,8 +79,8 @@ class TestGatewayBeliefUpdate:
             angles,
         )
 
-        err_right = math.hypot(right[0] - truth[0], right[1] - truth[1])
-        err_wrong = math.hypot(wrong[0] - truth[0], wrong[1] - truth[1])
+        err_right = math.hypot(right.x - truth.x, right.y - truth.y)
+        err_wrong = math.hypot(wrong.x - truth.x, wrong.y - truth.y)
         assert err_right < err_wrong
 
 

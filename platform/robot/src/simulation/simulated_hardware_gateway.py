@@ -650,14 +650,14 @@ class SimulatedHardwareGateway:
 
         prior = self._estimator.estimate_pose()
         self._localizer_inputs = LocalizerInputs(prior.yaw, prior.x, prior.y)
-        est_x, est_y = self._localizer.estimate_position(
-            (prior.x, prior.y),
+        est = self._localizer.estimate_position(
+            Waypoint(prior.x, prior.y),
             prior.yaw,
             self._scan_ranges,
             self._angles_list,
             now_s=self._elapsed_s,
         )
-        self._estimator.update_position(est_x, est_y)
+        self._estimator.update_position(est.x, est.y)
 
     def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
