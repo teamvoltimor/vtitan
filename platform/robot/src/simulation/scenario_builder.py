@@ -36,7 +36,7 @@ _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 __all__ = ["build_open_metadata", "start_cells", "start_pose", "uniform_widths"]
 
 
-def start_cells(section: Section, widths_m: dict[str, float]) -> list[tuple[float, float]]:
+def start_cells(section: Section, widths_m: dict[Section, float]) -> list[tuple[float, float]]:
     """Every legal starting-zone spawn pose for this side, as (x, y).
 
     Ordered outer wall inward, and within each band along the travel axis, so
@@ -56,12 +56,12 @@ def start_cells(section: Section, widths_m: dict[str, float]) -> list[tuple[floa
 
     Args:
         section: Which side of the mat the starting square is on.
-        widths_m: Corridor width per side name, in metres.
+        widths_m: Corridor widths keyed by their ``Section``, in metres.
 
     Returns:
         Spawn poses, four for a narrow corridor and six for a wide one.
     """
-    width = widths_m[section.value.lower()]
+    width = widths_m[section]
     layout = STARTING_ZONE_LAYOUT
 
     # The square occupies the middle metre of the side, leaving a metre of
@@ -103,7 +103,7 @@ def build_open_metadata(
             caller expects and what the fixtures use -- but which is not one of
             the legal cells, so pass an index to exercise a real start.
     """
-    widths_m = {k: v / 1000.0 for k, v in widths_mm.items()}
+    widths_m = {Section(side): mm / 1000.0 for side, mm in widths_mm.items()}
     sx, sy, yaw = start_pose(section, direction, widths_m)
     if start_cell is not None:
         cells = start_cells(section, widths_m)

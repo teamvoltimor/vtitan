@@ -41,9 +41,9 @@ def case_space(
     """
     cases: list[tuple[tuple[int, ...], Section, Direction, int]] = []
     for widths in itertools.product((NARROW_MM, WIDE_MM), repeat=len(SIDES)):
-        widths_m = {k: v / 1000.0 for k, v in zip(SIDES, widths, strict=True)}
+        widths_m = {Section(k): v / 1000.0 for k, v in zip(SIDES, widths, strict=True)}
         for section in Section:
-            if narrow_only and widths_m[section.value.lower()] != CorridorDimensions.NARROW:
+            if narrow_only and widths_m[section] != CorridorDimensions.NARROW:
                 continue
             n_cells = len(start_cells(section, widths_m))
             candidate_cells = cells if cells is not None else range(n_cells)
@@ -88,7 +88,7 @@ def balanced_128_cases(*, seed: int = 0) -> list[tuple[tuple[int, ...], Section,
     """
     combos: list[tuple[tuple[int, ...], Section, Direction, int]] = []
     for widths in itertools.product((NARROW_MM, WIDE_MM), repeat=len(SIDES)):
-        widths_m = {k: v / 1000.0 for k, v in zip(SIDES, widths, strict=True)}
+        widths_m = {Section(k): v / 1000.0 for k, v in zip(SIDES, widths, strict=True)}
         for section in Section:
             n_cells = len(start_cells(section, widths_m))
             for direction in Direction:

@@ -1179,5 +1179,4 @@ def _centreline_pose(
     drawn plan with the track centreline rather than with the starting-zone
     cell the robot happens to be placed in.
     """
-    by_name = {s.value.lower(): w for s, w in widths_m.items()}
-    return start_pose(section, direction, by_name, tuning)
+    return start_pose(section, direction, widths_m, tuning)

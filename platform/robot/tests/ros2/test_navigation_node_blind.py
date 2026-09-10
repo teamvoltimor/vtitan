@@ -460,7 +460,7 @@ class TestAssumedStartConditions:
         expected = start_pose(
             Section.SOUTH,
             Direction.CLOCKWISE,
-            dict.fromkeys(("north", "south", "east", "west"), CorridorDimensions.NARROW),
+            dict.fromkeys(Section, CorridorDimensions.NARROW),
         )
         assert assumed["position"]["x"] == pytest.approx(expected[0])
         assert assumed["position"]["y"] == pytest.approx(expected[1])

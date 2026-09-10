@@ -58,7 +58,7 @@ with this one automatically.
 def start_pose(
     section: Section,
     direction: Direction,
-    widths_m: dict[str, float],
+    widths_m: dict[Section, float],
     tuning: NavigationTuning | None = None,
     center_bias_m: float | None = None,
 ) -> tuple[float, float, float]:
@@ -67,7 +67,11 @@ def start_pose(
     Args:
         section: Which corridor the robot starts in.
         direction: Travel direction, which sets the yaw.
-        widths_m: Corridor widths by lowercase section name.
+        widths_m: Corridor widths keyed by their ``Section``. (A previous
+            generation of callers keyed them by lowercase section name, and
+            both ``assumed_start_conditions`` and the simulator kept a
+            ``value.lower()`` re-keying step alive only to satisfy that;
+            receiving the typed dict deletes the step.)
         tuning: Navigation tuning instance. Defaults to loaded defaults.
         center_bias_m: When set, EVERY corridor takes this magnitude and the
             narrow/wide split is skipped. None (the default) applies the split,
@@ -101,10 +105,10 @@ def start_pose(
     def _bias(width_m: float) -> float:
         return center_bias_for_corridor(width_m, tuning, center_bias_m)
 
-    south_cy = widths_m["south"] / 2 + _bias(widths_m["south"])
-    north_cy = TrackDimensions.MAX_COORD - widths_m["north"] / 2 - _bias(widths_m["north"])
-    east_cx = TrackDimensions.MAX_COORD - widths_m["east"] / 2 - _bias(widths_m["east"])
-    west_cx = widths_m["west"] / 2 + _bias(widths_m["west"])
+    south_cy = widths_m[Section.SOUTH] / 2 + _bias(widths_m[Section.SOUTH])
+    north_cy = TrackDimensions.MAX_COORD - widths_m[Section.NORTH] / 2 - _bias(widths_m[Section.NORTH])
+    east_cx = TrackDimensions.MAX_COORD - widths_m[Section.EAST] / 2 - _bias(widths_m[Section.EAST])
+    west_cx = widths_m[Section.WEST] / 2 + _bias(widths_m[Section.WEST])
     center = {
         Section.SOUTH: (_TRACK_CENTER, south_cy),
         Section.NORTH: (_TRACK_CENTER, north_cy),
@@ -146,8 +150,7 @@ def assumed_start_conditions(
     NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE
     """
     believed = widths_m or dict.fromkeys(Section, CorridorDimensions.NARROW)
-    by_name = {s.value.lower(): w for s, w in believed.items()}
-    sx, sy, yaw = start_pose(section, direction, by_name, tuning, center_bias_m)
+    sx, sy, yaw = start_pose(section, direction, believed, tuning, center_bias_m)
     return {
         DictKeys.DIRECTION: str(direction),
         DictKeys.SECTION: section.capitalized,

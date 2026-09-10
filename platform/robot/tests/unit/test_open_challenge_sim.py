@@ -238,7 +238,7 @@ def _random_scenario_cases() -> list[Any]:
         # Draw the starting cell too: it is as much a part of a random
         # scenario as the widths, and every legal one is a different first
         # LIDAR sweep.
-        cell = int(rng.integers(len(start_cells(section, {k: v / 1000.0 for k, v in widths.items()}))))
+        cell = int(rng.integers(len(start_cells(section, {Section(s): v / 1000.0 for s, v in widths.items()}))))
         cases.append(pytest.param(i, widths, section, direction, cell, id=f"rand{i}"))
     return cases
 
