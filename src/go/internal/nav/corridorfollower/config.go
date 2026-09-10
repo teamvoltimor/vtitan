@@ -188,7 +188,7 @@ const (
 )
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/blind_nav/corridor_follower.toml and the
+// src/config/navigation/blind_nav/corridor_follower.toml and the
 // neighboring sections each cross-referenced value comes from.
 const (
 	// halvesPerWidth turns a left-minus-right difference into the chassis's

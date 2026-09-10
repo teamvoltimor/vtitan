@@ -39,7 +39,7 @@
 
   <!-- ─────────────────────── camera_link ──────────────────────────────── -->
   <!-- Over the LIDAR, tilted down ~10deg (approximate measurement 2026-09-07 --
-        see RobotSpecs.CAMERA_MOUNT_* in shared/config/constants.py) -->
+        see RobotSpecs.CAMERA_MOUNT_* in src/python/shared/src/shared/config/constants/) -->
   <link name="camera_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>

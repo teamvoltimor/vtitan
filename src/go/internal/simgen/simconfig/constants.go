@@ -1,6 +1,6 @@
-// Package simconfig mirrors the subset of platform/shared/src/shared/config/
+// Package simconfig mirrors the subset of src/python/shared/src/shared/config/
 // that the generation pipeline needs. Robot* constants are generated from
-// platform/shared/config/robot.toml (see robot_constants.gen.go and
+// src/config/robot.toml (see robot_constants.gen.go and
 // internal/robotconfig) and must not be hand-edited; the rest of this file's
 // values are still hand-maintained and must stay in sync with the Python source.
 package simconfig
@@ -15,10 +15,10 @@ const (
 
 // Mat geometry — track, wall, corridor, traffic sign, parking and starting
 // zone constants — now lives in track_constants.gen.go, generated from
-// platform/shared/config/track.toml.
+// src/config/track.toml.
 //
 // Robot chassis, Ackermann, wheel, LIDAR-mount, and camera-mount constants now live in
-// robot_constants.gen.go, generated from platform/shared/config/robot.toml.
+// robot_constants.gen.go, generated from src/config/robot.toml.
 
 // Camera sensor (Raspberry Pi Camera Module 3 Wide).
 const (
@@ -211,7 +211,7 @@ const (
 
 // Robot sensor placement offsets (meters). LIDAR/IMU mount z-offsets moved to
 // robot_constants.gen.go (RobotLidarMountZOffset/RobotImuMountZOffset), generated from
-// platform/shared/config/robot.toml, so Go/xacro/Python share one source instead of three
+// src/config/robot.toml, so Go/xacro/Python share one source instead of three
 // hand-maintained copies that could drift.
 const (
 	RobotFrontIndicatorOffsetX = 0.02  // indicator recessed 20 mm from front face

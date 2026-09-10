@@ -1,6 +1,6 @@
 # Competition match rules for the WRO Future Engineers challenge.
 # Source of truth for round timing and lap counts -- previously hand-maintained
-# literals in shared/config/constants/simulation.py.
+# literals in src/python/shared/src/shared/config/constants/simulation.py.
 
 # Official round duration (seconds): 3 minutes.
 round_time_limit_s = 180.0

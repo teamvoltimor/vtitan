@@ -70,7 +70,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// Shipped defaults, matching platform/shared/config/robot.toml and
+// Shipped defaults, matching src/config/robot.toml and
 // internal/nav/controllers.DefaultConfig's own mirrors of the same values.
 const (
 	// DefaultWheelbaseM matches robot.toml's [ackermann] wheelbase.

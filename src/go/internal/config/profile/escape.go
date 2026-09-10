@@ -7,7 +7,7 @@ import (
 )
 
 // EscapeConfig mirrors the subset of
-// platform/shared/config/navigation/escape/escape.toml
+// src/config/navigation/escape/escape.toml
 // (shared.config.navigation_tuning.escape.EscapeManeuverParams) that
 // StuckDetector.from_tuning and CollisionAvoidanceController.from_tuning
 // actually read (internal/nav/controllers.StuckDetector/
@@ -50,10 +50,10 @@ type EscapeConfig struct {
 }
 
 // DefaultEscapeTOMLPath is
-// platform/shared/config/navigation/escape/escape.toml, relative to the
+// src/config/navigation/escape/escape.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load.
-const DefaultEscapeTOMLPath = "platform/shared/config/navigation/escape/escape.toml"
+const DefaultEscapeTOMLPath = "src/config/navigation/escape/escape.toml"
 
 // RevSteerNorm converts RevSteerDeg to a normalised actuator command,
 // matching EscapeManeuverParams.rev_steer_norm(): the stored value is a

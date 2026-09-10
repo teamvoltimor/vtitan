@@ -132,7 +132,7 @@ func TestConfigFor_LoadsRealNavigationTuningFiles(t *testing.T) {
 	// loads. As of this port, profile.LoadRobotConfig also requires
 	// drivetrain.speed_response_tau_s from an active profile (see
 	// requiredRobotKeys in internal/config/profile/robot.go), which no
-	// checked-in profile under platform/shared/config/profiles/ currently
+	// checked-in profile under src/config/profiles/ currently
 	// supplies -- a separate, pre-existing gap in the profile TOML tree,
 	// not in this package. Until that lands, robot.toml load fails and
 	// ConfigFor falls back to the literal default, which this asserts

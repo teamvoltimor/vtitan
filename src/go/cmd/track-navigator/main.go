@@ -50,7 +50,7 @@ const benchTrackCoord = 4.0
 
 // defaultWheelRadiusM/defaultChassisWidthM are the fallbacks used when
 // robot.toml cannot be loaded (a bench run outside the repo, or with no
-// hardware profile active). They restate platform/shared/config/robot.toml's
+// hardware profile active). They restate src/config/robot.toml's
 // shipped values so a fallback run behaves like the real robot rather than
 // like a zero-sized one; the warning names them so a wrong number is visible
 // in the log rather than silently believed.

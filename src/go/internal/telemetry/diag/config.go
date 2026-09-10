@@ -26,7 +26,7 @@ type AngleWedge struct {
 // Config parameterizes Aggregator's sector-clearance computation. Every
 // field here is config-driven rather than a literal buried in sector.go,
 // mirroring the source of truth these values come from on the Python side
-// (platform/shared/src/shared/config/navigation_tuning/sensors.py's
+// (src/python/shared/src/shared/config/navigation_tuning/sensors.py's
 // LidarSectorsTuning) — DefaultConfig ships that file's own default values
 // so behavior matches out of the box, but nothing here is hardcoded past
 // that default; a caller with real hardware-profile tuning overrides it.
@@ -64,7 +64,7 @@ const (
 	// LidarSectorsTuning.SELF_DETECTION_THRESHOLD_M's default.
 	DefaultSelfDetectionThresholdM = 0.08
 	// lidarMaxRangeM matches RobotSpecs.LIDAR_MAX_RANGE's default
-	// (platform/shared/config/robot.toml's lidar.max_range, the Slamtec
+	// (src/config/robot.toml's lidar.max_range, the Slamtec
 	// C1's spec ceiling).
 	lidarMaxRangeM = 12.0
 	// noReturnMarginM matches sectors.py's _NO_RETURN_MARGIN_M: how far

@@ -1,7 +1,7 @@
 package profile
 
 // SignRouterConfig mirrors
-// platform/shared/config/navigation/signs/sign_router.toml
+// src/config/navigation/signs/sign_router.toml
 // (shared.config.navigation_tuning.signs.SignRouterParams) restricted to
 // the fields internal/nav/signrouter currently consumes -- the lane-planner
 // (SIGN_LANE_*), escape-mask, retrace and sign-contact-evade knobs belong to
@@ -52,10 +52,10 @@ type SignRouterConfig struct {
 }
 
 // DefaultSignRouterTOMLPath is
-// platform/shared/config/navigation/signs/sign_router.toml, relative to the
+// src/config/navigation/signs/sign_router.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load/LoadWithDefaults.
-const DefaultSignRouterTOMLPath = "platform/shared/config/navigation/signs/sign_router.toml"
+const DefaultSignRouterTOMLPath = "src/config/navigation/signs/sign_router.toml"
 
 // Default* match SignRouterParams' Pydantic defaults for the four fields
 // missing from the checked-in sign_router.toml -- see SignRouterConfig's

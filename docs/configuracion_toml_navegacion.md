@@ -16,10 +16,10 @@ parámetros del panel OLED, del botón y del grabador), que residen en
 
 | Árbol | Ruta | Contenido |
 |---|---|---|
-| Base de navegación | `src/python/shared/config/navigation/<tema>/<grupo>.toml` | El ajuste que gobierna la conducción. Un fichero por grupo de parámetros. |
-| Hechos físicos | `src/python/shared/config/robot.toml`, `track.toml`, `competition_specs.toml` | Geometría del chasis y de los sensores, geometría de la pista y reglas WRO. |
-| Perfiles de hardware | `src/python/shared/config/profiles/<nombre>/...` | Únicamente las claves que difieren para una pieza concreta (servo, motor). Se seleccionan mediante `VTITAN_HARDWARE_PROFILE`. |
-| Capas por reto | `src/python/shared/config/navigation-challenges/<open\|obstacles>/<tema>/<grupo>.toml` | Reajuste específico de un reto. Actualmente solo contiene los `README.md`: está vacío de forma intencionada. |
+| Base de navegación | `src/config/navigation/<tema>/<grupo>.toml` | El ajuste que gobierna la conducción. Un fichero por grupo de parámetros. |
+| Hechos físicos | `src/config/robot.toml`, `track.toml`, `competition_specs.toml` | Geometría del chasis y de los sensores, geometría de la pista y reglas WRO. |
+| Perfiles de hardware | `src/config/profiles/<nombre>/...` | Únicamente las claves que difieren para una pieza concreta (servo, motor). Se seleccionan mediante `VTITAN_HARDWARE_PROFILE`. |
+| Capas por reto | `src/config/navigation-challenges/<open\|obstacles>/<tema>/<grupo>.toml` | Reajuste específico de un reto. Actualmente solo contiene los `README.md`: está vacío de forma intencionada. |
 
 Ambas implementaciones leen **los mismos ficheros**. Go no dispone de un árbol propio:
 `internal/config/profile` declara las mismas rutas como constantes (`DefaultClearanceTOMLPath`, etc.)

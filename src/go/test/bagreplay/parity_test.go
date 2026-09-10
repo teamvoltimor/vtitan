@@ -19,7 +19,7 @@ import (
 
 // repoRootFromPackageDir is the relative path from this package
 // (platform/robot-go/test/bagreplay) back to the repo root, where
-// profile.DefaultRobotTOMLPath (platform/shared/config/robot.toml) lives.
+// profile.DefaultRobotTOMLPath (src/config/robot.toml) lives.
 const repoRootFromPackageDir = "../../../.."
 
 // lidarYawOffsetRadForBags mirrors the mandatory rotation the real ROS2

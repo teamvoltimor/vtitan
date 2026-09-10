@@ -1,7 +1,7 @@
 package profile
 
 // SimulationConfig mirrors the subset of
-// platform/shared/config/navigation/simulation/simulation.toml
+// src/config/navigation/simulation/simulation.toml
 // (shared.config.navigation_tuning.simulation_params.SimulationParams)
 // that internal/sim/collision consumes: the collision-check keep-out
 // margin and the axis-alignment tolerance used to swap an obstacle box's
@@ -17,7 +17,7 @@ type SimulationConfig struct {
 }
 
 // DefaultSimulationTOMLPath is
-// platform/shared/config/navigation/simulation/simulation.toml, relative
+// src/config/navigation/simulation/simulation.toml, relative
 // to the repo root. No per-component profile overlays -- pass nil
 // profileNames to Load.
-const DefaultSimulationTOMLPath = "platform/shared/config/navigation/simulation/simulation.toml"
+const DefaultSimulationTOMLPath = "src/config/navigation/simulation/simulation.toml"

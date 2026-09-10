@@ -12,13 +12,13 @@ import (
 // than in internal/config/profile because neither file has a profile mirror
 // there yet, and speed.toml's overlay layout is unlike every path that
 // package already models: its per-motor overlay lives at
-// platform/shared/config/profiles/<name>/motion/speed.toml, NOT at
+// src/config/profiles/<name>/motion/speed.toml, NOT at
 // <dir-of-base>/profiles/<name>/<base-name>, which is the only shape
 // profile.Load's own merge understands (that shape is what robot.toml
 // uses). loadSpeedConfig below does the overlay walk itself for that
 // reason.
 
-// speedTOML mirrors platform/shared/config/navigation/motion/speed.toml
+// speedTOML mirrors src/config/navigation/motion/speed.toml
 // (shared.config.navigation_tuning.motion.SpeedControlParams' raw fields,
 // before the drivetrain clamp its *_mps() accessors apply).
 type speedTOML struct {
@@ -44,7 +44,7 @@ type speedTOML struct {
 	FastMPS            float64  `mapstructure:"fast_mps"`
 }
 
-// headingTOML mirrors platform/shared/config/navigation/motion/heading.toml
+// headingTOML mirrors src/config/navigation/motion/heading.toml
 // (HeadingErrorZones). One threshold, not a ladder -- see the TOML's own
 // comment for the 33%-of-lap-time measurement that deleted the other rungs.
 type headingTOML struct {
@@ -113,11 +113,11 @@ type navSignRouterTOML struct {
 }
 
 const (
-	speedTOMLPath   = "platform/shared/config/navigation/motion/speed.toml"
-	headingTOMLPath = "platform/shared/config/navigation/motion/heading.toml"
+	speedTOMLPath   = "src/config/navigation/motion/speed.toml"
+	headingTOMLPath = "src/config/navigation/motion/heading.toml"
 	// speedProfilesDir is the directory holding each hardware profile's
 	// overlay tree, relative to the repo root.
-	speedProfilesDir = "platform/shared/config/profiles"
+	speedProfilesDir = "src/config/profiles"
 	// speedProfileRelPath is where a profile's speed overlay sits inside
 	// its own directory.
 	speedProfileRelPath = "motion/speed.toml"

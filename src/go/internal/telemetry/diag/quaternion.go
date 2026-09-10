@@ -34,7 +34,7 @@ func fillGyroYaw(summary *TelemetrySummary, imu *sensorv1.Imu) {
 
 // yawDegFromQuaternion extracts yaw (degrees) from a unit orientation
 // quaternion, matching shared.config.coordinate_transform.quaternion_to_yaw
-// (platform/shared/src/shared/config/coordinate_transform.py) — the same
+// (src/python/shared/src/shared/config/coordinate_transform.py) — the same
 // atan2-based Z-axis extraction telemetry_bridge_node.py's
 // `_publish_ui_summary` calls via `_quaternion_to_yaw`, converted to
 // degrees to match GyroYawDeg's unit.

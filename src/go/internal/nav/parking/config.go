@@ -111,7 +111,7 @@ type Config struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/parking/parking.toml and the
+// src/config/navigation/parking/parking.toml and the
 // neighboring sections each cross-referenced value comes from.
 const (
 	// DefaultParallelToleranceM matches PARALLEL_TOLERANCE_M.

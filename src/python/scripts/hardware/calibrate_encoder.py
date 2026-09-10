@@ -51,7 +51,7 @@ from dotenv import load_dotenv
 # Must run before any shared.config/src.hardware.motors import: both
 # transitively import shared.config.constants.RobotSpecs, which reads
 # VTITAN_HARDWARE_PROFILE at MODULE IMPORT TIME (a top-level statement in
-# shared/config/constants/_shared.py, not inside a function) -- the same
+# src/python/shared/src/shared/config/constants/_shared.py, not inside a function) -- the same
 # class of bug fixed in `097ab6cf` for run-lidar and in sweep_open_loop.py.
 # Calling load_dotenv() any later is too late.
 load_dotenv()

@@ -1,7 +1,7 @@
 """The mat geometry moved from hand-written constants to a generated module.
 
 These tests pin the values against the literals that were in
-``shared/config/constants.py`` before the move, so the extraction to
+``src/python/shared/src/shared/config/constants.py`` before the move, so the extraction to
 ``track.toml`` is provably value-preserving rather than merely plausible. They
 are not a restatement of the config: if a value here has to change, the change
 is a deliberate re-measurement of the mat and should be argued for in the diff,

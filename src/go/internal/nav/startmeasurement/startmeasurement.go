@@ -77,7 +77,7 @@ type MeasuredStart struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/sensors/start_measurement.toml,
+// src/config/navigation/sensors/start_measurement.toml,
 // track.toml's [track] section and robot.toml's [lidar] section.
 const (
 	// DefaultRayHalfWidthDeg matches start_measurement.toml's

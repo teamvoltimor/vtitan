@@ -202,9 +202,9 @@ func generateTrackConstantsCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&config, "config", "./shared/config/track.toml", "Path to track.toml source of truth")
+	cmd.Flags().StringVar(&config, "config", "./src/config/track.toml", "Path to track.toml source of truth")
 	cmd.Flags().StringVar(&goOutput, "go-output",
-		"./robot-go/internal/simgen/simconfig/track_constants.gen.go", "Go const block output path")
+		"./src/go/internal/simgen/simconfig/track_constants.gen.go", "Go const block output path")
 
 	return cmd
 }
