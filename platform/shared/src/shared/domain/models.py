@@ -697,18 +697,6 @@ class GroupSpec:
 
 
 @dataclass(slots=True, frozen=True)
-class RaceSummary:
-    """Aggregated race metrics, replacing the raw ``dict`` from ``get_race_summary``."""
-
-    total_time_s: float
-    laps_completed: int
-    best_lap_s: float | None
-    avg_lap_s: float | None
-    max_speed_mps: float
-    min_clearance_m: float
-
-
-@dataclass(slots=True, frozen=True)
 class CameraSize:
     """Camera image resolution and orientation metadata."""
 

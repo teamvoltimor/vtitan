@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -157,6 +158,31 @@ class RaceMetrics(BaseModel):
         return self.model_dump(by_alias=True)
 
 
+@dataclass(slots=True, frozen=True)
+class RaceSummary:
+    """End-of-race rollup: RaceMetrics plus the two values the old dict derived.
+
+    Composition over metrics, mirroring ``robot-go``'s ``RaceSummary`` struct:
+    the metrics themselves are not restated field by field, so a metric added
+    to RaceMetrics appears here automatically instead of its two contracts
+    drifting. ``laps_remaining`` floors at zero (a race can overshoot its lap
+    count); ``est_finish_time`` extrapolates linearly from laps completed so
+    far and is 0.0 before the first lap lands, where there is nothing to
+    extrapolate from.
+    """
+
+    metrics: RaceMetrics
+    laps_remaining: int
+    est_finish_time: float
+
+    def to_dict(self) -> dict[str, Any]:
+        """Flatten to the log contract ``log_summary`` has always emitted."""
+        summary = self.metrics.to_dict()
+        summary["laps_remaining"] = self.laps_remaining
+        summary["est_finish_time"] = self.est_finish_time
+        return summary
+
+
 class RaceTracker:
     """Track race metrics and state throughout execution."""
 
@@ -275,25 +301,27 @@ class RaceTracker:
             total_distance_m=self.metrics.total_distance,
         )
 
-    def get_race_summary(self) -> dict[str, Any]:
+    def get_race_summary(self) -> RaceSummary:
         """Get summary statistics for the race.
 
         Returns:
-            Dictionary with key metrics and stats.
+            RaceSummary bundling the live metrics with laps remaining and the
+            projected finish time.
         """
-        summary = self.metrics.to_dict()
-        summary["laps_remaining"] = max(0, self.num_laps - self.metrics.completed_laps)
-        summary["est_finish_time"] = (
-            self.metrics.elapsed_time * self.num_laps / max(1, self.metrics.completed_laps)
-            if self.metrics.completed_laps > 0
-            else 0.0
+        return RaceSummary(
+            metrics=self.metrics,
+            laps_remaining=max(0, self.num_laps - self.metrics.completed_laps),
+            est_finish_time=(
+                self.metrics.elapsed_time * self.num_laps / max(1, self.metrics.completed_laps)
+                if self.metrics.completed_laps > 0
+                else 0.0
+            ),
         )
-        return summary
 
     def log_summary(self) -> None:
         """Log race summary to logger."""
         summary = self.get_race_summary()
         logger.info(
             "Race Summary",
-            extra={DETAILS_KEY: summary},
+            extra={DETAILS_KEY: summary.to_dict()},
         )
