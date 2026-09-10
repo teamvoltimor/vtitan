@@ -218,7 +218,7 @@ finish_approach_m = 0.40
 # direction inference committed.
 replan_heading_tie_margin_m = 0.15
 
-# --- Written out 2026-09-05 ---
+# Written out 2026-09-05
 #
 # All six existed only as Python literals, so no edit to this file could reach
 # them. Shipped values, so naming them changed nothing.

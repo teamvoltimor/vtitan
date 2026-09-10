@@ -77,7 +77,7 @@ medium_mps = 0.1326
 # threshold. At the ceiling today. Was fast_frac = 1.0.
 fast_mps = 0.156
 
-# --- Per-challenge ladder overrides are NOT set here, deliberately ---
+# Per-challenge ladder overrides are NOT set here, deliberately
 #
 # open_max_mps / open_slow_mps / open_medium_mps / open_fast_mps,
 # obstacles_*_mps and corner_mps all default to None, meaning "no override,

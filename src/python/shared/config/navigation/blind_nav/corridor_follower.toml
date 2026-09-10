@@ -227,7 +227,7 @@ min_forward_clearance_m = 0.30
 # corridor is going the wrong way regardless of which way it is pointing.
 min_reverse_clearance_m = 0.30
 
-# --- In-bay start and the bay-exit manoeuvre ---
+# In-bay start and the bay-exit manoeuvre
 #
 # Every key below existed ONLY as a Python literal until 2026-09-05: the
 # Pydantic model carried the value, this file did not name it, and so no edit

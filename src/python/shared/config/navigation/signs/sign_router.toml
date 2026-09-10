@@ -188,7 +188,7 @@ sign_aware_speed = true
 # those are marked. Do not read a `false` here as "unfinished".
 # =====================================================================
 
-# --- Lane planner (the shipped sign-avoidance path) ---
+# Lane planner (the shipped sign-avoidance path)
 sign_lane_planner = true
 # Fraction of the full lane offset actually applied.
 sign_lane_offset_frac = 1.0
@@ -209,21 +209,21 @@ sign_lane_depth_consistent_corridor = true
 # Allow two lanes to overlap. REFUTED -- kept off.
 sign_lane_split_overlap = false
 
-# --- Guards on the depth/heading pin ---
+# Guards on the depth/heading pin
 depth_pin = true
 pin_corner_guard = true
 pin_heading_guard = true
 # Heading disagreement, in degrees, above which the pin is refused.
 pin_heading_guard_deg = 35.0
 
-# --- Deformation and speed coupling ---
+# Deformation and speed coupling
 # Minimum deformation, in metres, that counts as the router having moved the
 # path -- what sign_aware_speed above gates on.
 sign_deform_speed_threshold_m = 0.02
 # Speed fraction during the exploratory first lap. 1.0 = no reduction.
 explore_lap_speed_frac = 1.0
 
-# --- Refuted experiments, kept configurable and OFF ---
+# Refuted experiments, kept configurable and OFF
 # Retrace on escape: REFUTED (see steer_cap_from_commit_distance's note in
 # corridor_follower.toml -- same session, same 640-case sweep).
 retrace_escape = false

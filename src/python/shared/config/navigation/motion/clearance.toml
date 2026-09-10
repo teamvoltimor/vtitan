@@ -102,7 +102,7 @@ contact_reverse_cooldown_ticks = 20
 # that, so bench the sensor at close range before racing on this value.
 obstacles_contact_dist = 0.04
 
-# --- Written out 2026-09-05 ---
+# Written out 2026-09-05
 #
 # Both existed only as Python literals, so no edit to this file could reach
 # them. Shipped values, so naming them changed nothing.
