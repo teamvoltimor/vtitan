@@ -62,6 +62,8 @@ from std_msgs.msg import Float32
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.constants import RobotSpecs
+
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
 from scripts.common.binning import band_label
 from scripts.common.stats import percentile
@@ -70,6 +72,13 @@ WHEEL_CIRCUM_M = 0.07 * 3.141592653589793
 """7 cm wheel, the measured diameter in robot.toml."""
 
 STALL_DEG_S = 1.0
+
+_COAST_MIN_EPISODES = 30
+"""Coast episodes below which the archive is reporting its own scarcity.
+
+Measured 2026-09-10: the whole 200-bag archive holds 15. The robot commands
+a new speed long before the wheel has stopped, so a stopping distance is
+simply not an event this data contains."""
 """Below this the wheel is not turning. The estimator reads exact zeros."""
 
 MIN_EPISODE_TICKS = 2
@@ -100,9 +109,19 @@ def _band(v: float, edges: tuple[float, ...]) -> str | None:
     return band_label(v, edges, lambda lo, hi: f"{lo:.2f}-{hi:.2f}")
 
 
-def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: dict, by_phase: dict) -> None:
+def collect(
+    bag_dir: Path,
+    fine: dict,
+    episodes: list,
+    phase_ticks: dict,
+    grid: dict,
+    by_phase: dict,
+    coasts: list,
+) -> None:
     reader = open_reader(bag_dir)
     last_drive: float | None = None
+    last_cmd: float | None = None
+    coast: list = [None, 0.0, 0.0]
     run_len = 0
     run_cmds: list[float] = []
     run_heading = 0
@@ -113,6 +132,23 @@ def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: 
         topic, data, _t = reader.read_next()
         if topic == Topics.MOTOR_DRIVE_SPEED:
             last_drive = float(deserialize_message(data, Float32).data)
+            # COAST: how far the wheel keeps turning after the command
+            # goes to zero. `_guarded_command` budgets `v * tau` -- 35 mm
+            # at the shipped bay speed, 52 mm at 0.15 -- and refuses any
+            # leg it cannot stop inside that. But `tau` is a first-order
+            # lag with NO stiction, and a drivetrain that delivers zero
+            # below 0.11 m/s does not coast like one. Measured here so
+            # the guard's budget can be argued with rather than assumed.
+            now = _t * 1e-9
+            enc_mps = deg_s_to_mps(abs(last_drive))
+            if coast[0] is not None:
+                dt = now - coast[1]
+                if 0.0 < dt < 0.5:
+                    coast[2] += enc_mps * dt
+                if enc_mps <= deg_s_to_mps(STALL_DEG_S) or coast[2] > 0.5:
+                    coasts.append((coast[0], coast[2]))
+                    coast[0] = None
+            coast[1] = now
             continue
         if topic != Topics.NAV_DEBUG or last_drive is None:
             continue
@@ -128,7 +164,20 @@ def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: 
         cmd = snap.commanded_speed_mps
         phase = str(getattr(snap.phase, "value", snap.phase))
         if cmd is None or abs(cmd) < 1e-6:
+            # The command just fell to zero from a moving one: open a
+            # coast window, tagged with the speed it was released from.
+            if last_cmd is not None and last_cmd > 0.02 and coast[0] is None:
+                coast[0] = last_cmd
+                coast[2] = 0.0
+            last_cmd = 0.0
             continue
+        # A coast window is only evidence if the command STAYED at zero. A
+        # command that returns before the wheel stops is the robot being
+        # told to drive again, not a stopping distance -- unfiltered, every
+        # bin at 0.15 and above saturated at the 0.5 m cap because of it.
+        if coast[0] is not None:
+            coast[0] = None
+        last_cmd = abs(cmd)
         enc = abs(last_drive)
         stalled = enc < STALL_DEG_S
 
@@ -187,10 +236,11 @@ def main() -> int:
     episodes: list = []
     phase_ticks: dict[str, int] = defaultdict(int)
     by_phase: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0, 0.0])
+    coasts: list[tuple[float, float]] = []
     grid: dict = defaultdict(lambda: [0, 0])
     for bag in args.bag_dirs:
         try:
-            collect(Path(bag), fine, episodes, phase_ticks, grid, by_phase)
+            collect(Path(bag), fine, episodes, phase_ticks, grid, by_phase, coasts)
         except (OSError, RuntimeError, ValueError) as exc:
             # The archive holds a handful of bags with a truncated or locked
             # metadata file. Every other diag here skips them and says so;
@@ -199,6 +249,34 @@ def main() -> int:
             print(f"!! {Path(bag).name}: {exc}", flush=True)
 
     print()
+    print()
+    print("== -1. HOW FAR DOES IT COAST after the command goes to zero")
+    print(
+        f"  clean coast episodes in the whole archive: {len(coasts)}"
+        " -- a window only counts if the command STAYED at zero until the wheel stopped"
+    )
+    if len(coasts) < _COAST_MIN_EPISODES:
+        print(
+            "  NOT MEASURABLE FROM BAGS. The robot practically never commands a"
+            " sustained zero, so the stopping distance `_guarded_command` budgets"
+            " (`v * SPEED_RESPONSE_TAU_S`) cannot be checked against recorded data"
+            " at all -- it wants a bench test, not more bags."
+        )
+    coast_bins: dict[str, list[float]] = defaultdict(list)
+    for released_at, dist in coasts:
+        coast_bins[f"{round(released_at, 2):.2f}"].append(dist)
+    print(f"  {'released from':>14}{'n':>7}{'coast p50 mm':>15}{'p90 mm':>10}{'v*tau mm':>11}")
+    for key in sorted(coast_bins, key=float):
+        vals = sorted(coast_bins[key])
+        if len(vals) < 15:
+            continue
+        v = float(key)
+        print(
+            f"  {v:>14.2f}{len(vals):>7}{percentile(vals, 0.5) * 1000:>15.1f}"
+            f"{vals[len(vals) * 9 // 10] * 1000:>10.1f}"
+            f"{v * RobotSpecs.SPEED_RESPONSE_TAU_S * 1000:>11.1f}"
+        )
+
     print("== 0. STALL BY PHASE -- the deadband is a drivetrain fact, the phases differ")
     header = f"  {'phase':<18}{'ticks':>8}{'stall%':>9}{'mean cmd':>11}{'mean enc':>11}{'mean |steer|':>14}"
     print(header)
