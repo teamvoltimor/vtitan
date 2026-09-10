@@ -428,6 +428,58 @@ class CorridorFollowerParams(BaseModel):
     backstop), so the reachable stroke, not this bound, is what sizes it.
     """
 
+    BAY_EXIT_GUARD_MIRRORS_REVERSE: bool = Field(
+        default=False, validation_alias=_alias("BAY_EXIT_GUARD_MIRRORS_REVERSE")
+    )
+    """Mirror the lock on the guarded ratchet's reverse leg instead of holding it.
+
+    The wall ratchet holds ONE steering angle across both legs, which only
+    rotates the chassis if the forward arc and the reverse that follows it do
+    not retrace one another. That held while the model turned inside 0.015 m.
+    Against the MEASURED 0.29 m floor
+    (``chassis_has_a_minimum_turn_radius``, shipped in ``72e7172b``) it is
+    false: same lock, same radius, opposite direction is the same arc walked
+    backwards, and the net rotation is zero.
+
+    **That is not a theory, it is the current state of the robot.**
+    ``diag_bay_start.py`` over every committed Obstacles scenario: **16/16 out
+    of the bay at ``72e7172b~1``, 0/16 at ``72e7172b``**, and 0/16 today with
+    the manoeuvre burning 267 forward and 272 reverse legs in 600 ticks for
+    1 cm of net progress. The parallel-start control arm is 16/16 in every one
+    of those runs, so it is this manoeuvre and not general handling. Obstacles
+    DEFAULTS to the in-bay start, so on the shipped configuration the robot
+    cannot begin that round.
+
+    Mirroring is the parallel-parking exit: the two arcs curve opposite ways, so
+    rotation accumulates at ANY turn radius rather than depending on one small
+    enough to pivot in the pocket. It is what ``_cycle_command`` already does,
+    and what ``BAY_EXIT_CYCLE_REVERSE_STEER_NORM`` exists for.
+
+    It is not free. Holding made the servo pause free because both legs asked
+    for the same angle; mirroring swings the full arc at every reversal, and
+    ``_begin_leg`` reinstates that standstill automatically because the budget
+    is computed from the two angles rather than tuned. At full lock that is the
+    whole 2 x MAX_WHEEL_ANGLE_DEG swing per leg.
+
+    Do NOT reach for the turn radius instead. 0.29 m is measured and verified on
+    hardware; the ratchet was tuned against a model that over-rotated 12.7x, so
+    the ratchet is what is wrong.
+
+    **MEASURED AND WORSE. Ships FALSE.** Turning it on moves the chassis
+    **0.05 m** against 0.97 m held, still 0/16 out. The lock convention is not
+    the blocker: at 600 ticks for 267+272 legs the legs are ending after about
+    ONE tick, so the clearance guard is vetoing each one immediately and
+    mirroring only adds a full-lock servo swing to every veto.
+
+    **Where the veto comes from, and it is the thing to fix.** The guard looks a
+    STOPPING DISTANCE ahead -- ``step + v * SPEED_RESPONSE_TAU_S``, about 0.04 m
+    at bay creep -- against an along-wall budget the code puts at 31-57 mm. That
+    lookahead was harmless while full lock traced a 0.015 m radius and the arc
+    was nearly pure rotation; against 0.29 m the same arc TRANSLATES, so a touch
+    is predicted on the first tick of every leg. ``BAY_EXIT_SPEED_SCALE`` is
+    named in ``_guarded_command`` as the lever on exactly this term. Untried.
+    """
+
     BAY_EXIT_ARC_STEER_NORM: float = Field(
         default=1.0, ge=0.0, le=1.0, validation_alias=_alias("BAY_EXIT_ARC_STEER_NORM")
     )

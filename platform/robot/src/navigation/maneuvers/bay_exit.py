@@ -604,7 +604,28 @@ class BayExit:
         # way out. ``BAY_EXIT_CYCLE_REVERSE_STEER_NORM`` deliberately does not
         # appear here: it belongs to ``_cycle_command``, whose reverse leg is a
         # different manoeuvre with a different sign convention.
-        wheel_norm = arc
+        # HOLDING the lock only rotates the chassis if a forward arc and the
+        # reverse that follows it do not retrace one another. That was true
+        # while the model turned inside 0.015 m; against the MEASURED 0.29 m
+        # floor it is false -- same lock, same radius, opposite direction is the
+        # same arc walked backwards, and the net rotation is zero. Measured with
+        # `diag_bay_start.py`: 16/16 out of the bay at 72e7172b~1 against 0/16
+        # at 72e7172b, which shipped the radius, the manoeuvre burning 267
+        # forward and 272 reverse legs for 1 cm of net progress. See
+        # `chassis_has_a_minimum_turn_radius`.
+        #
+        # MIRRORING the reverse is the parallel-parking exit, and it accumulates
+        # rotation at ANY radius because the two arcs curve opposite ways. It
+        # costs the standstill that holding made free -- `_begin_leg` budgets
+        # the swing from the two angles, so a mirrored reverse reinstates the
+        # servo pause automatically, which is exactly why that budget was left
+        # computed rather than tuned.
+        def leg_norm(is_reverse: bool) -> float:
+            """Lock for a leg, mirrored on the reverse when asked."""
+            return -arc if (follower.BAY_EXIT_GUARD_MIRRORS_REVERSE and is_reverse) else arc
+
+        wheel_norm = leg_norm(self._leg_is_reverse)
+        next_norm = leg_norm(not self._leg_is_reverse)
 
         # Slew at a STANDSTILL, as ``_cycle_command`` does. Holding the lock
         # makes it free -- ``_begin_leg`` budgets zero ticks when both legs ask
@@ -639,7 +660,7 @@ class BayExit:
                 travelled_m=travelled_m,
                 tuning=tuning,
                 from_norm=wheel_norm * sign,
-                to_norm=wheel_norm * sign,
+                to_norm=next_norm * sign,
             )
             self._cycles += 1
             return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
@@ -695,7 +716,7 @@ class BayExit:
                 travelled_m=travelled_m,
                 tuning=tuning,
                 from_norm=wheel_norm * sign,
-                to_norm=wheel_norm * sign,
+                to_norm=next_norm * sign,
             )
             self._guard_flips += 1
             self._cycles += 1
