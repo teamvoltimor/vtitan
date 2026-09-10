@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cross-compile the static Go robot binaries and ship them to a target Pi,
-# alongside the profile TOMLs. No pixi/conda/ROS2 involved -- pure static
-# binary + systemd.
+# alongside the shared TOML config tree. No pixi/conda/ROS2 involved -- pure
+# static binary + systemd.
 #
 # Run this FROM a dev machine (Windows/Git Bash, Linux or macOS). It only needs
 # Go locally and SSH/scp to the Pi.
@@ -9,8 +9,16 @@
 # Why it exists (each step removed a real failure mode on hardware):
 #   * CGO_ENABLED=0 keeps the binary self-contained; a glibc-linked binary
 #     silently fails to exec on a Pi whose libc predates the build host's.
-#   * Profiles are gitignored-runtime config, so copying them explicitly (not
-#     relying on a git pull) avoids the Pi running a stale/missing profile.
+#   * This deploy has no git checkout on the Pi at all (that's what
+#     vtitan-robot@go differs from vtitan-robot@python for), so the
+#     Default*TOMLPath constants in internal/config/profile/*.go -- all
+#     "src/config/..." relative to a repo root -- resolve against nothing
+#     unless src/config/ is copied here explicitly and the binary is told
+#     to look in INSTALL_DIR via --config-root (see the systemd units).
+#     Before this, ConfigFor()/profile.Load() silently returned Go's
+#     hardcoded defaults on every real deploy -- confirmed missing during
+#     the 2026-09-10 src/config consolidation, not something that used to
+#     work and regressed.
 #   * Per-binary copy keeps systemd unit paths stable regardless of how many
 #     cmd/* packages exist.
 #
@@ -32,7 +40,9 @@ TARGET_HOST="${TARGET_HOST:-${1:-rpi-5-local}}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/vtitan-go}"
 STAGING_DIR="${STAGING_DIR:-$GO_ROOT/dist}"
 BIN_DIR="$STAGING_DIR/bin"
-PROFILE_SRC="$GO_ROOT/configs/profiles"
+# src/config, a sibling of src/go (this module) and src/python -- the single
+# shared TOML root the Default*TOMLPath constants are relative to.
+CONFIG_SRC="$GO_ROOT/../config"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[build-go] $*"; }
@@ -49,22 +59,24 @@ mkdir -p "$BIN_DIR"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$BIN_DIR/" ./cmd/...
 log "  built: $(ls -1 "$BIN_DIR" | tr '\n' ' ')"
 
-# 2. Stage the profile TOMLs.
-log "Staging profile TOMLs from $PROFILE_SRC..."
-mkdir -p "$STAGING_DIR/configs/profiles"
-if compgen -G "$PROFILE_SRC/*.toml" >/dev/null; then
-  cp "$PROFILE_SRC"/*.toml "$STAGING_DIR/configs/profiles/"
-  log "  copied: $(ls -1 "$STAGING_DIR/configs/profiles" | tr '\n' ' ')"
+# 2. Stage the shared TOML config tree, at the same "src/config" relative
+#    path the Default*TOMLPath constants expect under --config-root.
+log "Staging config from $CONFIG_SRC..."
+rm -rf "$STAGING_DIR/src/config"
+mkdir -p "$STAGING_DIR/src"
+if [ -d "$CONFIG_SRC" ]; then
+  cp -r "$CONFIG_SRC" "$STAGING_DIR/src/config"
+  log "  copied: $(find "$STAGING_DIR/src/config" -name '*.toml' | wc -l | tr -d ' ') TOML files"
 else
-  log "  (no .toml files found; profile dir left empty)"
+  die "config source not found: $CONFIG_SRC"
 fi
 
 # 3. Ship to the Pi.
 log "Transferring to $TARGET_HOST:$INSTALL_DIR ..."
-ssh "${SSH_OPTS[@]}" "$TARGET_HOST" "sudo mkdir -p '$INSTALL_DIR/bin' '$INSTALL_DIR/configs/profiles' \
+ssh "${SSH_OPTS[@]}" "$TARGET_HOST" "sudo mkdir -p '$INSTALL_DIR/bin' '$INSTALL_DIR/src/config' \
   && sudo chown -R __TARGET_USER__:__TARGET_USER__ '$INSTALL_DIR'"
 scp "${SSH_OPTS[@]}" -q -r "$BIN_DIR/." "$TARGET_HOST:$INSTALL_DIR/bin/"
-scp "${SSH_OPTS[@]}" -q -r "$STAGING_DIR/configs/profiles/." "$TARGET_HOST:$INSTALL_DIR/configs/profiles/"
+scp "${SSH_OPTS[@]}" -q -r "$STAGING_DIR/src/config/." "$TARGET_HOST:$INSTALL_DIR/src/config/"
 ssh "${SSH_OPTS[@]}" "$TARGET_HOST" "sudo chmod 755 '$INSTALL_DIR/bin/'* 2>/dev/null || true"
 log "  transfer complete"
 

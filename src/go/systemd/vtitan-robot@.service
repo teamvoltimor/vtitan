@@ -18,14 +18,14 @@ Group=__TARGET_USER__
 # Sourced for STACK-specific env (ROS_DOMAIN_ID, DRIVE_BACKEND, motor pins, ...).
 EnvironmentFile=-/opt/vtitan-go/.env
 # Transport-agnostic pre-steps.
-ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/provisioning/wait-for-gadget-link.sh
+ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/src/python/scripts/provisioning/wait-for-gadget-link.sh
 ExecStartPre=+/usr/bin/systemctl restart vtitan-lidar.service
 # Branch on %i.
 ExecStart=/bin/sh -c '\
   case "%i" in \
     python) export PATH="__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin"; \
             exec __TARGET_HOME__/.pixi/bin/pixi run --as-is -e dev launch-rpi5 ;; \
-    go)     cd /opt/vtitan-go && exec /opt/vtitan-go/bin/pi5 ;; \
+    go)     cd /opt/vtitan-go && exec /opt/vtitan-go/bin/pi5 --config-root=/opt/vtitan-go ;; \
     *)      echo "unknown STACK %i" >&2; exit 1 ;; \
   esac'
 Restart=on-failure

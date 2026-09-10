@@ -9,8 +9,13 @@ these are the **manual on-device steps** an operator runs. Do NOT push from CI.
 - Binaries produced (11): `motor-node`, `imu-node`, `lidar-node`, `navigator`?
   Actual: `bench-harness` `foxglove-bridge` `imu-node` `lidar-node` `motor-node`
   `pi-zero` `pi5` `sim-runner` `state-machine` `telemetry-node` `track-navigator`.
-- `scripts/provisioning/build-go.sh` stages + ships `configs/profiles/*.toml`
-  (lines 52-60) and copies them to `$INSTALL_DIR/configs/profiles` on the Pi.
+- `scripts/provisioning/build-go.sh` stages + ships the whole `src/config/`
+  tree to `$INSTALL_DIR/src/config` on the Pi (updated 2026-09-10: it used
+  to stage only `configs/profiles/*.toml`, a directory that only ever held
+  `.gitkeep`, so the binaries silently ran on Go's hardcoded defaults on
+  every real deploy). The systemd units now also pass
+  `--config-root=/opt/vtitan-go` on ExecStart -- without it, `ConfigFor()`
+  returns `DefaultConfig()` unconditionally regardless of what's staged.
 - Motor-safety: `cmd/motor-node` (shared by `cmd/pi-zero`) calls
   `driver.Close()` → `forceGPIOLow` (driver.go:203) on SIGINT/SIGTERM via
   `signal.NotifyContext` (main.go:142). Defense-in-depth: `vtitan-go-pi-zero.service`
@@ -18,10 +23,12 @@ these are the **manual on-device steps** an operator runs. Do NOT push from CI.
   Both layers present.
 
 ## Config drift check (pre-flip)
-- Go `profile` package TOMLs are loaded from `configs/profiles/` (deploy copies them).
-  Note: `configs/profiles/` currently holds only `.gitkeep` - the live profile values
-  are embedded via `internal/config/profile/*.go` + viper. Confirm your deployment
-  overlays are present before flipping.
+- Go `profile` package TOMLs are loaded from `src/config/` (deploy copies the
+  whole tree; `internal/config/profile/*.go`'s `Default*TOMLPath` constants
+  are each `src/config/...`, joined with `--config-root` at runtime). Confirm
+  `VTITAN_HARDWARE_PROFILE` is set (env or `.env` on the Pi) so the active
+  profile overlay under `src/config/profiles/<name>/` actually applies -- an
+  unset profile silently means base config only, same as the Python stack.
 - Unported sim fields (drift, expected - harness §5a not yet consuming them):
   `start_collision_window_s`, `start_collision_grace_s`, `lidar_invalid_ray_rate`,
   `detection_confidence`. Rule these out in any parity comparison.
