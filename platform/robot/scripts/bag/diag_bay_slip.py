@@ -141,6 +141,26 @@ def _phase_windows(rows: list[tuple[float, object]], phase: str) -> list[tuple[f
     return [(a, b) for a, b in spans if b > a]
 
 
+_SETTLED_TOLERANCE_RAD = math.radians(5.0)
+"""How far the command may have moved over the settle window and still count.
+
+NOT zero: pure pursuit rewrites the angle every control tick, so an exact-match
+test admits nothing at all. What matters physically is whether the command is
+MOVING FAST -- the servo slews at a finite rate and its feedback is the command
+echoed back, so a fast-moving command means the wheel is somewhere behind it and
+the achieved radius reads wider than the lock implies."""
+
+
+def _command_settled(commands: list[tuple[float, float]], t: float, settled_s: float) -> bool:
+    """Whether the steering command stayed within a few degrees of its value at ``t``."""
+    now = _sample_at(commands, t)
+    if now is None:
+        return False
+    return all(
+        abs(v - now) <= _SETTLED_TOLERANCE_RAD for a, v in commands if t - settled_s <= a <= t
+    )
+
+
 def _travel_between(speeds: list[tuple[float, float]], t0: float, t1: float) -> float:
     """Wheel distance covered over ``[t0, t1]``, integrating the speed series.
 
@@ -179,7 +199,7 @@ def _in_any(spans: list[tuple[float, float]], t0: float, t1: float) -> bool:
 
 
 def _run_samples(
-    bag_dir: Path, phase: str = BAY_PHASE, window_s: float = 0.0
+    bag_dir: Path, phase: str = BAY_PHASE, window_s: float = 0.0, settled_s: float = 0.0
 ) -> tuple[list[tuple[float, float, float, float, float, float]], float, float, float, tuple[float, float, float]]:
     """Samples plus the STALLED-tick yaw control.
 
@@ -217,6 +237,14 @@ def _run_samples(
         speed = _sample_at(speeds, t0)
         wheel = _sample_at(streams.cmd_steer_rad, t0)
         if speed is None or wheel is None:
+            continue
+        # The servo SLEWS, and `steer_pos_deg` is the command echoed back
+        # (`MotionStreams`), so the real wheel angle during a transient is not
+        # recorded anywhere. A window opened just after a steering change is
+        # therefore driving at LESS lock than the command says, which inflates
+        # the radius. `--settled-s` drops those; if the curve moves when it is
+        # raised, the curve was reading servo lag rather than the chassis.
+        if settled_s > 0.0 and not _command_settled(streams.cmd_steer_rad, t0, settled_s):
             continue
         travel = _travel_between(speeds, t0, t1)
         # NET delta across the window, not the sum of the sub-steps inside it.
@@ -383,6 +411,14 @@ def main() -> None:
         "0 uses the raw ~166 Hz rate, where summing |yaw| accumulates noise rather than "
         "cancelling it and understates the radius by ~19%%.",
     )
+    parser.add_argument(
+        "--settled-s",
+        type=float,
+        default=0.0,
+        help="require the steering COMMAND to have been unchanged this long before the window. "
+        "The servo slews and its feedback is the command echoed back, so a window taken during "
+        "a transient runs at less lock than commanded and reads too wide.",
+    )
     args = parser.parse_args()
 
     headers = ("run", "ticks", "travel m", "turned deg", "R_eff m", "R_eff/R_model")
@@ -404,7 +440,7 @@ def main() -> None:
         if not samples:
             continue
         pooled.extend(samples)
-        control.extend(_run_samples(bag_dir, args.control_phase, args.window_s)[0])
+        control.extend(_run_samples(bag_dir, args.control_phase, args.window_s, args.settled_s)[0])
         noise_yaw += stalled_yaw
         noise_s += stalled_s
         driven_s += run_driven_s

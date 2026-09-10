@@ -164,14 +164,19 @@ class Drivetrain(BaseModel):
     max_accel_mps2: float
     rear_steer_ratio: float
 
-    min_turn_radius_intercept_m: float = 0.055
+    min_turn_radius_intercept_m: float = 0.053
     """Turn-radius floor extrapolated to zero speed (m). See ``min_turn_radius_m``."""
 
-    min_turn_radius_slope_s: float = 2.0
+    min_turn_radius_slope_s: float = 1.86
     """How fast the floor grows with speed (m per m/s). See ``min_turn_radius_m``."""
 
-    min_turn_radius_cap_m: float = 0.43
-    """Floor the speed curve saturates at (m). See ``min_turn_radius_m``."""
+    min_turn_radius_cap_m: float = 0.35
+    """Bound on the speed curve (m). NOT MEASURED -- see ``min_turn_radius_m``.
+
+    At full lock the chassis is slow by definition, because it slows down to
+    turn, so the saturation is not observable in the bags at all. This is the
+    largest value the measured range (up to ~0.17 m/s) supports, carried so the
+    linear term cannot run away. Above that speed the curve is extrapolation."""
 
     min_turn_radius_m: float = 0.29
     """Tightest turn radius the chassis can actually make (m). 0 disables the floor.

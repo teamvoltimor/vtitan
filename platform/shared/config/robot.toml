@@ -133,23 +133,39 @@ min_turn_radius_m = 0.29
 
 # The floor is NOT A CONSTANT, and the 0.29 above is its value at ONE speed.
 # RE-MEASURED 2026-09-10 (scripts/bag/diag_bay_slip.py, 33 bags, free space,
-# lock >= 30 deg, 0.10 s windows, IMU yaw):
+# lock >= 30 deg, IMU yaw). Stable across --window-s 0.02..0.20 AND
+# --settled-s 0..0.8, which is what makes these four points the finding:
 #
-#   mean speed m/s   0.025  0.079  0.132  0.168  0.227  0.270  0.324
-#   R achieved m     0.105  0.202  0.298  0.391  0.412  0.445  0.429
+#   speed m/s   0.02   0.08   0.13   0.16
+#   R m         0.090  0.205  0.287  0.349
 #
-# so the chassis turns tighter the slower it goes, rising ~2.0 m per m/s from a
-# 0.055 m intercept and saturating near 0.43 m. 0.29 is what that curve reads at
-# 0.118 m/s, which is roughly corridor speed -- and the bay exit runs at CREEP
-# end to end, where the constant is nearly 2x too large. That is why 72e7172b
-# took the in-bay exit from 16/16 to 0/16 while hardware kept getting out.
+# i.e. R = 0.053 + 1.86 * v, and 0.29 is what that reads at ~0.127 m/s. The bay
+# exit runs at CREEP end to end, where the constant is nearly 2x too large --
+# which is why 72e7172b took the in-bay exit from 16/16 to 0/16 while hardware
+# kept getting out.
+#
+# THE CAP IS NOT MEASURED. Above ~0.17 m/s the bins fall to n=20-37 and go
+# non-monotonic (0.349 at 0.16 m/s, then 0.285 at 0.22), and that is structural
+# rather than a sampling accident: at full lock the robot is SLOW by definition,
+# because it slows down to turn. The saturation cannot be read from these bags
+# at all. 0.35 below is the largest value the measured range supports, carried
+# as a bound so the linear term cannot run away -- not a measurement. The OPEN
+# challenge runs at 0.26-0.50 m/s, entirely outside the measured range, so for
+# the corridor this curve is EXTRAPOLATION. It is inside it for the bay.
+#
+# Two corrections are already baked in, both found by testing the instrument:
+# the numbers are NET yaw over a window (summing |yaw| at the IMU's 166 Hz
+# accumulates noise and read 0.088 where this reads 0.29), and they require the
+# steering COMMAND to be steady, because the servo slews and its feedback is
+# the command echoed back -- unfiltered, corner-entry transients inflated the
+# top of the curve from 0.35 to 0.43.
 #
 # The 2026-09-07 numbers above were taken against POSE yaw. Measured on one time
 # base, pose yaw sees 0.66x the rotation the IMU does, so a radius taken against
 # it is ~1.5x overstated; treat that table as the shape, not the scale.
-min_turn_radius_intercept_m = 0.055
-min_turn_radius_slope_s = 2.0
-min_turn_radius_cap_m = 0.43
+min_turn_radius_intercept_m = 0.053
+min_turn_radius_slope_s = 1.86
+min_turn_radius_cap_m = 0.35
 
 [lidar]
 # Closest range the C1 can report (m). Measured ~45 mm; anything nearer is
