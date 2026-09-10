@@ -44,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import RobotSpecs  # noqa: E402
 
 from scripts.common.bag_io import create_bags_parser, decode_scan, elapsed_seconds, open_reader  # noqa: E402
+from scripts.common.episodes import reversing_spans
 from scripts.common.tables import print_table  # noqa: E402
 
 REAR_OVERHANG_M = 0.272
@@ -96,28 +97,21 @@ def _rear_room(ranges: list[float], angles: list[float]) -> float | None:
 
 def _episodes(run: str, rows: list, scans: list) -> list[Episode]:
     """Split a run's ticks into reversing episodes and reduce each."""
-    out: list[Episode] = []
-    start: tuple[float, float] | None = None  # (time, yaw)
-    last: tuple[float, float] | None = None
-    room: float | None = None
+    spans = reversing_spans(rows)
     scan_i = 0
-
-    for rel, d in rows:
-        speed = d.maneuver_speed_mps
-        reversing = speed is not None and speed < 0.0
-        if reversing and start is None:
-            start = (rel, d.pose_yaw if d.pose_yaw is not None else 0.0)
-            while scan_i + 1 < len(scans) and scans[scan_i + 1][0] <= rel:
-                scan_i += 1
-            if scans:
-                scan = scans[min(scan_i, len(scans) - 1)][1]
-                room = _rear_room(list(scan.ranges_m), list(scan.angles_rad))
-        if reversing:
-            last = (rel, d.pose_yaw if d.pose_yaw is not None else 0.0)
-        elif start is not None and last is not None:
-            turned = math.degrees(abs(math.atan2(math.sin(last[1] - start[1]), math.cos(last[1] - start[1]))))
-            out.append(Episode(run, last[0] - start[0], turned, room))
-            start, last, room = None, None, None
+    out: list[Episode] = []
+    for span in spans:
+        # The scan the episode STARTED on -- the last scan at or before its
+        # first reversing tick -- is where the rear room was read. Pointer
+        # walk keeps the original monotonic lookup.
+        while scan_i + 1 < len(scans) and scans[scan_i + 1][0] <= span.t_start:
+            scan_i += 1
+        if scans:
+            scan = scans[min(scan_i, len(scans) - 1)][1]
+            room = _rear_room(list(scan.ranges_m), list(scan.angles_rad))
+        else:
+            room = None
+        out.append(Episode(run, span.t_last - span.t_start, span.turned_deg, room))
     return out
 
 

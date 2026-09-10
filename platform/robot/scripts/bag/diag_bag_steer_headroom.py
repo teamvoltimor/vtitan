@@ -25,7 +25,14 @@ from rclpy.serialization import deserialize_message
 from shared.config.navigation_tuning import NavigationTuning
 from std_msgs.msg import String
 
-from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.bag_io import (
+    Topics,
+    append_if_changed,
+    create_bag_parser,
+    decode_nav_debug,
+    elapsed_seconds,
+    open_reader,
+)
 from scripts.common.stats import percentile
 from scripts.common.tables import print_table
 
@@ -54,9 +61,7 @@ def main() -> None:
             t_start = t
         ts = elapsed_seconds(t, t_start)
         if topic == Topics.ROBOT_STATE:
-            msg = deserialize_message(data, String)
-            if not states or states[-1][1] != msg.data:
-                states.append((ts, msg.data))
+            append_if_changed(states, ts, deserialize_message(data, String).data)
         elif topic == Topics.NAV_DEBUG:
             rows.append((ts, decode_nav_debug(data)))
 

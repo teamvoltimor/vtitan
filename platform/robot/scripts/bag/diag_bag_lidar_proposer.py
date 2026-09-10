@@ -107,16 +107,16 @@ from scripts.common.bag_io import (
     open_reader,
 )
 from scripts.common.lidar_clusters import (
-    ProposerParams,
     Track,
     associate,
     corridor_walls,
     find_clusters,
+    proposer_params_from_args,
     to_world,
     wall_distance,
     width_of,
 )
-from scripts.common.stats import nearest_by_time, percentile
+from scripts.common.stats import fmt_p50_p90, nearest_by_time
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -193,37 +193,6 @@ def read_run(
     return scans, rows, dets
 
 
-def _fmt(values: Sequence[float], unit: str = "m") -> str:
-    """`p50 / p90` for a sample, or a placeholder when it is empty."""
-    if not values:
-        return "    --     "
-    return f"{percentile(values, 0.5):.2f} / {percentile(values, 0.9):.2f} {unit}"
-
-
-
-def _params(args: argparse.Namespace) -> ProposerParams:
-    """The shipped detector's parameters, driven by this diagnostic's flags.
-
-    Built from `args` rather than taken as defaults so a sweep can move one knob
-    without editing the robot -- but it is the ROBOT'S dataclass, so a field
-    added there cannot be silently missed here.
-    """
-    return ProposerParams(
-        min_range_m=args.min_range,
-        max_range_m=args.max_range,
-        depth_m=args.depth,
-        isolation_m=args.isolation,
-        min_chord_m=args.min_chord,
-        max_chord_m=args.max_chord,
-        wall_window_deg=args.wall_window_deg,
-        max_wall_range_m=args.max_wall_m,
-        corridor_width_m=args.corridor_width_m,
-        width_tol_m=args.width_tol_m,
-        lattice_offset_m=args.lattice_offset_m,
-        lattice_tol_m=args.lattice_tol_m,
-    )
-
-
 def build_tracks(
     scans: Sequence[tuple[float, LidarScan]],
     rows: Sequence[tuple[float, NavigatorDebugSnapshot]],
@@ -231,7 +200,7 @@ def build_tracks(
 ) -> tuple[list[Track], int]:
     """World-associated LIDAR tracks, plus the raw cluster count they came from."""
     series, times = pose_series(rows)
-    params = _params(args)
+    params = proposer_params_from_args(args)
     observations: list[tuple[float, float, float, float, float, float | None, float | None]] = []
     raw = 0
     for t, scan in scans:
@@ -395,16 +364,16 @@ def main() -> None:
         print(
             f"{run_dir.name:<22} {len(scans):>6} {raw:>6} {len(tracks):>5} {len(persistent):>7} "
             f"{len(stable):>6} {len(confirmed):>5} {len(cams):>4}  "
-            f"{_fmt([t.first_range_m for t in stable]):>15}  {_fmt([c.first_range_m for c in cams]):>16}  "
-            f"{_fmt(leads)}"
+            f"{fmt_p50_p90([t.first_range_m for t in stable]):>15}  {fmt_p50_p90([c.first_range_m for c in cams]):>16}  "
+            f"{fmt_p50_p90(leads)}"
         )
 
     _print_summary(totals, all_leads, args)
     print()
     print("INSTRUMENT CHECK -- is the wall estimate trustworthy at all?")
-    print(f"  measured corridor width:           {_fmt(corridor_widths)}   (known truth: 1.00 m)")
-    print(f"  wall dist, camera-CONFIRMED:       {_fmt(wall_confirmed)}   (prior predicts ~{args.lattice_offset_m:.2f} m)")
-    print(f"  wall dist, UNCONFIRMED:            {_fmt(wall_unconfirmed)}")
+    print(f"  measured corridor width:           {fmt_p50_p90(corridor_widths)}   (known truth: 1.00 m)")
+    print(f"  wall dist, camera-CONFIRMED:       {fmt_p50_p90(wall_confirmed)}   (prior predicts ~{args.lattice_offset_m:.2f} m)")
+    print(f"  wall dist, UNCONFIRMED:            {fmt_p50_p90(wall_unconfirmed)}")
 
 
 def _print_summary(totals: dict[str, int], all_leads: Sequence[float], args) -> None:  # noqa: ANN001
@@ -419,7 +388,7 @@ def _print_summary(totals: dict[str, int], all_leads: Sequence[float], args) -> 
           f"   ({_pct(totals['confirmed_unfiltered'], totals['persist'])} -- if this matches, the filter is inert)")
     print(f"camera tracks with a LIDAR proposal: {totals['recalled']}/{totals['cam']}"
           f"   ({_pct(totals['recalled'], totals['cam'])} recall)")
-    print(f"lead in first-detection range:       {_fmt(all_leads)}")
+    print(f"lead in first-detection range:       {fmt_p50_p90(all_leads)}")
     print()
     print(f"LATTICE filter ({args.lattice_offset_m:.2f} +/- {args.lattice_tol_m:.2f} m from the nearer wall),")
     print("applied to the persistent tracks directly, NOT stacked on the shape filter:")

@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows  # noqa: E402
+from scripts.common.episodes import reversing_spans
 from scripts.common.tables import print_table  # noqa: E402
 
 IMMEDIATE_S = 1.0
@@ -59,30 +60,13 @@ class Aftermath:
 
 def _episodes(run: str, rows: list) -> list[Aftermath]:
     """Reduce each reversing episode to the state it left behind."""
+    spans = reversing_spans(rows)
     out: list[Aftermath] = []
-    start: tuple[float, float, float, float] | None = None  # t, yaw, x, y
-    last = None
-    ends: list[tuple[float, float, float, float, float]] = []  # t, clr, x, y, rot
-
-    for rel, d in rows:
-        speed = d.maneuver_speed_mps
-        reversing = speed is not None and speed < 0.0
-        yaw = d.pose_yaw if d.pose_yaw is not None else 0.0
-        x = d.pose_x if d.pose_x is not None else 0.0
-        y = d.pose_y if d.pose_y is not None else 0.0
-        if reversing and start is None:
-            start = (rel, yaw, x, y)
-        if reversing:
-            last = (rel, yaw, x, y)
-        elif start is not None and last is not None:
-            turned = math.degrees(abs(math.atan2(math.sin(last[1] - start[1]), math.cos(last[1] - start[1]))))
-            ends.append((rel, d.forward_clearance_m, x, y, turned))
-            start, last = None, None
-
-    for i, (t_end, clearance, x, y, turned) in enumerate(ends):
-        gap = ends[i + 1][0] - t_end if i + 1 < len(ends) else None
-        moved = math.hypot(ends[i + 1][2] - x, ends[i + 1][3] - y) if i + 1 < len(ends) else 0.0
-        out.append(Aftermath(run, clearance, gap, moved, turned))
+    for i, span in enumerate(spans):
+        nxt = spans[i + 1] if i + 1 < len(spans) else None
+        gap = nxt.t_end - span.t_end if nxt else None
+        moved = math.hypot(nxt.end_x - span.end_x, nxt.end_y - span.end_y) if nxt else 0.0
+        out.append(Aftermath(run, span.end_row.forward_clearance_m, gap, moved, span.turned_deg))
     return out
 
 

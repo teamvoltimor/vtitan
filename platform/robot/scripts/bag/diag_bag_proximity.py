@@ -29,6 +29,7 @@ from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 
 from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.episodes import split_by_gap
 from scripts.common.tables import print_table
 
 if TYPE_CHECKING:
@@ -61,19 +62,6 @@ def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], li
     return ticks, scans
 
 
-def _episodes(
-    flagged: list[tuple[float, NavigatorDebugSnapshot]], gap_s: float = 0.5
-) -> list[list[tuple[float, NavigatorDebugSnapshot]]]:
-    """Group consecutive flagged ticks separated by less than ``gap_s``."""
-    out: list[list[tuple[float, NavigatorDebugSnapshot]]] = []
-    for item in flagged:
-        if out and item[0] - out[-1][-1][0] <= gap_s:
-            out[-1].append(item)
-        else:
-            out.append([item])
-    return out
-
-
 def main() -> None:
     """Print the proximity review for the bag named on the command line."""
     parser = create_bag_parser("TODO: add description")
@@ -98,7 +86,7 @@ def main() -> None:
 
     print(f"\n--- slowdown episodes (< {args.slow_below} m/s, forward motion only) ---")
     slow = [(t, d) for t, d in driving if 0.0 < (d.commanded_speed_mps or 1.0) < args.slow_below]
-    eps = [e for e in _episodes(slow) if e[-1][0] - e[0][0] >= args.min_episode_s]
+    eps = [e for e in split_by_gap(slow) if e[-1][0] - e[0][0] >= args.min_episode_s]
     print(f"{len(eps)} episode(s) lasting >= {args.min_episode_s}s")
     rows = []
     for e in eps[:14]:
@@ -132,7 +120,7 @@ def main() -> None:
 
     print("\n--- escape / recovery timeline ---")
     esc = [(t, d) for t, d in driving if (d.escape_count or 0) > 0]
-    for e in _episodes(esc, gap_s=2.0)[:12]:
+    for e in split_by_gap(esc, gap_s=2.0)[:12]:
         t0, t1 = e[0][0], e[-1][0]
         peak = max(d.escape_count or 0 for _, d in e)
         kinds = {d.active_maneuver_type for _, d in e if d.active_maneuver_type}

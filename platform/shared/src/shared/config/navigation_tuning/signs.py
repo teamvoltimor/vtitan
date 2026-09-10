@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+from dataclasses import fields
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -641,6 +643,30 @@ class SignRouterParams(BaseModel):
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
     COMMIT_HYSTERESIS: bool = Field(default=True, validation_alias=_alias("COMMIT_HYSTERESIS"))
     CORRIDOR_FLIP_TICKS: int = Field(default=1, ge=1, validation_alias=_alias("CORRIDOR_FLIP_TICKS"))
+
+    def resolve_unset(self, target: Any, *, prefix: str = "") -> None:
+        """Fill every ``None`` field of a tuning-mirror dataclass from this group.
+
+        Convention-driven so the mapping itself has no copy to keep in step:
+        a target field ``activation_dist`` reads ``ACTIVATION_DIST_M`` and one
+        named ``depth_pin`` reads ``DEPTH_PIN``; mirrors nested under a tuning
+        sub-prefix pass ``prefix`` (e.g. ``"SIGN_LANE_"`` for
+        ``SignLaneParams``). A ``None`` field matching neither spelling raises
+        instead of being skipped, mirroring the getattr failure that made a
+        renamed tunable loud rather than letting a default quietly stop
+        tracking the TOML.
+        """
+        for field in fields(type(target)):
+            if getattr(target, field.name) is not None:
+                continue
+            name = prefix + field.name.upper()
+            for attr in (name, f"{name}_M"):
+                if hasattr(self, attr):
+                    object.__setattr__(target, field.name, getattr(self, attr))
+                    break
+            else:
+                msg = f"{type(target).__name__}.{field.name} resolved no default from {type(self).__name__}"
+                raise AttributeError(msg)
 
     def sign_contact_steer_norm(self) -> float:
         """Sign-evade steering as the normalised command the actuator takes.

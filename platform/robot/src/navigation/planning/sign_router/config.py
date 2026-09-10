@@ -8,7 +8,7 @@ carries them to helper functions. Pure-Python, no ROS2, unit-testable.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
 
 from shared.config.constants import TrafficSignSpecs
@@ -25,21 +25,6 @@ if TYPE_CHECKING:
 # corridor edge. See navigation.geometry.chassis_half_diagonal_m for why it's the
 # diagonal, not the half-width.
 CHASSIS_HALF_DIAGONAL = chassis_half_diagonal_m()
-
-_PARAM_FIELDS: dict[str, str] = {
-    "activation_dist": "ACTIVATION_DIST_M",
-    "passed_dist": "PASSED_DIST_M",
-    "depth_pin": "DEPTH_PIN",
-    "detection_match_dist": "DETECTION_MATCH_DIST_M",
-    "min_confidence": "MIN_CONFIDENCE",
-    "commit_hysteresis": "COMMIT_HYSTERESIS",
-    "corridor_flip_ticks": "CORRIDOR_FLIP_TICKS",
-    "settle_ticks": "SETTLE_TICKS",
-}
-"""Field name in ``SignRouterConfig`` to the ``SignRouterParams`` attribute
-whose value it mirrors: one entry per auto-resolved default, so a parameter
-renamed in tuning fails the getattr here instead of rotting into a second
-code copy of the value."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,10 +156,9 @@ class SignRouterConfig:
                 CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
             )
             object.__setattr__(self, "lateral_offset", default_offset)
-        if unset_fields := [name for name in _PARAM_FIELDS if getattr(self, name) is None]:
+        if any(getattr(self, f.name) is None for f in fields(self)):
             params = get_tuning(None).sign_router
-            for name in unset_fields:
-                object.__setattr__(self, name, getattr(params, _PARAM_FIELDS[name]))
+            params.resolve_unset(self)
         if self.activation_dist >= self.passed_dist:
             msg = (
                 f"activation_dist ({self.activation_dist}) must be < passed_dist "

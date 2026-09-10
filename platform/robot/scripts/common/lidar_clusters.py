@@ -27,6 +27,7 @@ from src.navigation.planning.lidar_proposer import (
 )
 
 if TYPE_CHECKING:
+    import argparse
     from collections.abc import Sequence
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "associate",
     "corridor_walls",
     "find_clusters",
+    "proposer_params_from_args",
     "to_world",
     "wall_distance",
     "width_of",
@@ -143,5 +145,28 @@ def associate(
 def width_of(walls: tuple[float, float] | None) -> float | None:
     """Measured corridor width, for auditing the wall estimate against the known 1.0 m."""
     return None if walls is None else walls[0] + walls[1]
+
+
+def proposer_params_from_args(args: argparse.Namespace) -> ProposerParams:
+    """The shipped detector's parameters, driven by this diagnostic's flags.
+
+    Built from ``args`` rather than taken as defaults so a sweep can move one
+    knob without editing the robot -- but it is the ROBOT'S dataclass, so a field
+    added there cannot be silently missed here.
+    """
+    return ProposerParams(
+        min_range_m=args.min_range,
+        max_range_m=args.max_range,
+        depth_m=args.depth,
+        isolation_m=args.isolation,
+        min_chord_m=args.min_chord,
+        max_chord_m=args.max_chord,
+        wall_window_deg=args.wall_window_deg,
+        max_wall_range_m=args.max_wall_m,
+        corridor_width_m=args.corridor_width_m,
+        width_tol_m=args.width_tol_m,
+        lattice_offset_m=args.lattice_offset_m,
+        lattice_tol_m=args.lattice_tol_m,
+    )
 
 

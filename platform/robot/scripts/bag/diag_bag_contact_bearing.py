@@ -44,6 +44,7 @@ from sensor_msgs.msg import LaserScan
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, decode_scan, open_reader
+from scripts.common.binning import half_open_bin
 from scripts.common.stats import percentile
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
@@ -76,10 +77,8 @@ BEARING_EDGES = (0, 15, 30, 45, 60, 75, 90, 120, 180)
 
 
 def _band(deg: float) -> str:
-    for lo, hi in zip(BEARING_EDGES, BEARING_EDGES[1:]):
-        if lo <= deg < hi:
-            return f"{lo:>3}-{hi:<3}"
-    return "180+"
+    span = half_open_bin(deg, BEARING_EDGES)
+    return f"{span[0]:>3}-{span[1]:<3}" if span else "180+"
 
 
 def analyse(bag_dir: Path) -> tuple[int, int, Counter, list[float]]:

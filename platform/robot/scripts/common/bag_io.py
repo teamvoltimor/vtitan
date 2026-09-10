@@ -373,3 +373,15 @@ def create_bags_parser(
     return parser
 
 
+def append_if_changed[T](timeline: list[tuple[float, T]], ts: float, value: T) -> None:
+    """Record ``(ts, value)`` on a transition timeline when ``value`` differs from the last entry.
+
+    The ROBOT_STATE / current_corridor / direction transition accumulators four
+    diag scripts hand-rolled line by line; one helper so a timeline stamped
+    half-open (first change at its own message, every subsequent one on the
+    transition tick) is defined once.
+    """
+    if not timeline or timeline[-1][1] != value:
+        timeline.append((ts, value))
+
+

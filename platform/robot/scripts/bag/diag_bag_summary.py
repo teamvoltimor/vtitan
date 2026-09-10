@@ -16,7 +16,14 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
-from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.bag_io import (
+    Topics,
+    append_if_changed,
+    create_bag_parser,
+    decode_nav_debug,
+    elapsed_seconds,
+    open_reader,
+)
 from scripts.common.tables import print_table
 
 
@@ -46,8 +53,7 @@ def main() -> None:
 
         if topic == Topics.ROBOT_STATE:
             msg = deserialize_message(data, String)
-            if not state_transitions or state_transitions[-1][1] != msg.data:
-                state_transitions.append((ts, msg.data))
+            append_if_changed(state_transitions, ts, msg.data)
         elif topic == Topics.NAV_DEBUG:
             snap = decode_nav_debug(data)
             if nav_debug_first is None:
@@ -55,11 +61,11 @@ def main() -> None:
             nav_debug_last = (ts, snap)
             # "section" == current_corridor (a Section value: north/south/east/west).
             sect = snap.current_corridor
-            if sect is not None and (not section_transitions or section_transitions[-1][1] != sect):
-                section_transitions.append((ts, sect))
+            if sect is not None:
+                append_if_changed(section_transitions, ts, sect)
             dirn = snap.direction
-            if dirn is not None and (not direction_transitions or direction_transitions[-1][1] != dirn):
-                direction_transitions.append((ts, dirn))
+            if dirn is not None:
+                append_if_changed(direction_transitions, ts, dirn)
             px, py = snap.pose_x, snap.pose_y
             if px is not None and py is not None:
                 if last_pose is not None:

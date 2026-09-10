@@ -43,7 +43,15 @@ from rclpy.serialization import deserialize_message
 from shared.config.constants import TrackDimensions
 from std_msgs.msg import String
 
-from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.bag_io import (
+    Topics,
+    append_if_changed,
+    create_bag_parser,
+    decode_nav_debug,
+    elapsed_seconds,
+    open_reader,
+)
+from scripts.common.binning import threshold_band
 from scripts.common.stats import median, percentile
 from scripts.common.tables import fmt_optional, print_table
 
@@ -60,10 +68,7 @@ _TINY_LIDAR_RANGE_M = 0.10
 
 
 def _band(v: float, edges: tuple[float, ...]) -> str:
-    for e in edges:
-        if v < e:
-            return f"<{e}"
-    return f">={edges[-1]}"
+    return threshold_band(v, edges)
 
 
 def _parse_widths(text: str) -> dict[str, float]:
@@ -188,9 +193,7 @@ def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], li
         if topic == Topics.NAV_DEBUG:
             ticks.append((rel, decode_nav_debug(data)))
         elif topic == Topics.ROBOT_STATE:
-            value = deserialize_message(data, String).data
-            if not states or states[-1][1] != value:
-                states.append((rel, value))
+            append_if_changed(states, rel, deserialize_message(data, String).data)
     return ticks, states
 
 

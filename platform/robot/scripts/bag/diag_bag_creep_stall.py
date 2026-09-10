@@ -63,6 +63,7 @@ from std_msgs.msg import Float32
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
+from scripts.common.binning import band_label
 from scripts.common.stats import percentile
 
 WHEEL_CIRCUM_M = 0.07 * 3.141592653589793
@@ -96,10 +97,7 @@ SPEED_EDGES = (0.10, 0.14, 0.16, 0.20, 0.25, 0.35, 1.00)
 
 
 def _band(v: float, edges: tuple[float, ...]) -> str | None:
-    for lo, hi in zip(edges, edges[1:]):
-        if lo <= v < hi:
-            return f"{lo:.2f}-{hi:.2f}"
-    return None
+    return band_label(v, edges, lambda lo, hi: f"{lo:.2f}-{hi:.2f}")
 
 
 def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: dict) -> None:

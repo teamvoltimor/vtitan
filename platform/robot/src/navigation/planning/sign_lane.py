@@ -100,14 +100,6 @@ from src.navigation.planning.sign_router import Axis, SignSpec, clamp_lateral, p
 
 __all__ = ["SignLaneParams", "apply_sign_lanes"]
 
-_POLICY_FIELDS: dict[str, str] = {
-    "split_overlap": "SIGN_LANE_SPLIT_OVERLAP",
-    "skip_unsatisfiable": "SIGN_LANE_SKIP_UNSATISFIABLE",
-    "corner_entry_m": "SIGN_LANE_CORNER_ENTRY_M",
-}
-"""Field name in ``SignLaneParams`` to the ``SignRouterParams`` attribute
-whose value it mirrors, for the __post_init__ auto-resolution above."""
-
 
 @dataclass(frozen=True, slots=True)
 class SignLaneParams:
@@ -174,14 +166,9 @@ class SignLaneParams:
         navigator passes from makes the bare construction agree with the one
         that races by construction, instead of by concurrent manual edits.
         """
-        unset = [name for name in _POLICY_FIELDS if getattr(self, name) is None]
-        if not unset:
-            return
         from src.config.tuning_helpers import get_tuning  # noqa: PLC0415
 
-        params = get_tuning(None).sign_router
-        for name in unset:
-            object.__setattr__(self, name, getattr(params, _POLICY_FIELDS[name]))
+        get_tuning(None).sign_router.resolve_unset(self, prefix="SIGN_LANE_")
 
 
 def _axis_coords(wp: Waypoint, axis: Axis) -> tuple[float, float]:

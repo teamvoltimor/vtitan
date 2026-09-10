@@ -54,7 +54,6 @@ import logging
 import math
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -64,21 +63,18 @@ from shared.domain.models import ScenarioMetadata
 
 from scripts.common.diag_base import resolve_jobs, run_pool
 from scripts.common.lidar_clusters import (
-    ProposerParams,
     Track,
     associate,
     corridor_walls,
     find_clusters,
+    proposer_params_from_args,
     to_world,
     wall_distance,
     width_of,
 )
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
-from scripts.common.stats import percentile
+from scripts.common.stats import fmt_p50_p90
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
 
 # Module level, NOT in main(): spawned workers re-import this module but never
 # run main(), so silencing there leaves every worker's navigator logs flooding.
@@ -86,29 +82,6 @@ logging.disable(logging.CRITICAL)
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
 
-
-
-def _params(args: argparse.Namespace) -> ProposerParams:
-    """The shipped detector's parameters, driven by this diagnostic's flags.
-
-    Built from `args` rather than taken as defaults so a sweep can move one knob
-    without editing the robot -- but it is the ROBOT'S dataclass, so a field
-    added there cannot be silently missed here.
-    """
-    return ProposerParams(
-        min_range_m=args.min_range,
-        max_range_m=args.max_range,
-        depth_m=args.depth,
-        isolation_m=args.isolation,
-        min_chord_m=args.min_chord,
-        max_chord_m=args.max_chord,
-        wall_window_deg=args.wall_window_deg,
-        max_wall_range_m=args.max_wall_m,
-        corridor_width_m=args.corridor_width_m,
-        width_tol_m=args.width_tol_m,
-        lattice_offset_m=args.lattice_offset_m,
-        lattice_tol_m=args.lattice_tol_m,
-    )
 
 
 def collect(metadata: ScenarioMetadata, args: argparse.Namespace) -> list[tuple[float, float, float, float, float, float | None, float | None]]:
@@ -120,7 +93,7 @@ def collect(metadata: ScenarioMetadata, args: argparse.Namespace) -> list[tuple[
     estimated pose would fold localizer error into the answer.
     """
     observations: list[tuple[float, float, float, float, float, float | None, float | None]] = []
-    params = _params(args)
+    params = proposer_params_from_args(args)
 
     def on_step(state, scan) -> None:  # noqa: ANN001
         pose = (state.x, state.y, state.yaw)
@@ -243,7 +216,7 @@ def main() -> None:
     print(f"  tracks:                  {totals['tracks']}")
     print(f"  precision:               {_pct(totals['hits'], totals['tracks'])}   ({totals['hits']} on a real sign)")
     print(f"  recall:                  {_pct(totals['found'], totals['signs'])}   ({totals['found']}/{totals['signs']} signs proposed)")
-    print(f"  first-see range of a TP: {_fmt(first_ranges)}")
+    print(f"  first-see range of a TP: {fmt_p50_p90(first_ranges)}")
     print()
     print(f"LATTICE filter ({args.lattice_offset_m:.2f} +/- {args.lattice_tol_m:.2f} m from the nearer wall):")
     print(f"  tracks kept:             {totals['lat_tracks']}   ({_pct(totals['lat_tracks'], totals['tracks'])} of all)")
@@ -251,15 +224,9 @@ def main() -> None:
     print(f"  recall:                  {_pct(totals['lat_found'], totals['signs'])}   (was {_pct(totals['found'], totals['signs'])})")
     print()
     print("SEPARATION -- the thing the hardware anchor could not show:")
-    print(f"  measured corridor width: {_fmt(widths)}")
-    print(f"  wall dist, TRUE signs:   {_fmt(wall_true)}   (lattice predicts ~{args.lattice_offset_m:.2f} m)")
-    print(f"  wall dist, FALSE tracks: {_fmt(wall_false)}")
-
-
-def _fmt(values: Sequence[float], unit: str = "m") -> str:
-    if not values:
-        return "   --    "
-    return f"{percentile(values, 0.5):.2f} / {percentile(values, 0.9):.2f} {unit}"
+    print(f"  measured corridor width: {fmt_p50_p90(widths)}")
+    print(f"  wall dist, TRUE signs:   {fmt_p50_p90(wall_true)}   (lattice predicts ~{args.lattice_offset_m:.2f} m)")
+    print(f"  wall dist, FALSE tracks: {fmt_p50_p90(wall_false)}")
 
 
 def _pct(n: int, d: int) -> str:

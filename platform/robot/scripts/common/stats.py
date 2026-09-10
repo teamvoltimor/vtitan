@@ -26,6 +26,13 @@ def percentile(values: Sequence[float], q: float) -> float:
     return float(np.percentile(values, q * 100))
 
 
+def fmt_p50_p90(values: Sequence[float], unit: str = "m") -> str:
+    """`p50 / p90` for a sample, or a dash placeholder when it is empty."""
+    if not values:
+        return "  --  "
+    return f"{percentile(values, 0.5):.2f} / {percentile(values, 0.9):.2f} {unit}"
+
+
 def median(values: Sequence[float]) -> float:
     """Median of ``values``."""
     if not values:
