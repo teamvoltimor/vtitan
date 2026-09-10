@@ -58,6 +58,7 @@ from scripts.sim.diag_bay_start import (  # noqa: E402
 )
 from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
 from src.navigation.track_geometry import parking_bay_centre  # noqa: E402
+from src.navigation.utils import wrap_angle  # noqa: E402
 from src.simulation.scenario_simulator import ScenarioSimulator  # noqa: E402
 
 if TYPE_CHECKING:
@@ -195,18 +196,58 @@ def _run_one(
     # two different measures.
     true_out = 0.0
 
+    # Per-tick TRUE state on the same three axes the dead reckoning carries, so
+    # the drift can be attributed to one of them rather than read off the single
+    # aggregate `out`. Paired at the same instant: `_dr_*` is sampled inside the
+    # observer, not from the guard log, because a guarded tick and an observed
+    # step are not the same clock.
+    drift: list[tuple[float, float, float, float, float, float]] = []
+    along_axis = (math.cos(start["yaw"]), math.sin(start["yaw"]))
+
     def _observe(state: object, _scan: object) -> None:
         nonlocal best_exit, true_out
         if outward is None:
             return
         clearance = bay_exit_clearance((state.x, state.y, state.yaw), centre, outward)
         best_exit = clearance if best_exit is None else max(best_exit, clearance)
-        true_out = max(
-            true_out, (state.x - centre[0]) * outward[0] + (state.y - centre[1]) * outward[1]
+        dx, dy = state.x - centre[0], state.y - centre[1]
+        out_now = dx * outward[0] + dy * outward[1]
+        true_out = max(true_out, out_now)
+        drift.append(
+            (
+                out_now,
+                sim.bay_exit._dr_out,  # noqa: SLF001
+                dx * along_axis[0] + dy * along_axis[1],
+                sim.bay_exit._dr_along,  # noqa: SLF001
+                wrap_angle(state.yaw - start["yaw"]),
+                sim.bay_exit._dr_yaw,  # noqa: SLF001
+            )
         )
 
     result = sim.run(contact_grace_s=_CONTACT_GRACE_S if args.solid_walls else None, on_step=_observe)
+    # The manoeuvre's OWN release test, in the units it releases on. Passing
+    # `yaw_rad` from the simulator makes this reachable at all -- it read 0 for
+    # every sim run before 2026-09-10 -- so whether the sim can reach
+    # BAY_EXIT_TARGET_YAW_DEG is what says that plumbing is inert or not.
+    print(
+        f"  rotation reached {sim.bay_exit.rotation_deg:.2f} deg of "
+        f"{tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG:.0f} target",
+        flush=True,
+    )
     believed = max((t.dr_out for leg in legs for t in leg.ticks), default=0.0)
+    if drift:
+        # Signed error, not its magnitude: a term that oscillates about the
+        # truth and one that walks away from it need different fixes, and an
+        # absolute error cannot tell them apart.
+        for label, true_i, dr_i, scale in (("out", 0, 1, 1.0), ("along", 2, 3, 1.0), ("yaw", 4, 5, 180.0 / math.pi)):
+            errs = [(row[dr_i] - row[true_i]) * scale for row in drift]
+            trues = [row[true_i] * scale for row in drift]
+            print(
+                f"  drift {label:<6} true span {min(trues):+.4f}..{max(trues):+.4f}  "
+                f"dr-true: median {statistics.median(errs):+.4f} final {errs[-1]:+.4f} "
+                f"worst {max(errs, key=abs):+.4f}",
+                flush=True,
+            )
     return raw["scenario_id"], legs, margin, result, best_exit, (true_out, believed)
 
 
@@ -293,6 +334,12 @@ def main() -> None:
         "does not have, which is the physics every pre-72e7172b bay-exit result was measured on.",
     )
     parser.add_argument(
+        "--measured-yaw",
+        action="store_true",
+        help="add an arm with BAY_EXIT_DR_USES_MEASURED_YAW on, which replaces the guard's "
+        "integrated-and-clamped yaw with the one `_track_rotation` already measures.",
+    )
+    parser.add_argument(
         "--only",
         default=None,
         help="keep only arms whose name contains this, so ONE arm remains and the per-leg "
@@ -334,6 +381,18 @@ def main() -> None:
     arms += [(f"leg_max {v:g}s", {"BAY_EXIT_LEG_MAX_S": v}) for v in (args.leg_max or [])]
     if args.mirror:
         arms.append(("mirror reverse", {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True}))
+    if args.measured_yaw:
+        arms.append(("measured yaw", {"BAY_EXIT_DR_USES_MEASURED_YAW": True}))
+    if args.mirror and args.measured_yaw:
+        # The pair is the point: mirroring is what produces rotation, the
+        # measured yaw is what lets the guard see it. Each alone is a term of a
+        # mechanism, so both singles are run too rather than inferred.
+        arms.append(
+            (
+                "mirror+measured",
+                {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True, "BAY_EXIT_DR_USES_MEASURED_YAW": True},
+            )
+        )
     if args.only:
         # Dropping the baseline is for READING one arm's per-leg table, never for
         # judging it: an arm without its baseline is a number with nothing to

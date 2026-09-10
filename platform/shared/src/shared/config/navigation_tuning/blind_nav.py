@@ -465,19 +465,81 @@ class CorridorFollowerParams(BaseModel):
     hardware; the ratchet was tuned against a model that over-rotated 12.7x, so
     the ratchet is what is wrong.
 
-    **MEASURED AND WORSE. Ships FALSE.** Turning it on moves the chassis
-    **0.05 m** against 0.97 m held, still 0/16 out. The lock convention is not
-    the blocker: at 600 ticks for 267+272 legs the legs are ending after about
-    ONE tick, so the clearance guard is vetoing each one immediately and
-    mirroring only adds a full-lock servo swing to every veto.
+    **THIS FIELD CANNOT BE SETTLED IN THIS SIMULATOR. It ships FALSE for want
+    of evidence, not on a verdict.** Two measurements exist and NEITHER stands:
 
-    **Where the veto comes from, and it is the thing to fix.** The guard looks a
-    STOPPING DISTANCE ahead -- ``step + v * SPEED_RESPONSE_TAU_S``, about 0.04 m
-    at bay creep -- against an along-wall budget the code puts at 31-57 mm. That
-    lookahead was harmless while full lock traced a 0.015 m radius and the arc
-    was nearly pure rotation; against 0.29 m the same arc TRANSLATES, so a touch
-    is predicted on the first tick of every leg. ``BAY_EXIT_SPEED_SCALE`` is
-    named in ``_guarded_command`` as the lever on exactly this term. Untried.
+    * The "MEASURED AND WORSE" reading that used to sit here -- 0.05 m against
+      0.97 m held -- predates ``966b2b36``, so both arms were scored on a dead
+      reckoning that over-read outward travel 31x. VOID.
+    * Re-measured on the corrected tree (2026-09-10) it looked like a clear win:
+      0.0296 m of TRUE outward travel over 64 legs against 0.0027 m over 364
+      held, and 13.10 degrees of rotation against 1.06. Then run again with
+      ``--no-slide``: the rotation collapses to **1.48 degrees** and the outward
+      travel to **0.0015 m**, BELOW the held lock's 0.0025. Roughly 95% of that
+      apparent win was the simulator's slide-on-contact resolver, not the
+      ratchet. VOID TOO.
+
+    Which makes the contact model the blocker rather than the lock convention.
+    The ratchet's entire mechanism is leaning on a wall, and
+    ``sim_contact_model_does_not_slide`` measured this simulator's wall
+    behaviour at 56x less progress than the real thing at 20 degrees, while
+    ``bay_ratchet_does_not_rotate_on_hardware`` has the robot managing 17 deg in
+    20 s against ~6 s here. An arm whose result is 95% supplied by that model is
+    a statement about the model. MEASURE THE SLIP FIRST.
+
+    Independent of the lock convention, the guard steering it is blind: on the
+    sliding run it reported +50 mm of slack while the chassis touched a fin 17
+    times, its dead-reckoned pose having drifted 28.7 mm against a
+    ``BAY_EXIT_CLEARANCE_MARGIN_M`` of 1 mm. See
+    ``BAY_EXIT_DR_USES_MEASURED_YAW``.
+    """
+
+    BAY_EXIT_DR_USES_MEASURED_YAW: bool = Field(
+        default=False, validation_alias=_alias("BAY_EXIT_DR_USES_MEASURED_YAW")
+    )
+    """Seed the guard's dead-reckoned yaw from the MEASURED yaw each tick.
+
+    ``_dead_reckon`` integrates its own ``_dr_yaw`` from wheel travel and then
+    clamps it to ``_wall_feasible_yaw_rad(self._dr_out)``. That clamp is a
+    SELF-FULFILLING PROPHECY. At the judges' placement the limit is 1.15
+    degrees, and ``_dr_out`` only grows by ``step * sin(_dr_yaw)`` -- 2% of
+    travel at that angle -- so the model cannot believe in rotation until it
+    believes in outward travel, and cannot earn outward travel without
+    rotation. Measured 2026-09-10 with the mirrored reverse: the chassis really
+    turned **13.1 degrees** while the dead reckoning read about 2, an error of
+    **-11.7 degrees**. Over a 0.15 m half-length that is ~30 mm of corner
+    displacement, which is the whole 28.7 mm the guard's pose had drifted.
+
+    The yaw does not need to be modelled at all. ``command`` already TAKES
+    ``yaw_rad`` and ``_track_rotation`` already uses it -- ``rotation_complete``,
+    the manoeuvre's own release test, has been reading measured yaw since it was
+    written. So the manoeuvre knows it rotated 13.1 degrees and only the guard
+    does not. This field closes that gap rather than adding a sensor.
+
+    Deliberately NOT extended to ``_dr_out`` and ``_dr_along``: those are not
+    observable from inside the pocket (``_fin_rects`` explains why, and at
+    ``WALL_OFFSET`` 0.1 m against a 0.194 m chassis the wall-facing flank sits
+    3 mm away, under the sensor floor). Yaw is the one term of the three that is
+    measured, and per-axis drift says it is also the one that walks: over one
+    mirrored run the along error stayed at +0.8 mm and the out error is the yaw
+    error projected.
+
+    **MEASURED, AND INERT ON THE OUTCOME. Ships FALSE.** It does what it says --
+    the yaw error over a run falls from -11.7 degrees to a median of -0.0000 --
+    and changes nothing else: 256 legs, the same veto pattern, the same
+    -0.1970 m best exit, 0/16 either way. Kept and documented rather than
+    dropped because it names where the remaining error is.
+
+    Which is that ``_dr_out`` and ``_dr_along`` CANCEL between legs. Both
+    integrate ``step * f(_dr_yaw)`` with ``step`` SIGNED, so a reverse leg
+    subtracts what the forward leg added: measured per leg with the yaw exact,
+    ``out`` reads 0.0002, 0.0005, 0.0002, 0.0006, 0.0002, 0.0007 -- oscillating,
+    not ratcheting -- while the physics reached 0.0296. That is the free-space
+    conservation ``_guarded_command``'s docstring says the WALL breaks, and the
+    code clips the yaw against the wall without ever collecting the outward gain
+    the clip produces. Do NOT patch that from the formula: the same run says 95%
+    of the physics' outward travel came from the slide-on-contact resolver, so
+    what the wall really pays out is not established here at all.
     """
 
     BAY_EXIT_ARC_STEER_NORM: float = Field(

@@ -410,7 +410,13 @@ class BayExit:
         """``(direction_flips, min_predicted_gap_m, outward_travel_m)`` for the guard."""
         return self._guard_flips, self._guard_min_gap, self._dr_out
 
-    def _dead_reckon(self, travelled_m: float, wheel_norm: float, tuning: NavigationTuning) -> None:
+    def _dead_reckon(
+        self,
+        travelled_m: float,
+        wheel_norm: float,
+        tuning: NavigationTuning,
+        measured_yaw_rad: float | None = None,
+    ) -> None:
         """Advance the bay-frame pose from wheel odometry and the commanded steering.
 
         A bicycle model driven by the two things the robot genuinely has in the
@@ -418,6 +424,14 @@ class BayExit:
         for. No LIDAR, because the pocket cannot be sensed from inside it, and
         no pose estimate, because the localizer is matching a wall model the
         chassis is not yet out among.
+
+        ``measured_yaw_rad`` is the exception, and only for the YAW: it is the
+        rotation ``_track_rotation`` has already accumulated, in the bay frame,
+        which ``rotation_complete`` has always released on. Supplying it
+        replaces both the bicycle term and the wall clamp below -- a measured
+        angle needs no feasibility test, because the chassis achieved it. See
+        ``BAY_EXIT_DR_USES_MEASURED_YAW``. The other two axes stay modelled;
+        they are not observable from in here.
 
         The servo's SLEW is modelled rather than assumed instant. Skipping it
         was what made ``BAY_EXIT_STEER_NORM`` read as inert: every command at or
@@ -433,17 +447,29 @@ class BayExit:
         target = clamp(wheel_norm, -1.0, 1.0) * max_rad
         slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
         self._dr_wheel_rad += clamp(target - self._dr_wheel_rad, -slew, slew)
-        self._dr_yaw += _bicycle_yaw_step(step, self._dr_wheel_rad)
-        # The wall behind the pocket CLIPS the rotation, and dead reckoning
-        # cannot see it -- measured 4.5x high. Unclamped, the guard bounds a
-        # pose the chassis can never reach: on the first arc it predicts ~19 deg
-        # where 1.15 is available, takes the swept extent of that fantasy, finds
-        # it inside a fin and ends the leg -- every tick, so the manoeuvre never
-        # moves. Measured 2026-09-04 over 16 corpus scenarios: total travel
-        # 0.05-0.06 m whether the arc was 0.02 or 0.3, i.e. the arc was INERT
-        # because the guard rejected the leg before its value could matter.
-        limit = _wall_feasible_yaw_rad(self._dr_out)
-        self._dr_yaw = clamp(self._dr_yaw, -limit, limit)
+        if measured_yaw_rad is not None:
+            self._dr_yaw = measured_yaw_rad
+        else:
+            self._dr_yaw += _bicycle_yaw_step(step, self._dr_wheel_rad)
+            # The wall behind the pocket CLIPS the rotation, and dead reckoning
+            # cannot see it -- measured 4.5x high. Unclamped, the guard bounds a
+            # pose the chassis can never reach: on the first arc it predicts ~19
+            # deg where 1.15 is available, takes the swept extent of that
+            # fantasy, finds it inside a fin and ends the leg -- every tick, so
+            # the manoeuvre never moves. Measured 2026-09-04 over 16 corpus
+            # scenarios: total travel 0.05-0.06 m whether the arc was 0.02 or
+            # 0.3, i.e. the arc was INERT because the guard rejected the leg
+            # before its value could matter.
+            #
+            # It is also a SELF-FULFILLING PROPHECY, which is why the measured
+            # yaw skips it rather than being clamped by it: the limit is a
+            # function of `_dr_out`, and `_dr_out` grows only by
+            # `step * sin(_dr_yaw)`, so at the placement's 1.15 deg the model
+            # earns outward travel at 2% of what it drives and can never relax
+            # its own bound. Measured 2026-09-10: the chassis turned 13.1 deg
+            # while this read about 2.
+            limit = _wall_feasible_yaw_rad(self._dr_out)
+            self._dr_yaw = clamp(self._dr_yaw, -limit, limit)
         # Bounded for the same reason the yaw is: a modelled pose the pocket
         # forbids is not one the guard may act on. Wheel slip against a chassis
         # the wall is holding accumulates along-wall travel the body never made,
@@ -661,12 +687,19 @@ class BayExit:
         # of silently slewing while the leg runs. Dead-reckoned through the
         # pause too: travel is zero, but the wheel is moving and the model has
         # to follow it there as much as anywhere.
+        # `_rotation_rad` accumulates in the WORLD sense; `_dr_yaw` is signed so
+        # that +yaw points at the open side, which is what lets the guard's
+        # geometry avoid a left/right case split. `sign` converts between them,
+        # and is the same factor the outgoing command is re-signed by.
+        measured_yaw = (
+            sign * self._rotation_rad if follower.BAY_EXIT_DR_USES_MEASURED_YAW else None
+        )
         if self._settle_ticks > 0:
             self._settle_ticks -= 1
-            self._dead_reckon(travelled_m, wheel_norm, tuning)
+            self._dead_reckon(travelled_m, wheel_norm, tuning, measured_yaw)
             return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
 
-        self._dead_reckon(travelled_m, wheel_norm, tuning)
+        self._dead_reckon(travelled_m, wheel_norm, tuning, measured_yaw)
         if self._guard_min_gap is None:
             self._guard_min_gap = self._predicted_gap(0.0, wheel_norm, tuning)
 
