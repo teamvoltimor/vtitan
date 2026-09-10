@@ -1,0 +1,342 @@
+version: "3"
+
+vars:
+  # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
+  # Falls back to "" when Go isn't installed (e.g. on the robot/Pi) so non-Go tasks still run.
+  EXE:
+    sh: go env GOEXE 2>/dev/null || true
+  # Shell scripts must run under Git Bash on Windows, never plain "bash".
+  # C:\Windows\System32\bash.exe is the WSL launcher and usually wins on PATH
+  # from PowerShell, which puts the script inside a Linux distro that has its
+  # own $HOME -- so ~/.ssh/config is absent, SSH host aliases resolve as literal
+  # hostnames, and .local mDNS does not work at all. The failure surfaces as
+  # "Could not resolve hostname rpi-5-local", naming the alias rather than the
+  # host it should have expanded to.
+  # Override with BASH=... if Git is installed somewhere else.
+  BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
+
+tasks:
+  # Two build paths:
+  #   - build:static : CGO_ENABLED=0 pure-static cross-build for every cmd/*,
+  #     including capture-node/pi5 with the MJPEG (pure-Go) video backend. This
+  #     is the default and works on any dev machine (Windows/Mac/Linux) with Go.
+  #   - build:capture: CGo gocv/OpenCV mp4v video backend, confined to capture-
+  #     node/pi5 behind the `cgo` build tag. On Linux it builds natively with a
+  #     Linux/arm64 C cross-toolchain + OpenCV sysroot; on Windows it delegates
+  #     the CGo cross-build into WSL2 (which holds the toolchain), so the dev
+  #     never leaves Windows. See docs/internal/plans/2026-08-30-shared-runs-
+  #     folder-and-go-run-recorder.md.
+
+  robot-go:build:static:
+    desc: "Cross-compile all Go robot binaries as pure-static (CGO_ENABLED=0). Safe on any dev machine."
+    vars:
+      OUT: '{{.OUT | default "dist"}}'
+    cmds:
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o {{.OUT}}/ ./cmd/...
+
+  robot-go:build:capture:
+    desc: >-
+      Build the CGo camera binaries (capture-node, pi5) with the gocv mp4v video
+      backend (CGO_ENABLED=1 -tags cgo). On Linux builds natively; on Windows
+      delegates the cross-build into WSL2 (needs Ubuntu + aarch64-linux-gnu-gcc +
+      arm64 OpenCV sysroot there). macOS is excluded: it cannot cross to arm64
+      Linux without a Linux toolchain.
+    vars:
+      OUT: '{{.OUT | default "dist"}}'
+      CC: '{{.CC | default "aarch64-linux-gnu-gcc"}}'
+    cmds:
+      - cmd: |
+          if ! wsl.exe -l -q 2>$null | Select-String -Quiet Ubuntu; then
+            echo "WSL2 with an Ubuntu distro is required for CGo arm64 cross-build on Windows" >&2
+            echo "Install: wsl --install -d Ubuntu, then add aarch64-linux-gnu-gcc + arm64 OpenCV" >&2
+            exit 1
+          fi
+          # The task runs with dir: src/go (this file's base dir), so the current directory is the
+          # Windows path to src/go; translate it into the WSL path.
+          $wslPath = (wsl.exe wslpath -a "$(pwd)")
+          wsl.exe bash -lc "cd '$wslPath' && \
+            CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC={{.CC}} \
+            go build -tags cgo -o {{.OUT}}/capture-node ./cmd/capture-node && \
+            go build -tags cgo -o {{.OUT}}/pi5 ./cmd/pi5"
+        platforms: [windows]
+      - cmd: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC={{.CC}} \
+          go build -tags cgo -o {{.OUT}}/capture-node ./cmd/capture-node && \
+          go build -tags cgo -o {{.OUT}}/pi5 ./cmd/pi5
+        platforms: [linux]
+
+  robot-go:test:
+    desc: "Run the Go robot module's tests (pure-Go; excludes the CGo camera path)."
+    cmds:
+      - go test ./...
+
+  robot-go:todo:
+    desc: "Print the Go-migration punch list: what's still stubbed/missing, verified against the tree on 2026-09-04."
+    cmds:
+      - cmd: |
+          cat <<'EOF'
+          robot-go (Python/ROS2 -> Go/NATS) migration -- remaining work, 2026-09-04
+          ===========================================================================
+          Stage 6 (nav stack) is otherwise essentially ported and tested; these are
+          the real gaps left, verified against the tree (not the stale plan doc's
+          checkboxes, see docs/internal/plans/go-migration-plan.md).
+
+          1. cmd/pi5 only supervises "capture" (camera). IMU/LIDAR/vision/nav/
+             state-machine each still run as their OWN separate binaries
+             (cmd/imu-node, cmd/lidar-node, cmd/track-navigator, cmd/state-machine)
+             and are not yet combined into one production Pi 5 process.
+
+          2. internal/nav/navigator is only exercised end-to-end via
+             cmd/track-navigator (the bag-replay/parity harness) -- never run as
+             part of a full race loop on cmd/pi5.
+
+          3. internal/sim/harness: LIDAR-based relocalization is NOT implemented
+             (Localize=true unsupported, see gateway.go TODO) -- sim runner is
+             perfect-odometry only.
+
+          4. internal/statemachine/robotcmd/convert.go: pause/resume/
+             return_to_start/reboot/shutdown all map to KindUnimplemented.
+
+          5. internal/node/statemachine/channel_sink.go: SetVisionDebug/
+             ToggleTelemetryChannel/DisableCommandChannel are a deliberate
+             UnimplementedChannelSink -- vision debug has no Go-side NATS subject
+             yet, and telemetry-channel toggling needs cross-process signaling to
+             cmd/telemetry-node that doesn't exist yet.
+
+          6. internal/driver/lidar: only the legacy Dense-mode request is
+             implemented; GET_LIDAR_CONF-selected named scan modes are not.
+
+          7. internal/transport/nats is still a thin/one-line stub in places --
+             blocks internal/driver/display/ssd1306 (OLED page rendering) and
+             internal/telemetry/diag from actually publishing over NATS.
+
+          8. internal/nav/signrouter/discovery.go: a couple of hardcoded
+             constants (e.g. CameraHFOVRad) are flagged "TODO: confirm against
+             robot.toml / navigation_tuning.toml" -- not blocking, just unverified
+             defaults inherited from the port.
+
+          NATS-to-Foxglove topic mapping (separate from the above, see
+          cmd/foxglove-bridge and internal/recording/roscdr.go):
+            - The sim-runner's MCAP recorder hand-encodes 5 topics to real ROS2
+              CDR (LaserScan/Imu/TFMessage/AckermannDriveStamped/Float32) so
+              Foxglove Studio's 3D panel renders them natively; everything else
+              is raw vtitan.* protobuf, Raw-Messages-panel only.
+            - cmd/foxglove-bridge (the LIVE NATS websocket bridge) does NOT do
+              this conversion -- every subject is advertised as protobuf, so live
+              3D rendering doesn't work today, only offline bag playback does.
+            - There is no shared abstraction/config table for this mapping by
+              design (see feedback_go_code_style_maps_config_constants): both
+              bridgeAllSubjects() in cmd/foxglove-bridge/main.go and the encoder
+              calls in internal/sim/scenario/record.go are explicit, hand-written
+              per-topic call sites, not a dynamic registry. Porting CDR rendering
+              to the live bridge, or centralizing the mapping into one static
+              typed table, is still an open design decision, not started.
+
+          Corrected vs. older notes: cmd/foxglove-bridge itself IS a real
+          implementation now (connects NATS, bridges every declared subject,
+          serves the Foxglove WebSocket protocol) -- it is not a stub, only its
+          schema encoding is limited to protobuf (see above).
+          EOF
+        silent: true
+
+  robot-go:test:hw:
+    desc: >-
+      Cross-compile the //go:build hw hardware tests for linux/arm64 so each
+      driver can be scp'd to a real Pi and run independently (no nats-server,
+      no other board). Usage: task robot-go:test:hw [PKG=button|ssd1306|imu|lidar|motor]
+      (omit PKG to build all five). Output binaries land in robot-go/dist/hw/.
+      On the Pi, run e.g. `./dist/hw/btn -test.v`; env overrides per test:
+      BUTTON_GPIO_LINE, SSD1306_I2C_BUS/ADDR, IMU_TTY, LIDAR_TTY,
+      MOTOR_REN/LEN/REVERSE_PWM_LINE.
+    vars:
+      PKG: '{{.PKG | default ""}}'
+      OUT: '{{.OUT | default "dist/hw"}}'
+    cmds:
+      - cmd: |
+          mkdir -p {{.OUT}}
+          build_one() {
+            local pkg="$1" bin="$2"
+            echo "cross-compiling hw test: ./internal/driver/$pkg -> {{.OUT}}/$bin"
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+              go test -tags hw -c -o "{{.OUT}}/$bin" "./internal/driver/$pkg/"
+          }
+          if [ -n "{{.PKG}}" ]; then
+            case "{{.PKG}}" in
+              button) build_one button btn ;;
+              ssd1306) build_one display/ssd1306 oled ;;
+              imu)    build_one imu imu ;;
+              lidar)  build_one lidar lidar ;;
+              motor)  build_one motor motor ;;
+              nats)   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go test -tags hw -c -o "{{.OUT}}/nats" ./internal/transport/nats/ ;;
+              *) echo "Unknown PKG: {{.PKG}}. Use button|ssd1306|imu|lidar|motor|nats" && exit 1 ;;
+            esac
+          else
+            build_one button btn
+            build_one display/ssd1306 oled
+            build_one imu imu
+            build_one lidar lidar
+            build_one motor motor
+            build_one transport/nats nats
+          fi
+          echo "hw test binaries written to {{.OUT}}/"
+
+  robot-go:test:hw:interactive:
+    desc: >-
+      Cross-compile the INTERACTIVE //go:build hw && hwinteractive hardware
+      tests (dynamic, operator-gated: motor spin, servo sweep, IMU rotate,
+      OLED eyeball, lidar object) for linux/arm64. These need a TTY + a human
+      at the bench, so they are kept out of the unattended robot-go:test:hw
+      binaries. Usage: task robot-go:test:hw:interactive [PKG=motor|imu|lidar|ssd1306]
+      (omit PKG to build all four). Output binaries land in robot-go/dist/hw-interactive/.
+      On the Pi, run e.g. `./dist/hw-interactive/motor -test.v -test.run TestHW`
+      and answer the on-screen prompts.
+    vars:
+      PKG: '{{.PKG | default ""}}'
+      OUT: '{{.OUT | default "dist/hw-interactive"}}'
+    cmds:
+      - cmd: |
+          mkdir -p {{.OUT}}
+          build_one() {
+            local pkg="$1" bin="$2"
+            echo "cross-compiling interactive hw test: ./internal/driver/$pkg -> {{.OUT}}/$bin"
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+              go test -tags "hw hwinteractive" -c -o "{{.OUT}}/$bin" "./internal/driver/$pkg/"
+          }
+          if [ -n "{{.PKG}}" ]; then
+            case "{{.PKG}}" in
+              motor)  build_one motor motor ;;
+              imu)    build_one imu imu ;;
+              lidar)  build_one lidar lidar ;;
+              ssd1306) build_one display/ssd1306 oled ;;
+              *) echo "Unknown PKG: {{.PKG}}. Use motor|imu|lidar|ssd1306" && exit 1 ;;
+            esac
+          else
+            build_one motor motor
+            build_one imu imu
+            build_one lidar lidar
+            build_one display/ssd1306 oled
+          fi
+          echo "interactive hw test binaries written to {{.OUT}}/"
+
+  robot-go:hw:stop:
+    desc: >-
+      Stop the robot's production services + any stray ROS2/sllidar processes
+      on a Pi so the Go //go:build hw interactive tests can claim the serial
+      port / PWM / I2C (otherwise they fail with "Serial port busy" /
+      "already claimed"). Keeps vtitan-nats running (tests don't need it, and
+      other boards connect through it). Usage:
+      task robot-go:hw:stop HOST=rpi-5-local (or rpi-zero-local).
+      ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
+      resolve (Git-bash's msys HOME does not, causing exit 255).
+    shell: '{{.BASH}}'
+    cmds:
+      - cmd: |
+          HOST="{{.HOST}}"
+          if [ -z "$HOST" ]; then echo "HOST required (e.g. HOST=rpi-5-local)" && exit 1; fi
+          echo "stopping vtitan services + stray launches on $HOST (keeping vtitan-nats)..."
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'sudo systemctl stop vtitan-pi5 vtitan-pi-zero vtitan-lidar vtitan-motor vtitan-display vtitan-race vtitan-backend 2>/dev/null; pkill -f ros2 2>/dev/null; pkill -f sllidar_node 2>/dev/null; pkill -f track_navigator_node 2>/dev/null; pkill -f bag_recorder_node 2>/dev/null; sleep 2; echo remaining port holders:; sudo fuser -v /dev/ttyUSB0 /dev/ttyACM0; true'; exit 0"
+          echo "done. Re-run if fuser still shows a holder; kill that PID explicitly."
+      - task: robot-go:hw:stop-notes
+
+  robot-go:hw:stop-notes:
+    desc: "Print the port-holding reminder after robot-go:hw:stop"
+    cmds:
+      - 'echo "NOTE: if fuser still reports a holder, ssh {{.HOST}} and kill that PID, then re-run robot-go:hw:stop."'
+
+  robot-go:hw:run:
+    desc: >-
+      Full interactive-hw-test flow for ONE package: build the linux/arm64
+      binary (task robot-go:test:hw:interactive), ship it to a Pi (mkdir +
+      scp + chmod +x so scp does not drop the exec bit), and run it over a TTY
+      (operator-ack prompts need it). Stops services first via
+      robot-go:hw:stop. Usage:
+      task robot-go:hw:run PKG=lidar HOST=rpi-5-local
+      (PKG=motor|imu|lidar|ssd1306). For lidar, INVERTED defaults to true
+      (robot.toml's [lidar] inverted=true), mirroring decoded angles for the
+      C1's upside-down mount -- NOT a +180 offset, which hardware
+      verification 2026-08-31 found swaps front/back while leaving
+      left/right correct, a pattern only a mirror explains (see
+      lidar.correctAngleDeg). YAW_OFFSET is the residual mount
+      miscalibration applied after the mirror, defaults to 0. Override via
+      INVERTED=false and/or YAW_OFFSET=. For
+      lidar, SCAN_MODE=dense selects the DenseSerialDriver (8-bearing test +
+      range decode expected to read correctly, unlike classic); omit for
+      classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
+      robot-go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
+      DUMP_SCAN=1 makes TestHW_LIDAR_Object_Dynamic print every valid point
+      sorted by angle, not just the closest-per-45deg-sector summary.
+      ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
+      resolve (Git-bash's msys HOME does not, causing exit 255).
+    vars:
+      PKG: '{{.PKG | default "lidar"}}'
+      HOST: '{{.HOST | default "rpi-5-local"}}'
+      YAW_OFFSET: '{{.YAW_OFFSET | default "0"}}'
+      INVERTED: '{{.INVERTED | default "true"}}'
+      SCAN_MODE: '{{.SCAN_MODE | default ""}}'
+      DUMP_SCAN: '{{.DUMP_SCAN | default ""}}'
+      OUT: '{{.OUT | default "dist/hw-interactive"}}'
+    shell: '{{.BASH}}'
+    cmds:
+      - task: robot-go:hw:stop
+      - task: robot-go:test:hw:interactive
+        vars: { PKG: '{{.PKG}}', OUT: '{{.OUT}}' }
+      - cmd: |
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"
+          BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
+          REMOTE_DIR="vtitan/src/go/$OUT"
+          LOCAL="$PWD/$OUT/$BIN"
+          echo "shipping $LOCAL -> $HOST:$REMOTE_DIR/"
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'mkdir -p $REMOTE_DIR'"
+          powershell.exe -NoProfile -Command "scp '$LOCAL' '${HOST}:$REMOTE_DIR/'"
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'chmod +x $REMOTE_DIR/$BIN && echo shipped OK'; exit 0"
+      - cmd: |
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; INVERTED="{{.INVERTED}}"; MODE="{{.SCAN_MODE}}"; DUMP="{{.DUMP_SCAN}}"
+          BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
+          REMOTE_DIR="$OUT"
+          EXTRA=""
+          if [ "$PKG" = "lidar" ]; then
+            EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW LIDAR_INVERTED=$INVERTED"
+            if [ -n "$MODE" ]; then EXTRA="$EXTRA LIDAR_SCAN_MODE=$MODE"; fi
+            if [ -n "$DUMP" ]; then EXTRA="$EXTRA LIDAR_DUMP_SCAN=$DUMP"; fi
+          fi
+          echo "running $BIN on $HOST (TTY required for operator prompts)..."
+          powershell.exe -NoProfile -Command "ssh -t -o ConnectTimeout=30 $HOST 'cd ~/vtitan/src/go && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW'; exit 0"
+  simgen:install:
+    desc: Build simgen binary (Go compilation — no external deps required)
+    cmds:
+      - task: simgen:build
+
+  simgen:build:
+    desc: Compile simgen binary to robot-go/bin/simgen[.exe]
+    cmds:
+      - go build -o bin/simgen{{.EXE}} ./cmd/simgen
+
+  simgen:test:
+    desc: Run simgen tests
+    cmds:
+      - go test ./cmd/simgen/... ./internal/simgen/... -v
+
+  simgen:lint:
+    desc: Run golangci-lint on simgen
+    cmds:
+      - golangci-lint run ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:lint:fix:
+    desc: Auto-fix simgen lint issues with golangci-lint
+    cmds:
+      - golangci-lint run --fix ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:align:
+    desc: Check Go struct field alignment (betteralign)
+    cmds:
+      - betteralign ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:align:fix:
+    desc: Auto-fix Go struct field alignment with betteralign
+    cmds:
+      - betteralign -fix ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:fmt:
+    desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)
+    cmds:
+      - golangci-lint fmt ./cmd/simgen/... ./internal/simgen/...
