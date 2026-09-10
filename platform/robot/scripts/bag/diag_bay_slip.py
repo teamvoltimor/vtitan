@@ -11,8 +11,20 @@ travel the chassis spent per radian it actually turned. Against it stands the
 model's radius, the plain bicycle term floored by
 ``RobotSpecs.MIN_TURN_RADIUS_M`` exactly as ``AckermannKinematics`` floors it.
 A ratio below 1 means the chassis rotated TIGHTER than free-space kinematics
-permits, and in a 0.20 m pocket there is only one thing that can supply that:
-the wall. It is the lean the ratchet is built on, measured instead of modelled.
+permits.
+
+That was first read as the wall, and it is mostly NOT. The paired table is
+what settles it: matched on commanded lock AND wheel speed, the CORRIDOR at
+full lock reaches 0.088 m at creep, 0.160 at 0.10+ m/s and 0.198 at 0.20+ --
+never the 0.29 m floor, anywhere. So the achieved radius is a strong function
+of SPEED, as tyre scrub would predict, and a constant floor is wrong at the low
+end. The pocket adds a further 1.35-1.60x on top, which IS the wall, and is the
+smaller half of the effect. Reporting the pooled ratio alone credits the wall
+with both.
+
+Both control phases exist for that reason: the pocket is also where the wheel
+sits at full lock and crawls, so an unmatched comparison cannot tell the
+surroundings from the operating point.
 
 Why the IMU and not the pose: ``quaternion_yaw``'s docstring is explicit that
 ``pose_yaw`` is localizer-fused and damped and understates the achieved yaw rate
@@ -92,20 +104,41 @@ def _model_radius_m(wheel_rad: float) -> float:
     return max(RobotSpecs.MIN_TURN_RADIUS_M, _EFFECTIVE_WHEELBASE_M / abs(math.tan(wheel_rad)))
 
 
-def _bay_window(rows: list[tuple[float, object]]) -> tuple[float, float] | None:
-    """Elapsed-time span the run spent in the bay-exit phase, if it entered it."""
-    bay = [t for t, s in rows if getattr(s, "phase", None) == BAY_PHASE]
-    if len(bay) < 2:
-        return None
-    return bay[0], bay[-1]
+def _phase_windows(rows: list[tuple[float, object]], phase: str) -> list[tuple[float, float]]:
+    """Contiguous elapsed-time spans the run spent in ``phase``.
+
+    A list rather than one span because the CONTROL phase is re-entered many
+    times per run, and taking its first and last sample would swallow every
+    other phase in between -- including the bay exit this is a control for.
+    """
+    spans: list[tuple[float, float]] = []
+    start: float | None = None
+    previous = 0.0
+    for t, snapshot in rows:
+        if getattr(snapshot, "phase", None) == phase:
+            if start is None:
+                start = t
+        elif start is not None:
+            spans.append((start, previous))
+            start = None
+        previous = t
+    if start is not None:
+        spans.append((start, previous))
+    return [(a, b) for a, b in spans if b > a]
 
 
-def _run_samples(bag_dir: Path) -> tuple[list[tuple[float, float, float]], float, float, float]:
+def _in_any(spans: list[tuple[float, float]], t0: float, t1: float) -> bool:
+    """Whether the whole interval falls inside one of ``spans``."""
+    return any(a <= t0 and t1 <= b for a, b in spans)
+
+
+def _run_samples(
+    bag_dir: Path, phase: str = BAY_PHASE
+) -> tuple[list[tuple[float, float, float, float, float]], float, float, float]:
     """Samples plus the STALLED-tick yaw control.
 
-    Returns ``(samples, stalled_yaw_rad, stalled_s, driven_s)`` where a sample is
-    ``(travel_m, |yaw| rad, model_radius_m)`` for one IMU interval inside the
-    bay-exit phase.
+    Returns ``(samples, stalled_yaw_rad, stalled_s, driven_s)`` for one IMU
+    interval inside ``phase``.
 
     The control exists because the radius sums ``|yaw|``, and an absolute value
     ACCUMULATES sensor noise where a signed sum would cancel it -- so a
@@ -115,10 +148,9 @@ def _run_samples(bag_dir: Path) -> tuple[list[tuple[float, float, float]], float
     read of that noise floor rather than an assumption about it.
     """
     rows, _ = load_nav_debug_rows(bag_dir)
-    window = _bay_window(rows)
-    if window is None:
+    spans = _phase_windows(rows, phase)
+    if not spans:
         return [], 0.0, 0.0, 0.0
-    start, end = window
 
     streams = read_motion_streams(bag_dir)
     speeds = streams.drive_speed_mps()
@@ -128,7 +160,7 @@ def _run_samples(bag_dir: Path) -> tuple[list[tuple[float, float, float]], float
     driven_s = 0.0
     yaw = streams.imu_yaw_rad
     for (t0, y0), (t1, y1) in pairwise(yaw):
-        if t0 < start or t1 > end:
+        if not _in_any(spans, t0, t1):
             continue
         dt = t1 - t0
         if dt <= 0.0:
@@ -146,18 +178,88 @@ def _run_samples(bag_dir: Path) -> tuple[list[tuple[float, float, float]], float
         if abs(step) < _MIN_YAW_RAD:
             continue
         driven_s += dt
-        samples.append((travel, abs(step), _model_radius_m(wheel)))
+        samples.append((travel, abs(step), _model_radius_m(wheel), abs(wheel), abs(speed)))
     return samples, stalled_yaw, stalled_s, driven_s
+
+
+_LOCK_EDGES_DEG = (10.0, 20.0, 30.0)
+"""Commanded |wheel angle| buckets. Full lock on this chassis is ~35 deg."""
+
+_SPEED_EDGES_MPS = (0.10, 0.20, 0.30, 0.40)
+"""Wheel-speed buckets. Bay creep is commanded at 0.10 m/s.
+
+Resolved this finely because the achieved radius turned out to depend on SPEED
+and not only on the surroundings: at full lock the corridor itself reaches
+0.108 m at creep, well inside the 0.29 m floor, so the floor is a statement
+about the speed it was measured at rather than about the chassis."""
+
+
+def _bucket(value: float, edges: tuple[float, ...]) -> int:
+    """Index of the bucket ``value`` falls in, ``len(edges)`` for the top one."""
+    return sum(1 for edge in edges if value >= edge)
+
+
+def _cell(sample: tuple[float, float, float, float, float]) -> tuple[int, int]:
+    """``(lock bucket, speed bucket)`` a sample belongs to."""
+    return _bucket(math.degrees(sample[3]), _LOCK_EDGES_DEG), _bucket(sample[4], _SPEED_EDGES_MPS)
+
+
+def _paired_table(
+    pocket: list[tuple[float, float, float, float, float]],
+    corridor: list[tuple[float, float, float, float, float]],
+) -> None:
+    """Achieved radius IN the pocket against OUT of it, at matched lock and speed.
+
+    The whole objection this answers: a tighter radius in the pocket proves
+    nothing about the wall if the pocket is also where the wheel sits at full
+    lock and crawls. Comparing only WITHIN a (lock, speed) cell removes both,
+    so what is left is the difference the surroundings make. Cells either side
+    is not enough on its own -- a cell with three intervals is noise -- so the
+    interval count is printed and thin cells are meant to be ignored.
+    """
+    cells = sorted({_cell(x) for x in pocket} & {_cell(x) for x in corridor})
+    lock_names = [f"<{_LOCK_EDGES_DEG[0]:.0f}"] + [f"{e:.0f}+" for e in _LOCK_EDGES_DEG]
+    speed_names = [f"<{_SPEED_EDGES_MPS[0]:.2f}"] + [f"{e:.2f}+" for e in _SPEED_EDGES_MPS]
+    rows = []
+    for lock, speed in cells:
+        inside = [x for x in pocket if _cell(x) == (lock, speed)]
+        outside = [x for x in corridor if _cell(x) == (lock, speed)]
+        r_in = sum(x[0] for x in inside) / sum(x[1] for x in inside)
+        r_out = sum(x[0] for x in outside) / sum(x[1] for x in outside)
+        rows.append(
+            (
+                lock_names[lock],
+                speed_names[speed],
+                len(inside),
+                len(outside),
+                round(r_in, 4),
+                round(r_out, 4),
+                round(r_out / r_in, 2) if r_in > 0.0 else None,
+            )
+        )
+    print("\nPAIRED, matched on commanded lock and wheel speed:", flush=True)
+    print_table(
+        rows,
+        ("lock deg", "speed m/s", "n pocket", "n corridor", "R pocket m", "R corridor m", "out/in"),
+    )
 
 
 def main() -> None:
     """Report achieved-vs-model turn radius in the pocket, per run and pooled."""
     parser = create_bags_parser(__doc__ or "")
+    parser.add_argument(
+        "--control-phase",
+        default="normal_drive",
+        help="phase to compare the pocket against, at matched lock and speed. The objection "
+        "this answers is that the pocket's tighter radius could be full lock and creep rather "
+        "than the wall; matching on both leaves only the surroundings.",
+    )
     args = parser.parse_args()
 
     headers = ("run", "ticks", "travel m", "turned deg", "R_eff m", "R_eff/R_model")
     table: list[tuple[object, ...]] = []
-    pooled: list[tuple[float, float, float]] = []
+    pooled: list[tuple[float, float, float, float, float]] = []
+    control: list[tuple[float, float, float, float, float]] = []
     noise_yaw = 0.0
     noise_s = 0.0
     driven_s = 0.0
@@ -170,6 +272,7 @@ def main() -> None:
         if not samples:
             continue
         pooled.extend(samples)
+        control.extend(_run_samples(bag_dir, args.control_phase)[0])
         noise_yaw += stalled_yaw
         noise_s += stalled_s
         driven_s += run_driven_s
@@ -230,6 +333,9 @@ def main() -> None:
             f"TIGHTER THAN THE MODEL ALLOWS on {tighter:.0%} of intervals",
             flush=True,
         )
+
+    if control:
+        _paired_table(pooled, control)
 
 
 if __name__ == "__main__":
