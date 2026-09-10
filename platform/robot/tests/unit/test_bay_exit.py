@@ -72,7 +72,19 @@ class _Pocket:
         target = steering_norm * math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
         self.wheel_rad += max(-slew, min(slew, target - self.wheel_rad))
         step_m = speed_mps * dt
-        self.yaw += step_m * math.tan(self.wheel_rad) / _EFFECTIVE_WHEELBASE_M * RobotSpecs.YAW_GAIN
+        # Curvature floored by the chassis's MEASURED minimum turn radius, as
+        # `AckermannKinematics` floors it. Restated rather than imported for the
+        # same reason as the rest of this class -- a test that inherited the
+        # helper could not catch a bug inside it -- but it must be here: without
+        # it this pocket turns inside 1.5 cm at full lock, and a harness more
+        # agile than the real car cannot show a manoeuvre failing on the real
+        # car. It was missing until 2026-09-09, which is what let the deadlock
+        # tests below pin a band that only exists in the un-floored model.
+        curvature = math.tan(self.wheel_rad) * RobotSpecs.YAW_GAIN / _EFFECTIVE_WHEELBASE_M
+        if RobotSpecs.MIN_TURN_RADIUS_M > 0.0:
+            turn_limit = 1.0 / RobotSpecs.MIN_TURN_RADIUS_M
+            curvature = max(-turn_limit, min(turn_limit, curvature))
+        self.yaw += step_m * curvature
         limit = _wall_feasible_yaw_rad(self.out)
         self.yaw = max(-limit, min(limit, self.yaw))
         self.along += step_m * math.cos(self.yaw)
@@ -180,14 +192,25 @@ def test_the_margin_band_that_froze_the_ratchet_is_closed() -> None:
     Pinned rather than inherited on the failing arm, because the fix is a
     SHIPPED VALUE (0.005 -> 0.001) and a test that read the shipped value would
     stop covering the bug the moment it was tuned back.
+
+    The pin MOVED 0.005 -> 0.020 on 2026-09-09, when ``_Pocket`` and the
+    manoeuvre's own dead reckoning both gained the chassis's measured minimum
+    turn radius. Smaller per-tick yaw puts ``reach`` somewhere else, so the band
+    that refuses both legs opens at a wider margin: measured over 0.001-0.030,
+    everything up to 0.012 still ratchets and 0.020 upward is frozen. The
+    deadlock is the same one and it is still reachable -- what changed is only
+    where it starts, and the shipped 0.001 now sits 20x clear of it rather
+    than 5x.
     """
-    frozen, _ = _drive(900, _guard_tuning(BAY_EXIT_CLEARANCE_MARGIN_M=0.005))
-    settled, _ = _drive(200, _guard_tuning(BAY_EXIT_CLEARANCE_MARGIN_M=0.005))
+    frozen, _ = _drive(900, _guard_tuning(BAY_EXIT_CLEARANCE_MARGIN_M=0.020))
+    settled, _ = _drive(200, _guard_tuning(BAY_EXIT_CLEARANCE_MARGIN_M=0.020))
     # Stalled: four and a half times the ticks buy nothing at all.
     assert frozen.out == pytest.approx(settled.out, abs=1e-6)
 
     escaped, _ = _drive(900, _guard_tuning())
-    assert escaped.out > frozen.out * 10
+    # 7.35x measured at the shipped margin; asserted at 5 so ordinary drift in
+    # the ratchet does not read as the deadlock returning.
+    assert escaped.out > frozen.out * 5
     # ...and it got out by clearing the fins, not by pushing through them.
     assert _true_fin_gap(escaped.along, escaped.out, escaped.yaw) > 0.0
 
@@ -532,11 +555,30 @@ def test_the_guard_hands_over_once_it_has_refused_every_leg_for_long_enough() ->
     motion by spending fin contact, which 9.24.7 ends the round on. It is kept
     reachable because it is the only bound on a guard that has trapped itself,
     so the trap is pinned back on here to prove the hatch still opens.
+
+    The trap's margin moved 0.005 -> 0.020 with the turn-radius floor; see
+    ``test_the_margin_band_that_froze_the_ratchet_is_closed`` for the sweep that
+    relocated it. At 0.005 the floored model simply is not trapped, so the
+    hatch had nothing to open and both arms came back identical.
+
+    What is asserted also changed, and for a better reason than the pin did.
+    The property is MOTION -- the hatch exists so a guard that has refused every
+    leg is not stuck forever -- and this read it off outward displacement, which
+    tracked motion only by luck of the un-floored model. Floored, the handover
+    moves 85 mm and spends nearly all of it ALONG the wall, so ``out`` actually
+    falls while the chassis is plainly unstuck. That is the docstring's own "the
+    handover buys motion by spending fin contact"; testing ``out`` was testing a
+    proxy that has stopped following the thing it stood for.
     """
-    trapped = {"BAY_EXIT_CLEARANCE_MARGIN_M": 0.005}
-    shut, _ = _drive(400, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=0))
-    opened, _ = _drive(400, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=40))
-    assert opened.out > shut.out
+    trapped = {"BAY_EXIT_CLEARANCE_MARGIN_M": 0.020}
+    shut_early, _ = _drive(200, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=0))
+    shut, _ = _drive(900, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=0))
+    opened, _ = _drive(900, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=40))
+    # The trap is real: 4.5x the ticks buy the shut arm nothing at all.
+    assert shut.along == pytest.approx(shut_early.along, abs=1e-6)
+    assert shut.out == pytest.approx(shut_early.out, abs=1e-6)
+    # The hatch opens it: the same 900 ticks move, on either axis or on neither.
+    assert abs(opened.along - shut.along) > 1e-3 or abs(opened.out - shut.out) > 1e-3
 
 
 def _drive_stalled(ticks: int, tuning) -> list[bool]:

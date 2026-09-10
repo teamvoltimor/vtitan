@@ -110,6 +110,26 @@ rear_steer_ratio = 1.0
 # property of THESE tyres on THIS surface: re-measure after a tyre, weight or
 # mat change, the same way max_speed_mps is re-measured after a motor swap.
 yaw_gain = 0.55
+# Tightest turn the chassis can actually make (m). The bicycle term has no
+# floor: at the shipped 85 deg lock it gives L_eff / (tan(85) * yaw_gain) =
+# 1.5 cm of radius, which a 30 x 19.4 cm four-wheeled car cannot do.
+#
+# MEASURED 2026-09-07 from /joint_states drive-wheel travel against pose yaw
+# over five hardware bags -- the real radius SATURATES, buying almost nothing
+# past ~30 deg of lock:
+#
+#   |steer|   effective R   model R   ratio
+#    15-30       66.0 cm     41.7 cm   1.6x
+#    30-45       38.2 cm     22.5 cm   1.7x
+#    75-90       28.9 cm      2.3 cm  12.7x
+#
+# Sits here rather than beside the simulation parameters because it describes
+# THIS chassis, and it is not the simulator alone that must obey it: BayExit
+# dead-reckons its own pose from the same bicycle model, and while that copy
+# had no floor it over-read the bay ratchet's outward travel by 31x (measured
+# 2026-09-09, scripts/sim/diag_bay_guard.py). Re-measure after a tyre, weight
+# or linkage change, the same way yaw_gain is.
+min_turn_radius_m = 0.29
 
 [lidar]
 # Closest range the C1 can report (m). Measured ~45 mm; anything nearer is

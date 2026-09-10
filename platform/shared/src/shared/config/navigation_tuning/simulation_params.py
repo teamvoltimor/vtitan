@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from shared.config.constants.robot import RobotSpecs
 from shared.config.navigation_tuning._shared import _alias
 
 
@@ -53,8 +54,18 @@ class SimulationParams(BaseModel):
     LIDAR_INVALID_RAY_RATE: float = Field(default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE"))
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
 
-    MIN_TURN_RADIUS_M: float = Field(default=0.29, ge=0.0, validation_alias=_alias("MIN_TURN_RADIUS_M"))
-    """Floor on the chassis's turn radius, in metres. 0 disables (the old model).
+    MIN_TURN_RADIUS_M: float = Field(
+        default=RobotSpecs.MIN_TURN_RADIUS_M, ge=0.0, validation_alias=_alias("MIN_TURN_RADIUS_M")
+    )
+    """Simulator's override of the chassis turn-radius floor. 0 disables it.
+
+    The VALUE is a physical property and lives in robot.toml, resolved through
+    ``RobotSpecs.MIN_TURN_RADIUS_M``; restating the 0.29 here would make two
+    names for one measurement and let them drift. What stays here is the
+    ability to run the simulator at a DIFFERENT floor than the robot has, which
+    is what an A/B against the un-floored model needs -- and note that this
+    knob moves only the physics, never ``BayExit``'s dead reckoning, which
+    reads the robot constant directly.
 
     The bicycle term has no floor: at the shipped 85 deg lock it gives
     ``L_eff / (tan(85) * yaw_gain)`` = **1.5 cm** of radius, which a 30 x 19.4 cm

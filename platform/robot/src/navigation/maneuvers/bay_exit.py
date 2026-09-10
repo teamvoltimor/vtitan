@@ -50,6 +50,32 @@ creep, so ordinary slow motion never reads as a stall, while a chassis held
 against a surface -- which reports no travel at all -- registers immediately."""
 
 
+def _bicycle_yaw_step(step_m: float, wheel_rad: float) -> float:
+    """Yaw the chassis turns over ``step_m`` of travel at ``wheel_rad`` of lock.
+
+    The curvature is FLOORED by ``RobotSpecs.MIN_TURN_RADIUS_M``, exactly as
+    ``AckermannKinematics`` floors it, and that is the whole point of this
+    helper existing rather than the expression being written out twice: the two
+    are the same physical model and had already drifted apart. The unfloored
+    bicycle term gives 1.5 cm of radius at the shipped 85 degree lock, against a
+    chassis measured to saturate near 0.29 m.
+
+    While only the kinematics honoured the floor, this manoeuvre's dead
+    reckoning believed it was ratcheting out of the pocket 31x faster than it
+    was -- 0.113 m of modelled outward travel against 0.0036 m of real, measured
+    2026-09-09 over four in-bay fixtures with ``scripts/sim/diag_bay_guard.py``.
+    That inflated ``_dr_out`` feeds ``_wall_feasible_yaw_rad``, so the guard
+    believed the wall had released it, allowed a yaw the chassis could not make,
+    predicted a pose inside a fin and vetoed legs that were in fact clear. Every
+    bay-exit remedy tried before this one tuned a term downstream of it.
+    """
+    curvature = math.tan(wheel_rad) * RobotSpecs.YAW_GAIN / _EFFECTIVE_WHEELBASE_M
+    if RobotSpecs.MIN_TURN_RADIUS_M > 0.0:
+        limit = 1.0 / RobotSpecs.MIN_TURN_RADIUS_M
+        curvature = clamp(curvature, -limit, limit)
+    return step_m * curvature
+
+
 def _rect_corners(along: float, out: float, yaw: float, length: float, width: float) -> list[tuple[float, float]]:
     """Corners of a ``length`` x ``width`` rectangle centred at (along, out), rotated by ``yaw``."""
     ca, sa = math.cos(yaw), math.sin(yaw)
@@ -407,7 +433,7 @@ class BayExit:
         target = clamp(wheel_norm, -1.0, 1.0) * max_rad
         slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
         self._dr_wheel_rad += clamp(target - self._dr_wheel_rad, -slew, slew)
-        self._dr_yaw += step * math.tan(self._dr_wheel_rad) / _EFFECTIVE_WHEELBASE_M * RobotSpecs.YAW_GAIN
+        self._dr_yaw += _bicycle_yaw_step(step, self._dr_wheel_rad)
         # The wall behind the pocket CLIPS the rotation, and dead reckoning
         # cannot see it -- measured 4.5x high. Unclamped, the guard bounds a
         # pose the chassis can never reach: on the first arc it predicts ~19 deg
@@ -434,7 +460,7 @@ class BayExit:
         target = clamp(wheel_norm, -1.0, 1.0) * max_rad
         slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
         wheel = self._dr_wheel_rad + clamp(target - self._dr_wheel_rad, -slew, slew)
-        yaw = self._dr_yaw + step_m * math.tan(wheel) / _EFFECTIVE_WHEELBASE_M * RobotSpecs.YAW_GAIN
+        yaw = self._dr_yaw + _bicycle_yaw_step(step_m, wheel)
         # Same wall clip as `_dead_reckon`, for the same reason: a predicted
         # pose the pocket forbids is not a prediction the guard may act on.
         limit = _wall_feasible_yaw_rad(self._dr_out)

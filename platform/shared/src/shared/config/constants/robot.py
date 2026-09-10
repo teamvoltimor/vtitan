@@ -77,6 +77,12 @@ class RobotSpecs:
     SPEED_RESPONSE_TAU_S: Final[float] = _robot.drivetrain.speed_response_tau_s
     YAW_GAIN: Final[float] = _robot.drivetrain.yaw_gain
 
+    MIN_TURN_RADIUS_M: Final[float] = _robot.drivetrain.min_turn_radius_m
+    """Tightest turn the chassis can make (m); 0 disables the floor.
+
+    Every consumer of the bicycle model owes the yaw term this clamp, which is
+    why it is a robot constant rather than a simulator one. See robot.toml."""
+
     # LIDAR (Slamtec C1) — mounted upside-down, centered left/right, at the front of the
     # chassis (measured 2026-07-11). See docs/robot-physical-constants.md.
     LIDAR_MIN_RANGE: Final[float] = _robot.lidar.min_range

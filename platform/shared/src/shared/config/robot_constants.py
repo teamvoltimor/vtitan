@@ -164,6 +164,17 @@ class Drivetrain(BaseModel):
     max_accel_mps2: float
     rear_steer_ratio: float
 
+    min_turn_radius_m: float = 0.29
+    """Tightest turn radius the chassis can actually make (m). 0 disables the floor.
+
+    A physical saturation, measured on hardware, not a simulator knob: every
+    consumer of the bicycle model owes it the same floor, and the two that
+    exist -- ``AckermannKinematics`` and ``BayExit``'s dead reckoning -- read it
+    from here so they cannot drift apart again. They already had: while only the
+    first honoured it, the second over-read the bay ratchet's outward travel by
+    31x. See the field's note in robot.toml for the measurement.
+    """
+
     speed_response_tau_s: float
     """First-order lag between a commanded speed and the achieved one (s).
 
