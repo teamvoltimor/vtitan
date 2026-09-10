@@ -149,7 +149,10 @@ def _instrument(bay_exit: object, margin: float) -> list[LegRecord]:
 
 
 def _run_one(
-    path: Path, args: argparse.Namespace, changes: dict[str, float]
+    path: Path,
+    args: argparse.Namespace,
+    changes: dict[str, float | bool],
+    sim_changes: dict[str, float | bool] | None = None,
 ) -> tuple[str, list[LegRecord], float, object, float | None, tuple[float, float]] | None:
     """Place the chassis in the pocket, run, and hand back the guard's own log.
 
@@ -168,10 +171,13 @@ def _run_one(
     start["position"]["y"] = centre[1]
 
     tuning = tuning_with_overrides(changes)
+    if sim_changes:
+        # The PHYSICS arm, not a follower knob: an arm that moves the chassis
+        # model and one that moves the manoeuvre are different claims, so they
+        # are carried apart rather than merged into one override dict.
+        tuning = tuning_with_overrides(sim_changes, group="simulation", base=tuning)
     if args.min_turn_radius is not None:
-        tuning = tuning_with_overrides(
-            {"MIN_TURN_RADIUS_M": args.min_turn_radius}, group="simulation", base=tuning
-        )
+        tuning = tuning_with_overrides({"MIN_TURN_RADIUS_M": args.min_turn_radius}, group="simulation", base=tuning)
     if args.no_progress_window > 0.0:
         tuning = tuning_with_overrides(
             {"NO_PROGRESS_WINDOW_S": args.no_progress_window}, group="simulation", base=tuning
@@ -259,7 +265,7 @@ def _report(
     best_exit: float | None,
     out_pair: tuple[float, float],
     *,
-    detail: bool
+    detail: bool,
 ) -> tuple[int, int, list[float], float | None, list[str], tuple[float, float]]:
     """Print one scenario's legs; return ``(legs, one_tick_legs, slacks, best exit, end reasons)``."""
     driven = [leg for leg in legs if leg.ticks]
@@ -340,6 +346,13 @@ def main() -> None:
         "integrated-and-clamped yaw with the one `_track_rotation` already measures.",
     )
     parser.add_argument(
+        "--tracks-speed",
+        action="store_true",
+        help="add an arm with simulation.MIN_TURN_RADIUS_TRACKS_SPEED on. The bay creeps at "
+        "<= 0.10 m/s, inside the range the curve was measured over, so this is the one arm the "
+        "curve legitimately answers -- the corridor at 0.26-0.50 m/s is extrapolation.",
+    )
+    parser.add_argument(
         "--only",
         default=None,
         help="keep only arms whose name contains this, so ONE arm remains and the per-leg "
@@ -377,12 +390,12 @@ def main() -> None:
         flush=True,
     )
 
-    arms: list[tuple[str, dict[str, float | bool]]] = [("shipped", {})]
-    arms += [(f"leg_max {v:g}s", {"BAY_EXIT_LEG_MAX_S": v}) for v in (args.leg_max or [])]
+    arms: list[tuple[str, dict[str, float | bool], dict[str, float | bool]]] = [("shipped", {}, {})]
+    arms += [(f"leg_max {v:g}s", {"BAY_EXIT_LEG_MAX_S": v}, {}) for v in (args.leg_max or [])]
     if args.mirror:
-        arms.append(("mirror reverse", {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True}))
+        arms.append(("mirror reverse", {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True}, {}))
     if args.measured_yaw:
-        arms.append(("measured yaw", {"BAY_EXIT_DR_USES_MEASURED_YAW": True}))
+        arms.append(("measured yaw", {"BAY_EXIT_DR_USES_MEASURED_YAW": True}, {}))
     if args.mirror and args.measured_yaw:
         # The pair is the point: mirroring is what produces rotation, the
         # measured yaw is what lets the guard see it. Each alone is a term of a
@@ -391,16 +404,29 @@ def main() -> None:
             (
                 "mirror+measured",
                 {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True, "BAY_EXIT_DR_USES_MEASURED_YAW": True},
+                {},
             )
         )
+    if args.tracks_speed:
+        # The bay creeps at <= 0.10 m/s, INSIDE the range the speed curve was
+        # measured over, so this is the one arm the curve legitimately answers.
+        # Paired with the levers because the question is whether the manoeuvre
+        # works on the corrected physics, not whether either alone helps.
+        arms.append(("tracks speed", {}, {"MIN_TURN_RADIUS_TRACKS_SPEED": True}))
+        if args.mirror:
+            arms.append(
+                (
+                    "tracks+mirror",
+                    {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True},
+                    {"MIN_TURN_RADIUS_TRACKS_SPEED": True},
+                )
+            )
+
     if args.only:
-        # Dropping the baseline is for READING one arm's per-leg table, never for
-        # judging it: an arm without its baseline is a number with nothing to
-        # compare against, which is how three refuted bay fixes were argued.
         arms = [arm for arm in arms if args.only in arm[0]] or arms
     detail = len(arms) == 1
 
-    for name, changes in arms:
+    for name, changes, sim_changes in arms:
         total_legs = 0
         total_one_tick = 0
         all_slacks: list[float] = []
@@ -408,7 +434,7 @@ def main() -> None:
         ended_by: list[str] = []
         out_pairs: list[tuple[float, float]] = []
         for path in paths:
-            run = _run_one(path, args, changes)
+            run = _run_one(path, args, changes, sim_changes)
             if run is None:
                 continue
             legs, one_tick, slacks, best_exit, ends, out_pair = _report(*run, detail=detail)
