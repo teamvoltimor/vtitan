@@ -1,0 +1,21 @@
+version: "3"
+
+vars:
+  OUTPUT_DIR: ./src/go/training_data
+  CHALLENGE: open
+
+tasks:
+  record:run:
+    desc: Record scenario videos from Gazebo simulation
+    cmds:
+      - pixi run --manifest-path ../../../src/python/pixi.toml -e sim python -m src.recording.recorder --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+
+  record:convert:
+    desc: Convert ROS2 bags to MP4 videos
+    cmds:
+      - uv run python -m src.recording.bag_converter --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+
+  record:frames:
+    desc: Extract frames from ROS2 bags and annotate
+    cmds:
+      - uv run python -m src.recording.frame_extractor --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames

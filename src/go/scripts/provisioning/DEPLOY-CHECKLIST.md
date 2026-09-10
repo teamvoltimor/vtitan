@@ -44,7 +44,7 @@ these are the **manual on-device steps** an operator runs. Do NOT push from CI.
    ```
 4. Pre-flip parity diff (rule out drift):
    ```sh
-   diff <(cat shared/config/navigation/**/*.toml) <(cat configs/profiles/*.toml)
+   diff <(cat src/config/navigation/**/*.toml) <(cat configs/profiles/*.toml)
    ```
 5. Flip to Go stack (whole-stack swap):
    ```sh

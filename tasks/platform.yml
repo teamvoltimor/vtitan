@@ -624,25 +624,9 @@ tasks:
   # src/go/Taskfile.yml (robot-go:*, simgen:*) -- fully self-contained except
   # simgen:build, called from gen:track below.
 
-  # RECORD (video + frame pipeline)
-
-  record:run:
-    desc: Record scenario videos from Gazebo simulation
-    dir: apps/gazebo/runtime
-    cmds:
-      - pixi run --manifest-path ../../../src/python/pixi.toml -e sim python -m src.recording.recorder --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
-
-  record:convert:
-    desc: Convert ROS2 bags to MP4 videos
-    dir: apps/gazebo/runtime
-    cmds:
-      - uv run python -m src.recording.bag_converter --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
-
-  record:frames:
-    desc: Extract frames from ROS2 bags and annotate
-    dir: apps/gazebo/runtime
-    cmds:
-      - uv run python -m src.recording.frame_extractor --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
+  # RECORD (video + frame pipeline) moved to apps/gazebo/Taskfile.yml
+  # (record:*) -- fully self-contained, no cross-references into this file.
+  # Called from workflow:record below.
 
   # DOCKER (compose)
 
