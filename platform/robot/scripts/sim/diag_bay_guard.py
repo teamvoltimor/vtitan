@@ -229,28 +229,32 @@ def _report(
     # its TIME bound cuts it.
     slacks = [min(x.gap for x in leg.ticks) - margin for leg in driven]
     ends = [leg.ended_by for leg in driven]
-    print(
-        f"\n{scenario}: {len(legs)} legs ({len(driven)} with a guarded tick), "
-        f"{len(one_tick)} died on their FIRST tick, margin={margin:.4f} m, "
-        f"bay_exit_ticks={getattr(result, 'sim_time_s', float('nan')):.1f}s sim",
-        flush=True,
-    )
-    print(
-        f"  {'leg':<5}{'dir':<5}{'ticks':<7}{'ended':<11}{'gap[0]':<10}{'gap[-1]':<10}{'gap_min':<10}"
-        f"{'slack_min':<11}{'out':<9}{'yaw_deg':<9}{'along'}",
-        flush=True,
-    )
-    for leg in driven[:12]:
-        t, last = leg.ticks[0], leg.ticks[-1]
-        gap_min = min(x.gap for x in leg.ticks)
+    if detail:
         print(
-            f"  {leg.index:<5}{'rev' if leg.is_reverse else 'fwd':<5}{len(leg.ticks):<7}{leg.ended_by:<11}"
-            f"{t.gap:<10.4f}{last.gap:<10.4f}{gap_min:<10.4f}{gap_min - margin:<+11.4f}"
-            f"{last.dr_out:<9.4f}{math.degrees(last.dr_yaw):<9.2f}{last.dr_along:.4f}",
+            f"\n{scenario}: {len(legs)} legs ({len(driven)} with a guarded tick), "
+            f"{len(one_tick)} died on their FIRST tick, margin={margin:.4f} m, "
+            f"run={getattr(result, 'sim_time_s', float('nan')):.1f}s sim "
+            f"collided={getattr(result, 'collided', None)} timed_out={getattr(result, 'timed_out', None)} "
+            f"surface={getattr(result, 'terminal_surface', None)} "
+            f"contacts={getattr(result, 'contact_count', None)} laps={getattr(result, 'laps_completed', None)}",
             flush=True,
         )
-    if len(driven) > 12:
-        print(f"  ... {len(driven) - 12} more legs", flush=True)
+        print(
+            f"  {'leg':<5}{'dir':<5}{'ticks':<7}{'ended':<11}{'gap[0]':<10}{'gap[-1]':<10}{'gap_min':<10}"
+            f"{'slack_min':<11}{'out':<9}{'yaw_deg':<9}{'along'}",
+            flush=True,
+        )
+        for leg in driven[:12]:
+            t, last = leg.ticks[0], leg.ticks[-1]
+            gap_min = min(x.gap for x in leg.ticks)
+            print(
+                f"  {leg.index:<5}{'rev' if leg.is_reverse else 'fwd':<5}{len(leg.ticks):<7}{leg.ended_by:<11}"
+                f"{t.gap:<10.4f}{last.gap:<10.4f}{gap_min:<10.4f}{gap_min - margin:<+11.4f}"
+                f"{last.dr_out:<9.4f}{math.degrees(last.dr_yaw):<9.2f}{last.dr_along:.4f}",
+                flush=True,
+            )
+        if len(driven) > 12:
+            print(f"  ... {len(driven) - 12} more legs", flush=True)
     return len(driven), len(one_tick), slacks, best_exit, ends, out_pair
 
 
@@ -283,10 +287,25 @@ def main() -> None:
         "--min-turn-radius",
         type=float,
         default=None,
-        help="override simulation MIN_TURN_RADIUS_M. The dead reckoning the guard steers on has "
-        "NO radius floor, so setting this to 0 makes the physics agree with the guard's model "
-        "again -- which is the direct test of whether 72e7172b's measured 0.29 m floor is what "
-        "opened the gap between believed and true outward travel.",
+        help="override simulation MIN_TURN_RADIUS_M. Since 966b2b36 the dead reckoning floors "
+        "the curvature exactly as the physics does, so this no longer decouples the two models "
+        "-- it now asks the cleaner question of what the manoeuvre does at a radius the chassis "
+        "does not have, which is the physics every pre-72e7172b bay-exit result was measured on.",
+    )
+    parser.add_argument(
+        "--only",
+        default=None,
+        help="keep only arms whose name contains this, so ONE arm remains and the per-leg "
+        "table prints. Reading aid; the shipped baseline is what any verdict needs.",
+    )
+    parser.add_argument(
+        "--mirror",
+        action="store_true",
+        help="add an arm with BAY_EXIT_GUARD_MIRRORS_REVERSE on. Held lock and mirrored lock "
+        "retrace one another only at the model radius: the docstring's ratchet arithmetic says "
+        "holding accumulates NO rotation against the measured 0.29 m floor while mirroring "
+        "accumulates it at ANY radius. The lever's refutation predates 966b2b36, so it was "
+        "measured on a dead reckoning that over-read outward travel 31x.",
     )
     parser.add_argument(
         "--leg-max",
@@ -311,8 +330,15 @@ def main() -> None:
         flush=True,
     )
 
-    arms: list[tuple[str, dict[str, float]]] = [("shipped", {})]
+    arms: list[tuple[str, dict[str, float | bool]]] = [("shipped", {})]
     arms += [(f"leg_max {v:g}s", {"BAY_EXIT_LEG_MAX_S": v}) for v in (args.leg_max or [])]
+    if args.mirror:
+        arms.append(("mirror reverse", {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True}))
+    if args.only:
+        # Dropping the baseline is for READING one arm's per-leg table, never for
+        # judging it: an arm without its baseline is a number with nothing to
+        # compare against, which is how three refuted bay fixes were argued.
+        arms = [arm for arm in arms if args.only in arm[0]] or arms
     detail = len(arms) == 1
 
     for name, changes in arms:
