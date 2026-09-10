@@ -180,6 +180,11 @@ data/sim/videos/*
 !data/sim/videos/.gitkeep
 data/sim/photos/*
 !data/sim/photos/.gitkeep
+# Raw sweep arms rescued from deleted session worktrees. Regenerable only by
+# re-running the sweep, which is why they are kept, but they are bulk JSON and
+# must never enter a commit.
+data/archive/*
+!data/archive/.gitkeep
 
 # Internal docs
 docs/internal/
