@@ -72,3 +72,19 @@ lidar_range_fusion = false
 # fitted to it: the recovered cx-vs-bearing slope reads -309 px/rad at zero lag,
 # which no real lens can produce (floor ~620), and -679 at 0.85 s.
 vision_latency_s = 0.85
+
+# --- Written out 2026-09-10 ---
+#
+# All three existed only as Python literals (pytest's shipped-tree completeness
+# check now requires every concrete default to appear in this file). Shipped
+# values, so naming them changed nothing.
+#
+# Snap a fixed observation to the corridor lattice; 0.0 disables.
+snap_to_lattice_m = 0.0
+# The two knobs below parameterise lidar_range_fusion above, which ships
+# REFUTED-off: a return within this range of a track's position clusters with
+# it when this many proportion AGREE it pillar-shaped. Inert while the fusion
+# is off.
+lidar_range_fusion_cluster = false
+lidar_range_fusion_agreement = 0.5
+

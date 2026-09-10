@@ -243,3 +243,10 @@ advance_past_passed_waypoint = false
 # switch. REFUTED twice (2026-08-31) as a fix for anything -- kept
 # configurable, not kept as a lever.
 replan_blend_ticks = 0
+
+# Written out 2026-09-10 at its shipped value: until then it existed only as a
+# Python literal, so no edit here could reach it (pytest's shipped-tree
+# completeness check now requires every concrete default to appear in this
+# file).
+forward_only_reseek = false
+

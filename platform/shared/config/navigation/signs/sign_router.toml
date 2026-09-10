@@ -286,3 +286,33 @@ sign_aware_lookahead = true
 sign_lidar_align = false
 # Rescue a target that has gone stale mid-approach.
 stale_target_rescue = false
+
+# --- Written out 2026-09-10 ---
+#
+# All nine existed only as Python literals: SignRouterParams carried the
+# value, this file did not name it, and so no edit here reached the robot
+# (pytest's shipped-tree completeness check now requires every concrete
+# default to appear in this file). They are written at their shipped values,
+# so adding them changed nothing. They parameterise the sign_lidar_align
+# control law above, which ships OFF -- see its measurement paragraph for why.
+#
+# Proximity window a LIDAR pillar return must fall inside to count as that
+# sign's return, and the FOV cone around the camera bearing it must sit in.
+sign_lidar_align_min_m = 0.4
+sign_lidar_align_max_m = 1.5
+sign_lidar_align_fov_deg = 45.0
+# Reached depth past a pulled line at which the align branch hands a detected
+# but unclassified return over, and the width a return may span before it
+# stops looking pillar-shaped to the test.
+sign_lidar_align_depth_m = 0.08
+sign_lidar_align_max_width_m = 0.15
+# Heading deadband and gain of the steer-at-the-return law, with its own cap.
+# sign_lidar_align's U-turn refutation turns on this gain: do not raise while
+# it ships off.
+sign_lidar_align_deadband_deg = 8.0
+sign_lidar_align_gain = 0.35
+sign_lidar_align_max_steer = 0.15
+# Hand LIDAR-resolved pillars to discovery as sign candidates, in place of the
+# camera's boxes. Ships off while discovery's own camera pipeline is trusted.
+sign_lidar_propose = false
+

@@ -10,6 +10,7 @@ section) — competition-day tuning changes never actually applied.
 from __future__ import annotations
 
 import json
+import tomllib
 from typing import ClassVar
 
 import pytest
@@ -406,6 +407,69 @@ class TestFieldDefaultsMatchShippedToml:
             f"to match the config file -- code that constructs tuning bare is "
             f"otherwise silently running values nobody chose."
         )
+
+
+class TestShippedTreeIsComplete:
+    """The checked-in base TOML tree must name every knob its groups declare.
+
+    Partial loading is DELIBERATE everywhere else and stays untouched: a
+    hardware profile ships only the keys it retunes, challenge overlays may be
+    empty, and a bare ``NavigationTuning()`` in a sim/test context falls back
+    through everything to pydantic defaults. This check pins only the base
+    tree -- the file ``load_default`` is documented to be "the normal way to
+    construct a NavigationTuning in production code" -- so that a knob with a
+    concrete default cannot be half-landed: declared in the model (where the
+    shipped value rests) but absent from the file an operator would edit to
+    reach it. That failure happened for real, twice: every bay-exit key lived
+    only as a Python literal until 2026-09-05, and an earlier zero-lap round
+    shipped with ``SLOW_MPS`` in the model while speed.toml named nothing of
+    the tier ladder.
+    """
+
+    # Concrete defaults that are RESOLVED rather than restated. The Field
+    # default is not a second opinion here: it is lifted from another single
+    # source at class-definition time, so naming the value in the TOML would
+    # re-create exactly the two-names-for-one-number style this repo deletes.
+    _RESOLVED_DEFAULTS: ClassVar[set[str]] = {
+        # Value is RobotSpecs.MIN_TURN_RADIUS_M, read from robot.toml, the
+        # same measurement the dead reckoning and the kinematics floor cite.
+        "simulation.MIN_TURN_RADIUS_M",
+    }
+
+    def test_every_concrete_default_appears_in_the_base_toml(self):
+        from shared.config.navigation_tuning import DEFAULT_CONFIG_DIR
+
+        missing = []
+        drifted = {}
+        base = NavigationTuning()
+        for key, _dataclass_type, subfolder in NavigationTuning._GROUPS:
+            toml_path = DEFAULT_CONFIG_DIR / subfolder / f"{key}.toml"
+            if not toml_path.exists():
+                missing.append(f"{key}: no {subfolder}/{key}.toml in the base tree")
+                continue
+            data = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+            bare = getattr(base, key).model_dump()
+            for field_name, field in type(getattr(base, key)).model_fields.items():
+                if field.default is None:
+                    # A None default is an ABSENCE, not a value owed here --
+                    # per-challenge tiers and optional gates are deliberately
+                    # unset and TestFieldDefaultsMatchShippedToml treats them
+                    # the same way.
+                    continue
+                if f"{key}.{field_name}" in self._RESOLVED_DEFAULTS:
+                    continue
+                shipped_key = field_name if field_name in data else field_name.lower()
+                if shipped_key not in data:
+                    missing.append(f"{key}.{field_name}: unnamed in {subfolder}/{key}.toml")
+                elif data.get(shipped_key) != field.default and not isinstance(
+                    field.default, bool
+                ):
+                    # bool(repr) format differences do not exist in TOML; only
+                    # float-vs-int spelling can differ (0 vs 0.0), and pydantic
+                    # accepts both, so compare with its tolerance.
+                    drifted[f"{key}.{field_name}"] = (data.get(shipped_key), field.default)
+        assert not drifted, f"shipped values have drifted from the model: {drifted}"
+        assert not missing, f"base TOML tree incomplete: {missing}"
 
 
 class TestPerChallengeCreep:

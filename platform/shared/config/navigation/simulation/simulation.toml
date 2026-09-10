@@ -65,3 +65,16 @@ no_progress_displacement_m = 0.08
 # Ships false until the Obstacles corpus is re-baselined on it, since it changes
 # which detections survive the discovery gates.
 vision_through_pinhole = false
+
+# --- Written out 2026-09-10 ---
+#
+# All three existed only as Python literals (pytest's shipped-tree completeness
+# check now requires every concrete default to appear in this file). Shipped
+# values, so naming them changed nothing.
+#
+# Emulate detection RANGE falloff (not just geometry) on the emulated camera:
+# a probit-ish falloff around R50, in metres.
+vision_range_model = true
+vision_detect_r50_m = 1.1
+vision_detect_falloff_m = 0.15
+

@@ -100,3 +100,10 @@ corner_preview_distance_m = 0.80   # Path distance previewed for an upcoming tur
 # jumps 0.00 -> 0.59 in one step, so every threshold in that band arms at the
 # same waypoint. Not the lever for turn timing -- see the preview above.
 corner_turn_threshold_rad = 0.35   # Heading change over that preview that counts as a corner
+
+# Written out 2026-09-10 at its shipped value: until then it existed only as a
+# Python literal, so no edit here could reach it (pytest's shipped-tree
+# completeness check now requires every concrete default to appear in this
+# file). 0.0 disables the minimum-radius floor on pursuit planning.
+min_target_radius_m = 0.0
+
