@@ -1,14 +1,14 @@
 # Configuración TOML de navegación (`robot` y `robot-go`)
 
 Este documento explica **dónde reside la configuración**, **cómo se resuelve** y **qué hace cada
-variable relevante** en las dos implementaciones de navegación: `platform/robot` (Python/ROS 2) y
-`platform/robot-go` (Go).
+variable relevante** en las dos implementaciones de navegación: `src/python` (Python/ROS 2) y
+`src/go` (Go).
 
 El alcance es deliberado: se documenta lo que **modifica el comportamiento en pista** en el Open
 Challenge y en el Obstacle Challenge. Se omiten los ficheros puramente de hardware y de
 controladores de dispositivo (pines GPIO, direcciones I2C, rangos de PWM del servo, UART de la IMU,
 parámetros del panel OLED, del botón y del grabador), que residen en
-`platform/robot/config/hardware/` y solo describen cómo se comunica el sistema con una pieza física.
+`src/python/config/hardware/` y solo describen cómo se comunica el sistema con una pieza física.
 
 ---
 
@@ -16,10 +16,10 @@ parámetros del panel OLED, del botón y del grabador), que residen en
 
 | Árbol | Ruta | Contenido |
 |---|---|---|
-| Base de navegación | `platform/shared/config/navigation/<tema>/<grupo>.toml` | El ajuste que gobierna la conducción. Un fichero por grupo de parámetros. |
-| Hechos físicos | `platform/shared/config/robot.toml`, `track.toml`, `competition_specs.toml` | Geometría del chasis y de los sensores, geometría de la pista y reglas WRO. |
-| Perfiles de hardware | `platform/shared/config/profiles/<nombre>/...` | Únicamente las claves que difieren para una pieza concreta (servo, motor). Se seleccionan mediante `VTITAN_HARDWARE_PROFILE`. |
-| Capas por reto | `platform/shared/config/navigation-challenges/<open\|obstacles>/<tema>/<grupo>.toml` | Reajuste específico de un reto. Actualmente solo contiene los `README.md`: está vacío de forma intencionada. |
+| Base de navegación | `src/python/shared/config/navigation/<tema>/<grupo>.toml` | El ajuste que gobierna la conducción. Un fichero por grupo de parámetros. |
+| Hechos físicos | `src/python/shared/config/robot.toml`, `track.toml`, `competition_specs.toml` | Geometría del chasis y de los sensores, geometría de la pista y reglas WRO. |
+| Perfiles de hardware | `src/python/shared/config/profiles/<nombre>/...` | Únicamente las claves que difieren para una pieza concreta (servo, motor). Se seleccionan mediante `VTITAN_HARDWARE_PROFILE`. |
+| Capas por reto | `src/python/shared/config/navigation-challenges/<open\|obstacles>/<tema>/<grupo>.toml` | Reajuste específico de un reto. Actualmente solo contiene los `README.md`: está vacío de forma intencionada. |
 
 Ambas implementaciones leen **los mismos ficheros**. Go no dispone de un árbol propio:
 `internal/config/profile` declara las mismas rutas como constantes (`DefaultClearanceTOMLPath`, etc.)
@@ -249,12 +249,12 @@ modelo. Corresponde al radio mínimo de giro medido del chasis; el modelo cinem�
 
 ### 2.13 Ficheros ajenos al árbol compartido pero relevantes
 
-- `platform/robot/config/hardware/state_machine/state_machine_node.toml`:
+- `src/python/config/hardware/state_machine/state_machine_node.toml`:
   `challenge_mode_timeout_sec = 180.0` y `challenge_mode_samples_required = 3`. Determinan el tiempo
   de espera del puente físico que selecciona el reto. Con un tiempo de espera reducido, una ronda de
   Obstacles llegó a ejecutarse como Open.
-- `platform/robot/config/hardware/vision/detector.toml`: `min_confidence = 0.45` del detector.
-- `platform/robot/config/launch/race.toml`: retención de registros (`bag_max_runs`,
+- `src/python/config/hardware/vision/detector.toml`: `min_confidence = 0.45` del detector.
+- `src/python/config/launch/race.toml`: retención de registros (`bag_max_runs`,
   `bag_max_total_gb`).
 
 ---

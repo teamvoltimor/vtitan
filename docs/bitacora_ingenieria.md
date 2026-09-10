@@ -873,8 +873,8 @@ ese no era el objetivo: la convención de commits se adoptó porque el historial
 primera fuente para reconstruir cuándo y por qué cambió algo, y varias entradas de esta
 bitácora se escribieron leyendo `git log`.
 
-La estructura separa `platform/robot` (el sistema de navegación en Python/ROS2), `robot-go`
-(la migración en curso), `platform/shared` (la configuración y el ajuste que ambos comparten) y
+La estructura separa `src/python` (el sistema de navegación en Python/ROS2), `src/go`
+(la migración en curso), `src/python/shared` (la configuración y el ajuste que ambos comparten) y
 `docs/`, con sus subcarpetas `internal`, `development`, `proposals`, `reference` y `schemes`.
 Las dependencias se gestionan con `uv` en Python y con Pixi/RoboStack para ROS2, y las
 operaciones habituales están encapsuladas en el `Taskfile` (`task sim:navigate...`,

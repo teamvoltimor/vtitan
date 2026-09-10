@@ -15,7 +15,7 @@ pi5_systemd_units:
   - vtitan-boot-check-watchdog.service
   - vtitan-boot-check-watchdog.timer
 
-# Keep in sync with platform/backend/go.mod's `go` directive. Trixie's apt only
+# Keep in sync with apps/backend/go.mod's `go` directive. Trixie's apt only
 # carries 1.24, which is why the backend's toolchain comes from mise rather
 # than the distro.
 go_version: "1.26"

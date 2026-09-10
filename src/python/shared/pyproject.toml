@@ -1,0 +1,30 @@
+[project]
+name = "vtitan-shared"
+version = "0.1.0"
+description = "Shared constants and enums for vTitan platform"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+yaml = ["pyyaml>=6.0"]
+dev = ["ruff>=0.15"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shared"]
+
+[tool.ruff]
+# Extends the common base at the repo root ruff.toml (shared with src/, a
+# peer package, not a parent) -- shared/ was previously covered by no ruff
+# config at all, so `ruff check .` here fell back to ruff's bare default
+# rules (E4/E7/E9/F) whenever run outside src/ (e.g. from the repo
+# root, or before this file existed).
+extend = "../../../ruff.toml"
+
+[tool.ruff.lint.isort]
+known-first-party = ["shared"]

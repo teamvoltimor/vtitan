@@ -1,0 +1,48 @@
+# Motor configuration -- src/hardware/motors/config.py
+# steering.port / drive.port are left out -- device paths stay in .env
+# (runtime/hardware-instance knobs, not fixed hardware facts), required
+# exactly as before this migration.
+
+[steering]
+offset = 0.0
+# Steering center angle offset (deg). Positive = bias right, negative = left.
+
+left_limit_angle = -83.0
+right_limit_angle = 22.0
+center_angle = -30.0
+
+centering_speed = 20
+turning_speed = 30
+reversed = false
+
+# max_steering_angle and linkage_ratio are NOT declared here. They are physical
+# facts of the steering hardware, so they live in src/shared/config/
+# robot.toml, which is also where the navigator's road-wheel limit is derived
+# from them. Declaring them here too is what let this file say 90 x 0.78 while
+# the code defaults said 45 x 1.0 -- two different robots. Override per-unit
+# with MOTOR_STEERING__MAX_STEERING_ANGLE / __LINKAGE_RATIO if a chassis
+# genuinely differs.
+
+[drive]
+reversed = false
+# false on the real robot as of the BTS7960 rewire (independent RPWM/LPWM,
+# corrected R_EN/L_EN pins -- see docs/bts7960-ibt2-wiring.md): verified on
+# hardware 2026-08-27 that a positive commanded speed already drives
+# backward, so reversed=true would double-negate it. The previous `true`
+# value (verified 2026-07-25) was correct for the retired L298N wiring; the
+# BTS7960 swap flipped the physical polarity sense as a side effect.
+
+encoder_reversed = true
+# true on the real robot, independent of `reversed`: the motor leads and the
+# encoder's A/B channels are separate connections.
+
+min_speed = -100
+max_speed = 100
+
+speed_scale = 30.0
+# Velocity -> motor-speed scale: motor_speed = velocity_m_s * scale.
+
+default_speed = 15
+
+test_duration = 1.5
+# Motor test/diagnostic run duration in seconds.

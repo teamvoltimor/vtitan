@@ -1,12 +1,12 @@
 %% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
 %% Fase 1 (inferir dirección) -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/inferencia-direccion.mmd
-%% SignRouter: platform/robot/src/navigation/planning/sign_router/
-%%   descubrimiento en vivo: platform/robot/src/navigation/planning/sign_discovery.py (ObservedSignMap)
+%% SignRouter: src/python/src/navigation/planning/sign_router/
+%%   descubrimiento en vivo: src/python/src/navigation/planning/sign_discovery.py (ObservedSignMap)
 %%   selección de señal activa: SignRouter._active_sign_candidates()
 %%   deformación del waypoint y regla rojo/verde: ver schemes/flowcharts/obstacles/mermaid/regla-senales.mmd
 %%   enmascarado de LIDAR: mask_mapped_obstacles() (control/controllers), escape_mask_radius_m = 0.12 m
-%%     -- platform/shared/config/navigation/signs/sign_router.toml
+%%     -- src/python/shared/config/navigation/signs/sign_router.toml
 %%   rearme por vuelta: SignRouter.reset_for_new_lap()
 %% Vigilancia de colisión/atasco -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/escape-colision.mmd

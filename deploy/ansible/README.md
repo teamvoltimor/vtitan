@@ -41,7 +41,7 @@ tasks: WiFi band lock, SSH-trust bootstrap).
 
 ## Notes
 
-- systemd units under `platform/robot/systemd/*.service` are the single
+- systemd units under `src/systemd/*.service` are the single
   source of truth - Ansible substitutes their `__TARGET_USER__`/
   `__TARGET_HOME__` placeholders the same way the bash scripts' `sed` does,
   rather than duplicating them as `.j2` templates.

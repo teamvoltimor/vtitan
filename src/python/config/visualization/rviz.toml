@@ -1,0 +1,51 @@
+# RViz/visualization-only appearance tuning for the live scenario view.
+# These are NOT official WRO track specs -- only how the sim draws itself in
+# RViz. Official track measurements (wall colour/dimensions, sign colours,
+# corridor geometry) live in src/shared/config/track.toml.
+
+# Floor slab (a thin cube under the track). Keep it thin: a thick slab's side
+# faces read as an opaque wall at shallow viewing angles and swamp the mat
+# colour. Top face sits ~1 mm below z=0 so line markings render on top.
+floor_thickness = 0.001
+floor_alpha = 1.0
+
+# Floor-marking line width = starting-zone thickness (1 mm) × this factor.
+# Scales the hairline print up for legibility at normal viewing distance.
+floor_line_thickness_factor = 3.0
+
+# Chassis is semi-transparent so the wheels (which sit inside the chassis box)
+# stay readable through the body.
+chassis_alpha = 0.3
+
+[colors]
+# RGB channels, normalised 0-1.
+floor.r = 1.0
+floor.g = 1.0
+floor.b = 1.0
+chassis.r = 0.0
+chassis.g = 0.0
+chassis.b = 0.8
+wheel_rubber.r = 0.1
+wheel_rubber.g = 0.1
+wheel_rubber.b = 0.1
+wheel_spoke.r = 0.9
+wheel_spoke.g = 0.9
+wheel_spoke.b = 0.35
+lidar.r = 0.1
+lidar.g = 0.1
+lidar.b = 0.1
+camera.r = 0.2
+camera.g = 0.2
+camera.b = 0.2
+camera_facing.r = 1.0
+camera_facing.g = 1.0
+camera_facing.b = 0.0
+front_axle_arrow.r = 0.0
+front_axle_arrow.g = 0.9
+front_axle_arrow.b = 0.9
+rear_axle_arrow.r = 1.0
+rear_axle_arrow.g = 0.5
+rear_axle_arrow.b = 0.0
+sign_floor_marking.r = 0.0
+sign_floor_marking.g = 0.0
+sign_floor_marking.b = 0.0

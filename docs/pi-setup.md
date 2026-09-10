@@ -158,4 +158,4 @@ tunnel · Tailscale/WireGuard.
 **🔧 Not covered by anyone - Imager or manual:** hostname / username / WiFi /
 SSH keys (Imager) · robot `.env` tuning (GPIO pins, `STEERING_BACKEND`,
 `DRIVE_BACKEND`) · on-device steering calibration (`find_limits_interactive`,
-see `platform/robot/KNOWN_ISSUES.md`) · physical sensor wiring.
+see `src/python/KNOWN_ISSUES.md`) · physical sensor wiring.

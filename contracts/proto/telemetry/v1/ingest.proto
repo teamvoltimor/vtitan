@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package vtitan.telemetry.v1;
+
+import "buf/validate/validate.proto";
+import "telemetry/v1/types.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1;telemetryv1";
+
+// TelemetryIngestService is the gRPC ingest boundary for all robot and service producers.
+// Producers open a persistent client-stream instead of repeating HTTP POSTs —
+// one HTTP/2 connection handles the full 10 Hz feed.
+service TelemetryIngestService {
+  // StreamSnapshots accepts a continuous stream of robot state snapshots.
+  // The server returns a summary on stream close (or producer disconnect).
+  rpc StreamSnapshots(stream StreamSnapshotsRequest) returns (StreamSnapshotsResponse);
+
+  // StreamTopics accepts a continuous stream of ROS2 topic frames.
+  // Populates the data exposed by GET /v1/telemetry/topics on the REST edge.
+  rpc StreamTopics(stream StreamTopicsRequest) returns (StreamTopicsResponse);
+}
+
+message StreamSnapshotsRequest {
+  RobotSnapshot snapshot = 1 [(buf.validate.field).required = true];
+}
+
+message StreamSnapshotsResponse {
+  uint64 snapshots_received = 1;
+}
+
+message StreamTopicsRequest {
+  TopicsSnapshot topics = 1 [(buf.validate.field).required = true];
+}
+
+message StreamTopicsResponse {
+  uint64 updates_received = 1;
+}

@@ -1,4 +1,7 @@
 [tools]
+go = "1.26.5"
+python = "3.14.6"
+node = "26.5.0"
 pnpm = "11.11.0"
 task = "3.52.0"
 uv = "0.11.28"
@@ -14,3 +17,13 @@ golangci-lint = "2.12.2"
 "npm:@redocly/cli" = "2.41.2"
 "ubi:dkorunic/betteralign" = "0.13.0"
 "aqua:pressly/goose" = "3.27.2"
+
+[tasks.launch-pi-zero]
+description = "Launch merged Pi Zero node (motors + button + OLED) in one process"
+run = "pixi run -e dev launch-rpi-zero"
+dir = "src/python"
+
+[tasks.build-ws]
+description = "Build the ROS2 workspace"
+run = "pixi run -e dev build-ws"
+dir = "src/python"

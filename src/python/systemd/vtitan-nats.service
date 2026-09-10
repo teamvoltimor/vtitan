@@ -1,0 +1,39 @@
+[Unit]
+Description=vTitan — NATS broker (hub both boards connect to)
+# Runs on the Pi 5. nats-server is the single message hub: the Pi Zero
+# (motors/button/OLED) and every Pi 5 subsystem (IMU/LiDAR/vision/nav/
+# telemetry/state-machine) are nats.go clients that connect to it. It is a
+# single point of failure by design (hub-and-spoke, not brokerless mesh) --
+# see src/python/docs/internal/plans/go-migration-plan.md "Transport
+# decision" -- so it MUST come back on its own: Restart=always, not
+# on-failure, because a clean exit would otherwise leave every client
+# reconnecting to nothing.
+#
+# No network-online.target: the boards talk to each other over the USB-gadget
+# link (usb0, 192.168.250.x), not WiFi, and gating on WiFi (which measured
+# 6-60s and sometimes timed out on this hardware, per vtitan-pi5.service's own
+# comment) would only delay the broker both boards actually need. nats-server
+# listens on 0.0.0.0:4222 so the Zero reaches it over usb0 as well as localhost.
+Wants=network.target
+After=network.target
+
+[Service]
+Type=simple
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=__TARGET_HOME__/vtitan/src/python
+Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
+# -c points at the bundled minimal server config (listen port, ping/timeout
+# tuned for a flaky gadget link, no auth -- the link is a private point-to-point
+# network between the two boards, not exposed to WiFi).
+ExecStart=__TARGET_HOME__/.pixi/bin/nats-server -c __TARGET_HOME__/vtitan/src/python/config/nats-server.conf
+Restart=always
+RestartSec=2
+# A wedged broker should not pin the boot forever; if it can't stay up it will
+# keep restarting in the background while clients (which retry the initial dial,
+# see internal/transport/nats) tolerate the gap.
+StartLimitBurst=10
+StartLimitIntervalSec=60
+
+[Install]
+WantedBy=multi-user.target

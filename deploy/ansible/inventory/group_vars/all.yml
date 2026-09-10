@@ -8,8 +8,8 @@ github_repo: teamvoltimor/vtitan
 # provision a board from a feature branch without merging it first.
 repo_ref: master
 repo_dir: "/home/{{ ansible_user }}/vtitan"
-robot_dir: "{{ repo_dir }}/platform/robot"
-backend_dir: "{{ repo_dir }}/platform/backend"
+robot_dir: "{{ repo_dir }}/src/python"
+backend_dir: "{{ repo_dir }}/apps/backend"
 pixi_bin: "/home/{{ ansible_user }}/.pixi/bin/pixi"
 # Go toolchain manager, for the Pi 5's telemetry backend. Separate from pixi
 # (which manages the ROS2/Python side) because the repo already pins its Go

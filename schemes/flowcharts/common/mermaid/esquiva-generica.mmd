@@ -2,10 +2,10 @@
 %% Este comportamiento tiene DOS implementaciones separadas en el código,
 %% una por fase, aunque el resultado descrito aquí es el mismo:
 %%   - Durante el avance ciego (antes de fijar la dirección):
-%%     platform/robot/src/navigation/corridor_follower.py::follow_corridor()
+%%     src/python/src/navigation/corridor_follower.py::follow_corridor()
 %%     (rama forward < _MIN_FORWARD_CLEARANCE_M)
 %%   - Durante la conducción normal (ruta ya trazada):
-%%     platform/robot/src/navigation/core_navigator/ + EscapeManeuver en
+%%     src/python/src/navigation/core_navigator/ + EscapeManeuver en
 %%     control/controllers/collision_avoidance_controller.py
 %% Se documenta una sola vez aquí porque ambas fases citan este mismo
 %% diagrama en vez de repetir la descripción -- ver

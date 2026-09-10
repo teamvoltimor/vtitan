@@ -1,0 +1,26 @@
+# Hardware-profile overlay for the 270deg-hiwonder-35kg servo's physical PWM
+# driver config, deep-merged onto the base
+# src/config/hardware/motors/servo.toml (see
+# shared.config.hardware_profile). Only declares the keys that differ.
+#
+# This folder MUST be named exactly `270deg-hiwonder-35kg` to match the
+# profile name in VTITAN_HARDWARE_PROFILE -- _profile_overlay_paths() in
+# src/hardware/settings_base.py builds the overlay path directly from that
+# name and silently skips it if the directory doesn't exist (no error, no
+# signal). Previously named `servo270`, which never matched the active
+# profile name, so this override never applied on hardware -- found and
+# fixed 2026-08-27.
+#
+# STATUS: scaffolding only -- range_deg is a direct spec fact (270 deg vs
+# 180 deg). min_pulse_us/max_pulse_us/center_pulse_us are intentionally left
+# commented out (inheriting the base file's 180 deg values unchanged)
+# because whether a 270 deg servo keeps the same 500-2500us pulse span or
+# needs a different one is unconfirmed -- verify against the actual part's
+# datasheet/pulse sweep before uncommenting or changing these.
+
+range_deg = 270.0
+
+# TODO(270deg-hiwonder-35kg): needs bench calibration before uncommenting.
+# min_pulse_us = 500.0
+# max_pulse_us = 2500.0
+# center_pulse_us = 1500.0

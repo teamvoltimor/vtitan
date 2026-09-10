@@ -25,19 +25,17 @@ vars:
 
 includes:
   platform:
-    taskfile: ./platform/Taskfile.yml
-    dir: ./platform
-  infra:
-    taskfile: ./infra/Taskfile.yml
+    taskfile: ./tasks/platform.yml
+    dir: .
   apps/auto-annotator:
     taskfile: ./apps/auto-annotator/Taskfile.yml
     dir: ./apps/auto-annotator
   hailo:
-    taskfile: ./hailo/Taskfile.yml
-    dir: ./hailo
+    taskfile: ./ml/hailo/Taskfile.yml
+    dir: ./ml/hailo
   models:
-    taskfile: ./ml-models/Taskfile.yml
-    dir: ./ml-models
+    taskfile: ./ml/weights/Taskfile.yml
+    dir: ./ml/weights
   apps/hugo-docs:
     taskfile: ./apps/hugo-docs/Taskfile.yml
     dir: ./apps/hugo-docs
@@ -47,6 +45,36 @@ tasks:
     desc: List all available tasks
     cmds:
       - task --list
+
+  # INFRA (dev-machine services, no working-directory dependency)
+
+  infra:cloudflare:
+    desc: "Cloudflare tunnel service ops (usage: task infra:cloudflare ACTION=status|restart|logs)"
+    requires:
+      vars:
+        - ACTION
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            status) systemctl status cloudflared ;;
+            restart) sudo systemctl restart cloudflared ;;
+            logs) journalctl -u cloudflared -n 50 --no-pager ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use status|restart|logs" && exit 1 ;;
+          esac
+
+  infra:vpn:
+    desc: "Windscribe VPN ops (usage: task infra:vpn ACTION=connect|disconnect|status)"
+    requires:
+      vars:
+        - ACTION
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            connect) windscribe-cli connect ;;
+            disconnect) windscribe-cli disconnect ;;
+            status) windscribe-cli status ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use connect|disconnect|status" && exit 1 ;;
+          esac
 
   # DOCS (repo-root documentation artifacts)
 
@@ -156,14 +184,14 @@ tasks:
   windows:audit:pi5:
     desc: "Pull latest + run the Pi 5 provisioning audit (usage: task windows:audit:pi5 [SSH_HOST=alias])"
     cmds:
-      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/provisioning/audit-pi5-provisioning.sh"
+      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/src/scripts/provisioning/audit-pi5-provisioning.sh"
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
 
   windows:audit:zero:
     desc: "Pull latest + run the Pi Zero provisioning audit (usage: task windows:audit:zero [SSH_HOST=alias])"
     cmds:
-      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/provisioning/audit-pi-zero-provisioning.sh"
+      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/src/scripts/provisioning/audit-pi-zero-provisioning.sh"
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-zero-local"}}'
 
@@ -771,8 +799,8 @@ tasks:
       its own copy; re-run this after replacing either source PNG.
     cmds:
       - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png apps/auto-annotator/frontend/public/
-      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png platform/frontend/public/
-      - echo "[OK] Synced logo assets to apps/auto-annotator/frontend/public and platform/frontend/public"
+      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png apps/frontend/public/
+      - echo "[OK] Synced logo assets to apps/auto-annotator/frontend/public and apps/frontend/public"
 
   # Repos
 
