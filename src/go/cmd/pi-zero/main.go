@@ -54,7 +54,7 @@ type cliConfig struct {
 }
 
 // defaultButtonLine/defaultButtonPullUp match
-// platform/robot/config/hardware/button/gpio.toml's button_gpio_pin/
+// src/config/hardware/button/gpio.toml's button_gpio_pin/
 // pull_up defaults (GPIO4, wired GND-to-pin so a press pulls the line LOW).
 const (
 	defaultButtonLine   = 4

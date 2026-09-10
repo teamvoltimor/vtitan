@@ -32,7 +32,7 @@ import numpy as np
 
 from src.vision.hud import HudConfig, draw_logo, draw_radar, draw_stats
 
-_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config" / "hardware"
+_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config" / "hardware"
 
 
 def _output_frame_size() -> tuple[int, int]:

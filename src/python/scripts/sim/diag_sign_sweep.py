@@ -779,6 +779,25 @@ class SweepConfig:
     toward a hazard that is not there.
     """
 
+    robot_corridor_flip_ticks: int | None = None
+    """Override ``SignDiscoveryParams.ROBOT_CORRIDOR_FLIP_TICKS`` (SHIPS 5).
+
+    Consecutive ticks the robot's own raw corridor must disagree before the
+    settled value moves. Track association is gated on that settled corridor
+    matching the track's, so a flip that gets through FORKS A NEW TRACK for a
+    pillar already being tracked -- which is how one physical sign ends up with
+    nine fragments and its colour vote split across them.
+
+    Swept for the first time 2026-09-10. The gate's mechanism was validated
+    when it was added and its ALTERNATIVES were refuted (continuous distance:
+    227-267/256 vs 202; corner-blend slack: 195-207, non-monotonic), as were
+    two downstream dedups at publication time (skip 209, fold 231). None of
+    that examined this NUMBER. Higher trades responsiveness for stability: too
+    high and a genuine corridor change is rejected long enough to associate
+    observations into the WRONG track, which is the failure the gate exists to
+    prevent, so read the SIGN column and not just the headline.
+    """
+
     obstacles_center_bias: float | None = None
     """Override ``WaypointParams.OBSTACLES_CENTER_BIAS_M`` (default 0.0, centred).
 
@@ -929,6 +948,7 @@ class SweepConfig:
             MAX_INGEST_RANGE_M=self.ingest_range,
             MIN_HITS=self.min_hits,
             ASSOCIATION_DIST_M=self.association_dist,
+            ROBOT_CORRIDOR_FLIP_TICKS=self.robot_corridor_flip_ticks,
         )
         return replace(
             base,
@@ -4779,6 +4799,15 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # this override is NOT shadowed on the Obstacles path.
     "lookahead-long": lambda v: SweepConfig(f"lookahead_long {v:{_FORMAT_2F}}", lookahead_long=v),
     "arc": lambda v: SweepConfig(f"arc_radius {v:{_FORMAT_2F}}", arc_radius=v),
+    # The UPSTREAM lever for the split colour vote. Four DOWNSTREAM fixes for
+    # the same duplicate-track problem are refuted on this corpus (skip-publish
+    # 209/256, fold 231, continuous distance 227-267, corner-blend 195-207,
+    # against a 202 baseline), and their own conclusion says to look upstream of
+    # publication instead. This is that: the hysteresis on the robot's settled
+    # corridor, which the association gate keys on. Shipped at 5 and never
+    # swept. Run `flip-ticks 5 10 20 40 --corpus`; 5 IS shipped, so that arm is
+    # the baseline.
+    "flip-ticks": lambda v: SweepConfig(f"flip_ticks {int(v)}", robot_corridor_flip_ticks=int(v)),
     # Runway the lane takes to move on and off the centreline. The trade is
     # legible from the geometry: too short and the lane reproduces the very
     # late correction it replaces, too long and the corridor's straight is

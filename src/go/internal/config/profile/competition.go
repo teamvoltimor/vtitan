@@ -15,7 +15,7 @@ type CompetitionConfig struct {
 
 // DefaultCompetitionTOMLPath is where competition_specs.toml lives, relative
 // to the repo root.
-const DefaultCompetitionTOMLPath = "platform/config/competition_specs.toml"
+const DefaultCompetitionTOMLPath = "src/config/competition_specs.toml"
 
 // CompetitionDefaults mirrors the shipped file, for viper to overlay a partial
 // TOML onto.

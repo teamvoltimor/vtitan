@@ -11,7 +11,7 @@ SUBSYSTEM=="pwm*", ACTION=="add", \
     PROGRAM="/bin/sh -c 'chown -R root:gpio /sys/class/pwm && chmod -R 770 /sys/class/pwm'"
 
 # I2C for OLED — Pi Zero only. (I2C is also used by some IMU mount variants, which can be
-# either board depending on wiring -- see src/python/config/hardware/imu/.)
+# either board depending on wiring -- see src/config/hardware/imu/.)
 SUBSYSTEM=="i2c-dev", MODE="0666"
 
 # LiDAR serial — Pi 5 only.

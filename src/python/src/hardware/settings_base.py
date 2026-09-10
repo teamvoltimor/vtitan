@@ -24,9 +24,11 @@ from pydantic import BeforeValidator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
 from shared.config.hardware_profile import active_profiles
 
-# settings_base.py -> hardware -> src -> robot
+# settings_base.py -> hardware -> src -> robot (src/python)
 ROBOT_ROOT: Path = Path(__file__).resolve().parents[2]
-CONFIG_DIR: Path = ROBOT_ROOT / "config" / "hardware"
+# hardware/ is shared with src/go (motor/button/display/imu/lidar drivers
+# read the same TOML), so it lives in src/config, not src/python/config.
+CONFIG_DIR: Path = ROBOT_ROOT.parent / "config" / "hardware"
 SAFE_SHUTDOWN_BOTH_SCRIPT: Path = ROBOT_ROOT / "scripts" / "provisioning" / "safe-shutdown-both.sh"
 
 

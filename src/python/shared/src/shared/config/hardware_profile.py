@@ -1,7 +1,7 @@
 """Selects which hardware-profile overlay(s) apply on top of the base config.
 
 A hardware profile (``src/config/profiles/<name>/``, plus the
-matching ``src/python/config/hardware/motors/profiles/<name>/`` for
+matching ``src/config/hardware/motors/profiles/<name>/`` for
 driver-level settings such as the servo's PWM range) only declares the TOML
 keys that differ from the checked-in base -- e.g. a different servo's
 ``[steering]`` geometry. Selected via ``VTITAN_HARDWARE_PROFILE``, an

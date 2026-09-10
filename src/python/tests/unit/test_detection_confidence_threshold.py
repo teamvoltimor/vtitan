@@ -26,7 +26,7 @@ from src.hardware.hailo.config import (
 )
 from src.vision.detector import DetectorConfig
 
-_CONFIG = Path(__file__).resolve().parents[2] / "config" / "hardware"
+_CONFIG = Path(__file__).resolve().parents[3] / "config" / "hardware"
 
 
 def _shipped(toml_path: Path) -> object:

@@ -36,7 +36,7 @@ const FrameID = "base_link"
 // DefaultSpeedScalePercentPerMPS converts a commanded AckermannCmd.speed
 // [m/s] into a motor duty percentage, matching motors.toml's
 // `drive.speed_scale` (motor_speed = velocity_m_s * scale) — see
-// platform/robot/config/hardware/motors/motors.toml. A caller with real
+// src/config/hardware/motors/motors.toml. A caller with real
 // hardware-profile data should load profile.MotorsConfig instead
 // (internal/config/profile) and pass its Drive.SpeedScale to NewLoop; this
 // is the fallback for callers that don't.
