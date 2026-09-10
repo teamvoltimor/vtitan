@@ -100,7 +100,7 @@ def _band(v: float, edges: tuple[float, ...]) -> str | None:
     return band_label(v, edges, lambda lo, hi: f"{lo:.2f}-{hi:.2f}")
 
 
-def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: dict) -> None:
+def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: dict, by_phase: dict) -> None:
     reader = open_reader(bag_dir)
     last_drive: float | None = None
     run_len = 0
@@ -145,6 +145,18 @@ def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: 
                 cell[0] += 1
                 cell[1] += int(stalled)
 
+        # Per-phase, because the deadband is a DRIVETRAIN fact while the
+        # phases ask for very different speeds at very different lock.
+        # Aggregated, the bay exit is a rounding error against
+        # `normal_drive` -- seconds of a three-minute round -- while being
+        # the phase that spends nearly all of its time stalled.
+        by_phase[phase][0] += 1
+        by_phase[phase][1] += int(stalled)
+        by_phase[phase][2] += abs(cmd)
+        by_phase[phase][3] += deg_s_to_mps(enc)
+        if st is not None:
+            by_phase[phase][4] += abs(st)
+
         if phase != "normal_drive":
             if run_len >= MIN_EPISODE_TICKS:
                 episodes.append((run_len, run_cmds, run_heading))
@@ -168,17 +180,34 @@ def collect(bag_dir: Path, fine: dict, episodes: list, phase_ticks: dict, grid: 
 
 
 def main() -> int:
-    parser = create_bags_parser(
-        description=__doc__ or "", formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = create_bags_parser(description=__doc__ or "", formatter_class=argparse.RawDescriptionHelpFormatter)
     args = parser.parse_args()
 
     fine: dict[str, list] = defaultdict(list)
     episodes: list = []
     phase_ticks: dict[str, int] = defaultdict(int)
+    by_phase: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0, 0.0])
     grid: dict = defaultdict(lambda: [0, 0])
     for bag in args.bag_dirs:
-        collect(Path(bag), fine, episodes, phase_ticks, grid)
+        try:
+            collect(Path(bag), fine, episodes, phase_ticks, grid, by_phase)
+        except (OSError, RuntimeError, ValueError) as exc:
+            # The archive holds a handful of bags with a truncated or locked
+            # metadata file. Every other diag here skips them and says so;
+            # this one aborted the whole sweep on the first, which is why a
+            # 200-bag question could not be asked of it at all.
+            print(f"!! {Path(bag).name}: {exc}", flush=True)
+
+    print()
+    print("== 0. STALL BY PHASE -- the deadband is a drivetrain fact, the phases differ")
+    header = f"  {'phase':<18}{'ticks':>8}{'stall%':>9}{'mean cmd':>11}{'mean enc':>11}{'mean |steer|':>14}"
+    print(header)
+    for name, (n, stalled, cmd_sum, enc_sum, steer_sum) in sorted(by_phase.items(), key=lambda kv: -kv[1][0]):
+        if n < 20:
+            continue
+        print(
+            f"  {name:<18}{int(n):>8}{stalled / n:>8.1%}{cmd_sum / n:>11.3f}{enc_sum / n:>11.3f}{steer_sum / n:>14.2f}"
+        )
 
     print("\n== 1. WHERE IS THE DEADBAND EDGE (all phases)")
     print(f"{'cmd bin':>12} {'n':>7} {'stall%':>8} {'delivered p50':>15}")
@@ -198,18 +227,24 @@ def main() -> int:
         print("  NO stop episodes found.")
         return 0
     durs = [n / CONTROL_HZ for n, _, _ in episodes]
-    print(f"  episodes: {len(episodes)}   ticks stalled: {stalled_ticks} ({100 * stalled_ticks / total:.1f}% of normal_drive)")
     print(
-        f"  duration s: p50={percentile(durs, 0.5):.2f}  p90={percentile(durs, 0.9):.2f}  max={max(durs):.2f}"
+        f"  episodes: {len(episodes)}   ticks stalled: {stalled_ticks} ({100 * stalled_ticks / total:.1f}% of normal_drive)"
     )
+    print(f"  duration s: p50={percentile(durs, 0.5):.2f}  p90={percentile(durs, 0.9):.2f}  max={max(durs):.2f}")
     cmds = [c for _, cs, _ in episodes for c in cs]
-    print(f"  commanded during a stop: p25={percentile(cmds, 0.25):.3f}  p50={percentile(cmds, 0.5):.3f}  p95={percentile(cmds, 0.95):.3f} m/s")
+    print(
+        f"  commanded during a stop: p25={percentile(cmds, 0.25):.3f}  p50={percentile(cmds, 0.5):.3f}  p95={percentile(cmds, 0.95):.3f} m/s"
+    )
 
     print("\n== 3. WAS THE HEADING CUT WHAT PUT IT THERE")
     heading_ticks = sum(h for _, _, h in episodes)
     heading_eps = sum(1 for _, _, h in episodes if h > 0)
-    print(f"  stalled ticks whose command matched heading_speed_mps: {heading_ticks}/{stalled_ticks} ({100 * heading_ticks / stalled_ticks:.1f}%)")
-    print(f"  episodes containing at least one such tick: {heading_eps}/{len(episodes)} ({100 * heading_eps / len(episodes):.1f}%)")
+    print(
+        f"  stalled ticks whose command matched heading_speed_mps: {heading_ticks}/{stalled_ticks} ({100 * heading_ticks / stalled_ticks:.1f}%)"
+    )
+    print(
+        f"  episodes containing at least one such tick: {heading_eps}/{len(episodes)} ({100 * heading_eps / len(episodes):.1f}%)"
+    )
 
     print()
     print("== 4. STALL% BY STEERING LOAD x COMMANDED SPEED  (n in brackets)")
