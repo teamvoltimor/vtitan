@@ -75,6 +75,17 @@ vision_through_pinhole = false
 # Emulate detection RANGE falloff (not just geometry) on the emulated camera:
 # a probit-ish falloff around R50, in metres.
 vision_range_model = true
+# Floor the curvature at min(cap, intercept + slope * |v|) instead of the
+# constant min_turn_radius_m. That constant is the curve's value at ONE speed:
+# re-measured 2026-09-10 over 33 bags in free space at lock >= 30 deg, the
+# achieved radius is 0.105 m at 0.025 m/s, 0.298 at 0.132 and saturates near
+# 0.43 above 0.22, so 0.29 corresponds to ~0.118 m/s. The bay exit creeps end
+# to end, where the constant is nearly 2x too large. The three constants live
+# in robot.toml beside min_turn_radius_m; this only decides whether the
+# simulator uses them. FALSE pending a corpus A/B -- it moves every contact-
+# and corner-dependent number, exactly as shipping the constant floor did.
+min_turn_radius_tracks_speed = false
+
 vision_detect_r50_m = 1.1
 vision_detect_falloff_m = 0.15
 

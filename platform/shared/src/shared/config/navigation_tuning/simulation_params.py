@@ -54,6 +54,32 @@ class SimulationParams(BaseModel):
     LIDAR_INVALID_RAY_RATE: float = Field(default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE"))
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
 
+    MIN_TURN_RADIUS_TRACKS_SPEED: bool = Field(
+        default=False, validation_alias=_alias("MIN_TURN_RADIUS_TRACKS_SPEED")
+    )
+    """Floor the curvature at ``min(cap, intercept + slope * |v|)`` instead of a constant.
+
+    ``MIN_TURN_RADIUS_M`` is not a property of the chassis, it is that curve's
+    value at ONE speed. Re-measured 2026-09-10 over 33 bags in free space at
+    lock >= 30 deg (``scripts/bag/diag_bay_slip.py``):
+
+    | mean speed m/s | 0.025 | 0.079 | 0.132 | 0.168 | 0.227 | 0.270 | 0.324 |
+    |---|---|---|---|---|---|---|---|
+    | R achieved m | 0.105 | 0.202 | 0.298 | 0.391 | 0.412 | 0.445 | 0.429 |
+
+    0.29 m is what that reads at 0.118 m/s, near corridor speed. The BAY EXIT
+    runs at creep end to end, where the constant is nearly 2x too large -- which
+    is why `72e7172b` took the in-bay exit from 16/16 to 0/16 while hardware
+    kept getting out of the pocket in 48 of 98 recorded runs.
+
+    The constants live in robot.toml beside ``min_turn_radius_m``, because they
+    describe this chassis rather than the simulator.
+
+    Ships FALSE. Turning it on changes every contact- and corner-dependent
+    number in the repo, exactly as shipping the constant floor did, so it wants
+    a corpus A/B against this commit's PARENT and not a bay-only reading.
+    """
+
     MIN_TURN_RADIUS_M: float = Field(
         default=RobotSpecs.MIN_TURN_RADIUS_M, ge=0.0, validation_alias=_alias("MIN_TURN_RADIUS_M")
     )

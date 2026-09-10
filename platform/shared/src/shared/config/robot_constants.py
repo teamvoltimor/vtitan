@@ -164,6 +164,15 @@ class Drivetrain(BaseModel):
     max_accel_mps2: float
     rear_steer_ratio: float
 
+    min_turn_radius_intercept_m: float = 0.055
+    """Turn-radius floor extrapolated to zero speed (m). See ``min_turn_radius_m``."""
+
+    min_turn_radius_slope_s: float = 2.0
+    """How fast the floor grows with speed (m per m/s). See ``min_turn_radius_m``."""
+
+    min_turn_radius_cap_m: float = 0.43
+    """Floor the speed curve saturates at (m). See ``min_turn_radius_m``."""
+
     min_turn_radius_m: float = 0.29
     """Tightest turn radius the chassis can actually make (m). 0 disables the floor.
 

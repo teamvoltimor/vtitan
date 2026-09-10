@@ -76,6 +76,7 @@ class _KinematicsConstants:
     speed_tau_s: float
     yaw_gain: float
     min_turn_radius_m: float
+    radius_tracks_speed: bool
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
@@ -88,6 +89,7 @@ class _KinematicsConstants:
             speed_tau_s=RobotSpecs.SPEED_RESPONSE_TAU_S,
             yaw_gain=RobotSpecs.YAW_GAIN,
             min_turn_radius_m=get_tuning(tuning).simulation.MIN_TURN_RADIUS_M,
+            radius_tracks_speed=get_tuning(tuning).simulation.MIN_TURN_RADIUS_TRACKS_SPEED,
         )
 
 
@@ -177,6 +179,7 @@ class AckermannKinematics:
         speed_tau_s: float | None = None,
         yaw_gain: float | None = None,
         min_turn_radius_m: float | None = None,
+        radius_tracks_speed: bool | None = None,
         context: KinematicsContext | None = None,
     ) -> None:
         if context is None:
@@ -197,6 +200,8 @@ class AckermannKinematics:
             yaw_gain = c.yaw_gain
         if min_turn_radius_m is None:
             min_turn_radius_m = c.min_turn_radius_m
+        if radius_tracks_speed is None:
+            radius_tracks_speed = c.radius_tracks_speed
 
         self._speed_tau_s = speed_tau_s
         self._yaw_gain = yaw_gain
@@ -213,6 +218,7 @@ class AckermannKinematics:
         # twice the yaw rate for the same steering angle.
         self._turn_reference_len = wheelbase / (1.0 + abs(rear_steer_ratio))
         self._min_turn_radius_m = min_turn_radius_m
+        self._radius_tracks_speed = radius_tracks_speed
 
     def step(
         self,
@@ -273,9 +279,24 @@ class AckermannKinematics:
             # in simulation is optimistic by more than an order of magnitude --
             # the in-bay exit completes in a deterministic 91 ticks in sim where
             # hardware takes 5-44 s and once managed 2.2 deg in 44.1 s.
+            #
+            # AND THE FLOOR IS NOT A CONSTANT. Re-measured 2026-09-10 over 33
+            # bags with IMU yaw, the achieved radius rises with speed and then
+            # saturates -- 0.105 m at 0.025 m/s, 0.298 at 0.132, 0.43 above
+            # 0.22 -- so 0.29 is the curve's value at ~0.118 m/s, near corridor
+            # speed. The bay exit creeps, and there the constant is nearly 2x
+            # too large. `v` is the SUBSTEP's speed, so the floor tracks the
+            # chassis through an acceleration rather than being fixed per call.
+            # Off by default; see `MIN_TURN_RADIUS_TRACKS_SPEED`.
+            floor = self._min_turn_radius_m
+            if self._radius_tracks_speed:
+                floor = min(
+                    RobotSpecs.MIN_TURN_RADIUS_CAP_M,
+                    RobotSpecs.MIN_TURN_RADIUS_INTERCEPT_M + RobotSpecs.MIN_TURN_RADIUS_SLOPE_S * abs(v),
+                )
             curvature = math.tan(steer) * self._yaw_gain / self._turn_reference_len
-            if self._min_turn_radius_m > 0.0:
-                limit = 1.0 / self._min_turn_radius_m
+            if floor > 0.0:
+                limit = 1.0 / floor
                 curvature = _clamp(curvature, -limit, limit)
             yaw += curvature * v * h
 

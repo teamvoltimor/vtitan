@@ -77,6 +77,17 @@ class RobotSpecs:
     SPEED_RESPONSE_TAU_S: Final[float] = _robot.drivetrain.speed_response_tau_s
     YAW_GAIN: Final[float] = _robot.drivetrain.yaw_gain
 
+    MIN_TURN_RADIUS_INTERCEPT_M: Final[float] = _robot.drivetrain.min_turn_radius_intercept_m
+    MIN_TURN_RADIUS_SLOPE_S: Final[float] = _robot.drivetrain.min_turn_radius_slope_s
+    MIN_TURN_RADIUS_CAP_M: Final[float] = _robot.drivetrain.min_turn_radius_cap_m
+    """The floor as a FUNCTION OF SPEED: ``min(cap, intercept + slope * |v|)``.
+
+    Measured 2026-09-10 over 33 bags; the constant below is this curve's value
+    at 0.118 m/s. Only ``AckermannKinematics`` consumes these, and only when
+    ``simulation.MIN_TURN_RADIUS_TRACKS_SPEED`` is on: ``BayExit``'s dead
+    reckoning has no speed to evaluate them at, since it integrates a distance
+    step rather than stepping a velocity."""
+
     MIN_TURN_RADIUS_M: Final[float] = _robot.drivetrain.min_turn_radius_m
     """Tightest turn the chassis can make (m); 0 disables the floor.
 

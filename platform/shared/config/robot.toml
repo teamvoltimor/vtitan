@@ -131,6 +131,26 @@ yaw_gain = 0.55
 # or linkage change, the same way yaw_gain is.
 min_turn_radius_m = 0.29
 
+# The floor is NOT A CONSTANT, and the 0.29 above is its value at ONE speed.
+# RE-MEASURED 2026-09-10 (scripts/bag/diag_bay_slip.py, 33 bags, free space,
+# lock >= 30 deg, 0.10 s windows, IMU yaw):
+#
+#   mean speed m/s   0.025  0.079  0.132  0.168  0.227  0.270  0.324
+#   R achieved m     0.105  0.202  0.298  0.391  0.412  0.445  0.429
+#
+# so the chassis turns tighter the slower it goes, rising ~2.0 m per m/s from a
+# 0.055 m intercept and saturating near 0.43 m. 0.29 is what that curve reads at
+# 0.118 m/s, which is roughly corridor speed -- and the bay exit runs at CREEP
+# end to end, where the constant is nearly 2x too large. That is why 72e7172b
+# took the in-bay exit from 16/16 to 0/16 while hardware kept getting out.
+#
+# The 2026-09-07 numbers above were taken against POSE yaw. Measured on one time
+# base, pose yaw sees 0.66x the rotation the IMU does, so a radius taken against
+# it is ~1.5x overstated; treat that table as the shape, not the scale.
+min_turn_radius_intercept_m = 0.055
+min_turn_radius_slope_s = 2.0
+min_turn_radius_cap_m = 0.43
+
 [lidar]
 # Closest range the C1 can report (m). Measured ~45 mm; anything nearer is
 # unmeasurable rather than clear, which is the distinction that matters when the
