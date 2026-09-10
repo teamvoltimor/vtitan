@@ -28,6 +28,10 @@ includes:
     taskfile: ./tasks/platform.yml
     dir: .
     flatten: true
+  infra:
+    taskfile: ./tasks/infra.yml
+    dir: .
+    flatten: true
   auto-annotator:
     taskfile: ./apps/auto-annotator/Taskfile.yml
     dir: ./apps/auto-annotator
@@ -46,36 +50,6 @@ tasks:
     desc: List all available tasks
     cmds:
       - task --list
-
-  # INFRA (dev-machine services, no working-directory dependency)
-
-  cloudflare:
-    desc: "Cloudflare tunnel service ops (usage: task cloudflare ACTION=status|restart|logs)"
-    requires:
-      vars:
-        - ACTION
-    cmds:
-      - cmd: |
-          case "{{.ACTION}}" in
-            status) systemctl status cloudflared ;;
-            restart) sudo systemctl restart cloudflared ;;
-            logs) journalctl -u cloudflared -n 50 --no-pager ;;
-            *) echo "Unknown ACTION: {{.ACTION}}. Use status|restart|logs" && exit 1 ;;
-          esac
-
-  vpn:
-    desc: "Windscribe VPN ops (usage: task vpn ACTION=connect|disconnect|status)"
-    requires:
-      vars:
-        - ACTION
-    cmds:
-      - cmd: |
-          case "{{.ACTION}}" in
-            connect) windscribe-cli connect ;;
-            disconnect) windscribe-cli disconnect ;;
-            status) windscribe-cli status ;;
-            *) echo "Unknown ACTION: {{.ACTION}}. Use connect|disconnect|status" && exit 1 ;;
-          esac
 
   # DOCS (repo-root documentation artifacts)
 
