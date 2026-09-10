@@ -27,7 +27,8 @@ includes:
   platform:
     taskfile: ./tasks/platform.yml
     dir: .
-  apps/auto-annotator:
+    flatten: true
+  auto-annotator:
     taskfile: ./apps/auto-annotator/Taskfile.yml
     dir: ./apps/auto-annotator
   hailo:
@@ -36,7 +37,7 @@ includes:
   models:
     taskfile: ./ml/weights/Taskfile.yml
     dir: ./ml/weights
-  apps/hugo-docs:
+  hugo-docs:
     taskfile: ./apps/hugo-docs/Taskfile.yml
     dir: ./apps/hugo-docs
 
@@ -48,8 +49,8 @@ tasks:
 
   # INFRA (dev-machine services, no working-directory dependency)
 
-  infra:cloudflare:
-    desc: "Cloudflare tunnel service ops (usage: task infra:cloudflare ACTION=status|restart|logs)"
+  cloudflare:
+    desc: "Cloudflare tunnel service ops (usage: task cloudflare ACTION=status|restart|logs)"
     requires:
       vars:
         - ACTION
@@ -62,8 +63,8 @@ tasks:
             *) echo "Unknown ACTION: {{.ACTION}}. Use status|restart|logs" && exit 1 ;;
           esac
 
-  infra:vpn:
-    desc: "Windscribe VPN ops (usage: task infra:vpn ACTION=connect|disconnect|status)"
+  vpn:
+    desc: "Windscribe VPN ops (usage: task vpn ACTION=connect|disconnect|status)"
     requires:
       vars:
         - ACTION

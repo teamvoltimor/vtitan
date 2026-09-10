@@ -365,14 +365,14 @@ requires-dist = [
     { name = "opencv-python", specifier = ">=4.9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "vtitan-shared", directory = "../../../src/shared" },
+    { name = "vtitan-shared", directory = "../../../src/python/shared" },
 ]
 provides-extras = ["dev"]
 
 [[package]]
 name = "vtitan-shared"
 version = "0.1.0"
-source = { directory = "../../../src/shared" }
+source = { directory = "../../../src/python/shared" }
 dependencies = [
     { name = "pydantic" },
 ]

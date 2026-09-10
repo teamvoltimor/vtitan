@@ -61,10 +61,6 @@ vars:
   CORPUS_DIR: ./src/python/.corpus
 
 tasks:
-  default:
-    cmds:
-      - task: help
-
   help:
     desc: Display all available commands
     cmds:

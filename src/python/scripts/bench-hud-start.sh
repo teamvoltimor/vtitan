@@ -85,7 +85,7 @@ log "Launching SET=rpi5-bench..."
 ssh "${SSH_OPTS[@]}" "$PI5_HOST" "
   cd $PI5_REPO &&
   export PATH=\"\$HOME/.pixi/bin:\$PATH\" &&
-  setsid -f task platform:robot:launch SET=rpi5-bench > $LOG_FILE 2>&1 < /dev/null
+  setsid -f task robot:launch SET=rpi5-bench > $LOG_FILE 2>&1 < /dev/null
 " || die "failed to start the launch on $PI5_HOST"
 
 log "Waiting for vision_node to come up..."

@@ -92,7 +92,7 @@ Además de las carpetas obligatorias, el repositorio contiene:
 - `ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `ml/weights/` con los pesos publicados, `apps/auto-annotator/` con la herramienta de anotación asistida.
 - `deploy/ansible/` y `infra/` con el despliegue: el provisionamiento de las placas con Ansible, y las tareas de infraestructura (`task rpi:*`, `task windows:provision:*`) que lo ejecutan, definidas en `infra/Taskfile.yml`.
 - `scripts/` con utilidades de desarrollo (configuración de SSH para el robot), `assets/` con las imágenes que usa este documento, `.github/` con los workflows de CI, y `apps/hugo-docs/` con el sitio de documentación navegable.
-- `data/` es la carpeta de salida en runtime: `data/live/` y `data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task platform:robot:pull-runs` (bags desde la Pi 5), `task platform:robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
+- `data/` es la carpeta de salida en runtime: `data/live/` y `data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task robot:pull-runs` (bags desde la Pi 5), `task robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
 
 ## Arranque rápido y reproducibilidad
 
@@ -108,27 +108,27 @@ Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el 
 ### Desarrollo y simulación (en el computador de desarrollo)
 
 ```bash
-task platform:install          # Dependencias de simulación, robot y backend Go
-task platform:init:dev         # Setup completo: install + lint
+task install          # Dependencias de simulación, robot y backend Go
+task init:dev         # Setup completo: install + lint
 
 # Generar la pista y el corpus de escenarios (semilla fija → resultados repetibles)
-task platform:gen:corpus:all   # 640 escenarios Open + 256 Obstacles, seed 2026
+task gen:corpus:all   # 640 escenarios Open + 256 Obstacles, seed 2026
 
 # Visualizar una carrera cerrada en RViz (simulador del navegador)
-task platform:sim:navigate:visualize:all -- --challenge open --interactive
+task sim:navigate:visualize:all -- --challenge open --interactive
 
 # Pruebas: todas, o por subsistema
-task platform:test             # Python + Go, todos los módulos
-task platform:robot:test SCOPE=navigation
-task platform:robot:test SCOPE=unit
+task test             # Python + Go, todos los módulos
+task robot:test SCOPE=navigation
+task robot:test SCOPE=unit
 ```
 
 ### Despliegue al robot (desde el computador, por SSH)
 
 ```bash
-task platform:robot:deploy         # Código + detector HEF → rebuild colcon → restart del servicio
-task platform:robot:watch-vision   # Detecciones en vivo, una línea por frame
-task platform:robot:pull-runs      # Descargar los bags MCAP de las carreras
+task robot:deploy         # Código + detector HEF → rebuild colcon → restart del servicio
+task robot:watch-vision   # Detecciones en vivo, una línea por frame
+task robot:pull-runs      # Descargar los bags MCAP de las carreras
 ```
 
 ### Operación en pista (directamente en la Raspberry Pi 5, vía SSH)
