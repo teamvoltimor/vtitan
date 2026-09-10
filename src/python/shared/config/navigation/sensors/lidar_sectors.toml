@@ -14,7 +14,15 @@ self_detection_threshold_m = 0.08  # chassis/cable self-reflection floor
 # BACK escape branch, so no maneuver was ever generated. 212 ticks of
 # escape_risk=critical across the five pillar contacts produced zero escapes.
 rear_self_detection_from_chassis = true
-min_valid_range_m = 0.05           # no-return / invalid reading floor -- matches RobotSpecs.LIDAR_MIN_RANGE (Slamtec C1's real rated minimum); readings below this are physically below what the sensor can validly report
+# No-return / invalid reading floor. Must sit STRICTLY BELOW
+# RobotSpecs.LIDAR_MIN_RANGE (0.045, the C1's rated minimum), because the
+# filter is `r > min_valid_range_m` and the sensor REPORTS 0.045 for anything
+# closer than it can measure. Held 0.05 until 2026-09-10 while its comment
+# claimed to "match" 0.045: every floor reading was therefore discarded as
+# invalid, so a chassis nosed into a corner had its whole forward cone thrown
+# away and AssessRisk returned the unconditional RiskCritical for a
+# fully-invalid lane -- a wedge it could not read its way out of.
+min_valid_range_m = 0.044
 threat_no_detection_range_m = 1.0  # beyond this, a sector's nearest reading isn't a threat
 no_data_range_m = 10.0             # sentinel when a sector has no valid rays at all
 # Rear occlusion. Measured 2026-08-04 against a real bag as -160..-115 and
