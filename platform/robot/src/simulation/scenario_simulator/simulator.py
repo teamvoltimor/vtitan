@@ -519,6 +519,17 @@ class ScenarioSimulator(PassSideScorer):
         path at all. It now lives in :mod:`src.navigation.maneuvers.bay_exit`
         and both this and the ROS2 node call it, so an in-bay simulation
         exercises the code the robot runs.
+
+        ``yaw_rad`` was omitted here until 2026-09-10 while the ROS2 node passed
+        ``pose.yaw``, and the omission was NOT cosmetic: without it
+        ``_track_rotation`` returns on its first line, ``_rotation_rad`` stays
+        at 0 and ``rotation_complete`` -- the manoeuvre's own release test --
+        can never return True. Simulation therefore released the exit on
+        ``is_clear`` or the frame budget while the robot released it on
+        rotation, so the sim was measuring a DIFFERENT manoeuvre exit than the
+        one that ships. The gateway state is the simulator's analogue of the
+        localizer pose the node supplies; that it carries no localizer error is
+        a separate and already-recorded sim/hardware gap.
         """
         return self._bay_exit.command(
             scan.ranges_m,
@@ -526,6 +537,7 @@ class ScenarioSimulator(PassSideScorer):
             self._gateway.get_wheel_odometry().distance_m,
             self._blind_follow_speed,
             self._tuning,
+            yaw_rad=self._gateway.state.yaw,
         )
 
     def _resolve_direction(self) -> bool:
