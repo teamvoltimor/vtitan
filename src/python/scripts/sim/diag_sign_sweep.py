@@ -353,7 +353,9 @@ class SweepConfig:
     """
 
     obstacles_contact_dist: float | None = None
-    """Override ``ClearanceZones.OBSTACLES_CONTACT_DIST`` (SHIPPED 0.05 m).
+    """Override ``ClearanceZones.OBSTACLES_CONTACT_DIST`` (SHIPPED 0.04 m since
+    ``adaf194``; it was 0.05 before, and 0.04 is only valid PAIRED with
+    ``min_valid_range`` 0.044 -- see the ``clearance-floor`` mode).
 
     The Obstacles-only form of ``contact_dist`` above, and since 2026-09-02 the
     one that is actually live: it ships set, so leaving this field None does
@@ -779,6 +781,18 @@ class SweepConfig:
     toward a hazard that is not there.
     """
 
+    min_valid_range: float | None = None
+    """Override ``LidarSectors.MIN_VALID_RANGE_M`` (SHIPPED 0.044 since ``adaf194``).
+
+    The sector filter is ``r > min_valid_range_m`` and the C1 REPORTS 0.045 for
+    anything closer than it can measure, so at the old 0.05 every floor reading
+    was discarded as invalid and a chassis nosed into a corner had its whole
+    forward cone thrown away. NEVER sweep this alone: paired with
+    ``obstacles_contact_dist`` 0.04 it was measured Python sighted 149 -> 151
+    (collisions 8 -> 6), but each half alone measured WORSE than either
+    endpoint. Use the ``clearance-floor`` mode, which moves both together.
+    """
+
     robot_corridor_flip_ticks: int | None = None
     """Override ``SignDiscoveryParams.ROBOT_CORRIDOR_FLIP_TICKS`` (SHIPS 5).
 
@@ -950,8 +964,10 @@ class SweepConfig:
             ASSOCIATION_DIST_M=self.association_dist,
             ROBOT_CORRIDOR_FLIP_TICKS=self.robot_corridor_flip_ticks,
         )
+        lidar_sectors = _with(base.lidar_sectors, MIN_VALID_RANGE_M=self.min_valid_range)
         return replace(
             base,
+            lidar_sectors=lidar_sectors,
             pursuit=pursuit,
             speed=speed,
             clearance=clearance,
@@ -4808,6 +4824,20 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # swept. Run `flip-ticks 5 10 20 40 --corpus`; 5 IS shipped, so that arm is
     # the baseline.
     "flip-ticks": lambda v: SweepConfig(f"flip_ticks {int(v)}", robot_corridor_flip_ticks=int(v)),
+    # The `adaf194` pair, which only works TOGETHER, so this moves both from one
+    # value: 0 = the PRE-FIX arm (0.050 / 0.050), 1 = SHIPPED (0.044 / 0.040).
+    # A preset rather than a continuous axis because the two halves have no
+    # functional relationship -- each was measured WORSE alone than either
+    # endpoint, so any intermediate combination is known to be meaningless.
+    # Run `clearance-floor 0 1 --corpus`; arm 1 is what master ships today, so
+    # arm 0 is the baseline and a NEGATIVE result means adaf194 should be
+    # reverted. Its original evidence predates the turn-radius fix and the
+    # restructure, which is why this needs re-measuring at all.
+    "clearance-floor": lambda v: SweepConfig(
+        "clearance floor SHIPPED 0.044/0.040" if v else "clearance floor PRE-FIX 0.050/0.050",
+        min_valid_range=0.044 if v else 0.05,
+        obstacles_contact_dist=0.04 if v else 0.05,
+    ),
     # Runway the lane takes to move on and off the centreline. The trade is
     # legible from the geometry: too short and the lane reproduces the very
     # late correction it replaces, too long and the corridor's straight is
