@@ -1,0 +1,81 @@
+version: "3"
+
+tasks:
+  backend:install:
+    desc: Bootstrap Go backend — update buf deps, generate proto code, sqlc, tidy Go modules
+    cmds:
+      - task: proto
+        vars:
+          ACTION: update
+      - task: proto
+        vars:
+          ACTION: generate
+      - task: backend:sqlc
+      - task: backend:tidy
+
+  backend:tidy:
+    cmds:
+      - go mod tidy
+
+  backend:deps:
+    desc: Download Go backend module dependencies without building
+    cmds:
+      - go mod download
+
+  backend:typecheck:
+    desc: Run go vet on the Go backend
+    cmds:
+      - go vet ./...
+
+  backend:build:
+    desc: Compile Go telemetry backend binary to backend/bin/server
+    cmds:
+      - go build -o bin/server ./cmd/server
+
+  backend:dev:
+    desc: Run Go backend with synthetic --sim generator (dev mode, HTTP :8010, gRPC :9010)
+    env:
+      TELEMETRY_DEV: "true"
+    cmds:
+      - go run ./cmd/server -sim
+
+  backend:run:
+    desc: Run Go backend production mode (expects real robot gRPC feed on :9010)
+    cmds:
+      - go run ./cmd/server
+
+  backend:test:
+    desc: Run Go backend tests
+    cmds:
+      - go test ./... -v
+
+  backend:lint:
+    desc: Run golangci-lint on the Go backend
+    cmds:
+      - golangci-lint run ./...
+
+  backend:lint:fix:
+    desc: Auto-fix Go backend lint issues with golangci-lint
+    cmds:
+      - golangci-lint run --fix ./...
+
+  backend:align:
+    desc: Check Go struct field alignment (betteralign)
+    cmds:
+      - betteralign ./...
+
+  backend:align:fix:
+    desc: Auto-fix Go struct field alignment with betteralign
+    cmds:
+      - betteralign -fix ./...
+
+  backend:fmt:
+    desc: Format Go backend code (goimports + gofmt)
+    cmds:
+      - goimports -w ./...
+      - gofmt -w .
+
+  backend:sqlc:
+    desc: Regenerate Go database access layer from SQL schema and queries (requires sqlc CLI)
+    cmds:
+      - sqlc generate

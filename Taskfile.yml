@@ -25,6 +25,10 @@ includes:
     taskfile: ./apps/frontend/Taskfile.yml
     dir: ./apps/frontend
     flatten: true
+  apps-backend:
+    taskfile: ./apps/backend/Taskfile.yml
+    dir: ./apps/backend
+    flatten: true
   auto-annotator:
     taskfile: ./apps/auto-annotator/Taskfile.yml
     dir: ./apps/auto-annotator
