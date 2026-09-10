@@ -287,15 +287,14 @@ sign_lidar_align = false
 # Rescue a target that has gone stale mid-approach.
 stale_target_rescue = false
 
-# --- Written out 2026-09-10 ---
-#
-# All nine existed only as Python literals: SignRouterParams carried the
-# value, this file did not name it, and so no edit here reached the robot
-# (pytest's shipped-tree completeness check now requires every concrete
-# default to appear in this file). They are written at their shipped values,
-# so adding them changed nothing. They parameterise the sign_lidar_align
-# control law above, which ships OFF -- see its measurement paragraph for why.
-#
+# Written out 2026-09-10: all nine existed only as Python literals --
+# SignRouterParams carried the value, this file did not name it, and so no
+# edit here reached the robot (the shipped-tree completeness test now
+# requires every concrete default to appear here). They are written at their
+# shipped values, so adding them changed nothing. They parameterise the
+# sign_lidar_align control law above, which ships OFF -- see its measurement
+# paragraph for why.
+
 # Proximity window a LIDAR pillar return must fall inside to count as that
 # sign's return, and the FOV cone around the camera bearing it must sit in.
 sign_lidar_align_min_m = 0.4

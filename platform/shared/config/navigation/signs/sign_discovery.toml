@@ -73,12 +73,10 @@ lidar_range_fusion = false
 # which no real lens can produce (floor ~620), and -679 at 0.85 s.
 vision_latency_s = 0.85
 
-# --- Written out 2026-09-10 ---
-#
-# All three existed only as Python literals (pytest's shipped-tree completeness
-# check now requires every concrete default to appear in this file). Shipped
-# values, so naming them changed nothing.
-#
+# Written out 2026-09-10: all three existed only as Python literals (the
+# shipped-tree completeness test now requires every concrete default to
+# appear in this file). Shipped values, so naming them changed nothing.
+
 # Snap a fixed observation to the corridor lattice; 0.0 disables.
 snap_to_lattice_m = 0.0
 # The two knobs below parameterise lidar_range_fusion above, which ships

@@ -375,13 +375,12 @@ bay_exit_contact_recovery_ticks = 0
 # inside the LIDAR's minimum range, so forward clearance reports nothing.
 bay_exit_target_yaw_deg = 70.0
 
-# --- Written out 2026-09-10 ---
-#
-# All three existed only as Python literals (pytest's shipped-tree completeness
-# check now requires every concrete default to appear in this file). Both
-# gates ship false as INERT pending hardware verdicts: see their docstrings in
-# CorridorFollowerParams. Do not read a false here as "unfinished".
-#
+# Written out 2026-09-10: all three existed only as Python literals (the
+# shipped-tree completeness test now requires every concrete default to
+# appear in this file). Both gates ship false as INERT pending hardware
+# verdicts: see their docstrings in CorridorFollowerParams. Do not read a
+# false here as "unfinished".
+
 # Cap the free-turn check of each exit leg by the longest measured
 # leave-the-bay leg (s); 0 = unbounded.
 bay_exit_leg_max_s = 0.5
