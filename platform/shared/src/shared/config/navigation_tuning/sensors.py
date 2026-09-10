@@ -4,7 +4,19 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning._shared import _alias
+
+STALE_TIMEOUT_SCAN_PERIODS: float = 5.0
+"""How many LIDAR scan periods a cached reading may outlive.
+
+The timeout is derived, not restated: 5 / RobotSpecs.LIDAR_UPDATE_RATE. A scan
+period is the slowest feed the control loop depends on, so five of them is the
+widest the staleness gate can be while still reacting to a sensor that died.
+Change the model's update rate in robot.toml and this moves with it; the
+shipped sensors/sensor.toml overrides only to restate, and its value and this
+derivation are held equal by test_navigation_tuning's shipped-TOML contract.
+"""
 
 
 class SensorHealthParams(BaseModel):
@@ -13,14 +25,18 @@ class SensorHealthParams(BaseModel):
     Attributes:
         STALE_TIMEOUT_SEC: A cached sensor reading older than this is treated as
             a dropout — the gateway reports it as unavailable so the navigator
-            degrades safely instead of acting on frozen data. Derived as 5x the
-            LIDAR scan period (RobotSpecs.LIDAR_UPDATE_RATE), the slowest sensor
-            feed the control loop depends on.
+            degrades safely instead of acting on frozen data. Derived as
+            STALE_TIMEOUT_SCAN_PERIODS of the LIDAR scan period
+            (RobotSpecs.LIDAR_UPDATE_RATE), the slowest sensor feed the control
+            loop depends on.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    STALE_TIMEOUT_SEC: float = Field(default=0.5, validation_alias=_alias("STALE_TIMEOUT_SEC"))
+    STALE_TIMEOUT_SEC: float = Field(
+        default=STALE_TIMEOUT_SCAN_PERIODS / RobotSpecs.LIDAR_UPDATE_RATE,
+        validation_alias=_alias("STALE_TIMEOUT_SEC"),
+    )
 
 
 class LidarSectorParams(BaseModel):

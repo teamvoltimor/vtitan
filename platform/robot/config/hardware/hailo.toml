@@ -14,6 +14,3 @@ data_yaml_path = "/usr/local/hailo/models/data.yaml"
 # Optional YOLO data.yaml supplying class id -> name. Ship one only if its
 # `names` are in *model* order (green, magenta, red) -- see .env.example's
 # original comment on this. Leaving the file absent is the safe default.
-
-min_confidence = 0.45
-# Detections below this are dropped before they reach the navigator.

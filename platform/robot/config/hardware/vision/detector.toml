@@ -6,5 +6,8 @@
 
 model_path = "yolov8n.pt"
 min_confidence = 0.45
-# Matches hailo.toml and hailo_streaming.toml threshold for consistency.
+# THE one shipped detection-confidence floor. The hailo backends (hailo.toml,
+# hailo_streaming.toml) no longer declare their own copy: their pydantic fields
+# resolve it back to this line, so a backend change is deliberate (env
+# HAILO_MIN_CONFIDENCE / DETECTOR_MIN_CONFIDENCE), never a forgotten literal.
 output_format = "normalized"
