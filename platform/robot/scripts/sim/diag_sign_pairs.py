@@ -54,7 +54,8 @@ from shared.domain.enums import Section
 
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.sim.diag_sign_sweep import SweepConfig
-from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata
+from src.navigation.planning.sign_router import signs_from_metadata
+from src.navigation.planning.waypoints.classification import corridor_for_position
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -130,6 +131,7 @@ def probe(
         return None
 
     original_candidates = router._active_sign_candidates  # noqa: SLF001
+    router_signs = list(router._signs)  # noqa: SLF001 - the index space `in_play` speaks
     ticks: list[SignApproachTick] = []
     pending: dict[str, Any] = {}
 
@@ -185,11 +187,16 @@ def probe(
         first = approach[0]
         corridor = first.corridor
         held = _lateral_of(first.xy[0], first.xy[1], corridor)
-        involved = {i for t in approach for i, _ in t.in_play}
+        # Index into the ROUTER's own sign list, not the metadata's. They are
+        # different index spaces -- the router discovers and re-keys signs, so
+        # `_active_sign_candidates` can return an index past the end of
+        # `signs_from_metadata`, which is how this probe died with an
+        # IndexError rather than reporting anything.
+        involved = {i for t in approach for i, _ in t.in_play if i < len(router_signs)}
         clearances = [
-            abs(held - _lateral_of(signs[i].x, signs[i].y, corridor))
+            abs(held - _lateral_of(router_signs[i].x, router_signs[i].y, corridor))
             for i in involved
-            if corridor_for_position(signs[i].x, signs[i].y) == corridor
+            if corridor_for_position(router_signs[i].x, router_signs[i].y) == corridor
         ]
         if clearances:
             straight_was_clear = min(clearances) >= _PASS_CLEARANCE

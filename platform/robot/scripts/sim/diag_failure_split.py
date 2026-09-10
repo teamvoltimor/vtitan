@@ -69,7 +69,7 @@ import argparse
 import itertools
 import math
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -82,6 +82,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Axis
 from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
@@ -405,7 +406,7 @@ class Verdict:
         return [(name, f) for name, f in (("path frame", self.path), ("axis frame", self.axis)) if f]
 
 
-def _yaw_off_axis(robot_yaw: float, lateral_axis: str) -> float:
+def _yaw_off_axis(robot_yaw: float, lateral_axis: Axis) -> float:
     """Angle between the chassis and the corridor axis, folded into [0, 90] deg.
 
     The lateral axis is the one the deformation moves along, so the corridor
@@ -519,7 +520,9 @@ def _live_waypoints(live: dict[str, Any]) -> list[Waypoint]:
     return live["path"]
 
 
-def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, Any, Any, float]] | None = None) -> Verdict:
+def _verdict(
+    last: dict[str, Any], label: str, history: list[tuple[int | None, Any, Any, float]] | None = None
+) -> Verdict:
     """Name the failure mode, and for Mode A attach the yaw geometry.
 
     Geometry is attached to the whole of Mode A, not just ``A-clamped``: the two
@@ -534,7 +537,7 @@ def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, A
     routing = sign_router_module.ROUTING_TABLE.get((last["corridors"][last["committed"]], last["direction"]))  # noqa: SLF001
     if routing is None:
         return Verdict(kind, label)
-    axis = 1 if routing[0] == "y" else 0
+    axis = 1 if routing.axis is Axis.Y else 0
     sign = last["signs"][last["committed"]]
     sign_xy = (sign.x, sign.y)
     sign_lat = sign_xy[axis]
@@ -547,7 +550,7 @@ def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, A
             sign_offset_m=0.0,
             target_offset_m=last["deformed"][axis] - sign_lat,
             robot_offset_m=last["pos"][axis] - sign_lat,
-            yaw_deg=_yaw_off_axis(last["yaw"], routing[0]),
+            yaw_deg=_yaw_off_axis(last["yaw"], routing.axis),
         ),
         path=_path_frame(last.get("waypoints") or [], last["deformed"], last["pos"], last["yaw"], sign_xy),
         approach=_approach(history, last["committed"], axis, sign_lat, sign_xy),
@@ -695,7 +698,7 @@ def _label(last: dict[str, Any]) -> str:
     routing = sign_router_module.ROUTING_TABLE.get((last["corridors"][committed], last["direction"]))  # noqa: SLF001
     if routing is None:
         return "A-other"
-    axis = 1 if routing[0] == "y" else 0
+    axis = 1 if routing.axis is Axis.Y else 0
     sign_lat = (sign.x, sign.y)[axis]
     target_lat = abs(deformed[axis] - sign_lat)
     robot_lat = abs(last["pos"][axis] - sign_lat)
@@ -716,6 +719,13 @@ def main() -> None:
     parser.add_argument("--sighted", action="store_true", help="run sighted instead of the blind competition config")
     parser.add_argument("--yaw", action="store_true", help="also break A-clamped down by chassis yaw at the fatal tick")
     parser.add_argument("--approach", action="store_true", help="also report how the approach to the fatal sign went")
+    parser.add_argument(
+        "--by-sign-pair",
+        action="store_true",
+        help="split the collision rate by how the hardest same-section sign PAIR is "
+        "arranged. A same-colour pair on both laterals is the case the pass-side rule "
+        "cannot spread out, and the router deforms off one sign only.",
+    )
     parser.add_argument("--workers", type=int, default=_DEFAULT_WORKERS)
     args = parser.parse_args()
 
@@ -740,10 +750,67 @@ def main() -> None:
         print(f"\n  Mode A (deformation ran, insufficient): {a}/{collisions} ({100 * a / collisions:.0f}%)")
         print(f"  Mode B (deformation absent):            {b}/{collisions} ({100 * b / collisions:.0f}%)")
 
+    if args.by_sign_pair:
+        scenarios = all_obstacles_demo_scenarios(fixtures)
+        split: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+        for scenario, verdict in zip(scenarios, verdicts, strict=False):
+            cell = split[_sign_pair_kind(scenario.metadata)]
+            cell[0] += 1
+            cell[1] += int(verdict.kind != "no collision")
+        print()
+        print("BY SIGN-PAIR ARRANGEMENT -- does a same-colour pair cost more?")
+        print(f"  {'arrangement':<28}{'n':>6}{'collisions':>12}{'rate':>9}")
+        for kind, (n, bad) in sorted(split.items(), key=lambda kv: -kv[1][0]):
+            print(f"  {kind:<28}{n:>6}{bad:>12}{bad / n:>9.1%}")
+
     if args.yaw:
         _report_yaw([v for v in verdicts if v.frames])
     if args.approach:
         _report_approach([v for v in verdicts if v.approach is not None])
+
+
+def _sign_pair_kind(metadata: object) -> str:
+    """How the hardest sign PAIR in this scenario is arranged, or "none".
+
+    The WRO lattice puts at most two signs in a section, at lateral 0.4 or 0.6
+    of a 1.0 m corridor. A pair of the SAME COLOUR on BOTH laterals is the case
+    the pass-side rule cannot spread out: red is passed outward and green
+    inward regardless of travel direction, so both signs push the chassis to
+    the same edge and the gap it must thread is what is left over. Worth
+    splitting the failures on because `deform_waypoint` commands off exactly
+    ONE sign -- the nearest -- and has no notion of two bounding a gap.
+    """
+
+    # The catalog hands scenarios their metadata as a plain dict, but callers
+    # elsewhere pass the parsed model, so read either rather than assuming.
+    def _get(obj: object, name: str, default: object = None) -> object:
+        return obj.get(name, default) if isinstance(obj, dict) else getattr(obj, name, default)
+
+    by_section: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    for spec in _get(metadata, "sign_positions", []) or []:
+        x = float(_get(spec, "x", 0.0))
+        y = float(_get(spec, "y", 0.0))
+        raw_colour = _get(spec, "color", "")
+        colour = str(getattr(raw_colour, "value", raw_colour))
+        if y <= 0.6:
+            by_section["south"].append((colour, y))
+        elif y >= 2.4:
+            by_section["north"].append((colour, 3.0 - y))
+        elif x <= 0.6:
+            by_section["west"].append((colour, x))
+        elif x >= 2.4:
+            by_section["east"].append((colour, 3.0 - x))
+    best = "none"
+    for items in by_section.values():
+        if len(items) < 2:
+            continue
+        colours = {c for c, _ in items}
+        laterals = {round(lat, 2) for _, lat in items}
+        if len(colours) == 1 and len(laterals) > 1:
+            return f"{next(iter(colours))} pair, both laterals"
+        if best == "none":
+            best = "same-colour, one lateral" if len(colours) == 1 else "mixed pair"
+    return best
 
 
 def _report_approach(tracked: list[Verdict]) -> None:
@@ -766,8 +833,12 @@ def _report_approach(tracked: list[Verdict]) -> None:
     # correction nobody can see the size of is not a correction.
     straight = [a for a in runs if a.on_a_straight]
     corner = [a for a in runs if not a.on_a_straight]
-    print(f"\n  path swept during the approach:    median {math.degrees(median([a.approach_turn_rad for a in runs])):.0f} deg")
-    print(f"    on a STRAIGHT (<{_STRAIGHT_TURN_DEG:.0f} deg): {len(straight)}/{len(runs)}   MID-CORNER: {len(corner)}/{len(runs)}")
+    print(
+        f"\n  path swept during the approach:    median {math.degrees(median([a.approach_turn_rad for a in runs])):.0f} deg"
+    )
+    print(
+        f"    on a STRAIGHT (<{_STRAIGHT_TURN_DEG:.0f} deg): {len(straight)}/{len(runs)}   MID-CORNER: {len(corner)}/{len(runs)}"
+    )
 
     subsets = [("all approaches", runs)]
     if straight and corner:
@@ -777,7 +848,10 @@ def _report_approach(tracked: list[Verdict]) -> None:
         # either a miswired path frame or the axis flip above resolving alternate
         # ticks against the wrong global coordinate. The flip shows up here and
         # in nothing else, which is the only reason it is worth printing.
-        subsets += [("straight approaches (frames agree once the flip is out)", straight), ("mid-corner approaches", corner)]
+        subsets += [
+            ("straight approaches (frames agree once the flip is out)", straight),
+            ("mid-corner approaches", corner),
+        ]
     for name, subset in subsets:
         print(f"\n  {name} -- {len(subset)}")
         for frame, label in ((lambda a: a.path, "path"), (lambda a: a.axis, "axis")):
@@ -789,7 +863,9 @@ def _report_approach(tracked: list[Verdict]) -> None:
     print(f"\n  target LEAD at engage:             median {1000 * median([a.lead_start_m for a in runs]):.0f} mm")
     print(f"  target LEAD at impact:             median {1000 * median([a.lead_end_m for a in runs]):.0f} mm")
     abeam = [a.abeam_fraction for a in runs]
-    print(f"  share of approach with target ABEAM (<{100 * _ABEAM_LEAD_M:.0f} cm ahead): median {100 * median(abeam):.0f}%")
+    print(
+        f"  share of approach with target ABEAM (<{100 * _ABEAM_LEAD_M:.0f} cm ahead): median {100 * median(abeam):.0f}%"
+    )
     mostly_abeam = sum(1 for a in abeam if a > _MOSTLY)
     print(f"    runs abeam for >{100 * _MOSTLY:.0f}% of the approach: {mostly_abeam}/{len(runs)}")
 
@@ -814,8 +890,12 @@ def _report_convergence(runs: list[Approach], frame: Callable[[Approach], Offset
     # First, because it bounds what the rest can mean: a line jumping tick to
     # tick is not one line the chassis failed to reach, it is two.
     print(f"{indent}commanded line JUMPED per tick:    median {1000 * median([s.chatter_m for s in series]):.0f} mm")
-    print(f"{indent}commanded line MOVED by:           median {1000 * median([s.line_travel_m for s in series]):.0f} mm")
-    print(f"{indent}cross-track error at engage:       median {1000 * median([s.error_start_m for s in series]):.0f} mm")
+    print(
+        f"{indent}commanded line MOVED by:           median {1000 * median([s.line_travel_m for s in series]):.0f} mm"
+    )
+    print(
+        f"{indent}cross-track error at engage:       median {1000 * median([s.error_start_m for s in series]):.0f} mm"
+    )
     print(f"{indent}cross-track error at impact:       median {1000 * median([s.error_end_m for s in series]):.0f} mm")
     closed = [s.closed_m for s in series]
     print(f"{indent}error actually CLOSED:             median {1000 * median(closed):.0f} mm")
@@ -868,12 +948,16 @@ def _report_frame(frames: list[Frame]) -> None:
     # The question item 2b actually turns on: was the commanded line the problem?
     adequate = [f for f in frames if f.line_was_adequate]
     short = [f for f in frames if not f.line_was_adequate]
-    print(f"    line ADEQUATE at the held yaw: {len(adequate)}/{len(frames)} ({100 * len(adequate) / len(frames):.0f}%)")
+    print(
+        f"    line ADEQUATE at the held yaw: {len(adequate)}/{len(frames)} ({100 * len(adequate) / len(frames):.0f}%)"
+    )
     print("      the geometry was there and the chassis was not on it -- a tracking failure")
     if adequate:
         errs = sorted(f.tracking_error_m for f in adequate)
         print(f"      median offset from the commanded line: {1000 * median(errs):.0f} mm")
-        wrong_side = sum(1 for f in adequate if (f.target_offset_m - f.sign_offset_m) * (f.robot_offset_m - f.sign_offset_m) < 0)
+        wrong_side = sum(
+            1 for f in adequate if (f.target_offset_m - f.sign_offset_m) * (f.robot_offset_m - f.sign_offset_m) < 0
+        )
         print(f"      of which on the WRONG SIDE of the sign entirely: {wrong_side}/{len(adequate)}")
     print(f"    line SHORT at the held yaw:    {len(short)}/{len(frames)} ({100 * len(short) / len(frames):.0f}%)")
     if short:
