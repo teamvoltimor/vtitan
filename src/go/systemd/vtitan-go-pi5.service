@@ -20,9 +20,9 @@ WorkingDirectory=/opt/vtitan-go
 EnvironmentFile=-/opt/vtitan-go/.env
 # Each Go node is a separate static binary talking over NATS+protobuf; they are
 # launched together so a single unit manages the Pi 5-side robot processes.
-ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/provisioning/wait-for-gadget-link.sh
+ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/src/python/scripts/provisioning/wait-for-gadget-link.sh
 ExecStartPre=+/usr/bin/systemctl restart vtitan-lidar.service
-ExecStart=/opt/vtitan-go/bin/pi5
+ExecStart=/opt/vtitan-go/bin/pi5 --config-root=/opt/vtitan-go
 Restart=on-failure
 RestartSec=5
 ExecStop=/usr/bin/kill -SIGINT $MAINPID

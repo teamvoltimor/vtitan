@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
 )
 
 // TestThresholds_Validate exercises the validate tags on button.Thresholds

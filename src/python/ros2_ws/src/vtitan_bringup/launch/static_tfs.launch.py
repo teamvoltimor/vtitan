@@ -15,7 +15,7 @@ rotation from an upside-down mount plus any independent residual miscalibration,
 matching ros2_hardware_gateway.py's _LIDAR_YAW_OFFSET_RAD (same classmethod
 call). Re-verified 2026-08-02 at 0 deg total against a known object placed at
 chassis front/back (an earlier "confirmed empirically... 180 deg" finding no
-longer matched the mounting as it exists today). See shared/config/robot.toml's
+longer matched the mounting as it exists today). See src/config/robot.toml's
 [lidar] section and RobotSpecs.lidar_yaw_offset_rad()'s docstring for the full
 history and why every consumer calls the shared classmethod instead of
 recomputing the formula locally.

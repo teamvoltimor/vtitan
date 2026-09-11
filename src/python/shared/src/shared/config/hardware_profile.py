@@ -1,6 +1,6 @@
 """Selects which hardware-profile overlay(s) apply on top of the base config.
 
-A hardware profile (``src/shared/config/profiles/<name>/``, plus the
+A hardware profile (``src/config/profiles/<name>/``, plus the
 matching ``src/config/hardware/motors/profiles/<name>/`` for
 driver-level settings such as the servo's PWM range) only declares the TOML
 keys that differ from the checked-in base -- e.g. a different servo's
@@ -17,8 +17,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-PROFILES_ROOT: Path = Path(__file__).resolve().parents[3] / "config" / "profiles"
-"""src/shared/config/profiles -- resolved relative to this module's own
+PROFILES_ROOT: Path = Path(__file__).resolve().parents[5] / "config" / "profiles"
+"""src/config/profiles -- resolved relative to this module's own
 location, same rationale as NavigationTuning's DEFAULT_CONFIG_DIR."""
 
 

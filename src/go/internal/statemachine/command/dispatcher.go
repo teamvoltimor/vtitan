@@ -3,7 +3,7 @@ package command
 import (
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
 )
 
 // ButtonSink is the one action every start/stop/e-stop Command maps to --

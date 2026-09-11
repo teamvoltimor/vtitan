@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/lidar"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
 )
 
 // writeConfigRoot lays out the two files ConfigFor reads -- the serial

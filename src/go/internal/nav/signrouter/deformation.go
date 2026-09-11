@@ -7,7 +7,7 @@ package signrouter
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // PinContext is the depth-pin tracking state ApplyDeformation/PinDepth need,

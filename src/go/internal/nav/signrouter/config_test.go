@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 )
 
 const configTolerance = 1e-9

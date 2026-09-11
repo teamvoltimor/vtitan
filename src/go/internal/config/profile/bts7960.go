@@ -20,6 +20,6 @@ type BTS7960Config struct {
 }
 
 // DefaultBTS7960TOMLPath is
-// platform/robot/config/hardware/motors/bts7960.toml, relative to the repo
+// src/config/hardware/motors/bts7960.toml, relative to the repo
 // root.
-const DefaultBTS7960TOMLPath = "platform/robot/config/hardware/motors/bts7960.toml"
+const DefaultBTS7960TOMLPath = "src/config/hardware/motors/bts7960.toml"

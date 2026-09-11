@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/harness"
 )
 
 // noiselessConfig is the harness with LIDAR noise and dropout off, so a blind

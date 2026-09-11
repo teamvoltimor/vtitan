@@ -3,7 +3,7 @@ package trackmodel
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // segment is an axis-aligned wall face as a line segment (for LIDAR

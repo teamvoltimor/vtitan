@@ -17,11 +17,11 @@ Layout: a status panel top-left (challenge/phase/direction/corridor/lap/
 heading -- "where things stand"), a control panel top-right (speed/steer/
 crosstrack/risk/maneuver/signs -- "what the robot is doing about it right
 now"), the LIDAR radar bottom-right, and the team mark watermarked bottom-left
-(assets/vision/voltimor-mark.png -- see scripts/vision/_make_hud_logo.py
+(src/assets/vision/voltimor-mark.png -- see scripts/vision/_make_hud_logo.py
 for how it was derived from the brand asset) -- purely cosmetic, unlike
 the other three. All pixel sizes, colours and the radar's display
 range are tuning constants, not literals -- see HudConfig /
-config/hardware/vision/hud.toml, same pattern every other hardware/vision
+src/config/hardware/vision/hud.toml, same pattern every other hardware/vision
 config in this repo follows (VisionNode's own Config, NavigationTuning, etc.).
 
 The HEADING line is the "gyroscope" stat -- deliberately read from
@@ -51,7 +51,7 @@ _RGB = tuple[int, int, int]
 class HudConfig(HardwareBaseSettings):
     """Tuning constants for the navigation HUD overlay.
 
-    Sourced from config/hardware/vision/hud.toml (env prefix VISION_HUD_,
+    Sourced from src/config/hardware/vision/hud.toml (env prefix VISION_HUD_,
     same override precedence as every other HardwareBaseSettings config in
     this repo -- init/env win, then the TOML file, then these field
     defaults). Colours are RGB (the recorder's own working order until the
@@ -101,7 +101,7 @@ class HudConfig(HardwareBaseSettings):
     radar_ring_rgb: _RGB = (58, 64, 72)
     radar_crosshair_rgb: _RGB = (36, 40, 46)
     radar_point_rgb: _RGB = (30, 136, 229)
-    """Sampled from the team mark's body/circuit blue (assets/vision/
+    """Sampled from the team mark's body/circuit blue (src/assets/vision/
     voltimor-mark.png), not the panel's cyan accent_rgb -- distinct from the
     accent bars so the radar points read as "the logo's blue," not just
     another use of the same UI accent colour."""
@@ -137,7 +137,7 @@ class HudConfig(HardwareBaseSettings):
     video for the run -- ros2 bag record creates its output dir asynchronously."""
 
 
-_LOGO_PATH = ROBOT_ROOT / "assets" / "vision" / "voltimor-mark.png"
+_LOGO_PATH = ROBOT_ROOT.parent / "assets" / "vision" / "voltimor-mark.png"
 # A loadable logo is a 3-dimensional array (height, width, channel) whose
 # channel axis carries all four of B, G, R and alpha -- anything else is a
 # non-RGBA asset the alpha compositing in draw_logo cannot use.
@@ -413,7 +413,7 @@ def draw_logo(canvas: np.ndarray, *, config: HudConfig) -> np.ndarray:
     """Return a copy of *canvas* with the team mark watermarked into the bottom-left corner.
 
     Purely cosmetic branding, unlike draw_stats/draw_radar's telemetry -- so a
-    missing or unreadable assets/vision/voltimor-mark.png (e.g. a fresh
+    missing or unreadable src/assets/vision/voltimor-mark.png (e.g. a fresh
     checkout that hasn't pulled LFS/binary assets yet) skips the logo
     entirely rather than raising, same never-crash-the-recording contract as
     a missing NavigatorDebugSnapshot field.

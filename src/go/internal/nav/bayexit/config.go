@@ -1,8 +1,8 @@
 package bayexit
 
 import (
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
 )
 
 // Config is BayExit's tuning, bundling corridorfollower.Config (which owns
@@ -70,7 +70,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// Shipped defaults, matching platform/shared/config/robot.toml and
+// Shipped defaults, matching src/config/robot.toml and
 // internal/nav/controllers.DefaultConfig's own mirrors of the same values.
 const (
 	// DefaultWheelbaseM matches robot.toml's [ackermann] wheelbase.

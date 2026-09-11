@@ -1,7 +1,7 @@
 package profile
 
 // LocalizationConfig mirrors
-// platform/shared/config/navigation/blind_nav/localization.toml
+// src/config/navigation/blind_nav/localization.toml
 // (shared.config.navigation_tuning.blind_nav.LocalizationParams), the search
 // parameters for internal/nav/localization's LidarLocalizer.
 type LocalizationConfig struct {
@@ -33,7 +33,7 @@ type LocalizationConfig struct {
 }
 
 // DefaultLocalizationTOMLPath is
-// platform/shared/config/navigation/blind_nav/localization.toml, relative to
+// src/config/navigation/blind_nav/localization.toml, relative to
 // the repo root. No per-component profile overlays -- pass nil profileNames
 // to Load.
-const DefaultLocalizationTOMLPath = "platform/shared/config/navigation/blind_nav/localization.toml"
+const DefaultLocalizationTOMLPath = "src/config/navigation/blind_nav/localization.toml"

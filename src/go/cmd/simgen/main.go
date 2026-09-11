@@ -16,11 +16,11 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/spf13/cobra"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/preview"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/sdf"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/trackconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/preview"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/sdf"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/trackconfig"
 )
 
 // generatedFile pairs a destination path with the source text to write there.
@@ -202,9 +202,9 @@ func generateTrackConstantsCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&config, "config", "./shared/config/track.toml", "Path to track.toml source of truth")
+	cmd.Flags().StringVar(&config, "config", "./src/config/track.toml", "Path to track.toml source of truth")
 	cmd.Flags().StringVar(&goOutput, "go-output",
-		"./robot-go/internal/simgen/simconfig/track_constants.gen.go", "Go const block output path")
+		"./src/go/internal/simgen/simconfig/track_constants.gen.go", "Go const block output path")
 
 	return cmd
 }

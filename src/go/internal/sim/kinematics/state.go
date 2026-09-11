@@ -1,6 +1,6 @@
 package kinematics
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+import "github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 
 // AckermannState is the full kinematic state of the simulated car,
 // matching src.simulation.kinematics.AckermannState. (X, Y) is the

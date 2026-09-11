@@ -51,15 +51,16 @@ vtitan/
 ├── models/            # Modelos 3D de las piezas impresas
 │   ├── current-models/  #   V-Titan: blueprints/ (planos) + step-files/ (CAD)
 │   └── old-models/      #   Prototipos previos (Klevor)
-├── src/               # → código de competencia (puntero a src/python/)
+├── src/               # python/ (pila ROS2), go/ (reimplementación Go), config/ (TOML
+│                      #   compartido, leído por ambos), assets/ (imágenes compartidas)
 ├── other/             # → simulador, telemetría, entrenamiento, provisionamiento
 ├── docs/              # Bitácora, referencia de configuración, datasheets, prototipos
-├── platform/          # El monorepo de código: robot, backend, frontend, config
-├── deploy/ansible/ + infra/  # Despliegue: provisionamiento Ansible + tareas task rpi:*
-├── data/              # Salidas de ejecución (bags, fotos, videos); vacía en el repo
+├── apps/              # backend/, frontend/, gazebo/, auto-annotator/, hugo-docs/, landing/
+├── contracts/         # proto/ (buf, esquemas gRPC/NATS) y openapi/ (spec-first REST)
 ├── ml/hailo/ ml/weights/  # Entrenamiento del detector y pesos publicados
-├── apps/              # Herramientas con proceso propio: auto-annotator/, hugo-docs/
-├── scripts/ assets/   # Utilidades de desarrollo e imágenes del documento
+├── deploy/ansible/    # Provisionamiento de las placas (tareas task rpi:*, windows:*)
+├── data/              # Salidas de ejecución (bags, fotos, videos); vacía en el repo
+├── scripts/           # Utilidades de desarrollo (configuración de SSH para el robot)
 └── .github/           # Workflows de CI
 ```
 
@@ -71,15 +72,15 @@ vtitan/
 | `video/` | Enlaces a los videos de las rondas y del robot en funcionamiento ([`video/video.md`](video/video.md)) |
 | `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
 | `models/` | Modelos 3D de las piezas impresas: `current-models/` (V-Titan) y `old-models/` (prototipos previos), cada uno con `blueprints/` (planos) y `step-files/` (CAD para imprimir) |
-| `src/` | Puntero al código de competencia, que vive en `src/python/` dentro del monorepo. Ver [`src/README.md`](src/README.md) |
+| `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
 | `other/` | Puntero al resto del proyecto: simulador, backend de telemetría, entrenamiento del detector y provisionamiento. Ver [`other/README.md`](other/README.md) |
 
 ### Cómo explorar este repositorio
 
 Según lo que quieras revisar, esta es la ruta más corta:
 
-- **Código que corre en una ronda**: [`src/README.md`](src/README.md) mapea cada nodo ROS2 de la pila de competencia a su paquete y su rol (percepción, navegación, máquina de estados, drivers).
-- **Configuración que gobierna al robot**: `src/python/shared/config/`, descrita en [Diseño gobernado por configuración](#diseño-gobernado-por-configuración). Los perfiles de hardware intercambiables están en [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables).
+- **Código que corre en una ronda**: [`src/python/README.md`](src/python/README.md) mapea cada nodo ROS2 de la pila de competencia a su paquete y su rol (percepción, navegación, máquina de estados, drivers).
+- **Configuración que gobierna al robot**: `src/config/`, descrita en [Diseño gobernado por configuración](#diseño-gobernado-por-configuración). Los perfiles de hardware intercambiables están en [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables). La lee tanto `src/python/` como `src/go/`.
 - **Simulador y corpus de escenarios**: [`other/README.md`](other/README.md), sección del simulador; los resultados reproducibles están en [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios).
 - **Cómo se entrenó el detector**: `ml/hailo/` (entrenamiento y compilación), `ml/weights/` (pesos publicados), `apps/auto-annotator/` (anotación asistida).
 - **Cómo se instala el sistema en las placas**: [`docs/pi-setup.md`](docs/pi-setup.md) y `deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
@@ -88,10 +89,12 @@ Según lo que quieras revisar, esta es la ruta más corta:
 Además de las carpetas obligatorias, el repositorio contiene:
 
 - `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), la [referencia de configuración TOML de navegación](docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
-- `platform/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `platform/backend/` y `platform/frontend/` (telemetría), y `src/python/shared/config/` (la configuración que gobierna al robot).
-- `ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `ml/weights/` con los pesos publicados, `apps/auto-annotator/` con la herramienta de anotación asistida.
-- `deploy/ansible/` y `infra/` con el despliegue: el provisionamiento de las placas con Ansible, y las tareas de infraestructura (`task rpi:*`, `task windows:provision:*`) que lo ejecutan, definidas en `infra/Taskfile.yml`.
-- `scripts/` con utilidades de desarrollo (configuración de SSH para el robot), `assets/` con las imágenes que usa este documento, `.github/` con los workflows de CI, y `apps/hugo-docs/` con el sitio de documentación navegable.
+- `src/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `src/config/` (la configuración TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD de navegación).
+- `apps/` con procesos independientes: `apps/backend/` y `apps/frontend/` (telemetría), `apps/auto-annotator/` (anotación asistida), `apps/hugo-docs/` (sitio de documentación navegable) y `apps/gazebo/` (runtime del simulador).
+- `contracts/` con los contratos de interfaz que generan código para ambos stacks: `contracts/proto/` (buf, esquemas gRPC/NATS) y `contracts/openapi/` (spec-first REST).
+- `ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `ml/weights/` con los pesos publicados.
+- `deploy/ansible/` con el provisionamiento de las placas; las tareas que lo ejecutan (`task rpi:*`, `task windows:provision:*`) están definidas en `tasks/fleet.yml`.
+- `scripts/` con utilidades de desarrollo (configuración de SSH para el robot) y `.github/` con los workflows de CI.
 - `data/` es la carpeta de salida en runtime: `data/live/` y `data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task robot:pull-runs` (bags desde la Pi 5), `task robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
 
 ## Arranque rápido y reproducibilidad
@@ -418,7 +421,7 @@ La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como l
 | Ancho      | 12.4 mm   |
 | Peso       | 4 g       |
 
-**Montaje.** La cámara va montada directamente sobre el LIDAR (mismo desplazamiento frontal, x = 0.1222 m), a unos **20 cm del suelo** e inclinada **~10° hacia abajo**. La posición alta cumple dos funciones: despeja la línea de visión sobre el propio chasis y sobre los obstáculos bajos de la pista, y junto con la inclinación leve hacia abajo equilibra el cuadro entre la pista cercana (donde aparecen las señales que hay que leer a tiempo para decidir el lado de paso) y el horizonte del pasillo. El ángulo es lo bastante pequeño para que las señales a distancia de decisión (~1.4 m de radio de activación) queden bien dentro del encuadre, sin sacrificar la visión lejana que da la versión Wide. Las constantes de montaje viven en `src/python/shared/config/robot.toml` (`[camera]`), y son las mismas que consumen la simulación y la TF estática.
+**Montaje.** La cámara va montada directamente sobre el LIDAR (mismo desplazamiento frontal, x = 0.1222 m), a unos **20 cm del suelo** e inclinada **~10° hacia abajo**. La posición alta cumple dos funciones: despeja la línea de visión sobre el propio chasis y sobre los obstáculos bajos de la pista, y junto con la inclinación leve hacia abajo equilibra el cuadro entre la pista cercana (donde aparecen las señales que hay que leer a tiempo para decidir el lado de paso) y el horizonte del pasillo. El ángulo es lo bastante pequeño para que las señales a distancia de decisión (~1.4 m de radio de activación) queden bien dentro del encuadre, sin sacrificar la visión lejana que da la versión Wide. Las constantes de montaje viven en `src/config/robot.toml` (`[camera]`), y son las mismas que consumen la simulación y la TF estática.
 
 **Calibración.** No hacemos calibración intrínseca de fábrica: el detector no necesita proyectar píxeles con precisión métrica, porque la decisión de la distancia al obstáculo la toma el LIDAR (la visión **no** es la red de seguridad de colisiones). Para las señales, la cámara aporta rumbo (preciso: la posición horizontal en el cuadro no depende de la profundidad) y color, mientras que la distancia por altura del cuadro delimitador (bounding box) es un modelo pinhole (proyección estenopeica) cuyo error crece con el rango (~3.6 cm a 1.5 m, ~14 cm a 3 m). Por eso el sistema fusiona ambas fuentes: cuando hay barrido LIDAR en el ciclo de muestreo, se confía en el rango del rayo más cercano al rumbo de la cámara, y el pinhole queda como respaldo. Su limitación conocida (asume cámara nivelada) está documentada honestamente en `src/python/docs/robot-physical-constants.md`.
 
@@ -871,7 +874,7 @@ width="350">
 
 También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
 
-**Radio de giro: predicho contra medido.** El simulador originalmente permitía radios de giro virtualmente ilimitados (hasta ~8 mm), muy por debajo de lo que la geometría real puede cumplir. La medición en banco del chasis real fijó el radio mínimo en **0.29 m**, y ese valor vive ahora como límite duro (`MIN_TURN_RADIUS_M` en `src/python/shared/config/`) tanto en la simulación como en el controlador: el simulador ya no aprueba curvas que el chasis no puede trazar. La consecuencia práctica se midió después sobre bags reales: entre 57 y 59% de los pasos del pure pursuit exigían un radio menor al que el chasis puede entregar, lo que disparaba el corte de velocidad por rumbo; el corrector que descarta puntos de mira inalcanzables (`MIN_TARGET_RADIUS_M`, medido y aceptado en A/B sobre 128 casos) nació de esa medición. Es la diferencia entre diseñar contra un chasis que existe y uno que no.
+**Radio de giro: predicho contra medido.** El simulador originalmente permitía radios de giro virtualmente ilimitados (hasta ~8 mm), muy por debajo de lo que la geometría real puede cumplir. La medición en banco del chasis real fijó el radio mínimo en **0.29 m**, y ese valor vive ahora como límite duro (`MIN_TURN_RADIUS_M` en `src/config/`) tanto en la simulación como en el controlador: el simulador ya no aprueba curvas que el chasis no puede trazar. La consecuencia práctica se midió después sobre bags reales: entre 57 y 59% de los pasos del pure pursuit exigían un radio menor al que el chasis puede entregar, lo que disparaba el corte de velocidad por rumbo; el corrector que descarta puntos de mira inalcanzables (`MIN_TARGET_RADIUS_M`, medido y aceptado en A/B sobre 128 casos) nació de esa medición. Es la diferencia entre diseñar contra un chasis que existe y uno que no.
 
 ## Chasis Inferior 
 
@@ -886,7 +889,7 @@ Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de tra
 
 ## Monochasis 
 
-**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `src/python/shared/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
+**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `src/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
 
 ## Relación de Torque y Velocidad 
 
@@ -898,7 +901,7 @@ $$T = \frac{m \cdot \left( a + g \cdot \left( \mu \cos\theta + \sin\theta \right
 
 Donde:
 
-- $m$ es la masa del vehículo (en kg; en V-Titan son **~1.51 kg con la batería de prácticas y ~1.46 kg con la de competencia**, medidos en el robot ensamblado). La simulación usa 1.5 kg fijos (`src/python/shared/config/robot.toml`: chasis de 1.3 kg más 4 ruedas de 0.05 kg), un punto medio conservador entre ambas configuraciones: calcular con la masa mayor nunca subestima el torque necesario
+- $m$ es la masa del vehículo (en kg; en V-Titan son **~1.51 kg con la batería de prácticas y ~1.46 kg con la de competencia**, medidos en el robot ensamblado). La simulación usa 1.5 kg fijos (`src/config/robot.toml`: chasis de 1.3 kg más 4 ruedas de 0.05 kg), un punto medio conservador entre ambas configuraciones: calcular con la masa mayor nunca subestima el torque necesario
 - $r$ es el radio de la rueda (en metros; en V-Titan mide $0.035\ \text{m}$)
 - $a$ es la aceleración deseada. La **medimos sobre bags MCAP de pista real**: la derivada de la velocidad del encoder (`/motor/drive_speed`) sobre 5 carreras recientes da una aceleración sostenida de **~1.0 m/s²** (muy consistente: 0.93-1.09 en los 5 bags) y una rampa de arranque desde reposo de **~0.4 m/s²**. Usamos $a = 1.0\ \text{m/s}^2$, el caso conservador
 - $g$ es la gravedad, $9.81\ \text{m/s}^2$

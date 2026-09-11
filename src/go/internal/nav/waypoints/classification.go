@@ -1,6 +1,6 @@
 package waypoints
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+import "github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 
 // CorridorForPosition classifies which corridor section the robot is
 // currently in, matching classification.py's corridor_for_position.

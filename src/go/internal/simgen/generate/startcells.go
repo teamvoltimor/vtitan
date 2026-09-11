@@ -1,6 +1,6 @@
 package generate
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+import "github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 
 // bandFitEpsilon absorbs float noise when testing whether a band's inner edge
 // still falls inside the corridor. Without it a 0.20 m band closing exactly on

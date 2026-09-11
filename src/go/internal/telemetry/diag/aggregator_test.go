@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/telemetry/diag"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/telemetry/diag"
 )
 
 // fakeSource is a hand-written Source (see source.go) for testing Aggregator

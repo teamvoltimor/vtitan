@@ -1,11 +1,10 @@
 # Ruff Configuration — shared base for every repo Python package.
 #
-# src and src/shared both `extend` this file rather than one
-# extending the other, since they're siblings under src/, not a
-# specialization relationship. Each child only needs to add its own
-# `known-first-party` (the package's own import root differs: "src" for
-# robot, "shared" for shared) and any per-file-ignores tied to its own
-# directory layout.
+# src/python/ruff.toml `extend`s this file rather than duplicating it,
+# adding only its own `known-first-party` (the package's own import root)
+# and any per-file-ignores tied to its own directory layout. src/python/shared/
+# has no ruff.toml of its own -- Ruff's directory-ancestor discovery picks up
+# src/python/ruff.toml for it automatically.
 #
 # An extremely fast Python linter and code formatter, written in Rust
 # Compatible with ruff >= 0.1.0

@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/imu"
 )
 
 const quaternionTolerance = 1e-9

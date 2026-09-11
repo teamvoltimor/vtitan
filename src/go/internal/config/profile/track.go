@@ -79,7 +79,7 @@ type TrackMarkings struct {
 }
 
 // TrackConfig mirrors shared.config.track_constants.TrackConstants's full
-// schema, as loaded from platform/shared/config/track.toml (the WRO mat
+// schema, as loaded from src/config/track.toml (the WRO mat
 // geometry, distinct from robot.toml's chassis geometry).
 type TrackConfig struct {
 	Track        TrackMat          `mapstructure:"track"`
@@ -91,7 +91,7 @@ type TrackConfig struct {
 	Markings     TrackMarkings     `mapstructure:"markings"`
 }
 
-// DefaultTrackTOMLPath is platform/shared/config/track.toml, relative to
+// DefaultTrackTOMLPath is src/config/track.toml, relative to
 // the repo root. Unlike robot.toml, it has no per-component profile
 // overlays -- pass nil profileNames to Load.
-const DefaultTrackTOMLPath = "platform/shared/config/track.toml"
+const DefaultTrackTOMLPath = "src/config/track.toml"

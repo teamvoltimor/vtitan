@@ -53,7 +53,7 @@ class Driver(DriveDriver):
     All wiring facts (PWM chip/channel/carrier, and pin numbers) come from
     ``pwm_config`` (``Bts7960PwmConfig``) rather than separate constructor
     args, so they are TOML/env configurable the same way ``ServoConfig``
-    already is -- see ``config/hardware/motors/bts7960.toml``.
+    already is -- see ``src/config/hardware/motors/bts7960.toml``.
 
     ``r_en_pin``/``l_en_pin`` are set HIGH once at :meth:`connect` and never
     touched again -- they gate the module's overcurrent/thermal protection,

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/imu"
 )
 
 func waitForAck(prompt string) bool {

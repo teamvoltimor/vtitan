@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 )
 
 // rgbFrame builds a tiny solid-color rgb8 frame.

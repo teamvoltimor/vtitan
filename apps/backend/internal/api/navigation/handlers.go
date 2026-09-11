@@ -8,10 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/navigation"
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
-	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
+	domain "github.com/teamvoltimor/vtitan/apps/backend/domain/navigation"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/api"
+	httpconstants "github.com/teamvoltimor/vtitan/apps/backend/internal/http"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/problem"
 )
 
 // Handler holds the Navigation context's Gin HTTP handlers.

@@ -3,7 +3,7 @@ package robot
 import (
 	"github.com/google/uuid"
 
-	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
+	domain "github.com/teamvoltimor/vtitan/apps/backend/domain/robot"
 )
 
 // parseUUID parses s as a UUID, falling back to uuid.Nil on failure. Used only

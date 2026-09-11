@@ -5,10 +5,10 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	statev1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/state/v1"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	statev1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/state/v1"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // NATSRaceMetricsSink publishes race progress on the

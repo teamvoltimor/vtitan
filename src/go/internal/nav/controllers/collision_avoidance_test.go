@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 )
 
 // -- TestThreatDirection: ports test_collision_avoidance_controller.py's

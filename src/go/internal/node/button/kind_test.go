@@ -3,9 +3,9 @@ package button_test
 import (
 	"testing"
 
-	driverbutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
-	nodebutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/button"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
+	driverbutton "github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
+	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 )
 
 func TestKindToProto(t *testing.T) {

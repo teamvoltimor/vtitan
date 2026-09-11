@@ -41,7 +41,7 @@ package wallheading
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // Config is the wall-heading tuning, matching WallHeadingParams.
@@ -55,7 +55,7 @@ type Config struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/sensors/wall_heading.toml.
+// src/config/navigation/sensors/wall_heading.toml.
 const (
 	// DefaultMinConcentration matches min_concentration.
 	DefaultMinConcentration = 0.55

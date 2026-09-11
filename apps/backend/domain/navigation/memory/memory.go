@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/navigation"
+	"github.com/teamvoltimor/vtitan/apps/backend/domain/navigation"
 )
 
 // assumedAvgSpeedMPS is a conservative average-speed estimate used to derive

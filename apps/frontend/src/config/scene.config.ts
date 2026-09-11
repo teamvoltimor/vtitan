@@ -17,7 +17,7 @@ export const SIMULATION_CONFIG = {
   },
 
   // Robot model & defaults. Matches the measured chassis in
-  // src/shared/config/robot.toml (chassis.length/width/height) — the
+  // src/config/robot.toml (chassis.length/width/height) — the
   // single source of truth for the real robot's physical dimensions.
   ROBOT: {
     DEFAULT_POSITION: { x: 1.5, y: 1.5, z: 0.1 }, // Position3D (sim coords)

@@ -236,7 +236,7 @@ min_reverse_clearance_m = 0.30
 # tunable without a code edit, and that the Go mirror can load them.
 #
 # The measured rationale for each lives in CorridorFollowerParams' own
-# docstrings (src/shared/src/shared/config/navigation_tuning/blind_nav.py),
+# docstrings (src/shared/src/config/navigation_tuning/blind_nav.py),
 # which are far longer than a comment here should be; the notes below say what
 # the key is and where it is a cliff, not why.
 

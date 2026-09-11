@@ -1,5 +1,5 @@
 // Package trackconfig loads the mat geometry TOML source of truth
-// (platform/shared/config/track.toml) and renders it into the generated files
+// (src/config/track.toml) and renders it into the generated files
 // each consumer (Go simconfig, Python shared.config) actually reads.
 // Regenerate via `simgen generate-track-constants` (wired to
 // `task gen:track-constants`).

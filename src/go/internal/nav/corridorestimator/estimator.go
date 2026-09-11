@@ -3,9 +3,9 @@ package corridorestimator
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/racetracker"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // Config is the estimator's tuning, matching CorridorEstimatorParams plus the
@@ -52,7 +52,7 @@ type Measurement struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/blind_nav/corridor_estimator.toml and
+// src/config/navigation/blind_nav/corridor_estimator.toml and
 // track.toml's [corridor] section.
 const (
 	// DefaultMinSamples matches corridor_estimator.toml's min_samples.

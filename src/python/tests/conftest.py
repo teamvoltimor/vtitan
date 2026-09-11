@@ -5,17 +5,9 @@ Pytest configuration and fixtures for robot tests.
 import dataclasses
 import json
 import os
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
-
-# Ensure shared package is available
-_this_dir = Path(__file__).resolve().parent
-_shared_src = (_this_dir.parent / "shared" / "src").resolve()
-if str(_shared_src) not in sys.path:
-    sys.path.insert(0, str(_shared_src))
 
 _TEST_HARDWARE_PROFILE = "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm"
 """Which physical robot the suite's assertions describe.

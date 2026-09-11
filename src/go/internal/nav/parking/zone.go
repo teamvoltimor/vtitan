@@ -3,7 +3,7 @@ package parking
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // ParkZone is the parking lot rectangle (WRO: "the rectangle between the two

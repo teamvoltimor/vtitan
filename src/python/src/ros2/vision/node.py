@@ -59,7 +59,7 @@ if TYPE_CHECKING:
 class Config(HardwareBaseSettings):
     """Fallback defaults for VisionNode's ROS2 parameters.
 
-    Sourced from config/hardware/vision/node.toml. ``rpi5_nodes.launch.py``
+    Sourced from src/config/hardware/vision/node.toml. ``rpi5_nodes.launch.py``
     still overrides these at launch time via ROS2 parameters (e.g. to select
     the hailo backend and direct camera capture) -- this only changes what a
     node launched with no parameter overrides falls back to.
@@ -68,7 +68,7 @@ class Config(HardwareBaseSettings):
     model_config = SettingsConfigDict(env_prefix="vision_node_", toml_file=CONFIG_DIR / "vision" / "node.toml")
 
     camera_topic: str = "/camera/image_raw"
-    model_path: str = "yolov8n.pt"  # matches config/hardware/vision/node.toml
+    model_path: str = "yolov8n.pt"  # matches src/config/hardware/vision/node.toml
     backend: str = "yolo"  # 'yolo' or 'hailo'
     # 'direct' opens the camera in this process and feeds frames straight to
     # the model -- no sensor_msgs/Image on the wire, which is what a race

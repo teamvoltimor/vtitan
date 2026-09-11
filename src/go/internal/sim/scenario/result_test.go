@@ -3,7 +3,7 @@ package scenario_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/scenario"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/scenario"
 )
 
 func TestParseResult(t *testing.T) {

@@ -1,7 +1,7 @@
 package profile
 
 // ClearanceConfig mirrors
-// platform/shared/config/navigation/motion/clearance.toml
+// src/config/navigation/motion/clearance.toml
 // (shared.config.navigation_tuning.motion.ClearanceZones) in full.
 // internal/nav/controllers.Config consumes ContactDist/SlowDist/FastDist/
 // PathMargin; MediumDist is mirrored for completeness even though nothing
@@ -35,7 +35,7 @@ type ClearanceConfig struct {
 }
 
 // DefaultClearanceTOMLPath is
-// platform/shared/config/navigation/motion/clearance.toml, relative to the
+// src/config/navigation/motion/clearance.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load.
-const DefaultClearanceTOMLPath = "platform/shared/config/navigation/motion/clearance.toml"
+const DefaultClearanceTOMLPath = "src/config/navigation/motion/clearance.toml"

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/bayexit"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 )
 
 // There is no Python oracle test file for bay_exit.py (none exists in the

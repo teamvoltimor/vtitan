@@ -3,7 +3,7 @@ package recording
 import (
 	"google.golang.org/protobuf/proto"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/protoschema"
+	"github.com/teamvoltimor/vtitan/src/go/internal/schema/protoschema"
 )
 
 // newVideoSink returns the video encoder for the build: the gocv mp4v backend

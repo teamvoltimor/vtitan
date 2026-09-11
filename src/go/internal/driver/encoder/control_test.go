@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
 )
 
 // shippedCountsPerRev is the live-verified 2026-08-29 calibration for the

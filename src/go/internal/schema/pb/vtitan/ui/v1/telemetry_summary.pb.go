@@ -152,7 +152,7 @@ const file_vtitan_ui_v1_telemetry_summary_proto_rawDesc = "" +
 	"\rlidar_left_cm\x18\x06 \x01(\x01R\vlidarLeftCm\x12$\n" +
 	"\x0elidar_right_cm\x18\a \x01(\x01R\flidarRightCm\x12 \n" +
 	"\fgyro_yaw_deg\x18\b \x01(\x01R\n" +
-	"gyroYawDegBJZHgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1b\x06proto3"
+	"gyroYawDegB?Z=github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/uiv1b\x06proto3"
 
 var (
 	file_vtitan_ui_v1_telemetry_summary_proto_rawDescOnce sync.Once

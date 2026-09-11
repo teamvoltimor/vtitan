@@ -169,7 +169,7 @@ const file_vtitan_ui_v1_button_event_proto_rawDesc = "" +
 	"\x0fKIND_LONG_PRESS\x10\x02\x12\x17\n" +
 	"\x13KIND_SHUTDOWN_PRESS\x10\x03\x12\x14\n" +
 	"\x10KIND_SHORT_PRESS\x10\x04\x12\x11\n" +
-	"\rKIND_RELEASED\x10\x05BJZHgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1b\x06proto3"
+	"\rKIND_RELEASED\x10\x05B?Z=github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/uiv1b\x06proto3"
 
 var (
 	file_vtitan_ui_v1_button_event_proto_rawDescOnce sync.Once

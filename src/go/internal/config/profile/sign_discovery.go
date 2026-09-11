@@ -21,7 +21,7 @@ type SignDiscoveryConfig struct {
 
 // DefaultSignDiscoveryTOMLPath is where sign_discovery.toml lives, relative to
 // the repo root.
-const DefaultSignDiscoveryTOMLPath = "platform/config/navigation/signs/sign_discovery.toml"
+const DefaultSignDiscoveryTOMLPath = "src/config/navigation/signs/sign_discovery.toml"
 
 // SignDiscoveryDefaults mirrors the shipped file, for viper to overlay a
 // partial TOML onto.

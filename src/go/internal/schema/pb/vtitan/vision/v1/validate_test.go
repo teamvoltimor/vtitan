@@ -9,7 +9,7 @@ import (
 	"buf.build/go/protovalidate"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	visionv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/vision/v1"
+	visionv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/vision/v1"
 )
 
 func TestDetectionsValidation(t *testing.T) {

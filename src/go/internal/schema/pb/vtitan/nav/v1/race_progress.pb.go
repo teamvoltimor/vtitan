@@ -156,7 +156,7 @@ const file_vtitan_nav_v1_race_progress_proto_rawDesc = "" +
 	"\x0elaps_completed\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\rlapsCompleted\"\x87\x01\n" +
 	"\x0fCurrentCorridor\x128\n" +
 	"\x05stamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\x05stamp\x12:\n" +
-	"\asection\x18\x02 \x01(\x0e2\x16.vtitan.nav.v1.SectionB\b\xbaH\x05\x82\x01\x02\x10\x01R\asectionBKZIgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/navv1b\x06proto3"
+	"\asection\x18\x02 \x01(\x0e2\x16.vtitan.nav.v1.SectionB\b\xbaH\x05\x82\x01\x02\x10\x01R\asectionB@Z>github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/navv1b\x06proto3"
 
 var (
 	file_vtitan_nav_v1_race_progress_proto_rawDescOnce sync.Once

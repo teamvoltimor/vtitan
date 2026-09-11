@@ -1,8 +1,8 @@
 package collision
 
 import (
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 )
 
 // minStepScale is the smallest usable fraction of a commanded step,

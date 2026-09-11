@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/outbox"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/outbox"
 )
 
 // fakeStreamer records every item Send receives, optionally failing on a

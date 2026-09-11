@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/directionestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
 )
 
 func TestEstimator_ObserveSettlesAfterMinVotes(t *testing.T) {

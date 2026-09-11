@@ -3,10 +3,10 @@ package statemachine
 import (
 	"fmt"
 
-	driverbutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
-	nodebutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/button"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	driverbutton "github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
+	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // NATSButtonSink implements command.ButtonSink by publishing a synthetic

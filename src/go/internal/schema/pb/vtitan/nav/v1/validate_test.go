@@ -10,7 +10,7 @@ import (
 	"buf.build/go/protovalidate"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	navv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/nav/v1"
+	navv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/nav/v1"
 )
 
 func TestNavigatorDebugValidation(t *testing.T) {

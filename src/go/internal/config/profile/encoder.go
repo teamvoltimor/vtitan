@@ -3,7 +3,7 @@ package profile
 import "fmt"
 
 // EncoderConfig mirrors the subset of
-// platform/robot/config/hardware/motors/encoder.toml
+// src/config/hardware/motors/encoder.toml
 // (src/hardware/motors/encoder/config.py) that robot-go consumes: the A/B
 // GPIO pins and the bench-calibrated counts per wheel revolution.
 //
@@ -28,9 +28,9 @@ type EncoderConfig struct {
 }
 
 // DefaultEncoderTOMLPath is
-// platform/robot/config/hardware/motors/encoder.toml, relative to the repo
+// src/config/hardware/motors/encoder.toml, relative to the repo
 // root.
-const DefaultEncoderTOMLPath = "platform/robot/config/hardware/motors/encoder.toml"
+const DefaultEncoderTOMLPath = "src/config/hardware/motors/encoder.toml"
 
 // LoadEncoderConfig loads EncoderConfig from basePath overlaid with
 // profileNames (see Load), then rejects a missing counts_per_rev the way

@@ -363,7 +363,7 @@ const file_vtitan_vision_v1_detections_proto_rawDesc = "" +
 	"\x16SIGN_COLOR_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSIGN_COLOR_RED\x10\x01\x12\x14\n" +
 	"\x10SIGN_COLOR_GREEN\x10\x02\x12\x16\n" +
-	"\x12SIGN_COLOR_MAGENTA\x10\x03BNZLgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/visionv1b\x06proto3"
+	"\x12SIGN_COLOR_MAGENTA\x10\x03BCZAgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/visionv1b\x06proto3"
 
 var (
 	file_vtitan_vision_v1_detections_proto_rawDescOnce sync.Once

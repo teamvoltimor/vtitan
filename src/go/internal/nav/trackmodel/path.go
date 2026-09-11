@@ -3,7 +3,7 @@ package trackmodel
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // PathProjection is where a point sits relative to the planned path, in the

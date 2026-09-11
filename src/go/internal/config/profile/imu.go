@@ -27,6 +27,6 @@ type IMUUARTRVCConfig struct {
 }
 
 // DefaultIMUUARTRVCTOMLPath is
-// platform/robot/config/hardware/imu/bno08x_uart_rvc.toml, relative to the
+// src/config/hardware/imu/bno08x_uart_rvc.toml, relative to the
 // repo root.
-const DefaultIMUUARTRVCTOMLPath = "platform/robot/config/hardware/imu/bno08x_uart_rvc.toml"
+const DefaultIMUUARTRVCTOMLPath = "src/config/hardware/imu/bno08x_uart_rvc.toml"

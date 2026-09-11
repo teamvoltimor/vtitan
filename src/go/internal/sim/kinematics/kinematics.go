@@ -3,7 +3,7 @@ package kinematics
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // Params configures an AckermannKinematics integrator. Unlike the Python

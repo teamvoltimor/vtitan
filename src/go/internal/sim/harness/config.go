@@ -1,10 +1,10 @@
 package harness
 
 import (
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
 // Config configures a SimHardwareGateway, the Go-native replacement for the

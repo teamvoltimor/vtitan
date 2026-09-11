@@ -3,7 +3,7 @@ package waypoints
 import (
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // PathPlannability is the result of checking whether a path fits within

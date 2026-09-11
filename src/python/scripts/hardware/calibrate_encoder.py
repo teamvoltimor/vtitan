@@ -51,7 +51,7 @@ from dotenv import load_dotenv
 # Must run before any shared.config/src.hardware.motors import: both
 # transitively import shared.config.constants.RobotSpecs, which reads
 # VTITAN_HARDWARE_PROFILE at MODULE IMPORT TIME (a top-level statement in
-# shared/config/constants/_shared.py, not inside a function) -- the same
+# src/python/shared/src/shared/config/constants/_shared.py, not inside a function) -- the same
 # class of bug fixed in `097ab6cf` for run-lidar and in sweep_open_loop.py.
 # Calling load_dotenv() any later is too late.
 load_dotenv()
@@ -202,7 +202,7 @@ def main() -> None:
     print(f"\nBest estimate (lowest, least slip): counts_per_rev = {best:.0f}")
     print(f"  currently configured: {args.counts_per_rev_config:.0f}  ({best / args.counts_per_rev_config:.2f}x off)")
     print("=" * 62)
-    print("\nSet counts_per_rev in config/hardware/motors/encoder.toml")
+    print("\nSet counts_per_rev in src/config/hardware/motors/encoder.toml")
 
 
 if __name__ == "__main__":

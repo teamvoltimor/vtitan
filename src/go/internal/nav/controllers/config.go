@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // Config aggregates every tuning value internal/nav/controllers' types
@@ -14,8 +14,8 @@ import (
 // constants (wheelbase, chassis width, max steering angle, LIDAR mount
 // offsets/range) those from_tuning constructors also read directly off
 // RobotSpecs rather than the tuning object. DefaultConfig's field values
-// mirror the shipped TOML defaults (platform/shared/config/navigation/**
-// and platform/shared/config/robot.toml); ConfigFor loads the real values
+// mirror the shipped TOML defaults (src/config/navigation/**
+// and src/config/robot.toml); ConfigFor loads the real values
 // via internal/config/profile, falling back to DefaultConfig's literals
 // when no config root is supplied or loading fails.
 type Config struct {
@@ -105,8 +105,8 @@ type Config struct {
 	LidarMaxRangeM      float64
 }
 
-// Default* match the shipped TOML values (platform/shared/config/
-// navigation/** and platform/shared/config/robot.toml) as of this port.
+// Default* match the shipped TOML values (src/config/
+// navigation/** and src/config/robot.toml) as of this port.
 const (
 	// DefaultRiskRayWindow matches clearance.toml's risk_ray_window.
 	DefaultRiskRayWindow = 5

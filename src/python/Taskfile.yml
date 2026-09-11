@@ -1,0 +1,392 @@
+version: "3"
+
+vars:
+  # Full path to pixi on the Pi 5 / Pi Zero specifically -- bare `pixi` only
+  # resolves under an interactive login shell (.bashrc adds ~/.pixi/bin to
+  # PATH); a one-shot `ssh host "task robot:..."` gets the minimal
+  # non-interactive PATH and fails with "pixi: not found". Every robot:*
+  # task that runs directly ON a Pi (not on a dev machine, where pixi lives
+  # wherever it was installed) should use {{.ROBOT_PIXI}}, not a bare `pixi`.
+  ROBOT_PIXI: ~/.pixi/bin/pixi
+  # Sample scenario metadata for robot:drive's optional replay mode --
+  # produced by the Go simgen corpus generator, see tasks/platform.yml's
+  # gen:corpus. Override per invocation with METADATA=path.
+  METADATA: ../go/training_data/open/scenarios/scenario_0000_metadata.json
+
+tasks:
+  robot:install:
+    desc: Install robot platform dependencies (pixi + RoboStack, default + dev envs)
+    cmds:
+      - pixi install
+      - pixi install -e dev
+
+  robot:test:
+    desc: "Run robot tests in parallel (pixi dev env — robot is pixi-only, not uv). Usage: task robot:test [SCOPE=all|unit|fast|hardware|navigation|vision|drivers|slow] [TEST=path] [WORKERS=auto|N|serial]. Tests run on all cores by default (WORKERS=auto), set WORKERS=serial to disable parallelization. Scopes: unit (no hardware/ROS2 deps, includes slow sims); fast (unit minus @slow); all (all except @hardware); hardware (requires physical Pi); navigation/vision/drivers (subsystem scope, @slow excluded); slow (full closed-loop sims only, 1h+ runtime)."
+    vars:
+      SCOPE: '{{.SCOPE | default "all"}}'
+      TEST: '{{.TEST | default ""}}'
+      WORKERS: '{{.WORKERS | default "auto"}}'
+    cmds:
+      - cmd: |
+          # Build pytest args for worker control
+          worker_args=""
+          if [ "{{.WORKERS}}" = "serial" ]; then
+            worker_args="-p no:xdist"  # Disable xdist plugin entirely
+          elif [ "{{.WORKERS}}" != "auto" ] && [ "{{.WORKERS}}" != "" ]; then
+            worker_args="-n {{.WORKERS}}"  # Override default auto with specific count
+          fi
+          # Note: -n auto and --dist loadscope are already in pytest.ini.
+          # loadscope pins each whole test module to a single worker, which is
+          # needed for tests/ros2 (shared per-file rclpy fixtures) but starves
+          # tests/unit-only scopes: the two @slow sim modules are single files,
+          # so loadscope caps them at 1 worker each no matter the core count.
+          # Those sim scenarios are fully independent (fresh ScenarioSimulator
+          # per test, no shared fixtures), so scopes that never touch
+          # tests/ros2 can override to worksteal and use every core.
+          dist_args="--dist worksteal"
+
+          if [ -n "{{.TEST}}" ]; then
+            pixi run -e dev pytest "{{.TEST}}" -v $worker_args
+          else
+            case "{{.SCOPE}}" in
+              all) pixi run -e dev pytest tests/ -m "not hardware" -v $worker_args ;;
+              unit) pixi run -e dev pytest tests/unit -q $worker_args $dist_args ;;
+              fast) pixi run -e dev pytest tests/unit -q -m "not slow" $worker_args $dist_args ;;
+              hardware) pixi run -e dev pytest tests/hardware -m hardware -v $worker_args ;;
+              slow) pixi run -e dev pytest tests/unit -q -m slow -v $worker_args $dist_args ;;
+              navigation) pixi run -e dev pytest tests/unit -q -m "not slow" -k "collision_avoidance or core_navigator or contact_rules or corridor_estimator or deviation_recovery or lap_detector or lidar_localizer or race_tracker or sign_router or parking or stuck_detector or steering_contract or wall_heading or waypoint or open_challenge_sim or obstacles_challenge_sim or scenario_catalog or sensor_errors or live_visualizer_markers or navigation_tuning or track_constants" $worker_args $dist_args ;;
+              vision) pixi run -e dev pytest tests/unit -q -m "not slow" -k "vision_overlay or nms_by_class or sign_discovery" $worker_args $dist_args ;;
+              drivers) pixi run -e dev pytest tests/unit -q -m "not slow" -k "dc_encoder or wheel_odometry or resiliency or joy_teleop or heading_reference" $worker_args $dist_args ;;
+              *) echo "Unknown SCOPE: {{.SCOPE}}. Use all|unit|fast|hardware|navigation|vision|drivers|slow" && exit 1 ;;
+            esac
+          fi
+
+  robot:lint:
+    desc: Lint robot code
+    cmds:
+      - pixi run -e dev lint
+
+  robot:lint:fix:
+    desc: Auto-fix robot linting issues
+    cmds:
+      - pixi run -e dev lint-fix
+
+  robot:typecheck:
+    desc: >-
+      Type-check robot code with mypy (src/ + all four ros2_ws packages). The
+      robot was the only module without this entry, though the pixi task and
+      mypy.ini both existed — backend, frontend, ml-service, api and hailo all
+      have one. Needs no hardware and no VTITAN_HARDWARE_PROFILE: mypy does not
+      execute module-level code, so the profile that RobotConstants demands at
+      import time is never read.
+    cmds:
+      - pixi run -e dev typecheck
+
+  robot:build-ws:
+    desc: Build ROS2 workspace via colcon (Linux only — sllidar_ros2 requires Linux)
+    cmds:
+      - pixi run -e dev build-ws
+  shared:lint:
+    desc: Lint shared platform code
+    dir: shared
+    cmds:
+      - uv run ruff check .
+
+  shared:lint:fix:
+    desc: Auto-fix shared platform linting issues
+    dir: shared
+    cmds:
+      - uv run ruff check . --fix
+  robot:zero:
+    desc: >-
+      Pi Zero lifecycle ops — run ON Pi 5 (usage: task robot:zero
+      ACTION=bootstrap|deploy|shutdown|shutdown-both|verify|recover-sd
+      [ZERO_HOST=user@host] [ZERO_HOST_USB=user@host]
+      [ZERO_HOST_WIFI=user@host] [DEVICE=/dev/sdX]). bootstrap: one-shot setup for a
+      freshly-flashed Pi Zero (SSH trust, .env, pixi CLI, I2C, systemd
+      unit), idempotent, run before deploy. deploy: build the dev pixi env +
+      ros2_ws on Pi 5 and ship to the Pi Zero as tarballs. shutdown: cleanly
+      shut down the Pi Zero before cutting its power. shutdown-both: shut
+      the Zero down first, then Pi 5 itself last, once the Zero is
+      confirmed offline — use before switching the robot's power source
+      (e.g. wall/USB -> battery). verify: end-to-end health check
+      (USB-gadget link, service state, ROS2 discovery, a real motor command
+      round-trip). recover-sd: repair ext4/FAT corruption on the Zero's SD
+      card after an unclean power-off, without a reformat — run with the
+      Zero powered off and its card plugged into the Pi 5 via a USB adapter.
+    requires:
+      vars:
+        - ACTION
+    env:
+      ZERO_HOST: '{{.ZERO_HOST | default ""}}'
+      ZERO_HOST_USB: '{{.ZERO_HOST_USB | default ""}}'
+      ZERO_HOST_WIFI: '{{.ZERO_HOST_WIFI | default ""}}'
+      DEVICE: '{{.DEVICE | default ""}}'
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            bootstrap) pixi run -e dev bootstrap-fresh-zero ;;
+            deploy) pixi run -e dev deploy-dev-env-to-zero ;;
+            shutdown) pixi run -e dev safe-shutdown-zero ;;
+            shutdown-both) pixi run -e dev safe-shutdown-both ;;
+            verify) pixi run -e dev verify-zero-integration ;;
+            recover-sd) pixi run -e dev recover-zero-sd ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|shutdown-both|verify|recover-sd" && exit 1 ;;
+          esac
+
+  robot:deploy:
+    desc: >-
+      Ship code + the detector HEF to the Pi 5, rebuild ros2_ws and restart the
+      service (usage: task robot:deploy [PI5_HOST=user@host] [HEF=] [SKIP_RESTART=1]).
+      Run FROM a dev machine. Transfers commits as a git bundle over SSH, so it
+      works on a branch that was never pushed and publishes nothing. HEF= skips
+      the model and ships code only.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SKIP_RESTART: '{{.SKIP_RESTART | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/provisioning/deploy-to-pi5.sh'
+
+  robot:record-vision:
+    desc: >-
+      Record the annotated detection video on the Pi 5 and copy it back here
+      (usage: task robot:record-vision [SECONDS_TO_RECORD=20] [OUT=path]
+      [KEEP_DEBUG=1] [PI5_HOST=user@host]). Run FROM a dev machine. Enables the
+      debug video stream, records, fetches the mp4, then restores the previous
+      debug setting — a race publishes detections only.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default ""}}'
+      OUT: '{{.OUT | default ""}}'
+      KEEP_DEBUG: '{{.KEEP_DEBUG | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/record-vision-from-pi5.sh'
+
+  robot:pull-runs:
+    desc: >-
+      Pull recorded rosbag runs (mcaps) from the Pi 5's ~/vtitan_runs into
+      data/live/runs/ (usage: task robot:pull-runs [PATTERN=run_20260809]
+      [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Lists
+      runs on the Pi 5 and skips any that already exist locally -- only
+      copies what's missing. PATTERN defaults to every run; pass a run name
+      or timestamp prefix to narrow it. RUNS_DIR overrides the local target
+      dir, e.g. if data/ moves again.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      RUNS_DIR: '{{.RUNS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/pull-runs-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:push-runs:
+    desc: >-
+      Push locally-held rosbag runs (mcaps) from data/live/runs/ up into
+      the Pi 5's ~/vtitan_runs (usage: task robot:push-runs [PATTERN=run_20260809]
+      [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Keeps both
+      sides in sync so a Pi 5 reformat/reflash doesn't strand the only copy of
+      a run -- skips any run that already exists on the Pi 5. PATTERN defaults
+      to every local run; pass a run name or timestamp prefix to narrow it.
+      RUNS_DIR overrides the local source dir, e.g. if data/ moves again.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      RUNS_DIR: '{{.RUNS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/push-runs-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:pull-videos:
+    desc: >-
+      Pull per-run videos (mp4 only, no bag -- see src/vision/video_recorder.py)
+      from the Pi 5's ~/vtitan_runs into data/live/videos/ (usage: task
+      robot:pull-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
+      [VIDEOS_DIR=path]). Run FROM a dev machine. A separate tree from
+      data/live/runs/ on purpose -- see pull-videos-from-pi5.sh's own
+      comment. Skips any run whose video is already local; only lists runs
+      that actually recorded one. VIDEOS_DIR overrides the local target dir,
+      e.g. if data/ moves again.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      VIDEOS_DIR: '{{.VIDEOS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/pull-videos-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:push-videos:
+    desc: >-
+      Push locally-held per-run videos from data/live/videos/ back up into
+      their matching run directory under the Pi 5's ~/vtitan_runs (usage: task
+      robot:push-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
+      [VIDEOS_DIR=path]). Run FROM a dev machine. Skips a run with no matching
+      remote run directory (push the bag first) and any video already present
+      on the Pi 5. VIDEOS_DIR overrides the local source dir, e.g. if data/
+      moves again.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      VIDEOS_DIR: '{{.VIDEOS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/push-videos-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:bench-hud:start:
+    desc: >-
+      Start a bench-mode vision/HUD recording test session (usage: task
+      robot:bench-hud:start [PI5_HOST=user@host]). Run FROM a dev machine.
+      Stops vtitan-pi5.service, launches SET=rpi5-bench, and simulates a
+      short_press to enter RACING so the per-run recorder starts. Pairs with
+      robot:bench-hud:stop -- do not leave this running unattended, it
+      leaves the production service down. See robot:bench-hud:record for a
+      one-shot timed version.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-start.sh'
+
+  robot:bench-hud:stop:
+    desc: >-
+      Stop a bench-mode vision/HUD test session started by
+      robot:bench-hud:start (usage: task robot:bench-hud:stop
+      [PI5_HOST=user@host]). Run FROM a dev machine. Simulates long_press to
+      enter FINISHED (finalizing the video), tears down the bench launch,
+      restores vtitan-pi5.service if it was running before, and pulls the
+      recorded video into data/live/videos/.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-stop.sh'
+
+  robot:bench-hud:record:
+    desc: >-
+      One-shot bench-mode vision/HUD recording test: start, record for
+      SECONDS_TO_RECORD, stop, and pull the video (usage: task
+      robot:bench-hud:record [SECONDS_TO_RECORD=20] [PI5_HOST=user@host]).
+      Run FROM a dev machine. Equivalent to robot:bench-hud:start, sleep,
+      robot:bench-hud:stop.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-record.sh'
+
+  robot:watch-vision:
+    desc: >-
+      Print live detections as they are published, one line per frame (usage:
+      task robot:watch-vision [SECONDS_TO_RECORD=60] [PI5_HOST=user@host]). Run
+      FROM a dev machine; reads the topic only, so it is safe against a live
+      robot and needs no debug video.
+    env:
+      PI5_HOST: '{{.PI5_HOST | default "rpi-5-local"}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default "60"}}'
+    cmds:
+      - cmd: |
+          ssh -o ConnectTimeout=15 "$PI5_HOST" \
+            'export PATH="$HOME/.pixi/bin:$PATH"; cd ~/vtitan/src/python \
+             && bash -c ". ros2_ws/install/setup.bash && PYTHONPATH=. python \
+                scripts/hardware/watch_vision_detections.py --seconds '"$SECONDS_TO_RECORD"'"'
+
+  robot:fetch-lidar-driver:
+    desc: Clone the third-party Slamtec sllidar_ros2 driver into the workspace (run before build-ws to enable LIDAR)
+    cmds:
+      - pixi run fetch-lidar-driver
+
+  robot:run:
+    desc: "Run a single robot node (usage: task robot:run NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator -- [extra ros2 args]) — requires build-ws first (lidar also needs fetch-lidar-driver). NODE=motor requires DRIVE_BACKEND/STEERING_BACKEND set (e.g. via .env) — standalone `ros2 run` has no launch file to source them from and errors loudly rather than guessing."
+    requires:
+      vars:
+        - NODE
+    cmds:
+      - pixi run run-{{.NODE}} -- {{.CLI_ARGS}}
+
+  robot:launch:
+    desc: >-
+      Launch a robot node set (usage: task robot:launch
+      SET=rpi5|rpi5-bench|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop)
+      — requires build-ws first. rpi5-bench bypasses state_machine_node's IMU/
+      LiDAR/Hailo/jumper readiness checks for bench testing on partial hardware
+      (e.g. camera+Hailo only) — stop the vtitan-pi5 systemd service first, it
+      launches the same node set and will collide otherwise.
+    requires:
+      vars:
+        - SET
+    cmds:
+      - pixi run launch-{{.SET}}
+
+  robot:drive:
+    desc: >-
+      Switch the robot's control mode — run ON the Pi 5 (usage: task
+      robot:drive ACTION=navigation|controller [METADATA=path]). navigation:
+      runs race.launch.py (autonomous navigator). controller: runs
+      joy_teleop_launch.py (joystick bench testing, e.g. 8BitDo Ultimate 2
+      over Bluetooth). Only one should run at a time -- both publish to
+      /ackermann_cmd and nothing arbitrates between them. Stop the running
+      one (Ctrl+C), run robot:reset-motors, then start the other.
+    requires:
+      vars:
+        - ACTION
+    env:
+      SCENARIO_METADATA: '{{.METADATA | default ""}}'
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            navigation) pixi run drive-navigation ;;
+            controller) pixi run drive-controller ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use navigation|controller" && exit 1 ;;
+          esac
+
+  robot:reset-motors:
+    desc: Zero the drive command and recenter steering immediately (run after robot:drive switches modes, or after Ctrl+C)
+    cmds:
+      - '{{.ROBOT_PIXI}} run reset-motors'
+
+  robot:test-motors:
+    desc: >-
+      Hardware smoke test for ackermann_motor_node — run ON Pi 5 (usage: task
+      robot:test-motors -- [--yes] [--skip-drive] [--steering-angle-deg 15]
+      [--drive-speed 0.1] [--drive-duration-s 1.5] [--find-min-speed]). Steering
+      test moves the servo through +-angle/center (safe with the robot sitting
+      still); the drive test spins the wheels at a low speed by default and
+      asks for a typed confirmation first unless --yes is passed. Checks real
+      feedback from /motor/steering_position and /motor/drive_speed, not just
+      that a command was sent. See scripts/hardware/test_motors.py --help for
+      every option.
+    cmds:
+      - '{{.ROBOT_PIXI}} run -e dev test-motors -- {{.CLI_ARGS}}'
+
+  robot:calibrate-encoder:
+    desc: >-
+      Interactive counts_per_rev calibration against a real tape-measured
+      distance — run ON Pi 5 (usage: task robot:calibrate-encoder -- [--speed
+      0.05] [--duration-s 5.0] [--runs 2]). Drives a commanded distance, then
+      asks you to type in what you actually measured with a tape; compares
+      against the live encoder.toml value. Needed after any drive-motor swap
+      -- see scripts/hardware/calibrate_encoder.py --help for every option.
+    cmds:
+      - '{{.ROBOT_PIXI}} run -e dev calibrate-encoder -- {{.CLI_ARGS}}'
+
+  robot:sweep-open-loop:
+    desc: >-
+      Open-loop H-bridge duty + servo range sweep — run ON THE PI ZERO
+      directly (not Pi 5: this talks to the BTS7960/servo objects directly,
+      not over ROS2/DDS). Usage: task robot:sweep-open-loop -- [--yes]
+      [--skip-drive] [--skip-servo] [--skip-reverse] [--duty-fractions
+      0.1,0.2,...] [--servo-steps 5]. Unlike test-motors, bypasses
+      ackermann_motor_node's closed-loop PID entirely, so it answers "what
+      does raw duty X produce" without relying on encoder.toml's
+      counts_per_rev/max_rpm (calibrated against the retired motor, not
+      trustworthy for a new one). See scripts/hardware/sweep_open_loop.py
+      --help for every option.
+    cmds:
+      # 5,6,26 = l_en_pin,r_en_pin,reverse_pwm_pin from config/hardware/motors/
+      # bts7960.toml -- must stay in sync (same pins the systemd unit's
+      # ExecStopPost and bootstrap-fresh-zero.sh's config.txt line re-drive
+      # low; see docs/bts7960-ibt2-wiring.md).
+      - |
+        sudo systemctl stop vtitan-pi-zero.service
+        trap 'sudo pinctrl set 5,6,26 op dl; sudo systemctl start vtitan-pi-zero.service' EXIT
+        {{.ROBOT_PIXI}} run -e dev sweep-open-loop -- {{.CLI_ARGS}}
+
+  robot:joystick-setup:
+    desc: >-
+      One-shot Bluetooth pairing for a joystick used with robot:drive
+      ACTION=controller (e.g. 8BitDo Ultimate 2) — run ON Pi 5. Put the
+      controller in pairing mode first. Idempotent, safe to re-run.
+      CONTROLLER_MAC=AA:BB:CC:DD:EE:FF skips the interactive scan. See
+      docs/joystick-teleop.md.
+    cmds:
+      - pixi run setup-joystick
+

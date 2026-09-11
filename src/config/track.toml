@@ -7,7 +7,7 @@
 # shared.config.track_constants.TrackConstants -- nothing to regenerate there.
 #
 # These values used to be hand-maintained twice — once in the Python classes of
-# shared/config/constants.py and once in the Go const blocks of
+# src/python/shared/src/shared/config/ and once in the Go const blocks of
 # simconfig/constants.go, which carried a comment asking future editors to keep
 # the two in sync by hand. That is the same hazard robot.toml already removed
 # for the robot's own dimensions; this file removes it for the mat.

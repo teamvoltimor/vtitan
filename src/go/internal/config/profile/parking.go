@@ -1,7 +1,7 @@
 package profile
 
 // ParkingConfig mirrors
-// platform/shared/config/navigation/parking/parking.toml
+// src/config/navigation/parking/parking.toml
 // (shared.config.navigation_tuning.parking.ParkingParams), the tuning the
 // parallel-park maneuver (internal/nav/parking) reads. Only the fields the
 // Go maneuver actually consumes are mirrored; the rest of the Python
@@ -43,7 +43,7 @@ type ParkingConfig struct {
 }
 
 // DefaultParkingTOMLPath is
-// platform/shared/config/navigation/parking/parking.toml, relative to the
+// src/config/navigation/parking/parking.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load.
-const DefaultParkingTOMLPath = "platform/shared/config/navigation/parking/parking.toml"
+const DefaultParkingTOMLPath = "src/config/navigation/parking/parking.toml"

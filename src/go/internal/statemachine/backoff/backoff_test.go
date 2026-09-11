@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/backoff"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/backoff"
 )
 
 func TestBackoff_NextDoublesUpToMax(t *testing.T) {

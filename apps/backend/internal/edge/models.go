@@ -1,7 +1,7 @@
 package edge
 
 import (
-	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
+	httpconstants "github.com/teamvoltimor/vtitan/apps/backend/internal/http"
 )
 
 // Route prefixes, and the WebSocket route -- both root-router concerns, not

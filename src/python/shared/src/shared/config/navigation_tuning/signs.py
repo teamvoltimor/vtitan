@@ -88,7 +88,7 @@ class SignRouterParams(BaseModel):
             router already applied rather than proximity to a sign, so it
             cannot mis-trigger on a sign that isn't currently biasing
             anything. Ships ``True``, in both this default and
-            ``shared/config/navigation/signs/sign_router.toml`` -- they are
+            ``src/config/navigation/signs/sign_router.toml`` -- they are
             held in step by ``test_field_defaults_match_shipped_toml``, so a
             bare ``SignRouterParams()`` gets the value that actually races.
             Measured 2026-09-04 over the 256-scenario corpus, blind: rev-run

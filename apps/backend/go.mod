@@ -1,4 +1,4 @@
-module github.com/teamvoltimor/vtitan/platform/backend
+module github.com/teamvoltimor/vtitan/apps/backend
 
 go 1.26
 

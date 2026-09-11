@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // Config aggregates every tuning value the Navigator itself consumes --
@@ -177,7 +177,7 @@ type Config struct {
 
 // Default* mirror the shipped TOML values this package's Python
 // counterpart (CoreNavigator + EscapeRecovery, via NavigationTuning) reads:
-// platform/shared/config/navigation/** plus platform/shared/config/robot.toml
+// src/config/navigation/** plus src/config/robot.toml
 // and track.toml. They are the fallback for a caller with no config root at
 // all -- ConfigFor prefers the live files.
 const (

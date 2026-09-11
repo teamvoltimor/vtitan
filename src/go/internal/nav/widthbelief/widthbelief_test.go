@@ -4,9 +4,9 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/widthbelief"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/widthbelief"
 )
 
 // narrowPriorM/wideTruthM are the two hypotheses a blind round holds. They

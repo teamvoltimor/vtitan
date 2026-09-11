@@ -18,9 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/camera"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/capture"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
+	"github.com/teamvoltimor/vtitan/src/go/internal/node/capture"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 func main() {

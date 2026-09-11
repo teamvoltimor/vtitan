@@ -30,7 +30,7 @@ const (
 //
 // protovalidate constraints here are deliberately structural (required,
 // finite) rather than hardware-specific numeric bounds — the actual
-// steering/speed limits live in platform/robot/config/hardware/motors/
+// steering/speed limits live in src/config/hardware/motors/
 // motors.toml and haven't been reconciled into this schema yet. Do not
 // invent bound values here; pull them from motors.toml when this gets
 // wired to a real driver.
@@ -149,7 +149,7 @@ const file_vtitan_actuation_v1_ackermann_cmd_proto_rawDesc = "" +
 	"\facceleration\x18\x06 \x01(\x02B\a\xbaH\x04\n" +
 	"\x02@\x01R\facceleration\x12\x1b\n" +
 	"\x04jerk\x18\a \x01(\x02B\a\xbaH\x04\n" +
-	"\x02@\x01R\x04jerkBQZOgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1b\x06proto3"
+	"\x02@\x01R\x04jerkBFZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1b\x06proto3"
 
 var (
 	file_vtitan_actuation_v1_ackermann_cmd_proto_rawDescOnce sync.Once

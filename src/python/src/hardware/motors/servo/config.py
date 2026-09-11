@@ -2,7 +2,7 @@
 
 Every servo parameter lives as a field on the ``ServoConfig`` pydantic model,
 env-overridable via ``SERVO_*`` and the ``servo.toml`` file under
-``config/hardware/motors/``. No loose module-level constants remain -- the
+``src/config/hardware/motors/``. No loose module-level constants remain -- the
 driver body reads everything from ``self._config``.
 """
 

@@ -3,7 +3,7 @@ package collision
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // ContactSurface identifies which surface the chassis is touching, if any,

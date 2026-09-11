@@ -63,7 +63,7 @@ NODE_NAME = "oled_display_node"
 
 
 class NodeConfig(HardwareBaseSettings):
-    """Node-level timing and backend selection, configurable via config/hardware/display/oled_node.toml.
+    """Node-level timing and backend selection, configurable via src/config/hardware/display/oled_node.toml.
 
     Matches every hardware driver's Config pattern. Timing fields were previously hardcoded
     as plain module constants, silently ignoring

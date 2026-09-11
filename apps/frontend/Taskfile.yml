@@ -1,0 +1,49 @@
+version: "3"
+
+tasks:
+  frontend:install:
+    desc: Install frontend dependencies (Node.js)
+    cmds:
+      - npm ci
+
+  frontend:dev:
+    desc: "Run frontend dev server (Vite, http://localhost:5173) — DEMO=true for Demo Mode (mock telemetry, no backend required); append ?demo to the URL instead for an ad-hoc one-off"
+    env:
+      VITE_DEMO: '{{.DEMO | default "false"}}'
+    cmds:
+      - npm run dev
+
+  frontend:build:
+    desc: Type-check and build the frontend for production (tsc -b + vite build → dist/)
+    cmds:
+      - npm run build
+
+  frontend:preview:
+    desc: Preview the production frontend build locally (vite preview)
+    cmds:
+      - npm run preview
+
+  frontend:typecheck:
+    desc: Type-check the frontend without emitting (tsc -b)
+    cmds:
+      - npx tsc -b
+
+  frontend:lint:
+    desc: Run ESLint on the frontend
+    cmds:
+      - npm run lint
+
+  frontend:api:generate:
+    desc: Generate TypeScript API client from OpenAPI specs
+    cmds:
+      - npm run api:generate
+
+  frontend:docker:build:
+    desc: Build frontend Docker image (multi-stage — Node builder → nginx static)
+    cmds:
+      - docker build -t vtitan-frontend .
+
+  frontend:docker:run:
+    desc: Run frontend container serving on http://localhost:8080
+    cmds:
+      - docker run --rm -p 8080:8080 vtitan-frontend

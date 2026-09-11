@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // StuckDiagnostics is the current stuck-detection diagnostics, matching

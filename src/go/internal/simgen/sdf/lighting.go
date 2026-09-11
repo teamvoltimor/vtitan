@@ -3,7 +3,7 @@ package sdf
 import (
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // ApplyLighting updates the sun and ambient light elements in the world node

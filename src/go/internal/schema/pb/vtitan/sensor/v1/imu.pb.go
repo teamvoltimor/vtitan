@@ -281,7 +281,7 @@ const file_vtitan_sensor_v1_imu_proto_rawDesc = "" +
 	"\x10angular_velocity\x18\x05 \x01(\v2\x19.vtitan.sensor.v1.Vector3R\x0fangularVelocity\x12>\n" +
 	"\x1bangular_velocity_covariance\x18\x06 \x03(\x01R\x19angularVelocityCovariance\x12J\n" +
 	"\x13linear_acceleration\x18\a \x01(\v2\x19.vtitan.sensor.v1.Vector3R\x12linearAcceleration\x12D\n" +
-	"\x1elinear_acceleration_covariance\x18\b \x03(\x01R\x1clinearAccelerationCovarianceBNZLgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/sensorv1b\x06proto3"
+	"\x1elinear_acceleration_covariance\x18\b \x03(\x01R\x1clinearAccelerationCovarianceBCZAgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/sensorv1b\x06proto3"
 
 var (
 	file_vtitan_sensor_v1_imu_proto_rawDescOnce sync.Once

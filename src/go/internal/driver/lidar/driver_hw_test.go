@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/lidar"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
 )
 
 // TestHW_LIDAR_UART verifies go.bug.st/serial enumerates and opens the real

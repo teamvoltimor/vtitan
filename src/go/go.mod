@@ -1,4 +1,4 @@
-module github.com/teamvoltimor/vtitan/platform/robot-go
+module github.com/teamvoltimor/vtitan/src/go
 
 go 1.26.0
 

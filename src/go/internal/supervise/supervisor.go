@@ -9,7 +9,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/backoff"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/backoff"
 )
 
 // Target names one goroutine handed to Supervisor.RunAll: Name identifies

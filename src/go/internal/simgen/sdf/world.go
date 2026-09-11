@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // GenerateBaseWorld returns the SDF root and world nodes for the WRO 2026 track.

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
 )
 
 // hardwareProfileNames matches the currently active profile

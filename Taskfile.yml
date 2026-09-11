@@ -13,6 +13,26 @@ includes:
     taskfile: ./tasks/fleet.yml
     dir: .
     flatten: true
+  src-python:
+    taskfile: ./src/python/Taskfile.yml
+    dir: ./src/python
+    flatten: true
+  src-go:
+    taskfile: ./src/go/Taskfile.yml
+    dir: ./src/go
+    flatten: true
+  apps-frontend:
+    taskfile: ./apps/frontend/Taskfile.yml
+    dir: ./apps/frontend
+    flatten: true
+  apps-backend:
+    taskfile: ./apps/backend/Taskfile.yml
+    dir: ./apps/backend
+    flatten: true
+  apps-gazebo:
+    taskfile: ./apps/gazebo/Taskfile.yml
+    dir: ./apps/gazebo/runtime
+    flatten: true
   auto-annotator:
     taskfile: ./apps/auto-annotator/Taskfile.yml
     dir: ./apps/auto-annotator

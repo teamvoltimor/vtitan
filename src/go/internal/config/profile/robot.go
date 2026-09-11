@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // RobotChassis mirrors robot.toml's [chassis] section.
@@ -106,7 +106,7 @@ type RobotCamera struct {
 
 // RobotConfig mirrors
 // shared.config.robot_constants.RobotConstants's full schema, as loaded
-// from platform/shared/config/robot.toml.
+// from src/config/robot.toml.
 type RobotConfig struct {
 	Chassis    RobotChassis    `mapstructure:"chassis"`
 	Ackermann  RobotAckermann  `mapstructure:"ackermann"`
@@ -118,9 +118,9 @@ type RobotConfig struct {
 	Camera     RobotCamera     `mapstructure:"camera"`
 }
 
-// DefaultRobotTOMLPath is platform/shared/config/robot.toml, relative to the
+// DefaultRobotTOMLPath is src/config/robot.toml, relative to the
 // repo root.
-const DefaultRobotTOMLPath = "platform/shared/config/robot.toml"
+const DefaultRobotTOMLPath = "src/config/robot.toml"
 
 // requiredRobotKeys are the fields robot.toml deliberately omits and which
 // must come from an active hardware profile, matching

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/apps/backend/domain/robot"
 )
 
 func TestCreateAndGet(t *testing.T) {

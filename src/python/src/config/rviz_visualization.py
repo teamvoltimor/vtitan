@@ -4,7 +4,7 @@ These are NOT official WRO track specs -- they are purely how the simulation
 draws itself in RViz (marker colours, alphas, line-thickness multipliers, the
 floor slab). Official, competition-rules values (wall dimensions/colour, sign
 dimensions/colours, corridor geometry) live in ``shared.config.constants`` and
-are sourced from ``src/shared/config/track.toml``; this module holds only
+are sourced from ``src/config/track.toml``; this module holds only
 what the renderer chooses that no physical track measurement decides.
 
 Loaded from ``src/config/visualization/rviz.toml`` at runtime -- the

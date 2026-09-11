@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // SpeedScaleFor resolves the drive.speed_scale to run with: if configRoot is

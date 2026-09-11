@@ -10,10 +10,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/backoff"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/backoff"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/telemetry/v1"
+	telemetryv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/telemetry/v1"
 )
 
 // Config parameterizes a Client's connection to the backend's

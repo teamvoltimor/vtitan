@@ -6,7 +6,7 @@ import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "vtitan/nav/v1/navigator_debug.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/navv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/navv1";
 
 // LapsCompleted is the Go-stack replacement for /race/laps_completed.
 // Published on the `vtitan.nav.v1.laps_completed` NATS subject.

@@ -5,8 +5,8 @@ real hardware, or even a real video -- see
 docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
 
 The synthetic frame is sized to match what VideoRecorder actually writes
-(video_width from config/hardware/vision/node.toml, height derived from
-config/hardware/camera/rpi_camera_module_3.toml's native aspect ratio), not
+(video_width from src/config/hardware/vision/node.toml, height derived from
+src/config/hardware/camera/rpi_camera_module_3.toml's native aspect ratio), not
 an arbitrary size -- so this preview reflects real recorded footage.
 
 Usage:
@@ -32,7 +32,7 @@ import numpy as np
 
 from src.vision.hud import HudConfig, draw_logo, draw_radar, draw_stats
 
-_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config" / "hardware"
+_CONFIG_DIR = Path(__file__).resolve().parents[3] / "config" / "hardware"
 
 
 def _output_frame_size() -> tuple[int, int]:
@@ -58,7 +58,7 @@ def _output_frame_size() -> tuple[int, int]:
 
 _WIDTH, _HEIGHT = _output_frame_size()
 _BACKGROUND_RGB = (40, 180, 40)  # a visible green, not the camera -- see the docstring
-_HUD_CONFIG = HudConfig()  # config/hardware/vision/hud.toml -- same config draw_stats/draw_radar default to
+_HUD_CONFIG = HudConfig()  # src/config/hardware/vision/hud.toml -- same config draw_stats/draw_radar default to
 _DEAD_AHEAD_COS_THRESHOLD = 0.99  # "basically dead ahead/astern" for this synthetic preview only
 _NEAR_ZERO_SIN = 1e-3  # avoids a division blow-up exactly dead-ahead/astern, where sin(theta) -> 0
 

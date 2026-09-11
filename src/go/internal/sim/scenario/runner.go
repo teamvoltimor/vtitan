@@ -3,7 +3,7 @@ package scenario
 import (
 	"context"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
 )
 
 // Runner runs one scenario and reports how it went. Orchestrator depends on

@@ -35,12 +35,12 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
-	natsx "github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	natsx "github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // maxSteeringWheelAngleRad is the road-wheel angle at full lock, mapping
@@ -50,7 +50,7 @@ import (
 // It is the binding steering limit -- ackermann_motor_node clamps the SERVO
 // limit, so this decode alone governs how far a full-lock command actually
 // turns. The true value is the active servo profile's max_wheel_angle_deg
-// (platform/shared/config/profiles/<profile>/robot.toml, 55.0 deg for the
+// (src/config/profiles/<profile>/robot.toml, 55.0 deg for the
 // 180deg-injora-14kg servo), loaded from VTITAN_HARDWARE_PROFILE. This module
 // has no profile loader, so it hardcodes the 55.0 deg default and names it
 // here so it is a one-line swap when a profile is wired in -- matching the

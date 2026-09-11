@@ -15,7 +15,7 @@ def _detection_confidence_floor() -> float:
     The three vision backends (CPU YOLO, Hailo-8, Hailo streaming) must drop
     below-threshold detections at the SAME confidence or a sign seen on the
     CPU path could vanish on the Hailo path. The shipped number lives once, in
-    ``config/hardware/vision/detector.toml`` (the detector owns the concept:
+    ``src/config/hardware/vision/detector.toml`` (the detector owns the concept:
     every backend resolves its own key back to that file); these hailo fields
     cite it via ``default_factory`` rather than restating the 0.45, which had
     drifted before as three un-linked literals held together only by prose.

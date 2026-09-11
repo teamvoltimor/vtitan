@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
+	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
 // encodeStdMsgsString builds a std_msgs/msg/String exactly as rmw does:

@@ -12,7 +12,7 @@ class RobotSpecs:
     """WRO Future Engineers robot specs (vTitan + Ackermann).
 
     Physical constants (chassis, Ackermann geometry, wheel, LIDAR/camera mount offsets) are
-    sourced from src/shared/config/robot.toml via RobotConstants — see
+    sourced from src/config/robot.toml via RobotConstants — see
     shared.config.robot_constants — and must not be hand-edited here. Everything else in this
     class (LIDAR/IMU/camera sim parameters) is not duplicated in Go/xacro and stays
     hand-maintained.
@@ -159,7 +159,7 @@ class RobotSpecs:
     # combined correction rather than reading these two fields separately.
     LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = _robot.lidar.mount_yaw_offset_deg
     # LIDAR_SELF_DETECTION_THRESHOLD moved to NavigationTuning's LidarSectorParams
-    # (src/shared/config/navigation/sensors/lidar_sectors.toml) -- it's
+    # (src/config/navigation/sensors/lidar_sectors.toml) -- it's
     # collision-logic tuning, not physical geometry, unlike everything else in
     # this class.
 

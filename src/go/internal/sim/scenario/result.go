@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 )
 
 // Result is one scenario run's outcome, as reported by the Python simulator.

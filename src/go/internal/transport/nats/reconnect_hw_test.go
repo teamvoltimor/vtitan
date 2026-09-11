@@ -11,7 +11,7 @@ import (
 
 	natsgo "github.com/nats-io/nats.go"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // TestHW_NATS_ConnectAndReconnectOverBrokerRestart is the field validation of

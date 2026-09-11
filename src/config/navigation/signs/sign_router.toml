@@ -183,7 +183,7 @@ sign_aware_speed = true
 # nothing -- what changed is that they are now tunable without a code edit.
 #
 # The measured rationale for each lives in SignRouterParams' own docstrings
-# (src/shared/src/shared/config/navigation_tuning/signs.py). Several are
+# (src/shared/src/config/navigation_tuning/signs.py). Several are
 # REFUTED experiments kept configurable so the refutation stays reproducible;
 # those are marked. Do not read a `false` here as "unfinished".
 # =====================================================================

@@ -155,7 +155,7 @@ const file_vtitan_state_v1_robot_state_proto_rawDesc = "" +
 	"\x10STATE_BOOT_CHECK\x10\x01\x12\x0f\n" +
 	"\vSTATE_READY\x10\x02\x12\x10\n" +
 	"\fSTATE_RACING\x10\x03\x12\x12\n" +
-	"\x0eSTATE_FINISHED\x10\x04BMZKgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1b\x06proto3"
+	"\x0eSTATE_FINISHED\x10\x04BBZ@github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/statev1b\x06proto3"
 
 var (
 	file_vtitan_state_v1_robot_state_proto_rawDescOnce sync.Once

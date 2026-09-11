@@ -3,7 +3,7 @@ package encoder_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
 )
 
 // abStates walks the quadrature Gray sequence 00 -> 01 -> 11 -> 10, the

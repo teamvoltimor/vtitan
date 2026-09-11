@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // Randomizer generates all stochastic parameters for a WRO 2026 scenario.

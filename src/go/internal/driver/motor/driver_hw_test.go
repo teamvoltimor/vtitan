@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
 )
 
 // TestHW_Motor_GPIO_PWM verifies the go-gpiocdev output/PWM enable paths on

@@ -19,8 +19,8 @@ type Config struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/blind_nav/localization.toml and
-// platform/shared/config/robot.toml's [lidar] section.
+// src/config/navigation/blind_nav/localization.toml and
+// src/config/robot.toml's [lidar] section.
 const (
 	// DefaultSearchRadiusM matches localization.toml's search_radius_m.
 	DefaultSearchRadiusM = 0.15

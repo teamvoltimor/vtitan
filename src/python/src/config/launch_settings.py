@@ -27,7 +27,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared.config.constants import CompetitionSpecs
 from shared.config.ros_topics import RosTopicConfig
 
-from src.hardware.settings_base import ROBOT_ROOT, HardwareBaseSettings
+from src.hardware.settings_base import CONFIG_DIR, ROBOT_ROOT, HardwareBaseSettings
 
 
 def _default_bag_topics() -> list[str]:
@@ -75,7 +75,7 @@ def _default_bag_topics() -> list[str]:
     ]
 
 
-# Separate from config/hardware/ (driver calibration) -- these are
+# Separate from src/config/hardware/ (driver calibration) -- these are
 # launch-time session/routing defaults, a different concern.
 LAUNCH_CONFIG_DIR: Path = ROBOT_ROOT / "config" / "launch"
 
@@ -172,9 +172,14 @@ class LidarLaunchDefaults(HardwareBaseSettings):
     ``serial_port`` is a DeclareLaunchArgument (override at runtime with
     ``serial_port:=...``); the rest are fixed driver parameters passed straight
     to the sllidar_ros2 node.
+
+    Lives under ``src/config/hardware/`` (CONFIG_DIR), not LAUNCH_CONFIG_DIR --
+    unlike the other *LaunchDefaults below, src/go's own LIDAR driver reads
+    this same lidar.toml (profile.DefaultLidarLaunchTOMLPath), so it's a
+    shared driver fact, not a Python/ROS2-only launch-time concern.
     """
 
-    model_config = SettingsConfigDict(env_prefix="lidar_launch_", toml_file=LAUNCH_CONFIG_DIR / "lidar.toml")
+    model_config = SettingsConfigDict(env_prefix="lidar_launch_", toml_file=CONFIG_DIR / "lidar.toml")
 
     serial_port: str = "/dev/ttyUSB0"
     serial_baudrate: int = 460800

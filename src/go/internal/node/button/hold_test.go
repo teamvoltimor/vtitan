@@ -6,7 +6,7 @@ import (
 
 	"buf.build/go/protovalidate"
 
-	nodebutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/button"
+	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
 )
 
 func TestHoldMessageFor(t *testing.T) {

@@ -24,17 +24,11 @@ from shared.config.hardware_profile import PROFILES_ROOT, profile_dirs
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-# Anchored from hardware_profile.py (shared/config/hardware_profile.py) rather
-# than each caller, so module relocations can't change the resolved root.
+# Anchored from hardware_profile.py (src/python/shared/src/shared/config/hardware_profile.py)
+# rather than each caller, so module relocations can't change the resolved root.
 SHARED_CONFIG_ROOT: Path = PROFILES_ROOT.parent
-"""src/shared/config -- the single shared TOML root, resolved once."""
-
-# The robot-side hardware settings live under a separate tree (driver-level
-# PWM ranges etc.); kept here so callers don't re-derive it either. shared/
-# nests inside the robot tree (src/python/shared/), not a sibling of it, so
-# this is one level up from SHARED_CONFIG_ROOT, not a "robot/" subdirectory.
-ROBOT_CONFIG_ROOT: Path = SHARED_CONFIG_ROOT.parents[1] / "config"
-"""src/python/config -- driver/hardware TOML root (HardwareBaseSettings)."""
+"""src/config -- the single shared TOML root (sibling of src/python and
+src/go, consumed by both), resolved once."""
 
 _ModelT = TypeVar("_ModelT", bound=BaseModel)
 

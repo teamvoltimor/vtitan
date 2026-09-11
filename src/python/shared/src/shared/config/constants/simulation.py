@@ -1,6 +1,6 @@
 """Competition match rules for the WRO Future Engineers challenge.
 
-Lap counts and round timing live in ``shared/config/competition_specs.toml``
+Lap counts and round timing live in ``src/config/competition_specs.toml``
 (the single source of truth), loaded at import -- previously these were
 hand-maintained literals here. The lighting/Z-layering constants that used to
 sit in this module (``LightingSpec(s)``, ``LightingScenarios``, ``ZLayers``)

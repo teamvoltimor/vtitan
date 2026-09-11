@@ -96,7 +96,7 @@ __all__ = [
 ]
 
 DEFAULT_CONFIG_DIR: Path = SHARED_CONFIG_ROOT / "navigation"
-"""src/shared/config/navigation -- the checked-in per-group TOML tree.
+"""src/config/navigation -- the checked-in per-group TOML tree.
 
 Resolved via shared.config.paths (anchored from hardware_profile's fixed depth)
 rather than a fragile ``parents[N]`` relative to this file, so a module
@@ -105,7 +105,7 @@ knows where its own config lives -- callers (e.g. CoreNavigator) shouldn't have
 to know or assume the two are siblings under the same platform/ root."""
 
 CHALLENGES_ROOT: Path = SHARED_CONFIG_ROOT / "navigation-challenges"
-"""src/shared/config/navigation-challenges -- per-challenge overlay tree.
+"""src/config/navigation-challenges -- per-challenge overlay tree.
 
 One ``<challenge>/<subfolder>/<group>.toml`` directory per :class:`ScenarioType`
 value (``open``, ``obstacles``), same per-group layout as ``DEFAULT_CONFIG_DIR``
@@ -242,7 +242,7 @@ class NavigationTuning:
     # load_from_toml_dir/load_from_toml_dirs handle, so adding a new tuning group never requires
     # touching more than this tuple. The subfolder mirrors this package's own
     # module grouping (motion.py, blind_nav.py, etc.) under
-    # src/shared/config/navigation/, so a TOML file's location and its
+    # src/config/navigation/, so a TOML file's location and its
     # Python group's home module always agree.
     _GROUPS: ClassVar[tuple[tuple[str, type, str], ...]] = (
         ("clearance", ClearanceZones, "motion"),

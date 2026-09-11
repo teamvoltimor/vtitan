@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/vision"
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/vision/memory"
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoltimor/vtitan/apps/backend/domain/vision"
+	"github.com/teamvoltimor/vtitan/apps/backend/domain/vision/memory"
+	telemetryv1 "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

@@ -14,9 +14,9 @@ plugins:
     out: internal/schema/pb
     opt:
       - paths=source_relative
-      - Mtelemetry/v1/commands.proto=github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/telemetry/v1
+      - Mtelemetry/v1/commands.proto=github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/telemetry/v1
   - local: protoc-gen-go-grpc
     out: internal/schema/pb
     opt:
       - paths=source_relative
-      - Mtelemetry/v1/commands.proto=github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/telemetry/v1
+      - Mtelemetry/v1/commands.proto=github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/telemetry/v1

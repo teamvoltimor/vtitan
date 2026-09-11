@@ -1,7 +1,7 @@
 package profile
 
 // CorridorEstimatorConfig mirrors
-// platform/shared/config/navigation/blind_nav/corridor_estimator.toml
+// src/config/navigation/blind_nav/corridor_estimator.toml
 // (shared.config.navigation_tuning.blind_nav.CorridorEstimatorParams) in
 // full.
 type CorridorEstimatorConfig struct {
@@ -21,7 +21,7 @@ type CorridorEstimatorConfig struct {
 }
 
 // DefaultCorridorEstimatorTOMLPath is
-// platform/shared/config/navigation/blind_nav/corridor_estimator.toml,
+// src/config/navigation/blind_nav/corridor_estimator.toml,
 // relative to the repo root. No per-component profile overlays -- pass nil
 // profileNames to Load.
-const DefaultCorridorEstimatorTOMLPath = "platform/shared/config/navigation/blind_nav/corridor_estimator.toml"
+const DefaultCorridorEstimatorTOMLPath = "src/config/navigation/blind_nav/corridor_estimator.toml"

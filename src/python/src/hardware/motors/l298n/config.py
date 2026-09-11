@@ -2,7 +2,7 @@
 
 The PWM addressing/carrier defaults live on the ``L298nPwmConfig`` pydantic
 model (env-overridable via ``L298N_PWM_*`` and the ``l298n.toml`` file under
-``config/hardware/motors/``), so no loose module-level constants remain.
+``src/config/hardware/motors/``), so no loose module-level constants remain.
 """
 
 from pydantic_settings import SettingsConfigDict

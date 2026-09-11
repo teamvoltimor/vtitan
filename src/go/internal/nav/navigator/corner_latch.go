@@ -3,7 +3,7 @@ package navigator
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // cornerCompletionFraction is the fraction of the previewed heading change

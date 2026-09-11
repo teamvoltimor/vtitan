@@ -3,7 +3,7 @@ package navigation
 import (
 	"github.com/google/uuid"
 
-	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/navigation"
+	domain "github.com/teamvoltimor/vtitan/apps/backend/domain/navigation"
 )
 
 func parseUUID(s string) uuid.UUID {

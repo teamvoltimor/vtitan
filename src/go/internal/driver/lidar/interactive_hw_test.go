@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/lidar"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
 )
 
 func waitForAck(prompt string) bool {

@@ -5,13 +5,13 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorestimator"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/widthbelief"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/harness"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/widthbelief"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/harness"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 )
 
 // blindNarrowWidthM is the corridor width a blind OPEN round assumes before

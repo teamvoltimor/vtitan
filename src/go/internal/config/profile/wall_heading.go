@@ -1,7 +1,7 @@
 package profile
 
 // WallHeadingConfig mirrors
-// platform/shared/config/navigation/sensors/wall_heading.toml
+// src/config/navigation/sensors/wall_heading.toml
 // (shared.config.navigation_tuning.WallHeadingParams), the parameters for
 // internal/nav/wallheading's absolute-heading estimate.
 type WallHeadingConfig struct {
@@ -32,7 +32,7 @@ type WallHeadingConfig struct {
 }
 
 // DefaultWallHeadingTOMLPath is
-// platform/shared/config/navigation/sensors/wall_heading.toml, relative to
+// src/config/navigation/sensors/wall_heading.toml, relative to
 // the repo root. No per-component profile overlays -- pass nil profileNames
 // to Load.
-const DefaultWallHeadingTOMLPath = "platform/shared/config/navigation/sensors/wall_heading.toml"
+const DefaultWallHeadingTOMLPath = "src/config/navigation/sensors/wall_heading.toml"

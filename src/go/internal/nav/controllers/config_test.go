@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 )
 
 // There is no dedicated Python oracle test file for NavigationTuning's
@@ -120,7 +120,7 @@ func TestNewStuckDetector_HistorySizeIsDoubleTimeoutOrFloor(t *testing.T) {
 
 // TestDefaultConfig_MatchesShippedTOMLDefaults spot-checks a handful of
 // DefaultConfig's literals against the shipped TOML values its own doc
-// comment claims to mirror (platform/shared/config/navigation/**), so a
+// comment claims to mirror (src/config/navigation/**), so a
 // future edit to one without the other doesn't drift silently.
 func TestDefaultConfig_MatchesShippedTOMLDefaults(t *testing.T) {
 	t.Parallel()

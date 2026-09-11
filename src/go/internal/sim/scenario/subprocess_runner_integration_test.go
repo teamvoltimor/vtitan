@@ -24,8 +24,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/scenario"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/scenario"
 )
 
 func TestSubprocessRunner_Integration_RealPythonSimulator(t *testing.T) {

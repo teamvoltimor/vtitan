@@ -10,7 +10,7 @@ import (
 
 	"github.com/warthog618/go-gpiocdev"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
 )
 
 // TestHW_GPIO_Bias verifies that go-gpiocdev's internal pull-up bias is

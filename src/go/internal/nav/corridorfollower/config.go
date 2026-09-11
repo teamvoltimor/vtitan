@@ -3,7 +3,7 @@ package corridorfollower
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // TurnSide overrides the clearance-based side choice in the back-off and
@@ -188,7 +188,7 @@ const (
 )
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/blind_nav/corridor_follower.toml and the
+// src/config/navigation/blind_nav/corridor_follower.toml and the
 // neighboring sections each cross-referenced value comes from.
 const (
 	// halvesPerWidth turns a left-minus-right difference into the chassis's

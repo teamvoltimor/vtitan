@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 )
 
 // dtS is the 20 Hz control interval the simulator runs at, matching

@@ -18,7 +18,7 @@ User=__TARGET_USER__
 Group=__TARGET_USER__
 WorkingDirectory=/opt/vtitan-go
 EnvironmentFile=-/opt/vtitan-go/.env
-ExecStart=/opt/vtitan-go/bin/pi-zero
+ExecStart=/opt/vtitan-go/bin/pi-zero --config-root=/opt/vtitan-go
 Restart=on-failure
 RestartSec=3
 ExecStop=/usr/bin/kill -SIGINT $MAINPID

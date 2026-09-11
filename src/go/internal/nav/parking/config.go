@@ -5,7 +5,7 @@ import (
 	"math"
 	"path/filepath"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // BlockPosition is a single parking block position in world coordinates,
@@ -111,7 +111,7 @@ type Config struct {
 }
 
 // Shipped defaults, matching
-// platform/shared/config/navigation/parking/parking.toml and the
+// src/config/navigation/parking/parking.toml and the
 // neighboring sections each cross-referenced value comes from.
 const (
 	// DefaultParallelToleranceM matches PARALLEL_TOLERANCE_M.

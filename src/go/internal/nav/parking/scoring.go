@@ -3,7 +3,7 @@ package parking
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // FullParkPoints is WRO 1.8.2 -- completely in the parking area AND parallel

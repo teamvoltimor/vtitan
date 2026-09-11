@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // LapDetector is a geometric start/finish-line detector with waypoint-index

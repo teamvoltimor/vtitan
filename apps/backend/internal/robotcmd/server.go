@@ -20,8 +20,8 @@ import (
 
 	"github.com/google/uuid"
 
-	robotdomain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+	robotdomain "github.com/teamvoltimor/vtitan/apps/backend/domain/robot"
+	telemetryv1 "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1"
 )
 
 const (

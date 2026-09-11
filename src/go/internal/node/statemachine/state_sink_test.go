@@ -3,9 +3,9 @@ package statemachine_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
-	statev1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/state/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
+	statev1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/state/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/core"
 )
 
 // TestStateMessageFor covers the mapping value by value. The domain enum

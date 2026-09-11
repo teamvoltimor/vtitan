@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/imu"
 )
 
 // TestHW_IMU_UART verifies go.bug.st/serial enumerates and opens the real

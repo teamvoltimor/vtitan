@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
 )
 
 // fakeSink records every call it receives and returns whichever

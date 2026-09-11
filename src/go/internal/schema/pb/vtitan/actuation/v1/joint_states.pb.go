@@ -122,7 +122,7 @@ const file_vtitan_actuation_v1_joint_states_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x03(\tR\x04name\x12\x1a\n" +
 	"\bposition\x18\x04 \x03(\x01R\bposition\x12\x1a\n" +
 	"\bvelocity\x18\x05 \x03(\x01R\bvelocity\x12\x16\n" +
-	"\x06effort\x18\x06 \x03(\x01R\x06effortBQZOgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1b\x06proto3"
+	"\x06effort\x18\x06 \x03(\x01R\x06effortBFZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1b\x06proto3"
 
 var (
 	file_vtitan_actuation_v1_joint_states_proto_rawDescOnce sync.Once

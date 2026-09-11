@@ -12,11 +12,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/robotcmd"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/robotcmd"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/telemetry/v1"
+	telemetryv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/telemetry/v1"
 )
 
 // fakeServer is a scripted RobotCommandService: it streams a fixed sequence
