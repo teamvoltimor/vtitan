@@ -32,16 +32,15 @@ func TestLoad_DirectionEstimatorConfig(t *testing.T) {
 func TestLoad_CorridorFollowerConfig_UsesDefaultForOmittedField(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.LoadWithDefaults[profile.CorridorFollowerConfig](
+	cfg, err := profile.Load[profile.CorridorFollowerConfig](
 		filepath.Join(
 			"testdata",
 			"corridor_follower.toml",
 		),
 		nil,
-		profile.CorridorFollowerDefaults(),
 	)
 	if err != nil {
-		t.Fatalf("LoadWithDefaults: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if cfg.MinForwardClearanceM != 0.30 || cfg.TurnClearanceM != 0.60 {
 		t.Errorf("TOML-present fields wrong: %+v", cfg)
@@ -49,25 +48,6 @@ func TestLoad_CorridorFollowerConfig_UsesDefaultForOmittedField(t *testing.T) {
 	if cfg.BayWallClearanceM != profile.DefaultBayWallClearanceM {
 		t.Errorf("BayWallClearanceM = %v, want default %v (field omitted from testdata TOML)",
 			cfg.BayWallClearanceM, profile.DefaultBayWallClearanceM)
-	}
-}
-
-func TestLoad_CorridorFollowerConfig_WithoutDefaultsLeavesOmittedFieldZero(t *testing.T) {
-	t.Parallel()
-
-	// Confirms LoadWithDefaults' defaults param is actually load-bearing:
-	// without it, the omitted field is the Go zero value, not the Python
-	// default -- the exact silent-wrong-answer this profile struct exists
-	// to avoid when a caller does supply the defaults.
-	cfg, err := profile.Load[profile.CorridorFollowerConfig](
-		filepath.Join("testdata", "corridor_follower.toml"),
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if cfg.BayWallClearanceM != 0 {
-		t.Errorf("BayWallClearanceM = %v, want 0 (no defaults supplied)", cfg.BayWallClearanceM)
 	}
 }
 

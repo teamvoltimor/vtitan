@@ -20,20 +20,16 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	// All three are now written into the checked-in waypoints.toml, and
-	// TestWaypointsTOML_SpellsOutTheWidthBeliefFlags keeps them there.
-	// They stay registered as defaults anyway because a bool and a bias
-	// both revert SILENTLY: a missing key reads as false / 0.0, which is
-	// off rather than absent, and disabling assume-wide corner sizing or
-	// both halves of the 596 -> 638/640 Open result would look like a
-	// clean load. Same pattern as controllers' min_history_for_distance
-	// (see EscapeConfig) and CorridorFollowerConfig's bay_wall_clearance_m.
-	waypointDefaults := map[string]any{
-		"corner_arc_assume_wide":         DefaultCornerArcAssumeWide,
-		"unconfirmed_width_inner_bias_m": DefaultUnconfirmedWidthInnerBiasM,
-		"defer_current_corridor_replan":  DefaultDeferCurrentCorridorReplan,
-	}
-	loaded, err := profile.LoadWithDefaults[profile.WaypointsConfig](basePath, nil, waypointDefaults)
+	// All three shipped defaults (corner_arc_assume_wide,
+	// unconfirmed_width_inner_bias_m, defer_current_corridor_replan) live on
+	// WaypointsConfig as `default` tags, so profile.Load applies them and an
+	// absent key reads as the shipped value rather than silently as false /
+	// 0.0. A bool and a bias both revert SILENTLY, which is off rather than
+	// absent, and disabling assume-wide corner sizing or both halves of the
+	// 596 -> 638/640 Open result would look like a clean load. Same pattern
+	// as controllers' min_history_for_distance (see EscapeConfig) and
+	// CorridorFollowerConfig's bay_wall_clearance_m.
+	loaded, err := profile.Load[profile.WaypointsConfig](basePath, nil)
 	if err != nil {
 		logger.Warn("waypoints: loading waypoints.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)

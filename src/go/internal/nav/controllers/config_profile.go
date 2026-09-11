@@ -62,16 +62,11 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	lidarSectorsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	// LoadWithDefaults, not Load: rear_self_detection_from_chassis is a bool
-	// that reverts SILENTLY (a missing key reads as false, not "keep the
-	// default"), the same class of trap as waypoints.toml's
-	// corner_arc_assume_wide -- see that field's ConfigFor comment.
-	lidarSectorsDefaults := map[string]any{
-		"rear_self_detection_from_chassis": DefaultRearSelfDetectionFromChassis,
-	}
-	if loaded, err := profile.LoadWithDefaults[profile.LidarSectorsConfig](
-		lidarSectorsPath, nil, lidarSectorsDefaults,
-	); err != nil {
+	// profile.Load applies LidarSectorsConfig's own `default` tags, so
+	// rear_self_detection_from_chassis still reads true when the TOML omits
+	// it rather than reverting SILENTLY to the zero value -- the same class
+	// of trap as waypoints.toml's corner_arc_assume_wide.
+	if loaded, err := profile.Load[profile.LidarSectorsConfig](lidarSectorsPath, nil); err != nil {
 		logger.Warn(
 			"controllers: loading lidar_sectors.toml, falling back to defaults",
 			"error",
@@ -92,8 +87,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	escapePath := filepath.Join(configRoot, profile.DefaultEscapeTOMLPath)
-	escapeDefaults := map[string]any{"min_history_for_distance": DefaultMinHistoryForDistance}
-	if loaded, err := profile.LoadWithDefaults[profile.EscapeConfig](escapePath, nil, escapeDefaults); err != nil {
+	if loaded, err := profile.Load[profile.EscapeConfig](escapePath, nil); err != nil {
 		logger.Warn("controllers: loading escape.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.RevSpeed = loaded.RevSpeed

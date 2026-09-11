@@ -61,9 +61,10 @@ func TestConfigFor_ProfileSourcedRobotFieldsAreNonZero(t *testing.T) {
 
 // TestConfigFor_FirstLapCornerCautionLoadsTrue pins
 // first_lap_corner_caution's wiring against the real checked-in
-// waypoints.toml, which ships true. Loaded via loadApplyTOMLWithDefaults, so
-// a missing key must ALSO read true, not the Go zero value -- see
-// DefaultFirstLapCornerCaution's registration in ConfigFor.
+// waypoints.toml, which ships true. Loaded via loadApplyTOML +
+// navWaypointsTOML's `default` tag, so a missing key must ALSO read true, not
+// the Go zero value -- see DefaultFirstLapCornerCaution's registration in
+// ConfigFor.
 func TestConfigFor_FirstLapCornerCautionLoadsTrue(t *testing.T) {
 	t.Parallel()
 

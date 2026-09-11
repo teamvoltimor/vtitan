@@ -33,28 +33,28 @@ type SignRouterConfig struct {
 	// DEPTH_PIN/PIN_CORNER_GUARD/PIN_HEADING_GUARD/PIN_HEADING_GUARD_DEG.
 	// None of the four are present in the checked-in sign_router.toml --
 	// every deployment currently relies on the Pydantic model's own
-	// defaults (True/True/True/35.0), applied here via LoadWithDefaults
-	// rather than silently reading as false/0.0.
-	DepthPin           bool    `mapstructure:"depth_pin"`
-	PinCornerGuard     bool    `mapstructure:"pin_corner_guard"`
-	PinHeadingGuard    bool    `mapstructure:"pin_heading_guard"`
-	PinHeadingGuardDeg float64 `mapstructure:"pin_heading_guard_deg"`
+	// defaults (True/True/True/35.0), applied via the `default` tag rather
+	// than silently reading as false/0.0.
+	DepthPin           bool    `mapstructure:"depth_pin"             default:"true"`
+	PinCornerGuard     bool    `mapstructure:"pin_corner_guard"      default:"true"`
+	PinHeadingGuard    bool    `mapstructure:"pin_heading_guard"     default:"true"`
+	PinHeadingGuardDeg float64 `mapstructure:"pin_heading_guard_deg" default:"35.0"`
 
 	// RelabelUnsatisfiable/DepthConsistentCorridor match
 	// SIGN_LANE_RELABEL_UNSATISFIABLE/SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR.
 	// Also absent from the checked-in TOML -- both Pydantic-default True,
-	// applied via LoadWithDefaults for the same reason as the pin guards
+	// applied via the `default` tag for the same reason as the pin guards
 	// above. Named for the corridor label they affect (not "lane", despite
 	// the SIGN_LANE_ prefix): SignRouter._corridor_for_spec/
 	// _geometric_corridor consume both outside the lane planner too.
-	RelabelUnsatisfiable    bool `mapstructure:"sign_lane_relabel_unsatisfiable"`
-	DepthConsistentCorridor bool `mapstructure:"sign_lane_depth_consistent_corridor"`
+	RelabelUnsatisfiable    bool `mapstructure:"sign_lane_relabel_unsatisfiable"     default:"true"`
+	DepthConsistentCorridor bool `mapstructure:"sign_lane_depth_consistent_corridor" default:"true"`
 }
 
 // DefaultSignRouterTOMLPath is
 // src/config/navigation/signs/sign_router.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
-// Load/LoadWithDefaults.
+// Load.
 const DefaultSignRouterTOMLPath = "src/config/navigation/signs/sign_router.toml"
 
 // Default* match SignRouterParams' Pydantic defaults for the four fields
@@ -68,16 +68,3 @@ const (
 	DefaultRelabelUnsatisfiable    = true
 	DefaultDepthConsistentCorridor = true
 )
-
-// SignRouterDefaults is the LoadWithDefaults defaults map for
-// SignRouterConfig.
-func SignRouterDefaults() map[string]any {
-	return map[string]any{
-		"depth_pin":                           DefaultDepthPin,
-		"pin_corner_guard":                    DefaultPinCornerGuard,
-		"pin_heading_guard":                   DefaultPinHeadingGuard,
-		"pin_heading_guard_deg":               DefaultPinHeadingGuardDeg,
-		"sign_lane_relabel_unsatisfiable":     DefaultRelabelUnsatisfiable,
-		"sign_lane_depth_consistent_corridor": DefaultDepthConsistentCorridor,
-	}
-}

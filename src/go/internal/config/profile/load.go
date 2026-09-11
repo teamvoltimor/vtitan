@@ -2,6 +2,7 @@ package profile
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -60,20 +61,42 @@ func merge(basePath string, profileNames []string, defaults map[string]any) (*vi
 // `mapstructure:"..."` tag wherever the TOML key isn't just the field name
 // lowercased (viper matches case-insensitively but does not
 // snake_case-convert).
+//
+// T's `default:"..."` struct tags are applied automatically (see
+// tagDefaults): a key absent from every source file falls back to the tagged
+// shipped value instead of the Go zero value.
 func Load[T any](basePath string, profileNames []string) (*T, error) {
-	return LoadWithDefaults[T](basePath, profileNames, nil)
+	defaults, err := tagDefaults[T]()
+	if err != nil {
+		return nil, err
+	}
+	return load[T](basePath, profileNames, defaults)
 }
 
-// LoadWithDefaults is Load, but applies defaults (dotted TOML key ->
-// value, e.g. "corridor_follower.bay_wall_clearance_m") via
-// viper.SetDefault before reading -- for a TOML key some source files
-// never set, relying on the Python model's own Field(default=...) instead
-// (see merge's doc comment).
+// LoadWithDefaults is Load, but also applies the given defaults (dotted TOML
+// key -> value, e.g. "corridor_follower.bay_wall_clearance_m") via
+// viper.SetDefault before reading -- for a TOML key some source files never
+// set, relying on the Python model's own Field(default=...) instead (see
+// merge's doc comment). Explicit defaults win over T's own `default` tags, so
+// this remains the migration path for components not yet tagged.
 func LoadWithDefaults[T any](
 	basePath string,
 	profileNames []string,
 	defaults map[string]any,
 ) (*T, error) {
+	tagged, err := tagDefaults[T]()
+	if err != nil {
+		return nil, err
+	}
+	merged := make(map[string]any, len(tagged)+len(defaults))
+	maps.Copy(merged, tagged)
+	maps.Copy(merged, defaults)
+	return load[T](basePath, profileNames, merged)
+}
+
+// load is the shared tail of Load and LoadWithDefaults: merge the sources,
+// then decode into a new T.
+func load[T any](basePath string, profileNames []string, defaults map[string]any) (*T, error) {
 	v, err := merge(basePath, profileNames, defaults)
 	if err != nil {
 		return nil, err

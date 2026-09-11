@@ -45,8 +45,10 @@ type EscapeConfig struct {
 	StuckConfirmationChecks int `mapstructure:"stuck_confirmation_checks"`
 	// StuckHistoryFloorS matches STUCK_HISTORY_FLOOR_S.
 	StuckHistoryFloorS float64 `mapstructure:"stuck_history_floor_s"`
-	// MinHistoryForDistance matches MIN_HISTORY_FOR_DISTANCE.
-	MinHistoryForDistance int `mapstructure:"min_history_for_distance"`
+	// MinHistoryForDistance matches MIN_HISTORY_FOR_DISTANCE. Ships 2; the
+	// `default` tag keeps a TOML that omits the key from silently reverting
+	// to the zero value (min_history_for_distance = 0 disables the gate).
+	MinHistoryForDistance int `mapstructure:"min_history_for_distance" default:"2"`
 }
 
 // DefaultEscapeTOMLPath is

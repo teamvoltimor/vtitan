@@ -26,7 +26,9 @@ type LidarSectorsConfig struct {
 	// which sits far inside the body over most of the rear sector (the
 	// chassis boundary runs from ~0.137 m at the rear sector's edges to
 	// ~0.272 m straight back). See internal/nav/controllers.RearSector.
-	RearSelfDetectionFromChassis bool `mapstructure:"rear_self_detection_from_chassis"`
+	// Ships true; the `default` tag keeps a TOML that omits the key from
+	// silently reverting the filter to the scalar via the zero value.
+	RearSelfDetectionFromChassis bool `mapstructure:"rear_self_detection_from_chassis" default:"true"`
 	// DirectionArcHalfFovDeg matches DIRECTION_ARC_HALF_FOV_DEG -- the
 	// forward-clearance cone utils.py's _forward_clearance uses, NOT the
 	// collision-avoidance front sector's own (wider) FOV.

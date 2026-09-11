@@ -243,22 +243,15 @@ func defaultLaps(_ generate.Metadata) int {
 // will not load. Scoring a run against a hardcoded limit is the same class of
 // bug as reading a hardcoded sensor spec: the rule book is a file.
 func roundTimeLimitSFor(logger *slog.Logger, configRoot string) float64 {
-	fallback, ok := profile.CompetitionDefaults()["round_time_limit_s"].(float64)
-	if !ok {
-		logger.Warn("native runner: competition defaults missing round_time_limit_s, using fallback")
-		fallback = defaultRoundTimeLimitS
-	}
 	if configRoot == "" {
-		return fallback
+		return profile.DefaultRoundTimeLimitS
 	}
 	path := filepath.Join(configRoot, profile.DefaultCompetitionTOMLPath)
-	cc, err := profile.LoadWithDefaults[profile.CompetitionConfig](
-		path, nil, profile.CompetitionDefaults(),
-	)
+	cc, err := profile.Load[profile.CompetitionConfig](path, nil)
 	if err != nil {
 		logger.Warn("native runner: loading competition_specs.toml, falling back to default",
 			"config_root", configRoot, "error", err)
-		return fallback
+		return profile.DefaultRoundTimeLimitS
 	}
 	return cc.RoundTimeLimitS
 }

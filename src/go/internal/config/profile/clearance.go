@@ -36,10 +36,9 @@ type ClearanceConfig struct {
 	// ray in the forward sector is invalid (a wall too close to return a
 	// signal reads as NO_DATA_RANGE_M, indistinguishable from open road),
 	// treat that exactly like having no LIDAR at all rather than as measured
-	// clearance. Ships true; a caller loading this field must default an
-	// absent key to true, not to the zero value, or it silently disables
-	// the gate.
-	ForwardNoDataIsDegraded bool `mapstructure:"forward_no_data_is_degraded"`
+	// clearance. Ships true; the `default` tag keeps a TOML that omits the
+	// key from silently disabling the gate via the zero value.
+	ForwardNoDataIsDegraded bool `mapstructure:"forward_no_data_is_degraded" default:"true"`
 	// ForwardPathAheadOfBumper matches FORWARD_PATH_AHEAD_OF_BUMPER: measure
 	// the forward driving lane from the front bumper face rather than from
 	// the LIDAR. Ships false (the LIDAR-relative test, which

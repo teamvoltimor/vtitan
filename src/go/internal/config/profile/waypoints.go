@@ -25,7 +25,7 @@ type WaypointsConfig struct {
 	// independent of a corridor-width belief that starts out wrong. Blind
 	// rounds begin believing every corridor narrow, so without this a
 	// narrow->wide corner plans a late entry.
-	CornerArcAssumeWide bool `mapstructure:"corner_arc_assume_wide"`
+	CornerArcAssumeWide bool `mapstructure:"corner_arc_assume_wide" default:"true"`
 	// DedupeDistanceM matches DEDUPE_DISTANCE_M.
 	DedupeDistanceM float64 `mapstructure:"dedupe_distance_m"`
 	// WideCenterBiasM/WideCenterBiasSide match WIDE_CENTER_BIAS_M/
@@ -46,11 +46,11 @@ type WaypointsConfig struct {
 	// the inner bias a narrow corridor takes while its width is still the
 	// blind prior rather than a measurement. See
 	// waypoints.Config.UnconfirmedWidthInnerBiasM.
-	UnconfirmedWidthInnerBiasM float64 `mapstructure:"unconfirmed_width_inner_bias_m"`
+	UnconfirmedWidthInnerBiasM float64 `mapstructure:"unconfirmed_width_inner_bias_m" default:"0.05"`
 	// DeferCurrentCorridorReplan matches DEFER_CURRENT_CORRIDOR_REPLAN --
 	// hold a width change back until the robot has left the corridor it
 	// describes. See internal/nav/widthbelief.
-	DeferCurrentCorridorReplan bool `mapstructure:"defer_current_corridor_replan"`
+	DeferCurrentCorridorReplan bool `mapstructure:"defer_current_corridor_replan" default:"true"`
 	// NumIntermediateArcPoints matches NUM_INTERMEDIATE_ARC_POINTS.
 	NumIntermediateArcPoints int `mapstructure:"num_intermediate_arc_points"`
 	// StraightWaypointCount matches STRAIGHT_WAYPOINT_COUNT.

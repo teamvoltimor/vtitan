@@ -56,14 +56,14 @@ type headingTOML struct {
 // to the navigator, not to waypoint generation).
 type navWaypointsTOML struct {
 	// FirstLapCornerCaution matches FIRST_LAP_CORNER_CAUTION.
-	FirstLapCornerCaution    bool    `mapstructure:"first_lap_corner_caution"`
+	FirstLapCornerCaution    bool    `mapstructure:"first_lap_corner_caution"     default:"true"`
 	MainLoopReachedDistanceM float64 `mapstructure:"main_loop_reached_distance_m"`
 	ReplanHeadingTieMarginM  float64 `mapstructure:"replan_heading_tie_margin_m"`
 	// ArcRadius doubles as ParkEngageDistM, matching Python's
 	// _park_engage_dist = tuning.waypoints.ARC_RADIUS.
 	ArcRadius float64 `mapstructure:"arc_radius"`
 	// FinishApproachM matches WaypointParams.FINISH_APPROACH_M.
-	FinishApproachM float64 `mapstructure:"finish_approach_m"`
+	FinishApproachM float64 `mapstructure:"finish_approach_m" default:"0.40"`
 }
 
 // navEscapeTOML mirrors the escape.toml fields the core navigator's
@@ -95,30 +95,30 @@ type navEscapeTOML struct {
 // the sign-contact evade -- which profile.SignRouterConfig omits because
 // internal/nav/signrouter itself consumes none of them. Most are absent
 // from the checked-in TOML entirely and rely on the Pydantic model's own
-// defaults, applied via LoadWithDefaults (see navSignRouterDefaults).
+// defaults, applied via their `default` tags (see tagDefaults).
 type navSignRouterTOML struct {
 	SignClearanceMarginM      float64 `mapstructure:"sign_clearance_margin_m"`
 	ActivationDistM           float64 `mapstructure:"activation_dist_m"`
 	EscapeMaskRadiusM         float64 `mapstructure:"escape_mask_radius_m"`
-	SignLanePlanner           bool    `mapstructure:"sign_lane_planner"`
-	SignLaneSuppressDeform    bool    `mapstructure:"sign_lane_suppress_deform"`
-	SignLaneRampM             float64 `mapstructure:"sign_lane_ramp_m"`
-	SignLaneHoldM             float64 `mapstructure:"sign_lane_hold_m"`
-	SignLaneSplitOverlap      bool    `mapstructure:"sign_lane_split_overlap"`
-	SignLaneSkipUnsatisfiable bool    `mapstructure:"sign_lane_skip_unsatisfiable"`
-	SignLaneOffsetFrac        float64 `mapstructure:"sign_lane_offset_frac"`
-	SignLaneCornerEntryM      float64 `mapstructure:"sign_lane_corner_entry_m"`
-	SignLaneCommitAheadM      float64 `mapstructure:"sign_lane_commit_ahead_m"`
-	SignAwareLookahead        bool    `mapstructure:"sign_aware_lookahead"`
-	SignAwareSpeed            bool    `mapstructure:"sign_aware_speed"`
-	SignDeformSpeedThresholdM float64 `mapstructure:"sign_deform_speed_threshold_m"`
-	StaleTargetRescue         bool    `mapstructure:"stale_target_rescue"`
-	RetraceEscape             bool    `mapstructure:"retrace_escape"`
-	RetraceDistM              float64 `mapstructure:"retrace_dist_m"`
-	RetraceSteerGainDeg       float64 `mapstructure:"retrace_steer_gain_deg"`
-	SignContactEvade          bool    `mapstructure:"sign_contact_evade"`
-	SignContactDistM          float64 `mapstructure:"sign_contact_dist_m"`
-	SignContactSteerDeg       float64 `mapstructure:"sign_contact_steer_deg"`
+	SignLanePlanner           bool    `mapstructure:"sign_lane_planner"             default:"true"`
+	SignLaneSuppressDeform    bool    `mapstructure:"sign_lane_suppress_deform"     default:"true"`
+	SignLaneRampM             float64 `mapstructure:"sign_lane_ramp_m"              default:"0.90"`
+	SignLaneHoldM             float64 `mapstructure:"sign_lane_hold_m"              default:"0.25"`
+	SignLaneSplitOverlap      bool    `mapstructure:"sign_lane_split_overlap"       default:"false"`
+	SignLaneSkipUnsatisfiable bool    `mapstructure:"sign_lane_skip_unsatisfiable"  default:"false"`
+	SignLaneOffsetFrac        float64 `mapstructure:"sign_lane_offset_frac"         default:"1.0"`
+	SignLaneCornerEntryM      float64 `mapstructure:"sign_lane_corner_entry_m"      default:"0.50"`
+	SignLaneCommitAheadM      float64 `mapstructure:"sign_lane_commit_ahead_m"      default:"0.0"`
+	SignAwareLookahead        bool    `mapstructure:"sign_aware_lookahead"          default:"true"`
+	SignAwareSpeed            bool    `mapstructure:"sign_aware_speed"              default:"true"`
+	SignDeformSpeedThresholdM float64 `mapstructure:"sign_deform_speed_threshold_m" default:"0.02"`
+	StaleTargetRescue         bool    `mapstructure:"stale_target_rescue"           default:"false"`
+	RetraceEscape             bool    `mapstructure:"retrace_escape"                default:"false"`
+	RetraceDistM              float64 `mapstructure:"retrace_dist_m"                default:"0.25"`
+	RetraceSteerGainDeg       float64 `mapstructure:"retrace_steer_gain_deg"        default:"55.0"`
+	SignContactEvade          bool    `mapstructure:"sign_contact_evade"            default:"false"`
+	SignContactDistM          float64 `mapstructure:"sign_contact_dist_m"           default:"0.60"`
+	SignContactSteerDeg       float64 `mapstructure:"sign_contact_steer_deg"        default:"19.25"`
 }
 
 const (
@@ -132,63 +132,17 @@ const (
 	speedProfileRelPath = "motion/speed.toml"
 )
 
-// navSignRouterDefaults is the LoadWithDefaults defaults map for
-// navSignRouterTOML: every key the checked-in sign_router.toml never sets,
-// so an omitted key reads as SignRouterParams' own Pydantic default rather
-// than silently as false/0.0.
-func navSignRouterDefaults() map[string]any {
-	return map[string]any{
-		"sign_lane_planner":             DefaultSignLanePlanner,
-		"sign_lane_suppress_deform":     DefaultSignLaneSuppressDeform,
-		"sign_lane_ramp_m":              DefaultSignLaneRampM,
-		"sign_lane_hold_m":              DefaultSignLaneHoldM,
-		"sign_lane_split_overlap":       DefaultSignLaneSplitOverlap,
-		"sign_lane_skip_unsatisfiable":  DefaultSignLaneSkipUnsatisfiable,
-		"sign_lane_offset_frac":         DefaultSignLaneOffsetFrac,
-		"sign_lane_corner_entry_m":      DefaultSignLaneCornerEntryM,
-		"sign_lane_commit_ahead_m":      DefaultSignLaneCommitAheadM,
-		"sign_aware_lookahead":          DefaultSignAwareLookahead,
-		"sign_aware_speed":              DefaultSignAwareSpeed,
-		"sign_deform_speed_threshold_m": DefaultSignDeformSpeedThresholdM,
-		"stale_target_rescue":           DefaultStaleTargetRescue,
-		"retrace_escape":                DefaultRetraceEscape,
-		"retrace_dist_m":                DefaultRetraceDistM,
-		"retrace_steer_gain_deg":        DefaultRetraceSteerGainDeg,
-		"sign_contact_evade":            DefaultSignContactEvade,
-		"sign_contact_dist_m":           DefaultSignContactDistM,
-		"sign_contact_steer_deg":        DefaultSignContactSteerDeg,
-	}
-}
-
 // loadApplyTOML loads a profile TOML from path and, on success, hands the
 // decoded value to apply; on failure it logs a warning and leaves cfg at its
 // defaults. Each source loads and falls back independently because they're
 // unrelated failure domains -- the same contract controllers.ConfigFor and
 // signrouter.ConfigFor state.
+//
+// profile.Load applies each struct's own `default` tags, so a source whose
+// checked-in TOML omits keys still reads their Pydantic defaults rather than
+// zero.
 func loadApplyTOML[T any](logger *slog.Logger, path, what string, apply func(T)) {
 	loaded, err := profile.Load[T](path, nil)
-	if err != nil {
-		logger.Warn(
-			"navigator: loading config file, falling back to defaults",
-			"file",
-			what,
-			"error",
-			err,
-		)
-		return
-	}
-	apply(*loaded)
-}
-
-// loadApplyTOMLWithDefaults is loadApplyTOML for sources whose checked-in
-// TOML omits keys that must read as their Pydantic defaults, not as zero.
-func loadApplyTOMLWithDefaults[T any](
-	logger *slog.Logger,
-	path, what string,
-	defaults map[string]any,
-	apply func(T),
-) {
-	loaded, err := profile.LoadWithDefaults[T](path, nil, defaults)
 	if err != nil {
 		logger.Warn(
 			"navigator: loading config file, falling back to defaults",
@@ -218,9 +172,8 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		return cfg
 	}
 
-	loadApplyTOMLWithDefaults(
+	loadApplyTOML(
 		logger, filepath.Join(configRoot, profile.DefaultClearanceTOMLPath), "clearance.toml",
-		map[string]any{"forward_no_data_is_degraded": DefaultForwardNoDataIsDegraded},
 		func(loaded profile.ClearanceConfig) {
 			cfg.ContactDistM = loaded.ContactDist
 			cfg.SlowDistM = loaded.SlowDist
@@ -272,14 +225,10 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 			cfg.CornerPreviewDistanceM = loaded.CornerPreviewDistanceM
 		})
 
-	loadApplyTOMLWithDefaults(
+	loadApplyTOML(
 		logger,
 		filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath),
 		"waypoints.toml",
-		map[string]any{
-			"first_lap_corner_caution": DefaultFirstLapCornerCaution,
-			"finish_approach_m":        DefaultFinishApproachM,
-		},
 		func(loaded navWaypointsTOML) {
 			cfg.FirstLapCornerCaution = loaded.FirstLapCornerCaution
 			cfg.MainLoopReachedDistanceM = loaded.MainLoopReachedDistanceM
@@ -316,11 +265,10 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		},
 	)
 
-	loadApplyTOMLWithDefaults(
+	loadApplyTOML(
 		logger,
 		filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath),
 		"sign_router.toml",
-		navSignRouterDefaults(),
 		func(loaded navSignRouterTOML) {
 			applySignRouterTOML(&cfg, loaded)
 		},

@@ -59,9 +59,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 
 	signClearanceMarginM := DefaultSignClearanceMarginM
 	srPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
-	if sr, err := profile.LoadWithDefaults[profile.SignRouterConfig](
-		srPath, nil, profile.SignRouterDefaults(),
-	); err != nil {
+	if sr, err := profile.Load[profile.SignRouterConfig](srPath, nil); err != nil {
 		logger.Warn("signrouter: loading sign_router.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -112,9 +110,7 @@ func DiscoveryConfigFor(logger *slog.Logger, configRoot string) DiscoveryConfig 
 	}
 
 	sdPath := filepath.Join(configRoot, profile.DefaultSignDiscoveryTOMLPath)
-	if sd, err := profile.LoadWithDefaults[profile.SignDiscoveryConfig](
-		sdPath, nil, profile.SignDiscoveryDefaults(),
-	); err != nil {
+	if sd, err := profile.Load[profile.SignDiscoveryConfig](sdPath, nil); err != nil {
 		logger.Warn("signrouter: loading sign_discovery.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -126,9 +122,7 @@ func DiscoveryConfigFor(logger *slog.Logger, configRoot string) DiscoveryConfig 
 	}
 
 	srPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
-	if sr, err := profile.LoadWithDefaults[profile.SignRouterConfig](
-		srPath, nil, profile.SignRouterDefaults(),
-	); err != nil {
+	if sr, err := profile.Load[profile.SignRouterConfig](srPath, nil); err != nil {
 		logger.Warn("signrouter: loading sign_router.toml for discovery, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

@@ -42,9 +42,7 @@ func ConfigFor(
 	}
 
 	cfPath := filepath.Join(configRoot, profile.DefaultCorridorFollowerTOMLPath)
-	if cf, err := profile.LoadWithDefaults[profile.CorridorFollowerConfig](
-		cfPath, nil, profile.CorridorFollowerDefaults(),
-	); err != nil {
+	if cf, err := profile.Load[profile.CorridorFollowerConfig](cfPath, nil); err != nil {
 		logger.Warn("corridorfollower: loading corridor_follower.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

@@ -242,11 +242,6 @@ const (
 	signPlacementCircleDiameterM = 0.085
 )
 
-// defaultRoundTimeLimitS mirrors profile.CompetitionDefaults'
-// round_time_limit_s: the shipped rule-book budget, used as a last resort when
-// the defaults map somehow lacks the key.
-const defaultRoundTimeLimitS = 180.0
-
 // mmPerM converts the millimeter widths scenario metadata carries into the
 // meters the track geometry works in.
 const mmPerM = 1000.0

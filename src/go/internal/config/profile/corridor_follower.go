@@ -41,7 +41,7 @@ type CorridorFollowerConfig struct {
 	// MinReverseClearanceM matches MIN_REVERSE_CLEARANCE_M.
 	MinReverseClearanceM float64 `mapstructure:"min_reverse_clearance_m"`
 	// BayWallClearanceM matches BAY_WALL_CLEARANCE_M.
-	BayWallClearanceM float64 `mapstructure:"bay_wall_clearance_m"`
+	BayWallClearanceM float64 `mapstructure:"bay_wall_clearance_m" default:"0.20"`
 
 	// The in-bay start and bay-exit family. Absent from this mirror until
 	// 2026-09-05, and absent from corridor_follower.toml too, so both
@@ -51,68 +51,79 @@ type CorridorFollowerConfig struct {
 	// the shipped file is the single source and a drift like that cannot
 	// recur without an edit that shows up in a diff.
 	//
-	// LoadWithDefaults supplies each one's shipped value, so a TOML that
-	// omits a key still yields the shipped behaviour rather than a Go zero
-	// value -- which for the bools and the arc would silently be the
-	// REFUTED configuration.
+	// Each non-zero shipped value lives in its own `default` tag (see
+	// tagDefaults), so a TOML that omits a key still yields the shipped
+	// behaviour rather than a Go zero value -- which for the guard, the
+	// latches and the arc would silently be the REFUTED configuration. A
+	// field whose shipped value IS the Go zero value
+	// (bay_exit_clearance_tolerance_m = 0.0, the inert latch/coast flags)
+	// needs no tag because an omitted key already lands there.
 
 	// AssumeBayStart matches ASSUME_BAY_START.
-	AssumeBayStart bool `mapstructure:"assume_bay_start"`
+	AssumeBayStart bool `mapstructure:"assume_bay_start" default:"true"`
 	// BayExitClearanceGuard matches BAY_EXIT_CLEARANCE_GUARD.
-	BayExitClearanceGuard bool `mapstructure:"bay_exit_clearance_guard"`
+	BayExitClearanceGuard bool `mapstructure:"bay_exit_clearance_guard" default:"true"`
 	// BayExitClearanceMarginM matches BAY_EXIT_CLEARANCE_MARGIN_M.
-	BayExitClearanceMarginM float64 `mapstructure:"bay_exit_clearance_margin_m"`
+	BayExitClearanceMarginM float64 `mapstructure:"bay_exit_clearance_margin_m" default:"0.005"`
 	// BayExitClearanceToleranceM matches BAY_EXIT_CLEARANCE_TOLERANCE_M --
-	// see corridorfollower.Config.BayExitClearanceToleranceM.
+	// see corridorfollower.Config.BayExitClearanceToleranceM. Ships 0.0, the
+	// Go zero value, so it carries no default tag.
 	BayExitClearanceToleranceM float64 `mapstructure:"bay_exit_clearance_tolerance_m"`
 	// BayExitArcSteerNorm matches BAY_EXIT_ARC_STEER_NORM. A cliff at 1.0.
-	BayExitArcSteerNorm float64 `mapstructure:"bay_exit_arc_steer_norm"`
+	BayExitArcSteerNorm float64 `mapstructure:"bay_exit_arc_steer_norm" default:"1.0"`
 	// BayExitSpeedScale matches BAY_EXIT_SPEED_SCALE. A cliff at both ends.
-	BayExitSpeedScale float64 `mapstructure:"bay_exit_speed_scale"`
+	BayExitSpeedScale float64 `mapstructure:"bay_exit_speed_scale" default:"0.35"`
 	// BayExitCycle matches BAY_EXIT_CYCLE.
-	BayExitCycle bool `mapstructure:"bay_exit_cycle"`
+	BayExitCycle bool `mapstructure:"bay_exit_cycle" default:"true"`
 	// BayExitCycleReverseM matches BAY_EXIT_CYCLE_REVERSE_M.
-	BayExitCycleReverseM float64 `mapstructure:"bay_exit_cycle_reverse_m"`
+	BayExitCycleReverseM float64 `mapstructure:"bay_exit_cycle_reverse_m" default:"0.09"`
 	// BayExitCycleReverseSteerNorm matches BAY_EXIT_CYCLE_REVERSE_STEER_NORM.
+	// Ships 0.0, the Go zero value.
 	BayExitCycleReverseSteerNorm float64 `mapstructure:"bay_exit_cycle_reverse_steer_norm"`
 	// BayExitForwardM matches BAY_EXIT_FORWARD_M.
-	BayExitForwardM float64 `mapstructure:"bay_exit_forward_m"`
+	BayExitForwardM float64 `mapstructure:"bay_exit_forward_m" default:"0.08"`
 	// BayExitReverseM matches BAY_EXIT_REVERSE_M.
-	BayExitReverseM float64 `mapstructure:"bay_exit_reverse_m"`
+	BayExitReverseM float64 `mapstructure:"bay_exit_reverse_m" default:"0.05"`
 	// BayExitSteerNorm matches BAY_EXIT_STEER_NORM.
-	BayExitSteerNorm float64 `mapstructure:"bay_exit_steer_norm"`
+	BayExitSteerNorm float64 `mapstructure:"bay_exit_steer_norm" default:"1.0"`
 	// BayExitReverseSteerNorm matches BAY_EXIT_REVERSE_STEER_NORM. REFUTED
-	// at any non-zero value; 0.0 keeps the refutation recorded.
+	// at any non-zero value; 0.0 keeps the refutation recorded and is the Go
+	// zero value.
 	BayExitReverseSteerNorm float64 `mapstructure:"bay_exit_reverse_steer_norm"`
 	// BayExitHoldSteer matches BAY_EXIT_HOLD_STEER.
-	BayExitHoldSteer bool `mapstructure:"bay_exit_hold_steer"`
+	BayExitHoldSteer bool `mapstructure:"bay_exit_hold_steer" default:"true"`
 	// BayExitLegStallTicks matches BAY_EXIT_LEG_STALL_TICKS. 1 is a cliff.
-	BayExitLegStallTicks int `mapstructure:"bay_exit_leg_stall_ticks"`
+	BayExitLegStallTicks int `mapstructure:"bay_exit_leg_stall_ticks" default:"6"`
 	// BayExitLatchDirection matches BAY_EXIT_LATCH_DIRECTION.
-	BayExitLatchDirection bool `mapstructure:"bay_exit_latch_direction"`
-	// BayExitLatchReverse matches BAY_EXIT_LATCH_REVERSE.
+	BayExitLatchDirection bool `mapstructure:"bay_exit_latch_direction" default:"true"`
+	// BayExitLatchReverse matches BAY_EXIT_LATCH_REVERSE. Ships false, the
+	// Go zero value.
 	BayExitLatchReverse bool `mapstructure:"bay_exit_latch_reverse"`
-	// BayExitFallbackFrames matches BAY_EXIT_FALLBACK_FRAMES; 0 = never.
+	// BayExitFallbackFrames matches BAY_EXIT_FALLBACK_FRAMES; 0 = never, the
+	// Go zero value.
 	BayExitFallbackFrames int `mapstructure:"bay_exit_fallback_frames"`
-	// BayExitMaxFrames matches BAY_EXIT_MAX_FRAMES; 0 = forever.
+	// BayExitMaxFrames matches BAY_EXIT_MAX_FRAMES; 0 = forever, the Go zero
+	// value.
 	BayExitMaxFrames int `mapstructure:"bay_exit_max_frames"`
 	// BayExitGuardOverlapRecovery matches BAY_EXIT_GUARD_OVERLAP_RECOVERY.
-	BayExitGuardOverlapRecovery bool `mapstructure:"bay_exit_guard_overlap_recovery"`
+	BayExitGuardOverlapRecovery bool `mapstructure:"bay_exit_guard_overlap_recovery" default:"true"`
 	// BayExitOpenSideSectorDeg matches BAY_EXIT_OPEN_SIDE_SECTOR_DEG.
-	BayExitOpenSideSectorDeg float64 `mapstructure:"bay_exit_open_side_sector_deg"`
+	BayExitOpenSideSectorDeg float64 `mapstructure:"bay_exit_open_side_sector_deg" default:"15.0"`
 	// BayExitOpenSideVotes matches BAY_EXIT_OPEN_SIDE_VOTES.
-	BayExitOpenSideVotes int `mapstructure:"bay_exit_open_side_votes"`
+	BayExitOpenSideVotes int `mapstructure:"bay_exit_open_side_votes" default:"5"`
 	// BayExitSpeedMPS matches BAY_EXIT_SPEED_MPS.
-	BayExitSpeedMPS float64 `mapstructure:"bay_exit_speed_mps"`
+	BayExitSpeedMPS float64 `mapstructure:"bay_exit_speed_mps" default:"0.10"`
 	// BayExitContactDistM matches BAY_EXIT_CONTACT_DIST_M.
-	BayExitContactDistM float64 `mapstructure:"bay_exit_contact_dist_m"`
+	BayExitContactDistM float64 `mapstructure:"bay_exit_contact_dist_m" default:"0.08"`
 	// BayExitContactRecoveryTicks matches BAY_EXIT_CONTACT_RECOVERY_TICKS.
+	// Ships 0, the Go zero value.
 	BayExitContactRecoveryTicks int `mapstructure:"bay_exit_contact_recovery_ticks"`
 	// BayExitTargetYawDeg matches BAY_EXIT_TARGET_YAW_DEG.
-	BayExitTargetYawDeg float64 `mapstructure:"bay_exit_target_yaw_deg"`
+	BayExitTargetYawDeg float64 `mapstructure:"bay_exit_target_yaw_deg" default:"70.0"`
 	// BayExitLegMaxS matches BAY_EXIT_LEG_MAX_S.
-	BayExitLegMaxS float64 `mapstructure:"bay_exit_leg_max_s"`
-	// BayExitGuardBlockTicks matches BAY_EXIT_GUARD_BLOCK_TICKS.
+	BayExitLegMaxS float64 `mapstructure:"bay_exit_leg_max_s" default:"0.5"`
+	// BayExitGuardBlockTicks matches BAY_EXIT_GUARD_BLOCK_TICKS. Ships 0, the
+	// Go zero value.
 	BayExitGuardBlockTicks int `mapstructure:"bay_exit_guard_block_ticks"`
 	// BayExitGuardMeasuredCoast matches BAY_EXIT_GUARD_MEASURED_COAST. SHIPS
 	// FALSE, INERT -- no consuming logic reads this; kept for config parity.
@@ -134,51 +145,3 @@ const DefaultCorridorFollowerTOMLPath = "src/config/navigation/blind_nav/corrido
 // DefaultBayWallClearanceM matches CorridorFollowerParams.BAY_WALL_CLEARANCE_M's
 // Pydantic default.
 const DefaultBayWallClearanceM = 0.20
-
-// CorridorFollowerDefaults is the LoadWithDefaults defaults map for
-// CorridorFollowerConfig.
-//
-// Every bay key is listed because a Go zero value is not a neutral fallback
-// here: `false` for the guard and the latches, and 0.0 for the arc, are all
-// REFUTED configurations that measure 0/256 out of the pocket. A TOML missing
-// a key must yield the shipped behaviour, not the worst one.
-//
-// These are literals rather than references to corridorfollower's Default*
-// constants because corridorfollower imports this package, not the other way
-// round. internal/config/profile's own test asserts the two agree.
-func CorridorFollowerDefaults() map[string]any {
-	return map[string]any{
-		"bay_wall_clearance_m":              DefaultBayWallClearanceM,
-		"assume_bay_start":                  true,
-		"bay_exit_clearance_guard":          true,
-		"bay_exit_clearance_margin_m":       0.005,
-		"bay_exit_clearance_tolerance_m":    0.0,
-		"bay_exit_arc_steer_norm":           1.0,
-		"bay_exit_speed_scale":              0.35,
-		"bay_exit_cycle":                    true,
-		"bay_exit_cycle_reverse_m":          0.09,
-		"bay_exit_cycle_reverse_steer_norm": 0.0,
-		"bay_exit_forward_m":                0.08,
-		"bay_exit_reverse_m":                0.05,
-		"bay_exit_steer_norm":               1.0,
-		"bay_exit_reverse_steer_norm":       0.0,
-		"bay_exit_hold_steer":               true,
-		"bay_exit_leg_stall_ticks":          6,
-		"bay_exit_latch_direction":          true,
-		"bay_exit_latch_reverse":            false,
-		"bay_exit_fallback_frames":          0,
-		"bay_exit_max_frames":               0,
-		"bay_exit_guard_overlap_recovery":   true,
-		"bay_exit_open_side_sector_deg":     15.0,
-		"bay_exit_open_side_votes":          5,
-		"bay_exit_speed_mps":                0.10,
-		"bay_exit_contact_dist_m":           0.08,
-		"bay_exit_contact_recovery_ticks":   0,
-		"bay_exit_target_yaw_deg":           70.0,
-		"bay_exit_leg_max_s":                0.5,
-		"bay_exit_guard_block_ticks":        0,
-		"bay_exit_guard_measured_coast":     false,
-		"bay_exit_guard_mirrors_reverse":    false,
-		"bay_exit_dr_uses_measured_yaw":     false,
-	}
-}
