@@ -1,8 +1,8 @@
-// Command track-navigator is a bench/dev single-subsystem binary for the
-// nav stack (track model, direction estimator, sign router, navigator),
-// sharing the same internal packages as cmd/pi5 — used for isolated bench
-// testing and local debugging, and for bag-replay/sim-corpus parity work
-// before this subsystem is trusted inside cmd/pi5.
+// Command track-navigator wires the nav stack (track model, corridor-width
+// belief, navigator) to live NATS topics, for both isolated bench testing
+// and as the real Pi 5 navigator process (a sibling of lidar-node/imu-node/
+// motor-node under systemd, matching Python's track_navigator_node running
+// with no --metadata).
 //
 // It wires the NATS-backed controllers.HardwareGateway (internal/adapters/natsgw)
 // to the navigator composition root (internal/nav/navigator) and drives Step at
@@ -13,6 +13,12 @@
 // pose in-process via localization.LidarLocalizer, and publishes drive commands
 // on vtitan.actuation.v1.ackermann_cmd (consumed by the motor node) — no new
 // NATS subjects are introduced here.
+//
+// No --metadata flag exists, matching what Python's track_navigator_node.py
+// says competition requires: WRO randomizes the inner walls before each
+// round, so a told layout cannot be right on the day. The corridor geometry
+// is always estimated from LIDAR (see newBlindLayout, widthbelief.Layout),
+// and only the travel direction is optionally told via --direction.
 package main
 
 import (
@@ -22,6 +28,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,10 +40,13 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/widthbelief"
 	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/nav/v1"
@@ -43,11 +54,13 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
-// benchTrackCoord is the outer boundary of the default bench track layout.
-// A 2 m-wide corridor on every side around a centered inner block — a sane,
-// well-conditioned layout for isolated bench runs that do not load a real
-// scenario's geometry.
-const benchTrackCoord = 4.0
+// blindNarrowWidthM is the corridor width assumed before anything has been
+// measured -- the narrow (fail-safe) end of the 60/100 cm pair the Open
+// Challenge rules allow. Believing narrow and finding wide leaves the robot
+// with room; the reverse puts the planned line inside a wall. Mirrors
+// CorridorDimensions.NARROW and internal/sim/scenario/native_blind.go's
+// blindNarrowWidthM (Obstacles is not handled here -- see newBlindLayout).
+const blindNarrowWidthM = corridorestimator.DefaultNarrowWidthM
 
 // defaultWheelRadiusM/defaultChassisWidthM are the fallbacks used when
 // robot.toml cannot be loaded (a bench run outside the repo, or with no
@@ -60,13 +73,67 @@ const (
 	defaultChassisWidthM = 0.194
 )
 
+// directionCW/directionCCW/directionUndetermined are --direction's legal
+// values, matching track_navigator_node.py's own choices. "undetermined" is
+// a real third answer, not a missing one: cw/ccw mean the operator KNOWS, so
+// LIDAR direction inference is skipped outright, while undetermined means
+// nobody said and the robot creeps and infers.
+const (
+	directionCW           = "cw"
+	directionCCW          = "ccw"
+	directionUndetermined = "undetermined"
+)
+
+// parseDirection resolves --direction into the PROVISIONAL direction a first
+// path is planned from (never nil -- a plan needs an axis even when nobody
+// gave one) and the direction actually handed to navigator.Params (nil for
+// "undetermined", so Navigator runs its own LIDAR bootstrap instead of
+// trusting a guess).
+func parseDirection(s string) (provisional trackmodel.Direction, known *trackmodel.Direction, err error) {
+	switch s {
+	case directionCW:
+		d := trackmodel.Clockwise
+		return d, &d, nil
+	case directionCCW:
+		d := trackmodel.Counterclockwise
+		return d, &d, nil
+	case directionUndetermined:
+		return trackmodel.Clockwise, nil, nil
+	default:
+		return 0, nil, fmt.Errorf(
+			"track-navigator: unknown --direction %q (want %s, %s, or %s)",
+			s, directionCW, directionCCW, directionUndetermined,
+		)
+	}
+}
+
 // cliConfig holds every flag track-navigator accepts.
 type cliConfig struct {
-	natsURL  string
-	nodeName string
-	rateHz   float64
-	record   bool
-	runsRoot string
+	natsURL    string
+	nodeName   string
+	rateHz     float64
+	record     bool
+	runsRoot   string
+	configRoot string
+	profiles   string
+	direction  string
+}
+
+// splitProfiles parses a comma-separated hardware-profile list, matching
+// cmd/pi5's own helper of the same name (each cmd/* binary that takes
+// --profiles has its own copy rather than sharing one -- there is no shared
+// CLI package for a two-line string split).
+func splitProfiles(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // exit codes: 0 means track-navigator ran and shut down cleanly (including via
@@ -105,23 +172,104 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags.BoolVar(&cfg.record, "record", false,
 		"record the run to data/live/runs as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node")
 	flags.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir for --record (default: repo-root data/live/runs)")
+	flags.StringVar(&cfg.configRoot, "config-root", "",
+		"repo root to read the shipped TOML tree from; empty runs on Go literal defaults")
+	flags.StringVar(&cfg.profiles, "profiles", "",
+		"comma-separated hardware profiles (overrides VTITAN_HARDWARE_PROFILE)")
+	flags.StringVar(&cfg.direction, "direction", directionUndetermined,
+		"travel direction for the round: cw, ccw, or undetermined (default). "+
+			"undetermined means the robot creeps and infers it from LIDAR, matching "+
+			"what competition requires -- WRO draws the direction on the day.")
 
 	return cmd
 }
 
-// benchWalls builds a default square Open Challenge layout for the gateway's
-// localizer seed. A real run would load the scenario's geometry instead.
-func benchWalls() *trackmodel.TrackWalls {
-	geom := trackmodel.CorridorGeometryFromWidths(map[trackmodel.Section]float64{
-		trackmodel.North: 2.0,
-		trackmodel.South: 2.0,
-		trackmodel.East:  2.0,
-		trackmodel.West:  2.0,
-	}, benchTrackCoord)
-	return trackmodel.NewTrackWalls(geom, -benchTrackCoord, benchTrackCoord)
+// loadTrackMaxCoordM reads track.toml's outer boundary, falling back to
+// navigator.DefaultTrackMaxCoordM (the same literal ConfigFor callers get
+// with no config root) on any load failure.
+func loadTrackMaxCoordM(logger *slog.Logger, configRoot string) float64 {
+	if configRoot == "" {
+		return navigator.DefaultTrackMaxCoordM
+	}
+	loaded, err := profile.Load[profile.TrackConfig](
+		filepath.Join(configRoot, profile.DefaultTrackTOMLPath), nil,
+	)
+	if err != nil {
+		logger.Warn("track-navigator: loading track.toml, using default",
+			"error", err, "track_max_coord_m", navigator.DefaultTrackMaxCoordM)
+		return navigator.DefaultTrackMaxCoordM
+	}
+	return loaded.Track.MaxCoord
+}
+
+// newBlindLayout builds the initial path and the per-tick belief loop that
+// corrects it, matching internal/sim/scenario/native_blind.go's
+// newBlindSetup -- reproduced rather than imported, since that helper lives
+// in an internal sim package and is Obstacles-aware in a way this Open-only
+// production entry point deliberately is not (no SignRouter is wired here,
+// so isObstacles is never true; see the package doc comment).
+//
+// provisional is the direction the FIRST path is planned from -- never nil,
+// even when the round's real direction is still undetermined (see
+// parseDirection) -- and is unrelated to what navigator.Params.Direction
+// receives; the navigator infers its own answer independently, and the
+// belief loop attributes each tick's reading by whichever direction it
+// settles on (see widthbelief.Layout.Update).
+func newBlindLayout(
+	logger *slog.Logger,
+	base waypoints.PlannerInput,
+	provisional trackmodel.Direction,
+	wpCfg waypoints.Config,
+	startCfg startconditions.Config,
+	estCfg corridorestimator.Config,
+) (path []trackmodel.Waypoint, priorGeometry trackmodel.CorridorGeometry, layout *widthbelief.Layout, err error) {
+	prior := map[trackmodel.Section]float64{
+		trackmodel.North: blindNarrowWidthM,
+		trackmodel.South: blindNarrowWidthM,
+		trackmodel.East:  blindNarrowWidthM,
+		trackmodel.West:  blindNarrowWidthM,
+	}
+	priorGeometry = trackmodel.CorridorGeometryFromWidths(prior, base.MaxCoordM)
+
+	assumed, ok := startconditions.AssumedStartConditions(
+		provisional, prior, startconditions.CanonicalSection, startCfg, nil,
+	)
+	if !ok {
+		return nil, trackmodel.CorridorGeometry{}, nil, fmt.Errorf(
+			"track-navigator: no assumed start pose for %v from the canonical section", provisional,
+		)
+	}
+
+	planned := base
+	planned.Geometry = priorGeometry
+	planned.Starting = base.Starting.ReplannedAt(
+		&provisional, assumed.Section, trackmodel.Waypoint{X: assumed.X, Y: assumed.Y}, assumed.Yaw,
+	)
+	path, err = waypoints.CalculateWaypoints(planned, 1, wpCfg, nil, waypoints.AllUnconfirmed())
+	if err != nil {
+		return nil, trackmodel.CorridorGeometry{}, nil, fmt.Errorf(
+			"track-navigator: planning the prior layout: %w", err,
+		)
+	}
+
+	layout = widthbelief.NewLayout(widthbelief.Params{
+		Logger:      logger,
+		Estimator:   corridorestimator.New(blindNarrowWidthM, estCfg),
+		Defer:       wpCfg.DeferCurrentCorridorReplan,
+		Base:        base,
+		Config:      wpCfg,
+		CenterBiasM: nil,
+		MaxCoordM:   base.MaxCoordM,
+	})
+	return path, priorGeometry, layout, nil
 }
 
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
+	provisionalDirection, knownDirection, err := parseDirection(cfg.direction)
+	if err != nil {
+		return err
+	}
+	profiles := splitProfiles(cfg.profiles)
 	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
@@ -174,7 +322,11 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// angles by and the chassis width the planner sizes its corridor with.
 	// Loaded once, before either consumer, so the two cannot disagree about
 	// which robot they are describing.
-	robotCfg, robotCfgErr := profile.LoadRobotConfig(profile.DefaultRobotTOMLPath, nil)
+	robotPath := profile.DefaultRobotTOMLPath
+	if cfg.configRoot != "" {
+		robotPath = filepath.Join(cfg.configRoot, profile.DefaultRobotTOMLPath)
+	}
+	robotCfg, robotCfgErr := profile.LoadRobotConfig(robotPath, profiles)
 	wheelRadiusM := defaultWheelRadiusM
 	chassisWidthM := defaultChassisWidthM
 	if robotCfgErr == nil {
@@ -187,7 +339,29 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 			"chassis_width_m", chassisWidthM)
 	}
 
-	gw, err := natsgw.New(conn, benchWalls(), localization.DefaultConfig(), wheelRadiusM)
+	trackMaxCoordM := loadTrackMaxCoordM(logger, cfg.configRoot)
+	wpCfg := waypoints.ConfigFor(logger, cfg.configRoot)
+	startCfg := startconditions.ConfigFor(logger, cfg.configRoot)
+	estCfg := corridorestimator.ConfigFor(logger, cfg.configRoot)
+
+	path, priorGeometry, layout, err := newBlindLayout(
+		logger,
+		waypoints.PlannerInput{MaxCoordM: trackMaxCoordM, ChassisWidthM: chassisWidthM},
+		provisionalDirection,
+		wpCfg,
+		startCfg,
+		estCfg,
+	)
+	if err != nil {
+		return err
+	}
+
+	gw, err := natsgw.New(
+		conn,
+		trackmodel.NewTrackWalls(priorGeometry, -trackMaxCoordM, trackMaxCoordM),
+		localization.DefaultConfig(),
+		wheelRadiusM,
+	)
 	if err != nil {
 		return err //nolint:wrapcheck
 	}
@@ -197,48 +371,20 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	// Build the planned path from the bench track's corridor geometry instead
-	// of a hardcoded 4-corner rectangle: CalculateWaypoints synthesizes the
-	// centerline (with per-corner arc waypoints) from the believed corridor
-	// widths and a starting condition, the same way a real run plans from the
-	// scenario's metadata. A real run would load the scenario's geometry and
-	// starting conditions instead of the bench defaults below.
-	benchGeom := trackmodel.CorridorGeometryFromWidths(map[trackmodel.Section]float64{
-		trackmodel.North: 2.0,
-		trackmodel.South: 2.0,
-		trackmodel.East:  2.0,
-		trackmodel.West:  2.0,
-	}, benchTrackCoord)
-	startSection := trackmodel.South
-	waypoints, planErr := waypoints.CalculateWaypoints(waypoints.PlannerInput{
-		Geometry:      benchGeom,
-		Starting:      waypoints.StartingConditions{Section: startSection, Position: trackmodel.Waypoint{X: -benchTrackCoord + 1, Y: -benchTrackCoord + 1}},
-		MaxCoordM:     benchTrackCoord,
-		ChassisWidthM: chassisWidthM,
-		// AllConfirmed: this bench path is planned from the operator-supplied
-		// bench geometry, which is a told width and so confirmed by
-		// definition. A blind run would pass the belief gate's set instead.
-	}, 1, waypoints.DefaultConfig(), nil, waypoints.AllConfirmed())
-	if planErr != nil {
-		return fmt.Errorf("track-navigator: planning bench path: %w", planErr)
-	}
-
-	// bayexit has no configRoot/hardware-profile flags wired into this bench
-	// binary today (unlike the sim runner, every other config here reads
-	// DefaultConfig() rather than a ConfigFor(cfg.ConfigRoot, ...) call), so
-	// this loads from the working directory the same way robot.toml is read
-	// above -- best-effort, falling back to the Go literal defaults on any
-	// error instead of failing the run.
-	bxCfg := bayexit.ConfigFor(logger, ".", nil)
+	// bayexit config-root wiring matches every other config loaded above:
+	// empty --config-root falls back to the Go literal defaults rather than
+	// failing the run.
+	bxCfg := bayexit.ConfigFor(logger, cfg.configRoot, profiles)
 
 	nav, err := navigator.New(navigator.Params{
-		Gateway:           gw,
-		Waypoints:         waypoints,
-		Direction:         func() *trackmodel.Direction { d := trackmodel.Counterclockwise; return &d }(),
-		Config:            navigator.DefaultConfig(),
-		ControllersConfig: controllers.DefaultConfig(),
-		BayExitConfig:     &bxCfg,
-		Logger:            logger,
+		Gateway:                 gw,
+		Waypoints:               path,
+		Direction:               knownDirection,
+		Config:                  navigator.ConfigFor(logger, cfg.configRoot, profiles),
+		ControllersConfig:       controllers.ConfigFor(logger, cfg.configRoot, profiles),
+		BayExitConfig:           &bxCfg,
+		CorridorEstimatorConfig: &estCfg,
+		Logger:                  logger,
 	})
 	if err != nil {
 		return err //nolint:wrapcheck // navigator.New already wraps with "navigator: ..." context
@@ -266,7 +412,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	group, gctx := errgroup.WithContext(ctx)
 	group.Go(func() error { return gw.Run(gctx, scanSub, imuSub, jointSub) })
-	group.Go(func() error { return stepLoop(gctx, logger, nav, gw, rec, cfg.rateHz) })
+	group.Go(func() error { return stepLoop(gctx, logger, nav, gw, layout, rec, cfg.rateHz) })
 
 	if err = group.Wait(); err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -280,11 +426,18 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 // stepLoop drives nav.Step at rateHz until ctx is done. When rec is non-nil it
 // also writes each tick's /scan and /nav_debug into the run's MCAP bag, so a Go
 // run matches the Python robot's run_<stamp>/ shape for bagreplay parity.
+//
+// layout.Update runs every tick right after Step, matching
+// native_runner.go's own loop: a deferred belief is released by the robot
+// LEAVING a corridor, so the tick that applies it is usually one the
+// estimator had nothing new to say about, not only the tick a fresh reading
+// arrived on.
 func stepLoop(
 	ctx context.Context,
 	logger *slog.Logger,
 	nav *navigator.Navigator,
 	gw *natsgw.Gateway,
+	layout *widthbelief.Layout,
 	rec *recording.RunRecorder,
 	rateHz float64,
 ) error {
@@ -299,6 +452,7 @@ func stepLoop(
 			return nil
 		case <-ticker.C:
 			nav.Step()
+			layout.Update(nav, gw, nav.Direction())
 			steps++
 			if rec != nil {
 				if scan := gw.LatestScan(); scan != nil {

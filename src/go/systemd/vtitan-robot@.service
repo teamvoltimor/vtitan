@@ -1,13 +1,18 @@
 [Unit]
 Description=vTitan Robot Stack (%i = python|go)
 # Template unit keyed by STACK: %i=python runs the pixi-managed ROS2 launch,
-# %i=go runs the static Go binary. LiDAR + USB-gadget-link pre-steps are
-# transport-agnostic and run for either stack.
+# %i=go runs the static Go binary (camera capture only -- see the ExecStart
+# case below; the Go stack's LIDAR/IMU/navigator are their own sibling units,
+# vtitan-go-{lidar,imu,navigator}.service, started independently). The
+# USB-gadget-link pre-step is transport-agnostic and runs for either stack.
 # A Pi 5 reboot power-cycles the Zero too (same USB gadget cable), so every Pi 5
 # boot is a simultaneous cold boot of both boards; the gadget-link wait bounds
 # startup (55s) and never fails/blocks on its own.
-Wants=vtitan-lidar.service
-After=vtitan-lidar.service
+#
+# No Wants=/After=vtitan-lidar.service here: that unit is Python's OWN RPLIDAR
+# driver, which owns the same serial port the Go stack's vtitan-go-lidar.service
+# does -- the two stacks cannot both hold it. STACK=python restarts it itself,
+# in its own ExecStartPre branch below; STACK=go must not touch it at all.
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
@@ -17,9 +22,12 @@ User=__TARGET_USER__
 Group=__TARGET_USER__
 # Sourced for STACK-specific env (ROS_DOMAIN_ID, DRIVE_BACKEND, motor pins, ...).
 EnvironmentFile=-/opt/vtitan-go/.env
-# Transport-agnostic pre-steps.
+# Transport-agnostic pre-step.
 ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/src/python/scripts/provisioning/wait-for-gadget-link.sh
-ExecStartPre=+/usr/bin/systemctl restart vtitan-lidar.service
+# LiDAR-driver restart is PYTHON-ONLY (see the [Unit] comment above); a no-op
+# shell branch keeps this one ExecStartPre line correct for both %i values
+# instead of duplicating the unit per stack just for this step.
+ExecStartPre=+/bin/sh -c '[ "%i" = "python" ] && systemctl restart vtitan-lidar.service || true'
 # Branch on %i.
 ExecStart=/bin/sh -c '\
   case "%i" in \

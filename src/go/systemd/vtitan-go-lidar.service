@@ -1,0 +1,27 @@
+[Unit]
+Description=vTitan Go (Pi 5) — LIDAR Node
+# Own the RPLIDAR C1's serial port directly (internal/driver/lidar), unlike
+# vtitan-go-pi5.service which used to (incorrectly) depend on Python's
+# vtitan-lidar.service for this. The two CANNOT run together -- both open
+# the same /dev/ttyUSB0 -- so the Go stack owns this device itself instead
+# of relying on a driver that belongs to the other stack. See
+# vtitan-robot@.service's STACK exclusivity (python xor go).
+Wants=dev-ttyUSB0.device
+After=dev-ttyUSB0.device
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+Type=exec
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=/opt/vtitan-go
+EnvironmentFile=-/opt/vtitan-go/.env
+ExecStart=/opt/vtitan-go/bin/lidar-node --config-root=/opt/vtitan-go
+Restart=on-failure
+RestartSec=3
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

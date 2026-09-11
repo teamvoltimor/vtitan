@@ -1,0 +1,24 @@
+[Unit]
+Description=vTitan Go (Pi 5) — IMU Node
+# Local UART hardware; no dev-ttyAMA0.device/similar dependency here for the
+# same reason vtitan-go-pi-zero.service has none for its GPIO -- Raspberry
+# Pi OS's udev rules do not reliably tag every serial chardev for systemd
+# tracking, and the driver layer already retries transient hardware-not-
+# ready failures (Restart=on-failure below).
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+Type=exec
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=/opt/vtitan-go
+EnvironmentFile=-/opt/vtitan-go/.env
+ExecStart=/opt/vtitan-go/bin/imu-node --config-root=/opt/vtitan-go
+Restart=on-failure
+RestartSec=3
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -41,9 +41,21 @@ these are the **manual on-device steps** an operator runs. Do NOT push from CI.
    ```
 2. Install units:
    ```sh
-   sudo cp systemd/vtitan-go-pi5.service systemd/vtitan-go-pi-zero.service systemd/vtitan-robot@.service /etc/systemd/system/
+   sudo cp systemd/vtitan-go-pi5.service systemd/vtitan-go-pi-zero.service \
+     systemd/vtitan-go-lidar.service systemd/vtitan-go-imu.service systemd/vtitan-go-navigator.service \
+     systemd/vtitan-robot@.service /etc/systemd/system/
    sudo systemctl daemon-reload
    ```
+   `vtitan-go-lidar`/`vtitan-go-imu`/`vtitan-go-navigator` are new (2026-09-11):
+   sibling processes to `vtitan-go-pi5` (camera capture only), together
+   replacing the Python stack's `vtitan-pi5`+`vtitan-race` on the Pi 5. They
+   own the LIDAR/IMU hardware directly and CANNOT run at the same time as
+   Python's `vtitan-pi5.service`/`vtitan-lidar.service` (both sides open the
+   same serial ports) -- enable them only when running the Go stack.
+   `vtitan-go-navigator` runs `track-navigator` with no `--metadata`, always
+   estimating the corridor layout from LIDAR (see its package doc comment);
+   `--direction` defaults to `undetermined` and should stay that way unless
+   an operator genuinely knows the round's draw in advance.
 3. Verify motor-safety stop hook is in the unit:
    ```sh
    systemctl cat vtitan-go-pi-zero.service | grep -A1 ExecStopPost
@@ -63,6 +75,7 @@ these are the **manual on-device steps** an operator runs. Do NOT push from CI.
    ```
 7. Confirm health:
    ```sh
-   sudo systemctl status vtitan-go-pi5.service vtitan-go-pi-zero.service
+   sudo systemctl status vtitan-go-pi5.service vtitan-go-pi-zero.service \
+     vtitan-go-lidar.service vtitan-go-imu.service vtitan-go-navigator.service
    ls -l /opt/vtitan-go/bin
    ```

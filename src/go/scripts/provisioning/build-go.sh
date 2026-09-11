@@ -86,7 +86,8 @@ if [ -n "${SKIP_RESTART:-}" ]; then
   exit 0
 fi
 
-for svc in vtitan-go-pi5.service vtitan-go-pi-zero.service; do
+for svc in vtitan-go-pi5.service vtitan-go-pi-zero.service \
+  vtitan-go-lidar.service vtitan-go-imu.service vtitan-go-navigator.service; do
   log "Restarting $svc..."
   ssh "${SSH_OPTS[@]}" "$TARGET_HOST" \
     "sudo systemctl reset-failed '$svc' 2>/dev/null; sudo systemctl restart '$svc'" || \

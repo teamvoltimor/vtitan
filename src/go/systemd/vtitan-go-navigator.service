@@ -1,0 +1,33 @@
+[Unit]
+Description=vTitan Go (Pi 5) — Track Navigator
+# Needs this host's own scan/imu producers up first, and the gadget link to
+# the Pi Zero settled before it starts (joint_states -- the motor node's
+# encoder feedback -- arrives over that link; see wait-for-gadget-link.sh's
+# rationale in vtitan-go-pi5.service, which applies identically here: a Pi 5
+# reboot power-cycles the Zero too, so every boot races link re-enumeration).
+Wants=vtitan-go-lidar.service vtitan-go-imu.service
+After=vtitan-go-lidar.service vtitan-go-imu.service
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+Type=exec
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=/opt/vtitan-go
+EnvironmentFile=-/opt/vtitan-go/.env
+ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/src/python/scripts/provisioning/wait-for-gadget-link.sh
+# --direction stays at its "undetermined" default here on purpose: WRO draws
+# the round's travel direction on the day, so it cannot be baked into this
+# unit. An operator who DOES know it (a bench run, a rules change) overrides
+# via a systemd drop-in (`systemctl edit vtitan-go-navigator.service`) rather
+# than editing this file.
+ExecStart=/opt/vtitan-go/bin/track-navigator --config-root=/opt/vtitan-go
+Restart=on-failure
+RestartSec=5
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=10
+TimeoutStartSec=150
+
+[Install]
+WantedBy=multi-user.target
