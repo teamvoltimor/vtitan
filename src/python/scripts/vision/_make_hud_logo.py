@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image
 
 _SRC = Path(__file__).resolve().parents[4] / "apps" / "frontend" / "public" / "voltimor-logo-square.png"
-_DST = Path(__file__).resolve().parents[2] / "assets" / "vision" / "voltimor-mark.png"
+_DST = Path(__file__).resolve().parents[3] / "assets" / "vision" / "voltimor-mark.png"
 _MARK_SIZE = 160  # final square size, px -- full logo incl. wordmark needs more room than the icon alone
 
 
