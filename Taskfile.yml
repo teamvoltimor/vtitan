@@ -33,6 +33,10 @@ includes:
     taskfile: ./apps/gazebo/Taskfile.yml
     dir: ./apps/gazebo/runtime
     flatten: true
+  deploy-ansible:
+    taskfile: ./deploy/ansible/Taskfile.yml
+    dir: ./deploy/ansible
+    flatten: true
   auto-annotator:
     taskfile: ./apps/auto-annotator/Taskfile.yml
     dir: ./apps/auto-annotator
