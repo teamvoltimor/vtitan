@@ -30,13 +30,6 @@ SHARED_CONFIG_ROOT: Path = PROFILES_ROOT.parent
 """src/config -- the single shared TOML root (sibling of src/python and
 src/go, consumed by both), resolved once."""
 
-# The robot-side hardware settings live under a separate tree (driver-level
-# PWM ranges etc.), Python/ROS2-specific and not shared with src/go -- kept
-# here so callers don't re-derive it either. src/python/config is a sibling
-# of src/config's parent (src/), not a subdirectory of it.
-ROBOT_CONFIG_ROOT: Path = SHARED_CONFIG_ROOT.parent / "python" / "config"
-"""src/python/config -- driver/hardware TOML root (HardwareBaseSettings)."""
-
 _ModelT = TypeVar("_ModelT", bound=BaseModel)
 
 
