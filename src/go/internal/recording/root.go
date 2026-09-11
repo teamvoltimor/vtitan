@@ -38,6 +38,10 @@ const (
 // dataDirName is the repo-root directory that holds every pulled artifact.
 const dataDirName = "data"
 
+// dirMode is the permission mode for artifact directories: owner read/write/
+// execute, group and others read/execute, matching the pulled hardware tree.
+const dirMode = 0o750
+
 // RunRoot returns the absolute path to <repo-root>/data, the shared pulled-
 // artifact tree. It walks up from the current working directory (the module is
 // always built/run beneath the repo root) until it finds a directory containing
@@ -86,7 +90,7 @@ func statDir(path string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, err
+		return false, fmt.Errorf("recording: stating %s: %w", path, err)
 	}
 	return info.IsDir(), nil
 }

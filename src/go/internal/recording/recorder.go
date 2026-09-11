@@ -82,7 +82,7 @@ func NewRun(runsRoot string, opts RunOptions) (*RunRecorder, error) {
 		stem = opts.Name
 	}
 	dir := filepath.Join(runsRoot, stem)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return nil, fmt.Errorf("recording: creating run dir %s: %w", dir, err)
 	}
 	r := &RunRecorder{
@@ -162,13 +162,16 @@ func (r *RunRecorder) WriteMessage(subject string, msg proto.Message, logTime ui
 	if err != nil {
 		return fmt.Errorf("recording: marshaling %s: %w", subject, err)
 	}
-	return r.mcapW.WriteMessage(&mcap.Message{
+	if err = r.mcapW.WriteMessage(&mcap.Message{
 		ChannelID:   schemaID,
 		Sequence:    0,
 		LogTime:     logTime,
 		PublishTime: logTime,
 		Data:        data,
-	})
+	}); err != nil {
+		return fmt.Errorf("recording: writing message %s: %w", subject, err)
+	}
+	return nil
 }
 
 // WriteROS2 appends an already-CDR-encoded ROS2 message under topic,
@@ -192,13 +195,56 @@ func (r *RunRecorder) WriteROS2(
 		return err
 	}
 	r.noteMessage(topic, schemaName, logTime)
-	return r.mcapW.WriteMessage(&mcap.Message{
+	if err = r.mcapW.WriteMessage(&mcap.Message{
 		ChannelID:   channelID,
 		Sequence:    0,
 		LogTime:     logTime,
 		PublishTime: logTime,
 		Data:        data,
-	})
+	}); err != nil {
+		return fmt.Errorf("recording: writing message %s: %w", topic, err)
+	}
+	return nil
+}
+
+// Video returns the run's video writer (nil if video was disabled).
+func (r *RunRecorder) Video() *VideoWriter {
+	return r.video
+}
+
+// Photos returns the run's photo capture; call MaybeCapture on each frame tick.
+func (r *RunRecorder) Photos() *PhotoCapture {
+	return r.photos
+}
+
+// Close finalizes the bag, video, and any open handles. Safe to call once.
+func (r *RunRecorder) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var firstErr error
+	// Before the writer is torn down, so a metadata failure is reported
+	// rather than lost behind a successful close.
+	if err := r.writeMetadata(); err != nil {
+		firstErr = err
+	}
+	if r.video != nil {
+		if err := r.video.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if r.mcapW != nil {
+		if err := r.mcapW.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+		r.mcapW = nil
+	}
+	if r.mcapF != nil {
+		if err := r.mcapF.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+		r.mcapF = nil
+	}
+	return firstErr
 }
 
 // ensureRawChannel registers a channel whose schema is supplied by the
@@ -254,7 +300,7 @@ func (r *RunRecorder) ensureSchema(subject string, msg proto.Message) (uint16, e
 		Encoding: "protobuf",
 		Data:     descriptorSet,
 	}
-	if err := r.mcapW.WriteSchema(schema); err != nil {
+	if err = r.mcapW.WriteSchema(schema); err != nil {
 		return 0, fmt.Errorf("recording: writing schema %s: %w", subject, err)
 	}
 	r.nextSchemaID++
@@ -266,24 +312,13 @@ func (r *RunRecorder) ensureSchema(subject string, msg proto.Message) (uint16, e
 		Topic:           subject,
 		MessageEncoding: "protobuf",
 	}
-	if err := r.mcapW.WriteChannel(ch); err != nil {
+	if err = r.mcapW.WriteChannel(ch); err != nil {
 		return 0, fmt.Errorf("recording: writing channel %s: %w", subject, err)
 	}
 	r.channels[subject] = id
 	return id, nil
 }
 
-// Video returns the run's video writer (nil if video was disabled).
-func (r *RunRecorder) Video() *VideoWriter {
-	return r.video
-}
-
-// Photos returns the run's photo capture; call MaybeCapture on each frame tick.
-func (r *RunRecorder) Photos() *PhotoCapture {
-	return r.photos
-}
-
-// Close finalizes the bag, video, and any open handles. Safe to call once.
 // noteMessage accumulates the per-topic counts and the time span
 // metadata.yaml needs. Callers hold r.mu.
 func (r *RunRecorder) noteMessage(topic, typeName string, logTime uint64) {
@@ -302,33 +337,4 @@ func (r *RunRecorder) noteMessage(topic, typeName string, logTime uint64) {
 	if logTime > r.maxLogTime {
 		r.maxLogTime = logTime
 	}
-}
-
-func (r *RunRecorder) Close() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	var firstErr error
-	// Before the writer is torn down, so a metadata failure is reported
-	// rather than lost behind a successful close.
-	if err := r.writeMetadata(); err != nil {
-		firstErr = err
-	}
-	if r.video != nil {
-		if err := r.video.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	if r.mcapW != nil {
-		if err := r.mcapW.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-		r.mcapW = nil
-	}
-	if r.mcapF != nil {
-		if err := r.mcapF.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-		r.mcapF = nil
-	}
-	return firstErr
 }

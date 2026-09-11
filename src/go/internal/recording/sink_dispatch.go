@@ -1,6 +1,8 @@
 package recording
 
 import (
+	"fmt"
+
 	"google.golang.org/protobuf/proto"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/schema/protoschema"
@@ -22,5 +24,9 @@ func newVideoSink(path string, fps float64) VideoSink {
 // regardless, so this is specifically what makes a bag portable outside
 // this repo.
 func fileDescriptorSet(msg proto.Message) ([]byte, error) {
-	return protoschema.FileDescriptorSet(msg)
+	set, err := protoschema.FileDescriptorSet(msg)
+	if err != nil {
+		return nil, fmt.Errorf("recording: building file descriptor set: %w", err)
+	}
+	return set, nil
 }

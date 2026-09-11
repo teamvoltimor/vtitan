@@ -2,7 +2,6 @@ package recording
 
 import (
 	"image"
-	"image/color"
 	"sync"
 )
 
@@ -45,8 +44,10 @@ type VideoSink interface {
 type VideoWriter struct {
 	queue   chan frameJob
 	closed  chan struct{}
+	done    chan struct{}
 	once    sync.Once
 	dropped int
+	err     error
 	mu      sync.Mutex
 	sink    VideoSink
 }
@@ -70,6 +71,7 @@ func NewVideoWriter(sink VideoSink) *VideoWriter {
 	w := &VideoWriter{
 		queue:  make(chan frameJob, QueueMax),
 		closed: make(chan struct{}),
+		done:   make(chan struct{}),
 		sink:   sink,
 	}
 	go w.run()
@@ -95,15 +97,20 @@ func (w *VideoWriter) Dropped() int {
 	return w.dropped
 }
 
-// Close signals the encoder to finalize and waits for it to drain.
+// Close signals the encoder to finalize and waits for it to drain, returning
+// the first sink error, if any.
 func (w *VideoWriter) Close() error {
 	w.once.Do(func() {
 		close(w.closed)
 	})
-	return nil
+	<-w.done
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.err
 }
 
 func (w *VideoWriter) run() {
+	defer close(w.done)
 	for {
 		select {
 		case <-w.closed:
@@ -111,21 +118,32 @@ func (w *VideoWriter) run() {
 			for {
 				select {
 				case job := <-w.queue:
-					_ = w.sink.Write(job.f, job.hud)
+					w.record(w.sink.Write(job.f, job.hud))
 				default:
-					_ = w.sink.Close()
+					w.record(w.sink.Close())
 					return
 				}
 			}
 		case job := <-w.queue:
-			_ = w.sink.Write(job.f, job.hud)
+			w.record(w.sink.Write(job.f, job.hud))
 		}
 	}
+}
+
+// record keeps the first sink error so Close can report it; later errors would
+// only mask the first, which is the one worth surfacing.
+func (w *VideoWriter) record(err error) {
+	if err == nil {
+		return
+	}
+	w.mu.Lock()
+	if w.err == nil {
+		w.err = err
+	}
+	w.mu.Unlock()
 }
 
 // rgb8Image adapts an rgb8 Frame to image.Image for encoders that need one.
 func (f *Frame) image() (image.Image, error) {
 	return rgb8ToImage(f)
 }
-
-var _ = color.RGBAModel // keep image/color imported for rgb8Image users
