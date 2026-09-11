@@ -22,11 +22,24 @@ camera_vflip = false
 # sign colour thresholds downstream) if testing near windows or outdoors --
 # daylight/cloudy colour temperature is not what these values assume.
 camera_af_mode = "manual"              # "manual" | "auto" | "continuous"
-camera_lens_position = 0.8             # dioptres (1/distance_m) -- ~1.25 m, the lens's hyperfocal
-# Continuous AF hunts for the whole run and only settles when the robot stops.
-# 0.8 D (f=2.75mm, f/2.2, 1.4um pixels, 2px CoC) is sharp from ~0.6 m to
-# infinity, spanning the useful sign-detection range. Bench-verify the dioptre
-# scale on this module before racing.
+# 2026-09-11: was 0.8 D (focus 1.25 m, in-focus from 0.63 m). MEASURED over 7149
+# red/green boxes on four hardware rounds, range from the 0.10 m sign height and
+# a 621.9 px focal: p10 0.19 / p50 0.40 / p90 0.68 m, with 83.6% INSIDE the old
+# near limit and 99.9% inside 1.0 m. The lens was focused past nearly everything
+# it actually sees. 1.25 D focuses 0.80 m and spans 0.485-2.29 m, giving up only
+# range where 0.0% of detections occur.
+#
+# Chosen for the DECISION range, not the median box: the median is dominated by
+# frames of a sign already being passed, whose verdict was settled earlier. What
+# matters is first-usable-detection 0.824 m down to router commitment 0.469 m,
+# and 0.485 m sits right on that lower edge. 1.43 D (0.446-1.62 m) centres the
+# window better and is the value to try once the dioptre scale is bench-verified
+# -- which it still is not, on either driver.
+camera_lens_position = 1.25            # dioptres (1/distance_m) -- focuses 0.80 m, sharp 0.485-2.29 m
+# Continuous AF hunts for the whole run and only settles when the robot stops,
+# so manual stays. Depth of field from f=2.75mm, f/2.2, 1.4um pixels, 2px CoC
+# (hyperfocal 1.23 m). Bench-verify the dioptre scale on this module before
+# racing -- it is what the comment above depends on.
 # camera_af_speed = "fast"             # "normal" | "fast" -- only applies in auto/continuous
 
 camera_ae_exposure_mode = "short"      # "normal" | "short" | "long" -- venue is well-lit, bias toward less motion blur
