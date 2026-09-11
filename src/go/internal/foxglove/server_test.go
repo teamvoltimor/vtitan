@@ -12,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove"
+	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove/foxglovetest"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 )
 
@@ -86,14 +87,7 @@ func TestServeWS_AdvertisesAlreadyRegisteredChannelsOnConnect(t *testing.T) {
 	var info map[string]any
 	readJSON(t, ctx, conn, &info) // serverInfo
 
-	var advertise struct {
-		Op       string `json:"op"`
-		Channels []struct {
-			ID         uint32 `json:"id"`
-			Topic      string `json:"topic"`
-			SchemaName string `json:"schemaName"`
-		} `json:"channels"`
-	}
+	var advertise foxglovetest.AdvertiseResponse
 	readJSON(t, ctx, conn, &advertise)
 	if advertise.Op != "advertise" {
 		t.Fatalf(`second message op = %v, want "advertise"`, advertise.Op)
@@ -117,12 +111,7 @@ func TestServeWS_AdvertisesANewChannelToAnAlreadyConnectedClient(t *testing.T) {
 		t.Fatalf("EnsureChannel: %v", err)
 	}
 
-	var advertise struct {
-		Op       string `json:"op"`
-		Channels []struct {
-			Topic string `json:"topic"`
-		} `json:"channels"`
-	}
+	var advertise foxglovetest.AdvertiseResponse
 	readJSON(t, ctx, conn, &advertise)
 	if advertise.Op != "advertise" || len(advertise.Channels) != 1 {
 		t.Fatalf("advertise = %+v, want one newly-registered channel", advertise)
@@ -147,7 +136,7 @@ func TestPublish_SubscribedClientReceivesMessageDataWithItsOwnSubscriptionID(t *
 	conn := dial(t, ctx, wsURL(httpSrv.URL))
 	var info map[string]any
 	readJSON(t, ctx, conn, &info) // serverInfo
-	var advertise map[string]any
+	var advertise foxglovetest.AdvertiseResponse
 	readJSON(t, ctx, conn, &advertise) // advertise
 
 	const subscriptionID uint32 = 42
@@ -168,15 +157,10 @@ func TestPublish_SubscribedClientReceivesMessageDataWithItsOwnSubscriptionID(t *
 	// ONCE against the real long-lived ctx in the background, and keep
 	// Publish()ing from the foreground until the subscription has taken
 	// effect server-side or that read returns.
-	type readResult struct {
-		kind websocket.MessageType
-		data []byte
-		err  error
-	}
-	resultCh := make(chan readResult, 1)
+	resultCh := make(chan foxglovetest.ReadResult, 1)
 	go func() {
 		kind, data, err := conn.Read(ctx)
-		resultCh <- readResult{kind, data, err}
+		resultCh <- foxglovetest.ReadResult{Kind: kind, Data: data, Err: err}
 	}()
 
 	payload := []byte{0xDE, 0xAD, 0xBE, 0xEF}
@@ -188,13 +172,13 @@ func TestPublish_SubscribedClientReceivesMessageDataWithItsOwnSubscriptionID(t *
 	for frame == nil {
 		select {
 		case res := <-resultCh:
-			if res.err != nil {
-				t.Fatalf("conn.Read: %v", res.err)
+			if res.Err != nil {
+				t.Fatalf("conn.Read: %v", res.Err)
 			}
-			if res.kind != websocket.MessageBinary {
-				t.Fatalf("conn.Read: kind = %v, want MessageBinary", res.kind)
+			if res.Kind != websocket.MessageBinary {
+				t.Fatalf("conn.Read: kind = %v, want MessageBinary", res.Kind)
 			}
-			frame = res.data
+			frame = res.Data
 		case <-ticker.C:
 			s.Publish(channelID, stamp, payload)
 		case <-ctx.Done():
@@ -233,7 +217,7 @@ func TestPublish_UnsubscribedClientReceivesNothing(t *testing.T) {
 	conn := dial(t, ctx, wsURL(httpSrv.URL))
 	var info map[string]any
 	readJSON(t, ctx, conn, &info)
-	var advertise map[string]any
+	var advertise foxglovetest.AdvertiseResponse
 	readJSON(t, ctx, conn, &advertise)
 
 	// No subscribe message sent.

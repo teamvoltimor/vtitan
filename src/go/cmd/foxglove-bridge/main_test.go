@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove/foxglovetest"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 )
 
@@ -83,13 +84,7 @@ func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {
 		t.Fatalf(`first message op = %v, want "serverInfo"`, info["op"])
 	}
 
-	var advertise struct {
-		Op       string `json:"op"`
-		Channels []struct {
-			ID    uint32 `json:"id"`
-			Topic string `json:"topic"`
-		} `json:"channels"`
-	}
+	var advertise foxglovetest.AdvertiseResponse
 	readJSONFrame(t, ctx, conn, &advertise)
 	if advertise.Op != "advertise" {
 		t.Fatalf(`second message op = %v, want "advertise"`, advertise.Op)
@@ -132,15 +127,10 @@ func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {
 		t.Fatalf("proto.Marshal(want): %v", err)
 	}
 
-	type readResult struct {
-		kind websocket.MessageType
-		data []byte
-		err  error
-	}
-	resultCh := make(chan readResult, 1)
+	resultCh := make(chan foxglovetest.ReadResult, 1)
 	go func() {
 		kind, data, readErr := conn.Read(ctx)
-		resultCh <- readResult{kind, data, readErr}
+		resultCh <- foxglovetest.ReadResult{Kind: kind, Data: data, Err: readErr}
 	}()
 
 	ticker := time.NewTicker(20 * time.Millisecond)
@@ -149,13 +139,13 @@ func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {
 	for frame == nil {
 		select {
 		case res := <-resultCh:
-			if res.err != nil {
-				t.Fatalf("conn.Read: %v", res.err)
+			if res.Err != nil {
+				t.Fatalf("conn.Read: %v", res.Err)
 			}
-			if res.kind != websocket.MessageBinary {
-				t.Fatalf("conn.Read: kind = %v, want MessageBinary", res.kind)
+			if res.Kind != websocket.MessageBinary {
+				t.Fatalf("conn.Read: kind = %v, want MessageBinary", res.Kind)
 			}
-			frame = res.data
+			frame = res.Data
 		case <-ticker.C:
 			if pubErr := nc.Publish(sensorv1.ImuSubject, wireBytes); pubErr != nil {
 				t.Fatalf("nc.Publish: %v", pubErr)
