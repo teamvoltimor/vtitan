@@ -29,7 +29,10 @@ func TestNearestRay(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := navutil.NearestRay(ranges, angles, tt.target); got != tt.want {
+			if got := navutil.NearestRay(
+				navutil.LidarScan{RangesM: ranges, AnglesRad: angles},
+				tt.target,
+			); got != tt.want {
 				t.Errorf("NearestRay(target=%v) = %v, want %v", tt.target, got, tt.want)
 			}
 		})
@@ -47,7 +50,7 @@ func TestForwardClearance(t *testing.T) {
 
 		ranges := []float64{2.0, 1.0, 5.0}
 		angles := []float64{0, 0.05, math.Pi} // last ray is outside the arc
-		got := navutil.ForwardClearance(ranges, angles, arcRad, minValid)
+		got := navutil.ForwardClearance(navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, arcRad, minValid)
 		if got != 1.0 {
 			t.Errorf("ForwardClearance() = %v, want 1.0", got)
 		}
@@ -58,7 +61,7 @@ func TestForwardClearance(t *testing.T) {
 
 		ranges := []float64{5.0}
 		angles := []float64{math.Pi} // outside the forward arc
-		got := navutil.ForwardClearance(ranges, angles, arcRad, minValid)
+		got := navutil.ForwardClearance(navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, arcRad, minValid)
 		if !math.IsInf(got, 1) {
 			t.Errorf("ForwardClearance() = %v, want +Inf", got)
 		}
@@ -69,7 +72,7 @@ func TestForwardClearance(t *testing.T) {
 
 		ranges := []float64{0.01, 2.0}
 		angles := []float64{0, 0}
-		got := navutil.ForwardClearance(ranges, angles, arcRad, minValid)
+		got := navutil.ForwardClearance(navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, arcRad, minValid)
 		if got != 2.0 {
 			t.Errorf("ForwardClearance() = %v, want 2.0 (0.01 below min valid excluded)", got)
 		}

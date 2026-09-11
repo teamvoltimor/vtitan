@@ -1,5 +1,7 @@
 package directionestimator
 
+import "github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+
 // Estimator is a running direction estimate, settled by agreeing
 // observations -- the Go port of Python's DirectionEstimator class.
 //
@@ -60,11 +62,11 @@ func (e *Estimator) Settle(dir Direction) {
 
 // Observe folds one scan in and reports whether this observation settled
 // the direction.
-func (e *Estimator) Observe(rangesM, anglesRad []float64, yaw float64, cfg Config) bool {
+func (e *Estimator) Observe(scan controllers.LidarScan, yaw float64, cfg Config) bool {
 	if e.settled != nil {
 		return false
 	}
-	inferred, ok := InferDirection(rangesM, anglesRad, yaw, cfg)
+	inferred, ok := InferDirection(scan, yaw, cfg)
 	if !ok {
 		return false
 	}

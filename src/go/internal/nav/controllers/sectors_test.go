@@ -24,8 +24,7 @@ func TestSectorToModel_SectorFullyInsideWedgeReportsWedgeMasked(t *testing.T) {
 	setSector(ranges, i, 2, 0.02) // only rays available are inside the left wedge
 
 	sr := controllers.SectorToModel(
-		ranges,
-		angles,
+		scanObj(ranges, angles),
 		wedgeBearingRad,
 		5.0*math.Pi/180.0,
 		true,
@@ -53,8 +52,7 @@ func TestSectorToModel_SectorWithNoRaysAtAllIsNotWedgeMasked(t *testing.T) {
 	ranges := newScan(math.Inf(1))
 
 	sr := controllers.SectorToModel(
-		ranges,
-		angles,
+		scanObj(ranges, angles),
 		0.0,
 		controller.FrontHalfFovRad,
 		true,
@@ -84,7 +82,7 @@ func TestMaskMappedObstacles_ReturnOnAMappedPositionIsMasked(t *testing.T) {
 		{Position: trackmodel.Waypoint{X: 0.08, Y: 0.0}, Corridor: trackmodel.South},
 	}
 	masked := controllers.MaskMappedObstacles(
-		ranges, angles, trackmodel.Pose{}, mapped, maskRadiusM, cornerMinM, cornerMaxM,
+		scanObj(ranges, angles), trackmodel.Pose{}, mapped, maskRadiusM, cornerMinM, cornerMaxM,
 	)
 
 	if !math.IsInf(masked[i], 1) {
@@ -113,7 +111,7 @@ func TestMaskMappedObstacles_UnmappedReturnAtTheSameRangeIsUntouched(t *testing.
 		{Position: trackmodel.Waypoint{X: 0.0, Y: 0.9}, Corridor: trackmodel.South},
 	}
 	masked := controllers.MaskMappedObstacles(
-		ranges, angles, trackmodel.Pose{}, mapped, maskRadiusM, cornerMinM, cornerMaxM,
+		scanObj(ranges, angles), trackmodel.Pose{}, mapped, maskRadiusM, cornerMinM, cornerMaxM,
 	)
 
 	if math.Abs(masked[i]-0.08) > 1e-9 {
@@ -142,14 +140,14 @@ func TestMaskMappedObstacles_MappedPositionsAreWorldFrameNotRobotFrame(t *testin
 		{Position: trackmodel.Waypoint{X: 1.0, Y: 2.08}, Corridor: trackmodel.North},
 	}
 	maskedWorld := controllers.MaskMappedObstacles(
-		ranges, angles, pose, worldMapped, maskRadiusM, cornerMinM, cornerMaxM,
+		scanObj(ranges, angles), pose, worldMapped, maskRadiusM, cornerMinM, cornerMaxM,
 	)
 
 	bodyMapped := []controllers.MappedObstacle{
 		{Position: trackmodel.Waypoint{X: 0.08, Y: 0.0}, Corridor: trackmodel.North},
 	}
 	maskedBody := controllers.MaskMappedObstacles(
-		ranges, angles, pose, bodyMapped, maskRadiusM, cornerMinM, cornerMaxM,
+		scanObj(ranges, angles), pose, bodyMapped, maskRadiusM, cornerMinM, cornerMaxM,
 	)
 
 	if !math.IsInf(maskedWorld[i], 1) {
@@ -189,8 +187,7 @@ func TestMaskMappedObstacles_CrossCorridorCoincidenceIsNotMasked(t *testing.T) {
 		{Position: trackmodel.Waypoint{X: 1.56, Y: 0.5}, Corridor: trackmodel.North},
 	}
 	masked := controllers.MaskMappedObstacles(
-		ranges,
-		angles,
+		scanObj(ranges, angles),
 		pose,
 		mapped,
 		maskRadiusM,
@@ -222,8 +219,7 @@ func TestMaskMappedObstacles_ZeroRadiusIsANoOp(t *testing.T) {
 		{Position: trackmodel.Waypoint{X: 0.08, Y: 0.0}, Corridor: trackmodel.South},
 	}
 	masked := controllers.MaskMappedObstacles(
-		ranges,
-		angles,
+		scanObj(ranges, angles),
 		trackmodel.Pose{},
 		mapped,
 		0.0,
@@ -255,7 +251,7 @@ func TestMaskMappedObstacles_EmptyMapIsANoOp(t *testing.T) {
 	ranges[angleToIndex(angles, 0.0)] = 0.08
 
 	masked := controllers.MaskMappedObstacles(
-		ranges, angles, trackmodel.Pose{}, nil, maskRadiusM, cornerMinM, cornerMaxM,
+		scanObj(ranges, angles), trackmodel.Pose{}, nil, maskRadiusM, cornerMinM, cornerMaxM,
 	)
 
 	for k := range ranges {
@@ -287,7 +283,7 @@ func TestMaskMappedObstacles_NoReturnRaysStayInfiniteAndNeverBecomeNaN(t *testin
 		{Position: trackmodel.Waypoint{X: 0.08, Y: 0.0}, Corridor: trackmodel.South},
 	}
 	masked := controllers.MaskMappedObstacles(
-		ranges, angles, trackmodel.Pose{}, mapped, maskRadiusM, cornerMinM, cornerMaxM,
+		scanObj(ranges, angles), trackmodel.Pose{}, mapped, maskRadiusM, cornerMinM, cornerMaxM,
 	)
 
 	for k, v := range masked {
@@ -317,8 +313,7 @@ func TestMaskMappedObstacles_InputScanIsNotMutated(t *testing.T) {
 		{Position: trackmodel.Waypoint{X: 0.08, Y: 0.0}, Corridor: trackmodel.South},
 	}
 	controllers.MaskMappedObstacles(
-		ranges,
-		angles,
+		scanObj(ranges, angles),
 		trackmodel.Pose{},
 		mapped,
 		maskRadiusM,

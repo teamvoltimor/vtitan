@@ -3,6 +3,7 @@ package directionestimator
 import (
 	"math"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
@@ -24,7 +25,7 @@ import (
 // (off-axis the side rays cut a diagonal and read long for no good reason);
 // no map is consulted.
 func InferDirection(
-	rangesM, anglesRad []float64,
+	scan controllers.LidarScan,
 	yaw float64,
 	cfg Config,
 ) (dir Direction, ok bool) {
@@ -32,8 +33,8 @@ func InferDirection(
 		return 0, false
 	}
 
-	left := navutil.NearestRay(rangesM, anglesRad, math.Pi/2)
-	right := navutil.NearestRay(rangesM, anglesRad, -math.Pi/2)
+	left := navutil.NearestRay(scan, math.Pi/2)
+	right := navutil.NearestRay(scan, -math.Pi/2)
 
 	// A dropout carries no information about whether a side is open, and
 	// the span test below cannot tell one from a corridor running away:
@@ -73,19 +74,18 @@ func InferDirection(
 // asymmetry is enormous and names the answer outright. Worth having
 // because the alternative is a deadlock, not a delay: nothing settles
 // until the robot moves and nothing moves until the direction settles.
-func DirectionFromParkingBay(rangesM, anglesRad []float64, cfg Config) (dir Direction, ok bool) {
+func DirectionFromParkingBay(scan controllers.LidarScan, cfg Config) (dir Direction, ok bool) {
 	arcRad := cfg.DirectionArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn
 	if navutil.ForwardClearance(
-		rangesM,
-		anglesRad,
+		scan,
 		arcRad,
 		cfg.MinValidRangeM,
 	) >= cfg.MinForwardClearanceM {
 		return 0, false
 	}
 
-	left := navutil.NearestRay(rangesM, anglesRad, math.Pi/2)
-	right := navutil.NearestRay(rangesM, anglesRad, -math.Pi/2)
+	left := navutil.NearestRay(scan, math.Pi/2)
+	right := navutil.NearestRay(scan, -math.Pi/2)
 
 	if min(left, right) > cfg.BayWallClearanceM || max(left, right) <= cfg.TurnClearanceM {
 		return 0, false

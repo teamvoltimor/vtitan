@@ -5,12 +5,16 @@ import (
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
-// scan builds a minimal ranges/angles pair with just the left/right
-// bearings InferDirection actually reads.
-func scan(left, right float64) (rangesM, anglesRad []float64) {
-	return []float64{left, right}, []float64{math.Pi / 2, -math.Pi / 2}
+// scan builds a minimal scan with just the left/right bearings
+// InferDirection actually reads.
+func scan(left, right float64) navutil.LidarScan {
+	return navutil.LidarScan{
+		RangesM:   []float64{left, right},
+		AnglesRad: []float64{math.Pi / 2, -math.Pi / 2},
+	}
 }
 
 func TestInferDirection(t *testing.T) {
@@ -65,8 +69,8 @@ func TestInferDirection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ranges, angles := scan(tt.left, tt.right)
-			dir, ok := directionestimator.InferDirection(ranges, angles, tt.yaw, cfg)
+			s := scan(tt.left, tt.right)
+			dir, ok := directionestimator.InferDirection(s, tt.yaw, cfg)
 			if ok != tt.wantOK {
 				t.Fatalf("InferDirection() ok = %v, want %v", ok, tt.wantOK)
 			}
@@ -119,9 +123,11 @@ func TestDirectionFromParkingBay(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ranges := []float64{tt.forward, tt.left, tt.right}
-			angles := []float64{0, math.Pi / 2, -math.Pi / 2}
-			dir, ok := directionestimator.DirectionFromParkingBay(ranges, angles, cfg)
+			s := navutil.LidarScan{
+				RangesM:   []float64{tt.forward, tt.left, tt.right},
+				AnglesRad: []float64{0, math.Pi / 2, -math.Pi / 2},
+			}
+			dir, ok := directionestimator.DirectionFromParkingBay(s, cfg)
 			if ok != tt.wantOK {
 				t.Fatalf("DirectionFromParkingBay() ok = %v, want %v", ok, tt.wantOK)
 			}

@@ -86,7 +86,7 @@ func TestRecoversThePoseItWasTakenAt(t *testing.T) {
 			ranges, angles := scan(walls, tc.x, tc.y, tc.yaw)
 
 			measured, ok := startmeasurement.MeasureStartPose(
-				ranges, angles, tc.direction, trackmodel.South, cfg,
+				navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, tc.direction, trackmodel.South, cfg,
 			)
 
 			if !ok {
@@ -118,7 +118,7 @@ func TestReportsTheTrackActuallyLeftAhead(t *testing.T) {
 	cfg := testConfig()
 
 	measured, ok := startmeasurement.MeasureStartPose(
-		ranges, angles, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -138,7 +138,7 @@ func TestMeasuresCorridorWidthWhenBesideInnerBlock(t *testing.T) {
 	cfg := testConfig()
 
 	measured, ok := startmeasurement.MeasureStartPose(
-		ranges, angles, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -163,7 +163,7 @@ func TestReportsNoWidthWhenLevelWithACorner(t *testing.T) {
 	cfg := testConfig()
 
 	measured, ok := startmeasurement.MeasureStartPose(
-		ranges, angles, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -186,13 +186,13 @@ func TestSectionIsAFreeRelabelling(t *testing.T) {
 	cfg := testConfig()
 
 	south, ok := startmeasurement.MeasureStartPose(
-		ranges, angles, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 	if !ok {
 		t.Fatal("MeasureStartPose(South) = ok false, want true")
 	}
 	east, ok := startmeasurement.MeasureStartPose(
-		ranges, angles, trackmodel.Counterclockwise, trackmodel.East, cfg,
+		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.East, cfg,
 	)
 	if !ok {
 		t.Fatal("MeasureStartPose(East) = ok false, want true")
@@ -222,7 +222,7 @@ func TestRejectsABlockedRay(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		blocked, angles, trackmodel.Counterclockwise, trackmodel.South, testConfig(),
+		navutil.LidarScan{RangesM: blocked, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, testConfig(),
 	)
 
 	if ok {
@@ -246,7 +246,7 @@ func TestAcceptsATrackThatIsNotPerfect(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		shrunk, angles, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		navutil.LidarScan{RangesM: shrunk, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -266,7 +266,7 @@ func TestRejectsWhenNoRayReturns(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		empty, angles, trackmodel.Counterclockwise, trackmodel.South, testConfig(),
+		navutil.LidarScan{RangesM: empty, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, testConfig(),
 	)
 
 	if ok {

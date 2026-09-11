@@ -22,7 +22,7 @@ func (n *Navigator) assessPerception(pose trackmodel.Pose) perception {
 	// unmeasured branch unreachable rather than merely inert.
 	frontMeasured := true
 	if haveScan && n.cfg.ForwardNoDataIsDegraded {
-		frontMeasured = n.collisionController.FrontSector(scan.RangesM, scan.AnglesRad).Measured()
+		frontMeasured = n.collisionController.FrontSector(scan).Measured()
 	}
 
 	// escapeRanges/minRange are keyed on haveScan alone, matching Python's
@@ -44,10 +44,10 @@ func (n *Navigator) assessPerception(pose trackmodel.Pose) perception {
 		// leave it in one frame or the degraded path means something
 		// different from the measured one.
 		p.forwardClearance = controllers.BumperGapAhead(
-			n.collisionController.ComputeForwardClearance(scan.RangesM, scan.AnglesRad),
+			n.collisionController.ComputeForwardClearance(scan),
 			n.cfg.LidarToFrontBumperM,
 		)
-		p.risk = n.collisionController.AssessRisk(scan.RangesM, scan.AnglesRad)
+		p.risk = n.collisionController.AssessRisk(scan)
 	default:
 		// No LIDAR, or a scan whose forward sector measured nothing: a
 		// degraded sensor is not open road. Drive cautiously (slow zone +
@@ -70,10 +70,12 @@ func (n *Navigator) assessPerception(pose trackmodel.Pose) perception {
 			)
 		}
 		p.escapeRanges = controllers.MaskMappedObstacles(
-			scan.RangesM, scan.AnglesRad, pose, mapped,
+			scan, pose, mapped,
 			n.cfg.EscapeMaskRadiusM, n.cfg.CornerMinM, n.cfg.CornerMaxM,
 		)
-		p.escapeRisk = n.collisionController.AssessRisk(p.escapeRanges, scan.AnglesRad)
+		p.escapeRisk = n.collisionController.AssessRisk(
+			controllers.LidarScan{RangesM: p.escapeRanges, AnglesRad: scan.AnglesRad},
+		)
 	}
 	return p
 }

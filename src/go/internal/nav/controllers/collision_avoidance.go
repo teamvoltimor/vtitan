@@ -103,14 +103,13 @@ type CollisionAvoidanceController struct {
 // Risk is judged over the forward driving lane only (see
 // ForwardPathRanges), not the full 360deg sweep: a corridor's side walls
 // are not obstacles the robot is about to hit.
-func (c *CollisionAvoidanceController) AssessRisk(rangesM, anglesRad []float64) RiskLevel {
-	if len(rangesM) == 0 {
+func (c *CollisionAvoidanceController) AssessRisk(scan LidarScan) RiskLevel {
+	if len(scan.RangesM) == 0 {
 		return RiskSafe
 	}
 
 	path := ForwardPathRanges(
-		rangesM,
-		anglesRad,
+		scan,
 		c.PathHalfWidth,
 		c.Geometry.MinValidRangeM,
 		c.Geometry.LidarMaxRangeM,
@@ -121,7 +120,7 @@ func (c *CollisionAvoidanceController) AssessRisk(rangesM, anglesRad []float64) 
 		// lane DID have rays but every one was a no-return -- the
 		// signature of something very close spanning the WHOLE cone, not
 		// of open road. Only the first case is actually safe.
-		if ForwardPathHasRays(rangesM, anglesRad, c.PathHalfWidth) {
+		if ForwardPathHasRays(scan, c.PathHalfWidth) {
 			return RiskCritical
 		}
 		return RiskSafe
@@ -146,13 +145,13 @@ func (c *CollisionAvoidanceController) AssessRisk(rangesM, anglesRad []float64) 
 // instance's sector parameters are wired to SectorToModel, so a change to
 // the mount geometry or wedge angles lands in one place.
 func (c *CollisionAvoidanceController) Sector(
-	rangesM, anglesRad []float64, centerRad float64, halfFovRad *float64, filterSelfDetection bool,
+	scan LidarScan, centerRad float64, halfFovRad *float64, filterSelfDetection bool,
 ) SectorRanges {
 	fov := c.ThreatHalfFovRad
 	if halfFovRad != nil {
 		fov = *halfFovRad
 	}
-	return SectorToModel(rangesM, anglesRad, centerRad, fov, filterSelfDetection, c.Geometry)
+	return SectorToModel(scan, centerRad, fov, filterSelfDetection, c.Geometry)
 }
 
 // RearSector is the rear +/-ThreatHalfFovRad sector, self-detection
@@ -170,23 +169,23 @@ func (c *CollisionAvoidanceController) Sector(
 // self._sector_to_model(kept, angles, math.pi, self.threat_half_fov_rad)
 // call (no self-detection scalar filter, the geometry already did that
 // job).
-func (c *CollisionAvoidanceController) RearSector(rangesM, anglesRad []float64) SectorRanges {
+func (c *CollisionAvoidanceController) RearSector(scan LidarScan) SectorRanges {
 	if !c.Geometry.RearSelfDetectionFromChassis {
-		return c.Sector(rangesM, anglesRad, math.Pi, nil, true)
+		return c.Sector(scan, math.Pi, nil, true)
 	}
-	if len(rangesM) == 0 {
-		return c.Sector(rangesM, anglesRad, math.Pi, nil, false)
+	if len(scan.RangesM) == 0 {
+		return c.Sector(scan, math.Pi, nil, false)
 	}
-	angles := resolveAngles(rangesM, anglesRad)
-	kept := make([]float64, len(rangesM))
-	for i, r := range rangesM {
+	angles := resolveAngles(scan)
+	kept := make([]float64, len(scan.RangesM))
+	for i, r := range scan.RangesM {
 		if !math.IsInf(r, 0) && !math.IsNaN(r) && r <= ChassisExitRangeM(angles[i], c.Geometry) {
 			kept[i] = math.Inf(1)
 			continue
 		}
 		kept[i] = r
 	}
-	return SectorToModel(kept, angles, math.Pi, c.ThreatHalfFovRad, false, c.Geometry)
+	return SectorToModel(LidarScan{RangesM: kept, AnglesRad: angles}, math.Pi, c.ThreatHalfFovRad, false, c.Geometry)
 }
 
 // FrontSector is the forward +/-FrontHalfFovRad sector, NOT self-detection
@@ -195,21 +194,21 @@ func (c *CollisionAvoidanceController) RearSector(rangesM, anglesRad []float64) 
 // forward cone was genuinely MEASURED (as opposed to merely reporting the
 // no-data sentinel, which reads identically to open road) want this rather
 // than ComputeForwardClearance -- see Measured().
-func (c *CollisionAvoidanceController) FrontSector(rangesM, anglesRad []float64) SectorRanges {
-	return c.Sector(rangesM, anglesRad, 0.0, &c.FrontHalfFovRad, false)
+func (c *CollisionAvoidanceController) FrontSector(scan LidarScan) SectorRanges {
+	return c.Sector(scan, 0.0, &c.FrontHalfFovRad, false)
 }
 
 // ComputeForwardClearance is the minimum clearance in the forward
 // FrontHalfFovRad sector (0 rad = forward), matching
 // CollisionAvoidanceController.compute_forward_clearance.
 func (c *CollisionAvoidanceController) ComputeForwardClearance(
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 ) float64 {
-	if len(rangesM) == 0 {
+	if len(scan.RangesM) == 0 {
 		return c.Geometry.NoDataRangeM
 	}
 	fov := c.FrontHalfFovRad
-	sr := c.Sector(rangesM, anglesRad, 0.0, &fov, false)
+	sr := c.Sector(scan, 0.0, &fov, false)
 	if sr.Measured() {
 		return sr.MinRangeM
 	}
@@ -221,11 +220,11 @@ func (c *CollisionAvoidanceController) ComputeForwardClearance(
 // NoDataRangeM when the rear sector saw nothing, which reads identically
 // to open road -- use RearSector and check Measured() when the answer
 // authorizes a reverse.
-func (c *CollisionAvoidanceController) ComputeRearClearance(rangesM, anglesRad []float64) float64 {
-	if len(rangesM) == 0 {
+func (c *CollisionAvoidanceController) ComputeRearClearance(scan LidarScan) float64 {
+	if len(scan.RangesM) == 0 {
 		return c.Geometry.NoDataRangeM
 	}
-	sr := c.RearSector(rangesM, anglesRad)
+	sr := c.RearSector(scan)
 	if sr.Measured() {
 		return sr.MinRangeM
 	}
@@ -237,12 +236,12 @@ func (c *CollisionAvoidanceController) ComputeRearClearance(rangesM, anglesRad [
 // gate maneuvers where the robot's path isn't a straight line, so a
 // lateral clip is caught before it happens.
 func (c *CollisionAvoidanceController) ComputeMinClearance(
-	rangesM, anglesRad []float64, centerRad, halfFovRad float64,
+	scan LidarScan, centerRad, halfFovRad float64,
 ) float64 {
-	if len(rangesM) == 0 {
+	if len(scan.RangesM) == 0 {
 		return c.Geometry.NoDataRangeM
 	}
-	sr := c.Sector(rangesM, anglesRad, centerRad, &halfFovRad, false)
+	sr := c.Sector(scan, centerRad, &halfFovRad, false)
 	if sr.Measured() {
 		return sr.MinRangeM
 	}
@@ -252,10 +251,10 @@ func (c *CollisionAvoidanceController) ComputeMinClearance(
 // ParkingClearances returns forward and full-sweep clearances for the
 // parking stop-check, matching
 // CollisionAvoidanceController.parking_clearances.
-func (c *CollisionAvoidanceController) ParkingClearances(rangesM, anglesRad []float64) ParkingGate {
+func (c *CollisionAvoidanceController) ParkingClearances(scan LidarScan) ParkingGate {
 	return ParkingGate{
-		ForwardM: c.ComputeForwardClearance(rangesM, anglesRad),
-		SweepM:   c.ComputeMinClearance(rangesM, anglesRad, 0.0, math.Pi),
+		ForwardM: c.ComputeForwardClearance(scan),
+		SweepM:   c.ComputeMinClearance(scan, 0.0, math.Pi),
 	}
 }
 
@@ -265,16 +264,15 @@ func (c *CollisionAvoidanceController) ParkingClearances(rangesM, anglesRad []fl
 // (-pi/2) and rear (+/-pi), so the result is correct regardless of the
 // scan's index ordering.
 func (c *CollisionAvoidanceController) DetectThreatDirection(
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 ) ThreatDirection {
-	if len(rangesM) == 0 {
+	if len(scan.RangesM) == 0 {
 		return ThreatNone
 	}
 
 	sectorMin := func(centerRad float64, filterSelfDetection bool) float64 {
 		sr := SectorToModel(
-			rangesM,
-			anglesRad,
+			scan,
 			centerRad,
 			c.ThreatHalfFovRad,
 			filterSelfDetection,
@@ -312,11 +310,10 @@ func (c *CollisionAvoidanceController) DetectThreatDirection(
 // callers (e.g. clearances.ClearancesFromScan) use instead of repeating
 // this controller's tuning-sourced parameters themselves.
 func (c *CollisionAvoidanceController) SectorRangeValues(
-	rangesM, anglesRad []float64, centerRad, halfFovRad float64, filterSelfDetection bool,
+	scan LidarScan, centerRad, halfFovRad float64, filterSelfDetection bool,
 ) []float64 {
 	return SectorRangeValues(
-		rangesM,
-		anglesRad,
+		scan,
 		centerRad,
 		halfFovRad,
 		filterSelfDetection,
@@ -333,7 +330,7 @@ func (c *CollisionAvoidanceController) SectorRangeValues(
 func (c *CollisionAvoidanceController) ComputeEscapeManeuver(
 	risk RiskLevel,
 	threatDir ThreatDirection,
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 	direction *trackmodel.Direction,
 ) (maneuver EscapeManeuver, ok bool) {
 	if risk == RiskSafe {
@@ -342,7 +339,7 @@ func (c *CollisionAvoidanceController) ComputeEscapeManeuver(
 
 	switch threatDir {
 	case ThreatFront:
-		steerSign := c.kTurnSteerSign(rangesM, anglesRad, direction)
+		steerSign := c.kTurnSteerSign(scan, direction)
 		steering := 0.0
 		duration := c.KTurnMinFrames
 		priority := 1
@@ -357,8 +354,8 @@ func (c *CollisionAvoidanceController) ComputeEscapeManeuver(
 		}, true
 
 	case ThreatLeft:
-		alreadyTouching := c.sideClearance(math.Pi/2, rangesM, anglesRad) < c.ContactDist ||
-			c.forwardTouching(rangesM, anglesRad)
+		alreadyTouching := c.sideClearance(math.Pi/2, scan) < c.ContactDist ||
+			c.forwardTouching(scan)
 		steerSign := -1.0
 		if alreadyTouching {
 			steerSign = 1.0
@@ -366,8 +363,8 @@ func (c *CollisionAvoidanceController) ComputeEscapeManeuver(
 		return c.sideCorrectionManeuver(steerSign, alreadyTouching), true
 
 	case ThreatRight:
-		alreadyTouching := c.sideClearance(-math.Pi/2, rangesM, anglesRad) < c.ContactDist ||
-			c.forwardTouching(rangesM, anglesRad)
+		alreadyTouching := c.sideClearance(-math.Pi/2, scan) < c.ContactDist ||
+			c.forwardTouching(scan)
 		steerSign := 1.0
 		if alreadyTouching {
 			steerSign = -1.0
@@ -390,9 +387,9 @@ func (c *CollisionAvoidanceController) ComputeEscapeManeuver(
 // keeps the island on the robot's right for the whole lap, so the side
 // away from it is the structurally safer default.
 func (c *CollisionAvoidanceController) kTurnSteerSign(
-	rangesM, anglesRad []float64, direction *trackmodel.Direction,
+	scan LidarScan, direction *trackmodel.Direction,
 ) float64 {
-	if leftClear, rightClear, ok := c.leftRightClearance(rangesM, anglesRad); ok &&
+	if leftClear, rightClear, ok := c.leftRightClearance(scan); ok &&
 		leftClear != rightClear {
 		// Swing left (negative) when the left is clearer; swing right
 		// (positive) when the right is clearer.
@@ -413,13 +410,13 @@ func (c *CollisionAvoidanceController) kTurnSteerSign(
 // the direction-based default instead of comparing two meaningless
 // NoDataRangeM values.
 func (c *CollisionAvoidanceController) leftRightClearance(
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 ) (leftClear, rightClear float64, ok bool) {
-	if rangesM == nil {
+	if scan.RangesM == nil {
 		return 0, 0, false
 	}
-	left := SectorToModel(rangesM, anglesRad, math.Pi/2, c.ThreatHalfFovRad, true, c.Geometry)
-	right := SectorToModel(rangesM, anglesRad, -math.Pi/2, c.ThreatHalfFovRad, true, c.Geometry)
+	left := SectorToModel(scan, math.Pi/2, c.ThreatHalfFovRad, true, c.Geometry)
+	right := SectorToModel(scan, -math.Pi/2, c.ThreatHalfFovRad, true, c.Geometry)
 	if left.ValidCount == 0 && right.ValidCount == 0 {
 		return 0, 0, false
 	}
@@ -458,12 +455,12 @@ func (c *CollisionAvoidanceController) sideCorrectionManeuver(
 // wall" for a side threat.
 func (c *CollisionAvoidanceController) sideClearance(
 	centerRad float64,
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 ) float64 {
-	if rangesM == nil {
+	if scan.RangesM == nil {
 		return c.Geometry.NoDataRangeM
 	}
-	sr := SectorToModel(rangesM, anglesRad, centerRad, c.ThreatHalfFovRad, true, c.Geometry)
+	sr := SectorToModel(scan, centerRad, c.ThreatHalfFovRad, true, c.Geometry)
 	if sr.ValidCount > 0 {
 		return sr.MinRangeM
 	}
@@ -475,13 +472,12 @@ func (c *CollisionAvoidanceController) sideClearance(
 // CollisionAvoidanceController._forward_touching. Reuses AssessRisk's own
 // forward-path geometry (the chassis-width lane) so this agrees with
 // whatever risk level triggered the escape in the first place.
-func (c *CollisionAvoidanceController) forwardTouching(rangesM, anglesRad []float64) bool {
-	if len(rangesM) == 0 {
+func (c *CollisionAvoidanceController) forwardTouching(scan LidarScan) bool {
+	if len(scan.RangesM) == 0 {
 		return false
 	}
 	path := ForwardPathRanges(
-		rangesM,
-		anglesRad,
+		scan,
 		c.PathHalfWidth,
 		c.Geometry.MinValidRangeM,
 		c.Geometry.LidarMaxRangeM,

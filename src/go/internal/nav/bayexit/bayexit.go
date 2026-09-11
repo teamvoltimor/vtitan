@@ -563,9 +563,9 @@ func (b *BayExit) cycleCommand(
 // what rebuilds the path for the committed direction and calls
 // ReplacePath, and skipping it hands the planner a stale plan still
 // pointing at waypoint 0 while the robot has driven out of the bay.
-func IsClear(rangesM, anglesRad []float64, cfg Config) bool {
+func IsClear(scan controllers.LidarScan, cfg Config) bool {
 	f := cfg.Follower
-	return navutil.ForwardClearance(rangesM, anglesRad, f.ForwardArcHalfFovRad, f.MinValidRangeM) >=
+	return navutil.ForwardClearance(scan, f.ForwardArcHalfFovRad, f.MinValidRangeM) >=
 		f.MinForwardClearanceM
 }
 
@@ -576,9 +576,9 @@ func IsClear(rangesM, anglesRad []float64, cfg Config) bool {
 // clearance BELOW BayExitContactDistM is a wall within a chassis nose of the
 // bumper, and NO valid returns at all is the same wall, closer still --
 // ForwardClearance drops everything under MinValidRangeM and reports +Inf.
-func noseInContact(rangesM, anglesRad []float64, cfg Config) bool {
+func noseInContact(scan controllers.LidarScan, cfg Config) bool {
 	f := cfg.Follower
-	clearance := navutil.ForwardClearance(rangesM, anglesRad, f.ForwardArcHalfFovRad, f.MinValidRangeM)
+	clearance := navutil.ForwardClearance(scan, f.ForwardArcHalfFovRad, f.MinValidRangeM)
 	if math.IsInf(clearance, 1) {
 		return true
 	}
@@ -594,16 +594,16 @@ func noseInContact(rangesM, anglesRad []float64, cfg Config) bool {
 // nothing at all. Compared as ranges, the substituted max beats the open
 // corridor's real range and the side reads BACKWARDS -- hence scoring by
 // valid fraction times median rather than either alone.
-func openSideScore(rangesM, anglesRad []float64, centerRad, halfWidthRad, lidarMaxRangeM float64) float64 {
+func openSideScore(scan controllers.LidarScan, centerRad, halfWidthRad, lidarMaxRangeM float64) float64 {
 	ceiling := lidarMaxRangeM * 0.99
 	total := 0
-	valid := make([]float64, 0, len(rangesM))
-	for i, a := range anglesRad {
+	valid := make([]float64, 0, len(scan.RangesM))
+	for i, a := range scan.AnglesRad {
 		if math.Abs(navutil.WrapAngle(a-centerRad)) > halfWidthRad {
 			continue
 		}
 		total++
-		r := rangesM[i]
+		r := scan.RangesM[i]
 		if r > 0.0 && r < ceiling {
 			valid = append(valid, r)
 		}
@@ -630,11 +630,11 @@ func openSideScore(rangesM, anglesRad []float64, centerRad, halfWidthRad, lidarM
 // wall drops out far more often than the one facing open space, so a single
 // ray reads backwards a meaningful fraction of the time. Polled for several
 // ticks before the latch is taken, rather than deciding on the first scan.
-func (b *BayExit) resolveOpenSide(rangesM, anglesRad []float64, cfg Config) bool {
+func (b *BayExit) resolveOpenSide(scan controllers.LidarScan, cfg Config) bool {
 	f := cfg.Follower
 	halfWidth := f.BayExitOpenSideSectorDeg * math.Pi / navutil.DegreesPerHalfTurn
-	left := openSideScore(rangesM, anglesRad, math.Pi/2, halfWidth, cfg.LidarMaxRangeM)
-	right := openSideScore(rangesM, anglesRad, -math.Pi/2, halfWidth, cfg.LidarMaxRangeM)
+	left := openSideScore(scan, math.Pi/2, halfWidth, cfg.LidarMaxRangeM)
+	right := openSideScore(scan, -math.Pi/2, halfWidth, cfg.LidarMaxRangeM)
 	openIsLeft := left > right
 
 	if b.openIsLeft == nil {
@@ -682,7 +682,7 @@ func (b *BayExit) resolveOpenSide(rangesM, anglesRad []float64, cfg Config) bool
 // (nil while unavailable), used only for BayExitTargetYawDeg's rotation
 // release.
 func (b *BayExit) Command(
-	rangesM, anglesRad []float64, travelledM, creepSpeedMPS float64, cfg Config, yawRad *float64,
+	scan controllers.LidarScan, travelledM, creepSpeedMPS float64, cfg Config, yawRad *float64,
 ) controllers.DriveCommand {
 	f := cfg.Follower
 	if b.reverseStartM == nil {
@@ -690,7 +690,7 @@ func (b *BayExit) Command(
 		b.reverseStartM = &rs
 	}
 
-	openIsLeft := b.resolveOpenSide(rangesM, anglesRad, cfg)
+	openIsLeft := b.resolveOpenSide(scan, cfg)
 
 	b.ticks++
 	b.trackRotation(yawRad)
@@ -700,7 +700,7 @@ func (b *BayExit) Command(
 	// way out, because the wheels that would turn it are the ones being
 	// held. Back straight off first, then let the normal legs resume with
 	// room to rotate in.
-	if f.BayExitContactRecoveryTicks > 0 && (b.recoveryTicksLeft > 0 || noseInContact(rangesM, anglesRad, cfg)) {
+	if f.BayExitContactRecoveryTicks > 0 && (b.recoveryTicksLeft > 0 || noseInContact(scan, cfg)) {
 		if b.recoveryTicksLeft <= 0 {
 			b.recoveryTicksLeft = f.BayExitContactRecoveryTicks
 			b.contactRecoveries++
@@ -717,7 +717,7 @@ func (b *BayExit) Command(
 	// stops lying across the pocket, not where it is guaranteed to be aimed
 	// down the corridor. AFTER the contact check, not before: a chassis
 	// that has turned far enough AND is touching must still back off first.
-	if b.RotationComplete(cfg) && IsClear(rangesM, anglesRad, cfg) {
+	if b.RotationComplete(cfg) && IsClear(scan, cfg) {
 		return controllers.DriveCommand{
 			SpeedMPS:     legSpeed(creepSpeedMPS, f, false, true),
 			SteeringNorm: 0.0,

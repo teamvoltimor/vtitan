@@ -189,7 +189,7 @@ func (n *Navigator) handleFinish(pose trackmodel.Pose) bool {
 		// takes priority over completing the maneuver -- see
 		// ParkingClearances' own doc comment for the side-margin padding
 		// rationale.
-		gate := n.collisionController.ParkingClearances(scan.RangesM, scan.AnglesRad)
+		gate := n.collisionController.ParkingClearances(scan)
 		sideMargin := n.cfg.ContactDistM + n.cfg.ChassisWidthM/2
 		if gate.ForwardM < n.cfg.ContactDistM || gate.SweepM < sideMargin {
 			linear = 0.0

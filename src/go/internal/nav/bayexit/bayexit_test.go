@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 )
 
 // There is no Python oracle test file for bay_exit.py (none exists in the
@@ -16,15 +17,15 @@ const creepSpeedMPS = 0.15
 // uniformScan returns a 360-ray scan of constant range, with angles evenly
 // spaced over a full turn -- enough for NearestRay/ForwardClearance to have
 // real bearings to search.
-func uniformScan(rangeM float64) (rangesM, anglesRad []float64) {
+func uniformScan(rangeM float64) controllers.LidarScan {
 	const n = 360
-	rangesM = make([]float64, n)
-	anglesRad = make([]float64, n)
+	rangesM := make([]float64, n)
+	anglesRad := make([]float64, n)
 	for i := range n {
 		rangesM[i] = rangeM
 		anglesRad[i] = -math.Pi + 2*math.Pi*float64(i)/float64(n)
 	}
-	return rangesM, anglesRad
+	return controllers.LidarScan{RangesM: rangesM, AnglesRad: anglesRad}
 }
 
 // scanWithSides is a uniform far scan, with every ray in the +90deg
@@ -32,26 +33,26 @@ func uniformScan(rangeM float64) (rangesM, anglesRad []float64) {
 // a whole BayExitOpenSideSectorDeg-wide sector (valid fraction times median
 // range) rather than a single nearest ray, so a single overridden ray would
 // be swamped by the uniform background and never move the score.
-func scanWithSides(leftM, rightM float64) (rangesM, anglesRad []float64) {
-	rangesM, anglesRad = uniformScan(5.0)
+func scanWithSides(leftM, rightM float64) controllers.LidarScan {
+	scan := uniformScan(5.0)
 	const halfWidthRad = 15.0 * math.Pi / 180.0
-	for i, a := range anglesRad {
+	for i, a := range scan.AnglesRad {
 		if math.Abs(a-math.Pi/2) <= halfWidthRad {
-			rangesM[i] = leftM
+			scan.RangesM[i] = leftM
 		}
 		if math.Abs(a+math.Pi/2) <= halfWidthRad {
-			rangesM[i] = rightM
+			scan.RangesM[i] = rightM
 		}
 	}
-	return rangesM, anglesRad
+	return scan
 }
 
 func TestIsClear_BelowThresholdIsNotClear(t *testing.T) {
 	t.Parallel()
 
 	cfg := bayexit.DefaultConfig()
-	ranges, angles := uniformScan(cfg.Follower.MinForwardClearanceM - 0.05)
-	if bayexit.IsClear(ranges, angles, cfg) {
+	scan := uniformScan(cfg.Follower.MinForwardClearanceM - 0.05)
+	if bayexit.IsClear(scan, cfg) {
 		t.Error("IsClear() = true, want false below MinForwardClearanceM")
 	}
 }
@@ -60,8 +61,8 @@ func TestIsClear_AboveThresholdIsClear(t *testing.T) {
 	t.Parallel()
 
 	cfg := bayexit.DefaultConfig()
-	ranges, angles := uniformScan(cfg.Follower.MinForwardClearanceM + 0.50)
-	if !bayexit.IsClear(ranges, angles, cfg) {
+	scan := uniformScan(cfg.Follower.MinForwardClearanceM + 0.50)
+	if !bayexit.IsClear(scan, cfg) {
 		t.Error("IsClear() = false, want true above MinForwardClearanceM")
 	}
 }
@@ -84,7 +85,7 @@ func TestCommand_LegacyForwardLegSteersTowardTheOpenSide(t *testing.T) {
 			left, right = 0.30, 1.0
 		}
 		b := bayexit.New()
-		ranges, angles := scanWithSides(left, right)
+		scan := scanWithSides(left, right)
 
 		var cmd struct {
 			SpeedMPS, SteeringNorm float64
@@ -92,7 +93,7 @@ func TestCommand_LegacyForwardLegSteersTowardTheOpenSide(t *testing.T) {
 		travelled := 0.0
 		for range 20 {
 			travelled -= 0.01 // reversing: signed odometry counts DOWN
-			c := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
+			c := b.Command(scan, travelled, creepSpeedMPS, cfg, nil)
 			cmd.SpeedMPS, cmd.SteeringNorm = c.SpeedMPS, c.SteeringNorm
 		}
 		if openLeft && cmd.SteeringNorm <= 0 {
@@ -117,18 +118,18 @@ func TestCommand_ResolveOpenSideLatchesAfterFirstTick(t *testing.T) {
 
 	// Ticks 1..BayExitOpenSideVotes: open is left, polled before the latch
 	// takes (see BayExitOpenSideVotes).
-	ranges, angles := scanWithSides(1.0, 0.30)
+	scan := scanWithSides(1.0, 0.30)
 	travelled := 0.0
 	var latched struct{ SteeringNorm float64 }
 	for range cfg.Follower.BayExitOpenSideVotes {
-		c := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
+		c := b.Command(scan, travelled, creepSpeedMPS, cfg, nil)
 		latched.SteeringNorm = c.SteeringNorm
 		travelled -= 0.01
 	}
 
 	// Next tick: rays now say open is RIGHT -- the latch must ignore this.
-	ranges2, angles2 := scanWithSides(0.30, 1.0)
-	c2 := b.Command(ranges2, angles2, travelled, creepSpeedMPS, cfg, nil)
+	scan2 := scanWithSides(0.30, 1.0)
+	c2 := b.Command(scan2, travelled, creepSpeedMPS, cfg, nil)
 
 	if sign(latched.SteeringNorm) != sign(c2.SteeringNorm) {
 		t.Errorf(
@@ -150,11 +151,11 @@ func TestCommand_ResolveOpenSideCountsFlipsWhenNotLatched(t *testing.T) {
 	cfg.Follower.BayExitLatchDirection = false
 	b := bayexit.New()
 
-	ranges1, angles1 := scanWithSides(1.0, 0.30)
-	b.Command(ranges1, angles1, 0.0, creepSpeedMPS, cfg, nil)
+	scan1 := scanWithSides(1.0, 0.30)
+	b.Command(scan1, 0.0, creepSpeedMPS, cfg, nil)
 
-	ranges2, angles2 := scanWithSides(0.30, 1.0)
-	b.Command(ranges2, angles2, -0.01, creepSpeedMPS, cfg, nil)
+	scan2 := scanWithSides(0.30, 1.0)
+	b.Command(scan2, -0.01, creepSpeedMPS, cfg, nil)
 
 	if flips := b.OpenFlips(); flips != 1 {
 		t.Errorf("OpenFlips() = %v, want 1", flips)
@@ -195,12 +196,12 @@ func TestCommand_CycleUnobstructedFirstLegNeverInternallyTransitions(t *testing.
 	cfg.Follower.BayExitCycle = true
 	cfg.Follower.BayExitClearanceGuard = false
 	b := bayexit.New()
-	ranges, angles := scanWithSides(1.0, 0.30)
+	scan := scanWithSides(1.0, 0.30)
 
 	travelled := 0.0
 	for range 500 {
 		travelled += creepSpeedMPS * cfg.Follower.CornerSpeedScale / cfg.ControlHz
-		b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
+		b.Command(scan, travelled, creepSpeedMPS, cfg, nil)
 	}
 	reverseTicks, forwardTicks, _ := b.Legs()
 	if reverseTicks != 0 {
@@ -226,14 +227,14 @@ func TestCommand_CycleStalledLegTransitionsAndAnchorsTheNextOne(t *testing.T) {
 	cfg.Follower.BayExitCycle = true
 	cfg.Follower.BayExitClearanceGuard = false
 	b := bayexit.New()
-	ranges, angles := scanWithSides(1.0, 0.30)
+	scan := scanWithSides(1.0, 0.30)
 
 	// Hold well past both the stall threshold AND the servo settle the
 	// leg switch then budgets (computed from the swing between the
 	// forward and reverse target angles) -- the settle phase commands
 	// zero speed and returns before reverseTicks would increment.
 	for range 40 {
-		b.Command(ranges, angles, 0.0, creepSpeedMPS, cfg, nil)
+		b.Command(scan, 0.0, creepSpeedMPS, cfg, nil)
 	}
 	if reverseTicks, _, _ := b.Legs(); reverseTicks == 0 {
 		t.Fatal("the stall backstop never ended the jammed first forward leg")
@@ -248,9 +249,9 @@ func TestCommand_GuardedCommandRecordsGuardStats(t *testing.T) {
 	cfg := bayexit.DefaultConfig()
 	cfg.Follower.BayExitClearanceGuard = true
 	b := bayexit.New()
-	ranges, angles := scanWithSides(1.0, 0.30)
+	scan := scanWithSides(1.0, 0.30)
 
-	b.Command(ranges, angles, 0.0, creepSpeedMPS, cfg, nil)
+	b.Command(scan, 0.0, creepSpeedMPS, cfg, nil)
 	_, minGap, ok, _ := b.GuardStats()
 	if !ok {
 		t.Fatal("GuardStats() ok = false after Command(), want a recorded predicted gap")
@@ -276,12 +277,12 @@ func TestCommand_GuardedCommandFlipsBeforePredictedContact(t *testing.T) {
 	cfg := bayexit.DefaultConfig()
 	cfg.Follower.BayExitClearanceGuard = true
 	b := bayexit.New()
-	ranges, angles := scanWithSides(1.0, 0.30)
+	scan := scanWithSides(1.0, 0.30)
 
 	travelled := 0.0
 	minGapSeen := math.Inf(1)
 	for range 300 {
-		cmd := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
+		cmd := b.Command(scan, travelled, creepSpeedMPS, cfg, nil)
 		travelled += cmd.SpeedMPS / cfg.ControlHz
 		if _, minGap, ok, _ := b.GuardStats(); ok && minGap < minGapSeen {
 			minGapSeen = minGap
@@ -321,12 +322,12 @@ func TestCommand_GuardedCommandToleranceLetsTheGuardAcceptMoreOverlap(t *testing
 		cfg.Follower.BayExitClearanceGuard = true
 		cfg.Follower.BayExitClearanceToleranceM = toleranceM
 		b := bayexit.New()
-		ranges, angles := scanWithSides(1.0, 0.30)
+		scan := scanWithSides(1.0, 0.30)
 
 		travelled := 0.0
 		minGapSeen := math.Inf(1)
 		for range 300 {
-			cmd := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
+			cmd := b.Command(scan, travelled, creepSpeedMPS, cfg, nil)
 			travelled += cmd.SpeedMPS / cfg.ControlHz
 			if _, minGap, ok, _ := b.GuardStats(); ok && minGap < minGapSeen {
 				minGapSeen = minGap

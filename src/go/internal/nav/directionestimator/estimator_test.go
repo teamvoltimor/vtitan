@@ -1,7 +1,6 @@
 package directionestimator_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
@@ -12,10 +11,10 @@ func TestEstimator_ObserveSettlesAfterMinVotes(t *testing.T) {
 
 	est := directionestimator.NewEstimator(3)
 	cfg := directionestimator.DefaultConfig()
-	ranges, angles := scan(0.3, 3.0) // decisive clockwise reading
+	s := scan(0.3, 3.0) // decisive clockwise reading
 
 	for i := range 2 {
-		if settled := est.Observe(ranges, angles, 0, cfg); settled {
+		if settled := est.Observe(s, 0, cfg); settled {
 			t.Fatalf("Observe() settled after %d votes, want not yet (min 3)", i+1)
 		}
 		if est.IsSettled() {
@@ -23,7 +22,7 @@ func TestEstimator_ObserveSettlesAfterMinVotes(t *testing.T) {
 		}
 	}
 
-	if settled := est.Observe(ranges, angles, 0, cfg); !settled {
+	if settled := est.Observe(s, 0, cfg); !settled {
 		t.Fatal("Observe() on 3rd matching vote: want settled = true")
 	}
 	if !est.IsSettled() {
@@ -41,9 +40,9 @@ func TestEstimator_ObserveIgnoresAmbiguousScans(t *testing.T) {
 
 	est := directionestimator.NewEstimator(1)
 	cfg := directionestimator.DefaultConfig()
-	ranges, angles := scan(0.5, 0.5) // symmetric, ambiguous
+	s := scan(0.5, 0.5) // symmetric, ambiguous
 
-	if settled := est.Observe(ranges, angles, 0, cfg); settled {
+	if settled := est.Observe(s, 0, cfg); settled {
 		t.Fatal("Observe() on an ambiguous scan settled, want false")
 	}
 	if est.IsSettled() {
@@ -75,9 +74,9 @@ func TestEstimator_ObserveAfterSettledIsANoOp(t *testing.T) {
 	est.Settle(directionestimator.Clockwise)
 
 	cfg := directionestimator.DefaultConfig()
-	ranges, angles := scan(3.0, 0.3) // would otherwise vote Counterclockwise
+	s := scan(3.0, 0.3) // would otherwise vote Counterclockwise
 
-	if settled := est.Observe(ranges, angles, 0, cfg); settled {
+	if settled := est.Observe(s, 0, cfg); settled {
 		t.Fatal("Observe() after Settle reported settling again, want false (no-op)")
 	}
 	dir, _ := est.Direction()
@@ -92,13 +91,12 @@ func TestEstimator_VotesTallyPerDirection(t *testing.T) {
 	est := directionestimator.NewEstimator(10) // high enough to never settle
 	cfg := directionestimator.DefaultConfig()
 
-	cw, _ := scan(0.3, 3.0)
-	ccw, _ := scan(3.0, 0.3)
-	cwAngles := []float64{math.Pi / 2, -math.Pi / 2}
+	cw := scan(0.3, 3.0)
+	ccw := scan(3.0, 0.3)
 
-	est.Observe(cw, cwAngles, 0, cfg)
-	est.Observe(cw, cwAngles, 0, cfg)
-	est.Observe(ccw, cwAngles, 0, cfg)
+	est.Observe(cw, 0, cfg)
+	est.Observe(cw, 0, cfg)
+	est.Observe(ccw, 0, cfg)
 
 	votes := est.Votes()
 	if votes[directionestimator.Clockwise] != 2 {

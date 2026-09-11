@@ -111,7 +111,7 @@ func TestClearancesFromScan_MinAggregationMatchesThreatSectors(t *testing.T) {
 	if got := c.MostConstrainedSide(); got != controllers.ThreatLeft {
 		t.Errorf("MostConstrainedSide() = %v, want %v", got, controllers.ThreatLeft)
 	}
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatLeft {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatLeft {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatLeft)
 	}
 }
@@ -172,9 +172,9 @@ func TestParkingGate_ReturnsForwardAndSweepFromOneCall(t *testing.T) {
 	j := angleToIndex(angles, math.Pi/4)
 	setSector(ranges, j, forwardSectorIndices, 0.1)
 
-	gate := controller.ParkingClearances(ranges, angles)
+	gate := controller.ParkingClearances(scanObj(ranges, angles))
 
-	wantForward := controller.ComputeForwardClearance(ranges, angles)
+	wantForward := controller.ComputeForwardClearance(scanObj(ranges, angles))
 	if gate.ForwardM != wantForward {
 		t.Errorf(
 			"ForwardM = %v, want %v (matching ComputeForwardClearance)",
@@ -185,7 +185,7 @@ func TestParkingGate_ReturnsForwardAndSweepFromOneCall(t *testing.T) {
 	if gate.ForwardM <= 0.1 {
 		t.Errorf("ForwardM = %v, want > 0.1 (must not see the 45deg wall)", gate.ForwardM)
 	}
-	wantSweep := controller.ComputeMinClearance(ranges, angles, 0.0, math.Pi)
+	wantSweep := controller.ComputeMinClearance(scanObj(ranges, angles), 0.0, math.Pi)
 	if gate.SweepM != wantSweep {
 		t.Errorf("SweepM = %v, want %v (matching ComputeMinClearance)", gate.SweepM, wantSweep)
 	}
@@ -204,7 +204,7 @@ func TestParkingGate_EmptyScanYieldsNoData(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
-	gate := controller.ParkingClearances(nil, nil)
+	gate := controller.ParkingClearances(controllers.LidarScan{})
 
 	if gate.ForwardM != controller.Geometry.NoDataRangeM {
 		t.Errorf("ForwardM = %v, want %v", gate.ForwardM, controller.Geometry.NoDataRangeM)

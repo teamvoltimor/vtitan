@@ -49,6 +49,12 @@ func newScan(defaultRangeM float64) []float64 {
 	return ranges
 }
 
+// scanObj packages a loose ranges/angles pair as the LidarScan value type the
+// controller APIs take.
+func scanObj(rangesM, anglesRad []float64) controllers.LidarScan {
+	return controllers.LidarScan{RangesM: rangesM, AnglesRad: anglesRad}
+}
+
 // angleToIndex finds the ray index closest to bearingRad, matching
 // fixtures.angle_to_index (np.argmin over |angles - bearing|, which returns
 // the first minimal index on a tie).

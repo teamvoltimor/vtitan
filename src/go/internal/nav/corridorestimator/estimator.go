@@ -112,8 +112,9 @@ func MeasureCorridorWidth(
 	axisError := navutil.WrapAngle(yaw - math.Round(yaw/navutil.QuarterTurnRad)*navutil.QuarterTurnRad)
 	isAligned := math.Abs(axisError) <= cfg.AlignmentToleranceRad
 
-	left := navutil.NearestRay(rangesM, anglesRad, navutil.QuarterTurnRad)
-	right := navutil.NearestRay(rangesM, anglesRad, -navutil.QuarterTurnRad)
+	scan := navutil.LidarScan{RangesM: rangesM, AnglesRad: anglesRad}
+	left := navutil.NearestRay(scan, navutil.QuarterTurnRad)
+	right := navutil.NearestRay(scan, -navutil.QuarterTurnRad)
 
 	width := 0.0
 	if isAligned {

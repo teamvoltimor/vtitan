@@ -108,7 +108,7 @@ func (n *Navigator) reversingIntoUnseenWall(
 	if maneuver.Speed >= 0 || n.retracing {
 		return false
 	}
-	rear := n.collisionController.RearSector(scan.RangesM, scan.AnglesRad)
+	rear := n.collisionController.RearSector(scan)
 	if !rear.Measured() {
 		// No rear vision on this mount, but the pose trail records ground
 		// the chassis physically occupied -- the same argument the retrace
@@ -250,7 +250,7 @@ func (n *Navigator) fitReverseToRearGap(
 		// sector -- the same exemption reversingIntoUnseenWall makes.
 		return maneuver
 	}
-	rear := n.collisionController.RearSector(scan.RangesM, scan.AnglesRad)
+	rear := n.collisionController.RearSector(scan)
 	if !rear.Measured() {
 		return maneuver
 	}
@@ -398,14 +398,12 @@ func (n *Navigator) pivotSteerSign(scan controllers.LidarScan, haveScan bool) fl
 		return n.escapeSteerSignForAttempt(1, nil)
 	}
 	left := n.collisionController.ComputeMinClearance(
-		scan.RangesM,
-		scan.AnglesRad,
+		scan,
 		math.Pi/2,
 		sideHalfFovRad,
 	)
 	right := n.collisionController.ComputeMinClearance(
-		scan.RangesM,
-		scan.AnglesRad,
+		scan,
 		-math.Pi/2,
 		sideHalfFovRad,
 	)
@@ -447,8 +445,8 @@ func (n *Navigator) stuckEscapeBaseSign(scan controllers.LidarScan, haveScan boo
 	if !haveScan || len(scan.RangesM) == 0 {
 		return n.escapeSteerSign
 	}
-	left := n.collisionController.ComputeMinClearance(scan.RangesM, scan.AnglesRad, math.Pi/2, sideHalfFovRad)
-	right := n.collisionController.ComputeMinClearance(scan.RangesM, scan.AnglesRad, -math.Pi/2, sideHalfFovRad)
+	left := n.collisionController.ComputeMinClearance(scan, math.Pi/2, sideHalfFovRad)
+	right := n.collisionController.ComputeMinClearance(scan, -math.Pi/2, sideHalfFovRad)
 	if (left >= n.cfg.NoDataRangeM && right >= n.cfg.NoDataRangeM) || left == right {
 		return n.escapeSteerSign
 	}
@@ -548,17 +546,17 @@ func (n *Navigator) handleStuckEscape(pose trackmodel.Pose) {
 		// A rear sector that measured nothing reports the same sentinel as
 		// a genuinely empty one, so the distance alone cannot tell them
 		// apart. Tracked separately so the two stay distinguishable below.
-		rear := n.collisionController.RearSector(scan.RangesM, scan.AnglesRad)
+		rear := n.collisionController.RearSector(scan)
 		rearBlind = !rear.Measured()
 		// Both ends as BUMPER gaps, so the single contact distance below
 		// means the same thing in each direction. The sentinel survives the
 		// conversion -- 10 m less either datum is still open road -- so the
 		// no-scan branch keeps its "assume clear" meaning.
 		rearClear = controllers.BumperGapBehind(rear.MinRangeM, n.cfg.LidarToRearBumperM)
-		front := n.collisionController.FrontSector(scan.RangesM, scan.AnglesRad)
+		front := n.collisionController.FrontSector(scan)
 		forwardBlind = !front.Measured()
 		forwardClear = controllers.BumperGapAhead(
-			n.collisionController.ComputeForwardClearance(scan.RangesM, scan.AnglesRad),
+			n.collisionController.ComputeForwardClearance(scan),
 			n.cfg.LidarToFrontBumperM,
 		)
 	}
@@ -726,7 +724,9 @@ func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSna
 		n.collisionController.ThreatNoDetectionRangeM,
 	)
 	maneuver, haveManeuver := n.collisionController.ComputeEscapeManeuver(
-		p.escapeRisk, threatDir, p.escapeRanges, p.scan.AnglesRad, n.direction,
+		p.escapeRisk, threatDir,
+		controllers.LidarScan{RangesM: p.escapeRanges, AnglesRad: p.scan.AnglesRad},
+		n.direction,
 	)
 
 	// Rear clearance is checked against the RAW scan: a sign behind the

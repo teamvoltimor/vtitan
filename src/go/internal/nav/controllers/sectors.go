@@ -102,11 +102,11 @@ func synthesizeAngles(n int) []float64 {
 // resolveAngles returns anglesRad unchanged if non-nil, else a synthesized
 // full sweep sized to rangesM -- matching every sector helper's
 // lidar_angles=None fallback.
-func resolveAngles(rangesM, anglesRad []float64) []float64 {
-	if anglesRad != nil {
-		return anglesRad
+func resolveAngles(scan LidarScan) []float64 {
+	if scan.AnglesRad != nil {
+		return scan.AnglesRad
 	}
-	return synthesizeAngles(len(rangesM))
+	return synthesizeAngles(len(scan.RangesM))
 }
 
 // SectorRangeValues returns the valid ranges whose bearing falls within
@@ -123,21 +123,21 @@ func resolveAngles(rangesM, anglesRad []float64) []float64 {
 // "genuinely nothing out there" by re-running the same query with the mask
 // lifted.
 func SectorRangeValues(
-	rangesM, anglesRad []float64, centerRad, halfFovRad float64, filterSelfDetection bool,
+	scan LidarScan, centerRad, halfFovRad float64, filterSelfDetection bool,
 	geo SectorGeometry, applyBlindWedgeMask bool,
 ) []float64 {
-	if len(rangesM) == 0 {
+	if len(scan.RangesM) == 0 {
 		return nil
 	}
-	angles := resolveAngles(rangesM, anglesRad)
+	angles := resolveAngles(scan)
 
 	minValid := geo.MinValidRangeM
 	if filterSelfDetection {
 		minValid = geo.SelfDetectionThresholdM
 	}
 
-	out := make([]float64, 0, len(rangesM))
-	for i, r := range rangesM {
+	out := make([]float64, 0, len(scan.RangesM))
+	for i, r := range scan.RangesM {
 		a := angles[i]
 		delta := navutil.WrapAngle(a - centerRad)
 		if math.Abs(delta) > halfFovRad {
@@ -204,14 +204,13 @@ func ChassisExitRangeM(a float64, geo SectorGeometry) float64 {
 // SectorToModel computes aggregate metrics for an angular sector as a
 // SectorRanges, matching sectors._sector_to_model.
 func SectorToModel(
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 	centerRad, halfFovRad float64,
 	filterSelfDetection bool,
 	geo SectorGeometry,
 ) SectorRanges {
 	valid := SectorRangeValues(
-		rangesM,
-		anglesRad,
+		scan,
 		centerRad,
 		halfFovRad,
 		filterSelfDetection,
@@ -222,8 +221,7 @@ func SectorToModel(
 	wedgeMasked := false
 	if len(valid) == 0 {
 		unmasked := SectorRangeValues(
-			rangesM,
-			anglesRad,
+			scan,
 			centerRad,
 			halfFovRad,
 			filterSelfDetection,
@@ -272,16 +270,16 @@ func SectorToModel(
 // gateway's substitute for a real grazing-incidence echo) is excluded via
 // the upper bound, not just literal +Inf -- see NoReturnMarginM.
 func ForwardPathRanges(
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 	pathHalfWidthM, minValidRangeM, lidarMaxRangeM float64,
 ) []float64 {
-	if len(rangesM) == 0 {
+	if len(scan.RangesM) == 0 {
 		return nil
 	}
-	angles := resolveAngles(rangesM, anglesRad)
+	angles := resolveAngles(scan)
 
-	out := make([]float64, 0, len(rangesM))
-	for i, r := range rangesM {
+	out := make([]float64, 0, len(scan.RangesM))
+	for i, r := range scan.RangesM {
 		a := angles[i]
 		// The lateral offset is only consulted for a ray that points ahead,
 		// and roughly half a 360-degree fan does not, so computing its Sin
@@ -307,12 +305,12 @@ func ForwardPathRanges(
 // Ignores validity entirely -- it answers "did the scan sweep this lane",
 // not "is the lane clear", letting AssessRisk tell a genuinely-empty scan
 // window apart from a lane that had rays but every one was a no-return.
-func ForwardPathHasRays(rangesM, anglesRad []float64, pathHalfWidthM float64) bool {
-	if len(rangesM) == 0 {
+func ForwardPathHasRays(scan LidarScan, pathHalfWidthM float64) bool {
+	if len(scan.RangesM) == 0 {
 		return false
 	}
-	angles := resolveAngles(rangesM, anglesRad)
-	for i, r := range rangesM {
+	angles := resolveAngles(scan)
+	for i, r := range scan.RangesM {
 		a := angles[i]
 		if math.Cos(a) > 0.0 && math.Abs(r*math.Sin(a)) < pathHalfWidthM {
 			return true
@@ -384,16 +382,16 @@ func RobustMinRange(path []float64, window int) float64 {
 // stays index-aligned with anglesRad; +Inf is already this package's
 // no-return sentinel (SectorRangeValues/ForwardPathRanges both exclude it).
 func MaskMappedObstacles(
-	rangesM, anglesRad []float64, robotPose trackmodel.Pose, mappedXY []MappedObstacle,
+	scan LidarScan, robotPose trackmodel.Pose, mappedXY []MappedObstacle,
 	radiusM, cornerMinM, cornerMaxM float64,
 ) []float64 {
-	out := make([]float64, len(rangesM))
-	copy(out, rangesM)
+	out := make([]float64, len(scan.RangesM))
+	copy(out, scan.RangesM)
 	if len(out) == 0 || len(mappedXY) == 0 || radiusM <= 0.0 {
 		return out
 	}
 
-	angles := resolveAngles(rangesM, anglesRad)
+	angles := resolveAngles(scan)
 	robotCorridor := waypoints.CorridorForPosition(robotPose.X, robotPose.Y, cornerMinM, cornerMaxM)
 
 	// Only an obstacle mapped to the robot's OWN corridor can mask a ray, but

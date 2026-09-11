@@ -24,13 +24,13 @@ type ClearanceAggregate int
 type ClearanceSectorSource interface {
 	// SectorRangeValues returns valid ranges within center +/- halfFov.
 	SectorRangeValues(
-		rangesM, anglesRad []float64,
+		scan LidarScan,
 		centerRad, halfFovRad float64,
 		filterSelfDetection bool,
 	) []float64
 	// ComputeRearClearance returns the minimum rear-sector clearance (m),
 	// or the no-data sentinel if unseen.
-	ComputeRearClearance(rangesM, anglesRad []float64) float64
+	ComputeRearClearance(scan LidarScan) float64
 }
 
 const (
@@ -80,11 +80,10 @@ func ClearancesFromScan(
 		return LidarClearances{}
 	}
 
-	front := source.SectorRangeValues(scan.RangesM, scan.AnglesRad, 0.0, frontHalfFovRad, false)
-	left := source.SectorRangeValues(scan.RangesM, scan.AnglesRad, math.Pi/2, frontHalfFovRad, true)
+	front := source.SectorRangeValues(scan, 0.0, frontHalfFovRad, false)
+	left := source.SectorRangeValues(scan, math.Pi/2, frontHalfFovRad, true)
 	right := source.SectorRangeValues(
-		scan.RangesM,
-		scan.AnglesRad,
+		scan,
 		-math.Pi/2,
 		frontHalfFovRad,
 		true,
@@ -94,7 +93,7 @@ func ClearancesFromScan(
 		FrontM: reduce(front, aggregate),
 		LeftM:  reduce(left, aggregate),
 		RightM: reduce(right, aggregate),
-		BackM:  source.ComputeRearClearance(scan.RangesM, scan.AnglesRad),
+		BackM:  source.ComputeRearClearance(scan),
 	}
 }
 

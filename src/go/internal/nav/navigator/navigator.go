@@ -682,10 +682,6 @@ func (n *Navigator) blindCreep(pose trackmodel.Pose) {
 	debug.Phase = PhaseBlindCreep
 
 	scan, haveScan := n.gateway.GetLidarScan()
-	var ranges, angles []float64
-	if haveScan {
-		ranges, angles = scan.RangesM, scan.AnglesRad
-	}
 
 	// Accumulate camera sign detections into the discovery map (discover
 	// mode), so signs are published to the router as they confirm.
@@ -698,7 +694,7 @@ func (n *Navigator) blindCreep(pose trackmodel.Pose) {
 	// under a corridor yet -- that needs the direction -- but they are the
 	// cleanest readings of the whole round. See recordCreepWidth.
 	if haveScan {
-		n.recordCreepWidth(ranges, angles, pose.Yaw)
+		n.recordCreepWidth(scan, pose.Yaw)
 	}
 
 	// Resolve the direction: a boxed-in parking bay names it outright;
@@ -710,12 +706,12 @@ func (n *Navigator) blindCreep(pose trackmodel.Pose) {
 		boxed := false
 		if !n.bayStartChecked && haveScan {
 			n.bayStartChecked = true
-			if dir, ok := directionestimator.DirectionFromParkingBay(ranges, angles, n.dirEstCfg); ok {
+			if dir, ok := directionestimator.DirectionFromParkingBay(scan, n.dirEstCfg); ok {
 				n.dirEstimator.Settle(dir)
 				n.exitingBay = true
 				boxed = true
 			} else if n.signRouter != nil && n.followerCfg.AssumeBayStart &&
-				!bayexit.IsClear(ranges, angles, n.bayExitCfg) {
+				!bayexit.IsClear(scan, n.bayExitCfg) {
 				// The in-bay start is the one Obstacles intends to use, so
 				// believe it rather than requiring the scan to prove it.
 				// Only the DIRECTION half of the test failed, and the exit
@@ -733,14 +729,14 @@ func (n *Navigator) blindCreep(pose trackmodel.Pose) {
 			}
 		}
 		if !boxed && !n.exitingBay && haveScan {
-			n.dirEstimator.Observe(ranges, angles, pose.Yaw, n.dirEstCfg)
+			n.dirEstimator.Observe(scan, pose.Yaw, n.dirEstCfg)
 		}
 
 		// Out of the pocket. Falls through to the settle block below rather
 		// than returning, so the path is rebuilt for the committed
 		// direction once the maneuver ends -- see bayexit.IsClear.
 		bxCfg := n.bayExitCfg
-		if n.exitingBay && haveScan && bayexit.IsClear(ranges, angles, bxCfg) {
+		if n.exitingBay && haveScan && bayexit.IsClear(scan, bxCfg) {
 			n.exitingBay = false
 		}
 		if n.exitingBay {
@@ -758,7 +754,7 @@ func (n *Navigator) blindCreep(pose trackmodel.Pose) {
 			if n.bayExit == nil {
 				n.bayExit = bayexit.New()
 			}
-			cmd := n.bayExit.Command(ranges, angles, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg, &pose.Yaw)
+			cmd := n.bayExit.Command(scan, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg, &pose.Yaw)
 			n.gateway.PublishDrive(cmd)
 			debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
 			debug.CommandedSteerNorm = new(cmd.SteeringNorm)
@@ -772,7 +768,7 @@ func (n *Navigator) blindCreep(pose trackmodel.Pose) {
 			// is corrected before the planned path is followed.
 			if haveScan {
 				if measured, measuredOK := startmeasurement.MeasureStartPose(
-					ranges, angles, dir, trackmodel.South, n.startMeasCfg,
+					scan, dir, trackmodel.South, n.startMeasCfg,
 				); measuredOK {
 					n.ApplyBelievedStart(
 						trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: pose.Yaw},
@@ -832,7 +828,7 @@ func (n *Navigator) blindCreep(pose trackmodel.Pose) {
 	if believed, ok := n.BelievedCreepWidthM(); ok {
 		followParams.BelievedWidthM = &believed
 	}
-	cmd := corridorfollower.FollowCorridor(ranges, angles, followParams, n.followerCfg)
+	cmd := corridorfollower.FollowCorridor(scan, followParams, n.followerCfg)
 	n.gateway.PublishDrive(cmd)
 	debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
 	debug.CommandedSteerNorm = new(cmd.SteeringNorm)
@@ -900,8 +896,8 @@ func (n *Navigator) TakeCreepWidths() []CreepWidth {
 // would otherwise buffer without bound, and -- more to the point -- the mean
 // the follower acts on should describe the corridor the robot is in NOW, not
 // be dragged back by readings from a corridor several turns ago.
-func (n *Navigator) recordCreepWidth(rangesM, anglesRad []float64, robotYaw float64) {
-	m, ok := corridorestimator.MeasureCorridorWidth(rangesM, anglesRad, robotYaw, n.widthMeasCfg)
+func (n *Navigator) recordCreepWidth(scan controllers.LidarScan, robotYaw float64) {
+	m, ok := corridorestimator.MeasureCorridorWidth(scan.RangesM, scan.AnglesRad, robotYaw, n.widthMeasCfg)
 	if !ok {
 		return
 	}

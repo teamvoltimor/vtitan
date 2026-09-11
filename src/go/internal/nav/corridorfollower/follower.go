@@ -42,8 +42,7 @@ type Params struct {
 // Returns a drive command centering the chassis, or a stop if the corridor
 // ended before the direction resolved.
 func FollowCorridor(
-	rangesM []float64,
-	anglesRad []float64,
+	scan controllers.LidarScan,
 	params Params,
 	cfg Config,
 ) controllers.DriveCommand {
@@ -70,13 +69,12 @@ func FollowCorridor(
 	maxCorner := SteerCapNorm(turnClearance, cfg)
 
 	forward := navutil.ForwardClearance(
-		rangesM,
-		anglesRad,
+		scan,
 		cfg.ForwardArcHalfFovRad,
 		cfg.MinValidRangeM,
 	)
-	left := navutil.NearestRay(rangesM, anglesRad, math.Pi/2)
-	right := navutil.NearestRay(rangesM, anglesRad, -math.Pi/2)
+	left := navutil.NearestRay(scan, math.Pi/2)
+	right := navutil.NearestRay(scan, -math.Pi/2)
 
 	// Something close ahead is a fact about SAFETY, not about the layout, so
 	// it is answered first and on the forward minimum: whether or not the
@@ -87,7 +85,7 @@ func FollowCorridor(
 		return backOff(params, cfg, left, right, turnClearance)
 	}
 
-	if forward < turnClearance && !wayThrough(rangesM, anglesRad, cfg) {
+	if forward < turnClearance && !wayThrough(scan, cfg) {
 		// The corridor is ending -- close ahead AND nothing open across the
 		// wider arc, so this is a wall spanning the track rather than one
 		// seen at an angle. Turn toward the side with more room, which is
@@ -250,16 +248,16 @@ func cornerSteer(forced TurnSide, left, right, maxCorner float64) float64 {
 // a no-return, and nothing on a 3 m mat can be further than its diagonal.
 // Left in, a single dropped beam would read as wide-open track and veto every
 // corner turn on the round.
-func wayThrough(rangesM, anglesRad []float64, cfg Config) bool {
+func wayThrough(scan controllers.LidarScan, cfg Config) bool {
 	turnArcRad := cfg.TurnArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn
 
 	best := math.Inf(-1)
 	found := false
-	for i, angle := range anglesRad {
-		if i >= len(rangesM) {
+	for i, angle := range scan.AnglesRad {
+		if i >= len(scan.RangesM) {
 			break
 		}
-		r := rangesM[i]
+		r := scan.RangesM[i]
 		if math.Abs(navutil.WrapAngle(angle)) > turnArcRad {
 			continue
 		}

@@ -48,7 +48,10 @@ func (c Config) DetectionToWorld(
 	thetaH := (cx/c.CameraWidthPX - 0.5) * c.CameraHFOVRad
 
 	if len(lidarRangesM) > 0 && len(lidarAnglesRad) > 0 {
-		lidarRange := navutil.NearestRay(lidarRangesM, lidarAnglesRad, thetaH)
+		lidarRange := navutil.NearestRay(
+			navutil.LidarScan{RangesM: lidarRangesM, AnglesRad: lidarAnglesRad},
+			thetaH,
+		)
 		if minValidLidarRangeM < lidarRange && lidarRange < c.CameraFarClipM {
 			distance = lidarRange
 		}

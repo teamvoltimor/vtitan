@@ -32,7 +32,7 @@ func TestDetectThreatDirection_WallBehindReportsBackNotFront(t *testing.T) {
 	// ThreatNone. The wedges were re-measured on the current mount
 	// (-155..-120 / 120..160, a ~40 deg slot at +/-160..180), so the rear
 	// is visible again and the original behaviour is back.
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatBack {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatBack {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatBack)
 	}
 }
@@ -52,7 +52,7 @@ func TestDetectThreatDirection_WallBehindBackEvenWithoutAngles(t *testing.T) {
 		ranges[k] = lidarCloseThreat
 	}
 
-	got := controller.DetectThreatDirection(ranges, nil)
+	got := controller.DetectThreatDirection(scanObj(ranges, nil))
 	if got != controllers.ThreatBack {
 		t.Errorf("DetectThreatDirection(nil angles) = %v, want %v", got, controllers.ThreatBack)
 	}
@@ -69,7 +69,7 @@ func TestDetectThreatDirection_WallAheadReportsFront(t *testing.T) {
 	i := angleToIndex(angles, 0.0)
 	setSector(ranges, i, forwardSectorIndices, lidarCloseThreat)
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatFront {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatFront {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatFront)
 	}
 }
@@ -85,7 +85,7 @@ func TestDetectThreatDirection_ObstacleLeftReportsLeft(t *testing.T) {
 	i := angleToIndex(angles, math.Pi/2) // +pi/2 = left
 	setSector(ranges, i, forwardSectorIndices, lidarCloseThreat)
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatLeft {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatLeft {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatLeft)
 	}
 }
@@ -98,7 +98,7 @@ func TestDetectThreatDirection_AllClearReportsNone(t *testing.T) {
 	controller := newDefaultCollisionAvoidanceController()
 	angles := anglesFullRotation()
 
-	if got := controller.DetectThreatDirection(newScan(lidarDefaultFar), angles); got != controllers.ThreatNone {
+	if got := controller.DetectThreatDirection(scanObj(newScan(lidarDefaultFar), angles)); got != controllers.ThreatNone {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatNone)
 	}
 }
@@ -121,7 +121,7 @@ func TestComputeForwardClearance_IgnoresRearWall(t *testing.T) {
 		ranges[k] = lidarCloseThreat
 	}
 
-	if got := controller.ComputeForwardClearance(ranges, angles); got <= minForwardClearance {
+	if got := controller.ComputeForwardClearance(scanObj(ranges, angles)); got <= minForwardClearance {
 		t.Errorf("ComputeForwardClearance() = %v, want > %v", got, minForwardClearance)
 	}
 }
@@ -145,7 +145,7 @@ func TestComputeRearClearance_SeesRearWall(t *testing.T) {
 		ranges[k] = lidarCloseThreat
 	}
 
-	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-lidarCloseThreat) > 1e-9 {
+	if got := controller.ComputeRearClearance(scanObj(ranges, angles)); math.Abs(got-lidarCloseThreat) > 1e-9 {
 		t.Errorf("ComputeRearClearance() = %v, want %v", got, lidarCloseThreat)
 	}
 }
@@ -161,7 +161,7 @@ func TestComputeRearClearance_ClearWhenOnlyFrontBlocked(t *testing.T) {
 	i := angleToIndex(angles, 0.0)
 	setSector(ranges, i, forwardSectorIndices, lidarCloseThreat)
 
-	if got := controller.ComputeRearClearance(ranges, angles); got <= minRearClearance {
+	if got := controller.ComputeRearClearance(scanObj(ranges, angles)); got <= minRearClearance {
 		t.Errorf("ComputeRearClearance() = %v, want > %v", got, minRearClearance)
 	}
 }
@@ -178,7 +178,7 @@ func TestRearSector_NormalScanIsMeasured(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
-	if !controller.RearSector(newScan(lidarDefaultFar), anglesFullRotation()).Measured() {
+	if !controller.RearSector(scanObj(newScan(lidarDefaultFar), anglesFullRotation())).Measured() {
 		t.Error("RearSector(...).Measured() = false, want true (rear slot is readable again)")
 	}
 }
@@ -201,10 +201,10 @@ func TestRearSector_NoValidRearRaysIsNotMeasured(t *testing.T) {
 		}
 	}
 
-	if got := controller.ComputeRearClearance(ranges, angles); got != controller.Geometry.NoDataRangeM {
+	if got := controller.ComputeRearClearance(scanObj(ranges, angles)); got != controller.Geometry.NoDataRangeM {
 		t.Errorf("ComputeRearClearance() = %v, want %v", got, controller.Geometry.NoDataRangeM)
 	}
-	if controller.RearSector(ranges, angles).Measured() {
+	if controller.RearSector(scanObj(ranges, angles)).Measured() {
 		t.Error("RearSector(...).Measured() = true, want false")
 	}
 }
@@ -214,8 +214,8 @@ func TestRearSector_EmptyScanIsNotMeasured(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
-	if controller.RearSector(nil, nil).Measured() {
-		t.Error("RearSector(nil, nil).Measured() = true, want false")
+	if controller.RearSector(controllers.LidarScan{}).Measured() {
+		t.Error("RearSector(controllers.LidarScan{}).Measured() = true, want false")
 	}
 }
 
@@ -232,8 +232,7 @@ func TestComputeEscapeManeuver_RearThreatYieldsNoManeuver(t *testing.T) {
 	_, ok := controller.ComputeEscapeManeuver(
 		controllers.RiskCritical,
 		controllers.ThreatBack,
-		nil,
-		nil,
+		controllers.LidarScan{},
 		nil,
 	)
 	if ok {
@@ -257,7 +256,7 @@ func TestComputeEscapeManeuver_SteersLeftWhenLeftIsClearer(t *testing.T) {
 	setSector(ranges, i, 6, 0.15)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatFront, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatFront, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ComputeEscapeManeuver() ok = false, want true")
@@ -279,7 +278,7 @@ func TestComputeEscapeManeuver_SteersRightWhenRightIsClearer(t *testing.T) {
 	setSector(ranges, i, 6, 0.15)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatFront, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatFront, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ComputeEscapeManeuver() ok = false, want true")
@@ -298,8 +297,7 @@ func TestComputeEscapeManeuver_DefaultsToRightWithoutLidarData(t *testing.T) {
 	maneuver, ok := controller.ComputeEscapeManeuver(
 		controllers.RiskCritical,
 		controllers.ThreatFront,
-		nil,
-		nil,
+		controllers.LidarScan{},
 		nil,
 	)
 	if !ok {
@@ -324,7 +322,7 @@ func TestComputeEscapeManeuver_LeftThreatCreepingSteersRight(t *testing.T) {
 	setSector(ranges, i, 6, 0.20) // left threat, not yet touching (> contact_dist)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatLeft, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatLeft, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ok = false, want true")
@@ -354,7 +352,7 @@ func TestComputeEscapeManeuver_LeftThreatTouchingReversesAndFlipsSign(t *testing
 	setSector(ranges, i, 6, 0.09)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatLeft, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatLeft, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ok = false, want true")
@@ -382,7 +380,7 @@ func TestComputeEscapeManeuver_RightThreatCreepingSteersLeft(t *testing.T) {
 	setSector(ranges, i, 6, 0.20)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatRight, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatRight, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ok = false, want true")
@@ -410,7 +408,7 @@ func TestComputeEscapeManeuver_RightThreatTouchingReversesAndFlipsSign(t *testin
 	setSector(ranges, i, 6, 0.09)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatRight, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatRight, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ok = false, want true")
@@ -445,7 +443,7 @@ func TestComputeEscapeManeuver_LeftThreatWithForwardContactReverses(t *testing.T
 	setSector(ranges, frontI, 4, 0.08) // but forward is already at contact_dist
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatLeft, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatLeft, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ok = false, want true")
@@ -475,7 +473,7 @@ func TestComputeEscapeManeuver_RightThreatWithForwardContactReverses(t *testing.
 	setSector(ranges, frontI, 4, 0.08)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatRight, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatRight, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ok = false, want true")
@@ -502,7 +500,7 @@ func TestComputeEscapeManeuver_LeftThreatWithForwardAndSideClearStillCreeps(t *t
 	setSector(ranges, leftI, 6, 0.20)
 
 	maneuver, ok := controller.ComputeEscapeManeuver(
-		controllers.RiskCritical, controllers.ThreatLeft, ranges, angles, nil,
+		controllers.RiskCritical, controllers.ThreatLeft, scanObj(ranges, angles), nil,
 	)
 	if !ok {
 		t.Fatal("ok = false, want true")
@@ -526,7 +524,7 @@ func TestComputeRearClearance_SelfReflectionDoesNotBlockReverse(t *testing.T) {
 	i := angleToIndex(angles, math.Pi)
 	setSector(ranges, i, 4, 0.05) // inside the self-detection radius
 
-	if got := controller.ComputeRearClearance(ranges, angles); got <= 5.0 {
+	if got := controller.ComputeRearClearance(scanObj(ranges, angles)); got <= 5.0 {
 		t.Errorf("ComputeRearClearance() = %v, want > 5.0", got)
 	}
 }
@@ -551,7 +549,7 @@ func TestComputeRearClearance_RealWallBeyondTheChassisIsStillDetected(t *testing
 	i := angleToIndex(angles, math.Pi)
 	setSector(ranges, i, 4, 0.35) // outside the chassis: a real return
 
-	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-0.35) > 1e-9 {
+	if got := controller.ComputeRearClearance(scanObj(ranges, angles)); math.Abs(got-0.35) > 1e-9 {
 		t.Errorf("ComputeRearClearance() = %v, want %v", got, 0.35)
 	}
 }
@@ -572,7 +570,7 @@ func TestComputeRearClearance_ChassisReturnIsNotReportedAsAWall(t *testing.T) {
 	i := angleToIndex(angles, math.Pi)
 	setSector(ranges, i, 4, 0.125) // inside the chassis at this bearing
 
-	rear := controller.RearSector(ranges, angles)
+	rear := controller.RearSector(scanObj(ranges, angles))
 	if !rear.Measured() {
 		t.Fatal("RearSector().Measured() = false, want true (rest of the sector is open)")
 	}
@@ -580,7 +578,7 @@ func TestComputeRearClearance_ChassisReturnIsNotReportedAsAWall(t *testing.T) {
 		t.Errorf("RearSector().MinRangeM = %v, want > %v (the chassis rear face)",
 			rear.MinRangeM, controllers.DefaultLidarToRearBumperM)
 	}
-	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-0.125) < 1e-9 {
+	if got := controller.ComputeRearClearance(scanObj(ranges, angles)); math.Abs(got-0.125) < 1e-9 {
 		t.Errorf("ComputeRearClearance() = %v, want != 0.125 (must not report the self-return)", got)
 	}
 }
@@ -596,7 +594,7 @@ func TestDetectThreatDirection_SideSelfReflectionDoesNotReportAsThreat(t *testin
 	i := angleToIndex(angles, math.Pi/2)
 	setSector(ranges, i, 4, 0.05)
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatNone {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatNone {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatNone)
 	}
 }
@@ -615,7 +613,7 @@ func TestDetectThreatDirection_ForwardNearContactIsNotFiltered(t *testing.T) {
 	i := angleToIndex(angles, 0.0)
 	setSector(ranges, i, 4, 0.06)
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatFront {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatFront {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatFront)
 	}
 }
@@ -634,7 +632,7 @@ func TestComputeForwardClearance_IgnoresAStrayNoReturnRay(t *testing.T) {
 	i := angleToIndex(angles, 0.0)
 	ranges[i] = math.Inf(1) // one no-return ray inside the forward sector
 
-	clearance := controller.ComputeForwardClearance(ranges, angles)
+	clearance := controller.ComputeForwardClearance(scanObj(ranges, angles))
 	if !math.IsInf(clearance, 0) && math.IsNaN(clearance) {
 		t.Fatalf("ComputeForwardClearance() = %v, want a finite value", clearance)
 	}
@@ -652,7 +650,7 @@ func TestComputeForwardClearance_AllNoReturnFallsBackToDefault(t *testing.T) {
 	angles := anglesFullRotation()
 	ranges := newScan(math.Inf(1))
 
-	if got := controller.ComputeForwardClearance(ranges, angles); got != 10.0 {
+	if got := controller.ComputeForwardClearance(scanObj(ranges, angles)); got != 10.0 {
 		t.Errorf("ComputeForwardClearance() = %v, want 10.0", got)
 	}
 }
@@ -674,7 +672,7 @@ func TestAssessRisk_SideWallsAreNotRisk(t *testing.T) {
 		setSector(ranges, i, 6, 0.35)
 	}
 
-	if got := controller.AssessRisk(ranges, angles); got != controllers.RiskSafe {
+	if got := controller.AssessRisk(scanObj(ranges, angles)); got != controllers.RiskSafe {
 		t.Errorf("AssessRisk() = %v, want %v", got, controllers.RiskSafe)
 	}
 }
@@ -690,7 +688,7 @@ func TestAssessRisk_ForwardObstacleWithinContactIsCritical(t *testing.T) {
 	i := angleToIndex(angles, 0.0)
 	setSector(ranges, i, 4, 0.08) // < contact_dist (0.10)
 
-	if got := controller.AssessRisk(ranges, angles); got != controllers.RiskCritical {
+	if got := controller.AssessRisk(scanObj(ranges, angles)); got != controllers.RiskCritical {
 		t.Errorf("AssessRisk() = %v, want %v", got, controllers.RiskCritical)
 	}
 }
@@ -706,7 +704,7 @@ func TestAssessRisk_ForwardObstacleInSlowZoneIsObstacle(t *testing.T) {
 	i := angleToIndex(angles, 0.0)
 	setSector(ranges, i, 4, 0.20) // contact_dist < 0.20 < slow_dist (0.25)
 
-	if got := controller.AssessRisk(ranges, angles); got != controllers.RiskObstacle {
+	if got := controller.AssessRisk(scanObj(ranges, angles)); got != controllers.RiskObstacle {
 		t.Errorf("AssessRisk() = %v, want %v", got, controllers.RiskObstacle)
 	}
 }
@@ -727,7 +725,7 @@ func TestAssessRisk_WholeForwardLaneNoReturnIsCriticalNotSafe(t *testing.T) {
 	i := angleToIndex(angles, 0.0)
 	setSector(ranges, i, 4, controller.Geometry.LidarMaxRangeM)
 
-	if got := controller.AssessRisk(ranges, angles); got != controllers.RiskCritical {
+	if got := controller.AssessRisk(scanObj(ranges, angles)); got != controllers.RiskCritical {
 		t.Errorf("AssessRisk() = %v, want %v", got, controllers.RiskCritical)
 	}
 }
@@ -742,8 +740,8 @@ func TestAssessRisk_GenuinelyEmptyScanIsStillSafe(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
-	if got := controller.AssessRisk(nil, nil); got != controllers.RiskSafe {
-		t.Errorf("AssessRisk(nil, nil) = %v, want %v", got, controllers.RiskSafe)
+	if got := controller.AssessRisk(controllers.LidarScan{}); got != controllers.RiskSafe {
+		t.Errorf("AssessRisk(controllers.LidarScan{}) = %v, want %v", got, controllers.RiskSafe)
 	}
 }
 
@@ -767,7 +765,7 @@ func TestDetectThreatDirection_LeftWedgeSelfCollisionDoesNotRegister(t *testing.
 		0.02,
 	) // self-collision range, would otherwise scream "threat"
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatNone {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatNone {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatNone)
 	}
 }
@@ -783,7 +781,7 @@ func TestDetectThreatDirection_RightWedgeSelfCollisionDoesNotRegister(t *testing
 	i := angleToIndex(angles, 140.0*math.Pi/180.0) // inside the right wedge (115..180)
 	setSector(ranges, i, 4, 0.02)
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatNone {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatNone {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatNone)
 	}
 }
@@ -804,7 +802,7 @@ func TestDetectThreatDirection_RealWallJustOutsideLeftWedgeStillDetected(t *test
 		0.15,
 	) // above self_detection_threshold_m (0.08): a real return
 
-	if got := controller.DetectThreatDirection(ranges, angles); got != controllers.ThreatRight {
+	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatRight {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatRight)
 	}
 }
@@ -820,7 +818,7 @@ func TestComputeRearClearance_IgnoresWedgeSelfCollision(t *testing.T) {
 	i := angleToIndex(angles, 150.0*math.Pi/180.0) // inside the right wedge, within the rear sector
 	setSector(ranges, i, 4, 0.02)
 
-	if got := controller.ComputeRearClearance(ranges, angles); got <= minRearClearance {
+	if got := controller.ComputeRearClearance(scanObj(ranges, angles)); got <= minRearClearance {
 		t.Errorf("ComputeRearClearance() = %v, want > %v", got, minRearClearance)
 	}
 }

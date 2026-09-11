@@ -24,14 +24,14 @@ type BlindWedges struct {
 // self-detection returns at or below selfDetectionThresholdM (the chassis
 // and its own cabling).
 func RearClearance(
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 	threatHalfFovRad, minValidRangeM, selfDetectionThresholdM float64,
 	blindWedges BlindWedges,
 ) (clearanceM float64, ok bool) {
 	best := math.Inf(1)
 	found := false
-	for i, a := range anglesRad {
-		r := rangesM[i]
+	for i, a := range scan.AnglesRad {
+		r := scan.RangesM[i]
 		if math.Abs(WrapAngle(a-math.Pi)) > threatHalfFovRad {
 			continue
 		}
@@ -65,13 +65,13 @@ func RearClearance(
 // default of None), and selfDetectionThresholdM <= 0 to skip that filter
 // (also matching a None default).
 func WedgeMedian(
-	rangesM, anglesRad []float64,
+	scan LidarScan,
 	centerRad, halfWidthRad, minValidRangeM float64,
 	selfDetectionThresholdM, maxValidRangeM float64,
 ) (medianM float64, ok bool) {
-	valid := make([]float64, 0, len(rangesM))
-	for i, a := range anglesRad {
-		r := rangesM[i]
+	valid := make([]float64, 0, len(scan.RangesM))
+	for i, a := range scan.AnglesRad {
+		r := scan.RangesM[i]
 		if math.Abs(WrapAngle(a-centerRad)) > halfWidthRad {
 			continue
 		}

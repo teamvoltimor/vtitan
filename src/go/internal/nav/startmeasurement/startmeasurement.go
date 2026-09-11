@@ -35,6 +35,7 @@ package startmeasurement
 import (
 	"math"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
@@ -169,7 +170,7 @@ func rotateInto(
 // more. The margin is deliberately generous: a false rejection costs a
 // re-run, and a false acceptance costs the round.
 func MeasureStartPose(
-	rangesM, anglesRad []float64,
+	scan controllers.LidarScan,
 	direction trackmodel.Direction,
 	section trackmodel.Section,
 	cfg Config,
@@ -178,25 +179,25 @@ func MeasureStartPose(
 	maxValidRangeM := cfg.LidarMaxRangeM * lidarMaxRangeMargin
 
 	forward, ok := navutil.WedgeMedian(
-		rangesM, anglesRad, 0, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
+		scan, 0, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
 	)
 	if !ok {
 		return MeasuredStart{}, false
 	}
 	back, ok := navutil.WedgeMedian(
-		rangesM, anglesRad, math.Pi, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
+		scan, math.Pi, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
 	)
 	if !ok {
 		return MeasuredStart{}, false
 	}
 	left, ok := navutil.WedgeMedian(
-		rangesM, anglesRad, math.Pi/2, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
+		scan, math.Pi/2, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
 	)
 	if !ok {
 		return MeasuredStart{}, false
 	}
 	right, ok := navutil.WedgeMedian(
-		rangesM, anglesRad, -math.Pi/2, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
+		scan, -math.Pi/2, rayHalfWidthRad, cfg.LidarMinRangeM, 0, maxValidRangeM,
 	)
 	if !ok {
 		return MeasuredStart{}, false

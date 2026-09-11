@@ -8,11 +8,10 @@ import (
 )
 
 // LidarScan is a single LIDAR sweep in the robot frame (0 rad = forward,
-// +pi/2 = left), matching ports.LidarScan.
-type LidarScan struct {
-	RangesM   []float64
-	AnglesRad []float64
-}
+// +pi/2 = left), matching ports.LidarScan. Aliased to navutil.LidarScan, the
+// lowest-level navigation package that can own the definition without an
+// import cycle (controllers imports navutil).
+type LidarScan = navutil.LidarScan
 
 // DriveCommand is the motor command contract every adapter must decode
 // identically, matching ports.DriveCommand.
