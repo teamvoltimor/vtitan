@@ -61,8 +61,9 @@ class Driver(UARTRVCDriver):
 
     def __init__(self, config: Config | None = None):
         # port is required with no default -- resolved from the BNO08X_UART_RVC_PORT
-        # env var when config isn't passed explicitly; mypy can't see that.
-        config = config or Config()  # type: ignore[call-arg]
+        # env var when config isn't passed explicitly, so load through the
+        # classmethod rather than the synthesized __init__ mypy sees.
+        config = config or Config.load()
         super().__init__(
             config=UARTRVCConfig(
                 quaternion=config.quaternion,

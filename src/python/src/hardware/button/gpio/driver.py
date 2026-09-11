@@ -52,8 +52,9 @@ class Driver(ABC_Driver):
 
     def __init__(self, config: Config | None = None) -> None:
         # gpio_pin is required with no default -- resolved from an env var
-        # when config isn't passed explicitly; mypy can't see that.
-        self.config: Config = config or Config()  # type: ignore[call-arg]
+        # when config isn't passed explicitly, so load through the classmethod
+        # rather than the synthesized __init__ mypy sees.
+        self.config: Config = config or Config.load()
         self._button: Button | None = None
         self._press_start_time: float | None = None
         self._last_event: ButtonEvent | None = None

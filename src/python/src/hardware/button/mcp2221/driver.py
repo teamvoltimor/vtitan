@@ -32,8 +32,9 @@ class Driver(BaseDriver):
 
     def __init__(self, config: Config | None = None):
         # gpio_pin is required with no default -- resolved from an env var
-        # when config isn't passed explicitly; mypy can't see that.
-        self.config: Config = config or Config()  # type: ignore[call-arg]
+        # when config isn't passed explicitly, so load through the classmethod
+        # rather than the synthesized __init__ mypy sees.
+        self.config: Config = config or Config.load()
         self._gpio_pin: int = self.config.gpio_pin
         self._pull_up: bool = self.config.button.pull_up
         self._debounce_sec: float = self.config.button.debounce_ms / 1000.0

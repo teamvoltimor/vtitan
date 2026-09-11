@@ -86,8 +86,9 @@ class Driver(MotorDriver):
 
     def __init__(self, config: Config | None = None):
         # test_duration is required with no default -- resolved from an env
-        # var when config isn't passed explicitly; mypy can't see that.
-        self.config = config or Config()  # type: ignore[call-arg]
+        # var when config isn't passed explicitly, so load through the
+        # classmethod rather than the synthesized __init__ mypy sees.
+        self.config = config or Config.load()
         self._steering: Motor | None = None
         self._drive: Motor | None = None
         self._calibration: CalibrationData | None = None

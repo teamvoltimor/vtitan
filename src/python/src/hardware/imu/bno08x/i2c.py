@@ -51,8 +51,9 @@ class Driver(BNO08xI2CDriver):
                 If None, resolved from env vars (address is required, no default).
         """
         # address is required with no default -- resolved from an env var
-        # when config isn't passed explicitly; mypy can't see that.
-        self.config: Config = config or Config()  # type: ignore[call-arg]
+        # when config isn't passed explicitly, so load through the classmethod
+        # rather than the synthesized __init__ mypy sees.
+        self.config: Config = config or Config.load()
         super().__init__(enable_sensors_delay=self.config.enable_sensors_delay)
         self._conn_lock: threading.Lock = threading.Lock()
 
