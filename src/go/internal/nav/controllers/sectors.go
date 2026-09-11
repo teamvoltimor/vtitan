@@ -335,7 +335,7 @@ func ForwardPathHasRays(scan LidarScan, pathHalfWidthM float64) bool {
 // ADJACENCY: a real surface produces a run of short returns, uncorrelated
 // noise produces isolated dips. This slides a window over the lane and takes
 // the smallest window MEDIAN, so a reading has to be corroborated by its
-// neighbours to count, while an object spanning a window still registers at
+// neighbors to count, while an object spanning a window still registers at
 // its true range.
 //
 // window <= 1 (or a path shorter than the window) is the bare minimum, which
@@ -404,37 +404,55 @@ func MaskMappedObstacles(
 	// exactly while it is being passed. Accept any mapped obstacle there.
 	inCorner := (robotPose.X < cornerMinM || robotPose.X > cornerMaxM) &&
 		(robotPose.Y < cornerMinM || robotPose.Y > cornerMaxM)
-	masksAnything := inCorner
-	for _, mapped := range mappedXY {
-		if mapped.Corridor == robotCorridor {
-			masksAnything = true
-			break
-		}
-	}
-	if !masksAnything {
+	if !corridorMasksAnything(mappedXY, robotCorridor, inCorner) {
 		return out
 	}
 
 	for i, r := range out {
-		if !math.IsInf(r, 0) && math.IsNaN(r) {
+		if math.IsInf(r, 0) || math.IsNaN(r) {
 			continue
-		}
-		if math.IsInf(r, 0) {
-			continue // no endpoint to attribute
 		}
 		bearing := angles[i] + robotPose.Yaw
 		endX := robotPose.X + r*math.Cos(bearing)
 		endY := robotPose.Y + r*math.Sin(bearing)
-
-		for _, mapped := range mappedXY {
-			if !inCorner && mapped.Corridor != robotCorridor {
-				continue
-			}
-			if math.Hypot(endX-mapped.Position.X, endY-mapped.Position.Y) < radiusM {
-				out[i] = math.Inf(1)
-				break
-			}
+		if rayHitsMappedObstacle(endX, endY, mappedXY, robotCorridor, inCorner, radiusM) {
+			out[i] = math.Inf(1)
 		}
 	}
 	return out
+}
+
+// corridorMasksAnything reports whether any mapped obstacle can mask a ray from
+// the robot's current position: either it shares the robot's corridor, or the
+// robot is in a corner square where corridor attribution is ambiguous.
+func corridorMasksAnything(mappedXY []MappedObstacle, robotCorridor trackmodel.Section, inCorner bool) bool {
+	if inCorner {
+		return true
+	}
+	for _, mapped := range mappedXY {
+		if mapped.Corridor == robotCorridor {
+			return true
+		}
+	}
+	return false
+}
+
+// rayHitsMappedObstacle reports whether the ray endpoint lands within radiusM of
+// an obstacle eligible to mask it.
+func rayHitsMappedObstacle(
+	endX, endY float64,
+	mappedXY []MappedObstacle,
+	robotCorridor trackmodel.Section,
+	inCorner bool,
+	radiusM float64,
+) bool {
+	for _, mapped := range mappedXY {
+		if !inCorner && mapped.Corridor != robotCorridor {
+			continue
+		}
+		if math.Hypot(endX-mapped.Position.X, endY-mapped.Position.Y) < radiusM {
+			return true
+		}
+	}
+	return false
 }

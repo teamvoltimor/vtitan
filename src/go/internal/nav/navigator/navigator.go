@@ -263,6 +263,25 @@ type perception struct {
 	minRange         *float64
 }
 
+// CreepWidth is one corridor-width reading taken during BLIND_CREEP, kept
+// with the heading it was taken at.
+//
+// The heading is what makes it usable later: attribution needs a corridor,
+// a corridor needs the travel direction, and the whole point of the creep is
+// that the direction is not known yet. Holding the yaw lets the reading be
+// filed the moment the direction settles, via
+// corridorestimator.SectionFromHeading.
+type CreepWidth struct {
+	// Yaw is the chassis heading the reading was taken at (world frame).
+	Yaw float64
+	// WidthM is the measured corridor width.
+	WidthM float64
+}
+
+// yawOffsetEpsilonRad is the smallest believed-start yaw offset worth
+// forwarding to the gateway; below it the correction is a no-op.
+const yawOffsetEpsilonRad = 1e-9
+
 // ErrNoGateway is returned by New when no hardware gateway is supplied:
 // every branch of Step both reads from and publishes to it, so there is no
 // degraded mode to fall back on.
@@ -568,12 +587,59 @@ func (n *Navigator) Step() {
 	n.driveNormally(pose, percept)
 }
 
-// recordPoseTrail appends a breadcrumb for a retrace-reverse, matching the
-// pose-trail block at the top of step().
+// BelievedYawOffset returns the belief->map yaw measured at start (the
+// start_measurement believed-offset), or ok=false until ApplyBelievedStart
+// has been called. Match for the MCAP belief-stream plan: the localizer's
+// heading can be a rigid rotation off truth at start, and sign routing /
+// direction inference must know it.
+func (n *Navigator) BelievedYawOffset() (offset float64, ok bool) {
+	return n.believedYawOffset, n.believedYawSet
+}
+
+// ApplyBelievedStart records the belief->map yaw offset from a measured start
+// pose, matching start_measurement's believed-start offset: the difference
+// between the robot's current heading estimate and the measured one. Corrects
+// the estimator heading via the gateway so subsequent poses are in the map
+// frame.
+func (n *Navigator) ApplyBelievedStart(measured, pose trackmodel.Pose) {
+	offset := navutil.WrapAngle(pose.Yaw - measured.Yaw)
+	n.believedYawOffset = offset
+	n.believedYawSet = true
+	if math.Abs(offset) > yawOffsetEpsilonRad {
+		n.gateway.CorrectHeadingForDirectionChange(offset)
+	}
+}
+
+// BelievedCreepWidthM is the mean of the creep-phase width readings, and
+// ok=false before any has been taken.
 //
-// Recorded on every tick including mid-maneuver, so the trail is a true
-// record of where the chassis has physically been -- which is the entire
-// basis for reversing along it without rear sensing. See retraceSteer.
+// Fed to the corridor follower as its believed corridor width, which is what
+// selects the NARROW turn clearance. Without it the follower commits every
+// corner at the WIDE clearance, so a narrow corridor is turned with an arc
+// sized for a corridor 20 cm wider than the one the robot is in.
+func (n *Navigator) BelievedCreepWidthM() (widthM float64, ok bool) {
+	if len(n.creepWidths) == 0 {
+		return 0.0, false
+	}
+	total := 0.0
+	for _, w := range n.creepWidths {
+		total += w.WidthM
+	}
+	return total / float64(len(n.creepWidths)), true
+}
+
+// TakeCreepWidths returns the buffered creep readings and clears the buffer,
+// handing ownership to the caller.
+//
+// Draining rather than copying: these are replayed into the width estimator
+// exactly once, the tick the direction settles, and a second replay would
+// vote the same readings twice.
+func (n *Navigator) TakeCreepWidths() []CreepWidth {
+	taken := n.creepWidths
+	n.creepWidths = nil
+	return taken
+}
+
 // applyPathWallBudget tells the pursuit controller how much drift this path
 // can absorb, matching _apply_path_wall_budget.
 //
@@ -623,6 +689,12 @@ func (n *Navigator) baseDebug(pose trackmodel.Pose) DebugSnapshot {
 	return snapshot
 }
 
+// recordPoseTrail appends a breadcrumb for a retrace-reverse, matching the
+// pose-trail block at the top of step().
+//
+// Recorded on every tick including mid-maneuver, so the trail is a true
+// record of where the chassis has physically been -- which is the entire
+// basis for reversing along it without rear sensing. See retraceSteer.
 func (n *Navigator) recordPoseTrail(pose trackmodel.Pose) {
 	here := trackmodel.Waypoint{X: pose.X, Y: pose.Y}
 	if len(n.poseTrail) > 0 {
@@ -649,237 +721,6 @@ func (n *Navigator) isHolding() bool {
 	return n.parkController == nil || n.parkController.IsDone()
 }
 
-// BelievedYawOffset returns the belief->map yaw measured at start (the
-// start_measurement believed-offset), or ok=false until ApplyBelievedStart
-// has been called. Match for the MCAP belief-stream plan: the localizer's
-// heading can be a rigid rotation off truth at start, and sign routing /
-// direction inference must know it.
-func (n *Navigator) BelievedYawOffset() (offset float64, ok bool) {
-	return n.believedYawOffset, n.believedYawSet
-}
-
-// ApplyBelievedStart records the belief->map yaw offset from a measured start
-// pose, matching start_measurement's believed-start offset: the difference
-// between the robot's current heading estimate and the measured one. Corrects
-// the estimator heading via the gateway so subsequent poses are in the map
-// frame.
-func (n *Navigator) ApplyBelievedStart(measured trackmodel.Pose, pose trackmodel.Pose) {
-	offset := navutil.WrapAngle(pose.Yaw - measured.Yaw)
-	n.believedYawOffset = offset
-	n.believedYawSet = true
-	if math.Abs(offset) > 1e-9 {
-		n.gateway.CorrectHeadingForDirectionChange(offset)
-	}
-}
-
-// blindCreep drives the BLIND_CREEP phase: creep along the corridor centred
-// between visible walls, infer the travel direction from LIDAR, and accumulate
-// camera sign detections, matching CoreNavigator.step's blind bootstrap. Once
-// the direction settles (parking-bay read or enough agreeing scans), the
-// navigator adopts it and the next tick follows the planned path.
-func (n *Navigator) blindCreep(pose trackmodel.Pose) {
-	debug := n.baseDebug(pose)
-	debug.Phase = PhaseBlindCreep
-
-	scan, haveScan := n.gateway.GetLidarScan()
-
-	// Accumulate camera sign detections into the discovery map (discover
-	// mode), so signs are published to the router as they confirm.
-	if n.discovery != nil {
-		n.discovery.Observe(n.visionDetections(), trackmodel.Waypoint{X: pose.X, Y: pose.Y})
-		n.discovery.Publish()
-	}
-
-	// Take width readings during the creep as well. They cannot be filed
-	// under a corridor yet -- that needs the direction -- but they are the
-	// cleanest readings of the whole round. See recordCreepWidth.
-	if haveScan {
-		n.recordCreepWidth(scan, pose.Yaw)
-	}
-
-	// Resolve the direction: a boxed-in parking bay names it outright;
-	// otherwise vote on scans. The parking-bay check is tested ONCE (the
-	// first tick a scan is available) -- see bayStartChecked's doc comment;
-	// re-testing every tick lets it fire mid-creep at a corner and settle
-	// the direction off geometry that is not a bay at all.
-	if n.dirEstimator != nil {
-		boxed := false
-		if !n.bayStartChecked && haveScan {
-			n.bayStartChecked = true
-			if dir, ok := directionestimator.DirectionFromParkingBay(scan, n.dirEstCfg); ok {
-				n.dirEstimator.Settle(dir)
-				n.exitingBay = true
-				boxed = true
-			} else if n.signRouter != nil && n.followerCfg.AssumeBayStart &&
-				!bayexit.IsClear(scan, n.bayExitCfg) {
-				// The in-bay start is the one Obstacles intends to use, so
-				// believe it rather than requiring the scan to prove it.
-				// Only the DIRECTION half of the test failed, and the exit
-				// does not need one; boxed stays false so the estimator
-				// resumes voting once the pocket is behind us.
-				//
-				// IsClear is tested HERE rather than left to the unlatch
-				// below because the vote at !boxed && !exitingBay runs
-				// first: latching and unlatching around it would cost a
-				// parallel start one direction vote, which the Python node
-				// does not pay (its unlatch precedes its vote). Same
-				// threshold either way -- a parallel start is a start with
-				// forward clearance. See AssumeBayStart.
-				n.exitingBay = true
-			}
-		}
-		if !boxed && !n.exitingBay && haveScan {
-			n.dirEstimator.Observe(scan, pose.Yaw, n.dirEstCfg)
-		}
-
-		// Out of the pocket. Falls through to the settle block below rather
-		// than returning, so the path is rebuilt for the committed
-		// direction once the maneuver ends -- see bayexit.IsClear.
-		bxCfg := n.bayExitCfg
-		if n.exitingBay && haveScan && bayexit.IsClear(scan, bxCfg) {
-			n.exitingBay = false
-		}
-		if n.exitingBay {
-			odom, odomOK := n.gateway.GetWheelOdometry()
-			if !odomOK {
-				// No odometry means the reverse leg cannot be bounded, and
-				// this maneuver reverses toward a fin. Hold rather than
-				// guess.
-				n.gateway.PublishDrive(controllers.DriveCommand{})
-				debug.CommandedSpeedMPS = new(0.0)
-				debug.CommandedSteerNorm = new(0.0)
-				n.debug = debug
-				return
-			}
-			if n.bayExit == nil {
-				n.bayExit = bayexit.New()
-			}
-			cmd := n.bayExit.Command(scan, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg, &pose.Yaw)
-			n.gateway.PublishDrive(cmd)
-			debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
-			debug.CommandedSteerNorm = new(cmd.SteeringNorm)
-			n.debug = debug
-			return
-		}
-
-		if dir, ok := n.dirEstimator.Direction(); ok {
-			n.direction = &dir
-			// With the direction known, measure the start so the map frame
-			// is corrected before the planned path is followed.
-			if haveScan {
-				if measured, measuredOK := startmeasurement.MeasureStartPose(
-					scan, dir, trackmodel.South, n.startMeasCfg,
-				); measuredOK {
-					n.ApplyBelievedStart(
-						trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: pose.Yaw},
-						pose,
-					)
-				}
-			}
-			// Resync the path to where the chassis actually is, UNCONDITIONALLY
-			// -- including when the inferred direction agreed with the
-			// provisional one and the path is unchanged. The navigator did not
-			// follow the path during the creep, so its waypoint index is still
-			// 0 while the robot has driven a metre past it: it would resume by
-			// chasing a waypoint behind itself. Measured in Python: this alone
-			// cost fixtures that had inferred the direction perfectly.
-			//
-			// The yaw is passed so the nearest-waypoint search breaks ties by
-			// heading agreement -- at the end of a corridor the waypoint behind
-			// and the one ahead are near-equidistant, and position alone picks
-			// between them arbitrarily.
-			// Resync the path to where the chassis actually is, UNCONDITIONALLY
-			// -- including when the inferred direction agreed with the
-			// provisional one and the path is unchanged. The navigator did not
-			// follow the path during the creep, so its waypoint index is still
-			// 0 while the robot has driven a metre past it: it would resume by
-			// chasing a waypoint behind itself. Measured in Python: this alone
-			// cost fixtures that had inferred the direction perfectly.
-			//
-			// The yaw is passed so the nearest-waypoint search breaks ties by
-			// heading agreement -- at the end of a corridor the waypoint behind
-			// and the one ahead are near-equidistant, and position alone picks
-			// between them arbitrarily.
-			n.ReplacePath(
-				n.waypoints,
-				trackmodel.Waypoint{X: pose.X, Y: pose.Y},
-				&pose.Yaw,
-			)
-			n.debug = debug
-			return
-		}
-	}
-
-	// No direction yet: creep along the corridor. Without a scan there is
-	// nothing to react to, so hold still rather than guess.
-	if !haveScan {
-		n.gateway.PublishDrive(controllers.DriveCommand{})
-		debug.CommandedSpeedMPS = new(0.0)
-		debug.CommandedSteerNorm = new(0.0)
-		n.debug = debug
-		return
-	}
-	yaw := pose.Yaw
-	followParams := corridorfollower.Params{
-		SpeedMPS:       n.cfg.CreepSpeedMPS(),
-		Yaw:            &yaw,
-		ForcedTurnSide: n.signDodgeSide(pose),
-	}
-	if believed, ok := n.BelievedCreepWidthM(); ok {
-		followParams.BelievedWidthM = &believed
-	}
-	cmd := corridorfollower.FollowCorridor(scan, followParams, n.followerCfg)
-	n.gateway.PublishDrive(cmd)
-	debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
-	debug.CommandedSteerNorm = new(cmd.SteeringNorm)
-	n.debug = debug
-}
-
-// CreepWidth is one corridor-width reading taken during BLIND_CREEP, kept
-// with the heading it was taken at.
-//
-// The heading is what makes it usable later: attribution needs a corridor,
-// a corridor needs the travel direction, and the whole point of the creep is
-// that the direction is not known yet. Holding the yaw lets the reading be
-// filed the moment the direction settles, via
-// corridorestimator.SectionFromHeading.
-type CreepWidth struct {
-	// Yaw is the chassis heading the reading was taken at (world frame).
-	Yaw float64
-	// WidthM is the measured corridor width.
-	WidthM float64
-}
-
-// BelievedCreepWidthM is the mean of the creep-phase width readings, and
-// ok=false before any has been taken.
-//
-// Fed to the corridor follower as its believed corridor width, which is what
-// selects the NARROW turn clearance. Without it the follower commits every
-// corner at the WIDE clearance, so a narrow corridor is turned with an arc
-// sized for a corridor 20 cm wider than the one the robot is in.
-func (n *Navigator) BelievedCreepWidthM() (widthM float64, ok bool) {
-	if len(n.creepWidths) == 0 {
-		return 0.0, false
-	}
-	total := 0.0
-	for _, w := range n.creepWidths {
-		total += w.WidthM
-	}
-	return total / float64(len(n.creepWidths)), true
-}
-
-// TakeCreepWidths returns the buffered creep readings and clears the buffer,
-// handing ownership to the caller.
-//
-// Draining rather than copying: these are replayed into the width estimator
-// exactly once, the tick the direction settles, and a second replay would
-// vote the same readings twice.
-func (n *Navigator) TakeCreepWidths() []CreepWidth {
-	taken := n.creepWidths
-	n.creepWidths = nil
-	return taken
-}
-
 // recordCreepWidth takes a width reading during the creep, if this tick's
 // scan yields a usable one.
 //
@@ -902,8 +743,8 @@ func (n *Navigator) recordCreepWidth(scan controllers.LidarScan, robotYaw float6
 		return
 	}
 	n.creepWidths = append(n.creepWidths, CreepWidth{Yaw: robotYaw, WidthM: m.WidthM})
-	if cap := n.widthMeasCfg.MaxStartSamples; cap > 0 && len(n.creepWidths) > cap {
-		n.creepWidths = slices.Delete(n.creepWidths, 0, len(n.creepWidths)-cap)
+	if limit := n.widthMeasCfg.MaxStartSamples; limit > 0 && len(n.creepWidths) > limit {
+		n.creepWidths = slices.Delete(n.creepWidths, 0, len(n.creepWidths)-limit)
 	}
 }
 

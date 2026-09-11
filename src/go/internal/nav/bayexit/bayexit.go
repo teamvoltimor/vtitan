@@ -9,13 +9,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
-// legStallEpsilonM is the wheel travel below which a tick counts as no
-// progress at all, matching _LEG_STALL_EPSILON_M. A tenth of a millimetre:
-// two orders under the 7.5 mm a free tick covers at creep, so ordinary slow
-// motion never reads as a stall, while a chassis held against a surface --
-// which reports no travel at all -- registers immediately.
-const legStallEpsilonM = 1e-4
-
 // BayExit drives the reverse-then-swing or cycle exit out of the parking
 // pocket at the start of a round, matching bay_exit.py's BayExit class.
 //
@@ -36,7 +29,7 @@ type BayExit struct {
 	openVotesLeft  int
 	openVotesRight int
 
-	// Cycle manoeuvre state. Starts on the FORWARD leg: the steered wheels
+	// Cycle maneuver state. Starts on the FORWARD leg: the steered wheels
 	// are at the front, so a forward move is the one that rotates the nose
 	// out, and the reverse exists only to buy back the room it spends.
 	legIsReverse   bool
@@ -54,7 +47,7 @@ type BayExit struct {
 	// CHANGE.
 	settleTicks int
 
-	// ticks the manoeuvre has run, and whether the fallback has fired.
+	// ticks the maneuver has run, and whether the fallback has fired.
 	ticks    int
 	switched bool
 
@@ -69,7 +62,7 @@ type BayExit struct {
 	guardFlips  int
 	guardMinGap *float64
 	// guardBlockTicks are consecutive ticks the guard has refused BOTH
-	// legs, matching _guard_block_ticks -- the manoeuvre's only deadlock
+	// legs, matching _guard_block_ticks -- the maneuver's only deadlock
 	// detector.
 	guardBlockTicks int
 
@@ -86,6 +79,20 @@ type BayExit struct {
 	prevYawRad  *float64
 	rotationRad float64
 }
+
+const (
+	// legStallEpsilonM is the wheel travel below which a tick counts as no
+	// progress at all, matching _LEG_STALL_EPSILON_M. A tenth of a millimeter:
+	// two orders under the 7.5 mm a free tick covers at creep, so ordinary slow
+	// motion never reads as a stall, while a chassis held against a surface --
+	// which reports no travel at all -- registers immediately.
+	legStallEpsilonM = 1e-4
+
+	// rangeCeilingFraction is the fraction of the LIDAR max range below which
+	// a return counts as a real surface rather than the dropout sentinel,
+	// matching _open_side_score's ceiling.
+	rangeCeilingFraction = 0.99
+)
 
 // New returns a zero-valued BayExit, matching BayExit().
 func New() *BayExit {
@@ -113,7 +120,7 @@ func (b *BayExit) Cycles() int {
 //
 // The reverse gate reads SIGNED odometry, which cancels under rocking: a
 // chassis pushed forward as much as it backs registers no progress and the
-// manoeuvre never advances to the turn. Distance travelled cannot show
+// maneuver never advances to the turn. Distance traveled cannot show
 // that -- the path length accumulates either way -- so which leg the ticks
 // were spent in has to be counted rather than inferred.
 func (b *BayExit) Legs() (reverseTicks, forwardTicks int, reverseProgressM float64) {
@@ -121,7 +128,7 @@ func (b *BayExit) Legs() (reverseTicks, forwardTicks int, reverseProgressM float
 }
 
 // OpenFlips returns the times the measured open side changed sides during
-// the manoeuvre, matching the open_flips property.
+// the maneuver, matching the open_flips property.
 func (b *BayExit) OpenFlips() int {
 	return b.openFlips
 }
@@ -141,13 +148,188 @@ func (b *BayExit) RotationDeg() float64 {
 // RotationComplete reports whether the chassis has turned far enough to
 // leave the pocket, matching rotation_complete.
 //
-// Returns false while no yaw has been supplied, which keeps the manoeuvre on
+// Returns false while no yaw has been supplied, which keeps the maneuver on
 // its previous behaviour rather than releasing on an unmeasured claim.
 func (b *BayExit) RotationComplete(cfg Config) bool {
 	if b.startYawRad == nil {
 		return false
 	}
 	return b.RotationDeg() >= cfg.Follower.BayExitTargetYawDeg
+}
+
+// Command backs out of the parking pocket, then swings the nose to the
+// open side, matching the command method.
+//
+// Pivoting straight from a centred placement does not work: the pocket is
+// 0.45 m along the wall against a 0.30 m chassis, so there is only ~7.5 cm
+// of slack at each end, and the nose reaches the marker before it has
+// rotated clear. So reverse first, to double the room ahead, then turn
+// hard.
+//
+// Which way to turn is not a guess: the lot is always against the OUTER
+// wall, so its opening faces the inner block, and a lap always turns
+// toward the inner block -- open side, inner side and corner-turn side are
+// the same side by track design. Being a fact about the layout, it is read
+// once and latched rather than re-derived every tick -- see
+// Config.Follower.BayExitLatchDirection.
+//
+// rangesM/anglesRad are the LIDAR scan; travelledM is signed wheel
+// odometry (a quadrature encoder counts DOWN in reverse, so progress on
+// the reverse leg is start-minus-current); creepSpeedMPS is the blind-phase
+// creep speed both legs scale from; yawRad is the current yaw estimate
+// (nil while unavailable), used only for BayExitTargetYawDeg's rotation
+// release.
+func (b *BayExit) Command(
+	scan controllers.LidarScan, travelledM, creepSpeedMPS float64, cfg Config, yawRad *float64,
+) controllers.DriveCommand {
+	f := cfg.Follower
+	if b.reverseStartM == nil {
+		rs := travelledM
+		b.reverseStartM = &rs
+	}
+
+	openIsLeft := b.resolveOpenSide(scan, cfg)
+
+	b.ticks++
+	b.trackRotation(yawRad)
+
+	// Nose against the wall is a STATE, not an absence of data, and it is
+	// answered before any leg logic: a chassis in contact cannot steer its
+	// way out, because the wheels that would turn it are the ones being
+	// held. Back straight off first, then let the normal legs resume with
+	// room to rotate in.
+	if cmd, ok := b.contactRecoveryCommand(scan, cfg, creepSpeedMPS); ok {
+		return cmd
+	}
+
+	// Turned far enough AND the way out is actually open. Rotation alone is
+	// not enough to drive out on -- the target angle is where the chassis
+	// stops lying across the pocket, not where it is guaranteed to be aimed
+	// down the corridor. AFTER the contact check, not before: a chassis
+	// that has turned far enough AND is touching must still back off first.
+	if b.RotationComplete(cfg) && IsClear(scan, cfg) {
+		return controllers.DriveCommand{
+			SpeedMPS:     legSpeed(creepSpeedMPS, f, false, true),
+			SteeringNorm: 0.0,
+		}
+	}
+
+	// The clearance guard supersedes both contact-bounded exits, so it is
+	// answered before their fallback bookkeeping runs at all -- but only
+	// while it is still BOUNDING legs rather than refusing every one of
+	// them. A guard doing its job alternates block and motion, so a long
+	// UNBROKEN run of blocks is the signature that separates the two.
+	guardTrapped := f.BayExitGuardBlockTicks > 0 && b.guardBlockTicks >= f.BayExitGuardBlockTicks
+	if f.BayExitClearanceGuard && !guardTrapped {
+		return b.guardedCommand(travelledM, creepSpeedMPS, cfg, openIsLeft)
+	}
+
+	// Which exit is driving. After BayExitFallbackFrames the OTHER one
+	// takes over, once: the two are complementary and which one the real
+	// robot needs is unknown, so covering both beats betting on one.
+	useCycle := f.BayExitCycle
+	if f.BayExitFallbackFrames > 0 && b.ticks > f.BayExitFallbackFrames {
+		useCycle = !useCycle
+		b.switchExit(travelledM)
+	}
+	if useCycle {
+		return b.cycleCommand(travelledM, creepSpeedMPS, cfg, openIsLeft)
+	}
+
+	// Wheel distance is SIGNED -- comparing current-minus-start gives a
+	// negative that is below any positive threshold forever, which
+	// reversed until the tail hit the rear fin.
+	b.reverseProgM = *b.reverseStartM - travelledM
+	if f.BayExitLatchReverse && b.reverseProgM >= f.BayExitReverseM {
+		// One-shot once latching is on. The forward leg drives this same
+		// quantity back DOWN, so without the latch the gate returns to
+		// reverse on the very next tick and the maneuver chatters
+		// between two opposed commands instead of holding the turn.
+		b.reverseDone = true
+	}
+	if !b.reverseDone && b.reverseProgM < f.BayExitReverseM {
+		b.reverseTicks++
+		return reverseLegCommand(openIsLeft, f, creepSpeedMPS)
+	}
+
+	// Magnitude is tuned, not pinned at full lock: full lock spins the
+	// chassis about its own centre and the pocket has no room to rotate
+	// in; what gets the robot out is translation.
+	b.forwardTicks++
+	return forwardLegCommand(openIsLeft, f, creepSpeedMPS)
+}
+
+// contactRecoveryCommand backs straight off the wall while contact recovery is
+// active, reporting ok=false when this tick is not a recovery tick.
+func (b *BayExit) contactRecoveryCommand(
+	scan controllers.LidarScan, cfg Config, creepSpeedMPS float64,
+) (controllers.DriveCommand, bool) {
+	f := cfg.Follower
+	if f.BayExitContactRecoveryTicks <= 0 || (b.recoveryTicksLeft <= 0 && !noseInContact(scan, cfg)) {
+		return controllers.DriveCommand{}, false
+	}
+	if b.recoveryTicksLeft <= 0 {
+		b.recoveryTicksLeft = f.BayExitContactRecoveryTicks
+		b.contactRecoveries++
+	}
+	b.recoveryTicksLeft--
+	return controllers.DriveCommand{
+		SpeedMPS:     -legSpeed(creepSpeedMPS, f, true, true),
+		SteeringNorm: 0.0,
+	}, true
+}
+
+// switchExit latches the one-shot handover to the other exit, re-origining both
+// legs' odometry exactly once.
+func (b *BayExit) switchExit(travelledM float64) {
+	if b.switched {
+		return
+	}
+	b.switched = true
+	b.resetForSwitch(travelledM)
+}
+
+// reverseLegCommand is the reverse leg's command.
+//
+// Steering is INVERTED on the reverse, the same way FollowCorridor's reverse
+// branch inverts it: backing up swings the nose away from the steer direction,
+// so steering toward the WALL walks the nose out toward the open corridor.
+func reverseLegCommand(
+	openIsLeft bool, f corridorfollower.Config, creepSpeedMPS float64,
+) controllers.DriveCommand {
+	reverseSteer := navutil.Clamp(f.BayExitReverseSteerNorm, 0.0, 1.0)
+	reverseNorm := reverseSteer
+	if openIsLeft {
+		reverseNorm = -reverseSteer
+	}
+	if f.BayExitHoldSteer {
+		// Hold the FORWARD leg's angle instead of returning to centre -- the
+		// servo's slew never reaches full lock inside a stroke this short if
+		// every reverse tick re-commands centre. NOT the same as
+		// BayExitReverseSteerNorm, which applies the INVERTED sign and so
+		// slews even further, to opposite lock (refuted 2026-08-29).
+		mag := navutil.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
+		reverseNorm = -mag
+		if openIsLeft {
+			reverseNorm = mag
+		}
+	}
+	return controllers.DriveCommand{
+		SpeedMPS:     -legSpeed(creepSpeedMPS, f, true, false),
+		SteeringNorm: reverseNorm,
+	}
+}
+
+// forwardLegCommand is the forward leg's command: steer toward the open side.
+func forwardLegCommand(
+	openIsLeft bool, f corridorfollower.Config, creepSpeedMPS float64,
+) controllers.DriveCommand {
+	magnitude := navutil.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
+	steer := -magnitude
+	if openIsLeft {
+		steer = magnitude
+	}
+	return controllers.DriveCommand{SpeedMPS: legSpeed(creepSpeedMPS, f, false, false), SteeringNorm: steer}
 }
 
 // trackRotation accumulates rotation since placement, unwrapping at +/-pi,
@@ -166,9 +348,9 @@ func (b *BayExit) trackRotation(yawRad *float64) {
 	if b.prevYawRad != nil {
 		step := *yawRad - *b.prevYawRad
 		if step > math.Pi {
-			step -= 2.0 * math.Pi
+			step -= 2 * math.Pi
 		} else if step < -math.Pi {
-			step += 2.0 * math.Pi
+			step += 2 * math.Pi
 		}
 		b.rotationRad += step
 	}
@@ -196,9 +378,9 @@ func bicycleYawStep(stepM, wheelRad float64, cfg Config) float64 {
 func wallFeasibleYawRad(outM float64, cfg Config) float64 {
 	reach := outM + cfg.ParkingLot.WallOffsetM
 	diagonal := math.Hypot(cfg.ChassisLengthM, cfg.ChassisWidthM)
-	sinSum := 2.0 * reach / diagonal
+	sinSum := 2 * reach / diagonal
 	if sinSum >= 1.0 {
-		return math.Pi / 2.0
+		return math.Pi / 2
 	}
 	return math.Max(0.0, math.Asin(sinSum)-math.Atan2(cfg.ChassisWidthM, cfg.ChassisLengthM))
 }
@@ -206,16 +388,16 @@ func wallFeasibleYawRad(outM float64, cfg Config) float64 {
 // alongSlackM is the greatest along-wall displacement the pocket physically
 // admits, matching _along_slack_m.
 func alongSlackM(cfg Config) float64 {
-	halfSpacing := cfg.ParkingLot.BlockSpacingFactor * cfg.ChassisLengthM / 2.0
-	inner := halfSpacing - cfg.ParkingLot.Width/2.0
-	return math.Max(0.0, inner-cfg.ChassisLengthM/2.0)
+	halfSpacing := cfg.ParkingLot.BlockSpacingFactor * cfg.ChassisLengthM / 2
+	inner := halfSpacing - cfg.ParkingLot.Width/2
+	return math.Max(0.0, inner-cfg.ChassisLengthM/2)
 }
 
 // legSpeed is the speed for one bay-exit leg, as a POSITIVE magnitude,
 // matching _leg_speed.
 //
 // BayExitSpeedMPS overrides the whole chain with an ABSOLUTE value, because
-// what this manoeuvre needs is set by torque against static friction at full
+// what this maneuver needs is set by torque against static friction at full
 // lock, not by any relationship to cruising speed. exitScale is false on the
 // legacy pre-guard paths, which never applied BayExitSpeedScale; keeping
 // that lets the override reach them without changing what they do when it
@@ -288,14 +470,14 @@ func (b *BayExit) predictedGap(stepM, wheelNorm float64, cfg Config) float64 {
 	out := b.drOut + stepM*math.Sin(yaw)
 	corners := rectCorners(along, out, yaw, cfg.ChassisLengthM, cfg.ChassisWidthM)
 	fins := finRects(cfg)
-	return min(gap(corners, fins[0][:]), gap(corners, fins[1][:]))
+	return min(gap(corners, fins[0]), gap(corners, fins[1]))
 }
 
-// resetForSwitch re-origins both manoeuvres' odometry state at the
+// resetForSwitch re-origins both maneuvers' odometry state at the
 // handover, matching _reset_for_switch.
 //
 // Every distance is measured from a remembered starting odometry reading,
-// and those readings belong to the manoeuvre that just gave up. Carried
+// and those readings belong to the maneuver that just gave up. Carried
 // across, the incoming reverse leg would believe it had already run --
 // reverseStartM is set on the first tick of the round, so by the switch it
 // is hundreds of ticks stale.
@@ -396,13 +578,10 @@ func (b *BayExit) guardedCommand(
 	// gap check below ends a leg when the PREDICTED fin gap closes, and that
 	// prediction is dead-reckoned from wheel travel -- so a leg whose wheel
 	// has stalled cannot produce the evidence that would end it, and runs
-	// until the whole manoeuvre times out. Counted only on ticks past any
+	// until the whole maneuver times out. Counted only on ticks past any
 	// settle, so the budget is the moving part of the leg.
 	b.legTicks++
-	legMaxTicks := int(math.Ceil(f.BayExitLegMaxS * cfg.ControlHz))
-	if legMaxTicks < 1 {
-		legMaxTicks = 1
-	}
+	legMaxTicks := max(int(math.Ceil(f.BayExitLegMaxS*cfg.ControlHz)), 1)
 	if b.legTicks >= legMaxTicks {
 		b.legIsReverse = !b.legIsReverse
 		b.legTicks = 0
@@ -414,7 +593,7 @@ func (b *BayExit) guardedCommand(
 	// scale, matching _guarded_command. It is the lever on the COAST the
 	// guard has to predict past: commanding zero does not stop the
 	// chassis, it decays with tau and travels a further v*tau, against an
-	// along-wall budget of tens of millimetres.
+	// along-wall budget of tens of millimeters.
 	speed := legSpeed(creepSpeedMPS, f, b.legIsReverse, true)
 	step := speed / cfg.ControlHz
 	if b.legIsReverse {
@@ -469,7 +648,7 @@ func (b *BayExit) guardedCommand(
 // bought back.
 //
 // Legs are latched: the previous gate compared reverse-start-minus-
-// travelled against a threshold that the FORWARD leg drives back down, so
+// traveled against a threshold that the FORWARD leg drives back down, so
 // it flapped between two opposed commands. Transitions here are one-way
 // within a cycle: forward until the way ahead closes, reverse a bounded
 // distance, repeat.
@@ -479,7 +658,7 @@ func (b *BayExit) guardedCommand(
 // and it can only end via the stall backstop below -- matching
 // bay_exit.py's documented default-model behavior of running ONE
 // continuous forward arc until the CALLER's separate IsClear check ends
-// the manoeuvre externally, with the reverse leg never running at all
+// the maneuver externally, with the reverse leg never running at all
 // unless the chassis genuinely jams against a fin.
 func (b *BayExit) cycleCommand(
 	travelledM, creepSpeedMPS float64, cfg Config, openIsLeft bool,
@@ -539,7 +718,7 @@ func (b *BayExit) cycleCommand(
 	// and noise rather than the arc's own progress.
 	//
 	// legStartM is nil until the first ever beginLeg call (matching
-	// bay_exit.py's `self._leg_start_m or travelled_m`, None being falsy),
+	// bay_exit.py's `self._leg_start_m or traveled_m`, None being falsy),
 	// so travelledM-legStart reads as zero against itself here on the
 	// VERY FIRST forward leg -- that first leg can only end via the stall
 	// backstop below, which anchors legStartM for every leg after it.
@@ -595,7 +774,7 @@ func noseInContact(scan controllers.LidarScan, cfg Config) bool {
 // corridor's real range and the side reads BACKWARDS -- hence scoring by
 // valid fraction times median rather than either alone.
 func openSideScore(scan controllers.LidarScan, centerRad, halfWidthRad, lidarMaxRangeM float64) float64 {
-	ceiling := lidarMaxRangeM * 0.99
+	ceiling := lidarMaxRangeM * rangeCeilingFraction
 	total := 0
 	valid := make([]float64, 0, len(scan.RangesM))
 	for i, a := range scan.AnglesRad {
@@ -617,7 +796,7 @@ func openSideScore(scan controllers.LidarScan, centerRad, halfWidthRad, lidarMax
 	if n%2 == 1 {
 		med = valid[n/2]
 	} else {
-		med = (valid[n/2-1] + valid[n/2]) / 2.0
+		med = (valid[n/2-1] + valid[n/2]) / 2
 	}
 	return float64(len(valid)) / float64(total) * med
 }
@@ -657,149 +836,6 @@ func (b *BayExit) resolveOpenSide(scan controllers.LidarScan, cfg Config) bool {
 	o := openIsLeft
 	b.openIsLeft = &o
 	return openIsLeft
-}
-
-// Command backs out of the parking pocket, then swings the nose to the
-// open side, matching the command method.
-//
-// Pivoting straight from a centred placement does not work: the pocket is
-// 0.45 m along the wall against a 0.30 m chassis, so there is only ~7.5 cm
-// of slack at each end, and the nose reaches the marker before it has
-// rotated clear. So reverse first, to double the room ahead, then turn
-// hard.
-//
-// Which way to turn is not a guess: the lot is always against the OUTER
-// wall, so its opening faces the inner block, and a lap always turns
-// toward the inner block -- open side, inner side and corner-turn side are
-// the same side by track design. Being a fact about the layout, it is read
-// once and latched rather than re-derived every tick -- see
-// Config.Follower.BayExitLatchDirection.
-//
-// rangesM/anglesRad are the LIDAR scan; travelledM is signed wheel
-// odometry (a quadrature encoder counts DOWN in reverse, so progress on
-// the reverse leg is start-minus-current); creepSpeedMPS is the blind-phase
-// creep speed both legs scale from; yawRad is the current yaw estimate
-// (nil while unavailable), used only for BayExitTargetYawDeg's rotation
-// release.
-func (b *BayExit) Command(
-	scan controllers.LidarScan, travelledM, creepSpeedMPS float64, cfg Config, yawRad *float64,
-) controllers.DriveCommand {
-	f := cfg.Follower
-	if b.reverseStartM == nil {
-		rs := travelledM
-		b.reverseStartM = &rs
-	}
-
-	openIsLeft := b.resolveOpenSide(scan, cfg)
-
-	b.ticks++
-	b.trackRotation(yawRad)
-
-	// Nose against the wall is a STATE, not an absence of data, and it is
-	// answered before any leg logic: a chassis in contact cannot steer its
-	// way out, because the wheels that would turn it are the ones being
-	// held. Back straight off first, then let the normal legs resume with
-	// room to rotate in.
-	if f.BayExitContactRecoveryTicks > 0 && (b.recoveryTicksLeft > 0 || noseInContact(scan, cfg)) {
-		if b.recoveryTicksLeft <= 0 {
-			b.recoveryTicksLeft = f.BayExitContactRecoveryTicks
-			b.contactRecoveries++
-		}
-		b.recoveryTicksLeft--
-		return controllers.DriveCommand{
-			SpeedMPS:     -legSpeed(creepSpeedMPS, f, true, true),
-			SteeringNorm: 0.0,
-		}
-	}
-
-	// Turned far enough AND the way out is actually open. Rotation alone is
-	// not enough to drive out on -- the target angle is where the chassis
-	// stops lying across the pocket, not where it is guaranteed to be aimed
-	// down the corridor. AFTER the contact check, not before: a chassis
-	// that has turned far enough AND is touching must still back off first.
-	if b.RotationComplete(cfg) && IsClear(scan, cfg) {
-		return controllers.DriveCommand{
-			SpeedMPS:     legSpeed(creepSpeedMPS, f, false, true),
-			SteeringNorm: 0.0,
-		}
-	}
-
-	// The clearance guard supersedes both contact-bounded exits, so it is
-	// answered before their fallback bookkeeping runs at all -- but only
-	// while it is still BOUNDING legs rather than refusing every one of
-	// them. A guard doing its job alternates block and motion, so a long
-	// UNBROKEN run of blocks is the signature that separates the two.
-	guardTrapped := f.BayExitGuardBlockTicks > 0 && b.guardBlockTicks >= f.BayExitGuardBlockTicks
-	if f.BayExitClearanceGuard && !guardTrapped {
-		return b.guardedCommand(travelledM, creepSpeedMPS, cfg, openIsLeft)
-	}
-
-	// Which exit is driving. After BayExitFallbackFrames the OTHER one
-	// takes over, once: the two are complementary and which one the real
-	// robot needs is unknown, so covering both beats betting on one.
-	useCycle := f.BayExitCycle
-	if f.BayExitFallbackFrames > 0 && b.ticks > f.BayExitFallbackFrames {
-		useCycle = !useCycle
-		if !b.switched {
-			b.switched = true
-			b.resetForSwitch(travelledM)
-		}
-	}
-	if useCycle {
-		return b.cycleCommand(travelledM, creepSpeedMPS, cfg, openIsLeft)
-	}
-
-	// Wheel distance is SIGNED -- comparing current-minus-start gives a
-	// negative that is below any positive threshold forever, which
-	// reversed until the tail hit the rear fin.
-	b.reverseProgM = *b.reverseStartM - travelledM
-	if f.BayExitLatchReverse && b.reverseProgM >= f.BayExitReverseM {
-		// One-shot once latching is on. The forward leg drives this same
-		// quantity back DOWN, so without the latch the gate returns to
-		// reverse on the very next tick and the manoeuvre chatters
-		// between two opposed commands instead of holding the turn.
-		b.reverseDone = true
-	}
-	if !b.reverseDone && b.reverseProgM < f.BayExitReverseM {
-		b.reverseTicks++
-		// Steering is INVERTED on the reverse, the same way
-		// FollowCorridor's reverse branch inverts it: backing up swings
-		// the nose away from the steer direction, so steering toward the
-		// WALL walks the nose out toward the open corridor.
-		reverseSteer := navutil.Clamp(f.BayExitReverseSteerNorm, 0.0, 1.0)
-		reverseNorm := reverseSteer
-		if openIsLeft {
-			reverseNorm = -reverseSteer
-		}
-		if f.BayExitHoldSteer {
-			// Hold the FORWARD leg's angle instead of returning to
-			// centre -- the servo's slew never reaches full lock inside
-			// a stroke this short if every reverse tick re-commands
-			// centre. NOT the same as BayExitReverseSteerNorm, which
-			// applies the INVERTED sign and so slews even further, to
-			// opposite lock (refuted 2026-08-29).
-			mag := navutil.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
-			reverseNorm = -mag
-			if openIsLeft {
-				reverseNorm = mag
-			}
-		}
-		return controllers.DriveCommand{
-			SpeedMPS:     -legSpeed(creepSpeedMPS, f, true, false),
-			SteeringNorm: reverseNorm,
-		}
-	}
-
-	// Magnitude is tuned, not pinned at full lock: full lock spins the
-	// chassis about its own centre and the pocket has no room to rotate
-	// in; what gets the robot out is translation.
-	b.forwardTicks++
-	magnitude := navutil.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
-	steer := -magnitude
-	if openIsLeft {
-		steer = magnitude
-	}
-	return controllers.DriveCommand{SpeedMPS: legSpeed(creepSpeedMPS, f, false, false), SteeringNorm: steer}
 }
 
 // followerMaxSteeringAngleRad is cfg.Follower.MaxSteeringAngleRad, matching

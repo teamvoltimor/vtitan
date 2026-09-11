@@ -28,114 +28,69 @@ func (d DebugSnapshot) ToProto() *navv1.NavigatorDebug {
 		CurrentCorridor: navv1.Section(deoptSection(d.CurrentCorridor)) + 1,
 		LapsCompleted:   int32(d.LapsCompleted),
 		NumLaps:         int32(d.NumLaps),
-	}
-	if d.WaypointIndex != nil {
-		wi := int32(*d.WaypointIndex)
-		out.Race.WaypointIndex = &wi
+		WaypointIndex:   protoInt32(d.WaypointIndex),
 	}
 	if d.IsStuck != nil || d.StuckCount != nil || d.RecentMovementM != nil {
-		out.Stuck = &navv1.StuckDetection{}
-		if d.IsStuck != nil {
-			v := *d.IsStuck
-			out.Stuck.IsStuck = &v
-		}
-		if d.StuckCount != nil {
-			v := int32(*d.StuckCount)
-			out.Stuck.StuckCount = &v
-		}
-		if d.RecentMovementM != nil {
-			v := *d.RecentMovementM
-			out.Stuck.RecentMovementM = &v
+		out.Stuck = &navv1.StuckDetection{
+			IsStuck:         d.IsStuck,
+			StuckCount:      protoInt32(d.StuckCount),
+			RecentMovementM: protoFloat64(d.RecentMovementM),
 		}
 	}
 	out.Perception = &navv1.Perception{
-		Risk:       navv1.RiskLevel(deoptRisk(d.Risk)) + 1,
-		EscapeRisk: navv1.RiskLevel(deoptRisk(d.EscapeRisk)) + 1,
+		Risk:              navv1.RiskLevel(deoptRisk(d.Risk)) + 1,
+		EscapeRisk:        navv1.RiskLevel(deoptRisk(d.EscapeRisk)) + 1,
+		ForwardClearanceM: protoFloat64(d.ForwardClearanceM),
+		MinLidarRangeM:    protoFloat64(d.MinLidarRangeM),
+		RearClearanceM:    protoFloat64(d.RearClearanceM),
 	}
-	if d.ForwardClearanceM != nil {
-		v := *d.ForwardClearanceM
-		out.Perception.ForwardClearanceM = &v
+	out.PathTracking = &navv1.PathTracking{
+		CrosstrackErrorM:   protoFloat64(d.CrosstrackErrorM),
+		LookaheadDistanceM: protoFloat64(d.LookaheadDistance),
+		PathTurnAheadRad:   protoFloat64(d.PathTurnAheadRad),
+		SteerTargetX:       protoFloat64(d.SteerTargetX),
+		SteerTargetY:       protoFloat64(d.SteerTargetY),
+		AngleErrorRad:      protoFloat64(d.AngleErrorRad),
 	}
-	if d.MinLidarRangeM != nil {
-		v := *d.MinLidarRangeM
-		out.Perception.MinLidarRangeM = &v
+	out.Speed = &navv1.SpeedSelection{
+		ClearanceSpeedMps: protoFloat64(d.ClearanceSpeedMPS),
+		HeadingSpeedMps:   protoFloat64(d.HeadingSpeedMPS),
 	}
-	if d.RearClearanceM != nil {
-		v := *d.RearClearanceM
-		out.Perception.RearClearanceM = &v
-	}
-	out.PathTracking = &navv1.PathTracking{}
-	if d.CrosstrackErrorM != nil {
-		v := *d.CrosstrackErrorM
-		out.PathTracking.CrosstrackErrorM = &v
-	}
-	if d.LookaheadDistance != nil {
-		v := *d.LookaheadDistance
-		out.PathTracking.LookaheadDistanceM = &v
-	}
-	if d.PathTurnAheadRad != nil {
-		v := *d.PathTurnAheadRad
-		out.PathTracking.PathTurnAheadRad = &v
-	}
-	if d.SteerTargetX != nil {
-		v := *d.SteerTargetX
-		out.PathTracking.SteerTargetX = &v
-	}
-	if d.SteerTargetY != nil {
-		v := *d.SteerTargetY
-		out.PathTracking.SteerTargetY = &v
-	}
-	if d.AngleErrorRad != nil {
-		v := *d.AngleErrorRad
-		out.PathTracking.AngleErrorRad = &v
-	}
-	out.Speed = &navv1.SpeedSelection{}
-	if d.ClearanceSpeedMPS != nil {
-		v := *d.ClearanceSpeedMPS
-		out.Speed.ClearanceSpeedMps = &v
-	}
-	if d.HeadingSpeedMPS != nil {
-		v := *d.HeadingSpeedMPS
-		out.Speed.HeadingSpeedMps = &v
-	}
-	out.Command = &navv1.DriveCommand{}
-	if d.CommandedSpeedMPS != nil {
-		v := *d.CommandedSpeedMPS
-		out.Command.SpeedMps = &v
-	}
-	if d.CommandedSteerNorm != nil {
-		v := *d.CommandedSteerNorm
-		out.Command.SteeringNorm = &v
+	out.Command = &navv1.DriveCommand{
+		SpeedMps:     protoFloat64(d.CommandedSpeedMPS),
+		SteeringNorm: protoFloat64(d.CommandedSteerNorm),
 	}
 	out.Maneuver = &navv1.Maneuver{
-		ActiveType: navv1.ManeuverType(deoptManeuver(d.ActiveManeuverType)) + 1,
+		ActiveType:  navv1.ManeuverType(deoptManeuver(d.ActiveManeuverType)) + 1,
+		Steering:    protoFloat64(d.ManeuverSteering),
+		SpeedMps:    protoFloat64(d.ManeuverSpeedMPS),
+		FramesLeft:  protoInt32(d.ManeuverFramesLeft),
+		EscapeCount: protoInt32(d.EscapeCount),
 	}
-	if d.ManeuverSteering != nil {
-		v := *d.ManeuverSteering
-		out.Maneuver.Steering = &v
-	}
-	if d.ManeuverSpeedMPS != nil {
-		v := *d.ManeuverSpeedMPS
-		out.Maneuver.SpeedMps = &v
-	}
-	if d.ManeuverFramesLeft != nil {
-		v := int32(*d.ManeuverFramesLeft)
-		out.Maneuver.FramesLeft = &v
-	}
-	if d.EscapeCount != nil {
-		v := int32(*d.EscapeCount)
-		out.Maneuver.EscapeCount = &v
-	}
-	out.SignRouting = &navv1.SignRouting{}
-	if d.ActiveSignCount != nil {
-		v := int32(*d.ActiveSignCount)
-		out.SignRouting.ActiveSignCount = &v
-	}
-	if d.SignDeformMagnitudeM != nil {
-		v := *d.SignDeformMagnitudeM
-		out.SignRouting.DeformMagnitudeM = &v
+	out.SignRouting = &navv1.SignRouting{
+		ActiveSignCount:  protoInt32(d.ActiveSignCount),
+		DeformMagnitudeM: protoFloat64(d.SignDeformMagnitudeM),
 	}
 	return out
+}
+
+// protoFloat64 and protoInt32 copy an optional snapshot field into its wire
+// representation, returning nil when unset so the proto keeps the
+// not-on-this-phase distinction.
+func protoFloat64(v *float64) *float64 {
+	if v == nil {
+		return nil
+	}
+	x := *v
+	return &x
+}
+
+func protoInt32(v *int) *int32 {
+	if v == nil {
+		return nil
+	}
+	x := int32(*v)
+	return &x
 }
 
 // deopt* return the zero value of an optional enum field when the pointer is nil,

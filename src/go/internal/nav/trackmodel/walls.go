@@ -21,6 +21,19 @@ type TrackWalls struct {
 	segments           []segment
 }
 
+// RayFan caches the unit vectors of a fixed bearing fan in the ROBOT frame.
+//
+// A scan's bearings never change between ticks; only the yaw they are cast at
+// does. Evaluating cos/sin per ray per scan therefore recomputes 2*len(angles)
+// transcendentals for a fan that is constant, which profiling put at ~22% of a
+// corpus sweep. Rotating a cached robot-frame unit vector into the world frame
+// costs four multiplies and two adds against two cos/sin calls per ray, so a
+// scan needs exactly two transcendentals regardless of how many rays it has.
+type RayFan struct {
+	angles   []float64
+	cos, sin []float64
+}
+
 // NewTrackWalls builds the wall layout from geometry. minCoord/maxCoord are
 // the track's outer boundary (profile.TrackConfig.Track.MinCoord/MaxCoord).
 func NewTrackWalls(geometry CorridorGeometry, minCoord, maxCoord float64) *TrackWalls {
@@ -42,19 +55,6 @@ func NewTrackWalls(geometry CorridorGeometry, minCoord, maxCoord float64) *Track
 			{inner.XMax, inner.YMin, inner.XMax, inner.YMax}, // east
 		},
 	}
-}
-
-// RayFan caches the unit vectors of a fixed bearing fan in the ROBOT frame.
-//
-// A scan's bearings never change between ticks; only the yaw they are cast at
-// does. Evaluating cos/sin per ray per scan therefore recomputes 2*len(angles)
-// transcendentals for a fan that is constant, which profiling put at ~22% of a
-// corpus sweep. Rotating a cached robot-frame unit vector into the world frame
-// costs four multiplies and two adds against two cos/sin calls per ray, so a
-// scan needs exactly two transcendentals regardless of how many rays it has.
-type RayFan struct {
-	angles   []float64
-	cos, sin []float64
 }
 
 // NewRayFan precomputes the unit vectors for anglesRobot. The slice is copied,

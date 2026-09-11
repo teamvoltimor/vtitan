@@ -6,21 +6,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
-// FullParkPoints is WRO 1.8.2 -- completely in the parking area AND parallel
-// to the wall.
-const FullParkPoints = 15
-
-// PartialParkPoints is WRO 1.8.3 -- partly in the parking area, OR in it but
-// not parallel.
-const PartialParkPoints = 7
-
-// scoringStandoffM is the contact standoff used for SCORING, not the
-// controller's give-up margin. FootprintBreachesWall/Markers default to a
-// safety standoff so the maneuver abandons before it touches; scoring
-// through that margin would call a legal park a breach and hide exactly the
-// near-wall poses partial credit depends on.
-const scoringStandoffM = 0.0
-
 // ParkScore is what a judge would award for a final pose, and the reasons
 // behind it.
 type ParkScore struct {
@@ -38,6 +23,25 @@ type ParkScore struct {
 	// regardless of pose.
 	Touched bool
 }
+
+// FullParkPoints is WRO 1.8.2 -- completely in the parking area AND parallel
+// to the wall.
+const FullParkPoints = 15
+
+// PartialParkPoints is WRO 1.8.3 -- partly in the parking area, OR in it but
+// not parallel.
+const PartialParkPoints = 7
+
+// scoringStandoffM is the contact standoff used for SCORING, not the
+// controller's give-up margin. FootprintBreachesWall/Markers default to a
+// safety standoff so the maneuver abandons before it touches; scoring
+// through that margin would call a legal park a breach and hide exactly the
+// near-wall poses partial credit depends on.
+const scoringStandoffM = 0.0
+
+// separationAxisCount bounds the SAT axes tested by FootprintOverlapsLot: the
+// two lot-frame axes plus two chassis edge normals.
+const separationAxisCount = 4
 
 // FootprintOverlapsLot reports whether ANY part of the chassis projection
 // lies inside the parking lot. The partial-credit counterpart to
@@ -73,7 +77,8 @@ func FootprintOverlapsLot(
 	// more. A gap on ANY axis separates the rectangles, so overlap needs all
 	// four to overlap. Two edges suffice per rectangle -- opposite edges
 	// share a normal.
-	axes := [][2]float64{{1.0, 0.0}, {0.0, 1.0}}
+	axes := make([][2]float64, 0, separationAxisCount)
+	axes = append(axes, [2]float64{1.0, 0.0}, [2]float64{0.0, 1.0})
 	for _, i := range [2]int{1, 2} {
 		prev := chassis[i-1]
 		cur := chassis[i]

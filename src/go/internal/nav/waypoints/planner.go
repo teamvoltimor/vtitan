@@ -1,6 +1,7 @@
 package waypoints
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -20,9 +21,40 @@ type StartingConditions struct {
 	Yaw       float64
 }
 
+// PlannerInput is everything CalculateWaypoints needs from a scenario's
+// metadata: the believed corridor geometry plus the (believed) starting
+// conditions. It is the Go stand-in for the Pydantic ScenarioMetadata, which
+// has no Go equivalent in this tree -- only the two fields generation.py
+// actually reads are represented here, so the planner stays decoupled from the
+// rest of the scenario-model layer.
+type PlannerInput struct {
+	Geometry  trackmodel.CorridorGeometry
+	Starting  StartingConditions
+	MaxCoordM float64
+	// ChassisWidthM is RobotSpecs.WIDTH, used by ValidatePathFeasibility.
+	ChassisWidthM float64
+}
+
+// BelievedStart is the start pose/direction/section triple the robot
+// currently believes, as distinct from the ground-truth record in
+// PlannerInput.Starting. It is exactly a StartingConditions, named apart so
+// a believed belief is not accidentally confused with the confirmed one.
+type BelievedStart = StartingConditions
+
 // trackMinCoordM is the track's inner boundary coordinate (matches
 // track.toml [track] min_coord).
 const trackMinCoordM = 0.0
+
+// wideCorridorWidthM mirrors shared.config.constants.CorridorDimensions.WIDE
+// (1.0 m) -- the fixed WRO rule width CORNER_ARC_ASSUME_WIDE substitutes for
+// both corridors' believed widths, so the arc is independent of a belief that
+// starts out wrong. The rules only present NARROW (0.6) and WIDE (1.0), so
+// this is a constant, not config.
+const wideCorridorWidthM = 1.0
+
+// innerSquareDivisor derives the WRO inner-square bounds as the central third
+// of maxCoordM: cornerMin = maxCoordM/3, cornerMax = 2*maxCoordM/3.
+const innerSquareDivisor = 3
 
 // ReplannedAt returns a copy of sc with the believed pose/direction swapped
 // in, matching StartingConditions.replanned_at -- typed replacement for a
@@ -39,20 +71,6 @@ func (sc StartingConditions) ReplannedAt(
 		Position:  position,
 		Yaw:       yaw,
 	}
-}
-
-// PlannerInput is everything CalculateWaypoints needs from a scenario's
-// metadata: the believed corridor geometry plus the (believed) starting
-// conditions. It is the Go stand-in for the Pydantic ScenarioMetadata, which
-// has no Go equivalent in this tree -- only the two fields generation.py
-// actually reads are represented here, so the planner stays decoupled from the
-// rest of the scenario-model layer.
-type PlannerInput struct {
-	Geometry  trackmodel.CorridorGeometry
-	Starting  StartingConditions
-	MaxCoordM float64
-	// ChassisWidthM is RobotSpecs.WIDTH, used by ValidatePathFeasibility.
-	ChassisWidthM float64
 }
 
 // CalculateWaypoints builds the full multi-lap waypoint sequence for a
@@ -78,7 +96,7 @@ func CalculateWaypoints(
 	unconfirmed UnconfirmedSections,
 ) ([]trackmodel.Waypoint, error) {
 	if input.Starting.Direction == nil {
-		return nil, fmt.Errorf(
+		return nil, errors.New(
 			"waypoints: calculate_waypoints requires a resolved StartingConditions.Direction; " +
 				"callers must infer/assign it before planning a path",
 		)
@@ -164,13 +182,6 @@ func CalculateWaypoints(
 	return waypoints, nil
 }
 
-// wideCorridorWidthM mirrors shared.config.constants.CorridorDimensions.WIDE
-// (1.0 m) -- the fixed WRO rule width CORNER_ARC_ASSUME_WIDE substitutes for
-// both corridors' believed widths, so the arc is independent of a belief that
-// starts out wrong. The rules only present NARROW (0.6) and WIDE (1.0), so
-// this is a constant, not config.
-const wideCorridorWidthM = 1.0
-
 // cornerRadius sizes one corner arc from the two corridors it joins, matching
 // generation.py's corner_radii dict comprehension. When assumeWide is set, both
 // corridors are treated as WIDE (wideCorridorWidthM), so the arc -- and
@@ -196,12 +207,6 @@ func cornerRadius(
 		cfg.ArcRadius,
 	)
 }
-
-// BelievedStart is the start pose/direction/section triple the robot
-// currently believes, as distinct from the ground-truth record in
-// PlannerInput.Starting. It is exactly a StartingConditions, named apart so
-// a believed belief is not accidentally confused with the confirmed one.
-type BelievedStart = StartingConditions
 
 // PlanBelievedPath builds a one-lap path for the layout the robot currently
 // believes it is on, matching generation.py's plan_believed_path. Shared by
@@ -265,8 +270,8 @@ func innerSquareExclusion(maxCoordM float64) *trackmodel.InnerBlock {
 	// corridor-min and corridor-max, which for the standard mat is
 	// [1, 2]x[1, 2]. We reproduce that exactly: cornerMin = maxCoordM/3,
 	// cornerMax = 2*maxCoordM/3, the WRO 2026 inner-square definition.
-	cornerMin := maxCoordM / 3.0
-	cornerMax := 2.0 * maxCoordM / 3.0
+	cornerMin := maxCoordM / innerSquareDivisor
+	cornerMax := 2 * maxCoordM / innerSquareDivisor
 	return &trackmodel.InnerBlock{
 		XMin: cornerMin,
 		YMin: cornerMin,

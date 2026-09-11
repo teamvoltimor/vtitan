@@ -61,31 +61,6 @@ type Config struct {
 	ControlHz float64
 }
 
-// DefaultConfig returns the Config matching the shipped defaults: every
-// BayExit* field from corridorfollower.DefaultConfig, RobotSpecs' shipped
-// constants (robot.toml), and ParkingLotSpecs' shipped constants
-// (track.toml's [parking]).
-func DefaultConfig() Config {
-	return Config{
-		Follower: corridorfollower.DefaultConfig(),
-
-		WheelbaseM:     DefaultWheelbaseM,
-		RearSteerRatio: DefaultRearSteerRatio,
-		YawGain:        DefaultYawGain,
-		ChassisLengthM: DefaultChassisLengthM,
-		ChassisWidthM:  DefaultChassisWidthM,
-
-		MinTurnRadiusM:    DefaultMinTurnRadiusM,
-		SpeedResponseTauS: DefaultSpeedResponseTauS,
-		LidarMaxRangeM:    DefaultLidarMaxRangeM,
-
-		ParkingLot: parking.DefaultParkingLotSpecs,
-
-		MaxSteeringRateRadPerS: DefaultMaxSteeringRateRadPerS,
-		ControlHz:              DefaultControlHz,
-	}
-}
-
 // Shipped defaults, matching src/config/robot.toml and
 // internal/nav/controllers.DefaultConfig's own mirrors of the same values.
 const (
@@ -114,6 +89,31 @@ const (
 	// DefaultLidarMaxRangeM matches robot.toml's [lidar] max_range.
 	DefaultLidarMaxRangeM = 12.0
 )
+
+// DefaultConfig returns the Config matching the shipped defaults: every
+// BayExit* field from corridorfollower.DefaultConfig, RobotSpecs' shipped
+// constants (robot.toml), and ParkingLotSpecs' shipped constants
+// (track.toml's [parking]).
+func DefaultConfig() Config {
+	return Config{
+		Follower: corridorfollower.DefaultConfig(),
+
+		WheelbaseM:     DefaultWheelbaseM,
+		RearSteerRatio: DefaultRearSteerRatio,
+		YawGain:        DefaultYawGain,
+		ChassisLengthM: DefaultChassisLengthM,
+		ChassisWidthM:  DefaultChassisWidthM,
+
+		MinTurnRadiusM:    DefaultMinTurnRadiusM,
+		SpeedResponseTauS: DefaultSpeedResponseTauS,
+		LidarMaxRangeM:    DefaultLidarMaxRangeM,
+
+		ParkingLot: parking.DefaultParkingLotSpecs,
+
+		MaxSteeringRateRadPerS: DefaultMaxSteeringRateRadPerS,
+		ControlHz:              DefaultControlHz,
+	}
+}
 
 // EffectiveWheelbaseM is the wheelbase the chassis actually turns about, not
 // the axle spacing, matching bay_exit.py's _EFFECTIVE_WHEELBASE_M.

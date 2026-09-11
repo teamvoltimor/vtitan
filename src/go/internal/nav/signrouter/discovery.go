@@ -8,6 +8,105 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
+// BoundingBox is a pixel detection's geometry, matching the fields
+// DetectionToWorld reads (the subset of sign_discovery.py's Detection.as_bbox
+// plus its class_name/confidence). Keep it in this package so callers do not
+// have to import the ROS wire type.
+type BoundingBox struct {
+	XMin, YMin, XMax, YMax float64
+	// CenterX is the horizontal centre in pixels (cx in the Python source).
+	CenterX float64
+	// Height is the bbox pixel height (YMax - YMin).
+	Height     float64
+	Color      SignColor
+	Confidence float64
+}
+
+// DiscoveryConfig tunes ObservedSignMap, matching the constructor parameters of
+// sign_discovery.py's ObservedSignMap (sourced from NavigationTuning
+// .sign_discovery in Python). See the Default* block for the shipped values.
+type DiscoveryConfig struct {
+	MinConfidence           float64
+	MaxIngestRangeM         float64
+	AssociationDistM        float64
+	MinHits                 int
+	RobotCorridorFlipTicks  int
+	MinReliableBBoxHeightPX float64
+	// MinValidLidarRangeM is lidar_sectors.MIN_VALID_RANGE_M, the floor for
+	// the LIDAR range-fusion gate.
+	MinValidLidarRangeM float64
+	// CornerMinM/CornerMaxM are TrackDimensions CORNER_MIN/CORNER_MAX, the
+	// track bounds corridor_for_position uses to settle the robot's corridor
+	// (the association gate). Mirrors SignRouter's TrackCornerMin/MaxM.
+	CornerMinM float64
+	CornerMaxM float64
+}
+
+// signTrack is one candidate sign, accumulated across frames, matching
+// sign_discovery.py's _SignTrack.
+type signTrack struct {
+	x, y           float64
+	bestRange      float64
+	corridor       trackmodel.Section
+	hits           int
+	votes          map[SignColor]float64
+	publishedIndex *int
+}
+
+// ObservedSignMap is a persistent world-frame sign map accumulated from camera
+// detections, matching sign_discovery.py's ObservedSignMap. Tracks are
+// append-only once published so SignRouter's index-keyed bookkeeping stays
+// valid; positions are refined in place from the closest observation.
+type ObservedSignMap struct {
+	cfg    DiscoveryConfig
+	sd     *SignRouter
+	tracks []*signTrack
+
+	robotCorridor           *trackmodel.Section
+	robotCorridorFlipStreak *struct {
+		corridor trackmodel.Section
+		streak   int
+	}
+}
+
+// Default* mirror the shipped sign_discovery.toml / lidar_sectors values.
+// DefaultMinConfidence is reused from this package's sighted router config.
+//
+// RobotCorridorFlipTicks and MinReliableBBoxHeightPX carried unconfirmed
+// placeholders (1 and 8.0) against the shipped 5 and 5 until 2026-09-06;
+// DiscoveryConfigFor now reads the file, so these are the no-config-root
+// fallback rather than a second source of truth.
+const (
+	DefaultMaxIngestRangeM         = 2.0
+	DefaultAssociationDistM        = 0.25
+	DefaultMinHits                 = 3
+	DefaultRobotCorridorFlipTicks  = 5
+	DefaultMinReliableBBoxHeightPX = 5.0
+	DefaultMinValidLidarRangeM     = 0.05
+	DefaultCornerMinM              = 1.0
+	DefaultCornerMaxM              = 2.0
+)
+
+// imageCenterFraction is the horizontal image centre in normalised pixel
+// coordinates, the 0.5 midpoint sign_discovery.py subtracts.
+const imageCenterFraction = 0.5
+
+// DefaultDiscoveryConfig returns the DiscoveryConfig matching the shipped
+// Python tuning defaults.
+func DefaultDiscoveryConfig() DiscoveryConfig {
+	return DiscoveryConfig{
+		MinConfidence:           DefaultMinConfidence,
+		MaxIngestRangeM:         DefaultMaxIngestRangeM,
+		AssociationDistM:        DefaultAssociationDistM,
+		MinHits:                 DefaultMinHits,
+		RobotCorridorFlipTicks:  DefaultRobotCorridorFlipTicks,
+		MinReliableBBoxHeightPX: DefaultMinReliableBBoxHeightPX,
+		MinValidLidarRangeM:     DefaultMinValidLidarRangeM,
+		CornerMinM:              DefaultCornerMinM,
+		CornerMaxM:              DefaultCornerMaxM,
+	}
+}
+
 // CameraFocalPX is the pinhole focal length in pixels, derived from the
 // configured HFOV and image width, matching sign_discovery.py's
 // _CAMERA_FOCAL_PX.
@@ -18,7 +117,7 @@ import (
 // Pi Camera Module 3 Wide), and nothing raised because a constant has no
 // loader to disagree with.
 func (c Config) CameraFocalPX() float64 {
-	return (c.CameraWidthPX / 2.0) / math.Tan(c.CameraHFOVRad/2.0)
+	return (c.CameraWidthPX / 2) / math.Tan(c.CameraHFOVRad/2)
 }
 
 // DetectionToWorld projects a pixel bounding box to an approximate world
@@ -45,7 +144,7 @@ func (c Config) DetectionToWorld(
 
 	// Horizontal angle from image centre.
 	cx := det.CenterX
-	thetaH := (cx/c.CameraWidthPX - 0.5) * c.CameraHFOVRad
+	thetaH := (cx/c.CameraWidthPX - imageCenterFraction) * c.CameraHFOVRad
 
 	if len(lidarRangesM) > 0 && len(lidarAnglesRad) > 0 {
 		lidarRange := navutil.NearestRay(
@@ -97,85 +196,6 @@ func (c Config) DetectionToObservation(
 	}
 }
 
-// BoundingBox is a pixel detection's geometry, matching the fields
-// DetectionToWorld reads (the subset of sign_discovery.py's Detection.as_bbox
-// plus its class_name/confidence). Keep it in this package so callers do not
-// have to import the ROS wire type.
-type BoundingBox struct {
-	XMin, YMin, XMax, YMax float64
-	// CenterX is the horizontal centre in pixels (cx in the Python source).
-	CenterX float64
-	// Height is the bbox pixel height (YMax - YMin).
-	Height     float64
-	Color      SignColor
-	Confidence float64
-}
-
-// DiscoveryConfig tunes ObservedSignMap, matching the constructor parameters of
-// sign_discovery.py's ObservedSignMap (sourced from NavigationTuning
-// .sign_discovery in Python). See the Default* block for the shipped values.
-type DiscoveryConfig struct {
-	MinConfidence           float64
-	MaxIngestRangeM         float64
-	AssociationDistM        float64
-	MinHits                 int
-	RobotCorridorFlipTicks  int
-	MinReliableBBoxHeightPX float64
-	// MinValidLidarRangeM is lidar_sectors.MIN_VALID_RANGE_M, the floor for
-	// the LIDAR range-fusion gate.
-	MinValidLidarRangeM float64
-	// CornerMinM/CornerMaxM are TrackDimensions CORNER_MIN/CORNER_MAX, the
-	// track bounds corridor_for_position uses to settle the robot's corridor
-	// (the association gate). Mirrors SignRouter's TrackCornerMin/MaxM.
-	CornerMinM float64
-	CornerMaxM float64
-}
-
-// Default* mirror the shipped sign_discovery.toml / lidar_sectors values.
-// DefaultMinConfidence is reused from this package's sighted router config.
-//
-// RobotCorridorFlipTicks and MinReliableBBoxHeightPX carried unconfirmed
-// placeholders (1 and 8.0) against the shipped 5 and 5 until 2026-09-06;
-// DiscoveryConfigFor now reads the file, so these are the no-config-root
-// fallback rather than a second source of truth.
-const (
-	DefaultMaxIngestRangeM         = 2.0
-	DefaultAssociationDistM        = 0.25
-	DefaultMinHits                 = 3
-	DefaultRobotCorridorFlipTicks  = 5
-	DefaultMinReliableBBoxHeightPX = 5.0
-	DefaultMinValidLidarRangeM     = 0.05
-	DefaultCornerMinM              = 1.0
-	DefaultCornerMaxM              = 2.0
-)
-
-// DefaultDiscoveryConfig returns the DiscoveryConfig matching the shipped
-// Python tuning defaults.
-func DefaultDiscoveryConfig() DiscoveryConfig {
-	return DiscoveryConfig{
-		MinConfidence:           DefaultMinConfidence,
-		MaxIngestRangeM:         DefaultMaxIngestRangeM,
-		AssociationDistM:        DefaultAssociationDistM,
-		MinHits:                 DefaultMinHits,
-		RobotCorridorFlipTicks:  DefaultRobotCorridorFlipTicks,
-		MinReliableBBoxHeightPX: DefaultMinReliableBBoxHeightPX,
-		MinValidLidarRangeM:     DefaultMinValidLidarRangeM,
-		CornerMinM:              DefaultCornerMinM,
-		CornerMaxM:              DefaultCornerMaxM,
-	}
-}
-
-// signTrack is one candidate sign, accumulated across frames, matching
-// sign_discovery.py's _SignTrack.
-type signTrack struct {
-	x, y           float64
-	bestRange      float64
-	corridor       trackmodel.Section
-	hits           int
-	votes          map[SignColor]float64
-	publishedIndex *int
-}
-
 // color returns the confidence-weighted majority colour vote.
 func (t *signTrack) color() SignColor {
 	best := SignColorRed
@@ -192,22 +212,6 @@ func (t *signTrack) color() SignColor {
 // asSpec materialises the track as a SignSpec.
 func (t *signTrack) asSpec() SignSpec {
 	return SignSpec{X: t.x, Y: t.y, Color: t.color()}
-}
-
-// ObservedSignMap is a persistent world-frame sign map accumulated from camera
-// detections, matching sign_discovery.py's ObservedSignMap. Tracks are
-// append-only once published so SignRouter's index-keyed bookkeeping stays
-// valid; positions are refined in place from the closest observation.
-type ObservedSignMap struct {
-	cfg    DiscoveryConfig
-	sd     *SignRouter
-	tracks []*signTrack
-
-	robotCorridor           *trackmodel.Section
-	robotCorridorFlipStreak *struct {
-		corridor trackmodel.Section
-		streak   int
-	}
 }
 
 // NewObservedSignMap builds an empty map, matching ObservedSignMap.__init__.
@@ -229,34 +233,6 @@ func NewObservedSignMap(cfg DiscoveryConfig, sd *SignRouter) *ObservedSignMap {
 // (discover mode), matching SignRouter.is_discovering.
 func (m *ObservedSignMap) IsDiscovering() bool {
 	return m != nil && m.sd != nil
-}
-
-func (m *ObservedSignMap) settleRobotCorridor(raw trackmodel.Section) trackmodel.Section {
-	if m.robotCorridor == nil || raw == *m.robotCorridor {
-		m.robotCorridorFlipStreak = nil
-		m.robotCorridor = &raw
-		return raw
-	}
-	var candidate trackmodel.Section
-	streak := 0
-	if s := m.robotCorridorFlipStreak; s != nil {
-		candidate, streak = s.corridor, s.streak
-	}
-	if candidate != raw {
-		streak = 1
-	} else {
-		streak++
-	}
-	if streak < m.cfg.RobotCorridorFlipTicks {
-		m.robotCorridorFlipStreak = &struct {
-			corridor trackmodel.Section
-			streak   int
-		}{corridor: raw, streak: streak}
-		return *m.robotCorridor
-	}
-	m.robotCorridorFlipStreak = nil
-	m.robotCorridor = &raw
-	return raw
 }
 
 // Observe folds one frame of world-coordinate observations into the map,
@@ -286,6 +262,70 @@ func (m *ObservedSignMap) Observe(
 		}
 		m.fold(world, observedRange, obs, robotCorridor)
 	}
+}
+
+// NewlyConfirmed returns tracks that crossed MinHits and are not yet
+// published, matching ObservedSignMap.newly_confirmed. The caller assigns
+// published_index once the returned specs are appended to the router.
+func (m *ObservedSignMap) NewlyConfirmed() []*signTrack {
+	var out []*signTrack
+	for _, t := range m.tracks {
+		if t.publishedIndex == nil && t.hits >= m.cfg.MinHits {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Publish folds every newly-confirmed track into the SignRouter (discover
+// mode), assigning it the next index. No-op without a router.
+func (m *ObservedSignMap) Publish() {
+	if m.sd == nil {
+		return
+	}
+	for _, t := range m.NewlyConfirmed() {
+		idx := m.sd.AppendSign(t.asSpec())
+		i := idx
+		t.publishedIndex = &i
+	}
+}
+
+// Specs returns the world-frame SignSpec for every track, matching the Python
+// _SignTrack.as_spec over all tracks (published and pending).
+func (m *ObservedSignMap) Specs() []SignSpec {
+	out := make([]SignSpec, 0, len(m.tracks))
+	for _, t := range m.tracks {
+		out = append(out, t.asSpec())
+	}
+	return out
+}
+
+func (m *ObservedSignMap) settleRobotCorridor(raw trackmodel.Section) trackmodel.Section {
+	if m.robotCorridor == nil || raw == *m.robotCorridor {
+		m.robotCorridorFlipStreak = nil
+		m.robotCorridor = &raw
+		return raw
+	}
+	var candidate trackmodel.Section
+	streak := 0
+	if s := m.robotCorridorFlipStreak; s != nil {
+		candidate, streak = s.corridor, s.streak
+	}
+	if candidate != raw {
+		streak = 1
+	} else {
+		streak++
+	}
+	if streak < m.cfg.RobotCorridorFlipTicks {
+		m.robotCorridorFlipStreak = &struct {
+			corridor trackmodel.Section
+			streak   int
+		}{corridor: raw, streak: streak}
+		return *m.robotCorridor
+	}
+	m.robotCorridorFlipStreak = nil
+	m.robotCorridor = &raw
+	return raw
 }
 
 func (m *ObservedSignMap) fold(
@@ -331,40 +371,4 @@ func (m *ObservedSignMap) nearestTrack(
 		}
 	}
 	return best
-}
-
-// NewlyConfirmed returns tracks that crossed MinHits and are not yet
-// published, matching ObservedSignMap.newly_confirmed. The caller assigns
-// published_index once the returned specs are appended to the router.
-func (m *ObservedSignMap) NewlyConfirmed() []*signTrack {
-	var out []*signTrack
-	for _, t := range m.tracks {
-		if t.publishedIndex == nil && t.hits >= m.cfg.MinHits {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// Publish folds every newly-confirmed track into the SignRouter (discover
-// mode), assigning it the next index. No-op without a router.
-func (m *ObservedSignMap) Publish() {
-	if m.sd == nil {
-		return
-	}
-	for _, t := range m.NewlyConfirmed() {
-		idx := m.sd.AppendSign(t.asSpec())
-		i := idx
-		t.publishedIndex = &i
-	}
-}
-
-// Specs returns the world-frame SignSpec for every track, matching the Python
-// _SignTrack.as_spec over all tracks (published and pending).
-func (m *ObservedSignMap) Specs() []SignSpec {
-	out := make([]SignSpec, 0, len(m.tracks))
-	for _, t := range m.tracks {
-		out = append(out, t.asSpec())
-	}
-	return out
 }

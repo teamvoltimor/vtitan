@@ -220,6 +220,16 @@ type Config struct {
 	FinishApproachM float64
 }
 
+// ChallengeTiers is one challenge's overrides on the shared speed ladder.
+// A nil field means "this challenge does not override that tier", which is
+// distinct from zero -- zero is a stopped robot, not a slow one.
+type ChallengeTiers struct {
+	MaxMPS    *float64
+	SlowMPS   *float64
+	MediumMPS *float64
+	FastMPS   *float64
+}
+
 // Default* mirror the shipped TOML values this package's Python
 // counterpart (CoreNavigator + EscapeRecovery, via NavigationTuning) reads:
 // src/config/navigation/** plus src/config/robot.toml
@@ -448,16 +458,6 @@ func DefaultConfig() Config {
 	}
 }
 
-// ChallengeTiers is one challenge's overrides on the shared speed ladder.
-// A nil field means "this challenge does not override that tier", which is
-// distinct from zero -- zero is a stopped robot, not a slow one.
-type ChallengeTiers struct {
-	MaxMPS    *float64
-	SlowMPS   *float64
-	MediumMPS *float64
-	FastMPS   *float64
-}
-
 // isEmpty reports whether this challenge overrides nothing, in which case
 // ForChallenge returns the base ladder untouched.
 func (t ChallengeTiers) isEmpty() bool {
@@ -515,34 +515,6 @@ func (c Config) ForObstaclesChallenge() Config {
 	}
 	c.KTurnFitRearGap = *c.ObstaclesKTurnFitRearGap
 	return c
-}
-
-// validateChallengeTiers rejects a per-challenge tier above that challenge's
-// own cap, matching SpeedControlParams._challenge_tiers_below_challenge_cap.
-//
-// Speed selection clamps the chosen zone to MaxSpeedMPS(), so a fast tier
-// above the cap silently resolves to the cap: it looks like tuning and
-// measures nothing. That failure mode has already shipped twice in the
-// Python original, which is why it is an error rather than a warning about
-// a value that would merely be ignored.
-func (c Config) validateChallengeTiers() error {
-	for _, named := range []challengeTiers{{"open", c.Open}, {"obstacles", c.Obstacles}} {
-		ceiling := named.tiers.cap(c.MaxMPS)
-		for _, tier := range []tierValue{
-			{"slow", named.tiers.SlowMPS},
-			{"medium", named.tiers.MediumMPS},
-			{"fast", named.tiers.FastMPS},
-		} {
-			if tier.value != nil && *tier.value > ceiling {
-				return fmt.Errorf(
-					"speed.%s_%s_mps (%v) exceeds the %s cap (%v); every tier is clamped to "+
-						"max_mps, so this tier would be silently inert",
-					named.name, tier.name, *tier.value, named.name, ceiling,
-				)
-			}
-		}
-	}
-	return nil
 }
 
 // MinSpeedMPS is MIN_MPS clamped by the drivetrain ceiling, matching
@@ -618,6 +590,34 @@ func (c Config) RetraceSteerGainNorm(lateralOverDistance float64) float64 {
 // derives it from robot.toml, rather than being recomputed here.
 func (c Config) LaneLateralOffsetM(chassisHalfDiagonalM float64) float64 {
 	return (chassisHalfDiagonalM + c.SignWidthM/2.0 + c.SignClearanceMarginM) * c.SignLaneOffsetFrac
+}
+
+// validateChallengeTiers rejects a per-challenge tier above that challenge's
+// own cap, matching SpeedControlParams._challenge_tiers_below_challenge_cap.
+//
+// Speed selection clamps the chosen zone to MaxSpeedMPS(), so a fast tier
+// above the cap silently resolves to the cap: it looks like tuning and
+// measures nothing. That failure mode has already shipped twice in the
+// Python original, which is why it is an error rather than a warning about
+// a value that would merely be ignored.
+func (c Config) validateChallengeTiers() error {
+	for _, named := range []challengeTiers{{"open", c.Open}, {"obstacles", c.Obstacles}} {
+		ceiling := named.tiers.cap(c.MaxMPS)
+		for _, tier := range []tierValue{
+			{"slow", named.tiers.SlowMPS},
+			{"medium", named.tiers.MediumMPS},
+			{"fast", named.tiers.FastMPS},
+		} {
+			if tier.value != nil && *tier.value > ceiling {
+				return fmt.Errorf(
+					"speed.%s_%s_mps (%v) exceeds the %s cap (%v); every tier is clamped to "+
+						"max_mps, so this tier would be silently inert",
+					named.name, tier.name, *tier.value, named.name, ceiling,
+				)
+			}
+		}
+	}
+	return nil
 }
 
 // degreesToRadians converts an angle in degrees to radians.

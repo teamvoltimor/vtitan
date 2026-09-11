@@ -346,6 +346,26 @@ func (c Config) NewStuckDetector(logger *slog.Logger) (*StuckDetector, error) {
 	)
 }
 
+// ForOpenChallenge resolves the Open Challenge's pursuit overrides,
+// matching PurePursuitParams.for_open_challenge.
+//
+// Only the straight lookahead has one. Obstacles reads the base parameters
+// and its resolution path is untouched, so this cannot shadow the base
+// constant on an Obstacles sweep.
+//
+// Resolved ONCE, where the controller is built, rather than at each site
+// that reads a lookahead -- for the same reason the speed ladder is: a
+// lookahead read mid-run cannot then disagree with one read at startup.
+//
+// The identity when no override is configured, so a caller need not branch.
+func (c Config) ForOpenChallenge() Config {
+	if c.OpenLookaheadLong == 0.0 {
+		return c
+	}
+	c.LookaheadLong = c.OpenLookaheadLong
+	return c
+}
+
 // sectorGeometry builds the SectorGeometry shared by every sector query
 // from this Config, matching how CollisionAvoidanceController.__init__
 // converts its degree-unit lidar_sectors parameters to radians once at
@@ -370,24 +390,4 @@ func (c Config) sectorGeometry() SectorGeometry {
 		BlindWedgeRightMinRad: c.BlindWedgeRightMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
 		BlindWedgeRightMaxRad: c.BlindWedgeRightMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
 	}
-}
-
-// ForOpenChallenge resolves the Open Challenge's pursuit overrides,
-// matching PurePursuitParams.for_open_challenge.
-//
-// Only the straight lookahead has one. Obstacles reads the base parameters
-// and its resolution path is untouched, so this cannot shadow the base
-// constant on an Obstacles sweep.
-//
-// Resolved ONCE, where the controller is built, rather than at each site
-// that reads a lookahead -- for the same reason the speed ladder is: a
-// lookahead read mid-run cannot then disagree with one read at startup.
-//
-// The identity when no override is configured, so a caller need not branch.
-func (c Config) ForOpenChallenge() Config {
-	if c.OpenLookaheadLong == 0.0 {
-		return c
-	}
-	c.LookaheadLong = c.OpenLookaheadLong
-	return c
 }

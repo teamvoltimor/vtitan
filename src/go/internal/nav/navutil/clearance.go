@@ -12,6 +12,10 @@ type BlindWedges struct {
 	RightMinRad, RightMaxRad float64
 }
 
+// medianEvenDivisor splits a sorted slice into left/right halves when
+// averaging the two middle values.
+const medianEvenDivisor = 2
+
 // RearClearance is the minimum clearance in the rear sector, or ok=false
 // when the mount cannot see it (matches utils._rear_clearance).
 //
@@ -91,10 +95,6 @@ func WedgeMedian(
 	}
 	return median(valid), true
 }
-
-// medianEvenDivisor splits a sorted slice into left/right halves when
-// averaging the two middle values.
-const medianEvenDivisor = 2
 
 // median computes the median of values, which is mutated (sorted) in place.
 func median(values []float64) float64 {

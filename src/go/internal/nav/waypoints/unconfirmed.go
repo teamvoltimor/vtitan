@@ -36,12 +36,12 @@ func AllUnconfirmed() UnconfirmedSections {
 // Confirmed reports whether section's width has been measured. It is the
 // complement of the set's membership, and is what CenterBiasForCorridor
 // takes, so callers never have to negate at the call site.
-func (u UnconfirmedSections) Confirmed(section trackmodel.Section) bool {
+func (u *UnconfirmedSections) Confirmed(section trackmodel.Section) bool {
 	return !u.Contains(section)
 }
 
 // Contains reports whether section is still unconfirmed.
-func (u UnconfirmedSections) Contains(section trackmodel.Section) bool {
+func (u *UnconfirmedSections) Contains(section trackmodel.Section) bool {
 	switch section {
 	case trackmodel.North:
 		return u.North

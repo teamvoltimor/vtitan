@@ -58,6 +58,20 @@ type Params struct {
 	MaxCoordM float64
 }
 
+// Sensors is the slice of controllers.HardwareGateway the belief loop reads:
+// the scan it measures a corridor from, the pose it attributes that
+// measurement by, and the wall model it must re-seed so the NEXT pose is
+// computed against the layout just adopted.
+//
+// Declared here rather than taking the whole gateway so a caller with a
+// narrower simulation gateway (internal/sim/scenario's simGateway) can pass
+// it without implementing the parts of the port a belief loop never touches.
+type Sensors interface {
+	GetLidarScan() (controllers.LidarScan, bool)
+	GetCurrentPose() (trackmodel.Pose, bool)
+	SetBelievedWalls(walls *trackmodel.TrackWalls)
+}
+
 // NewLayout builds a Layout. A nil Params.Estimator returns nil, so a
 // sighted caller can construct unconditionally and check for nil once.
 func NewLayout(p Params) *Layout {
@@ -73,20 +87,6 @@ func NewLayout(p Params) *Layout {
 		centerBiasM: p.CenterBiasM,
 		maxCoordM:   p.MaxCoordM,
 	}
-}
-
-// Sensors is the slice of controllers.HardwareGateway the belief loop reads:
-// the scan it measures a corridor from, the pose it attributes that
-// measurement by, and the wall model it must re-seed so the NEXT pose is
-// computed against the layout just adopted.
-//
-// Declared here rather than taking the whole gateway so a caller with a
-// narrower simulation gateway (internal/sim/scenario's simGateway) can pass
-// it without implementing the parts of the port a belief loop never touches.
-type Sensors interface {
-	GetLidarScan() (controllers.LidarScan, bool)
-	GetCurrentPose() (trackmodel.Pose, bool)
-	SetBelievedWalls(walls *trackmodel.TrackWalls)
 }
 
 // Update folds one tick's scan into the belief and replans nav's path if the

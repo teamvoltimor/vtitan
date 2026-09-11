@@ -69,16 +69,6 @@ const (
 // NewParkController builds a ParkController from explicit geometry and tuning.
 // speed defaults to cfg.DefaultSpeedMPS when zero; maxFrames defaults to
 // cfg.DefaultMaxFrames when zero.
-// AttemptAfterFinalLap reports whether the round should pursue the bay once
-// the final lap is banked, mirroring ParkingParams.ATTEMPT_AFTER_FINAL_LAP.
-// The controller is constructed either way -- deferring the pursuit must not
-// change what the scenario contains -- so both the navigator's finish branch
-// and the sim runner's stop condition consult this rather than the
-// controller's mere existence.
-func (p *ParkController) AttemptAfterFinalLap() bool {
-	return p.cfg.AttemptAfterFinalLap
-}
-
 func NewParkController(
 	lot ParkingLot,
 	section trackmodel.Section,
@@ -114,6 +104,16 @@ func NewParkController(
 	}
 }
 
+// AttemptAfterFinalLap reports whether the round should pursue the bay once
+// the final lap is banked, mirroring ParkingParams.ATTEMPT_AFTER_FINAL_LAP.
+// The controller is constructed either way -- deferring the pursuit must not
+// change what the scenario contains -- so both the navigator's finish branch
+// and the sim runner's stop condition consult this rather than the
+// controller's mere existence.
+func (p *ParkController) AttemptAfterFinalLap() bool {
+	return p.cfg.AttemptAfterFinalLap
+}
+
 // IsRepositioning reports whether STAGE/ENTER is mid reverse-and-reorient
 // recovery (see pursueWithReposition). CoreNavigator's generic stuck-detector
 // escape is blind to parking geometry (the inner keep-out block, the staging
@@ -122,70 +122,70 @@ func NewParkController(
 // progress (rotating toward a reachable heading) but doesn't move far in a
 // straight line. CoreNavigator should not override this with a generic escape
 // while it is active.
-func (c *ParkController) IsRepositioning() bool {
-	return c.repositionLeft > 0
+func (p *ParkController) IsRepositioning() bool {
+	return p.repositionLeft > 0
 }
 
 // IsDone reports whether the parking maneuver is complete (cleanly or via
 // timeout).
-func (c *ParkController) IsDone() bool {
-	return c.phase == PhaseDone
+func (p *ParkController) IsDone() bool {
+	return p.phase == PhaseDone
 }
 
 // IsTimedOut reports whether the maneuver gave up rather than parking cleanly.
 // Two ways to give up: exhausting the frame budget, or ENTER reaching the field
 // wall without achieving containment. Both mean "stopped, not parked", which is
 // the distinction callers actually act on.
-func (c *ParkController) IsTimedOut() bool {
-	return c.timedOut
+func (p *ParkController) IsTimedOut() bool {
+	return p.timedOut
 }
 
 // Section returns the corridor that contains the parking lot.
-func (c *ParkController) Section() trackmodel.Section {
-	return c.section
+func (p *ParkController) Section() trackmodel.Section {
+	return p.section
 }
 
 // Direction returns the traversal direction the parked heading was chosen to
 // match.
-func (c *ParkController) Direction() trackmodel.Direction {
-	return c.direction
+func (p *ParkController) Direction() trackmodel.Direction {
+	return p.direction
 }
 
 // Zone returns the parking lot rectangle and target heading this controller is
 // aiming for.
-func (c *ParkController) Zone() ParkZone {
-	return c.zone
+func (p *ParkController) Zone() ParkZone {
+	return p.zone
 }
 
 // Staging returns the staging position in front of the gap opening.
-func (c *ParkController) Staging() trackmodel.Waypoint {
-	return c.staging
+func (p *ParkController) Staging() trackmodel.Waypoint {
+	return p.staging
 }
 
 // Update computes the next motor command from the current world pose of the
 // robot center (heading 0=east, pi/2=north).
-func (c *ParkController) Update(pose trackmodel.Pose) ParkCommand {
-	if c.phase == PhaseDone {
+func (p *ParkController) Update(pose trackmodel.Pose) ParkCommand {
+	if p.phase == PhaseDone {
 		return ParkCommand{LinearMPS: 0.0, SteeringNorm: 0.0, Done: true, Phase: PhaseDone}
 	}
 
-	c.framesElapsed++
-	if c.framesElapsed > c.maxFrames {
-		c.timedOut = true
-		c.phase = PhaseDone
+	p.framesElapsed++
+	if p.framesElapsed > p.maxFrames {
+		p.timedOut = true
+		p.phase = PhaseDone
 		return ParkCommand{LinearMPS: 0.0, SteeringNorm: 0.0, Done: true, Phase: PhaseDone}
 	}
 
 	// Early exit: if already inside the zone at any phase, we're done.
-	if posInside, yawOK := InsideZone(pose.X, pose.Y, pose.Yaw, c.zone, c.cfg); posInside && yawOK {
-		c.phase = PhaseDone
+	if posInside, yawOK := InsideZone(pose.X, pose.Y, pose.Yaw, p.zone, p.cfg); posInside && yawOK {
+		p.phase = PhaseDone
 		return ParkCommand{LinearMPS: 0.0, SteeringNorm: 0.0, Done: true, Phase: PhaseDone}
 	}
 
-	if c.phase == PhaseStage {
-		return c.handleStage(pose)
+	if p.phase == PhaseStage {
+		return p.handleStage(pose)
 	}
-	return c.handleEnter(pose)
+	return p.handleEnter(pose)
 }
 
 // pursueWithReposition runs curvature-based pure pursuit of target, with
@@ -199,7 +199,7 @@ func (c *ParkController) Update(pose trackmodel.Pose) ParkCommand {
 // controller's old kp=2.5, any bearing error past ~23 degrees already
 // saturated to full lock, meaning it was never actually proportional in
 // practice, just bang-bang.
-func (c *ParkController) pursueWithReposition(
+func (p *ParkController) pursueWithReposition(
 	pose trackmodel.Pose,
 	target trackmodel.Waypoint,
 	phase Phase,
@@ -208,11 +208,11 @@ func (c *ParkController) pursueWithReposition(
 	// than being re-evaluated (and potentially canceled) every tick -- a
 	// single-tick reaction flickers in and out without ever creating enough
 	// separation to actually escape the degenerate geometry.
-	if c.repositionLeft > 0 {
-		c.repositionLeft--
+	if p.repositionLeft > 0 {
+		p.repositionLeft--
 		return ParkCommand{
-			LinearMPS:    c.repositionSpeed,
-			SteeringNorm: c.repositionSteer,
+			LinearMPS:    p.repositionSpeed,
+			SteeringNorm: p.repositionSteer,
 			Phase:        phase,
 		}
 	}
@@ -225,80 +225,80 @@ func (c *ParkController) pursueWithReposition(
 		// produce a plausible-looking (non-saturated) steering command that
 		// actually drives away from the target instead of toward it. Reverse
 		// immediately rather than trust it.
-		return c.startReposition(pose, target, phase)
+		return p.startReposition(pose, target, phase)
 	}
 
-	steer := PurePursuitSteer(xLocal, yLocal, c.cfg)
+	steer := PurePursuitSteer(xLocal, yLocal, p.cfg)
 
-	if math.Abs(steer) >= c.cfg.SaturatedSteerThreshold {
-		c.saturatedTicks++
+	if math.Abs(steer) >= p.cfg.SaturatedSteerThreshold {
+		p.saturatedTicks++
 	} else {
-		c.saturatedTicks = 0
+		p.saturatedTicks = 0
 	}
 
-	if c.saturatedTicks >= c.cfg.SaturationStuckTicks {
+	if p.saturatedTicks >= p.cfg.SaturationStuckTicks {
 		// Steering has been pinned at physical lock for a full second
 		// straight: the required curvature genuinely exceeds what the chassis
 		// can do going forward. Reverse to open room instead of continuing to
 		// orbit.
-		return c.startReposition(pose, target, phase)
+		return p.startReposition(pose, target, phase)
 	}
 
-	return ParkCommand{LinearMPS: c.speed, SteeringNorm: steer, Phase: phase}
+	return ParkCommand{LinearMPS: p.speed, SteeringNorm: steer, Phase: phase}
 }
 
 // startReposition latches a reverse-and-reorient recovery burst. See
 // pursueWithReposition.
-func (c *ParkController) startReposition(
+func (p *ParkController) startReposition(
 	pose trackmodel.Pose,
 	target trackmodel.Waypoint,
 	phase Phase,
 ) ParkCommand {
 	bearingErr := BearingError(pose, target)
-	c.saturatedTicks = 0
-	c.repositionLeft = c.cfg.DefaultMaxFrames
-	c.repositionSpeed = c.cfg.RepositionSpeedMPS
+	p.saturatedTicks = 0
+	p.repositionLeft = p.cfg.DefaultMaxFrames
+	p.repositionSpeed = p.cfg.RepositionSpeedMPS
 	// Sign-flipped for reverse Ackermann geometry (v<0 inverts the yaw-rate
 	// response to a given steer sign), biased toward whichever side the target
 	// currently bears.
-	c.repositionSteer = -navutil.Clamp(c.cfg.RepositionSteerMag*sign(bearingErr), -1.0, 1.0)
-	c.repositionLeft--
-	return ParkCommand{LinearMPS: c.repositionSpeed, SteeringNorm: c.repositionSteer, Phase: phase}
+	p.repositionSteer = -navutil.Clamp(p.cfg.RepositionSteerMag*sign(bearingErr), -1.0, 1.0)
+	p.repositionLeft--
+	return ParkCommand{LinearMPS: p.repositionSpeed, SteeringNorm: p.repositionSteer, Phase: phase}
 }
 
-func (c *ParkController) handleStage(pose trackmodel.Pose) ParkCommand {
-	dist := math.Hypot(c.staging.X-pose.X, c.staging.Y-pose.Y)
+func (p *ParkController) handleStage(pose trackmodel.Pose) ParkCommand {
+	dist := math.Hypot(p.staging.X-pose.X, p.staging.Y-pose.Y)
 
-	if c.repositionLeft <= 0 && dist < c.cfg.PosReachDistM {
-		c.phase = PhaseEnter
-		return c.handleEnter(pose)
+	if p.repositionLeft <= 0 && dist < p.cfg.PosReachDistM {
+		p.phase = PhaseEnter
+		return p.handleEnter(pose)
 	}
 
-	return c.pursueWithReposition(pose, c.staging, PhaseStage)
+	return p.pursueWithReposition(pose, p.staging, PhaseStage)
 }
 
-func (c *ParkController) handleEnter(pose trackmodel.Pose) ParkCommand {
-	z := c.zone
+func (p *ParkController) handleEnter(pose trackmodel.Pose) ParkCommand {
+	z := p.zone
 	rx, ry, robotYaw := pose.X, pose.Y, pose.Yaw
 
-	if posInside, yawOK := InsideZone(rx, ry, robotYaw, z, c.cfg); posInside && yawOK {
-		c.phase = PhaseDone
+	if posInside, yawOK := InsideZone(rx, ry, robotYaw, z, p.cfg); posInside && yawOK {
+		p.phase = PhaseDone
 		return ParkCommand{LinearMPS: 0.0, SteeringNorm: 0.0, Done: true, Phase: PhaseDone}
 	}
 
-	if FootprintBreachesWall(rx, ry, robotYaw, z, c.cfg) {
-		c.timedOut = true
-		c.phase = PhaseDone
+	if FootprintBreachesWall(rx, ry, robotYaw, z, p.cfg) {
+		p.timedOut = true
+		p.phase = PhaseDone
 		return ParkCommand{LinearMPS: 0.0, SteeringNorm: 0.0, Done: true, Phase: PhaseDone}
 	}
 
-	if FootprintBreachesMarkers(rx, ry, robotYaw, z, c.cfg) {
-		c.timedOut = true
-		c.phase = PhaseDone
+	if FootprintBreachesMarkers(rx, ry, robotYaw, z, p.cfg) {
+		p.timedOut = true
+		p.phase = PhaseDone
 		return ParkCommand{LinearMPS: 0.0, SteeringNorm: 0.0, Done: true, Phase: PhaseDone}
 	}
 
-	return c.pursueWithReposition(pose, trackmodel.Waypoint{X: z.GapCX, Y: z.GapCY}, PhaseEnter)
+	return p.pursueWithReposition(pose, trackmodel.Waypoint{X: z.GapCX, Y: z.GapCY}, PhaseEnter)
 }
 
 // InsideZone returns (fully_parked, parallel_ok) per the WRO parking rule.

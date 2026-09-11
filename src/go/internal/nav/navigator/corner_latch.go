@@ -6,28 +6,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
-// cornerCompletionFraction is the fraction of the previewed heading change
-// that counts as "turn driven".
-//
-// Not 1.0: trackmodel.PathTurnAhead measures the path's own heading change
-// over the preview window, while the release test measures the CHASSIS
-// heading change, and the two do not have to agree exactly -- the robot may
-// cut the corner slightly, or the preview may still have been growing when
-// the latch armed. Requiring the full figure risks a latch that never
-// releases on a corner the robot rounds slightly tight. Requiring most of it
-// releases within a few ticks of the real exit.
-const cornerCompletionFraction = 0.8
-
-// maxLatchYawRad is a backstop: release after a full revolution of
-// accumulated heading change.
-//
-// The release test is monotone in |yaw - yawAtArm| only until that wraps. A
-// robot spinning on the spot (a failed escape, say) would otherwise
-// re-satisfy the test periodically rather than never, but could also hold
-// the latch for a long time in between. This bounds the damage to one
-// revolution regardless.
-const maxLatchYawRad = 2.0 * math.Pi
-
 // CornerLatch is a sticky version of the corner-turn preview.
 //
 // trackmodel.PathTurnAhead is a PREVIEW: it measures the heading change the
@@ -81,6 +59,28 @@ type CornerLatch struct {
 	lastYaw        *float64
 }
 
+// cornerCompletionFraction is the fraction of the previewed heading change
+// that counts as "turn driven".
+//
+// Not 1.0: trackmodel.PathTurnAhead measures the path's own heading change
+// over the preview window, while the release test measures the CHASSIS
+// heading change, and the two do not have to agree exactly -- the robot may
+// cut the corner slightly, or the preview may still have been growing when
+// the latch armed. Requiring the full figure risks a latch that never
+// releases on a corner the robot rounds slightly tight. Requiring most of it
+// releases within a few ticks of the real exit.
+const cornerCompletionFraction = 0.8
+
+// maxLatchYawRad is a backstop: release after a full revolution of
+// accumulated heading change.
+//
+// The release test is monotone in |yaw - yawAtArm| only until that wraps. A
+// robot spinning on the spot (a failed escape, say) would otherwise
+// re-satisfy the test periodically rather than never, but could also hold
+// the latch for a long time in between. This bounds the damage to one
+// revolution regardless.
+const maxLatchYawRad = 2.0 * math.Pi
+
 // NewCornerLatch returns a latch releasing at completionFraction of the
 // previewed turn.
 //
@@ -89,13 +89,6 @@ type CornerLatch struct {
 // measured rather than argued. Pass 0 for cornerCompletionFraction.
 func NewCornerLatch(completionFraction float64) *CornerLatch {
 	return &CornerLatch{completionFraction: completionFraction}
-}
-
-func (c *CornerLatch) effectiveCompletionFraction() float64 {
-	if c.completionFraction == 0.0 {
-		return cornerCompletionFraction
-	}
-	return c.completionFraction
 }
 
 // IsLatched reports whether a previewed corner is still being driven.
@@ -156,4 +149,11 @@ func (c *CornerLatch) Update(turnAheadRad, robotYaw, armThresholdRad float64) fl
 	}
 
 	return math.Max(turnAheadRad, c.previewedRad)
+}
+
+func (c *CornerLatch) effectiveCompletionFraction() float64 {
+	if c.completionFraction == 0.0 {
+		return cornerCompletionFraction
+	}
+	return c.completionFraction
 }

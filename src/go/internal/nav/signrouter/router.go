@@ -63,6 +63,17 @@ type SignRouter struct {
 	signCorridors []trackmodel.Section
 }
 
+// PassRecord is one retired sign pass, for diagnostics only.
+type PassRecord struct {
+	SignIndex int     `json:"sign_index"`
+	MarginM   float64 `json:"margin_m"`
+	RobotX    float64 `json:"robot_x"`
+	RobotY    float64 `json:"robot_y"`
+	SignX     float64 `json:"sign_x"`
+	SignY     float64 `json:"sign_y"`
+	Lap       int     `json:"lap"`
+}
+
 // NewSignRouter builds a SignRouter for the given signs, config and travel
 // direction, matching SignRouter.__init__ (sighted mode only: no discover/
 // discovery_config/tuning parameters -- see doc.go). Returns an error if
@@ -98,7 +109,7 @@ func NewSignRouter(
 // Exposed so the lane planner uses the SAME direction the routing decision
 // was made under. The pass-side rule is travel-relative, so a lane built
 // from a second, independently-tracked direction can disagree with the
-// routing it is supposed to realise -- and a lane on the wrong side is a
+// routing it is supposed to realize -- and a lane on the wrong side is a
 // round-ender under 9.24.5, not a tracking error.
 func (r *SignRouter) Direction() trackmodel.Direction {
 	return r.direction
@@ -120,17 +131,6 @@ func (r *SignRouter) AppendSign(spec SignSpec) int {
 	idx := len(r.signs) - 1
 	r.signCorridors = append(r.signCorridors, r.corridorForSpec(spec))
 	return idx
-}
-
-// cornerMinM/cornerMaxM expose the track corner bounds the router was built
-// with, matching the TrackDimensions CORNER_MIN/CORNER_MAX values the Python
-// ObservedSignMap.corridor_for_position uses. Discovery's robot-corridor
-// gating needs them.
-func (r *SignRouter) cornerMinM() float64 {
-	return r.config.TrackCornerMinM
-}
-func (r *SignRouter) cornerMaxM() float64 {
-	return r.config.TrackCornerMaxM
 }
 
 // LaneSpecs returns every routed sign paired with the corridor label the
@@ -209,19 +209,8 @@ func (r *SignRouter) WrongSideViolations() map[int]struct{} {
 	return out
 }
 
-// PassRecord is one retired sign pass, for diagnostics only.
-type PassRecord struct {
-	SignIndex int     `json:"sign_index"`
-	MarginM   float64 `json:"margin_m"`
-	RobotX    float64 `json:"robot_x"`
-	RobotY    float64 `json:"robot_y"`
-	SignX     float64 `json:"sign_x"`
-	SignY     float64 `json:"sign_y"`
-	Lap       int     `json:"lap"`
-}
-
 // PassRecords returns every pass retired over the whole run, in order.
-// MarginM is the signed lateral clearance in metres, positive on the
+// MarginM is the signed lateral clearance in meters, positive on the
 // permitted side. Diagnostic only.
 func (r *SignRouter) PassRecords() []PassRecord {
 	return slices.Clone(r.passRecords)
@@ -304,6 +293,17 @@ func (r *SignRouter) DeformWaypoint(
 		waypoint, sign, color, signCorridor, r.direction, effectiveOffset,
 		PinContext{RobotPos: robotPosPtr, YawDriftRad: &yawDrift}, r.config,
 	)
+}
+
+// cornerMinM/cornerMaxM expose the track corner bounds the router was built
+// with, matching the TrackDimensions CORNER_MIN/CORNER_MAX values the Python
+// ObservedSignMap.corridor_for_position uses. Discovery's robot-corridor
+// gating needs them.
+func (r *SignRouter) cornerMinM() float64 {
+	return r.config.TrackCornerMinM
+}
+func (r *SignRouter) cornerMaxM() float64 {
+	return r.config.TrackCornerMaxM
 }
 
 // geometricCorridor is the corner tie-break for a sign, on depth rather
