@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log/slog"
 	"os"
@@ -24,6 +25,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	var (
@@ -59,9 +64,9 @@ func main() {
 		PhotoRequireDet: *requireDet,
 	}
 
-	if err := capture.Run(ctx, cfg, logger); err != nil && err != context.Canceled {
+	if err := capture.Run(ctx, cfg, logger); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("capture-node: run failed", "error", err)
-		os.Exit(1)
+		return 1
 	}
-	os.Exit(0)
+	return 0
 }

@@ -68,19 +68,8 @@ type Gateway struct {
 	conn     *nats.Conn
 	drivePub *natsx.Publisher[*actuationv1.AckermannCmd]
 
-	locCfg localization.Config
-
-	mu       sync.RWMutex
-	scan     *sensorv1.Scan
-	imu      *sensorv1.Imu
-	pose     trackmodel.Pose
-	havePose bool
-	// headingOffsetRad is added to the IMU-derived yaw before it is returned,
-	// so ResetHeadingReference/CorrectHeadingForDirectionChange can shift the
-	// estimator's heading without a round-trip to a (nonexistent) localizer
-	// node. zero means "trust the IMU as-is".
-	headingOffsetRad  float64
-	captureHeadingRef bool
+	scan *sensorv1.Scan
+	imu  *sensorv1.Imu
 
 	// pendingWalls / pendingResetXY are consumed by the scan loop on its next
 	// tick, so the localizer rebuild and pose re-seed happen atomically with
@@ -93,10 +82,18 @@ type Gateway struct {
 	// pendingWalls is drained.
 	walls *trackmodel.TrackWalls
 
+	locCfg localization.Config
+
+	pose trackmodel.Pose
+
 	// wheel is the latest odometry decoded from joint_states; haveWheel
 	// stays false until the first message with a drive joint arrives.
-	wheel     controllers.WheelOdometry
-	haveWheel bool
+	wheel controllers.WheelOdometry
+	// headingOffsetRad is added to the IMU-derived yaw before it is returned,
+	// so ResetHeadingReference/CorrectHeadingForDirectionChange can shift the
+	// estimator's heading without a round-trip to a (nonexistent) localizer
+	// node. zero means "trust the IMU as-is".
+	headingOffsetRad float64
 
 	// wheelRadiusM scales the drive joint's ANGLE into linear travel. It is
 	// a construction-time fact rather than something read per message: the
@@ -104,6 +101,12 @@ type Gateway struct {
 	// radius it believes in, matching ros2_hardware_gateway.py's use of
 	// RobotSpecs.WHEEL_RADIUS.
 	wheelRadiusM float64
+
+	mu                sync.RWMutex
+	havePose          bool
+	captureHeadingRef bool
+
+	haveWheel bool
 }
 
 // New builds a Gateway over an already-connected conn and the track walls the
@@ -265,10 +268,10 @@ func (g *Gateway) CorrectHeadingForDirectionChange(deltaRad float64) {
 func scanToLidarScan(scan *sensorv1.Scan) controllers.LidarScan {
 	n := len(scan.GetRanges())
 	angles := make([]float64, n)
-	min := float64(scan.GetAngleMin())
+	angleMin := float64(scan.GetAngleMin())
 	inc := float64(scan.GetAngleIncrement())
 	for i := range n {
-		angles[i] = min + float64(i)*inc
+		angles[i] = angleMin + float64(i)*inc
 	}
 	ranges := make([]float64, n)
 	for i, r := range scan.GetRanges() {

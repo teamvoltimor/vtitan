@@ -18,8 +18,6 @@ const geomTolerance = 1e-9
 
 // TestRectCornersIsCentredOnThePose matches the Python
 // TestRotationIsAboutTheChassisCentre.test_the_collision_rectangle_is_centred_on_the_pose test.
-//
-//nolint:misspell // literal Python identifier, not prose
 func TestRectCornersIsCentredOnThePose(t *testing.T) {
 	t.Parallel()
 

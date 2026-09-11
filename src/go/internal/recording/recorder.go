@@ -17,44 +17,36 @@ import (
 // `captures/`. The bag recorder "owns" the directory; the video and photo
 // writers only poll for it (dataset_capture.py:64).
 type RunRecorder struct {
-	mu            sync.Mutex
-	dir           string
-	stamp         string
-	stem          string
-	mcapW         *mcap.Writer
-	mcapF         *os.File
-	video         *VideoWriter
-	photos        *PhotoCapture
-	started       bool
-	channels      map[string]uint16
-	nextChannelID uint16
-	nextSchemaID  uint16
+	mcapW    *mcap.Writer
+	mcapF    *os.File
+	video    *VideoWriter
+	photos   *PhotoCapture
+	channels map[string]uint16
 	// topics/minLogTime/maxLogTime back the rosbag2 metadata.yaml sidecar,
 	// which can only be written at Close because it states message counts
 	// and the time span.
-	topics map[string]topicInfo
+	topics        map[string]topicInfo
+	dir           string
+	stamp         string
+	stem          string
+	minLogTime    uint64
+	maxLogTime    uint64
+	mu            sync.Mutex
+	nextChannelID uint16
+	nextSchemaID  uint16
+	started       bool
 	// haveSpan distinguishes "no messages yet" from "the first message was
 	// logged at 0". A zero-valued min/max cannot: the simulation clock
 	// starts AT zero, so treating (0, 0) as the empty state let the second
 	// message overwrite the start time and halved every reported duration.
-	haveSpan   bool
-	minLogTime uint64
-	maxLogTime uint64
+	haveSpan bool
 }
 
 // RunOptions configures a new run.
 type RunOptions struct {
 	// Now is the run start time; defaults to time.Now if zero.
-	Now time.Time
-	// VideoFPS sizes the video encoder (only used by the gocv backend).
-	VideoFPS float64
-	// PhotoInterval / PhotoSubdir / PhotoRequireDetection configure the periodic
-	// dataset capture (Go port of dataset_capture.py).
-	PhotoInterval   time.Duration
-	PhotoSubdir     string
-	PhotoRequireDet bool
-	// Video toggles the debug video; some runs may record bag-only.
-	Video bool
+	Now         time.Time
+	PhotoSubdir string
 	// Name overrides the run directory name (and the bag's filename stem).
 	// Empty keeps the hardware convention, run_<stamp>.
 	//
@@ -63,6 +55,14 @@ type RunOptions struct {
 	// the only question anyone asks of a sim bag. Naming the directory after
 	// the scenario answers it without opening the file.
 	Name string
+	// VideoFPS sizes the video encoder (only used by the gocv backend).
+	VideoFPS float64
+	// PhotoInterval / PhotoSubdir / PhotoRequireDetection configure the periodic
+	// dataset capture (Go port of dataset_capture.py).
+	PhotoInterval   time.Duration
+	PhotoRequireDet bool
+	// Video toggles the debug video; some runs may record bag-only.
+	Video bool
 }
 
 // NewRun creates (but does not open) a recorder for a fresh run directory under
@@ -82,7 +82,7 @@ func NewRun(runsRoot string, opts RunOptions) (*RunRecorder, error) {
 		stem = opts.Name
 	}
 	dir := filepath.Join(runsRoot, stem)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("recording: creating run dir %s: %w", dir, err)
 	}
 	r := &RunRecorder{
@@ -107,7 +107,9 @@ func NewRun(runsRoot string, opts RunOptions) (*RunRecorder, error) {
 }
 
 // Dir returns the run directory. Valid after Open (or NewRun).
-func (r *RunRecorder) Dir() string { return r.dir }
+func (r *RunRecorder) Dir() string {
+	return r.dir
+}
 
 // Open creates the MCAP bag file inside the run directory. Idempotent.
 func (r *RunRecorder) Open() error {
@@ -272,10 +274,14 @@ func (r *RunRecorder) ensureSchema(subject string, msg proto.Message) (uint16, e
 }
 
 // Video returns the run's video writer (nil if video was disabled).
-func (r *RunRecorder) Video() *VideoWriter { return r.video }
+func (r *RunRecorder) Video() *VideoWriter {
+	return r.video
+}
 
 // Photos returns the run's photo capture; call MaybeCapture on each frame tick.
-func (r *RunRecorder) Photos() *PhotoCapture { return r.photos }
+func (r *RunRecorder) Photos() *PhotoCapture {
+	return r.photos
+}
 
 // Close finalizes the bag, video, and any open handles. Safe to call once.
 // noteMessage accumulates the per-topic counts and the time span

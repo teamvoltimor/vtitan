@@ -65,9 +65,7 @@ func TestPublisherSubscriber_RoundTrip(t *testing.T) {
 
 	const subject = "vtitan.actuation.v1.ackermann_cmd.test"
 
-	sub, err := nats.NewSubscriber(conn, subject, func() *actuationv1.AckermannCmd {
-		return &actuationv1.AckermannCmd{}
-	})
+	sub, err := nats.NewSubscriber[actuationv1.AckermannCmd](conn, subject)
 	if err != nil {
 		t.Fatalf("NewSubscriber() error = %v, want nil", err)
 	}
@@ -111,8 +109,8 @@ func TestSubscriber_Read_RespectsContextCancellation(t *testing.T) {
 	}
 	t.Cleanup(conn.Close)
 
-	sub, err := nats.NewSubscriber(conn, "vtitan.actuation.v1.ackermann_cmd.nobody-publishes-here",
-		func() *actuationv1.AckermannCmd { return &actuationv1.AckermannCmd{} })
+	sub, err := nats.NewSubscriber[actuationv1.AckermannCmd](
+		conn, "vtitan.actuation.v1.ackermann_cmd.nobody-publishes-here")
 	if err != nil {
 		t.Fatalf("NewSubscriber() error = %v, want nil", err)
 	}
@@ -149,7 +147,11 @@ func TestConnect_RetriesInitialDialUntilServerReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reserving a port: %v", err)
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("listener address is %T, want *net.TCPAddr", listener.Addr())
+	}
+	port := tcpAddr.Port
 	// Release the port so nats-server can bind it; we kept it only to learn a
 	// free number.
 	if err = listener.Close(); err != nil {

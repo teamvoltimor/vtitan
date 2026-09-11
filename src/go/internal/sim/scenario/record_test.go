@@ -189,7 +189,7 @@ func TestSimRecorder_WritesBothSubjectsOnASimClock(t *testing.T) {
 	// The run directory and bag are named for the SCENARIO, not a timestamp:
 	// a sweep starts hundreds of runs inside one second.
 	bag := filepath.Join(dir, "open_0042", "open_0042_0.mcap")
-	f, err := os.Open(bag) //nolint:gosec // path is composed from t.TempDir
+	f, err := os.Open(bag)
 	if err != nil {
 		t.Fatalf("opening the bag: %v", err)
 	}

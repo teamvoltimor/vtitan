@@ -55,7 +55,7 @@ func (p *PhotoCapture) MaybeCapture(now time.Time, frame *Frame, runDir string, 
 	}
 
 	dir := filepath.Join(runDir, p.subdir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("recording: mkdir captures dir: %w", err)
 	}
 	filename := filepath.Join(dir, fmt.Sprintf("capture_%04d.jpg", p.count))
@@ -79,8 +79,8 @@ func (p *PhotoCapture) Reset() {
 // writeJPEG encodes an rgb8 Frame as a JPEG. Go's jpeg encoder takes RGBA
 // directly, so this matches dataset_capture.py's rgb->bgr then cv2.imwrite.
 func writeJPEG(path string, frame *Frame) error {
-	if frame.Encoding != "rgb8" {
-		return fmt.Errorf("recording: unsupported photo encoding %q (want rgb8)", frame.Encoding)
+	if frame.Encoding != EncodingRGB8 {
+		return fmt.Errorf("recording: unsupported photo encoding %q (want %s)", frame.Encoding, EncodingRGB8)
 	}
 	img, err := rgb8ToImage(frame)
 	if err != nil {
@@ -111,7 +111,9 @@ func rgb8ToImage(frame *Frame) (image.Image, error) {
 // rgb8Image adapts an rgb8 Frame to image.Image without copying the buffer.
 type rgb8Image struct{ frame *Frame }
 
-func (m *rgb8Image) ColorModel() color.Model { return color.RGBAModel }
+func (m *rgb8Image) ColorModel() color.Model {
+	return color.RGBAModel
+}
 func (m *rgb8Image) Bounds() image.Rectangle {
 	return image.Rect(0, 0, m.frame.Width, m.frame.Height)
 }

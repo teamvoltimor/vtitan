@@ -54,7 +54,7 @@ func TestDecodeDensePacket_HandComputed(t *testing.T) {
 
 	wantDistancesMM := make([]float64, denseCabinsPerPacket)
 	for k := range wantDistancesMM {
-		distMM := uint16((k + 1) * 10) //nolint:gosec // k bounded by denseCabinsPerPacket=40
+		distMM := uint16((k + 1) * 10)
 		if k == 5 {
 			distMM = 0
 		}
