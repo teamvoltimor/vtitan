@@ -269,8 +269,8 @@ const (
 	DefaultSignLaneOffsetFrac        = 1.0
 	DefaultSignLaneCornerEntryM      = 0.50
 	DefaultSignLaneCommitAheadM      = 0.0
-	DefaultSignAwareLookahead        = false
-	DefaultSignAwareSpeed            = false
+	DefaultSignAwareLookahead        = true
+	DefaultSignAwareSpeed            = true
 	DefaultSignDeformSpeedThresholdM = 0.02
 	DefaultStaleTargetRescue         = false
 	DefaultRetraceEscape             = false

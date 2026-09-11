@@ -83,9 +83,9 @@ class SignRouterParams(BaseModel):
             necessarily shrinking forward LIDAR clearance or growing heading
             error -- so the chassis can stay at full speed while still
             asymptotically closing the same ~6.5cm shortfall
-            ``SIGN_AWARE_LOOKAHEAD`` targets. Unlike that knob (measured
-            worse, see its own docstring), this reacts to the deformation the
-            router already applied rather than proximity to a sign, so it
+            ``SIGN_AWARE_LOOKAHEAD`` targets. Unlike that knob, this reacts
+            to the deformation the router already applied rather than
+            proximity to a sign, so it
             cannot mis-trigger on a sign that isn't currently biasing
             anything. Ships ``True``, in both this default and
             ``src/config/navigation/signs/sign_router.toml`` -- they are
@@ -112,8 +112,8 @@ class SignRouterParams(BaseModel):
             weak, undershooting correction. Traced as a consistent ~6.5cm
             shortfall between the commanded line and the chassis at the
             moment it draws level with a sign (subset64,
-            go_obstacles_0009/0011/0020/0046). Defaults ``False``: unmeasured
-            over the corpus, ships off until it is.
+            go_obstacles_0009/0011/0020/0046). Ships ``True``, in both this
+            default and ``src/config/navigation/signs/sign_router.toml``.
         RETRACE_ESCAPE: Make a reversing escape follow the ground the chassis
             just occupied, instead of backing along an arc into space it has
             never been. Obstacles-only by construction (gated on
