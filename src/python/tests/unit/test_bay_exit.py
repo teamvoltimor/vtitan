@@ -678,3 +678,66 @@ def test_without_the_time_bound_a_stalled_leg_never_ends() -> None:
     legs = _drive_stalled(200, _guard_tuning(BAY_EXIT_LEG_MAX_S=1000.0))
     flips = sum(1 for a, b in zip(legs, legs[1:]) if a != b)
     assert flips == 0, "the stalled-leg deadlock is gone; this test no longer pins anything"
+
+
+def _drive_with_coast(ticks: int, tuning, coast_per_tick_m: float) -> list[float]:
+    """Run the manoeuvre where the chassis keeps rolling through a commanded ZERO.
+
+    ``_Pocket`` cannot show this: it moves exactly what it is commanded, so a
+    standstill is a standstill. The real chassis is not like that -- measured on
+    run_20260911_152714 and _152819, it rolls 12-34 mm during each commanded-zero
+    servo settle, which is 0.24-0.68 mm per tick and more travel than the legs
+    themselves produce.
+
+    Returns EVERY speed sample the guard's coast estimate collected, drained per
+    tick rather than read at the end: the estimate keeps a 5-tick window and
+    trims older entries, so a poisoned sample is evicted long before the run
+    finishes. Reading the window at the end measures nothing -- the first
+    version of this test passed against the very bug it was written for.
+    """
+    exit_maneuver = BayExit()
+    travelled = 0.0
+    seen: list[float] = []
+    for _ in range(ticks):
+        command = exit_maneuver.command(
+            _RANGES_M, _ANGLES_RAD, travelled, tuning.speed.medium_mps(), tuning
+        )
+        window = exit_maneuver._guard_recent_speeds  # noqa: SLF001 - the estimate under test
+        if window:
+            seen.append(window[-1])
+        # The leg's own travel when it commands one, and the coast either way.
+        travelled += abs(command.speed_mps) / tuning.control.CONTROL_HZ + coast_per_tick_m
+    return seen
+
+
+def test_the_coast_estimate_does_not_sample_across_a_standstill() -> None:
+    """A 2.5 s servo settle must not be differenced into one leg speed.
+
+    The guard's stopping distance is ``coast_speed * SPEED_RESPONSE_TAU_S`` and
+    ``coast_speed`` is ``min(command, max(recent))``, so a sample above the
+    command silently restores the command-based reach that
+    ``BAY_EXIT_GUARD_MEASURED_COAST`` exists to replace -- and with a 5-tick
+    window against 3-5 tick legs, one such sample owns the whole leg.
+
+    That is what shipped: the settle returned before the sampler, leaving the
+    baseline stale for 50 ticks. Solved back out of the published gap on
+    run_20260911_152714, the guard's reach was 0.0600 m on all six refusals
+    checked, residual 0.000000 -- exactly step plus the COMMAND-based coast,
+    against a delivered leg speed of 0.004-0.015 m/s.
+    """
+    tuning = _guard_tuning(BAY_EXIT_GUARD_MEASURED_COAST=True, BAY_EXIT_GUARD_MIRRORS_REVERSE=True)
+    leg_speed = tuning.corridor_follower.BAY_EXIT_SPEED_MPS
+    samples = _drive_with_coast(400, tuning, coast_per_tick_m=0.0005)
+
+    assert samples, "the guard collected no speed samples at all"
+    # No sample may exceed ONE TICK of travel -- the leg's own step plus the
+    # coast that tick. Anything larger can only have come from differencing
+    # across ticks the sampler never saw.
+    one_tick = leg_speed + 0.0005 * tuning.control.CONTROL_HZ
+    assert max(samples) <= one_tick + 1e-9, (
+        f"a coast sample of {max(samples):.4f} m/s exceeds one tick of travel "
+        f"({one_tick:.4f} m/s), so ticks the sampler skipped were differenced into it"
+    )
+    # And the magnitude the bug had, so this test says what it is protecting:
+    # the settle is ~50 ticks, which differenced in one go reads ~50x the coast.
+    assert max(samples) < 0.5 * (0.0005 * 50 * tuning.control.CONTROL_HZ)

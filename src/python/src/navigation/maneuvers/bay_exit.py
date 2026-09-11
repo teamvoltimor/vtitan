@@ -719,6 +719,27 @@ class BayExit:
         )
         if self._settle_ticks > 0:
             self._settle_ticks -= 1
+            # Carry the coast baseline THROUGH the standstill without sampling
+            # it. Returning before the sampler below left ``_guard_prev_travelled_m``
+            # stale for the whole 50-tick servo swing, so the first moving tick
+            # differenced travel across 2.5 s of commanded zero and called the
+            # result a leg speed.
+            #
+            # That is not a small error, it is the whole feature. Measured on
+            # run_20260911_152714 and _152819: the chassis rolls 12-34 mm during
+            # each commanded-zero settle, which the stale baseline reports as
+            # 0.24-0.68 m/s -- all of them at or above the commanded 0.15, so
+            # ``min(speed, max(...))`` returned the command and
+            # ``BAY_EXIT_GUARD_MEASURED_COAST`` was INERT on every refusal tick
+            # of every run. Solved back out of the published gap, the guard's
+            # reach was 0.0600 m on all six checked refusals, residual 0.000000
+            # -- exactly step + command-based coast.
+            #
+            # And a 5-tick window against 3-5 tick legs means one poisoned
+            # sample owns ``max()`` for the entire leg. Delivered speed in those
+            # legs is 0.004-0.015 m/s, so an honest reach is ~12 mm against a
+            # 65 mm along-wall slack rather than 60 mm of it.
+            self._guard_prev_travelled_m = travelled_m
             self._dead_reckon(travelled_m, wheel_norm, tuning, measured_yaw)
             return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
 
