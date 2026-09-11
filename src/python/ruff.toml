@@ -127,6 +127,10 @@ extend = "../../ruff.toml"
 "src/hardware/motors/bts7960/driver.py" = ["PLC0415", "S603"]
 "src/hardware/motors/l298n/driver.py" = ["PLC0415"]
 "src/hardware/motors/encoder/driver.py" = ["PLC0415"]
+# Same Picamera2-then-rpicam-CLI conditional import node.py's PLC0415 ignore
+# above covers, reproduced here since this module is a standalone entry
+# point rather than a class method.
+"src/vision/nats_sidecar.py" = ["PLC0415"]
 
 # `LidarScan.sector_ranges` delegates to the collision-avoidance controller,
 # which imports the ports module back -- a module-scope import here is a cycle.

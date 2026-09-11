@@ -4,3 +4,17 @@ plugins:
     out: internal/schema/pb
     opt:
       - paths=source_relative
+
+  # Python -- messages only (no gRPC stubs; every Go node here talks
+  # NATS+protobuf, not gRPC), so a Python NATS producer/consumer (the vision
+  # sidecar's Detections publisher) can share this schema instead of
+  # hand-rolling a second wire format. Same plugin version and
+  # include_imports rationale as contracts/proto/buf.gen.yaml: every message
+  # here that carries buf.validate field options needs
+  # buf/validate/validate_pb2.py generated alongside it, and no PyPI
+  # `protovalidate` release bundles that the way protovalidate-go does for
+  # Go. include_wkt stays default (false) -- google/protobuf/*_pb2.py already
+  # comes from the protobuf runtime package.
+  - remote: buf.build/protocolbuffers/python:v28.3
+    out: ../python/src/gen
+    include_imports: true

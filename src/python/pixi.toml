@@ -98,6 +98,11 @@ ros-kilted-ros-gz = ">=2.1.12,<3"
 
 [pypi-dependencies]
 vtitan-shared = { path = "./shared", editable = true }
+# The Go stack's own transport (see src/go's "every node talks NATS+protobuf"
+# convention) -- used by the vision sidecar (src/vision/nats_sidecar.py) to
+# publish Detections for a Go navigator to consume, without pulling rclpy/DDS
+# into a component that otherwise needs neither.
+nats-py = ">=2.9,<3"
 adafruit-circuitpython-bno08x-rvc = ">=1.0.23, <2"
 buildhat = ">=0.9.0, <0.10"
 adafruit-blinka = ">=9.0.4, <10"
@@ -199,6 +204,11 @@ run-motor          = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run 
 run-joy-teleop     = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers joy_teleop_node \"$@\"' --", env = { PYTHONPATH = "." } }
 run-telemetry      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_state_machine telemetry_bridge_node \"$@\"' --", env = { PYTHONPATH = "." } }
 run-vision         = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_vision vision_node \"$@\"' --", env = { PYTHONPATH = "." } }
+# Go-stack sidecar: same camera+detector core as run-vision, but NATS-only
+# (no rclpy/DDS) -- for the Go navigator, which has no ROS2 dependency
+# anywhere else. Not a `ros2 run`; needs the vision env for hailort/
+# ultralytics, not the ROS2 workspace build.
+run-vision-sidecar = { cmd = "python -m src.vision.nats_sidecar", env = { PYTHONPATH = "." } }
 run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_navigation track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json \"$@\"' --", env = { PYTHONPATH = "." } }
 
 # ROS2 launch files (compose multiple nodes — requires build-ws first)

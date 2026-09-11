@@ -37,12 +37,14 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsgw"
+	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsvision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
@@ -51,6 +53,7 @@ import (
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/nav/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	visionv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/vision/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
@@ -318,6 +321,26 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
+	// Published by the Python sidecar (src/vision/nats_sidecar.py), never by
+	// anything in this Go tree -- absent that process, this subscription
+	// simply never receives anything, and GetVisionDetections stays
+	// ok=false, exactly like any other sensor this binary has no producer
+	// for. Currently inert regardless: no SignRouter is wired below (Open
+	// Challenge only), and VisionGateway is only consulted when one is.
+	detectionsSub, err := nats.NewSubscriber(
+		conn,
+		visionv1.DetectionsSubject,
+		func() *visionv1.Detections { return &visionv1.Detections{} },
+	)
+	if err != nil {
+		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+	}
+	defer func() {
+		if closeErr := detectionsSub.Close(); closeErr != nil {
+			logger.Error("track-navigator: closing Detections subscription", "error", closeErr)
+		}
+	}()
+
 	// robot.toml supplies both the wheel radius the gateway scales joint
 	// angles by and the chassis width the planner sizes its corridor with.
 	// Loaded once, before either consumer, so the two cannot disagree about
@@ -371,6 +394,17 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
+	// Built regardless of whether a SignRouter is wired below (see
+	// detectionsSub's own comment): the camera/mount constants
+	// signrouter.Config carries are meaningful independent of that, and
+	// building them once here means a future SignRouter wire-in needs no
+	// second config-loading pass.
+	srCfg := signrouter.ConfigFor(logger, cfg.configRoot)
+	visionGW, err := natsvision.New(srCfg, signrouter.DefaultMinReliableBBoxHeightPX, signrouter.DefaultMinValidLidarRangeM, gw)
+	if err != nil {
+		return err //nolint:wrapcheck
+	}
+
 	// bayexit config-root wiring matches every other config loaded above:
 	// empty --config-root falls back to the Go literal defaults rather than
 	// failing the run.
@@ -378,6 +412,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	nav, err := navigator.New(navigator.Params{
 		Gateway:                 gw,
+		Vision:                  visionGW,
 		Waypoints:               path,
 		Direction:               knownDirection,
 		Config:                  navigator.ConfigFor(logger, cfg.configRoot, profiles),
@@ -412,6 +447,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	group, gctx := errgroup.WithContext(ctx)
 	group.Go(func() error { return gw.Run(gctx, scanSub, imuSub, jointSub) })
+	group.Go(func() error { return visionGW.Run(gctx, detectionsSub) })
 	group.Go(func() error { return stepLoop(gctx, logger, nav, gw, layout, rec, cfg.rateHz) })
 
 	if err = group.Wait(); err != nil {

@@ -2,6 +2,16 @@
 
 from enum import StrEnum
 
+# shared.domain.enums and shared.domain.models import from each other (enums
+# re-exports GMR_CLASS_NAMES, defined in models, to break the cycle -- see
+# enums.py's own comment on that line). Only the enums-first order actually
+# works; importing models.py before anything has loaded enums.py raises
+# ImportError on the partially-initialized module. Every caller that reaches
+# this package via a ROS2 node happens to import something that pulls in
+# enums first, which is what let this go unnoticed -- confirmed missing when
+# src.vision.nats_sidecar (a standalone, non-ROS2 entry point with no such
+# accidental ordering) became this package's first import in its process.
+import shared.domain.enums  # noqa: F401
 from shared.domain.models import Detection, SignColor
 
 from src.vision.detector import (
