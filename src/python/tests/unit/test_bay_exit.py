@@ -56,6 +56,17 @@ def _guard_tuning(**changes: object):
             "BAY_EXIT_CLEARANCE_GUARD": True,
             "BAY_EXIT_GUARD_MEASURED_COAST": False,
             "BAY_EXIT_CLEARANCE_TOLERANCE_M": 0.0,
+            # PINNED OFF, and these tests are the reason the default moved.
+            # They describe the HELD-lock ratchet -- one of them asserts the
+            # held lock outright -- and hardware measured that shape to be a
+            # pendulum: the reverse retraces the forward arc and hands the
+            # rotation back, 87% of consecutive legs cancelling, 0/2 out of the
+            # bay. The flag now ships TRUE. Left pinned here rather than
+            # rewritten because these seven still describe a real mode the code
+            # keeps, and silently re-pointing them at the mirrored one would
+            # discard the properties they were written to protect. See
+            # `test_the_mirrored_reverse_flips_the_lock` for the shipped shape.
+            "BAY_EXIT_GUARD_MIRRORS_REVERSE": False,
             **changes,
         }
     )
@@ -157,6 +168,29 @@ def test_guarded_exit_holds_one_steering_angle_across_leg_changes() -> None:
     assert steering, "the manoeuvre issued no commands"
     assert len({math.copysign(1.0, s) for s in steering if s != 0.0}) == 1
     assert len(set(steering)) == 1, "the guarded exit should command one angle throughout"
+
+
+def test_the_mirrored_reverse_flips_the_lock() -> None:
+    """The SHIPPED shape: the reverse leg steers the other way, so yaw ADDS.
+
+    The test above asserts the opposite and is pinned to the off mode on
+    purpose -- it describes the manoeuvre as it was until hardware measured
+    what holding the lock actually produces. Held, the reverse retraces the
+    forward arc: 2026-09-10 bags show the steering sign HELD across 111 and 140
+    consecutive reversals with ZERO flips, forward legs turning +1.94 deg each
+    and reverse legs -1.74, 87% of consecutive legs cancelling, 815-1070 deg of
+    rotation spent to keep 2-7, and the chassis never leaving the pocket.
+    Mirrored, the same bags show 0 held / 4 flipped, 0% cancelling, ~75 deg
+    spent for ~71 kept, and out of the bay 3/3.
+
+    Asserting only the SIGNS, not the values: the magnitude is the arc, which
+    other constants own, and this is the one property that distinguishes a
+    ratchet from a pendulum.
+    """
+    _, steering = _drive(400, _guard_tuning(BAY_EXIT_GUARD_MIRRORS_REVERSE=True))
+    assert steering, "the manoeuvre issued no commands"
+    signs = {math.copysign(1.0, s) for s in steering if s != 0.0}
+    assert signs == {-1.0, 1.0}, "the mirrored reverse must command BOTH locks, not one"
 
 
 def test_guarded_exit_ratchets_outward_against_the_wall() -> None:

@@ -429,9 +429,46 @@ class CorridorFollowerParams(BaseModel):
     """
 
     BAY_EXIT_GUARD_MIRRORS_REVERSE: bool = Field(
-        default=False, validation_alias=_alias("BAY_EXIT_GUARD_MIRRORS_REVERSE")
+        default=True, validation_alias=_alias("BAY_EXIT_GUARD_MIRRORS_REVERSE")
     )
     """Mirror the lock on the guarded ratchet's reverse leg instead of holding it.
+
+    **SHIPPED TRUE 2026-09-10 ON HARDWARE. Without it the manoeuvre is a
+    PENDULUM, not a ratchet.** Measured with `diag_bag_bay_ratchet.py`, which
+    segments the phase into legs by the sign of the commanded speed:
+
+    | | held OFF | held ON |
+    |---|---|---|
+    | steer sign across a reversal | **HELD 111 / FLIPPED 0** | HELD 0 / FLIPPED 4 |
+    | consecutive legs cancelling | **87%** (and 72% on a second run) | **0%** |
+    | rotation spent / kept | 815-1070 deg / 2-7 | **75 deg / 71** |
+    | reversals | 111-324 | **0, 2, 4** |
+    | net travel, out of the bay | 0.000 m, **0/2** | 11-20 m, **3/3** |
+    | bay duration | 25-126 s | **2.8 / 13.4 / 21.1 s** |
+
+    Held OFF, forward legs turned +1.94 deg each and the reverse legs that
+    followed turned -1.74, on the SAME lock -- the reverse retraces the forward
+    arc and gives the rotation back. Mirrored, both directions turn the same
+    way and the yaw ADDS (4 adds, 0 cancels).
+
+    **This is why four other bay levers failed the same night.** Raising the
+    speed out of the motor deadband (stall 56.1% -> 0.4%), budgeting the
+    guard's coast from measured rather than commanded speed, tolerating 15 mm
+    of predicted fin overlap, and lengthening the leg cap each moved their own
+    metric and left the outcome untouched, because they change how far each
+    swing goes and not that the swings cancel.
+
+    CONFOUND, stated because the runs cannot separate it:
+    ``BAY_EXIT_GUARD_MEASURED_COAST`` and ``BAY_EXIT_CLEARANCE_TOLERANCE_M``
+    were also on for the 3/3. They stay INERT on master: the attribution here
+    is MECHANISTIC -- the probe shows the steering sign flipping and the
+    cancellation going to zero, which only this flag can do -- not merely an
+    outcome that happened alongside them.
+
+    The sim verdict that kept this off was already VOID before tonight (95% of
+    the mirrored arm's rotation there was the contact resolver, and that model
+    never slides along a wall), so nothing measured is being overturned -- only
+    a refutation that had already been withdrawn.
 
     The wall ratchet holds ONE steering angle across both legs, which only
     rotates the chassis if the forward arc and the reverse that follows it do

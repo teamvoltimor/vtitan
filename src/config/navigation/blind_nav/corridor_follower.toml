@@ -398,10 +398,17 @@ bay_exit_guard_measured_coast = false
 # net, zero travel. RISK: tolerating overlap means the chassis may touch a fin,
 # and a fin is the parking structure. Trial 0.010-0.020 with a hand on it.
 bay_exit_clearance_tolerance_m = 0.0
-# Mirror the bay-exit dead reckoning: compare guarded and mirrored-reverse
-# exits tick by tick on the post-0.29 m-radius model. Verdict:
-# BAY_EXIT_GUARD_MIRRORS_REVERSE. Inert until wired to a consumer.
-bay_exit_guard_mirrors_reverse = false
+# Steer the OPPOSITE way on the reverse leg, so the two arcs curve opposite
+# ways and rotation ACCUMULATES instead of cancelling. SHIPPED TRUE 2026-09-10
+# on hardware: without it the manoeuvre is a pendulum, not a ratchet -- the
+# steering held the same lock across every reversal (0 flips in 111 and in 140
+# measured legs), forward legs turned +1.94 deg each and reverse legs -1.74,
+# and the chassis spent 815-1070 deg of rotation to keep 2-7 with ZERO net
+# travel, 0/2 out of the bay. With it: 0 held / 4 flipped, 0% of consecutive
+# legs cancelling, ~75 deg of rotation for ~71 net (95% efficient), 0-4
+# reversals instead of 111-324, and OUT OF THE BAY 3/3 in 2.8 / 13.4 / 21.1 s
+# then 11-20 m driven. See BAY_EXIT_GUARD_MIRRORS_REVERSE.
+bay_exit_guard_mirrors_reverse = true
 # Dead reckon each bay-exit leg with the yaw the robot actually has instead of
 # the yaw the leg's steering was expected to produce. Verdict REFUTATION
 # RECORDED (9e80162c): neither arm beats the shipped yaw model. Inert on the
