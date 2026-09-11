@@ -8,7 +8,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
-// Corridor widths the Open Challenge can present, in millimetres. The rules
+// Corridor widths the Open Challenge can present, in millimeters. The rules
 // offer these two and nothing between them, which is what makes the space
 // enumerable at all -- see waypoints' narrow_width_threshold_m for why the
 // planner treats width as a two-way classification rather than a continuum.
@@ -39,7 +39,7 @@ var DirectionOrder = [2]trackmodel.Direction{
 const WidthLayoutCount = 16
 
 // WidthSet is one complete Open Challenge corridor-width assignment, in
-// millimetres. Matches scenario_catalog.CorridorWidthSet.
+// millimeters. Matches scenario_catalog.CorridorWidthSet.
 type WidthSet struct {
 	SouthMM int
 	NorthMM int

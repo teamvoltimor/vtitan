@@ -86,7 +86,10 @@ func TestTrackModel_ContactSurfaceAt_SignVsParkingLotFin(t *testing.T) {
 		t.Errorf("ContactSurfaceAt() touching a traffic sign = %v, want SurfaceObstacle (nudgeable, 9.20)", got)
 	}
 	if got := tm.ContactSurfaceAt(2.5, 0.5, 0.0, chassisLengthM, chassisWidthM); got != collision.SurfaceParkingLot {
-		t.Errorf("ContactSurfaceAt() touching a parking-lot fin = %v, want SurfaceParkingLot (unforgivable, 9.24.7)", got)
+		t.Errorf(
+			"ContactSurfaceAt() touching a parking-lot fin = %v, want SurfaceParkingLot (unforgivable, 9.24.7)",
+			got,
+		)
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 
 // passSideApproachM is the range within which a sign's radius line is worth
 // testing at all, matching _PASS_SIDE_APPROACH_M. Only an optimisation -- the
-// radius is a line across the corridor, so a chassis metres away is trivially
+// radius is a line across the corridor, so a chassis meters away is trivially
 // not crossing it. Wide enough that no crossing is missed at any speed the
 // robot reaches in one tick.
 const passSideApproachM = 1.20
@@ -150,7 +150,7 @@ func (p *passSideScorer) violations() []int {
 }
 
 // check returns the offending sign indices if the run must stop for a
-// wrong-side pass, or nil. The offence is COMPLETING a crossing of the sign's
+// wrong-side pass, or nil. The offense is COMPLETING a crossing of the sign's
 // radius while on the forbidden side (Appendix A section 5); until the line is
 // fully crossed the rules explicitly permit the vehicle to fix its side, so
 // nothing is decided. "Completely crosses" is a FOOTPRINT test -- the round

@@ -16,7 +16,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
-// poseToleranceM is well under a millimetre: the golden carries six decimal
+// poseToleranceM is well under a millimeter: the golden carries six decimal
 // places and both sides compute the same closed-form geometry, so anything
 // above float noise is a real divergence rather than a rounding difference.
 const poseToleranceM = 1e-6

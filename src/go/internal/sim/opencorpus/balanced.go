@@ -61,7 +61,7 @@ type balancedCombo struct {
 // shuffle runs on a reimplementation of CPython's Mersenne Twister (see
 // pyrandom.go), so "balanced128 seed 0" names the same 128 scenarios here
 // as in Python. Varying the seed draws an independent balanced corpus, which
-// is the honest way to check a result is not an artefact of one spawn
+// is the honest way to check a result is not an artifact of one spawn
 // assignment.
 func Balanced128(seed uint64) ([]Params, error) {
 	combos := make([]balancedCombo, 0, Balanced128Size)

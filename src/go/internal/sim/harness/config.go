@@ -1,8 +1,9 @@
 package harness
 
 import (
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"math"
+
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
@@ -80,11 +81,11 @@ type Config struct {
 	// (30.0) and NO_PROGRESS_DISPLACEMENT_M (0.08).
 	//
 	// These were hardcoded at 2.0 s / 0.05 m until 2026-09-06 -- a FIFTEENFOLD
-	// shorter window than Python's. An escape manoeuvre reverses, reorients
+	// shorter window than Python's. An escape maneuver reverses, reorients
 	// and re-approaches, which cannot finish inside two seconds, so the runner
 	// killed the run mid-escape: 142/256 blind runs ended stuck, 138 of them
 	// in a CORNER, at the LIDAR's 0.045 m floor, with ZERO collisions, having
-	// travelled a median 4.63 m. Python escapes 33 times a lap on the same
+	// traveled a median 4.63 m. Python escapes 33 times a lap on the same
 	// corpus and recovers.
 	NoProgressWindowS       float64
 	NoProgressDisplacementM float64

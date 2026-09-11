@@ -826,9 +826,11 @@ func newSignNudgeState(x, y float64) *signNudgeState {
 //
 // The reference point advances EVERY call, not only while touching: updating
 // it only during contact would make the accumulated displacement the
-// distance since the last touch, so a sign brushed twice a metre apart would
-// accumulate that whole metre as if it had been pushed through it.
-func (s *signNudgeState) score(track *collision.TrackModel, surface collision.ContactSurface, x, y, yaw, length, width float64) collision.ContactSurface {
+// distance since the last touch, so a sign brushed twice a meter apart would
+// accumulate that whole meter as if it had been pushed through it.
+func (s *signNudgeState) score(
+	track *collision.TrackModel, surface collision.ContactSurface, x, y, yaw, length, width float64,
+) collision.ContactSurface {
 	dx, dy := x-s.prevX, y-s.prevY
 	s.prevX, s.prevY = x, y
 	if surface != collision.SurfaceObstacle {

@@ -159,7 +159,8 @@ func TestNativeRunnerSmoke_Obstacles(t *testing.T) {
 	}
 	t.Logf(
 		"native obstacles smoke: laps=%d/%d collided=%t timed_out=%t stuck=%t steps=%d sim_time=%.1fs pass_side_violations=%v",
-		res.LapsCompleted, res.TargetLaps, res.Collided, res.TimedOut, res.Stuck, res.Steps, res.SimTimeS,
+		res.LapsCompleted, res.TargetLaps, res.Collided, res.TimedOut, res.Stuck,
+		res.Steps, res.SimTimeS,
 		res.PassSideViolationSigns,
 	)
 }

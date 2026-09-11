@@ -2,8 +2,9 @@ package scenario
 
 import (
 	"fmt"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"testing"
+
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"

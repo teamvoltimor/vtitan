@@ -177,7 +177,7 @@ func (r *simRecorder) tick(
 	// correct for the simulator specifically: its raycast produces angles
 	// already in the robot frame (0 = straight ahead), so the physical
 	// mount's inversion and yaw offset -- which the real driver must correct
-	// for -- have no analogue here. A rotation would double-apply a
+	// for -- have no analog here. A rotation would double-apply a
 	// correction the sim never applied in the first place.
 	if err := r.run.WriteROS2(
 		tfTopic, recording.TFMessageType, recording.TFMessageSchema,

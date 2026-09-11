@@ -8,7 +8,7 @@
 // seeing no observations.
 //
 // Deliberately simple -- a fixed high confidence, no false positives, no
-// wall-occlusion modelling (the LIDAR raycast model in internal/sim/collision
+// wall-occlusion modeling (the LIDAR raycast model in internal/sim/collision
 // does model occlusion; this does not). The goal is exercising the
 // detection-to-router wiring end-to-end, not building a camera sensor
 // model.

@@ -26,7 +26,7 @@ var unforgivableContactSurfaces = collision.NewSurfaceSet(collision.SurfaceParki
 // for Obstacles would re-base every Obstacles figure in the repo at once, so
 // it stays a deliberate per-challenge decision, not an oversight.
 var (
-	OpenForbiddenSurfaces = collision.NewSurfaceSet(collision.SurfaceOuterWall)
+	OpenForbiddenSurfaces      = collision.NewSurfaceSet(collision.SurfaceOuterWall)
 	ObstaclesForbiddenSurfaces = collision.NewSurfaceSet(
 		collision.SurfaceInnerWall, collision.SurfaceObstacle, collision.SurfaceParkingLot)
 )
@@ -97,7 +97,7 @@ func (c *contactTracker) update(step int, surface collision.ContactSurface) bool
 
 	if unforgivableContactSurfaces.Contains(surface) {
 		// No grace of any kind, matching the Python comment: both graces
-		// used to apply here and between them hid the bay-exit manoeuvre
+		// used to apply here and between them hid the bay-exit maneuver
 		// entirely (the start window comfortably covers a whole bay exit).
 		c.surface = surface
 		return true

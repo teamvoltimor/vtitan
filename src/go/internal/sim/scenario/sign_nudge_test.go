@@ -23,7 +23,9 @@ func signNudgeTestTrack(t *testing.T) *collision.TrackModel {
 		trackmodel.North: 1.0, trackmodel.South: 1.0, trackmodel.East: 1.0, trackmodel.West: 1.0,
 	}
 	geometry := trackmodel.CorridorGeometryFromWidths(widths, 3.0)
-	obstacle := collision.NewObstacleBoxFromPose(signCenterX, signCenterY, signObstacleWidthM, signObstacleDepthM, 0.0, 1e-6, false)
+	obstacle := collision.NewObstacleBoxFromPose(
+		signCenterX, signCenterY, signObstacleWidthM, signObstacleDepthM, 0.0, 1e-6, false,
+	)
 	return collision.NewTrackModel(collision.NewTrackModelParams{
 		Geometry:  geometry,
 		MinCoordM: 0.0,
