@@ -1251,9 +1251,9 @@ class CoreNavigator(EscapeRecovery):
 
         # Get steering from waypoint controller
         steering_normalized, _, angle_error = self._waypoint_controller.compute_steering(
-            current_pos=(robot_x, robot_y),
+            current_pos=Waypoint(robot_x, robot_y),
             current_yaw=robot_yaw,
-            target_waypoint=steer_target,
+            target_waypoint=Waypoint(*steer_target),
             crosstrack_error=crosstrack,
             tuning=self._tuning,
         )

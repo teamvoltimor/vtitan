@@ -31,16 +31,16 @@ if TYPE_CHECKING:
 
 
 def apply_deformation(
-    waypoint: tuple[float, float],
+    waypoint: Waypoint,
     sign: SignSpec,
     color: str,
     corridor: Section,
     direction: Direction,
     lateral_offset: float,
-    robot_pos: tuple[float, float] | None = None,
+    robot_pos: Waypoint | None = None,
     context: SignRouterContext | None = None,
     yaw_drift: float | None = None,
-) -> tuple[float, float]:
+) -> Waypoint:
     """Compute the laterally deformed waypoint for a given sign and corridor.
 
     The result is clamped so it can't land inside the restricted inner square or
@@ -67,13 +67,13 @@ def apply_deformation(
     pass-side mapping can keep asking for it alone.
 
     Args:
-        waypoint: Original target waypoint (x, y).
+        waypoint: Original target waypoint.
         sign: Traffic sign spec (position + color).
         color: Effective sign color (may be camera-confirmed).
         corridor: Current track section.
         direction: Travel direction (CW/CCW) -- selects the pass-side mapping.
         lateral_offset: Lateral deformation magnitude (m).
-        robot_pos: Current robot position (x, y); enables the depth pin.
+        robot_pos: Current robot position; enables the depth pin.
         context: Tuning-derived constants for the wall-clearance clamp. Defaults
             to the checked-in tuning.
         yaw_drift: Absolute heading change (rad) since the pin engaged on this
@@ -81,7 +81,7 @@ def apply_deformation(
             ``PIN_HEADING_GUARD`` is set. See ``pin_depth``.
 
     Returns:
-        Deformed waypoint (x, y).
+        Deformed waypoint.
     """
     if (corridor, direction) not in ROUTING_TABLE:
         return waypoint
@@ -100,15 +100,15 @@ def apply_deformation(
     else:
         return waypoint
 
-    wx, wy = waypoint
+    wx, wy = waypoint.x, waypoint.y
     if axis == Axis.Y:
-        return (
-            pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
+        return Waypoint(
+            pin_depth(wx, sign.x, robot_pos.x if robot_pos else None, robot_pos, corridor, context, yaw_drift),
             clamp_lateral(sign.y + mult * lateral_offset, corridor, context),
         )
-    return (
+    return Waypoint(
         clamp_lateral(sign.x + mult * lateral_offset, corridor, context),
-        pin_depth(wy, sign.y, robot_pos[1] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
+        pin_depth(wy, sign.y, robot_pos.y if robot_pos else None, robot_pos, corridor, context, yaw_drift),
     )
 
 
@@ -116,7 +116,7 @@ def pin_depth(
     waypoint_depth: float,
     sign_depth: float,
     robot_depth: float | None,
-    robot_pos: tuple[float, float] | None,
+    robot_pos: Waypoint | None,
     corridor: Section,
     context: SignRouterContext | None = None,
     yaw_drift: float | None = None,
@@ -159,7 +159,7 @@ def pin_depth(
     if robot_depth is None or robot_pos is None:
         return waypoint_depth
     if context.constants.pin_corner_guard and not is_squarely_in_corridor(
-        robot_pos[0], robot_pos[1], corridor, context
+        robot_pos.x, robot_pos.y, corridor, context
     ):
         return waypoint_depth
     if (
@@ -175,7 +175,7 @@ def pin_depth(
 
 def match_detection_to_sign(
     observations: list[TrafficSignObservation],
-    expected_world_pos: tuple[float, float],
+    expected_world_pos: Waypoint,
     config: SignRouterConfig,
 ) -> SignColor | None:
     """Try to confirm sign color using world-coordinate observations.
@@ -186,7 +186,7 @@ def match_detection_to_sign(
 
     Args:
         observations: Current frame observations.
-        expected_world_pos: Expected (x, y) world position of the sign.
+        expected_world_pos: Expected world position of the sign.
         config: Router config (confidence threshold, match distance).
 
     Returns:
@@ -201,8 +201,8 @@ def match_detection_to_sign(
         if obs.color not in (SignColor.RED, SignColor.GREEN):
             continue
 
-        world = (obs.world_x_m, obs.world_y_m)
-        d = _dist2d(Waypoint(*world), Waypoint(*expected_world_pos))
+        world = Waypoint(obs.world_x_m, obs.world_y_m)
+        d = _dist2d(world, expected_world_pos)
         if d < config.detection_match_dist and d < best_match_dist:
             best_match_dist = d
             best_color = obs.color

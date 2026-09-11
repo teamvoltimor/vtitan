@@ -7,6 +7,7 @@ from itertools import pairwise
 
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.models import Waypoint
 
 from src.navigation.control.controllers.waypoint_controller import WaypointController
 
@@ -28,18 +29,18 @@ def test_large_angle_error_is_rate_limited_across_ticks():
     max_delta_norm = (2.0 * dt) / controller.max_steering_angle
 
     first, _, _ = controller.compute_steering(
-        current_pos=(0.0, 0.0),
+        current_pos=Waypoint(0.0, 0.0),
         current_yaw=0.0,
-        target_waypoint=(-1.0, 0.0),
+        target_waypoint=Waypoint(-1.0, 0.0),
         crosstrack_error=0.0,
         dt=dt,
     )
     assert first == pytest.approx(max_delta_norm, abs=1e-9)
 
     second, _, _ = controller.compute_steering(
-        current_pos=(0.0, 0.0),
+        current_pos=Waypoint(0.0, 0.0),
         current_yaw=0.0,
-        target_waypoint=(-1.0, 0.0),
+        target_waypoint=Waypoint(-1.0, 0.0),
         crosstrack_error=0.0,
         dt=dt,
     )
@@ -49,9 +50,9 @@ def test_large_angle_error_is_rate_limited_across_ticks():
 def test_small_angle_error_is_not_rate_limited():
     controller = _make_controller(max_steering_rate=2.0)
     steering, _, angle_error = controller.compute_steering(
-        current_pos=(0.0, 0.0),
+        current_pos=Waypoint(0.0, 0.0),
         current_yaw=0.0,
-        target_waypoint=(1.0, 0.01),
+        target_waypoint=Waypoint(1.0, 0.01),
         crosstrack_error=0.0,
         dt=0.05,
     )
@@ -64,18 +65,18 @@ def test_reset_clears_rate_limit_memory():
     controller = _make_controller(max_steering_rate=2.0)
     dt = 0.05
     controller.compute_steering(
-        current_pos=(0.0, 0.0),
+        current_pos=Waypoint(0.0, 0.0),
         current_yaw=0.0,
-        target_waypoint=(-1.0, 0.0),
+        target_waypoint=Waypoint(-1.0, 0.0),
         crosstrack_error=0.0,
         dt=dt,
     )
     controller.reset()
 
     steering, _, _ = controller.compute_steering(
-        current_pos=(0.0, 0.0),
+        current_pos=Waypoint(0.0, 0.0),
         current_yaw=0.0,
-        target_waypoint=(-1.0, 0.0),
+        target_waypoint=Waypoint(-1.0, 0.0),
         crosstrack_error=0.0,
         dt=dt,
     )
@@ -88,9 +89,9 @@ def test_forward_target_uses_curvature_not_gain():
     # magnitude set by chassis geometry (wheelbase/2), not an arbitrary gain.
     controller = _make_controller(max_steering_rate=100.0)  # effectively unrated for this check
     steering, _, angle_error = controller.compute_steering(
-        current_pos=(0.0, 0.0),
+        current_pos=Waypoint(0.0, 0.0),
         current_yaw=0.0,
-        target_waypoint=(0.40, 0.20),
+        target_waypoint=Waypoint(0.40, 0.20),
         crosstrack_error=0.0,
         dt=0.05,
     )

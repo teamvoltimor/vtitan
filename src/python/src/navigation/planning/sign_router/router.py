@@ -581,7 +581,7 @@ class SignRouter:
         if observations:
             camera_color = match_detection_to_sign(
                 observations,
-                (sign.x, sign.y),
+                Waypoint(sign.x, sign.y),
                 self._config,
             )
             if camera_color is not None:
@@ -606,8 +606,9 @@ class SignRouter:
         # decays only once both are clear, which preserves the smoothing this
         # taper exists for. Waypoint-at-sign callers still see taper == 1.0, so
         # single-point behaviour is unchanged.
+        waypoint_wp = Waypoint(*waypoint)
         influence_dist = min(
-            _dist2d(Waypoint(*waypoint), Waypoint(sign.x, sign.y)),
+            _dist2d(waypoint_wp, Waypoint(sign.x, sign.y)),
             _dist2d(robot_wp, Waypoint(sign.x, sign.y)),
         )
         # This shape peaks the commanded offset AT the sign: at activation_dist
@@ -623,17 +624,18 @@ class SignRouter:
         taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
         effective_offset = self._lateral_offset * taper
 
-        deformed = apply_deformation(
-            waypoint,
+        deformed_wp = apply_deformation(
+            waypoint_wp,
             sign,
             color,
             sign_corridor,
             self._direction,
             effective_offset,
-            robot_pos if self._config.depth_pin else None,
+            robot_wp if self._config.depth_pin else None,
             self._context,
             yaw_drift,
         )
+        deformed = (deformed_wp.x, deformed_wp.y)
 
         if deformed != waypoint:
             logger.debug(

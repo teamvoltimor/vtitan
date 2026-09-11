@@ -175,17 +175,17 @@ class TestDeformationDirections:
     def test_offset_side(self, section, direction, color, color_sign, router_config):
         axis, (sx, sy), red_mult = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
-        rx, ry = apply_deformation((sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
+        result = apply_deformation(Waypoint(sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
         expected = red_mult * color_sign * SIGN_LATERAL_OFFSET
         # Inner/outer-lane signs cannot always take the full offset — the
         # router clamps clear of the inner square and the outer wall.
         low_side = section in (Section.SOUTH, Section.WEST)
         if axis == "y":
-            assert ry == pytest.approx(_expected_lateral(sy + expected, low_side=low_side))
-            assert rx == pytest.approx(sx)
+            assert result.y == pytest.approx(_expected_lateral(sy + expected, low_side=low_side))
+            assert result.x == pytest.approx(sx)
         else:
-            assert rx == pytest.approx(_expected_lateral(sx + expected, low_side=low_side))
-            assert ry == pytest.approx(sy)
+            assert result.x == pytest.approx(_expected_lateral(sx + expected, low_side=low_side))
+            assert result.y == pytest.approx(sy)
 
     @pytest.mark.parametrize("section", list(_SECTION_GEOMETRY))
     @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
@@ -204,9 +204,9 @@ class TestDeformationDirections:
         _axis, (sx, sy), _red_mult = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, SignColor.UNKNOWN)
         result = apply_deformation(
-            (sx, sy), sign, SignColor.UNKNOWN, section, direction, SIGN_LATERAL_OFFSET
+            Waypoint(sx, sy), sign, SignColor.UNKNOWN, section, direction, SIGN_LATERAL_OFFSET
         )
-        assert result == (sx, sy)
+        assert result == Waypoint(sx, sy)
 
 
 class TestPassSideLateralAxis:
@@ -771,17 +771,17 @@ class TestDepthPinCornerGuard:
         lateral_y = TrackDimensions.CORNER_MIN - 0.05  # still reads as SOUTH laterally
         sign = _sign_at(sign_depth, lateral_y, "red")
 
-        result_x, _ = apply_deformation(
-            (waypoint_depth, lateral_y),
+        result = apply_deformation(
+            Waypoint(waypoint_depth, lateral_y),
             sign,
             "red",
             Section.SOUTH,
             Direction.CLOCKWISE,
             SIGN_LATERAL_OFFSET,
-            robot_pos=(robot_depth, lateral_y),
+            robot_pos=Waypoint(robot_depth, lateral_y),
         )
 
-        assert result_x == pytest.approx(waypoint_depth)
+        assert result.x == pytest.approx(waypoint_depth)
 
     def test_pin_still_fires_when_the_robot_is_squarely_in_corridor(self, router_config):
         """Regression guard for the fix itself: the guard must not also kill
@@ -795,17 +795,17 @@ class TestDepthPinCornerGuard:
         lateral_y = TrackDimensions.CORNER_MIN - 0.05
         sign = _sign_at(sign_depth, lateral_y, "red")
 
-        result_x, _ = apply_deformation(
-            (waypoint_depth, lateral_y),
+        result = apply_deformation(
+            Waypoint(waypoint_depth, lateral_y),
             sign,
             "red",
             Section.SOUTH,
             Direction.CLOCKWISE,
             SIGN_LATERAL_OFFSET,
-            robot_pos=(robot_depth, lateral_y),
+            robot_pos=Waypoint(robot_depth, lateral_y),
         )
 
-        assert result_x == pytest.approx(sign_depth)
+        assert result.x == pytest.approx(sign_depth)
 
     def test_guard_off_restores_the_pin_that_cost_11_wall_collisions(self, router_config):
         """``PIN_CORNER_GUARD=False`` must actually reach ``pin_depth``.
@@ -824,18 +824,18 @@ class TestDepthPinCornerGuard:
         sign = _sign_at(sign_depth, lateral_y, "red")
         tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_CORNER_GUARD": False}))
 
-        result_x, _ = apply_deformation(
-            (waypoint_depth, lateral_y),
+        result = apply_deformation(
+            Waypoint(waypoint_depth, lateral_y),
             sign,
             "red",
             Section.SOUTH,
             Direction.CLOCKWISE,
             SIGN_LATERAL_OFFSET,
-            robot_pos=(robot_depth, lateral_y),
+            robot_pos=Waypoint(robot_depth, lateral_y),
             context=SignRouterContext(tuning),
         )
 
-        assert result_x == pytest.approx(sign_depth)
+        assert result.x == pytest.approx(sign_depth)
 
 
 class TestDepthPinHeadingGuard:
@@ -866,19 +866,19 @@ class TestDepthPinHeadingGuard:
         sign = _sign_at(sign_depth, lateral_y, "red")
         tuning = self._tuning_with_heading_guard(35.0)
 
-        result_x, _ = apply_deformation(
-            (waypoint_depth, lateral_y),
+        result = apply_deformation(
+            Waypoint(waypoint_depth, lateral_y),
             sign,
             "red",
             Section.SOUTH,
             Direction.CLOCKWISE,
             SIGN_LATERAL_OFFSET,
-            robot_pos=(robot_depth, lateral_y),
+            robot_pos=Waypoint(robot_depth, lateral_y),
             context=SignRouterContext(tuning),
             yaw_drift=math.radians(40.0),
         )
 
-        assert result_x == pytest.approx(waypoint_depth)
+        assert result.x == pytest.approx(waypoint_depth)
 
     def test_pin_still_fires_under_the_yaw_drift_threshold(self, router_config):
         """Regression guard for the fix itself: small heading drift must not
@@ -892,19 +892,19 @@ class TestDepthPinHeadingGuard:
         sign = _sign_at(sign_depth, lateral_y, "red")
         tuning = self._tuning_with_heading_guard(35.0)
 
-        result_x, _ = apply_deformation(
-            (waypoint_depth, lateral_y),
+        result = apply_deformation(
+            Waypoint(waypoint_depth, lateral_y),
             sign,
             "red",
             Section.SOUTH,
             Direction.CLOCKWISE,
             SIGN_LATERAL_OFFSET,
-            robot_pos=(robot_depth, lateral_y),
+            robot_pos=Waypoint(robot_depth, lateral_y),
             context=SignRouterContext(tuning),
             yaw_drift=math.radians(10.0),
         )
 
-        assert result_x == pytest.approx(sign_depth)
+        assert result.x == pytest.approx(sign_depth)
 
     def test_guard_off_ignores_yaw_drift(self, router_config):
         """``PIN_HEADING_GUARD=False`` must actually reach ``pin_depth`` --
@@ -924,19 +924,19 @@ class TestDepthPinHeadingGuard:
         sign = _sign_at(sign_depth, lateral_y, "red")
         tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_HEADING_GUARD": False}))
 
-        result_x, _ = apply_deformation(
-            (waypoint_depth, lateral_y),
+        result = apply_deformation(
+            Waypoint(waypoint_depth, lateral_y),
             sign,
             "red",
             Section.SOUTH,
             Direction.CLOCKWISE,
             SIGN_LATERAL_OFFSET,
-            robot_pos=(robot_depth, lateral_y),
+            robot_pos=Waypoint(robot_depth, lateral_y),
             context=SignRouterContext(tuning),
             yaw_drift=math.radians(90.0),
         )
 
-        assert result_x == pytest.approx(sign_depth)
+        assert result.x == pytest.approx(sign_depth)
 
 
 # Camera-detection confirmation (pinhole projection)
@@ -1176,7 +1176,7 @@ class TestMatchDetectionToSign:
         obs = _observation_at(0.5, 0.0, color=SignColor.RED, confidence=0.1)
         result = match_detection_to_sign(
             [obs],
-            expected_world_pos=(0.5, 0.0),
+            expected_world_pos=Waypoint(0.5, 0.0),
             config=router_config,
         )
         assert result is None
@@ -1185,14 +1185,14 @@ class TestMatchDetectionToSign:
         obs = _observation_at(2.0, 0.0, color=SignColor.RED, confidence=0.9)
         result = match_detection_to_sign(
             [obs],
-            expected_world_pos=(0.0, 0.0),
+            expected_world_pos=Waypoint(0.0, 0.0),
             config=router_config,
         )
         assert result is None
 
     @pytest.mark.parametrize("order", [("near", "far"), ("far", "near")])
     def test_nearest_candidate_wins_regardless_of_order(self, order, router_config):
-        expected = (0.5, 0.0)
+        expected = Waypoint(0.5, 0.0)
         near = _observation_at(0.5, 0.0, color=SignColor.GREEN, confidence=0.9)  # dist 0.0
         far = _observation_at(0.65, 0.0, color=SignColor.RED, confidence=0.9)  # dist 0.15
         candidates = [near, far] if order[0] == "near" else [far, near]
@@ -1231,7 +1231,7 @@ class TestCameraDetectionOverridesGroundTruth:
         )
 
         expected_if_green = apply_deformation(
-            (sx, sy),
+            Waypoint(sx, sy),
             sign,
             "green",
             Section.SOUTH,
@@ -1239,15 +1239,15 @@ class TestCameraDetectionOverridesGroundTruth:
             SIGN_LATERAL_OFFSET,
         )
         expected_if_red = apply_deformation(
-            (sx, sy),
+            Waypoint(sx, sy),
             sign,
             "red",
             Section.SOUTH,
             Direction.COUNTERCLOCKWISE,
             SIGN_LATERAL_OFFSET,
         )
-        assert result == pytest.approx(expected_if_green, abs=1e-6)
-        assert result != pytest.approx(expected_if_red, abs=1e-6)
+        assert result == pytest.approx((expected_if_green.x, expected_if_green.y), abs=1e-6)
+        assert result != pytest.approx((expected_if_red.x, expected_if_red.y), abs=1e-6)
 
 
 # 5. No-op with empty sign list
@@ -1277,47 +1277,47 @@ class TestDeformationClamping:
         # South corridor, sign right at the inner-square boundary (y=1.0):
         # unclamped this deforms to y=1.15 — inside the restricted square.
         sign = _sign_at(1.5, 1.0, "red")
-        wx, wy = apply_deformation(
-            (1.5, 1.0),
+        result = apply_deformation(
+            Waypoint(1.5, 1.0),
             sign,
             "red",
             Section.SOUTH,
             Direction.COUNTERCLOCKWISE,
             SIGN_LATERAL_OFFSET,
         )
-        assert wx == pytest.approx(1.5)
-        assert wy < 1.0, "deformed waypoint must stay below the inner square"
+        assert result.x == pytest.approx(1.5)
+        assert result.y < 1.0, "deformed waypoint must stay below the inner square"
 
     def test_sign_at_outer_edge_does_not_cross_wall(self, router_config):
         # South corridor, sign right at the outer wall (y=0.0): unclamped this
         # deforms to y=-0.15 — beyond the track boundary.
         sign = _sign_at(1.5, 0.0, "green")
-        wx, wy = apply_deformation(
-            (1.5, 0.0),
+        result = apply_deformation(
+            Waypoint(1.5, 0.0),
             sign,
             "green",
             Section.SOUTH,
             Direction.COUNTERCLOCKWISE,
             SIGN_LATERAL_OFFSET,
         )
-        assert wx == pytest.approx(1.5)
-        assert wy >= 0.0, "deformed waypoint must stay on the track"
+        assert result.x == pytest.approx(1.5)
+        assert result.y >= 0.0, "deformed waypoint must stay on the track"
 
     def test_sign_at_inner_edge_east_corridor(self, router_config):
         # East corridor deforms x; sign at the inner-square boundary (x=2.0).
         # EAST/CCW red_mult=-1: unclamped this deforms to x=1.85 — inside the
         # inner square.
         sign = _sign_at(2.0, 1.5, "red")
-        wx, wy = apply_deformation(
-            (2.0, 1.5),
+        result = apply_deformation(
+            Waypoint(2.0, 1.5),
             sign,
             "red",
             Section.EAST,
             Direction.COUNTERCLOCKWISE,
             SIGN_LATERAL_OFFSET,
         )
-        assert wy == pytest.approx(1.5)
-        assert wx > 2.0, "deformed waypoint must stay clear of the inner square"
+        assert result.y == pytest.approx(1.5)
+        assert result.x > 2.0, "deformed waypoint must stay clear of the inner square"
 
 
 # 6. Pass-side rule pinned in absolute (track-relative) terms
@@ -1355,8 +1355,8 @@ class TestPassSideRule:
         # inside the restricted inner square itself, which no real sign ever does.
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
-        wx, wy = apply_deformation(
-            (sign.x, sign.y),
+        result = apply_deformation(
+            Waypoint(sign.x, sign.y),
             sign,
             color,
             section,
@@ -1367,7 +1367,7 @@ class TestPassSideRule:
         # rotating the travel vector by -90 degrees gives (hy, -hx).
         heading = TRAVEL_DIRS[(section, direction)]
         right_x, right_y = heading.ny, -heading.nx
-        right_component = right_x * (wx - sign.x) + right_y * (wy - sign.y)
+        right_component = right_x * (result.x - sign.x) + right_y * (result.y - sign.y)
         if color == "red":
             assert right_component > 0, "red must be passed on the vehicle's right"
         else:

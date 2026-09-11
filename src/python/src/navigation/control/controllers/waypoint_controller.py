@@ -439,9 +439,9 @@ class WaypointController:
 
     def compute_steering(
         self,
-        current_pos: tuple[float, float],
+        current_pos: Waypoint,
         current_yaw: float,
-        target_waypoint: tuple[float, float],
+        target_waypoint: Waypoint,
         crosstrack_error: float,
         dt: float | None = None,
         tuning: NavigationTuning | None = None,
@@ -461,9 +461,9 @@ class WaypointController:
         steering law itself that changed.
 
         Args:
-            current_pos: Robot position (x, y)
+            current_pos: Robot position
             current_yaw: Robot heading (radians)
-            target_waypoint: Next waypoint (x, y)
+            target_waypoint: Next waypoint
             crosstrack_error: Perpendicular distance from the planned path
                 (metres), used to select the lookahead -- see ``select_lookahead``.
             dt: Time since the previous call (seconds), used to cap the
@@ -486,7 +486,7 @@ class WaypointController:
 
         lookahead = self.select_lookahead(crosstrack_error)
 
-        x_local, y_local = Pose(current_pos[0], current_pos[1], current_yaw).to_local_frame(Waypoint(*target_waypoint))
+        x_local, y_local = Pose(current_pos.x, current_pos.y, current_yaw).to_local_frame(target_waypoint)
         distance = math.hypot(x_local, y_local)
 
         if distance < self.waypoint_reached_distance_m:
