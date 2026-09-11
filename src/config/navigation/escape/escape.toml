@@ -77,6 +77,18 @@ side_correction_s = 0.20      # Duration of a side-threat correction
 # forward nudge it qualifies is 44/12/0/0 ticks (0.8/0.3/0.0/0.0%) against
 # 550/572/143/88 reversing, over the four 2026-09-11 Obstacles rounds.
 side_correction_blends = false
+# Rotation across ONE manoeuvre past which the waypoint index is re-seeked.
+# Measured 2026-09-11 and it cost all three evening rounds: a k_turn swung the
+# yaw 180-300 deg and the waypoint index then FROZE for 20-45 s -- it never
+# stepped backward, which is why every backward-jump guard read clean, it just
+# stopped advancing because advancing means REACHING a waypoint the car was
+# driving away from. Drawdown from peak progress 220/86/227 deg, i.e. 0.24-0.63
+# of a lap the wrong way at POSITIVE speed, with crosstrack at 0.0-0.5 m so the
+# tracker believed it was on-path. The localizer was clean (out-of-track beams
+# p50 0.006-0.013 vs 0.005 on a 3-lap round; yaw+180 control 0.34-0.36).
+# 90 deg separates a nudge from a change of facing: past it the old target is
+# BEHIND the chassis, where the controller saturates to full lock.
+escape_reseek_turn_deg = 90.0
 escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
 escape_side_commit_attempts = 2  # Attempts spent on one side before trying the other (1 = alternate every attempt, which cancels itself out)
 max_escape_s = 1.8            # Hard cap on any single escalated escape duration

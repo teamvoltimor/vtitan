@@ -775,3 +775,67 @@ class TestEscapeMirrorsReverse:
         assert reverses[1].maneuver_type is ManeuverType.STUCK_REVERSE
         assert reverses[0].steering == pytest.approx(-reverses[1].steering)
         assert reverses[0].steering != 0.0, "a zero lock would make the comparison vacuous"
+
+
+class TestReseekAfterATurningEscape:
+    """A manoeuvre that turns the chassis around must re-aim the waypoint index.
+
+    Measured 2026-09-11 across three hardware rounds: after a k_turn swung the
+    yaw 180-300 deg, ``_waypoint_index`` FROZE for 20-45 s. It never stepped
+    BACKWARD -- which is why every backward-jump guard in this tree read clean
+    -- it stopped advancing, because advancing requires REACHING a waypoint the
+    robot was now driving away from. The car covered 0.24-0.63 of a lap the
+    wrong way at POSITIVE commanded speed while crosstrack read 0.0-0.5 m.
+    """
+
+    _PATH = [Waypoint(float(i), 0.0) for i in range(10)]
+    """A straight line east, so outgoing bearing is 0 rad at every index."""
+
+    def _nav(self, tuning):
+        gateway = FakeGateway(
+            Pose(x=4.0, y=0.0, yaw=0.0),
+            LidarScan(ranges_m=tuple(create_scan_with_sectors()), angles_rad=tuple(ANGLES)),
+        )
+        return CoreNavigator(gateway=gateway, waypoints=list(self._PATH), num_laps=1, tuning=tuning)
+
+    def test_a_reversed_chassis_gets_a_target_behind_it(self, tuning) -> None:
+        """Facing back down the path, the index must move BACK. Nothing else may."""
+        nav = self._nav(tuning)
+        nav._waypoint_index = 6  # noqa: SLF001
+
+        nav._reseek_for_new_heading(4.0, 0.0, math.pi)  # noqa: SLF001
+
+        assert nav._waypoint_index < 6, (  # noqa: SLF001
+            "a chassis that turned around still aims at a waypoint behind it"
+        )
+
+    def test_the_control_an_unturned_chassis_is_left_alone(self, tuning) -> None:
+        """The same call with the ORIGINAL heading must not move the index.
+
+        Without this the test above passes on any re-seek at all, including one
+        that simply snaps to the nearest waypoint and would undo real progress
+        every time a side correction fired.
+        """
+        nav = self._nav(tuning)
+        nav._waypoint_index = 6  # noqa: SLF001
+
+        nav._reseek_for_new_heading(4.0, 0.0, 0.0)  # noqa: SLF001
+
+        assert nav._waypoint_index == 6  # noqa: SLF001
+
+    def test_a_small_turn_does_not_arm_the_reseek(self, tuning) -> None:
+        """The threshold is what keeps a 16.5 deg side correction out of this."""
+        nav = self._nav(tuning)
+        nav._active_maneuver = EscapeManeuver(  # noqa: SLF001
+            maneuver_type=ManeuverType.SIDE_CORRECTION,
+            steering=0.3,
+            speed=0.1,
+            duration_frames=1,
+            priority=1,
+        )
+        nav._maneuver_frames_left = 1  # noqa: SLF001
+        nav._drive_active_maneuver(  # noqa: SLF001
+            4.0, 0.0, math.radians(20.0), phase=nav._debug.phase
+        )
+
+        assert nav._reseek_after_turn is False  # noqa: SLF001
