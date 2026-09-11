@@ -48,6 +48,28 @@ class Section(FromStringEnum):
         """Short cardinal label (N/S/E/W) for display (e.g. the OLED)."""
         return self.name[0]
 
+    @property
+    def neighbours(self) -> tuple[Section, Section]:
+        """The two corridors sharing a corner with this one.
+
+        Direction-free, unlike ``loop_order``: adjacency is a property of the
+        mat, so it must not depend on which way the robot is going or on which
+        corner it believes it started in. The ring is EAST-SOUTH-WEST-NORTH,
+        the same absolute order ``loop_order`` is anchored on.
+
+        Exists because a corridor boundary is not a sight line. The camera has a
+        102 deg HFOV and sees well into the next corridor from a corner, so a
+        test that asks "can this object be here?" by comparing the ROBOT's
+        corridor against the object's is wrong at every corner -- measured
+        2026-09-11, 257 of 293 wall-shaped red detections that escaped the
+        parking-barrier shape gate were taken from the corridor NEXT to the
+        lot's, and the barrier's own magenta detections appear from there too
+        (55 of 220).
+        """
+        ring = [Section.EAST, Section.SOUTH, Section.WEST, Section.NORTH]
+        i = ring.index(self)
+        return ring[(i - 1) % len(ring)], ring[(i + 1) % len(ring)]
+
     @classmethod
     def loop_order(cls, start_section: Section, direction: Direction) -> list[Section]:
         """Corridor traversal order with ``start_section`` first.

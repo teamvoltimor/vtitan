@@ -44,6 +44,28 @@ class TestOrderSectionsForLaps:
         assert order == [Section.WEST, Section.NORTH, Section.EAST, Section.SOUTH]
 
 
+class TestSectionNeighbours:
+    """Adjacency on the mat, which is what a sight line respects."""
+
+    def test_opposite_corridor_is_not_a_neighbour(self) -> None:
+        """The point of the property: NORTH is the one SOUTH cannot see into."""
+        assert Section.NORTH not in Section.SOUTH.neighbours
+
+    def test_both_corners_are_neighbours(self) -> None:
+        assert set(Section.SOUTH.neighbours) == {Section.EAST, Section.WEST}
+
+    def test_adjacency_is_symmetric(self) -> None:
+        """A mat property, so it cannot depend on which side is asked."""
+        for section in Section:
+            for other in section.neighbours:
+                assert section in other.neighbours
+
+    def test_adjacency_does_not_depend_on_direction(self) -> None:
+        """Unlike loop_order: the camera sees into the next straight either way."""
+        assert Section.WEST.neighbours == Section.WEST.neighbours
+        assert set(Section.EAST.neighbours) == {Section.NORTH, Section.SOUTH}
+
+
 class TestGenerateCorridorWaypoints:
     """Test corridor waypoint generation."""
 

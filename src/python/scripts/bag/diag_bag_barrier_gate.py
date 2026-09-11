@@ -45,6 +45,7 @@ from pathlib import Path
 
 from rclpy.serialization import deserialize_message
 from shared.config.constants import RobotSpecs
+from shared.domain.enums import Section
 from shared.domain.models import SignColor
 from std_msgs.msg import String
 
@@ -118,8 +119,16 @@ def collect(bag_dir: Path) -> tuple[list[RedBox], Counter]:
     return reds, magenta_sections
 
 
-def report(name: str, reds: list[RedBox], parking_corridor: str, frame: tuple[float, float]) -> None:
+def report(
+    name: str,
+    reds: list[RedBox],
+    parking_corridor: str,
+    frame: tuple[float, float],
+    *,
+    neighbours_count: bool,
+) -> None:
     frame_w, frame_h = frame
+    adjacent = {s.value for s in Section(parking_corridor).neighbours} if neighbours_count else set()
     buckets: Counter[str] = Counter()
     for (x_min, y_min, x_max, y_max), sect in reds:
         height = y_max - y_min
@@ -131,13 +140,13 @@ def report(name: str, reds: list[RedBox], parking_corridor: str, frame: tuple[fl
             or x_max >= frame_w - FRAME_EDGE_TOLERANCE_PX
             or y_max >= frame_h - FRAME_EDGE_TOLERANCE_PX
         )
-        barrier_possible = sect is None or sect == parking_corridor
+        barrier_possible = sect is None or sect == parking_corridor or sect in adjacent
         if not wall_shaped:
             buckets["pillar-shaped (gate not concerned)"] += 1
         elif barrier_possible and not clipped:
             buckets["wall-shaped, REJECTED by the gate"] += 1
         elif not barrier_possible:
-            buckets["wall-shaped, ADMITTED: wrong corridor"] += 1
+            buckets["wall-shaped, ADMITTED: corridor exempt"] += 1
         else:
             buckets["wall-shaped, ADMITTED: box clipped"] += 1
 
@@ -186,12 +195,19 @@ def main() -> int:
     )
 
     frame = _frame_size([b for reds in per_bag.values() for b in reds])
-    all_reds: list[RedBox] = []
-    for name, reds in per_bag.items():
-        report(name, reds, parking_corridor, frame)
-        all_reds.extend(reds)
-    if len(per_bag) > 1:
-        report("ALL RUNS", all_reds, parking_corridor, frame)
+    all_reds: list[RedBox] = [b for reds in per_bag.values() for b in reds]
+    # Both rules, side by side, because the question is what the widening BUYS.
+    # The lot's corridor alone is what shipped before 2026-09-11; adding its
+    # neighbours is the repair, and the residue under the second rule is what
+    # neither reaches.
+    for neighbours_count in (False, True):
+        rule = "lot's corridor + NEIGHBOURS" if neighbours_count else "lot's corridor only (was shipped)"
+        print("\n" + "=" * 70)
+        print(f"RULE: {rule}")
+        for name, reds in per_bag.items():
+            report(name, reds, parking_corridor, frame, neighbours_count=neighbours_count)
+        if len(per_bag) > 1:
+            report("ALL RUNS", all_reds, parking_corridor, frame, neighbours_count=neighbours_count)
     return 0
 
 

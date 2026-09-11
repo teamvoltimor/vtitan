@@ -451,8 +451,20 @@ class ROS2HardwareGateway(HardwareGateway):
             # label is unset at the start, in and around the bay, which is
             # exactly where the barrier is. Measured: 72% of wall-shaped red
             # detections carry no corridor label.
+            #
+            # The lot's NEIGHBOURS count too, because a corridor boundary is not
+            # a sight line: the camera spans 102 deg and sees down the next
+            # straight from a corner. Measured 2026-09-11 over three rounds, the
+            # shape gate admitted 293 wall-shaped reds on the strength of this
+            # test and 257 of them (88%) were taken from the corridor NEXT to
+            # the lot's -- which is also where 55 of the barrier's own 220
+            # magenta detections come from, so the barrier demonstrably IS
+            # visible from there.
             barrier_possible = (
-                self._parking_corridor is None or current_corridor is None or current_corridor == self._parking_corridor
+                self._parking_corridor is None
+                or current_corridor is None
+                or current_corridor == self._parking_corridor
+                or current_corridor in self._parking_corridor.neighbours
             )
             obs = detection_to_observation(
                 det,
