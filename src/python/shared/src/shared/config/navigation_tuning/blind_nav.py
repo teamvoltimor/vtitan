@@ -936,7 +936,7 @@ class CorridorFollowerParams(BaseModel):
     """
 
     BAY_EXIT_GUARD_MEASURED_COAST: bool = Field(
-        default=False, validation_alias=_alias("BAY_EXIT_GUARD_MEASURED_COAST")
+        default=True, validation_alias=_alias("BAY_EXIT_GUARD_MEASURED_COAST")
     )
     """Budget the guard's stopping distance from the MEASURED wheel speed, not
     the commanded one. INERT pending a hardware trial.

@@ -403,7 +403,7 @@ bay_exit_leg_max_s = 0.5
 # DELIVERS 0.027, so the guard budgets 52.5 mm of coast for a real 9.5 and
 # vetoed 39-71% of ticks -- 306 and 195 reversals, zero net travel, 0/2 out of
 # the bay. See BAY_EXIT_GUARD_MEASURED_COAST for the table.
-bay_exit_guard_measured_coast = false
+bay_exit_guard_measured_coast = true
 # Predicted fin OVERLAP the guard tolerates (m). Ships 0.0 = inert. The guard
 # refuses on a predicted 4 mm gap against a 1 mm margin while its dead-reckoned
 # pose is ~29 mm wrong, so the refusals are noise -- and each one flips the leg
