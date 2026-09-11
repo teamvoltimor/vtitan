@@ -573,7 +573,11 @@ class BayExit:
         manoeuvre the wrong swing, and so the wrong standstill.
         """
         swing_rad = abs(to_norm - from_norm) * math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
-        per_tick_rad = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
+        # The SERVO's rate, not the command rate limiter. They were one field
+        # until 2026-09-11 and pull opposite ways: the limiter is a cornering
+        # policy deliberately held low, while this budget wastes 2.5 s per
+        # reversal whenever it sits below the truth. See SERVO_SLEW_RATE_RAD_S.
+        per_tick_rad = tuning.pursuit.SERVO_SLEW_RATE_RAD_S / tuning.control.CONTROL_HZ
         self._settle_ticks = math.ceil(swing_rad / per_tick_rad) if per_tick_rad > 0 else 0
         self._leg_is_reverse = is_reverse
         self._leg_start_m = travelled_m

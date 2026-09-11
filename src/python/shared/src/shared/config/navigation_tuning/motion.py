@@ -532,6 +532,53 @@ class PurePursuitParams(BaseModel):
     # construction was running a rate 67% higher than anything the robot ships
     # with, so a weave measured on bare tuning was not measuring the robot.
     MAX_STEERING_RATE: float = Field(default=1.2, validation_alias=_alias("MAX_STEERING_RATE"))  # rad/s
+    SERVO_SLEW_RATE_RAD_S: float = Field(
+        default=1.2, gt=0.0, validation_alias=_alias("SERVO_SLEW_RATE_RAD_S")
+    )
+    """How fast the servo ACTUALLY moves, as opposed to how fast we let the command move.
+
+    Split from ``MAX_STEERING_RATE`` on 2026-09-11 because one number was doing
+    two unrelated jobs, and they pull in opposite directions:
+
+    * as a POLICY, ``MAX_STEERING_RATE`` rate-limits the outgoing command
+      (``waypoint_controller``) so a large angle error cannot demand full
+      deflection in one tick. It was deliberately lowered 2.0 -> 1.2 on
+      2026-08-28 because cornering was "too drastic", and it still binds:
+      measured over four 2026-09-11 bags, per-tick ``/ackermann_cmd`` slew has
+      p90 1.13-1.23 rad/s with **8.2-13.1% of ticks at or above the cap**.
+    * as a MODEL, it is what ``bay_exit`` budgets its servo standstill from, and
+      there a value below the truth is pure wasted time: the exit commands ZERO
+      for ``ceil(swing / (rate / CONTROL_HZ))`` ticks after every leg change,
+      which at 1.2 rad/s is 50 ticks -- 2.50 s per reversal, confirmed on track
+      at p50 2.551/2.556/2.552 s -- and 8-14 reversals is most of the manoeuvre.
+
+    Raising the policy to fix the model silently re-heats cornering. Hence two
+    fields. Ships at 1.2, identical to what it replaced: this split removes the
+    coupling, it does not claim a new number.
+
+    THE NUMBER IS STILL UNMEASURED, and the bags cannot measure it.
+    ``/motor/steering_position`` is NOT feedback -- ``ServoDriver`` returns the
+    last commanded angle, and a fit against ``/ackermann_cmd`` gives slope
+    57.2958 (= 180/pi) at lag 0 with R^2 = 1.000000. The same fit on
+    ``/motor/drive_speed``, which IS an encoder, gives lag +6 and R^2 = 0.857,
+    so the method works and the topic is an echo.
+
+    What the bags DO give is a lower bound, through the gyro: on steering steps
+    >= 0.445 rad while driving, yaw rate reaches 90% of its new plateau in p50
+    0.041 s and p90 0.351 s, so the servo is at least ~1.27 rad/s even in the
+    pessimistic decile. **Every bound available says 1.2 is too low.** But a
+    bound is not a value, and setting this too HIGH under-budgets the pause, so
+    the guard's dead reckoning would assume a wheel angle the servo has not
+    reached yet.
+
+    Settle it on a bench, with the wheel LOADED against the mat (unloaded is
+    optimistic -- tyre scrub binds the linkage): a lock-to-lock step filmed at
+    >= 240 fps against a protractor, or an encoder taped to the steering
+    knuckle. The same rig settles ``MAX_WHEEL_ANGLE_DEG = 85.0``, which
+    ``robot.toml`` flags as NOT bench-verified and whose predecessor was wrong
+    by 1.28x -- and that angle multiplies straight into the swing this budget is
+    computed from, so measuring one without the other buys half an answer.
+    """
     WALL_MARGIN_SAFETY_M: float = Field(
         default=0.03, validation_alias=_alias("WALL_MARGIN_SAFETY_M")
     )  # Kept clear of an outer wall

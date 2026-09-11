@@ -67,6 +67,20 @@ steer_kp = 1.2                # Proportional gain for the steering P-controller
 # exact value is untested; re-check lap completion if this regresses hardware
 # cornering.
 max_steering_rate = 1.2       # Maximum steering command rate (rad/s)
+# How fast the servo ACTUALLY moves, as opposed to how fast we let the command
+# move. Split from max_steering_rate on 2026-09-11: that one is a CORNERING
+# POLICY, lowered 2.0 -> 1.2 on 2026-08-28 because cornering was too drastic,
+# and it still binds 8.2-13.1% of driving ticks. This one is a MODEL of the
+# hardware, and bay_exit budgets its servo standstill from it -- 50 ticks,
+# 2.50 s per reversal, against 8-14 reversals. Below the truth it is pure
+# wasted time; raising the POLICY to fix the MODEL re-heats cornering.
+# STILL UNMEASURED: /motor/steering_position is an ECHO of the command (slope
+# 180/pi, lag 0, R2 = 1.000000), so no bag can settle it. The gyro gives a
+# lower bound of ~1.27 rad/s even at p90, so 1.2 is too low -- but a bound is
+# not a value, and too HIGH under-budgets the pause. Needs a loaded bench
+# measurement, together with max_wheel_angle_deg, which multiplies into the
+# same swing and is itself unverified.
+servo_slew_rate_rad_s = 1.2
 
 # The operative crosstrack threshold is the smaller of lookahead_transition and
 # what the path's own distance to the outer wall actually affords. Under the
