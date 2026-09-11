@@ -73,13 +73,13 @@ func TestNativeRunner_BlindObstaclesUsesTheRuleWidthPrior(t *testing.T) {
 	// not the narrow/wide split.
 	blind, err := newBlindSetup(
 		base, trackmodel.Counterclockwise, true, cfg, waypoints.DefaultConfig(),
-		startconditions.DefaultConfig(), blindCenterBiasM(true),
+		startconditions.DefaultConfig(), blindCenterBiasM(true, waypoints.DefaultConfig()),
 	)
 	if err != nil {
 		t.Fatalf("newBlindSetup(obstacles): %v", err)
 	}
 
-	wantY := obstaclesCorridorWidthM/2 + obstaclesCenterBiasM
+	wantY := obstaclesCorridorWidthM/2 + waypoints.DefaultConfig().ObstaclesCenterBiasM
 	minY := blind.Waypoints[0].Y
 	for _, wp := range blind.Waypoints {
 		minY = min(minY, wp.Y)

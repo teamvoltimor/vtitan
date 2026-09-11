@@ -282,7 +282,7 @@ func (n *Navigator) selectSpeed(
 	// wedged at exactly this kind of corner anyway, which points at CONTROL
 	// tracking error eating the plan's margin, not the plan itself. Only
 	// the first lap has never actually been driven.
-	if n.lapsCompleted == 0 && turnAhead != 0 {
+	if n.cfg.FirstLapCornerCaution && n.lapsCompleted == 0 && turnAhead != 0 {
 		speed = math.Min(speed, n.cfg.SlowSpeedMPS())
 	}
 	return speed, clearanceSpeed, headingSpeed

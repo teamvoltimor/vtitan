@@ -65,6 +65,13 @@ func TestConfigFor_LoadsRealWaypointsTOML(t *testing.T) {
 			def.UnconfirmedWidthInnerBiasM,
 		)
 	}
+	if cfg.ObstaclesCenterBiasM != def.ObstaclesCenterBiasM {
+		t.Errorf(
+			"ObstaclesCenterBiasM = %v, want the checked-in default %v",
+			cfg.ObstaclesCenterBiasM,
+			def.ObstaclesCenterBiasM,
+		)
+	}
 }
 
 // TestWaypointsTOML_SpellsOutTheWidthBeliefFlags asserts the three fields

@@ -151,22 +151,20 @@ func discardingLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// obstaclesCenterBiasM mirrors waypoints.OBSTACLES_CENTER_BIAS_M: the
-// uniform centreline bias an Obstacles round plans with, overriding the
-// narrow/wide split entirely (its corridors are all 1.0 m by rule, so there
-// is no narrow case for the split to describe).
-//
-// Measured HIGHER than the geometry argues for, compensating for the
-// tracker's outward drift rather than describing a racing line.
-const obstaclesCenterBiasM = 0.15
-
 // blindCenterBiasM is the planning bias for a blind round: nil on Open,
-// which takes the narrow/wide split, and the Obstacles override otherwise.
-func blindCenterBiasM(isObstacles bool) *float64 {
+// which takes the narrow/wide split, and wpCfg.ObstaclesCenterBiasM
+// (waypoints.toml's obstacles_center_bias_m, loaded by waypoints.ConfigFor)
+// otherwise -- the uniform centreline bias an Obstacles round plans with,
+// overriding the narrow/wide split entirely (its corridors are all 1.0 m by
+// rule, so there is no narrow case for the split to describe). Measured
+// HIGHER than the geometry argues for, compensating for the tracker's
+// outward drift rather than describing a racing line -- see that field's
+// docstring in waypoint.py for the full A/B history.
+func blindCenterBiasM(isObstacles bool, wpCfg waypoints.Config) *float64 {
 	if !isObstacles {
 		return nil
 	}
-	bias := obstaclesCenterBiasM
+	bias := wpCfg.ObstaclesCenterBiasM
 	return &bias
 }
 

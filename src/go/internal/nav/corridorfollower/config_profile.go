@@ -66,6 +66,7 @@ func ConfigFor(
 		cfg.AssumeBayStart = cf.AssumeBayStart
 		cfg.BayExitClearanceGuard = cf.BayExitClearanceGuard
 		cfg.BayExitClearanceMarginM = cf.BayExitClearanceMarginM
+		cfg.BayExitClearanceToleranceM = cf.BayExitClearanceToleranceM
 		cfg.BayExitArcSteerNorm = cf.BayExitArcSteerNorm
 		cfg.BayExitSpeedScale = cf.BayExitSpeedScale
 		cfg.BayExitCycle = cf.BayExitCycle

@@ -59,6 +59,21 @@ func TestConfigFor_ProfileSourcedRobotFieldsAreNonZero(t *testing.T) {
 	}
 }
 
+// TestConfigFor_FirstLapCornerCautionLoadsTrue pins
+// first_lap_corner_caution's wiring against the real checked-in
+// waypoints.toml, which ships true. Loaded via loadApplyTOMLWithDefaults, so
+// a missing key must ALSO read true, not the Go zero value -- see
+// DefaultFirstLapCornerCaution's registration in ConfigFor.
+func TestConfigFor_FirstLapCornerCautionLoadsTrue(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.DiscardHandler)
+	cfg := navigator.ConfigFor(logger, repoRoot(t), hardwareProfileNames)
+	if !cfg.FirstLapCornerCaution {
+		t.Error("ConfigFor(...).FirstLapCornerCaution = false, want true (the shipped value)")
+	}
+}
+
 // TestConfigFor_WithoutProfilesKeepsDefaults checks the other half: robot.toml
 // cannot be satisfied without a profile, and the right response is to keep
 // DefaultConfig's values (and warn), not to write zeros over them.

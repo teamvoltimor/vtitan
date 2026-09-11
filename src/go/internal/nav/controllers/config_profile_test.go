@@ -146,3 +146,18 @@ func TestConfigFor_LoadsRealNavigationTuningFiles(t *testing.T) {
 		)
 	}
 }
+
+// TestConfigFor_RearSelfDetectionFromChassisLoadsTrue pins
+// rear_self_detection_from_chassis's wiring against the real checked-in
+// lidar_sectors.toml, which ships true -- ConfigFor must load it via
+// LoadWithDefaults (a missing key must NOT silently revert to false, the
+// same class of trap as waypoints.toml's corner_arc_assume_wide).
+func TestConfigFor_RearSelfDetectionFromChassisLoadsTrue(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.DiscardHandler)
+	cfg := controllers.ConfigFor(logger, repoRoot(t), hardwareProfileNames)
+	if !cfg.RearSelfDetectionFromChassis {
+		t.Error("ConfigFor(...).RearSelfDetectionFromChassis = false, want true (the shipped value)")
+	}
+}

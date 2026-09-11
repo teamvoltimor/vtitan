@@ -79,6 +79,14 @@ type Config struct {
 	// ChassisWidthM is RobotSpecs.WIDTH, used by ValidatePathFeasibility to
 	// confirm the chassis fits the narrowest corridor once biased off centre.
 	ChassisWidthM float64
+	// ObstaclesCenterBiasM matches OBSTACLES_CENTER_BIAS_M: the flat,
+	// uniform center-bias override for the Obstacles Challenge, in place of
+	// the Wide/Narrow split -- every Obstacles corridor is 1.0 m by rule, so
+	// there is no narrow case for it to describe. Callers building an
+	// Obstacles round pass this as CenterBiasForCorridor's overrideM
+	// (formerly a package-local literal in internal/sim/scenario, now
+	// sourced from waypoints.toml like every other bias here).
+	ObstaclesCenterBiasM float64
 }
 
 // Default* match WaypointParams' field defaults.
@@ -93,6 +101,9 @@ const (
 	DefaultStraightWaypointCount      = 8
 	DefaultArcRadius                  = 0.45
 	DefaultCornerArcAssumeWide        = true
+	// DefaultObstaclesCenterBiasM matches the shipped
+	// obstacles_center_bias_m key.
+	DefaultObstaclesCenterBiasM = 0.15
 )
 
 // DefaultConfig returns the Config matching the Python tuning defaults:
@@ -112,5 +123,6 @@ func DefaultConfig() Config {
 		StraightWaypointCount:      DefaultStraightWaypointCount,
 		ArcRadius:                  DefaultArcRadius,
 		CornerArcAssumeWide:        DefaultCornerArcAssumeWide,
+		ObstaclesCenterBiasM:       DefaultObstaclesCenterBiasM,
 	}
 }

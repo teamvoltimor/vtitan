@@ -32,6 +32,105 @@ func newSouthCW(t *testing.T) *racetracker.LapDetector {
 	return newDetector(t, trackmodel.South, trackmodel.Clockwise, 1.5, 0.2)
 }
 
+// newSouthCCW mirrors test_lap_detector.py's ApproachingFinish fixtures: a
+// SOUTH/COUNTERCLOCKWISE detector with its start zone at (1.5, 0.2).
+func newSouthCCW(t *testing.T) *racetracker.LapDetector {
+	t.Helper()
+	return newDetector(t, trackmodel.South, trackmodel.Counterclockwise, 1.5, 0.2)
+}
+
+// TestApproachingFinish_TrueInsideTheApproachWindow ports
+// test_true_inside_the_approach_window (name inferred from the surrounding
+// oracle cases; the pytest source itself starts mid-window, so this exact
+// fixture is reproduced without the preceding case's snippet).
+func TestApproachingFinish_TrueInsideTheApproachWindow(t *testing.T) {
+	t.Parallel()
+	det := newSouthCCW(t)
+	if got := det.ApproachingFinish(trackmodel.Waypoint{X: 1.3, Y: 0.2}, trackmodel.South, 0.40); !got {
+		t.Errorf("ApproachingFinish() = %v, want true", got)
+	}
+}
+
+// TestApproachingFinish_FalseOncePastTheLine ports test_false_once_past_the_line.
+func TestApproachingFinish_FalseOncePastTheLine(t *testing.T) {
+	t.Parallel()
+	det := newSouthCCW(t)
+	if got := det.ApproachingFinish(trackmodel.Waypoint{X: 1.6, Y: 0.2}, trackmodel.South, 0.40); got {
+		t.Errorf("ApproachingFinish() = %v, want false", got)
+	}
+}
+
+// TestApproachingFinish_FalseBeyondTheApproachWindow ports
+// test_false_beyond_the_approach_window.
+func TestApproachingFinish_FalseBeyondTheApproachWindow(t *testing.T) {
+	t.Parallel()
+	det := newSouthCCW(t)
+	if got := det.ApproachingFinish(trackmodel.Waypoint{X: 1.0, Y: 0.2}, trackmodel.South, 0.40); got {
+		t.Errorf("ApproachingFinish() = %v, want false", got)
+	}
+}
+
+// TestApproachingFinish_OppositeStraightDoesNotTrigger ports
+// test_opposite_straight_does_not_trigger: the section test is load-bearing,
+// not belt-and-braces -- dot projects onto ONE travel normal, and the
+// opposite straight projects onto the same window.
+func TestApproachingFinish_OppositeStraightDoesNotTrigger(t *testing.T) {
+	t.Parallel()
+	det := newSouthCCW(t)
+	if got := det.ApproachingFinish(trackmodel.Waypoint{X: 1.3, Y: 2.8}, trackmodel.North, 0.40); got {
+		t.Errorf("ApproachingFinish() = %v, want false", got)
+	}
+}
+
+// TestApproachingFinish_ZeroWindowNeverTriggers ports
+// test_zero_window_never_triggers: FINISH_APPROACH_M = 0.0 is the
+// documented way to disable the approach.
+func TestApproachingFinish_ZeroWindowNeverTriggers(t *testing.T) {
+	t.Parallel()
+	det := newSouthCCW(t)
+	if got := det.ApproachingFinish(trackmodel.Waypoint{X: 1.4999, Y: 0.2}, trackmodel.South, 0.0); got {
+		t.Errorf("ApproachingFinish() = %v, want false", got)
+	}
+}
+
+// TestApproachingFinish_OrientationFollowsTravelDirection ports
+// test_orientation_follows_travel_direction.
+func TestApproachingFinish_OrientationFollowsTravelDirection(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		section   trackmodel.Section
+		direction trackmodel.Direction
+		startX    float64
+		startY    float64
+		approach  [2]float64
+		past      [2]float64
+	}{
+		{"South/CCW", trackmodel.South, trackmodel.Counterclockwise, 1.5, 0.2, [2]float64{1.3, 0.2}, [2]float64{1.7, 0.2}},
+		{"South/CW", trackmodel.South, trackmodel.Clockwise, 1.5, 0.2, [2]float64{1.7, 0.2}, [2]float64{1.3, 0.2}},
+		{"North/CCW", trackmodel.North, trackmodel.Counterclockwise, 1.5, 2.8, [2]float64{1.7, 2.8}, [2]float64{1.3, 2.8}},
+		{"East/CCW", trackmodel.East, trackmodel.Counterclockwise, 2.8, 1.5, [2]float64{2.8, 1.3}, [2]float64{2.8, 1.7}},
+		{"West/CCW", trackmodel.West, trackmodel.Counterclockwise, 0.2, 1.5, [2]float64{0.2, 1.7}, [2]float64{0.2, 1.3}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			det := newDetector(t, tc.section, tc.direction, tc.startX, tc.startY)
+			if got := det.ApproachingFinish(
+				trackmodel.Waypoint{X: tc.approach[0], Y: tc.approach[1]}, tc.section, 0.40,
+			); !got {
+				t.Errorf("ApproachingFinish(approach) = %v, want true", got)
+			}
+			if got := det.ApproachingFinish(
+				trackmodel.Waypoint{X: tc.past[0], Y: tc.past[1]}, tc.section, 0.40,
+			); got {
+				t.Errorf("ApproachingFinish(past) = %v, want false", got)
+			}
+		})
+	}
+}
+
 // feed mirrors _feed: positions are fed in order and the confirmed lap count
 // is returned. The oracle's wrap_at parameter is omitted because every case
 // here arms the waypoint half once, up front, rather than mid-sequence.

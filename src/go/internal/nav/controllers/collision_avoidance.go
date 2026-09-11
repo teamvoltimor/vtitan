@@ -152,8 +152,34 @@ func (c *CollisionAvoidanceController) Sector(
 // filtered, matching CollisionAvoidanceController.rear_sector. Callers
 // gating a reverse want this rather than ComputeRearClearance: Measured()
 // is what tells "genuinely open" apart from "this bearing is a blind spot".
+//
+// When c.Geometry.RearSelfDetectionFromChassis is set (the shipped value),
+// self-detection is filtered by chassis geometry AT EACH BEARING instead of
+// by the single SelfDetectionThresholdM scalar: a ray no farther than
+// ChassisExitRangeM at its own bearing is the chassis, regardless of range,
+// so it is discarded (set to +Inf, keeping index alignment) before the
+// ordinary sector aggregation runs -- which is why filterSelfDetection is
+// false in that branch, matching rear_sector's own
+// self._sector_to_model(kept, angles, math.pi, self.threat_half_fov_rad)
+// call (no self-detection scalar filter, the geometry already did that
+// job).
 func (c *CollisionAvoidanceController) RearSector(rangesM, anglesRad []float64) SectorRanges {
-	return c.Sector(rangesM, anglesRad, math.Pi, nil, true)
+	if !c.Geometry.RearSelfDetectionFromChassis {
+		return c.Sector(rangesM, anglesRad, math.Pi, nil, true)
+	}
+	if len(rangesM) == 0 {
+		return c.Sector(rangesM, anglesRad, math.Pi, nil, false)
+	}
+	angles := resolveAngles(rangesM, anglesRad)
+	kept := make([]float64, len(rangesM))
+	for i, r := range rangesM {
+		if !math.IsInf(r, 0) && !math.IsNaN(r) && r <= ChassisExitRangeM(angles[i], c.Geometry) {
+			kept[i] = math.Inf(1)
+			continue
+		}
+		kept[i] = r
+	}
+	return SectorToModel(kept, angles, math.Pi, c.ThreatHalfFovRad, false, c.Geometry)
 }
 
 // FrontSector is the forward +/-FrontHalfFovRad sector, NOT self-detection

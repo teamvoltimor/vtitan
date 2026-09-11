@@ -62,6 +62,9 @@ type CorridorFollowerConfig struct {
 	BayExitClearanceGuard bool `mapstructure:"bay_exit_clearance_guard"`
 	// BayExitClearanceMarginM matches BAY_EXIT_CLEARANCE_MARGIN_M.
 	BayExitClearanceMarginM float64 `mapstructure:"bay_exit_clearance_margin_m"`
+	// BayExitClearanceToleranceM matches BAY_EXIT_CLEARANCE_TOLERANCE_M --
+	// see corridorfollower.Config.BayExitClearanceToleranceM.
+	BayExitClearanceToleranceM float64 `mapstructure:"bay_exit_clearance_tolerance_m"`
 	// BayExitArcSteerNorm matches BAY_EXIT_ARC_STEER_NORM. A cliff at 1.0.
 	BayExitArcSteerNorm float64 `mapstructure:"bay_exit_arc_steer_norm"`
 	// BayExitSpeedScale matches BAY_EXIT_SPEED_SCALE. A cliff at both ends.
@@ -149,6 +152,7 @@ func CorridorFollowerDefaults() map[string]any {
 		"assume_bay_start":                  true,
 		"bay_exit_clearance_guard":          true,
 		"bay_exit_clearance_margin_m":       0.005,
+		"bay_exit_clearance_tolerance_m":    0.0,
 		"bay_exit_arc_steer_norm":           1.0,
 		"bay_exit_speed_scale":              0.35,
 		"bay_exit_cycle":                    true,

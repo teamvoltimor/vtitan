@@ -346,7 +346,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 			r.cfg,
 			r.wpCfg,
 			r.startCfg,
-			blindCenterBiasM(len(signs) > 0),
+			blindCenterBiasM(len(signs) > 0, r.wpCfg),
 		)
 		if blindErr != nil {
 			return Result{}, fmt.Errorf("native runner: %s: %w", sc.ID, blindErr)
@@ -904,7 +904,7 @@ func (r *NativeRunner) buildScenario(meta generate.Metadata) (trackmodel.Corrido
 	// confirmed and none takes the unconfirmed inner bias -- the opposite of
 	// newBlindSetup, which plans everything unconfirmed.
 	path, err := waypoints.CalculateWaypoints(
-		planned, 1, r.wpCfg, sightedCenterBiasM(meta), waypoints.AllConfirmed(),
+		planned, 1, r.wpCfg, sightedCenterBiasM(meta, r.wpCfg), waypoints.AllConfirmed(),
 	)
 	if err != nil {
 		return trackmodel.CorridorGeometry{}, scenarioStart{}, nil,
@@ -919,8 +919,8 @@ func (r *NativeRunner) buildScenario(meta generate.Metadata) (trackmodel.Corrido
 // (does this scenario carry signs) rather than off the metadata's
 // challenge_type string, so a mislabeled fixture cannot plan one challenge
 // with the other's bias.
-func sightedCenterBiasM(meta generate.Metadata) *float64 {
-	return blindCenterBiasM(len(meta.SignPositions) > 0)
+func sightedCenterBiasM(meta generate.Metadata, wpCfg waypoints.Config) *float64 {
+	return blindCenterBiasM(len(meta.SignPositions) > 0, wpCfg)
 }
 
 // defaultLaps returns the Open Challenge default lap count.

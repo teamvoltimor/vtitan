@@ -76,6 +76,14 @@ type Config struct {
 	// upcoming turn (m), matching CORNER_PREVIEW_DISTANCE_M.
 	CornerPreviewDistanceM float64
 
+	// FirstLapCornerCaution matches FIRST_LAP_CORNER_CAUTION: gate the
+	// first-lap-only speed cap in selectSpeed on this flag rather than
+	// applying it unconditionally. Only CORNER_CAUTION_ALL_LAPS's lap-1 gate
+	// and FIRST_LAP_CORNER_CAUTION_NARROW_ONLY's corridor-width restriction
+	// are deliberately NOT ported here -- both are confirmed inert/false in
+	// the shipped Python tuning, so gating on a value that never varies
+	// would be dead configuration surface, not a behavior.
+	FirstLapCornerCaution bool
 	// MainLoopReachedDistanceM is the distance below which this loop (as
 	// opposed to WaypointController's own internal test) counts a waypoint
 	// as reached (m), matching MAIN_LOOP_REACHED_DISTANCE_M.
@@ -227,6 +235,10 @@ const (
 	DefaultMinLookaheadTransition = 0.10
 	DefaultCornerPreviewDistanceM = 0.80
 
+	// DefaultFirstLapCornerCaution matches the shipped
+	// first_lap_corner_caution key, true.
+	DefaultFirstLapCornerCaution = true
+
 	// DefaultMainLoopReachedDistanceM and the next are waypoint tuning
 	// (waypoint/waypoints.toml).
 	DefaultMainLoopReachedDistanceM = 0.20
@@ -333,6 +345,8 @@ func DefaultConfig() Config {
 		WallMarginSafetyM:       DefaultWallMarginSafetyM,
 		MinLookaheadTransitionM: DefaultMinLookaheadTransition,
 		CornerPreviewDistanceM:  DefaultCornerPreviewDistanceM,
+
+		FirstLapCornerCaution: DefaultFirstLapCornerCaution,
 
 		MainLoopReachedDistanceM: DefaultMainLoopReachedDistanceM,
 		ReplanHeadingTieMarginM:  DefaultReplanHeadingTieMarginM,

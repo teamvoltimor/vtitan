@@ -373,7 +373,12 @@ func (b *BayExit) guardedCommand(
 	travelledM, creepSpeedMPS float64, cfg Config, openIsLeft bool,
 ) controllers.DriveCommand {
 	f := cfg.Follower
-	margin := f.BayExitClearanceMarginM
+	// Subtracted rather than lowering BayExitClearanceMarginM directly, so
+	// the effective threshold can go negative (tolerating a predicted
+	// OVERLAP) without loosening that field's own floor, which exists to
+	// stop the margin being set backwards by accident. Ships 0.0 = inert,
+	// matching BAY_EXIT_CLEARANCE_TOLERANCE_M.
+	margin := f.BayExitClearanceMarginM - f.BayExitClearanceToleranceM
 	sign := signForOpenLeft(openIsLeft)
 	magnitude := navutil.Clamp(f.BayExitArcSteerNorm, 0.0, 1.0)
 	// Both legs hold the SAME lock, and the dead-reckoned frame is signed

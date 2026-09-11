@@ -89,3 +89,31 @@ func (d *LapDetector) Update(robotPos trackmodel.Waypoint, currentSection trackm
 	}
 	return false
 }
+
+// ApproachingFinish reports whether robotPos is inside withinM of the
+// finish line, still short of it, matching race_tracker.py's
+// LapDetector.approaching_finish.
+//
+// Lives here because this type already owns where the finish line is and
+// which way the round is driven; a caller reconstructing that from the
+// origin and the travel normal would be a second copy of the geometry, free
+// to drift from the one that counts laps.
+//
+// currentSection is NOT redundant with the distance test: dot is a
+// projection onto a single travel normal, so the opposite straight
+// projects onto the same window (for a SOUTH start driven CCW the normal is
+// +x and dot = x - originX, which sweeps the same -withinM..0 range while
+// the robot drives the NORTH straight). Distance alone would slow the
+// robot on the far side of the track, one straight early, every lap.
+//
+// Returns true only while the robot is short of the line (dot < 0), so
+// this stops applying the moment the crossing is registered.
+func (d *LapDetector) ApproachingFinish(
+	robotPos trackmodel.Waypoint, currentSection trackmodel.Section, withinM float64,
+) bool {
+	if currentSection != d.startSection {
+		return false
+	}
+	dot := (robotPos.X-d.origin.X)*d.normal.NX + (robotPos.Y-d.origin.Y)*d.normal.NY
+	return -withinM <= dot && dot < 0.0
+}

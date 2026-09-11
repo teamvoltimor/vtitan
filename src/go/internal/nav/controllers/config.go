@@ -30,6 +30,14 @@ type Config struct {
 	SlowDist      float64
 	FastDist      float64
 	PathMargin    float64
+	// ForwardPathAheadOfBumper matches FORWARD_PATH_AHEAD_OF_BUMPER. Ships
+	// false, which is the behavior ForwardPathRanges already implements
+	// (LIDAR-relative: cos(theta) > 0 from the sensor origin). This field is
+	// wired for COMPLETENESS/future-toggleability only -- setting it true
+	// changes nothing yet, since the bumper-relative alternate it would
+	// select is untested in the Python original too and is not implemented
+	// here. See sectors.ForwardPathRanges.
+	ForwardPathAheadOfBumper bool
 
 	// Control (motion/control.toml).
 	ControlHz float64
@@ -68,13 +76,16 @@ type Config struct {
 	FrontHalfFovDeg         float64
 	ThreatHalfFovDeg        float64
 	SelfDetectionThresholdM float64
-	MinValidRangeM          float64
-	ThreatNoDetectionRangeM float64
-	NoDataRangeM            float64
-	BlindWedgeLeftMinDeg    float64
-	BlindWedgeLeftMaxDeg    float64
-	BlindWedgeRightMinDeg   float64
-	BlindWedgeRightMaxDeg   float64
+	// RearSelfDetectionFromChassis matches REAR_SELF_DETECTION_FROM_CHASSIS
+	// -- see SectorGeometry.RearSelfDetectionFromChassis.
+	RearSelfDetectionFromChassis bool
+	MinValidRangeM               float64
+	ThreatNoDetectionRangeM      float64
+	NoDataRangeM                 float64
+	BlindWedgeLeftMinDeg         float64
+	BlindWedgeLeftMaxDeg         float64
+	BlindWedgeRightMinDeg        float64
+	BlindWedgeRightMaxDeg        float64
 
 	// Escape (escape/escape.toml -- subset StuckDetector/
 	// CollisionAvoidanceController's from_tuning actually read).
@@ -115,6 +126,9 @@ const (
 	DefaultSlowDist    = 0.25
 	DefaultFastDist    = 1.00
 	DefaultPathMargin  = 0.10
+	// DefaultForwardPathAheadOfBumper matches the shipped
+	// forward_path_ahead_of_bumper key, false.
+	DefaultForwardPathAheadOfBumper = false
 
 	DefaultControlHz = 20.0
 
@@ -134,13 +148,16 @@ const (
 	DefaultFrontHalfFovDeg         = 30.0
 	DefaultThreatHalfFovDeg        = 45.0
 	DefaultSelfDetectionThresholdM = 0.08
-	DefaultMinValidRangeM          = 0.05
-	DefaultThreatNoDetectionRangeM = 1.0
-	DefaultNoDataRangeM            = 10.0
-	DefaultBlindWedgeLeftMinDeg    = -155.0
-	DefaultBlindWedgeLeftMaxDeg    = -120.0
-	DefaultBlindWedgeRightMinDeg   = 120.0
-	DefaultBlindWedgeRightMaxDeg   = 160.0
+	// DefaultRearSelfDetectionFromChassis matches the shipped
+	// rear_self_detection_from_chassis key, true.
+	DefaultRearSelfDetectionFromChassis = true
+	DefaultMinValidRangeM               = 0.05
+	DefaultThreatNoDetectionRangeM      = 1.0
+	DefaultNoDataRangeM                 = 10.0
+	DefaultBlindWedgeLeftMinDeg         = -155.0
+	DefaultBlindWedgeLeftMaxDeg         = -120.0
+	DefaultBlindWedgeRightMinDeg        = 120.0
+	DefaultBlindWedgeRightMaxDeg        = 160.0
 
 	DefaultRevSpeed                = -0.20
 	DefaultRevSteerDeg             = 44.0
@@ -184,11 +201,12 @@ const (
 // defaults.
 func DefaultConfig() Config {
 	return Config{
-		ContactDist:   DefaultContactDist,
-		RiskRayWindow: DefaultRiskRayWindow,
-		SlowDist:      DefaultSlowDist,
-		FastDist:      DefaultFastDist,
-		PathMargin:    DefaultPathMargin,
+		ContactDist:              DefaultContactDist,
+		RiskRayWindow:            DefaultRiskRayWindow,
+		SlowDist:                 DefaultSlowDist,
+		FastDist:                 DefaultFastDist,
+		PathMargin:               DefaultPathMargin,
+		ForwardPathAheadOfBumper: DefaultForwardPathAheadOfBumper,
 
 		ControlHz: DefaultControlHz,
 
@@ -202,16 +220,17 @@ func DefaultConfig() Config {
 		CornerTurnThresholdRad: DefaultCornerTurnThresholdRad,
 		YawGainCompensation:    DefaultYawGainCompensation,
 
-		FrontHalfFovDeg:         DefaultFrontHalfFovDeg,
-		ThreatHalfFovDeg:        DefaultThreatHalfFovDeg,
-		SelfDetectionThresholdM: DefaultSelfDetectionThresholdM,
-		MinValidRangeM:          DefaultMinValidRangeM,
-		ThreatNoDetectionRangeM: DefaultThreatNoDetectionRangeM,
-		NoDataRangeM:            DefaultNoDataRangeM,
-		BlindWedgeLeftMinDeg:    DefaultBlindWedgeLeftMinDeg,
-		BlindWedgeLeftMaxDeg:    DefaultBlindWedgeLeftMaxDeg,
-		BlindWedgeRightMinDeg:   DefaultBlindWedgeRightMinDeg,
-		BlindWedgeRightMaxDeg:   DefaultBlindWedgeRightMaxDeg,
+		FrontHalfFovDeg:              DefaultFrontHalfFovDeg,
+		ThreatHalfFovDeg:             DefaultThreatHalfFovDeg,
+		SelfDetectionThresholdM:      DefaultSelfDetectionThresholdM,
+		RearSelfDetectionFromChassis: DefaultRearSelfDetectionFromChassis,
+		MinValidRangeM:               DefaultMinValidRangeM,
+		ThreatNoDetectionRangeM:      DefaultThreatNoDetectionRangeM,
+		NoDataRangeM:                 DefaultNoDataRangeM,
+		BlindWedgeLeftMinDeg:         DefaultBlindWedgeLeftMinDeg,
+		BlindWedgeLeftMaxDeg:         DefaultBlindWedgeLeftMaxDeg,
+		BlindWedgeRightMinDeg:        DefaultBlindWedgeRightMinDeg,
+		BlindWedgeRightMaxDeg:        DefaultBlindWedgeRightMaxDeg,
 
 		RevSpeed:                DefaultRevSpeed,
 		RevSteerDeg:             DefaultRevSteerDeg,
@@ -331,14 +350,23 @@ func (c Config) NewStuckDetector(logger *slog.Logger) (*StuckDetector, error) {
 // construction.
 func (c Config) sectorGeometry() SectorGeometry {
 	return SectorGeometry{
-		SelfDetectionThresholdM: c.SelfDetectionThresholdM,
-		MinValidRangeM:          c.MinValidRangeM,
-		NoDataRangeM:            c.NoDataRangeM,
-		LidarMaxRangeM:          c.LidarMaxRangeM,
-		BlindWedgeLeftMinRad:    c.BlindWedgeLeftMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
-		BlindWedgeLeftMaxRad:    c.BlindWedgeLeftMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
-		BlindWedgeRightMinRad:   c.BlindWedgeRightMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
-		BlindWedgeRightMaxRad:   c.BlindWedgeRightMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		SelfDetectionThresholdM:      c.SelfDetectionThresholdM,
+		RearSelfDetectionFromChassis: c.RearSelfDetectionFromChassis,
+		// ChassisExitXForwardM/XRearM/YSideM are the same LIDAR-to-bumper
+		// offsets and chassis half-width RearSector's chassis-geometry
+		// filter needs, matching sectors.chassis_exit_range_m's x_forward/
+		// x_rear/y_side. LidarToFrontBumperM/LidarToRearBumperM are already
+		// exactly half_length -/+ the mount offset.
+		ChassisExitXForwardM:  c.LidarToFrontBumperM,
+		ChassisExitXRearM:     -c.LidarToRearBumperM,
+		ChassisExitYSideM:     c.ChassisWidthM / navutil.Half,
+		MinValidRangeM:        c.MinValidRangeM,
+		NoDataRangeM:          c.NoDataRangeM,
+		LidarMaxRangeM:        c.LidarMaxRangeM,
+		BlindWedgeLeftMinRad:  c.BlindWedgeLeftMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		BlindWedgeLeftMaxRad:  c.BlindWedgeLeftMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		BlindWedgeRightMinRad: c.BlindWedgeRightMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		BlindWedgeRightMaxRad: c.BlindWedgeRightMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
 	}
 }
 

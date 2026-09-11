@@ -4,9 +4,9 @@ package profile
 // src/config/navigation/waypoint/waypoints.toml
 // (shared.config.navigation_tuning.waypoint.WaypointParams) that
 // internal/nav/waypoints and internal/nav/controllers currently consume.
-// ArcRadius/MainLoopReachedDistanceM/ReplanHeadingTieMarginM belong to
-// calculate_waypoints and the navigator consumer, not ported to Go yet, so
-// they're omitted here rather than mirrored unused.
+// MainLoopReachedDistanceM/ReplanHeadingTieMarginM belong to the navigator
+// consumer, not this package, so they're omitted here rather than mirrored
+// unused (see internal/nav/navigator's own navWaypointsTOML).
 // ControllerReachedDistanceM IS mirrored -- see its own doc comment for why
 // it's consumed by internal/nav/controllers rather than this package.
 // WideCenterBiasSide/NarrowCenterBiasSide stay strings -- viper/mapstructure
@@ -36,6 +36,10 @@ type WaypointsConfig struct {
 	// NARROW_CENTER_BIAS_SIDE.
 	NarrowCenterBiasM    float64 `mapstructure:"narrow_center_bias_m"`
 	NarrowCenterBiasSide string  `mapstructure:"narrow_center_bias_side"`
+	// ObstaclesCenterBiasM matches OBSTACLES_CENTER_BIAS_M -- the flat
+	// Obstacles Challenge override, applied uniformly instead of the
+	// Wide/Narrow split. See waypoints.Config.ObstaclesCenterBiasM.
+	ObstaclesCenterBiasM float64 `mapstructure:"obstacles_center_bias_m"`
 	// NarrowWidthThresholdM matches NARROW_WIDTH_THRESHOLD_M.
 	NarrowWidthThresholdM float64 `mapstructure:"narrow_width_threshold_m"`
 	// UnconfirmedWidthInnerBiasM matches UNCONFIRMED_WIDTH_INNER_BIAS_M --

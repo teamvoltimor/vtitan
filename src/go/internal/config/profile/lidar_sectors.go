@@ -20,6 +20,13 @@ type LidarSectorsConfig struct {
 	ThreatHalfFovDeg float64 `mapstructure:"threat_half_fov_deg"`
 	// SelfDetectionThresholdM matches SELF_DETECTION_THRESHOLD_M.
 	SelfDetectionThresholdM float64 `mapstructure:"self_detection_threshold_m"`
+	// RearSelfDetectionFromChassis matches REAR_SELF_DETECTION_FROM_CHASSIS:
+	// gate the rear sector's self-detection filter by chassis geometry AT
+	// EACH BEARING instead of by the single SelfDetectionThresholdM scalar,
+	// which sits far inside the body over most of the rear sector (the
+	// chassis boundary runs from ~0.137 m at the rear sector's edges to
+	// ~0.272 m straight back). See internal/nav/controllers.RearSector.
+	RearSelfDetectionFromChassis bool `mapstructure:"rear_self_detection_from_chassis"`
 	// DirectionArcHalfFovDeg matches DIRECTION_ARC_HALF_FOV_DEG -- the
 	// forward-clearance cone utils.py's _forward_clearance uses, NOT the
 	// collision-avoidance front sector's own (wider) FOV.

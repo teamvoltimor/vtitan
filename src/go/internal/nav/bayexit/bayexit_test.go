@@ -302,3 +302,47 @@ func TestCommand_GuardedCommandFlipsBeforePredictedContact(t *testing.T) {
 		)
 	}
 }
+
+// TestCommand_GuardedCommandToleranceLetsTheGuardAcceptMoreOverlap ports the
+// BAY_EXIT_CLEARANCE_TOLERANCE_M behavior: subtracted from
+// BayExitClearanceMarginM, so a positive tolerance shrinks the effective
+// threshold the guard flips a leg at, letting the predicted gap run deeper
+// negative (a confidently-inside-a-fin overlap) before a flip is forced.
+// Ships 0.0, which must reproduce
+// TestCommand_GuardedCommandFlipsBeforePredictedContact's behavior exactly
+// -- this only pins the NON-default value actually changes something.
+func TestCommand_GuardedCommandToleranceLetsTheGuardAcceptMoreOverlap(t *testing.T) {
+	t.Parallel()
+
+	const toleranceM = 0.01
+
+	runMinGap := func(toleranceM float64) float64 {
+		cfg := bayexit.DefaultConfig()
+		cfg.Follower.BayExitClearanceGuard = true
+		cfg.Follower.BayExitClearanceToleranceM = toleranceM
+		b := bayexit.New()
+		ranges, angles := scanWithSides(1.0, 0.30)
+
+		travelled := 0.0
+		minGapSeen := math.Inf(1)
+		for range 300 {
+			cmd := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
+			travelled += cmd.SpeedMPS / cfg.ControlHz
+			if _, minGap, ok, _ := b.GuardStats(); ok && minGap < minGapSeen {
+				minGapSeen = minGap
+			}
+		}
+		return minGapSeen
+	}
+
+	withoutTolerance := runMinGap(0.0)
+	withTolerance := runMinGap(toleranceM)
+
+	if withTolerance >= withoutTolerance {
+		t.Errorf(
+			"min predicted gap with tolerance = %v, want < without-tolerance's %v "+
+				"(a positive tolerance must let the guard accept a deeper predicted overlap)",
+			withTolerance, withoutTolerance,
+		)
+	}
+}

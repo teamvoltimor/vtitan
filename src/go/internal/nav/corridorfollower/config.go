@@ -136,6 +136,18 @@ type Config struct {
 	// below, absorbing dead-reckoning error. Only meaningful with
 	// BayExitClearanceGuard.
 	BayExitClearanceMarginM float64
+	// BayExitClearanceToleranceM is the predicted fin OVERLAP the guard
+	// tolerates (m), subtracted from BayExitClearanceMarginM so the
+	// effective threshold can go negative without loosening
+	// BayExitClearanceMarginM itself (whose floor exists to stop that
+	// margin being set backwards by accident). Ships 0.0 = inert: the
+	// guard was measured refusing on a PREDICTED gap of ~4 mm against a
+	// 1 mm margin while dead-reckoning it from a pose ~29 mm wrong,
+	// arbitrating an order of magnitude below its own model's error, so
+	// every refusal flipped the leg for zero net travel. A positive value
+	// lets the guard refuse only where the model is confidently -- not
+	// marginally -- inside a fin.
+	BayExitClearanceToleranceM float64
 	// BayExitLegStallTicks is ticks of no wheel travel that end a
 	// cycle-manoeuvre leg and start the other -- the PRIMARY leg-end
 	// signal, ahead of distance or clearance. Only meaningful with
@@ -310,6 +322,9 @@ const (
 	DefaultBayExitClearanceGuard = false
 	// DefaultBayExitClearanceMarginM matches BAY_EXIT_CLEARANCE_MARGIN_M.
 	DefaultBayExitClearanceMarginM = 0.005
+	// DefaultBayExitClearanceToleranceM matches
+	// BAY_EXIT_CLEARANCE_TOLERANCE_M, 0.0.
+	DefaultBayExitClearanceToleranceM = 0.0
 	// DefaultBayExitLegStallTicks matches BAY_EXIT_LEG_STALL_TICKS.
 	DefaultBayExitLegStallTicks = 6
 	// DefaultAssumeBayStart matches ASSUME_BAY_START.
@@ -388,6 +403,7 @@ func DefaultConfig() Config {
 		BayExitCycleReverseSteerNorm: DefaultBayExitCycleReverseSteerNorm,
 		BayExitClearanceGuard:        DefaultBayExitClearanceGuard,
 		BayExitClearanceMarginM:      DefaultBayExitClearanceMarginM,
+		BayExitClearanceToleranceM:   DefaultBayExitClearanceToleranceM,
 		BayExitLegStallTicks:         DefaultBayExitLegStallTicks,
 		AssumeBayStart:               DefaultAssumeBayStart,
 		BayExitSpeedScale:            DefaultBayExitSpeedScale,

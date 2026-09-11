@@ -55,6 +55,8 @@ type headingTOML struct {
 // itself reads and profile.WaypointsConfig deliberately omits (they belong
 // to the navigator, not to waypoint generation).
 type navWaypointsTOML struct {
+	// FirstLapCornerCaution matches FIRST_LAP_CORNER_CAUTION.
+	FirstLapCornerCaution    bool    `mapstructure:"first_lap_corner_caution"`
 	MainLoopReachedDistanceM float64 `mapstructure:"main_loop_reached_distance_m"`
 	ReplanHeadingTieMarginM  float64 `mapstructure:"replan_heading_tie_margin_m"`
 	// ArcRadius doubles as ParkEngageDistM, matching Python's
@@ -263,11 +265,13 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 			cfg.CornerPreviewDistanceM = loaded.CornerPreviewDistanceM
 		})
 
-	loadApplyTOML(
+	loadApplyTOMLWithDefaults(
 		logger,
 		filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath),
 		"waypoints.toml",
+		map[string]any{"first_lap_corner_caution": DefaultFirstLapCornerCaution},
 		func(loaded navWaypointsTOML) {
+			cfg.FirstLapCornerCaution = loaded.FirstLapCornerCaution
 			cfg.MainLoopReachedDistanceM = loaded.MainLoopReachedDistanceM
 			cfg.ReplanHeadingTieMarginM = loaded.ReplanHeadingTieMarginM
 			cfg.ParkEngageDistM = loaded.ArcRadius

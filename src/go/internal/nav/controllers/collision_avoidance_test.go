@@ -531,22 +531,57 @@ func TestComputeRearClearance_SelfReflectionDoesNotBlockReverse(t *testing.T) {
 	}
 }
 
-// TestComputeRearClearance_RealWallBeyondSelfRadiusStillDetected ports
-// test_rear_real_wall_beyond_self_radius_still_detected: masked from
-// 2026-08-22 until the 2026-08-31 wedge re-measurement (-155..-120 /
-// 120..160), which restored a ~40 deg readable rear slot -- a real wall
-// just beyond the self-detection radius is detected again.
-func TestComputeRearClearance_RealWallBeyondSelfRadiusStillDetected(t *testing.T) {
+// TestComputeRearClearance_RealWallBeyondTheChassisIsStillDetected ports
+// test_rear_real_wall_beyond_the_chassis_is_still_detected.
+//
+// 0.35 m is OUTSIDE the body: the chassis rear face sits
+// LidarToRearBumperM = 0.2722 m behind the sensor, so with
+// RearSelfDetectionFromChassis (the shipped value), anything no farther
+// than that at this bearing is the robot seeing itself, not a wall. This
+// used to read 0.15 m, which the OLD 0.08 m scalar accepted as "beyond
+// self-detection radius" but which is not a place a wall can physically
+// be -- exactly the defect the chassis-geometry filter exists to catch (see
+// TestComputeRearClearance_ChassisReturnIsNotReportedAsAWall).
+func TestComputeRearClearance_RealWallBeyondTheChassisIsStillDetected(t *testing.T) {
 	t.Parallel()
 
 	controller := newDefaultCollisionAvoidanceController()
 	angles := anglesFullRotation()
 	ranges := newScan(lidarDefaultFar)
 	i := angleToIndex(angles, math.Pi)
-	setSector(ranges, i, 4, 0.15) // beyond self-detection radius: a real return
+	setSector(ranges, i, 4, 0.35) // outside the chassis: a real return
 
-	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-0.15) > 1e-9 {
-		t.Errorf("ComputeRearClearance() = %v, want %v", got, 0.15)
+	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-0.35) > 1e-9 {
+		t.Errorf("ComputeRearClearance() = %v, want %v", got, 0.35)
+	}
+}
+
+// TestComputeRearClearance_ChassisReturnIsNotReportedAsAWall ports
+// test_a_rear_return_inside_the_chassis_is_the_robot_not_a_wall: the defect
+// that suppressed every escape for a whole hardware round
+// (run_20260906_192424) -- a rear return well inside the chassis boundary
+// (0.125 m, against a 0.2722 m rear face) must not become the rear sector's
+// minimum via the uniform self-detection scalar (which sits at 0.08 m,
+// entirely inside the body at this bearing).
+func TestComputeRearClearance_ChassisReturnIsNotReportedAsAWall(t *testing.T) {
+	t.Parallel()
+
+	controller := newDefaultCollisionAvoidanceController()
+	angles := anglesFullRotation()
+	ranges := newScan(lidarDefaultFar)
+	i := angleToIndex(angles, math.Pi)
+	setSector(ranges, i, 4, 0.125) // inside the chassis at this bearing
+
+	rear := controller.RearSector(ranges, angles)
+	if !rear.Measured() {
+		t.Fatal("RearSector().Measured() = false, want true (rest of the sector is open)")
+	}
+	if rear.MinRangeM <= controllers.DefaultLidarToRearBumperM {
+		t.Errorf("RearSector().MinRangeM = %v, want > %v (the chassis rear face)",
+			rear.MinRangeM, controllers.DefaultLidarToRearBumperM)
+	}
+	if got := controller.ComputeRearClearance(ranges, angles); math.Abs(got-0.125) < 1e-9 {
+		t.Errorf("ComputeRearClearance() = %v, want != 0.125 (must not report the self-return)", got)
 	}
 }
 

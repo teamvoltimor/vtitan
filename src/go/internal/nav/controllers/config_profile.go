@@ -30,6 +30,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.SlowDist = loaded.SlowDist
 		cfg.FastDist = loaded.FastDist
 		cfg.PathMargin = loaded.PathMargin
+		cfg.ForwardPathAheadOfBumper = loaded.ForwardPathAheadOfBumper
 		// Absent from the file means 0, which RobustMinRange reads as the bare
 		// minimum -- keep the shipped default instead of silently disabling it.
 		if loaded.RiskRayWindow > 0 {
@@ -61,7 +62,16 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	lidarSectorsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	if loaded, err := profile.Load[profile.LidarSectorsConfig](lidarSectorsPath, nil); err != nil {
+	// LoadWithDefaults, not Load: rear_self_detection_from_chassis is a bool
+	// that reverts SILENTLY (a missing key reads as false, not "keep the
+	// default"), the same class of trap as waypoints.toml's
+	// corner_arc_assume_wide -- see that field's ConfigFor comment.
+	lidarSectorsDefaults := map[string]any{
+		"rear_self_detection_from_chassis": DefaultRearSelfDetectionFromChassis,
+	}
+	if loaded, err := profile.LoadWithDefaults[profile.LidarSectorsConfig](
+		lidarSectorsPath, nil, lidarSectorsDefaults,
+	); err != nil {
 		logger.Warn(
 			"controllers: loading lidar_sectors.toml, falling back to defaults",
 			"error",
@@ -71,6 +81,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.FrontHalfFovDeg = loaded.FrontHalfFovDeg
 		cfg.ThreatHalfFovDeg = loaded.ThreatHalfFovDeg
 		cfg.SelfDetectionThresholdM = loaded.SelfDetectionThresholdM
+		cfg.RearSelfDetectionFromChassis = loaded.RearSelfDetectionFromChassis
 		cfg.MinValidRangeM = loaded.MinValidRangeM
 		cfg.ThreatNoDetectionRangeM = loaded.ThreatNoDetectionRangeM
 		cfg.NoDataRangeM = loaded.NoDataRangeM

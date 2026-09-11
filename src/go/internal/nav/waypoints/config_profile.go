@@ -43,6 +43,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	cfg.DedupeDistanceM = loaded.DedupeDistanceM
 	cfg.WideCenterBiasM = loaded.WideCenterBiasM
 	cfg.NarrowCenterBiasM = loaded.NarrowCenterBiasM
+	cfg.ObstaclesCenterBiasM = loaded.ObstaclesCenterBiasM
 	cfg.NarrowWidthThresholdM = loaded.NarrowWidthThresholdM
 	cfg.NumIntermediateArcPoints = loaded.NumIntermediateArcPoints
 	cfg.StraightWaypointCount = loaded.StraightWaypointCount

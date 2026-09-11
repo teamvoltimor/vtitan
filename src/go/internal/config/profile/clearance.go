@@ -40,6 +40,13 @@ type ClearanceConfig struct {
 	// absent key to true, not to the zero value, or it silently disables
 	// the gate.
 	ForwardNoDataIsDegraded bool `mapstructure:"forward_no_data_is_degraded"`
+	// ForwardPathAheadOfBumper matches FORWARD_PATH_AHEAD_OF_BUMPER: measure
+	// the forward driving lane from the front bumper face rather than from
+	// the LIDAR. Ships false (the LIDAR-relative test, which
+	// ForwardPathRanges already implements); true is an untested alternate
+	// this port does not implement -- see
+	// controllers.Config.ForwardPathAheadOfBumper's doc comment.
+	ForwardPathAheadOfBumper bool `mapstructure:"forward_path_ahead_of_bumper"`
 }
 
 // DefaultClearanceTOMLPath is

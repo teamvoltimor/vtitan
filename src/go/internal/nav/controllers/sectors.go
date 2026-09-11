@@ -31,6 +31,26 @@ type SectorGeometry struct {
 	// MinValidRangeM when a sector filters self-detection (chassis/cable
 	// reflection).
 	SelfDetectionThresholdM float64
+	// RearSelfDetectionFromChassis matches LidarSectorParams.
+	// REAR_SELF_DETECTION_FROM_CHASSIS: when true, RearSector gates
+	// self-detection by the PER-BEARING chassis exit range
+	// (ChassisExitRangeM) instead of the single SelfDetectionThresholdM
+	// scalar. One scalar cannot describe the rear: the chassis boundary
+	// runs from ~0.137 m at the rear sector's edges to ~0.272 m straight
+	// back, and 0.08 m sits inside the body everywhere in between --
+	// measured on hardware (run_20260906_192424) reading the chassis itself
+	// as the rear minimum on 100% of scans, which pinned
+	// most_constrained_side to BACK (a direction with no escape branch) on
+	// every one of five pillar-contact episodes.
+	RearSelfDetectionFromChassis bool
+	// ChassisExitXForwardM/ChassisExitXRearM/ChassisExitYSideM are the
+	// chassis footprint's edges in the LIDAR's own frame (sensor at the
+	// origin), matching chassis_exit_range_m's x_forward/x_rear/y_side:
+	// half the chassis length forward/behind the mount offset, and half the
+	// chassis width to each side.
+	ChassisExitXForwardM float64
+	ChassisExitXRearM    float64
+	ChassisExitYSideM    float64
 	// MinValidRangeM is the no-return/invalid-reading floor.
 	MinValidRangeM float64
 	// NoDataRangeM is the fallback range reported when a sector has no
@@ -146,6 +166,39 @@ func inBlindWedge(a float64, geo SectorGeometry) bool {
 	inLeft := a >= geo.BlindWedgeLeftMinRad && a <= geo.BlindWedgeLeftMaxRad
 	inRight := a >= geo.BlindWedgeRightMinRad && a <= geo.BlindWedgeRightMaxRad
 	return inLeft || inRight
+}
+
+// ChassisExitRangeM is the distance from the LIDAR to the CHASSIS BOUNDARY
+// along bearing a, matching sectors.chassis_exit_range_m for a single ray.
+//
+// Nothing outside the robot can return closer than this, so a shorter
+// reading at this bearing is the robot seeing itself -- a geometric fact,
+// not a tuned threshold. Ray-vs-rectangle exit distance, with the sensor at
+// the origin and the chassis offset by the mount's forward/rear/side
+// extents (geo.ChassisExitXForwardM/XRearM/YSideM).
+func ChassisExitRangeM(a float64, geo SectorGeometry) float64 {
+	cos, sin := math.Cos(a), math.Sin(a)
+
+	// Slab exit distance per axis; a ray parallel to an axis never leaves
+	// through it, hence the infinities -- matching numpy's divide-by-zero
+	// producing +/-Inf under np.errstate(divide="ignore").
+	along := math.Inf(1)
+	switch {
+	case cos > 0.0:
+		along = geo.ChassisExitXForwardM / cos
+	case cos < 0.0:
+		along = geo.ChassisExitXRearM / cos
+	}
+
+	across := math.Inf(1)
+	switch {
+	case sin > 0.0:
+		across = geo.ChassisExitYSideM / sin
+	case sin < 0.0:
+		across = -geo.ChassisExitYSideM / sin
+	}
+
+	return math.Min(along, across)
 }
 
 // SectorToModel computes aggregate metrics for an angular sector as a
