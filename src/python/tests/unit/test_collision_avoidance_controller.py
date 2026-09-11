@@ -620,6 +620,72 @@ class TestMaskMappedObstacles:
 
         assert masked[i] == pytest.approx(0.08), "a same-XY coincidence in a different corridor must not mask"
 
+    def test_the_snap_masks_a_return_the_belief_alone_would_miss(self):
+        """The whole point: the belief is wrong, the cluster is not.
+
+        MEASURED on the two 2026-09-11 Obstacles rounds that wedged at the same
+        point: over the ticks where the router held a commitment, the nearest
+        LIDAR return sat p50 0.248 m and 0.154 m from the BELIEVED sign
+        position against a 0.12 m radius, so the mask caught 0/209 and 60/316
+        of the ticks it exists for. Anchored on the cluster instead, 111/209
+        (53%) and 243/316 (77%).
+        """
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i - 4 : i + 4] = 0.40
+        pose = Pose(0.0, 0.0, 0.0)
+        # The return lands at (0.40, 0.0). The belief is 0.25 m short of it --
+        # well outside the 0.12 m radius, which is the measured hardware case.
+        belief = [(Waypoint(0.15, 0.0), Section.SOUTH)]
+
+        unsnapped = mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, belief, self._MASK_RADIUS)
+        assert unsnapped[i] == pytest.approx(0.40), "belief-anchored must miss it, as it does on hardware"
+
+        snapped = mask_mapped_obstacles(
+            ranges, ANGLES_FULL_ROTATION, pose, belief, self._MASK_RADIUS,
+            cluster_xy=[Waypoint(0.40, 0.0)], assoc_m=0.35,
+        )
+        assert not np.isfinite(snapped[i]), "cluster-anchored must mask it"
+
+    def test_an_unassociated_belief_does_not_borrow_another_pillars_cluster(self):
+        """A cluster further than ``assoc_m`` is a different object.
+
+        Falling back to the belief is the conservative failure: it masks
+        nothing, which is the behaviour that shipped. Snapping to whatever is
+        nearest would mask a pillar the router is NOT routing around, which is
+        strictly worse than the bug this fixes -- the reactive layer would lose
+        its guard on an obstacle nobody has a plan for.
+        """
+        ranges = create_numpy_scan()
+        i = angle_to_index(0.0)
+        ranges[i - 4 : i + 4] = 1.20
+        pose = Pose(0.0, 0.0, 0.0)
+
+        snapped = mask_mapped_obstacles(
+            ranges, ANGLES_FULL_ROTATION, pose, [(Waypoint(0.15, 0.0), Section.SOUTH)],
+            self._MASK_RADIUS, cluster_xy=[Waypoint(1.20, 0.0)], assoc_m=0.35,
+        )
+        assert snapped[i] == pytest.approx(1.20)
+
+    def test_zero_assoc_restores_belief_anchored_masking_exactly(self):
+        """The off-switch has to be exact, not approximate.
+
+        Every measurement of the split is read against the unsnapped arm, so a
+        zero here must reproduce it byte for byte rather than nearly.
+        """
+        ranges = create_numpy_scan()
+        ranges[angle_to_index(0.0)] = 0.08
+        pose = Pose(0.0, 0.0, 0.0)
+        belief = [(Waypoint(0.08, 0.0), Section.SOUTH)]
+
+        assert np.array_equal(
+            mask_mapped_obstacles(ranges, ANGLES_FULL_ROTATION, pose, belief, self._MASK_RADIUS),
+            mask_mapped_obstacles(
+                ranges, ANGLES_FULL_ROTATION, pose, belief, self._MASK_RADIUS,
+                cluster_xy=[Waypoint(2.0, 2.0)], assoc_m=0.0,
+            ),
+        )
+
     def test_zero_radius_and_empty_map_are_no_ops(self):
         """Both disable the split — the escape trigger sees the raw scan.
 

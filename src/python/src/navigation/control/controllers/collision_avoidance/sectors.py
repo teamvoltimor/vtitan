@@ -50,6 +50,8 @@ def mask_mapped_obstacles(
     robot_pose: Pose,
     mapped_xy: Sequence[tuple[Waypoint, Section]],
     radius_m: float,
+    cluster_xy: Sequence[Waypoint] | None = None,
+    assoc_m: float = 0.0,
 ) -> np.ndarray:
     """Blank the LIDAR returns that land on an obstacle the planner already owns.
 
@@ -100,11 +102,36 @@ def mask_mapped_obstacles(
             standing on its 1.0/2.0 boundary, whenever anything is close enough to
             mask. See ``_SignTrack.corridor`` for the matching guard on the
             discovery side.
-        radius_m: How close a ray endpoint must be to a mapped position to count as
+        radius_m: How close a ray endpoint must be to the anchor to count as
             that obstacle. Must cover the obstacle's own half-diagonal plus
             localisation and mapping error, but stay well under the distance to the
             nearest wall behind it -- too large and a wall standing behind a sign
             is silently masked along with it.
+        cluster_xy: World positions of pillar-shaped LIDAR clusters this tick.
+            When given (with ``assoc_m`` > 0) each mapped position is first
+            SNAPPED to its nearest cluster, and the mask is anchored on the
+            cluster instead of on the belief.
+        assoc_m: How far a belief may sit from its cluster and still be the same
+            pillar. 0 disables the snap and restores belief-anchored masking.
+
+    WHY THE SNAP EXISTS. ``radius_m`` was doing two jobs with incompatible
+    requirements: covering the MAP'S ERROR (how far the belief can be from the
+    thing) and covering the OBSTACLE'S EXTENT (how big the thing is). The first
+    wants a large radius, the second a small one, and on hardware there is no
+    value that satisfies both -- measured 2026-09-11 on the two Obstacles rounds
+    that wedged at the same point, the nearest LIDAR return sat p50 0.248 m and
+    0.154 m from the believed sign position while the shipped radius was 0.12 m,
+    so the mask caught 0/209 and 60/316 of the ticks it existed for. Raising it
+    is not available either: a wall behind a sign can be 0.15 m away, and
+    masking that removes a guard nothing else replaces.
+
+    Snapping separates them. ASSOCIATION (belief to cluster) can be generous
+    because a wrong association only costs the mask; EXTENT (cluster to ray) can
+    stay tight because the cluster is measured, not believed. The cluster finder
+    is the proposer's own ``find_clusters``, already in production inside the
+    gated range fusion and measured at 91% recall -- a free-standing run of
+    pillar width, bounded on both sides by a step, which a flat wall cannot
+    satisfy.
 
     Returns:
         A copy of ``lidar_ranges`` with attributed rays set to ``inf``. The input
@@ -150,7 +177,18 @@ def mask_mapped_obstacles(
     for mapped_wp, mapped_corridor in mapped_xy:
         if not in_corner and mapped_corridor != robot_corridor:
             continue
-        attributed |= np.hypot(end_x - mapped_wp.x, end_y - mapped_wp.y) < radius_m
+        anchor_x, anchor_y = mapped_wp.x, mapped_wp.y
+        if cluster_xy and assoc_m > 0.0:
+            # Nearest cluster wins, and only within assoc_m: an unassociated
+            # belief falls back to itself rather than borrowing some other
+            # pillar's position, which would mask the wrong thing entirely.
+            best = min(
+                ((math.hypot(c.x - anchor_x, c.y - anchor_y), c) for c in cluster_xy),
+                key=lambda pair: pair[0],
+            )
+            if best[0] <= assoc_m:
+                anchor_x, anchor_y = best[1].x, best[1].y
+        attributed |= np.hypot(end_x - anchor_x, end_y - anchor_y) < radius_m
 
     masked = ranges.copy()
     masked[attributed & finite] = np.inf

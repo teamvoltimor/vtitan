@@ -641,6 +641,71 @@ class SignRouterParams(BaseModel):
     MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
+    ESCAPE_MASK_CLUSTER_ASSOC_M: float = Field(
+        default=0.0, ge=0.0, validation_alias=_alias("ESCAPE_MASK_CLUSTER_ASSOC_M")
+    )
+    """Snap the escape mask onto the LIDAR CLUSTER nearest the believed sign.
+
+    ``ESCAPE_MASK_RADIUS_M`` was doing two jobs whose requirements contradict
+    each other: covering the MAP'S ERROR (how far the belief sits from the
+    pillar) and covering the PILLAR'S EXTENT (how big it is). The first wants a
+    large radius, the second a small one.
+
+    **MEASURED 2026-09-11 on the two Obstacles rounds that wedged at the same
+    point**, over the ticks where the router held a commitment -- distance from
+    the believed sign position to the nearest LIDAR return:
+
+    | run | p10 | p50 | p90 | inside the 0.12 m radius |
+    |---|---|---|---|---|
+    | run_20260911_110734 | 0.184 | 0.248 | 0.274 | **0 / 209** |
+    | run_20260911_110404 | 0.089 | 0.154 | 0.237 | **60 / 316** |
+
+    So the mask caught 0% and 19% of the ticks it exists for, and the rounds
+    were lost to exactly the limit cycle it exists to prevent. Raising the
+    radius is not available: ``ESCAPE_MASK_RADIUS_M``'s own note records that a
+    wall behind a sign can be 0.15 m away, so a radius that covered the belief
+    error would mask the wall too.
+
+    Snapping separates the two jobs. Association can be generous, because a
+    missed association only costs the mask and never masks a wall; extent stays
+    tight, because a cluster is MEASURED rather than believed. The cluster
+    finder is ``lidar_proposer.find_clusters``, already in production inside the
+    gated range fusion and measured at 91% recall: a free-standing run of pillar
+    width bounded on BOTH sides by a step, which a flat wall cannot satisfy.
+
+    0.0 disables the snap and restores belief-anchored masking exactly.
+    """
+
+    ESCAPE_MASK_CLUSTER_MIN_RANGE_M: float = Field(
+        default=0.15, gt=0.0, validation_alias=_alias("ESCAPE_MASK_CLUSTER_MIN_RANGE_M")
+    )
+    """Range floor for the cluster search the escape mask snaps to.
+
+    ``ProposerParams.min_range_m`` is 0.30, which is right for PROPOSING signs
+    to route around -- one that close is already being passed. It is wrong for
+    this, and silently so: the mask matters exactly when the chassis is beside
+    the pillar, and on the 2026-09-11 wedges the robot-to-sign range was p10
+    0.252, p50 0.363, p90 0.544 m, so the 0.30 floor threw the pillar away at
+    the moment the mask existed for.
+
+    Measured on run_20260911_110734, share of committed ticks whose belief
+    associates to a cluster within ``ESCAPE_MASK_CLUSTER_ASSOC_M``:
+
+    | floor | associated |
+    |---|---|
+    | 0.30 (the proposer's) | 8% |
+    | **0.15** | **53%** |
+    | 0.08 | 65% |
+
+    0.15 rather than 0.08 because below it the chassis's own returns enter: the
+    LIDAR beam sits ~8 cm up and the rear face is 0.2722 m behind the sensor,
+    and a self-return snapped to as a pillar would mask a real obstacle. The
+    extra 12 points are not worth a mask that can be aimed at the robot itself.
+
+    Carried as its own field rather than by lowering the proposer's floor: that
+    floor is also the range fusion's, where a very close cluster is a different
+    and unmeasured question.
+    """
     COMMIT_HYSTERESIS: bool = Field(default=True, validation_alias=_alias("COMMIT_HYSTERESIS"))
     CORRIDOR_FLIP_TICKS: int = Field(default=1, ge=1, validation_alias=_alias("CORRIDOR_FLIP_TICKS"))
 

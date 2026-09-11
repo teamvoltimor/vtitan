@@ -41,6 +41,7 @@ from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
 from src.navigation.corridor_estimator import classify_width
 from src.navigation.geometry import chassis_half_diagonal_m
+from src.navigation.planning.lidar_proposer import ProposerParams, find_clusters
 from src.navigation.planning.lidar_proposer import propose as propose_sign_positions
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
@@ -1099,12 +1100,34 @@ class CoreNavigator(EscapeRecovery):
         escape_ranges: np.ndarray | tuple[float, ...] | None = scan.ranges_m if scan else None
         escape_risk = risk
         if scan and self._sign_router is not None:
+            # The mask is anchored on the LIDAR cluster nearest each believed
+            # sign rather than on the belief itself, because the belief is the
+            # inaccurate half: measured 2026-09-11, the nearest return sat p50
+            # 0.15-0.25 m from it against a 0.12 m radius, so the mask caught
+            # 0-19% of the ticks it exists for and the rounds were lost to the
+            # limit cycle it exists to prevent. See ESCAPE_MASK_CLUSTER_ASSOC_M.
+            cluster_xy: list[Waypoint] = []
+            assoc = self._tuning.sign_router.ESCAPE_MASK_CLUSTER_ASSOC_M
+            if assoc > 0.0:
+                params = ProposerParams(
+                    min_range_m=self._tuning.sign_router.ESCAPE_MASK_CLUSTER_MIN_RANGE_M
+                )
+                for cluster in find_clusters(scan, params):
+                    bearing = cluster.bearing_rad + pose.yaw
+                    cluster_xy.append(
+                        Waypoint(
+                            pose.x + cluster.range_m * math.cos(bearing),
+                            pose.y + cluster.range_m * math.sin(bearing),
+                        )
+                    )
             escape_ranges = mask_mapped_obstacles(
                 scan.ranges_m,
                 scan.angles_rad,
                 pose,
                 self._sign_router.routed_sign_positions_by_corridor,
                 self._tuning.sign_router.ESCAPE_MASK_RADIUS_M,
+                cluster_xy=cluster_xy,
+                assoc_m=assoc,
             )
             escape_risk = self._collision_controller.assess_risk(escape_ranges, scan.angles_rad)
 

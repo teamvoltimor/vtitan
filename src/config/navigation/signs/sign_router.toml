@@ -54,6 +54,30 @@ settle_ticks = 150                # ticks after lap start before bookkeeping act
 # be as close as ~0.15 m in a narrow corridor, and masking that wall too would
 # remove a guard nothing else replaces. Set to 0.0 to disable the split.
 escape_mask_radius_m = 0.12
+# Snap that mask onto the LIDAR CLUSTER nearest the believed sign, instead of
+# anchoring it on the belief. The radius above was covering two things at once
+# -- the map's position ERROR and the pillar's EXTENT -- and on hardware no
+# single value covers both. Measured 2026-09-11 over the two Obstacles rounds
+# that wedged at the same point, the nearest LIDAR return sat p50 0.248 m and
+# 0.154 m from the believed sign while the radius is 0.12, so the mask caught
+# 0/209 and 60/316 of the ticks it exists for and both rounds were lost to the
+# limit cycle it exists to prevent.
+#
+# Association can be generous (a miss only costs the mask, it never masks a
+# wall); the radius above stays tight because a cluster is MEASURED. 0.35 m
+# covers the observed belief error with margin and is still well inside the
+# 0.50 m the WRO grid spaces two pillars by, so one belief cannot snap onto its
+# neighbour. 0.0 disables the snap.
+escape_mask_cluster_assoc_m = 0.35
+# Range floor for that cluster search. The proposer's own 0.30 is right for
+# PROPOSING a sign to route around but wrong here: the mask matters exactly when
+# the chassis is beside the pillar, and on the 2026-09-11 wedges the robot-to-
+# sign range was p10 0.252 / p50 0.363 / p90 0.544 m, so 0.30 threw the pillar
+# away at the moment the mask existed for. Association on run_110734: 8% at
+# 0.30, 53% at 0.15, 65% at 0.08. Not lower than 0.15 -- below it the chassis's
+# own returns enter (beam ~8 cm up, rear face 0.2722 m back) and a self-return
+# snapped to as a pillar would mask a real obstacle.
+escape_mask_cluster_min_range_m = 0.15
 
 
 # Once the router has engaged a sign, keep routing around THAT sign until it is
