@@ -295,6 +295,41 @@ tasks:
             *) echo "Unknown ACTION: {{.ACTION}}. Use update|generate|lint|breaking|format" && exit 1 ;;
           esac
 
+  # CONFIG (shared src/config/ TOML tree -- src/python and src/go both read it)
+
+  config:validate:
+    desc: >-
+      Validate the shared src/config/ TOML tree (robot.toml, track.toml,
+      navigation/*, hardware/*, profiles/*): syntax-check every file, then
+      confirm Go's own config loader accepts it (internal/config/profile's
+      unit tests exercise every profile combination). Python's equivalent
+      is already covered by robot:test -- its config-loading tests are
+      VTITAN_HARDWARE_PROFILE-gated, so not re-run standalone here.
+    cmds:
+      - cmd: |
+          python - <<'PYEOF'
+          import pathlib, tomllib, sys
+          root = pathlib.Path("src/config")
+          files = sorted(root.rglob("*.toml"))
+          bad = []
+          for f in files:
+              try:
+                  tomllib.loads(f.read_text(encoding="utf-8"))
+              except Exception as e:
+                  bad.append(f"{f}: {e}")
+          if bad:
+              print("\n".join(bad))
+              sys.exit(1)
+          print(f"OK: {len(files)} TOML files parse")
+          PYEOF
+      - task: config:validate:go
+
+  config:validate:go:
+    internal: true
+    dir: src/go
+    cmds:
+      - go test ./internal/config/profile/...
+
   # SIMGEN (Go scenario generator) moved to src/go/Taskfile.yml (simgen:*) --
   # it's self-contained there alongside robot-go:* (the src/go module's task
   # namespace), this file just calls into it (simgen:build below, and the

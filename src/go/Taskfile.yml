@@ -301,6 +301,23 @@ tasks:
           fi
           echo "running $BIN on $HOST (TTY required for operator prompts)..."
           powershell.exe -NoProfile -Command "ssh -t -o ConnectTimeout=30 $HOST 'cd ~/vtitan/src/go && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW'; exit 0"
+
+  robot-go:deploy:
+    desc: >-
+      Cross-compile the static Go robot binaries and ship them, plus the
+      shared src/config TOML tree, to a target Pi's standalone /opt/vtitan-go
+      install (usage: task robot-go:deploy [TARGET_HOST=user@host]
+      [INSTALL_DIR=/opt/vtitan-go] [SKIP_RESTART=1]). No git checkout on the
+      Pi at all -- unlike robot:deploy (Python), which ships a git bundle and
+      rebuilds ros2_ws remotely. Pure static binary + systemd; only needs Go
+      locally and SSH/scp to the Pi. Run FROM a dev machine.
+    env:
+      TARGET_HOST: '{{.TARGET_HOST | default ""}}'
+      INSTALL_DIR: '{{.INSTALL_DIR | default ""}}'
+      SKIP_RESTART: '{{.SKIP_RESTART | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/provisioning/build-go.sh'
+
   simgen:install:
     desc: Build simgen binary (Go compilation — no external deps required)
     cmds:
