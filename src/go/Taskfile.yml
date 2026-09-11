@@ -27,14 +27,14 @@ tasks:
   #     never leaves Windows. See docs/internal/plans/2026-08-30-shared-runs-
   #     folder-and-go-run-recorder.md.
 
-  robot-go:build:static:
+  go:build:static:
     desc: "Cross-compile all Go robot binaries as pure-static (CGO_ENABLED=0). Safe on any dev machine."
     vars:
       OUT: '{{.OUT | default "dist"}}'
     cmds:
       - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o {{.OUT}}/ ./cmd/...
 
-  robot-go:build:capture:
+  go:build:capture:
     desc: >-
       Build the CGo camera binaries (capture-node, pi5) with the gocv mp4v video
       backend (CGO_ENABLED=1 -tags cgo). On Linux builds natively; on Windows
@@ -65,12 +65,12 @@ tasks:
           go build -tags cgo -o {{.OUT}}/pi5 ./cmd/pi5
         platforms: [linux]
 
-  robot-go:test:
+  go:test:
     desc: "Run the Go robot module's tests (pure-Go; excludes the CGo camera path)."
     cmds:
       - go test ./...
 
-  robot-go:todo:
+  go:todo:
     desc: "Print the Go-migration punch list: what's still stubbed/missing, verified against the tree on 2026-09-04."
     cmds:
       - cmd: |
@@ -139,12 +139,12 @@ tasks:
           EOF
         silent: true
 
-  robot-go:test:hw:
+  go:test:hw:
     desc: >-
       Cross-compile the //go:build hw hardware tests for linux/arm64 so each
       driver can be scp'd to a real Pi and run independently (no nats-server,
-      no other board). Usage: task robot-go:test:hw [PKG=button|ssd1306|imu|lidar|motor]
-      (omit PKG to build all five). Output binaries land in robot-go/dist/hw/.
+      no other board). Usage: task go:test:hw [PKG=button|ssd1306|imu|lidar|motor]
+      (omit PKG to build all five). Output binaries land in src/go/dist/hw/.
       On the Pi, run e.g. `./dist/hw/btn -test.v`; env overrides per test:
       BUTTON_GPIO_LINE, SSD1306_I2C_BUS/ADDR, IMU_TTY, LIDAR_TTY,
       MOTOR_REN/LEN/REVERSE_PWM_LINE.
@@ -180,14 +180,14 @@ tasks:
           fi
           echo "hw test binaries written to {{.OUT}}/"
 
-  robot-go:test:hw:interactive:
+  go:test:hw:interactive:
     desc: >-
       Cross-compile the INTERACTIVE //go:build hw && hwinteractive hardware
       tests (dynamic, operator-gated: motor spin, servo sweep, IMU rotate,
       OLED eyeball, lidar object) for linux/arm64. These need a TTY + a human
-      at the bench, so they are kept out of the unattended robot-go:test:hw
-      binaries. Usage: task robot-go:test:hw:interactive [PKG=motor|imu|lidar|ssd1306]
-      (omit PKG to build all four). Output binaries land in robot-go/dist/hw-interactive/.
+      at the bench, so they are kept out of the unattended go:test:hw
+      binaries. Usage: task go:test:hw:interactive [PKG=motor|imu|lidar|ssd1306]
+      (omit PKG to build all four). Output binaries land in src/go/dist/hw-interactive/.
       On the Pi, run e.g. `./dist/hw-interactive/motor -test.v -test.run TestHW`
       and answer the on-screen prompts.
     vars:
@@ -218,14 +218,14 @@ tasks:
           fi
           echo "interactive hw test binaries written to {{.OUT}}/"
 
-  robot-go:hw:stop:
+  go:hw:stop:
     desc: >-
       Stop the robot's production services + any stray ROS2/sllidar processes
       on a Pi so the Go //go:build hw interactive tests can claim the serial
       port / PWM / I2C (otherwise they fail with "Serial port busy" /
       "already claimed"). Keeps vtitan-nats running (tests don't need it, and
       other boards connect through it). Usage:
-      task robot-go:hw:stop HOST=rpi-5-local (or rpi-zero-local).
+      task go:hw:stop HOST=rpi-5-local (or rpi-zero-local).
       ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
       resolve (Git-bash's msys HOME does not, causing exit 255).
     shell: '{{.BASH}}'
@@ -236,21 +236,21 @@ tasks:
           echo "stopping vtitan services + stray launches on $HOST (keeping vtitan-nats)..."
           powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'sudo systemctl stop vtitan-pi5 vtitan-pi-zero vtitan-lidar vtitan-motor vtitan-display vtitan-race vtitan-backend 2>/dev/null; pkill -f ros2 2>/dev/null; pkill -f sllidar_node 2>/dev/null; pkill -f track_navigator_node 2>/dev/null; pkill -f bag_recorder_node 2>/dev/null; sleep 2; echo remaining port holders:; sudo fuser -v /dev/ttyUSB0 /dev/ttyACM0; true'; exit 0"
           echo "done. Re-run if fuser still shows a holder; kill that PID explicitly."
-      - task: robot-go:hw:stop-notes
+      - task: go:hw:stop-notes
 
-  robot-go:hw:stop-notes:
-    desc: "Print the port-holding reminder after robot-go:hw:stop"
+  go:hw:stop-notes:
+    desc: "Print the port-holding reminder after go:hw:stop"
     cmds:
-      - 'echo "NOTE: if fuser still reports a holder, ssh {{.HOST}} and kill that PID, then re-run robot-go:hw:stop."'
+      - 'echo "NOTE: if fuser still reports a holder, ssh {{.HOST}} and kill that PID, then re-run go:hw:stop."'
 
-  robot-go:hw:run:
+  go:hw:run:
     desc: >-
       Full interactive-hw-test flow for ONE package: build the linux/arm64
-      binary (task robot-go:test:hw:interactive), ship it to a Pi (mkdir +
+      binary (task go:test:hw:interactive), ship it to a Pi (mkdir +
       scp + chmod +x so scp does not drop the exec bit), and run it over a TTY
       (operator-ack prompts need it). Stops services first via
-      robot-go:hw:stop. Usage:
-      task robot-go:hw:run PKG=lidar HOST=rpi-5-local
+      go:hw:stop. Usage:
+      task go:hw:run PKG=lidar HOST=rpi-5-local
       (PKG=motor|imu|lidar|ssd1306). For lidar, INVERTED defaults to true
       (robot.toml's [lidar] inverted=true), mirroring decoded angles for the
       C1's upside-down mount -- NOT a +180 offset, which hardware
@@ -262,7 +262,7 @@ tasks:
       lidar, SCAN_MODE=dense selects the DenseSerialDriver (8-bearing test +
       range decode expected to read correctly, unlike classic); omit for
       classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
-      robot-go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
+      go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
       DUMP_SCAN=1 makes TestHW_LIDAR_Object_Dynamic print every valid point
       sorted by angle, not just the closest-per-45deg-sector summary.
       ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
@@ -277,8 +277,8 @@ tasks:
       OUT: '{{.OUT | default "dist/hw-interactive"}}'
     shell: '{{.BASH}}'
     cmds:
-      - task: robot-go:hw:stop
-      - task: robot-go:test:hw:interactive
+      - task: go:hw:stop
+      - task: go:test:hw:interactive
         vars: { PKG: '{{.PKG}}', OUT: '{{.OUT}}' }
       - cmd: |
           HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"
@@ -302,11 +302,11 @@ tasks:
           echo "running $BIN on $HOST (TTY required for operator prompts)..."
           powershell.exe -NoProfile -Command "ssh -t -o ConnectTimeout=30 $HOST 'cd ~/vtitan/src/go && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW'; exit 0"
 
-  robot-go:deploy:
+  go:deploy:
     desc: >-
       Cross-compile the static Go robot binaries and ship them, plus the
       shared src/config TOML tree, to a target Pi's standalone /opt/vtitan-go
-      install (usage: task robot-go:deploy [TARGET_HOST=user@host]
+      install (usage: task go:deploy [TARGET_HOST=user@host]
       [INSTALL_DIR=/opt/vtitan-go] [SKIP_RESTART=1]). No git checkout on the
       Pi at all -- unlike robot:deploy (Python), which ships a git bundle and
       rebuilds ros2_ws remotely. Pure static binary + systemd; only needs Go

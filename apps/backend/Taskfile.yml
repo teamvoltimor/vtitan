@@ -86,7 +86,7 @@ tasks:
       - rm -rf bin
       - go clean -cache
 
-  openapi:generate:
+  backend:openapi:generate:
     desc: Regenerate Go types from all context OpenAPI specs
     cmds:
       - cmd: pwsh -NoProfile -File scripts/gen-openapi.ps1
@@ -100,7 +100,7 @@ tasks:
     generates:
       - internal/api/*/openapi.gen.go
 
-  openapi:validate:
+  backend:openapi:validate:
     desc: Validate all OpenAPI specs exist and are non-empty
     cmds:
       - cmd: pwsh -NoProfile -File scripts/validate-openapi.ps1

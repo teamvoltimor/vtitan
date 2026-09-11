@@ -96,8 +96,8 @@ tasks:
           task backend:deps         Download Go module dependencies without building
 
         OPENAPI (spec-first API contract)
-          task openapi:generate     Regenerate Go types from all OpenAPI specs
-          task openapi:validate     Validate all OpenAPI specs
+          task backend:openapi:generate  Regenerate Go types from all OpenAPI specs
+          task backend:openapi:validate  Validate all OpenAPI specs
           task openapi:lint         Lint the aggregated spec with Redocly
           task openapi:bundle       Bundle the aggregated spec into a single file
           task openapi:preview-docs Launch an interactive local API docs preview
@@ -254,9 +254,8 @@ tasks:
       - task: lint
 
   # BACKEND (Go telemetry server) moved to apps/backend/Taskfile.yml
-  # (backend:*) -- backend:install calls `task: proto` below, resolved
-  # through the flattened global namespace. openapi:generate/validate and
-  # backend:clean also moved there -- they only ever touched apps/backend.
+  # (backend:*, including backend:openapi:generate/validate) -- backend:install
+  # calls `task: proto` below, resolved through the flattened global namespace.
 
   openapi:lint:
     desc: Lint the aggregated OpenAPI spec with Redocly (requires the redocly CLI)
@@ -331,7 +330,7 @@ tasks:
       - go test ./internal/config/profile/...
 
   # SIMGEN (Go scenario generator) moved to src/go/Taskfile.yml (simgen:*) --
-  # it's self-contained there alongside robot-go:* (the src/go module's task
+  # it's self-contained there alongside go:* (the src/go module's task
   # namespace), this file just calls into it (simgen:build below, and the
   # lint/install umbrellas above). gen:robot-command-client moved there too --
   # it only ever touched src/go's own internal/schema/pb.
@@ -611,7 +610,7 @@ tasks:
   # fully self-contained, no cross-references into this file.
 
   # ROBOT-GO / SIMGEN (Go reimplementation + scenario generator) moved to
-  # src/go/Taskfile.yml (robot-go:*, simgen:*) -- fully self-contained except
+  # src/go/Taskfile.yml (go:*, simgen:*) -- fully self-contained except
   # simgen:build, a dep of gen:track, gen:track-constants, gen:scenarios and
   # gen:corpus below.
 
