@@ -79,7 +79,7 @@ func TestConfigFor_LoadsRealWaypointsTOML(t *testing.T) {
 // waypoints.toml, not merely defaulted.
 //
 // ConfigFor registers viper defaults for all three, so a missing key reads
-// as the shipped value and every behavioural test still passes -- the
+// as the shipped value and every behavioral test still passes -- the
 // revert would be silent, and the file a reader consults to see what the
 // robot drives would not mention them at all. Assert on the file's text so
 // deleting a key fails here rather than in a corpus sweep months later.

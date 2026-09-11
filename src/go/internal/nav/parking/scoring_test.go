@@ -1,4 +1,3 @@
-// Package parking_test mirrors platform/robot/tests/unit/test_parking_scoring.py.
 package parking_test
 
 import (

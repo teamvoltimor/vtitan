@@ -113,7 +113,7 @@ func TestObservedSignMap_StableSpec(t *testing.T) {
 	// A red sign near (1.0, 0.4) seen from a robot at (1.0, 1.0) facing -y.
 	robotPos := trackmodel.Waypoint{X: 1.0, Y: 1.0}
 	// Project: bearing must point toward (1.0, 0.4) from (1.0,1.0) => -y.
-	for i := 0; i < DefaultMinHits; i++ {
+	for i := range DefaultMinHits {
 		obs := TrafficSignObservation{
 			WorldXM: 1.0 + float64(i)*0.005, WorldYM: 0.4,
 			Color: SignColorRed, Confidence: 0.9,
@@ -152,7 +152,7 @@ func TestObservedSignMap_IgnoresFar(t *testing.T) {
 		Color:      SignColorGreen,
 		Confidence: 0.9,
 	}
-	for i := 0; i < DefaultMinHits*2; i++ {
+	for range DefaultMinHits * 2 {
 		m.Observe([]TrafficSignObservation{obs}, robotPos)
 	}
 	m.Publish()
@@ -168,7 +168,7 @@ func TestObservedSignMap_StandaloneNoPublish(t *testing.T) {
 	m := NewObservedSignMap(DefaultDiscoveryConfig(), nil)
 	robotPos := trackmodel.Waypoint{X: 1.0, Y: 1.0}
 	obs := TrafficSignObservation{WorldXM: 1.0, WorldYM: 0.4, Color: SignColorRed, Confidence: 0.9}
-	for i := 0; i < DefaultMinHits; i++ {
+	for range DefaultMinHits {
 		m.Observe([]TrafficSignObservation{obs}, robotPos)
 	}
 	m.Publish()

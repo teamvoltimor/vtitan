@@ -13,7 +13,7 @@ import (
 // corridorScan builds a scan of a corridor of the given width, seen from its
 // centre by a chassis aligned to it: the ray directly left plus the ray
 // directly right span wall to wall, which is what MeasureCorridorWidth reads.
-func corridorScan(widthM, yaw float64) controllers.LidarScan {
+func corridorScan(widthM float64) controllers.LidarScan {
 	const n = 360
 	ranges := make([]float64, n)
 	angles := make([]float64, n)
@@ -33,14 +33,14 @@ func corridorScan(widthM, yaw float64) controllers.LidarScan {
 }
 
 // blindNavigator builds a navigator in the blind bootstrap (no Direction),
-// staged with a corridor scan of the given width.
-func blindNavigator(t *testing.T, widthM, yaw float64) (*navigator.Navigator, *fakeGateway) {
+// staged with a unit-width corridor scan aligned to the corridor.
+func blindNavigator(t *testing.T) (*navigator.Navigator, *fakeGateway) {
 	t.Helper()
 
 	gateway := &fakeGateway{}
-	gateway.pose = trackmodel.Pose{X: 1.0, Y: 1.0, Yaw: yaw}
+	gateway.pose = trackmodel.Pose{X: 1.0, Y: 1.0, Yaw: 0}
 	gateway.havePose = true
-	gateway.scan = corridorScan(widthM, yaw)
+	gateway.scan = corridorScan(1.0)
 	gateway.haveScan = true
 
 	nav, err := navigator.New(navigator.Params{
@@ -62,7 +62,7 @@ func blindNavigator(t *testing.T, widthM, yaw float64) (*navigator.Navigator, *f
 // wide default rather than classify a 0 m corridor as narrow.
 func TestBelievedCreepWidthUnsetBeforeAnyReading(t *testing.T) {
 	t.Parallel()
-	nav, _ := blindNavigator(t, 1.0, 0.0)
+	nav, _ := blindNavigator(t)
 
 	if _, ok := nav.BelievedCreepWidthM(); ok {
 		t.Error("reported a belief before any reading was taken")
@@ -74,7 +74,7 @@ func TestBelievedCreepWidthUnsetBeforeAnyReading(t *testing.T) {
 func TestCreepBuffersWidthReadings(t *testing.T) {
 	t.Parallel()
 	const widthM = 1.0
-	nav, _ := blindNavigator(t, widthM, 0.0)
+	nav, _ := blindNavigator(t)
 
 	nav.Step()
 
@@ -91,10 +91,10 @@ func TestCreepBuffersWidthReadings(t *testing.T) {
 // converges rather than tracking only the latest tick.
 func TestBelievedCreepWidthIsTheMeanOfTheReadings(t *testing.T) {
 	t.Parallel()
-	nav, gateway := blindNavigator(t, 1.0, 0.0)
+	nav, gateway := blindNavigator(t)
 
 	nav.Step()
-	gateway.scan = corridorScan(0.6, 0.0)
+	gateway.scan = corridorScan(0.6)
 	nav.Step()
 
 	believed, ok := nav.BelievedCreepWidthM()
@@ -110,7 +110,7 @@ func TestBelievedCreepWidthIsTheMeanOfTheReadings(t *testing.T) {
 // taking them must hand over ownership and leave the buffer empty.
 func TestTakeCreepWidthsDrainsTheBuffer(t *testing.T) {
 	t.Parallel()
-	nav, _ := blindNavigator(t, 1.0, 0.0)
+	nav, _ := blindNavigator(t)
 	nav.Step()
 
 	taken := nav.TakeCreepWidths()
@@ -131,11 +131,11 @@ func TestTakeCreepWidthsDrainsTheBuffer(t *testing.T) {
 func TestCreepWidthsKeepTheHeadingTheyWereTakenAt(t *testing.T) {
 	t.Parallel()
 	const secondYaw = math.Pi / 2
-	nav, gateway := blindNavigator(t, 1.0, 0.0)
+	nav, gateway := blindNavigator(t)
 
 	nav.Step()
 	gateway.pose = trackmodel.Pose{X: 1.0, Y: 1.0, Yaw: secondYaw}
-	gateway.scan = corridorScan(1.0, secondYaw)
+	gateway.scan = corridorScan(1.0)
 	nav.Step()
 
 	taken := nav.TakeCreepWidths()
@@ -155,10 +155,10 @@ func TestCreepWidthsKeepTheHeadingTheyWereTakenAt(t *testing.T) {
 // the follower acts on is polluted by the readings the gate refused.
 func TestCreepIgnoresUnmeasurableScans(t *testing.T) {
 	t.Parallel()
-	nav, gateway := blindNavigator(t, 1.0, 0.0)
+	nav, gateway := blindNavigator(t)
 
 	// Well outside the plausible corridor range in both directions.
-	gateway.scan = corridorScan(6.0, 0.0)
+	gateway.scan = corridorScan(6.0)
 	nav.Step()
 
 	if _, ok := nav.BelievedCreepWidthM(); ok {
@@ -172,25 +172,25 @@ func TestCreepIgnoresUnmeasurableScans(t *testing.T) {
 // by readings from a corridor several turns ago.
 func TestCreepWidthBufferIsCappedOldestFirst(t *testing.T) {
 	t.Parallel()
-	cap := corridorestimator.DefaultConfig().MaxStartSamples
-	if cap <= 0 {
+	limit := corridorestimator.DefaultConfig().MaxStartSamples
+	if limit <= 0 {
 		t.Skip("no cap configured")
 	}
-	nav, gateway := blindNavigator(t, 1.0, 0.0)
+	nav, gateway := blindNavigator(t)
 
 	// Fill past the cap with the WIDE reading, then push exactly `cap`
 	// NARROW ones in: if the oldest are dropped, nothing wide survives.
-	for range cap {
+	for range limit {
 		nav.Step()
 	}
-	gateway.scan = corridorScan(0.6, 0.0)
-	for range cap {
+	gateway.scan = corridorScan(0.6)
+	for range limit {
 		nav.Step()
 	}
 
 	taken := nav.TakeCreepWidths()
-	if len(taken) != cap {
-		t.Fatalf("buffered %d readings, want the cap %d", len(taken), cap)
+	if len(taken) != limit {
+		t.Fatalf("buffered %d readings, want the cap %d", len(taken), limit)
 	}
 	for i, w := range taken {
 		if math.Abs(w.WidthM-0.6) > 1e-6 {

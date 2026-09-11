@@ -63,10 +63,10 @@ func TestCenterBiasForCorridor_UnconfirmedShrinksTheBeliefStep(t *testing.T) {
 		t.Fatalf("step shrank by %.4f m, want exactly UnconfirmedWidthInnerBiasM (%.4f m)",
 			stepBefore-stepAfter, cfg.UnconfirmedWidthInnerBiasM)
 	}
-	// The step cannot be cancelled: the remainder is what a plan that must
+	// The step cannot be canceled: the remainder is what a plan that must
 	// still fit a genuinely narrow corridor cannot give back.
 	if stepAfter <= 0 {
-		t.Fatalf("step fully cancelled (%.4f m) -- that would put the line on the "+
+		t.Fatalf("step fully canceled (%.4f m) -- that would put the line on the "+
 			"inner wall of a truly narrow corridor", stepAfter)
 	}
 }

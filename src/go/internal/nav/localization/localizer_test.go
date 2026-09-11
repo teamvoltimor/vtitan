@@ -3,9 +3,10 @@
 package localization_test
 
 import (
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"math"
 	"testing"
+
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"

@@ -16,6 +16,7 @@ const steerCapTolerance = 1e-9
 // At the anchor distance the cap must be MaxCornerSteerDeg exactly, so the
 // measured wide-corner case is untouched by the re-derivation.
 func TestSteerCapNormIsTheAnchorAtTheAnchorDistance(t *testing.T) {
+	t.Parallel()
 	cfg := corridorfollower.DefaultConfig()
 
 	got := corridorfollower.SteerCapNorm(cfg.TurnClearanceM, cfg)
@@ -32,6 +33,7 @@ func TestSteerCapNormIsTheAnchorAtTheAnchorDistance(t *testing.T) {
 // exists to fix: the back-off branch commits at 0.30 m, half the corner
 // branch's 0.60 m, and drove the corner's arc there.
 func TestSteerCapNormTightensAsTheCommitDistanceShortens(t *testing.T) {
+	t.Parallel()
 	cfg := corridorfollower.DefaultConfig()
 
 	corner := corridorfollower.SteerCapNorm(cfg.TurnClearanceM, cfg)
@@ -49,6 +51,7 @@ func TestSteerCapNormTightensAsTheCommitDistanceShortens(t *testing.T) {
 // tan(cap) = tan(anchor) * TurnClearanceM / d -- the ratio form the docstring
 // states, checked against a distance neither branch uses.
 func TestSteerCapNormFollowsTheRatioForm(t *testing.T) {
+	t.Parallel()
 	cfg := corridorfollower.DefaultConfig()
 	const commitM = 0.45
 
@@ -64,6 +67,7 @@ func TestSteerCapNormFollowsTheRatioForm(t *testing.T) {
 // Disabling the flag must restore the single shared anchor for every branch,
 // so the pre-fix behaviour stays reachable for an A/B.
 func TestSteerCapNormDisabledReturnsTheAnchorEverywhere(t *testing.T) {
+	t.Parallel()
 	cfg := corridorfollower.DefaultConfig()
 	cfg.SteerCapFromCommitDistance = false
 
@@ -80,6 +84,7 @@ func TestSteerCapNormDisabledReturnsTheAnchorEverywhere(t *testing.T) {
 // A non-positive commit distance would divide by zero. Fall back to the
 // anchor rather than producing an infinite curvature.
 func TestSteerCapNormNonPositiveCommitFallsBackToTheAnchor(t *testing.T) {
+	t.Parallel()
 	cfg := corridorfollower.DefaultConfig()
 
 	want := navutil.SteeringNormFromAngleRad(
@@ -95,6 +100,7 @@ func TestSteerCapNormNonPositiveCommitFallsBackToTheAnchor(t *testing.T) {
 // The cap is a steering magnitude, so it can never exceed full lock however
 // short the commit distance gets.
 func TestSteerCapNormNeverExceedsFullLock(t *testing.T) {
+	t.Parallel()
 	cfg := corridorfollower.DefaultConfig()
 
 	for _, commitM := range []float64{0.30, 0.10, 0.01, 0.001} {

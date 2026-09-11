@@ -80,7 +80,7 @@ func TestCommand_LegacyForwardLegSteersTowardTheOpenSide(t *testing.T) {
 	cfg.Follower.BayExitReverseM = 0.01 // trivially small: reach the forward leg fast
 
 	for _, openLeft := range []bool{true, false} {
-		var left, right float64 = 1.0, 0.30
+		left, right := 1.0, 0.30
 		if !openLeft {
 			left, right = 0.30, 1.0
 		}
@@ -176,7 +176,7 @@ func sign(v float64) int {
 // TestCommand_CycleUnobstructedFirstLegNeverInternallyTransitions matches
 // the documented DEFAULT-model contract: bay_exit.py's own
 // BAY_EXIT_FORWARD_M docstring states that under the legal (non
-// --solid-walls) contact model, "the manoeuvre is released by IsClear
+// --solid-walls) contact model, "the maneuver is released by IsClear
 // after ~22 ticks on a single forward arc and the reverse leg never runs."
 //
 // This falls out of the leg-start bookkeeping directly: the very first
@@ -187,7 +187,7 @@ func sign(v float64) int {
 // tick, well above legStallEpsilonM), stall never fires, so the leg simply
 // never transitions on its own; in production it is the CALLER's separate
 // IsClear(...) check (LIDAR forward clearance, nothing to do with this
-// leg-tracking) that stops the manoeuvre once the chassis has genuinely
+// leg-tracking) that stops the maneuver once the chassis has genuinely
 // left the pocket.
 func TestCommand_CycleUnobstructedFirstLegNeverInternallyTransitions(t *testing.T) {
 	t.Parallel()
@@ -263,7 +263,7 @@ func TestCommand_GuardedCommandRecordsGuardStats(t *testing.T) {
 
 // TestCommand_GuardedCommandFlipsBeforePredictedContact is the core safety
 // property BayExitClearanceGuard exists for. Driven SELF-CONSISTENTLY --
-// each tick's travelled_m is advanced by the PREVIOUS tick's own returned
+// each tick's traveled_m is advanced by the PREVIOUS tick's own returned
 // speed, matching what a real robot faithfully executing the command would
 // report back -- the guard must flip the leg at least once (the chassis
 // cannot otherwise reach open ground from a standing start inside the
@@ -281,20 +281,23 @@ func TestCommand_GuardedCommandFlipsBeforePredictedContact(t *testing.T) {
 
 	travelled := 0.0
 	minGapSeen := math.Inf(1)
+	var flips int
 	for range 300 {
 		cmd := b.Command(scan, travelled, creepSpeedMPS, cfg, nil)
 		travelled += cmd.SpeedMPS / cfg.ControlHz
-		if _, minGap, ok, _ := b.GuardStats(); ok && minGap < minGapSeen {
+		var minGap float64
+		var ok bool
+		flips, minGap, ok, _ = b.GuardStats()
+		if ok && minGap < minGapSeen {
 			minGapSeen = minGap
 		}
 	}
-	flips, _, _, _ := b.GuardStats()
 	if flips == 0 {
 		t.Error("guard never flipped a leg over 300 self-consistent ticks")
 	}
 	// One tick's worth of travel past the margin is the loosest bound that
 	// still catches an unbounded overshoot; the shipped speed/control-rate
-	// combination moves well under a centimetre per tick.
+	// combination moves well under a centimeter per tick.
 	oneTickSlackM := creepSpeedMPS / cfg.ControlHz
 	if minGapSeen < -cfg.Follower.BayExitClearanceMarginM-oneTickSlackM {
 		t.Errorf(

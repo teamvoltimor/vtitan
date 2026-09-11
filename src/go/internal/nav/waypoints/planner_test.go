@@ -18,14 +18,19 @@ func benchInput(maxCoordM, chassisWidthM float64) PlannerInput {
 	}, maxCoordM)
 	dir := trackmodel.Counterclockwise
 	return PlannerInput{
-		Geometry:      geom,
-		Starting:      StartingConditions{Direction: &dir, Section: trackmodel.South, Position: trackmodel.Waypoint{X: -maxCoordM + 1, Y: -maxCoordM + 1}},
+		Geometry: geom,
+		Starting: StartingConditions{
+			Direction: &dir,
+			Section:   trackmodel.South,
+			Position:  trackmodel.Waypoint{X: -maxCoordM + 1, Y: -maxCoordM + 1},
+		},
 		MaxCoordM:     maxCoordM,
 		ChassisWidthM: chassisWidthM,
 	}
 }
 
 func TestCalculateWaypoints_CCWLoopStartsNearSpawn(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
 	cfg.CornerArcAssumeWide = false
 	input := benchInput(4.0, 0.30)
@@ -66,6 +71,7 @@ func TestCalculateWaypoints_CCWLoopStartsNearSpawn(t *testing.T) {
 }
 
 func TestCalculateWaypoints_RejectsUnresolvedDirection(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
 	input := benchInput(4.0, 0.30)
 	input.Starting.Direction = nil
@@ -76,6 +82,7 @@ func TestCalculateWaypoints_RejectsUnresolvedDirection(t *testing.T) {
 }
 
 func TestCalculateWaypoints_RejectsTooNarrowCorridor(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
 	cfg.NarrowWidthThresholdM = 0.8
 	// 0.5 m corridors with a 0.10 m wide bias need 0.30+2*0.10 = 0.50 m; add a
@@ -101,6 +108,7 @@ func TestCalculateWaypoints_RejectsTooNarrowCorridor(t *testing.T) {
 }
 
 func TestPlanBelievedPath_ReplansFromBelievedGeometry(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfig()
 	cfg.CornerArcAssumeWide = false
 	base := benchInput(4.0, 0.30)
@@ -132,13 +140,15 @@ func TestPlanBelievedPath_ReplansFromBelievedGeometry(t *testing.T) {
 }
 
 func TestLoopOrder_AnchoredAtEast(t *testing.T) {
+	t.Parallel()
 	// CW absolute = [East, South, West, North]; CCW = [East, North, West, South].
 	cw := trackmodel.LoopOrder(trackmodel.East, trackmodel.Clockwise)
 	if cw[0] != trackmodel.East || cw[1] != trackmodel.South || cw[2] != trackmodel.West || cw[3] != trackmodel.North {
 		t.Errorf("CW loop order = %v, want [East South West North]", cw)
 	}
 	ccw := trackmodel.LoopOrder(trackmodel.East, trackmodel.Counterclockwise)
-	if ccw[0] != trackmodel.East || ccw[1] != trackmodel.North || ccw[2] != trackmodel.West || ccw[3] != trackmodel.South {
+	if ccw[0] != trackmodel.East || ccw[1] != trackmodel.North || ccw[2] != trackmodel.West ||
+		ccw[3] != trackmodel.South {
 		t.Errorf("CCW loop order = %v, want [East North West South]", ccw)
 	}
 }

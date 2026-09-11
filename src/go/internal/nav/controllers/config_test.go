@@ -181,6 +181,7 @@ func TestForObstaclesChallenge(t *testing.T) {
 // The Open Challenge's straight lookahead REPLACES the base one, so an Open
 // run does not silently drive the Obstacles value.
 func TestForOpenChallenge_ReplacesTheStraightLookahead(t *testing.T) {
+	t.Parallel()
 	cfg := controllers.DefaultConfig()
 
 	open := cfg.ForOpenChallenge()
@@ -198,6 +199,7 @@ func TestForOpenChallenge_ReplacesTheStraightLookahead(t *testing.T) {
 // Obstacles reads the base parameters: the override must not be able to
 // shadow the base constant on an Obstacles sweep.
 func TestForOpenChallenge_LeavesTheBaseConfigUnchanged(t *testing.T) {
+	t.Parallel()
 	cfg := controllers.DefaultConfig()
 	before := cfg.LookaheadLong
 
@@ -211,6 +213,7 @@ func TestForOpenChallenge_LeavesTheBaseConfigUnchanged(t *testing.T) {
 // With no override configured the resolution is the identity, so a caller
 // need not branch on whether one is set.
 func TestForOpenChallenge_IsTheIdentityWithoutAnOverride(t *testing.T) {
+	t.Parallel()
 	cfg := controllers.DefaultConfig()
 	cfg.OpenLookaheadLong = 0.0
 

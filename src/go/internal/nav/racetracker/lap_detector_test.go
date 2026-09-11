@@ -107,11 +107,43 @@ func TestApproachingFinish_OrientationFollowsTravelDirection(t *testing.T) {
 		approach  [2]float64
 		past      [2]float64
 	}{
-		{"South/CCW", trackmodel.South, trackmodel.Counterclockwise, 1.5, 0.2, [2]float64{1.3, 0.2}, [2]float64{1.7, 0.2}},
+		{
+			"South/CCW",
+			trackmodel.South,
+			trackmodel.Counterclockwise,
+			1.5,
+			0.2,
+			[2]float64{1.3, 0.2},
+			[2]float64{1.7, 0.2},
+		},
 		{"South/CW", trackmodel.South, trackmodel.Clockwise, 1.5, 0.2, [2]float64{1.7, 0.2}, [2]float64{1.3, 0.2}},
-		{"North/CCW", trackmodel.North, trackmodel.Counterclockwise, 1.5, 2.8, [2]float64{1.7, 2.8}, [2]float64{1.3, 2.8}},
-		{"East/CCW", trackmodel.East, trackmodel.Counterclockwise, 2.8, 1.5, [2]float64{2.8, 1.3}, [2]float64{2.8, 1.7}},
-		{"West/CCW", trackmodel.West, trackmodel.Counterclockwise, 0.2, 1.5, [2]float64{0.2, 1.7}, [2]float64{0.2, 1.3}},
+		{
+			"North/CCW",
+			trackmodel.North,
+			trackmodel.Counterclockwise,
+			1.5,
+			2.8,
+			[2]float64{1.7, 2.8},
+			[2]float64{1.3, 2.8},
+		},
+		{
+			"East/CCW",
+			trackmodel.East,
+			trackmodel.Counterclockwise,
+			2.8,
+			1.5,
+			[2]float64{2.8, 1.3},
+			[2]float64{2.8, 1.7},
+		},
+		{
+			"West/CCW",
+			trackmodel.West,
+			trackmodel.Counterclockwise,
+			0.2,
+			1.5,
+			[2]float64{0.2, 1.7},
+			[2]float64{0.2, 1.3},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

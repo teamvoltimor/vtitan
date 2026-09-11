@@ -8,6 +8,13 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 )
 
+// shippedObstaclesContactDist is clearance.toml's obstacles_contact_dist.
+// Not taken from DefaultConfig like the other expectations in this file:
+// DefaultConfig leaves the override nil (that IS its documented default, and
+// the Open path depends on nil meaning "unset"), so comparing against it
+// would assert the opposite of what ships.
+const shippedObstaclesContactDist = 0.05
+
 // hardwareProfileNames matches the currently active profile recorded in
 // this repo's own memory/config (VTITAN_HARDWARE_PROFILE =
 // "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm"), so MaxSteeringAngleRad
@@ -15,13 +22,6 @@ import (
 // missing required fields (see profile.RobotConfig's doc comment: steering
 // max_wheel_angle_deg has no chassis-only default).
 var hardwareProfileNames = []string{"270deg-hiwonder-35kg", "rev-hd-hex-motor-6000rpm"}
-
-// shippedObstaclesContactDist is clearance.toml's obstacles_contact_dist.
-// Not taken from DefaultConfig like the other expectations in this file:
-// DefaultConfig leaves the override nil (that IS its documented default, and
-// the Open path depends on nil meaning "unset"), so comparing against it
-// would assert the opposite of what ships.
-const shippedObstaclesContactDist = 0.05
 
 // repoRoot walks up from this test file's package directory
 // (platform/robot-go/internal/nav/controllers) to the repo root, so

@@ -21,7 +21,7 @@ func TestBlindCreep_ResolvesDirection(t *testing.T) {
 	const n = 360
 	ranges := make([]float64, n)
 	angles := make([]float64, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		a := float64(i) / float64(n) * 2 * math.Pi
 		angles[i] = a
 		switch {

@@ -1,5 +1,3 @@
-// Ports tests/unit/test_corner_latch.py: the corner preview must survive its
-// own decay through the arc.
 package navigator
 
 import (
@@ -20,8 +18,10 @@ func assertClose(t *testing.T, got, want float64, msg string) {
 	}
 }
 
-// With no corner in play the latch must be invisible.
+// Ports tests/unit/test_corner_latch.py. With no corner in play the latch
+// must be invisible.
 func TestCornerLatchStraightReturnsRawReading(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	for range 20 {
 		assertClose(t, latch.Update(0.0, 0.0, latchThreshold), 0.0, "straight")
@@ -36,6 +36,7 @@ func TestCornerLatchStraightReturnsRawReading(t *testing.T) {
 // must not arm -- holding a signal that never armed would turn a threshold
 // question into a latch question and hide the real issue.
 func TestCornerLatchBelowThresholdNeverArms(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	for range 10 {
 		assertClose(t, latch.Update(0.197, 0.0, latchThreshold), 0.197, "below threshold")
@@ -51,6 +52,7 @@ func TestCornerLatchBelowThresholdNeverArms(t *testing.T) {
 // where the raw signal ran 1.373 -> 0.980 -> 0.590 -> 0.197 -> 0.000 and the
 // lookahead went long two seconds BEFORE the corner.
 func TestCornerLatchPreviewSurvivesDecayingToZero(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	assertClose(t, latch.Update(1.373, 0.00, latchThreshold), 1.373, "approach")
 	assertClose(t, latch.Update(0.980, 0.05, latchThreshold), 0.980, "approach")
@@ -64,6 +66,7 @@ func TestCornerLatchPreviewSurvivesDecayingToZero(t *testing.T) {
 }
 
 func TestCornerLatchReleasesOnceTheTurnHasBeenDriven(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	latch.Update(1.0, 0.0, latchThreshold)
 	assertClose(t, latch.Update(0.0, 0.50, latchThreshold), 1.0, "released half way round")
@@ -77,6 +80,7 @@ func TestCornerLatchReleasesOnceTheTurnHasBeenDriven(t *testing.T) {
 
 // A preview still growing when it arms must not be pinned low.
 func TestCornerLatchHoldsTheLargestPreviewNotTheLast(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	latch.Update(0.40, 0.00, latchThreshold)
 	latch.Update(1.20, 0.02, latchThreshold)
@@ -87,6 +91,7 @@ func TestCornerLatchHoldsTheLargestPreviewNotTheLast(t *testing.T) {
 
 // Yaw is wrapped, so a corner straddling +-pi must not read as zero.
 func TestCornerLatchWrappingPastPiStillMeasuresTheTurn(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	latch.Update(1.0, 3.0, latchThreshold)
 	held := latch.Update(0.0, -3.0, latchThreshold)
@@ -102,6 +107,7 @@ func TestCornerLatchWrappingPastPiStillMeasuresTheTurn(t *testing.T) {
 // the accumulated-yaw backstop a spin re-satisfies the release test only
 // periodically, so the latch could hold for a long time.
 func TestCornerLatchSpinningRobotReleasesWithinOneRevolution(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	// Previewed turn larger than any real corner.
 	latch.Update(6.0, 0.0, latchThreshold)
@@ -120,6 +126,7 @@ func TestCornerLatchSpinningRobotReleasesWithinOneRevolution(t *testing.T) {
 }
 
 func TestCornerLatchResetClearsACornerInProgress(t *testing.T) {
+	t.Parallel()
 	var latch CornerLatch
 	latch.Update(1.0, 0.0, latchThreshold)
 	if !latch.IsLatched() {

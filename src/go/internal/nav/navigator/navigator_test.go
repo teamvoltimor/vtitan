@@ -2,9 +2,10 @@ package navigator_test
 
 import (
 	"errors"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"math"
 	"testing"
+
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"

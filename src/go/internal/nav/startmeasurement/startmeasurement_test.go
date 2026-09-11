@@ -4,9 +4,10 @@
 package startmeasurement_test
 
 import (
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"math"
 	"testing"
+
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startmeasurement"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
@@ -222,7 +223,13 @@ func TestRejectsABlockedRay(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: blocked, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, testConfig(),
+		navutil.LidarScan{
+			RangesM:   blocked,
+			AnglesRad: angles,
+		},
+		trackmodel.Counterclockwise,
+		trackmodel.South,
+		testConfig(),
 	)
 
 	if ok {
@@ -266,7 +273,13 @@ func TestRejectsWhenNoRayReturns(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: empty, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, testConfig(),
+		navutil.LidarScan{
+			RangesM:   empty,
+			AnglesRad: angles,
+		},
+		trackmodel.Counterclockwise,
+		trackmodel.South,
+		testConfig(),
 	)
 
 	if ok {
