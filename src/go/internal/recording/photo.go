@@ -24,6 +24,18 @@ type PhotoCapture struct {
 	requireDet  bool
 }
 
+// rgb8Image adapts an rgb8 Frame to image.Image without copying the buffer.
+type rgb8Image struct{ frame *Frame }
+
+const (
+	// photoJPEGQuality is the JPEG quality periodic captures encode at.
+	photoJPEGQuality = 90
+	// rgb8BytesPerPixel is the byte count of one contiguous rgb8 pixel.
+	rgb8BytesPerPixel = 3
+	// rgb8MaxChannel is the full-scale value of one 8-bit channel.
+	rgb8MaxChannel = 255
+)
+
 // NewPhotoCapture builds a periodic capture. If requireDetection is true, a
 // frame is only saved once a detection is present (Obstacles Challenge); Open
 // Challenge passes false to save every interval unconditionally.
@@ -55,7 +67,7 @@ func (p *PhotoCapture) MaybeCapture(now time.Time, frame *Frame, runDir string, 
 	}
 
 	dir := filepath.Join(runDir, p.subdir)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return "", fmt.Errorf("recording: mkdir captures dir: %w", err)
 	}
 	filename := filepath.Join(dir, fmt.Sprintf("capture_%04d.jpg", p.count))
@@ -91,7 +103,7 @@ func writeJPEG(path string, frame *Frame) error {
 		return fmt.Errorf("recording: creating %s: %w", path, err)
 	}
 	defer f.Close()
-	if err = jpeg.Encode(f, img, &jpeg.Options{Quality: 90}); err != nil {
+	if err = jpeg.Encode(f, img, &jpeg.Options{Quality: photoJPEGQuality}); err != nil {
 		return fmt.Errorf("recording: encoding jpeg %s: %w", path, err)
 	}
 	return nil
@@ -99,26 +111,34 @@ func writeJPEG(path string, frame *Frame) error {
 
 // rgb8ToImage wraps a contiguous rgb8 buffer as an image.Image.
 func rgb8ToImage(frame *Frame) (image.Image, error) {
-	if frame.Stride != frame.Width*3 {
-		return nil, fmt.Errorf("recording: rgb8 stride %d != width*3 %d", frame.Stride, frame.Width*3)
+	if frame.Stride != frame.Width*rgb8BytesPerPixel {
+		return nil, fmt.Errorf(
+			"recording: rgb8 stride %d != width*%d %d",
+			frame.Stride,
+			rgb8BytesPerPixel,
+			frame.Width*rgb8BytesPerPixel,
+		)
 	}
 	if len(frame.Data) < frame.Height*frame.Stride {
-		return nil, fmt.Errorf("recording: rgb8 data len %d < height*stride %d", len(frame.Data), frame.Height*frame.Stride)
+		return nil, fmt.Errorf(
+			"recording: rgb8 data len %d < height*stride %d",
+			len(frame.Data),
+			frame.Height*frame.Stride,
+		)
 	}
 	return &rgb8Image{frame: frame}, nil
 }
 
-// rgb8Image adapts an rgb8 Frame to image.Image without copying the buffer.
-type rgb8Image struct{ frame *Frame }
-
 func (m *rgb8Image) ColorModel() color.Model {
 	return color.RGBAModel
 }
+
 func (m *rgb8Image) Bounds() image.Rectangle {
 	return image.Rect(0, 0, m.frame.Width, m.frame.Height)
 }
+
 func (m *rgb8Image) At(x, y int) color.Color {
-	off := y*m.frame.Stride + x*3
+	off := y*m.frame.Stride + x*rgb8BytesPerPixel
 	d := m.frame.Data
-	return color.RGBA{R: d[off], G: d[off+1], B: d[off+2], A: 255}
+	return color.RGBA{R: d[off], G: d[off+1], B: d[off+2], A: rgb8MaxChannel}
 }

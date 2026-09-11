@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+// topicInfo accumulates what metadata.yaml has to state about one topic.
+// Only CDR topics are described: a protobuf channel has no ROS type name to
+// declare, and rosbag2 refuses a bag with mixed serialization formats
+// anyway.
+type topicInfo struct {
+	typeName string
+	count    int
+}
+
 // metadataFileName is the sidecar rosbag2 looks for when it is handed a
 // DIRECTORY. Without it the run directory is not a bag as far as rosbag2 is
 // concerned ("No storage could be initialized for the input URI"), and every
@@ -23,14 +32,9 @@ const metadataVersion = 9
 // rosDistro is recorded for provenance only; rosbag2 does not gate on it.
 const rosDistro = "kilted"
 
-// topicInfo accumulates what metadata.yaml has to state about one topic.
-// Only CDR topics are described: a protobuf channel has no ROS type name to
-// declare, and rosbag2 refuses a bag with mixed serialization formats
-// anyway.
-type topicInfo struct {
-	typeName string
-	count    int
-}
+// metadataFileMode is the sidecar's file mode: owner-only, since it is a
+// recording artifact, not something other users need to write.
+const metadataFileMode = 0o600
 
 // writeMetadata emits the rosbag2 sidecar. Called from Close, when the
 // message counts and the time span are known -- none of it can be written up
@@ -98,7 +102,7 @@ func (r *RunRecorder) writeMetadata() error {
 	fmt.Fprintf(&b, "  ros_distro: %s\n", rosDistro)
 
 	path := filepath.Join(r.dir, metadataFileName)
-	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(b.String()), metadataFileMode); err != nil {
 		return fmt.Errorf("recording: writing %s: %w", path, err)
 	}
 	return nil

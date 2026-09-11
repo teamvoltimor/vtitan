@@ -22,6 +22,8 @@ func rgbFrame(w, h int, v uint8) *Frame {
 }
 
 func TestMJPEGAVIWriteAndClose(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "video.mp4")
 
@@ -29,12 +31,12 @@ func TestMJPEGAVIWriteAndClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newMJPEGAVISink: %v", err)
 	}
-	for i := 0; i < 3; i++ {
-		if err := sink.Write(rgbFrame(16, 12, uint8(i*40+30)), HudOverlay{}); err != nil {
+	for i := range 3 {
+		if err = sink.Write(rgbFrame(16, 12, uint8(i*40+30)), HudOverlay{}); err != nil {
 			t.Fatalf("Write %d: %v", i, err)
 		}
 	}
-	if err := sink.Close(); err != nil {
+	if err = sink.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 
@@ -57,6 +59,8 @@ func TestMJPEGAVIWriteAndClose(t *testing.T) {
 }
 
 func TestPhotoCaptureCadence(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pc := NewPhotoCapture(10*time.Second, "captures", false)
 
@@ -65,7 +69,7 @@ func TestPhotoCaptureCadence(t *testing.T) {
 	if err != nil || p == "" {
 		t.Fatalf("first capture: p=%q err=%v", p, err)
 	}
-	if _, err := os.Stat(p); err != nil {
+	if _, err = os.Stat(p); err != nil {
 		t.Fatalf("capture file missing: %v", err)
 	}
 	// Immediate second call within cadence: skipped.
@@ -73,12 +77,15 @@ func TestPhotoCaptureCadence(t *testing.T) {
 		t.Errorf("expected skip within cadence, got %q", p2)
 	}
 	// After interval: saves again.
-	if p3, err := pc.MaybeCapture(time.Unix(11, 0), rgbFrame(4, 4, 30), dir, false); err != nil || p3 == "" {
+	p3, err := pc.MaybeCapture(time.Unix(11, 0), rgbFrame(4, 4, 30), dir, false)
+	if err != nil || p3 == "" {
 		t.Fatalf("second capture: p=%q err=%v", p3, err)
 	}
 }
 
 func TestPhotoCaptureRequireDetection(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	pc := NewPhotoCapture(0, "captures", true) // require detection, no interval
 	if p, _ := pc.MaybeCapture(time.Unix(0, 0), rgbFrame(2, 2, 1), dir, false); p != "" {
@@ -90,16 +97,18 @@ func TestPhotoCaptureRequireDetection(t *testing.T) {
 }
 
 func TestRunRecorderMCAPRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	rec, err := NewRun(dir, RunOptions{Video: false})
 	if err != nil {
 		t.Fatalf("NewRun: %v", err)
 	}
 	msg := &sensorv1.CameraFrame{Width: 8, Height: 6, Encoding: "rgb8", Data: []byte("fake")}
-	if err := rec.WriteMessage(sensorv1.CameraSubject, msg, 123); err != nil {
+	if err = rec.WriteMessage(sensorv1.CameraSubject, msg, 123); err != nil {
 		t.Fatalf("WriteMessage: %v", err)
 	}
-	if err := rec.Close(); err != nil {
+	if err = rec.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 	// The bag should exist and be non-empty.
@@ -176,13 +185,13 @@ func TestWriteMetadata_MakesTheRunDirectoryABag(t *testing.T) {
 	}
 	const oneSecond = 1_000_000_000
 	for i, logTime := range []uint64{0, oneSecond / 2, oneSecond} {
-		if err := run.WriteROS2(
+		if err = run.WriteROS2(
 			"/motor/drive_speed", Float32Type, Float32Schema, EncodeFloat32(float32(i)), logTime,
 		); err != nil {
 			t.Fatalf("WriteROS2: %v", err)
 		}
 	}
-	if err := run.Close(); err != nil {
+	if err = run.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 
