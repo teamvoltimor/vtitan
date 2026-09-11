@@ -17,6 +17,18 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
+// parityGateway is the in-memory controllers.HardwareGateway the replay drives
+// the Go navigator through. Each Step reads the staged pose and the most
+// recent /scan, isolating the navigator under test exactly as doc.go intends:
+// the pose is the bag's recorded pose, the scan is the bag's recorded /scan,
+// so any divergence from /nav_debug is navigator behavior, not localization.
+type parityGateway struct {
+	pose     trackmodel.Pose
+	havePose bool
+	scan     controllers.LidarScan
+	haveScan bool
+}
+
 // repoRootFromPackageDir is the relative path from this package
 // (platform/robot-go/test/bagreplay) back to the repo root, where
 // profile.DefaultRobotTOMLPath (src/config/robot.toml) lives.
@@ -58,18 +70,6 @@ var lidarYawOffsetRadForBags = sync.OnceValue(func() float64 {
 	return (180 + cfg.Lidar.MountYawOffsetDeg) * math.Pi / 180
 })
 
-// parityGateway is the in-memory controllers.HardwareGateway the replay drives
-// the Go navigator through. Each Step reads the staged pose and the most
-// recent /scan, isolating the navigator under test exactly as doc.go intends:
-// the pose is the bag's recorded pose, the scan is the bag's recorded /scan,
-// so any divergence from /nav_debug is navigator behavior, not localization.
-type parityGateway struct {
-	pose     trackmodel.Pose
-	havePose bool
-	scan     controllers.LidarScan
-	haveScan bool
-}
-
 func (g *parityGateway) PublishDrive(controllers.DriveCommand) {}
 func (g *parityGateway) GetCurrentPose() (trackmodel.Pose, bool) {
 	return g.pose, g.havePose
@@ -98,7 +98,8 @@ func reconstructPath(rows []bagreplay.NavDebugRow) []trackmodel.Waypoint {
 	}
 	byIndex := map[int]*accum{}
 	maxIndex := -1
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		wi := r.Snapshot.WaypointIndex
 		sx := r.Snapshot.SteerTargetX
 		sy := r.Snapshot.SteerTargetY
@@ -147,6 +148,8 @@ func median(xs []float64) float64 {
 // scope list), so their absence is an accepted, documented gap rather than a
 // parity failure.
 func TestParity_NavigatorVsBag(t *testing.T) {
+	t.Parallel()
+
 	dir := parityBagDir(t)
 
 	navRows, err := bagreplay.ReadNavDebug(dir)

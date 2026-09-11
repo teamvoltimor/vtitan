@@ -6,10 +6,6 @@ import (
 	"math"
 )
 
-// ScanTopic is the topic the physical LIDAR publishes its sweep on, matching
-// bag_io.Topics.SCAN.
-const ScanTopic = "/scan"
-
 // LaserScan is a decoded sensor_msgs/msg/LaserScan, the physical lidar's raw
 // sweep. Only the fields the Go navigator actually consumes are carried:
 // angle_min/max/increment and the ranges[] array. time_increment, scan_time,
@@ -40,6 +36,15 @@ type cdrReader struct {
 	pos   int
 }
 
+// ScanTopic is the topic the physical LIDAR publishes its sweep on, matching
+// bag_io.Topics.SCAN.
+const ScanTopic = "/scan"
+
+// cdrAlign32 is the CDR wire size and alignment shared by the 32-bit
+// primitives this reader decodes (uint32 and float32): each is placed at the
+// next offset that is a multiple of four.
+const cdrAlign32 = 4
+
 func newCDRReader(data []byte) (*cdrReader, error) {
 	order, err := byteOrderOf(data)
 	if err != nil {
@@ -61,43 +66,27 @@ func (r *cdrReader) align(size int) error {
 }
 
 func (r *cdrReader) readU32() (uint32, error) {
-	if err := r.align(4); err != nil {
+	if err := r.align(cdrAlign32); err != nil {
 		return 0, err
 	}
-	if r.pos+4 > len(r.data) {
+	if r.pos+cdrAlign32 > len(r.data) {
 		return 0, fmt.Errorf("%w: need uint32 at offset %d, only %d bytes", ErrShortMessage, r.pos, len(r.data))
 	}
-	v := r.order.Uint32(r.data[r.pos : r.pos+4])
-	r.pos += 4
+	v := r.order.Uint32(r.data[r.pos : r.pos+cdrAlign32])
+	r.pos += cdrAlign32
 	return v, nil
 }
 
 func (r *cdrReader) readF32() (float32, error) {
-	if err := r.align(4); err != nil {
+	if err := r.align(cdrAlign32); err != nil {
 		return 0, err
 	}
-	if r.pos+4 > len(r.data) {
+	if r.pos+cdrAlign32 > len(r.data) {
 		return 0, fmt.Errorf("%w: need float32 at offset %d, only %d bytes", ErrShortMessage, r.pos, len(r.data))
 	}
-	v := r.order.Uint32(r.data[r.pos : r.pos+4])
-	r.pos += 4
-	return float32FromBits(v, r.order), nil
-}
-
-func float32FromBits(bits uint32, order binary.ByteOrder) float32 {
-	var buf [4]byte
-	if order == binary.LittleEndian {
-		buf[0] = byte(bits)
-		buf[1] = byte(bits >> 8)
-		buf[2] = byte(bits >> 16)
-		buf[3] = byte(bits >> 24)
-	} else {
-		buf[3] = byte(bits)
-		buf[2] = byte(bits >> 8)
-		buf[1] = byte(bits >> 16)
-		buf[0] = byte(bits >> 24)
-	}
-	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:]))
+	v := r.order.Uint32(r.data[r.pos : r.pos+cdrAlign32])
+	r.pos += cdrAlign32
+	return math.Float32frombits(v), nil
 }
 
 // skipHeader consumes the std_msgs/Header that opens every LaserScan: a time
@@ -136,10 +125,10 @@ func (r *cdrReader) readF32Seq() ([]float32, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := r.align(4); err != nil {
+	if err = r.align(cdrAlign32); err != nil {
 		return nil, err
 	}
-	need := int(count) * 4
+	need := int(count) * cdrAlign32
 	if r.pos+need > len(r.data) {
 		return nil, fmt.Errorf("%w: float32 sequence of %d needs %d bytes at offset %d, only %d remain",
 			ErrShortMessage, count, need, r.pos, len(r.data)-r.pos)
@@ -162,7 +151,7 @@ func DecodeLaserScan(data []byte) (LaserScan, error) {
 	if err != nil {
 		return LaserScan{}, err
 	}
-	if err := r.skipHeader(); err != nil {
+	if err = r.skipHeader(); err != nil {
 		return LaserScan{}, fmt.Errorf("bagreplay: decoding LaserScan header: %w", err)
 	}
 	scan := LaserScan{}

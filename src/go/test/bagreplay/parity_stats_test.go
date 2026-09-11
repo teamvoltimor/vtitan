@@ -12,12 +12,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
-// floatTol is the absolute tolerance for considering two float debug values a
-// match. Debug values are reported to ~3 significant figures in the bag, so
-// 1e-3 is tight enough to catch real behavioral drift without flagging
-// rounding in the last place.
-const floatTol = 1e-3
-
 // fieldStat accumulates the comparison outcome for one debug field across all
 // replayed ticks.
 type fieldStat struct {
@@ -27,25 +21,6 @@ type fieldStat struct {
 	refOnly  int // Python set it, Go left it null
 	equal    int // both set and within tolerance
 	mismatch int // both set but beyond tolerance
-}
-
-func (f *fieldStat) computed() int {
-	return f.goOnly + f.refOnly + f.equal + f.mismatch
-}
-
-func (f *fieldStat) record(goSet, refSet bool, within bool) {
-	switch {
-	case !goSet && !refSet:
-		f.bothNil++
-	case goSet && !refSet:
-		f.goOnly++
-	case !goSet && refSet:
-		f.refOnly++
-	case within:
-		f.equal++
-	default:
-		f.mismatch++
-	}
 }
 
 // parityStats holds the running comparison across every replayed tick.
@@ -60,6 +35,33 @@ type parityStats struct {
 	phaseMatrix   map[string]map[string]int // goPhase -> refPhase -> count
 	scanTicks     int                       // ticks the Go side had a scan
 	noScanTicks   int
+}
+
+// floatTol is the absolute tolerance for considering two float debug values a
+// match. Debug values are reported to ~3 significant figures in the bag, so
+// 1e-3 is tight enough to catch real behavioral drift without flagging
+// rounding in the last place.
+const floatTol = 1e-3
+
+var _ = trackmodel.Clockwise
+
+func (f *fieldStat) computed() int {
+	return f.goOnly + f.refOnly + f.equal + f.mismatch
+}
+
+func (f *fieldStat) record(goSet, refSet, within bool) {
+	switch {
+	case !goSet && !refSet:
+		f.bothNil++
+	case goSet && !refSet:
+		f.goOnly++
+	case !goSet && refSet:
+		f.refOnly++
+	case within:
+		f.equal++
+	default:
+		f.mismatch++
+	}
 }
 
 func phaseKey(p string) string {
@@ -103,11 +105,12 @@ func newParityStats() *parityStats {
 func (s *parityStats) compare(got navigator.DebugSnapshot, ref bagreplay.NavDebugSnapshot, hadScan bool) {
 	// Phase.
 	goPhase := got.Phase.String()
-	if ref.Phase == "" {
+	switch {
+	case ref.Phase == "":
 		s.phaseBothNil++
-	} else if goPhase == ref.Phase {
+	case goPhase == ref.Phase:
 		s.phaseEqual++
-	} else {
+	default:
 		s.phaseMismatch++
 	}
 	gp, rp := phaseKey(goPhase), phaseKey(ref.Phase)
@@ -173,7 +176,7 @@ func (s *parityStats) compare(got navigator.DebugSnapshot, ref bagreplay.NavDebu
 	s.f("sign_deform_magnitude_m", optF64(got.SignDeformMagnitudeM), ref.SignDeformMagnitudeM)
 }
 
-func (s *parityStats) f(name string, goV *float64, refV *float64) {
+func (s *parityStats) f(name string, goV, refV *float64) {
 	fs := s.fields[name]
 	goSet, refSet := goV != nil, refV != nil
 	within := false
@@ -183,7 +186,7 @@ func (s *parityStats) f(name string, goV *float64, refV *float64) {
 	fs.record(goSet, refSet, within)
 }
 
-func (s *parityStats) fInt(name string, goV *int, refV *int) {
+func (s *parityStats) fInt(name string, goV, refV *int) {
 	fs := s.fields[name]
 	goSet, refSet := goV != nil, refV != nil
 	within := false
@@ -193,7 +196,7 @@ func (s *parityStats) fInt(name string, goV *int, refV *int) {
 	fs.record(goSet, refSet, within)
 }
 
-func (s *parityStats) fBool(name string, goV *bool, refV *bool) {
+func (s *parityStats) fBool(name string, goV, refV *bool) {
 	fs := s.fields[name]
 	goSet, refSet := goV != nil, refV != nil
 	within := false
@@ -239,11 +242,13 @@ func (s *parityStats) fManeuver(name string, goV *controllers.ManeuverType, refV
 }
 
 func (s *parityStats) report() []string {
-	var out []string
-	out = append(out, fmt.Sprintf("SCAN COVERAGE  hadScan=%d noScan=%d", s.scanTicks, s.noScanTicks))
-	out = append(out, fmt.Sprintf("PHASE  equal=%d mismatch=%d bothNil=%d",
-		s.phaseEqual, s.phaseMismatch, s.phaseBothNil))
-	out = append(out, "PHASE CONFUSION (goPhase -> refPhase: count), top entries:")
+	out := make([]string, 0, 4+len(s.phaseMatrix)+len(s.fields))
+	out = append(out,
+		fmt.Sprintf("SCAN COVERAGE  hadScan=%d noScan=%d", s.scanTicks, s.noScanTicks),
+		fmt.Sprintf("PHASE  equal=%d mismatch=%d bothNil=%d",
+			s.phaseEqual, s.phaseMismatch, s.phaseBothNil),
+		"PHASE CONFUSION (goPhase -> refPhase: count), top entries:",
+	)
 	goPhases := sortedKeys(s.phaseMatrix)
 	for _, gp := range goPhases {
 		inner := s.phaseMatrix[gp]
@@ -333,8 +338,6 @@ func optF64(v *float64) *float64 {
 func optInt[T any](v *T) *T {
 	return v
 }
-
-var _ = trackmodel.Clockwise
 
 func sortedFieldNames(m map[string]*fieldStat) []string {
 	names := make([]string, 0, len(m))

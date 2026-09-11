@@ -40,7 +40,21 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
+// blindStats tracks the blind-package fields we can actually assert today.
+type blindStats struct {
+	phase     fieldStat
+	poseX     fieldStat
+	poseY     fieldStat
+	poseYaw   fieldStat
+	corridor  fieldStat
+	laps      fieldStat
+	isStuck   fieldStat
+	beliefGap bool // true if the bag carried a blind-belief field the Go side can't yet produce
+}
+
 func TestParity_BlindPackagesVsBag(t *testing.T) {
+	t.Parallel()
+
 	dir := os.Getenv("VTITAN_BLIND_BAG_DIR")
 	if dir == "" {
 		t.Skip("VTITAN_BLIND_BAG_DIR not set: no blind Open bag available in repo; " +
@@ -123,18 +137,6 @@ func TestParity_BlindPackagesVsBag(t *testing.T) {
 	blindStats.reportGaps(t)
 }
 
-// blindStats tracks the blind-package fields we can actually assert today.
-type blindStats struct {
-	phase     fieldStat
-	poseX     fieldStat
-	poseY     fieldStat
-	poseYaw   fieldStat
-	corridor  fieldStat
-	laps      fieldStat
-	isStuck   fieldStat
-	beliefGap bool // true if the bag carried a blind-belief field the Go side can't yet produce
-}
-
 func newBlindStats() *blindStats {
 	return &blindStats{
 		phase:    fieldStat{name: "phase"},
@@ -149,17 +151,37 @@ func newBlindStats() *blindStats {
 
 func (s *blindStats) compare(got navigator.DebugSnapshot, ref bagreplay.NavDebugSnapshot) {
 	s.phase.record(got.Phase != navigator.PhaseNotYetStepped, ref.Phase != "", got.Phase.String() == ref.Phase)
-	s.poseX.record(got.PoseX != nil, ref.PoseX != nil, optF64(got.PoseX) != nil && ref.PoseX != nil && approxEq(*got.PoseX, *ref.PoseX))
-	s.poseY.record(got.PoseY != nil, ref.PoseY != nil, optF64(got.PoseY) != nil && ref.PoseY != nil && approxEq(*got.PoseY, *ref.PoseY))
-	s.poseYaw.record(got.PoseYaw != nil, ref.PoseYaw != nil, optF64(got.PoseYaw) != nil && ref.PoseYaw != nil && approxEq(*got.PoseYaw, *ref.PoseYaw))
+	s.poseX.record(
+		got.PoseX != nil,
+		ref.PoseX != nil,
+		optF64(got.PoseX) != nil && ref.PoseX != nil && approxEq(*got.PoseX, *ref.PoseX),
+	)
+	s.poseY.record(
+		got.PoseY != nil,
+		ref.PoseY != nil,
+		optF64(got.PoseY) != nil && ref.PoseY != nil && approxEq(*got.PoseY, *ref.PoseY),
+	)
+	s.poseYaw.record(
+		got.PoseYaw != nil,
+		ref.PoseYaw != nil,
+		optF64(got.PoseYaw) != nil && ref.PoseYaw != nil && approxEq(*got.PoseYaw, *ref.PoseYaw),
+	)
 	var gotCorr *string
 	if got.CurrentCorridor != nil {
 		c := sectionName(*got.CurrentCorridor)
 		gotCorr = &c
 	}
-	s.corridor.record(gotCorr != nil, ref.CurrentCorridor != nil, gotCorr != nil && ref.CurrentCorridor != nil && *gotCorr == *ref.CurrentCorridor)
+	s.corridor.record(
+		gotCorr != nil,
+		ref.CurrentCorridor != nil,
+		gotCorr != nil && ref.CurrentCorridor != nil && *gotCorr == *ref.CurrentCorridor,
+	)
 	s.laps.record(true, true, got.LapsCompleted == ref.LapsCompleted)
-	s.isStuck.record(got.IsStuck != nil, ref.IsStuck != nil, got.IsStuck != nil && ref.IsStuck != nil && *got.IsStuck == *ref.IsStuck)
+	s.isStuck.record(
+		got.IsStuck != nil,
+		ref.IsStuck != nil,
+		got.IsStuck != nil && ref.IsStuck != nil && *got.IsStuck == *ref.IsStuck,
+	)
 
 	// Blind-belief fields the Go port does not yet surface: flag the gap (do
 	// not assert). See navigator.DebugSnapshot for the missing fields.
@@ -195,16 +217,16 @@ func sectionName(s trackmodel.Section) string {
 }
 
 func (s *blindStats) report() []string {
-	var out []string
-	out = append(out, "BLIND-PACKAGE PARITY (localization/wall_heading/race_tracker/corridor_follower)")
-	out = append(out, fmtStat("phase", s.phase))
-	out = append(out, fmtStat("pose_x", s.poseX))
-	out = append(out, fmtStat("pose_y", s.poseY))
-	out = append(out, fmtStat("pose_yaw", s.poseYaw))
-	out = append(out, fmtStat("current_corridor", s.corridor))
-	out = append(out, fmtStat("laps_completed", s.laps))
-	out = append(out, fmtStat("is_stuck", s.isStuck))
-	return out
+	return []string{
+		"BLIND-PACKAGE PARITY (localization/wall_heading/race_tracker/corridor_follower)",
+		fmtStat("phase", s.phase),
+		fmtStat("pose_x", s.poseX),
+		fmtStat("pose_y", s.poseY),
+		fmtStat("pose_yaw", s.poseYaw),
+		fmtStat("current_corridor", s.corridor),
+		fmtStat("laps_completed", s.laps),
+		fmtStat("is_stuck", s.isStuck),
+	}
 }
 
 func fmtStat(name string, f fieldStat) string {

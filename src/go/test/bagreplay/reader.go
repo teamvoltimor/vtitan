@@ -21,6 +21,13 @@ type NavDebugRow struct {
 	Snapshot NavDebugSnapshot
 }
 
+// ScanRow pairs a decoded LIDAR sweep with when it was recorded, on the same
+// elapsed-time basis as NavDebugRow (the bag's first message on ANY topic).
+type ScanRow struct {
+	ElapsedS float64
+	Scan     LaserScan
+}
+
 // NavDebugTopic is the topic CoreNavigator publishes its per-tick snapshot
 // on, matching bag_io.Topics.NAV_DEBUG.
 const NavDebugTopic = "/nav_debug"
@@ -60,13 +67,6 @@ func FindBagFile(path string) (string, error) {
 		// silently replay only the first split.
 		return "", fmt.Errorf("bagreplay: %d .mcap files in %s, expected 1", len(matches), path)
 	}
-}
-
-// ScanRow pairs a decoded LIDAR sweep with when it was recorded, on the same
-// elapsed-time basis as NavDebugRow (the bag's first message on ANY topic).
-type ScanRow struct {
-	ElapsedS float64
-	Scan     LaserScan
 }
 
 // FindVideo returns the path to a run's debug video, if the recorder wrote one

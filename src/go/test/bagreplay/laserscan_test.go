@@ -25,8 +25,7 @@ func encodeLaserScan(order binary.ByteOrder, headerFrameID string,
 	}
 
 	// Header: time stamp (sec, nanosec) then string frame_id.
-	out = append(out, 0, 0, 0, 0) // sec
-	out = append(out, 0, 0, 0, 0) // nanosec
+	out = append(out, 0, 0, 0, 0, 0, 0, 0, 0) // sec, nanosec
 	// frame_id string: uint32 length INCLUDING NUL, then bytes + NUL.
 	fid := append([]byte(headerFrameID), 0x00)
 	lenBuf := make([]byte, 4)
