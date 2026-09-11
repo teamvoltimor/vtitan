@@ -216,5 +216,12 @@ func (o *Orchestrator) Run(ctx context.Context, scenarios []corpus.Scenario) (Re
 	if waitErr != nil {
 		return Report{Results: results}, fmt.Errorf("scenario orchestrator: %w", waitErr)
 	}
+	// A worker can win the resultsCh send against its already-canceled
+	// gctx.Done() branch, so all workers may report success while ctx was
+	// canceled. Check the caller's context directly rather than trusting
+	// waitErr alone, or a canceled Run can return nil.
+	if err := ctx.Err(); err != nil {
+		return Report{Results: results}, fmt.Errorf("scenario orchestrator: %w", err)
+	}
 	return Report{Results: results}, nil
 }
