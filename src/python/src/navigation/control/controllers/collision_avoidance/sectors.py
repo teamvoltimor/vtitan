@@ -393,6 +393,52 @@ def chassis_exit_range_m(angles_rad: np.ndarray) -> np.ndarray:
     return np.minimum(along, across)
 
 
+def ranges_beyond_chassis(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    margin_m: float,
+) -> np.ndarray:
+    """The scan with every self-return replaced by ``inf`` -- no range floor.
+
+    A consumer that must look at returns RIGHT NEXT TO the chassis still has to
+    reject the chassis itself, and a scalar floor cannot do both: it is either
+    above the returns of interest or below the robot's own. ``chassis_exit_range_m``
+    separates them per bearing, which is where the distinction actually lives.
+
+    Measured 2026-09-11 on the two Obstacles rounds, at the 105 ticks a contact
+    recovery engaged -- share whose committed belief found a cluster within
+    ``ESCAPE_MASK_CLUSTER_ASSOC_M``, and how many of the admitted clusters were
+    the robot seeing itself:
+
+    | floor | associated | self-returns | recovery STILL fires |
+    |---|---|---|---|
+    | none (control) | 1.0% | 0.0% | 79.0% |
+    | 0.30 m (the proposer's) | 1.0% | 0.0% | 71.4% |
+    | 0.15 m (the first shipped) | 31.4% | 4.6% | 81.9% |
+    | 0.08 m | 87.6% | 5.5% | 13.3% |
+    | **this, per bearing** | **86.7%** | **1.3%** | **11.4%** |
+
+    It dominates every scalar on BOTH intermediate axes at once: it associates
+    55 points more often than the 0.15 m floor it replaces while admitting fewer
+    self-returns than that floor did. The outcome column is the one that matters
+    -- the 0.15 m floor left the recovery firing on 81.9% of those ticks, no
+    better than masking NOTHING, so the mask shipped earlier the same day was
+    inert exactly where the rounds were being lost.
+
+    Read the control row first. Every tick counted DID engage on the robot, so
+    79.0% is the replay's own ceiling and the other rows are differences against
+    it, not absolutes; the 21% shortfall is the replay seeing only the committed
+    belief and default tuning rather than the deployed overlay.
+
+    ``inf`` rather than a large finite range so a consumer filtering on
+    ``isfinite`` drops these as "no measurement outside the body along this
+    ray", which is what they are.
+    """
+    ranges = np.asarray(lidar_ranges, dtype=float)
+    angles = _angles_for(ranges, lidar_angles)
+    return np.where(ranges >= chassis_exit_range_m(angles) + margin_m, ranges, np.inf)
+
+
 def sector_ranges(
     lidar_ranges: np.ndarray | tuple[float, ...],
     lidar_angles: np.ndarray | tuple[float, ...] | None,

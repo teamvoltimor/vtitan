@@ -19,7 +19,10 @@ from src.navigation.control.controllers.collision_avoidance.controller import (
     CollisionAvoidanceController,
     EscapeManeuver,
 )
-from src.navigation.control.controllers.collision_avoidance.sectors import mask_mapped_obstacles
+from src.navigation.control.controllers.collision_avoidance.sectors import (
+    mask_mapped_obstacles,
+    ranges_beyond_chassis,
+)
 from src.navigation.control.controllers.stuck_detector import StuckDetector
 from src.navigation.control.controllers.waypoint_controller import WaypointController
 
@@ -33,4 +36,5 @@ __all__ = [
     "bumper_gap_ahead",
     "bumper_gap_behind",
     "mask_mapped_obstacles",
+    "ranges_beyond_chassis",
 ]

@@ -26,6 +26,7 @@ from src.navigation.clearances import (
 from src.navigation.control.controllers.collision_avoidance import (
     CollisionAvoidanceController,
     mask_mapped_obstacles,
+    ranges_beyond_chassis,
 )
 from src.navigation.ports import LidarScan
 from tests.fixtures import angle_to_index, create_numpy_scan
@@ -846,3 +847,41 @@ class TestParkingGate:
         gate = controller.parking_clearances(np.array([]), None)
         assert gate.forward_m == controller.no_data_range_m
         assert gate.sweep_m == controller.no_data_range_m
+
+
+class TestRangesBeyondChassis:
+    """The per-bearing self-return filter that replaced the escape mask's floor.
+
+    The whole claim is that a SCALAR cannot do this job, so the central test is
+    one range at two bearings with opposite verdicts.
+    """
+
+    _MARGIN = 0.01
+
+    def test_one_range_two_bearings_opposite_verdicts(self):
+        """0.20 m is the robot behind it and a real obstacle beside it."""
+        ranges = create_numpy_scan()
+        rear, side = angle_to_index(math.pi), angle_to_index(math.pi / 2)
+        ranges[rear] = 0.20  # inside the 0.2722 m rear face
+        ranges[side] = 0.20  # outside the 0.097 m flank
+
+        kept = ranges_beyond_chassis(ranges, ANGLES_FULL_ROTATION, self._MARGIN)
+
+        assert not np.isfinite(kept[rear])
+        assert kept[side] == pytest.approx(0.20)
+
+    def test_return_just_outside_the_boundary_survives(self):
+        ranges = create_numpy_scan()
+        i = angle_to_index(math.pi / 2)
+        ranges[i] = RobotSpecs.WIDTH / 2.0 + self._MARGIN + 0.005
+
+        kept = ranges_beyond_chassis(ranges, ANGLES_FULL_ROTATION, self._MARGIN)
+
+        assert np.isfinite(kept[i])
+
+    def test_distant_returns_are_untouched(self):
+        ranges = create_numpy_scan()
+
+        kept = ranges_beyond_chassis(ranges, ANGLES_FULL_ROTATION, self._MARGIN)
+
+        assert np.allclose(kept, ranges)

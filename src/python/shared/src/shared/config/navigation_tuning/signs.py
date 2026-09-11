@@ -676,35 +676,28 @@ class SignRouterParams(BaseModel):
     0.0 disables the snap and restores belief-anchored masking exactly.
     """
 
-    ESCAPE_MASK_CLUSTER_MIN_RANGE_M: float = Field(
-        default=0.15, gt=0.0, validation_alias=_alias("ESCAPE_MASK_CLUSTER_MIN_RANGE_M")
+    ESCAPE_MASK_CHASSIS_MARGIN_M: float = Field(
+        default=0.01, gt=0.0, validation_alias=_alias("ESCAPE_MASK_CHASSIS_MARGIN_M")
     )
-    """Range floor for the cluster search the escape mask snaps to.
+    """How far outside the nominal chassis rectangle a return stops being the robot.
 
-    ``ProposerParams.min_range_m`` is 0.30, which is right for PROPOSING signs
-    to route around -- one that close is already being passed. It is wrong for
-    this, and silently so: the mask matters exactly when the chassis is beside
-    the pillar, and on the 2026-09-11 wedges the robot-to-sign range was p10
-    0.252, p50 0.363, p90 0.544 m, so the 0.30 floor threw the pillar away at
-    the moment the mask existed for.
+    The cluster search the escape mask snaps to has NO range floor. It cannot
+    have one: the mask matters exactly when the chassis is already beside the
+    pillar, and the contact recoveries that lose the rounds engage at a
+    robot-to-belief range of p10 0.047, p50 0.127, p90 0.280 m -- under any
+    floor high enough to keep the robot's own returns out.
 
-    Measured on run_20260911_110734, share of committed ticks whose belief
-    associates to a cluster within ``ESCAPE_MASK_CLUSTER_ASSOC_M``:
+    ``sectors.ranges_beyond_chassis`` rejects self-returns per bearing instead,
+    off ``chassis_exit_range_m``; its docstring carries the four-floor table
+    that decided it. This is the only tuned quantity left in that filter, and it
+    is a tolerance rather than a threshold: the body is not a perfect box and the
+    mount has play, so a return a few millimetres outside the nominal rectangle
+    is still the chassis.
 
-    | floor | associated |
-    |---|---|
-    | 0.30 (the proposer's) | 8% |
-    | **0.15** | **53%** |
-    | 0.08 | 65% |
-
-    0.15 rather than 0.08 because below it the chassis's own returns enter: the
-    LIDAR beam sits ~8 cm up and the rear face is 0.2722 m behind the sensor,
-    and a self-return snapped to as a pillar would mask a real obstacle. The
-    extra 12 points are not worth a mask that can be aimed at the robot itself.
-
-    Carried as its own field rather than by lowering the proposer's floor: that
-    floor is also the range fusion's, where a very close cluster is a different
-    and unmeasured question.
+    Replaces ``ESCAPE_MASK_CLUSTER_MIN_RANGE_M``, shipped at 0.15 m earlier the
+    same day and retired within hours: that value was chosen on the robot-to-sign
+    range over APPROACH ticks (p50 0.363 m) and then applied to CONTACT ticks
+    (p50 0.127 m), so it switched the mask off precisely where it was needed.
     """
     COMMIT_HYSTERESIS: bool = Field(default=True, validation_alias=_alias("COMMIT_HYSTERESIS"))
     CORRIDOR_FLIP_TICKS: int = Field(default=1, ge=1, validation_alias=_alias("CORRIDOR_FLIP_TICKS"))

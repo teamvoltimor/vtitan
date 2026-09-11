@@ -36,6 +36,7 @@ from src.navigation.control.controllers import (
     WaypointController,
     bumper_gap_ahead,
     mask_mapped_obstacles,
+    ranges_beyond_chassis,
 )
 from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
@@ -1109,10 +1110,22 @@ class CoreNavigator(EscapeRecovery):
             cluster_xy: list[Waypoint] = []
             assoc = self._tuning.sign_router.ESCAPE_MASK_CLUSTER_ASSOC_M
             if assoc > 0.0:
-                params = ProposerParams(
-                    min_range_m=self._tuning.sign_router.ESCAPE_MASK_CLUSTER_MIN_RANGE_M
+                # No range floor, and the chassis rejected per bearing instead:
+                # the contact recoveries this mask exists to prevent engage at a
+                # robot-to-belief range of p50 0.127 m, under any scalar floor
+                # that also keeps the robot's own returns out. See
+                # ESCAPE_MASK_CHASSIS_MARGIN_M for the four-floor comparison.
+                near_scan = LidarScan(
+                    ranges_m=tuple(
+                        ranges_beyond_chassis(
+                            scan.ranges_m,
+                            scan.angles_rad,
+                            self._tuning.sign_router.ESCAPE_MASK_CHASSIS_MARGIN_M,
+                        ).tolist()
+                    ),
+                    angles_rad=scan.angles_rad,
                 )
-                for cluster in find_clusters(scan, params):
+                for cluster in find_clusters(near_scan, ProposerParams(min_range_m=0.0)):
                     bearing = cluster.bearing_rad + pose.yaw
                     cluster_xy.append(
                         Waypoint(

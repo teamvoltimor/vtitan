@@ -21,6 +21,7 @@ from src.navigation.control.controllers.collision_avoidance.controller import (
 )
 from src.navigation.control.controllers.collision_avoidance.sectors import (
     mask_mapped_obstacles,
+    ranges_beyond_chassis,
     sector_ranges,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "bumper_gap_ahead",
     "bumper_gap_behind",
     "mask_mapped_obstacles",
+    "ranges_beyond_chassis",
     "sector_ranges",
 ]

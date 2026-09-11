@@ -69,15 +69,16 @@ escape_mask_radius_m = 0.12
 # 0.50 m the WRO grid spaces two pillars by, so one belief cannot snap onto its
 # neighbour. 0.0 disables the snap.
 escape_mask_cluster_assoc_m = 0.35
-# Range floor for that cluster search. The proposer's own 0.30 is right for
-# PROPOSING a sign to route around but wrong here: the mask matters exactly when
-# the chassis is beside the pillar, and on the 2026-09-11 wedges the robot-to-
-# sign range was p10 0.252 / p50 0.363 / p90 0.544 m, so 0.30 threw the pillar
-# away at the moment the mask existed for. Association on run_110734: 8% at
-# 0.30, 53% at 0.15, 65% at 0.08. Not lower than 0.15 -- below it the chassis's
-# own returns enter (beam ~8 cm up, rear face 0.2722 m back) and a self-return
-# snapped to as a pillar would mask a real obstacle.
-escape_mask_cluster_min_range_m = 0.15
+# That cluster search has NO range floor: the contact recoveries the mask exists
+# to prevent engage at a robot-to-belief range of p10 0.047 / p50 0.127 / p90
+# 0.280 m, under any floor high enough to keep the robot's own returns out. The
+# chassis is rejected per BEARING instead (sectors.ranges_beyond_chassis), and
+# this is only the tolerance on the nominal rectangle -- the body is not a
+# perfect box and the mount has play. Association at the 105 engagement ticks of
+# 2026-09-11, with the share of admitted clusters that were the robot itself:
+# 0.30 m floor 1.0%/0.0%, 0.15 m 31.4%/4.6%, 0.08 m 87.6%/5.5%, per-bearing
+# 86.7%/1.3% -- it beats every scalar on both axes at once.
+escape_mask_chassis_margin_m = 0.01
 
 
 # Once the router has engaged a sign, keep routing around THAT sign until it is
