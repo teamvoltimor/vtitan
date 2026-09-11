@@ -622,11 +622,20 @@ class TestClusteredLidarRangeFusion:
         pinhole = _detection_to_world(det, pos, yaw, tuning=tuning_with_overrides({}, group="sign_discovery"))
         assert fused == pytest.approx(pinhole)
 
-    def test_ships_off_and_is_a_no_op(self):
-        """Both flags default off, so nothing above reaches a race."""
+    def test_ships_on_and_never_ungated(self):
+        """Both flags ship ON, and the gate is the condition of the fusion.
+
+        Shipped 2026-09-11 on 78 bags of hardware replay: gated, pass-side
+        routing errors go 194/654 (29.7%) -> 180/712 (25.3%), fewer errors
+        against a denominator that GREW. The same harness reproduced the
+        2026-09-06 refutation on the UNGATED arm (227/605, 37.5%), so the
+        second assertion is not a formality: the fusion without its gate is
+        measured harmful, and a tree that ships one without the other ships a
+        known regression.
+        """
         shipped = NavigationTuning.load_default().sign_discovery
-        assert shipped.LIDAR_RANGE_FUSION is False
-        assert shipped.LIDAR_RANGE_FUSION_CLUSTER is False
+        assert shipped.LIDAR_RANGE_FUSION is True
+        assert shipped.LIDAR_RANGE_FUSION_CLUSTER is True
 
 
 class TestLatticeSnap:
@@ -731,3 +740,78 @@ class TestLatticeConsistentAssociation:
         sign_map.observe([self._obs(*target)], robot)
         sign_map.observe([self._obs(target[0] + 0.12, target[1])], robot)
         assert len(sign_map._tracks) == 1
+
+
+class TestColourVotePooling:
+    """``COLOUR_POOL_RADIUS_M``: resolve colour over a neighbourhood of fragments.
+
+    The measured failure is that one pillar carries several tracks and each
+    resolves its colour alone, so the router can commit to a minority-red
+    fragment of a green pillar and command the wrong side of a round-ending
+    rule. Pooling decides the colour over every track within the radius.
+    """
+
+    @staticmethod
+    def _map(radius: float) -> ObservedSignMap:
+        tuning = tuning_with_overrides({"COLOUR_POOL_RADIUS_M": radius}, group="sign_discovery")
+        return ObservedSignMap(_CONFIDENCE, tuning=tuning)
+
+    @staticmethod
+    def _vote(sign_map: ObservedSignMap, x: float, y: float, color: SignColor, confidence: float) -> None:
+        """One observation at a world position, cast directly."""
+        sign_map.observe(
+            [
+                TrafficSignObservation(
+                    world_x_m=x, world_y_m=y, color=color, confidence=confidence, detected_at_timestamp=0.0
+                )
+            ],
+            Waypoint(x, y - 0.5),
+        )
+
+    def test_off_by_default_each_fragment_keeps_its_own_colour(self) -> None:
+        sign_map = self._map(0.0)
+        self._vote(sign_map, 1.0, 1.0, SignColor.RED, 0.9)
+        self._vote(sign_map, 1.4, 1.0, SignColor.GREEN, 0.9)
+        colours = {t.color for t in sign_map._tracks}
+        assert colours == {SignColor.RED, SignColor.GREEN}
+
+    def test_a_minority_fragment_adopts_its_neighbourhood_colour(self) -> None:
+        """The measured case: a weak RED fragment beside strong GREEN siblings."""
+        sign_map = self._map(0.30)
+        # Far enough apart not to associate into one track, close enough to pool.
+        self._vote(sign_map, 1.0, 1.0, SignColor.RED, 0.30)
+        for _ in range(3):
+            self._vote(sign_map, 1.28, 1.0, SignColor.GREEN, 0.90)
+        assert len(sign_map._tracks) > 1, "the fragments must stay separate tracks"
+        assert all(t.color is SignColor.GREEN for t in sign_map._tracks)
+
+    def test_pooling_does_not_merge_tracks_or_move_them(self) -> None:
+        """Only the reported colour changes; the map's geometry is untouched."""
+        positions = []
+        for radius in (0.0, 0.30):
+            sign_map = self._map(radius)
+            self._vote(sign_map, 1.0, 1.0, SignColor.RED, 0.30)
+            for _ in range(3):
+                self._vote(sign_map, 1.28, 1.0, SignColor.GREEN, 0.90)
+            positions.append([(round(t.x, 6), round(t.y, 6), t.hits) for t in sign_map._tracks])
+        assert positions[0] == positions[1]
+
+    def test_a_track_outside_the_radius_does_not_vote(self) -> None:
+        sign_map = self._map(0.10)
+        self._vote(sign_map, 1.0, 1.0, SignColor.RED, 0.30)
+        for _ in range(3):
+            self._vote(sign_map, 1.40, 1.0, SignColor.GREEN, 0.90)
+        near = min(sign_map._tracks, key=lambda t: abs(t.x - 1.0))
+        assert near.color is SignColor.RED
+
+    def test_pooled_evidence_is_recomputed_not_accumulated(self) -> None:
+        """A fragment that later gathers its own evidence can win the pool back."""
+        sign_map = self._map(0.30)
+        for _ in range(3):
+            self._vote(sign_map, 1.28, 1.0, SignColor.GREEN, 0.90)
+        self._vote(sign_map, 1.0, 1.0, SignColor.RED, 0.30)
+        near = min(sign_map._tracks, key=lambda t: abs(t.x - 1.0))
+        assert near.color is SignColor.GREEN
+        for _ in range(8):
+            self._vote(sign_map, 1.0, 1.0, SignColor.RED, 0.95)
+        assert near.color is SignColor.RED

@@ -920,8 +920,36 @@ class SignDiscoveryParams(BaseModel):
     estimate.
     """
 
+    COLOUR_POOL_RADIUS_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("COLOUR_POOL_RADIUS_M"))
+    """Radius over which a track's colour vote pools its NEIGHBOURS' votes.
+
+    Colour is resolved per TRACK, but a track is a fragment and a fragment is
+    not a physical object. Measured 2026-09-07 on the wrong-side pass reported
+    from the track: one pillar carried nine tracks within half a metre, and the
+    router committed to the one holding 4 hits and 2.29 of RED weight while its
+    siblings held 20-30 hits and 18-24 of GREEN. Pooling the votes within
+    0.30 m calls that pillar green 40.8 to 11.2 -- the evidence to get it right
+    was already in the map, split across fragments that each voted alone.
+
+    Deliberately NOT a merge. Association, positions, hit counts and publishing
+    are untouched; only the COLOUR a published track reports is decided over a
+    neighbourhood instead of in isolation. Merging fragments changes which
+    object the router commits to and how far away it thinks it is, which is a
+    much larger change than this evidence supports; splitting the colour vote
+    is the specific failure measured, so this is the specific thing it fixes.
+
+    The radius is a claim about how far apart two fragments of ONE pillar can
+    sit. The closest two legal positions are 0.20 m apart (the two width
+    lines), so a radius at or above that can pool across two genuinely
+    different pillars, and a same-colour pair on both laterals is 32% of the
+    corpus -- where pooling is harmless -- but a mixed pair is not.
+
+    DEFAULTS TO 0, which disables it: every track resolves its own colour
+    exactly as before.
+    """
+
     LIDAR_RANGE_FUSION_CLUSTER: bool = Field(
-        default=False, validation_alias=_alias("LIDAR_RANGE_FUSION_CLUSTER")
+        default=True, validation_alias=_alias("LIDAR_RANGE_FUSION_CLUSTER")
     )
     """Gate ``LIDAR_RANGE_FUSION`` on a pillar-shaped, ISOLATED cluster.
 
@@ -966,7 +994,10 @@ class SignDiscoveryParams(BaseModel):
     it shows the gated range no longer carries the SIGNATURE that was measured
     harmful, not that it is more accurate. A run settles that.
 
-    DEFAULTS OFF alongside the mechanism it gates.
+    **SHIPPED ON 2026-09-11 alongside the mechanism it gates**, on 78 bags of
+    replay: see ``LIDAR_RANGE_FUSION``. This flag is not independently useful.
+    Off, the fusion is the version measured harmful; the fusion off, this is
+    inert. They move together.
     """
 
     LIDAR_RANGE_FUSION_AGREEMENT: float = Field(
@@ -984,7 +1015,7 @@ class SignDiscoveryParams(BaseModel):
     first run that exercises it should re-read it.
     """
 
-    LIDAR_RANGE_FUSION: bool = Field(default=False, validation_alias=_alias("LIDAR_RANGE_FUSION"))
+    LIDAR_RANGE_FUSION: bool = Field(default=True, validation_alias=_alias("LIDAR_RANGE_FUSION"))
     """Take the sign's range from the LIDAR ray at the camera's bearing.
 
     **Shipped ON until 2026-09-06 and measured to make the estimate WORSE.**
@@ -1000,10 +1031,26 @@ class SignDiscoveryParams(BaseModel):
     the walls. Even restricted to pillar-shaped returns, range error is p50
     **-69 cm** with only 16% inside 10 cm.
 
-    Kept because the idea is sound and the implementation is what failed. A
-    version requiring a small ISOLATED cluster and agreement with the calibrated
-    pinhole is worth measuring -- but cluster shape alone discriminated pillar
-    from wall at **54%**, near chance, so it needs its own evidence first.
+    **RE-SHIPPED ON 2026-09-11, but ONLY as the gated version.** The evidence
+    the refutation asked for arrived: replayed over 78 hardware bags
+    (2026-09-06 to 2026-09-10), the arm that reproduces the refutation above
+    reproduces it exactly -- ungated fusion took pass-side routing errors from
+    **29.7% to 37.5%**, which is what validates the harness -- while gating on
+    ``LIDAR_RANGE_FUSION_CLUSTER`` is the only arm that wins on BOTH axes:
+
+    | arm | routing errors | passes judged | routing % |
+    |---|---|---|---|
+    | baseline (both off) | 194 | 654 | 29.7% |
+    | fusion, ungated | 227 | 605 | **37.5%** |
+    | fusion + cluster gate | **180** | **712** | **25.3%** |
+
+    Fewer errors in absolute terms against a denominator that GREW by 58
+    passes, so this is not the denominator loss that refuted the lattice snap
+    on the same corpus. The two flags now ship together and the gate is not
+    optional: ungated, the table above says this knob is harmful.
+
+    Still unmeasured ON HARDWARE -- a replay shows what the map would have
+    believed, not what the car would have done.
     """
 
     FRAME_EDGE_TOLERANCE_PX: float = Field(default=2.0, ge=0.0, validation_alias=_alias("FRAME_EDGE_TOLERANCE_PX"))

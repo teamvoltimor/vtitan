@@ -373,7 +373,17 @@ def _detection_to_world(
     # calibrated pinhole would be worth measuring -- but the cluster-shape test
     # alone discriminated pillar from wall at 54%, near chance, so that wants
     # its own evidence before it ships.
-    if tuning.sign_discovery.LIDAR_RANGE_FUSION and lidar_ranges_m and lidar_angles_rad:
+    # Length, not truthiness: the declared type is Sequence[float], and a
+    # numpy array is one -- `and array` raises "truth value is ambiguous"
+    # rather than testing emptiness, so a caller handing over the sweep it
+    # already has as an array (every bag replay) crashes here.
+    if (
+        tuning.sign_discovery.LIDAR_RANGE_FUSION
+        and lidar_ranges_m is not None
+        and lidar_angles_rad is not None
+        and len(lidar_ranges_m) > 0
+        and len(lidar_angles_rad) > 0
+    ):
         lidar_range = (
             _clustered_range(lidar_ranges_m, lidar_angles_rad, theta_h, distance, tuning)
             if tuning.sign_discovery.LIDAR_RANGE_FUSION_CLUSTER
@@ -472,6 +482,10 @@ class _SignTrack:
     on hardware. Letting a nearer camera reading overwrite a LIDAR fix would
     reintroduce exactly that error at the moment it matters most."""
 
+    pooled_votes: dict[SignColor, float] | None = None
+    """Votes pooled from this track AND its neighbours, or None when pooling is
+    off. Set by ``ObservedSignMap._repool_colours``; see COLOUR_POOL_RADIUS_M."""
+
     @property
     def color(self) -> SignColor:
         """The winning colour vote, or UNKNOWN while no camera has voted.
@@ -484,9 +498,10 @@ class _SignTrack:
         honest answer for it -- ``max()`` over an empty dict would raise, and
         any default colour would be a coin flip on a round-ending rule.
         """
-        if not self.votes:
+        votes = self.votes if self.pooled_votes is None else self.pooled_votes
+        if not votes:
             return SignColor.UNKNOWN
-        return max(self.votes, key=lambda color: self.votes[color])
+        return max(votes, key=lambda color: votes[color])
 
     snap_m: float = 0.0
     """Lattice snap radius this track publishes with. See ``snap_to_lattice``."""
@@ -550,6 +565,7 @@ class ObservedSignMap:
         self._association_dist_m = association_dist_m if association_dist_m is not None else sd.ASSOCIATION_DIST_M
         self._min_hits = min_hits if min_hits is not None else sd.MIN_HITS
         self._snap_m = sd.SNAP_TO_LATTICE_M
+        self._colour_pool_m = sd.COLOUR_POOL_RADIUS_M
         self._robot_corridor_flip_ticks = (
             robot_corridor_flip_ticks if robot_corridor_flip_ticks is not None else sd.ROBOT_CORRIDOR_FLIP_TICKS
         )
@@ -605,6 +621,34 @@ class ObservedSignMap:
                 continue
 
             self._fold(world, observed_range, obs, robot_corridor)
+
+        self._repool_colours()
+
+    def _repool_colours(self) -> None:
+        """Decide each track's colour over its NEIGHBOURHOOD, not in isolation.
+
+        Inert unless ``COLOUR_POOL_RADIUS_M`` is set. Sums the confidence
+        votes of every track within the radius (including the track itself)
+        and stores the result on the track; ``_SignTrack.color`` then reads
+        that instead of its own votes. Nothing else about the track changes --
+        not its position, its hit count, or whether it publishes -- so this
+        cannot alter which objects the router sees, only what colour the ones
+        it already sees report.
+
+        Recomputed from scratch each frame rather than accumulated, so a track
+        whose neighbours change (a new fragment appears, or the radius stops
+        reaching one) never carries stale pooled evidence.
+        """
+        if self._colour_pool_m <= 0.0:
+            return
+        for track in self._tracks:
+            pooled: dict[SignColor, float] = {}
+            for other in self._tracks:
+                if math.dist((track.x, track.y), (other.x, other.y)) > self._colour_pool_m:
+                    continue
+                for color, weight in other.votes.items():
+                    pooled[color] = pooled.get(color, 0.0) + weight
+            track.pooled_votes = pooled
 
     def propose(self, positions: list[tuple[float, float]] | None, robot_pos: Waypoint) -> None:
         """Fold LIDAR-proposed POSITIONS into the map, casting no colour vote.

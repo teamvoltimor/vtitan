@@ -52,15 +52,25 @@ frame_edge_tolerance_px = 2.0
 # which is what max_ingest_range_m below is for. Prefer fixing the detector's
 # box convention and returning this to 1.0.
 range_scale = 1.95
-# Take the sign's range from the LIDAR ray at the camera's bearing. Shipped TRUE
-# until 2026-09-06 and measured to make the estimate WORSE: at the camera's
-# bearing the return is wall-shaped 51% of the time and pillar-shaped 27%,
-# median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of
+# Take the sign's range from the LIDAR ray at the camera's bearing. ONLY VALID
+# PAIRED WITH lidar_range_fusion_cluster BELOW -- the two are one mechanism.
+#
+# Shipped TRUE until 2026-09-06 and measured to make the estimate WORSE: at the
+# camera's bearing the return is wall-shaped 51% of the time and pillar-shaped
+# 27%, median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of
 # detections (the gate is 0.05 < r < 10.0, i.e. no gate) and a wall behind a
 # sign is always FURTHER, so it was half the outward bias that pinned believed
 # signs to the walls. Costs 28 cm of median position error with the corrected
 # bearing.
-lidar_range_fusion = false
+#
+# Back ON 2026-09-11, gated. Replayed over 78 hardware bags (09-06 to 09-10),
+# pass-side routing errors / passes judged:
+#     both off (baseline)     194 / 654   29.7%
+#     fusion UNGATED          227 / 605   37.5%   <- reproduces the refutation
+#     fusion + cluster gate   180 / 712   25.3%   <- fewer errors, MORE passes
+# The ungated arm reproducing its own refutation is what validates the harness.
+# The gated arm is the only one that improves without shrinking the denominator.
+lidar_range_fusion = true
 
 # Camera capture-to-consumption lag, used ONLY when a detection payload carries
 # no capture stamp (an older vision_node). /vision/detections is a headerless
@@ -79,10 +89,12 @@ vision_latency_s = 0.85
 
 # Snap a fixed observation to the corridor lattice; 0.0 disables.
 snap_to_lattice_m = 0.0
-# The two knobs below parameterise lidar_range_fusion above, which ships
-# REFUTED-off: a return within this range of a track's position clusters with
-# it when this many proportion AGREE it pillar-shaped. Inert while the fusion
-# is off.
-lidar_range_fusion_cluster = false
+# The two knobs below parameterise lidar_range_fusion above. The gate requires
+# a free-standing cluster of pillar width at the camera's bearing whose range
+# AGREES with the pinhole within lidar_range_fusion_agreement; failing either
+# test, the pinhole stands. NOT optional: with this false the fusion above is
+# the version measured harmful.
+lidar_range_fusion_cluster = true
 lidar_range_fusion_agreement = 0.5
 
+colour_pool_radius_m = 0.0   # pool colour votes across fragments of one pillar within this radius (0 = off)

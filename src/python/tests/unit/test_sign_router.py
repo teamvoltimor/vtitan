@@ -1078,18 +1078,29 @@ class TestDetectionToWorldLidarFusion:
     was trusted over the pinhole (bbox-height) distance estimate whenever the
     ray was a plausible return.
 
-    **Shipped ON until 2026-09-06 and now OFF by default**, because a single ray
-    at the camera's bearing is not the pillar: on run_20260906_192424 the return
-    there is wall-shaped 51% of the time and pillar-shaped 27%, and the override
-    fired on 92.5% of detections while costing 28 cm of median position error.
-    See ``SignDiscoveryParams.LIDAR_RANGE_FUSION``.
+    **Shipped ON until 2026-09-06, OFF until 2026-09-11, and now ON AGAIN but
+    GATED**, because a single ray at the camera's bearing is not the pillar: on
+    run_20260906_192424 the return there is wall-shaped 51% of the time and
+    pillar-shaped 27%, and the override fired on 92.5% of detections while
+    costing 28 cm of median position error. See
+    ``SignDiscoveryParams.LIDAR_RANGE_FUSION``.
 
-    The mechanism is kept, so these still pin it -- with the flag ON explicitly,
-    rather than inherited, so they keep testing the code and not the default.
+    This class tests the UNGATED ray, which is still the fallback path when
+    ``LIDAR_RANGE_FUSION_CLUSTER`` is off, so every test here now disables that
+    gate EXPLICITLY. A single-ray scan cannot satisfy the shipped gate -- it
+    has no isolated cluster -- so inheriting the default would silently turn
+    each of these into a test of the pinhole instead.
     """
 
+    UNGATED = {"LIDAR_RANGE_FUSION": True, "LIDAR_RANGE_FUSION_CLUSTER": False}
+
     def test_the_shipped_default_does_not_override_the_pinhole(self, router_config):
-        """The default must be measurable from the test, not assumed."""
+        """The default must be measurable from the test, not assumed.
+
+        Passes for a DIFFERENT reason since 2026-09-11: the fusion now ships
+        ON, and what holds the pinhole here is the cluster gate rejecting a
+        lone ray -- exactly the discrimination the refuted version lacked.
+        """
         distance, theta_h = 0.9, 0.15
         det = _detection_at_distance_bearing(distance, theta_h)
         ranges, angles = _single_ray_scan(theta_h, 0.6)
@@ -1118,7 +1129,7 @@ class TestDetectionToWorldLidarFusion:
             robot_yaw=0.0,
             lidar_ranges_m=ranges,
             lidar_angles_rad=angles,
-            tuning=tuning_with_overrides({"LIDAR_RANGE_FUSION": True}, group="sign_discovery"),
+            tuning=tuning_with_overrides(self.UNGATED, group="sign_discovery"),
         )
 
         expected = _expected_world(true_distance, theta_h)
@@ -1135,6 +1146,7 @@ class TestDetectionToWorldLidarFusion:
             robot_yaw=0.0,
             lidar_ranges_m=ranges,
             lidar_angles_rad=angles,
+            tuning=tuning_with_overrides(self.UNGATED, group="sign_discovery"),
         )
 
         expected = _expected_world(distance, theta_h)
@@ -1152,6 +1164,7 @@ class TestDetectionToWorldLidarFusion:
             robot_yaw=0.0,
             lidar_ranges_m=ranges,
             lidar_angles_rad=angles,
+            tuning=tuning_with_overrides(self.UNGATED, group="sign_discovery"),
         )
 
         expected = _expected_world(distance, theta_h)
@@ -1162,7 +1175,12 @@ class TestDetectionToWorldLidarFusion:
         det = _detection_at_distance_bearing(distance, theta_h)
 
         world = _detection_to_world(
-            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=None, lidar_angles_rad=None
+            det,
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            lidar_ranges_m=None,
+            lidar_angles_rad=None,
+            tuning=tuning_with_overrides(self.UNGATED, group="sign_discovery"),
         )
 
         expected = _expected_world(distance, theta_h)
