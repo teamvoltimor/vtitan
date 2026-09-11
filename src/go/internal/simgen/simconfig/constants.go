@@ -7,14 +7,26 @@ package simconfig
 
 import "math"
 
+// LightingSpec defines the randomization ranges for one lighting preset.
+type LightingSpec struct {
+	IntensityMin     float64
+	IntensityMax     float64
+	AmbientMin       float64
+	AmbientMax       float64
+	DirXMin, DirXMax float64
+	DirYMin, DirYMax float64
+	DirZ             float64
+	CastShadows      bool
+}
+
 // File and directory permission constants.
 const (
 	DirPermissions  = 0o750
 	FilePermissions = 0o644
 )
 
-// Mat geometry — track, wall, corridor, traffic sign, parking and starting
-// zone constants — now lives in track_constants.gen.go, generated from
+// Mat geometry - track, wall, corridor, traffic sign, parking and starting
+// zone constants - now lives in track_constants.gen.go, generated from
 // src/config/track.toml.
 //
 // Robot chassis, Ackermann, wheel, LIDAR-mount, and camera-mount constants now live in
@@ -38,11 +50,6 @@ const (
 	ImuMass       = 0.0025 // kg
 )
 
-var (
-	// ImuSize is the BNO085 board footprint [W, D, H] in meters.
-	ImuSize = [3]float64{0.0256, 0.0227, 0.0046}
-)
-
 // LIDAR (Slamtec C1).
 const (
 	LidarMinRange    = 0.05
@@ -63,29 +70,6 @@ const (
 	BaseWorldPath   = "worlds/wro_track_2026.sdf"
 	FolderScenarios = "scenarios"
 )
-
-// LightingSpec defines the randomization ranges for one lighting preset.
-type LightingSpec struct {
-	IntensityMin     float64
-	IntensityMax     float64
-	AmbientMin       float64
-	AmbientMax       float64
-	DirXMin, DirXMax float64
-	DirYMin, DirYMax float64
-	DirZ             float64
-	CastShadows      bool
-}
-
-// LightingSpecs is the table-driven set of all six lighting presets.
-// Keys match the LightingScenario string constants.
-var LightingSpecs = map[LightingScenario]LightingSpec{
-	LightingDirectSunlight: {0.9, 1.0, 0.3, 0.4, -0.7, -0.3, -0.7, -0.3, -1.0, true},
-	LightingCloudy:         {0.6, 0.75, 0.5, 0.6, -0.5, -0.5, -0.5, -0.5, -1.0, true},
-	LightingIndoorBright:   {0.7, 0.85, 0.6, 0.7, 0.0, 0.0, 0.0, 0.0, -1.0, false},
-	LightingIndoorDim:      {0.5, 0.65, 0.4, 0.5, 0.0, 0.0, 0.0, 0.0, -1.0, false},
-	LightingEvening:        {0.6, 0.8, 0.3, 0.4, -0.9, -0.7, -0.5, 0.5, -0.3, true},
-	LightingMixed:          {0.7, 0.9, 0.5, 0.65, -0.6, -0.4, -0.6, -0.4, -1.0, true},
-}
 
 // Z-layer positions for visual layering in the SDF world.
 const (
@@ -226,31 +210,11 @@ const (
 	NoiseTypeGaussian    = "gaussian"
 )
 
-var (
-	// RobotChassisColor is the blue color for the robot chassis.
-	RobotChassisColor = RGB{0.0, 0.0, 0.8}
-
-	// RobotFrontIndicatorColor is the red color for the robot front-facing indicator.
-	RobotFrontIndicatorColor = RGB{1.0, 0.0, 0.0}
-
-	// RobotWheelColor is the dark grey color for robot wheels.
-	RobotWheelColor = RGB{0.1, 0.1, 0.1}
-
-	// RobotWheelStripeColor is the yellow color for wheel position indicators.
-	RobotWheelStripeColor = RGB{1.0, 1.0, 0.0}
-
-	// RobotImuColor is the green color for the IMU sensor visual.
-	RobotImuColor = RGB{0.0, 0.4, 0.0}
-
-	// RobotFrontIndicatorSize is the [W, D, H] of the red front indicator box.
-	RobotFrontIndicatorSize = [3]float64{0.04, 0.04, 0.005}
-)
-
 // Wheel stripe geometry scale factors (applied to wheel radius).
 // stripeOffset = r * StripeOffsetFactor
 // stripeDims   = [r/RefRadius * StripeDim{X,Y,Z}]
 const (
-	StripeOffsetFactor = 0.314 // ≈ 0.1π — places stripe at quarter-turn position
+	StripeOffsetFactor = 0.314 // ≈ 0.1π - places stripe at quarter-turn position
 	StripeRefRadius    = 0.035 // reference wheel radius used in Python original
 	StripeDimX         = 0.004 // stripe box width at reference radius
 	StripeDimY         = 0.050 // stripe box depth at reference radius
@@ -286,17 +250,6 @@ const (
 	AmbientLightQuadraticAtten = 0.001
 )
 
-var (
-	SunDiffuseColor      = RGB{0.8, 0.8, 0.8}
-	SunSpecularColor     = RGB{0.2, 0.2, 0.2}
-	SunDefaultDirection  = [3]float64{-0.5, -0.5, -1.0}
-	AmbientDiffuseColor  = RGB{0.5, 0.5, 0.5}
-	AmbientSpecularColor = RGB{0.1, 0.1, 0.1}
-
-	// GroundColor is the white color for the WRO mat.
-	GroundColor = RGB{1.0, 1.0, 1.0}
-)
-
 // GroundFrictionMu is the friction coefficient for the ground plane.
 const GroundFrictionMu = 0.8
 
@@ -310,17 +263,6 @@ const (
 	GridLineHeight      = 0.001
 	SubdivLineThickness = 0.001
 	SubdivLineHeight    = 0.001
-)
-
-var (
-	CornerMarkerBlueColor    = RGB{0.0, 0.2, 1.0}
-	CornerMarkerOrangeColor  = RGB{1.0, 0.4, 0.0}
-	GridLineColor            = RGB{0.6, 0.6, 0.6}
-	CentralLogoColor         = RGB{0.9, 0.9, 0.9}
-	CorridorSubdivisionColor = RGB{0.5, 0.5, 0.5}
-
-	// StartingZonePlaceholderColor is the slightly lighter grey for the base template placeholder zone.
-	StartingZonePlaceholderColor = RGB{0.7, 0.7, 0.7}
 )
 
 // Validation clearance constants.
@@ -353,11 +295,6 @@ const (
 	DefaultLightingScenario  = string(LightingDirectSunlight)
 )
 
-var (
-	// DefaultSunDirection is the default direction for sun lighting in the world.
-	DefaultSunDirection = [3]float64{-0.5, -0.5, -1.0}
-)
-
 // Inertia tensor component names (for robot URDF/SDF).
 const (
 	InertiaComponentIxx = "ixx"
@@ -368,7 +305,7 @@ const (
 	InertiaComponentIyz = "iyz"
 )
 
-// Robot link names — used in SDF models, Gazebo plugins, and ROS2 TF frames.
+// Robot link names - used in SDF models, Gazebo plugins, and ROS2 TF frames.
 const (
 	RobotLinkRearLeftWheel   = "rear_left_wheel"
 	RobotLinkRearRightWheel  = "rear_right_wheel"
@@ -381,7 +318,7 @@ const (
 	RobotLinkImu             = "imu_link"
 )
 
-// Robot joint names — must match Ackermann plugin references and TF frame parents.
+// Robot joint names - must match Ackermann plugin references and TF frame parents.
 const (
 	RobotJointRearLeft        = "rear_left_wheel_joint"
 	RobotJointRearRight       = "rear_right_wheel_joint"
@@ -398,4 +335,67 @@ const (
 const (
 	ParkingBlockIDBlock1 = "block1"
 	ParkingBlockIDBlock2 = "block2"
+)
+
+var (
+	// ImuSize is the BNO085 board footprint [W, D, H] in meters.
+	ImuSize = [3]float64{0.0256, 0.0227, 0.0046}
+)
+
+// LightingSpecs is the table-driven set of all six lighting presets.
+// Keys match the LightingScenario string constants.
+var LightingSpecs = map[LightingScenario]LightingSpec{
+	LightingDirectSunlight: {0.9, 1.0, 0.3, 0.4, -0.7, -0.3, -0.7, -0.3, -1.0, true},
+	LightingCloudy:         {0.6, 0.75, 0.5, 0.6, -0.5, -0.5, -0.5, -0.5, -1.0, true},
+	LightingIndoorBright:   {0.7, 0.85, 0.6, 0.7, 0.0, 0.0, 0.0, 0.0, -1.0, false},
+	LightingIndoorDim:      {0.5, 0.65, 0.4, 0.5, 0.0, 0.0, 0.0, 0.0, -1.0, false},
+	LightingEvening:        {0.6, 0.8, 0.3, 0.4, -0.9, -0.7, -0.5, 0.5, -0.3, true},
+	LightingMixed:          {0.7, 0.9, 0.5, 0.65, -0.6, -0.4, -0.6, -0.4, -1.0, true},
+}
+
+var (
+	// RobotChassisColor is the blue color for the robot chassis.
+	RobotChassisColor = RGB{0.0, 0.0, 0.8}
+
+	// RobotFrontIndicatorColor is the red color for the robot front-facing indicator.
+	RobotFrontIndicatorColor = RGB{1.0, 0.0, 0.0}
+
+	// RobotWheelColor is the dark grey color for robot wheels.
+	RobotWheelColor = RGB{0.1, 0.1, 0.1}
+
+	// RobotWheelStripeColor is the yellow color for wheel position indicators.
+	RobotWheelStripeColor = RGB{1.0, 1.0, 0.0}
+
+	// RobotImuColor is the green color for the IMU sensor visual.
+	RobotImuColor = RGB{0.0, 0.4, 0.0}
+
+	// RobotFrontIndicatorSize is the [W, D, H] of the red front indicator box.
+	RobotFrontIndicatorSize = [3]float64{0.04, 0.04, 0.005}
+)
+
+var (
+	SunDiffuseColor      = RGB{0.8, 0.8, 0.8}
+	SunSpecularColor     = RGB{0.2, 0.2, 0.2}
+	SunDefaultDirection  = [3]float64{-0.5, -0.5, -1.0}
+	AmbientDiffuseColor  = RGB{0.5, 0.5, 0.5}
+	AmbientSpecularColor = RGB{0.1, 0.1, 0.1}
+
+	// GroundColor is the white color for the WRO mat.
+	GroundColor = RGB{1.0, 1.0, 1.0}
+)
+
+var (
+	CornerMarkerBlueColor    = RGB{0.0, 0.2, 1.0}
+	CornerMarkerOrangeColor  = RGB{1.0, 0.4, 0.0}
+	GridLineColor            = RGB{0.6, 0.6, 0.6}
+	CentralLogoColor         = RGB{0.9, 0.9, 0.9}
+	CorridorSubdivisionColor = RGB{0.5, 0.5, 0.5}
+
+	// StartingZonePlaceholderColor is the slightly lighter grey for the base template placeholder zone.
+	StartingZonePlaceholderColor = RGB{0.7, 0.7, 0.7}
+)
+
+var (
+	// DefaultSunDirection is the default direction for sun lighting in the world.
+	DefaultSunDirection = [3]float64{-0.5, -0.5, -1.0}
 )

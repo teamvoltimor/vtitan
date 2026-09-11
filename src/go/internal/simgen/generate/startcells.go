@@ -2,11 +2,6 @@ package generate
 
 import "github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 
-// bandFitEpsilon absorbs float noise when testing whether a band's inner edge
-// still falls inside the corridor. Without it a 0.20 m band closing exactly on
-// a 0.60 m narrow corridor can miss by one ulp and drop two legal cells.
-const bandFitEpsilon = 1e-9
-
 // StartCell is one legal starting position on a side's starting square.
 type StartCell struct {
 	// ZoneCentre is the midpoint of the painted cell rectangle, in track
@@ -14,13 +9,18 @@ type StartCell struct {
 	// corridor by BandWidth across it.
 	ZoneCentre simconfig.Vec2
 	// Spawn is where the robot is placed inside that cell. It is offset from
-	// ZoneCentre across the corridor — see simconfig.StartingZoneSpawnOffsets
+	// ZoneCentre across the corridor - see simconfig.StartingZoneSpawnOffsets
 	// for why the two differ.
 	Spawn simconfig.Vec2
 	// BandWidth is the cross-corridor width of the band the cell sits in, and
 	// so the width of the rectangle painted on the mat.
 	BandWidth float64
 }
+
+// bandFitEpsilon absorbs float noise when testing whether a band's inner edge
+// still falls inside the corridor. Without it a 0.20 m band closing exactly on
+// a 0.60 m narrow corridor can miss by one ulp and drop two legal cells.
+const bandFitEpsilon = 1e-9
 
 // StartCells returns every legal starting cell for a side, ordered outer wall
 // inward and, within a band, along the travel axis — so index 0 is always the

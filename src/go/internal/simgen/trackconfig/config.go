@@ -27,9 +27,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// two is the divisor for midpoint arithmetic.
-var two = decimal.NewFromInt(2)
-
 type (
 	// Config is the parsed contents of track.toml. All lengths are metres,
 	// colours are normalized RGB triples.
@@ -126,6 +123,9 @@ const (
 	AlignOuter = "outer"
 	AlignInner = "inner"
 )
+
+// two is the divisor for midpoint arithmetic.
+var two = decimal.NewFromInt(2)
 
 // CenterCoord is the middle of the track on both axes.
 func (t Track) CenterCoord() decimal.Decimal {

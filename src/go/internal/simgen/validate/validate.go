@@ -16,8 +16,8 @@ type parkingBlock struct {
 }
 
 type (
-	// Violation is a single failed geometry constraint.
-	Violation struct {
+	// ViolationError is a single failed geometry constraint.
+	ViolationError struct {
 		Rule    string
 		Message string
 	}
@@ -30,10 +30,6 @@ type (
 		StartingConditions simconfig.StartingConditions
 	}
 )
-
-func (v Violation) Error() string {
-	return fmt.Sprintf("[%s] %s", v.Rule, v.Message)
-}
 
 // Precomputed minimum-clearance thresholds (meters).
 var (
@@ -53,10 +49,14 @@ var (
 	signBoundaryMargin = simconfig.SignWidth / 2
 )
 
+func (v ViolationError) Error() string {
+	return fmt.Sprintf("[%s] %s", v.Rule, v.Message)
+}
+
 // ValidateScenario runs all geometry checks and returns any violations found.
 // An empty slice means the scenario is valid.
-func ValidateScenario(ctx WorldContext) []Violation {
-	var violations []Violation
+func ValidateScenario(ctx WorldContext) []ViolationError {
+	var violations []ViolationError
 	violations = append(violations, checkSignBounds(ctx.Signs)...)
 	violations = append(violations, checkSignOverlap(ctx.Signs)...)
 	if ctx.ParkingConfig != nil {
@@ -68,14 +68,14 @@ func ValidateScenario(ctx WorldContext) []Violation {
 }
 
 // checkSignBounds validates that all signs are within the track boundaries.
-func checkSignBounds(signs []simconfig.Sign) []Violation {
+func checkSignBounds(signs []simconfig.Sign) []ViolationError {
 	lo := simconfig.TrackMinCoord + signBoundaryMargin
 	hi := simconfig.TrackMaxCoord - signBoundaryMargin
-	var out []Violation
+	var out []ViolationError
 	for i, s := range signs {
 		x, y := s.Position[0], s.Position[1]
 		if x < lo || x > hi || y < lo || y > hi {
-			out = append(out, Violation{
+			out = append(out, ViolationError{
 				Rule:    "sign_bounds",
 				Message: fmt.Sprintf("sign %d at (%.3f, %.3f) outside track bounds [%.3f, %.3f]", i, x, y, lo, hi),
 			})
@@ -85,13 +85,13 @@ func checkSignBounds(signs []simconfig.Sign) []Violation {
 }
 
 // checkSignOverlap validates that traffic signs maintain minimum spacing.
-func checkSignOverlap(signs []simconfig.Sign) []Violation {
-	var out []Violation
+func checkSignOverlap(signs []simconfig.Sign) []ViolationError {
+	var out []ViolationError
 	for i := range signs {
 		for j := i + 1; j < len(signs); j++ {
 			d := dist2d(signs[i].Position, signs[j].Position)
 			if d < signMinSpacing {
-				out = append(out, Violation{
+				out = append(out, ViolationError{
 					Rule:    "sign_overlap",
 					Message: fmt.Sprintf("signs %d and %d overlap: dist=%.3f m < min=%.3f m", i, j, d, signMinSpacing),
 				})
@@ -102,15 +102,15 @@ func checkSignOverlap(signs []simconfig.Sign) []Violation {
 }
 
 // checkParkingBounds validates that parking blocks are within track boundaries.
-func checkParkingBounds(cfg *simconfig.ParkingConfig) []Violation {
+func checkParkingBounds(cfg *simconfig.ParkingConfig) []ViolationError {
 	half := simconfig.ParkingLength / 2
 	lo := simconfig.TrackMinCoord + half
 	hi := simconfig.TrackMaxCoord - half
-	var out []Violation
+	var out []ViolationError
 	for label, pos := range map[string]simconfig.Vec2{simconfig.ParkingBlockIDBlock1: cfg.Block1Pos, simconfig.ParkingBlockIDBlock2: cfg.Block2Pos} {
 		x, y := pos[0], pos[1]
 		if x < lo || x > hi || y < lo || y > hi {
-			out = append(out, Violation{
+			out = append(out, ViolationError{
 				Rule:    "parking_bounds",
 				Message: fmt.Sprintf("parking %s at (%.3f, %.3f) outside bounds [%.3f, %.3f]", label, x, y, lo, hi),
 			})
@@ -120,17 +120,17 @@ func checkParkingBounds(cfg *simconfig.ParkingConfig) []Violation {
 }
 
 // checkSignParkingClearance validates minimum distance between signs and parking blocks.
-func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingConfig) []Violation {
+func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingConfig) []ViolationError {
 	blocks := []parkingBlock{
 		{"block1", cfg.Block1Pos},
 		{"block2", cfg.Block2Pos},
 	}
-	var out []Violation
+	var out []ViolationError
 	for si, sign := range signs {
 		for _, block := range blocks {
 			d := dist2d(sign.Position, block.pos)
 			if d < signParkingMinDist {
-				out = append(out, Violation{
+				out = append(out, ViolationError{
 					Rule: "sign_parking_clearance",
 					Message: fmt.Sprintf(
 						"sign %d too close to %s: dist=%.3f m < min=%.3f m",
@@ -151,13 +151,13 @@ func checkRobotSpawnClearance(
 	sc simconfig.StartingConditions,
 	signs []simconfig.Sign,
 	cfg *simconfig.ParkingConfig,
-) []Violation {
+) []ViolationError {
 	spawn := sc.Position
-	var out []Violation
+	var out []ViolationError
 	for i, sign := range signs {
 		d := dist2d(spawn, sign.Position)
 		if d < spawnSignMinDist {
-			out = append(out, Violation{
+			out = append(out, ViolationError{
 				Rule: "spawn_sign_clearance",
 				Message: fmt.Sprintf(
 					"robot spawn too close to sign %d: dist=%.3f m < min=%.3f m",
@@ -172,7 +172,7 @@ func checkRobotSpawnClearance(
 		for label, pos := range map[string]simconfig.Vec2{"block1": cfg.Block1Pos, "block2": cfg.Block2Pos} {
 			d := dist2d(spawn, pos)
 			if d < spawnParkingMinDist {
-				out = append(out, Violation{
+				out = append(out, ViolationError{
 					Rule: "spawn_parking_clearance",
 					Message: fmt.Sprintf(
 						"robot spawn too close to parking %s: dist=%.3f m < min=%.3f m",

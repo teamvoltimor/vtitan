@@ -9,6 +9,15 @@ import (
 // Section represents one of the four navigable corridors.
 type Section string
 
+// Direction represents the robot's traversal direction around the track.
+type Direction string
+
+// ScenarioType identifies the WRO challenge variant.
+type ScenarioType string
+
+// LightingScenario identifies one of the six pre-defined lighting presets.
+type LightingScenario string
+
 const (
 	SectionNorth Section = "north"
 	SectionSouth Section = "south"
@@ -16,9 +25,41 @@ const (
 	SectionWest  Section = "west"
 )
 
+const (
+	DirectionClockwise        Direction = "clockwise"
+	DirectionCounterClockwise Direction = "counterclockwise"
+)
+
+const (
+	ScenarioTypeOpen      ScenarioType = "open"
+	ScenarioTypeObstacles ScenarioType = "obstacles"
+)
+
+const (
+	LightingDirectSunlight LightingScenario = "direct_sunlight"
+	LightingCloudy         LightingScenario = "cloudy"
+	LightingIndoorBright   LightingScenario = "indoor_bright"
+	LightingIndoorDim      LightingScenario = "indoor_dim"
+	LightingEvening        LightingScenario = "evening"
+	LightingMixed          LightingScenario = "mixed"
+)
+
 var (
 	// AllSections is the canonical ordered set of all four corridors.
 	AllSections = [4]Section{SectionNorth, SectionSouth, SectionEast, SectionWest}
+)
+
+var (
+	// AllDirections is the set of valid traversal directions.
+	AllDirections = [2]Direction{DirectionClockwise, DirectionCounterClockwise}
+)
+
+var (
+	// AllLightingScenarios is the set of valid lighting presets.
+	AllLightingScenarios = [6]LightingScenario{
+		LightingDirectSunlight, LightingCloudy, LightingIndoorBright,
+		LightingIndoorDim, LightingEvening, LightingMixed,
+	}
 )
 
 // Capitalized returns the section name with a leading capital, e.g. "North".
@@ -62,19 +103,6 @@ func (s Section) Domain() (trackmodel.Section, bool) {
 	return 0, false
 }
 
-// Direction represents the robot's traversal direction around the track.
-type Direction string
-
-const (
-	DirectionClockwise        Direction = "clockwise"
-	DirectionCounterClockwise Direction = "counterclockwise"
-)
-
-var (
-	// AllDirections is the set of valid traversal directions.
-	AllDirections = [2]Direction{DirectionClockwise, DirectionCounterClockwise}
-)
-
 // ParseDirection converts a string to a Direction enum, validating against the two valid traversal modes.
 func ParseDirection(v string) (Direction, error) {
 	switch Direction(v) {
@@ -97,14 +125,6 @@ func (d Direction) Domain() (trackmodel.Direction, bool) {
 	return 0, false
 }
 
-// ScenarioType identifies the WRO challenge variant.
-type ScenarioType string
-
-const (
-	ScenarioTypeOpen      ScenarioType = "open"
-	ScenarioTypeObstacles ScenarioType = "obstacles"
-)
-
 // ParseScenarioType converts a string to a ScenarioType enum, validating against the two WRO challenges.
 func ParseScenarioType(v string) (ScenarioType, error) {
 	switch ScenarioType(v) {
@@ -113,23 +133,3 @@ func ParseScenarioType(v string) (ScenarioType, error) {
 	}
 	return "", fmt.Errorf("invalid scenario type %q: expected open|obstacles", v)
 }
-
-// LightingScenario identifies one of the six pre-defined lighting presets.
-type LightingScenario string
-
-const (
-	LightingDirectSunlight LightingScenario = "direct_sunlight"
-	LightingCloudy         LightingScenario = "cloudy"
-	LightingIndoorBright   LightingScenario = "indoor_bright"
-	LightingIndoorDim      LightingScenario = "indoor_dim"
-	LightingEvening        LightingScenario = "evening"
-	LightingMixed          LightingScenario = "mixed"
-)
-
-var (
-	// AllLightingScenarios is the set of valid lighting presets.
-	AllLightingScenarios = [6]LightingScenario{
-		LightingDirectSunlight, LightingCloudy, LightingIndoorBright,
-		LightingIndoorDim, LightingEvening, LightingMixed,
-	}
-)
