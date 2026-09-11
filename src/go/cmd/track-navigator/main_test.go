@@ -52,6 +52,7 @@ func TestNewBlindLayout(t *testing.T) {
 		logger,
 		base,
 		trackmodel.Clockwise,
+		false,
 		waypoints.DefaultConfig(),
 		startconditions.DefaultConfig(),
 		corridorestimator.DefaultConfig(),
@@ -69,5 +70,50 @@ func TestNewBlindLayout(t *testing.T) {
 		if got != blindNarrowWidthM {
 			t.Errorf("geometry width for %v = %v, want the NARROW prior %v", section, got, blindNarrowWidthM)
 		}
+	}
+}
+
+func TestNewBlindLayout_Obstacles(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(testWriter{t}, nil))
+	base := waypoints.PlannerInput{MaxCoordM: 3.0, ChassisWidthM: 0.194}
+
+	path, geometry, layout, err := newBlindLayout(
+		logger,
+		base,
+		trackmodel.Clockwise,
+		true,
+		waypoints.DefaultConfig(),
+		startconditions.DefaultConfig(),
+		corridorestimator.DefaultConfig(),
+	)
+	if err != nil {
+		t.Fatalf("newBlindLayout: %v", err)
+	}
+	if len(path) == 0 {
+		t.Error("newBlindLayout: path is empty, want a planned prior-layout path")
+	}
+	if layout == nil {
+		t.Fatal("newBlindLayout: layout is nil, want a belief loop to correct the prior")
+	}
+	for section, got := range geometry.ToWidthsDict() {
+		if got != obstaclesCorridorWidthM {
+			t.Errorf("geometry width for %v = %v, want the OBSTACLES prior %v", section, got, obstaclesCorridorWidthM)
+		}
+	}
+}
+
+func TestParseChallenge(t *testing.T) {
+	t.Parallel()
+
+	if isObstacles, err := parseChallenge(challengeOpen); err != nil || isObstacles {
+		t.Errorf("parseChallenge(open) = (%v, %v), want (false, nil)", isObstacles, err)
+	}
+	if isObstacles, err := parseChallenge(challengeObstacles); err != nil || !isObstacles {
+		t.Errorf("parseChallenge(obstacles) = (%v, %v), want (true, nil)", isObstacles, err)
+	}
+	if _, err := parseChallenge("sideways"); err == nil {
+		t.Error("parseChallenge(sideways) = nil error, want a rejection")
 	}
 }

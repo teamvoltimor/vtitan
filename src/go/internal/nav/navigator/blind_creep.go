@@ -138,6 +138,9 @@ func (n *Navigator) adoptDirection(
 	dir trackmodel.Direction, pose trackmodel.Pose, scan controllers.LidarScan, haveScan bool, debug DebugSnapshot,
 ) {
 	n.direction = &dir
+	if n.signRouter != nil {
+		n.signRouter.AdoptDirection(dir)
+	}
 	if haveScan {
 		if measured, measuredOK := startmeasurement.MeasureStartPose(
 			scan, dir, trackmodel.South, n.startMeasCfg,

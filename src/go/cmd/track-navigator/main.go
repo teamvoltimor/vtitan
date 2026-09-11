@@ -19,6 +19,13 @@
 // round, so a told layout cannot be right on the day. The corridor geometry
 // is always estimated from LIDAR (see newBlindLayout, widthbelief.Layout),
 // and only the travel direction is optionally told via --direction.
+//
+// --challenge selects Open (default) or Obstacles. Obstacles wires a
+// signrouter.SignRouter built EMPTY (no told sign layout, for the same
+// randomization reason) and subscribes to the vision sidecar's detections
+// (src/vision/nats_sidecar.py) over NATS via internal/adapters/natsvision, so
+// signs are discovered from the camera during the creep exactly as
+// newBlindLayout discovers the corridor widths from LIDAR.
 package main
 
 import (
@@ -63,6 +70,7 @@ type cliConfig struct {
 	cmdkit.Common
 
 	direction string
+	challenge string
 	rateHz    float64
 	record    bool
 }
@@ -89,12 +97,24 @@ type runtimeConfig struct {
 }
 
 // blindNarrowWidthM is the corridor width assumed before anything has been
-// measured -- the narrow (fail-safe) end of the 60/100 cm pair the Open
-// Challenge rules allow. Believing narrow and finding wide leaves the robot
-// with room; the reverse puts the planned line inside a wall. Mirrors
+// measured on the Open Challenge -- the narrow (fail-safe) end of the 60/100 cm
+// pair the rules allow. Believing narrow and finding wide leaves the robot with
+// room; the reverse puts the planned line inside a wall. Mirrors
 // CorridorDimensions.NARROW and internal/sim/scenario/native_blind.go's
-// blindNarrowWidthM (Obstacles is not handled here -- see newBlindLayout).
+// blindNarrowWidthM.
 const blindNarrowWidthM = corridorestimator.DefaultNarrowWidthM
+
+// obstaclesCorridorWidthM is what a blind OBSTACLES round assumes: every
+// corridor is 1.0 m by rule, so this is prior KNOWLEDGE, not a guess. Mirrors
+// CorridorDimensions.OBSTACLES_WIDTH and native_blind.go's
+// obstaclesCorridorWidthM.
+const obstaclesCorridorWidthM = 1.0
+
+// challengeOpen/challengeObstacles are --challenge's legal values.
+const (
+	challengeOpen      = "open"
+	challengeObstacles = "obstacles"
+)
 
 // defaultWheelRadiusM/defaultChassisWidthM are the fallbacks used when
 // robot.toml cannot be loaded (a bench run outside the repo, or with no
@@ -187,8 +207,29 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		"travel direction for the round: cw, ccw, or undetermined (default). "+
 			"undetermined means the robot creeps and infers it from LIDAR, matching "+
 			"what competition requires -- WRO draws the direction on the day.")
+	flags.StringVar(&cfg.challenge, "challenge", challengeOpen,
+		"which challenge this round runs: open (default) or obstacles. obstacles "+
+			"wires a SignRouter (blind sign discovery from the vision sidecar's "+
+			"detections, corridor width fixed at 1.0 m by rule) and switches the "+
+			"collision/speed/pursuit tuning to their Obstacles overrides.")
 
 	return cmd
+}
+
+// parseChallenge resolves --challenge into isObstacles, or an error for
+// anything else, matching parseDirection's shape.
+func parseChallenge(s string) (isObstacles bool, err error) {
+	switch s {
+	case challengeOpen:
+		return false, nil
+	case challengeObstacles:
+		return true, nil
+	default:
+		return false, fmt.Errorf(
+			"track-navigator: unknown --challenge %q (want %s or %s)",
+			s, challengeOpen, challengeObstacles,
+		)
+	}
 }
 
 // loadTrackMaxCoordM reads track.toml's outer boundary, falling back to
@@ -212,9 +253,7 @@ func loadTrackMaxCoordM(logger *slog.Logger, configRoot string) float64 {
 // newBlindLayout builds the initial path and the per-tick belief loop that
 // corrects it, matching internal/sim/scenario/native_blind.go's
 // newBlindSetup -- reproduced rather than imported, since that helper lives
-// in an internal sim package and is Obstacles-aware in a way this Open-only
-// production entry point deliberately is not (no SignRouter is wired here,
-// so isObstacles is never true; see the package doc comment).
+// in an internal sim package.
 //
 // provisional is the direction the FIRST path is planned from -- never nil,
 // even when the round's real direction is still undetermined (see
@@ -222,24 +261,42 @@ func loadTrackMaxCoordM(logger *slog.Logger, configRoot string) float64 {
 // receives; the navigator infers its own answer independently, and the
 // belief loop attributes each tick's reading by whichever direction it
 // settles on (see widthbelief.Layout.Update).
+//
+// isObstacles selects the prior and switches off both the estimator's voting
+// and the deferral gate, matching newBlindSetup's own isObstacles branch --
+// see that function's doc comment for why.
 func newBlindLayout(
 	logger *slog.Logger,
 	base waypoints.PlannerInput,
 	provisional trackmodel.Direction,
+	isObstacles bool,
 	wpCfg waypoints.Config,
 	startCfg startconditions.Config,
 	estCfg corridorestimator.Config,
 ) (path []trackmodel.Waypoint, priorGeometry trackmodel.CorridorGeometry, layout *widthbelief.Layout, err error) {
+	priorWidthM := blindNarrowWidthM
+	if isObstacles {
+		priorWidthM = obstaclesCorridorWidthM
+	}
 	prior := map[trackmodel.Section]float64{
-		trackmodel.North: blindNarrowWidthM,
-		trackmodel.South: blindNarrowWidthM,
-		trackmodel.East:  blindNarrowWidthM,
-		trackmodel.West:  blindNarrowWidthM,
+		trackmodel.North: priorWidthM,
+		trackmodel.South: priorWidthM,
+		trackmodel.East:  priorWidthM,
+		trackmodel.West:  priorWidthM,
 	}
 	priorGeometry = trackmodel.CorridorGeometryFromWidths(prior, base.MaxCoordM)
 
+	// The assumed START takes a different bias from the PLAN, and only on
+	// Obstacles -- see newBlindSetup's own comment on assumedBiasM for why
+	// this reproduces a pre-existing inconsistency in the Python original
+	// rather than fixing it in passing.
+	var assumedBiasM *float64
+	if isObstacles {
+		bias := wpCfg.WideCenterBiasM
+		assumedBiasM = &bias
+	}
 	assumed, ok := startconditions.AssumedStartConditions(
-		provisional, prior, startconditions.CanonicalSection, startCfg, nil,
+		provisional, prior, startconditions.CanonicalSection, startCfg, assumedBiasM,
 	)
 	if !ok {
 		return nil, trackmodel.CorridorGeometry{}, nil, fmt.Errorf(
@@ -247,32 +304,57 @@ func newBlindLayout(
 		)
 	}
 
+	centerBiasM := blindCenterBiasM(isObstacles, wpCfg)
 	planned := base
 	planned.Geometry = priorGeometry
 	planned.Starting = base.Starting.ReplannedAt(
 		&provisional, assumed.Section, trackmodel.Waypoint{X: assumed.X, Y: assumed.Y}, assumed.Yaw,
 	)
-	path, err = waypoints.CalculateWaypoints(planned, 1, wpCfg, nil, waypoints.AllUnconfirmed())
+	path, err = waypoints.CalculateWaypoints(planned, 1, wpCfg, centerBiasM, waypoints.AllUnconfirmed())
 	if err != nil {
 		return nil, trackmodel.CorridorGeometry{}, nil, fmt.Errorf(
 			"track-navigator: planning the prior layout: %w", err,
 		)
 	}
 
+	estimatorOpts := []corridorestimator.Option{}
+	if isObstacles {
+		estimatorOpts = append(estimatorOpts, corridorestimator.WithFixedWidth())
+	}
 	layout = widthbelief.NewLayout(widthbelief.Params{
-		Logger:      logger,
-		Estimator:   corridorestimator.New(blindNarrowWidthM, estCfg),
-		Defer:       wpCfg.DeferCurrentCorridorReplan,
+		Logger:    logger,
+		Estimator: corridorestimator.New(priorWidthM, estCfg, estimatorOpts...),
+		// Deferral is OPEN-ONLY -- see newBlindSetup's own comment: on
+		// Obstacles the estimator is fixed and the bias is an explicit
+		// override, so the gate's confirmed-ness trigger would rebuild a
+		// byte-identical path and re-seek the waypoint index for nothing.
+		Defer:       !isObstacles && wpCfg.DeferCurrentCorridorReplan,
 		Base:        base,
 		Config:      wpCfg,
-		CenterBiasM: nil,
+		CenterBiasM: centerBiasM,
 		MaxCoordM:   base.MaxCoordM,
 	})
 	return path, priorGeometry, layout, nil
 }
 
+// blindCenterBiasM is the planning bias for a blind round, matching
+// native_blind.go's blindCenterBiasM: nil on Open, which takes the
+// narrow/wide split, and wpCfg.ObstaclesCenterBiasM otherwise -- see that
+// function's doc comment for the full rationale.
+func blindCenterBiasM(isObstacles bool, wpCfg waypoints.Config) *float64 {
+	if !isObstacles {
+		return nil
+	}
+	bias := wpCfg.ObstaclesCenterBiasM
+	return &bias
+}
+
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	provisionalDirection, knownDirection, err := parseDirection(cfg.direction)
+	if err != nil {
+		return err
+	}
+	isObstacles, err := parseChallenge(cfg.challenge)
 	if err != nil {
 		return err
 	}
@@ -295,6 +377,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		logger,
 		waypoints.PlannerInput{MaxCoordM: rt.trackMaxCoordM, ChassisWidthM: rt.chassisWidthM},
 		provisionalDirection,
+		isObstacles,
 		rt.wpCfg,
 		rt.startCfg,
 		rt.estCfg,
@@ -318,11 +401,10 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	// Built regardless of whether a SignRouter is wired below (see
-	// openNavSubscriptions's detections comment): the camera/mount constants
-	// signrouter.Config carries are meaningful independent of that, and
-	// building them once here means a future SignRouter wire-in needs no
-	// second config-loading pass.
+	// Built regardless of --challenge: the camera/mount constants
+	// signrouter.Config carries are meaningful for VisionGateway either way,
+	// and building them once here means the SignRouter constructed below (on
+	// Obstacles) needs no second config-loading pass.
 	srCfg := signrouter.ConfigFor(logger, cfg.ConfigRoot)
 	visionGW, err := natsvision.New(
 		srCfg,
@@ -339,6 +421,25 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// failing the run.
 	bxCfg := bayexit.ConfigFor(logger, cfg.ConfigRoot, profiles)
 
+	// A non-nil SignRouter is what identifies the Obstacles Challenge to
+	// Navigator itself (see navigator.Params.SignRouter's doc comment) --
+	// built empty (no signs) and on the PROVISIONAL direction, matching the
+	// native sim runner's own blind construction: WRO randomizes the sign
+	// layout before every round, so there is no told layout to start from,
+	// only the discovery map ObservedSignMap accumulates as the camera
+	// confirms signs during the creep. Navigator.adoptDirection re-keys the
+	// router once the real direction settles (see SignRouter.AdoptDirection).
+	var signRouter *signrouter.SignRouter
+	var discCfg *signrouter.DiscoveryConfig
+	if isObstacles {
+		signRouter, err = signrouter.NewSignRouter(nil, srCfg, provisionalDirection)
+		if err != nil {
+			return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
+		}
+		dc := signrouter.DiscoveryConfigFor(logger, cfg.ConfigRoot)
+		discCfg = &dc
+	}
+
 	nav, err := navigator.New(navigator.Params{
 		Gateway:                 gw,
 		Vision:                  visionGW,
@@ -346,6 +447,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		Direction:               knownDirection,
 		Config:                  navigator.ConfigFor(logger, cfg.ConfigRoot, profiles),
 		ControllersConfig:       controllers.ConfigFor(logger, cfg.ConfigRoot, profiles),
+		SignRouterConfig:        srCfg,
+		SignRouter:              signRouter,
+		SignDiscoveryConfig:     discCfg,
 		BayExitConfig:           &bxCfg,
 		CorridorEstimatorConfig: &rt.estCfg,
 		Logger:                  logger,
@@ -404,8 +508,9 @@ func openNavSubscriptions(conn *natsio.Conn, logger *slog.Logger) (subs *navSubs
 	// anything in this Go tree -- absent that process, this subscription
 	// simply never receives anything, and GetVisionDetections stays
 	// ok=false, exactly like any other sensor this binary has no producer
-	// for. Currently inert regardless: no SignRouter is wired below (Open
-	// Challenge only), and VisionGateway is only consulted when one is.
+	// for. Only consulted when --challenge obstacles wires a SignRouter (see
+	// run); on Open it is opened and subscribed like every other topic here,
+	// but nothing in Navigator ever reads VisionGateway.
 	detections, err := nats.NewSubscriber[visionv1.Detections](conn, visionv1.DetectionsSubject)
 	if err != nil {
 		subs.close(logger)

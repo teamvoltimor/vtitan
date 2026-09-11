@@ -185,6 +185,46 @@ func (r *SignRouter) RoutedSignPositionsByCorridor() []RoutedSign {
 	return out
 }
 
+// AdoptDirection re-keys the travel-relative pass-side rule once inference
+// settles, matching adopt_direction.
+//
+// A blind round builds this router on a PROVISIONAL direction (cmd/
+// track-navigator's newBlindLayout plans the first path from the same
+// placeholder) because the real one is not known until LIDAR settles it
+// seconds later. Navigator.adoptDirection then commits the settled direction
+// onto itself, but without this call the router's own r.direction stayed at
+// the placeholder for the whole race.
+//
+// The pass-side rule is travel-relative: routingEntry is keyed on
+// (corridor, direction), and every clockwise row is the negation of its
+// counterclockwise partner. A stale direction therefore does not degrade the
+// lane, it MIRRORS it -- red and green swap sides for every sign. Measured on
+// Python's own hardware bags (see router.py's adopt_direction docstring): on
+// rounds that inferred counterclockwise against a clockwise placeholder, 22
+// of 28 illegal passes were exactly this mirrored command.
+//
+// In place rather than by rebuilding a new SignRouter, which would drop
+// discovered state: the map accumulated during the blind creep is exactly
+// what the round needs and is direction-independent anyway. What IS
+// direction-derived is cleared: per-sign corridor labels come from
+// corridorForSpec, and the commit/engagement bookkeeping and wrong-side
+// verdicts were all recorded under the mirrored rule. passed is deliberately
+// kept -- a sign already behind the robot is behind it whichever way the
+// round turned out to run.
+func (r *SignRouter) AdoptDirection(direction trackmodel.Direction) {
+	if direction == r.direction {
+		return
+	}
+	r.direction = direction
+	for i, spec := range r.signs {
+		r.signCorridors[i] = r.corridorForSpec(spec)
+	}
+	r.wrongSide = map[int]struct{}{}
+	r.commitYaw = map[int]float64{}
+	r.engaged = map[int]struct{}{}
+	r.committed = nil
+}
+
 // ResetForNewLap re-arms every sign so it's routed again on the next lap,
 // matching reset_for_new_lap. Without this, a sign marked passed on lap 1
 // stays passed for the rest of the run -- the Obstacles Challenge requires
