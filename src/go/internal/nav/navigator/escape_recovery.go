@@ -564,7 +564,7 @@ func (n *Navigator) handleStuckEscape(pose trackmodel.Pose) {
 	// an all-invalid forward sector reports the same no-data sentinel as
 	// open road, matching Python's `forward_open` gate.
 	forwardOpen := forwardClear >= n.cfg.ContactDistM &&
-		!(n.cfg.ForwardNoDataIsDegraded && forwardBlind)
+		(!n.cfg.ForwardNoDataIsDegraded || !forwardBlind)
 
 	// Blind behind is a reason to prefer forward, but only when forward is
 	// actually open. Treating it as flatly "blocked" would leave a chassis

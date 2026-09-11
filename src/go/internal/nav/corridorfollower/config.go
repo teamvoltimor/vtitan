@@ -108,21 +108,21 @@ type Config struct {
 	// BayExitCycle selects the alternating arc/straight-reverse exit
 	// instead of reverse-then-swing.
 	BayExitCycle bool
-	// BayExitCycleReverseM is how far the cycle manoeuvre's straight
+	// BayExitCycleReverseM is how far the cycle maneuver's straight
 	// reverse runs before arcing again. Its OWN constant, not shared with
-	// BayExitReverseM -- the two manoeuvres want different values for the
+	// BayExitReverseM -- the two maneuvers want different values for the
 	// same-named quantity.
 	BayExitCycleReverseM float64
-	// BayExitArcSteerNorm is the cycle manoeuvre's forward-arc steering
+	// BayExitArcSteerNorm is the cycle maneuver's forward-arc steering
 	// magnitude, 0..1 of full lock. Moderate on purpose: full lock pivots
 	// the chassis about its own centre and translates nothing.
 	BayExitArcSteerNorm float64
-	// BayExitForwardM is how far the cycle manoeuvre's forward arc runs
+	// BayExitForwardM is how far the cycle maneuver's forward arc runs
 	// before backing up again. Bounded by GEOMETRY, deliberately longer
 	// than the pocket's own slack so overshooting hands the leg's end to
 	// the stall backstop.
 	BayExitForwardM float64
-	// BayExitCycleReverseSteerNorm is the cycle manoeuvre's reverse-leg
+	// BayExitCycleReverseSteerNorm is the cycle maneuver's reverse-leg
 	// steering, applied OPPOSITE to the arc (the classic three-point turn).
 	// 0 backs straight, which is what ships.
 	BayExitCycleReverseSteerNorm float64
@@ -149,20 +149,20 @@ type Config struct {
 	// marginally -- inside a fin.
 	BayExitClearanceToleranceM float64
 	// BayExitLegStallTicks is ticks of no wheel travel that end a
-	// cycle-manoeuvre leg and start the other -- the PRIMARY leg-end
+	// cycle-maneuver leg and start the other -- the PRIMARY leg-end
 	// signal, ahead of distance or clearance. Only meaningful with
 	// BayExitCycle.
 	BayExitLegStallTicks int
 	// BayExitLatchDirection decides which side is open once, on the first
-	// tick, instead of every tick -- re-deriving it mid-manoeuvre reads
+	// tick, instead of every tick -- re-deriving it mid-maneuver reads
 	// noise once the chassis has rotated off-parallel to the wall.
 	BayExitLatchDirection bool
 	// BayExitLatchReverse commits to the forward turn once the legacy
 	// exit's reverse leg has finished, instead of re-testing the gate every
 	// tick (which chatters between two opposed commands).
 	BayExitLatchReverse bool
-	// BayExitMaxFrames is the ticks the bay-exit manoeuvre may hold control
-	// before handing over; 0 = forever. BayExit is the only manoeuvre in
+	// BayExitMaxFrames is the ticks the bay-exit maneuver may hold control
+	// before handing over; 0 = forever. BayExit is the only maneuver in
 	// the stack with no give-up path by default.
 	BayExitMaxFrames int
 	// BayExitSpeedScale is an extra speed scale applied to BOTH guarded
@@ -177,13 +177,13 @@ type Config struct {
 	BayExitSpeedScale float64
 	// AssumeBayStart begins an OBSTACLES round believing the robot was
 	// placed inside the parking bay, instead of waiting for
-	// DirectionFromParkingBay to recognise the pocket. That function tests
+	// DirectionFromParkingBay to recognize the pocket. That function tests
 	// two things -- forward blocked, and the +/-90 deg rays reading
 	// wall-against-open -- and only the first is load-bearing here: the
 	// second names the travel DIRECTION, which the exit does not need (it
 	// ratchets against the outer wall, and the estimator settles once
 	// clear). A dropped side ray reads as open corridor and costs the whole
-	// round, because a bay start that is not recognised DEADLOCKS: forward
+	// round, because a bay start that is not recognized DEADLOCKS: forward
 	// is a fin below the creep gate and there is no rear sensing to reverse
 	// on. Believing wrongly is self-correcting -- a parallel start has
 	// forward clearance, which is exactly IsClear's threshold, tested the

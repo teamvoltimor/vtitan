@@ -12,9 +12,9 @@ type point struct {
 // (along, out), rotated by yaw, matching _rect_corners.
 func rectCorners(along, out, yaw, length, width float64) []point {
 	ca, sa := math.Cos(yaw), math.Sin(yaw)
-	hl, hw := length/2.0, width/2.0
+	hl, hw := length/2, width/2
 	signs := [4][2]float64{{1, 1}, {1, -1}, {-1, -1}, {-1, 1}}
-	corners := make([]point, 4)
+	corners := make([]point, len(signs))
 	for i, s := range signs {
 		sl, sw := s[0], s[1]
 		corners[i] = point{
@@ -72,9 +72,9 @@ func projectExtent(poly []point, ax, ay float64) (lo, hi float64) {
 // the block spacing, are Width thick, and span the lot's full depth from the
 // wall to their tips.
 func finRects(lot Config) [2][]point {
-	halfSpacing := lot.ParkingLot.BlockSpacingFactor * lot.ChassisLengthM / 2.0
-	inner := halfSpacing - lot.ParkingLot.Width/2.0
-	outer := halfSpacing + lot.ParkingLot.Width/2.0
+	halfSpacing := lot.ParkingLot.BlockSpacingFactor * lot.ChassisLengthM / 2
+	inner := halfSpacing - lot.ParkingLot.Width/2
+	outer := halfSpacing + lot.ParkingLot.Width/2
 	wall := -lot.ParkingLot.WallOffsetM
 	tip := wall + lot.ParkingLot.Length
 	return [2][]point{

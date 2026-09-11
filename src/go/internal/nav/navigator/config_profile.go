@@ -249,8 +249,8 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 			MediumMPS: speed.ObstaclesMediumMPS,
 			FastMPS:   speed.ObstaclesFastMPS,
 		}
-		if err := cfg.validateChallengeTiers(); err != nil {
-			logger.Warn("navigator: per-challenge speed tiers rejected, dropping them", "error", err)
+		if tierErr := cfg.validateChallengeTiers(); tierErr != nil {
+			logger.Warn("navigator: per-challenge speed tiers rejected, dropping them", "error", tierErr)
 			cfg.Open, cfg.Obstacles = ChallengeTiers{}, ChallengeTiers{}
 		}
 	}

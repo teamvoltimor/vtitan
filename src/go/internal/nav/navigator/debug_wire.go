@@ -1,6 +1,9 @@
 package navigator
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // wireSnapshot is DebugSnapshot in the shape CoreNavigator publishes on
 // /nav_debug: shared.domain.models.NavigatorDebugSnapshot's
@@ -90,7 +93,7 @@ func stringerPtr[T interface{ String() string }](v *T) *string {
 // simulated run: the scripts key off the field names below, so a sim bag
 // that carries them is indistinguishable to them from a track recording.
 func (d DebugSnapshot) MarshalWireJSON() ([]byte, error) {
-	return json.Marshal(wireSnapshot{
+	data, err := json.Marshal(wireSnapshot{
 		Phase: d.Phase.String(),
 
 		PoseX:           d.PoseX,
@@ -136,4 +139,8 @@ func (d DebugSnapshot) MarshalWireJSON() ([]byte, error) {
 		ActiveSignCount:      d.ActiveSignCount,
 		SignDeformMagnitudeM: d.SignDeformMagnitudeM,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("navigator: marshal wire snapshot: %w", err)
+	}
+	return data, nil
 }

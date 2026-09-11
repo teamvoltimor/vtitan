@@ -179,7 +179,7 @@ func (l *LidarLocalizer) EstimatePosition(
 	// thing: the search is no longer anywhere near the truth. An off-track
 	// winner is impossible outright, and a winner whose predicted sweep does
 	// not resemble the real one has not explained the scan however cheap it
-	// was relative to its neighbours.
+	// was relative to its neighbors.
 	if offTrack || bestCost > l.cfg.RelocalizeCostThreshold {
 		l.badFitStreak++
 	} else {
