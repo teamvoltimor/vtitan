@@ -1,0 +1,6 @@
+# Leftover local build artifacts from when simgen lived here (moved to
+# src/go/cmd/simgen). Safe to delete this whole directory's
+# contents; kept ignored rather than removed outright since that's a
+# judgment call about local disk state, not something to make silently.
+bin/
+training_data/

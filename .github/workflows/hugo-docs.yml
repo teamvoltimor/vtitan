@@ -4,12 +4,12 @@ on:
   push:
     branches: [master]
     paths:
-      - "hugo-docs/**"
+      - "apps/hugo-docs/**"
       - ".github/workflows/hugo-docs.yml"
   pull_request:
     branches: [master]
     paths:
-      - "hugo-docs/**"
+      - "apps/hugo-docs/**"
 
 jobs:
   build:
@@ -28,7 +28,7 @@ jobs:
           extended: true
 
       - name: Build
-        working-directory: hugo-docs
+        working-directory: apps/hugo-docs
         run: hugo --minify --gc
 
   deploy:
@@ -49,7 +49,7 @@ jobs:
           extended: true
 
       - name: Build
-        working-directory: hugo-docs
+        working-directory: apps/hugo-docs
         run: hugo --minify --gc
 
       - name: Deploy
@@ -58,5 +58,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: klevor-docs
-          directory: hugo-docs/public
+          directory: apps/hugo-docs/public
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

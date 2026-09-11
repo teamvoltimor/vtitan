@@ -1,0 +1,14 @@
+# The heading error above which speed is cut (radians).
+#
+# See shared.config.navigation_tuning.HeadingErrorZones. One threshold, not a
+# ladder -- slow/medium/normal were deleted 2026-08-09 after the graduated
+# version cost 33% of lap time by taxing every corner.
+
+crawl = 1.0    # ~57 deg -- severe misalignment, drop to the creep floor
+
+# Written out 2026-09-10 at its shipped value: until then it existed only as a
+# Python literal, so no edit here could reach it (pytest's shipped-tree
+# completeness check now requires every concrete default to appear in this
+# file). Ramp-release bandwidth is applied only above crawl; the value is
+# inert at 0.0 and its unit lives on the field.
+crawl_ramp_start = 0.0

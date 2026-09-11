@@ -8,27 +8,27 @@ En esta primera capa toda la parte motriz de nuestro robot.
 
 <div class="vehicle-views-container">
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-front-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-front-view.webp"
 alt="Primera capa, vista delantera" class="vehicle-view-image">
 		<i>Primera capa, vista delantera</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-back-view.webp" 
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-back-view.webp" 
 alt="Primera capa, vista trasera" class="vehicle-view-image">
 		<i>Primera capa, vista trasera</i>
 	</div>  
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-left-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-left-view.webp"
 alt="Primera capa, vista izquierda" class="vehicle-view-image">
 		<i>Primera capa, vista izquierda</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-right-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-right-view.webp"
 alt="Primera capa, vista derecha" class="vehicle-view-image">
 		<i>Primera capa, vista derecha</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-top-view.webp" 
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer1-top-view.webp" 
 alt="Primera capa, vista superior" class="vehicle-view-image">
 		<i>Primera capa, vista superior</i>
 	</div>
@@ -110,27 +110,27 @@ Esta capa fue 100% diseñada e impresa por nosotros. Al tener múltiples piezas 
 
 <div class="vehicle-views-container">
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-front-view.webp" 
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-front-view.webp" 
 alt="Segunda capa, vista delantera" class="vehicle-view-image">
 		<i>Segunda capa, vista delantera</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-back-view.webp" 
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-back-view.webp" 
 alt="Segunda capa, vista trasera" class="vehicle-view-image">
 		<i>Segunda capa, vista trasera</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-left-view.webp" 
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-left-view.webp" 
 alt="Segunda capa, vista izquierda" class="vehicle-view-image">
 		<i>Segunda capa, vista izquierda</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-right-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-right-view.webp"
 alt="Segunda capa, vista derecha" class="vehicle-view-image">
 		<i>Segunda capa, vista derecha</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-top-view.webp" 
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer2-top-view.webp" 
 alt="Segunda capa, vista superior" class="vehicle-view-image">
 		<i>Segunda capa, vista superior</i>
 	</div>
@@ -150,27 +150,27 @@ Nuestra segunda capa también fue diseñada en 3D para que el power bank pudiera
 
 <div class="vehicle-views-container">
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-front-view.webp" 
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-front-view.webp" 
 alt="Tercera capa, vista delantera" class="vehicle-view-image">
 		<i>Tercera capa, vista delantera</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-back-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-back-view.webp"
 alt="Tercera capa, vista trasera" class="vehicle-view-image">
 		<i>Tercera capa, vista trasera</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-left-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-left-view.webp"
 alt="Tercera capa, vista izquierda" class="vehicle-view-image">
 		<i>Tercera capa, vista izquierda</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-right-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-right-view.webp"
 alt="Tercera capa, vista derecha" class="vehicle-view-image">
 		<i>Tercera capa, vista derecha</i>
 	</div>
 	<div class="hcenter">
-		<img src="../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-top-view.webp"
+		<img src="../../../v-photos/previous-prototypes/klevor-v0.1/prototype1-layer3-top-view.webp"
 alt="Tercera capa, vista superior" class="vehicle-view-image">
 		<i>Tercera capa, vista superior</i>
 	</div>

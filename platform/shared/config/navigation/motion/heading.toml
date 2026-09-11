@@ -1,7 +1,0 @@
-# The heading error above which speed is cut (radians).
-#
-# See shared.config.navigation_tuning.HeadingErrorZones. One threshold, not a
-# ladder -- slow/medium/normal were deleted 2026-08-09 after the graduated
-# version cost 33% of lap time by taxing every corner.
-
-crawl = 1.0    # ~57 deg -- severe misalignment, drop to the creep floor

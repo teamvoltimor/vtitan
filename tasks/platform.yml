@@ -1,0 +1,1621 @@
+version: '3'
+
+vars:
+  # Which physical robot a sim task models. The base robot.toml describes the
+  # chassis only and deliberately declares no motor or servo, so config loading
+  # FAILS unless one profile of each is named -- see .env.example.
+  #
+  # Defaulted here, not in the config loader, and that distinction is the whole
+  # design: a default living in a checked-in Taskfile is visible and reviewable,
+  # whereas the old base-config default was invisible and silently made every
+  # unset run model whichever hardware happened to be committed. Override per
+  # invocation, e.g. to reproduce a measurement taken on the retired build:
+  #
+  #   task sim:navigate:visualize:all PROFILE=180deg-injora-14kg,generic-motor-1500rpm -- --challenge open
+  #
+  # Deliberately NOT applied to robot:test -- tests pin their own hardware in
+  # tests/conftest.py, and setting it here would silently move the whole suite
+  # onto different hardware and re-baseline every assertion.
+  PROFILE: 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm
+  PYTHON: uv
+  ROS2: pixi
+  # Full path to pixi on the Pi 5 / Pi Zero specifically -- bare `pixi` only
+  # resolves under an interactive login shell (.bashrc adds ~/.pixi/bin to
+  # PATH); a one-shot `ssh host "task robot:..."` gets the minimal
+  # non-interactive PATH and fails with "pixi: not found". Every robot:*
+  # task that runs directly ON a Pi (not on a dev machine, where pixi lives
+  # wherever it was installed) should use {{.ROBOT_PIXI}}, not a bare `pixi`.
+  ROBOT_PIXI: ~/.pixi/bin/pixi
+  SCENARIOS: 10
+  CHALLENGE: open
+  OUTPUT_DIR: ./src/go/training_data
+  BASE_WORLD: ./apps/gazebo/runtime/worlds/wro_track_2026.sdf
+  METADATA: ./src/go/training_data/open/scenarios/scenario_0000_metadata.json
+  SCENARIO_SDF: ./src/go/training_data/open/scenarios/scenario_0000.sdf
+  LAPS: 3
+  PARAMS: ./apps/gazebo/runtime/scripts/navigator_params.json
+  GRPC_ADDR: localhost:9010
+  # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
+  # Falls back to "" when Go isn't installed (e.g. on the robot/Pi) so non-Go tasks still run.
+  EXE:
+    sh: go env GOEXE 2>/dev/null || true
+  # Shell scripts must run under Git Bash on Windows, never plain "bash".
+  # C:\Windows\System32\bash.exe is the WSL launcher and usually wins on PATH
+  # from PowerShell, which puts the script inside a Linux distro that has its
+  # own $HOME -- so ~/.ssh/config is absent, SSH host aliases resolve as literal
+  # hostnames, and .local mDNS does not work at all. The failure surfaces as
+  # "Could not resolve hostname rpi-5-local", naming the alias rather than the
+  # host it should have expanded to.
+  # Override with BASH=... if Git is installed somewhere else.
+  BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
+  SIMGEN: ./src/go/bin/simgen{{.EXE}}
+  # Statistical corpus for the navigation sweeps. The committed fixture set
+  # (16 obstacles, 28 open) is the unit-test battery and has to stay fast, so
+  # it is far too small to attribute a failure to a cause -- measured: the
+  # aggregate rate generalised from 16 to 200, but two ATTRIBUTIONS taken off
+  # the 16 were wrong (see src/python/docs/sign-avoidance-investigation.md).
+  # Regenerate rather than commit: same generator, pinned seed, identical
+  # output every time.
+  CORPUS_SIZE: 256
+  CORPUS_SEED: 2026
+  CORPUS_DIR: ./src/python/.corpus
+
+tasks:
+  help:
+    desc: Display all available commands
+    cmds:
+      - |
+        echo "
+        vTitan PLATFORM — Taskfile Commands
+
+        Convention: module:verb (e.g. backend:test, sim:gazebo).
+        Cross-cutting umbrellas stay bare verbs (install, test, lint, clean).
+
+        UMBRELLAS (run across every module)
+          task install              Install all dependencies (sim + robot + Go)
+          task test                 Run all tests (Python + Go)
+          task lint                 Run all linters (ruff + golangci-lint + ESLint + buf)
+          task lint:fix             Auto-fix lint issues across modules
+          task clean                Remove all generated training data
+          task clean:all            Deep clean (training data + cache + Go artifacts)
+          task init:dev             One-time dev setup (install + lint)
+
+        BACKEND (Go telemetry server)
+          task backend:install      Bootstrap Go backend (buf generate + sqlc + go mod tidy)
+          task backend:dev          Run with --sim synthetic generator (HTTP :8010, gRPC :9010)
+          task backend:run          Run production mode (expects robot gRPC feed)
+          task backend:build        Compile binary to backend/bin/server
+          task backend:test         Run Go backend tests
+          task backend:lint         Run golangci-lint
+          task backend:lint:fix     Auto-fix Go lint issues
+          task backend:align        Check struct field alignment (betteralign)
+          task backend:align:fix    Auto-fix struct field alignment
+          task backend:fmt          Format (goimports + gofmt)
+          task backend:sqlc         Regenerate Go DB layer from SQL (requires sqlc CLI)
+          task backend:typecheck    Run go vet
+          task backend:deps         Download Go module dependencies without building
+
+        OPENAPI (spec-first API contract)
+          task openapi:generate     Regenerate Go types from all OpenAPI specs
+          task openapi:validate     Validate all OpenAPI specs
+          task openapi:lint         Lint the aggregated spec with Redocly
+          task openapi:bundle       Bundle the aggregated spec into a single file
+          task openapi:preview-docs Launch an interactive local API docs preview
+          task frontend:api:generate  Generate TypeScript client from OpenAPI specs
+
+        PROTO (buf toolchain — requires buf CLI)
+          task proto ACTION=update|generate|lint|breaking|format
+
+        SIMGEN (Go scenario generator, part of the robot-go module)
+          task simgen:install       Build simgen binary (Go compilation)
+          task simgen:build         Compile binary to robot-go/bin/simgen
+          task simgen:test          Run simgen tests
+          task simgen:lint          Run golangci-lint
+          task simgen:lint:fix      Auto-fix simgen lint issues
+          task simgen:align         Check struct field alignment (betteralign)
+          task simgen:align:fix     Auto-fix struct field alignment
+          task simgen:fmt           Format (golangci-lint fmt — goimports + golines)
+
+        FRONTEND (Vite + React telemetry dashboard)
+          task frontend:install     Install Node.js dependencies
+          task frontend:dev         Run dev server (http://localhost:5173) — DEMO=true for mock telemetry, no backend
+          task frontend:build       Type-check + production build (dist/)
+          task frontend:preview     Preview the production build locally
+          task frontend:typecheck   Type-check only (tsc -b)
+          task frontend:lint        Run ESLint
+          task frontend:docker:build  Build frontend Docker image (nginx static)
+          task frontend:docker:run    Run frontend container (http://localhost:8080)
+
+        GEN (track + scenario generation)
+          task gen:track            Generate/regenerate WRO 2026 base track SDF
+          task gen:track-constants  Regenerate mat geometry constants (Go) from track.toml
+          task gen:scenarios        Generate scenarios for CHALLENGE=open|obstacles (SCENARIOS=10 default)
+          task gen:corpus           Generate the pinned-seed sweep corpus (256 scenarios, seed 2026)
+          task gen:corpus:all       Same, for both challenges
+          task gen:all              Generate both open and obstacles scenarios
+          task gen:preview          Render SVG top-down preview (METADATA=path)
+          task gen:rviz             Stream one scenario's layout live to RViz2 (METADATA=path)
+          task gen:rviz:all         Same as gen:rviz, but also launches RViz2 itself (one command)
+
+        SIM (Gazebo / ROS2 runtime)
+          task sim:install          Install simulation dependencies (UV + Pixi)
+          task sim:init             Initialize Gazebo/ROS2 env via pixi (run once)
+          task sim:gazebo           Launch Gazebo with an SDF world (SDF=path, default base WRO 2026 track)
+          task sim:rviz             Launch a BARE RViz against Gazebo (NOT for sim:navigate:visualize — use sim:navigate:rviz)
+          task sim:navigate         Run navigator on a scenario (METADATA, LAPS overrides)
+          task sim:navigate:rviz    Launch RViz pre-configured for live visualization
+          task sim:navigate:visualize  Run scenario(s) live in RViz (--challenge open|obstacles, --list/--scenario/--interactive)
+          task sim:navigate:visualize:all  Same as above, but also launches RViz2 itself (one command)
+          task sim:analyze          Analyze generated scenarios (statistics)
+          task sim:test             Run simulation tests — QUICK=true for fail-fast, short traceback
+          task sim:lint             Lint simulation code
+          task sim:lint:fix         Auto-fix simulation lint issues
+
+        ROBOT (on-robot platform — run build-ws before any run-/launch- task)
+          task robot:install        Install robot platform dependencies (default + dev envs)
+          task robot:test           Run robot tests (SCOPE=all|unit|fast|hardware|navigation|vision|drivers, default all excludes on-device hardware tests;
+                                     fast=unit minus @slow closed-loop sims; navigation/vision/drivers scope by subsystem; TEST=path targets one file/module)
+          task robot:lint           Lint robot code
+          task robot:lint:fix       Auto-fix robot lint issues
+          task robot:typecheck      Type-check robot code (mypy: src/ + ros2_ws packages)
+          task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
+          task robot:zero           Pi Zero lifecycle ops — run on Pi 5 (ACTION=bootstrap|deploy|shutdown|verify|recover-sd)
+          task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
+          task robot:run            Run a single node (NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator|joy-teleop)
+          task robot:launch         Launch a node set (SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop)
+          task robot:drive          Switch control mode (ACTION=navigation|controller) — run on Pi 5
+          task robot:reset-motors   Zero drive speed + recenter steering (run after robot:drive switches)
+          task robot:test-motors    Hardware smoke test: steering range + drive pulse, checks real feedback — run on Pi 5
+          task robot:calibrate-encoder Interactive counts_per_rev calibration against a tape-measured distance — run on Pi 5
+          task robot:sweep-open-loop Open-loop H-bridge duty + servo range sweep, bypasses the closed-loop PID — run ON THE PI ZERO, service stopped first
+          task robot:joystick-setup Pair a Bluetooth joystick (e.g. 8BitDo Ultimate 2) — run on Pi 5, once
+
+        ROBOT REMOTE (run FROM a dev machine, target the Pi 5 over SSH)
+          task robot:deploy         Ship code + detector HEF, rebuild ros2_ws, restart the service
+          task robot:watch-vision   Print live detections, one line per frame (no debug video needed)
+          task robot:record-vision  Record the annotated video and copy the mp4 back here
+          task robot:pull-runs      Pull recorded rosbag runs (mcaps) from the Pi 5, skipping ones already local
+          task robot:push-runs      Push local rosbag runs (mcaps) back up to the Pi 5, skipping ones already there
+          task robot:pull-videos    Pull per-run videos (mp4 only, no bag) from the Pi 5, skipping ones already local
+          task robot:push-videos    Push local per-run videos back up to the Pi 5, skipping ones already there
+
+        RECORD (video + frame pipeline — requires Gazebo + ROS2)
+          task record:run           Record scenario videos from Gazebo
+          task record:convert       Convert ROS2 bags to MP4 videos
+          task record:frames        Extract frames from bags and annotate
+
+        DOCKER (compose)
+          task docker:build         Build Docker images
+          task docker:up            Start Docker Compose services
+          task docker:down          Stop Docker Compose services
+          task docker:logs          View Docker Compose logs
+          task docker:restart       Restart Docker Compose services
+
+        WORKFLOWS (multi-step pipelines)
+          task workflow:generate    Generate track → all scenarios
+          task workflow:dev         install → lint → test
+          task workflow:record      record → convert bags → extract frames
+
+        PROVISIONING — moved to the root Taskfile.yml (task rpi:provision:zero / rpi:provision:pi5)
+
+        DIAGNOSTICS
+          task info                 Display platform information (versions, directories)
+          task debug                Run any task with verbose logging (DEBUG=1 task <name>)
+
+        VARIABLES (override with task NAME VAR=value)
+          SCENARIOS={{.SCENARIOS}}   CHALLENGE={{.CHALLENGE}}   LAPS={{.LAPS}}
+          OUTPUT_DIR={{.OUTPUT_DIR}}   METADATA={{.METADATA}}
+          GRPC_ADDR={{.GRPC_ADDR}}
+        "
+
+  # UMBRELLAS
+
+  install:
+    desc: Install all dependencies (sim + robot + Go backend bootstrap)
+    cmds:
+      - task: sim:install
+      - task: robot:install
+      - task: backend:install
+
+  test:
+    desc: Run all tests across all modules (Python + Go)
+    cmds:
+      - task: backend:test
+      - task: simgen:test
+      - task: sim:test
+      - task: robot:test
+
+  lint:
+    desc: Run all linters (ruff on Python, golangci-lint on Go, ESLint on frontend, buf lint on proto)
+    cmds:
+      - task: shared:lint
+      - task: sim:lint
+      - task: robot:lint
+      - task: backend:lint
+      - task: simgen:lint
+      - task: frontend:lint
+      - task: proto
+        vars:
+          ACTION: lint
+
+  lint:fix:
+    desc: Auto-fix linting issues in all modules
+    cmds:
+      - task: shared:lint:fix
+      - task: sim:lint:fix
+      - task: robot:lint:fix
+      - task: backend:lint:fix
+      - task: simgen:lint:fix
+
+  init:dev:
+    desc: One-time setup for development (install + lint)
+    cmds:
+      - task: install
+      - task: lint
+
+  # BACKEND (Go telemetry server)
+
+  backend:install:
+    desc: Bootstrap Go backend — update buf deps, generate proto code, sqlc, tidy Go modules
+    cmds:
+      - task: proto
+        vars:
+          ACTION: update
+      - task: proto
+        vars:
+          ACTION: generate
+      - task: backend:sqlc
+      - task: backend:tidy
+
+  backend:tidy:
+    dir: apps/backend
+    cmds:
+      - go mod tidy
+
+  backend:deps:
+    desc: Download Go backend module dependencies without building
+    dir: apps/backend
+    cmds:
+      - go mod download
+
+  backend:typecheck:
+    desc: Run go vet on the Go backend
+    dir: apps/backend
+    cmds:
+      - go vet ./...
+
+  backend:build:
+    desc: Compile Go telemetry backend binary to backend/bin/server
+    dir: apps/backend
+    cmds:
+      - go build -o bin/server ./cmd/server
+
+  backend:dev:
+    desc: Run Go backend with synthetic --sim generator (dev mode, HTTP :8010, gRPC :9010)
+    dir: apps/backend
+    env:
+      TELEMETRY_DEV: "true"
+    cmds:
+      - go run ./cmd/server -sim
+
+  backend:run:
+    desc: Run Go backend production mode (expects real robot gRPC feed on :9010)
+    dir: apps/backend
+    cmds:
+      - go run ./cmd/server
+
+  backend:test:
+    desc: Run Go backend tests
+    dir: apps/backend
+    cmds:
+      - go test ./... -v
+
+  backend:lint:
+    desc: Run golangci-lint on the Go backend
+    dir: apps/backend
+    cmds:
+      - golangci-lint run ./...
+
+  backend:lint:fix:
+    desc: Auto-fix Go backend lint issues with golangci-lint
+    dir: apps/backend
+    cmds:
+      - golangci-lint run --fix ./...
+
+  backend:align:
+    desc: Check Go struct field alignment (betteralign)
+    dir: apps/backend
+    cmds:
+      - betteralign ./...
+
+  backend:align:fix:
+    desc: Auto-fix Go struct field alignment with betteralign
+    dir: apps/backend
+    cmds:
+      - betteralign -fix ./...
+
+  backend:fmt:
+    desc: Format Go backend code (goimports + gofmt)
+    dir: apps/backend
+    cmds:
+      - goimports -w ./...
+      - gofmt -w .
+
+  backend:sqlc:
+    desc: Regenerate Go database access layer from SQL schema and queries (requires sqlc CLI)
+    dir: apps/backend
+    cmds:
+      - sqlc generate
+
+  # OPENAPI (spec-first API contract)
+
+  openapi:generate:
+    desc: Regenerate Go types from all context OpenAPI specs
+    dir: apps/backend
+    cmds:
+      - cmd: pwsh -NoProfile -File scripts/gen-openapi.ps1
+        platforms: [windows]
+      - cmd: bash scripts/gen-openapi.sh
+        platforms: [linux, darwin]
+    sources:
+      - ../../contracts/openapi/contexts/*.yaml
+      - scripts/gen-openapi.ps1
+      - scripts/gen-openapi.sh
+    generates:
+      - internal/api/*/openapi.gen.go
+
+  openapi:validate:
+    desc: Validate all OpenAPI specs exist and are non-empty
+    dir: apps/backend
+    cmds:
+      - cmd: pwsh -NoProfile -File scripts/validate-openapi.ps1
+        platforms: [windows]
+      - cmd: bash scripts/validate-openapi.sh
+        platforms: [linux, darwin]
+
+  openapi:lint:
+    desc: Lint the aggregated OpenAPI spec with Redocly (requires the redocly CLI)
+    dir: contracts
+    cmds:
+      - redocly lint
+
+  openapi:bundle:
+    desc: Bundle the aggregated OpenAPI spec into a single file (requires the redocly CLI)
+    dir: contracts
+    cmds:
+      - redocly bundle main -o openapi/openapi.bundled.yaml
+
+  openapi:preview-docs:
+    desc: Launch an interactive local preview of the API docs (requires the redocly CLI)
+    dir: contracts
+    cmds:
+      - redocly preview
+
+  # PROTO (buf toolchain)
+
+  proto:
+    desc: "Buf toolchain ops (usage: task proto ACTION=update|generate|lint|breaking|format)"
+    dir: contracts/proto
+    requires:
+      vars:
+        - ACTION
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            update) buf dep update ;;
+            generate) buf generate ;;
+            lint) buf lint ;;
+            breaking) buf breaking --against '.git#branch=master,subdir=contracts/proto' ;;
+            format) buf format -w ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use update|generate|lint|breaking|format" && exit 1 ;;
+          esac
+
+  # SIMGEN (Go scenario generator) -- lives at robot-go/cmd/simgen +
+  # robot-go/internal/simgen/*, part of the robot-go Go module (moved out of
+  # apps/gazebo/generator once Gazebo itself was dropped -- simgen never
+  # depended on Gazebo at runtime, it only emitted .sdf files as one of
+  # several outputs). These tasks stay scoped to just the simgen packages
+  # (./cmd/simgen/... ./internal/simgen/...), not all of robot-go, so `task
+  # lint`'s simgen:lint step keeps exactly the coverage it always had.
+
+  simgen:install:
+    desc: Build simgen binary (Go compilation — no external deps required)
+    cmds:
+      - task: simgen:build
+
+  simgen:build:
+    desc: Compile simgen binary to robot-go/bin/simgen[.exe]
+    dir: src/go
+    cmds:
+      - go build -o bin/simgen{{.EXE}} ./cmd/simgen
+
+  simgen:test:
+    desc: Run simgen tests
+    dir: src/go
+    cmds:
+      - go test ./cmd/simgen/... ./internal/simgen/... -v
+
+  simgen:lint:
+    desc: Run golangci-lint on simgen
+    dir: src/go
+    cmds:
+      - golangci-lint run ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:lint:fix:
+    desc: Auto-fix simgen lint issues with golangci-lint
+    dir: src/go
+    cmds:
+      - golangci-lint run --fix ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:align:
+    desc: Check Go struct field alignment (betteralign)
+    dir: src/go
+    cmds:
+      - betteralign ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:align:fix:
+    desc: Auto-fix Go struct field alignment with betteralign
+    dir: src/go
+    cmds:
+      - betteralign -fix ./cmd/simgen/... ./internal/simgen/...
+
+  simgen:fmt:
+    desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)
+    dir: src/go
+    cmds:
+      - golangci-lint fmt ./cmd/simgen/... ./internal/simgen/...
+
+  clean:go:
+    desc: Remove Go build cache and compiled binaries
+    cmds:
+      - cmd: rm -rf backend/bin
+      - go clean -cache
+
+  # FRONTEND (Vite + React telemetry dashboard)
+
+  frontend:install:
+    desc: Install frontend dependencies (Node.js)
+    dir: apps/frontend
+    cmds:
+      - npm ci
+
+  frontend:dev:
+    desc: "Run frontend dev server (Vite, http://localhost:5173) — DEMO=true for Demo Mode (mock telemetry, no backend required); append ?demo to the URL instead for an ad-hoc one-off"
+    dir: apps/frontend
+    env:
+      VITE_DEMO: '{{.DEMO | default "false"}}'
+    cmds:
+      - npm run dev
+
+  frontend:build:
+    desc: Type-check and build the frontend for production (tsc -b + vite build → dist/)
+    dir: apps/frontend
+    cmds:
+      - npm run build
+
+  frontend:preview:
+    desc: Preview the production frontend build locally (vite preview)
+    dir: apps/frontend
+    cmds:
+      - npm run preview
+
+  frontend:typecheck:
+    desc: Type-check the frontend without emitting (tsc -b)
+    dir: apps/frontend
+    cmds:
+      - npx tsc -b
+
+  frontend:lint:
+    desc: Run ESLint on the frontend
+    dir: apps/frontend
+    cmds:
+      - npm run lint
+
+  frontend:api:generate:
+    desc: Generate TypeScript API client from OpenAPI specs
+    dir: apps/frontend
+    cmds:
+      - npm run api:generate
+
+  frontend:docker:build:
+    desc: Build frontend Docker image (multi-stage — Node builder → nginx static)
+    dir: apps/frontend
+    cmds:
+      - docker build -t vtitan-frontend .
+
+  frontend:docker:run:
+    desc: Run frontend container serving on http://localhost:8080
+    cmds:
+      - docker run --rm -p 8080:8080 vtitan-frontend
+
+  # GEN (track + scenario generation)
+
+  gen:track:
+    desc: Generate/regenerate WRO 2026 base track SDF world file via simgen
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} generate-track --output {{.BASE_WORLD}}"
+
+  gen:track-constants:
+    desc: Regenerate mat geometry constants (Go) from shared/config/track.toml
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} generate-track-constants"
+
+  gen:robot-command-client:
+    desc: "Regenerate robot-go's local Go+gRPC client stubs for contracts/proto/telemetry/v1/commands.proto (internal/schema/pb/telemetry/v1) -- backend's own generated copy (apps/backend/gen/telemetry/v1) is untouched"
+    dir: src/go
+    cmds:
+      - buf generate ../../contracts/proto --template buf.gen.commands.yaml --path ../../contracts/proto/telemetry/v1/commands.proto
+
+  gen:scenarios:
+    desc: "Generate scenarios for a challenge (usage: task gen:scenarios CHALLENGE=open|obstacles, SCENARIOS={{.SCENARIOS}} default)"
+    deps: [simgen:build]
+    requires:
+      vars:
+        - CHALLENGE
+    cmds:
+      - "{{.SIMGEN}} generate --challenge {{.CHALLENGE}} --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}"
+
+  gen:corpus:
+    desc: "Generate the pinned-seed sweep corpus (CHALLENGE=open|obstacles, CORPUS_SIZE/CORPUS_SEED overridable)"
+    deps: [simgen:build]
+    requires:
+      vars:
+        - CHALLENGE
+    cmds:
+      - >-
+        {{.SIMGEN}} generate --challenge {{.CHALLENGE}}
+        --num-scenarios {{.CORPUS_SIZE}} --seed {{.CORPUS_SEED}}
+        --output-dir {{.CORPUS_DIR}}/{{.CHALLENGE}}
+      - >-
+        echo "corpus: {{.CORPUS_DIR}}/{{.CHALLENGE}}/scenarios
+        ({{.CORPUS_SIZE}} scenarios, seed {{.CORPUS_SEED}})"
+
+  gen:corpus:all:
+    desc: Generate the pinned-seed sweep corpus for both challenges
+    cmds:
+      - task: gen:corpus
+        vars:
+          CHALLENGE: open
+      - task: gen:corpus
+        vars:
+          CHALLENGE: obstacles
+
+  gen:all:
+    desc: Generate both open and obstacles scenarios
+    cmds:
+      - task: gen:scenarios
+        vars:
+          CHALLENGE: open
+      - task: gen:scenarios
+        vars:
+          CHALLENGE: obstacles
+
+  gen:preview:
+    desc: Render SVG top-down preview from metadata JSON (METADATA=path/to/*_metadata.json)
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} preview --metadata {{.METADATA}}"
+
+  gen:rviz:
+    desc: >-
+      Stream one generated scenario's static layout (walls, signs, parking
+      blocks) live to RViz2 straight from its *_metadata.json — no closed-loop
+      navigator run. METADATA=path/to/*_metadata.json (relative to platform/,
+      same var as gen:preview). Run `task sim:navigate:rviz` in another
+      terminal first (NOT `task sim:rviz`, which loads no saved config and so
+      comes up as an empty grid).
+    dir: src/python
+    env:
+      VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
+    cmds:
+      - 'echo "Hardware profile: {{.PROFILE}} (override with PROFILE=...)"'
+      - pixi run -e dev visualize-scenario -- --metadata-file ../{{.METADATA}} {{.CLI_ARGS}}
+
+  gen:rviz:all:
+    desc: >-
+      One-command version of gen:rviz — launches RViz2 (pre-configured) AND
+      streams the scenario to it concurrently, instead of needing
+      `task sim:navigate:rviz` and `task gen:rviz` in two separate terminals.
+      METADATA=path/to/*_metadata.json (same var as gen:rviz). Closing the
+      RViz2 window ends the task.
+    deps:
+      - sim:navigate:rviz
+      - gen:rviz
+
+  # SIM (Gazebo / ROS2 runtime)
+
+  # Gazebo and RViz come from src's `sim` pixi environment, NOT a
+  # manifest under gazebo/runtime. There used to be a second pixi.toml here
+  # declaring its own ros-kilted-* stack; it was a near-duplicate of the `sim`
+  # feature robot/pixi.toml already had, so it cost a whole second multi-GB
+  # ROS2 install and put Gazebo/RViz on a different DDS install from the
+  # /sim/* publishers — the long-standing reason `task sim:rviz` came up empty.
+  # gazebo/runtime keeps its uv environment; only the pixi one was redundant.
+  # --manifest-path leaves the working directory alone, so the relative world
+  # and module paths below still resolve against gazebo/runtime.
+
+  sim:install:
+    desc: Install simulation dependencies (uv env here + the shared `sim` pixi env in src)
+    dir: apps/gazebo/runtime
+    cmds:
+      - uv sync
+      - task: sim:init
+
+  sim:init:
+    desc: Initialize the Gazebo/ROS2 pixi environment shared with the robot platform (run once after clone)
+    dir: src/python
+    cmds:
+      - pixi install -e sim
+
+  sim:gazebo:
+    desc: "Launch Gazebo with an SDF world (run sim:init first). Usage: task sim:gazebo [SDF=path/to/scenario.sdf], default is the base WRO 2026 track"
+    dir: apps/gazebo/runtime
+    vars:
+      SDF: '{{.SDF | default "worlds/wro_track_2026.sdf"}}'
+    cmds:
+      # `gz sim`, not `gazebo` — the ros-gz packages ship no binary by that
+      # name, so the previous `pixi run gazebo` could only ever fail.
+      - pixi run --manifest-path ../../../src/python/pixi.toml -e sim gz sim --verbose {{.SDF}}
+
+  sim:rviz:
+    desc: >-
+      Launch a BARE RViz (no saved config) for Gazebo/hardware work. For the
+      closed-loop scenario visualizer use `task sim:navigate:rviz` instead —
+      that one loads config/live_visualization.rviz with the track, plan and
+      robot-model displays already set up. Same ROS2 install either way now, so
+      both discover /sim/* topics; the difference is only the saved config.
+    dir: apps/gazebo/runtime
+    cmds:
+      # Named before the launch, not after: the failure mode is a WORKING RViz
+      # showing an empty grid, which reads as "the sim published nothing"
+      # rather than "this is the wrong RViz". Nothing later in the session
+      # corrects that impression.
+      - 'echo "NOTE: this RViz is bare — no saved config, so it loads no displays at all. If you meant to watch task sim:navigate:visualize, stop this and run task sim:navigate:rviz (or task sim:navigate:visualize:all for both in one command)."'
+      - 'echo "Global Options, Fixed Frame - use odom or map if Gazebo/nav publishes one. If RViz reports a missing Fixed Frame, or Message Filter drops messages for a frame, that frame is not being published yet."'
+      - pixi run --manifest-path ../../../src/python/pixi.toml -e sim rviz2
+
+  sim:navigate:
+    desc: Run closed-loop simulation with real navigator (runs test_open_challenge_sim)
+    dir: src/python
+    # No VTITAN_HARDWARE_PROFILE here on purpose: this runs the pytest suite,
+    # which pins its own hardware in tests/conftest.py. Setting it would move
+    # every assertion onto different hardware without re-baselining them.
+    cmds:
+      - uv run pytest tests/unit/test_open_challenge_sim.py -v -s
+
+  sim:navigate:visualize:
+    desc: >-
+      Run closed-loop scenario(s) live at wall-clock speed, publishing pose/LIDAR/track to
+      ROS2 for RViz (run `task sim:navigate:rviz` first — NOT `task sim:rviz`, which loads
+      no saved config and so comes up as an empty grid).
+      `-- --challenge open|obstacles` scopes to one catalog (omit for both, Open then
+      Obstacles); add `-- --list` to list its scenarios, `-- --scenario 5` (or a label from
+      --list) to run one, `-- --interactive` to step through every scenario in the catalog,
+      pausing between each; otherwise runs one ad-hoc Open Challenge scenario, e.g.
+      `-- --south 600 --rate 2`. Add `-- --localize` to steer on the LIDAR position
+      estimate, or `-- --blind` to also withhold the corridor layout so the robot
+      estimates the widths from LIDAR (implies --localize).
+    dir: src/python
+    env:
+      VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
+    cmds:
+      - 'echo "Hardware profile: {{.PROFILE}} (override with PROFILE=...)"'
+      - pixi run -e dev visualize-scenario -- {{.CLI_ARGS}}
+
+  sim:navigate:visualize:all:
+    desc: >-
+      One-command version of sim:navigate:visualize — launches RViz2 (pre-configured) AND
+      runs the scenario(s) concurrently, instead of needing task sim:navigate:rviz +
+      task sim:navigate:visualize in two terminals. Same CLI_ARGS, e.g.
+      `-- --challenge obstacles --interactive` to step through every Obstacles Challenge
+      scenario, or `-- --challenge open --interactive` for Open Challenge.
+    # Blind navigation with realistic sensor error -- RViz draws the TRUE track and pose
+    # while the robot steers on its estimate, so any divergence is state-estimation error
+    # reaching control. Measured pass rates and where each axis breaks down:
+    # src/docs/blind-navigation-evaluation.md
+    #
+    #   BNO085 at datasheet spec (27/28 fixtures, 0 collisions):
+    #     task sim:navigate:visualize:all -- --challenge open --interactive --blind \
+    #       --place-error 2 --yaw-bias 2 --imu-drift 0.0083 --gyro-scale 0.25 --imu-noise 0.5 --rate 3
+    #
+    #   Realistic, ~2x spec (23/28, 2 collisions):
+    #     task sim:navigate:visualize:all -- --challenge open --interactive --blind \
+    #       --place-error 5 --yaw-bias 3 --imu-drift 0.02 --gyro-scale 0.5 --imu-noise 1.0 --rate 3
+    #
+    # Swap --interactive for --scenario go_open_0015 for the fixture that fails in both.
+    # Add --recover to make walls solid and let it reverse out of contact instead of
+    # ending the run at first touch -- that distinguishes a graze from a genuine pin.
+    deps:
+      - sim:navigate:rviz
+      - task: sim:navigate:visualize
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  sim:rviz:navigate:visualize:all:
+    desc: >-
+      Alias of sim:navigate:visualize:all, named to pair with
+      sim:gz:navigate:visualize:all. Headless physics + RViz: fast, cross-platform,
+      and the one to reach for by default.
+    cmds:
+      - task: sim:navigate:visualize:all
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  sim:gz:navigate:visualize:all:
+    desc: >-
+      Gazebo physics + the ROS2 stack + RViz, in one command. The heavyweight
+      counterpart to sim:rviz:navigate:visualize:all — real rigid-body contact
+      and a rendered camera instead of the headless raycast model.
+      SDF=path/to/scenario.sdf selects the world.
+      REQUIRES Linux and `task robot:build-ws` first; see the note below.
+    # Deliberately NOT the same pipeline as the rviz variant. That one runs
+    # ScenarioSimulator in-process and publishes /sim/* itself. This one runs
+    # Gazebo as the physics/sensor source and the real ROS2 nodes on top, so it
+    # exercises the node graph rather than the navigator alone.
+    #
+    # Two hard prerequisites, both of which fail loudly rather than subtly:
+    #   * `task robot:build-ws` (colcon) — Linux only, so this whole task is
+    #     Linux-only.
+    #   * Gazebo itself does not start on Windows at all: the gz conda packages
+    #     ship .bat-only activation, so GZ_CONFIG_PATH is never set and `gz`
+    #     exits with "I cannot find any available 'gz' command". That is
+    #     pre-existing and unrelated to which manifest is used.
+    #
+    # UNVERIFIED END-TO-END: written on a Windows host where Gazebo cannot run.
+    # The pieces are the existing sim:gazebo and launch-simulator, composed.
+    platforms: [linux]
+    deps:
+      - sim:navigate:rviz
+      - sim:gazebo
+    dir: src/python
+    cmds:
+      - pixi run -e sim launch-simulator
+
+  sim:navigate:rviz:
+    desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track, robot model) for sim:navigate:visualize
+    dir: src/python
+    cmds:
+      - 'echo "Global Options, Fixed Frame defaults to map in the saved config, which does not exist without SLAM/odometry publishing it. For real-hardware topic testing with no map, change it to base_link. Symptom if left on map: MessageFilter dropping message ... discarding message because the queue is full."'
+      - 'echo "Blind runs publish the plan and sign estimates in the belief frame, which map->belief rotates onto the real track (blind always guesses a SOUTH start). If the plan looks square to the layout, that transform is missing, not the planner."'
+      - pixi run -e sim viz
+
+  sim:analyze:
+    desc: Analyze generated scenarios (statistics and summaries)
+    dir: apps/gazebo/runtime
+    cmds:
+      - uv run python -m src.analysis.scenario_analyzer --output-dir {{.OUTPUT_DIR}}
+
+  sim:test:
+    desc: "Run simulation tests (usage: task sim:test [QUICK=true] for fail-fast, short traceback)"
+    dir: apps/gazebo/runtime
+    vars:
+      QUICK: '{{.QUICK | default "false"}}'
+    cmds:
+      - cmd: |
+          if [ "{{.QUICK}}" = "true" ]; then
+            uv run pytest tests/ -x --tb=short
+          else
+            uv run pytest tests/ -v
+          fi
+
+  shared:lint:
+    desc: Lint shared platform code
+    dir: src/python/shared
+    cmds:
+      - uv run ruff check .
+
+  shared:lint:fix:
+    desc: Auto-fix shared platform linting issues
+    dir: src/python/shared
+    cmds:
+      - uv run ruff check . --fix
+
+  sim:lint:
+    desc: Lint simulation code
+    dir: apps/gazebo/runtime
+    cmds:
+      - uv run ruff check src/ tests/
+
+  sim:lint:fix:
+    desc: Auto-fix simulation linting issues
+    dir: apps/gazebo/runtime
+    cmds:
+      - uv run ruff check src/ tests/ --fix
+
+  # ROBOT (on-robot platform)
+
+  robot:install:
+    desc: Install robot platform dependencies (pixi + RoboStack, default + dev envs)
+    dir: src/python
+    cmds:
+      - pixi install
+      - pixi install -e dev
+
+  robot:test:
+    desc: "Run robot tests in parallel (pixi dev env — robot is pixi-only, not uv). Usage: task robot:test [SCOPE=all|unit|fast|hardware|navigation|vision|drivers|slow] [TEST=path] [WORKERS=auto|N|serial]. Tests run on all cores by default (WORKERS=auto), set WORKERS=serial to disable parallelization. Scopes: unit (no hardware/ROS2 deps, includes slow sims); fast (unit minus @slow); all (all except @hardware); hardware (requires physical Pi); navigation/vision/drivers (subsystem scope, @slow excluded); slow (full closed-loop sims only, 1h+ runtime)."
+    dir: src/python
+    vars:
+      SCOPE: '{{.SCOPE | default "all"}}'
+      TEST: '{{.TEST | default ""}}'
+      WORKERS: '{{.WORKERS | default "auto"}}'
+    cmds:
+      - cmd: |
+          # Build pytest args for worker control
+          worker_args=""
+          if [ "{{.WORKERS}}" = "serial" ]; then
+            worker_args="-p no:xdist"  # Disable xdist plugin entirely
+          elif [ "{{.WORKERS}}" != "auto" ] && [ "{{.WORKERS}}" != "" ]; then
+            worker_args="-n {{.WORKERS}}"  # Override default auto with specific count
+          fi
+          # Note: -n auto and --dist loadscope are already in pytest.ini.
+          # loadscope pins each whole test module to a single worker, which is
+          # needed for tests/ros2 (shared per-file rclpy fixtures) but starves
+          # tests/unit-only scopes: the two @slow sim modules are single files,
+          # so loadscope caps them at 1 worker each no matter the core count.
+          # Those sim scenarios are fully independent (fresh ScenarioSimulator
+          # per test, no shared fixtures), so scopes that never touch
+          # tests/ros2 can override to worksteal and use every core.
+          dist_args="--dist worksteal"
+
+          if [ -n "{{.TEST}}" ]; then
+            pixi run -e dev pytest "{{.TEST}}" -v $worker_args
+          else
+            case "{{.SCOPE}}" in
+              all) pixi run -e dev pytest tests/ -m "not hardware" -v $worker_args ;;
+              unit) pixi run -e dev pytest tests/unit -q $worker_args $dist_args ;;
+              fast) pixi run -e dev pytest tests/unit -q -m "not slow" $worker_args $dist_args ;;
+              hardware) pixi run -e dev pytest tests/hardware -m hardware -v $worker_args ;;
+              slow) pixi run -e dev pytest tests/unit -q -m slow -v $worker_args $dist_args ;;
+              navigation) pixi run -e dev pytest tests/unit -q -m "not slow" -k "collision_avoidance or core_navigator or contact_rules or corridor_estimator or deviation_recovery or lap_detector or lidar_localizer or race_tracker or sign_router or parking or stuck_detector or steering_contract or wall_heading or waypoint or open_challenge_sim or obstacles_challenge_sim or scenario_catalog or sensor_errors or live_visualizer_markers or navigation_tuning or track_constants" $worker_args $dist_args ;;
+              vision) pixi run -e dev pytest tests/unit -q -m "not slow" -k "vision_overlay or nms_by_class or sign_discovery" $worker_args $dist_args ;;
+              drivers) pixi run -e dev pytest tests/unit -q -m "not slow" -k "dc_encoder or wheel_odometry or resiliency or joy_teleop or heading_reference" $worker_args $dist_args ;;
+              *) echo "Unknown SCOPE: {{.SCOPE}}. Use all|unit|fast|hardware|navigation|vision|drivers|slow" && exit 1 ;;
+            esac
+          fi
+
+  robot:lint:
+    desc: Lint robot code
+    dir: src/python
+    cmds:
+      - pixi run -e dev lint
+
+  robot:lint:fix:
+    desc: Auto-fix robot linting issues
+    dir: src/python
+    cmds:
+      - pixi run -e dev lint-fix
+
+  robot:typecheck:
+    desc: >-
+      Type-check robot code with mypy (src/ + all four ros2_ws packages). The
+      robot was the only module without this entry, though the pixi task and
+      mypy.ini both existed — backend, frontend, ml-service, api and hailo all
+      have one. Needs no hardware and no VTITAN_HARDWARE_PROFILE: mypy does not
+      execute module-level code, so the profile that RobotConstants demands at
+      import time is never read.
+    dir: src/python
+    cmds:
+      - pixi run -e dev typecheck
+
+  robot:build-ws:
+    desc: Build ROS2 workspace via colcon (Linux only — sllidar_ros2 requires Linux)
+    dir: src/python
+    cmds:
+      - pixi run -e dev build-ws
+
+  # Go robot binaries (src/go). Two build paths:
+  #   - build:static : CGO_ENABLED=0 pure-static cross-build for every cmd/*,
+  #     including capture-node/pi5 with the MJPEG (pure-Go) video backend. This
+  #     is the default and works on any dev machine (Windows/Mac/Linux) with Go.
+  #   - build:capture: CGo gocv/OpenCV mp4v video backend, confined to capture-
+  #     node/pi5 behind the `cgo` build tag. On Linux it builds natively with a
+  #     Linux/arm64 C cross-toolchain + OpenCV sysroot; on Windows it delegates
+  #     the CGo cross-build into WSL2 (which holds the toolchain), so the dev
+  #     never leaves Windows. See docs/internal/plans/2026-08-30-shared-runs-
+  #     folder-and-go-run-recorder.md.
+
+  robot-go:build:static:
+    desc: "Cross-compile all Go robot binaries as pure-static (CGO_ENABLED=0). Safe on any dev machine."
+    dir: src/go
+    vars:
+      OUT: '{{.OUT | default "dist"}}'
+    cmds:
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o {{.OUT}}/ ./cmd/...
+
+  robot-go:build:capture:
+    desc: >-
+      Build the CGo camera binaries (capture-node, pi5) with the gocv mp4v video
+      backend (CGO_ENABLED=1 -tags cgo). On Linux builds natively; on Windows
+      delegates the cross-build into WSL2 (needs Ubuntu + aarch64-linux-gnu-gcc +
+      arm64 OpenCV sysroot there). macOS is excluded: it cannot cross to arm64
+      Linux without a Linux toolchain.
+    dir: src/go
+    vars:
+      OUT: '{{.OUT | default "dist"}}'
+      CC: '{{.CC | default "aarch64-linux-gnu-gcc"}}'
+    cmds:
+      - cmd: |
+          if ! wsl.exe -l -q 2>$null | Select-String -Quiet Ubuntu; then
+            echo "WSL2 with an Ubuntu distro is required for CGo arm64 cross-build on Windows" >&2
+            echo "Install: wsl --install -d Ubuntu, then add aarch64-linux-gnu-gcc + arm64 OpenCV" >&2
+            exit 1
+          fi
+          # The task runs with dir: robot-go, so the current directory is the
+          # Windows path to src/go; translate it into the WSL path.
+          $wslPath = (wsl.exe wslpath -a "$(pwd)")
+          wsl.exe bash -lc "cd '$wslPath' && \
+            CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC={{.CC}} \
+            go build -tags cgo -o {{.OUT}}/capture-node ./cmd/capture-node && \
+            go build -tags cgo -o {{.OUT}}/pi5 ./cmd/pi5"
+        platforms: [windows]
+      - cmd: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC={{.CC}} \
+          go build -tags cgo -o {{.OUT}}/capture-node ./cmd/capture-node && \
+          go build -tags cgo -o {{.OUT}}/pi5 ./cmd/pi5
+        platforms: [linux]
+
+  robot-go:test:
+    desc: "Run the Go robot module's tests (pure-Go; excludes the CGo camera path)."
+    dir: src/go
+    cmds:
+      - go test ./...
+
+  robot-go:todo:
+    desc: "Print the Go-migration punch list: what's still stubbed/missing, verified against the tree on 2026-09-04."
+    cmds:
+      - cmd: |
+          cat <<'EOF'
+          robot-go (Python/ROS2 -> Go/NATS) migration -- remaining work, 2026-09-04
+          ===========================================================================
+          Stage 6 (nav stack) is otherwise essentially ported and tested; these are
+          the real gaps left, verified against the tree (not the stale plan doc's
+          checkboxes, see docs/internal/plans/go-migration-plan.md).
+
+          1. cmd/pi5 only supervises "capture" (camera). IMU/LIDAR/vision/nav/
+             state-machine each still run as their OWN separate binaries
+             (cmd/imu-node, cmd/lidar-node, cmd/track-navigator, cmd/state-machine)
+             and are not yet combined into one production Pi 5 process.
+
+          2. internal/nav/navigator is only exercised end-to-end via
+             cmd/track-navigator (the bag-replay/parity harness) -- never run as
+             part of a full race loop on cmd/pi5.
+
+          3. internal/sim/harness: LIDAR-based relocalization is NOT implemented
+             (Localize=true unsupported, see gateway.go TODO) -- sim runner is
+             perfect-odometry only.
+
+          4. internal/statemachine/robotcmd/convert.go: pause/resume/
+             return_to_start/reboot/shutdown all map to KindUnimplemented.
+
+          5. internal/node/statemachine/channel_sink.go: SetVisionDebug/
+             ToggleTelemetryChannel/DisableCommandChannel are a deliberate
+             UnimplementedChannelSink -- vision debug has no Go-side NATS subject
+             yet, and telemetry-channel toggling needs cross-process signaling to
+             cmd/telemetry-node that doesn't exist yet.
+
+          6. internal/driver/lidar: only the legacy Dense-mode request is
+             implemented; GET_LIDAR_CONF-selected named scan modes are not.
+
+          7. internal/transport/nats is still a thin/one-line stub in places --
+             blocks internal/driver/display/ssd1306 (OLED page rendering) and
+             internal/telemetry/diag from actually publishing over NATS.
+
+          8. internal/nav/signrouter/discovery.go: a couple of hardcoded
+             constants (e.g. CameraHFOVRad) are flagged "TODO: confirm against
+             robot.toml / navigation_tuning.toml" -- not blocking, just unverified
+             defaults inherited from the port.
+
+          NATS-to-Foxglove topic mapping (separate from the above, see
+          cmd/foxglove-bridge and internal/recording/roscdr.go):
+            - The sim-runner's MCAP recorder hand-encodes 5 topics to real ROS2
+              CDR (LaserScan/Imu/TFMessage/AckermannDriveStamped/Float32) so
+              Foxglove Studio's 3D panel renders them natively; everything else
+              is raw vtitan.* protobuf, Raw-Messages-panel only.
+            - cmd/foxglove-bridge (the LIVE NATS websocket bridge) does NOT do
+              this conversion -- every subject is advertised as protobuf, so live
+              3D rendering doesn't work today, only offline bag playback does.
+            - There is no shared abstraction/config table for this mapping by
+              design (see feedback_go_code_style_maps_config_constants): both
+              bridgeAllSubjects() in cmd/foxglove-bridge/main.go and the encoder
+              calls in internal/sim/scenario/record.go are explicit, hand-written
+              per-topic call sites, not a dynamic registry. Porting CDR rendering
+              to the live bridge, or centralizing the mapping into one static
+              typed table, is still an open design decision, not started.
+
+          Corrected vs. older notes: cmd/foxglove-bridge itself IS a real
+          implementation now (connects NATS, bridges every declared subject,
+          serves the Foxglove WebSocket protocol) -- it is not a stub, only its
+          schema encoding is limited to protobuf (see above).
+          EOF
+        silent: true
+
+  robot-go:test:hw:
+    desc: >-
+      Cross-compile the //go:build hw hardware tests for linux/arm64 so each
+      driver can be scp'd to a real Pi and run independently (no nats-server,
+      no other board). Usage: task robot-go:test:hw [PKG=button|ssd1306|imu|lidar|motor]
+      (omit PKG to build all five). Output binaries land in robot-go/dist/hw/.
+      On the Pi, run e.g. `./dist/hw/btn -test.v`; env overrides per test:
+      BUTTON_GPIO_LINE, SSD1306_I2C_BUS/ADDR, IMU_TTY, LIDAR_TTY,
+      MOTOR_REN/LEN/REVERSE_PWM_LINE.
+    dir: src/go
+    vars:
+      PKG: '{{.PKG | default ""}}'
+      OUT: '{{.OUT | default "dist/hw"}}'
+    cmds:
+      - cmd: |
+          mkdir -p {{.OUT}}
+          build_one() {
+            local pkg="$1" bin="$2"
+            echo "cross-compiling hw test: ./internal/driver/$pkg -> {{.OUT}}/$bin"
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+              go test -tags hw -c -o "{{.OUT}}/$bin" "./internal/driver/$pkg/"
+          }
+          if [ -n "{{.PKG}}" ]; then
+            case "{{.PKG}}" in
+              button) build_one button btn ;;
+              ssd1306) build_one display/ssd1306 oled ;;
+              imu)    build_one imu imu ;;
+              lidar)  build_one lidar lidar ;;
+              motor)  build_one motor motor ;;
+              nats)   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go test -tags hw -c -o "{{.OUT}}/nats" ./internal/transport/nats/ ;;
+              *) echo "Unknown PKG: {{.PKG}}. Use button|ssd1306|imu|lidar|motor|nats" && exit 1 ;;
+            esac
+          else
+            build_one button btn
+            build_one display/ssd1306 oled
+            build_one imu imu
+            build_one lidar lidar
+            build_one motor motor
+            build_one transport/nats nats
+          fi
+          echo "hw test binaries written to {{.OUT}}/"
+
+  robot-go:test:hw:interactive:
+    desc: >-
+      Cross-compile the INTERACTIVE //go:build hw && hwinteractive hardware
+      tests (dynamic, operator-gated: motor spin, servo sweep, IMU rotate,
+      OLED eyeball, lidar object) for linux/arm64. These need a TTY + a human
+      at the bench, so they are kept out of the unattended robot-go:test:hw
+      binaries. Usage: task robot-go:test:hw:interactive [PKG=motor|imu|lidar|ssd1306]
+      (omit PKG to build all four). Output binaries land in robot-go/dist/hw-interactive/.
+      On the Pi, run e.g. `./dist/hw-interactive/motor -test.v -test.run TestHW`
+      and answer the on-screen prompts.
+    dir: src/go
+    vars:
+      PKG: '{{.PKG | default ""}}'
+      OUT: '{{.OUT | default "dist/hw-interactive"}}'
+    cmds:
+      - cmd: |
+          mkdir -p {{.OUT}}
+          build_one() {
+            local pkg="$1" bin="$2"
+            echo "cross-compiling interactive hw test: ./internal/driver/$pkg -> {{.OUT}}/$bin"
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+              go test -tags "hw hwinteractive" -c -o "{{.OUT}}/$bin" "./internal/driver/$pkg/"
+          }
+          if [ -n "{{.PKG}}" ]; then
+            case "{{.PKG}}" in
+              motor)  build_one motor motor ;;
+              imu)    build_one imu imu ;;
+              lidar)  build_one lidar lidar ;;
+              ssd1306) build_one display/ssd1306 oled ;;
+              *) echo "Unknown PKG: {{.PKG}}. Use motor|imu|lidar|ssd1306" && exit 1 ;;
+            esac
+          else
+            build_one motor motor
+            build_one imu imu
+            build_one lidar lidar
+            build_one display/ssd1306 oled
+          fi
+          echo "interactive hw test binaries written to {{.OUT}}/"
+
+  robot-go:hw:stop:
+    desc: >-
+      Stop the robot's production services + any stray ROS2/sllidar processes
+      on a Pi so the Go //go:build hw interactive tests can claim the serial
+      port / PWM / I2C (otherwise they fail with "Serial port busy" /
+      "already claimed"). Keeps vtitan-nats running (tests don't need it, and
+      other boards connect through it). Usage:
+      task robot-go:hw:stop HOST=rpi-5-local (or rpi-zero-local).
+      ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
+      resolve (Git-bash's msys HOME does not, causing exit 255).
+    shell: '{{.BASH}}'
+    cmds:
+      - cmd: |
+          HOST="{{.HOST}}"
+          if [ -z "$HOST" ]; then echo "HOST required (e.g. HOST=rpi-5-local)" && exit 1; fi
+          echo "stopping vtitan services + stray launches on $HOST (keeping vtitan-nats)..."
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'sudo systemctl stop vtitan-pi5 vtitan-pi-zero vtitan-lidar vtitan-motor vtitan-display vtitan-race vtitan-backend 2>/dev/null; pkill -f ros2 2>/dev/null; pkill -f sllidar_node 2>/dev/null; pkill -f track_navigator_node 2>/dev/null; pkill -f bag_recorder_node 2>/dev/null; sleep 2; echo remaining port holders:; sudo fuser -v /dev/ttyUSB0 /dev/ttyACM0; true'; exit 0"
+          echo "done. Re-run if fuser still shows a holder; kill that PID explicitly."
+      - task: robot-go:hw:stop-notes
+
+  robot-go:hw:stop-notes:
+    desc: "Print the port-holding reminder after robot-go:hw:stop"
+    cmds:
+      - 'echo "NOTE: if fuser still reports a holder, ssh {{.HOST}} and kill that PID, then re-run robot-go:hw:stop."'
+
+  robot-go:hw:run:
+    desc: >-
+      Full interactive-hw-test flow for ONE package: build the linux/arm64
+      binary (task robot-go:test:hw:interactive), ship it to a Pi (mkdir +
+      scp + chmod +x so scp does not drop the exec bit), and run it over a TTY
+      (operator-ack prompts need it). Stops services first via
+      robot-go:hw:stop. Usage:
+      task robot-go:hw:run PKG=lidar HOST=rpi-5-local
+      (PKG=motor|imu|lidar|ssd1306). For lidar, INVERTED defaults to true
+      (robot.toml's [lidar] inverted=true), mirroring decoded angles for the
+      C1's upside-down mount -- NOT a +180 offset, which hardware
+      verification 2026-08-31 found swaps front/back while leaving
+      left/right correct, a pattern only a mirror explains (see
+      lidar.correctAngleDeg). YAW_OFFSET is the residual mount
+      miscalibration applied after the mirror, defaults to 0. Override via
+      INVERTED=false and/or YAW_OFFSET=. For
+      lidar, SCAN_MODE=dense selects the DenseSerialDriver (8-bearing test +
+      range decode expected to read correctly, unlike classic); omit for
+      classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
+      robot-go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
+      DUMP_SCAN=1 makes TestHW_LIDAR_Object_Dynamic print every valid point
+      sorted by angle, not just the closest-per-45deg-sector summary.
+      ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
+      resolve (Git-bash's msys HOME does not, causing exit 255).
+    dir: src/go
+    vars:
+      PKG: '{{.PKG | default "lidar"}}'
+      HOST: '{{.HOST | default "rpi-5-local"}}'
+      YAW_OFFSET: '{{.YAW_OFFSET | default "0"}}'
+      INVERTED: '{{.INVERTED | default "true"}}'
+      SCAN_MODE: '{{.SCAN_MODE | default ""}}'
+      DUMP_SCAN: '{{.DUMP_SCAN | default ""}}'
+      OUT: '{{.OUT | default "dist/hw-interactive"}}'
+    shell: '{{.BASH}}'
+    cmds:
+      - task: robot-go:hw:stop
+      - task: robot-go:test:hw:interactive
+        vars: { PKG: '{{.PKG}}', OUT: '{{.OUT}}' }
+      - cmd: |
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"
+          BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
+          REMOTE_DIR="vtitan/src/go/$OUT"
+          LOCAL="$PWD/$OUT/$BIN"
+          echo "shipping $LOCAL -> $HOST:$REMOTE_DIR/"
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'mkdir -p $REMOTE_DIR'"
+          powershell.exe -NoProfile -Command "scp '$LOCAL' '${HOST}:$REMOTE_DIR/'"
+          powershell.exe -NoProfile -Command "ssh -o ConnectTimeout=30 $HOST 'chmod +x $REMOTE_DIR/$BIN && echo shipped OK'; exit 0"
+      - cmd: |
+          HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"; YAW="{{.YAW_OFFSET}}"; INVERTED="{{.INVERTED}}"; MODE="{{.SCAN_MODE}}"; DUMP="{{.DUMP_SCAN}}"
+          BIN=$( [ "$PKG" = "ssd1306" ] && echo oled || echo "$PKG" )
+          REMOTE_DIR="$OUT"
+          EXTRA=""
+          if [ "$PKG" = "lidar" ]; then
+            EXTRA="LIDAR_YAW_OFFSET_DEG=$YAW LIDAR_INVERTED=$INVERTED"
+            if [ -n "$MODE" ]; then EXTRA="$EXTRA LIDAR_SCAN_MODE=$MODE"; fi
+            if [ -n "$DUMP" ]; then EXTRA="$EXTRA LIDAR_DUMP_SCAN=$DUMP"; fi
+          fi
+          echo "running $BIN on $HOST (TTY required for operator prompts)..."
+          powershell.exe -NoProfile -Command "ssh -t -o ConnectTimeout=30 $HOST 'cd ~/vtitan/src/go && $EXTRA ./$REMOTE_DIR/$BIN -test.v -test.run TestHW'; exit 0"
+
+
+  robot:zero:
+    desc: >-
+      Pi Zero lifecycle ops — run ON Pi 5 (usage: task robot:zero
+      ACTION=bootstrap|deploy|shutdown|shutdown-both|verify|recover-sd
+      [ZERO_HOST=user@host] [ZERO_HOST_USB=user@host]
+      [ZERO_HOST_WIFI=user@host] [DEVICE=/dev/sdX]). bootstrap: one-shot setup for a
+      freshly-flashed Pi Zero (SSH trust, .env, pixi CLI, I2C, systemd
+      unit), idempotent, run before deploy. deploy: build the dev pixi env +
+      ros2_ws on Pi 5 and ship to the Pi Zero as tarballs. shutdown: cleanly
+      shut down the Pi Zero before cutting its power. shutdown-both: shut
+      the Zero down first, then Pi 5 itself last, once the Zero is
+      confirmed offline — use before switching the robot's power source
+      (e.g. wall/USB -> battery). verify: end-to-end health check
+      (USB-gadget link, service state, ROS2 discovery, a real motor command
+      round-trip). recover-sd: repair ext4/FAT corruption on the Zero's SD
+      card after an unclean power-off, without a reformat — run with the
+      Zero powered off and its card plugged into the Pi 5 via a USB adapter.
+    dir: src/python
+    requires:
+      vars:
+        - ACTION
+    env:
+      ZERO_HOST: '{{.ZERO_HOST | default ""}}'
+      ZERO_HOST_USB: '{{.ZERO_HOST_USB | default ""}}'
+      ZERO_HOST_WIFI: '{{.ZERO_HOST_WIFI | default ""}}'
+      DEVICE: '{{.DEVICE | default ""}}'
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            bootstrap) pixi run -e dev bootstrap-fresh-zero ;;
+            deploy) pixi run -e dev deploy-dev-env-to-zero ;;
+            shutdown) pixi run -e dev safe-shutdown-zero ;;
+            shutdown-both) pixi run -e dev safe-shutdown-both ;;
+            verify) pixi run -e dev verify-zero-integration ;;
+            recover-sd) pixi run -e dev recover-zero-sd ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|shutdown-both|verify|recover-sd" && exit 1 ;;
+          esac
+
+  robot:deploy:
+    desc: >-
+      Ship code + the detector HEF to the Pi 5, rebuild ros2_ws and restart the
+      service (usage: task robot:deploy [PI5_HOST=user@host] [HEF=] [SKIP_RESTART=1]).
+      Run FROM a dev machine. Transfers commits as a git bundle over SSH, so it
+      works on a branch that was never pushed and publishes nothing. HEF= skips
+      the model and ships code only.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SKIP_RESTART: '{{.SKIP_RESTART | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/provisioning/deploy-to-pi5.sh'
+
+  robot:record-vision:
+    desc: >-
+      Record the annotated detection video on the Pi 5 and copy it back here
+      (usage: task robot:record-vision [SECONDS_TO_RECORD=20] [OUT=path]
+      [KEEP_DEBUG=1] [PI5_HOST=user@host]). Run FROM a dev machine. Enables the
+      debug video stream, records, fetches the mp4, then restores the previous
+      debug setting — a race publishes detections only.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default ""}}'
+      OUT: '{{.OUT | default ""}}'
+      KEEP_DEBUG: '{{.KEEP_DEBUG | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/record-vision-from-pi5.sh'
+
+  robot:pull-runs:
+    desc: >-
+      Pull recorded rosbag runs (mcaps) from the Pi 5's ~/vtitan_runs into
+      data/live/runs/ (usage: task robot:pull-runs [PATTERN=run_20260809]
+      [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Lists
+      runs on the Pi 5 and skips any that already exist locally -- only
+      copies what's missing. PATTERN defaults to every run; pass a run name
+      or timestamp prefix to narrow it. RUNS_DIR overrides the local target
+      dir, e.g. if data/ moves again.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      RUNS_DIR: '{{.RUNS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/pull-runs-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:push-runs:
+    desc: >-
+      Push locally-held rosbag runs (mcaps) from data/live/runs/ up into
+      the Pi 5's ~/vtitan_runs (usage: task robot:push-runs [PATTERN=run_20260809]
+      [PI5_HOST=user@host] [RUNS_DIR=path]). Run FROM a dev machine. Keeps both
+      sides in sync so a Pi 5 reformat/reflash doesn't strand the only copy of
+      a run -- skips any run that already exists on the Pi 5. PATTERN defaults
+      to every local run; pass a run name or timestamp prefix to narrow it.
+      RUNS_DIR overrides the local source dir, e.g. if data/ moves again.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      RUNS_DIR: '{{.RUNS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/push-runs-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:pull-videos:
+    desc: >-
+      Pull per-run videos (mp4 only, no bag -- see src/vision/video_recorder.py)
+      from the Pi 5's ~/vtitan_runs into data/live/videos/ (usage: task
+      robot:pull-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
+      [VIDEOS_DIR=path]). Run FROM a dev machine. A separate tree from
+      data/live/runs/ on purpose -- see pull-videos-from-pi5.sh's own
+      comment. Skips any run whose video is already local; only lists runs
+      that actually recorded one. VIDEOS_DIR overrides the local target dir,
+      e.g. if data/ moves again.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      VIDEOS_DIR: '{{.VIDEOS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/pull-videos-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:push-videos:
+    desc: >-
+      Push locally-held per-run videos from data/live/videos/ back up into
+      their matching run directory under the Pi 5's ~/vtitan_runs (usage: task
+      robot:push-videos [PATTERN=run_20260809] [PI5_HOST=user@host]
+      [VIDEOS_DIR=path]). Run FROM a dev machine. Skips a run with no matching
+      remote run directory (push the bag first) and any video already present
+      on the Pi 5. VIDEOS_DIR overrides the local source dir, e.g. if data/
+      moves again.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      VIDEOS_DIR: '{{.VIDEOS_DIR | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/sync/push-videos-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:bench-hud:start:
+    desc: >-
+      Start a bench-mode vision/HUD recording test session (usage: task
+      robot:bench-hud:start [PI5_HOST=user@host]). Run FROM a dev machine.
+      Stops vtitan-pi5.service, launches SET=rpi5-bench, and simulates a
+      short_press to enter RACING so the per-run recorder starts. Pairs with
+      robot:bench-hud:stop -- do not leave this running unattended, it
+      leaves the production service down. See robot:bench-hud:record for a
+      one-shot timed version.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-start.sh'
+
+  robot:bench-hud:stop:
+    desc: >-
+      Stop a bench-mode vision/HUD test session started by
+      robot:bench-hud:start (usage: task robot:bench-hud:stop
+      [PI5_HOST=user@host]). Run FROM a dev machine. Simulates long_press to
+      enter FINISHED (finalizing the video), tears down the bench launch,
+      restores vtitan-pi5.service if it was running before, and pulls the
+      recorded video into data/live/videos/.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-stop.sh'
+
+  robot:bench-hud:record:
+    desc: >-
+      One-shot bench-mode vision/HUD recording test: start, record for
+      SECONDS_TO_RECORD, stop, and pull the video (usage: task
+      robot:bench-hud:record [SECONDS_TO_RECORD=20] [PI5_HOST=user@host]).
+      Run FROM a dev machine. Equivalent to robot:bench-hud:start, sleep,
+      robot:bench-hud:stop.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-record.sh'
+
+  robot:watch-vision:
+    desc: >-
+      Print live detections as they are published, one line per frame (usage:
+      task robot:watch-vision [SECONDS_TO_RECORD=60] [PI5_HOST=user@host]). Run
+      FROM a dev machine; reads the topic only, so it is safe against a live
+      robot and needs no debug video.
+    dir: src/python
+    env:
+      PI5_HOST: '{{.PI5_HOST | default "rpi-5-local"}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default "60"}}'
+    cmds:
+      - cmd: |
+          ssh -o ConnectTimeout=15 "$PI5_HOST" \
+            'export PATH="$HOME/.pixi/bin:$PATH"; cd ~/vtitan/src/python \
+             && bash -c ". ros2_ws/install/setup.bash && PYTHONPATH=. python \
+                scripts/hardware/watch_vision_detections.py --seconds '"$SECONDS_TO_RECORD"'"'
+
+  robot:fetch-lidar-driver:
+    desc: Clone the third-party Slamtec sllidar_ros2 driver into the workspace (run before build-ws to enable LIDAR)
+    dir: src/python
+    cmds:
+      - pixi run fetch-lidar-driver
+
+  robot:run:
+    desc: "Run a single robot node (usage: task robot:run NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator -- [extra ros2 args]) — requires build-ws first (lidar also needs fetch-lidar-driver). NODE=motor requires DRIVE_BACKEND/STEERING_BACKEND set (e.g. via .env) — standalone `ros2 run` has no launch file to source them from and errors loudly rather than guessing."
+    dir: src/python
+    requires:
+      vars:
+        - NODE
+    cmds:
+      - pixi run run-{{.NODE}} -- {{.CLI_ARGS}}
+
+  robot:launch:
+    desc: >-
+      Launch a robot node set (usage: task robot:launch
+      SET=rpi5|rpi5-bench|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop)
+      — requires build-ws first. rpi5-bench bypasses state_machine_node's IMU/
+      LiDAR/Hailo/jumper readiness checks for bench testing on partial hardware
+      (e.g. camera+Hailo only) — stop the vtitan-pi5 systemd service first, it
+      launches the same node set and will collide otherwise.
+    dir: src/python
+    requires:
+      vars:
+        - SET
+    cmds:
+      - pixi run launch-{{.SET}}
+
+  robot:drive:
+    desc: >-
+      Switch the robot's control mode — run ON the Pi 5 (usage: task
+      robot:drive ACTION=navigation|controller [METADATA=path]). navigation:
+      runs race.launch.py (autonomous navigator). controller: runs
+      joy_teleop_launch.py (joystick bench testing, e.g. 8BitDo Ultimate 2
+      over Bluetooth). Only one should run at a time -- both publish to
+      /ackermann_cmd and nothing arbitrates between them. Stop the running
+      one (Ctrl+C), run robot:reset-motors, then start the other.
+    dir: src/python
+    requires:
+      vars:
+        - ACTION
+    env:
+      SCENARIO_METADATA: '{{.METADATA | default ""}}'
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            navigation) pixi run drive-navigation ;;
+            controller) pixi run drive-controller ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use navigation|controller" && exit 1 ;;
+          esac
+
+  robot:reset-motors:
+    desc: Zero the drive command and recenter steering immediately (run after robot:drive switches modes, or after Ctrl+C)
+    dir: src/python
+    cmds:
+      - '{{.ROBOT_PIXI}} run reset-motors'
+
+  robot:test-motors:
+    desc: >-
+      Hardware smoke test for ackermann_motor_node — run ON Pi 5 (usage: task
+      robot:test-motors -- [--yes] [--skip-drive] [--steering-angle-deg 15]
+      [--drive-speed 0.1] [--drive-duration-s 1.5] [--find-min-speed]). Steering
+      test moves the servo through +-angle/center (safe with the robot sitting
+      still); the drive test spins the wheels at a low speed by default and
+      asks for a typed confirmation first unless --yes is passed. Checks real
+      feedback from /motor/steering_position and /motor/drive_speed, not just
+      that a command was sent. See scripts/hardware/test_motors.py --help for
+      every option.
+    dir: src/python
+    cmds:
+      - '{{.ROBOT_PIXI}} run -e dev test-motors -- {{.CLI_ARGS}}'
+
+  robot:calibrate-encoder:
+    desc: >-
+      Interactive counts_per_rev calibration against a real tape-measured
+      distance — run ON Pi 5 (usage: task robot:calibrate-encoder -- [--speed
+      0.05] [--duration-s 5.0] [--runs 2]). Drives a commanded distance, then
+      asks you to type in what you actually measured with a tape; compares
+      against the live encoder.toml value. Needed after any drive-motor swap
+      -- see scripts/hardware/calibrate_encoder.py --help for every option.
+    dir: src/python
+    cmds:
+      - '{{.ROBOT_PIXI}} run -e dev calibrate-encoder -- {{.CLI_ARGS}}'
+
+  robot:sweep-open-loop:
+    desc: >-
+      Open-loop H-bridge duty + servo range sweep — run ON THE PI ZERO
+      directly (not Pi 5: this talks to the BTS7960/servo objects directly,
+      not over ROS2/DDS). Usage: task robot:sweep-open-loop -- [--yes]
+      [--skip-drive] [--skip-servo] [--skip-reverse] [--duty-fractions
+      0.1,0.2,...] [--servo-steps 5]. Unlike test-motors, bypasses
+      ackermann_motor_node's closed-loop PID entirely, so it answers "what
+      does raw duty X produce" without relying on encoder.toml's
+      counts_per_rev/max_rpm (calibrated against the retired motor, not
+      trustworthy for a new one). See scripts/hardware/sweep_open_loop.py
+      --help for every option.
+    dir: src/python
+    cmds:
+      # 5,6,26 = l_en_pin,r_en_pin,reverse_pwm_pin from config/hardware/motors/
+      # bts7960.toml -- must stay in sync (same pins the systemd unit's
+      # ExecStopPost and bootstrap-fresh-zero.sh's config.txt line re-drive
+      # low; see docs/bts7960-ibt2-wiring.md).
+      - |
+        sudo systemctl stop vtitan-pi-zero.service
+        trap 'sudo pinctrl set 5,6,26 op dl; sudo systemctl start vtitan-pi-zero.service' EXIT
+        {{.ROBOT_PIXI}} run -e dev sweep-open-loop -- {{.CLI_ARGS}}
+
+  robot:joystick-setup:
+    desc: >-
+      One-shot Bluetooth pairing for a joystick used with robot:drive
+      ACTION=controller (e.g. 8BitDo Ultimate 2) — run ON Pi 5. Put the
+      controller in pairing mode first. Idempotent, safe to re-run.
+      CONTROLLER_MAC=AA:BB:CC:DD:EE:FF skips the interactive scan. See
+      docs/joystick-teleop.md.
+    dir: src/python
+    cmds:
+      - pixi run setup-joystick
+
+  # RECORD (video + frame pipeline)
+
+  record:run:
+    desc: Record scenario videos from Gazebo simulation
+    dir: apps/gazebo/runtime
+    cmds:
+      - pixi run --manifest-path ../../../src/python/pixi.toml -e sim python -m src.recording.recorder --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+
+  record:convert:
+    desc: Convert ROS2 bags to MP4 videos
+    dir: apps/gazebo/runtime
+    cmds:
+      - uv run python -m src.recording.bag_converter --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+
+  record:frames:
+    desc: Extract frames from ROS2 bags and annotate
+    dir: apps/gazebo/runtime
+    cmds:
+      - uv run python -m src.recording.frame_extractor --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
+
+  # DOCKER (compose)
+
+  docker:build:
+    desc: Build Docker images
+    cmds:
+      - docker compose build
+
+  docker:up:
+    desc: Start Docker Compose services
+    cmds:
+      - docker compose up -d
+
+  docker:down:
+    desc: Stop Docker Compose services
+    cmds:
+      - docker compose down
+
+  docker:logs:
+    desc: View Docker Compose logs (follow mode)
+    cmds:
+      - docker compose logs -f
+
+  docker:restart:
+    desc: Restart Docker Compose services
+    cmds:
+      - task: docker:down
+      - task: docker:up
+
+  # CLEANUP
+
+  clean:
+    desc: Remove all generated training data
+    cmds:
+      - cmd: rm -rf {{.OUTPUT_DIR}}
+
+  clean:cache:
+    desc: Clean Python cache files and __pycache__ directories
+    cmds:
+      - cmd: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+      - cmd: find . -name "*.pyc" -delete 2>/dev/null || true
+
+  clean:all:
+    desc: Deep clean — remove training data, cache, and build artifacts (Python + Go)
+    cmds:
+      - task: clean
+      - task: clean:cache
+      - task: clean:go
+
+  # WORKFLOWS (multi-step pipelines)
+
+  workflow:generate:
+    desc: Full scenario generation pipeline (generate track → all scenarios)
+    cmds:
+      - task: gen:track
+      - task: gen:all
+      - cmd: echo "Generation complete! Data in {{.OUTPUT_DIR}}"
+
+  workflow:dev:
+    desc: Development workflow (install → lint → test)
+    cmds:
+      - task: install
+      - task: lint
+      - task: test
+      - cmd: echo "Development checks complete!"
+
+  workflow:record:
+    desc: Recording pipeline (record → convert bags → extract frames)
+    cmds:
+      - task: record:run
+      - task: record:convert
+      - task: record:frames
+      - cmd: echo "Recording pipeline complete!"
+
+  # DIAGNOSTICS
+
+  info:
+    desc: Display platform information (versions, directories)
+    cmds:
+      - pwsh -NoProfile -File scripts/platform-info.ps1 {{.OUTPUT_DIR}}
+
+  debug:
+    desc: Run with verbose logging (DEBUG=1)
+    cmds:
+      - cmd: DEBUG=1 task {{CLI_ARGS}}
+
+  # PROVISIONING moved to the root Taskfile.yml (rpi:provision:zero, rpi:provision:pi5) —
+  # this file used to duplicate it against a since-removed setup_pi_zero.sh create/provision
+  # subcommand interface, a stale subnet, and the wrong account name.

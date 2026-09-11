@@ -1,0 +1,13 @@
+# Vision detector -- src/vision/detector.py
+# class_to_color is always passed explicitly by callers (derived from the
+# model's class order). model_path is normally passed explicitly too; the
+# default below only matters for test/debug callers that build a detector
+# with no config at all.
+
+model_path = "yolov8n.pt"
+min_confidence = 0.45
+# THE one shipped detection-confidence floor. The hailo backends (hailo.toml,
+# hailo_streaming.toml) no longer declare their own copy: their pydantic fields
+# resolve it back to this line, so a backend change is deliberate (env
+# HAILO_MIN_CONFIDENCE / DETECTOR_MIN_CONFIDENCE), never a forgotten literal.
+output_format = "normalized"

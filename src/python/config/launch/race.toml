@@ -1,0 +1,34 @@
+# Defaults for race.launch.py's DeclareLaunchArguments.
+# See src.config.launch_settings.RaceLaunchDefaults.
+#
+# Anything set here PINS that key: the Pydantic default in launch_settings.py
+# stops having any effect, so retune the value HERE, not there. Keys left out
+# of this file keep taking their Pydantic default as normal. Per-round
+# overrides still win over both -- env (RACE_LAUNCH_BAG_MAX_RUNS=...) or a
+# launch argument (max_runs:=...).
+#
+# Retention caps for bag_recorder_node, which prunes oldest-first before
+# opening each new bag once either cap is exceeded. Sized for a diagnosis
+# session rather than a single race day, so the bag scripts can compare across
+# sessions instead of finding the evidence already pruned. Note the count is
+# the number of COMPLETED runs kept: pruning runs before the new bag opens, so
+# the card holds up to bag_max_runs + 1 directories. Check free space before
+# raising bag_max_total_gb -- rpi-5 currently has ~407 GB free, but the count
+# cap alone will not protect a smaller card.
+#
+# The two caps are NOT independent, and at these values the SIZE cap is the one
+# that binds. Measured 2026-09-09 over the 215-run local corpus: mean 30.0 MB
+# per run, median 18.8 MB, p90 72.4 MB, max 223.4 MB. So 50 GB holds ~1708 runs
+# at the mean and ~2727 at the median -- 2000 runs is reachable only if the
+# session mix stays short. Raise bag_max_total_gb to ~64 if the COUNT is meant
+# to be the real limit.
+bag_max_runs = 2000
+bag_max_total_gb = 50.0
+
+# Deliberately NOT pinned here:
+#   bag_dir   -- resolved relative to the repo root so a Pi and a dev checkout
+#                both land in the shared data/live/runs tree; an absolute path
+#                here would be wrong on one of them.
+#   direction -- "undetermined" is the point (see launch_settings.py); naming a
+#                direction here would be a claim nobody made, every round.
+#   laps      -- comes from CompetitionSpecs, which is the rulebook's number.

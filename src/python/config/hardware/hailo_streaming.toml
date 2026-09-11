@@ -1,0 +1,17 @@
+# Continuous Hailo inference with camera -- src/hardware/hailo/config.py's StreamingConfig.
+# Own toml file (not camera/config.toml) since env_prefix differs
+# (hailo_stream_ vs camera_) -- inherited camera fields are repeated here.
+
+device = "/dev/video0"
+width = 640
+height = 640
+fps = 30
+rotation = 0
+hflip = false
+vflip = false
+
+model_input_width = 640
+model_input_height = 640
+
+queue_size = 1
+async_inference = false

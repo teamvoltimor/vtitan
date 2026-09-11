@@ -1,0 +1,89 @@
+# Knobs that exist only in the headless simulator.
+#
+# See shared.config.navigation_tuning.SimulationParams.
+#
+# These describe neither the robot nor the mat, so they belong in neither
+# robot.toml nor track.toml -- but they decide what a simulated run scores,
+# which is exactly why they should not be literals buried in a module.
+
+# Opening seconds during which wall contact is treated as an artefact of where
+# the robot was placed rather than a crash.
+#
+# This exists because a legal starting cell may already sit against a wall. The
+# starting square's middle band is only millimetres wider than the chassis, so
+# a start there begins with almost no clearance to the inner block, and scoring
+# that as a collision on tick one would fail a placement the rules allow.
+start_collision_window_s = 2.0
+
+# How long such an opening contact may persist before it counts as a real
+# failure rather than "still steering clear".
+start_collision_grace_s = 15.0
+
+# Fraction of LIDAR rays returning no measurement, emitted as NaN/inf so the
+# sanitising path the real driver uses is actually exercised.
+#
+# A placeholder. Slamtec drivers emit these off dark or shallow-incidence
+# surfaces and the true rate depends on the mat, so this is worth measuring
+# from a recorded bag rather than left at a guess. It matters more than it
+# looks: a dropout is substituted with MAX RANGE, which reads as "this side is
+# wide open" to the direction estimator.
+lidar_invalid_ray_rate = 0.01
+
+# Confidence stamped on emulated camera detections. Must stay above the sign
+# router's min_confidence or no emulated detection would ever be accepted.
+detection_confidence = 0.9
+
+# How far past the visual wall face TrackModel's chassis keep-out extends.
+# Zero: the chassis may drive right up to the wall it can see, matching the
+# real robot -- NOT the Go generator's fatter Gazebo collision mesh. See
+# TrackModel's module docstring for the full reasoning.
+collision_margin_m = 0.0
+
+# |cos(yaw)| below this counts as a quarter-turn for ObstacleBox.from_pose.
+axis_align_tolerance = 1e-6
+
+# The simulator's no-progress bailout: a run is abandoned once the robot moves
+# less than no_progress_displacement_m within no_progress_window_s. A HARNESS
+# artefact, not a robot behaviour -- it ends a manoeuvre that is working but
+# slow, which is exactly what the bay-exit ratchet looks like (diag_bay_start
+# grew --no-progress-window for this). Written out 2026-09-05; both existed
+# only as Python literals, at these same shipped values.
+no_progress_window_s = 30.0
+no_progress_displacement_m = 0.08
+
+# Emulate camera BOUNDING BOXES and decode them with the shipped perception
+# code, instead of handing the router world coordinates built from the TRUE
+# range and bearing. Off, the simulator never runs _detection_to_world at all --
+# no pinhole, no bearing formula, no bbox-height gate, no aspect or frame-clip
+# test -- all of which are live on the robot. That is how a MIRRORED camera
+# bearing (fixed 2026-09-06) survived the 256-scenario corpus for weeks: the
+# emulator reproduced the true geometry and the router's unit tests built their
+# boxes by inverting the same formula, so both agreed with the error.
+# The emulated box round-trips EXACTLY (1e-15 m) through the correct decode, so
+# this is a wiring change rather than a noise source; with the historical mirror
+# reintroduced it puts a sign 0.600 m onto the WRONG SIDE of a 1 m corridor.
+# Ships false until the Obstacles corpus is re-baselined on it, since it changes
+# which detections survive the discovery gates.
+vision_through_pinhole = false
+
+# Written out 2026-09-10: all three existed only as Python literals (the
+# shipped-tree completeness test now requires every concrete default to
+# appear in this file). Shipped values, so naming them changed nothing.
+
+# Emulate detection RANGE falloff (not just geometry) on the emulated camera:
+# a probit-ish falloff around R50, in metres.
+vision_range_model = true
+# Floor the curvature at min(cap, intercept + slope * |v|) instead of the
+# constant min_turn_radius_m. That constant is the curve's value at ONE speed:
+# re-measured 2026-09-10 over 33 bags in free space at lock >= 30 deg, the
+# achieved radius is 0.105 m at 0.025 m/s, 0.298 at 0.132 and saturates near
+# 0.43 above 0.22, so 0.29 corresponds to ~0.118 m/s. The bay exit creeps end
+# to end, where the constant is nearly 2x too large. The three constants live
+# in robot.toml beside min_turn_radius_m; this only decides whether the
+# simulator uses them. FALSE pending a corpus A/B -- it moves every contact-
+# and corner-dependent number, exactly as shipping the constant floor did.
+min_turn_radius_tracks_speed = false
+
+vision_detect_r50_m = 1.1
+vision_detect_falloff_m = 0.15
+

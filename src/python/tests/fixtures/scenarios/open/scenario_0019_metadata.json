@@ -1,0 +1,35 @@
+{
+  "challenge_type": "open",
+  "seed": 2026,
+  "corridor_widths": {
+    "east": {
+      "type": "narrow",
+      "width_mm": 600
+    },
+    "north": {
+      "type": "narrow",
+      "width_mm": 600
+    },
+    "south": {
+      "type": "wide",
+      "width_mm": 1000
+    },
+    "west": {
+      "type": "wide",
+      "width_mm": 1000
+    }
+  },
+  "sign_positions": [],
+  "starting_conditions": {
+    "direction": "counterclockwise",
+    "section": "North",
+    "position": {
+      "x": 1.75,
+      "y": 2.503
+    },
+    "yaw": 3.141592653589793
+  },
+  "scenario_id": 19,
+  "num_signs": 0,
+  "has_parking_lot": false
+}

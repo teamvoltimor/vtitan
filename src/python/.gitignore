@@ -1,0 +1,67 @@
+install/
+log/
+build/
+
+# No trailing slash, unlike install/ and build/ above: deploy-dev-env-to-zero.sh
+# points these at build/install via `ln -sfn` post-swap (colcon bakes relative
+# ../build-zero/... paths into some develop-mode hooks at build time), and a
+# slash-terminated gitignore pattern only matches a real directory, never a
+# symlink -- even one pointing at a directory. Confirmed showing as untracked
+# on the Zero despite the slash-terminated patterns these replaced.
+install-zero
+build-zero
+
+# One-generation rollback backups left by deploy-dev-env-to-zero.sh's atomic
+# swap on the Zero (ros2_ws/{build,install} renamed here with a timestamp
+# suffix before the new build takes their place) -- expected to exist, not
+# stray cruft, but still a build artifact rather than something to track.
+build_old_*/
+install_old_*/
+
+# Third-party ROS2 LIDAR driver, fetched via `pixi run fetch-lidar-driver` (not vendored)
+ros2_ws/src/sllidar_ros2/
+
+# Ignore generated docs
+*.dox
+*.wikidoc
+
+# eclipse stuff
+.project
+.cproject
+
+# qcreator stuff
+CMakeLists.txt.user
+
+srv/_*.py
+*.pcd
+*.pyc
+qtcreator-*
+*.user
+
+*~
+
+# Emacs
+.#*
+
+# Colcon custom files
+COLCON_IGNORE
+AMENT_IGNORE
+
+# Claude Code
+.claude/
+
+# Internal docs
+docs/internal/
+
+# Bag runs / videos / photos pulled from the robot now live in the repo-root
+# data/ tree (see repo-root .gitignore), referenced as siblings by both the
+# Python and Go stacks; the pull/push scripts live in scripts/sync/.
+
+# Legacy diagnostic-artefact dirs (untracked pcaps/journals left behind by the
+# data/ migration); candidates to move into data/ or delete.
+vtitan_runs_pulled/
+vtitan_videos_pulled/
+
+# Rendered output from local preview/diagnostic scripts (e.g.
+# scripts/vision/preview_hud.py) -- generated on demand, never committed.
+scripts/*/output/

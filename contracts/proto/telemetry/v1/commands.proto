@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package vtitan.telemetry.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1;telemetryv1";
+
+// RobotCommandService pushes backend-queued commands down to a robot.
+//
+// Protocol: the robot always dials out and opens StreamCommands once at
+// startup (and again on reconnect); the backend never initiates a
+// connection to the robot. The stream is best-effort — if it drops, the
+// robot keeps racing/navigating standalone and simply has no live command
+// channel until reconnect. last_command_id lets a reconnecting robot
+// resume without replaying commands it already applied.
+//
+// The robot acks every command it receives via AckCommand on the same
+// logical connection (a separate unary call), so the backend can surface
+// CommandResult (see domain/robot.CommandResult) back through the REST API.
+service RobotCommandService {
+  // StreamCommands is opened once by the robot; the backend pushes each
+  // queued RobotCommand as it is dispatched. Bounded per-call deadline is
+  // intentionally NOT set client-side by the robot — the server enforces a
+  // generous keepalive/idle timeout instead so the stream survives for the
+  // life of the robot process.
+  rpc StreamCommands(StreamCommandsRequest) returns (stream RobotCommand);
+
+  // AckCommand reports the outcome of executing a previously streamed
+  // command. Fire-and-forget from the robot's perspective: a failed ack
+  // delivery must never block command execution.
+  rpc AckCommand(AckCommandRequest) returns (AckCommandResponse);
+}
+
+message StreamCommandsRequest {
+  string robot_id = 1 [(buf.validate.field).string.min_len = 1];
+  // last_command_id is the command_id of the last command this robot fully
+  // processed (accepted or rejected). Empty on first connect. The server
+  // replays anything queued after this id and skips everything before it.
+  optional string last_command_id = 2;
+}
+
+// CommandExecutionStatus is the outcome of a robot applying a RobotCommand.
+enum CommandExecutionStatus {
+  COMMAND_EXECUTION_STATUS_UNSPECIFIED = 0;
+  COMMAND_EXECUTION_STATUS_ACCEPTED    = 1;
+  COMMAND_EXECUTION_STATUS_REJECTED    = 2;
+  COMMAND_EXECUTION_STATUS_COMPLETED   = 3;
+  COMMAND_EXECUTION_STATUS_FAILED      = 4;
+}
+
+message AckCommandRequest {
+  string                  robot_id   = 1 [(buf.validate.field).string.min_len = 1];
+  string                  command_id = 2 [(buf.validate.field).string.min_len = 1];
+  CommandExecutionStatus  status     = 3 [(buf.validate.field).enum = {
+    not_in: [0]
+  }];
+  string message = 4; // optional human-readable detail, e.g. rejection reason
+}
+
+message AckCommandResponse {}
+
+// RobotCommand mirrors domain/robot.Command, plus delivery metadata.
+// Exactly one payload is set per command_type; explicit oneof branches give
+// each command type compile-time-checked, independently validated fields
+// instead of a loosely-typed parameters map.
+message RobotCommand {
+  string                     command_id = 1 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.Timestamp  issued_at  = 2 [(buf.validate.field).required = true];
+
+  oneof payload {
+    option (buf.validate.oneof).required = true;
+
+    StartRaceParams      start_race       = 3;
+    StopRaceParams       stop_race        = 4;
+    PauseParams          pause            = 5;
+    ResumeParams         resume           = 6;
+    EmergencyStopParams  emergency_stop   = 7;
+    ReturnToStartParams  return_to_start  = 8;
+    RebootParams         reboot           = 9;
+    ShutdownParams       shutdown         = 10;
+    SetVisionDebugParams set_vision_debug = 11;
+    DisableCommandChannelParams disable_command_channel = 12;
+    SetTelemetryChannelParams   set_telemetry_channel    = 13;
+  }
+}
+
+message StartRaceParams {
+  optional string mission_name = 1;
+}
+
+message StopRaceParams {}
+
+message PauseParams {}
+
+message ResumeParams {}
+
+message EmergencyStopParams {}
+
+message ReturnToStartParams {}
+
+message RebootParams {}
+
+message ShutdownParams {}
+
+// SetVisionDebugParams toggles VisionNode's debug detection stream at
+// runtime via a ROS2 parameter callback. Disabled by default on the robot
+// to avoid the extra publish overhead when nobody is watching.
+message SetVisionDebugParams {
+  bool enabled = 1;
+  // stream_fps caps the debug stream's publish rate; ignored when enabled
+  // is false. Left unset means "use the robot's configured default".
+  optional uint32 stream_fps = 2 [(buf.validate.field).uint32 = {
+    gt:  0,
+    lte: 30
+  }];
+}
+
+// DisableCommandChannelParams shuts down the robot's gRPC command channel
+// (StreamCommands/AckCommand) itself. Deliberately ONE-WAY: once applied,
+// the very stream this command arrived on closes, so the backend has no
+// remaining path to send a re-enable command. Re-enabling requires local
+// access to the robot (ros2 param set /telemetry_bridge
+// command_channel_enabled true). There is no SetCommandChannelParams
+// counterpart -- only this disable command exists.
+message DisableCommandChannelParams {}
+
+// SetTelemetryChannelParams toggles the robot's gRPC telemetry channel
+// (TelemetryIngestService StreamSnapshots/StreamTopics). Unlike
+// DisableCommandChannelParams, this is safely bidirectional: disabling
+// telemetry does not affect the command channel, so the backend can still
+// push a re-enable command down StreamCommands afterward.
+message SetTelemetryChannelParams {
+  bool enabled = 1;
+}

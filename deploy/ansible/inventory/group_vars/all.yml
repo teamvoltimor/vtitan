@@ -1,0 +1,58 @@
+---
+# Mirrors the equivalent vars in Taskfile.yml / scripts/setup_common.sh —
+# kept in sync by hand for now.
+ansible_user: ralvarezdev  # account created on every Pi via Raspberry Pi Imager (not "pi")
+
+github_repo: teamvoltimor/vtitan
+# Which ref the boards are brought to. Override with `-e repo_ref=<branch>` to
+# provision a board from a feature branch without merging it first.
+repo_ref: master
+repo_dir: "/home/{{ ansible_user }}/vtitan"
+robot_dir: "{{ repo_dir }}/src/python"
+backend_dir: "{{ repo_dir }}/apps/backend"
+pixi_bin: "/home/{{ ansible_user }}/.pixi/bin/pixi"
+# Go toolchain manager, for the Pi 5's telemetry backend. Separate from pixi
+# (which manages the ROS2/Python side) because the repo already pins its Go
+# tooling with mise -- see the root mise.toml.
+mise_bin: "/home/{{ ansible_user }}/.local/bin/mise"
+# go-task CLI, needed to run any of the Taskfile.yml wrappers (including the
+# rpi:provision:* ones this playbook is invoked from) on the Pi itself.
+task_bin: "/home/{{ ansible_user }}/.local/bin/task"
+
+# Pre-rename checkout name, still live on real hardware as of 2026-07-29
+# (org teamvoldemor/repo vtitan -> teamvoltimor/vtitan). common role
+# always clones fresh into repo_dir, then copies just the calibrated .env
+# (gitignored, untouched by git) across from here before removing this
+# directory. Safe to leave set after the migration is done fleet-wide — the
+# check is a no-op once this directory no longer exists.
+old_repo_dir: "/home/{{ ansible_user }}/vtitan"
+
+usb_gadget_subnet_prefix: 24
+usb_gadget_zero_ip: 192.168.250.1
+usb_gadget_pi5_ip: 192.168.250.2
+
+# Pi Zero is 2.4GHz-only WiFi; the Pi 5 must be locked to the same band to
+# reach it during first-contact provisioning (before the usb0 gadget link
+# exists). See provision_pi_zero.yml.
+wifi_conn_name: for
+wifi_2g_bssid: "AA:D3:62:23:33:28"
+# NetworkManager's default (45s) has been observed timing out on this
+# specific BSSID's radio (confirmed 2026-08-09, ~47s to fail, 3 runs in a
+# row, Ethernet ruled out as the cause). See the retry+timeout pair around
+# "Bring Pi 5 WiFi connection up on the locked band" in provision_pi_zero.yml.
+wifi_lock_dhcp_timeout_seconds: 90
+# Fail-safe window for the WiFi lock dead-man's switch (provision_pi_zero.yml).
+# Ansible's always: block does NOT run when a host goes UNREACHABLE (only on
+# regular task failures), so a Zero-side connection drop mid-play can leave
+# the Pi 5 pinned to wifi_2g_bssid with nothing to clear it -- this is the
+# "pinned to one AP radio for an entire day" incident referenced there.
+#
+# The lock is held for the WHOLE run, not just the first-contact step -- a
+# healthy provision takes 20-40 min (task rpi:provision:zero's own estimate),
+# so this must clear the DHCP-timeout-prone "Bring Pi 5 WiFi connection up"
+# step and still stay armed well past the end of the slowest normal run, or
+# it fires mid-provision and yanks the WiFi band out from under a still-good
+# play. This is a backstop for an abandoned/dead play, not a fast-recovery
+# path -- `task rpi:wifi:unlock` is still the immediate fix if you're
+# watching it fail.
+wifi_lock_failsafe_seconds: 3600

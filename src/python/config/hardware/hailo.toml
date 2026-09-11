@@ -1,0 +1,16 @@
+# Hailo AI configuration -- src/hardware/hailo/config.py
+
+model_path = "/usr/local/hailo/models/gmr.hef"
+# Compiled HEF model compatible with Hailo-8. A missing path surfaces only as
+# HailoRT error 13 (HAILO_OPEN_FILE_FAILURE) when the model loads.
+
+inference_timeout_ms = 10000
+# Milliseconds to wait for a single async inference job before giving up.
+
+benchmark_iterations = 10
+# Iterations used by the latency benchmark.
+
+data_yaml_path = "/usr/local/hailo/models/data.yaml"
+# Optional YOLO data.yaml supplying class id -> name. Ship one only if its
+# `names` are in *model* order (green, magenta, red) -- see .env.example's
+# original comment on this. Leaving the file absent is the safe default.

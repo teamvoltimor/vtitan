@@ -1,0 +1,13 @@
+# Hardware-profile overlay for practicing under natural/daylight instead of
+# the WRO venue's controlled artificial white light, deep-merged onto the
+# base src/config/hardware/camera/rpi_camera_module_3.toml (see
+# shared.config.hardware_profile). Only declares the keys that differ.
+# Select with VTITAN_HARDWARE_PROFILE=natural_light.
+#
+# STATUS: not bench-validated -- pick daylight vs cloudy from the actual test
+# conditions, and re-check the red/green sign colour thresholds downstream
+# against this lighting before trusting detections. A daylight/cloudy CCT
+# reads noticeably differently than the fluorescent/cool-LED venue lighting
+# the base config's thresholds were tuned against.
+
+camera_awb_mode = "daylight"   # direct sun; swap to "cloudy" for overcast conditions

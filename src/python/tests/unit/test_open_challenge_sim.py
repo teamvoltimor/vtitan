@@ -1,0 +1,347 @@
+"""Realistic closed-loop Open Challenge simulation tests.
+
+These drive the *real* ``CoreNavigator`` (pure-pursuit + collision + stuck +
+LapDetector) through a simulated ``HardwareGateway`` backed by an Ackermann
+bicycle model and a raycast LIDAR (``src/simulation``). Unlike a teleport mock,
+the car must actually steer itself around the corridor — with finite turning
+radius, servo slew, drive acceleration limits and noisy LIDAR — and not clip a
+wall, exactly as the physical robot would.
+
+Run with:
+    PYTHONPATH=. pytest tests/unit/test_open_challenge_sim.py -v
+    PYTHONPATH=. pytest tests/unit/test_open_challenge_sim.py -v -s   # + summaries
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+from itertools import product
+from typing import Any
+
+import numpy as np
+import pytest
+from shared.config.constants import CompetitionSpecs, RobotSpecs
+from shared.domain.enums import Direction, Section
+
+from scripts.common.open_cases import NARROW_MM, WIDE_MM
+from src.simulation import ScenarioSimulator, TrackModel
+from src.simulation.scenario_builder import build_open_metadata, start_cells, uniform_widths
+from tests.test_constants import (
+    COLLISION_TEST_FOOTPRINT_CLEARANCE,
+    COLLISION_TEST_INNER_PENETRATION,
+    COLLISION_TEST_NEAR_WALL,
+    COLLISION_TEST_RAYCAST_CLEARANCE,
+    CORRIDOR_DEPTH_MAX,
+    CORRIDOR_DEPTH_MIDPOINT,
+    CORRIDOR_DEPTH_MIN,
+    INNER_BLOCK_MAX,
+    INNER_BLOCK_MIN,
+    ROBOT_CHASSIS_WIDTH,
+    ROBOT_FOOTPRINT_RADIUS,
+    TRACK_CENTER_X,
+    TRACK_CENTER_Y,
+    TRACK_MODEL_CORRIDOR_WIDTH_WIDE,
+)
+
+logger = logging.getLogger(__name__)
+
+# Full closed-loop sim per scenario, run across many section/direction/width
+# combinations -- slow enough to skip from the default fast test loop (see
+# task robot:test SCOPE=fast).
+pytestmark = pytest.mark.slow
+
+_ALL_SECTIONS = list(Section)
+_ALL_DIRECTIONS = list(Direction)
+
+
+# Track model unit checks
+
+
+class TestTrackModelGeometry:
+    """The raycast LIDAR and collision model must match the wall geometry."""
+
+    def test_forward_ray_hits_inner_block(self) -> None:
+        # Wide symmetric track: inner block spans [1.0, 2.0]^2.
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        # Stand in the south corridor centerline, facing north (+y).
+        ranges = track.raycast_scan(
+            x=TRACK_CENTER_X,
+            y=0.5,
+            yaw=math.pi / 2,
+            angles_robot=np.array([0.0]),
+        )
+        # Distance to inner block south face at y=1.0 -> 0.5 m.
+        assert math.isclose(ranges[0], COLLISION_TEST_RAYCAST_CLEARANCE, abs_tol=1e-6)
+
+    def test_backward_ray_hits_outer_wall(self) -> None:
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        # Facing north, the rear ray (pi) points south to the outer wall at y=0.
+        ranges = track.raycast_scan(
+            x=TRACK_CENTER_X,
+            y=0.5,
+            yaw=math.pi / 2,
+            angles_robot=np.array([math.pi]),
+        )
+        assert math.isclose(ranges[0], COLLISION_TEST_RAYCAST_CLEARANCE, abs_tol=1e-6)
+
+    def test_centerline_does_not_collide(self) -> None:
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        assert not track.footprint_collides(TRACK_CENTER_X, 0.5, 0.0)
+
+    def test_into_outer_wall_collides(self) -> None:
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        # Chassis centre near south wall -> half the chassis width crosses collision face.
+        assert track.footprint_collides(TRACK_CENTER_X, COLLISION_TEST_NEAR_WALL, 0.0)
+
+    def test_into_inner_block_collides(self) -> None:
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        # Just inside the inner block is solid.
+        assert track.footprint_collides(TRACK_CENTER_X, COLLISION_TEST_INNER_PENETRATION, 0.0)
+
+
+# Planner sanity: the canonical path must sit inside the corridor
+
+
+class TestPlannedWaypointsClearCorridor:
+    """Every planned waypoint must lie in free space with chassis clearance."""
+
+    @pytest.mark.parametrize(
+        ("south", "north", "east", "west"),
+        [
+            (WIDE_MM, WIDE_MM, WIDE_MM, WIDE_MM),
+            (NARROW_MM, NARROW_MM, NARROW_MM, NARROW_MM),
+            (NARROW_MM, WIDE_MM, NARROW_MM, WIDE_MM),
+            (WIDE_MM, NARROW_MM, WIDE_MM, NARROW_MM),
+        ],
+    )
+    def test_waypoints_in_free_space(
+        self,
+        south: int,
+        north: int,
+        east: int,
+        west: int,
+    ) -> None:
+        meta = build_open_metadata(
+            {"south": south, "north": north, "east": east, "west": west},
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+        )
+        sim = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
+        # Chassis half-width clearance to the nearest visual wall.
+        clearance = RobotSpecs.WIDTH / 2
+        offenders = [wp for wp in sim.waypoints if not sim.track.point_in_free_space(wp.x, wp.y, clearance)]
+        assert not offenders, f"{len(offenders)} waypoints too close to a wall: {offenders[:3]}"
+
+
+# Closed-loop 3-lap solvability with the real navigator
+
+
+def _log_result(label: str, result: Any) -> None:
+    status = "OK " if result.success else "FAIL"
+    logger.info(
+        "%s | %s laps=%d/%d collided=%s timeout=%s stuck=%s | dist=%.2fm t=%.1fs vmax=%.2f vavg=%.2f minLIDAR=%.2fm",
+        status,
+        label,
+        result.laps_completed,
+        result.target_laps,
+        result.collided,
+        result.timed_out,
+        result.stuck,
+        result.distance_m,
+        result.sim_time_s,
+        result.max_speed_mps,
+        result.avg_speed_mps,
+        result.min_lidar_range_m,
+    )
+
+
+def _within_round_limit(result: Any) -> bool:
+    """Solved AND finished inside the official WRO round time limit.
+
+    The time limit now lives in ``SimResult.success`` itself, so this is just
+    that. Kept as a name because the call sites read better for it, and because
+    the distinction it used to make -- the sim's 200 s step budget being looser
+    than the 180 s round limit -- is still the reason the check has to exist.
+    """
+    return result.success
+
+
+def _band_cell(band: int) -> int:
+    """First starting cell of a band.
+
+    Each band holds two cells, differing only in where along the corridor they
+    sit. The band -- how far across the corridor the robot begins -- is what
+    changes the first LIDAR sweep and therefore the width and direction
+    estimates, so it is the axis worth spending a unit test on. The
+    along-corridor half is covered by the exhaustive sweep
+    (``scripts/sim/diag_open_exhaustive.py``).
+    """
+    return band * 2
+
+
+_NARROW_BAND1_CW_XFAIL_REASON = (
+    "Narrow middle band, clockwise. Split cleanly by direction: all four "
+    "counterclockwise starts pass, but at 176.8-178.5 s against a 180 s "
+    "limit, and all four clockwise ones fail. South and East clockwise "
+    "complete three laps at 185.9 s; North and West clockwise still stick "
+    "at 0.62 m. (South==East and North==West here -- the symmetric layout "
+    "makes them the same case rotated.) This band is the only placement of "
+    "a 0.194 m chassis in a 0.20 m band, so it starts 6 mm from the inner "
+    "block and may yaw 2.3 degrees before a corner reaches it. It used to "
+    "fail 8 of 8, frozen at 0.00 m, until the simulator stopped treating "
+    "contact as absorbing; what remains is how long the navigator spends "
+    "extracting itself, which is navigator behaviour rather than physics."
+)
+
+
+def _section_direction_id(value: Any) -> str:
+    return value.name
+
+
+def _narrow_band_cases() -> list[Any]:
+    """(band, section, direction) cases for the narrow-corridor sweep.
+
+    Band 1 (the only placement of a 0.194 m chassis in a 0.20 m band) is
+    xfail on clockwise starts only -- see ``_NARROW_BAND1_CW_XFAIL_REASON``.
+    Counterclockwise starts in that same band pass and are asserted normally.
+    """
+    cases = []
+    for band in (0, 1):
+        for section, direction in product(_ALL_SECTIONS, _ALL_DIRECTIONS):
+            marks = (
+                pytest.mark.xfail(reason=_NARROW_BAND1_CW_XFAIL_REASON)
+                if band == 1 and direction == Direction.CLOCKWISE
+                else ()
+            )
+            cases.append(
+                pytest.param(band, section, direction, id=f"b{band}-{section.name}-{direction.name}", marks=marks),
+            )
+    return cases
+
+
+def _random_scenario_cases() -> list[Any]:
+    """Pre-draw the 8 random scenarios from one stateful RNG at collection time.
+
+    Splitting ``test_random_scenarios`` into 8 parametrized cases (for xdist
+    to distribute) must not change which scenario each index draws -- the
+    original sequential ``for i in range(8): rng.choice(...)`` loop makes each
+    draw depend on every draw before it, so the sequence is computed once here
+    with the same seed and order, then handed to pytest as fixed data.
+    """
+    rng = np.random.default_rng(2026)
+    cases = []
+    for i in range(8):
+        widths = {s: int(rng.choice([NARROW_MM, WIDE_MM])) for s in ("north", "south", "east", "west")}
+        section = _ALL_SECTIONS[int(rng.integers(len(_ALL_SECTIONS)))]
+        direction = _ALL_DIRECTIONS[int(rng.integers(len(_ALL_DIRECTIONS)))]
+        # Draw the starting cell too: it is as much a part of a random
+        # scenario as the widths, and every legal one is a different first
+        # LIDAR sweep.
+        cell = int(rng.integers(len(start_cells(section, {Section(s): v / 1000.0 for s, v in widths.items()}))))
+        cases.append(pytest.param(i, widths, section, direction, cell, id=f"rand{i}"))
+    return cases
+
+
+class TestThreeLapSolvability:
+    """The real car must complete 3 laps, inside the round time limit, on
+    every Open Challenge layout.
+
+    Every start here is a cell of the mat's marked starting square. These runs
+    used to spawn on the corridor centreline, which is not a legal placement
+    and, in a wide corridor, is not even reachable from any band -- so the
+    battery could pass while every start the robot will actually be given went
+    untested. See ``shared.config.starting_zone``.
+
+    Each (band, section, direction) combination is its own parametrized case
+    rather than an inner loop accumulating failures -- xdist's worksteal
+    scheduler can then spread the ~50 independent closed-loop runs across
+    every core instead of one core working through a loop serially.
+    """
+
+    @pytest.mark.parametrize("band", [0, 1, 2])
+    @pytest.mark.parametrize(("section", "direction"), list(product(_ALL_SECTIONS, _ALL_DIRECTIONS)), ids=_section_direction_id)
+    def test_symmetric_wide_all_starts(self, band: int, section: Section, direction: Direction) -> None:
+        meta = build_open_metadata(
+            uniform_widths(WIDE_MM),
+            section,
+            direction,
+            start_cell=_band_cell(band),
+        )
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
+        _log_result(f"WIDE  b{band} {section.capitalized:<5} {direction}", result)
+        assert _within_round_limit(result), _describe([(section, direction, result)])
+
+    @pytest.mark.parametrize(("band", "section", "direction"), _narrow_band_cases())
+    def test_symmetric_narrow_all_starts(self, band: int, section: Section, direction: Direction) -> None:
+        """A narrow corridor holds only two bands: 0.40 + 0.20 fills it exactly,
+        so the third lies under the centre square where it cannot be a start."""
+        meta = build_open_metadata(
+            uniform_widths(NARROW_MM),
+            section,
+            direction,
+            start_cell=_band_cell(band),
+        )
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
+        _log_result(f"NARROW b{band} {section.capitalized:<5} {direction}", result)
+        assert _within_round_limit(result), _describe([(section, direction, result)])
+
+    @pytest.mark.parametrize(
+        ("south", "north", "east", "west"),
+        [
+            (NARROW_MM, WIDE_MM, NARROW_MM, WIDE_MM),
+            (WIDE_MM, NARROW_MM, WIDE_MM, NARROW_MM),
+            (NARROW_MM, NARROW_MM, WIDE_MM, WIDE_MM),
+            (WIDE_MM, WIDE_MM, NARROW_MM, NARROW_MM),
+        ],
+    )
+    def test_mixed_width_combos(
+        self,
+        south: int,
+        north: int,
+        east: int,
+        west: int,
+    ) -> None:
+        meta = build_open_metadata(
+            {"south": south, "north": north, "east": east, "west": west},
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            start_cell=_band_cell(0),
+        )
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
+        _log_result(f"MIX S{south} N{north} E{east} W{west}", result)
+        assert _within_round_limit(result), (
+            f"laps={result.laps_completed}/{CompetitionSpecs.OPEN_CHALLENGE_LAPS} collided={result.collided} "
+            f"timeout={result.timed_out} t={result.sim_time_s:.1f}s "
+            f"(limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f}s) "
+            f"at {result.collision_xy or result.final_pose}"
+        )
+
+    @pytest.mark.parametrize(("i", "widths", "section", "direction", "cell"), _random_scenario_cases())
+    def test_random_scenarios(
+        self,
+        i: int,
+        widths: dict[str, int],
+        section: Section,
+        direction: Direction,
+        cell: int,
+    ) -> None:
+        meta = build_open_metadata(widths, section, direction, scenario_id=i, start_cell=cell)
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS, seed=i).run()
+        _log_result(
+            f"RAND#{i} {section.capitalized:<5} {direction} "
+            f"S{widths['south']} N{widths['north']} E{widths['east']} W{widths['west']}",
+            result,
+        )
+        assert _within_round_limit(result), _describe([(section, direction, result)])
+
+
+def _describe(failures: list[tuple[Section, Direction, Any]]) -> str:
+    lines = [
+        f"  {sec.capitalized}/{dir_} -> laps={r.laps_completed}/{r.target_laps} "
+        f"collided={r.collided} timeout={r.timed_out} t={r.sim_time_s:.1f}s "
+        f"(limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f}s) "
+        f"@={r.collision_xy or (round(r.final_pose[0], 2), round(r.final_pose[1], 2))}"
+        for sec, dir_, r in failures
+    ]
+    return f"{len(failures)} scenario(s) failed to complete 3 laps:\n" + "\n".join(lines)

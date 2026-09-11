@@ -1,0 +1,53 @@
+%% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
+%% Fase 1 (inferir dirección) -- detalle común en:
+%%   schemes/flowcharts/common/mermaid/inferencia-direccion.mmd
+%% SignRouter: src/python/src/navigation/planning/sign_router/
+%%   descubrimiento en vivo: src/python/src/navigation/planning/sign_discovery.py (ObservedSignMap)
+%%   selección de señal activa: SignRouter._active_sign_candidates()
+%%   deformación del waypoint y regla rojo/verde: ver schemes/flowcharts/obstacles/mermaid/regla-senales.mmd
+%%   enmascarado de LIDAR: mask_mapped_obstacles() (control/controllers), escape_mask_radius_m = 0.12 m
+%%     -- src/python/shared/config/navigation/signs/sign_router.toml
+%%   rearme por vuelta: SignRouter.reset_for_new_lap()
+%% Vigilancia de colisión/atasco -- detalle común en:
+%%   schemes/flowcharts/common/mermaid/escape-colision.mmd
+%% Conteo de vueltas -- detalle común en:
+%%   schemes/flowcharts/common/mermaid/conteo-vueltas.mmd
+%% Continúa en: schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd
+%% Nota: incluso en la Fase 1, antes de fijar la dirección, una señal roja o
+%% verde en el camino se esquiva por su lado correcto -- la regla no depende
+%% del sentido de la vuelta (mismo eje/multiplicador para CW y CCW en
+%% sign_router.py::_ROUTING_TABLE). Ver detalle completo en
+%% common/mermaid/inferencia-direccion.mmd.
+
+flowchart TD
+    Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> Fase1
+
+    Fase1[["Inferencia de dirección"]] --> Commit["Fija la dirección<br/>y ubica al robot en la pista"]
+    Commit --> StartPose["Mide con precisión<br/>la posición de arranque"]
+    StartPose --> PlanPath["Traza la ruta de<br/>puntos de paso a seguir"]
+    PlanPath --> BuildRouter["Prepara el reconocimiento de señales.<br/>Como es modo ciego, empieza vacío<br/>y se llena con lo que ve la cámara"]
+    BuildRouter --> BuildLap["Prepara el contador<br/>de vueltas para esa ruta"]
+
+    BuildLap --> Drive
+
+    subgraph FASE_2["Fase 2 — Conducción y esquiva de señales"]
+        Drive["Sigue la ruta trazada"] --> Discover["La cámara detecta señales<br/>nuevas y las añade<br/>al mapa de señales"]
+        Discover --> Candidate["Elige la señal activa más<br/>cercana que aún no ha pasado"]
+        Candidate --> HasSign{"¿Hay una señal<br/>activa cerca?"}
+        HasSign -- "No" --> Watch
+        HasSign -- "Sí" --> Reroute[["Regla de paso por señal"]]
+        Reroute --> Watch[["Vigilancia de colisión y atasco"]]
+        Watch --> WPCheck
+    end
+
+    WPCheck{"¿Llegó al punto<br/>de paso objetivo?"}
+    WPCheck -- "No" --> Drive
+    WPCheck -- "Sí, y cerró<br/>la vuelta de la ruta" --> LapPhase
+
+    subgraph FASE_3["Fase 3 — Contar vueltas"]
+        LapPhase[["Conteo de vueltas"]] --> Rearm["Vuelve a habilitar todas<br/>las señales para<br/>la siguiente vuelta"]
+    end
+
+    Rearm --> LapsDone{"¿Ya completó<br/>las 3 vueltas?"}
+    LapsDone -- "No" --> Drive
+    LapsDone -- "Sí" --> Next(["Continúa en:<br/>Parte 2 — Estacionamiento"])

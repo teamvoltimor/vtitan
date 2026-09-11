@@ -1,0 +1,662 @@
+"""ROS2 Vision Node for YOLO detection.
+
+Subscribes to camera images and publishes JSON detections using LocalYoloDetector.
+"""
+
+import json
+import time
+from contextlib import suppress
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import numpy as np
+import rclpy
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from pydantic_settings import SettingsConfigDict
+from rcl_interfaces.msg import SetParametersResult
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.qos import qos_profile_sensor_data
+from rclpy.timer import Timer  # noqa: TC002
+from sensor_msgs.msg import Image, LaserScan
+from shared.config.constants import TfFrames
+from shared.config.ros_topics import RosTopicConfig
+from shared.domain.enums import ScenarioType
+from std_msgs.msg import String
+
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.ros2.params import (
+    declare_and_get_bool_param,
+    declare_and_get_float_param,
+    declare_and_get_int_param,
+    declare_and_get_str_param,
+)
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_STREAM
+from src.ros2.race_state import RacingState, subscribe_to_race_state
+from src.ros2.vision.detection_payload_keys import (
+    AREA_KEY,
+    BBOX_KEY,
+    CAPTURED_AT_KEY,
+    CLASS_NAME_KEY,
+    CONFIDENCE_KEY,
+    HEIGHT_KEY,
+    WIDTH_KEY,
+    X_KEY,
+    Y_KEY,
+)
+from src.vision import create_detector
+from src.vision.dataset_capture import DatasetFrameCapture
+from src.vision.hud import HudConfig
+from src.vision.overlay import annotate
+from src.vision.video_recorder import FrameSnapshot, VideoRecorder
+
+if TYPE_CHECKING:
+    from rclpy.publisher import Publisher
+
+    from src.hardware.camera.base import Driver as CameraDriver
+
+
+class Config(HardwareBaseSettings):
+    """Fallback defaults for VisionNode's ROS2 parameters.
+
+    Sourced from config/hardware/vision/node.toml. ``rpi5_nodes.launch.py``
+    still overrides these at launch time via ROS2 parameters (e.g. to select
+    the hailo backend and direct camera capture) -- this only changes what a
+    node launched with no parameter overrides falls back to.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="vision_node_", toml_file=CONFIG_DIR / "vision" / "node.toml")
+
+    camera_topic: str = "/camera/image_raw"
+    model_path: str = "yolov8n.pt"  # matches config/hardware/vision/node.toml
+    backend: str = "yolo"  # 'yolo' or 'hailo'
+    # 'direct' opens the camera in this process and feeds frames straight to
+    # the model -- no sensor_msgs/Image on the wire, which is what a race
+    # run wants. 'topic' keeps the subscription, for bag replay and sim.
+    camera_source: str = "topic"  # 'topic' or 'direct'
+    capture_fps: float = 15.0
+    # Debug video, off by default: a race publishes detections and nothing
+    # else. Both of these cost real bandwidth at speed.
+    publish_annotated: bool = False
+    annotated_topic: str = "/vision/image_annotated"
+    publish_raw: bool = False
+    # Caps the annotated stream's publish rate independent of capture_fps, so a
+    # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
+    debug_stream_fps: float = 0.0
+    # Per-run annotated video (detection boxes + navigation HUD), written next
+    # to that run's mcap bag -- see docs/internal/plans/2026-08-11-run-video-
+    # recording-colocated-with-mcap.md and docs/internal/plans/2026-08-11-
+    # navigation-hud-overlay-and-open-challenge-recording.md. Only ever active
+    # in camera_source='direct' mode, gated on RACING (see
+    # _maybe_start_recording) -- runs on both challenges, since Obstacles
+    # Challenge already carries strictly more load (SignRouter, sign
+    # discovery, parking) than Open Challenge ever will, on the same
+    # recording pipeline.
+    record_video: bool = True
+    # Width of the recorded artifact; height is derived at runtime from the
+    # actual captured frame's aspect ratio, never hardcoded.
+    video_width: int = 640
+    # Periodic raw (un-annotated) frame capture for later dataset
+    # accumulation / fine-tuning -- see src/vision/dataset_capture.py. Saved
+    # next to the run's mcap bag/video, under capture_subdir. On Obstacles
+    # Challenge this only ever saves frames that actually contain a
+    # detection (see DatasetFrameCapture); Open Challenge saves every
+    # capture_interval_s unconditionally, since there's nothing to wait for.
+    capture_dataset_frames: bool = True
+    capture_interval_s: float = 10.0
+    capture_subdir: str = "captures"
+
+
+_MODEL_STATUS_REPUBLISH_S = 5.0
+"""How often the loaded model name is republished to /system_status.
+
+Not a heartbeat anyone consumes -- it exists solely so a late-joining
+subscriber (the OLED, which restarts independently of this node) learns the
+model, since the topic's BEST_EFFORT QoS means the TRANSIENT_LOCAL latch is
+not replayed to late joiners. One tiny message per period."""
+
+
+class VisionNode(Node):
+    """ROS2 node that runs YOLO detection on camera images."""
+
+    def __init__(self) -> None:
+        super().__init__("vision_detector")
+
+        defaults = Config()
+        topics = RosTopicConfig.load_default()
+        self._topics = topics
+        # Declared before _publish_model_status runs (it is called from further
+        # down this constructor) so the publisher and its republish timer are
+        # created once and outlive that call -- see _publish_model_status.
+        self._model_status_pub: Publisher[DiagnosticArray] | None = None
+        self._model_status_timer: Timer | None = None
+        self._model_status_msg_name: str | None = None
+        camera_topic = declare_and_get_str_param(self, "camera_topic", defaults.camera_topic)
+        detections_topic = declare_and_get_str_param(self, "detections_topic", topics.sensors.vision_detections)
+        model_path = declare_and_get_str_param(self, "model_path", defaults.model_path)
+        backend = declare_and_get_str_param(self, "backend", defaults.backend)
+        self._camera_source = declare_and_get_str_param(self, "camera_source", defaults.camera_source)
+        capture_fps = declare_and_get_float_param(self, "capture_fps", defaults.capture_fps)
+        self._publish_annotated = declare_and_get_bool_param(self, "publish_annotated", defaults.publish_annotated)
+        self._annotated_topic = declare_and_get_str_param(self, "annotated_topic", defaults.annotated_topic)
+        self._publish_raw = declare_and_get_bool_param(self, "publish_raw", defaults.publish_raw)
+        debug_stream_fps = declare_and_get_float_param(self, "debug_stream_fps", defaults.debug_stream_fps)
+        self._annotated_min_interval = 1.0 / debug_stream_fps if debug_stream_fps > 0 else 0.0
+        self._last_annotated_pub_time = 0.0
+        self._record_video = declare_and_get_bool_param(self, "record_video", defaults.record_video)
+        video_width = declare_and_get_int_param(self, "video_width", defaults.video_width)
+        capture_dataset_frames = declare_and_get_bool_param(
+            self,
+            "capture_dataset_frames",
+            defaults.capture_dataset_frames,
+        )
+        capture_interval_s = declare_and_get_float_param(self, "capture_interval_s", defaults.capture_interval_s)
+        capture_subdir = declare_and_get_str_param(self, "capture_subdir", defaults.capture_subdir)
+
+        self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
+
+        from src.vision.detector import DEFAULT_CLASS_TO_COLOR, DetectorConfig
+
+        # Take the mapping from the detector rather than restating it: this copy
+        # said (red, green, magenta), which is the dataset's stale order and the
+        # opposite of what the model emits for red and green. It silently
+        # inverts the WRO pass side on every obstacle.
+        config = DetectorConfig(
+            model_path=model_path,
+            class_to_color=DEFAULT_CLASS_TO_COLOR,
+            min_confidence=self._detection_threshold(backend),
+        )
+        detector = create_detector(backend, config)
+        # Enter context manager for backends that hold hardware resources (Hailo).
+        # For YOLO the __enter__ is a no-op; calling it unconditionally is safe.
+        if hasattr(detector, "__enter__"):
+            detector.__enter__()
+        self.detector = detector
+        self._publish_model_status(Path(model_path).name)
+
+        self._publisher = self.create_publisher(String, detections_topic, QOS_STREAM)
+        self._annotated_publisher = (
+            self.create_publisher(Image, self._annotated_topic, 1) if self._publish_annotated else None
+        )
+        self._raw_publisher = self.create_publisher(Image, camera_topic, 1) if self._publish_raw else None
+        self.add_on_set_parameters_callback(self._on_set_parameters)
+
+        # Per-run annotated video, colocated with that run's mcap bag -- only
+        # meaningful in direct-capture mode, since that's the only mode a real
+        # race actually runs in. Cheap to construct even when never started.
+        self._hud_config = HudConfig()
+        self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps, hud_config=self._hud_config)
+        self._dataset_capture = (
+            DatasetFrameCapture(interval_s=capture_interval_s, subdir=capture_subdir)
+            if capture_dataset_frames
+            else None
+        )
+        self._racing_state = RacingState()
+        self._active_challenge: ScenarioType | None = None
+        self._run_path: str | None = None
+        self._run_path_poll_timer: Timer | None = None
+        self._run_path_poll_deadline = 0.0
+        # HUD telemetry, cached from /nav_debug and /scan -- both None until
+        # each topic's first message arrives, which the HUD must render as
+        # "--"/no radar points rather than crash or block recording from
+        # starting (see draw_stats/draw_radar's own None-handling).
+        self._nav_debug: dict | None = None
+        self._scan: LaserScan | None = None
+        if self._camera_source == "direct":
+            subscribe_to_race_state(self, topics, self._on_robot_state)
+            self.create_subscription(
+                String,
+                topics.challenge_mode.active,
+                self._on_challenge_mode_active,
+                QOS_LATCHED_STATE,
+            )
+            self.create_subscription(
+                String,
+                topics.bag_recorder.run_path,
+                self._on_run_path,
+                QOS_LATCHED_STATE,
+            )
+            # Plain depth-10 QoS, matching track_navigator_node's
+            # /nav_debug publisher exactly (create_publisher(String, ..., 10),
+            # rclpy's default RELIABLE/VOLATILE) -- NOT the TRANSIENT_LOCAL/
+            # BEST_EFFORT profile the three subscriptions above use.
+            self.create_subscription(String, topics.navigation.nav_debug, self._on_nav_debug, QOS_STREAM)
+            self.create_subscription(LaserScan, topics.sensors.scan, self._on_scan, qos_profile_sensor_data)
+
+        self._camera: CameraDriver | None = None
+        self._subscription = None
+        if self._camera_source == "direct":
+            self._start_direct_capture(capture_fps)
+            self.get_logger().info(
+                f"Vision Node ready. Capturing directly at {capture_fps:g} fps, publishing to {detections_topic}"
+                + (f" (+ annotated on {self._annotated_topic})" if self._publish_annotated else ""),
+            )
+        else:
+            self._subscription = self.create_subscription(
+                Image,
+                camera_topic,
+                self._image_callback,
+                qos_profile_sensor_data,
+            )
+            self.get_logger().info(
+                f"Vision Node ready. Subscribed to {camera_topic}, publishing to {detections_topic}",
+            )
+
+    def _publish_model_status(self, model_name: str) -> None:
+        """Publish the real loaded model name to /system_status, once.
+
+        The OLED's READY page used to show a hardcoded "yolov8n.hef" that had
+        already drifted from the actually-deployed model (gmr.hef) -- there was
+        no live source for this at all, just a string nobody updated when the
+        model changed. state_machine_node and telemetry_bridge_node already
+        both publish their own DiagnosticArray to this same topic and the OLED
+        merges entries by name (see oled_display_node._diagnostics_callback),
+        so a third publisher here costs nothing and can't disagree with the
+        others -- it names one field ("VisionModel") that only this node ever
+        sets.
+        """
+        topics = self._topics
+        # HELD ON THE INSTANCE, not a local. TRANSIENT_LOCAL retains the latched
+        # sample on the PUBLISHER, so a publisher that goes out of scope at the
+        # end of this method takes the retained value with it and no late
+        # subscriber can ever receive it -- and this publishes exactly once, at
+        # startup. The OLED's READY page showed "Model: ?" for precisely that
+        # reason: every time that node restarted it joined after the one-shot,
+        # with nothing left to replay to it. Keeping the reference alive is what
+        # makes the latch mean anything.
+        self._model_status_pub = self.create_publisher(
+            DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE
+        )
+        pub = self._model_status_pub
+        # REPUBLISHED on a timer, because this topic's QoS is TRANSIENT_LOCAL
+        # *and BEST_EFFORT*, and a best-effort writer does not replay its
+        # history to a late joiner -- the resend mechanism rides on the
+        # reliable protocol. So the "latch" does not latch for anyone who
+        # subscribes after this fires, and this fires once at startup. That is
+        # why the OLED still read "Model: ?" with the publisher held alive:
+        # keeping the reference was necessary, not sufficient. The state
+        # machine's own diagnostics reach the same display only because it
+        # republishes every tick, and this is the cheap equivalent -- one small
+        # message every few seconds, so any subscriber learns the model within
+        # one period however late it starts.
+        self._model_status_msg_name = model_name
+        if self._model_status_timer is None:
+            self._model_status_timer = self.create_timer(_MODEL_STATUS_REPUBLISH_S, self._republish_model_status)
+        msg = DiagnosticArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        status = DiagnosticStatus()
+        status.name = "VisionModel"
+        status.level = DiagnosticStatus.OK
+        status.message = model_name
+        msg.status.append(status)
+        pub.publish(msg)
+
+    def _republish_model_status(self) -> None:
+        """Re-send the cached model status; see _publish_model_status."""
+        if self._model_status_pub is None or self._model_status_msg_name is None:
+            return
+        msg = DiagnosticArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        status = DiagnosticStatus()
+        status.name = "VisionModel"
+        status.level = DiagnosticStatus.OK
+        status.message = self._model_status_msg_name
+        msg.status.append(status)
+        self._model_status_pub.publish(msg)
+
+    @staticmethod
+    def _detection_threshold(backend: str) -> float:
+        """Return the confidence floor detections must clear.
+
+        For the Hailo backend this comes from HailoConfig, so HAILO_MIN_CONFIDENCE
+        actually governs what reaches the navigator. It previously did not:
+        HailoDetector filters on DetectorConfig.min_confidence, which nobody set,
+        so the effective threshold was that dataclass's 0.25 default while the
+        documented variable only fed a driver path the vision node never calls.
+        """
+        from src.vision.detector import DetectorConfig
+
+        if backend != "hailo":
+            # model_path/class_to_color are always caller-supplied (see class
+            # docstring) -- placeholders here since only min_confidence's
+            # resolved TOML/env value is wanted.
+            return DetectorConfig(model_path="", class_to_color={}).min_confidence
+        from src.hardware.hailo.base import Config as HailoConfig
+
+        return HailoConfig().min_confidence
+
+    def _start_direct_capture(self, capture_fps: float) -> None:
+        """Open the camera in-process and drive detection from a timer.
+
+        Prefers Picamera2 and falls back to the rpicam CLI, because picamera2
+        is absent from every environment on the robot and cannot be installed
+        into the pixi env its bindings would have to match.
+        """
+        # Distinct names per branch (not a shared alias reassigned in each) --
+        # mypy treats a conditional import bound to the same name in both
+        # branches as one incompatible reassignment, even though only one
+        # branch's class is ever actually constructed. self._camera is typed
+        # against the two backends' shared camera.base.Driver ABC instead, so
+        # either concrete instance is a valid assignment.
+        try:
+            from src.hardware.camera.rpi.camera_module_3.driver import (
+                Config as PicamConfig,
+                Driver as PicamDriver,
+            )
+
+            self._camera = PicamDriver(PicamConfig())
+            backend = "picamera2"
+        except ImportError:
+            from src.hardware.camera.rpicam.driver import (
+                Config as RpicamConfig,
+                Driver as RpicamDriver,
+            )
+
+            self._camera = RpicamDriver(RpicamConfig())
+            backend = "rpicam-cli"
+
+        self._camera.connect()
+        size = self._camera.get_resolution()
+        self.get_logger().info(
+            f"Camera opened via {backend} at {size.width_px}x{size.height_px}, rotation={size.rotation_deg}",
+        )
+        self._timer = self.create_timer(1.0 / max(capture_fps, 1.0), self._capture_once)
+
+    def _capture_once(self) -> None:
+        """Grab one frame and run the detection/publish path over it."""
+        # Only ever scheduled by _start_direct_capture, right after self._camera
+        # is set -- guaranteed non-None whenever this timer callback fires.
+        assert self._camera is not None
+        try:
+            captured_at = self.get_clock().now().nanoseconds / 1e9
+            frame = self._camera.capture_frame().frame
+        except Exception as err:
+            self.get_logger().error(f"Camera capture failed: {err}", throttle_duration_sec=5.0)
+            return
+        self._process(self._camera.to_rgb(frame), captured_at=captured_at)
+
+    def _on_robot_state(self, msg: String) -> None:
+        """Start/stop the per-run video recording.
+
+        Same RACING transition track_navigator_node and bag_recorder_node
+        already gate on.
+        """
+        was_racing = self._racing_state.is_racing
+        self._racing_state.update(
+            msg,
+            on_start=self._on_race_start,
+            on_stop=self._stop_recording,
+        )
+        self.get_logger().info(
+            f"_on_robot_state: {msg.data!r} -> racing={self._racing_state.is_racing} (was {was_racing})"
+        )
+
+    def _on_race_start(self) -> None:
+        """Arm recording and reset the dataset capture on the RACING-entered edge."""
+        self._maybe_start_recording()
+        if self._dataset_capture is not None:
+            self._dataset_capture.reset()
+
+    def _on_challenge_mode_active(self, msg: String) -> None:
+        """Cache the jumper-resolved challenge for the HUD's CHALLENGE line.
+
+        No longer a recording gate -- Obstacles Challenge already carries
+        strictly more load than Open Challenge on the same pipeline (see
+        Config.record_video's docstring), so recording runs on both.
+        """
+        self._active_challenge = ScenarioType.from_string(msg.data)
+
+    def _on_run_path(self, msg: String) -> None:
+        """Cache bag_recorder_node's chosen run directory for this race."""
+        self._run_path = msg.data
+        self.get_logger().info(f"_on_run_path: {msg.data!r} (racing={self._racing_state.is_racing})")
+        if self._racing_state.is_racing:
+            self._maybe_start_recording()
+
+    def _on_nav_debug(self, msg: String) -> None:
+        """Cache the latest NavigatorDebugSnapshot JSON for the HUD's stats panels."""
+        self._nav_debug = json.loads(msg.data)
+
+    def _on_scan(self, msg: LaserScan) -> None:
+        """Cache the latest LIDAR scan for the HUD's mini radar."""
+        self._scan = msg
+
+    def _maybe_start_recording(self) -> None:
+        """Arm a poll for the bag run directory, if every gate is satisfied.
+
+        Gates: direct capture (recording is meaningless against a topic-fed
+        image stream), the operator's record_video toggle, and a run path
+        having actually arrived from bag_recorder_node -- the latter can
+        still be pending when RACING fires, since this node and
+        bag_recorder_node are independent processes with no ordering
+        guarantee between their /robot_state deliveries.
+        """
+        self.get_logger().info(
+            f"_maybe_start_recording: record_video={self._record_video} "
+            f"camera_source={self._camera_source!r} is_recording={self._recorder.is_recording} "
+            f"poll_timer_armed={self._run_path_poll_timer is not None} run_path={self._run_path!r}",
+        )
+        if not self._record_video or self._camera_source != "direct":
+            return
+        if self._recorder.is_recording or self._run_path_poll_timer is not None:
+            return
+        if self._run_path is None:
+            return
+
+        self._run_path_poll_deadline = time.monotonic() + self._hud_config.run_path_poll_timeout_sec
+        self._run_path_poll_timer = self.create_timer(
+            self._hud_config.run_path_poll_interval_sec, self._poll_for_run_path_dir
+        )
+
+    def _poll_for_run_path_dir(self) -> None:
+        """Wait for bag_recorder_node's `ros2 bag record` to create its output directory.
+
+        This node must never create that directory itself: doing so would make
+        the bag process's own `-o <path>` call refuse to start, since rosbag2
+        requires the output directory not to already exist.
+        """
+        assert self._run_path is not None
+        assert self._run_path_poll_timer is not None
+        path = Path(self._run_path)
+        if path.is_dir():
+            self._run_path_poll_timer.cancel()
+            self._run_path_poll_timer = None
+            video_path = path / "video.mp4"
+            self._recorder.start(video_path)
+            self.get_logger().info(f"Recording annotated video to {video_path}")
+            return
+        if time.monotonic() >= self._run_path_poll_deadline:
+            self._run_path_poll_timer.cancel()
+            self._run_path_poll_timer = None
+            self.get_logger().warning(
+                f"Bag run directory {path} never appeared within "
+                f"{self._hud_config.run_path_poll_timeout_sec}s - skipping video for this run",
+            )
+
+    def _stop_recording(self) -> None:
+        if self._run_path_poll_timer is not None:
+            self._run_path_poll_timer.cancel()
+            self._run_path_poll_timer = None
+        self._recorder.stop()
+
+    def _image_callback(self, msg: Image) -> None:
+        """Process incoming image and publish detections."""
+        try:
+            # Simple conversion for standard bgr8/rgb8
+            if msg.encoding not in ["rgb8", "bgr8"]:
+                self.get_logger().warning(
+                    f"Unsupported image encoding: {msg.encoding}. Expected rgb8 or bgr8.",
+                    throttle_duration_sec=5.0,
+                )
+                return
+
+            img: np.ndarray = np.ndarray(
+                shape=(msg.height, msg.width, 3),
+                dtype=np.uint8,
+                buffer=msg.data,
+            )
+
+            if msg.encoding == "bgr8":
+                img = img[:, :, ::-1]  # Convert BGR to RGB
+
+            self._process(img, captured_at=self.get_clock().now().nanoseconds / 1e9)
+
+        except (RuntimeError, ValueError, TypeError) as e:
+            self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
+        except Exception as e:
+            self.get_logger().error(f"Unexpected error processing image: {e}")
+
+    def _process(self, rgb: np.ndarray, captured_at: float | None = None) -> None:
+        """Detect on one RGB frame, publish detections and any debug video.
+
+        ``captured_at`` is the clock reading taken WHEN THE FRAME WAS GRABBED,
+        before inference. It is published with the detections because the
+        consumer needs the pose the camera actually saw from, not the pose by
+        the time a box comes out the far end of the pipeline. Measured on
+        run_20260906_232408/_232748, that gap is **0.85 s** -- at 0.3 m/s and in
+        a corner it is most of a sign's lateral offset, and it was the whole of
+        the residual bearing error left after the mirror fix.
+        """
+        try:
+            detections = self.detector.detect(rgb)
+
+            if self._dataset_capture is not None and self._racing_state.is_racing:
+                self._dataset_capture.maybe_capture(
+                    self.get_clock().now().nanoseconds / 1e9,
+                    rgb,
+                    run_path=self._run_path,
+                    require_detection=self._active_challenge == ScenarioType.OBSTACLES,
+                    has_detection=bool(detections),
+                )
+
+            stamp = captured_at if captured_at is not None else self.get_clock().now().nanoseconds / 1e9
+            data = [
+                {
+                    CAPTURED_AT_KEY: stamp,
+                    CLASS_NAME_KEY: det.class_name,
+                    CONFIDENCE_KEY: det.confidence,
+                    BBOX_KEY: det.bbox,
+                    X_KEY: det.x,
+                    Y_KEY: det.y,
+                    WIDTH_KEY: det.width,
+                    HEIGHT_KEY: det.height,
+                    AREA_KEY: det.area,
+                }
+                for det in detections
+            ]
+
+            out_msg = String()
+            out_msg.data = json.dumps(data)
+            self._publisher.publish(out_msg)
+
+            if self._raw_publisher is not None:
+                self._raw_publisher.publish(self._to_image_msg(rgb))
+            # Computed once, shared by the live debug topic and the recorder --
+            # neither is on during a race by default, so this costs nothing on
+            # a normal Open Challenge round.
+            if self._annotated_publisher is not None or self._recorder.is_recording:
+                annotated = annotate(rgb, detections, config=self._hud_config)
+                if self._recorder.is_recording:
+                    # Every frame, unthrottled -- the debug topic's rate cap
+                    # below is for live bandwidth, not for what gets recorded.
+                    # submit() never blocks: a slow encoder drops frames
+                    # instead of stalling this (the Hailo inference) tick.
+                    self._recorder.submit(self._build_frame_snapshot(annotated))
+                if self._annotated_publisher is not None:
+                    now = self.get_clock().now().nanoseconds / 1e9
+                    due = now - self._last_annotated_pub_time >= self._annotated_min_interval
+                    if self._annotated_min_interval <= 0 or due:
+                        self._annotated_publisher.publish(self._to_image_msg(annotated))
+                        self._last_annotated_pub_time = now
+
+        except (RuntimeError, ValueError, TypeError) as e:
+            self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
+        except Exception as e:
+            self.get_logger().error(f"Unexpected error processing image: {e}")
+
+    def _build_frame_snapshot(self, annotated: np.ndarray) -> FrameSnapshot:
+        """Pair the just-annotated frame with whatever HUD telemetry is cached right now.
+
+        Cheap (no copying beyond what building the tuple/angle list needs) --
+        this runs on the same tick as inference, so it must stay that way.
+        Scan angles aren't carried on LaserScan directly; computed here from
+        angle_min/angle_increment, deliberately left in the RAW sensor frame --
+        draw_radar (src/vision/hud.py) applies its own mount-inversion/yaw-offset
+        correction from HudConfig, mirroring (not just rotating) when the mount
+        is upside-down, since a display-only path can carry that fix without
+        the bag-replay-parity risk RobotSpecs.lidar_yaw_offset_rad()'s
+        rotation-only formula still has on the nav side.
+        """
+        scan = self._scan
+        scan_ranges = list(scan.ranges) if scan is not None else None
+        scan_angles = (
+            [scan.angle_min + i * scan.angle_increment for i in range(len(scan.ranges))] if scan is not None else None
+        )
+        return FrameSnapshot(
+            frame=annotated,
+            nav_debug=self._nav_debug,
+            scan_ranges=scan_ranges,
+            scan_angles=scan_angles,
+            active_challenge=self._active_challenge.value if self._active_challenge is not None else None,
+        )
+
+    def _on_set_parameters(self, params: list[Parameter]) -> SetParametersResult:
+        """Apply publish_annotated/debug_stream_fps changes without a restart.
+
+        Backs the remote vision-debug toggle: telemetry_bridge_node forwards a
+        SetVisionDebugParams command here via this node's standard
+        set_parameters service, instead of requiring publish_annotated to be
+        fixed at launch time.
+        """
+        for param in params:
+            if param.name == "publish_annotated":
+                self._publish_annotated = bool(param.value)
+                if self._publish_annotated and self._annotated_publisher is None:
+                    self._annotated_publisher = self.create_publisher(Image, self._annotated_topic, 1)
+                elif not self._publish_annotated and self._annotated_publisher is not None:
+                    self.destroy_publisher(self._annotated_publisher)
+                    self._annotated_publisher = None
+            elif param.name == "debug_stream_fps":
+                fps = float(param.value)
+                self._annotated_min_interval = 1.0 / fps if fps > 0 else 0.0
+        return SetParametersResult(successful=True)
+
+    def _to_image_msg(self, rgb: np.ndarray) -> Image:
+        """Wrap an RGB array as a sensor_msgs/Image."""
+        msg = Image()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = TfFrames.CAMERA_LINK
+        msg.height, msg.width = rgb.shape[:2]
+        msg.encoding = "rgb8"
+        msg.is_bigendian = 0
+        msg.step = msg.width * 3
+        msg.data = np.ascontiguousarray(rgb).tobytes()
+        return msg
+
+    def destroy_node(self) -> None:
+        """Release the camera and detector, then tear down the node."""
+        self._stop_recording()  # closes an in-flight video the same way _camera.close() below does the camera
+        if self._camera is not None:
+            with suppress(Exception):
+                self._camera.close()
+        if hasattr(self.detector, "__exit__"):
+            self.detector.__exit__(None, None, None)
+        super().destroy_node()
+
+
+def main(args: list[str] | None = None) -> None:
+    """Run the ROS2 vision node."""
+    rclpy.init(args=args)
+    node = VisionNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

@@ -7,7 +7,7 @@ A continuación, explicaremos minuciosamente el cómo y el porqué hicimos un te
 		<tr>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v0.2/prototype3-front-view.webp"
+					<img src="../../../v-photos/previous-prototypes/klevor-v0.2/prototype3-front-view.webp"
 alt="Vista delantera de Klevor v0.2" width="600">
 					<br>
 					<i>Vista delantera de Klevor v0.2</i>
@@ -15,7 +15,7 @@ alt="Vista delantera de Klevor v0.2" width="600">
 			</td>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v0.2/prototype3-back-view.webp"
+					<img src="../../../v-photos/previous-prototypes/klevor-v0.2/prototype3-back-view.webp"
 alt="Vista trasera de Klevor v0.2" width="600">
 					<br>
 					<i>Vista trasera de Klevor v0.2</i>
@@ -25,7 +25,7 @@ alt="Vista trasera de Klevor v0.2" width="600">
 		<tr>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v0.2/prototype3-right-view.webp"
+					<img src="../../../v-photos/previous-prototypes/klevor-v0.2/prototype3-right-view.webp"
 alt="Vista derecha de Klevor v0.2" width="600">
 					<br>
 					<i>Vista derecha de Klevor v0.2</i>
@@ -33,7 +33,7 @@ alt="Vista derecha de Klevor v0.2" width="600">
 			</td>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v0.2/prototype3-left-view.webp"
+					<img src="../../../v-photos/previous-prototypes/klevor-v0.2/prototype3-left-view.webp"
 alt="Vista izquierda de Klevor v0.2" width="600">
 					<br>
 					<i>Vista izquierda de Klevor v0.2</i>
@@ -43,7 +43,7 @@ alt="Vista izquierda de Klevor v0.2" width="600">
 		<tr>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v0.2/prototype3-top-view.webp"
+					<img src="../../../v-photos/previous-prototypes/klevor-v0.2/prototype3-top-view.webp"
 alt="Vista superior de Klevor v0.2" width="600">
 					<br>
 					<i>Vista superior de Klevor v0.2</i>
@@ -51,7 +51,7 @@ alt="Vista superior de Klevor v0.2" width="600">
 			</td>
 			<td>
 				<p align="center">
-					<img src="../../v-photos/previous-prototypes/klevor-v0.2/prototype3-bottom-view.webp"
+					<img src="../../../v-photos/previous-prototypes/klevor-v0.2/prototype3-bottom-view.webp"
 alt="Vista inferior de Klevor v0.2" width="600">
 					<br>
 					<i>Vista inferior de Klevor v0.2</i>

@@ -1,0 +1,37 @@
+[project]
+name = "vtitan-platform"
+version = "0.1.0"
+description = "WRO 2026 Future Engineers — robot platform & training pipeline"
+requires-python = ">=3.11"
+
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python>=4.9",
+    "defusedxml>=0.7",
+    "vtitan-shared",
+]
+
+[tool.uv.sources]
+vtitan-shared = { path = "../../../src/python/shared" }
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = [".", "../../../src/python/shared/src"]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(name)s | %(message)s"
+
+[tool.ruff]
+line-length = 99
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN"]
+ignore = ["ANN101", "ANN102", "ANN401"]
