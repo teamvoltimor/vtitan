@@ -82,6 +82,7 @@ type NativeRunner struct {
 	estCfg          corridorestimator.Config
 	kinParams       kinematics.Params
 	collCfg         collision.Config
+	parkCfg         parking.Config
 	recordRoot      string
 	// recGeom is chassis geometry only the BAG needs -- wheel size, steering
 	// limit, LIDAR mount. None of it belongs in kinematics.Params: a bicycle
@@ -230,6 +231,7 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		estCfg:          corridorestimator.ConfigFor(logger, cfg.ConfigRoot),
 		kinParams:       kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		collCfg:         collision.ConfigFor(logger, cfg.ConfigRoot),
+		parkCfg:         parking.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		seed:            cfg.Seed,
 		maxSteps:        maxSteps,
 		blind:           cfg.Blind,
@@ -322,7 +324,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	)
 
 	targetLaps := defaultLaps(meta)
-	pc := parkControllerFromMetadata(meta, startPose.Section, startPose.Direction)
+	pc := parkControllerFromMetadata(meta, startPose.Section, startPose.Direction, r.parkCfg)
 
 	// Blind withholds BOTH the direction and the layout. The direction goes
 	// to nil so navigator's own bootstrap infers it from LIDAR; the path is
@@ -484,7 +486,7 @@ func parkBlocksFromMetadata(meta generate.Metadata) []collision.ObstacleSpec {
 // metadata, matching park_controller_from_metadata. nil when the scenario
 // has no parking lot.
 func parkControllerFromMetadata(
-	meta generate.Metadata, section trackmodel.Section, direction trackmodel.Direction,
+	meta generate.Metadata, section trackmodel.Section, direction trackmodel.Direction, cfg parking.Config,
 ) *parking.ParkController {
 	if meta.ParkingLot == nil {
 		return nil
@@ -493,7 +495,7 @@ func parkControllerFromMetadata(
 		Block1: parking.BlockPosition{X: meta.ParkingLot.Block1Position.X, Y: meta.ParkingLot.Block1Position.Y},
 		Block2: parking.BlockPosition{X: meta.ParkingLot.Block2Position.X, Y: meta.ParkingLot.Block2Position.Y},
 	}
-	return parking.ParkControllerFromMetadata(lot, section, direction, parking.DefaultConfig())
+	return parking.ParkControllerFromMetadata(lot, section, direction, cfg)
 }
 
 // simGateway is the simulation-only hardware surface the native runner's
@@ -705,7 +707,7 @@ func (r *NativeRunner) score(
 	if pc := nav.ParkController(); pc != nil {
 		p := pc.IsDone() && !pc.IsTimedOut()
 		parked = &p
-		score := parking.ScorePark(st.X, st.Y, st.Yaw, pc.Zone(), parking.DefaultConfig())
+		score := parking.ScorePark(st.X, st.Y, st.Yaw, pc.Zone(), r.parkCfg)
 		points := score.Points
 		parkPoints = &points
 	}
