@@ -13,6 +13,8 @@ import (
 const testWheelRadiusM = 0.035
 
 func TestWheelOdometryFrom_ScalesAngleByWheelRadius(t *testing.T) {
+	t.Parallel()
+
 	// One full wheel revolution is 2*pi rad, which is one circumference of
 	// travel.
 	joints := &actuationv1.JointStates{
@@ -35,6 +37,8 @@ func TestWheelOdometryFrom_ScalesAngleByWheelRadius(t *testing.T) {
 }
 
 func TestWheelOdometryFrom_IndexesByNameNotPosition(t *testing.T) {
+	t.Parallel()
+
 	// The drive joint is deliberately NOT first. ackermann_motor_node.py
 	// publishes [drive, steering] today, but a consumer that assumed index 0
 	// would break silently the moment another joint is added ahead of it --
@@ -55,6 +59,8 @@ func TestWheelOdometryFrom_IndexesByNameNotPosition(t *testing.T) {
 }
 
 func TestWheelOdometryFrom_RejectsMessageWithoutDriveJoint(t *testing.T) {
+	t.Parallel()
+
 	joints := &actuationv1.JointStates{
 		Name:     []string{actuationv1.SteeringJoint},
 		Position: []float64{0.5},
@@ -65,6 +71,8 @@ func TestWheelOdometryFrom_RejectsMessageWithoutDriveJoint(t *testing.T) {
 }
 
 func TestWheelOdometryFrom_RejectsDriveJointWithoutPosition(t *testing.T) {
+	t.Parallel()
+
 	// name is longer than position -- the proto allows it ("position may be
 	// shorter than name if a joint doesn't report every field"), and reading
 	// past the end would panic.
@@ -78,6 +86,8 @@ func TestWheelOdometryFrom_RejectsDriveJointWithoutPosition(t *testing.T) {
 }
 
 func TestWheelOdometryFrom_MissingVelocityKeepsTravel(t *testing.T) {
+	t.Parallel()
+
 	// bayexit differences DISTANCE to bound its legs; withholding the whole
 	// sample over an absent rate would deny it the travel it needs.
 	joints := &actuationv1.JointStates{
@@ -98,6 +108,8 @@ func TestWheelOdometryFrom_MissingVelocityKeepsTravel(t *testing.T) {
 }
 
 func TestWheelOdometryFrom_ReverseTravelIsNegative(t *testing.T) {
+	t.Parallel()
+
 	// bayexit commands REVERSE out of the pocket; an unsigned distance would
 	// report that leg as forward progress and clear the pocket early.
 	joints := &actuationv1.JointStates{
@@ -117,6 +129,8 @@ func TestWheelOdometryFrom_ReverseTravelIsNegative(t *testing.T) {
 }
 
 func TestWheelOdometryFrom_StampIsSecondsSinceEpoch(t *testing.T) {
+	t.Parallel()
+
 	stamp := timestamppb.New(timestamppb.Now().AsTime())
 	joints := &actuationv1.JointStates{
 		Stamp:    stamp,
@@ -135,6 +149,8 @@ func TestWheelOdometryFrom_StampIsSecondsSinceEpoch(t *testing.T) {
 }
 
 func TestGetWheelOdometry_FalseBeforeAnyMessage(t *testing.T) {
+	t.Parallel()
+
 	// The navigator treats ok=false as a normal state and holds; it must not
 	// see a zeroed sample it would mistake for "the wheel has not moved".
 	g := &Gateway{wheelRadiusM: testWheelRadiusM}

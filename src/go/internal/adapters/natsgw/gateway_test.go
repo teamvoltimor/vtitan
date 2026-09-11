@@ -68,8 +68,9 @@ func TestImuYawRad_Identity(t *testing.T) {
 	}
 
 	identity := &sensorv1.Imu{Orientation: &sensorv1.Quaternion{W: 1, X: 0, Y: 0, Z: 0}}
-	if yaw, ok := imuYawRad(identity); !ok || math.Abs(yaw) > 1e-9 {
-		t.Errorf("imuYawRad(identity) = (%v, %v), want (0, true)", yaw, ok)
+	yawIdentity, okIdentity := imuYawRad(identity)
+	if !okIdentity || math.Abs(yawIdentity) > 1e-9 {
+		t.Errorf("imuYawRad(identity) = (%v, %v), want (0, true)", yawIdentity, okIdentity)
 	}
 
 	// +90 deg about Z: quaternion (cos45, 0, 0, sin45).

@@ -43,25 +43,6 @@ import (
 	natsx "github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
-// maxSteeringWheelAngleRad is the road-wheel angle at full lock, mapping
-// DriveCommand.SteeringNorm ([-1,1], + = left) onto AckermannCmd.steering_angle
-// [rad] (positive = left, per the ROS convention the whole stack speaks).
-//
-// It is the binding steering limit -- ackermann_motor_node clamps the SERVO
-// limit, so this decode alone governs how far a full-lock command actually
-// turns. The true value is the active servo profile's max_wheel_angle_deg
-// (src/config/profiles/<profile>/robot.toml, 55.0 deg for the
-// 180deg-injora-14kg servo), loaded from VTITAN_HARDWARE_PROFILE. This module
-// has no profile loader, so it hardcodes the 55.0 deg default and names it
-// here so it is a one-line swap when a profile is wired in -- matching the
-// proto doc's "pull it from the profile, do not invent a bound" instruction
-// by centralizing the value rather than scattering a literal.
-const maxSteeringWheelAngleRad = 55.0 * math.Pi / 180.0
-
-// nanosecondsPerSecond scales a protobuf Timestamp's nanos field into the
-// fractional seconds controllers.WheelOdometry.StampS carries.
-const nanosecondsPerSecond = 1e-9
-
 // Gateway is a NATS-backed controllers.HardwareGateway. See the package doc
 // for the transport/source decisions.
 type Gateway struct {
@@ -109,6 +90,32 @@ type Gateway struct {
 	haveWheel bool
 }
 
+// maxSteeringWheelAngleRad is the road-wheel angle at full lock, mapping
+// DriveCommand.SteeringNorm ([-1,1], + = left) onto AckermannCmd.steering_angle
+// [rad] (positive = left, per the ROS convention the whole stack speaks).
+//
+// It is the binding steering limit -- ackermann_motor_node clamps the SERVO
+// limit, so this decode alone governs how far a full-lock command actually
+// turns. The true value is the active servo profile's max_wheel_angle_deg
+// (src/config/profiles/<profile>/robot.toml, 55.0 deg for the
+// 180deg-injora-14kg servo), loaded from VTITAN_HARDWARE_PROFILE. This module
+// has no profile loader, so it hardcodes the 55.0 deg default and names it
+// here so it is a one-line swap when a profile is wired in -- matching the
+// proto doc's "pull it from the profile, do not invent a bound" instruction
+// by centralizing the value rather than scattering a literal.
+const maxSteeringWheelAngleRad = 55.0 * math.Pi / 180.0
+
+// nanosecondsPerSecond scales a protobuf Timestamp's nanos field into the
+// fractional seconds controllers.WheelOdometry.StampS carries.
+const nanosecondsPerSecond = 1e-9
+
+// runLoops is the number of subscription goroutines Run may start: the scan
+// and IMU loops are always present, the joint loop only when a subscriber was
+// supplied.
+const runLoops = 3
+
+var _ controllers.HardwareGateway = (*Gateway)(nil)
+
 // New builds a Gateway over an already-connected conn and the track walls the
 // localizer seeds from. locCfg tunes the in-process localizer; the zero value
 // is NOT usable -- pass localization.DefaultConfig(). wheelRadiusM is
@@ -141,14 +148,6 @@ func New(
 	}, nil
 }
 
-// localizer builds a fresh LidarLocalizer over walls. Rebuilt (not mutated) on
-// SetBelievedWalls so the gateway owns the localizer lifecycle cleanly.
-func (g *Gateway) localizer(walls *trackmodel.TrackWalls) *localization.LidarLocalizer {
-	return localization.New(walls, g.locCfg)
-}
-
-var _ controllers.HardwareGateway = (*Gateway)(nil)
-
 // PublishDrive encodes command as an AckermannCmd and publishes it on
 // vtitan.actuation.v1.ackermann_cmd, the motor node's subscriber subject
 // (loop.go:118). SteeringNorm (+ = left) maps to a positive (left) wheel
@@ -159,17 +158,6 @@ func (g *Gateway) PublishDrive(command controllers.DriveCommand) {
 		// domain error the navigator can act on. The motor node's deadline
 		// watchdog will safety-stop on the missing command stream.
 		_ = err
-	}
-}
-
-// driveCommand encodes a DriveCommand as an AckermannCmd without publishing.
-// SteeringNorm (+ = left) maps to a positive (left) wheel angle; the magnitude
-// scales against maxSteeringWheelAngleRad and is clamped to [-1, 1].
-func (g *Gateway) driveCommand(command controllers.DriveCommand) *actuationv1.AckermannCmd {
-	steering := math.Max(-1.0, math.Min(1.0, command.SteeringNorm)) * maxSteeringWheelAngleRad
-	return &actuationv1.AckermannCmd{
-		Speed:         float32(command.SpeedMPS),
-		SteeringAngle: float32(steering),
 	}
 }
 
@@ -207,7 +195,7 @@ func (g *Gateway) LatestScan() *sensorv1.Scan {
 // GetWheelOdometry returns the latest wheel travel decoded from
 // vtitan.actuation.v1.joint_states, ok=false until the first message
 // arrives (or forever, if Run was given no joint-states subscriber -- a
-// deployment with no encoder wired). This is the direct analogue of
+// deployment with no encoder wired). This is the direct analog of
 // ros2_hardware_gateway.py's /joint_states subscription, and its absence is
 // what kept internal/nav/bayexit sim-only.
 //
@@ -262,39 +250,6 @@ func (g *Gateway) CorrectHeadingForDirectionChange(deltaRad float64) {
 	g.mu.Unlock()
 }
 
-// scanToLidarScan converts a sensorv1.Scan into the controller's LidarScan,
-// expanding the proto's angle_min/angle_increment into a per-ray angle slice
-// (0 rad = forward, +pi/2 = left) matching controllers.LidarScan.
-func scanToLidarScan(scan *sensorv1.Scan) controllers.LidarScan {
-	n := len(scan.GetRanges())
-	angles := make([]float64, n)
-	angleMin := float64(scan.GetAngleMin())
-	inc := float64(scan.GetAngleIncrement())
-	for i := range n {
-		angles[i] = angleMin + float64(i)*inc
-	}
-	ranges := make([]float64, n)
-	for i, r := range scan.GetRanges() {
-		ranges[i] = float64(r)
-	}
-	return controllers.LidarScan{RangesM: ranges, AnglesRad: angles}
-}
-
-// imuYawRad extracts yaw (rotation about Z) from an IMU orientation quaternion,
-// in radians, 0 = forward/+pi/2 = left (matching trackmodel.Pose.Yaw and the
-// LidarScan convention).
-func imuYawRad(imu *sensorv1.Imu) (float64, bool) {
-	q := imu.GetOrientation()
-	if q == nil {
-		return 0, false
-	}
-	// Standard yaw from a unit quaternion (ENU, Z-up):
-	//   yaw = atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z))
-	yaw := math.Atan2(2*(q.GetW()*q.GetZ()+q.GetX()*q.GetY()),
-		1-2*(q.GetY()*q.GetY()+q.GetZ()*q.GetZ()))
-	return yaw, true
-}
-
 // Run starts the background subscription loops and blocks until ctx is done
 // or a subscription hits a non-cancellation error. The loops feed the latest
 // Scan/Imu into the mutex-guarded cache (the natsSource pattern), and the
@@ -315,7 +270,7 @@ func (g *Gateway) Run(
 ) error {
 	// Buffered so a loop that returns after another has already won the
 	// select below doesn't block forever on an unread send.
-	loopErr := make(chan error, 3)
+	loopErr := make(chan error, runLoops)
 	go func() { loopErr <- g.scanLoop(ctx, scanSub) }()
 	go func() { loopErr <- g.imuLoop(ctx, imuSub) }()
 	if jointSub != nil {
@@ -327,6 +282,32 @@ func (g *Gateway) Run(
 		return nil
 	}
 	return err
+}
+
+// Close releases the NATS connection the gateway was built over.
+func (g *Gateway) Close() error {
+	if g.conn == nil {
+		return nil
+	}
+	g.conn.Close()
+	return nil
+}
+
+// localizer builds a fresh LidarLocalizer over walls. Rebuilt (not mutated) on
+// SetBelievedWalls so the gateway owns the localizer lifecycle cleanly.
+func (g *Gateway) localizer(walls *trackmodel.TrackWalls) *localization.LidarLocalizer {
+	return localization.New(walls, g.locCfg)
+}
+
+// driveCommand encodes a DriveCommand as an AckermannCmd without publishing.
+// SteeringNorm (+ = left) maps to a positive (left) wheel angle; the magnitude
+// scales against maxSteeringWheelAngleRad and is clamped to [-1, 1].
+func (g *Gateway) driveCommand(command controllers.DriveCommand) *actuationv1.AckermannCmd {
+	steering := math.Max(-1.0, math.Min(1.0, command.SteeringNorm)) * maxSteeringWheelAngleRad
+	return &actuationv1.AckermannCmd{
+		Speed:         float32(command.SpeedMPS),
+		SteeringAngle: float32(steering),
+	}
 }
 
 // jointLoop stores the wheel odometry decoded from each JointStates.
@@ -351,44 +332,6 @@ func (g *Gateway) jointLoop(
 		g.haveWheel = true
 		g.mu.Unlock()
 	}
-}
-
-// wheelOdometryFrom converts the drive joint's accumulating angle and rate
-// into linear travel and speed, ok=false when the message carries no drive
-// joint or no position for it.
-//
-// Indexed by joint NAME rather than array position, matching
-// ros2_hardware_gateway.py's _joint_state_callback: JointStates carries an
-// arbitrary set of joints in an arbitrary order, and assuming index 0 is the
-// drive wheel would break silently the moment another joint is added.
-//
-// A missing velocity entry yields a zero speed rather than dropping the
-// sample: position is what bayexit and the parking clamp actually
-// difference, and refusing the whole message over an absent rate would
-// withhold the travel they need.
-func wheelOdometryFrom(
-	joints *actuationv1.JointStates,
-	wheelRadiusM float64,
-) (controllers.WheelOdometry, bool) {
-	index := slices.Index(joints.GetName(), actuationv1.DriveJoint)
-	if index < 0 || index >= len(joints.GetPosition()) {
-		return controllers.WheelOdometry{}, false
-	}
-
-	speedMPS := 0.0
-	if index < len(joints.GetVelocity()) {
-		speedMPS = joints.GetVelocity()[index] * wheelRadiusM
-	}
-	stamp := joints.GetStamp()
-	return controllers.WheelOdometry{
-		DistanceM: joints.GetPosition()[index] * wheelRadiusM,
-		SpeedMPS:  speedMPS,
-		// Seconds since the epoch, the same sec + nanosec*1e-9 the Python
-		// callback assembles. Only differences between successive stamps are
-		// meaningful to the consumer, so the epoch itself does not matter --
-		// only that every sample shares one.
-		StampS: float64(stamp.GetSeconds()) + float64(stamp.GetNanos())*nanosecondsPerSecond,
-	}, true
 }
 
 // scanLoop stores each Scan and, when a yaw is available, scores the localizer
@@ -488,11 +431,73 @@ func (g *Gateway) scorePoseLocked(scan *sensorv1.Scan, yaw float64) {
 	g.havePose = true
 }
 
-// Close releases the NATS connection the gateway was built over.
-func (g *Gateway) Close() error {
-	if g.conn == nil {
-		return nil
+// scanToLidarScan converts a sensorv1.Scan into the controller's LidarScan,
+// expanding the proto's angle_min/angle_increment into a per-ray angle slice
+// (0 rad = forward, +pi/2 = left) matching controllers.LidarScan.
+func scanToLidarScan(scan *sensorv1.Scan) controllers.LidarScan {
+	n := len(scan.GetRanges())
+	angles := make([]float64, n)
+	angleMin := float64(scan.GetAngleMin())
+	inc := float64(scan.GetAngleIncrement())
+	for i := range n {
+		angles[i] = angleMin + float64(i)*inc
 	}
-	g.conn.Close()
-	return nil
+	ranges := make([]float64, n)
+	for i, r := range scan.GetRanges() {
+		ranges[i] = float64(r)
+	}
+	return controllers.LidarScan{RangesM: ranges, AnglesRad: angles}
+}
+
+// imuYawRad extracts yaw (rotation about Z) from an IMU orientation quaternion,
+// in radians, 0 = forward/+pi/2 = left (matching trackmodel.Pose.Yaw and the
+// LidarScan convention).
+func imuYawRad(imu *sensorv1.Imu) (float64, bool) {
+	q := imu.GetOrientation()
+	if q == nil {
+		return 0, false
+	}
+	// Standard yaw from a unit quaternion (ENU, Z-up):
+	//   yaw = atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z))
+	yaw := math.Atan2(2*(q.GetW()*q.GetZ()+q.GetX()*q.GetY()),
+		1-2*(q.GetY()*q.GetY()+q.GetZ()*q.GetZ()))
+	return yaw, true
+}
+
+// wheelOdometryFrom converts the drive joint's accumulating angle and rate
+// into linear travel and speed, ok=false when the message carries no drive
+// joint or no position for it.
+//
+// Indexed by joint NAME rather than array position, matching
+// ros2_hardware_gateway.py's _joint_state_callback: JointStates carries an
+// arbitrary set of joints in an arbitrary order, and assuming index 0 is the
+// drive wheel would break silently the moment another joint is added.
+//
+// A missing velocity entry yields a zero speed rather than dropping the
+// sample: position is what bayexit and the parking clamp actually
+// difference, and refusing the whole message over an absent rate would
+// withhold the travel they need.
+func wheelOdometryFrom(
+	joints *actuationv1.JointStates,
+	wheelRadiusM float64,
+) (controllers.WheelOdometry, bool) {
+	index := slices.Index(joints.GetName(), actuationv1.DriveJoint)
+	if index < 0 || index >= len(joints.GetPosition()) {
+		return controllers.WheelOdometry{}, false
+	}
+
+	speedMPS := 0.0
+	if index < len(joints.GetVelocity()) {
+		speedMPS = joints.GetVelocity()[index] * wheelRadiusM
+	}
+	stamp := joints.GetStamp()
+	return controllers.WheelOdometry{
+		DistanceM: joints.GetPosition()[index] * wheelRadiusM,
+		SpeedMPS:  speedMPS,
+		// Seconds since the epoch, the same sec + nanosec*1e-9 the Python
+		// callback assembles. Only differences between successive stamps are
+		// meaningful to the consumer, so the epoch itself does not matter --
+		// only that every sample shares one.
+		StampS: float64(stamp.GetSeconds()) + float64(stamp.GetNanos())*nanosecondsPerSecond,
+	}, true
 }
