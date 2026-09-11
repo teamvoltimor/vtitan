@@ -79,3 +79,31 @@ tasks:
     desc: Regenerate Go database access layer from SQL schema and queries (requires sqlc CLI)
     cmds:
       - sqlc generate
+
+  backend:clean:
+    desc: Remove Go build cache and the compiled backend binary
+    cmds:
+      - rm -rf bin
+      - go clean -cache
+
+  openapi:generate:
+    desc: Regenerate Go types from all context OpenAPI specs
+    cmds:
+      - cmd: pwsh -NoProfile -File scripts/gen-openapi.ps1
+        platforms: [windows]
+      - cmd: bash scripts/gen-openapi.sh
+        platforms: [linux, darwin]
+    sources:
+      - ../../contracts/openapi/contexts/*.yaml
+      - scripts/gen-openapi.ps1
+      - scripts/gen-openapi.sh
+    generates:
+      - internal/api/*/openapi.gen.go
+
+  openapi:validate:
+    desc: Validate all OpenAPI specs exist and are non-empty
+    cmds:
+      - cmd: pwsh -NoProfile -File scripts/validate-openapi.ps1
+        platforms: [windows]
+      - cmd: bash scripts/validate-openapi.sh
+        platforms: [linux, darwin]

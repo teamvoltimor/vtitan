@@ -8,10 +8,18 @@ vars:
   # task that runs directly ON a Pi (not on a dev machine, where pixi lives
   # wherever it was installed) should use {{.ROBOT_PIXI}}, not a bare `pixi`.
   ROBOT_PIXI: ~/.pixi/bin/pixi
-  # Sample scenario metadata for robot:drive's optional replay mode --
-  # produced by the Go simgen corpus generator, see tasks/platform.yml's
-  # gen:corpus. Override per invocation with METADATA=path.
+  # Sample scenario metadata for robot:drive's optional replay mode and for
+  # gen:rviz -- produced by the Go simgen corpus generator, see
+  # tasks/platform.yml's gen:corpus. Relative to this Taskfile's own dir
+  # (src/python), NOT the repo root -- unlike tasks/platform.yml's own
+  # METADATA var (used by gen:preview/gen:scenarios), which IS repo-root
+  # relative. Override per invocation with METADATA=path.
   METADATA: ../go/training_data/open/scenarios/scenario_0000_metadata.json
+  # Mirrors tasks/platform.yml's PROFILE var (see its own comment there for
+  # why this is a checked-in default rather than a config-loader default) --
+  # duplicated here because Task's included-Taskfile vars aren't shared
+  # across files, same reason EXE/BASH are duplicated in src/go/Taskfile.yml.
+  PROFILE: 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm
 
 tasks:
   robot:install:
@@ -371,7 +379,7 @@ tasks:
       trustworthy for a new one). See scripts/hardware/sweep_open_loop.py
       --help for every option.
     cmds:
-      # 5,6,26 = l_en_pin,r_en_pin,reverse_pwm_pin from config/hardware/motors/
+      # 5,6,26 = l_en_pin,r_en_pin,reverse_pwm_pin from src/config/hardware/motors/
       # bts7960.toml -- must stay in sync (same pins the systemd unit's
       # ExecStopPost and bootstrap-fresh-zero.sh's config.txt line re-drive
       # low; see docs/bts7960-ibt2-wiring.md).
@@ -389,4 +397,19 @@ tasks:
       docs/joystick-teleop.md.
     cmds:
       - pixi run setup-joystick
+
+  gen:rviz:
+    desc: >-
+      Stream one generated scenario's static layout (walls, signs, parking
+      blocks) live to RViz2 straight from its *_metadata.json — no closed-loop
+      navigator run. METADATA=path/to/*_metadata.json (relative to src/python,
+      see this Taskfile's own METADATA var). Run `task sim:navigate:rviz` in
+      another terminal first (NOT `task sim:rviz`, which loads no saved
+      config and so comes up as an empty grid). Moved here from
+      tasks/platform.yml -- it only ever ran inside this module's own pixi env.
+    env:
+      VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
+    cmds:
+      - 'echo "Hardware profile: {{.PROFILE}} (override with PROFILE=...)"'
+      - pixi run -e dev visualize-scenario -- --metadata-file {{.METADATA}} {{.CLI_ARGS}}
 

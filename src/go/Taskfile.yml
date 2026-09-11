@@ -307,7 +307,7 @@ tasks:
       - task: simgen:build
 
   simgen:build:
-    desc: Compile simgen binary to robot-go/bin/simgen[.exe]
+    desc: Compile simgen binary to src/go/bin/simgen[.exe]
     cmds:
       - go build -o bin/simgen{{.EXE}} ./cmd/simgen
 
@@ -340,3 +340,8 @@ tasks:
     desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)
     cmds:
       - golangci-lint fmt ./cmd/simgen/... ./internal/simgen/...
+
+  gen:robot-command-client:
+    desc: "Regenerate src/go's local Go+gRPC client stubs for contracts/proto/telemetry/v1/commands.proto (internal/schema/pb/telemetry/v1) -- backend's own generated copy (apps/backend/gen/telemetry/v1) is untouched. Moved here from tasks/platform.yml -- it only ever touched this module's own internal/schema/pb."
+    cmds:
+      - buf generate ../../contracts/proto --template buf.gen.commands.yaml --path ../../contracts/proto/telemetry/v1/commands.proto

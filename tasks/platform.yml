@@ -255,31 +255,8 @@ tasks:
 
   # BACKEND (Go telemetry server) moved to apps/backend/Taskfile.yml
   # (backend:*) -- backend:install calls `task: proto` below, resolved
-  # through the flattened global namespace.
-
-  openapi:generate:
-    desc: Regenerate Go types from all context OpenAPI specs
-    dir: apps/backend
-    cmds:
-      - cmd: pwsh -NoProfile -File scripts/gen-openapi.ps1
-        platforms: [windows]
-      - cmd: bash scripts/gen-openapi.sh
-        platforms: [linux, darwin]
-    sources:
-      - ../../contracts/openapi/contexts/*.yaml
-      - scripts/gen-openapi.ps1
-      - scripts/gen-openapi.sh
-    generates:
-      - internal/api/*/openapi.gen.go
-
-  openapi:validate:
-    desc: Validate all OpenAPI specs exist and are non-empty
-    dir: apps/backend
-    cmds:
-      - cmd: pwsh -NoProfile -File scripts/validate-openapi.ps1
-        platforms: [windows]
-      - cmd: bash scripts/validate-openapi.sh
-        platforms: [linux, darwin]
+  # through the flattened global namespace. openapi:generate/validate and
+  # backend:clean also moved there -- they only ever touched apps/backend.
 
   openapi:lint:
     desc: Lint the aggregated OpenAPI spec with Redocly (requires the redocly CLI)
@@ -321,13 +298,8 @@ tasks:
   # SIMGEN (Go scenario generator) moved to src/go/Taskfile.yml (simgen:*) --
   # it's self-contained there alongside robot-go:* (the src/go module's task
   # namespace), this file just calls into it (simgen:build below, and the
-  # lint/install umbrellas above).
-
-  clean:go:
-    desc: Remove Go build cache and compiled binaries
-    cmds:
-      - cmd: rm -rf apps/backend/bin
-      - go clean -cache
+  # lint/install umbrellas above). gen:robot-command-client moved there too --
+  # it only ever touched src/go's own internal/schema/pb.
 
   # FRONTEND (Vite + React telemetry dashboard) moved to
   # apps/frontend/Taskfile.yml (frontend:*) -- fully self-contained, no
@@ -346,12 +318,6 @@ tasks:
     deps: [simgen:build]
     cmds:
       - "{{.SIMGEN}} generate-track-constants"
-
-  gen:robot-command-client:
-    desc: "Regenerate src/go's local Go+gRPC client stubs for contracts/proto/telemetry/v1/commands.proto (internal/schema/pb/telemetry/v1) -- backend's own generated copy (apps/backend/gen/telemetry/v1) is untouched"
-    dir: src/go
-    cmds:
-      - buf generate ../../contracts/proto --template buf.gen.commands.yaml --path ../../contracts/proto/telemetry/v1/commands.proto
 
   gen:scenarios:
     desc: "Generate scenarios for a challenge (usage: task gen:scenarios CHALLENGE=open|obstacles, SCENARIOS={{.SCENARIOS}} default)"
@@ -403,20 +369,8 @@ tasks:
     cmds:
       - "{{.SIMGEN}} preview --metadata {{.METADATA}}"
 
-  gen:rviz:
-    desc: >-
-      Stream one generated scenario's static layout (walls, signs, parking
-      blocks) live to RViz2 straight from its *_metadata.json — no closed-loop
-      navigator run. METADATA=path/to/*_metadata.json (relative to the repo
-      root, same var as gen:preview). Run `task sim:navigate:rviz` in another
-      terminal first (NOT `task sim:rviz`, which loads no saved config and so
-      comes up as an empty grid).
-    dir: src/python
-    env:
-      VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
-    cmds:
-      - 'echo "Hardware profile: {{.PROFILE}} (override with PROFILE=...)"'
-      - pixi run -e dev visualize-scenario -- --metadata-file ../{{.METADATA}} {{.CLI_ARGS}}
+  # gen:rviz moved to src/python/Taskfile.yml -- it only ever ran inside
+  # src/python's own pixi env.
 
   gen:rviz:all:
     desc: >-
@@ -676,7 +630,7 @@ tasks:
     cmds:
       - task: clean
       - task: clean:cache
-      - task: clean:go
+      - task: backend:clean
 
   # WORKFLOWS (multi-step pipelines)
 
