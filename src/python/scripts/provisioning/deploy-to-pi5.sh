@@ -126,6 +126,76 @@ case "$SHEBANG" in
   *) die "vision_node shebang is '$SHEBANG' -- expected the vision env" ;;
 esac
 
+# 3b. The systemd units are NOT in the repo -- they live in /etc/systemd/system
+#     and no deploy touches them, so a path they hardcode can rot while every
+#     step above reports success. The 2026-09-10 restructure moved
+#     platform/robot -> src/python and broke six references across the two
+#     units; the deploy that followed transferred 74 commits, rebuilt the
+#     workspace, passed the shebang check, and then failed at the restart with
+#     ExecStartPre exiting 127.
+#
+#     The .env is the nastier half. EnvironmentFile takes a `-` prefix meaning
+#     "tolerate absence", so a unit pointing at a moved .env does not fail --
+#     it starts CLEAN, without HAILO_MODEL_PATH, and surfaces later as
+#     HAILO_OPEN_FILE_FAILURE from the driver. That is the silent failure this
+#     whole script exists to prevent, arriving through the one file it does not
+#     own.
+#
+#     So: check every path the units reference, before touching the services.
+#     And check EVERY vtitan unit, not just the two this script restarts.
+#     Scoping it to those two missed vtitan-lidar (crash-looping on a moved
+#     config, and without LIDAR the robot cannot navigate at all) and
+#     vtitan-nats (still "active" only because it had been running since
+#     before the move -- the next restart would have taken it down).
+log "Checking the systemd units' paths still exist..."
+MISSING="$(ssh "${SSH_OPTS[@]}" "$PI5_HOST" "bash -s" <<REMOTE
+set -u
+missing=""
+for unit in /etc/systemd/system/vtitan-*.service; do
+  [ -f "\$unit" ] || continue
+  # Absolute paths under the repo root, from WorkingDirectory / EnvironmentFile
+  # / Environment=KEY=/path / ExecStartPre. The regex starts at the slash, so a
+  # leading '-' or 'KEY=' does not need stripping.
+  for path in \$(grep -oE "/[^ \"=]*vtitan/[^ \"]*" "\$unit" | sort -u); do
+    [ -e "\$path" ] || missing="\$missing
+  \$(basename \$unit): \$path"
+  done
+done
+printf "%b" "\$missing"
+REMOTE
+)"
+if [ -n "$MISSING" ]; then
+  echo "[deploy-pi5] ERROR: the systemd units reference paths that do not exist:" >&2
+  printf "%b
+" "$MISSING" >&2
+  echo "[deploy-pi5] The code is already transferred and built; only the units are stale." >&2
+  echo "[deploy-pi5] If this is the platform/robot -> src/python move, fix both units with:" >&2
+  echo "[deploy-pi5]   ssh $PI5_HOST \"sudo sed -i 's#/vtitan/platform/robot#/vtitan/src/python#g' \\" >&2
+  echo "[deploy-pi5]     /etc/systemd/system/$SERVICE /etc/systemd/system/$RACE_SERVICE\"" >&2
+  echo "[deploy-pi5] A gitignored .env does NOT move with the tree -- copy it first:" >&2
+  echo "[deploy-pi5]   ssh $PI5_HOST \"cd $PI5_REPO && cp -n platform/robot/.env src/python/.env\"" >&2
+  echo "[deploy-pi5] Then re-run this script." >&2
+  exit 1
+fi
+log "  unit paths ok"
+
+#     Third casualty of the same restructure, and the same root cause as the
+#     .env: sllidar_ros2 is a VENDORED third-party driver, untracked by git, so
+#     it did not move with the tree. The build then succeeded on the five
+#     tracked vtitan_* packages and the shebang check passed, while
+#     vtitan-lidar crash-looped on "Package 'sllidar_ros2' not found". Nothing
+#     upstream of the launch noticed.
+log "Checking the vendored ROS packages survived..."
+ssh "${SSH_OPTS[@]}" "$PI5_HOST" "[ -d $PI5_REPO/src/python/ros2_ws/src/sllidar_ros2 ]" || {
+  echo "[deploy-pi5] ERROR: sllidar_ros2 is missing from ros2_ws/src." >&2
+  echo "[deploy-pi5] It is vendored and untracked, so no pull restores it. If the old" >&2
+  echo "[deploy-pi5] tree is still on the Pi:" >&2
+  echo "[deploy-pi5]   ssh $PI5_HOST \"cd $PI5_REPO && cp -rn platform/robot/ros2_ws/src/sllidar_ros2 src/python/ros2_ws/src/\"" >&2
+  echo "[deploy-pi5] Then re-run this script so the workspace rebuilds with it." >&2
+  exit 1
+}
+log "  vendored packages ok"
+
 # 4. Service.
 if [ -n "${SKIP_RESTART:-}" ]; then
   log "SKIP_RESTART set; leaving $SERVICE and $RACE_SERVICE alone"
