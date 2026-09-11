@@ -8,10 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
-	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
+	domain "github.com/teamvoltimor/vtitan/apps/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/api"
+	httpconstants "github.com/teamvoltimor/vtitan/apps/backend/internal/http"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/problem"
 )
 
 // Handler holds the Robot context's Gin HTTP handlers.

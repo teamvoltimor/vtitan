@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/problem"
 )
 
 // contentTypeJSON is the content type for proto-marshaled JSON responses.

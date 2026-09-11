@@ -14,14 +14,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	robotdomain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/session"
-	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/config"
-	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
-	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
+	robotdomain "github.com/teamvoltimor/vtitan/apps/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/apps/backend/domain/session"
+	domain "github.com/teamvoltimor/vtitan/apps/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/api"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/config"
+	httpconstants "github.com/teamvoltimor/vtitan/apps/backend/internal/http"
+	"github.com/teamvoltimor/vtitan/apps/backend/internal/problem"
 )
 
 // API version and status constants.

@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+	telemetryv1 "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1"
 )
 
 // SessionStore is the storage port for session recording.

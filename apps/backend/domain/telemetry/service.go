@@ -1,6 +1,6 @@
 package telemetry
 
-import telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+import telemetryv1 "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1"
 
 // TelemetryService is the telemetry management port.
 type TelemetryService interface {

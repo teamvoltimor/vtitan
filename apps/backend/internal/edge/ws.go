@@ -8,8 +8,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoltimor/vtitan/apps/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1"
 )
 
 const wsWriteTimeout = 5 * time.Second

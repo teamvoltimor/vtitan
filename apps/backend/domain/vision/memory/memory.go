@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/vision"
+	"github.com/teamvoltimor/vtitan/apps/backend/domain/vision"
 )
 
 // Memory is a thread-safe in-memory Store for the Vision bounded context.
