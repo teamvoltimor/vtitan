@@ -45,6 +45,7 @@ func baseConfig() trackconfig.Config {
 // in float64 the middle band comes out 0.19999999999999996, and the generator
 // would emit that into the file that is supposed to be the source of truth.
 func TestBandWidthsAreExact(t *testing.T) {
+	t.Parallel()
 	bands := baseConfig().Corridor.BandWidths()
 
 	want := []string{"0.4", "0.2", "0.4"}
@@ -69,6 +70,7 @@ func TestBandWidthsAreExact(t *testing.T) {
 }
 
 func TestDerivedTrackValues(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	if got := cfg.Track.CenterCoord().String(); got != "1.5" {
 		t.Errorf("CenterCoord = %s, want 1.5", got)
@@ -83,6 +85,7 @@ func TestDerivedTrackValues(t *testing.T) {
 }
 
 func TestValidateAcceptsTheRealLayout(t *testing.T) {
+	t.Parallel()
 	if err := baseConfig().Validate(dec("0.20")); err != nil {
 		t.Errorf("the checked-in layout must validate: %v", err)
 	}
@@ -94,6 +97,7 @@ func TestValidateAcceptsTheRealLayout(t *testing.T) {
 // is the inner block. With a 0.194 m chassis in the 0.20 m middle band, that is
 // the difference between 3 mm and 6 mm of clearance from the block.
 func TestSpawnOffsetsHugTheChosenEdge(t *testing.T) {
+	t.Parallel()
 	offsets, err := baseConfig().SpawnOffsets(dec("0.194"))
 	if err != nil {
 		t.Fatalf("SpawnOffsets: %v", err)
@@ -111,6 +115,7 @@ func TestSpawnOffsetsHugTheChosenEdge(t *testing.T) {
 // is only millimetres wider than the robot, so a hardcoded offset would quietly
 // stop meaning "flush against the edge".
 func TestSpawnOffsetsFollowTheChassis(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	narrow, err := cfg.SpawnOffsets(dec("0.194"))
 	if err != nil {
@@ -132,6 +137,7 @@ func TestSpawnOffsetsFollowTheChassis(t *testing.T) {
 // TestValidateRejectsChassisWiderThanABand guards the case that motivated the
 // re-measurement: a band narrower than the robot has no legal placement at all.
 func TestValidateRejectsChassisWiderThanABand(t *testing.T) {
+	t.Parallel()
 	err := baseConfig().Validate(dec("0.21"))
 	if err == nil || !strings.Contains(err.Error(), "narrower than") {
 		t.Errorf("want an error about the band being too narrow, got %v", err)
@@ -139,6 +145,7 @@ func TestValidateRejectsChassisWiderThanABand(t *testing.T) {
 }
 
 func TestValidateRejects(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		mutate func(*trackconfig.Config)
@@ -173,6 +180,7 @@ func TestValidateRejects(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := baseConfig()
 			tc.mutate(&cfg)
 			err := cfg.Validate(dec("0.20"))

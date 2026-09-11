@@ -30,6 +30,7 @@ func acrossAlong(section simconfig.Section, p simconfig.Vec2) (across, along flo
 // 0.40+0.20 = 0.60 fills a narrow corridor exactly, so its innermost band falls
 // under the centre square and cannot be a start.
 func TestStartCells_CountPerWidth(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		width float64
@@ -39,6 +40,7 @@ func TestStartCells_CountPerWidth(t *testing.T) {
 		{"wide", simconfig.CorridorWide, 6},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			for _, section := range simconfig.AllSections {
 				if got := len(generate.StartCells(section, tc.width)); got != tc.want {
 					t.Errorf("%s/%s: %d cells, want %d", section, tc.name, got, tc.want)
@@ -58,6 +60,7 @@ func TestStartCells_CountPerWidth(t *testing.T) {
 // the robot, and hugging its outer edge doubles the clearance to the inner
 // block over centring.
 func TestStartCells_SpawnOffsets(t *testing.T) {
+	t.Parallel()
 	o := simconfig.StartingZoneSpawnOffsets
 	for _, tc := range []struct {
 		name  string
@@ -68,6 +71,7 @@ func TestStartCells_SpawnOffsets(t *testing.T) {
 		{"wide", simconfig.CorridorWide, []float64{o[0], o[0], o[1], o[1], o[2], o[2]}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			for _, section := range simconfig.AllSections {
 				cells := generate.StartCells(section, tc.width)
 				for i, cell := range cells {
@@ -86,6 +90,7 @@ func TestStartCells_SpawnOffsets(t *testing.T) {
 // no start may straddle a band boundary, or the robot begins in two sections of
 // the starting square at once.
 func TestStartCells_ChassisInsideBand(t *testing.T) {
+	t.Parallel()
 	half := simconfig.RobotWidth / 2
 	for _, width := range []float64{simconfig.CorridorNarrow, simconfig.CorridorWide} {
 		for _, section := range simconfig.AllSections {
@@ -111,6 +116,7 @@ func TestStartCells_ChassisInsideBand(t *testing.T) {
 // TestStartCells_WithinCorridor guards the innermost start: the chassis must
 // stay clear of the inner block, and every cell must stay on the mat.
 func TestStartCells_WithinCorridor(t *testing.T) {
+	t.Parallel()
 	half := simconfig.RobotWidth / 2
 	for _, width := range []float64{simconfig.CorridorNarrow, simconfig.CorridorWide} {
 		for _, section := range simconfig.AllSections {
@@ -135,6 +141,7 @@ func TestStartCells_WithinCorridor(t *testing.T) {
 // TestStartCells_OrderedOuterInward pins index 0 as the cell against the outer
 // wall, which callers rely on for a deterministic default start.
 func TestStartCells_OrderedOuterInward(t *testing.T) {
+	t.Parallel()
 	for _, section := range simconfig.AllSections {
 		cells := generate.StartCells(section, simconfig.CorridorWide)
 		prev := math.Inf(-1)
@@ -151,6 +158,7 @@ func TestStartCells_OrderedOuterInward(t *testing.T) {
 // TestStartCells_ZoneIsBandCentre keeps the painted rectangle centred on its
 // band even though the spawn inside it is deliberately off-centre.
 func TestStartCells_ZoneIsBandCentre(t *testing.T) {
+	t.Parallel()
 	wantCentres := []float64{0.20, 0.20, 0.50, 0.50, 0.80, 0.80}
 	wantBands := []float64{0.40, 0.40, 0.20, 0.20, 0.40, 0.40}
 	for _, section := range simconfig.AllSections {

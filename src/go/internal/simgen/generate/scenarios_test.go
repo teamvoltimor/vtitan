@@ -8,6 +8,7 @@ import (
 )
 
 func TestApplyScenarioToSection_InvalidID(t *testing.T) {
+	t.Parallel()
 	_, err := generate.ApplyScenarioToSection(0, simconfig.SectionSouth)
 	if err == nil {
 		t.Fatal("expected error for scenario ID 0")
@@ -19,6 +20,7 @@ func TestApplyScenarioToSection_InvalidID(t *testing.T) {
 }
 
 func TestApplyScenarioToSection_SouthIdentity(t *testing.T) {
+	t.Parallel()
 	// South is the template section — positions must come through unchanged.
 	pillars, err := generate.ApplyScenarioToSection(1, simconfig.SectionSouth)
 	if err != nil {
@@ -34,6 +36,7 @@ func TestApplyScenarioToSection_SouthIdentity(t *testing.T) {
 }
 
 func TestApplyScenarioToSection_AllScenariosAllSections(t *testing.T) {
+	t.Parallel()
 	for id := 1; id <= 36; id++ {
 		for _, section := range simconfig.AllSections {
 			pillars, err := generate.ApplyScenarioToSection(id, section)
@@ -60,6 +63,7 @@ func TestApplyScenarioToSection_AllScenariosAllSections(t *testing.T) {
 }
 
 func TestApplyScenarioToSection_DoublePillarCount(t *testing.T) {
+	t.Parallel()
 	// Scenarios 13–36 are double pillars
 	for id := 13; id <= 36; id++ {
 		pillars, err := generate.ApplyScenarioToSection(id, simconfig.SectionSouth)

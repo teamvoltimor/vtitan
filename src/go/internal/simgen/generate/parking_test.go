@@ -17,6 +17,7 @@ const spacingTolerance = 1e-9
 // equal it. A prior bug scaled spacing by RobotWidth instead of RobotLength,
 // producing a bay exactly as long as the car with zero room to maneuver.
 func TestGenerateParkingLotPositions_SpacingClearsRobotLength(t *testing.T) {
+	t.Parallel()
 	r := generate.NewRandomizer(rand.New(rand.NewSource(1)))
 
 	for _, section := range simconfig.AllSections {

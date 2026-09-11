@@ -27,6 +27,7 @@ func defaultContext() validate.WorldContext {
 }
 
 func TestValidateScenario_EmptyIsValid(t *testing.T) {
+	t.Parallel()
 	ctx := defaultContext()
 	violations := validate.ValidateScenario(ctx)
 	if len(violations) != 0 {
@@ -35,6 +36,7 @@ func TestValidateScenario_EmptyIsValid(t *testing.T) {
 }
 
 func TestValidateScenario_SignOutOfBounds(t *testing.T) {
+	t.Parallel()
 	ctx := defaultContext()
 	ctx.Signs = []simconfig.Sign{
 		{Position: simconfig.Vec2{-0.5, 1.5}, Color: simconfig.SignColor{Name: "red"}},
@@ -46,6 +48,7 @@ func TestValidateScenario_SignOutOfBounds(t *testing.T) {
 }
 
 func TestValidateScenario_SignOverlapViolation(t *testing.T) {
+	t.Parallel()
 	ctx := defaultContext()
 	// Two signs at nearly identical positions
 	ctx.Signs = []simconfig.Sign{
@@ -59,6 +62,7 @@ func TestValidateScenario_SignOverlapViolation(t *testing.T) {
 }
 
 func TestValidateScenario_ParkingOutOfBounds(t *testing.T) {
+	t.Parallel()
 	ctx := defaultContext()
 	parking := simconfig.ParkingConfig{
 		Block1Pos: simconfig.Vec2{-1.0, 0.1},
@@ -72,6 +76,7 @@ func TestValidateScenario_ParkingOutOfBounds(t *testing.T) {
 }
 
 func TestValidateScenario_ValidSignsAndParking(t *testing.T) {
+	t.Parallel()
 	ctx := defaultContext()
 	ctx.Signs = []simconfig.Sign{
 		{Position: simconfig.Vec2{1.5, 2.5}, Color: simconfig.SignColor{Name: simconfig.ColorNameGreen}},

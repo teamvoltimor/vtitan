@@ -37,6 +37,7 @@ func newOpenGen(t *testing.T, seed int64) *generate.ScenarioGenerator {
 }
 
 func TestOpenChallenge_NoSignsNoParking(t *testing.T) {
+	t.Parallel()
 	gen := newOpenGen(t, 42)
 	for i := range _nScenarios {
 		_, meta, err := gen.CreateScenario(i)
@@ -67,6 +68,7 @@ func TestOpenChallenge_NoSignsNoParking(t *testing.T) {
 }
 
 func TestOpenChallenge_CorridorWidthsValid(t *testing.T) {
+	t.Parallel()
 	gen := newOpenGen(t, 1337)
 	validWidthsMM := map[int]bool{600: true, 1000: true}
 	sections := []string{"north", "south", "east", "west"}
@@ -101,6 +103,7 @@ func TestOpenChallenge_CorridorWidthsValid(t *testing.T) {
 }
 
 func TestOpenChallenge_StartingConditionsValid(t *testing.T) {
+	t.Parallel()
 	gen := newOpenGen(t, 999)
 	for i := range _nScenarios {
 		_, meta, err := gen.CreateScenario(i)
@@ -146,6 +149,7 @@ func TestOpenChallenge_StartingConditionsValid(t *testing.T) {
 }
 
 func TestOpenChallenge_ReproducibleWithSeed(t *testing.T) {
+	t.Parallel()
 	seed := int64(12345)
 	gen1 := newOpenGen(t, seed)
 	gen2 := newOpenGen(t, seed)
@@ -172,6 +176,7 @@ func TestOpenChallenge_ReproducibleWithSeed(t *testing.T) {
 }
 
 func TestOpenChallenge_WritesFiles(t *testing.T) {
+	t.Parallel()
 	seed := int64(7)
 	gen, err := generate.NewScenarioGenerator(t.TempDir(), simconfig.ScenarioTypeOpen, &seed, nil)
 	if err != nil {
