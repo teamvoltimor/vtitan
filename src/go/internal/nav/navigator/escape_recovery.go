@@ -422,6 +422,42 @@ func (n *Navigator) pivotSteerSign(scan controllers.LidarScan, haveScan bool) fl
 	}
 }
 
+// stuckEscapeBaseSign is the base steering side for a FRESH stuck-escape
+// sequence, matching _stuck_escape_base_sign.
+//
+// Swings toward whichever side LIDAR measures as clearer, falling back to
+// the currently committed side (n.escapeSteerSign) when both are tied or
+// unreadable. escapeSteerSignForAttempt's block-alternation still owns
+// which side repeated attempts within the sequence take; this only fixes
+// what side attempt 1 commits to.
+//
+// Measured on the 2026-09-10 Obstacles bags: this base was hardcoded to 1.0
+// at every reset and never read from LIDAR, so the stuck K-turn (as
+// opposed to the reactive one kTurnSteerSign already serves, and the
+// both-blocked pivot pivotSteerSign already serves) opposed the clearer
+// side 57% of the time, against 11% for side_correction -- the one escape
+// type that already read a threat direction. This closes that gap the same
+// way pivotSteerSign and kTurnSteerSign independently do for their own
+// forward/reverse cases: the clearer-side sign is numerically identical
+// regardless of which direction the escape that follows travels, since
+// "aim toward the clearer side" is invariant to the Ackermann sign flip
+// between forward and reverse.
+func (n *Navigator) stuckEscapeBaseSign(scan controllers.LidarScan, haveScan bool) float64 {
+	if !haveScan || len(scan.RangesM) == 0 {
+		return n.escapeSteerSign
+	}
+	const sideHalfFovRad = math.Pi / 4
+	left := n.collisionController.ComputeMinClearance(scan.RangesM, scan.AnglesRad, math.Pi/2, sideHalfFovRad)
+	right := n.collisionController.ComputeMinClearance(scan.RangesM, scan.AnglesRad, -math.Pi/2, sideHalfFovRad)
+	if (left >= n.cfg.NoDataRangeM && right >= n.cfg.NoDataRangeM) || left == right {
+		return n.escapeSteerSign
+	}
+	if left > right {
+		return -1.0
+	}
+	return 1.0
+}
+
 // maybeEscalate escalates a repeated escape instead of repeating an
 // identical pulse, matching _maybe_escalate.
 //
@@ -563,6 +599,9 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 				"forward_clearance_m",
 				forwardClear,
 			)
+			if n.escapeCount == 0 {
+				n.escapeSteerSign = n.stuckEscapeBaseSign(scan, haveScan)
+			}
 			n.beginStuckEscape(stuckEscapeParams{
 				robotX: robotX, robotY: robotY, robotYaw: robotYaw,
 				maneuverType: controllers.ManeuverStuckForward,
@@ -602,6 +641,9 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 		return
 	}
 
+	if n.escapeCount == 0 {
+		n.escapeSteerSign = n.stuckEscapeBaseSign(scan, haveScan)
+	}
 	n.beginStuckEscape(stuckEscapeParams{
 		robotX: robotX, robotY: robotY, robotYaw: robotYaw,
 		maneuverType: controllers.ManeuverStuckReverse,
