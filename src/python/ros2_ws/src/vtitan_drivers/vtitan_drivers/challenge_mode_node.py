@@ -37,7 +37,7 @@ NODE_NAME = "challenge_mode_node"
 
 
 class NodeConfig(HardwareBaseSettings):
-    """Node-level timing, configurable via config/hardware/challenge_mode_node.toml.
+    """Node-level timing, configurable via src/config/hardware/challenge_mode_node.toml.
 
     Matches every hardware driver's Config pattern -- separate from
     challenge_mode.toml alongside it, which is the GPIO driver's own config

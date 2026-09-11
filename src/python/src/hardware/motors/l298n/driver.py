@@ -49,7 +49,7 @@ class Driver(DriveDriver):
     All wiring facts (PWM chip/channel/carrier, and pin numbers) come from
     ``pwm_config`` (``L298nPwmConfig``) rather than separate constructor
     args, so they are TOML/env configurable the same way ``ServoConfig``
-    already is -- see ``config/hardware/motors/l298n.toml``.
+    already is -- see ``src/config/hardware/motors/l298n.toml``.
 
     ``pwm_config.standby_pin`` wires the chip-enable line a TB6612FNG
     exposes (STBY); leave it ``None`` for an L298N, which has no standby

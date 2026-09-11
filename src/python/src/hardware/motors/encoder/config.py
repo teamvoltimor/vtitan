@@ -2,7 +2,7 @@
 
 Independent of which H-bridge (``l298n``/``bts7960``/...) is turning the
 shaft this encoder reads -- env-overridable via ``ENCODER_*`` and the
-``encoder.toml`` file under ``config/hardware/motors/``.
+``encoder.toml`` file under ``src/config/hardware/motors/``.
 """
 
 from pydantic_settings import SettingsConfigDict

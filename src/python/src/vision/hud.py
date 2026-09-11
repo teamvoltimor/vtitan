@@ -21,7 +21,7 @@ now"), the LIDAR radar bottom-right, and the team mark watermarked bottom-left
 for how it was derived from the brand asset) -- purely cosmetic, unlike
 the other three. All pixel sizes, colours and the radar's display
 range are tuning constants, not literals -- see HudConfig /
-config/hardware/vision/hud.toml, same pattern every other hardware/vision
+src/config/hardware/vision/hud.toml, same pattern every other hardware/vision
 config in this repo follows (VisionNode's own Config, NavigationTuning, etc.).
 
 The HEADING line is the "gyroscope" stat -- deliberately read from
@@ -51,7 +51,7 @@ _RGB = tuple[int, int, int]
 class HudConfig(HardwareBaseSettings):
     """Tuning constants for the navigation HUD overlay.
 
-    Sourced from config/hardware/vision/hud.toml (env prefix VISION_HUD_,
+    Sourced from src/config/hardware/vision/hud.toml (env prefix VISION_HUD_,
     same override precedence as every other HardwareBaseSettings config in
     this repo -- init/env win, then the TOML file, then these field
     defaults). Colours are RGB (the recorder's own working order until the

@@ -202,7 +202,7 @@ def main() -> None:
     print(f"\nBest estimate (lowest, least slip): counts_per_rev = {best:.0f}")
     print(f"  currently configured: {args.counts_per_rev_config:.0f}  ({best / args.counts_per_rev_config:.2f}x off)")
     print("=" * 62)
-    print("\nSet counts_per_rev in config/hardware/motors/encoder.toml")
+    print("\nSet counts_per_rev in src/config/hardware/motors/encoder.toml")
 
 
 if __name__ == "__main__":

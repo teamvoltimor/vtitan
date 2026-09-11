@@ -4,7 +4,7 @@ Measured on hardware, not derived from the datasheet -- see
 ``scripts/hardware/calibrate_encoder.py`` if the drivetrain changes.
 
 ``counts_per_rev``/``max_rpm`` are NOT constants here -- they are required
-fields on ``EncoderConfig`` (``config/hardware/motors/encoder.toml``), since
+fields on ``EncoderConfig`` (``src/config/hardware/motors/encoder.toml``), since
 they are per-motor physical data and a stale Python default would silently
 misconfigure a different motor rather than erroring at startup. See that
 TOML file for the derivation of the currently shipped value.

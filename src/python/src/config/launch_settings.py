@@ -75,7 +75,7 @@ def _default_bag_topics() -> list[str]:
     ]
 
 
-# Separate from config/hardware/ (driver calibration) -- these are
+# Separate from src/config/hardware/ (driver calibration) -- these are
 # launch-time session/routing defaults, a different concern.
 LAUNCH_CONFIG_DIR: Path = ROBOT_ROOT / "config" / "launch"
 
@@ -173,7 +173,7 @@ class LidarLaunchDefaults(HardwareBaseSettings):
     ``serial_port:=...``); the rest are fixed driver parameters passed straight
     to the sllidar_ros2 node.
 
-    Lives under ``config/hardware/`` (CONFIG_DIR), not LAUNCH_CONFIG_DIR --
+    Lives under ``src/config/hardware/`` (CONFIG_DIR), not LAUNCH_CONFIG_DIR --
     unlike the other *LaunchDefaults below, src/go's own LIDAR driver reads
     this same lidar.toml (profile.DefaultLidarLaunchTOMLPath), so it's a
     shared driver fact, not a Python/ROS2-only launch-time concern.

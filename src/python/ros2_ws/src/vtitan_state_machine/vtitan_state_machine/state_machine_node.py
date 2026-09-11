@@ -104,7 +104,7 @@ _DEFAULT_TARGET_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 class NodeConfig(HardwareBaseSettings):
     """Challenge-mode jumper debounce/timeout config.
 
-    Configurable via config/hardware/state_machine/state_machine_node.toml.
+    Configurable via src/config/hardware/state_machine/state_machine_node.toml.
     Matches every hardware driver's Config pattern. publisher_rate_hz/
     target_laps are NOT here -- those already go through
     declare_and_get_float_param/declare_and_get_int_param (ROS2 parameters).

@@ -111,7 +111,7 @@ class DetectorConfig(HardwareBaseSettings):
     callers (it's derived from the model's class order). ``model_path`` is
     normally passed explicitly too (real construction always names a
     specific, backend-derived model), but its default is sourced from
-    config/hardware/vision/detector.toml rather than a bare literal, for the
+    src/config/hardware/vision/detector.toml rather than a bare literal, for the
     test/debug callers that build a detector with no config at all (see
     ``LocalYoloDetector.__init__`` and ``create_detector``) -- previously a
     module constant (``DEFAULT_YOLO_MODEL_PATH = "yolov8n.pt"``) whose own

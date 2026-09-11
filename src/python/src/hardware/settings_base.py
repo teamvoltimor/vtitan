@@ -55,7 +55,7 @@ def _profile_overlay_paths(base_toml: Path) -> list[Path]:
 
 
 class HardwareBaseSettings(BaseSettings):
-    """Base class for hardware driver configs sourced from ``config/hardware/*.toml``.
+    """Base class for hardware driver configs sourced from ``src/config/hardware/*.toml``.
 
     Subclasses set ``model_config``'s ``toml_file`` to their own file under
     :data:`CONFIG_DIR`.

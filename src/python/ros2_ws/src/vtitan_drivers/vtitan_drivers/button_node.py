@@ -50,7 +50,7 @@ DEFAULT_QUEUE_DEPTH = 10
 
 
 class NodeConfig(HardwareBaseSettings):
-    """Node-level timing, configurable via config/hardware/button/button_node.toml.
+    """Node-level timing, configurable via src/config/hardware/button/button_node.toml.
 
     Matches every hardware driver's Config pattern -- separate from
     gpio.toml/mcp2221.toml alongside it, which are the driver's own
