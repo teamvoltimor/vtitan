@@ -891,3 +891,40 @@ class TestColourVotePooling:
         for _ in range(8):
             self._vote(sign_map, 1.0, 1.0, SignColor.RED, 0.95)
         assert near.color is SignColor.RED
+
+
+class TestRobotCorridorDebounceRate:
+    """The corridor debounce counts TICKS, which is what its knob promises.
+
+    Measured 2026-09-11 over 125 bags: only 11.6% of ticks carry a detection.
+    Advancing the streak only on those made ROBOT_CORRIDOR_FLIP_TICKS=5 mean
+    roughly 43 ticks of wall time, and left the settled label stale at the one
+    moment it is read -- when a detection finally lands.
+    """
+
+    def _map(self):
+        return ObservedSignMap(min_confidence=0.0)
+
+    def test_an_empty_frame_still_advances_the_debounce(self) -> None:
+        sign_map = self._map()
+        flip_ticks = NavigationTuning().sign_discovery.ROBOT_CORRIDOR_FLIP_TICKS
+        # Somewhere unambiguous, and enough empty frames to settle there.
+        here = Waypoint(0.5, 1.5)
+        for _ in range(flip_ticks + 1):
+            sign_map.observe(None, here)
+
+        from src.navigation.planning.waypoints import corridor_for_position
+
+        assert sign_map._robot_corridor == corridor_for_position(here.x, here.y)  # noqa: SLF001
+
+    def test_the_label_is_current_when_the_first_detection_lands(self) -> None:
+        """The control: without the fix this is still None on that tick."""
+        sign_map = self._map()
+        here = Waypoint(0.5, 1.5)
+        for _ in range(NavigationTuning().sign_discovery.ROBOT_CORRIDOR_FLIP_TICKS + 1):
+            sign_map.observe([], here)
+
+        assert sign_map._robot_corridor is not None, (  # noqa: SLF001
+            "the settled corridor was never computed, so the first detection "
+            "would be associated against a label that does not exist yet"
+        )

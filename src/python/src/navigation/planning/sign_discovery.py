@@ -606,10 +606,17 @@ class ObservedSignMap:
             observations: World-coordinate traffic sign observations.
             robot_pos: Robot position, used for range gating.
         """
+        # The debounce advances on EVERY tick, before the empty-frame return.
+        # Behind it, ``ROBOT_CORRIDOR_FLIP_TICKS`` counted detection FRAMES
+        # while calling itself ticks: measured 2026-09-11 over 125 bags, only
+        # 11.6% of ticks carry a detection, so the shipped 5 meant roughly 43
+        # ticks of wall time and the settled label was stale by construction at
+        # the exact moment a detection finally arrived -- which is when it is
+        # read. The corridor is a property of where the robot IS, and the robot
+        # keeps moving through the frames the camera has nothing to say about.
+        robot_corridor = self._settle_robot_corridor(corridor_for_position(robot_pos.x, robot_pos.y))
         if not observations:
             return
-
-        robot_corridor = self._settle_robot_corridor(corridor_for_position(robot_pos.x, robot_pos.y))
         for obs in observations:
             if obs.confidence < self._min_confidence:
                 continue
