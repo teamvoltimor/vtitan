@@ -8,6 +8,25 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// WidthSet is one complete Open Challenge corridor-width assignment, in
+// millimeters. Matches scenario_catalog.CorridorWidthSet.
+type WidthSet struct {
+	SouthMM int
+	NorthMM int
+	EastMM  int
+	WestMM  int
+}
+
+// Params uniquely identifies one Open Challenge scenario. Matches
+// scenario_catalog.OpenChallengeScenarioParams.
+type Params struct {
+	Widths    WidthSet
+	Section   simconfig.Section
+	Direction trackmodel.Direction
+	Index     int
+	StartCell int
+}
+
 // Corridor widths the Open Challenge can present, in millimeters. The rules
 // offer these two and nothing between them, which is what makes the space
 // enumerable at all -- see waypoints' narrow_width_threshold_m for why the
@@ -16,6 +35,10 @@ const (
 	NarrowMM = 600
 	WideMM   = 1000
 )
+
+// WidthLayoutCount is the number of distinct corridor-width assignments: one
+// per value of the 4-bit mask WidthSetFromBits decodes.
+const WidthLayoutCount = 16
 
 // SectionOrder is the section enumeration order of Python's _OPEN_SECTIONS.
 // See the package doc: this is NOT simconfig.AllSections, and substituting
@@ -32,19 +55,6 @@ var SectionOrder = [4]simconfig.Section{
 var DirectionOrder = [2]trackmodel.Direction{
 	trackmodel.Clockwise,
 	trackmodel.Counterclockwise,
-}
-
-// WidthLayoutCount is the number of distinct corridor-width assignments: one
-// per value of the 4-bit mask WidthSetFromBits decodes.
-const WidthLayoutCount = 16
-
-// WidthSet is one complete Open Challenge corridor-width assignment, in
-// millimeters. Matches scenario_catalog.CorridorWidthSet.
-type WidthSet struct {
-	SouthMM int
-	NorthMM int
-	EastMM  int
-	WestMM  int
 }
 
 // WidthSetFromBits maps a 4-bit value to the four corridor widths, bit set
@@ -110,16 +120,6 @@ func (w WidthSet) MetresByName() map[simconfig.Section]float64 {
 // resizing the corpus.
 func (w WidthSet) StartCellCount(section simconfig.Section) int {
 	return len(generate.StartCells(section, float64(w.WidthMMFor(section))/1000.0))
-}
-
-// Params uniquely identifies one Open Challenge scenario. Matches
-// scenario_catalog.OpenChallengeScenarioParams.
-type Params struct {
-	Widths    WidthSet
-	Section   simconfig.Section
-	Direction trackmodel.Direction
-	Index     int
-	StartCell int
 }
 
 // Label is the human-readable scenario label, byte-identical to

@@ -9,6 +9,30 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
+// passSideScorer enforces WRO rule 9.24.5 from the TRUE layout against the
+// TRUE pose, porting scenario_simulator/scoring.py's PassSideScorer.
+//
+// It exists because the Go runner previously read the verdict from
+// SignRouter.WrongSideViolations at the END of a run. That is wrong three
+// times over: the router is scoring itself in the BELIEVED frame, the round
+// never stopped on a violation (so runs banked laps the rules would have
+// denied), and ResetForNewLap clears the router's set at every lap boundary,
+// erasing every violation before the last. The router's record is still worth
+// keeping as a measure of discovery quality -- it just must not be what ends
+// a run.
+type passSideScorer struct {
+	signs      []signrouter.SignSpec
+	direction  trackmodel.Direction
+	cornerMinM float64
+	cornerMaxM float64
+	chassisLen float64
+	chassisWid float64
+
+	engaged map[int]struct{}
+	scored  map[int]struct{}
+	wrong   []int
+}
+
 // passSideApproachM is the range within which a sign's radius line is worth
 // testing at all, matching _PASS_SIDE_APPROACH_M. Only an optimisation -- the
 // radius is a line across the corridor, so a chassis meters away is trivially
@@ -43,30 +67,6 @@ func travelNormal(section trackmodel.Section, direction trackmodel.Direction) (n
 		return 0, -1
 	}
 	return 0, 0
-}
-
-// passSideScorer enforces WRO rule 9.24.5 from the TRUE layout against the
-// TRUE pose, porting scenario_simulator/scoring.py's PassSideScorer.
-//
-// It exists because the Go runner previously read the verdict from
-// SignRouter.WrongSideViolations at the END of a run. That is wrong three
-// times over: the router is scoring itself in the BELIEVED frame, the round
-// never stopped on a violation (so runs banked laps the rules would have
-// denied), and ResetForNewLap clears the router's set at every lap boundary,
-// erasing every violation before the last. The router's record is still worth
-// keeping as a measure of discovery quality -- it just must not be what ends
-// a run.
-type passSideScorer struct {
-	signs      []signrouter.SignSpec
-	direction  trackmodel.Direction
-	cornerMinM float64
-	cornerMaxM float64
-	chassisLen float64
-	chassisWid float64
-
-	engaged map[int]struct{}
-	scored  map[int]struct{}
-	wrong   []int
 }
 
 func newPassSideScorer(

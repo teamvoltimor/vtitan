@@ -58,16 +58,6 @@ type Errors struct {
 	IMUNoiseRad float64
 }
 
-// Any reports whether this configures any perturbation at all, matching
-// SensorErrors.any_error.
-func (e Errors) Any() bool {
-	return e.StartPosErrorM != 0 ||
-		e.YawBiasRad != 0 ||
-		e.IMUDriftRadPerS != 0 ||
-		e.GyroScaleError != 0 ||
-		e.IMUNoiseRad != 0
-}
-
 // IMUModel turns Errors into the yaw an IMU with those flaws would report.
 //
 // The bias, drift and scale-error signs are drawn ONCE at construction and
@@ -79,6 +69,16 @@ type IMUModel struct {
 	driftSign float64
 	biasSign  float64
 	scaleSign float64
+}
+
+// Any reports whether this configures any perturbation at all, matching
+// SensorErrors.any_error.
+func (e Errors) Any() bool {
+	return e.StartPosErrorM != 0 ||
+		e.YawBiasRad != 0 ||
+		e.IMUDriftRadPerS != 0 ||
+		e.GyroScaleError != 0 ||
+		e.IMUNoiseRad != 0
 }
 
 // NewIMUModel draws the three fixed signs from rng and returns the model.

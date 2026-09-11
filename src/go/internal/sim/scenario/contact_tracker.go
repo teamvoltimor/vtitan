@@ -2,35 +2,6 @@ package scenario
 
 import "github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 
-// unforgivableContactSurfaces are contacts no grace period may forgive,
-// matching Python's scenario_result._UNFORGIVABLE_SURFACES.
-//
-// The grace contactTracker applies below models a chassis working itself
-// free of a WALL, which 9.18 explicitly permits ("if the vehicle touches or
-// bumps the walls, and the walls are not moved, the vehicle may continue the
-// round"). The parking lot has no such concession: 9.24.7 ends the round on
-// contact, full stop, so a surface that is fatal by rule cannot be waited
-// out no matter when the streak started or how short it is.
-var unforgivableContactSurfaces = collision.NewSurfaceSet(collision.SurfaceParkingLot)
-
-// OpenForbiddenSurfaces/ObstaclesForbiddenSurfaces mirror Python's
-// TERMINAL_SURFACES (scenario_result.py): each challenge forbids exactly one
-// wall -- the Open Challenge the OUTER one, the Obstacles Challenge the INNER
-// one. Contact with the other wall is still recorded in the tracker's count
-// but never ends the run, so a scrape the robot drives out of does not score
-// the same as failing to complete.
-//
-// INNER_WALL is stricter than the rules and is knowingly left that way (see
-// Python's docstring): 9.18 permits touching a wall that is not moved and
-// names only the Open Challenge's outer boundary as untouchable. Relaxing it
-// for Obstacles would re-base every Obstacles figure in the repo at once, so
-// it stays a deliberate per-challenge decision, not an oversight.
-var (
-	OpenForbiddenSurfaces      = collision.NewSurfaceSet(collision.SurfaceOuterWall)
-	ObstaclesForbiddenSurfaces = collision.NewSurfaceSet(
-		collision.SurfaceInnerWall, collision.SurfaceObstacle, collision.SurfaceParkingLot)
-)
-
 // contactTracker decides when a contact streak stops being survivable and
 // ends the run, porting Python's ContactTracker (scenario_result.py) into
 // the native runner.
@@ -63,6 +34,35 @@ type contactTracker struct {
 	// true.
 	surface collision.ContactSurface
 }
+
+// unforgivableContactSurfaces are contacts no grace period may forgive,
+// matching Python's scenario_result._UNFORGIVABLE_SURFACES.
+//
+// The grace contactTracker applies below models a chassis working itself
+// free of a WALL, which 9.18 explicitly permits ("if the vehicle touches or
+// bumps the walls, and the walls are not moved, the vehicle may continue the
+// round"). The parking lot has no such concession: 9.24.7 ends the round on
+// contact, full stop, so a surface that is fatal by rule cannot be waited
+// out no matter when the streak started or how short it is.
+var unforgivableContactSurfaces = collision.NewSurfaceSet(collision.SurfaceParkingLot)
+
+// OpenForbiddenSurfaces/ObstaclesForbiddenSurfaces mirror Python's
+// TERMINAL_SURFACES (scenario_result.py): each challenge forbids exactly one
+// wall -- the Open Challenge the OUTER one, the Obstacles Challenge the INNER
+// one. Contact with the other wall is still recorded in the tracker's count
+// but never ends the run, so a scrape the robot drives out of does not score
+// the same as failing to complete.
+//
+// INNER_WALL is stricter than the rules and is knowingly left that way (see
+// Python's docstring): 9.18 permits touching a wall that is not moved and
+// names only the Open Challenge's outer boundary as untouchable. Relaxing it
+// for Obstacles would re-base every Obstacles figure in the repo at once, so
+// it stays a deliberate per-challenge decision, not an oversight.
+var (
+	OpenForbiddenSurfaces      = collision.NewSurfaceSet(collision.SurfaceOuterWall)
+	ObstaclesForbiddenSurfaces = collision.NewSurfaceSet(
+		collision.SurfaceInnerWall, collision.SurfaceObstacle, collision.SurfaceParkingLot)
+)
 
 // newContactTracker builds a tracker over the given control interval,
 // start-of-run forgiveness window/grace (seconds), and the set of surfaces

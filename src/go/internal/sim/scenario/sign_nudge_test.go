@@ -15,6 +15,13 @@ const (
 	signCenterY = 0.5
 )
 
+// chassisLengthTest/chassisWidthTest stand in for RobotSpecs.LENGTH/WIDTH,
+// matching internal/sim/collision's own test fixtures.
+const (
+	chassisLengthTest = 0.30
+	chassisWidthTest  = 0.194
+)
+
 // signNudgeTestTrack builds a 3x3m track with one sign-sized obstacle
 // centered at (signCenterX, signCenterY).
 func signNudgeTestTrack(t *testing.T) *collision.TrackModel {
@@ -110,10 +117,3 @@ func TestSignNudgeState_ReceedingTravelDoesNotAccumulate(t *testing.T) {
 		t.Errorf("score() after 50 receding ticks = %v, want SurfaceNone (no tick ever pushed toward the sign)", surface)
 	}
 }
-
-// chassisLengthTest/chassisWidthTest stand in for RobotSpecs.LENGTH/WIDTH,
-// matching internal/sim/collision's own test fixtures.
-const (
-	chassisLengthTest = 0.30
-	chassisWidthTest  = 0.194
-)

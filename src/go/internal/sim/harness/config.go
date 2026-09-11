@@ -1,10 +1,7 @@
 package harness
 
 import (
-	"math"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
@@ -136,18 +133,18 @@ func DefaultConfig() Config {
 	}
 }
 
+// ControlDt returns the control interval (seconds), exposed for callers that
+// drive the loop (e.g. the scenario native runner).
+func (c Config) ControlDt() float64 {
+	return c.dt()
+}
+
 // dt returns the control interval (seconds).
 func (c Config) dt() float64 {
 	if c.ControlHz <= 0 {
 		return 1.0 / 20.0
 	}
 	return 1.0 / c.ControlHz
-}
-
-// ControlDt returns the control interval (seconds), exposed for callers that
-// drive the loop (e.g. the scenario native runner).
-func (c Config) ControlDt() float64 {
-	return c.dt()
 }
 
 // lidarPeriodS returns the sweep period, or 0 (always fresh) when LidarHz<=0.
@@ -157,6 +154,3 @@ func (c Config) lidarPeriodS() float64 {
 	}
 	return 1.0 / c.LidarHz
 }
-
-// ensure math import is used (WrapAngle helper references would live elsewhere).
-var _ = math.Pi

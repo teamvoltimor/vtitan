@@ -13,12 +13,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
-// sensorErrorStreamSalt separates the sensor-error RNG stream from the LIDAR
-// sampler's. Any fixed non-zero constant works; what matters is that the two
-// streams never coincide, so enabling sensor errors cannot perturb the LIDAR
-// noise sequence an unperturbed control run was measured on.
-const sensorErrorStreamSalt = 0xa076_1d64_78bd_642f
-
 // SimHardwareGateway is the Go-native HardwareGateway backing a scenario run
 // with a kinematic body and a raycast LIDAR, replacing the Python
 // SimulatedHardwareGateway (the subprocess wrapper's oracle) end-to-end.
@@ -74,6 +68,12 @@ type SimHardwareGateway struct {
 	collisionY float64
 }
 
+// sensorErrorStreamSalt separates the sensor-error RNG stream from the LIDAR
+// sampler's. Any fixed non-zero constant works; what matters is that the two
+// streams never coincide, so enabling sensor errors cannot perturb the LIDAR
+// noise sequence an unperturbed control run was measured on.
+const sensorErrorStreamSalt = 0xa076_1d64_78bd_642f
+
 // NewSimHardwareGateway builds a gateway from a kinematic state, the track
 // model, and the harness config.
 func NewSimHardwareGateway(
@@ -109,41 +109,6 @@ func NewSimHardwareGateway(
 	return g
 }
 
-// initSensorErrors builds the IMU model and draws the start-pose offset,
-// when cfg.SensorErrors asks for any perturbation at all.
-//
-// The error stream is spawned from the run seed but kept SEPARATE from the
-// LIDAR sampler above. Drawing these from the sensor stream would shift the
-// LIDAR noise sequence, silently changing every existing result -- including
-// the unperturbed control runs a perturbed arm is supposed to be compared
-// against. Mirrors the Python gateway's own seed_seq.spawn(1).
-func (g *SimHardwareGateway) initSensorErrors(seed uint64) {
-	errors := g.cfg.SensorErrors
-	if !errors.Any() {
-		return
-	}
-
-	errRNG := rand.New(rand.NewPCG(seed^sensorErrorStreamSalt, seed))
-	g.imu = sensorerrors.NewIMUModel(errors, errRNG)
-
-	// A random bearing, so the error is not systematically along-track --
-	// which a localizer finds far easier to correct than a lateral one.
-	bearing := errRNG.Float64()*2*math.Pi - math.Pi
-	g.startPosErrorX = errors.StartPosErrorM * math.Cos(bearing)
-	g.startPosErrorY = errors.StartPosErrorM * math.Sin(bearing)
-}
-
-// buildAngles fills the full 360 sweep (robot frame, 0 = forward, +pi/2 =
-// left), matching the Python gateway's np.linspace(-pi, pi, lidar_rays).
-func (g *SimHardwareGateway) buildAngles() {
-	n := g.cfg.LidarSamples
-	if n <= 0 {
-		n = 360
-	}
-	angles := navutil.AngleFanClosed(n)
-	g.angles = angles
-}
-
 // State returns the current kinematic state (the simulated body pose).
 func (g *SimHardwareGateway) State() kinematics.AckermannState {
 	return g.state
@@ -152,17 +117,6 @@ func (g *SimHardwareGateway) State() kinematics.AckermannState {
 // PublishDrive stores the latest command; applied on the next Advance.
 func (g *SimHardwareGateway) PublishDrive(command controllers.DriveCommand) {
 	g.command = command
-}
-
-// reportedYaw is the heading the robot BELIEVES it has: ground truth with no
-// arithmetic when no IMU error model is configured, otherwise the model's
-// drifted answer. The localizer takes yaw as accurate and does not search
-// over it, so it must be given the same value the navigator steers on.
-func (g *SimHardwareGateway) reportedYaw() float64 {
-	if g.imu == nil {
-		return g.state.Yaw
-	}
-	return g.imu.Yaw(g.state.Yaw, g.elapsedS, g.rotationRad)
 }
 
 // GetCurrentPose returns the pose the robot believes it has: the LIDAR
@@ -181,22 +135,6 @@ func (g *SimHardwareGateway) GetCurrentPose() (trackmodel.Pose, bool) {
 		Y:   g.state.Y + g.startPosErrorY,
 		Yaw: yaw,
 	}, true
-}
-
-// updateBelievedPose scan-matches the freshest sweep against the track walls
-// and carries the result forward as the robot's own position estimate. The
-// prior is the PREVIOUS estimate, never ground truth: feeding truth back in
-// would silently re-anchor the robot every tick and hide exactly the drift
-// this models.
-func (g *SimHardwareGateway) updateBelievedPose() {
-	if g.localizer == nil || len(g.scan.RangesM) == 0 {
-		return
-	}
-	nowS := g.elapsedS
-	g.believed = g.localizer.EstimatePosition(
-		g.believed, g.reportedYaw(), g.scan.RangesM, g.scan.AnglesRad, &nowS,
-	)
-	g.haveBelieved = true
 }
 
 // GetLidarScan returns the most recent simulated sweep (ranges + angles).
@@ -280,6 +218,79 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 	}
 }
 
+// Collided reports whether the chassis is currently touching a terminal
+// surface (re-evaluated every Advance).
+func (g *SimHardwareGateway) Collided() bool {
+	return g.collided
+}
+
+// CollisionXY returns the last collision point, or (0,0) if never collided.
+func (g *SimHardwareGateway) CollisionXY() (x, y float64) {
+	return g.collisionX, g.collisionY
+}
+
+// initSensorErrors builds the IMU model and draws the start-pose offset,
+// when cfg.SensorErrors asks for any perturbation at all.
+//
+// The error stream is spawned from the run seed but kept SEPARATE from the
+// LIDAR sampler above. Drawing these from the sensor stream would shift the
+// LIDAR noise sequence, silently changing every existing result -- including
+// the unperturbed control runs a perturbed arm is supposed to be compared
+// against. Mirrors the Python gateway's own seed_seq.spawn(1).
+func (g *SimHardwareGateway) initSensorErrors(seed uint64) {
+	errors := g.cfg.SensorErrors
+	if !errors.Any() {
+		return
+	}
+
+	errRNG := rand.New(rand.NewPCG(seed^sensorErrorStreamSalt, seed))
+	g.imu = sensorerrors.NewIMUModel(errors, errRNG)
+
+	// A random bearing, so the error is not systematically along-track --
+	// which a localizer finds far easier to correct than a lateral one.
+	bearing := errRNG.Float64()*2*math.Pi - math.Pi
+	g.startPosErrorX = errors.StartPosErrorM * math.Cos(bearing)
+	g.startPosErrorY = errors.StartPosErrorM * math.Sin(bearing)
+}
+
+// buildAngles fills the full 360 sweep (robot frame, 0 = forward, +pi/2 =
+// left), matching the Python gateway's np.linspace(-pi, pi, lidar_rays).
+func (g *SimHardwareGateway) buildAngles() {
+	n := g.cfg.LidarSamples
+	if n <= 0 {
+		n = 360
+	}
+	angles := navutil.AngleFanClosed(n)
+	g.angles = angles
+}
+
+// reportedYaw is the heading the robot BELIEVES it has: ground truth with no
+// arithmetic when no IMU error model is configured, otherwise the model's
+// drifted answer. The localizer takes yaw as accurate and does not search
+// over it, so it must be given the same value the navigator steers on.
+func (g *SimHardwareGateway) reportedYaw() float64 {
+	if g.imu == nil {
+		return g.state.Yaw
+	}
+	return g.imu.Yaw(g.state.Yaw, g.elapsedS, g.rotationRad)
+}
+
+// updateBelievedPose scan-matches the freshest sweep against the track walls
+// and carries the result forward as the robot's own position estimate. The
+// prior is the PREVIOUS estimate, never ground truth: feeding truth back in
+// would silently re-anchor the robot every tick and hide exactly the drift
+// this models.
+func (g *SimHardwareGateway) updateBelievedPose() {
+	if g.localizer == nil || len(g.scan.RangesM) == 0 {
+		return
+	}
+	nowS := g.elapsedS
+	g.believed = g.localizer.EstimatePosition(
+		g.believed, g.reportedYaw(), g.scan.RangesM, g.scan.AnglesRad, &nowS,
+	)
+	g.haveBelieved = true
+}
+
 func (g *SimHardwareGateway) lenScan() int {
 	return len(g.scan.RangesM)
 }
@@ -326,15 +337,4 @@ func (g *SimHardwareGateway) refreshSensors() {
 	g.scan = controllers.LidarScan{RangesM: ranges, AnglesRad: g.angles}
 
 	g.updateBelievedPose()
-}
-
-// Collided reports whether the chassis is currently touching a terminal
-// surface (re-evaluated every Advance).
-func (g *SimHardwareGateway) Collided() bool {
-	return g.collided
-}
-
-// CollisionXY returns the last collision point, or (0,0) if never collided.
-func (g *SimHardwareGateway) CollisionXY() (x, y float64) {
-	return g.collisionX, g.collisionY
 }

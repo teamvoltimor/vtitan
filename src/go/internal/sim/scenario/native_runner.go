@@ -146,6 +146,117 @@ type NativeRunnerConfig struct {
 	Localize bool
 }
 
+// simVisionGateway implements navigator.VisionGateway by emulating sign
+// detections from the simulation's TRUE chassis pose each tick, matching
+// how ScenarioSimulator wires vision_emulator.emulate_sign_observations
+// into the Python gateway. Ground-truth pose only (no believed-pose
+// reprojection): the native runner's Localize is unsupported (see
+// harness.Config.Localize's doc comment), so there is no separate believed
+// pose to diverge from the true one yet.
+type simVisionGateway struct {
+	gw    simGateway
+	signs []signrouter.SignSpec
+	cfg   visionsim.Config
+}
+
+// simGateway is the simulation-only hardware surface the native runner's
+// closed-loop helpers need: the navigator-facing scan source plus the
+// physics advance/state/collision methods of harness.SimHardwareGateway.
+// Declared at the point of use (go-architect §4) so NativeRunner stays
+// testable against a fake instead of coupled to the concrete gateway.
+type simGateway interface {
+	controllers.PoseSource
+	// Sensors is what the blind layout-belief loop reads and re-seeds --
+	// embedded rather than restated so the two cannot drift apart.
+	widthbelief.Sensors
+	// State returns the current simulated chassis state.
+	State() kinematics.AckermannState
+	// Advance integrates the simulation by dt seconds.
+	Advance(dt float64)
+	// Collided reports whether the chassis has hit a wall this step.
+	Collided() bool
+	// CollisionXY returns the contact point of the latest collision, if any.
+	CollisionXY() (float64, float64)
+}
+
+// scoreInput groups score's inputs, replacing a fourteen-argument signature
+// whose adjacent float64s and ints were easy to transpose silently.
+type scoreInput struct {
+	sc            corpus.Scenario
+	gw            simGateway
+	nav           *navigator.Navigator
+	steps         int
+	dt            float64
+	distanceM     float64
+	maxSpeedMPS   float64
+	minRangeM     float64
+	contactCount  int
+	targetLaps    int
+	surface       collision.ContactSurface
+	stuck         bool
+	passSideWrong []int
+	trueSigns     int
+}
+
+// signNudgeState accumulates each sign's push-displacement across ticks,
+// matching scoring.py's ScenarioSimulator._score_obstacle_contact /
+// _sign_push / _prev_contact_xy. One instance per run.
+type signNudgeState struct {
+	push         map[int]float64
+	prevX, prevY float64
+}
+
+// scenarioStart bundles the parsed spawn pose + travel direction + starting
+// section, matching ScenarioSimulator's believed_start (the fields
+// park_controller_from_metadata needs to build the parking-lot geometry).
+type scenarioStart struct {
+	X, Y, Yaw float64
+	Direction trackmodel.Direction
+	Section   trackmodel.Section
+}
+
+// DefaultMaxRunS is the wall-clock budget a single scenario gets before it
+// is scored as timed out. 200 s, comfortably past the WRO round limit of
+// 180 s, so a run that would have been over time on the mat is still driven
+// far enough to see what it did rather than cut off mid-recovery.
+const DefaultMaxRunS = 200.0
+
+// signObstacleWidthM/signObstacleDepthM mirror track.toml's [sign]
+// width/depth (TrafficSignSpecs.WIDTH/DEPTH) -- both 0.05 m. No Go mirror
+// of TrafficSignSpecs exists yet beyond signrouter.DefaultSignWidthM
+// (the lane-offset consumer of the same width value); depth has no
+// existing home, so both are named here where the sim-obstacle geometry
+// that needs them lives.
+const (
+	signObstacleWidthM = signrouter.DefaultSignWidthM
+	signObstacleDepthM = 0.05
+
+	// signPlacementCircleDiameterM mirrors track.toml's [sign]
+	// placement_circle_diameter (TrafficSignSpecs.PLACEMENT_CIRCLE_DIAMETER):
+	// the circle a pillar is placed within on the mat. Touching a pillar is
+	// NOT a failure (WRO 9.20) -- the run stays valid as long as any corner
+	// of its square is still inside this circle.
+	signPlacementCircleDiameterM = 0.085
+)
+
+// defaultRoundTimeLimitS mirrors profile.CompetitionDefaults'
+// round_time_limit_s: the shipped rule-book budget, used as a last resort when
+// the defaults map somehow lacks the key.
+const defaultRoundTimeLimitS = 180.0
+
+// maxLegalSignDisplacementM is how far a pillar may be pushed and still have
+// a corner in its placement circle, matching
+// TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M. Derived, not measured: the
+// corner that survives longest is the one trailing the push, so the bound is
+// the displacement at which even that corner leaves the circle.
+var maxLegalSignDisplacementM = math.Sqrt(
+	(signPlacementCircleDiameterM/2)*(signPlacementCircleDiameterM/2)-
+		(signObstacleWidthM/2)*(signObstacleWidthM/2),
+) + signObstacleWidthM/2
+
+// compile-time assertion that NativeRunner satisfies Runner.
+var _ Runner = (*NativeRunner)(nil)
+
 // ControlDt returns the simulation timestep (s). It resolves the effective
 // harness Config (same precedence as NewNativeRunner) and delegates to its
 // ControlDt, so a caller-supplied ControlHz is honoured instead of hardcoded.
@@ -237,12 +348,6 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		blind:           cfg.Blind,
 	}
 }
-
-// DefaultMaxRunS is the wall-clock budget a single scenario gets before it
-// is scored as timed out. 200 s, comfortably past the WRO round limit of
-// 180 s, so a run that would have been over time on the mat is still driven
-// far enough to see what it did rather than cut off mid-recovery.
-const DefaultMaxRunS = 200.0
 
 // Run builds and drives one scenario, returning a Result.
 func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error) {
@@ -392,52 +497,11 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	return r.loop(sc, gw, nav, track, targetLaps, layout, rec, passSide)
 }
 
-// simVisionGateway implements navigator.VisionGateway by emulating sign
-// detections from the simulation's TRUE chassis pose each tick, matching
-// how ScenarioSimulator wires vision_emulator.emulate_sign_observations
-// into the Python gateway. Ground-truth pose only (no believed-pose
-// reprojection): the native runner's Localize is unsupported (see
-// harness.Config.Localize's doc comment), so there is no separate believed
-// pose to diverge from the true one yet.
-type simVisionGateway struct {
-	gw    simGateway
-	signs []signrouter.SignSpec
-	cfg   visionsim.Config
-}
-
 func (v *simVisionGateway) GetVisionDetections() ([]signrouter.TrafficSignObservation, bool) {
 	st := v.gw.State()
 	obs := visionsim.EmulateSignObservations(v.signs, st.X, st.Y, st.Yaw, v.cfg, nil)
 	return obs, len(obs) > 0
 }
-
-// signObstacleWidthM/signObstacleDepthM mirror track.toml's [sign]
-// width/depth (TrafficSignSpecs.WIDTH/DEPTH) -- both 0.05 m. No Go mirror
-// of TrafficSignSpecs exists yet beyond signrouter.DefaultSignWidthM
-// (the lane-offset consumer of the same width value); depth has no
-// existing home, so both are named here where the sim-obstacle geometry
-// that needs them lives.
-const (
-	signObstacleWidthM = signrouter.DefaultSignWidthM
-	signObstacleDepthM = 0.05
-
-	// signPlacementCircleDiameterM mirrors track.toml's [sign]
-	// placement_circle_diameter (TrafficSignSpecs.PLACEMENT_CIRCLE_DIAMETER):
-	// the circle a pillar is placed within on the mat. Touching a pillar is
-	// NOT a failure (WRO 9.20) -- the run stays valid as long as any corner
-	// of its square is still inside this circle.
-	signPlacementCircleDiameterM = 0.085
-)
-
-// maxLegalSignDisplacementM is how far a pillar may be pushed and still have
-// a corner in its placement circle, matching
-// TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M. Derived, not measured: the
-// corner that survives longest is the one trailing the push, so the bound is
-// the displacement at which even that corner leaves the circle.
-var maxLegalSignDisplacementM = math.Sqrt(
-	(signPlacementCircleDiameterM/2)*(signPlacementCircleDiameterM/2)-
-		(signObstacleWidthM/2)*(signObstacleWidthM/2),
-) + signObstacleWidthM/2
 
 // signsFromMetadata builds the ground-truth SignSpec list for an Obstacles
 // Challenge scenario, matching the sign half of track_model.py's
@@ -497,26 +561,6 @@ func parkControllerFromMetadata(
 		Block2: parking.BlockPosition{X: meta.ParkingLot.Block2Position.X, Y: meta.ParkingLot.Block2Position.Y},
 	}
 	return parking.ParkControllerFromMetadata(lot, section, direction, cfg)
-}
-
-// simGateway is the simulation-only hardware surface the native runner's
-// closed-loop helpers need: the navigator-facing scan source plus the
-// physics advance/state/collision methods of harness.SimHardwareGateway.
-// Declared at the point of use (go-architect §4) so NativeRunner stays
-// testable against a fake instead of coupled to the concrete gateway.
-type simGateway interface {
-	controllers.PoseSource
-	// Sensors is what the blind layout-belief loop reads and re-seeds --
-	// embedded rather than restated so the two cannot drift apart.
-	widthbelief.Sensors
-	// State returns the current simulated chassis state.
-	State() kinematics.AckermannState
-	// Advance integrates the simulation by dt seconds.
-	Advance(dt float64)
-	// Collided reports whether the chassis has hit a wall this step.
-	Collided() bool
-	// CollisionXY returns the contact point of the latest collision, if any.
-	CollisionXY() (float64, float64)
 }
 
 // loop runs the control loop until terminal (laps / collision / timeout /
@@ -691,25 +735,6 @@ func (r *NativeRunner) loop(
 	return res, nil
 }
 
-// scoreInput groups score's inputs, replacing a fourteen-argument signature
-// whose adjacent float64s and ints were easy to transpose silently.
-type scoreInput struct {
-	sc            corpus.Scenario
-	gw            simGateway
-	nav           *navigator.Navigator
-	steps         int
-	dt            float64
-	distanceM     float64
-	maxSpeedMPS   float64
-	minRangeM     float64
-	contactCount  int
-	targetLaps    int
-	surface       collision.ContactSurface
-	stuck         bool
-	passSideWrong []int
-	trueSigns     int
-}
-
 func (r *NativeRunner) score(in scoreInput) Result {
 	// collided is derived from the surface rather than passed alongside it,
 	// so the two can never disagree about whether the run ended in contact.
@@ -805,14 +830,6 @@ func orZero(v float64) float64 {
 	return v
 }
 
-// signNudgeState accumulates each sign's push-displacement across ticks,
-// matching scoring.py's ScenarioSimulator._score_obstacle_contact /
-// _sign_push / _prev_contact_xy. One instance per run.
-type signNudgeState struct {
-	push         map[int]float64
-	prevX, prevY float64
-}
-
 // newSignNudgeState seeds the reference point at the run's start pose,
 // matching _prev_contact_xy's __init__ assignment.
 func newSignNudgeState(x, y float64) *signNudgeState {
@@ -861,15 +878,6 @@ func (s *signNudgeState) score(
 	}
 	// Touched, but still inside its placement circle: not a collision.
 	return collision.SurfaceNone
-}
-
-// scenarioStart bundles the parsed spawn pose + travel direction + starting
-// section, matching ScenarioSimulator's believed_start (the fields
-// park_controller_from_metadata needs to build the parking-lot geometry).
-type scenarioStart struct {
-	X, Y, Yaw float64
-	Direction trackmodel.Direction
-	Section   trackmodel.Section
 }
 
 // loadMetadata reads and parses a *_metadata.json file into generate.Metadata
@@ -974,14 +982,6 @@ func sightedCenterBiasM(meta generate.Metadata, wpCfg waypoints.Config) *float64
 func defaultLaps(_ generate.Metadata) int {
 	return navigator.DefaultOpenChallengeLaps
 }
-
-// compile-time assertion that NativeRunner satisfies Runner.
-var _ Runner = (*NativeRunner)(nil)
-
-// defaultRoundTimeLimitS mirrors profile.CompetitionDefaults'
-// round_time_limit_s: the shipped rule-book budget, used as a last resort when
-// the defaults map somehow lacks the key.
-const defaultRoundTimeLimitS = 180.0
 
 // roundTimeLimitSFor reads competition_specs.toml's round_time_limit_s, or
 // falls back to the shipped default when there is no config root or the file

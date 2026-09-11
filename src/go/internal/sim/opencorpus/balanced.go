@@ -7,6 +7,25 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// balancedCombo is one (layout, section, direction) cell of the grid, plus
+// how many start cells that combination admits -- which is what the
+// round-robin assignment below balances over.
+type balancedCombo struct {
+	widths    WidthSet
+	section   simconfig.Section
+	direction trackmodel.Direction
+	cellCount int
+}
+
+// balancedKey identifies a scenario by its parameters rather than its index,
+// for the lookup back into the full space.
+type balancedKey struct {
+	widths    WidthSet
+	section   simconfig.Section
+	direction trackmodel.Direction
+	startCell int
+}
+
 // Balanced128Size is 16 layouts x 4 sections x 2 directions. The start CELL
 // is what varies within it, not the count.
 const Balanced128Size = WidthLayoutCount * len(comboSectionOrder) * len(DirectionOrder)
@@ -26,16 +45,6 @@ var comboSectionOrder = [4]simconfig.Section{
 	simconfig.SectionSouth,
 	simconfig.SectionEast,
 	simconfig.SectionWest,
-}
-
-// balancedCombo is one (layout, section, direction) cell of the grid, plus
-// how many start cells that combination admits -- which is what the
-// round-robin assignment below balances over.
-type balancedCombo struct {
-	widths    WidthSet
-	section   simconfig.Section
-	direction trackmodel.Direction
-	cellCount int
 }
 
 // Balanced128 returns the 128-scenario screening corpus for a seed, matching
@@ -151,15 +160,6 @@ func widthSetFromProductIndex(i int) WidthSet {
 		EastMM:  widthFor(1),
 		WestMM:  widthFor(0),
 	}
-}
-
-// balancedKey identifies a scenario by its parameters rather than its index,
-// for the lookup back into the full space.
-type balancedKey struct {
-	widths    WidthSet
-	section   simconfig.Section
-	direction trackmodel.Direction
-	startCell int
 }
 
 func keyOf(p Params) balancedKey {

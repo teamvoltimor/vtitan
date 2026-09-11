@@ -13,6 +13,18 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 )
 
+// blindSetup is everything Run needs to hand the navigator a blind round
+// instead of a sighted one.
+type blindSetup struct {
+	// Waypoints is the initial path, planned from the PRIOR layout and the
+	// ASSUMED start rather than the scenario's truth.
+	Waypoints []trackmodel.Waypoint
+	// Layout is the per-tick belief loop that corrects that path as corridors
+	// are measured. Nil is impossible here (blindSetup is only built when
+	// blind), but Layout.Update tolerates nil anyway.
+	Layout *widthbelief.Layout
+}
+
 // blindNarrowWidthM is the corridor width a blind OPEN round assumes before
 // it has measured anything: the narrow (fail-safe) end of the 60/100 cm pair
 // the rules allow. Believing narrow and finding wide leaves the robot with
@@ -30,18 +42,6 @@ const blindNarrowWidthM = 0.6
 //
 // Mirrors CorridorDimensions.OBSTACLES_WIDTH.
 const obstaclesCorridorWidthM = 1.0
-
-// blindSetup is everything Run needs to hand the navigator a blind round
-// instead of a sighted one.
-type blindSetup struct {
-	// Waypoints is the initial path, planned from the PRIOR layout and the
-	// ASSUMED start rather than the scenario's truth.
-	Waypoints []trackmodel.Waypoint
-	// Layout is the per-tick belief loop that corrects that path as corridors
-	// are measured. Nil is impossible here (blindSetup is only built when
-	// blind), but Layout.Update tolerates nil anyway.
-	Layout *widthbelief.Layout
-}
 
 // newBlindSetup builds the blind round's initial path and belief loop.
 //

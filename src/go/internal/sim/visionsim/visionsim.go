@@ -38,6 +38,15 @@ type Config struct {
 	DetectionConfidence float64
 }
 
+// BelievedPose is the robot's BELIEVED (possibly diverged from true) pose,
+// to reproject an emulated detection's relative bearing/range through --
+// matching emulate_sign_observations' believed_pos/believed_yaw
+// parameters. nil means "reproject through the true pose" (ground-truth
+// mode, no belief error), matching Python's believed_pos=None default.
+type BelievedPose struct {
+	X, Y, Yaw float64
+}
+
 // DefaultConfig returns the Config matching the shipped defaults:
 // signrouter's own camera geometry defaults for HFOV/range (which mirror
 // robot.toml's [camera] section) and simulation.toml's
@@ -63,15 +72,6 @@ func ConfigFrom(sr signrouter.Config, detectionConfidence float64) Config {
 		MaxRangeM:           sr.CameraFarClipM,
 		DetectionConfidence: detectionConfidence,
 	}
-}
-
-// BelievedPose is the robot's BELIEVED (possibly diverged from true) pose,
-// to reproject an emulated detection's relative bearing/range through --
-// matching emulate_sign_observations' believed_pos/believed_yaw
-// parameters. nil means "reproject through the true pose" (ground-truth
-// mode, no belief error), matching Python's believed_pos=None default.
-type BelievedPose struct {
-	X, Y, Yaw float64
 }
 
 // EmulateSignObservations returns synthetic TrafficSignObservations for

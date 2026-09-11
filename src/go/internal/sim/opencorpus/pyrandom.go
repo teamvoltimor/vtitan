@@ -18,6 +18,11 @@ package opencorpus
 // TestBalanced128_MatchesPython.
 
 // mt19937 is the Mersenne Twister CPython's random module is built on.
+type mt19937 struct {
+	state [mtN]uint32
+	index int
+}
+
 const (
 	mtN         = 624
 	mtM         = 397
@@ -25,11 +30,6 @@ const (
 	mtUpperMask = 0x80000000
 	mtLowerMask = 0x7fffffff
 )
-
-type mt19937 struct {
-	state [mtN]uint32
-	index int
-}
 
 // initGenrand is CPython's init_genrand: the scalar seeding routine, used
 // here only as the first half of initByArray.

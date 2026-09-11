@@ -16,6 +16,26 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// goldenRow is one line of the Python-generated space dump.
+type goldenRow struct {
+	direction string
+	section   string
+	label     string
+	widthsMM  [4]int
+	index     int
+	startCell int
+	x, y, yaw float64
+}
+
+// balancedGoldenRow is one line of the Python balanced128 dump.
+type balancedGoldenRow struct {
+	section   string
+	direction string
+	widthsMM  [4]int
+	seed      uint64
+	startCell int
+}
+
 // poseToleranceM is well under a millimeter: the golden carries six decimal
 // places and both sides compute the same closed-form geometry, so anything
 // above float noise is a real divergence rather than a rounding difference.
@@ -220,17 +240,6 @@ func TestWrite_RoundTripsThroughTheCorpusLoader(t *testing.T) {
 	}
 }
 
-// goldenRow is one line of the Python-generated space dump.
-type goldenRow struct {
-	direction string
-	section   string
-	label     string
-	widthsMM  [4]int
-	index     int
-	startCell int
-	x, y, yaw float64
-}
-
 func readGolden(t *testing.T) []goldenRow {
 	t.Helper()
 
@@ -349,15 +358,6 @@ func TestBalanced128_CoversTheGridExactlyOnce(t *testing.T) {
 	if len(cells) < 4 {
 		t.Errorf("start cells used = %v, want the cell to vary across the corpus", cells)
 	}
-}
-
-// balancedGoldenRow is one line of the Python balanced128 dump.
-type balancedGoldenRow struct {
-	section   string
-	direction string
-	widthsMM  [4]int
-	seed      uint64
-	startCell int
 }
 
 func readBalancedGolden(t *testing.T) []balancedGoldenRow {

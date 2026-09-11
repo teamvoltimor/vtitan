@@ -17,40 +17,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 )
 
-// scanFrameID is the LIDAR's frame in the robot's TF tree, matching what the
-// real driver stamps onto /scan so a sim bag and a hardware bag place their
-// scans in the same frame.
-const scanFrameID = "lidar_link"
-
-// The ROS topic names the Python stack records, matching
-// scripts/common/bag_io.Topics so every diag_bag_*.py script reads a sim run
-// the same way it reads a pulled one.
-const (
-	scanTopic       = "/scan"
-	imuTopic        = "/imu/data"
-	tfTopic         = "/tf"
-	ackermannTopic  = "/ackermann_cmd"
-	planTopic       = "/plan"
-	navDebugTopic   = "/nav_debug"
-	driveSpeedTopic = "/motor/drive_speed"
-	steeringTopic   = "/motor/steering_position"
-)
-
-// TF frames. mapFrame is the track's fixed world frame and baseFrame the
-// chassis; scanFrameID hangs off baseFrame so a viewer draws the sweep from
-// wherever the robot currently is.
-const (
-	mapFrame  = "map"
-	baseFrame = "base_link"
-)
-
-// degreesPerRadian converts the SI values the simulator works in into the
-// units two of the motor topics are published in on the robot.
-const degreesPerRadian = 180.0 / math.Pi
-
-// nanosPerSecond converts the simulation's float seconds into MCAP log time.
-const nanosPerSecond = 1e9
-
 // simRecorder writes one scenario's run to an MCAP bag.
 //
 // It records two channels, deliberately in DIFFERENT encodings.
@@ -106,6 +72,56 @@ type simRecorder struct {
 	simClockNanos uint64
 }
 
+// recorderGeometry is the chassis geometry the bag needs but the control
+// loop does not: wheel size to express speed as a wheel rate, steering limit
+// to turn a normalised command into an angle, and the LIDAR mount to place
+// the sensor frame.
+type recorderGeometry struct {
+	WheelRadiusM  float64
+	MaxSteerRad   float64
+	LidarXOffsetM float64
+	LidarZOffsetM float64
+}
+
+// scanFrameID is the LIDAR's frame in the robot's TF tree, matching what the
+// real driver stamps onto /scan so a sim bag and a hardware bag place their
+// scans in the same frame.
+const scanFrameID = "lidar_link"
+
+// The ROS topic names the Python stack records, matching
+// scripts/common/bag_io.Topics so every diag_bag_*.py script reads a sim run
+// the same way it reads a pulled one.
+const (
+	scanTopic       = "/scan"
+	imuTopic        = "/imu/data"
+	tfTopic         = "/tf"
+	ackermannTopic  = "/ackermann_cmd"
+	planTopic       = "/plan"
+	navDebugTopic   = "/nav_debug"
+	driveSpeedTopic = "/motor/drive_speed"
+	steeringTopic   = "/motor/steering_position"
+)
+
+// TF frames. mapFrame is the track's fixed world frame and baseFrame the
+// chassis; scanFrameID hangs off baseFrame so a viewer draws the sweep from
+// wherever the robot currently is.
+const (
+	mapFrame  = "map"
+	baseFrame = "base_link"
+)
+
+// degreesPerRadian converts the SI values the simulator works in into the
+// units two of the motor topics are published in on the robot.
+const degreesPerRadian = 180.0 / math.Pi
+
+// nanosPerSecond converts the simulation's float seconds into MCAP log time.
+const nanosPerSecond = 1e9
+
+// defaultWheelRadiusM matches robot.toml's [wheel] radius, used when no
+// config root is supplied so a recorded run without one still reports a
+// plausible wheel rate rather than dividing by zero.
+const defaultWheelRadiusM = 0.035
+
 // newSimRecorder creates the run directory for one scenario under root and
 // opens its bag. Returns nil when root is empty (recording off).
 func newSimRecorder(root, scenarioID string, geom recorderGeometry) (*simRecorder, error) {
@@ -126,17 +142,6 @@ func newSimRecorder(root, scenarioID string, geom recorderGeometry) (*simRecorde
 		lidarXOffsetM: geom.LidarXOffsetM,
 		lidarZOffsetM: geom.LidarZOffsetM,
 	}, nil
-}
-
-// recorderGeometry is the chassis geometry the bag needs but the control
-// loop does not: wheel size to express speed as a wheel rate, steering limit
-// to turn a normalised command into an angle, and the LIDAR mount to place
-// the sensor frame.
-type recorderGeometry struct {
-	WheelRadiusM  float64
-	MaxSteerRad   float64
-	LidarXOffsetM float64
-	LidarZOffsetM float64
 }
 
 // tick writes one control step's scan and debug snapshot, then advances the
@@ -386,11 +391,6 @@ func SimRunsRootFor(explicit string, now time.Time) (string, error) {
 	}
 	return filepath.Join(root, "sweep_"+now.Format("20060102_150405")), nil
 }
-
-// defaultWheelRadiusM matches robot.toml's [wheel] radius, used when no
-// config root is supplied so a recorded run without one still reports a
-// plausible wheel rate rather than dividing by zero.
-const defaultWheelRadiusM = 0.035
 
 // recorderGeometryFor reads the recorder's chassis geometry from the shipped
 // robot.toml, falling back to the defaults so a run without a config root
