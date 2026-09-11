@@ -35,6 +35,7 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions
 if TYPE_CHECKING:
     from shared.domain.models import ScenarioMetadata
 from shared.domain.enums import Direction, Section
+from shared.domain.exceptions import ScenarioFormatError
 
 from src.simulation.scenario_builder import build_open_metadata
 
@@ -69,9 +70,13 @@ def _load_fixture_scenarios(
     root = fixtures_dir if fixtures_dir is not None else _FIXTURES_DIR / subdir
     scenarios = []
     for path in sorted(root.glob("*_metadata.json")):
-        meta = json.loads(path.read_text())
-        sc = meta["starting_conditions"]
-        label = f"{label_prefix}_{meta['scenario_id']:04d}[{sc['section']}/{sc['direction']}]"
+        try:
+            meta = json.loads(path.read_text())
+            sc = meta["starting_conditions"]
+            label = f"{label_prefix}_{meta['scenario_id']:04d}[{sc['section']}/{sc['direction']}]"
+        except (json.JSONDecodeError, KeyError, TypeError) as err:
+            msg = f"Scenario metadata {path} is malformed: {err}"
+            raise ScenarioFormatError(msg) from err
         scenarios.append(NamedScenario(label, meta, CompetitionSpecs.OPEN_CHALLENGE_LAPS, seed=meta["scenario_id"]))
     return scenarios
 
