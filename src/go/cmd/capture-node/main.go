@@ -24,6 +24,13 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
+// Capture defaults, matching cmd/pi5's flags so both entry points behave the
+// same when neither is overridden.
+const (
+	defaultFPS           = 15.0
+	defaultPhotoInterval = 10 * time.Second
+)
+
 func main() {
 	os.Exit(run())
 }
@@ -37,11 +44,16 @@ func run() int {
 		natsURL       = flag.String("nats-url", nats.DefaultDevURL, "nats-server URL (topic backend)")
 		nodeName      = flag.String("name", "capture-node", "NATS client name")
 		runsRoot      = flag.String("runs-root", "", "runs root dir (default: repo-root data/live/runs)")
-		fps           = flag.Float64("fps", 15.0, "capture/video frame rate")
-		photoInterval = flag.Duration("photo-interval", 10*time.Second, "periodic dataset-photo cadence (0 = off)")
-		photoSubdir   = flag.String("photo-subdir", "captures", "subdir under run dir for photos")
-		requireDet    = flag.Bool("require-detection", false, "only save photos when a detection is present (Obstacles)")
-		video         = flag.Bool("video", true, "record the debug video")
+		fps           = flag.Float64("fps", defaultFPS, "capture/video frame rate")
+		photoInterval = flag.Duration(
+			"photo-interval",
+			defaultPhotoInterval,
+			"periodic dataset-photo cadence (0 = off)",
+		)
+		photoSubdir = flag.String("photo-subdir", "captures", "subdir under run dir for photos")
+		requireDet  = flag.Bool("require-detection", false,
+			"only save photos when a detection is present (Obstacles)")
+		video = flag.Bool("video", true, "record the debug video")
 	)
 	flag.Parse()
 

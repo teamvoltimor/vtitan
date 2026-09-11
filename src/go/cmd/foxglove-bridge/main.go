@@ -34,6 +34,17 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
+type cliConfig struct {
+	cmdkit.Common
+
+	httpAddr string
+}
+
+// natsConn is the concrete *nats.Conn type from the nats-io client library
+// -- named here only to keep bridgeSubject's signature readable without
+// repeating the fully qualified import alias at every call site.
+type natsConn = natsio.Conn
+
 // defaultHTTPAddr matches Foxglove Studio's own "Open connection" default
 // port for a custom WebSocket URL (ws://localhost:8765), so a fresh
 // install needs no configuration beyond picking that connection type.
@@ -47,11 +58,9 @@ const (
 	exitError = 1
 )
 
-type cliConfig struct {
-	cmdkit.Common
-
-	httpAddr string
-}
+// shutdownTimeout bounds how long the HTTP server gets to drain in-flight
+// Foxglove connections after the context is canceled.
+const shutdownTimeout = 5 * time.Second
 
 func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
@@ -75,11 +84,6 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 
 	return cmd
 }
-
-// natsConn is the concrete *nats.Conn type from the nats-io client library
-// -- named here only to keep bridgeSubject's signature readable without
-// repeating the fully qualified import alias at every call site.
-type natsConn = natsio.Conn
 
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
@@ -106,7 +110,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	})
 	group.Go(func() error {
 		<-gctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 		defer cancel()
 		if shutdownErr := httpServer.Shutdown(shutdownCtx); shutdownErr != nil {
 			return fmt.Errorf("foxglove-bridge: shutting down http server: %w", shutdownErr)
@@ -193,11 +197,8 @@ func bridgeAllSubjects(
 		uiv1.ChallengeModeActiveSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject[visionv1.Detections](ctx, group, conn, logger, server,
-		visionv1.DetectionsSubject); err != nil {
-		return err
-	}
-	return nil
+	return bridgeSubject[visionv1.Detections](ctx, group, conn, logger, server,
+		visionv1.DetectionsSubject)
 }
 
 // bridgeSubject registers subject as a Foxglove channel (using a fresh

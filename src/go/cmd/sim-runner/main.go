@@ -33,15 +33,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
-// Runner backend names accepted by --runner.
-const (
-	runnerPython = "python"
-	runnerNative = "native"
-)
-
-// secondsPerMinute converts deg/min IMU drift quotes into per-second rates.
-const secondsPerMinute = 60.0
-
 // cliConfig holds every flag sim-runner accepts. Nothing about which
 // interpreter/script/corpus/concurrency to use is hardcoded — a deployment
 // (dev box vs. CI vs. a future pixi-managed runner) may reasonably want to
@@ -73,6 +64,19 @@ type cliConfig struct {
 	runner       string
 	blind        bool
 }
+
+// Runner backend names accepted by --runner.
+const (
+	runnerPython = "python"
+	runnerNative = "native"
+)
+
+// secondsPerMinute converts deg/min IMU drift quotes into per-second rates.
+const secondsPerMinute = 60.0
+
+// degreesPerHalfCircle is the degrees-per-radians denominator used when
+// converting IMU angles quoted in degrees into the radians the model uses.
+const degreesPerHalfCircle = 180.0
 
 // Open-space selectors accepted by --open-space. There is no committed Open
 // corpus in either language — the space is enumerable from the rules, so it
@@ -387,7 +391,7 @@ func sensorErrorsFor(cfg cliConfig) sensorerrors.Errors {
 }
 
 func degreesToRadians(deg float64) float64 {
-	return deg * math.Pi / 180.0
+	return deg * math.Pi / degreesPerHalfCircle
 }
 
 func splitCSV(raw string) []string {
@@ -415,7 +419,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 		if cfg.record {
 			root, rootErr := scenario.SimRunsRootFor(cfg.recordDir, time.Now())
 			if rootErr != nil {
-				return rootErr
+				return fmt.Errorf("sim-runner: resolving record root: %w", rootErr)
 			}
 			recordRoot = root
 			logger.Info("recording runs", "dir", recordRoot)

@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	natsio "github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -51,11 +52,41 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/widthbelief"
 	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/nav/v1"
+	navv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/nav/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 	visionv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/vision/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
+
+// cliConfig holds every flag track-navigator accepts.
+type cliConfig struct {
+	cmdkit.Common
+
+	direction string
+	rateHz    float64
+	record    bool
+}
+
+// navSubscriptions holds the four NATS subscriptions run wires into the nav
+// stack, so they can be opened and closed as one unit.
+type navSubscriptions struct {
+	scan       *nats.Subscriber[*sensorv1.Scan]
+	imu        *nats.Subscriber[*sensorv1.Imu]
+	joint      *nats.Subscriber[*actuationv1.JointStates]
+	detections *nats.Subscriber[*visionv1.Detections]
+}
+
+// runtimeConfig is the set of robot/track values run loads once and hands to
+// every consumer, so the gateway and the planner cannot disagree about which
+// robot they describe.
+type runtimeConfig struct {
+	wheelRadiusM   float64
+	chassisWidthM  float64
+	trackMaxCoordM float64
+	wpCfg          waypoints.Config
+	startCfg       startconditions.Config
+	estCfg         corridorestimator.Config
+}
 
 // blindNarrowWidthM is the corridor width assumed before anything has been
 // measured -- the narrow (fail-safe) end of the 60/100 cm pair the Open
@@ -87,6 +118,20 @@ const (
 	directionUndetermined = "undetermined"
 )
 
+// defaultRateHz is the navigator Step rate used when --rate-hz is not
+// supplied, matching the Python track_navigator_node's control rate.
+const defaultRateHz = 20.0
+
+// exit codes: 0 means track-navigator ran and shut down cleanly (including via
+// SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable runtime
+// error.
+const (
+	exitOK    = 0
+	exitError = 1
+)
+
+var _ controllers.HardwareGateway = (*natsgw.Gateway)(nil)
+
 // parseDirection resolves --direction into the PROVISIONAL direction a first
 // path is planned from (never nil -- a plan needs an axis even when nobody
 // gave one) and the direction actually handed to navigator.Params (nil for
@@ -110,25 +155,6 @@ func parseDirection(s string) (provisional trackmodel.Direction, known *trackmod
 	}
 }
 
-// cliConfig holds every flag track-navigator accepts.
-type cliConfig struct {
-	cmdkit.Common
-
-	direction string
-	rateHz    float64
-	record    bool
-}
-
-// exit codes: 0 means track-navigator ran and shut down cleanly (including via
-// SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable runtime
-// error.
-const (
-	exitOK    = 0
-	exitError = 1
-)
-
-var _ controllers.HardwareGateway = (*natsgw.Gateway)(nil)
-
 func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "track-navigator",
@@ -146,9 +172,13 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags := cmd.Flags()
 	cfg.RegisterNATSURL(flags)
 	cfg.RegisterNodeName(flags, "track-navigator")
-	flags.Float64Var(&cfg.rateHz, "rate-hz", 20.0, "navigator Step rate")
-	flags.BoolVar(&cfg.record, "record", false,
-		"record the run to data/live/runs as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node")
+	flags.Float64Var(&cfg.rateHz, "rate-hz", defaultRateHz, "navigator Step rate")
+	flags.BoolVar(
+		&cfg.record,
+		"record",
+		false,
+		"record the run to data/live/runs as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node",
+	)
 	cfg.RegisterRunsRoot(flags, "runs root dir for --record (default: repo-root data/live/runs)")
 	cfg.RegisterConfigRoot(flags,
 		"repo root to read the shipped TOML tree from; empty runs on Go literal defaults")
@@ -253,97 +283,21 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	scanSub, err := nats.NewSubscriber[sensorv1.Scan](
-		conn,
-		sensorv1.ScanSubject,
-	)
+	subs, err := openNavSubscriptions(conn, logger)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if closeErr := scanSub.Close(); closeErr != nil {
-			logger.Error("track-navigator: closing Scan subscription", "error", closeErr)
-		}
-	}()
+	defer subs.close(logger)
 
-	imuSub, err := nats.NewSubscriber[sensorv1.Imu](
-		conn,
-		sensorv1.ImuSubject,
-	)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := imuSub.Close(); closeErr != nil {
-			logger.Error("track-navigator: closing IMU subscription", "error", closeErr)
-		}
-	}()
-
-	jointSub, err := nats.NewSubscriber[actuationv1.JointStates](
-		conn,
-		actuationv1.JointStatesSubject,
-	)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := jointSub.Close(); closeErr != nil {
-			logger.Error("track-navigator: closing JointStates subscription", "error", closeErr)
-		}
-	}()
-
-	// Published by the Python sidecar (src/vision/nats_sidecar.py), never by
-	// anything in this Go tree -- absent that process, this subscription
-	// simply never receives anything, and GetVisionDetections stays
-	// ok=false, exactly like any other sensor this binary has no producer
-	// for. Currently inert regardless: no SignRouter is wired below (Open
-	// Challenge only), and VisionGateway is only consulted when one is.
-	detectionsSub, err := nats.NewSubscriber[visionv1.Detections](
-		conn,
-		visionv1.DetectionsSubject,
-	)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := detectionsSub.Close(); closeErr != nil {
-			logger.Error("track-navigator: closing Detections subscription", "error", closeErr)
-		}
-	}()
-
-	// robot.toml supplies both the wheel radius the gateway scales joint
-	// angles by and the chassis width the planner sizes its corridor with.
-	// Loaded once, before either consumer, so the two cannot disagree about
-	// which robot they are describing.
-	robotPath := profile.DefaultRobotTOMLPath
-	if cfg.ConfigRoot != "" {
-		robotPath = filepath.Join(cfg.ConfigRoot, profile.DefaultRobotTOMLPath)
-	}
-	robotCfg, robotCfgErr := profile.LoadRobotConfig(robotPath, profiles)
-	wheelRadiusM := defaultWheelRadiusM
-	chassisWidthM := defaultChassisWidthM
-	if robotCfgErr == nil {
-		wheelRadiusM = robotCfg.Wheel.Radius
-		chassisWidthM = robotCfg.Chassis.Width
-	} else {
-		logger.Warn("track-navigator: loading robot.toml, using defaults",
-			"error", robotCfgErr,
-			"wheel_radius_m", wheelRadiusM,
-			"chassis_width_m", chassisWidthM)
-	}
-
-	trackMaxCoordM := loadTrackMaxCoordM(logger, cfg.ConfigRoot)
-	wpCfg := waypoints.ConfigFor(logger, cfg.ConfigRoot)
-	startCfg := startconditions.ConfigFor(logger, cfg.ConfigRoot)
-	estCfg := corridorestimator.ConfigFor(logger, cfg.ConfigRoot)
+	rt := loadRuntimeConfig(logger, cfg, profiles)
 
 	path, priorGeometry, layout, err := newBlindLayout(
 		logger,
-		waypoints.PlannerInput{MaxCoordM: trackMaxCoordM, ChassisWidthM: chassisWidthM},
+		waypoints.PlannerInput{MaxCoordM: rt.trackMaxCoordM, ChassisWidthM: rt.chassisWidthM},
 		provisionalDirection,
-		wpCfg,
-		startCfg,
-		estCfg,
+		rt.wpCfg,
+		rt.startCfg,
+		rt.estCfg,
 	)
 	if err != nil {
 		return err
@@ -351,9 +305,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	gw, err := natsgw.New(
 		conn,
-		trackmodel.NewTrackWalls(priorGeometry, -trackMaxCoordM, trackMaxCoordM),
+		trackmodel.NewTrackWalls(priorGeometry, -rt.trackMaxCoordM, rt.trackMaxCoordM),
 		localization.DefaultConfig(),
-		wheelRadiusM,
+		rt.wheelRadiusM,
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
@@ -365,12 +319,17 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}()
 
 	// Built regardless of whether a SignRouter is wired below (see
-	// detectionsSub's own comment): the camera/mount constants
+	// openNavSubscriptions's detections comment): the camera/mount constants
 	// signrouter.Config carries are meaningful independent of that, and
 	// building them once here means a future SignRouter wire-in needs no
 	// second config-loading pass.
 	srCfg := signrouter.ConfigFor(logger, cfg.ConfigRoot)
-	visionGW, err := natsvision.New(srCfg, signrouter.DefaultMinReliableBBoxHeightPX, signrouter.DefaultMinValidLidarRangeM, gw)
+	visionGW, err := natsvision.New(
+		srCfg,
+		signrouter.DefaultMinReliableBBoxHeightPX,
+		signrouter.DefaultMinValidLidarRangeM,
+		gw,
+	)
 	if err != nil {
 		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
 	}
@@ -388,7 +347,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		Config:                  navigator.ConfigFor(logger, cfg.ConfigRoot, profiles),
 		ControllersConfig:       controllers.ConfigFor(logger, cfg.ConfigRoot, profiles),
 		BayExitConfig:           &bxCfg,
-		CorridorEstimatorConfig: &estCfg,
+		CorridorEstimatorConfig: &rt.estCfg,
 		Logger:                  logger,
 	})
 	if err != nil {
@@ -397,27 +356,15 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	logger.Info("track-navigator: connected", "nats_url", cfg.NATSURL, "rate_hz", cfg.rateHz)
 
-	var rec *recording.RunRecorder
-	if cfg.record {
-		r, recErr := recording.NewRun(cfg.RunsRoot, recording.RunOptions{Video: false})
-		if recErr != nil {
-			return fmt.Errorf("track-navigator: creating run: %w", recErr)
-		}
-		if recErr = r.Open(); recErr != nil {
-			return fmt.Errorf("track-navigator: opening run: %w", recErr)
-		}
-		rec = r
-		defer func() {
-			if closeErr := rec.Close(); closeErr != nil {
-				logger.Error("track-navigator: closing run", "error", closeErr)
-			}
-		}()
-		logger.Info("track-navigator: recording run", "dir", rec.Dir())
+	rec, closeRec, err := startRecording(cfg, logger)
+	if err != nil {
+		return err
 	}
+	defer closeRec()
 
 	group, gctx := errgroup.WithContext(ctx)
-	group.Go(func() error { return gw.Run(gctx, scanSub, imuSub, jointSub) })
-	group.Go(func() error { return visionGW.Run(gctx, detectionsSub) })
+	group.Go(func() error { return gw.Run(gctx, subs.scan, subs.imu, subs.joint) })
+	group.Go(func() error { return visionGW.Run(gctx, subs.detections) })
 	group.Go(func() error { return stepLoop(gctx, logger, nav, gw, layout, rec, cfg.rateHz) })
 
 	if err = group.Wait(); err != nil {
@@ -427,6 +374,123 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		return err //nolint:wrapcheck // each goroutine's own error is already package-prefixed
 	}
 	return nil
+}
+
+// openNavSubscriptions opens the four sensor/feedback subscriptions the nav
+// stack consumes. On failure it closes any already-opened ones before
+// returning the error.
+func openNavSubscriptions(conn *natsio.Conn, logger *slog.Logger) (subs *navSubscriptions, err error) {
+	scan, err := nats.NewSubscriber[sensorv1.Scan](conn, sensorv1.ScanSubject)
+	if err != nil {
+		return nil, err
+	}
+	subs = &navSubscriptions{scan: scan}
+
+	imu, err := nats.NewSubscriber[sensorv1.Imu](conn, sensorv1.ImuSubject)
+	if err != nil {
+		subs.close(logger)
+		return nil, err
+	}
+	subs.imu = imu
+
+	joint, err := nats.NewSubscriber[actuationv1.JointStates](conn, actuationv1.JointStatesSubject)
+	if err != nil {
+		subs.close(logger)
+		return nil, err
+	}
+	subs.joint = joint
+
+	// Published by the Python sidecar (src/vision/nats_sidecar.py), never by
+	// anything in this Go tree -- absent that process, this subscription
+	// simply never receives anything, and GetVisionDetections stays
+	// ok=false, exactly like any other sensor this binary has no producer
+	// for. Currently inert regardless: no SignRouter is wired below (Open
+	// Challenge only), and VisionGateway is only consulted when one is.
+	detections, err := nats.NewSubscriber[visionv1.Detections](conn, visionv1.DetectionsSubject)
+	if err != nil {
+		subs.close(logger)
+		return nil, err
+	}
+	subs.detections = detections
+
+	return subs, nil
+}
+
+// close closes every opened subscription, logging (rather than returning)
+// any failure the way the original per-subscription defers did.
+func (s *navSubscriptions) close(logger *slog.Logger) {
+	if s.scan != nil {
+		if closeErr := s.scan.Close(); closeErr != nil {
+			logger.Error("track-navigator: closing Scan subscription", "error", closeErr)
+		}
+	}
+	if s.imu != nil {
+		if closeErr := s.imu.Close(); closeErr != nil {
+			logger.Error("track-navigator: closing IMU subscription", "error", closeErr)
+		}
+	}
+	if s.joint != nil {
+		if closeErr := s.joint.Close(); closeErr != nil {
+			logger.Error("track-navigator: closing JointStates subscription", "error", closeErr)
+		}
+	}
+	if s.detections != nil {
+		if closeErr := s.detections.Close(); closeErr != nil {
+			logger.Error("track-navigator: closing Detections subscription", "error", closeErr)
+		}
+	}
+}
+
+// loadRuntimeConfig loads robot.toml plus the track/waypoint/start-condition
+// configs once, so every consumer in run shares one view of the robot.
+func loadRuntimeConfig(logger *slog.Logger, cfg cliConfig, profiles []string) runtimeConfig {
+	robotPath := profile.DefaultRobotTOMLPath
+	if cfg.ConfigRoot != "" {
+		robotPath = filepath.Join(cfg.ConfigRoot, profile.DefaultRobotTOMLPath)
+	}
+	robotCfg, robotCfgErr := profile.LoadRobotConfig(robotPath, profiles)
+
+	rt := runtimeConfig{
+		wheelRadiusM:  defaultWheelRadiusM,
+		chassisWidthM: defaultChassisWidthM,
+	}
+	if robotCfgErr == nil {
+		rt.wheelRadiusM = robotCfg.Wheel.Radius
+		rt.chassisWidthM = robotCfg.Chassis.Width
+	} else {
+		logger.Warn("track-navigator: loading robot.toml, using defaults",
+			"error", robotCfgErr,
+			"wheel_radius_m", rt.wheelRadiusM,
+			"chassis_width_m", rt.chassisWidthM)
+	}
+
+	rt.trackMaxCoordM = loadTrackMaxCoordM(logger, cfg.ConfigRoot)
+	rt.wpCfg = waypoints.ConfigFor(logger, cfg.ConfigRoot)
+	rt.startCfg = startconditions.ConfigFor(logger, cfg.ConfigRoot)
+	rt.estCfg = corridorestimator.ConfigFor(logger, cfg.ConfigRoot)
+	return rt
+}
+
+// startRecording opens a run recorder when --record is set, returning the
+// recorder and a cleanup function that closes it. With --record off it
+// returns a no-op cleanup and a nil recorder.
+func startRecording(cfg cliConfig, logger *slog.Logger) (rec *recording.RunRecorder, closeRec func(), err error) {
+	if !cfg.record {
+		return nil, func() {}, nil
+	}
+	rec, err = recording.NewRun(cfg.RunsRoot, recording.RunOptions{Video: false})
+	if err != nil {
+		return nil, nil, fmt.Errorf("track-navigator: creating run: %w", err)
+	}
+	if err = rec.Open(); err != nil {
+		return nil, nil, fmt.Errorf("track-navigator: opening run: %w", err)
+	}
+	logger.Info("track-navigator: recording run", "dir", rec.Dir())
+	return rec, func() {
+		if closeErr := rec.Close(); closeErr != nil {
+			logger.Error("track-navigator: closing run", "error", closeErr)
+		}
+	}, nil
 }
 
 // stepLoop drives nav.Step at rateHz until ctx is done. When rec is non-nil it
@@ -466,7 +530,11 @@ func stepLoop(
 						logger.Error("track-navigator: writing scan", "error", err)
 					}
 				}
-				if err := rec.WriteMessage(navv1.NavigatorDebugSubject, nav.DebugSnapshot().ToProto(), logTimeNow()); err != nil {
+				if err := rec.WriteMessage(
+					navv1.NavigatorDebugSubject,
+					nav.DebugSnapshot().ToProto(),
+					logTimeNow(),
+				); err != nil {
 					logger.Error("track-navigator: writing nav_debug", "error", err)
 				}
 			}

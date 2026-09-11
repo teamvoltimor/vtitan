@@ -8,6 +8,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -30,7 +31,7 @@ type generatedFile struct {
 }
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	root := &cobra.Command{
 		Use:          "simgen",
@@ -38,10 +39,10 @@ func main() {
 		SilenceUsage: true,
 	}
 	root.AddCommand(
-		generateCmd(),
-		generateTrackCmd(),
-		generateTrackConstantsCmd(),
-		previewCmd(),
+		generateCmd(logger),
+		generateTrackCmd(logger),
+		generateTrackConstantsCmd(logger),
+		previewCmd(logger),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -49,7 +50,7 @@ func main() {
 	}
 }
 
-func generateCmd() *cobra.Command {
+func generateCmd(logger *slog.Logger) *cobra.Command {
 	var (
 		challenge     string
 		numScenarios  int
@@ -83,7 +84,7 @@ func generateCmd() *cobra.Command {
 				return fmt.Errorf("init generator: %w", err)
 			}
 
-			slog.Info("starting generation",
+			logger.Info("starting generation",
 				"challenge", challenge,
 				"num_scenarios", numScenarios,
 				"output_dir", scenarioDir,
@@ -93,25 +94,25 @@ func generateCmd() *cobra.Command {
 
 			ok, failed := 0, 0
 			for i := range numScenarios {
-				worldPath, _, err := gen.CreateScenario(i)
-				if err != nil {
-					slog.Error("scenario failed", "index", i, "err", err)
+				worldPath, _, createErr := gen.CreateScenario(i)
+				if createErr != nil {
+					logger.Error("scenario failed", "index", i, "err", createErr)
 					failed++
 					continue
 				}
-				slog.Info("scenario written", "index", i, "path", worldPath)
+				logger.Info("scenario written", "index", i, "path", worldPath)
 				ok++
 
 				metaName := fmt.Sprintf("%s%04d%s", simconfig.ScenarioPrefix, i, simconfig.MetadataSuffix)
 				metaPath := filepath.Join(scenarioDir, metaName)
 				if svgPath, svgErr := preview.GenerateSVG(metaPath, ""); svgErr != nil {
-					slog.Warn("preview generation failed", "index", i, "err", svgErr)
+					logger.Warn("preview generation failed", "index", i, "err", svgErr)
 				} else {
-					slog.Info("preview written", "index", i, "path", svgPath)
+					logger.Info("preview written", "index", i, "path", svgPath)
 				}
 			}
 
-			slog.Info("generation complete", "ok", ok, "failed", failed)
+			logger.Info("generation complete", "ok", ok, "failed", failed)
 			if failed > 0 {
 				return fmt.Errorf("%d/%d scenarios failed", failed, ok+failed)
 			}
@@ -129,7 +130,7 @@ func generateCmd() *cobra.Command {
 	return cmd
 }
 
-func generateTrackCmd() *cobra.Command {
+func generateTrackCmd(logger *slog.Logger) *cobra.Command {
 	var output string
 
 	cmd := &cobra.Command{
@@ -145,12 +146,12 @@ func generateTrackCmd() *cobra.Command {
 			}
 
 			root, _ := sdf.GenerateBaseWorld()
-			if _, err := root.WriteTo(f); err != nil {
+			if _, writeErr := root.WriteTo(f); writeErr != nil {
 				f.Close()
-				return fmt.Errorf("write SDF: %w", err)
+				return fmt.Errorf("write SDF: %w", writeErr)
 			}
 			f.Close()
-			slog.Info("base track SDF written", "path", output)
+			logger.Info("base track SDF written", "path", output)
 			return nil
 		},
 	}
@@ -160,7 +161,7 @@ func generateTrackCmd() *cobra.Command {
 	return cmd
 }
 
-func generateTrackConstantsCmd() *cobra.Command {
+func generateTrackConstantsCmd(logger *slog.Logger) *cobra.Command {
 	var (
 		config   string
 		goOutput string
@@ -189,13 +190,17 @@ func generateTrackConstantsCmd() *cobra.Command {
 				{path: goOutput, contents: goSrc},
 			}
 			for _, out := range outputs {
-				if err := os.MkdirAll(filepath.Dir(out.path), simconfig.DirPermissions); err != nil {
-					return fmt.Errorf("create output dir for %s: %w", out.path, err)
+				if mkdirErr := os.MkdirAll(filepath.Dir(out.path), simconfig.DirPermissions); mkdirErr != nil {
+					return fmt.Errorf("create output dir for %s: %w", out.path, mkdirErr)
 				}
-				if err := os.WriteFile(out.path, []byte(out.contents), simconfig.FilePermissions); err != nil {
-					return fmt.Errorf("write %s: %w", out.path, err)
+				if writeErr := os.WriteFile(
+					out.path,
+					[]byte(out.contents),
+					simconfig.FilePermissions,
+				); writeErr != nil {
+					return fmt.Errorf("write %s: %w", out.path, writeErr)
 				}
-				slog.Info("track constants written", "path", out.path)
+				logger.Info("track constants written", "path", out.path)
 			}
 
 			return nil
@@ -209,7 +214,7 @@ func generateTrackConstantsCmd() *cobra.Command {
 	return cmd
 }
 
-func previewCmd() *cobra.Command {
+func previewCmd(logger *slog.Logger) *cobra.Command {
 	var (
 		metadata string
 		output   string
@@ -220,13 +225,13 @@ func previewCmd() *cobra.Command {
 		Short: "Render SVG top-down preview from a metadata JSON file",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if metadata == "" {
-				return fmt.Errorf("--metadata is required")
+				return errors.New("--metadata is required")
 			}
 			outPath, err := preview.GenerateSVG(metadata, output)
 			if err != nil {
 				return fmt.Errorf("generate SVG preview: %w", err)
 			}
-			slog.Info("SVG preview written", "path", outPath)
+			logger.Info("SVG preview written", "path", outPath)
 			return nil
 		},
 	}

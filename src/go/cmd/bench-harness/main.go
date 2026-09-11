@@ -26,8 +26,22 @@ type harnessConfig struct {
 	memprofile string
 }
 
-// benchNumRays is the synthetic LIDAR ray count the harness benchmarks with.
-const benchNumRays = 360
+// Benchmark loop constants: a synthetic ray count plus the fixed start pose,
+// command inputs, and corridor width the harness exercises.
+const (
+	benchNumRays        = 360
+	benchDefaultSteps   = 1000
+	benchStartXM        = 1.5
+	benchStartYM        = 1.5
+	benchStartV         = 0.5
+	benchRayMinRangeM   = 0.02
+	benchRayMaxRangeM   = 10.0
+	benchSpeedMPS       = 0.5
+	benchSteerRad       = 0.2
+	benchStartSteerRad  = 0.1
+	benchDT             = 0.05
+	benchCorridorWidthM = 0.6
+)
 
 func main() {
 	cfg := &harnessConfig{}
@@ -38,7 +52,7 @@ func main() {
 			return run(cfg)
 		},
 	}
-	root.Flags().IntVar(&cfg.steps, "steps", 1000, "number of scenario steps to run")
+	root.Flags().IntVar(&cfg.steps, "steps", benchDefaultSteps, "number of scenario steps to run")
 	root.Flags().StringVar(&cfg.cpuprofile, "cpuprofile", "", "write a CPU profile to this path")
 	root.Flags().StringVar(&cfg.memprofile, "memprofile", "", "write a memory profile to this path")
 
@@ -78,11 +92,13 @@ func run(cfg *harnessConfig) error {
 	}
 
 	start := time.Now()
-	state := kinematics.AckermannState{X: 1.5, Y: 1.5, Yaw: 0.0, V: 0.5, Steer: 0.1}
-	dt := 0.05
+	state := kinematics.AckermannState{
+		X: benchStartXM, Y: benchStartYM, Yaw: 0.0, V: benchStartV, Steer: benchStartSteerRad,
+	}
+	dt := benchDT
 	for i := 0; i < steps; i++ {
-		_ = tm.RaycastScan(state.X, state.Y, state.Yaw, angles, 0.02, 10.0)
-		state = k.Step(state, 0.5, 0.2, dt)
+		_ = tm.RaycastScan(state.X, state.Y, state.Yaw, angles, benchRayMinRangeM, benchRayMaxRangeM)
+		state = k.Step(state, benchSpeedMPS, benchSteerRad, dt)
 	}
 	elapsed := time.Since(start)
 
@@ -109,10 +125,10 @@ func run(cfg *harnessConfig) error {
 
 func benchTrackGeometry() trackmodel.CorridorGeometry {
 	return trackmodel.CorridorGeometryFromWidths(map[trackmodel.Section]float64{
-		trackmodel.North: 0.6,
-		trackmodel.South: 0.6,
-		trackmodel.East:  0.6,
-		trackmodel.West:  0.6,
+		trackmodel.North: benchCorridorWidthM,
+		trackmodel.South: benchCorridorWidthM,
+		trackmodel.East:  benchCorridorWidthM,
+		trackmodel.West:  benchCorridorWidthM,
 	}, simconfig.TrackMaxCoord)
 }
 
