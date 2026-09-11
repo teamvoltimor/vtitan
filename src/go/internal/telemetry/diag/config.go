@@ -54,6 +54,17 @@ type Config struct {
 	BlindWedgeRight AngleWedge
 }
 
+// constraints is the validator-tagged mirror of Config (validator needs
+// struct tags, and Config's fields are documentation-heavy enough that
+// inlining tags here would hurt readability more than a small mirror
+// costs).
+type constraints struct {
+	FrontHalfFOVRad         float64 `validate:"gt=0,lte=3.141592653589793"`
+	MinValidRangeM          float64 `validate:"gt=0"`
+	SelfDetectionThresholdM float64 `validate:"gt=0"`
+	MaxValidRangeM          float64 `validate:"gtfield=MinValidRangeM"`
+}
+
 const (
 	// DefaultFrontHalfFOVRad matches LidarSectorsTuning.FRONT_HALF_FOV_DEG's
 	// default (30 deg), converted to radians.
@@ -94,17 +105,6 @@ func DefaultConfig() Config {
 		BlindWedgeLeft:          AngleWedge{},
 		BlindWedgeRight:         AngleWedge{},
 	}
-}
-
-// constraints is the validator-tagged mirror of Config (validator needs
-// struct tags, and Config's fields are documentation-heavy enough that
-// inlining tags here would hurt readability more than a small mirror
-// costs).
-type constraints struct {
-	FrontHalfFOVRad         float64 `validate:"gt=0,lte=3.141592653589793"`
-	MinValidRangeM          float64 `validate:"gt=0"`
-	SelfDetectionThresholdM float64 `validate:"gt=0"`
-	MaxValidRangeM          float64 `validate:"gtfield=MinValidRangeM"`
 }
 
 // Validate reports whether c is usable, backed by go-playground/validator

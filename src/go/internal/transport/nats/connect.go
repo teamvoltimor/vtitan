@@ -73,12 +73,12 @@ func Connect(ctx context.Context, cfg Config) (*nats.Conn, error) {
 		}
 
 		// Back off a bounded amount before the next dial, but wake immediately
-		// if the context is cancelled. Uses the same ReconnectWait as nats.go's
+		// if the context is canceled. Uses the same ReconnectWait as nats.go's
 		// own reconnect cadence so initial-dial retries and later reconnects
 		// look identical to an operator reading the logs.
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("nats: initial connect to %s cancelled: %w", cfg.URL, ctx.Err())
+			return nil, fmt.Errorf("nats: initial connect to %s canceled: %w", cfg.URL, ctx.Err())
 		case <-time.After(cfg.ReconnectWait):
 		}
 	}

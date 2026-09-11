@@ -30,7 +30,8 @@ func FileDescriptorSet(msg proto.Message) ([]byte, error) {
 	set := &descriptorpb.FileDescriptorSet{File: files}
 	data, err := proto.Marshal(set)
 	if err != nil {
-		return nil, fmt.Errorf("protoschema: marshaling FileDescriptorSet for %s: %w", msg.ProtoReflect().Descriptor().FullName(), err)
+		return nil, fmt.Errorf("protoschema: marshaling FileDescriptorSet for %s: %w",
+			msg.ProtoReflect().Descriptor().FullName(), err)
 	}
 	return data, nil
 }

@@ -143,7 +143,7 @@ func TestConnect_RetriesInitialDialUntilServerReady(t *testing.T) {
 
 	// Pick a free port, then start the server late (after Connect is already
 	// retrying) to simulate the server not being up yet.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("reserving a port: %v", err)
 	}

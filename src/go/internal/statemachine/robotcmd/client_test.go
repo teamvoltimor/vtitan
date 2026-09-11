@@ -151,10 +151,7 @@ func TestClient_Run_DispatchesAndAcks(t *testing.T) {
 	// events; polling both closes the race that the fixed 300ms sleep left
 	// open under CI load.
 	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if len(srv.recordedAcks()) == 2 && len(buttonSink.recorded()) == 2 {
-			break
-		}
+	for len(srv.recordedAcks()) != 2 || len(buttonSink.recorded()) != 2 {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for dispatch+ack: acks=%v events=%v",
 				srv.recordedAcks(), buttonSink.recorded())
