@@ -194,7 +194,7 @@ class RaceTracker:
         """
         self.num_laps = num_laps
         self.metrics = RaceMetrics()
-        self._start_time = time.time()
+        self._start_time = time.perf_counter()
         self._last_pos: Waypoint | None = None
         self._speed_samples: list[float] = []
         self._lap_start_distance: float = 0.0
@@ -213,7 +213,7 @@ class RaceTracker:
             waypoint_index: Current waypoint index.
         """
         # Update elapsed time
-        self.metrics.elapsed_time = time.time() - self._start_time
+        self.metrics.elapsed_time = time.perf_counter() - self._start_time
 
         # Update waypoint index
         self.metrics.waypoint_index = waypoint_index
@@ -243,7 +243,7 @@ class RaceTracker:
         self.metrics.completed_laps += 1
         self.metrics.current_lap = self.metrics.completed_laps + 1
         self._lap_start_distance = self.metrics.total_distance
-        split_time = time.time() - self._start_time
+        split_time = time.perf_counter() - self._start_time
         self.metrics.lap_splits.append(round(split_time, 3))
         logger.info(
             "Lap %d/%d completed",
