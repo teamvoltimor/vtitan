@@ -122,6 +122,21 @@ class Pass:
     maneuver_during_pass: bool
     """An escape/stuck manoeuvre was latched at some point while committed."""
 
+    manoeuvre_agrees: int
+    """Latched-manoeuvre ticks steering TOWARD the side the router asked for."""
+    manoeuvre_opposes: int
+    """...and ticks steering AWAY from it. The escape picks its side from
+    left/right CLEARANCE (33be7da7); the router picks it from the rule. Near a
+    pillar the two routinely disagree -- the clearer side is the one away from
+    the pillar, which is the wrong side when the chassis must still cross."""
+
+    sign_x: float
+    sign_y: float
+    """Where the router BELIEVED the pillar was. Believed, not true -- there is
+    no ground truth in a bag -- but it is what the pass was planned against,
+    and it is what snaps onto the 24-point legal lattice for a geometry
+    classification that needs no ground truth to be meaningful."""
+
 
 def _load(bag_dir: Path):  # noqa: ANN202
     """Read nav_debug rows, detection frames AND scans from one bag."""
@@ -156,6 +171,7 @@ def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  #
     best: dict[tuple[float, float], tuple] = {}
     first: dict[tuple[float, float], tuple] = {}
     manoeuvred: dict[tuple[float, float], bool] = {}
+    steer_vote: dict[tuple[float, float], list[int]] = {}
 
     for rel, d in rows:
         if d.pose_x is None or d.pose_y is None or d.pose_yaw is None:
@@ -197,6 +213,18 @@ def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  #
         if key not in first:
             first[key] = (rng, (d.pose_x, d.pose_y), deformed, d.commanded_speed_mps)
         manoeuvred[key] = manoeuvred.get(key, False) or d.active_maneuver_type is not None
+        # Does the latched manoeuvre steer toward the side the router asked
+        # for? Compared in the ROBOT frame, because a steering sign is a
+        # left/right command and the router's request is a world vector: the
+        # deformed target minus the pose, projected onto the chassis's own left.
+        if d.active_maneuver_type is not None and d.maneuver_steering is not None:
+            left_x, left_y = -math.sin(d.pose_yaw), math.cos(d.pose_yaw)
+            wants_left = (deformed[0] - d.pose_x) * left_x + (deformed[1] - d.pose_y) * left_y
+            vote = steer_vote.setdefault(key, [0, 0])
+            # A zero steering command votes for neither -- it is not a side.
+            if d.maneuver_steering != 0.0 and wants_left != 0.0:
+                same = (d.maneuver_steering > 0) == (wants_left > 0)
+                vote[0 if same else 1] += 1
         if key in best and best[key][0] <= rng:
             continue
         colour = next(
@@ -232,6 +260,10 @@ def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  #
                 commit_commanded_m=(c_deformed[idx] - sign_axis) * want,
                 commit_speed_mps=c_speed,
                 maneuver_during_pass=manoeuvred.get(key, False),
+                manoeuvre_agrees=steer_vote.get(key, [0, 0])[0],
+                manoeuvre_opposes=steer_vote.get(key, [0, 0])[1],
+                sign_x=sign_pos.x,
+                sign_y=sign_pos.y,
             )
         )
     return out, peak_signs

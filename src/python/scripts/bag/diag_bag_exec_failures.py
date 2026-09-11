@@ -212,6 +212,34 @@ def main() -> None:
               f"({100 * won / len(members):.1f}%)")
     print()
 
+    # The operator's account from the track, 2026-09-11: "it went toward the
+    # obstacle, came back, tried to correct its position, but never got onto
+    # the correct side to pass it". That is a manoeuvre steering the wrong way,
+    # not a manoeuvre that fires too often -- so count the DIRECTION.
+    print("== WHEN A MANOEUVRE IS LATCHED, DOES IT STEER TOWARD THE COMMANDED SIDE?")
+    rows_dir = []
+    for label, members in (
+        ("execution", groups["execution"]),
+        ("ok", groups["ok"]),
+    ):
+        voted = [p for p in members if p.manoeuvre_agrees + p.manoeuvre_opposes > 0]
+        if not voted:
+            rows_dir.append([label, "no latched ticks", "--", "--"])
+            continue
+        agrees = sum(p.manoeuvre_agrees for p in voted)
+        opposes = sum(p.manoeuvre_opposes for p in voted)
+        total = agrees + opposes
+        # Per-PASS too, so one long manoeuvre cannot carry the tick count.
+        mostly_against = sum(1 for p in voted if p.manoeuvre_opposes > p.manoeuvre_agrees)
+        rows_dir.append([
+            label,
+            f"{len(voted)} passes",
+            f"{opposes}/{total}  {100 * opposes / total:5.1f}%",
+            f"{mostly_against}/{len(voted)}",
+        ])
+    print_table(rows_dir, ["outcome", "with a manoeuvre", "ticks OPPOSING", "passes mostly opposing"])
+    print()
+
     # If the failures commit systematically later than the ones that worked,
     # the fix is upstream of the sign lane entirely: the detector's range, not
     # the chassis.
