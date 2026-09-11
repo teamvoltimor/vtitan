@@ -1,14 +1,58 @@
 %% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
-%% Fuente: src/python/src/state_machine/core.py, types.py (máquina compartida con Open Challenge)
-%% PARKING / ParkController: src/python/src/navigation/maneuvers/parking/
-%% Activación del estacionamiento: core_navigator.py (_should_engage_parking)
+%% Fuente: src/python/src/state_machine/core.py (_VALID_TRANSITIONS), types.py
+%% Máquina de alto nivel COMPARTIDA con el Open Challenge -- es literalmente la
+%% misma, no una variante. Ver open/mermaid/maquina-estados.mmd.
+%% -
+%% CORREGIDO 2026-09-10. La versión anterior dibujaba un estado PARKING y dos
+%% transiciones RACING --> PARKING --> FINISHED. Ese estado NO EXISTE: el enum
+%% RobotState tiene exactamente 4 valores (BOOT_CHECK, READY, RACING, FINISHED)
+%% y _VALID_TRANSITIONS no contiene ninguna arista hacia PARKING. El
+%% estacionamiento nunca fue un estado de esta máquina, sino una fase interna
+%% del navegador dentro de RACING.
+%% -
+%% Y además, hoy esa fase NO EMBARCA: src/config/navigation/parking/parking.toml
+%% fija attempt_after_final_lap = false. Tras la última vuelta el robot se
+%% detiene en la sección de meta en vez de perseguir la bahía. La razón es
+%% medida, no una omisión: la bahía es geométricamente inalcanzable (chasis
+%% 0.194 m contra hueco 0.20 m) y perseguirla costaba mucho más de lo que podía
+%% pagar -- corpus de 256, ciego, OFF vs ON: en tiempo 158 vs 62, colisiones
+%% 4 vs 51, timeouts 61 vs 110, con laps>=3 idéntico en 159.
+%% -
+%% Lo que sí es exclusivo del Obstacle Challenge ocurre en el OTRO extremo de la
+%% carrera: el arranque DENTRO de la bahía (assume_bay_start = true en
+%% src/config/navigation/blind_nav/corridor_follower.toml). Eso tampoco es un
+%% estado: es una maniobra previa dentro de RACING, dibujada en
+%% obstacles/mermaid/flujo-parte1-conduccion.mmd.
 
 stateDiagram-v2
     [*] --> BOOT_CHECK
+
     BOOT_CHECK --> READY: autodiagnóstico correcto
+    BOOT_CHECK --> FINISHED: falla el autodiagnóstico
+
     READY --> RACING: se pulsa el botón de inicio
-    RACING --> RACING: aún faltan vueltas por completar
-    RACING --> PARKING: se completó la última vuelta y el robot llegó al corredor de estacionamiento
-    PARKING --> FINISHED: maniobra de estacionamiento terminada
-    RACING --> FINISHED: se completan las vueltas sin llegar a activar el estacionamiento (caso de respaldo)
+    READY --> BOOT_CHECK: reinicio del sistema
+
+    RACING --> FINISHED: se completan las 3 vueltas
+    RACING --> FINISHED: parada de emergencia
+    RACING --> BOOT_CHECK: reinicio del sistema
+
+    FINISHED --> BOOT_CHECK: reinicio del sistema
+
     FINISHED --> [*]
+
+    note right of RACING
+        Todo lo propio del Obstacle Challenge
+        ocurre DENTRO de este estado: salir de
+        la bahía al arrancar, esquivar señales
+        y contar vueltas. No hay un estado
+        PARKING -- nunca lo hubo en el código.
+    end note
+
+    note right of FINISHED
+        Tras la última vuelta el robot se detiene
+        en la sección de meta. La maniobra de
+        estacionamiento existe pero está apagada
+        (attempt_after_final_lap = false): la
+        bahía es más estrecha que el chasis.
+    end note

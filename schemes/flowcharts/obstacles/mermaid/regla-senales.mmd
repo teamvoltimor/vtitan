@@ -1,31 +1,70 @@
 %% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
 %% Fuente: src/python/src/navigation/planning/sign_router/
 %%   selección: SignRouter._active_sign_candidates()
-%%   tabla de reglas por tramo/sentido: SignRouter._ROUTING_TABLE
-%%   deformación: SignRouter._apply_deformation()
+%%   tabla de reglas por tramo/sentido: routing.py::ROUTING_TABLE
+%%   consulta de la regla: routing.py::pass_side_lateral_axis()
+%%   planificador de carril (LA RUTA QUE SE EJECUTA): planning/sign_lane.py::apply_sign_lanes()
+%%   deformación por waypoint (SUPRIMIDA en config): sign_router/deformation.py
 %%   anclaje opcional a la altura de la señal: SignRouter._pin_depth()
+%% -
+%% CORREGIDO 2026-09-10. Dos errores de fondo en la versión anterior:
+%% -
+%% 1) LA REGLA NO ES ABSOLUTA. Este diagrama decía "rojo siempre por afuera,
+%%    verde siempre por adentro, sin importar el sentido". Es al revés: la regla
+%%    (WRO 2026 9.19) es RELATIVA AL SENTIDO DE MARCHA -- el vehículo pasa a su
+%%    PROPIA DERECHA de un pilar rojo y a su PROPIA IZQUIERDA de uno verde. Las
+%%    4 filas CLOCKWISE de ROUTING_TABLE son la NEGACIÓN de sus pares
+%%    COUNTERCLOCKWISE, precisamente por eso. La tabla fue absoluta entre
+%%    2026-07-05 y 2026-09-03 (correcta en antihorario, al revés en TODA ronda
+%%    horaria) y el error quedó oculto porque scenario_simulator/scoring.py
+%%    juzgaba con la misma convención que el router conducía. Todo conteo de
+%%    pass-side anterior a 2026-09-03 está medido con la regla equivocada.
+%%    Corolario: sin dirección asentada la regla no es evaluable en absoluto
+%%    (pass_side_lateral_axis devuelve None) -- ver esquiva-generica.mmd.
+%% -
+%% 2) LO QUE SE EJECUTA ES EL CARRIL, NO LA DEFORMACIÓN. El diagrama dibujaba
+%%    _apply_deformation() como el mecanismo. En la config que embarca
+%%    (src/config/navigation/signs/sign_router.toml) sign_lane_planner = true y
+%%    sign_lane_suppress_deform = true, así que quien mueve la trayectoria es
+%%    apply_sign_lanes(): un carril lateral con meseta plana y rampas, no un
+%%    empujón de un único punto de paso.
+%% -
 %% Constantes (src/config/navigation/signs/sign_router.toml):
-%%   activation_dist_m = 1.40 m -- distancia a la que empieza a desviar la ruta
-%%   passed_dist_m = 1.60 m -- distancia a la que la señal se da por superada
-%% Regla WRO: rojo siempre se pasa por afuera, verde siempre por adentro,
-%%   sin importar si la vuelta es en sentido horario o antihorario.
+%%   activation_dist_m = 1.40 / passed_dist_m = 1.60 -- ventana de la maniobra
+%%   sign_lane_ramp_m = 0.9 / sign_lane_hold_m = 0.25 -- forma del carril
+%%   sign_lane_corner_entry_m = 0.5 -- arco de curva que el carril puede tomar
+%%   sign_clearance_margin_m = 0.10 -- margen sobre semianchos chasis+señal
+%%   commit_hysteresis = true -- una vez comprometida, se mantiene ESA señal
+%% -
+%% ADVERTENCIA DE ALCANCE (medido 2026-09-09, sobre bag de hardware): el carril
+%% está dimensionado para 1.40 m de anticipación y NUNCA la recibe. La cámara
+%% ve la señal a 0.66 m y el router se compromete a 0.38 m, así que la maniobra
+%% se ejecuta con una fracción del recorrido para el que fue diseñada. No es un
+%% fallo de la regla ni del carril: es falta de distancia.
+%% -
 %% Diagrama en TD (vertical) a propósito -- en LR la cadena de nodos quedaba
 %% demasiado ancha y el texto se veía borroso al escalar el PNG.
 %% El nodo con borde punteado (Pin) marca un paso opcional, no obligatorio.
 
 flowchart TD
     Sign["La cámara detecta<br/>una señal de tránsito"] --> Active["Se elige la señal activa<br/>más cercana que el robot<br/>aún no ha pasado"]
-    Active --> Lookup["Busca en la tabla de reglas<br/>el tramo de la pista y el<br/>sentido de la vuelta actuales"]
+    Active --> Commit["Una vez elegida, se mantiene ESA<br/>señal hasta superarla, en vez de<br/>recalcular la más cercana cada tick"]
+    Commit --> Dir{"¿Está asentado el<br/>sentido de la vuelta?"}
+
+    Dir -- "No" --> NoRule(["La regla de paso NO es evaluable.<br/>Se esquiva como obstáculo genérico<br/>(ver esquiva-generica.mmd)"])
+    Dir -- "Sí" --> Lookup["Busca en la tabla de reglas<br/>el tramo de la pista y el<br/>sentido de la vuelta actuales"]
+
     Lookup --> Color{"¿De qué<br/>color es?"}
 
-    Color -- "ROJA" --> Out["Desplazar el punto de paso<br/>hacia AFUERA del cuadro central"]
-    Color -- "VERDE" --> In["Desplazar el punto de paso<br/>hacia ADENTRO del cuadro central"]
+    Color -- "ROJA" --> Right["Pasar por la DERECHA<br/>del robot"]
+    Color -- "VERDE" --> Left["Pasar por la IZQUIERDA<br/>del robot"]
 
-    Out --> Note>"Esta regla siempre es la misma:<br/>no cambia si la vuelta es<br/>horaria o antihoraria"]
-    In --> Note
+    Right --> Note>"La regla se define respecto al ROBOT,<br/>no a la pista. Antihorario: su derecha<br/>es la pared exterior. Horario: su derecha<br/>es el cuadro central. Por eso la tabla<br/>tiene filas opuestas para cada sentido"]
+    Left --> Note
 
-    Note --> Taper["El desplazamiento se activa<br/>de forma progresiva entre 1.40 m<br/>y 1.60 m de distancia a la señal,<br/>para evitar cambios bruscos de dirección"]
+    Note --> Lane["Traza un CARRIL lateral hacia ese lado:<br/>meseta plana de 0.25 m a la altura de la<br/>señal, con rampas de 0.9 m a cada lado<br/>que vuelven a la línea central"]
+    Lane --> Taper["El carril se activa de forma progresiva<br/>entre 1.40 m y 1.60 m de distancia,<br/>para evitar cambios bruscos de dirección"]
     Taper --> Pin["Ancla el punto justo<br/>a la altura de la señal"]:::optional
-    Pin --> Steer["Ese punto desplazado se usa<br/>como objetivo de dirección"]
+    Pin --> Steer["El carril se usa como<br/>objetivo de dirección"]
 
     classDef optional stroke-dasharray: 5 5,fill:#f5f5f5,stroke:#888

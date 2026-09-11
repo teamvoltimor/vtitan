@@ -11,27 +11,49 @@
 %% diagrama en vez de repetir la descripción -- ver
 %% common/mermaid/inferencia-direccion.mmd (nodo Avoid) y
 %% common/mermaid/escape-colision.mmd (nodo Escape).
-%% La rama "¿Es una señal roja o verde?" solo aplica en Obstacle Challenge
-%% (Open Challenge no tiene señales, así que ahí siempre se va por "No").
-%% Regla WRO: roja por afuera del cuadro central, verde por adentro, y NO
-%% depende del sentido de la vuelta -- confirmado en sign_router.py::
-%% _ROUTING_TABLE, mismo eje/multiplicador para CLOCKWISE y COUNTERCLOCKWISE
-%% en las 4 secciones. Detalle completo de la regla de color en:
+%% -
+%% CORREGIDO 2026-09-10. Este diagrama afirmaba que la regla WRO es
+%% "roja por afuera, verde por adentro, y NO depende del sentido de la vuelta",
+%% citando sign_router.py::_ROUTING_TABLE como confirmación. Era exactamente
+%% al revés, y la tabla misma es hoy la prueba:
+%%   src/python/src/navigation/planning/sign_router/routing.py::ROUTING_TABLE
+%% Las 4 filas CLOCKWISE son la NEGACIÓN de sus pares COUNTERCLOCKWISE.
+%% La regla (WRO 2026 9.19) es RELATIVA AL SENTIDO DE MARCHA: el vehículo pasa
+%% a su PROPIA DERECHA de un pilar rojo y a su PROPIA IZQUIERDA de uno verde.
+%% "Su derecha" nombra la pared EXTERIOR en antihorario y el cuadro INTERIOR en
+%% horario, así que en coordenadas de pista la regla se invierte entre sentidos.
+%% La tabla fue ABSOLUTA entre 2026-07-05 y 2026-09-03: correcta en antihorario
+%% y al revés en TODA ronda horaria. Quedó invisible porque el scorer del
+%% simulador juzgaba con la misma convención que el router conducía.
+%% -
+%% CONSECUENCIA PARA ESTE DIAGRAMA: sin dirección asentada la regla NO es
+%% evaluable. pass_side_lateral_axis() EXIGE `direction` y devuelve None si no
+%% la tiene; su propio docstring obliga al llamador a tratar ese None como "la
+%% regla de paso no está disponible en este tick" y caer a esquiva genérica.
+%% Por eso la rama de color ahora cuelga de un chequeo de dirección asentada,
+%% y NO se puede prometer que la regla se cumpla desde el primer momento.
+%% Detalle completo de la regla de color en:
 %%   schemes/flowcharts/obstacles/mermaid/regla-senales.mmd
 
 flowchart TD
     Obstacle["Obstáculo detectado<br/>muy cerca, adelante"] --> IsSign{"¿Es una señal de<br/>tránsito roja o verde?"}
 
-    IsSign -- "No, es pared<br/>u otro obstáculo" --> Choose{"¿Qué lado tiene<br/>más espacio libre?"}
-    IsSign -- "Sí" --> Color{"¿De qué<br/>color es?"}
+    IsSign -- "No, es pared<br/>u otro obstáculo" --> Choose
+    IsSign -- "Sí" --> Settled{"¿Ya está asentado el<br/>sentido de la vuelta?"}
 
+    Settled -- "No: la regla de paso<br/>NO es evaluable todavía,<br/>se trata como obstáculo<br/>cualquiera" --> Choose
+    Settled -- "Sí" --> Color{"¿De qué<br/>color es?"}
+
+    Choose{"¿Qué lado tiene<br/>más espacio libre?"}
     Choose -- "Izquierda" --> TurnLeft["Retrocede y gira<br/>hacia la izquierda"]
     Choose -- "Derecha" --> TurnRight["Retrocede y gira<br/>hacia la derecha"]
 
-    Color -- "ROJA" --> DodgeOut["Esquiva por AFUERA<br/>del cuadro central"]
-    Color -- "VERDE" --> DodgeIn["Esquiva por ADENTRO<br/>del cuadro central"]
+    Color -- "ROJA" --> DodgeR["Pasa por la<br/>DERECHA del robot"]
+    Color -- "VERDE" --> DodgeG["Pasa por la<br/>IZQUIERDA del robot"]
+
+    DodgeR --> Frame>"'Derecha' e 'izquierda' son del ROBOT,<br/>no de la pista: en antihorario la derecha<br/>es la pared exterior y en horario es el<br/>cuadro interior. Por eso hace falta saber<br/>el sentido antes de aplicar la regla"]
+    DodgeG --> Frame
 
     TurnLeft --> Resume(["Vuelve a avanzar"])
     TurnRight --> Resume
-    DodgeOut --> Resume
-    DodgeIn --> Resume
+    Frame --> Resume

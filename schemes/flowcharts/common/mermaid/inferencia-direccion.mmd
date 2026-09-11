@@ -10,10 +10,16 @@
 %%   min_asymmetry_m           = 0.20
 %%   min_votes                 = 5
 %% Avance ciego previo: src/python/src/navigation/corridor_follower.py (follow_corridor)
-%% Esquiva ante obstáculo (incluye la regla de color) -- detalle común en:
+%% Esquiva ante obstáculo -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/esquiva-generica.mmd
 %% Común a Open Challenge y Obstacle Challenge -- ambos arrancan en modo ciego
 %% y usan exactamente esta misma lógica para decidir el sentido de la vuelta.
+%% CORREGIDO 2026-09-10: mientras esta fase corre, la regla de paso rojo/verde
+%% NO está disponible. Es relativa al sentido de marcha (WRO 2026 9.19) y
+%% pass_side_lateral_axis() devuelve None sin una dirección asentada, así que
+%% una señal encontrada aquí se esquiva como obstáculo genérico. Es decir: este
+%% diagrama es un PRERREQUISITO de la regla de color, no algo paralelo a ella.
+%% Ver la cabecera de esquiva-generica.mmd.
 %% NOTA: la decisión NO es "cuál lado está más lejos" sino "cuál lado dejó de
 %% ser pared", medido sobre la SUMA de ambos rayos. Ver el filtro 3.
 

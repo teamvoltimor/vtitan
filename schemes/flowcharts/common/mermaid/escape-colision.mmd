@@ -4,17 +4,65 @@
 %%   _handle_stuck_escape() -- maniobra de desatasco
 %%   control/controllers/collision_avoidance_controller.py -- nivel de riesgo (RiskLevel)
 %%   control/controllers/stuck_detector.py -- StuckDetector
+%% Constantes: src/config/navigation/escape/escape.toml
+%%   side_correction_steer_deg = 16.5 / side_correction_s = 0.20  (amenaza lateral)
+%%   rev_steer_deg = 44.0 / rev_speed = -0.20                      (giro en K)
+%%   k_turn_min_s = 0.54 (riesgo OBSTACLE) / k_turn_max_s = 1.08 (riesgo CRITICAL)
+%%   max_escape_s = 1.8            -- TOPE, no duración: casi nunca se alcanza
+%%   stuck_timeout_s = 2.0 / stuck_move_threshold = 0.03
+%%   escalate_after_attempts = 3 / escape_side_commit_attempts = 2
 %% Común a Open Challenge y Obstacle Challenge -- en Obstacle Challenge, el
 %% LIDAR ya llega con el eco de las señales enmascarado (ver regla-senales.mmd),
 %% así que esta vigilancia opera igual en ambas pistas.
 %% Esquiva genérica ante obstáculo -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/esquiva-generica.mmd
+%% -
+%% AMPLIADO 2026-09-10 con lo medido sobre el corpus y sobre bags de hardware.
+%% El diagrama anterior tenía una sola caja "esquiva" y ocultaba que hay DOS
+%% maniobras distintas con criterios distintos. Lo que se sabe hoy:
+%% -
+%% * DÓNDE SALTAN: el 81% de los escapes se dispara con la amenaza a 45-90 grados,
+%%   es decir en las ESQUINAS DELANTERAS del chasis, no de frente. La geometría
+%%   del disparo importa más que el umbral.
+%% -
+%% * EL GIRO EN K ELIGE SIN SABER: es el único escape que ignora lo que el robot
+%%   ya sabe. Elige su LADO sin consultar el plan (se opone al plan el 57% de las
+%%   veces, contra el 11% de la corrección lateral) y su DISTANCIA sin mirar el
+%%   espacio (son segundos fijos escogidos por el riesgo DE FRENTE: el caso
+%%   crítico pide 21.6 cm de recorrido contra un hueco TRASERO de 17 cm en la
+%%   mediana y 7 cm en el p10). El 24% de los retrocesos NO CABEN detrás.
+%% -
+%% * EL RETROCESO GIRA A MEDIO VOLANTE: rev_steer_deg = 44 grados de 85
+%%   disponibles, y cada episodio rota solo 14.4 grados. El tope max_escape_s NO
+%%   ES LA RESTRICCIÓN (se usan 0.75 s de 1.8), así que la única forma de ganar
+%%   rotación es ÁNGULO, no tiempo. Un tope no es una duración.
+%% -
+%% * EL BUCLE NO ES "SE SOLTÓ DEMASIADO PRONTO": medido, el patrón es "se liberó,
+%%   y volvió a meterse". Solo 1 de 52 redisparos ocurre antes de 1.0 s, la
+%%   holgura mediana al soltar es 0.545 m, y aun así el robot recorre 4-25 cm y
+%%   vuelve a chocar. Afinar el escape es ESFUERZO PERDIDO; lo que hay que
+%%   arreglar es la TRAYECTORIA a la que vuelve.
 
 flowchart TD
-    Risk{"¿El LIDAR detecta<br/>un peligro inminente<br/>adelante?"}
-    Risk -- "Sí" --> Escape[["Esquiva ante obstáculo"]]
-    Risk -- "No" --> Stuck{"¿Lleva un rato<br/>sin avanzar?"}
-    Stuck -- "Sí" --> StuckEscape["Ejecuta una maniobra<br/>para desatascarse"]
-    Stuck -- "No" --> Continue(["Sigue conduciendo<br/>con normalidad"])
-    Escape --> Continue
-    StuckEscape --> Continue
+    Risk{"¿El LIDAR detecta<br/>un peligro adelante?"}
+
+    Risk -- "No" --> Stuck{"¿Lleva 2 s sin<br/>avanzar 3 cm?"}
+    Risk -- "Sí" --> Where{"¿Dónde está<br/>la amenaza?"}
+
+    Where -- "A un lado<br/>(amenaza lateral)" --> Side["Corrección lateral:<br/>0.2 s de volante suave<br/>sin dejar de avanzar"]
+    Where -- "De frente<br/>(81% llega a 45-90 grados,<br/>o sea por las esquinas<br/>delanteras del chasis)" --> KTurn["Giro en K: retrocede<br/>girando a medio volante<br/>durante 0.54-1.08 s"]
+
+    KTurn --> Fit>"PUNTO DÉBIL MEDIDO: la duración se<br/>elige por el riesgo DE FRENTE, sin mirar<br/>el hueco DE ATRÁS. El 24% de estos<br/>retrocesos no caben detrás"]
+
+    Side --> Resume
+    Fit --> Attempts{"¿Van 3 escapes<br/>seguidos?"}
+    Attempts -- "Sí" --> Escalate["Escala: alarga la maniobra<br/>y prueba el otro lado"]
+    Attempts -- "No" --> Resume
+    Escalate --> Resume
+
+    Stuck -- "Sí" --> StuckEscape["Retrocede para<br/>desatascarse"]
+    Stuck -- "No" --> Resume
+
+    StuckEscape --> Resume(["Sigue conduciendo<br/>con normalidad"])
+
+    Resume --> Back>"Y aquí está el problema real: el escape<br/>SÍ libera al robot (holgura mediana de<br/>0.545 m al soltar), pero la trayectoria a<br/>la que vuelve lo mete otra vez. Se vuelve<br/>a chocar tras 4-25 cm"]

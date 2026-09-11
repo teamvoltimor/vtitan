@@ -8,6 +8,31 @@
 %% Fase 3 (vueltas) -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/conteo-vueltas.mmd
 %% Fase 4 (fin): core_navigator.py (_handle_finish) -- sin ParkController en Open Challenge
+%% -
+%% PRECISADO 2026-09-10. El nodo de conducción decía "ajustando la velocidad
+%% según el espacio libre adelante y el error de rumbo", lo cual es cierto pero
+%% esconde cómo funciona de verdad y por qué el robot va lento en las curvas:
+%% -
+%% EL LÍMITE DE RUMBO ES UN ESCALÓN, NO UNA RAMPA. src/config/navigation/motion/
+%% heading.toml fija crawl = 1.0 rad (~57 grados) y crawl_ramp_start = 0.0, o
+%% sea: por debajo de 57 grados de error de rumbo no hay penalización alguna, y
+%% por encima la velocidad cae de golpe al suelo de arrastre. No hay término
+%% medio. Medido, ese corte está activo entre el 44% y el 64% de la ronda, así
+%% que ES el límite de velocidad que manda en el Open, por encima del espacio
+%% libre adelante.
+%% -
+%% SUAVIZARLO ESTÁ REFUTADO, no pendiente: convertir el escalón en rampa se midió
+%% sobre 128 escenarios y dio -0.00 s de media más una carrera nueva en sentido
+%% inverso. La rampa es un PALIATIVO porque la causa está aguas arriba: el 58% de
+%% los ticks apuntan a un punto objetivo que exige 0.23 m de radio de giro contra
+%% un mínimo físico de 0.29 m. El chasis no puede tomar la curva que se le pide,
+%% acumula error de rumbo, y el escalón lo frena. Arreglar el punto objetivo es
+%% el arreglo; suavizar el freno no lo es.
+%% -
+%% ESTADO: el Open está funcionalmente completo -- 638/640 en simulación sobre
+%% un checkout limpio con cero colisiones, y dos rondas limpias de 3 vueltas en
+%% hardware, una por sentido. El riesgo restante es de COBERTURA, no de
+%% capacidad: el hardware ha visto 2 arranques y la simulación varía 640.
 
 flowchart TD
     Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> Fase1
@@ -19,8 +44,13 @@ flowchart TD
 
     BuildLap --> Drive
 
-    subgraph FASE_2["Fase 2 — Conducción normal"]
-        Drive["Sigue la ruta trazada,<br/>ajustando la velocidad según<br/>el espacio libre adelante<br/>y el error de rumbo"] --> Watch[["Vigilancia de colisión y atasco"]]
+    subgraph FASE_2["Fase 2 - Conducción normal"]
+        Drive["Sigue la ruta trazada"] --> SpeedClear["Elige velocidad según el<br/>espacio libre adelante:<br/>cuanto menos hueco, más lento"]
+        SpeedClear --> HeadCheck{"¿El error de rumbo<br/>supera 57 grados?"}
+        HeadCheck -- "Sí" --> Crawl["Cae de golpe al suelo<br/>de arrastre (no es una<br/>rampa: es un escalón)"]
+        HeadCheck -- "No" --> Full["Mantiene la velocidad<br/>que pidió el espacio libre:<br/>por debajo de 57 grados<br/>no hay penalización"]
+        Crawl --> Watch
+        Full --> Watch[["Vigilancia de colisión y atasco"]]
         Watch --> WPCheck
     end
 
@@ -32,7 +62,7 @@ flowchart TD
     LapsDone -- "No" --> Drive
     LapsDone -- "Sí" --> Finish
 
-    subgraph FASE_4["Fase 4 — Fin (sin estacionamiento)"]
+    subgraph FASE_4["Fase 4 - Fin (sin estacionamiento)"]
         Finish["Se detiene por completo.<br/>El Open Challenge no tiene<br/>maniobra final"]
     end
 

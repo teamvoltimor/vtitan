@@ -27,6 +27,14 @@ Fuente Mermaid en `schemes/flowcharts/open/mermaid/`, renders WebP en `schemes/f
 ## Notas
 
 - El robot **siempre** empieza sin conocer la dirección de la pista: la Fase 1 es obligatoria en todo Open Challenge, no opcional. Avanza centrado entre paredes mientras acumula votos por asimetría izquierda/derecha hasta que el mismo lado gana 5 lecturas seguidas.
+- A diferencia del Obstacle Challenge, el Open **no arranca dentro de la bahía**: no hay Fase 0 de salida del hueco.
 - El Open Challenge **nunca** construye un enrutador de señales ni un controlador de estacionamiento, por lo que la conducción normal simplemente omite esas ramas.
 - Al completar las 3 vueltas, el robot no tiene ninguna maniobra de estacionamiento que ejecutar: se detiene por completo y de forma indefinida.
 - La selección de sentido de giro es puramente reactiva (asimetría del espacio libre lateral) y no depende del tipo de desafío - por eso vive en `common/` en vez de duplicarse.
+
+### El límite de velocidad real (precisado 2026-09-10)
+
+- **El freno por rumbo es un escalón, no una rampa.** `motion/heading.toml` fija `crawl = 1.0` rad (~57°) y `crawl_ramp_start = 0.0`: por debajo de 57° de error de rumbo no hay penalización alguna, y por encima la velocidad cae de golpe al suelo de arrastre. Medido, ese corte está activo entre el **44% y el 64% de la ronda**, así que es el límite que manda en el Open, por encima del espacio libre adelante.
+- **Suavizarlo está refutado, no pendiente.** Convertir el escalón en rampa se midió sobre 128 escenarios: -0.00 s de media, más una carrera nueva en sentido inverso. Una reproducción de bag no es una decisión.
+- **La causa está aguas arriba.** El 58% de los ticks apuntan a un punto objetivo que exige 0.23 m de radio de giro contra un mínimo físico de 0.29 m: el chasis no puede tomar la curva que se le pide, acumula error de rumbo, y el escalón lo frena. Arreglar el punto objetivo es el arreglo; suavizar el freno es un paliativo.
+- **Estado:** el Open está funcionalmente completo - 638/640 en simulación sobre un checkout limpio con cero colisiones, y dos rondas limpias de 3 vueltas en hardware, una por sentido. El riesgo restante es de **cobertura**, no de capacidad: el hardware ha visto 2 arranques y la simulación varía 640.

@@ -1,26 +1,67 @@
 %% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
+%% Salida de la bahía: src/python/src/navigation/bay_exit.py, invocado desde
+%%   corridor_follower.py::follow_corridor() y track_navigator_node.py (rama
+%%   ASSUME_BAY_START). Constantes: bay_exit_* en
+%%   src/config/navigation/blind_nav/corridor_follower.toml
 %% Fase 1 (inferir dirección) -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/inferencia-direccion.mmd
 %% SignRouter: src/python/src/navigation/planning/sign_router/
 %%   descubrimiento en vivo: src/python/src/navigation/planning/sign_discovery.py (ObservedSignMap)
 %%   selección de señal activa: SignRouter._active_sign_candidates()
-%%   deformación del waypoint y regla rojo/verde: ver schemes/flowcharts/obstacles/mermaid/regla-senales.mmd
+%%   regla de paso y carril: ver schemes/flowcharts/obstacles/mermaid/regla-senales.mmd
 %%   enmascarado de LIDAR: mask_mapped_obstacles() (control/controllers), escape_mask_radius_m = 0.12 m
-%%     -- src/config/navigation/signs/sign_router.toml
 %%   rearme por vuelta: SignRouter.reset_for_new_lap()
 %% Vigilancia de colisión/atasco -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/escape-colision.mmd
 %% Conteo de vueltas -- detalle común en:
 %%   schemes/flowcharts/common/mermaid/conteo-vueltas.mmd
 %% Continúa en: schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd
-%% Nota: incluso en la Fase 1, antes de fijar la dirección, una señal roja o
-%% verde en el camino se esquiva por su lado correcto -- la regla no depende
-%% del sentido de la vuelta (mismo eje/multiplicador para CW y CCW en
-%% sign_router.py::_ROUTING_TABLE). Ver detalle completo en
-%% common/mermaid/inferencia-direccion.mmd.
+%% -
+%% ACTUALIZADO 2026-09-10, dos cambios:
+%% -
+%% 1) FALTABA EL ARRANQUE DESDE LA BAHÍA. Desde 2026-09-05 el Obstacle Challenge
+%%    arranca DENTRO del hueco de estacionamiento por defecto
+%%    (assume_bay_start = true): es el arranque que vale 7 puntos. Antes de
+%%    poder inferir nada el robot tiene que salir del hueco, y esa maniobra no
+%%    aparecía en ningún diagrama. Nótese que ASUMIR la bahía es seguro aunque
+%%    sea falso: un arranque en paralelo tiene espacio libre adelante y la
+%%    creencia se descarta en el tick siguiente.
+%% -
+%% 2) LA NOTA SOBRE LA REGLA DE COLOR ERA FALSA. Decía que incluso en la Fase 1,
+%%    antes de fijar la dirección, una señal se esquiva por su lado correcto
+%%    "porque la regla no depende del sentido de la vuelta". La regla SÍ depende
+%%    del sentido (WRO 2026 9.19, y ROUTING_TABLE tiene filas opuestas por
+%%    sentido), y pass_side_lateral_axis() devuelve None sin dirección asentada.
+%%    Durante la Fase 1 una señal se esquiva como obstáculo genérico.
+%% -
+%% La salida de la bahía es un TRINQUETE contra la pared exterior: piernas
+%% alternas adelante/atrás a tope de volante, con el volante ESPEJADO en el
+%% retroceso -- sin espejar, el retroceso rehace el arco de la ida y la maniobra
+%% se vuelve un péndulo que no rota (resuelto 2026-09-10: 62.2 s -> 24.1 s solo
+%% con el espejo, y 10.4 s con el presupuesto de frenado medido). Cada pierna se
+%% corta por CLEARANCE PREDICHA contra las aletas, no por contacto: terminar una
+%% pierna tocando una aleta ES la violación 9.24.7 y anula los puntos de
+%% estacionamiento. El criterio de salida es la ROTACIÓN acumulada
+%% (bay_exit_target_yaw_deg = 70), no el espacio libre adelante: dentro del
+%% hueco la pared cae por debajo del rango mínimo del LIDAR y no se mide nada.
 
 flowchart TD
-    Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> Fase1
+    Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> InBay{"¿Está dentro del hueco<br/>de estacionamiento?<br/>(se asume que sí)"}
+
+    InBay -- "No: hay espacio<br/>libre adelante" --> Fase1
+    InBay -- "Sí" --> BayExit
+
+    subgraph FASE_0["Fase 0 - Salir de la bahía (solo Obstacle Challenge)"]
+        BayExit["Gira el volante a tope<br/>y avanza un tramo corto"] --> Guard{"¿La pierna dejaría al<br/>chasis demasiado cerca<br/>de una aleta?"}
+        Guard -- "Sí" --> Flip["Descarta esa pierna e<br/>invierte el sentido de marcha"]
+        Guard -- "No" --> Move["Ejecuta la pierna"]
+        Flip --> Mirror
+        Move --> Mirror["Al invertir, ESPEJA el volante:<br/>sin espejo el retroceso rehace<br/>el arco de ida y no se rota"]
+        Mirror --> YawCheck{"¿Ya rotó 70 grados<br/>desde la posición<br/>de arranque?"}
+        YawCheck -- "No" --> BayExit
+    end
+
+    YawCheck -- "Sí" --> Fase1
 
     Fase1[["Inferencia de dirección"]] --> Commit["Fija la dirección<br/>y ubica al robot en la pista"]
     Commit --> StartPose["Mide con precisión<br/>la posición de arranque"]
@@ -30,7 +71,7 @@ flowchart TD
 
     BuildLap --> Drive
 
-    subgraph FASE_2["Fase 2 — Conducción y esquiva de señales"]
+    subgraph FASE_2["Fase 2 - Conducción y esquiva de señales"]
         Drive["Sigue la ruta trazada"] --> Discover["La cámara detecta señales<br/>nuevas y las añade<br/>al mapa de señales"]
         Discover --> Candidate["Elige la señal activa más<br/>cercana que aún no ha pasado"]
         Candidate --> HasSign{"¿Hay una señal<br/>activa cerca?"}
@@ -44,10 +85,10 @@ flowchart TD
     WPCheck -- "No" --> Drive
     WPCheck -- "Sí, y cerró<br/>la vuelta de la ruta" --> LapPhase
 
-    subgraph FASE_3["Fase 3 — Contar vueltas"]
+    subgraph FASE_3["Fase 3 - Contar vueltas"]
         LapPhase[["Conteo de vueltas"]] --> Rearm["Vuelve a habilitar todas<br/>las señales para<br/>la siguiente vuelta"]
     end
 
     Rearm --> LapsDone{"¿Ya completó<br/>las 3 vueltas?"}
     LapsDone -- "No" --> Drive
-    LapsDone -- "Sí" --> Next(["Continúa en:<br/>Parte 2 — Estacionamiento"])
+    LapsDone -- "Sí" --> Next(["Continúa en:<br/>Parte 2 - Final de carrera"])
