@@ -9,11 +9,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	navnode "github.com/teamvoltimor/vtitan/src/go/internal/node/nav"
-	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
@@ -184,7 +184,7 @@ func TestParity_NavigatorVsBag(t *testing.T) {
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Waypoints:         path,
-		Direction:         func() *trackmodel.Direction { d := direction; return &d }(),
+		Direction:         new(direction),
 		Config:            navigator.DefaultConfig(),
 		ControllersConfig: controllers.DefaultConfig(),
 	})

@@ -20,6 +20,11 @@ import (
 // live rather than making them all wait on it.
 const sendBufferSize = 256
 
+// encodingProtobuf is the Foxglove wire-encoding name this bridge advertises
+// and stamps on every message (the Foxglove WebSocket protocol's
+// "protobuf" encoding).
+const encodingProtobuf = "protobuf"
+
 // client is one connected Foxglove Studio session: its own subscription
 // state (which channel IDs it wants, keyed by the SUBSCRIPTION id it
 // assigned, per the protocol) and a bounded outbound frame queue drained
@@ -178,7 +183,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 		Op:                 "serverInfo",
 		Name:               serverName,
 		Capabilities:       []string{},
-		SupportedEncodings: []string{"protobuf"},
+		SupportedEncodings: []string{encodingProtobuf},
 	}
 	infoData, err := json.Marshal(info)
 	if err != nil {
@@ -217,10 +222,10 @@ func advertiseFrame(channels []*channel) wireFrame {
 		wire[i] = wireChannel{
 			ID:             ch.id,
 			Topic:          ch.topic,
-			Encoding:       "protobuf",
+			Encoding:       encodingProtobuf,
 			SchemaName:     ch.schemaName,
 			Schema:         ch.schemaBase64,
-			SchemaEncoding: "protobuf",
+			SchemaEncoding: encodingProtobuf,
 		}
 	}
 	data, err := json.Marshal(advertiseMessage{Op: "advertise", Channels: wire})

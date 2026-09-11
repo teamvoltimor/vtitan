@@ -126,8 +126,12 @@ func (r *SignRouter) AppendSign(spec SignSpec) int {
 // with, matching the TrackDimensions CORNER_MIN/CORNER_MAX values the Python
 // ObservedSignMap.corridor_for_position uses. Discovery's robot-corridor
 // gating needs them.
-func (r *SignRouter) cornerMinM() float64 { return r.config.TrackCornerMinM }
-func (r *SignRouter) cornerMaxM() float64 { return r.config.TrackCornerMaxM }
+func (r *SignRouter) cornerMinM() float64 {
+	return r.config.TrackCornerMinM
+}
+func (r *SignRouter) cornerMaxM() float64 {
+	return r.config.TrackCornerMaxM
+}
 
 // LaneSpecs returns every routed sign paired with the corridor label the
 // router uses for it, matching the lane_specs property. Passed signs are

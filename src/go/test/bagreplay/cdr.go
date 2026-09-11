@@ -15,6 +15,10 @@ const cdrHeaderLen = 4
 // sequence or string with.
 const cdrLengthLen = 4
 
+// cdrStringLengthEnd is where a std_msgs/String's uint32 length begins:
+// after the encapsulation header plus the length prefix itself.
+const cdrStringLengthEnd = cdrHeaderLen + cdrLengthLen
+
 // CDR representation identifiers. ROS2's rmw emits little-endian on every
 // platform this project runs on, but the big-endian encoding is legal and
 // costs one branch to honor rather than silently mis-decode.
@@ -62,21 +66,20 @@ func DecodeStdMsgsString(data []byte) (string, error) {
 		return "", err
 	}
 
-	const lengthEnd = cdrHeaderLen + cdrLengthLen
-	if len(data) < lengthEnd {
+	if len(data) < cdrStringLengthEnd {
 		return "", fmt.Errorf("%w: %d bytes, need %d for the string length",
-			ErrShortMessage, len(data), lengthEnd)
+			ErrShortMessage, len(data), cdrStringLengthEnd)
 	}
-	length := order.Uint32(data[cdrHeaderLen:lengthEnd])
+	length := order.Uint32(data[cdrHeaderLen:cdrStringLengthEnd])
 	if length == 0 {
 		return "", fmt.Errorf("%w: string length 0, which cannot include a NUL terminator", ErrShortMessage)
 	}
 
-	end := uint64(lengthEnd) + uint64(length)
+	end := uint64(cdrStringLengthEnd) + uint64(length)
 	if uint64(len(data)) < end {
 		return "", fmt.Errorf("%w: string declares %d bytes, only %d remain",
-			ErrShortMessage, length, len(data)-lengthEnd)
+			ErrShortMessage, length, len(data)-cdrStringLengthEnd)
 	}
 	// length counts the NUL; the payload is everything before it.
-	return string(data[lengthEnd : end-1]), nil
+	return string(data[cdrStringLengthEnd : end-1]), nil
 }

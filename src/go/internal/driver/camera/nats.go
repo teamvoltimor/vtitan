@@ -39,9 +39,7 @@ func (d *NATSSourceDriver) Open(_ context.Context) error {
 // BindConn attaches a NATS subscription to the configured subject. Called once
 // before Open, after a connection is established.
 func (d *NATSSourceDriver) BindConn(conn *natsio.Conn) error {
-	sub, err := nats.NewSubscriber(conn, d.cfg.NATSSubject, func() *sensorv1.CameraFrame {
-		return &sensorv1.CameraFrame{}
-	})
+	sub, err := nats.NewSubscriber[sensorv1.CameraFrame](conn, d.cfg.NATSSubject)
 	if err != nil {
 		return err
 	}

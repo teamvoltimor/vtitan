@@ -40,7 +40,9 @@ var sections = [...]trackmodel.Section{
 	trackmodel.North, trackmodel.South, trackmodel.East, trackmodel.West,
 }
 
-func (v votes) total() int { return v.narrow + v.wide }
+func (v votes) total() int {
+	return v.narrow + v.wide
+}
 
 // WithFixedWidth pins every corridor to the assumed width, for a challenge
 // whose width is a KNOWN CONSTANT rather than a prior.

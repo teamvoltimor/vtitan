@@ -154,10 +154,12 @@ func (l *Layout) Update(
 	path, err := waypoints.PlanBelievedPath(
 		l.base,
 		geometry,
-		direction,
-		section,
-		trackmodel.Waypoint{X: pose.X, Y: pose.Y},
-		pose.Yaw,
+		waypoints.StartingConditions{
+			Direction: direction,
+			Section:   section,
+			Position:  trackmodel.Waypoint{X: pose.X, Y: pose.Y},
+			Yaw:       pose.Yaw,
+		},
 		l.cfg,
 		l.centerBiasM,
 		unconfirmed,

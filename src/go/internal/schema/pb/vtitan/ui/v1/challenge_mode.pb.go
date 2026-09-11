@@ -238,7 +238,9 @@ var file_vtitan_ui_v1_challenge_mode_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_vtitan_ui_v1_challenge_mode_proto_init() }
+func init() {
+	file_vtitan_ui_v1_challenge_mode_proto_init()
+}
 func file_vtitan_ui_v1_challenge_mode_proto_init() {
 	if File_vtitan_ui_v1_challenge_mode_proto != nil {
 		return

@@ -8,9 +8,11 @@ import (
 
 // roundMM rounds v to millimeter precision (3 decimal places), matching
 // every Waypoint constructor in the Python original's round(x, 3).
+// mmPlaces is the millimeter rounding multiplier: round(v * 1000) / 1000.
+const mmPlaces = 1000.0
+
 func roundMM(v float64) float64 {
-	const places = 1000.0
-	return math.Round(v*places) / places
+	return math.Round(v*mmPlaces) / mmPlaces
 }
 
 // CornerArcRadius is the largest arc radius at one corner that costs no

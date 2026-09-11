@@ -31,7 +31,7 @@ func newGocvVideoSink(path string, fps float64) (*gocvVideoSink, error) {
 // Write encodes f as a BGR frame (OpenCV expects BGR; rgb8 is converted). The
 // writer is lazily created on the first frame so dimensions are known.
 func (s *gocvVideoSink) Write(f *Frame, _ HudOverlay) error {
-	if f.Encoding != "rgb8" {
+	if f.Encoding != EncodingRGB8 {
 		return fmt.Errorf("recording: gocv video wants rgb8, got %q", f.Encoding)
 	}
 	if s.writer == nil {

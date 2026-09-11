@@ -203,7 +203,9 @@ var file_vtitan_sensor_v1_scan_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_vtitan_sensor_v1_scan_proto_init() }
+func init() {
+	file_vtitan_sensor_v1_scan_proto_init()
+}
 func file_vtitan_sensor_v1_scan_proto_init() {
 	if File_vtitan_sensor_v1_scan_proto != nil {
 		return

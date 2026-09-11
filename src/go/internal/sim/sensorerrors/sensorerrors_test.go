@@ -8,7 +8,9 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
-func newRNG() *rand.Rand { return rand.New(rand.NewPCG(1, 2)) }
+func newRNG() *rand.Rand {
+	return rand.New(rand.NewPCG(1, 2))
+}
 
 // TestErrors_AnyIsFalseOnlyForAPerfectRobot pins the discriminator the
 // gateway uses to decide whether to build a model at all. A false negative

@@ -84,9 +84,13 @@ func (w *cdrWriter) writeU32(v uint32) {
 	w.buf = binary.LittleEndian.AppendUint32(w.buf, v)
 }
 
-func (w *cdrWriter) writeI32(v int32) { w.writeU32(uint32(v)) }
+func (w *cdrWriter) writeI32(v int32) {
+	w.writeU32(uint32(v))
+}
 
-func (w *cdrWriter) writeF32(v float32) { w.writeU32(math.Float32bits(v)) }
+func (w *cdrWriter) writeF32(v float32) {
+	w.writeU32(math.Float32bits(v))
+}
 
 func (w *cdrWriter) writeF64(v float64) {
 	w.align(8)

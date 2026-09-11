@@ -10,13 +10,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
-func f64(v float64) *float64                                 { return &v }
-func iptr(v int) *int                                        { return &v }
-func bptr(v bool) *bool                                      { return &v }
-func dirPtr(v trackmodel.Direction) *trackmodel.Direction    { return &v }
-func secPtr(v trackmodel.Section) *trackmodel.Section        { return &v }
-func riskPtr(v controllers.RiskLevel) *controllers.RiskLevel { return &v }
-
 // TestNavDebugWire_RoundTripsThroughTheBagReader is the contract that makes
 // a simulated run readable by the PYTHON bag-analysis suite.
 //
@@ -31,26 +24,26 @@ func TestNavDebugWire_RoundTripsThroughTheBagReader(t *testing.T) {
 
 	snap := navigator.DebugSnapshot{
 		Phase:              navigator.PhaseNormalDrive,
-		PoseX:              f64(1.25),
-		PoseY:              f64(0.303),
-		PoseYaw:            f64(3.14),
-		Direction:          dirPtr(trackmodel.Clockwise),
-		CurrentCorridor:    secPtr(trackmodel.South),
-		WaypointIndex:      iptr(7),
+		PoseX:              new(1.25),
+		PoseY:              new(0.303),
+		PoseYaw:            new(3.14),
+		Direction:          new(trackmodel.Clockwise),
+		CurrentCorridor:    new(trackmodel.South),
+		WaypointIndex:      new(7),
 		LapsCompleted:      2,
 		NumLaps:            3,
-		IsStuck:            bptr(false),
-		StuckCount:         iptr(1),
-		RecentMovementM:    f64(0.42),
-		ForwardClearanceM:  f64(1.1),
-		MinLidarRangeM:     f64(0.15),
-		Risk:               riskPtr(controllers.RiskObstacle),
-		CrosstrackErrorM:   f64(-0.06),
-		LookaheadDistance:  f64(0.32),
-		AngleErrorRad:      f64(0.21),
-		CommandedSpeedMPS:  f64(0.38),
-		CommandedSteerNorm: f64(-0.5),
-		EscapeCount:        iptr(4),
+		IsStuck:            new(false),
+		StuckCount:         new(1),
+		RecentMovementM:    new(0.42),
+		ForwardClearanceM:  new(1.1),
+		MinLidarRangeM:     new(0.15),
+		Risk:               new(controllers.RiskObstacle),
+		CrosstrackErrorM:   new(-0.06),
+		LookaheadDistance:  new(0.32),
+		AngleErrorRad:      new(0.21),
+		CommandedSpeedMPS:  new(0.38),
+		CommandedSteerNorm: new(-0.5),
+		EscapeCount:        new(4),
 	}
 
 	raw, err := snap.MarshalWireJSON()

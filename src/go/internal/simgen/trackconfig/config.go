@@ -78,6 +78,10 @@ type (
 
 	// Sign holds the traffic pillar dimensions, grid rows and colours.
 	Sign struct {
+		RedColor                RGB             `toml:"red_color"`
+		GreenColor              RGB             `toml:"green_color"`
+		RedColorStd             RGB             `toml:"red_std"`
+		GreenColorStd           RGB             `toml:"green_std"`
 		Width                   decimal.Decimal `toml:"width"`
 		Depth                   decimal.Decimal `toml:"depth"`
 		Height                  decimal.Decimal `toml:"height"`
@@ -88,10 +92,6 @@ type (
 		PlacementCircleDiameter decimal.Decimal `toml:"placement_circle_diameter"`
 		MinCount                int             `toml:"min_count"`
 		MaxCount                int             `toml:"max_count"`
-		RedColor                RGB             `toml:"red_color"`
-		GreenColor              RGB             `toml:"green_color"`
-		RedColorStd             RGB             `toml:"red_std"`
-		GreenColorStd           RGB             `toml:"green_std"`
 	}
 
 	// Parking holds the magenta block dimensions and bay sizing.
@@ -239,7 +239,7 @@ func (c Config) Validate(robotWidth decimal.Decimal) error {
 
 // Load reads, parses and validates the track.toml config at path.
 func Load(path string, robotWidth decimal.Decimal) (*Config, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path is a build-time flag, not user input
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}

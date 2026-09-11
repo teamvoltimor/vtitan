@@ -175,10 +175,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	imuSub, err := nats.NewSubscriber(
+	imuSub, err := nats.NewSubscriber[sensorv1.Imu](
 		conn,
 		sensorv1.ImuSubject,
-		func() *sensorv1.Imu { return &sensorv1.Imu{} },
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
@@ -189,10 +188,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	scanSub, err := nats.NewSubscriber(
+	scanSub, err := nats.NewSubscriber[sensorv1.Scan](
 		conn,
 		sensorv1.ScanSubject,
-		func() *sensorv1.Scan { return &sensorv1.Scan{} },
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context

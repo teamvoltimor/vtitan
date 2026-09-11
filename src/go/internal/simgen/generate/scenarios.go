@@ -93,16 +93,15 @@ func ApplyScenarioToSection(scenarioID int, section simconfig.Section) ([]Scenar
 	entries := scenarios[scenarioID]
 	out := make([]ScenarioPillar, len(entries))
 
-	const trackMax = simconfig.TrackMaxCoord
 	for i, e := range entries {
 		var wx, wy float64
 		switch section {
 		case simconfig.SectionSouth:
 			wx, wy = e.x, e.y
 		case simconfig.SectionNorth:
-			wx, wy = e.x, trackMax-e.y
+			wx, wy = e.x, simconfig.TrackMaxCoord-e.y
 		case simconfig.SectionEast:
-			wx, wy = trackMax-e.y, e.x
+			wx, wy = simconfig.TrackMaxCoord-e.y, e.x
 		case simconfig.SectionWest:
 			wx, wy = e.y, e.x
 		default:

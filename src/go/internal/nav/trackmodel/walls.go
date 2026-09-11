@@ -73,7 +73,9 @@ func NewRayFan(anglesRobot []float64) *RayFan {
 }
 
 // Len is the number of rays in the fan.
-func (f *RayFan) Len() int { return len(f.angles) }
+func (f *RayFan) Len() int {
+	return len(f.angles)
+}
 
 // Direction rotates ray i from the robot frame into the world frame, given the
 // cos/sin of the body yaw. The caller computes those once per scan and passes
@@ -151,10 +153,14 @@ func (w *TrackWalls) RaycastFan(
 }
 
 // MinCoord is the track's outer boundary minimum (m), on both axes.
-func (w *TrackWalls) MinCoord() float64 { return w.minCoord }
+func (w *TrackWalls) MinCoord() float64 {
+	return w.minCoord
+}
 
 // MaxCoord is the track's outer boundary maximum (m), on both axes.
-func (w *TrackWalls) MaxCoord() float64 { return w.maxCoord }
+func (w *TrackWalls) MaxCoord() float64 {
+	return w.maxCoord
+}
 
 // PointInFreeSpace reports whether (x, y) is in the navigable ring with
 // clearance margin: inside the track's outer boundary and outside the

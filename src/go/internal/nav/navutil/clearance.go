@@ -92,13 +92,16 @@ func WedgeMedian(
 	return median(valid), true
 }
 
+// medianEvenDivisor splits a sorted slice into left/right halves when
+// averaging the two middle values.
+const medianEvenDivisor = 2
+
 // median computes the median of values, which is mutated (sorted) in place.
 func median(values []float64) float64 {
 	sort.Float64s(values)
 	n := len(values)
-	const evenDivisor = 2
-	if n%evenDivisor == 1 {
-		return values[n/evenDivisor]
+	if n%medianEvenDivisor == 1 {
+		return values[n/medianEvenDivisor]
 	}
-	return (values[n/evenDivisor-1] + values[n/evenDivisor]) / evenDivisor
+	return (values[n/medianEvenDivisor-1] + values[n/medianEvenDivisor]) / medianEvenDivisor
 }

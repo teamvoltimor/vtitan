@@ -7,6 +7,12 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// startKey is the (section, direction) pair a starting yaw is looked up by.
+type startKey struct {
+	s simconfig.Section
+	d simconfig.Direction
+}
+
 // Randomizer generates all stochastic parameters for a WRO 2026 scenario.
 // A single seeded *rand.Rand drives all randomness so generation is reproducible.
 // Note: seed-for-seed output does not match the Python generator (Python uses
@@ -229,11 +235,7 @@ func (r *Randomizer) computeSecondBlockDepth(depth, spacing float64) float64 {
 // computeStartingYaw calculates the robot's initial yaw angle based on its corridor and traversal direction.
 func computeStartingYaw(section simconfig.Section, direction simconfig.Direction) float64 {
 	halfPi := math.Pi / 2
-	type key struct {
-		s simconfig.Section
-		d simconfig.Direction
-	}
-	yawMap := map[key]float64{
+	yawMap := map[startKey]float64{
 		{simconfig.SectionSouth, simconfig.DirectionClockwise}:        math.Pi,
 		{simconfig.SectionSouth, simconfig.DirectionCounterClockwise}: 0.0,
 		{simconfig.SectionNorth, simconfig.DirectionClockwise}:        0.0,
@@ -243,7 +245,7 @@ func computeStartingYaw(section simconfig.Section, direction simconfig.Direction
 		{simconfig.SectionWest, simconfig.DirectionClockwise}:         halfPi,
 		{simconfig.SectionWest, simconfig.DirectionCounterClockwise}:  -halfPi,
 	}
-	return yawMap[key{section, direction}]
+	return yawMap[startKey{section, direction}]
 }
 
 // parkingPositionsForSection computes the world coordinates of the two parking blocks for a given section.

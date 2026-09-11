@@ -24,6 +24,9 @@ const (
 	West
 )
 
+// corridorSectionCount is the number of navigable corridors on the track.
+const corridorSectionCount = 4
+
 // LoopOrder returns the four corridors in traversal order with startSection
 // first, matching shared.domain.enums.Section.loop_order. The internal
 // absolute order is anchored at East (the start/finish line sits on the east
@@ -50,8 +53,7 @@ func (g CorridorGeometry) MinWidthM() float64 {
 
 // MeanWidthM returns the mean corridor width across all four sides.
 func (g CorridorGeometry) MeanWidthM() float64 {
-	const sides = 4
-	return (g.NorthWidthM + g.SouthWidthM + g.EastWidthM + g.WestWidthM) / sides
+	return (g.NorthWidthM + g.SouthWidthM + g.EastWidthM + g.WestWidthM) / corridorSectionCount
 }
 
 // ToWidthsDict returns the corridor widths keyed by their section, matching

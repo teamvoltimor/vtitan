@@ -117,12 +117,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	sub, err := nats.NewSubscriber(
+	sub, err := nats.NewSubscriber[actuationv1.AckermannCmd](
 		conn,
 		actuationv1.AckermannCmdSubject,
-		func() *actuationv1.AckermannCmd {
-			return &actuationv1.AckermannCmd{}
-		},
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
@@ -156,6 +153,26 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	return nil
 }
 
+// noTeardown is the no-op teardown returned when encoder feedback is not
+// configured, so the caller can defer it unconditionally.
+func noTeardown() {}
+
+// encoderFeedback owns the background JointStates publishing loop started by
+// startEncoderFeedback and its teardown.
+type encoderFeedback struct {
+	done   chan struct{}
+	enc    *encoder.Quadrature
+	logger *slog.Logger
+}
+
+// Teardown waits for the feedback loop to finish and closes the encoder.
+func (f *encoderFeedback) Teardown() {
+	<-f.done
+	if closeErr := f.enc.Close(); closeErr != nil {
+		f.logger.Error("motor-node: closing wheel encoder", "error", closeErr)
+	}
+}
+
 // startEncoderFeedback connects the wheel encoder and starts publishing
 // JointStates, returning the teardown to defer.
 //
@@ -176,7 +193,7 @@ func startEncoderFeedback(
 	if err != nil {
 		logger.Warn("motor-node: no wheel encoder configured, not publishing joint_states",
 			"error", err)
-		return func() {}, nil
+		return noTeardown, nil
 	}
 
 	enc, err := encoder.New(encCfg)
@@ -190,9 +207,9 @@ func startEncoderFeedback(
 	jointPub := nats.NewPublisher[*actuationv1.JointStates](conn, actuationv1.JointStatesSubject)
 	feedback := nodemotor.NewFeedback(logger, enc, jointPub, nodemotor.DefaultFeedbackInterval)
 
-	done := make(chan struct{})
+	fb := &encoderFeedback{done: make(chan struct{}), enc: enc, logger: logger}
 	go func() {
-		defer close(done)
+		defer close(fb.done)
 		if runErr := feedback.Run(ctx); runErr != nil {
 			logger.Error("motor-node: encoder feedback loop", "error", runErr)
 		}
@@ -202,12 +219,7 @@ func startEncoderFeedback(
 		"pin_a", encCfg.PinA, "pin_b", encCfg.PinB,
 		"counts_per_rev", encCfg.CountsPerRev)
 
-	return func() {
-		<-done
-		if closeErr := enc.Close(); closeErr != nil {
-			logger.Error("motor-node: closing wheel encoder", "error", closeErr)
-		}
-	}, nil
+	return fb.Teardown, nil
 }
 
 func main() {

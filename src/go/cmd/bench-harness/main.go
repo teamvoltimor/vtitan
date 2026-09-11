@@ -17,6 +17,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 type harnessConfig struct {
@@ -24,6 +25,9 @@ type harnessConfig struct {
 	cpuprofile string
 	memprofile string
 }
+
+// benchNumRays is the synthetic LIDAR ray count the harness benchmarks with.
+const benchNumRays = 360
 
 func main() {
 	cfg := &harnessConfig{}
@@ -67,9 +71,8 @@ func run(cfg *harnessConfig) error {
 	tm := benchTrackModel()
 	k := benchKinematics()
 
-	const numRays = 360
-	angles := make([]float64, numRays)
-	stepAng := 2 * math.Pi / float64(numRays)
+	angles := make([]float64, benchNumRays)
+	stepAng := 2 * math.Pi / float64(benchNumRays)
 	for i := range angles {
 		angles[i] = -math.Pi + float64(i)*stepAng
 	}
@@ -105,21 +108,19 @@ func run(cfg *harnessConfig) error {
 }
 
 func benchTrackGeometry() trackmodel.CorridorGeometry {
-	const maxCoord = 3.0
 	return trackmodel.CorridorGeometryFromWidths(map[trackmodel.Section]float64{
 		trackmodel.North: 0.6,
 		trackmodel.South: 0.6,
 		trackmodel.East:  0.6,
 		trackmodel.West:  0.6,
-	}, maxCoord)
+	}, simconfig.TrackMaxCoord)
 }
 
 func benchTrackModel() *collision.TrackModel {
-	const maxCoord = 3.0
 	return collision.NewTrackModel(collision.NewTrackModelParams{
 		Geometry:           benchTrackGeometry(),
 		MinCoordM:          0.0,
-		MaxCoordM:          maxCoord,
+		MaxCoordM:          simconfig.TrackMaxCoord,
 		Obstacles:          nil,
 		LidarSeesObstacles: false,
 		CollisionMarginM:   0.0,

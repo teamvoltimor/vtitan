@@ -127,16 +127,24 @@ func (t *RaceTracker) IncrementLap() {
 }
 
 // RecordEscapeManeuver records an escape maneuver (K-turn and similar).
-func (t *RaceTracker) RecordEscapeManeuver() { t.metrics.EscapeManeuvers++ }
+func (t *RaceTracker) RecordEscapeManeuver() {
+	t.metrics.EscapeManeuvers++
+}
 
 // RecordStuckDetection records a stuck-robot detection.
-func (t *RaceTracker) RecordStuckDetection() { t.metrics.StuckDetections++ }
+func (t *RaceTracker) RecordStuckDetection() {
+	t.metrics.StuckDetections++
+}
 
 // RecordCollisionWarning records a high-risk collision scenario.
-func (t *RaceTracker) RecordCollisionWarning() { t.metrics.CollisionWarnings++ }
+func (t *RaceTracker) RecordCollisionWarning() {
+	t.metrics.CollisionWarnings++
+}
 
 // IsRaceComplete reports whether every lap has been completed.
-func (t *RaceTracker) IsRaceComplete() bool { return t.metrics.CompletedLaps >= t.numLaps }
+func (t *RaceTracker) IsRaceComplete() bool {
+	return t.metrics.CompletedLaps >= t.numLaps
+}
 
 // Metrics returns the current metrics. LapSplits is cloned so a caller
 // cannot mutate the tracker's own slice through the returned value.

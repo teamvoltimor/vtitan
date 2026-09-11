@@ -157,12 +157,19 @@ def main() -> None:
         print(f"      net POSE displacement {displacement:6.3f} m")
 
         # 3. Did the sign lane ever have a claim here?
-        committed = sum(1 for _, d in held if getattr(d, "committed_sign_x", None) is not None)
+        # committed_sign_X_M, with the unit suffix. Without it getattr returns
+        # None on every tick and the count is a trivial zero that reads exactly
+        # like the router never engaging -- which is what it was first reported
+        # as. Any null here needs the control below beside it.
+        committed = sum(1 for _, d in held if d.committed_sign_x_m is not None)
+        ever = sum(1 for _, d in rows if d.committed_sign_x_m is not None)
         signs = [d.active_sign_count for _, d in held if d.active_sign_count is not None]
         print()
         print("   3. DID THE ROUTER HOLD A SIGN THROUGH IT?")
         print(f"      ticks with a committed sign : {committed}/{len(held)}"
               f"  ({100 * committed / len(held):.0f}%)")
+        print(f"      CONTROL, over the whole run : {ever}/{len(rows)}"
+              f"  ({100 * ever / len(rows):.0f}%)   <- a zero here means the field, not the router")
         if signs:
             print(f"      believed sign count         : p50 {percentile(signs, 0.5):.0f}  "
                   f"max {max(signs)}   (the track holds at most 8)")

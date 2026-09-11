@@ -17,5 +17,9 @@ func newMJPEGAVISinkOrCgo(path string, _ float64) VideoSink {
 // errSink is a VideoSink that always returns its construction error.
 type errSink struct{ err error }
 
-func (e *errSink) Write(_ *Frame, _ HudOverlay) error { return e.err }
-func (e *errSink) Close() error                       { return e.err }
+func (e *errSink) Write(_ *Frame, _ HudOverlay) error {
+	return e.err
+}
+func (e *errSink) Close() error {
+	return e.err
+}

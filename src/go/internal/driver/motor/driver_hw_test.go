@@ -18,11 +18,14 @@ import (
 // it validates wiring/claiming without spinning the motor.
 //
 // PASS -> Connect claims all real lines/channels and enables the bridge with
-//         both PWM channels at zero; SetSpeed(0) and Close succeed.
+//
+//	both PWM channels at zero; SetSpeed(0) and Close succeed.
+//
 // FAIL -> Connect errors (a GPIO line or pwmchip is already claimed by another
-//         consumer, /sys/class/pwm overlay missing, or R_EN/L_EN pin wrong) OR
-//         SetSpeed/Close error. Any of these means the go-gpiocdev
-//         output/enable or sysfs-PWM path is miswired against the live board.
+//
+//	consumer, /sys/class/pwm overlay missing, or R_EN/L_EN pin wrong) OR
+//	SetSpeed/Close error. Any of these means the go-gpiocdev
+//	output/enable or sysfs-PWM path is miswired against the live board.
 //
 // Override pins via env (BCM offsets): MOTOR_REN_LINE, MOTOR_LEN_LINE,
 // MOTOR_REVERSE_PWM_LINE. Defaults match the project's BTS7960/IBT-2 wiring.

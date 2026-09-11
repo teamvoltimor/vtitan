@@ -20,17 +20,24 @@ type Subscriber[T proto.Message] struct {
 	newT    func() T
 }
 
-// NewSubscriber subscribes to subject on conn. newT constructs a fresh,
-// empty T for each received message to unmarshal into -- required because
-// T is constrained to the proto.Message interface, not a concrete type
-// Go's generics can instantiate directly (the classic reason a factory
-// closure is needed here instead of `new(T)`).
-func NewSubscriber[T proto.Message](conn *nats.Conn, subject string, newT func() T) (*Subscriber[T], error) {
+// NewSubscriber subscribes to subject on conn. M is the concrete protobuf
+// message type and P the pointer type derived from it: each received
+// message is unmarshaled into a freshly allocated M, so callers never pass
+// a factory closure (the classic factory was needed because T is
+// constrained to the proto.Message interface, which Go's generics cannot
+// instantiate directly).
+func NewSubscriber[M any, P interface {
+	*M
+	proto.Message
+}](conn *nats.Conn, subject string) (*Subscriber[P], error) {
 	sub, err := conn.SubscribeSync(subject)
 	if err != nil {
 		return nil, fmt.Errorf("nats: subscribing to subject %s: %w", subject, err)
 	}
-	return &Subscriber[T]{sub: sub, subject: subject, newT: newT}, nil
+	return &Subscriber[P]{sub: sub, subject: subject, newT: func() P {
+		var m M
+		return &m
+	}}, nil
 }
 
 // Read blocks until the next message arrives on the Subscriber's subject,

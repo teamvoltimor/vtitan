@@ -21,7 +21,9 @@ func NewSynthetic(cfg Config) *SyntheticDriver {
 }
 
 // Open is a no-op for the synthetic source.
-func (d *SyntheticDriver) Open(_ context.Context) error { return nil }
+func (d *SyntheticDriver) Open(_ context.Context) error {
+	return nil
+}
 
 // CaptureFrame returns the next test-pattern frame, advancing an internal clock
 // so the pattern animates between calls (useful for verifying video/photo
@@ -59,4 +61,6 @@ func (d *SyntheticDriver) CaptureFrame(ctx context.Context) (*Frame, error) {
 }
 
 // Close is a no-op for the synthetic source.
-func (d *SyntheticDriver) Close() error { return nil }
+func (d *SyntheticDriver) Close() error {
+	return nil
+}

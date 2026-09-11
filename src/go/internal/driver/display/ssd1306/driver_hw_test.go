@@ -17,11 +17,14 @@ import (
 // the canary for whether it must be replaced with a local ioctl shim.
 //
 // PASS -> host.Init() + i2creg.Open succeed and Init() completes; the OLED is
-//         live on the bus with periph.io's I2C stack intact.
+//
+//	live on the bus with periph.io's I2C stack intact.
+//
 // FAIL -> host.Init errors (periph.io driver registry broke) OR i2creg.Open
-//         fails (bus /dev/i2c-N gone / permission) OR Init() errors (device
-//         unresponsive on the bus). Any of these means periph.io's I2C path
-//         is dead and the ssd1306/i2c_linux.go ioctl shim is needed.
+//
+//	fails (bus /dev/i2c-N gone / permission) OR Init() errors (device
+//	unresponsive on the bus). Any of these means periph.io's I2C path
+//	is dead and the ssd1306/i2c_linux.go ioctl shim is needed.
 func TestHW_OLED_I2C(t *testing.T) {
 	cfg := ssd1306.DefaultConfig()
 	if v := os.Getenv("SSD1306_I2C_BUS"); v != "" {

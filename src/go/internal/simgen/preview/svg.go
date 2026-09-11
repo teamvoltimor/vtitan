@@ -151,14 +151,20 @@ func GenerateSVG(metadataPath, outPath string) (string, error) {
 }
 
 // wx converts a world X coordinate (meters) to SVG X (pixels).
-func wx(x float64) float64 { return marginSide + x*pxPerMeter }
+func wx(x float64) float64 {
+	return marginSide + x*pxPerMeter
+}
 
 // wy converts a world Y coordinate (meters) to SVG Y (pixels).
 // World Y=0 is at the bottom; SVG Y=0 is at the top, so we flip.
-func wy(y float64) float64 { return marginTop + (simconfig.TrackMaxCoord-y)*pxPerMeter }
+func wy(y float64) float64 {
+	return marginTop + (simconfig.TrackMaxCoord-y)*pxPerMeter
+}
 
 // wp converts a world length (meters) to pixels.
-func wp(v float64) float64 { return v * pxPerMeter }
+func wp(v float64) float64 {
+	return v * pxPerMeter
+}
 
 // renderSVG generates the SVG content for a scenario metadata.
 func renderSVG(meta generate.Metadata) string {
@@ -289,34 +295,23 @@ func drawSubdivisionLines(b *strings.Builder) {
 
 // drawCornerMarkers renders the eight diagonal decorative markers (two per corner:
 // one blue, one orange) that appear on the WRO 2026 field.
-// Positions, yaws, and dimensions are taken directly from addCornerMarkers in sdf/world.go.
+// Geometry comes from the shared simconfig.CornerMarkers table; only the
+// color representation is SVG-specific.
 func drawCornerMarkers(b *strings.Builder) {
-	// color first: minimizes GC scan region (string before float64s).
-	type marker struct {
-		color       string
-		cx, cy, yaw float64
-	}
-	pi6 := math.Pi / 6
-	markers := []marker{
-		{color: colorCornerBlue, cx: 2.50, cy: 2.29, yaw: pi6 * 1},    // NE blue
-		{color: colorCornerOrange, cx: 2.29, cy: 2.50, yaw: pi6 * 2},  // NE orange
-		{color: colorCornerOrange, cx: 2.50, cy: 0.71, yaw: -pi6 * 1}, // SE orange
-		{color: colorCornerBlue, cx: 2.29, cy: 0.50, yaw: -pi6 * 2},   // SE blue
-		{color: colorCornerBlue, cx: 0.50, cy: 0.71, yaw: -pi6 * 5},   // SW blue
-		{color: colorCornerOrange, cx: 0.71, cy: 0.50, yaw: -pi6 * 4}, // SW orange
-		{color: colorCornerOrange, cx: 0.50, cy: 2.29, yaw: pi6 * 5},  // NW orange
-		{color: colorCornerBlue, cx: 0.71, cy: 2.50, yaw: pi6 * 4},    // NW blue
-	}
 	halfLen := wp(simconfig.CornerMarkerLength / 2)
 	strokeW := math.Max(wp(simconfig.CornerMarkerWidth), minCornerMarkerPx)
-	for _, m := range markers {
-		cx, cy := wx(m.cx), wy(m.cy)
+	for _, m := range simconfig.CornerMarkers {
+		color := colorCornerOrange
+		if m.Blue {
+			color = colorCornerBlue
+		}
+		cx, cy := wx(m.CX), wy(m.CY)
 		// World yaw θ: unit vector is (cos θ, sin θ); SVG Y is flipped so ΔyS = -sin θ.
-		x1 := cx - halfLen*math.Cos(m.yaw)
-		y1 := cy + halfLen*math.Sin(m.yaw)
-		x2 := cx + halfLen*math.Cos(m.yaw)
-		y2 := cy - halfLen*math.Sin(m.yaw)
-		writeLine(b, x1, y1, x2, y2, m.color, strokeW)
+		x1 := cx - halfLen*math.Cos(m.YawRad)
+		y1 := cy + halfLen*math.Sin(m.YawRad)
+		x2 := cx + halfLen*math.Cos(m.YawRad)
+		y2 := cy - halfLen*math.Sin(m.YawRad)
+		writeLine(b, x1, y1, x2, y2, color, strokeW)
 	}
 }
 

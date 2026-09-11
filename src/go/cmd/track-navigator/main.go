@@ -114,12 +114,12 @@ func parseDirection(s string) (provisional trackmodel.Direction, known *trackmod
 type cliConfig struct {
 	natsURL    string
 	nodeName   string
+	profiles   string
+	direction  string
 	rateHz     float64
 	record     bool
 	runsRoot   string
 	configRoot string
-	profiles   string
-	direction  string
 }
 
 // splitProfiles parses a comma-separated hardware-profile list, matching
@@ -279,13 +279,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	scanSub, err := nats.NewSubscriber(
+	scanSub, err := nats.NewSubscriber[sensorv1.Scan](
 		conn,
 		sensorv1.ScanSubject,
-		func() *sensorv1.Scan { return &sensorv1.Scan{} },
 	)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 	defer func() {
 		if closeErr := scanSub.Close(); closeErr != nil {
@@ -293,13 +292,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	imuSub, err := nats.NewSubscriber(
+	imuSub, err := nats.NewSubscriber[sensorv1.Imu](
 		conn,
 		sensorv1.ImuSubject,
-		func() *sensorv1.Imu { return &sensorv1.Imu{} },
 	)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 	defer func() {
 		if closeErr := imuSub.Close(); closeErr != nil {
@@ -307,13 +305,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	jointSub, err := nats.NewSubscriber(
+	jointSub, err := nats.NewSubscriber[actuationv1.JointStates](
 		conn,
 		actuationv1.JointStatesSubject,
-		func() *actuationv1.JointStates { return &actuationv1.JointStates{} },
 	)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 	defer func() {
 		if closeErr := jointSub.Close(); closeErr != nil {
@@ -327,13 +324,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// ok=false, exactly like any other sensor this binary has no producer
 	// for. Currently inert regardless: no SignRouter is wired below (Open
 	// Challenge only), and VisionGateway is only consulted when one is.
-	detectionsSub, err := nats.NewSubscriber(
+	detectionsSub, err := nats.NewSubscriber[visionv1.Detections](
 		conn,
 		visionv1.DetectionsSubject,
-		func() *visionv1.Detections { return &visionv1.Detections{} },
 	)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 	defer func() {
 		if closeErr := detectionsSub.Close(); closeErr != nil {
@@ -386,7 +382,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		wheelRadiusM,
 	)
 	if err != nil {
-		return err //nolint:wrapcheck
+		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
 	}
 	defer func() {
 		if closeErr := gw.Close(); closeErr != nil {
@@ -402,7 +398,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	srCfg := signrouter.ConfigFor(logger, cfg.configRoot)
 	visionGW, err := natsvision.New(srCfg, signrouter.DefaultMinReliableBBoxHeightPX, signrouter.DefaultMinValidLidarRangeM, gw)
 	if err != nil {
-		return err //nolint:wrapcheck
+		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
 	}
 
 	// bayexit config-root wiring matches every other config loaded above:

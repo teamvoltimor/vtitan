@@ -75,17 +75,6 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-// bridgedSubject pairs a subject with the factory bridgeSubject needs to
-// build fresh messages of its concrete type -- declared once per subject in
-// run() below, matching the table every other multi-subject cmd/* binary
-// in this tree (e.g. telemetry-node) builds inline rather than via
-// reflection, since the concrete type set is small, static, and known at
-// compile time.
-type bridgedSubject struct {
-	subject string
-	bridge  func(ctx context.Context, group *errgroup.Group, conn *natsConn, logger *slog.Logger, server *foxglove.Server) error
-}
-
 // natsConn is the concrete *nats.Conn type from the nats-io client library
 // -- named here only to keep bridgeSubject's signature readable without
 // repeating the fully qualified import alias at every call site.
@@ -139,92 +128,101 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 func bridgeAllSubjects(
 	ctx context.Context, group *errgroup.Group, conn *natsConn, logger *slog.Logger, server *foxglove.Server,
 ) error {
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		actuationv1.AckermannCmdSubject, func() *actuationv1.AckermannCmd { return &actuationv1.AckermannCmd{} }); err != nil {
+	if err := bridgeSubject[actuationv1.AckermannCmd](ctx, group, conn, logger, server,
+		actuationv1.AckermannCmdSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		actuationv1.MotorStatusSubject, func() *actuationv1.MotorStatus { return &actuationv1.MotorStatus{} }); err != nil {
+	if err := bridgeSubject[actuationv1.MotorStatus](ctx, group, conn, logger, server,
+		actuationv1.MotorStatusSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		navv1.NavigatorDebugSubject, func() *navv1.NavigatorDebug { return &navv1.NavigatorDebug{} }); err != nil {
+	if err := bridgeSubject[navv1.NavigatorDebug](ctx, group, conn, logger, server,
+		navv1.NavigatorDebugSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		navv1.LapsCompletedSubject, func() *navv1.LapsCompleted { return &navv1.LapsCompleted{} }); err != nil {
+	if err := bridgeSubject[navv1.LapsCompleted](ctx, group, conn, logger, server,
+		navv1.LapsCompletedSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		navv1.CurrentCorridorSubject, func() *navv1.CurrentCorridor { return &navv1.CurrentCorridor{} }); err != nil {
+	if err := bridgeSubject[navv1.CurrentCorridor](ctx, group, conn, logger, server,
+		navv1.CurrentCorridorSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		sensorv1.ImuSubject, func() *sensorv1.Imu { return &sensorv1.Imu{} }); err != nil {
+	if err := bridgeSubject[sensorv1.Imu](ctx, group, conn, logger, server,
+		sensorv1.ImuSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		sensorv1.ScanSubject, func() *sensorv1.Scan { return &sensorv1.Scan{} }); err != nil {
+	if err := bridgeSubject[sensorv1.Scan](ctx, group, conn, logger, server,
+		sensorv1.ScanSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		sensorv1.CameraSubject, func() *sensorv1.CameraFrame { return &sensorv1.CameraFrame{} }); err != nil {
+	if err := bridgeSubject[sensorv1.CameraFrame](ctx, group, conn, logger, server,
+		sensorv1.CameraSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		statev1.RobotStateSubject, func() *statev1.RobotState { return &statev1.RobotState{} }); err != nil {
+	if err := bridgeSubject[statev1.RobotState](ctx, group, conn, logger, server,
+		statev1.RobotStateSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		statev1.RaceMetricsSubject, func() *statev1.RaceMetrics { return &statev1.RaceMetrics{} }); err != nil {
+	if err := bridgeSubject[statev1.RaceMetrics](ctx, group, conn, logger, server,
+		statev1.RaceMetricsSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		statev1.SystemStatusSubject, func() *statev1.SystemStatus { return &statev1.SystemStatus{} }); err != nil {
+	if err := bridgeSubject[statev1.SystemStatus](ctx, group, conn, logger, server,
+		statev1.SystemStatusSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		uiv1.ButtonEventSubject, func() *uiv1.ButtonEvent { return &uiv1.ButtonEvent{} }); err != nil {
+	if err := bridgeSubject[uiv1.ButtonEvent](ctx, group, conn, logger, server,
+		uiv1.ButtonEventSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		uiv1.TelemetrySummarySubject, func() *uiv1.TelemetrySummary { return &uiv1.TelemetrySummary{} }); err != nil {
+	if err := bridgeSubject[uiv1.TelemetrySummary](ctx, group, conn, logger, server,
+		uiv1.TelemetrySummarySubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		uiv1.ButtonHoldSubject, func() *uiv1.ButtonHold { return &uiv1.ButtonHold{} }); err != nil {
+	if err := bridgeSubject[uiv1.ButtonHold](ctx, group, conn, logger, server,
+		uiv1.ButtonHoldSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		uiv1.JumperInsertedSubject, func() *uiv1.JumperInserted { return &uiv1.JumperInserted{} }); err != nil {
+	if err := bridgeSubject[uiv1.JumperInserted](ctx, group, conn, logger, server,
+		uiv1.JumperInsertedSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		uiv1.ChallengeModeActiveSubject, func() *uiv1.ChallengeModeActive { return &uiv1.ChallengeModeActive{} }); err != nil {
+	if err := bridgeSubject[uiv1.ChallengeModeActive](ctx, group, conn, logger, server,
+		uiv1.ChallengeModeActiveSubject); err != nil {
 		return err
 	}
-	if err := bridgeSubject(ctx, group, conn, logger, server,
-		visionv1.DetectionsSubject, func() *visionv1.Detections { return &visionv1.Detections{} }); err != nil {
+	if err := bridgeSubject[visionv1.Detections](ctx, group, conn, logger, server,
+		visionv1.DetectionsSubject); err != nil {
 		return err
 	}
 	return nil
 }
 
-// bridgeSubject registers subject as a Foxglove channel (using a fresh T
-// purely for its schema) and starts a goroutine forwarding every message
-// NATS delivers on it to that channel, until ctx is done.
-func bridgeSubject[T proto.Message](
+// bridgeSubject registers subject as a Foxglove channel (using a fresh
+// message purely for its schema) and starts a goroutine forwarding every
+// message NATS delivers on it to that channel, until ctx is done. M is the
+// concrete protobuf message type; the pointer type P is derived from it, so
+// callers never pass a factory closure.
+func bridgeSubject[M any, P interface {
+	*M
+	proto.Message
+}](
 	ctx context.Context, group *errgroup.Group, conn *natsConn, logger *slog.Logger,
-	server *foxglove.Server, subject string, newT func() T,
+	server *foxglove.Server, subject string,
 ) error {
+	newT := func() P {
+		var m M
+		return &m
+	}
 	channelID, err := server.EnsureChannel(subject, newT())
 	if err != nil {
 		return fmt.Errorf("foxglove-bridge: registering channel for %s: %w", subject, err)
 	}
 
-	sub, err := nats.NewSubscriber(conn, subject, newT)
+	sub, err := nats.NewSubscriber[M, P](conn, subject)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 
 	group.Go(func() error {

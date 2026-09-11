@@ -34,6 +34,13 @@ type RVCDriver struct {
 // matching platform/robot's Config.baudrate default.
 const DefaultBaudRate = 115200
 
+// readResult is the channel payload Read uses to hand a completed (or
+// failed) frame back from the blocking goroutine.
+type readResult struct {
+	reading Reading
+	err     error
+}
+
 var (
 	errReadBeforeConnect = errors.New("imu: Read called before Connect")
 
@@ -73,14 +80,10 @@ func (d *RVCDriver) Read(ctx context.Context) (Reading, error) {
 		return Reading{}, errReadBeforeConnect
 	}
 
-	type result struct {
-		reading Reading
-		err     error
-	}
-	resultCh := make(chan result, 1)
+	resultCh := make(chan readResult, 1)
 	go func() {
 		reading, err := readFrame(d.reader)
-		resultCh <- result{reading: reading, err: err}
+		resultCh <- readResult{reading: reading, err: err}
 	}()
 
 	select {

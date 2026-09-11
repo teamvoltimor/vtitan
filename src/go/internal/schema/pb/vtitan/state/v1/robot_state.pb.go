@@ -186,7 +186,9 @@ var file_vtitan_state_v1_robot_state_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_vtitan_state_v1_robot_state_proto_init() }
+func init() {
+	file_vtitan_state_v1_robot_state_proto_init()
+}
 func file_vtitan_state_v1_robot_state_proto_init() {
 	if File_vtitan_state_v1_robot_state_proto != nil {
 		return

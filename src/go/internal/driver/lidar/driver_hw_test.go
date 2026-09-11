@@ -16,13 +16,16 @@ import (
 // well-formed scan (>=1 decoded measurement).
 //
 // PASS -> serial.Open succeeds, the SCAN descriptor comes back as the
-//         measurement data type, and Read assembles >=1 measurement point.
+//
+//	measurement data type, and Read assembles >=1 measurement point.
+//
 // FAIL -> serial.Open errors (port missing / permission / wrong tty) OR the
-//         SCAN descriptor is wrong/missing (device not entering scan state,
-//         wrong baud) OR no full scan assembles before timeout (protocol
-//         parser broken against the live stream). Any of these means the
-//         go.bug.st/serial UART path or the RPLIDAR frame parser is wrong
-//         against real hardware.
+//
+//	SCAN descriptor is wrong/missing (device not entering scan state,
+//	wrong baud) OR no full scan assembles before timeout (protocol
+//	parser broken against the live stream). Any of these means the
+//	go.bug.st/serial UART path or the RPLIDAR frame parser is wrong
+//	against real hardware.
 func TestHW_LIDAR_UART(t *testing.T) {
 	port := os.Getenv("LIDAR_TTY")
 	if port == "" {
@@ -60,11 +63,14 @@ func TestHW_LIDAR_UART(t *testing.T) {
 // mode).
 //
 // PASS -> serial.Open succeeds, the Express Scan descriptor comes back as
-//         the Dense measurement data type, and Read assembles >=1 point.
+//
+//	the Dense measurement data type, and Read assembles >=1 point.
+//
 // FAIL -> serial.Open errors OR the descriptor is wrong/missing OR no full
-//         scan assembles before timeout (checksum/sync mismatch against
-//         the live stream, or the two-packet angle interpolation is
-//         broken).
+//
+//	scan assembles before timeout (checksum/sync mismatch against
+//	the live stream, or the two-packet angle interpolation is
+//	broken).
 func TestHW_LIDAR_Dense_UART(t *testing.T) {
 	port := os.Getenv("LIDAR_TTY")
 	if port == "" {

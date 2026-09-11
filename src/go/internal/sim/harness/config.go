@@ -145,7 +145,9 @@ func (c Config) dt() float64 {
 
 // ControlDt returns the control interval (seconds), exposed for callers that
 // drive the loop (e.g. the scenario native runner).
-func (c Config) ControlDt() float64 { return c.dt() }
+func (c Config) ControlDt() float64 {
+	return c.dt()
+}
 
 // lidarPeriodS returns the sweep period, or 0 (always fresh) when LidarHz<=0.
 func (c Config) lidarPeriodS() float64 {

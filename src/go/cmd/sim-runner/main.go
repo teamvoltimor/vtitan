@@ -33,6 +33,15 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
+// Runner backend names accepted by --runner.
+const (
+	runnerPython = "python"
+	runnerNative = "native"
+)
+
+// secondsPerMinute converts deg/min IMU drift quotes into per-second rates.
+const secondsPerMinute = 60.0
+
 // cliConfig holds every flag sim-runner accepts. Nothing about which
 // interpreter/script/corpus/concurrency to use is hardcoded — a deployment
 // (dev box vs. CI vs. a future pixi-managed runner) may reasonably want to
@@ -161,7 +170,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 	flags.StringVar(
 		&cfg.runner,
 		"runner",
-		"python",
+		runnerPython,
 		"scenario runner backend: 'python' (subprocess oracle, default) or 'native' (Go-native harness)",
 	)
 	flags.BoolVar(
@@ -299,11 +308,11 @@ func validate(cfg cliConfig) error {
 	}
 
 	switch cfg.runner {
-	case "native":
+	case runnerNative:
 		// Nothing to check: the native runner shells out to nothing, so
 		// --script, --workdir, --command, --base-args and --python-path are
 		// all inert.
-	case "python", "":
+	case runnerPython, "":
 		if cfg.scriptPath == "" || cfg.workDir == "" {
 			return errors.New("sim-runner: --runner python needs --script and --workdir")
 		}
@@ -368,7 +377,6 @@ func resolveCorpus(logger *slog.Logger, cfg cliConfig) (scenarios []corpus.Scena
 // because that is how the BNO085 datasheet quotes them and how anyone
 // reasoning about a mount error thinks; the model itself is all radians.
 func sensorErrorsFor(cfg cliConfig) sensorerrors.Errors {
-	const secondsPerMinute = 60.0
 	return sensorerrors.Errors{
 		StartPosErrorM:  cfg.startPosErr,
 		YawBiasRad:      degreesToRadians(cfg.yawBiasDeg),
@@ -378,7 +386,9 @@ func sensorErrorsFor(cfg cliConfig) sensorerrors.Errors {
 	}
 }
 
-func degreesToRadians(deg float64) float64 { return deg * math.Pi / 180.0 }
+func degreesToRadians(deg float64) float64 {
+	return deg * math.Pi / 180.0
+}
 
 func splitCSV(raw string) []string {
 	if raw == "" {
@@ -400,7 +410,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 
 	var runner scenario.Runner
 	switch cfg.runner {
-	case "native":
+	case runnerNative:
 		recordRoot := ""
 		if cfg.record {
 			root, rootErr := scenario.SimRunsRootFor(cfg.recordDir, time.Now())
@@ -418,7 +428,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 			HardwareProfiles: splitCSV(cfg.hwProfiles),
 			SensorErrors:     sensorErrorsFor(cfg),
 		})
-	case "python", "":
+	case runnerPython, "":
 		r, rerr := scenario.NewSubprocessRunner(scenario.Config{
 			Command:    cfg.command,
 			BaseArgs:   splitCSV(cfg.baseArgs),

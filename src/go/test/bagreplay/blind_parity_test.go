@@ -85,7 +85,7 @@ func TestParity_BlindPackagesVsBag(t *testing.T) {
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Waypoints:         path,
-		Direction:         func() *trackmodel.Direction { d := direction; return &d }(),
+		Direction:         new(direction),
 		Config:            navigator.DefaultConfig(),
 		ControllersConfig: controllers.DefaultConfig(),
 	})
@@ -168,7 +168,9 @@ func (s *blindStats) compare(got navigator.DebugSnapshot, ref bagreplay.NavDebug
 	}
 }
 
-func approxEq(a, b float64) bool { return abs(a-b) <= floatTol }
+func approxEq(a, b float64) bool {
+	return abs(a-b) <= floatTol
+}
 
 func abs(v float64) float64 {
 	if v < 0 {

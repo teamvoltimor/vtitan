@@ -6,6 +6,15 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// interiorWallSpec is one interior wall model: its name, center point,
+// visual box dimensions, and whether it runs horizontally (East/West span).
+type interiorWallSpec struct {
+	name       string
+	cx, cy     float64
+	vx, vy     float64
+	horizontal bool
+}
+
 // AddInteriorWalls computes the four interior wall positions from corridor widths
 // and appends them to the world element.
 func AddInteriorWalls(world *Node, corridorWidths map[simconfig.Section]simconfig.CorridorWidth) {
@@ -16,13 +25,7 @@ func AddInteriorWalls(world *Node, corridorWidths map[simconfig.Section]simconfi
 	eastX := trackMax - corridorWidths[simconfig.SectionEast].Width
 	westX := corridorWidths[simconfig.SectionWest].Width
 
-	// Each wall: (name, cx, cy, visualX, visualY, isHorizontal)
-	walls := []struct {
-		name       string
-		cx, cy     float64
-		vx, vy     float64
-		horizontal bool
-	}{
+	walls := []interiorWallSpec{
 		{
 			simconfig.ModelInteriorWallNorth,
 			(eastX + westX) / 2,

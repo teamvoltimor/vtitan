@@ -224,7 +224,9 @@ func NewObservedSignMap(cfg DiscoveryConfig, sd *SignRouter) *ObservedSignMap {
 
 // IsDiscovering reports whether this map is actively feeding a SignRouter
 // (discover mode), matching SignRouter.is_discovering.
-func (m *ObservedSignMap) IsDiscovering() bool { return m != nil && m.sd != nil }
+func (m *ObservedSignMap) IsDiscovering() bool {
+	return m != nil && m.sd != nil
+}
 
 func (m *ObservedSignMap) settleRobotCorridor(raw trackmodel.Section) trackmodel.Section {
 	if m.robotCorridor == nil || raw == *m.robotCorridor {

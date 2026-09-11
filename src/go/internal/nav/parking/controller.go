@@ -75,7 +75,9 @@ const (
 // change what the scenario contains -- so both the navigator's finish branch
 // and the sim runner's stop condition consult this rather than the
 // controller's mere existence.
-func (p *ParkController) AttemptAfterFinalLap() bool { return p.cfg.AttemptAfterFinalLap }
+func (p *ParkController) AttemptAfterFinalLap() bool {
+	return p.cfg.AttemptAfterFinalLap
+}
 
 func NewParkController(
 	lot ParkingLot,
@@ -139,18 +141,26 @@ func (c *ParkController) IsTimedOut() bool {
 }
 
 // Section returns the corridor that contains the parking lot.
-func (c *ParkController) Section() trackmodel.Section { return c.section }
+func (c *ParkController) Section() trackmodel.Section {
+	return c.section
+}
 
 // Direction returns the traversal direction the parked heading was chosen to
 // match.
-func (c *ParkController) Direction() trackmodel.Direction { return c.direction }
+func (c *ParkController) Direction() trackmodel.Direction {
+	return c.direction
+}
 
 // Zone returns the parking lot rectangle and target heading this controller is
 // aiming for.
-func (c *ParkController) Zone() ParkZone { return c.zone }
+func (c *ParkController) Zone() ParkZone {
+	return c.zone
+}
 
 // Staging returns the staging position in front of the gap opening.
-func (c *ParkController) Staging() trackmodel.Waypoint { return c.staging }
+func (c *ParkController) Staging() trackmodel.Waypoint {
+	return c.staging
+}
 
 // Update computes the next motor command from the current world pose of the
 // robot center (heading 0=east, pi/2=north).

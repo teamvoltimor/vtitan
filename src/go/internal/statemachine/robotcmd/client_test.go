@@ -86,9 +86,15 @@ func (s *fakeButtonSink) recorded() []string {
 	return append([]string(nil), s.events...)
 }
 
-func (fakeChannelSink) SetVisionDebug(_ command.VisionDebugParams) error { return nil }
-func (fakeChannelSink) ToggleTelemetryChannel(_ bool) error              { return nil }
-func (fakeChannelSink) DisableCommandChannel() error                     { return nil }
+func (fakeChannelSink) SetVisionDebug(_ command.VisionDebugParams) error {
+	return nil
+}
+func (fakeChannelSink) ToggleTelemetryChannel(_ bool) error {
+	return nil
+}
+func (fakeChannelSink) DisableCommandChannel() error {
+	return nil
+}
 
 // dialBufconn starts srv on an in-memory bufconn listener and returns a
 // client connection to it, plus a cleanup func the caller must defer.

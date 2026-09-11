@@ -30,10 +30,13 @@ func waitForAck(prompt string) bool {
 // this proves the panel visibly displays what we wrote.
 //
 // PASS -> operator confirms the rendered pattern (box + "HW TEST" + block)
-//         is visible on the physical panel.
+//
+//	is visible on the physical panel.
+//
 // FAIL  -> WriteFramebuffer errors (bus write failed) OR operator reports a
-//         blank/wrong display. Either means the pixels aren't reaching the
-//         panel even though init succeeded.
+//
+//	blank/wrong display. Either means the pixels aren't reaching the
+//	panel even though init succeeded.
 func TestHW_OLED_Render_Dynamic(t *testing.T) {
 	cfg := ssd1306.DefaultConfig()
 	if v := os.Getenv("SSD1306_I2C_BUS"); v != "" {

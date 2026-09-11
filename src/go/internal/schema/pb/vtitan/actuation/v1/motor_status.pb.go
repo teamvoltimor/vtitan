@@ -229,7 +229,9 @@ var file_vtitan_actuation_v1_motor_status_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_vtitan_actuation_v1_motor_status_proto_init() }
+func init() {
+	file_vtitan_actuation_v1_motor_status_proto_init()
+}
 func file_vtitan_actuation_v1_motor_status_proto_init() {
 	if File_vtitan_actuation_v1_motor_status_proto != nil {
 		return

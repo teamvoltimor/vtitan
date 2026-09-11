@@ -60,7 +60,9 @@ func NewLapDetector(
 
 // NotifyWaypointWrapped records that the waypoint index has wrapped to 0,
 // arming the waypoint half of the confirmation.
-func (d *LapDetector) NotifyWaypointWrapped() { d.waypointPending = true }
+func (d *LapDetector) NotifyWaypointWrapped() {
+	d.waypointPending = true
+}
 
 // Update reports whether a confirmed lap crossing occurred at this position.
 //

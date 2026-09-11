@@ -31,11 +31,14 @@ func waitForAck(prompt string) bool {
 // motion -- the dynamic counterpart.
 //
 // PASS -> operator rotates the board and yaw/pitch/roll delta exceeds a
-//         plausibility threshold (board actually moved); Read keeps
-//         returning valid frames.
+//
+//	plausibility threshold (board actually moved); Read keeps
+//	returning valid frames.
+//
 // FAIL  -> no valid frame streams, OR the deltas stay within noise while the
-//         operator confirms they rotated it. Either means the RVC parser is
-//         reporting garbage or the sensor isn't tracking orientation.
+//
+//	operator confirms they rotated it. Either means the RVC parser is
+//	reporting garbage or the sensor isn't tracking orientation.
 func TestHW_IMU_Rotate_Dynamic(t *testing.T) {
 	port := os.Getenv("IMU_TTY")
 	if port == "" {

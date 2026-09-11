@@ -42,10 +42,13 @@ func readIntEnv(env string, def int) int {
 // counterpart to TestHW_Motor_GPIO_PWM, which only proves wiring/claiming.
 //
 // PASS -> operator eyeballs forward + reverse rotation matching commanded
-//         direction at a plausible speed; SetSpeed/Close succeed.
+//
+//	direction at a plausible speed; SetSpeed/Close succeed.
+//
 // FAIL  -> motor API errors (connect/SetSpeed/Close) OR operator reports no
-//         motion / wrong direction. Either means the BTS7960 drive path is
-//         miswired or the bridge isn't actually turning the wheel.
+//
+//	motion / wrong direction. Either means the BTS7960 drive path is
+//	miswired or the bridge isn't actually turning the wheel.
 func TestHW_Motor_Spin_Dynamic(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.REnLine = readIntEnv("MOTOR_REN_LINE", cfg.REnLine)
@@ -108,10 +111,13 @@ func TestHW_Motor_Spin_Dynamic(t *testing.T) {
 // motor Driver uses for RPWM).
 //
 // PASS -> operator confirms the wheels/linkage move to center, +15, -15 and
-//         back, and the PWM channel exports/initializes without error.
+//
+//	back, and the PWM channel exports/initializes without error.
+//
 // FAIL  -> sysfs PWM export/init errors (overlay missing) OR operator
-//         reports no movement at a commanded position. Either means the
-//         steering PWM path is dead or the servo isn't on pwmchip0/pwm0.
+//
+//	reports no movement at a commanded position. Either means the
+//	steering PWM path is dead or the servo isn't on pwmchip0/pwm0.
 func TestHW_Servo_Sweep_Dynamic(t *testing.T) {
 	const (
 		servoChip    = 0
@@ -146,7 +152,7 @@ func TestHW_Servo_Sweep_Dynamic(t *testing.T) {
 	// _position_to_pulse_us conversion.
 	angleToFraction := func(angleDeg float64) float64 {
 		spanUS := maxUS - minUS
-		pulseUS := cntUS + (angleDeg / rngDeg) * spanUS
+		pulseUS := cntUS + (angleDeg/rngDeg)*spanUS
 		pulseUS = max(minUS, min(maxUS, pulseUS))
 		return pulseUS * 1000.0 / float64(periodNS)
 	}

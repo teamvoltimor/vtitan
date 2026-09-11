@@ -61,6 +61,10 @@ type frameJob struct {
 // the point is to notice and drop, not buffer minutes of frames.
 const QueueMax = 3
 
+// EncodingRGB8 is the raw 8-bit RGB pixel encoding Frame carries; every
+// capture backend produces it and every sink expects it.
+const EncodingRGB8 = "rgb8"
+
 // NewVideoWriter starts the encoder goroutine around sink.
 func NewVideoWriter(sink VideoSink) *VideoWriter {
 	w := &VideoWriter{

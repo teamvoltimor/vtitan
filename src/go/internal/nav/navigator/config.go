@@ -7,6 +7,20 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
+// challengeTiers pairs a challenge's wire name with its configured tier
+// set, for validation error messages.
+type challengeTiers struct {
+	name  string
+	tiers ChallengeTiers
+}
+
+// tierValue is one named speed tier within a challenge's tier set; value is
+// nil when the tier is unset.
+type tierValue struct {
+	name  string
+	value *float64
+}
+
 // Config aggregates every tuning value the Navigator itself consumes --
 // the union of what CoreNavigator and EscapeRecovery read off a
 // NavigationTuning instance (self._tuning.clearance/speed/heading/pursuit/
@@ -512,15 +526,9 @@ func (c Config) ForObstaclesChallenge() Config {
 // Python original, which is why it is an error rather than a warning about
 // a value that would merely be ignored.
 func (c Config) validateChallengeTiers() error {
-	for _, named := range []struct {
-		name  string
-		tiers ChallengeTiers
-	}{{"open", c.Open}, {"obstacles", c.Obstacles}} {
+	for _, named := range []challengeTiers{{"open", c.Open}, {"obstacles", c.Obstacles}} {
 		ceiling := named.tiers.cap(c.MaxMPS)
-		for _, tier := range []struct {
-			name  string
-			value *float64
-		}{
+		for _, tier := range []tierValue{
 			{"slow", named.tiers.SlowMPS},
 			{"medium", named.tiers.MediumMPS},
 			{"fast", named.tiers.FastMPS},
@@ -539,27 +547,39 @@ func (c Config) validateChallengeTiers() error {
 
 // MinSpeedMPS is MIN_MPS clamped by the drivetrain ceiling, matching
 // SpeedControlParams.min_mps().
-func (c Config) MinSpeedMPS() float64 { return math.Min(c.MinMPS, c.DrivetrainMaxSpeedMPS) }
+func (c Config) MinSpeedMPS() float64 {
+	return math.Min(c.MinMPS, c.DrivetrainMaxSpeedMPS)
+}
 
 // MaxSpeedMPS is MAX_MPS clamped by the drivetrain ceiling, matching
 // SpeedControlParams.max_mps().
-func (c Config) MaxSpeedMPS() float64 { return math.Min(c.MaxMPS, c.DrivetrainMaxSpeedMPS) }
+func (c Config) MaxSpeedMPS() float64 {
+	return math.Min(c.MaxMPS, c.DrivetrainMaxSpeedMPS)
+}
 
 // CreepSpeedMPS is CREEP_MPS clamped by the drivetrain ceiling, matching
 // SpeedControlParams.creep_mps().
-func (c Config) CreepSpeedMPS() float64 { return math.Min(c.CreepMPS, c.DrivetrainMaxSpeedMPS) }
+func (c Config) CreepSpeedMPS() float64 {
+	return math.Min(c.CreepMPS, c.DrivetrainMaxSpeedMPS)
+}
 
 // SlowSpeedMPS is SLOW_MPS clamped by the drivetrain ceiling, matching
 // SpeedControlParams.slow_mps().
-func (c Config) SlowSpeedMPS() float64 { return math.Min(c.SlowMPS, c.DrivetrainMaxSpeedMPS) }
+func (c Config) SlowSpeedMPS() float64 {
+	return math.Min(c.SlowMPS, c.DrivetrainMaxSpeedMPS)
+}
 
 // MediumSpeedMPS is MEDIUM_MPS clamped by the drivetrain ceiling, matching
 // SpeedControlParams.medium_mps().
-func (c Config) MediumSpeedMPS() float64 { return math.Min(c.MediumMPS, c.DrivetrainMaxSpeedMPS) }
+func (c Config) MediumSpeedMPS() float64 {
+	return math.Min(c.MediumMPS, c.DrivetrainMaxSpeedMPS)
+}
 
 // FastSpeedMPS is FAST_MPS clamped by the drivetrain ceiling, matching
 // SpeedControlParams.fast_mps().
-func (c Config) FastSpeedMPS() float64 { return math.Min(c.FastMPS, c.DrivetrainMaxSpeedMPS) }
+func (c Config) FastSpeedMPS() float64 {
+	return math.Min(c.FastMPS, c.DrivetrainMaxSpeedMPS)
+}
 
 // RevSteerNorm converts RevSteerDeg into a normalised actuator command,
 // matching EscapeManeuverParams.rev_steer_norm(): the stored value is a
@@ -601,4 +621,6 @@ func (c Config) LaneLateralOffsetM(chassisHalfDiagonalM float64) float64 {
 }
 
 // degreesToRadians converts an angle in degrees to radians.
-func degreesToRadians(deg float64) float64 { return deg * math.Pi / halfTurnDeg }
+func degreesToRadians(deg float64) float64 {
+	return deg * math.Pi / halfTurnDeg
+}

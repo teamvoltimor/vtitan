@@ -23,6 +23,10 @@ type Scenario struct {
 // platform/robot/src/simulation/scenario_catalog.py.
 const metadataGlob = "*_metadata.json"
 
+// metadataSuffix is the filename suffix every scenario metadata file
+// carries; scenario IDs are the base name without it.
+const metadataSuffix = "_metadata.json"
+
 // ErrNoScenarios is returned by Load when a directory contains no files
 // matching metadataGlob, or a single-file path doesn't match it.
 var ErrNoScenarios = errors.New("corpus: no scenario metadata files found")
@@ -67,7 +71,6 @@ func Load(path string) ([]Scenario, error) {
 // single explicitly-named file is still a valid one-scenario corpus.
 func scenarioFromPath(path string) Scenario {
 	base := filepath.Base(path)
-	const suffix = "_metadata.json"
-	id := strings.TrimSuffix(base, suffix)
+	id := strings.TrimSuffix(base, metadataSuffix)
 	return Scenario{ID: id, MetadataPath: path}
 }

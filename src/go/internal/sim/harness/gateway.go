@@ -145,7 +145,9 @@ func (g *SimHardwareGateway) buildAngles() {
 }
 
 // State returns the current kinematic state (the simulated body pose).
-func (g *SimHardwareGateway) State() kinematics.AckermannState { return g.state }
+func (g *SimHardwareGateway) State() kinematics.AckermannState {
+	return g.state
+}
 
 // PublishDrive stores the latest command; applied on the next Advance.
 func (g *SimHardwareGateway) PublishDrive(command controllers.DriveCommand) {
@@ -278,7 +280,9 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 	}
 }
 
-func (g *SimHardwareGateway) lenScan() int { return len(g.scan.RangesM) }
+func (g *SimHardwareGateway) lenScan() int {
+	return len(g.scan.RangesM)
+}
 
 // refreshSensors casts rays from the SENSOR origin -- LidarMountXOffsetM
 // forward of the chassis centre, matching SimulatedHardwareGateway's own
@@ -326,7 +330,9 @@ func (g *SimHardwareGateway) refreshSensors() {
 
 // Collided reports whether the chassis is currently touching a terminal
 // surface (re-evaluated every Advance).
-func (g *SimHardwareGateway) Collided() bool { return g.collided }
+func (g *SimHardwareGateway) Collided() bool {
+	return g.collided
+}
 
 // CollisionXY returns the last collision point, or (0,0) if never collided.
 func (g *SimHardwareGateway) CollisionXY() (float64, float64) {

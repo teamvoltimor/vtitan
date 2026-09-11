@@ -22,9 +22,12 @@ import (
 // crash -- by reconnecting and resuming pub/sub.
 //
 // PASS -> initial connect + pub/sub works, `systemctl restart vtitan-nats`
-//         drops the link, and the client reconnects and pub/sub works again.
+//
+//	drops the link, and the client reconnects and pub/sub works again.
+//
 // FAIL -> cannot reach the broker, or the client does NOT recover after the
-//         restart (the reconnect hardening is broken against real hardware).
+//
+//	restart (the reconnect hardening is broken against real hardware).
 //
 // Requires: vtitan-nats.service running on the host, and the caller able to
 // `systemctl restart` it (root or passwordless sudo). Override the broker

@@ -177,7 +177,9 @@ var file_vtitan_actuation_v1_ackermann_cmd_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_vtitan_actuation_v1_ackermann_cmd_proto_init() }
+func init() {
+	file_vtitan_actuation_v1_ackermann_cmd_proto_init()
+}
 func file_vtitan_actuation_v1_ackermann_cmd_proto_init() {
 	if File_vtitan_actuation_v1_ackermann_cmd_proto != nil {
 		return

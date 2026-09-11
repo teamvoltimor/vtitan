@@ -11,6 +11,12 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
+// sensorEntry is one boot-check sensor's fixed key and its live status.
+type sensorEntry struct {
+	name   string
+	sensor core.SensorStatus
+}
+
 // NATSRaceMetricsSink publishes race progress on the
 // vtitan.state.v1.race_metrics subject, replacing state_machine_node's
 // /race_metrics std_msgs/String publisher.
@@ -85,10 +91,7 @@ func (s *NATSSystemStatusSink) PublishSystemStatus(status core.SystemStatus) err
 // independent producers; this one contributes entries named after its own
 // sensors rather than assuming it owns the whole message.
 func SystemStatusMessageFor(status core.SystemStatus) *statev1.SystemStatus {
-	sensors := []struct {
-		name   string
-		sensor core.SensorStatus
-	}{
+	sensors := []sensorEntry{
 		{"imu", status.IMUStatus},
 		{"lidar", status.LidarStatus},
 		{"hailo", status.HailoStatus},

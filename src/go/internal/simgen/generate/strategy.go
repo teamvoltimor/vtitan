@@ -32,12 +32,16 @@ type (
 )
 
 // NewFullRandomization creates a strategy that fully randomizes all parameters.
-func NewFullRandomization(r *Randomizer) *FullRandomization { return &FullRandomization{r: r} }
+func NewFullRandomization(r *Randomizer) *FullRandomization {
+	return &FullRandomization{r: r}
+}
 
 func (f *FullRandomization) CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
 	return f.r.RandomizeCorridorWidths()
 }
-func (f *FullRandomization) Lighting() simconfig.LightingConfig { return f.r.RandomizeLighting() }
+func (f *FullRandomization) Lighting() simconfig.LightingConfig {
+	return f.r.RandomizeLighting()
+}
 
 func (f *FullRandomization) StartingConditions(
 	w map[simconfig.Section]simconfig.CorridorWidth,

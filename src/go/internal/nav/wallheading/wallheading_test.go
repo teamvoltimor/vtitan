@@ -309,4 +309,6 @@ func TestHeadingError(t *testing.T) {
 	}
 }
 
-func formatDeg(deg float64) string { return fmt.Sprintf("%+.0fdeg", deg) }
+func formatDeg(deg float64) string {
+	return fmt.Sprintf("%+.0fdeg", deg)
+}

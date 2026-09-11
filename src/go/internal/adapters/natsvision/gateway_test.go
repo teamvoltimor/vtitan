@@ -14,7 +14,9 @@ type fakePose struct {
 	ok   bool
 }
 
-func (f fakePose) GetCurrentPose() (trackmodel.Pose, bool) { return f.pose, f.ok }
+func (f fakePose) GetCurrentPose() (trackmodel.Pose, bool) {
+	return f.pose, f.ok
+}
 
 func redDetection(centerX, heightPX float64) *visionv1.Detection {
 	return &visionv1.Detection{

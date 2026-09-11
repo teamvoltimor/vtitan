@@ -144,12 +144,6 @@ const (
 	cmdReset       = 0x40
 	cmdClassicScan = 0x20
 	cmdGetHealth   = 0x52
-	// cmdSetMotorPwm starts/spins the C1's motor (SL_LIDAR_CMD_SET_MOTOR_PWM,
-	// SDK sl_lidar_cmd.h). The RPLIDAR C1 will not stream scan data unless its
-	// motor is spinning, so both scan modes must issue this before requesting
-	// a scan (the sllidar SDK's startScanExpress/startScanNormal both call
-	// startMotor() first — see sl_lidar_driver.cpp startScanExpress line 59).
-	cmdSetMotorPwm = 0xF0
 	// cmdHQMatorSpeedCtrl (SL_LIDAR_CMD_HQ_MOTOR_SPEED_CTRL) is the
 	// alternative motor-start command the sllidar SDK uses for RPM-mode motor
 	// control. On the C1 this is the variant that actually spins the motor up
@@ -308,10 +302,6 @@ func payloadRequestPacket(cmd byte, payload []byte) []byte {
 // the C1 (verified on hardware 2026-08-31).
 const motorDefaultRpm = 600
 
-// motorPayloadSize is the byte length of the motor-speed payload (a single
-// little-endian u16 RPM value), shared by both motor-start commands.
-const motorPayloadSize = 2
-
 // serialPollTimeout is the per-call read timeout configured on the serial
 // port. timeoutReader retries (0, nil) reads up to maxSilence, so this stays
 // short; it only bounds a single empty read, not the total scan wait.
@@ -457,12 +447,13 @@ func decodeClassicMeasurement(b []byte) (pt Point, startOfScan bool, err error) 
 	// the package-level values installed from Config by NewClassic/Connect.
 	angleDeg = correctAngleDeg(angleDeg, mountInverted, yawOffsetDeg)
 
-	// Normalize to [0, 360) so a large positive/negative offset can't push
-	// angles outside the conventional lidar range (e.g. offset 180 landing
-	// at 412 deg). Keeps the reported angle well-formed for consumers.
-	angleDeg = math.Mod(angleDeg, 360)
+	// Normalize to [0, fullSweepDeg) so a large positive/negative offset
+	// can't push angles outside the conventional lidar range (e.g. offset
+	// 180 landing at 412 deg). Keeps the reported angle well-formed for
+	// consumers.
+	angleDeg = math.Mod(angleDeg, fullSweepDeg)
 	if angleDeg < 0 {
-		angleDeg += 360
+		angleDeg += fullSweepDeg
 	}
 
 	return Point{

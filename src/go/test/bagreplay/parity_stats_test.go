@@ -29,8 +29,9 @@ type fieldStat struct {
 	mismatch int // both set but beyond tolerance
 }
 
-func (f *fieldStat) total() int    { return f.bothNil + f.goOnly + f.refOnly + f.equal + f.mismatch }
-func (f *fieldStat) computed() int { return f.goOnly + f.refOnly + f.equal + f.mismatch }
+func (f *fieldStat) computed() int {
+	return f.goOnly + f.refOnly + f.equal + f.mismatch
+}
 
 func (f *fieldStat) record(goSet, refSet bool, within bool) {
 	switch {
@@ -326,8 +327,12 @@ func maneuverFromToken(s string) *controllers.ManeuverType {
 	return &m
 }
 
-func optF64(v *float64) *float64 { return v }
-func optInt[T any](v *T) *T      { return v }
+func optF64(v *float64) *float64 {
+	return v
+}
+func optInt[T any](v *T) *T {
+	return v
+}
 
 var _ = trackmodel.Clockwise
 

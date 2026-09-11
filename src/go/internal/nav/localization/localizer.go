@@ -83,7 +83,9 @@ func (l *LidarLocalizer) ResetTracking() {
 // recovered; the value belongs in the debug snapshot because the failure
 // it reports (run_20260907_205830) was invisible in every field the
 // navigator already published.
-func (l *LidarLocalizer) RelocalizationCount() int { return l.relocalizationCount }
+func (l *LidarLocalizer) RelocalizationCount() int {
+	return l.relocalizationCount
+}
 
 // LastFitCost is the mean clipped squared residual (m^2) of the last
 // accepted match, matching LidarLocalizer.last_fit_cost. ok is false until

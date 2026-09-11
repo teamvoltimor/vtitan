@@ -9,6 +9,12 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// parkingBlock is one parking block's label and placement.
+type parkingBlock struct {
+	label string
+	pos   simconfig.Vec2
+}
+
 type (
 	// Violation is a single failed geometry constraint.
 	Violation struct {
@@ -25,7 +31,9 @@ type (
 	}
 )
 
-func (v Violation) Error() string { return fmt.Sprintf("[%s] %s", v.Rule, v.Message) }
+func (v Violation) Error() string {
+	return fmt.Sprintf("[%s] %s", v.Rule, v.Message)
+}
 
 // Precomputed minimum-clearance thresholds (meters).
 var (
@@ -113,10 +121,7 @@ func checkParkingBounds(cfg *simconfig.ParkingConfig) []Violation {
 
 // checkSignParkingClearance validates minimum distance between signs and parking blocks.
 func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingConfig) []Violation {
-	blocks := []struct {
-		label string
-		pos   simconfig.Vec2
-	}{
+	blocks := []parkingBlock{
 		{"block1", cfg.Block1Pos},
 		{"block2", cfg.Block2Pos},
 	}

@@ -7,6 +7,36 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// wheelSide is one driven wheel's link name and its left(+1)/right(-1)
+// placement sign.
+type wheelSide struct {
+	linkName string
+	ySign    float64
+}
+
+// rearJointSpec is one rear wheel's revolute joint and the wheel link it
+// drives.
+type rearJointSpec struct {
+	jointName, childName string
+}
+
+// steeringSide carries the four link/joint names of one front corner's
+// steering pivot plus wheel, and the corner's left(+1)/right(-1) sign.
+type steeringSide struct {
+	steerLink  string
+	steerJoint string
+	wheelLink  string
+	wheelJoint string
+	ySign      float64
+}
+
+// imuNoiseSpec pairs one IMU sensor noise element's tag with its configured
+// gaussian stddev.
+type imuNoiseSpec struct {
+	tag   string
+	noise float64
+}
+
 var (
 	// wheelRollPose is the 6-DOF pose that rotates a cylinder 90° around X to align
 	// its axis with Y (the wheel roll axis in Gazebo).
@@ -161,19 +191,14 @@ func buildRearWheels(robot *Node) {
 	halfWB := simconfig.RobotWheelbase / 2
 	halfTrack := simconfig.RobotTrackWidth / 2
 
-	for _, side := range []struct {
-		linkName string
-		ySign    float64
-	}{
+	for _, side := range []wheelSide{
 		{simconfig.RobotLinkRearLeftWheel, 1},
 		{simconfig.RobotLinkRearRightWheel, -1},
 	} {
 		buildWheelLink(robot, side.linkName, poseXY(-halfWB, side.ySign*halfTrack))
 	}
 
-	for _, jt := range []struct {
-		jointName, childName string
-	}{
+	for _, jt := range []rearJointSpec{
 		{simconfig.RobotJointRearLeft, simconfig.RobotLinkRearLeftWheel},
 		{simconfig.RobotJointRearRight, simconfig.RobotLinkRearRightWheel},
 	} {
@@ -197,13 +222,7 @@ func buildFrontSteering(robot *Node) {
 	halfWB := simconfig.RobotWheelbase / 2
 	halfTrack := simconfig.RobotTrackWidth / 2
 
-	for _, side := range []struct {
-		steerLink  string
-		steerJoint string
-		wheelLink  string
-		wheelJoint string
-		ySign      float64
-	}{
+	for _, side := range []steeringSide{
 		{
 			steerLink:  simconfig.RobotLinkFrontLeftSteer,
 			steerJoint: simconfig.RobotJointFrontLeftSteer,
@@ -369,10 +388,7 @@ func buildImuLink(robot *Node) {
 	sensor.SubT("update_rate", ff(simconfig.ImuUpdateRate))
 	sensor.SubT("topic", simconfig.RobotImuTopic)
 	imu := sensor.Sub("imu")
-	for _, ag := range []struct {
-		tag   string
-		noise float64
-	}{
+	for _, ag := range []imuNoiseSpec{
 		{"angular_velocity", simconfig.ImuGyroNoise},
 		{"linear_acceleration", simconfig.ImuAccelNoise},
 	} {
@@ -436,7 +452,9 @@ func setNominalInertial(link *Node, mass float64) {
 }
 
 // sq returns x*x.
-func sq(x float64) float64 { return x * x }
+func sq(x float64) float64 {
+	return x * x
+}
 
 // roundTo4 rounds to 4 decimal places (matches Python's round(..., 4)).
 func roundTo4(x float64) float64 {

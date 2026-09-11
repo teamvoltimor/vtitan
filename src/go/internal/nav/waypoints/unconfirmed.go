@@ -23,7 +23,9 @@ type UnconfirmedSections struct {
 
 // AllConfirmed is the zero value, named so a caller that genuinely has no
 // belief to express says so rather than passing a bare literal.
-func AllConfirmed() UnconfirmedSections { return UnconfirmedSections{} }
+func AllConfirmed() UnconfirmedSections {
+	return UnconfirmedSections{}
+}
 
 // AllUnconfirmed is the state a blind round starts in: every corridor is on
 // the narrow prior and none has been measured.

@@ -13,8 +13,12 @@ import (
 // tests/unit/test_race_tracker.py uses to make elapsed time move.
 type fakeClock struct{ now time.Time }
 
-func (c *fakeClock) Now() time.Time          { return c.now }
-func (c *fakeClock) advance(d time.Duration) { c.now = c.now.Add(d) }
+func (c *fakeClock) Now() time.Time {
+	return c.now
+}
+func (c *fakeClock) advance(d time.Duration) {
+	c.now = c.now.Add(d)
+}
 
 func newTracker(numLaps int) (*racetracker.RaceTracker, *fakeClock) {
 	clock := &fakeClock{now: time.Unix(0, 0)}

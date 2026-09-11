@@ -91,10 +91,13 @@ func newInteractiveDriver(t *testing.T) driver.Driver[lidar.Scan] {
 // of the default ClassicSerialDriver.
 //
 // PASS -> a scan assembles, the 8 bearings report (no hard range gate, since
-//         the room may be open), and the operator confirms each placed object
-//         lands in the expected bearing at a sane range.
+//
+//	the room may be open), and the operator confirms each placed object
+//	lands in the expected bearing at a sane range.
+//
 // FAIL  -> Connect/Read errors, OR the operator reports an object did NOT
-//         appear in its bearing (decode angle is wrong / offset off).
+//
+//	appear in its bearing (decode angle is wrong / offset off).
 func TestHW_LIDAR_Object_Dynamic(t *testing.T) {
 	d := newInteractiveDriver(t)
 	if err := d.Connect(context.Background()); err != nil {

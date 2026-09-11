@@ -2,10 +2,34 @@ package sdf
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
+
+// wallSpec is one exterior wall model: its name, center point and the
+// visual/collision box dimensions (visual length includes full wall
+// thickness; collision adds the extra collision margin).
+type wallSpec struct {
+	name       string
+	cx, cy     float64
+	visX, visY float64
+	colX, colY float64
+}
+
+// gridLine is one thin grid-line model and its fixed coordinate along the
+// line's normal axis.
+type gridLine struct {
+	name  string
+	coord float64
+}
+
+// subdivisionSpec is one corridor's subdivision line placement: the
+// corridor plus its center-line coordinate and the two width-marker
+// coordinates.
+type subdivisionSpec struct {
+	section         simconfig.Section
+	mid, div1, div2 float64
+}
 
 // GenerateBaseWorld returns the SDF root and world nodes for the WRO 2026 track.
 // The world includes physics, lights, ground, exterior walls, corner markers,
@@ -95,12 +119,7 @@ func addExteriorWalls(world *Node) {
 	outerEdge := simconfig.TrackMaxCoord + simconfig.WallThickness/2 // 3.05
 	innerEdge := -simconfig.WallThickness / 2                        // -0.05
 
-	walls := []struct {
-		name       string
-		cx, cy     float64
-		visX, visY float64
-		colX, colY float64
-	}{
+	walls := []wallSpec{
 		{simconfig.ModelExteriorWallNorth, center, outerEdge, visLen, h, colLen, simconfig.WallCollisionThickness},
 		{simconfig.ModelExteriorWallSouth, center, innerEdge, visLen, h, colLen, simconfig.WallCollisionThickness},
 		{simconfig.ModelExteriorWallEast, outerEdge, center, h, visLen, simconfig.WallCollisionThickness, colLen},
@@ -137,34 +156,19 @@ func addCornerMarkers(world *Node) {
 
 	// Corner diagonal markers: two per corner (one blue, one orange).
 	// Positions and rotations are fixed by WRO field geometry (π/6 increments).
-	// color and name first: minimizes GC scan region (strings before float64s).
-	type cornerEntry struct {
-		color string
-		name  string
-		cx    float64
-		cy    float64
-		yaw   float64
-	}
-	pi6 := math.Pi / 6 // 30°
-	corners := []cornerEntry{
-		{cx: 2.5, cy: 2.29, yaw: pi6, color: blue, name: simconfig.ModelCornerNEBlue},
-		{cx: 2.29, cy: 2.5, yaw: pi6 * 2, color: orange, name: simconfig.ModelCornerNEOrange},
-		{cx: 2.5, cy: 0.71, yaw: -pi6, color: orange, name: simconfig.ModelCornerSEOrange},
-		{cx: 2.29, cy: 0.5, yaw: -pi6 * 2, color: blue, name: simconfig.ModelCornerSEBlue},
-		{cx: 0.5, cy: 0.71, yaw: -pi6 * 5, color: blue, name: simconfig.ModelCornerSWBlue},
-		{cx: 0.71, cy: 0.5, yaw: -pi6 * 4, color: orange, name: simconfig.ModelCornerSWOrange},
-		{cx: 0.5, cy: 2.29, yaw: pi6 * 5, color: orange, name: simconfig.ModelCornerNWOrange},
-		{cx: 0.71, cy: 2.5, yaw: pi6 * 4, color: blue, name: simconfig.ModelCornerNWBlue},
-	}
-	for _, c := range corners {
-		model := world.Sub("model", "name", c.name)
+	for _, c := range simconfig.CornerMarkers {
+		color := orange
+		if c.Blue {
+			color = blue
+		}
+		model := world.Sub("model", "name", c.Name)
 		model.SubT("static", "true")
-		model.SubT("pose", pose6(c.cx, c.cy, simconfig.ZGridLines, 0, 0, c.yaw))
+		model.SubT("pose", pose6(c.CX, c.CY, simconfig.ZGridLines, 0, 0, c.YawRad))
 		vis := model.Sub("link", "name", "link").Sub("visual", "name", "visual")
 		vis.Sub("geometry").Sub("box").SubT("size", markerSize)
 		mat := vis.Sub("material")
-		mat.SubT("ambient", c.color)
-		mat.SubT("diffuse", c.color)
+		mat.SubT("ambient", color)
+		mat.SubT("diffuse", color)
 	}
 }
 
@@ -205,26 +209,20 @@ func addGridLines(world *Node) {
 	z := ff(simconfig.ZGridLines)
 
 	// Vertical lines at x = TrackCornerMin (1.0) and TrackCornerMax (2.0)
-	for _, item := range []struct {
-		name string
-		cx   float64
-	}{
+	for _, line := range []gridLine{
 		{simconfig.ModelGridLinePrefix + "v1", simconfig.TrackCornerMin},
 		{simconfig.ModelGridLinePrefix + "v2", simconfig.TrackCornerMax},
 	} {
 		sizeStr := fmt.Sprintf("%s %s %s", thick, trackLen, height)
-		addThinBoxModel(world, item.name, item.cx, center, z, sizeStr, color)
+		addThinBoxModel(world, line.name, line.coord, center, z, sizeStr, color)
 	}
 	// Horizontal lines at y = TrackCornerMin (1.0) and TrackCornerMax (2.0)
-	for _, item := range []struct {
-		name string
-		cy   float64
-	}{
+	for _, line := range []gridLine{
 		{simconfig.ModelGridLinePrefix + "h1", simconfig.TrackCornerMin},
 		{simconfig.ModelGridLinePrefix + "h2", simconfig.TrackCornerMax},
 	} {
 		sizeStr := fmt.Sprintf("%s %s %s", trackLen, thick, height)
-		addThinBoxModel(world, item.name, center, item.cy, z, sizeStr, color)
+		addThinBoxModel(world, line.name, center, line.coord, z, sizeStr, color)
 	}
 }
 
@@ -250,11 +248,7 @@ func addCorridorSubdivisions(world *Node) {
 	ewCenter := nsWidth
 	ewWidth := nsCenter
 
-	type subdivSpec struct {
-		section         simconfig.Section
-		mid, div1, div2 float64
-	}
-	specs := []subdivSpec{
+	specs := []subdivisionSpec{
 		{simconfig.SectionSouth, southMid, divOuter, divInner},
 		{simconfig.SectionNorth, northMid, farDivInner, farDivOuter},
 		{simconfig.SectionEast, northMid, farDivInner, farDivOuter},

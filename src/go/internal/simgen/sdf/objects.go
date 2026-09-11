@@ -6,6 +6,14 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
+// parkingBlockSpec is one parking-limitation block model: its name,
+// placement and heading.
+type parkingBlockSpec struct {
+	name string
+	pos  simconfig.Vec2
+	yaw  float64
+}
+
 // AddTrafficSigns appends one box model per sign to the world element.
 // positions and colors must be the same length.
 func AddTrafficSigns(world *Node, signs []simconfig.Sign) {
@@ -29,11 +37,7 @@ func AddTrafficSigns(world *Node, signs []simconfig.Sign) {
 // AddParkingLot appends the two parking limitation block models to the world element.
 func AddParkingLot(world *Node, cfg simconfig.ParkingConfig) {
 	parkColor := simconfig.ParkingColor
-	for _, block := range []struct {
-		name string
-		pos  simconfig.Vec2
-		yaw  float64
-	}{
+	for _, block := range []parkingBlockSpec{
 		{simconfig.ModelParkingBlock1, cfg.Block1Pos, cfg.Block1Yaw},
 		{simconfig.ModelParkingBlock2, cfg.Block2Pos, cfg.Block2Yaw},
 	} {

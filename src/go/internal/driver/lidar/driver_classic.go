@@ -55,7 +55,6 @@ type Config struct {
 // the Dense/Express mode implementation rather than as the sole driver).
 // It implements driver.Driver[Scan] (platform/robot-go/internal/driver).
 type ClassicSerialDriver struct {
-	cfg    Config
 	port   serial.Port
 	reader *bufio.Reader
 	// first holds one already-decoded measurement that arrived with S=1
@@ -63,6 +62,7 @@ type ClassicSerialDriver struct {
 	// to the *next* Scan and is carried over between Read calls instead
 	// of being discarded.
 	first *Point
+	cfg   Config
 }
 
 // DefaultBaudRate is the RPLIDAR C1's documented UART baud rate ("Data
@@ -85,7 +85,7 @@ const (
 // needs time to process it ("STOP Request" / "RPLIDAR Core Reset(RESET)
 // Request").
 const (
-	stopSettleDelay  = 1 * time.Millisecond
+	stopSettleDelay = 1 * time.Millisecond
 	// resetSettleDelay is how long Connect waits after a RESET before issuing
 	// the next request. The RPLIDAR C1 reboots its core on RESET, which takes
 	// far longer than the protocol's typical few-ms stop settle — sending the
@@ -101,9 +101,6 @@ const (
 	// flow and the hardware probe that first got the C1 streaming
 	// (2026-08-31).
 	motorSpinupDelay = 800 * time.Millisecond
-	// connectReadTimeout bounds every Read after Connect opens the port, so a
-	// device that never answers the SCAN request fails fast instead of hanging.
-	connectReadTimeout = 2 * time.Second
 	// scanReadTimeout is the per-read silence tolerance used while streaming
 	// scan data. The RPLIDAR C1 Express/Dense stream emits one scan then
 	// pauses ~2.1s before the next (measured on hardware 2026-08-31); this
@@ -111,6 +108,13 @@ const (
 	// truly stalled device.
 	scanReadTimeout = 4 * time.Second
 )
+
+// scanResult is the channel payload both serial drivers' Read use to hand a
+// completed (or failed) scan back from the blocking goroutine.
+type scanResult struct {
+	scan Scan
+	err  error
+}
 
 var (
 	errReadBeforeConnect = errors.New("lidar: Read called before Connect")
@@ -144,7 +148,7 @@ func (d *ClassicSerialDriver) Connect(ctx context.Context) error {
 	d.port = port
 	d.reader = bufio.NewReader(newTimeoutReader(port, scanReadTimeout))
 	// The serial port's per-call read timeout is kept short; the
-	// timeoutReader's maxSilence (connectReadTimeout) bounds a stalled read.
+	// timeoutReader's maxSilence bounds a stalled read.
 	if err := d.port.SetReadTimeout(serialPollTimeout); err != nil {
 		return fmt.Errorf("lidar: setting read timeout: %w", err)
 	}
@@ -197,14 +201,10 @@ func (d *ClassicSerialDriver) Read(ctx context.Context) (Scan, error) {
 		return nil, errReadBeforeConnect
 	}
 
-	type result struct {
-		scan Scan
-		err  error
-	}
-	resultCh := make(chan result, 1)
+	resultCh := make(chan scanResult, 1)
 	go func() {
 		scan, err := d.readScan()
-		resultCh <- result{scan: scan, err: err}
+		resultCh <- scanResult{scan: scan, err: err}
 	}()
 
 	select {

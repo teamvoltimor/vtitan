@@ -6,6 +6,13 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
+// sectorThreat pairs a threat direction with the minimum range measured in
+// its sector; ComputeThreatDirection picks the closest one.
+type sectorThreat struct {
+	dir  ThreatDirection
+	dist float64
+}
+
 // EscapeManeuver is an escape maneuver command, matching
 // collision_avoidance_controller.EscapeManeuver.
 type EscapeManeuver struct {
@@ -287,10 +294,7 @@ func (c *CollisionAvoidanceController) DetectThreatDirection(
 	back := sectorMin(math.Pi, true)
 
 	closest, closestDist := ThreatFront, front
-	for _, cand := range []struct {
-		dir  ThreatDirection
-		dist float64
-	}{{ThreatLeft, left}, {ThreatRight, right}, {ThreatBack, back}} {
+	for _, cand := range []sectorThreat{{ThreatLeft, left}, {ThreatRight, right}, {ThreatBack, back}} {
 		if cand.dist < closestDist {
 			closest, closestDist = cand.dir, cand.dist
 		}

@@ -226,7 +226,7 @@ func decodeDensePacket(b []byte) (densePacket, error) {
 func resolveDenseCabins(prev densePacket, nextStartAngleDeg float64) []Point {
 	angleDiff := nextStartAngleDeg - prev.startAngleDeg
 	if prev.startAngleDeg > nextStartAngleDeg {
-		angleDiff += 360
+		angleDiff += fullSweepDeg
 	}
 	step := angleDiff / float64(len(prev.cabinDistancesMM))
 
@@ -237,9 +237,9 @@ func resolveDenseCabins(prev densePacket, nextStartAngleDeg float64) []Point {
 		}
 
 		angleDeg := correctAngleDeg(prev.startAngleDeg+step*float64(k), mountInverted, yawOffsetDeg)
-		angleDeg = math.Mod(angleDeg, 360)
+		angleDeg = math.Mod(angleDeg, fullSweepDeg)
 		if angleDeg < 0 {
-			angleDeg += 360
+			angleDeg += fullSweepDeg
 		}
 
 		pts = append(pts, Point{

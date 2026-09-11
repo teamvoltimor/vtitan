@@ -16,11 +16,14 @@ import (
 // timeout.
 //
 // PASS -> serial.Open succeeds AND readFrame decodes >=1 well-formed RVC
-//         frame (checksum valid, known header) from the live sensor.
+//
+//	frame (checksum valid, known header) from the live sensor.
+//
 // FAIL -> serial.Open errors (port missing / permission / wrong tty) OR no
-//         valid frame arrives before the read timeout (sensor not streaming,
-//         wrong baud, or wiring). Any of these means the go.bug.st/serial
-//         UART path or the RVC frame parser is broken against real hardware.
+//
+//	valid frame arrives before the read timeout (sensor not streaming,
+//	wrong baud, or wiring). Any of these means the go.bug.st/serial
+//	UART path or the RVC frame parser is broken against real hardware.
 func TestHW_IMU_UART(t *testing.T) {
 	port := os.Getenv("IMU_TTY")
 	if port == "" {

@@ -293,24 +293,18 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer conn.Close()
 
-	ackermannSub, err := nats.NewSubscriber(
+	ackermannSub, err := nats.NewSubscriber[actuationv1.AckermannCmd](
 		conn,
 		actuationv1.AckermannCmdSubject,
-		func() *actuationv1.AckermannCmd {
-			return &actuationv1.AckermannCmd{}
-		},
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
 	}
 	defer closeLogged(logger, "AckermannCmd subscription", ackermannSub.Close)
 
-	summarySub, err := nats.NewSubscriber(
+	summarySub, err := nats.NewSubscriber[uiv1.TelemetrySummary](
 		conn,
 		uiv1.TelemetrySummarySubject,
-		func() *uiv1.TelemetrySummary {
-			return &uiv1.TelemetrySummary{}
-		},
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context

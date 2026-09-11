@@ -22,10 +22,13 @@ import (
 // go-gpiocdev dependency.
 //
 // PASS -> requesting GPIO4 as input with WithPullUp reads a stable 1 across
-//         samples (matches the unpressed, wired-pull-up level).
+//
+//	samples (matches the unpressed, wired-pull-up level).
+//
 // FAIL -> the line request errors (wrong chip/pin, already claimed) OR the
-//         level is not a stable 1 -- the kernel is not applying
-//         go-gpiocdev's bias against the real wiring.
+//
+//	level is not a stable 1 -- the kernel is not applying
+//	go-gpiocdev's bias against the real wiring.
 //
 // Set BUTTON_GPIO_LINE to override (defaults to 4 to match gpio.toml).
 func TestHW_GPIO_Bias(t *testing.T) {

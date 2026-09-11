@@ -20,6 +20,19 @@ type mjpegAVISink struct {
 	written bool
 }
 
+// aviStreamHeaderBytes is the fixed size of an AVI strh stream-header chunk.
+const aviStreamHeaderBytes = 56
+
+// aviStreamFormatBytes is the size of the strf chunk we write: a minimal
+// BITMAPINFOHEADER.
+const aviStreamFormatBytes = 40
+
+// aviChunk is one "00dc" frame chunk buffered until the AVI index sizes are
+// known.
+type aviChunk struct {
+	data []byte
+}
+
 // newMJPEGAVISink opens path for MJPEG-in-AVI writing. The first frame fixes the
 // dimensions.
 func newMJPEGAVISink(path string) (*mjpegAVISink, error) {
@@ -29,9 +42,6 @@ func newMJPEGAVISink(path string) (*mjpegAVISink, error) {
 	}
 	return &mjpegAVISink{f: f}, nil
 }
-
-// VideoSink adapter: mjpegAVISink implements VideoSink, so this is identity.
-func (s *mjpegAVISink) asSink() VideoSink { return s }
 
 // Write encodes f as JPEG and buffers it. The AVI header is written on Close
 // once the frame count and size are known (AVI requires the index up front).
@@ -72,13 +82,8 @@ func (s *mjpegAVISink) Close() error {
 
 // writeAVI emits a minimal but valid AVI 1.0 MJPEG file.
 func (s *mjpegAVISink) writeAVI() error {
-	const (
-		streamHeaderBytes = 56
-		streamFormatBytes = 40 // BITMAPINFOHEADER (we write a minimal one)
-	)
 	// Pre-compute chunk sizes.
-	type chunk struct{ data []byte }
-	chunks := make([]chunk, len(s.frames))
+	chunks := make([]aviChunk, len(s.frames))
 	totalMovi := 4 // "movi" fourcc
 	for i, fr := range s.frames {
 		// Each frame chunk: "00dc" tag (4) + size (4) + padded data.
@@ -88,7 +93,7 @@ func (s *mjpegAVISink) writeAVI() error {
 		copy(c[0:], "00dc")
 		binary.LittleEndian.PutUint32(c[4:], uint32(size))
 		copy(c[8:], fr)
-		chunks[i] = chunk{data: c}
+		chunks[i] = aviChunk{data: c}
 		totalMovi += len(c)
 	}
 
@@ -129,11 +134,11 @@ func (s *mjpegAVISink) writeAVI() error {
 	// strl list.
 	writeFourCC(&b, "strl")
 	// strl contents size = (8+56) + (8+40)
-	binary.Write(&b, binary.LittleEndian, uint32((8+streamHeaderBytes)+(8+streamFormatBytes)))
+	binary.Write(&b, binary.LittleEndian, uint32((8+aviStreamHeaderBytes)+(8+aviStreamFormatBytes)))
 
 	// strh chunk.
 	writeFourCC(&b, "strh")
-	binary.Write(&b, binary.LittleEndian, uint32(streamHeaderBytes))
+	binary.Write(&b, binary.LittleEndian, uint32(aviStreamHeaderBytes))
 	writeFourCC(&b, "vids")
 	writeFourCC(&b, "MJPG")
 	binary.Write(&b, binary.LittleEndian, uint32(0))             // flags
@@ -153,8 +158,8 @@ func (s *mjpegAVISink) writeAVI() error {
 
 	// strf chunk (BITMAPINFOHEADER, minimal).
 	writeFourCC(&b, "strf")
-	binary.Write(&b, binary.LittleEndian, uint32(streamFormatBytes))
-	binary.Write(&b, binary.LittleEndian, uint32(streamFormatBytes)) // biSize
+	binary.Write(&b, binary.LittleEndian, uint32(aviStreamFormatBytes))
+	binary.Write(&b, binary.LittleEndian, uint32(aviStreamFormatBytes)) // biSize
 	binary.Write(&b, binary.LittleEndian, uint32(s.width))
 	binary.Write(&b, binary.LittleEndian, uint32(s.height))
 	binary.Write(&b, binary.LittleEndian, uint16(1))                  // planes

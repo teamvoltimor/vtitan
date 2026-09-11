@@ -161,14 +161,10 @@ func (d *DenseSerialDriver) Read(ctx context.Context) (Scan, error) {
 		return nil, errReadBeforeConnect
 	}
 
-	type result struct {
-		scan Scan
-		err  error
-	}
-	resultCh := make(chan result, 1)
+	resultCh := make(chan scanResult, 1)
 	go func() {
 		scan, err := d.readScan()
-		resultCh <- result{scan: scan, err: err}
+		resultCh <- scanResult{scan: scan, err: err}
 	}()
 
 	select {

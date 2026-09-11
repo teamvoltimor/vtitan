@@ -150,4 +150,6 @@ func TestToProtoStatus(t *testing.T) {
 }
 
 //nolint:modernize // gopls' new(expr) suggestion here isn't valid Go (new takes a type, not a value)
-func floatPtr(f float64) *float64 { return &f }
+func floatPtr(f float64) *float64 {
+	return &f
+}
