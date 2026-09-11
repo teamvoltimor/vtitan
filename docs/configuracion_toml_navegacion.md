@@ -1,4 +1,4 @@
-# Configuración TOML de navegación (`robot` y `robot-go`)
+# Configuración TOML de navegación (`src/python` y `src/go`)
 
 Este documento explica **dónde reside la configuración**, **cómo se resuelve** y **qué hace cada
 variable relevante** en las dos implementaciones de navegación: `src/python` (Python/ROS 2) y
@@ -8,7 +8,7 @@ El alcance es deliberado: se documenta lo que **modifica el comportamiento en pi
 Challenge y en el Obstacle Challenge. Se omiten los ficheros puramente de hardware y de
 controladores de dispositivo (pines GPIO, direcciones I2C, rangos de PWM del servo, UART de la IMU,
 parámetros del panel OLED, del botón y del grabador), que residen en
-`src/python/config/hardware/` y solo describen cómo se comunica el sistema con una pieza física.
+`src/config/hardware/` y solo describen cómo se comunica el sistema con una pieza física.
 
 ---
 
@@ -249,11 +249,11 @@ modelo. Corresponde al radio mínimo de giro medido del chasis; el modelo cinem�
 
 ### 2.13 Ficheros ajenos al árbol compartido pero relevantes
 
-- `src/python/config/hardware/state_machine/state_machine_node.toml`:
+- `src/config/hardware/state_machine/state_machine_node.toml`:
   `challenge_mode_timeout_sec = 180.0` y `challenge_mode_samples_required = 3`. Determinan el tiempo
   de espera del puente físico que selecciona el reto. Con un tiempo de espera reducido, una ronda de
   Obstacles llegó a ejecutarse como Open.
-- `src/python/config/hardware/vision/detector.toml`: `min_confidence = 0.45` del detector.
+- `src/config/hardware/vision/detector.toml`: `min_confidence = 0.45` del detector.
 - `src/python/config/launch/race.toml`: retención de registros (`bag_max_runs`,
   `bag_max_total_gb`).
 

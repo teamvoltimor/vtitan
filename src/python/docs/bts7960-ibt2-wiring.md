@@ -50,7 +50,7 @@ software PWM).
 | `R_EN` | GPIO6 | Held permanently HIGH -- gates protection, not direction |
 | `L_EN` | GPIO5 | Held permanently HIGH -- gates protection, not direction |
 
-Defaults live on `Bts7960PwmConfig` (`config/hardware/motors/bts7960.toml`)
+Defaults live on `Bts7960PwmConfig` (`src/config/hardware/motors/bts7960.toml`)
 -- override there or via `BTS7960_PWM_*` env vars if wired differently.
 
 ## Not wired: current-sense (`R_IS`/`L_IS`)

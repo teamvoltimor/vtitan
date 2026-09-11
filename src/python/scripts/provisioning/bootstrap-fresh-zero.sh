@@ -55,7 +55,7 @@ SERVO_PWM_PIN="${SERVO_PWM_PIN:-12}"
 MOTOR_PWM_PIN="${MOTOR_PWM_PIN:-13}"
 # BTS7960 lines not covered by the PWM overlay above -- LPWM rides software
 # PWM, R_EN/L_EN are plain digital outputs. Must match reverse_pwm_pin/
-# r_en_pin/l_en_pin in config/hardware/motors/bts7960.toml.
+# r_en_pin/l_en_pin in src/config/hardware/motors/bts7960.toml.
 MOTOR_REVERSE_PIN="${MOTOR_REVERSE_PIN:-26}"
 MOTOR_R_EN_PIN="${MOTOR_R_EN_PIN:-6}"
 MOTOR_L_EN_PIN="${MOTOR_L_EN_PIN:-5}"
