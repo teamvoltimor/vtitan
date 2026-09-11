@@ -94,11 +94,28 @@ class EscapeManeuverParams(BaseModel):
     against on hardware (0 flips in 111 and 140 legs, 815-1070 deg of rotation
     for 2-7 net, 0/2 out of the bay; mirrored, 95% efficient and 3/3 out).
 
-    DEFAULTS TO FALSE. The bay evidence is hardware and direct; this is the
-    same mechanism measured the same way, but the escape's own A/B has NOT been
-    run, and the simulator cannot screen it -- its contact model never slides
-    along a wall, which is the situation an escape exists for.
+    Ships FALSE here and TRUE for Obstacles
+    (``OBSTACLES_ESCAPE_MIRRORS_REVERSE``), for the same division of evidence
+    that scopes ``K_TURN_FIT_REAR_GAP``: every measurement above comes from
+    OBSTACLES bags, where the thing the chassis is rocking against is a pillar.
+    Open's escapes fire in corners against WALLS (81% at 45-90 deg), a geometry
+    none of this was measured on, and Open is at 638/640 -- it has more to lose
+    from an unmeasured change than to gain.
+
+    The simulator cannot screen either side of that: its contact model never
+    slides along a wall, which is the situation an escape exists for. So the
+    Obstacles default is set from bag evidence plus the bay's hardware result,
+    and the first hardware round with it on is the A/B.
     """
+    OBSTACLES_ESCAPE_MIRRORS_REVERSE: bool | None = Field(
+        default=True, validation_alias=_alias("OBSTACLES_ESCAPE_MIRRORS_REVERSE")
+    )
+    """Obstacles-Challenge ``ESCAPE_MIRRORS_REVERSE``. ``None`` -> shared field.
+
+    Resolved by :meth:`for_obstacles_challenge`. See ``ESCAPE_MIRRORS_REVERSE``
+    for why the scope is Obstacles and not the whole tree.
+    """
+
 
     REV_STEER_DEG: float = Field(
         default=44.0, validation_alias=_alias("REV_STEER_DEG")
@@ -287,9 +304,17 @@ class EscapeManeuverParams(BaseModel):
         Returns ``self`` unchanged when no Obstacles override is set, so the
         Open path and the un-overridden Obstacles path stay byte-identical.
         """
-        if self.OBSTACLES_K_TURN_FIT_REAR_GAP is None:
+        overrides = {
+            "K_TURN_FIT_REAR_GAP": self.OBSTACLES_K_TURN_FIT_REAR_GAP,
+            "ESCAPE_MIRRORS_REVERSE": self.OBSTACLES_ESCAPE_MIRRORS_REVERSE,
+        }
+        # Dropping the Nones rather than writing them back is what keeps the
+        # promise above: with every override unset this returns `self`, so the
+        # Open path and an un-overridden Obstacles path stay byte-identical.
+        set_overrides = {name: value for name, value in overrides.items() if value is not None}
+        if not set_overrides:
             return self
-        return self.model_copy(update={"K_TURN_FIT_REAR_GAP": self.OBSTACLES_K_TURN_FIT_REAR_GAP})
+        return self.model_copy(update=set_overrides)
 
     def side_correction_steer_norm(self) -> float:
         """Side-threat correction steering as a normalised actuator command."""

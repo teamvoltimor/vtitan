@@ -589,6 +589,11 @@ class TestEveryCreepJobIsNameable:
         assert speed.contact_mps() == speed.creep_mps()
 
 
+OBSTACLES_ESCAPE_OVERRIDES = ("OBSTACLES_K_TURN_FIT_REAR_GAP", "OBSTACLES_ESCAPE_MIRRORS_REVERSE")
+"""Every per-challenge escape override, so the identity test below cannot rot
+into testing one of them while a second silently defeats it."""
+
+
 class TestPerChallengeReverseFit:
     """``K_TURN_FIT_REAR_GAP`` ships off shared and on for Obstacles.
 
@@ -609,14 +614,46 @@ class TestPerChallengeReverseFit:
 
         This is what keeps Open and an un-overridden Obstacles byte-identical,
         and what makes reading the resolved object everywhere safe rather than
-        a second source of truth for the other twenty escape fields.
+        a second source of truth for the other twenty escape fields. Clearing
+        EVERY override rather than one: with more than one the resolver can no
+        longer short-circuit on a single None, and a test that cleared just its
+        own would stop testing the identity it names.
         """
-        escape = NavigationTuning().escape.model_copy(update={"OBSTACLES_K_TURN_FIT_REAR_GAP": None})
+        escape = NavigationTuning().escape.model_copy(
+            update={name: None for name in OBSTACLES_ESCAPE_OVERRIDES}
+        )
         assert escape.for_obstacles_challenge() is escape
 
     def test_the_override_moves_nothing_else(self):
         base = NavigationTuning().escape
         resolved = base.for_obstacles_challenge()
-        assert resolved.model_dump(exclude={"K_TURN_FIT_REAR_GAP"}) == base.model_dump(
-            exclude={"K_TURN_FIT_REAR_GAP"}
+        moved = {"K_TURN_FIT_REAR_GAP", "ESCAPE_MIRRORS_REVERSE"}
+        assert resolved.model_dump(exclude=moved) == base.model_dump(exclude=moved)
+
+
+class TestPerChallengeMirroredReverse:
+    """``ESCAPE_MIRRORS_REVERSE`` ships off shared and on for Obstacles.
+
+    Same split, same reason as the reverse fit above: the 85.6%-of-leg-pairs
+    measurement is from Obstacles bags, and Open sits at 638/640 with its
+    escapes firing against walls rather than pillars.
+    """
+
+    def test_the_shared_default_is_off(self):
+        assert NavigationTuning().escape.ESCAPE_MIRRORS_REVERSE is False
+
+    def test_obstacles_resolves_it_on(self):
+        assert NavigationTuning().escape.for_obstacles_challenge().ESCAPE_MIRRORS_REVERSE is True
+
+    def test_the_two_overrides_resolve_independently(self):
+        """One override set and the other cleared must move only its own field.
+
+        With two of them sharing a resolver, a merge bug that wrote both from
+        one source would pass every test above and only show up here.
+        """
+        escape = NavigationTuning().escape.model_copy(
+            update={"OBSTACLES_K_TURN_FIT_REAR_GAP": None}
         )
+        resolved = escape.for_obstacles_challenge()
+        assert resolved.ESCAPE_MIRRORS_REVERSE is True
+        assert resolved.K_TURN_FIT_REAR_GAP is False

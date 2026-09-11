@@ -76,6 +76,12 @@ min_history_for_distance = 2             # Position samples needed before recent
 # Steer the OPPOSITE way on an escape's reverse leg, so the forward and reverse
 # arcs curve opposite ways and rotation accumulates instead of cancelling.
 # Measured 2026-09-11: 208 of 243 forward/reverse leg pairs (85.6%) hold the
-# SAME sign today, which is the bay pendulum outside the bay. Ships FALSE --
-# the mechanism is measured but this escape's own A/B is not run.
+# SAME sign today, which is the bay pendulum outside the bay.
+#
+# FALSE shared, TRUE for Obstacles -- same split as k_turn_fit_rear_gap above,
+# and for the same reason: the measurement is entirely from Obstacles bags
+# (the thing being rocked against is a pillar), while Open escapes in corners
+# against walls and sits at 638/640. The sim cannot screen either side; the
+# first hardware round with this on IS the A/B.
 escape_mirrors_reverse = false
+obstacles_escape_mirrors_reverse = true
