@@ -29,6 +29,7 @@ from tests.ros2.common_imu_fixtures import (
     assert_node_configures_correctly,
     assert_publish_imu_noop_before_configure,
 )
+from tests.ros2.common_node_fixtures import wait_for_graph_entry
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,23 @@ class IMU_AllData:
 
 @pytest.fixture()
 def mock_driver():
-    """Create a mock IMU I2C driver."""
+    """Create a mock IMU I2C driver.
+
+    ``get_all_data`` needs a real ``IMU_AllData`` by default, not MagicMock's
+    default return: the publish timer can legitimately fire mid-test (e.g.
+    while a graph-discovery wait spins the node), and a bare MagicMock
+    unpacks as an empty sequence via its default ``__iter__``, crashing
+    ``publish_imu``'s ``qw, qx, qy, qz = data.quaternion`` with an uncaught
+    ValueError. Individual tests still override this with their own
+    ``return_value``/``side_effect`` where the reading's content matters.
+    """
     with mock.patch("src.ros2.imu.bno08x.mcp2221.i2c_node.IMU_I2CDriver") as mock_cls:
         driver_instance = mock.MagicMock()
+        driver_instance.get_all_data.return_value = IMU_AllData(
+            quaternion=(1.0, 0.0, 0.0, 0.0),
+            linear_accel=(0.0, 0.0, 0.0),
+            gyroscope=(0.0, 0.0, 0.0),
+        )
         mock_cls.return_value = driver_instance
         yield driver_instance
 
@@ -66,8 +81,13 @@ class TestIMU_I2CNodeInit:
         node.trigger_configure()
         node.trigger_activate()
         assert node.publisher_ is not None
-        topic_names = [topic_name for topic_name, _ in node.get_publisher_names_and_types_by_node(node.get_name(), "")]
-        assert any("imu/data" in topic_name for topic_name in topic_names)
+        topics = wait_for_graph_entry(
+            node,
+            lambda: dict(node.get_publisher_names_and_types_by_node(node.get_name(), "")),
+            "/imu/data",
+            timeout_sec=5.0,
+        )
+        assert "/imu/data" in topics
         node.destroy_node()
 
     def test_node_calls_driver_connect(self, ros_context, mock_driver):

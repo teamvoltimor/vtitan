@@ -149,19 +149,25 @@ class TestLidarClearancesCm:
         assert c.front_m * 100 == pytest.approx(100.0, abs=5.0)
 
     def test_left_and_right_filter_self_detection_but_front_does_not(self, bridge_module):
-        """Front must still register a genuine near-contact; sides discard chassis self-reflection."""
+        """Front must still register a genuine near-contact; sides discard chassis self-reflection.
+
+        The reading must sit strictly between MIN_VALID_RANGE_M (0.05m) and
+        SELF_DETECTION_THRESHOLD_M (0.08m): below both, front would also be
+        filtered out via its own min_valid_range_m gate, and the test would
+        pass without ever exercising the self-detection branch it's named for.
+        """
         n = 720
         ranges = [10.0] * n
         for i in _window(0, 62, n):
-            ranges[i] = 0.02  # inside LIDAR_SELF_DETECTION_THRESHOLD (0.08m)
+            ranges[i] = 0.06  # above MIN_VALID_RANGE_M (0.05m), below SELF_DETECTION_THRESHOLD_M (0.08m)
         for i in _window(n // 4, 62, n):
-            ranges[i] = 0.02
+            ranges[i] = 0.06
         for i in _window(3 * n // 4, 62, n):
-            ranges[i] = 0.02
+            ranges[i] = 0.06
 
         c = bridge_module._lidar_clearances(ranges, _HALF_FOV_RAD)
 
-        assert c.front_m * 100 == pytest.approx(2.0, abs=0.5)  # not filtered
+        assert c.front_m * 100 == pytest.approx(6.0, abs=0.5)  # not filtered
         assert c.left_m == 0.0  # filtered out entirely -- no valid points left
         assert c.right_m == 0.0
 

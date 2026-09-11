@@ -71,12 +71,19 @@ def test_max_speed_specification() -> None:
 
 
 def test_lidar_max_range_safety_margin() -> None:
-    """Verify LIDAR max range has a safety margin below the raw hardware max."""
+    """Verify LIDAR max range matches the raw hardware max.
+
+    Since the config-driven cleanup (robot.toml's ``lidar.max_range``,
+    "Farthest range the C1 reports"), this constant IS the datasheet spec
+    exactly, not a hand-margined value below it -- the dropout-vs-genuine-
+    long-reading distinction now lives downstream at each call site via
+    ``_NO_RETURN_MARGIN_M`` (see collision_avoidance/sectors.py), not baked
+    into the constant itself.
+    """
     lidar_raw_max = 12.0  # C1 datasheet: 12m
 
-    # Should be slightly less than hardware max to distinguish from dropouts
-    assert lidar_raw_max > RobotSpecs.LIDAR_MAX_RANGE, \
-        "LIDAR_MAX_RANGE should be less than hardware max (to distinguish dropouts)"
+    assert lidar_raw_max == RobotSpecs.LIDAR_MAX_RANGE, \
+        "LIDAR_MAX_RANGE should match the C1 datasheet max exactly"
 
     # Should be reasonable for the 3m mat
     assert RobotSpecs.LIDAR_MAX_RANGE > 3.0, \

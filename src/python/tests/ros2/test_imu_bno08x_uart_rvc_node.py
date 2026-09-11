@@ -24,6 +24,7 @@ from tests.ros2.common_imu_fixtures import (
     assert_node_configures_correctly,
     assert_publish_imu_noop_before_configure,
 )
+from tests.ros2.common_node_fixtures import wait_for_graph_entry
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,26 @@ def mock_buildhat():
 
 @pytest.fixture()
 def imu_rvc_node_class():
-    """Import IMU_UART_RVCNode with a mocked driver instance."""
+    """Import IMU_UART_RVCNode with a mocked driver instance.
+
+    ``get_data`` needs a real ``RVCReading`` by default, not MagicMock's
+    default return: the publish timer can legitimately fire mid-test (e.g.
+    while a graph-discovery wait spins the node), and a bare MagicMock
+    unpacks as an empty sequence via its default ``__iter__``, crashing
+    ``publish_imu``'s ``qw, qx, qy, qz = data.quaternion`` with an uncaught
+    ValueError. Individual tests still override this with their own
+    ``return_value``/``side_effect`` where the reading's content matters.
+    """
     driver_instance = mock.MagicMock()
+    driver_instance.get_data.return_value = RVCReading(
+        yaw_deg=0.0,
+        pitch_deg=0.0,
+        roll_deg=0.0,
+        x_accel=0.0,
+        y_accel=0.0,
+        z_accel=0.0,
+        quaternion=QuaternionReading(1.0, 0.0, 0.0, 0.0),
+    )
 
     with mock.patch(
         "src.ros2.imu.bno08x.mcp2221.uart_rvc_node.IMU_UART_RVCDriver", return_value=driver_instance
@@ -67,8 +86,13 @@ class TestIMU_UART_RVCNodeInit:
         node.trigger_configure()
         node.trigger_activate()
         assert node.publisher_ is not None
-        topic_names = [topic_name for topic_name, _ in node.get_publisher_names_and_types_by_node(node.get_name(), "")]
-        assert any("imu/data" in topic_name for topic_name in topic_names)
+        topics = wait_for_graph_entry(
+            node,
+            lambda: dict(node.get_publisher_names_and_types_by_node(node.get_name(), "")),
+            "/imu/data",
+            timeout_sec=5.0,
+        )
+        assert "/imu/data" in topics
         node.destroy_node()
 
     def test_node_calls_driver_connect(self, ros_context, imu_rvc_node_class):

@@ -42,9 +42,18 @@ def _mock_driver() -> mock.MagicMock:
     alone leaves it missing. `_publish_hold_progress` reads real threshold
     floats out of it into a strict pydantic model, so a plain MagicMock won't
     do either; attach a real Config with default thresholds.
+
+    `get_state` also needs a real ``ButtonState`` by default, not MagicMock's
+    default return: the poll timer can legitimately fire mid-test (e.g. while
+    a graph-discovery wait spins the node), and an unconfigured MagicMock's
+    `.last_event` is truthy with a `.value` that is itself a MagicMock, so
+    `_poll` publishes it as `msg.data` and crashes inside rclpy with an
+    uncaught TypeError. Individual tests still override this with their own
+    `return_value` where the state's content matters.
     """
     driver = mock.MagicMock(spec=button_base.Driver)
     driver.config = mock.MagicMock(button=ButtonConfig())
+    driver.get_state.return_value = ButtonState(is_pressed=False, press_duration=0.0, last_event=None)
     return driver
 
 
@@ -76,6 +85,7 @@ class TestButtonNodeInit:
             node,
             lambda: dict(node.get_publisher_names_and_types_by_node(node.get_name(), "")),
             event_topic,
+            timeout_sec=5.0,
         )
         assert event_topic in topics
         assert topics[event_topic] == [RosMessageType.STRING]

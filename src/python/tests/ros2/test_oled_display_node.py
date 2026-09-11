@@ -192,7 +192,7 @@ class TestOLEDDisplayNodeCallbacks:
         node._diagnostics_callback(msg)
 
         assert "IMU" in node.system_status
-        assert node.system_status["IMU"]["level"] == DiagnosticStatus.OK
+        assert node.system_status["IMU"]["level"] == 0  # normalised to int at ingest, see _diagnostics_callback
         node.destroy_node()
 
     def test_metrics_callback_parses_json(self, ros_context, oled_node_class):

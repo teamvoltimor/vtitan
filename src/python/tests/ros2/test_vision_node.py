@@ -505,7 +505,7 @@ class TestVideoRecordingGating:
         node = VisionNode()
         recorder = recorder_cls.return_value
         recorder.is_recording = True
-        node._racing = True
+        node._on_robot_state(String(data="racing"))
 
         node._on_robot_state(String(data="finished"))
 
