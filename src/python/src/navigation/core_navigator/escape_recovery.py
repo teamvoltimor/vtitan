@@ -382,6 +382,49 @@ class EscapeRecovery:
             return 1.0
         return self._escape_steer_sign_for_attempt()
 
+    def _stuck_escape_base_sign(self, scan: LidarScan | None) -> float:
+        """Base steering side for a FRESH stuck-escape sequence.
+
+        Swings toward whichever side LIDAR measures as clearer, falling back
+        to the currently committed side when both are tied or unreadable.
+        ``_escape_steer_sign_for_attempt``'s block-alternation still owns
+        which side repeated attempts within the sequence take; this only
+        fixes what side attempt 1 commits to.
+
+        Measured on the 2026-09-10 Obstacles bags: this base was hardcoded to
+        1.0 at every reset and NEVER read from LIDAR, so the stuck K-turn
+        (as opposed to the reactive one _k_turn_steer_sign already serves,
+        and the both-blocked pivot _pivot_steer_sign already serves) opposed
+        the clearer side 57% of the time, against 11% for side_correction --
+        the one escape type that already read a threat direction. This closes
+        that gap the same way: a left/right clearance comparison, seeded
+        once per sequence rather than re-read every tick (a live re-read
+        would fight the block-alternation this class already depends on to
+        accumulate rotation across attempts, see
+        ``_escape_steer_sign_for_attempt``).
+
+        The clearer-side sign is numerically identical whether the escape
+        that follows drives forward or reverses: Ackermann reverse flips
+        which physical side a given steering SIGN swings the nose toward,
+        but "aim the nose at the clearer side" is invariant to that flip --
+        see ``_pivot_steer_sign`` (forward) and
+        ``CollisionAvoidanceController._k_turn_steer_sign`` (reverse), which
+        independently derive the same formula for their own cases. One
+        comparison here serves both ``_handle_stuck_escape`` branches below.
+        """
+        if scan is None or scan.ranges_m is None:
+            return self._escape_steer_sign
+        left = self._collision_controller.compute_min_clearance(
+            scan.ranges_m, scan.angles_rad, center_rad=math.pi / 2, half_fov_rad=math.pi / 4
+        )
+        right = self._collision_controller.compute_min_clearance(
+            scan.ranges_m, scan.angles_rad, center_rad=-math.pi / 2, half_fov_rad=math.pi / 4
+        )
+        no_data = self._tuning.lidar_sectors.NO_DATA_RANGE_M
+        if (left >= no_data and right >= no_data) or left == right:
+            return self._escape_steer_sign
+        return -1.0 if left > right else 1.0
+
     def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
         """Escalate a repeated escape instead of repeating an identical pulse.
 
@@ -509,6 +552,7 @@ class EscapeRecovery:
                 )
                 if self._escape_count == 0:
                     self._escape_sequence_start_xy = (robot_x, robot_y)
+                    self._escape_steer_sign = self._stuck_escape_base_sign(scan)
                 self._escape_count += 1
                 frames = min(
                     self._escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
@@ -578,6 +622,7 @@ class EscapeRecovery:
 
         if self._escape_count == 0:
             self._escape_sequence_start_xy = (robot_x, robot_y)
+            self._escape_steer_sign = self._stuck_escape_base_sign(scan)
         self._escape_count += 1
         frames = min(
             self._escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
