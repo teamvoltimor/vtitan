@@ -122,8 +122,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
     3. [Sistema de Transmisión](README.md#sistema-de-transmisión)
     4. [Sistema de Dirección](README.md#sistema-de-dirección)
     5. [Chasis Inferior](README.md#chasis-inferior)
-    6. [Monochasis](README.md#monochasis)
-    7. [Relación de Torque y Velocidad](README.md#relación-de-torque-y-velocidad)
+    6. [Relación de Torque y Velocidad](README.md#relación-de-torque-y-velocidad)
 4. **[Arquitectura de software y estrategia para superar obstáculos](README.md#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
     1. [Arquitectura ROS2 y reparto entre dos computadores](README.md#arquitectura-ros2-y-reparto-entre-dos-computadores)
     2. [Modelo de Detección YOLO](README.md#modelo-de-detección-yolo)
@@ -206,9 +205,9 @@ alt="Vista inferior de Klevor" width="600">
         </tbody>
 </table>
 
-Klevor es el **predecesor** de V-Titan, participando en la temporada 2025 de la World Robot Olympiad en la categoría de Futuros Ingenieros, con el Team Steel Bot (quienes ahora participan bajo el nombre de Team Voldemor) y como todo proyecto fue evolucionando hasta culminar con la versión que tenemos hoy en día. 
+Klevor es el **predecesor** de V-Titan, participando en la temporada 2025 de la World Robot Olympiad en la categoría de Futuros Ingenieros, con el Team Steel Bot (quienes ahora participan bajo el nombre de Team Voltimor) y como todo proyecto fue evolucionando hasta culminar con la versión que tenemos hoy en día. 
 
-Para conocer a nuestro prototipo actual, V-Titan, mejor, es importante recalcar que muchas de sus características, más específicamente en la electrónica y programación, son **directamente heredadas** de Klevor, con cambios nulos o mínimos entre un prototipo o el otro. Algunas de las **herencias** más importantes son:
+Para conocer a nuestro prototipo actual, V-Titan, mejor, es importante recalcar que muchas de sus características, más específicamente en la electrónica y programación, son **directamente heredadas** de Klevor, con cambios hechos en base a la experiencia que obtuvimos con Klevor. Algunas de las **herencias** más importantes son:
 
 - El manejo de la Raspberry Pi 5 como computadora principal
 
@@ -218,11 +217,11 @@ Para conocer a nuestro prototipo actual, V-Titan, mejor, es importante recalcar 
 
 Ahora bien, también hay que recalcar que tuvimos algunos fallos en el desarrollo de Klevor, por ejemplo: 
 
-El uso de un ESC para controlar el motor, si bien parecía una idea muy buena en papel, utilizar el "combo" de un carro controlado por radio para nuestro prototipo, ofreciendo una velocidad bastante alta para completar los desafíos, terminó siendo un problema grave debido a la falta de precisión que éste nos ofrecía, acelerando muy rápido, sin ninguna solución en la programación para compensarlo.
+El uso de un ESC para controlar el motor, si bien parecía una idea muy buena en papel, utilizar el "combo" de un motor de un carro controlado por radio y su comunicador para nuestro prototipo, ofreciendo una velocidad bastante alta para completar los desafíos, terminó siendo un problema grave debido a la falta de precisión que éste nos ofrecía, acelerando muy rápido y de manera descontrolada, sin ninguna solución en la programación para compensarlo, forzándonos a replantear la mecánica para solucionar este problema.
 
 Además, optamos por un modelo más robusto y pesado en comparación con los demás prototipos habituales de esta competición, si bien, gracias a esto pudimos incorporar muchos elementos de gran utilidad (como la Raspberry Pi 5), debido a ésto, no podíamos optar por cambios significativos, siendo obligados a reestructurar el prototipo desde cero en caso de necesitar algún cambio.
 
-Debido a la gran cantidad de cambios que necesitamos, por diferentes motivos, teníamos que reestructurar el prototipo múltiples veces, por lo que terminamos confiando ciegamente en algunas características que no pudimos probar completamente.
+Debido a la gran cantidad de cambios que implementamos, por diferentes motivos, tuvimos que reestructurar el prototipo múltiples veces, por lo que terminamos confiando ciegamente en algunas características que no pudimos probar completamente.
 
 ## V-Titan (WRO 2026)
 
@@ -285,9 +284,11 @@ alt="Vista inferior de V-Titan" width="600">
         </tbody>
 </table>
 
-V-Titan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Steel Bot, y es un proyecto que se encuentra evolucionando hasta el día de hoy.
+V-Titan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Voltimor, y es un proyecto que se encuentra evolucionando hasta el día de hoy.
 
 V-Titan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, V-Titan conserva muchos de los componentes electrónicos que utilizó Klevor, tales la Raspberry Pi 5, y el RPLiDAR C1.
+
+A diferencia de Klevor, V-Titan no utiliza una transmisión por engranajes diferenciales, sino, utiliza una tracción 4x4 mediante correas dentadas y engranajes ortogonales, además de esto, reemplazamos el sistema de cruce Ackermann por un sistema de cruce basado en la dirección a contrafase, para logar una radio de giro mucho menor y facilitar las maniobras requeridas en pista.
 
 # Arquitectura de energía y sensores 
 
@@ -605,9 +606,9 @@ En este apartado se discuten todos los aspectos con lo que a movilidad y diseño
 
 ## Métodos de Prototipaje
 
-Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas pre-fabricadas o impresas en 3D, ya que nos permite minimizar el peso de V-Titan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
+Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal además de utilizar distintos tipos de filamento como el PETG o el ASA, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas impresas en 3D, ya que nos permite maximizar la eficiencia de peso de V-Titan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
 
-Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que tiene un montón de funciones útiles para el diseño de prototipos mecánicos, y, era el programa con el que teníamos mejor afinidad.
+Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que el equipo ya tenía mejor afinidad con este programa de diseño 3d, que consideramos que es bastante completo para el diseño de cualquier prototipo.
 
 ## Evolución y Justificación Del Diseño
 
@@ -707,8 +708,6 @@ width="350">
 V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema funciona en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
 
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual luego es conectado otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje indidivual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
-
-## Chasis Inferior 
 
 <p align="center">
 	<img src="../3d-models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
@@ -906,6 +905,7 @@ Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los f
     <br>
     <i>Obstacle Challenge — máquina de estados</i>
 </p>
+
 ## Grabación y análisis de carreras
 
 Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale mal, mirar el robot no dice por qué. Por eso todo lo que ocurre a bordo queda grabado.
