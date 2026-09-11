@@ -156,6 +156,16 @@ func (c *CollisionAvoidanceController) RearSector(rangesM, anglesRad []float64) 
 	return c.Sector(rangesM, anglesRad, math.Pi, nil, true)
 }
 
+// FrontSector is the forward +/-FrontHalfFovRad sector, NOT self-detection
+// filtered (matching ComputeForwardClearance's own Sector call), matching
+// CollisionAvoidanceController.front_sector. Callers gating on whether the
+// forward cone was genuinely MEASURED (as opposed to merely reporting the
+// no-data sentinel, which reads identically to open road) want this rather
+// than ComputeForwardClearance -- see Measured().
+func (c *CollisionAvoidanceController) FrontSector(rangesM, anglesRad []float64) SectorRanges {
+	return c.Sector(rangesM, anglesRad, 0.0, &c.FrontHalfFovRad, false)
+}
+
 // ComputeForwardClearance is the minimum clearance in the forward
 // FrontHalfFovRad sector (0 rad = forward), matching
 // CollisionAvoidanceController.compute_forward_clearance.

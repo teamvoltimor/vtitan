@@ -325,6 +325,104 @@ func TestResetTrackingDiscardsHeldCandidate(t *testing.T) {
 	}
 }
 
+// TestRelocalizesGloballyAfterSustainedBadFit covers the global relocalization
+// rescue (see LidarLocalizer.relocalizeGlobally / Python's
+// _relocalize_globally): a local search reseeded from a prior far from the
+// scan's true source pose cannot walk itself there across a small search
+// radius, so every tick's fit cost stays far above
+// RELOCALIZE_COST_THRESHOLD. Once that streak reaches RELOCALIZE_AFTER_SCANS,
+// the global search -- which scores every free-space candidate on the whole
+// track, not just a window around the wrong seed -- should recover the true
+// pose and record the rescue.
+func TestRelocalizesGloballyAfterSustainedBadFit(t *testing.T) {
+	t.Parallel()
+
+	localizer, walls := newLocalizer(uniformWidths(1.0))
+	angles := scanAngles()
+	const trueX, trueY, trueYaw = 1.5, 0.5, 0.0
+	ranges := sensorScan(walls, trueX, trueY, trueYaw, angles)
+
+	// Far enough from the truth (~2.24 m) that the local search's small
+	// per-pass window (starting radius 0.15 m, narrowing every pass) never
+	// reaches anywhere near it -- the whole point of the scenario.
+	wrongPrior := trackmodel.Waypoint{X: 0.5, Y: 2.5}
+
+	afterScans := localization.DefaultConfig().RelocalizeAfterScans
+	var got trackmodel.Waypoint
+	for range afterScans {
+		// Same wrong prior every call, not the previous return: the streak
+		// must accumulate across consecutive bad ticks regardless of what
+		// the (also-wrong) local search returned in between.
+		got = localizer.EstimatePosition(wrongPrior, trueYaw, ranges, angles, nil)
+	}
+
+	if math.Abs(got.X-trueX) > 0.05 || math.Abs(got.Y-trueY) > 0.05 {
+		t.Fatalf(
+			"estimate = (%.4f, %.4f), want the rescued (%.4f, %.4f) within 0.05",
+			got.X, got.Y, trueX, trueY,
+		)
+	}
+	if localizer.RelocalizationCount() != 1 {
+		t.Fatalf("relocalization count = %d, want 1", localizer.RelocalizationCount())
+	}
+	if cost, ok := localizer.LastFitCost(); !ok || cost > 0.01 {
+		t.Fatalf("last fit cost = %v (ok=%v), want a small cost recorded for the rescue", cost, ok)
+	}
+}
+
+// TestRelocalizeRejectsWhenGlobalWinnerDoesNotBeatLocal covers the other
+// branch of relocalizeGlobally: a cost above threshold does not always mean
+// the POSE is lost, it can mean the model of the world is wrong, and a
+// global search against a wrong model finds the best explanation of a track
+// that is not there. Simulated here with a scan uniformly offset from
+// anything the walls model can produce, so every candidate -- local seed and
+// every global one alike -- fits equally (badly), and the global winner
+// cannot beat the local cost by RelocalizeAcceptRatio. No jump should occur,
+// even though the bad-fit streak still trips.
+func TestRelocalizeRejectsWhenGlobalWinnerDoesNotBeatLocal(t *testing.T) {
+	t.Parallel()
+
+	localizer, walls := newLocalizer(uniformWidths(1.0))
+	angles := scanAngles()
+	const trueX, trueY, trueYaw = 1.5, 0.5, 0.0
+	ranges := sensorScan(walls, trueX, trueY, trueYaw, angles)
+
+	// Offset every ray by 1.0 m -- well beyond ResidualClipM (0.25 m) --
+	// so no pose under the real wall geometry explains this scan any
+	// better than any other: every candidate's residual saturates at the
+	// clip, giving the same cost everywhere on the track. The global
+	// search's best can therefore never beat the local search's own cost
+	// by the accept ratio, which is exactly the "wall model is wrong, not
+	// the pose" case being covered.
+	corrupted := make([]float64, len(ranges))
+	for i, r := range ranges {
+		corrupted[i] = r + 1.0
+	}
+
+	prior := trackmodel.Waypoint{X: trueX, Y: trueY}
+
+	afterScans := localization.DefaultConfig().RelocalizeAfterScans
+	var got trackmodel.Waypoint
+	for range afterScans {
+		got = localizer.EstimatePosition(prior, trueYaw, corrupted, angles, nil)
+	}
+
+	if localizer.RelocalizationCount() != 0 {
+		t.Fatalf(
+			"relocalization count = %d, want 0 (global winner should not have beaten the local cost)",
+			localizer.RelocalizationCount(),
+		)
+	}
+	// The local search itself is still confined to its own small window
+	// around the prior -- rejection means "no jump", not "no drift".
+	if math.Abs(got.X-trueX) > 0.5 || math.Abs(got.Y-trueY) > 0.5 {
+		t.Fatalf(
+			"estimate = (%.4f, %.4f) drifted far from the seed (%.4f, %.4f) despite no relocalization",
+			got.X, got.Y, trueX, trueY,
+		)
+	}
+}
+
 // TestMismatchedScanLengthsHoldPrior covers the guard Python gets for free
 // from a numpy broadcast error: bearings that do not match ranges cannot be
 // scored, and holding the prior is the same outcome as a rejected match.

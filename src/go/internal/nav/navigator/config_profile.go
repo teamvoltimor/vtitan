@@ -209,12 +209,14 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		return cfg
 	}
 
-	loadApplyTOML(
+	loadApplyTOMLWithDefaults(
 		logger, filepath.Join(configRoot, profile.DefaultClearanceTOMLPath), "clearance.toml",
+		map[string]any{"forward_no_data_is_degraded": DefaultForwardNoDataIsDegraded},
 		func(loaded profile.ClearanceConfig) {
 			cfg.ContactDistM = loaded.ContactDist
 			cfg.SlowDistM = loaded.SlowDist
 			cfg.MediumDistM = loaded.MediumDist
+			cfg.ForwardNoDataIsDegraded = loaded.ForwardNoDataIsDegraded
 		})
 
 	if speed, err := loadSpeedConfig(configRoot, hardwareProfileNames); err != nil {

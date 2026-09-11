@@ -150,6 +150,12 @@ func (w *TrackWalls) RaycastFan(
 	return ranges
 }
 
+// MinCoord is the track's outer boundary minimum (m), on both axes.
+func (w *TrackWalls) MinCoord() float64 { return w.minCoord }
+
+// MaxCoord is the track's outer boundary maximum (m), on both axes.
+func (w *TrackWalls) MaxCoord() float64 { return w.maxCoord }
+
 // PointInFreeSpace reports whether (x, y) is in the navigable ring with
 // clearance margin: inside the track's outer boundary and outside the
 // inner block.

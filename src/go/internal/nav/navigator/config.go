@@ -26,6 +26,12 @@ type Config struct {
 	ContactDistM float64
 	SlowDistM    float64
 	MediumDistM  float64
+	// ForwardNoDataIsDegraded matches ClearanceZones.FORWARD_NO_DATA_IS_DEGRADED:
+	// when a scan exists but every ray in the forward sector is invalid,
+	// treat it exactly like the no-LIDAR-at-all case (forward clearance
+	// SlowDistM, risk OBSTACLE) rather than as measured clearance. See
+	// assessPerception and handleStuckEscape's forwardOpen gate.
+	ForwardNoDataIsDegraded bool
 
 	// MinMPS/MaxMPS/CreepMPS/SlowMPS/MediumMPS/FastMPS are the raw speed
 	// tiers (m/s), matching SpeedControlParams' fields. Read them through
@@ -186,6 +192,9 @@ const (
 	DefaultContactDistM = 0.10
 	DefaultSlowDistM    = 0.25
 	DefaultMediumDistM  = 0.50
+	// DefaultForwardNoDataIsDegraded mirrors the shipped
+	// forward_no_data_is_degraded key (motion/clearance.toml), true.
+	DefaultForwardNoDataIsDegraded = true
 
 	// DefaultMinMPS and the following tiers are absolute m/s (motion/speed.toml).
 	// They mirror the BASE file, not the active motor profile's overlay --
@@ -306,9 +315,10 @@ const (
 // listed in the Default* block above.
 func DefaultConfig() Config {
 	return Config{
-		ContactDistM: DefaultContactDistM,
-		SlowDistM:    DefaultSlowDistM,
-		MediumDistM:  DefaultMediumDistM,
+		ContactDistM:            DefaultContactDistM,
+		SlowDistM:               DefaultSlowDistM,
+		MediumDistM:             DefaultMediumDistM,
+		ForwardNoDataIsDegraded: DefaultForwardNoDataIsDegraded,
 
 		MinMPS:                DefaultMinMPS,
 		MaxMPS:                DefaultMaxMPS,

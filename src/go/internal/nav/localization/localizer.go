@@ -12,10 +12,27 @@ type LidarLocalizer struct {
 	walls *trackmodel.TrackWalls
 	cfg   Config
 
-	// lastEstimateTimeS and pendingJumpXY are the only state carried between
-	// ticks, and ResetTracking exists to discard both.
+	// lastEstimateTimeS, pendingJumpXY and badFitStreak are the state
+	// carried between ticks that a re-seed must discard, and ResetTracking
+	// exists to discard all three: the streak counts consecutive scans the
+	// CURRENT estimate failed to explain, and a re-seed replaces that
+	// estimate outright, so the count accrued against the old one says
+	// nothing about the new one.
 	lastEstimateTimeS *float64
 	pendingJumpXY     *trackmodel.Waypoint
+	badFitStreak      int
+
+	// relocalizationCount and lastFitCost are diagnostics only, exposed via
+	// RelocalizationCount/LastFitCost -- never reset by ResetTracking, which
+	// discards tracking continuity, not run-lifetime counters.
+	relocalizationCount int
+	lastFitCost         *float64
+
+	// freeSpaceGrid is every free-space candidate the global relocalization
+	// search considers, matching Python's _free_space_grid: built once, on
+	// first use, and cached for the lifetime of this instance -- walls and
+	// the grid step are both fixed for as long as this localizer exists.
+	freeSpaceGrid []trackmodel.Waypoint
 
 	// Scratch reused across the grid search, which raycasts
 	// GridPoints^2 x Passes times per tick (100 at the shipped 5/4). Rebuilding
@@ -25,6 +42,10 @@ type LidarLocalizer struct {
 	// deliberately leaves them alone.
 	fan       *trackmodel.RayFan
 	predicted []float64
+	// fitScratch is fitCost's own reused prediction buffer, kept separate
+	// from predicted above so a fitCost call after the grid search (every
+	// tick) never aliases a buffer the grid loop might still read.
+	fitScratch []float64
 }
 
 // gridSpan is the width of the search window in units of its radius: the
@@ -52,6 +73,31 @@ func New(walls *trackmodel.TrackWalls, cfg Config) *LidarLocalizer {
 func (l *LidarLocalizer) ResetTracking() {
 	l.pendingJumpXY = nil
 	l.lastEstimateTimeS = nil
+	l.badFitStreak = 0
+}
+
+// RelocalizationCount is how many times the global search has had to
+// rescue the estimate, matching LidarLocalizer.relocalization_count.
+//
+// Diagnostic only. Non-zero means the local search lost the pose and was
+// recovered; the value belongs in the debug snapshot because the failure
+// it reports (run_20260907_205830) was invisible in every field the
+// navigator already published.
+func (l *LidarLocalizer) RelocalizationCount() int { return l.relocalizationCount }
+
+// LastFitCost is the mean clipped squared residual (m^2) of the last
+// accepted match, matching LidarLocalizer.last_fit_cost. ok is false until
+// the first EstimatePosition call that has a scored a fit (i.e. one whose
+// bearings matched its ranges).
+//
+// Diagnostic only. Around 0.010 on a healthy hardware run (measured median
+// over two clean 3-lap runs, 2026-09-07), 0.043 on the run whose estimate
+// had lost the track.
+func (l *LidarLocalizer) LastFitCost() (cost float64, ok bool) {
+	if l.lastFitCost == nil {
+		return 0, false
+	}
+	return *l.lastFitCost, true
 }
 
 // EstimatePosition returns the (x, y) that best explains the given sweep, or
@@ -107,6 +153,15 @@ func (l *LidarLocalizer) EstimatePosition(
 		}
 	}
 
+	// A DIFFERENT cost from the search's own cost() above: mean, not sum, and
+	// over informative rays only (see fitCost). Comparing this one against an
+	// absolute threshold is the whole point of computing it separately --
+	// the search's own cost only ever compares candidates against each
+	// other on the same sweep, where a constant offset (e.g. from no-return
+	// rays) cancels; this one does not get that luxury.
+	bestCost := l.fitCost(best.X, best.Y, yaw, rangesM)
+	l.lastFitCost = &bestCost
+
 	// The search is a local hill-climb reseeded from priorXY every call, with
 	// no independent check on its own output -- SearchRadiusM is sized for
 	// search robustness, not as a physical bound. A wrong-but-locally-cheap
@@ -116,7 +171,30 @@ func (l *LidarLocalizer) EstimatePosition(
 	//
 	// Clearance is 0, matching Python's default: this asks only whether the
 	// point is physically occupiable, not whether it is safely navigable.
-	if !l.walls.PointInFreeSpace(best.X, best.Y, 0.0) {
+	offTrack := !l.walls.PointInFreeSpace(best.X, best.Y, 0.0)
+
+	// Both symptoms count toward one streak, because both say the same
+	// thing: the search is no longer anywhere near the truth. An off-track
+	// winner is impossible outright, and a winner whose predicted sweep does
+	// not resemble the real one has not explained the scan however cheap it
+	// was relative to its neighbours.
+	if offTrack || bestCost > l.cfg.RelocalizeCostThreshold {
+		l.badFitStreak++
+	} else {
+		l.badFitStreak = 0
+	}
+
+	// A local search reseeded from its own previous answer has no way back
+	// once that answer is wrong. This preempts everything below: it can
+	// return a rescued position even when off-track was also true this
+	// tick, or when the speed guard would otherwise have held the prior.
+	if l.badFitStreak >= l.cfg.RelocalizeAfterScans {
+		if rescued, ok := l.relocalizeGlobally(yaw, rangesM, bestCost); ok {
+			return rescued
+		}
+	}
+
+	if offTrack {
 		l.pendingJumpXY = nil
 		return priorXY
 	}
@@ -127,6 +205,126 @@ func (l *LidarLocalizer) EstimatePosition(
 
 	l.pendingJumpXY = nil
 	return best
+}
+
+// fitCost is the mean clipped squared residual (m^2) at one pose, over real
+// returns only, matching LidarLocalizer._fit_cost.
+//
+// Deliberately not bestCandidate's own cost(): a no-return ray is
+// substituted with LidarMaxRangeM and carries no positional information,
+// each contributing a full clipped residual whatever the pose. Included,
+// those rays add a large offset that swamps the very difference this number
+// exists to detect -- measured in Python, counting them compresses the gap
+// between a healthy fit and a lost one from 8x to 2x. The search's own cost
+// is left alone: it only ever compares candidates against each other on one
+// sweep, where a constant offset cancels; this one is compared against an
+// absolute threshold, where it does not.
+//
+// Uses l.fan (built for this tick's anglesRad in EstimatePosition) rather
+// than raycasting only the informative rays: raycasting is a pure function
+// of pose/yaw/angle, so casting the full fan and then averaging over the
+// informative indices produces identical per-ray predictions to casting a
+// fan built from just those angles, at the cost of a few wasted rays rather
+// than a second fan construction every tick.
+func (l *LidarLocalizer) fitCost(x, y, yaw float64, rangesM []float64) float64 {
+	offsetX := l.cfg.LidarMountXOffsetM * math.Cos(yaw)
+	offsetY := l.cfg.LidarMountXOffsetM * math.Sin(yaw)
+	predicted := l.walls.RaycastFan(
+		x+offsetX, y+offsetY, yaw, l.fan, l.cfg.LidarMinRangeM, l.cfg.LidarMaxRangeM, l.fitScratch,
+	)
+	l.fitScratch = predicted
+
+	total, count := 0.0, 0
+	for i, p := range predicted {
+		if rangesM[i] >= l.cfg.LidarMaxRangeM {
+			continue // no-return ray: substituted with max range, no positional information
+		}
+		residual := math.Min(math.Abs(p-rangesM[i]), l.cfg.ResidualClipM)
+		total += residual * residual
+		count++
+	}
+	if count == 0 {
+		return 0.0
+	}
+	return total / float64(count)
+}
+
+// relocalizeGlobally re-solves position over the whole track, with no prior
+// at all, matching LidarLocalizer._relocalize_globally.
+//
+// The local search cannot recover from a wrong seed, because it is reseeded
+// from its own previous answer every call. This one is not seeded: it
+// scores every free-space candidate on the track against the same cost the
+// local search uses (fitCost), so the answer does not depend on how wrong
+// the estimate had become. Yaw is still taken as given.
+//
+// The speed guard is deliberately bypassed by the caller: this corrects an
+// estimate already known to be wrong, not motion, so the distance it covers
+// carries no information about how fast the robot went.
+//
+// ok is false when the global winner does not fit MATERIALLY better than
+// localCost (bestCost > localCost * RelocalizeAcceptRatio), which is the
+// case that matters most: a cost above the threshold does not always mean
+// the estimate is lost, it can equally mean the WALL MODEL is wrong, and a
+// global search against a wrong model finds the best explanation of a track
+// that is not there. A wrong model raises the floor for every candidate, so
+// the global winner cannot beat the local one by much.
+func (l *LidarLocalizer) relocalizeGlobally(
+	yaw float64, rangesM []float64, localCost float64,
+) (trackmodel.Waypoint, bool) {
+	// Either way the streak restarts: the evidence has been acted on, and
+	// leaving it at the trigger would re-run this search on every tick.
+	l.badFitStreak = 0
+
+	best := trackmodel.Waypoint{}
+	bestCost := math.Inf(1)
+	for _, candidate := range l.freeSpaceCandidates() {
+		if cost := l.fitCost(candidate.X, candidate.Y, yaw, rangesM); cost < bestCost {
+			best, bestCost = candidate, cost
+		}
+	}
+
+	if math.IsInf(bestCost, 1) || bestCost > localCost*l.cfg.RelocalizeAcceptRatio {
+		return trackmodel.Waypoint{}, false
+	}
+
+	l.pendingJumpXY = nil
+	l.relocalizationCount++
+	l.lastFitCost = &bestCost
+	return best, true
+}
+
+// freeSpaceCandidates is every free-space point on a RelocalizeGridStepM
+// grid spanning the track's [MinCoord, MaxCoord] square, matching
+// LidarLocalizer._free_space_candidates. Built once, on first use, and
+// cached: walls and the grid step are both fixed for the lifetime of this
+// localizer instance.
+//
+// The axis is generated by index (minCoord + step*i) rather than repeatedly
+// accumulating step in a loop, to avoid float drift widening or narrowing
+// the grid over its span -- and the point count is computed with Ceil so the
+// axis is inclusive of maxCoord, matching Python's
+// np.arange(min, max + step, step).
+func (l *LidarLocalizer) freeSpaceCandidates() []trackmodel.Waypoint {
+	if l.freeSpaceGrid != nil {
+		return l.freeSpaceGrid
+	}
+
+	minCoord, maxCoord, step := l.walls.MinCoord(), l.walls.MaxCoord(), l.cfg.RelocalizeGridStepM
+	count := int(math.Ceil((maxCoord-minCoord)/step)) + 1
+
+	candidates := make([]trackmodel.Waypoint, 0, count*count)
+	for i := range count {
+		x := minCoord + step*float64(i)
+		for j := range count {
+			y := minCoord + step*float64(j)
+			if l.walls.PointInFreeSpace(x, y, 0.0) {
+				candidates = append(candidates, trackmodel.Waypoint{X: x, Y: y})
+			}
+		}
+	}
+	l.freeSpaceGrid = candidates
+	return l.freeSpaceGrid
 }
 
 // bestCandidate scores one grid pass and returns its winner.

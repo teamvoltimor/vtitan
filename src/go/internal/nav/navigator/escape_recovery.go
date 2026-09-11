@@ -436,6 +436,11 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 	// the same thing: no valid reading, so assume clear rather than blocked.
 	rearClear, forwardClear := n.cfg.NoDataRangeM, n.cfg.NoDataRangeM
 	rearBlind := false
+	// forwardBlind mirrors Python's forward_blind: only assigned inside the
+	// `if scan:` block, so it stays false (irrelevant) when there is no
+	// scan at all -- forwardClear itself already carries the "assume clear"
+	// sentinel in that case.
+	forwardBlind := false
 	scan, haveScan := n.gateway.GetLidarScan()
 	if haveScan {
 		// A rear sector that measured nothing reports the same sentinel as
@@ -448,11 +453,18 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 		// conversion -- 10 m less either datum is still open road -- so the
 		// no-scan branch keeps its "assume clear" meaning.
 		rearClear = controllers.BumperGapBehind(rear.MinRangeM, n.cfg.LidarToRearBumperM)
+		front := n.collisionController.FrontSector(scan.RangesM, scan.AnglesRad)
+		forwardBlind = !front.Measured()
 		forwardClear = controllers.BumperGapAhead(
 			n.collisionController.ComputeForwardClearance(scan.RangesM, scan.AnglesRad),
 			n.cfg.LidarToFrontBumperM,
 		)
 	}
+	// "Forward is open" must mean MEASURED open, not merely a large number:
+	// an all-invalid forward sector reports the same no-data sentinel as
+	// open road, matching Python's `forward_open` gate.
+	forwardOpen := forwardClear >= n.cfg.ContactDistM &&
+		!(n.cfg.ForwardNoDataIsDegraded && forwardBlind)
 
 	// Blind behind is a reason to prefer forward, but only when forward is
 	// actually open. Treating it as flatly "blocked" would leave a chassis
@@ -469,9 +481,9 @@ func (n *Navigator) handleStuckEscape(robotX, robotY, robotYaw float64) {
 	blindRearUnconfirmed := rearBlind && !n.trailConfirmsReverse(stuckReverseDistance)
 
 	rearBlocked := rearClear < n.cfg.ContactDistM
-	preferForward := rearBlind && forwardClear >= n.cfg.ContactDistM
+	preferForward := rearBlind && forwardOpen
 	if rearBlocked || preferForward || blindRearUnconfirmed {
-		if forwardClear >= n.cfg.ContactDistM {
+		if forwardOpen {
 			rearState := "blocked"
 			if rearBlind {
 				rearState = "unseen"

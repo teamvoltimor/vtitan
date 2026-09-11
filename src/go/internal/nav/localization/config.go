@@ -16,6 +16,15 @@ type Config struct {
 	LidarMountXOffsetM float64
 	LidarMinRangeM     float64
 	LidarMaxRangeM     float64
+
+	// RelocalizeCostThreshold/RelocalizeAfterScans/RelocalizeGridStepM/
+	// RelocalizeAcceptRatio parameterize global relocalization -- see
+	// relocalizeGlobally. Hardware-validated: recovered a 48s pose
+	// divergence in run_20260907_205830.
+	RelocalizeCostThreshold float64
+	RelocalizeAfterScans    int
+	RelocalizeGridStepM     float64
+	RelocalizeAcceptRatio   float64
 }
 
 // Shipped defaults, matching
@@ -45,6 +54,19 @@ const (
 	DefaultLidarMinRangeM = 0.045
 	// DefaultLidarMaxRangeM matches robot.toml's [lidar] max_range.
 	DefaultLidarMaxRangeM = 12.0
+
+	// DefaultRelocalizeCostThreshold matches localization.toml's
+	// relocalize_cost_threshold.
+	DefaultRelocalizeCostThreshold = 0.03
+	// DefaultRelocalizeAfterScans matches localization.toml's
+	// relocalize_after_scans.
+	DefaultRelocalizeAfterScans = 15
+	// DefaultRelocalizeGridStepM matches localization.toml's
+	// relocalize_grid_step_m.
+	DefaultRelocalizeGridStepM = 0.03
+	// DefaultRelocalizeAcceptRatio matches localization.toml's
+	// relocalize_accept_ratio.
+	DefaultRelocalizeAcceptRatio = 0.5
 )
 
 // DefaultConfig returns the Config matching the shipped TOML defaults.
@@ -59,5 +81,10 @@ func DefaultConfig() Config {
 		LidarMountXOffsetM:    DefaultLidarMountXOffsetM,
 		LidarMinRangeM:        DefaultLidarMinRangeM,
 		LidarMaxRangeM:        DefaultLidarMaxRangeM,
+
+		RelocalizeCostThreshold: DefaultRelocalizeCostThreshold,
+		RelocalizeAfterScans:    DefaultRelocalizeAfterScans,
+		RelocalizeGridStepM:     DefaultRelocalizeGridStepM,
+		RelocalizeAcceptRatio:   DefaultRelocalizeAcceptRatio,
 	}
 }

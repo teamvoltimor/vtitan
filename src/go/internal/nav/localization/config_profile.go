@@ -34,6 +34,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		cfg.ResidualClipM = lc.ResidualClipM
 		cfg.MaxSpeedMPS = lc.MaxSpeedMPS
 		cfg.JumpConfirmToleranceM = lc.JumpConfirmToleranceM
+		cfg.RelocalizeCostThreshold = lc.RelocalizeCostThreshold
+		cfg.RelocalizeAfterScans = lc.RelocalizeAfterScans
+		cfg.RelocalizeGridStepM = lc.RelocalizeGridStepM
+		cfg.RelocalizeAcceptRatio = lc.RelocalizeAcceptRatio
 	}
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)

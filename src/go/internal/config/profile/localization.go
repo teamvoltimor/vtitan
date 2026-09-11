@@ -30,6 +30,23 @@ type LocalizationConfig struct {
 	// consecutive rejected candidates must be to count as one correction
 	// confirming itself.
 	JumpConfirmToleranceM float64 `mapstructure:"jump_confirm_tolerance_m"`
+	// RelocalizeCostThreshold matches RELOCALIZE_COST_THRESHOLD: the local
+	// search's per-tick fit cost (mean clipped squared residual, m^2) above
+	// which a tick counts toward the bad-fit streak that arms global
+	// relocalization.
+	RelocalizeCostThreshold float64 `mapstructure:"relocalize_cost_threshold"`
+	// RelocalizeAfterScans matches RELOCALIZE_AFTER_SCANS: consecutive
+	// bad-fit ticks (off-track or over-threshold cost) before the global
+	// search fires.
+	RelocalizeAfterScans int `mapstructure:"relocalize_after_scans"`
+	// RelocalizeGridStepM matches RELOCALIZE_GRID_STEP_M: the spacing of the
+	// whole-track free-space candidate grid the global search scores.
+	RelocalizeGridStepM float64 `mapstructure:"relocalize_grid_step_m"`
+	// RelocalizeAcceptRatio matches RELOCALIZE_ACCEPT_RATIO: the global
+	// winner is accepted only when its cost beats the local search's own
+	// cost by at least this ratio; otherwise the wall model, not the pose,
+	// is presumed wrong and no jump happens.
+	RelocalizeAcceptRatio float64 `mapstructure:"relocalize_accept_ratio"`
 }
 
 // DefaultLocalizationTOMLPath is

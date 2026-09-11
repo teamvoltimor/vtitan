@@ -15,24 +15,43 @@ func (n *Navigator) assessPerception(pose trackmodel.Pose) perception {
 	scan, haveScan := n.gateway.GetLidarScan()
 	p := perception{scan: scan, haveScan: haveScan}
 
+	// A forward sector where every ray is invalid reads identically to open
+	// road (both report the no-data sentinel), so it is degraded the same
+	// way the no-scan-at-all case is: SlowDistM/OBSTACLE, not measured
+	// clearance. Skipping the extra raycast when the flag is off keeps the
+	// unmeasured branch unreachable rather than merely inert.
+	frontMeasured := true
+	if haveScan && n.cfg.ForwardNoDataIsDegraded {
+		frontMeasured = n.collisionController.FrontSector(scan.RangesM, scan.AnglesRad).Measured()
+	}
+
+	// escapeRanges/minRange are keyed on haveScan alone, matching Python's
+	// `escape_ranges = scan.ranges_m if scan else None`: they describe what
+	// the sensor returned, independent of whether the forward sector was
+	// deemed degraded below.
 	if haveScan {
+		p.escapeRanges = scan.RangesM
+		if len(scan.RangesM) > 0 {
+			p.minRange = new(slices.Min(scan.RangesM))
+		}
+	}
+
+	switch {
+	case haveScan && frontMeasured:
 		// Converted to a BUMPER gap once, here, rather than at each of the
-		// comparisons below: the no-LIDAR fallback assigns a threshold
-		// value to this same variable, so the two branches have to leave
-		// it in one frame or the degraded path means something different
-		// from the measured one.
+		// comparisons below: the degraded fallback below assigns a
+		// threshold value to this same variable, so the branches have to
+		// leave it in one frame or the degraded path means something
+		// different from the measured one.
 		p.forwardClearance = controllers.BumperGapAhead(
 			n.collisionController.ComputeForwardClearance(scan.RangesM, scan.AnglesRad),
 			n.cfg.LidarToFrontBumperM,
 		)
 		p.risk = n.collisionController.AssessRisk(scan.RangesM, scan.AnglesRad)
-		p.escapeRanges = scan.RangesM
-		if len(scan.RangesM) > 0 {
-			p.minRange = new(slices.Min(scan.RangesM))
-		}
-	} else {
-		// No LIDAR: a degraded sensor is not open road. Drive cautiously
-		// (slow zone + non-SAFE risk) instead of blasting forward blind.
+	default:
+		// No LIDAR, or a scan whose forward sector measured nothing: a
+		// degraded sensor is not open road. Drive cautiously (slow zone +
+		// non-SAFE risk) instead of blasting forward blind.
 		p.forwardClearance = n.cfg.SlowDistM
 		p.risk = controllers.RiskObstacle
 	}
