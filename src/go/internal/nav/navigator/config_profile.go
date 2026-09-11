@@ -62,6 +62,8 @@ type navWaypointsTOML struct {
 	// ArcRadius doubles as ParkEngageDistM, matching Python's
 	// _park_engage_dist = tuning.waypoints.ARC_RADIUS.
 	ArcRadius float64 `mapstructure:"arc_radius"`
+	// FinishApproachM matches WaypointParams.FINISH_APPROACH_M.
+	FinishApproachM float64 `mapstructure:"finish_approach_m"`
 }
 
 // navEscapeTOML mirrors the escape.toml fields the core navigator's
@@ -269,12 +271,16 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath),
 		"waypoints.toml",
-		map[string]any{"first_lap_corner_caution": DefaultFirstLapCornerCaution},
+		map[string]any{
+			"first_lap_corner_caution": DefaultFirstLapCornerCaution,
+			"finish_approach_m":        DefaultFinishApproachM,
+		},
 		func(loaded navWaypointsTOML) {
 			cfg.FirstLapCornerCaution = loaded.FirstLapCornerCaution
 			cfg.MainLoopReachedDistanceM = loaded.MainLoopReachedDistanceM
 			cfg.ReplanHeadingTieMarginM = loaded.ReplanHeadingTieMarginM
 			cfg.ParkEngageDistM = loaded.ArcRadius
+			cfg.FinishApproachM = loaded.FinishApproachM
 		},
 	)
 

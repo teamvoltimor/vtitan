@@ -14,6 +14,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startmeasurement"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
@@ -40,9 +41,11 @@ type VisionGateway interface {
 // threads explicitly where Python reads module-level singletons
 // (NavigationTuning, RobotSpecs, SignRouterConfig).
 //
-// LapDetector and ParkController have no Go equivalent and are absent by
-// design, not omitted by accident -- see doc.go for what that removes from
-// Step's behavior. Direction is Optional: when nil the navigator runs the
+// LapDetector's geometric lap-counting confirmation has no Go equivalent and
+// is absent by design, not omitted by accident -- see doc.go for what that
+// removes from Step's behavior; lap counting here stays the waypoint-wrap
+// fallback regardless of whether Params.LapDetector is set. ParkController IS
+// ported (see below). Direction is Optional: when nil the navigator runs the
 // BLIND_CREEP bootstrap (corridor follower + direction estimator) until the
 // travel direction resolves, then hands off to the planned path. When set,
 // the blind creep phase is skipped entirely and sighted behavior is preserved.
@@ -86,6 +89,19 @@ type Params struct {
 	// case handleFinish holds position once NumLaps is reached, matching
 	// _handle_finish's `pc is None` branch.
 	ParkController *parking.ParkController
+	// LapDetector supplies the ApproachingFinish geometric test the speed
+	// ladder uses to slow for the finish section on the last lap, matching
+	// CoreNavigator's `self._lap_detector`. Nil is the common case (no
+	// caller-supplied detector, e.g. blind runs where the start pose/
+	// section/direction triple ApproachingFinish needs is not yet resolved
+	// at construction time): the finish-approach speed cap in selectSpeed
+	// then simply never fires, exactly as Python's own
+	// `self._lap_detector is not None` guard reads for a caller that never
+	// built one. Deliberately used for ApproachingFinish ONLY -- Update and
+	// NotifyWaypointWrapped are never called, so lap COUNTING stays the
+	// waypoint-wrap fallback described above; wiring those two would
+	// resurrect the geometric lap-confirmation doc.go says is out of scope.
+	LapDetector *racetracker.LapDetector
 	// CorridorFollowerConfig tunes the BLIND_CREEP corridor follower.
 	// Nil takes corridorfollower.DefaultConfig(). These four blind-phase
 	// configs are Params rather than being read at the call site so a
@@ -150,6 +166,11 @@ type Navigator struct {
 	// enough to the staging point to start it -- see shouldEngageParking.
 	parkController *parking.ParkController
 	parkingEngaged bool
+
+	// lapDetector is used ONLY for ApproachingFinish (see Params.LapDetector);
+	// nil whenever the caller has not built one, matching Python's
+	// `self._lap_detector is None`.
+	lapDetector *racetracker.LapDetector
 
 	// Blind bootstrap state. Nil/empty until the navigator is in blind
 	// mode (Direction == nil at construction). dirEstimator settles the
@@ -340,6 +361,7 @@ func New(p Params) (*Navigator, error) {
 		numLaps:           numLaps,
 		signRouter:        p.SignRouter,
 		parkController:    p.ParkController,
+		lapDetector:       p.LapDetector,
 		direction:         p.Direction,
 		waypointThreshold: cfg.MainLoopReachedDistanceM,
 		escapeSteerSign:   1.0,

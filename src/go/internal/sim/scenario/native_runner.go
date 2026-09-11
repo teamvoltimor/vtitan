@@ -540,6 +540,14 @@ func (r *NativeRunner) loop(
 	var minRangeM = math.Inf(1)
 	prevX, prevY := gw.State().X, gw.State().Y
 	nudge := newSignNudgeState(prevX, prevY)
+	// Which wall this challenge forbids: a non-nil SignRouter is what
+	// identifies an Obstacles Challenge run to the native runner elsewhere in
+	// this file, so it is the same signal used here.
+	forbidden := OpenForbiddenSurfaces
+	if nav.SignRouter() != nil {
+		forbidden = ObstaclesForbiddenSurfaces
+	}
+	contacts := newContactTracker(dt, r.cfg.StartCollisionWindowS, r.cfg.StartCollisionGraceS, forbidden)
 
 	// No-progress bailout, mirroring the Python run's NO_PROGRESS_* policy.
 	// The window must outlast an ESCAPE: reverse, reorient and re-approach do
@@ -606,17 +614,28 @@ func (r *NativeRunner) loop(
 			return res, nil
 		}
 
-		// Terminal surface: any wall contact ends the run. A traffic-sign
-		// touch does not -- WRO 9.20 allows the pillar to be nudged, and the
-		// run stands as long as no sign's accumulated push exceeds
-		// maxLegalSignDisplacementM (see signNudgeState.score). A parking-lot
-		// fin carries no such leniency (9.24.7): SurfaceParkingLot never
-		// reaches signNudgeState.score's leniency branch (it only special-
-		// cases SurfaceObstacle), so it stays terminal here unconditionally.
+		// Terminal surface: a contact against a wall THIS CHALLENGE forbids
+		// (forbidden, above -- the outer wall for Open, the inner wall/
+		// obstacles/parking lot for Obstacles) ends the run, UNLESS it began
+		// within the opening StartCollisionWindowS and has not yet run past
+		// StartCollisionGraceS -- a legal starting pose the track generator
+		// allows may already sit a few mm from the forbidden wall, and 9.18
+		// permits the robot working itself free rather than scoring that as
+		// an instant crash (contactTracker, matching Python's ContactTracker
+		// exactly). Contact with the OTHER wall is recorded in contactCount
+		// above but never terminal. A traffic-sign touch does not end the run
+		// at all in Obstacles -- WRO 9.20 allows the pillar to be nudged, and
+		// the run stands as long as no sign's accumulated push exceeds
+		// maxLegalSignDisplacementM (see signNudgeState.score, applied BEFORE
+		// the tracker sees the surface, so a forgiven nudge never even starts
+		// a streak). A parking-lot fin carries no such leniency (9.24.7) and
+		// no start-of-run grace either: SurfaceParkingLot is in
+		// unforgivableContactSurfaces, so contacts.update reports it terminal
+		// on the very first tick regardless of when it began.
 		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
-		if surface != collision.SurfaceNone {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, surface, false, passSide.violations(), len(passSide.signs))
+		if contacts.update(steps, surface) {
+			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, contacts.surface, false, passSide.violations(), len(passSide.signs))
 			return res, nil
 		}
 

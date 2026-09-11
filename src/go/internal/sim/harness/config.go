@@ -88,6 +88,25 @@ type Config struct {
 	// corpus and recovers.
 	NoProgressWindowS       float64
 	NoProgressDisplacementM float64
+
+	// StartCollisionWindowS / StartCollisionGraceS govern the same forgiveness
+	// the native runner's contactTracker applies to a legal starting pose the
+	// track generator allows a few mm from a wall: contact that BEGINS within
+	// StartCollisionWindowS of run start is forgiven for up to
+	// StartCollisionGraceS before it counts as a real (terminal) crash;
+	// contact beginning later, or lasting longer, is terminal on the first
+	// tick. Mirrors SimulationParams.START_COLLISION_WINDOW_S (2.0) /
+	// START_COLLISION_GRACE_S (15.0); unported (plan §2), defaulted to the
+	// same values.
+	//
+	// Before this existed the native runner had NO grace at all: any tick of
+	// contact with a forbidden surface ended the run instantly, so a legal
+	// start pose a few mm from the OUTER wall was scored as an immediate
+	// collision. Measured on the balanced-128 Open corpus (seed 2026): 17/128
+	// collisions native vs 0/128 on the frozen Python oracle running the same
+	// scenarios.
+	StartCollisionWindowS float64
+	StartCollisionGraceS  float64
 }
 
 // DefaultConfig returns the all-default Config: 20 Hz control, 360-ray LIDAR
@@ -111,6 +130,8 @@ func DefaultConfig() Config {
 		ChassisLengthM:          0.30,
 		ChassisWidthM:           0.194,
 		DetectionConfidence:     0.9,
+		StartCollisionWindowS:   2.0,
+		StartCollisionGraceS:    15.0,
 	}
 }
 

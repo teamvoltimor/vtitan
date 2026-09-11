@@ -187,6 +187,14 @@ type Config struct {
 	// engages, matching _park_engage_dist (= waypoints.ARC_RADIUS). Ignored
 	// when no ParkController is attached.
 	ParkEngageDistM float64
+
+	// FinishApproachM is how far (m) short of the finish line the speed
+	// ladder drops to SlowSpeedMPS, matching WaypointParams.FINISH_APPROACH_M.
+	// Read in selectSpeed alongside LapsCompleted/NumLaps and
+	// Navigator.lapDetector; <= 0.0 disables the cap outright (Python's
+	// `finish_approach_m > 0.0` guard), and it is likewise inert whenever no
+	// LapDetector was supplied (see Params.LapDetector).
+	FinishApproachM float64
 }
 
 // Default* mirror the shipped TOML values this package's Python
@@ -314,6 +322,10 @@ const (
 	// as the parking-handoff engage distance (see Config.ParkEngageDistM).
 	DefaultParkEngageDistM = 0.45
 
+	// DefaultFinishApproachM matches waypoints.toml's finish_approach_m
+	// (WaypointParams.FINISH_APPROACH_M).
+	DefaultFinishApproachM = 0.40
+
 	// DefaultOpenChallengeLaps matches competition_specs.toml's
 	// open_challenge_laps (CompetitionSpecs.OPEN_CHALLENGE_LAPS), the
 	// default num_laps CoreNavigator.__init__ takes.
@@ -399,6 +411,8 @@ func DefaultConfig() Config {
 		SignWidthM:     DefaultSignWidthM,
 
 		ParkEngageDistM: DefaultParkEngageDistM,
+
+		FinishApproachM: DefaultFinishApproachM,
 	}
 }
 

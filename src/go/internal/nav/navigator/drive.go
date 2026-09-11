@@ -139,6 +139,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 
 	speed, clearanceSpeed, headingSpeed := n.selectSpeed(
 		p,
+		here,
 		angleError,
 		turnAhead,
 		signDeformMagnitude,
@@ -215,7 +216,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 // approximated by a condition that would fire on sighted runs too. It is
 // inert by default in any case: EXPLORE_LAP_SPEED_FRAC ships at 1.0.
 func (n *Navigator) selectSpeed(
-	p perception, angleError, turnAhead float64, signDeformMagnitude *float64,
+	p perception, here trackmodel.Waypoint, angleError, turnAhead float64, signDeformMagnitude *float64,
 ) (speed, clearanceSpeed, headingSpeed float64) {
 	switch {
 	case p.forwardClearance < n.cfg.ContactDistM:
@@ -273,6 +274,22 @@ func (n *Navigator) selectSpeed(
 	// sign, so it only fires while a correction is genuinely in flight.
 	if n.cfg.SignAwareSpeed && signDeformMagnitude != nil &&
 		*signDeformMagnitude > n.cfg.SignDeformSpeedThresholdM {
+		speed = math.Min(speed, n.cfg.SlowSpeedMPS())
+	}
+
+	// Come to rest INSIDE the finish section, matching navigator.py's
+	// FINISH_APPROACH_M block: applied only on the LAST lap and only while
+	// short of the line (LapDetector.ApproachingFinish stops returning true
+	// the moment the crossing registers), so it costs nothing on laps
+	// 1..n-1 and never fires at all when no LapDetector was supplied (see
+	// Params.LapDetector) -- the common case today, since building one needs
+	// the start pose/section/travel-direction triple resolved, which a
+	// blind run does not have until well after Navigator construction.
+	if n.cfg.FinishApproachM > 0.0 &&
+		n.lapDetector != nil &&
+		n.currentCorridor != nil &&
+		n.lapsCompleted == n.numLaps-1 &&
+		n.lapDetector.ApproachingFinish(here, *n.currentCorridor, n.cfg.FinishApproachM) {
 		speed = math.Min(speed, n.cfg.SlowSpeedMPS())
 	}
 

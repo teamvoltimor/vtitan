@@ -8,6 +8,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
@@ -353,4 +354,77 @@ func clearScan() controllers.LidarScan {
 		ranges[i] = 3.0
 	}
 	return controllers.LidarScan{RangesM: ranges, AnglesRad: angles}
+}
+
+// TestStep_ApproachingFinish_CapsSpeedToSlow covers the wiring this port
+// added: navigator.py's FINISH_APPROACH_M block, ported through
+// LapDetector.ApproachingFinish (racetracker) but consumed here only for that
+// one geometric test -- see Params.LapDetector and doc.go. On the LAST lap,
+// within Config.FinishApproachM of a LapDetector's start line, and still
+// short of it, the speed ladder must cap to SlowSpeedMPS even though a clear
+// scan and dead-ahead heading would otherwise let it run faster (see
+// TestStep_NormalDrive_PublishesMotion, the same pose/scan baseline this
+// pins against).
+func TestStep_ApproachingFinish_CapsSpeedToSlow(t *testing.T) {
+	t.Parallel()
+
+	origin := trackmodel.Waypoint{X: 1.5, Y: 1.0}
+	det, err := racetracker.NewLapDetector(origin, trackmodel.South, trackmodel.Clockwise)
+	if err != nil {
+		t.Fatalf("NewLapDetector() error = %v", err)
+	}
+
+	nav, gateway := newNavigator(t, func(p *navigator.Params) {
+		p.NumLaps = 1 // lapsCompleted (0) == NumLaps-1 (0): the last lap from tick one.
+		p.LapDetector = det
+	})
+
+	// 0.2 m past the origin, along the Clockwise South travel normal
+	// (-1, 0): dot = origin.X - robotX = -0.2, inside the default 0.40 m
+	// FinishApproachM window and still short of the line (dot < 0).
+	// CorridorForPosition classifies this point South too (see
+	// TestStep_NormalDrive_PublishesMotion's identical y=1.0 pose), so the
+	// currentSection guard is satisfied.
+	gateway.setPose(1.7, 1.0, 0.0)
+	gateway.scan = clearScan()
+	gateway.haveScan = true
+
+	nav.Step()
+
+	command, ok := gateway.lastDrive()
+	if !ok {
+		t.Fatal("published no drive command")
+	}
+	if want := navigator.DefaultConfig().SlowSpeedMPS(); command.SpeedMPS != want {
+		t.Fatalf("SpeedMPS = %v, want %v (SlowSpeedMPS, capped by the finish approach)",
+			command.SpeedMPS, want)
+	}
+}
+
+// TestStep_ApproachingFinish_InertWithoutALapDetector covers the nil branch:
+// the same pose, scan and last-lap setup as
+// TestStep_ApproachingFinish_CapsSpeedToSlow, but with no LapDetector
+// supplied (Params.LapDetector's zero value, the common case today -- see
+// doc.go). The finish-approach cap must never fire, so speed runs faster
+// than SlowSpeedMPS exactly as the ordinary clear-path baseline does.
+func TestStep_ApproachingFinish_InertWithoutALapDetector(t *testing.T) {
+	t.Parallel()
+
+	nav, gateway := newNavigator(t, func(p *navigator.Params) {
+		p.NumLaps = 1
+	})
+	gateway.setPose(1.7, 1.0, 0.0)
+	gateway.scan = clearScan()
+	gateway.haveScan = true
+
+	nav.Step()
+
+	command, ok := gateway.lastDrive()
+	if !ok {
+		t.Fatal("published no drive command")
+	}
+	if slow := navigator.DefaultConfig().SlowSpeedMPS(); command.SpeedMPS <= slow {
+		t.Fatalf("SpeedMPS = %v, want > %v (SlowSpeedMPS) with no LapDetector attached",
+			command.SpeedMPS, slow)
+	}
 }
