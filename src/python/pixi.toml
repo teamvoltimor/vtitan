@@ -274,6 +274,15 @@ typecheck  = { cmd = "mypy src/ ros2_ws/src/vtitan_drivers/vtitan_drivers ros2_w
 test     = { cmd = "pytest tests/ -m 'not hardware'", env = { PYTHONPATH = "." } }
 test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH = "." } }
 
+# The default RMW (fastrtps) segfaults rclpy's native teardown on Windows,
+# crashing whole pytest-xdist workers mid-suite. rmw_cyclonedds_cpp does not
+# reproduce the crash under the same -n 6 --dist loadscope load; confirmed
+# by a full clean run. Linux (CI, the Pi) is untouched -- no crash observed
+# there, so the default RMW stays put off Windows.
+[feature.dev.target.win-64.tasks]
+test = { cmd = "pytest tests/ -m 'not hardware'", env = { PYTHONPATH = ".", RMW_IMPLEMENTATION = "rmw_cyclonedds_cpp" } }
+test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH = ".", RMW_IMPLEMENTATION = "rmw_cyclonedds_cpp" } }
+
 # sllidar_ros2 SDK hardcodes Linux arch sources — build-ws is Linux-only
 [feature.dev.target.linux-64.tasks]
 # --merged-install: colcon's isolated per-package install layout drops the
