@@ -4823,7 +4823,19 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # corridor, which the association gate keys on. Shipped at 5 and never
     # swept. Run `flip-ticks 5 10 20 40 --corpus`; 5 IS shipped, so that arm is
     # the baseline.
-    "flip-ticks": lambda v: SweepConfig(f"flip_ticks {int(v)}", robot_corridor_flip_ticks=int(v)),
+    # MUST be blind. ``ScenarioSimulator`` derives ``discover_signs = blind and
+    # not is_open_challenge``, so a SIGHTED run hands the router the true signs
+    # and ``ObservedSignMap`` never runs at all -- the corridor gate this sweeps
+    # cannot fire, and all arms come back byte-identical. Measured that way once
+    # (5/10/20/40 all at 12 collisions, 189 laps>=3, 152 in-time) before the
+    # cause was found; that run was VOID, not a null result. The `blind-` prefix
+    # on this file's discovery axes is load-bearing, not decoration.
+    "blind-flip-ticks": lambda v: SweepConfig(
+        f"blind, robot corridor flip_ticks {int(v)}",
+        blind=True,
+        sign_lane_planner=True,
+        robot_corridor_flip_ticks=int(v),
+    ),
     # The `adaf194` pair, which only works TOGETHER, so this moves both from one
     # value: 0 = the PRE-FIX arm (0.050 / 0.050), 1 = SHIPPED (0.044 / 0.040).
     # A preset rather than a continuous axis because the two halves have no
