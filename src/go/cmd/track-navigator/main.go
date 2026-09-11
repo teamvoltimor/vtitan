@@ -30,6 +30,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsgw"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
@@ -222,12 +223,21 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		return fmt.Errorf("track-navigator: planning bench path: %w", planErr)
 	}
 
+	// bayexit has no configRoot/hardware-profile flags wired into this bench
+	// binary today (unlike the sim runner, every other config here reads
+	// DefaultConfig() rather than a ConfigFor(cfg.ConfigRoot, ...) call), so
+	// this loads from the working directory the same way robot.toml is read
+	// above -- best-effort, falling back to the Go literal defaults on any
+	// error instead of failing the run.
+	bxCfg := bayexit.ConfigFor(logger, ".", nil)
+
 	nav, err := navigator.New(navigator.Params{
 		Gateway:           gw,
 		Waypoints:         waypoints,
 		Direction:         func() *trackmodel.Direction { d := trackmodel.Counterclockwise; return &d }(),
 		Config:            navigator.DefaultConfig(),
 		ControllersConfig: controllers.DefaultConfig(),
+		BayExitConfig:     &bxCfg,
 		Logger:            logger,
 	})
 	if err != nil {

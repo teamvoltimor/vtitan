@@ -712,7 +712,7 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 			if n.bayExit == nil {
 				n.bayExit = bayexit.New()
 			}
-			cmd := n.bayExit.Command(ranges, angles, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg)
+			cmd := n.bayExit.Command(ranges, angles, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg, &robotYaw)
 			n.gateway.PublishDrive(cmd)
 			debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
 			debug.CommandedSteerNorm = new(cmd.SteeringNorm)

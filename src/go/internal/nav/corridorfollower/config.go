@@ -177,6 +177,51 @@ type Config struct {
 	// forward clearance, which is exactly IsClear's threshold, tested the
 	// tick after this latches. Matches ASSUME_BAY_START.
 	AssumeBayStart bool
+
+	// BayExitGuardOverlapRecovery lets a leg that IMPROVES an already-
+	// violated gap run, rather than refusing both legs forever once the
+	// dead-reckoned body overlaps a fin. Matches BAY_EXIT_GUARD_OVERLAP_RECOVERY.
+	BayExitGuardOverlapRecovery bool
+	// BayExitOpenSideSectorDeg is the half-width of the sector scored on
+	// each side when resolving which way is open, instead of a single ray.
+	// Matches BAY_EXIT_OPEN_SIDE_SECTOR_DEG.
+	BayExitOpenSideSectorDeg float64
+	// BayExitOpenSideVotes is the ticks polled before the open-side latch is
+	// taken. Matches BAY_EXIT_OPEN_SIDE_VOTES.
+	BayExitOpenSideVotes int
+	// BayExitSpeedMPS is an ABSOLUTE override for both bay-exit legs' speed;
+	// 0 keeps the inherited creep-speed scaling. Matches BAY_EXIT_SPEED_MPS.
+	BayExitSpeedMPS float64
+	// BayExitContactDistM is the forward clearance below which the nose
+	// counts as touching the wall. Matches BAY_EXIT_CONTACT_DIST_M.
+	BayExitContactDistM float64
+	// BayExitContactRecoveryTicks is how long a nose-contact reverse holds
+	// once triggered; 0 disables the recovery. Matches
+	// BAY_EXIT_CONTACT_RECOVERY_TICKS.
+	BayExitContactRecoveryTicks int
+	// BayExitTargetYawDeg is the rotation from the placement heading at
+	// which the exit has turned enough to leave. Matches
+	// BAY_EXIT_TARGET_YAW_DEG.
+	BayExitTargetYawDeg float64
+	// BayExitLegMaxS caps each guarded leg's own duration, since a stalled
+	// wheel cannot produce the dead-reckoned evidence that would otherwise
+	// end it. Matches BAY_EXIT_LEG_MAX_S.
+	BayExitLegMaxS float64
+	// BayExitGuardBlockTicks is the unbroken ticks the clearance guard may
+	// refuse both legs before handing over to the legacy contact-bounded
+	// exits; 0 = never. Matches BAY_EXIT_GUARD_BLOCK_TICKS.
+	BayExitGuardBlockTicks int
+	// BayExitGuardMeasuredCoast matches BAY_EXIT_GUARD_MEASURED_COAST. SHIPS
+	// FALSE, INERT: no consuming logic reads this field, kept for config
+	// parity pending a hardware trial (see the TOML comment).
+	BayExitGuardMeasuredCoast bool
+	// BayExitGuardMirrorsReverse matches BAY_EXIT_GUARD_MIRRORS_REVERSE.
+	// SHIPS FALSE, INERT: no consuming logic reads this field.
+	BayExitGuardMirrorsReverse bool
+	// BayExitDrUsesMeasuredYaw matches BAY_EXIT_DR_USES_MEASURED_YAW. SHIPS
+	// FALSE, INERT: no consuming logic reads this field -- REFUTATION
+	// RECORDED, neither arm beat the shipped yaw model.
+	BayExitDrUsesMeasuredYaw bool
 }
 
 // TurnSide values. TurnSideNone preserves the plain clearance-based
@@ -277,6 +322,30 @@ const (
 	DefaultBayExitLatchReverse = false
 	// DefaultBayExitMaxFrames matches BAY_EXIT_MAX_FRAMES.
 	DefaultBayExitMaxFrames = 0
+	// DefaultBayExitGuardOverlapRecovery matches BAY_EXIT_GUARD_OVERLAP_RECOVERY.
+	DefaultBayExitGuardOverlapRecovery = true
+	// DefaultBayExitOpenSideSectorDeg matches BAY_EXIT_OPEN_SIDE_SECTOR_DEG.
+	DefaultBayExitOpenSideSectorDeg = 15.0
+	// DefaultBayExitOpenSideVotes matches BAY_EXIT_OPEN_SIDE_VOTES.
+	DefaultBayExitOpenSideVotes = 5
+	// DefaultBayExitSpeedMPS matches BAY_EXIT_SPEED_MPS.
+	DefaultBayExitSpeedMPS = 0.10
+	// DefaultBayExitContactDistM matches BAY_EXIT_CONTACT_DIST_M.
+	DefaultBayExitContactDistM = 0.08
+	// DefaultBayExitContactRecoveryTicks matches BAY_EXIT_CONTACT_RECOVERY_TICKS.
+	DefaultBayExitContactRecoveryTicks = 0
+	// DefaultBayExitTargetYawDeg matches BAY_EXIT_TARGET_YAW_DEG.
+	DefaultBayExitTargetYawDeg = 70.0
+	// DefaultBayExitLegMaxS matches BAY_EXIT_LEG_MAX_S.
+	DefaultBayExitLegMaxS = 0.5
+	// DefaultBayExitGuardBlockTicks matches BAY_EXIT_GUARD_BLOCK_TICKS.
+	DefaultBayExitGuardBlockTicks = 0
+	// DefaultBayExitGuardMeasuredCoast matches BAY_EXIT_GUARD_MEASURED_COAST.
+	DefaultBayExitGuardMeasuredCoast = false
+	// DefaultBayExitGuardMirrorsReverse matches BAY_EXIT_GUARD_MIRRORS_REVERSE.
+	DefaultBayExitGuardMirrorsReverse = false
+	// DefaultBayExitDrUsesMeasuredYaw matches BAY_EXIT_DR_USES_MEASURED_YAW.
+	DefaultBayExitDrUsesMeasuredYaw = false
 )
 
 // DefaultConfig returns the Config matching the shipped TOML defaults.
@@ -325,5 +394,18 @@ func DefaultConfig() Config {
 		BayExitLatchDirection:        DefaultBayExitLatchDirection,
 		BayExitLatchReverse:          DefaultBayExitLatchReverse,
 		BayExitMaxFrames:             DefaultBayExitMaxFrames,
+
+		BayExitGuardOverlapRecovery: DefaultBayExitGuardOverlapRecovery,
+		BayExitOpenSideSectorDeg:    DefaultBayExitOpenSideSectorDeg,
+		BayExitOpenSideVotes:        DefaultBayExitOpenSideVotes,
+		BayExitSpeedMPS:             DefaultBayExitSpeedMPS,
+		BayExitContactDistM:         DefaultBayExitContactDistM,
+		BayExitContactRecoveryTicks: DefaultBayExitContactRecoveryTicks,
+		BayExitTargetYawDeg:         DefaultBayExitTargetYawDeg,
+		BayExitLegMaxS:              DefaultBayExitLegMaxS,
+		BayExitGuardBlockTicks:      DefaultBayExitGuardBlockTicks,
+		BayExitGuardMeasuredCoast:   DefaultBayExitGuardMeasuredCoast,
+		BayExitGuardMirrorsReverse:  DefaultBayExitGuardMirrorsReverse,
+		BayExitDrUsesMeasuredYaw:    DefaultBayExitDrUsesMeasuredYaw,
 	}
 }

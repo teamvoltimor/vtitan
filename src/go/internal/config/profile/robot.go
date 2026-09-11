@@ -51,6 +51,10 @@ type RobotDrivetrain struct {
 	SpeedResponseTauS float64 `mapstructure:"speed_response_tau_s"`
 	RearSteerRatio    float64 `mapstructure:"rear_steer_ratio"`
 	YawGain           float64 `mapstructure:"yaw_gain"`
+	// MinTurnRadiusM matches RobotSpecs.MIN_TURN_RADIUS_M: the curvature
+	// floor a bicycle model alone does not have, calibrated against a
+	// measured chassis saturation.
+	MinTurnRadiusM float64 `mapstructure:"min_turn_radius_m"`
 }
 
 // RobotLidar mirrors robot.toml's [lidar] section.

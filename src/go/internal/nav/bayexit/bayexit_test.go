@@ -27,22 +27,22 @@ func uniformScan(rangeM float64) (rangesM, anglesRad []float64) {
 	return rangesM, anglesRad
 }
 
-// scanWithSides is a uniform far scan, with the ray nearest +90deg (left)
-// and -90deg (right) overridden -- the two bearings resolveOpenSide reads.
+// scanWithSides is a uniform far scan, with every ray in the +90deg
+// (left) and -90deg (right) sectors overridden -- resolveOpenSide now scores
+// a whole BayExitOpenSideSectorDeg-wide sector (valid fraction times median
+// range) rather than a single nearest ray, so a single overridden ray would
+// be swamped by the uniform background and never move the score.
 func scanWithSides(leftM, rightM float64) (rangesM, anglesRad []float64) {
 	rangesM, anglesRad = uniformScan(5.0)
-	bestLeft, bestLeftDiff := 0, math.Inf(1)
-	bestRight, bestRightDiff := 0, math.Inf(1)
+	const halfWidthRad = 15.0 * math.Pi / 180.0
 	for i, a := range anglesRad {
-		if d := math.Abs(a - math.Pi/2); d < bestLeftDiff {
-			bestLeft, bestLeftDiff = i, d
+		if math.Abs(a-math.Pi/2) <= halfWidthRad {
+			rangesM[i] = leftM
 		}
-		if d := math.Abs(a + math.Pi/2); d < bestRightDiff {
-			bestRight, bestRightDiff = i, d
+		if math.Abs(a+math.Pi/2) <= halfWidthRad {
+			rangesM[i] = rightM
 		}
 	}
-	rangesM[bestLeft] = leftM
-	rangesM[bestRight] = rightM
 	return rangesM, anglesRad
 }
 
@@ -92,7 +92,7 @@ func TestCommand_LegacyForwardLegSteersTowardTheOpenSide(t *testing.T) {
 		travelled := 0.0
 		for range 20 {
 			travelled -= 0.01 // reversing: signed odometry counts DOWN
-			c := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg)
+			c := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
 			cmd.SpeedMPS, cmd.SteeringNorm = c.SpeedMPS, c.SteeringNorm
 		}
 		if openLeft && cmd.SteeringNorm <= 0 {
@@ -115,18 +115,25 @@ func TestCommand_ResolveOpenSideLatchesAfterFirstTick(t *testing.T) {
 	cfg.Follower.BayExitLatchDirection = true
 	b := bayexit.New()
 
-	// Tick 1: open is left.
+	// Ticks 1..BayExitOpenSideVotes: open is left, polled before the latch
+	// takes (see BayExitOpenSideVotes).
 	ranges, angles := scanWithSides(1.0, 0.30)
-	c1 := b.Command(ranges, angles, 0.0, creepSpeedMPS, cfg)
+	travelled := 0.0
+	var latched struct{ SteeringNorm float64 }
+	for range cfg.Follower.BayExitOpenSideVotes {
+		c := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
+		latched.SteeringNorm = c.SteeringNorm
+		travelled -= 0.01
+	}
 
-	// Tick 2: rays now say open is RIGHT -- the latch must ignore this.
+	// Next tick: rays now say open is RIGHT -- the latch must ignore this.
 	ranges2, angles2 := scanWithSides(0.30, 1.0)
-	c2 := b.Command(ranges2, angles2, -0.01, creepSpeedMPS, cfg)
+	c2 := b.Command(ranges2, angles2, travelled, creepSpeedMPS, cfg, nil)
 
-	if sign(c1.SteeringNorm) != sign(c2.SteeringNorm) {
+	if sign(latched.SteeringNorm) != sign(c2.SteeringNorm) {
 		t.Errorf(
-			"steering sign changed across the latch: tick1=%v tick2=%v, want same sign",
-			c1.SteeringNorm, c2.SteeringNorm,
+			"steering sign changed across the latch: latched=%v post-latch=%v, want same sign",
+			latched.SteeringNorm, c2.SteeringNorm,
 		)
 	}
 	if flips := b.OpenFlips(); flips != 0 {
@@ -144,10 +151,10 @@ func TestCommand_ResolveOpenSideCountsFlipsWhenNotLatched(t *testing.T) {
 	b := bayexit.New()
 
 	ranges1, angles1 := scanWithSides(1.0, 0.30)
-	b.Command(ranges1, angles1, 0.0, creepSpeedMPS, cfg)
+	b.Command(ranges1, angles1, 0.0, creepSpeedMPS, cfg, nil)
 
 	ranges2, angles2 := scanWithSides(0.30, 1.0)
-	b.Command(ranges2, angles2, -0.01, creepSpeedMPS, cfg)
+	b.Command(ranges2, angles2, -0.01, creepSpeedMPS, cfg, nil)
 
 	if flips := b.OpenFlips(); flips != 1 {
 		t.Errorf("OpenFlips() = %v, want 1", flips)
@@ -193,7 +200,7 @@ func TestCommand_CycleUnobstructedFirstLegNeverInternallyTransitions(t *testing.
 	travelled := 0.0
 	for range 500 {
 		travelled += creepSpeedMPS * cfg.Follower.CornerSpeedScale / cfg.ControlHz
-		b.Command(ranges, angles, travelled, creepSpeedMPS, cfg)
+		b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
 	}
 	reverseTicks, forwardTicks, _ := b.Legs()
 	if reverseTicks != 0 {
@@ -226,7 +233,7 @@ func TestCommand_CycleStalledLegTransitionsAndAnchorsTheNextOne(t *testing.T) {
 	// forward and reverse target angles) -- the settle phase commands
 	// zero speed and returns before reverseTicks would increment.
 	for range 40 {
-		b.Command(ranges, angles, 0.0, creepSpeedMPS, cfg)
+		b.Command(ranges, angles, 0.0, creepSpeedMPS, cfg, nil)
 	}
 	if reverseTicks, _, _ := b.Legs(); reverseTicks == 0 {
 		t.Fatal("the stall backstop never ended the jammed first forward leg")
@@ -243,7 +250,7 @@ func TestCommand_GuardedCommandRecordsGuardStats(t *testing.T) {
 	b := bayexit.New()
 	ranges, angles := scanWithSides(1.0, 0.30)
 
-	b.Command(ranges, angles, 0.0, creepSpeedMPS, cfg)
+	b.Command(ranges, angles, 0.0, creepSpeedMPS, cfg, nil)
 	_, minGap, ok, _ := b.GuardStats()
 	if !ok {
 		t.Fatal("GuardStats() ok = false after Command(), want a recorded predicted gap")
@@ -274,7 +281,7 @@ func TestCommand_GuardedCommandFlipsBeforePredictedContact(t *testing.T) {
 	travelled := 0.0
 	minGapSeen := math.Inf(1)
 	for range 300 {
-		cmd := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg)
+		cmd := b.Command(ranges, angles, travelled, creepSpeedMPS, cfg, nil)
 		travelled += cmd.SpeedMPS / cfg.ControlHz
 		if _, minGap, ok, _ := b.GuardStats(); ok && minGap < minGapSeen {
 			minGapSeen = minGap

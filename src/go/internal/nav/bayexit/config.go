@@ -31,6 +31,18 @@ type Config struct {
 	// clearance guard's swept-rectangle model.
 	ChassisLengthM float64
 	ChassisWidthM  float64
+	// MinTurnRadiusM is RobotSpecs.MIN_TURN_RADIUS_M: the curvature floor a
+	// plain bicycle model does not have, matching AckermannKinematics'
+	// clamp. Without it dead reckoning believed the chassis ratcheted out of
+	// the pocket 31x faster than measured. <= 0 disables the floor.
+	MinTurnRadiusM float64
+	// SpeedResponseTauS is RobotSpecs.SPEED_RESPONSE_TAU_S: the drivetrain's
+	// decay constant, for the guard's coast-past-command prediction.
+	SpeedResponseTauS float64
+	// LidarMaxRangeM is RobotSpecs.LIDAR_MAX_RANGE, the value the gateway
+	// substitutes for a dropout -- needed to tell a genuine long return
+	// apart from a substituted one when scoring which side is open.
+	LidarMaxRangeM float64
 	// MaxSteeringAngleRad is the road-wheel angle at full lock (in
 	// radians), matching RobotSpecs.MAX_WHEEL_ANGLE_DEG converted --
 	// reused from corridorfollower.Config.MaxSteeringAngleRad rather than
@@ -63,6 +75,10 @@ func DefaultConfig() Config {
 		ChassisLengthM: DefaultChassisLengthM,
 		ChassisWidthM:  DefaultChassisWidthM,
 
+		MinTurnRadiusM:    DefaultMinTurnRadiusM,
+		SpeedResponseTauS: DefaultSpeedResponseTauS,
+		LidarMaxRangeM:    DefaultLidarMaxRangeM,
+
 		ParkingLot: parking.DefaultParkingLotSpecs,
 
 		MaxSteeringRateRadPerS: DefaultMaxSteeringRateRadPerS,
@@ -89,6 +105,14 @@ const (
 	DefaultMaxSteeringRateRadPerS = 1.2
 	// DefaultControlHz matches controllers.DefaultControlHz.
 	DefaultControlHz = 20.0
+	// DefaultMinTurnRadiusM matches robot.toml's [drivetrain] min_turn_radius_m.
+	DefaultMinTurnRadiusM = 0.29
+	// DefaultSpeedResponseTauS matches the deployed
+	// rev-hd-hex-motor-6000rpm hardware profile's [drivetrain]
+	// speed_response_tau_s.
+	DefaultSpeedResponseTauS = 0.35
+	// DefaultLidarMaxRangeM matches robot.toml's [lidar] max_range.
+	DefaultLidarMaxRangeM = 12.0
 )
 
 // EffectiveWheelbaseM is the wheelbase the chassis actually turns about, not

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
@@ -77,6 +78,7 @@ type NativeRunner struct {
 	roundTimeLimitS float64
 	startCfg        startconditions.Config
 	followCfg       corridorfollower.Config
+	bxCfg           bayexit.Config
 	estCfg          corridorestimator.Config
 	kinParams       kinematics.Params
 	collCfg         collision.Config
@@ -224,6 +226,7 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		roundTimeLimitS: roundTimeLimitSFor(logger, cfg.ConfigRoot),
 		startCfg:        startconditions.ConfigFor(logger, cfg.ConfigRoot),
 		followCfg:       corridorfollower.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
+		bxCfg:           bayexit.ConfigFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		estCfg:          corridorestimator.ConfigFor(logger, cfg.ConfigRoot),
 		kinParams:       kinematics.ParamsFor(logger, cfg.ConfigRoot, cfg.HardwareProfiles),
 		collCfg:         collision.ConfigFor(logger, cfg.ConfigRoot),
@@ -365,6 +368,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		// DefaultConfig() at the navigator's own call sites, which pinned
 		// the whole creep to Go literals whatever --config-root said.
 		CorridorFollowerConfig:  &r.followCfg,
+		BayExitConfig:           &r.bxCfg,
 		CorridorEstimatorConfig: &r.estCfg,
 		SignRouter:              signRouter,
 		ParkController:          pc,

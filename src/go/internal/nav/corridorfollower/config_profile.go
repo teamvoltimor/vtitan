@@ -81,6 +81,19 @@ func ConfigFor(
 		cfg.BayExitLatchReverse = cf.BayExitLatchReverse
 		cfg.BayExitFallbackFrames = cf.BayExitFallbackFrames
 		cfg.BayExitMaxFrames = cf.BayExitMaxFrames
+
+		cfg.BayExitGuardOverlapRecovery = cf.BayExitGuardOverlapRecovery
+		cfg.BayExitOpenSideSectorDeg = cf.BayExitOpenSideSectorDeg
+		cfg.BayExitOpenSideVotes = cf.BayExitOpenSideVotes
+		cfg.BayExitSpeedMPS = cf.BayExitSpeedMPS
+		cfg.BayExitContactDistM = cf.BayExitContactDistM
+		cfg.BayExitContactRecoveryTicks = cf.BayExitContactRecoveryTicks
+		cfg.BayExitTargetYawDeg = cf.BayExitTargetYawDeg
+		cfg.BayExitLegMaxS = cf.BayExitLegMaxS
+		cfg.BayExitGuardBlockTicks = cf.BayExitGuardBlockTicks
+		cfg.BayExitGuardMeasuredCoast = cf.BayExitGuardMeasuredCoast
+		cfg.BayExitGuardMirrorsReverse = cf.BayExitGuardMirrorsReverse
+		cfg.BayExitDrUsesMeasuredYaw = cf.BayExitDrUsesMeasuredYaw
 	}
 
 	cePath := filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath)

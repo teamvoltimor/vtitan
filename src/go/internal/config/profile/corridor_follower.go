@@ -93,6 +93,33 @@ type CorridorFollowerConfig struct {
 	BayExitFallbackFrames int `mapstructure:"bay_exit_fallback_frames"`
 	// BayExitMaxFrames matches BAY_EXIT_MAX_FRAMES; 0 = forever.
 	BayExitMaxFrames int `mapstructure:"bay_exit_max_frames"`
+	// BayExitGuardOverlapRecovery matches BAY_EXIT_GUARD_OVERLAP_RECOVERY.
+	BayExitGuardOverlapRecovery bool `mapstructure:"bay_exit_guard_overlap_recovery"`
+	// BayExitOpenSideSectorDeg matches BAY_EXIT_OPEN_SIDE_SECTOR_DEG.
+	BayExitOpenSideSectorDeg float64 `mapstructure:"bay_exit_open_side_sector_deg"`
+	// BayExitOpenSideVotes matches BAY_EXIT_OPEN_SIDE_VOTES.
+	BayExitOpenSideVotes int `mapstructure:"bay_exit_open_side_votes"`
+	// BayExitSpeedMPS matches BAY_EXIT_SPEED_MPS.
+	BayExitSpeedMPS float64 `mapstructure:"bay_exit_speed_mps"`
+	// BayExitContactDistM matches BAY_EXIT_CONTACT_DIST_M.
+	BayExitContactDistM float64 `mapstructure:"bay_exit_contact_dist_m"`
+	// BayExitContactRecoveryTicks matches BAY_EXIT_CONTACT_RECOVERY_TICKS.
+	BayExitContactRecoveryTicks int `mapstructure:"bay_exit_contact_recovery_ticks"`
+	// BayExitTargetYawDeg matches BAY_EXIT_TARGET_YAW_DEG.
+	BayExitTargetYawDeg float64 `mapstructure:"bay_exit_target_yaw_deg"`
+	// BayExitLegMaxS matches BAY_EXIT_LEG_MAX_S.
+	BayExitLegMaxS float64 `mapstructure:"bay_exit_leg_max_s"`
+	// BayExitGuardBlockTicks matches BAY_EXIT_GUARD_BLOCK_TICKS.
+	BayExitGuardBlockTicks int `mapstructure:"bay_exit_guard_block_ticks"`
+	// BayExitGuardMeasuredCoast matches BAY_EXIT_GUARD_MEASURED_COAST. SHIPS
+	// FALSE, INERT -- no consuming logic reads this; kept for config parity.
+	BayExitGuardMeasuredCoast bool `mapstructure:"bay_exit_guard_measured_coast"`
+	// BayExitGuardMirrorsReverse matches BAY_EXIT_GUARD_MIRRORS_REVERSE. SHIPS
+	// FALSE, INERT -- no consuming logic reads this; kept for config parity.
+	BayExitGuardMirrorsReverse bool `mapstructure:"bay_exit_guard_mirrors_reverse"`
+	// BayExitDrUsesMeasuredYaw matches BAY_EXIT_DR_USES_MEASURED_YAW. SHIPS
+	// FALSE, INERT -- no consuming logic reads this; kept for config parity.
+	BayExitDrUsesMeasuredYaw bool `mapstructure:"bay_exit_dr_uses_measured_yaw"`
 }
 
 // DefaultCorridorFollowerTOMLPath is
@@ -137,5 +164,17 @@ func CorridorFollowerDefaults() map[string]any {
 		"bay_exit_latch_reverse":            false,
 		"bay_exit_fallback_frames":          0,
 		"bay_exit_max_frames":               0,
+		"bay_exit_guard_overlap_recovery":   true,
+		"bay_exit_open_side_sector_deg":     15.0,
+		"bay_exit_open_side_votes":          5,
+		"bay_exit_speed_mps":                0.10,
+		"bay_exit_contact_dist_m":           0.08,
+		"bay_exit_contact_recovery_ticks":   0,
+		"bay_exit_target_yaw_deg":           70.0,
+		"bay_exit_leg_max_s":                0.5,
+		"bay_exit_guard_block_ticks":        0,
+		"bay_exit_guard_measured_coast":     false,
+		"bay_exit_guard_mirrors_reverse":    false,
+		"bay_exit_dr_uses_measured_yaw":     false,
 	}
 }
