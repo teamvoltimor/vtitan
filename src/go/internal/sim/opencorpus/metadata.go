@@ -36,8 +36,8 @@ func Metadata(p Params, cfg startconditions.Config) (generate.Metadata, error) {
 	widthsByName := p.Widths.MetresByName()
 	widthsM := make(map[trackmodel.Section]float64, len(widthsByName))
 	for name, metres := range widthsByName {
-		domainSection, ok := name.Domain()
-		if !ok {
+		domainSection, domainOK := name.Domain()
+		if !domainOK {
 			return generate.Metadata{}, fmt.Errorf("opencorpus: unknown section %q", name)
 		}
 		widthsM[domainSection] = metres
@@ -115,8 +115,8 @@ func Write(dir string, params []Params, cfg startconditions.Config) ([]corpus.Sc
 			return nil, fmt.Errorf("opencorpus: encoding %s: %w", p.ID(), err)
 		}
 		path := filepath.Join(dir, p.ID()+"_metadata.json")
-		if err := os.WriteFile(path, raw, 0o600); err != nil {
-			return nil, fmt.Errorf("opencorpus: writing %s: %w", path, err)
+		if writeErr := os.WriteFile(path, raw, 0o600); writeErr != nil {
+			return nil, fmt.Errorf("opencorpus: writing %s: %w", path, writeErr)
 		}
 		scenarios = append(scenarios, corpus.Scenario{ID: p.ID(), MetadataPath: path})
 	}

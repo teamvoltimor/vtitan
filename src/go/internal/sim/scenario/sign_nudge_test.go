@@ -70,7 +70,7 @@ func TestSignNudgeState_SustainedPushPastToleranceIsACollision(t *testing.T) {
 	yaw := 0.0
 	y := signCenterY - 0.20
 	var surface collision.ContactSurface
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		y += 0.01 // 1cm/tick toward the sign
 		x := signCenterX
 		raw := tm.ContactSurfaceAt(x, y, yaw, chassisLengthTest, chassisWidthTest)
@@ -99,7 +99,7 @@ func TestSignNudgeState_ReceedingTravelDoesNotAccumulate(t *testing.T) {
 	yaw := 0.0
 	y := signCenterY
 	var surface collision.ContactSurface
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		y -= 0.002 // receding from the sign every tick
 		x := signCenterX
 		raw := tm.ContactSurfaceAt(x, y, yaw, chassisLengthTest, chassisWidthTest)

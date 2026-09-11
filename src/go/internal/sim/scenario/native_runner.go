@@ -389,7 +389,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		}
 	}()
 
-	return r.loop(sc, gw, nav, track, targetLaps, startPose, layout, rec, passSide)
+	return r.loop(sc, gw, nav, track, targetLaps, layout, rec, passSide)
 }
 
 // simVisionGateway implements navigator.VisionGateway by emulating sign
@@ -435,7 +435,8 @@ const (
 // corner that survives longest is the one trailing the push, so the bound is
 // the displacement at which even that corner leaves the circle.
 var maxLegalSignDisplacementM = math.Sqrt(
-	math.Pow(signPlacementCircleDiameterM/2, 2)-math.Pow(signObstacleWidthM/2, 2),
+	(signPlacementCircleDiameterM/2)*(signPlacementCircleDiameterM/2)-
+		(signObstacleWidthM/2)*(signObstacleWidthM/2),
 ) + signObstacleWidthM/2
 
 // signsFromMetadata builds the ground-truth SignSpec list for an Obstacles
@@ -526,7 +527,6 @@ func (r *NativeRunner) loop(
 	nav *navigator.Navigator,
 	track *collision.TrackModel,
 	targetLaps int,
-	startPose scenarioStart,
 	layout *widthbelief.Layout,
 	rec *simRecorder,
 	passSide *passSideScorer,
@@ -884,8 +884,8 @@ func loadMetadata(path string) (generate.Metadata, error) {
 		return generate.Metadata{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 	var meta generate.Metadata
-	if err := json.Unmarshal(raw, &meta); err != nil {
-		return generate.Metadata{}, fmt.Errorf("parsing %s: %w", path, err)
+	if unmarshalErr := json.Unmarshal(raw, &meta); unmarshalErr != nil {
+		return generate.Metadata{}, fmt.Errorf("parsing %s: %w", path, unmarshalErr)
 	}
 	return meta, nil
 }
@@ -978,12 +978,21 @@ func defaultLaps(_ generate.Metadata) int {
 // compile-time assertion that NativeRunner satisfies Runner.
 var _ Runner = (*NativeRunner)(nil)
 
+// defaultRoundTimeLimitS mirrors profile.CompetitionDefaults'
+// round_time_limit_s: the shipped rule-book budget, used as a last resort when
+// the defaults map somehow lacks the key.
+const defaultRoundTimeLimitS = 180.0
+
 // roundTimeLimitSFor reads competition_specs.toml's round_time_limit_s, or
 // falls back to the shipped default when there is no config root or the file
 // will not load. Scoring a run against a hardcoded limit is the same class of
 // bug as reading a hardcoded sensor spec: the rule book is a file.
 func roundTimeLimitSFor(logger *slog.Logger, configRoot string) float64 {
-	fallback, _ := profile.CompetitionDefaults()["round_time_limit_s"].(float64)
+	fallback, ok := profile.CompetitionDefaults()["round_time_limit_s"].(float64)
+	if !ok {
+		logger.Warn("native runner: competition defaults missing round_time_limit_s, using fallback")
+		fallback = defaultRoundTimeLimitS
+	}
 	if configRoot == "" {
 		return fallback
 	}

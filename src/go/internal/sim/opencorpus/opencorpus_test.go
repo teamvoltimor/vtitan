@@ -211,8 +211,8 @@ func TestWrite_RoundTripsThroughTheCorpusLoader(t *testing.T) {
 		t.Fatalf("reading %s: %v", loaded[0].MetadataPath, err)
 	}
 	var meta generate.Metadata
-	if err := json.Unmarshal(raw, &meta); err != nil {
-		t.Fatalf("parsing the written metadata as generate.Metadata: %v", err)
+	if unmarshalErr := json.Unmarshal(raw, &meta); unmarshalErr != nil {
+		t.Fatalf("parsing the written metadata as generate.Metadata: %v", unmarshalErr)
 	}
 	if meta.ScenarioID != 0 || meta.StartingConditions.Section != "south" {
 		t.Errorf("round-tripped metadata = id %d section %q, want 0 and \"south\"",
@@ -240,20 +240,20 @@ func readGolden(t *testing.T) []goldenRow {
 	}
 
 	var rows []goldenRow
-	for _, line := range strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
 		if line == "" {
 			continue
 		}
 		var r goldenRow
-		n, err := fmt.Sscanf(
+		n, scanErr := fmt.Sscanf(
 			strings.ReplaceAll(line, ",", " "),
 			"%d %s %d %d %d %d %s %d %s %g %g %g",
 			&r.index, &r.direction,
 			&r.widthsMM[0], &r.widthsMM[1], &r.widthsMM[2], &r.widthsMM[3],
 			&r.section, &r.startCell, &r.label, &r.x, &r.y, &r.yaw,
 		)
-		if err != nil || n != 12 {
-			t.Fatalf("parsing golden line %q: got %d fields, err %v", line, n, err)
+		if scanErr != nil || n != 12 {
+			t.Fatalf("parsing golden line %q: got %d fields, err %v", line, n, scanErr)
 		}
 		rows = append(rows, r)
 	}
@@ -368,7 +368,7 @@ func readBalancedGolden(t *testing.T) []balancedGoldenRow {
 		t.Fatalf("reading the balanced128 golden: %v", err)
 	}
 	var rows []balancedGoldenRow
-	for _, line := range strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
 		if line == "" {
 			continue
 		}

@@ -28,11 +28,11 @@ func TestNewSimRecorder_NilWhenOff(t *testing.T) {
 	if rec != nil {
 		t.Fatalf("newSimRecorder(\"\") = %v, want nil", rec)
 	}
-	if err := rec.close(); err != nil {
-		t.Errorf("close on a nil recorder: %v", err)
+	if closeErr := rec.close(); closeErr != nil {
+		t.Errorf("close on a nil recorder: %v", closeErr)
 	}
-	if err := rec.tick(controllers.LidarScan{}, false, nil, kinematics.AckermannState{}, 0, 0.05); err != nil {
-		t.Errorf("tick on a nil recorder: %v", err)
+	if tickErr := rec.tick(controllers.LidarScan{}, false, nil, kinematics.AckermannState{}, 0, 0.05); tickErr != nil {
+		t.Errorf("tick on a nil recorder: %v", tickErr)
 	}
 }
 
@@ -168,22 +168,22 @@ func TestSimRecorder_WritesBothSubjectsOnASimClock(t *testing.T) {
 		// A nil navigator would panic in tick, so drive the recorder's writes
 		// directly here; the navigator's own ToProto is covered in its package.
 		logTime := rec.simClockNanos
-		if err := rec.run.WriteROS2(
+		if writeErr := rec.run.WriteROS2(
 			scanTopic, recording.LaserScanType, recording.LaserScanSchema,
 			recording.EncodeLaserScan(scanToCDR(scan, logTime)), logTime,
-		); err != nil {
-			t.Fatalf("writing scan: %v", err)
+		); writeErr != nil {
+			t.Fatalf("writing scan: %v", writeErr)
 		}
-		if err := rec.run.WriteROS2(
+		if writeErr := rec.run.WriteROS2(
 			navDebugTopic, recording.StringType, recording.StringSchema,
 			recording.EncodeString(`{"phase":"normal_drive"}`), logTime,
-		); err != nil {
-			t.Fatalf("writing nav debug: %v", err)
+		); writeErr != nil {
+			t.Fatalf("writing nav debug: %v", writeErr)
 		}
 		rec.simClockNanos += uint64(dt * nanosPerSecond)
 	}
-	if err := rec.close(); err != nil {
-		t.Fatalf("close: %v", err)
+	if closeErr := rec.close(); closeErr != nil {
+		t.Fatalf("close: %v", closeErr)
 	}
 
 	// The run directory and bag are named for the SCENARIO, not a timestamp:

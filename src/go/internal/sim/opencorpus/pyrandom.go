@@ -49,10 +49,7 @@ func (m *mt19937) initGenrand(seed uint32) {
 func (m *mt19937) initByArray(key []uint32) {
 	m.initGenrand(19650218)
 	i, j := 1, 0
-	k := mtN
-	if len(key) > k {
-		k = len(key)
-	}
+	k := max(mtN, len(key))
 	for ; k > 0; k-- {
 		prev := m.state[i-1]
 		m.state[i] = (m.state[i] ^ ((prev ^ (prev >> 30)) * 1664525)) + key[j] + uint32(j)

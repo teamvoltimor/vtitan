@@ -2,7 +2,6 @@ package scenario
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
@@ -148,7 +147,7 @@ func newBlindSetup(
 // info line from each would bury the report; the belief is observable through
 // Layout.Believed and the Result either way.
 func discardingLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 // blindCenterBiasM is the planning bias for a blind round: nil on Open,

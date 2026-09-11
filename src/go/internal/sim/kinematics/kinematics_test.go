@@ -68,8 +68,8 @@ func TestYawGainScalesTheTurnRadiusInversely(t *testing.T) {
 	ideal := newTestKinematicsWith(1.0, 1.0, 0.0)
 	slipping := newTestKinematicsWith(1.0, 0.5, 0.0)
 
-	got := radiusOfCurvature(slipping, steerNorm)
-	want := radiusOfCurvature(ideal, steerNorm) * 2
+	got := radiusOfCurvature(slipping)
+	want := radiusOfCurvature(ideal) * 2
 
 	const relTol = 1e-3
 	if math.Abs(got-want) > relTol*math.Abs(want) {
@@ -142,17 +142,17 @@ func TestZeroTauReproducesTheOldInstantResponse(t *testing.T) {
 // Driven to steady state first: Step slews the servo toward the commanded
 // angle at maxSteerRate and accelerates toward the commanded speed, so the
 // first ticks are a transient that would understate the curvature.
-func radiusOfCurvature(kin *kinematics.AckermannKinematics, steerNormValue float64) float64 {
+func radiusOfCurvature(kin *kinematics.AckermannKinematics) float64 {
 	const settleTicks = 200
 	const targetSpeedMPS = 0.1
 
 	state := kinematics.AckermannState{}
 	for range settleTicks {
-		state = kin.Step(state, targetSpeedMPS, steerNormValue, dtS)
+		state = kin.Step(state, targetSpeedMPS, steerNorm, dtS)
 	}
 
 	yawBefore, v := state.Yaw, state.V
-	state = kin.Step(state, targetSpeedMPS, steerNormValue, dtS)
+	state = kin.Step(state, targetSpeedMPS, steerNorm, dtS)
 	yawRate := (state.Yaw - yawBefore) / dtS
 	return v / yawRate
 }
@@ -166,8 +166,8 @@ func TestCounterPhaseTurnsTwiceAsSharpAsFrontSteer(t *testing.T) {
 	counter := newTestKinematics(1.0)
 	frontOnly := newTestKinematics(0.0)
 
-	got := radiusOfCurvature(counter, steerNorm)
-	want := radiusOfCurvature(frontOnly, steerNorm) / 2
+	got := radiusOfCurvature(counter)
+	want := radiusOfCurvature(frontOnly) / 2
 
 	const relTol = 1e-3
 	if math.Abs(got-want) > relTol*math.Abs(want) {
@@ -186,7 +186,7 @@ func TestTurnRadiusFollowsTheEffectiveWheelbase(t *testing.T) {
 		expectedLEff := testWheelbaseM / (1.0 + ratio)
 		steer := steerNorm * testMaxSteerRad
 
-		got := radiusOfCurvature(kin, steerNorm)
+		got := radiusOfCurvature(kin)
 		want := expectedLEff / math.Tan(steer)
 
 		const relTol = 1e-3

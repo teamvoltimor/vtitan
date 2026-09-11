@@ -335,6 +335,6 @@ func (g *SimHardwareGateway) Collided() bool {
 }
 
 // CollisionXY returns the last collision point, or (0,0) if never collided.
-func (g *SimHardwareGateway) CollisionXY() (float64, float64) {
+func (g *SimHardwareGateway) CollisionXY() (x, y float64) {
 	return g.collisionX, g.collisionY
 }

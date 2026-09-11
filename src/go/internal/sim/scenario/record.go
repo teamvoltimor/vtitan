@@ -116,8 +116,8 @@ func newSimRecorder(root, scenarioID string, geom recorderGeometry) (*simRecorde
 	if err != nil {
 		return nil, fmt.Errorf("sim recorder: %w", err)
 	}
-	if err := run.Open(); err != nil {
-		return nil, fmt.Errorf("sim recorder: %w", err)
+	if openErr := run.Open(); openErr != nil {
+		return nil, fmt.Errorf("sim recorder: %w", openErr)
 	}
 	return &simRecorder{
 		run:           run,
@@ -298,11 +298,11 @@ func (r *simRecorder) tick(
 	if err != nil {
 		return fmt.Errorf("sim recorder: encoding nav debug JSON: %w", err)
 	}
-	if err := r.run.WriteROS2(
+	if writeErr := r.run.WriteROS2(
 		navDebugTopic, recording.StringType, recording.StringSchema,
 		recording.EncodeString(string(wire)), logTime,
-	); err != nil {
-		return fmt.Errorf("sim recorder: writing nav debug JSON: %w", err)
+	); writeErr != nil {
+		return fmt.Errorf("sim recorder: writing nav debug JSON: %w", writeErr)
 	}
 	r.simClockNanos += uint64(dt * nanosPerSecond)
 	return nil
