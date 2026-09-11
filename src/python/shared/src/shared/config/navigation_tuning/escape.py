@@ -126,6 +126,58 @@ class EscapeManeuverParams(BaseModel):
     STUCK_ESCALATION_PER_ATTEMPT_S: float = Field(
         default=0.10, gt=0.0, validation_alias=_alias("STUCK_ESCALATION_PER_ATTEMPT_S")
     )
+    K_TURN_FIT_REAR_GAP: bool = Field(default=False, validation_alias=_alias("K_TURN_FIT_REAR_GAP"))
+    """Truncate a reversing escape to the rear room the LIDAR actually measures.
+
+    ``K_TURN_MIN_S``/``K_TURN_MAX_S`` pick the reverse DISTANCE from the
+    severity of what is in FRONT: 0.54 s at OBSTACLE risk, 1.08 s at CRITICAL,
+    which at ``REV_SPEED`` 0.20 m/s are 10.8 cm and 21.6 cm. Neither reads a
+    single number about what is BEHIND, and the logic is inverted -- the more
+    threatening the thing ahead, the further the chassis commits backwards into
+    space it never consulted.
+
+    Measured over 46 escape episodes on the 09-10 bags: the rear gap is p50
+    17 cm and p10 7 cm, and the reverse DID NOT FIT in 35% of them. The
+    existing rear guard (``_reversing_into_unseen_wall``) does not catch this:
+    it compares the gap at the START of the manoeuvre against ``CONTACT_DIST``,
+    so a 17 cm gap authorises a 21.6 cm reverse and the chassis is driven into
+    the obstacle it was escaping. The number needed to stop that is already
+    computed every scan -- ``LidarClearances.back_m`` -- and simply never read.
+
+    When set, the reverse is capped to the measured rear room less
+    ``CONTACT_DIST``. It is a CEILING, not a replacement: front severity still
+    proposes the duration and a reverse that already fits is untouched. A rear
+    sector that measured nothing is left alone rather than capped to zero, so
+    this cannot silently delete the manoeuvre on a mount with no rear slot.
+
+    Ships FALSE here and TRUE for Obstacles (``OBSTACLES_K_TURN_FIT_REAR_GAP``).
+    The evidence is entirely from Obstacles bags -- the thing behind the chassis
+    at 7-17 cm is a pillar -- and Open has a specific reason to be left alone:
+    its escapes fire in corners against WALLS, where shortening the reverse
+    under-rotates and re-triggers, feeding the corner escape loop that already
+    costs ~20% of runs against a 180 s budget. Nothing has been measured that
+    says Open wants this.
+
+    NOT sim-screenable: the contact model never slides along a wall, so it
+    cannot represent a reverse that does not fit -- which is exactly the 35%.
+    Bag measurement plus hardware.
+    """
+
+    OBSTACLES_K_TURN_FIT_REAR_GAP: bool | None = Field(
+        default=True, validation_alias=_alias("OBSTACLES_K_TURN_FIT_REAR_GAP")
+    )
+    """Obstacles-Challenge ``K_TURN_FIT_REAR_GAP``. ``None`` -> use the shared field.
+
+    Resolved by :meth:`for_obstacles_challenge`, which ``CoreNavigator`` calls
+    once at construction -- the same shape, and the same discriminator
+    (``sign_router is not None``), as ``ClearanceZones.OBSTACLES_CONTACT_DIST``
+    and the speed ladder's ``OBSTACLES_*`` tiers.
+
+    Asymmetric on purpose: there is no ``OPEN_*`` half, because nothing has
+    been measured that wants Open to differ from the shared value, and an unset
+    knob that nothing has ever moved reads as tuning that exists.
+    """
+
     MIN_HISTORY_FOR_DISTANCE: int = Field(
         default=2, validation_alias=_alias("MIN_HISTORY_FOR_DISTANCE")
     )  # Poses needed before StuckDetector can measure distance travelled
@@ -199,6 +251,16 @@ class EscapeManeuverParams(BaseModel):
         repeated at four call sites that could each drift.
         """
         return angle_rad_to_steering_norm(math.radians(self.REV_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE)
+
+    def for_obstacles_challenge(self) -> EscapeManeuverParams:
+        """These parameters as the Obstacles Challenge should run them.
+
+        Returns ``self`` unchanged when no Obstacles override is set, so the
+        Open path and the un-overridden Obstacles path stay byte-identical.
+        """
+        if self.OBSTACLES_K_TURN_FIT_REAR_GAP is None:
+            return self
+        return self.model_copy(update={"K_TURN_FIT_REAR_GAP": self.OBSTACLES_K_TURN_FIT_REAR_GAP})
 
     def side_correction_steer_norm(self) -> float:
         """Side-threat correction steering as a normalised actuator command."""

@@ -10,9 +10,11 @@ recover with a low-speed forward pivot (stop-and-steer) toward the open side.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose, SignColor, Waypoint
 
@@ -574,3 +576,159 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
         assert escalated.duration_frames > pre_escalation[-1].duration_frames, (
             "escape_count must survive the intervening normal_drive tick since the robot never moved"
         )
+
+
+class TestReverseFitsTheRearGap:
+    """The K-turn's reverse DISTANCE must not exceed the rear room measured.
+
+    ``K_TURN_MIN_S``/``K_TURN_MAX_S`` are chosen from the severity of what is in
+    FRONT: at ``REV_SPEED`` the critical escape commits 21.6 cm of reverse
+    without reading a single number about what is BEHIND. ``_reversing_into_
+    unseen_wall`` cannot catch it -- it only checks the gap at the FIRST frame
+    against ``CONTACT_DIST``, so a 17 cm gap authorises the whole 21.6 cm and
+    the chassis is driven into the pillar it is escaping. Measured over 46
+    escape episodes on the 09-10 bags: the reverse did not fit in 35% of them.
+    """
+
+    _ROOM_M = 0.05
+    """Rear room left beyond CONTACT_DIST: five frames of reverse at the
+    shipped 0.20 m/s and 20 Hz, against a 22-frame critical K-turn."""
+
+    @staticmethod
+    def _scan_with_rear_at(tuning, rear_range_m: float) -> LidarScan:
+        """A front-blocked scan whose whole rear arc reads ``rear_range_m``.
+
+        Built by bearing rather than via ``create_scan_with_sectors(back=...)``,
+        whose named sectors do not reach the rear arc ``rear_sector`` reads --
+        the same reason the rear-blind test above builds its own.
+        """
+        sectors = tuning.lidar_sectors
+        base = create_scan_with_sectors(front=0.06)
+        ranges = [
+            rear_range_m if abs(wrap_angle(a - math.pi)) <= math.radians(sectors.THREAT_HALF_FOV_DEG) else r
+            for r, a in zip(base, ANGLES, strict=False)
+        ]
+        return LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES))
+
+    @staticmethod
+    def _navigator(waypoints, tuning, scan, *, obstacles: bool):
+        """A navigator on the Obstacles or the Open path, facing ``scan``.
+
+        The discriminator is ``sign_router`` presence, exactly as
+        ``CoreNavigator`` resolves the per-challenge escape parameters. The
+        router is given a sign far away so it cannot mask anything here.
+        """
+        gateway = FakeGateway(Pose(x=1.5, y=0.5, yaw=0.0), scan)
+        router = (
+            SignRouter(
+                [SignSpec(x=50.0, y=50.0, color=SignColor.RED)],
+                config=SignRouterConfig.from_tuning(tuning.sign_router),
+            )
+            if obstacles
+            else None
+        )
+        return CoreNavigator(
+            gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning, sign_router=router
+        )
+
+    def _rear_range_for_room(self, tuning, room_m: float, *, obstacles: bool = True) -> float:
+        """Sensor range whose rear BUMPER gap leaves exactly ``room_m`` to spare.
+
+        Against the CONTACT_DIST the navigator itself resolves for this
+        challenge, not the shared field: Obstacles ships OBSTACLES_CONTACT_DIST
+        (0.04 against 0.10), and sizing the scan off the wrong one moves the
+        room these tests are pinning.
+        """
+        zones = tuning.clearance.for_obstacles_challenge() if obstacles else tuning.clearance
+        return RobotSpecs.LIDAR_TO_REAR_BUMPER + zones.CONTACT_DIST + room_m
+
+    def _critical_k_turn(self, tuning) -> EscapeManeuver:
+        return EscapeManeuver(
+            maneuver_type=ManeuverType.K_TURN,
+            steering=tuning.escape.rev_steer_norm(),
+            speed=tuning.escape.REV_SPEED,
+            duration_frames=tuning.escape.k_turn_max_frames(tuning.control.CONTROL_HZ),
+        )
+
+    def test_obstacles_shortens_a_reverse_that_does_not_fit(self, waypoints, tuning):
+        scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, self._ROOM_M))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._critical_k_turn(tuning)
+
+        fitted = nav._fit_reverse_to_rear_gap(maneuver, scan)
+
+        per_frame = abs(maneuver.speed) / tuning.control.CONTROL_HZ
+        assert fitted.duration_frames < maneuver.duration_frames, "21.6 cm of reverse into 5 cm of room"
+        assert fitted.duration_frames * per_frame <= self._ROOM_M
+        # A ceiling, not a rewrite: nothing else about the manoeuvre moves.
+        assert fitted.steering == maneuver.steering
+        assert fitted.speed == maneuver.speed
+
+    def test_open_is_untouched(self, waypoints, tuning):
+        """Open ships the shared value (False), so the same geometry is unchanged.
+
+        Its escapes fire in corners against WALLS, where a shortened reverse
+        under-rotates and re-triggers; nothing measured says Open wants this.
+        """
+        scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, self._ROOM_M, obstacles=False))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=False)
+        maneuver = self._critical_k_turn(tuning)
+
+        assert nav._fit_reverse_to_rear_gap(maneuver, scan) == maneuver
+
+    def test_a_reverse_that_already_fits_is_untouched(self, waypoints, tuning):
+        """65% of them, and shortening those would be the regression."""
+        maneuver = self._critical_k_turn(tuning)
+        needed = abs(maneuver.speed) * maneuver.duration_frames / tuning.control.CONTROL_HZ
+        scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, needed + 0.10))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+
+        assert nav._fit_reverse_to_rear_gap(maneuver, scan) == maneuver
+
+    def test_an_unmeasured_rear_is_left_alone_not_capped_to_zero(self, waypoints, tuning):
+        """Capping on the no-data sentinel would delete the manoeuvre outright.
+
+        Authorising a blind reverse stays ``_reversing_into_unseen_wall``'s job,
+        which refuses it unless the pose trail vouches for the ground; this must
+        not pre-empt that with a one-frame stub.
+        """
+        occluded = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M / 2.0
+        scan = self._scan_with_rear_at(tuning, occluded)
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._critical_k_turn(tuning)
+
+        assert not nav._collision_controller.rear_sector(scan.ranges_m, scan.angles_rad).measured
+        assert nav._fit_reverse_to_rear_gap(maneuver, scan) == maneuver
+
+    def test_a_rear_already_inside_contact_is_a_refusal_not_a_truncation(self, waypoints, tuning):
+        """Below CONTACT_DIST the reverse must be REFUSED, which is the gate's job.
+
+        Returning a one-frame stub here would convert a clean refusal into a
+        twitch, and the refusal is what stops the chassis moving at all.
+        """
+        scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, -0.02))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._critical_k_turn(tuning)
+
+        assert nav._fit_reverse_to_rear_gap(maneuver, scan) == maneuver
+        assert nav._reversing_into_unseen_wall(maneuver, scan), "the refusal must come from the gate"
+
+    def test_a_forward_maneuver_is_never_shortened(self, waypoints, tuning):
+        scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, self._ROOM_M))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        forward = replace(self._critical_k_turn(tuning), speed=abs(tuning.escape.REV_SPEED))
+
+        assert nav._fit_reverse_to_rear_gap(forward, scan) == forward
+
+    def test_a_retrace_is_exempt(self, waypoints, tuning):
+        """A retrace backs along ground the chassis physically occupied.
+
+        Its room is vouched for by the pose trail rather than by the rear
+        sector -- the same exemption ``_reversing_into_unseen_wall`` makes.
+        """
+        scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, self._ROOM_M))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        nav._retracing = True
+        maneuver = self._critical_k_turn(tuning)
+
+        assert nav._fit_reverse_to_rear_gap(maneuver, scan) == maneuver

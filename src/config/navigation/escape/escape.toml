@@ -35,6 +35,23 @@ rev_steer_deg = 44.0
 # count divided by 20, so behaviour at the shipped rate is unchanged.
 k_turn_min_s = 0.54           # Minimum K-turn duration (OBSTACLE risk)
 k_turn_max_s = 1.08           # Maximum K-turn duration (CRITICAL risk)
+
+# Cap the reverse above by the rear room the LIDAR actually measures, instead
+# of committing the full duration chosen from FRONT severity alone. At
+# rev_speed 0.20 m/s those two durations are 10.8 cm and 21.6 cm of reverse,
+# against a rear gap measured at p50 17 cm / p10 7 cm over 46 escape episodes
+# (09-10 bags) -- the reverse did not fit in 35% of them, and the existing
+# rear guard cannot see it because it only checks the gap at the START of the
+# manoeuvre. A CEILING, not a replacement: a reverse that fits is untouched,
+# and an unmeasured rear sector is left alone rather than capped to zero.
+#
+# Obstacles only. All of the evidence is Obstacles bags (the thing 7-17 cm
+# behind the chassis is a pillar); Open escapes fire in corners against walls,
+# where a shortened reverse under-rotates and re-triggers, feeding the corner
+# escape loop that already costs ~20% of runs. Set k_turn_fit_rear_gap = true
+# to extend it to Open -- unmeasured there.
+k_turn_fit_rear_gap = false
+obstacles_k_turn_fit_rear_gap = true
 slalom_reverse_s = 0.40       # Time spent reversing during slalom
 slalom_forward_s = 0.50       # Time spent forward-turning during slalom
 stuck_move_threshold = 0.03   # Distance threshold (m) to detect stuck

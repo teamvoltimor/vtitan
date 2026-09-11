@@ -587,3 +587,36 @@ class TestEveryCreepJobIsNameable:
         speed = NavigationTuning().speed.model_copy(update={"CONTACT_REVERSE_MPS": 0.20})
         assert speed.contact_reverse_mps() == pytest.approx(0.20)
         assert speed.contact_mps() == speed.creep_mps()
+
+
+class TestPerChallengeReverseFit:
+    """``K_TURN_FIT_REAR_GAP`` ships off shared and on for Obstacles.
+
+    The evidence is entirely Obstacles bags -- the thing 7-17 cm behind the
+    chassis is a pillar. Open escapes fire in corners against walls, where a
+    shortened reverse under-rotates and re-triggers into the corner escape loop
+    that already costs ~20% of runs, and nothing measured says it wants this.
+    """
+
+    def test_the_shared_default_is_off(self):
+        assert NavigationTuning().escape.K_TURN_FIT_REAR_GAP is False
+
+    def test_obstacles_resolves_it_on(self):
+        assert NavigationTuning().escape.for_obstacles_challenge().K_TURN_FIT_REAR_GAP is True
+
+    def test_an_unset_override_leaves_the_object_identical(self):
+        """The resolver must be the identity when nothing overrides it.
+
+        This is what keeps Open and an un-overridden Obstacles byte-identical,
+        and what makes reading the resolved object everywhere safe rather than
+        a second source of truth for the other twenty escape fields.
+        """
+        escape = NavigationTuning().escape.model_copy(update={"OBSTACLES_K_TURN_FIT_REAR_GAP": None})
+        assert escape.for_obstacles_challenge() is escape
+
+    def test_the_override_moves_nothing_else(self):
+        base = NavigationTuning().escape
+        resolved = base.for_obstacles_challenge()
+        assert resolved.model_dump(exclude={"K_TURN_FIT_REAR_GAP"}) == base.model_dump(
+            exclude={"K_TURN_FIT_REAR_GAP"}
+        )

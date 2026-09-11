@@ -143,6 +143,21 @@ class CoreNavigator(EscapeRecovery):
             if sign_router is not None
             else self._tuning.clearance
         )
+        # The escape parameters this run drives on, resolved ONCE on the same
+        # discriminator as the two above. `for_obstacles_challenge` returns self
+        # when no OBSTACLES_* override is set, so Open and an un-overridden
+        # Obstacles stay byte-identical.
+        #
+        # Everything downstream reads `self._escape`, NEVER `_tuning.escape`.
+        # Resolving only the gates that "obviously" needed it is what made
+        # OBSTACLES_CONTACT_DIST diverge from its shared field on the 256 corpus
+        # (see EscapeRecovery._clearance); one object, read everywhere, is the
+        # fix that does not have to be remembered.
+        self._escape = (
+            self._tuning.escape.for_obstacles_challenge()
+            if sign_router is not None
+            else self._tuning.escape
+        )
         self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
         self._current_corridor: Section | None = None
         # Forward waypoints DRIVEN, accumulated independently of _waypoint_index.
@@ -186,7 +201,7 @@ class CoreNavigator(EscapeRecovery):
         # Where the chassis has physically been, newest last. The basis for a
         # retrace-reverse: ground the robot occupied a moment ago is known
         # free without any rear-facing sensor. See _retrace_steer.
-        self._pose_trail: deque[Pose] = deque(maxlen=self._tuning.escape.POSE_TRAIL_LEN)
+        self._pose_trail: deque[Pose] = deque(maxlen=self._escape.POSE_TRAIL_LEN)
         self._retracing = False
 
         # Controllers. Keyed on the same sign_router discriminator as the speed
@@ -850,7 +865,7 @@ class CoreNavigator(EscapeRecovery):
         if (
             not self._pose_trail
             or self._pose_trail[-1].to_waypoint().distance_to(Waypoint(robot_x, robot_y))
-            >= self._tuning.escape.POSE_TRAIL_MIN_STEP_M
+            >= self._escape.POSE_TRAIL_MIN_STEP_M
         ):
             self._pose_trail.append(Pose(robot_x, robot_y, robot_yaw))
 
@@ -1609,7 +1624,13 @@ class CoreNavigator(EscapeRecovery):
                 if self._escape_count == 0:
                     self._escape_sequence_start_xy = (robot_x, robot_y)
                 self._escape_count += 1
-                self._begin_maneuver(self._maybe_escalate(maneuver))
+                # Fitted AFTER escalation, not before: escalation doubles the
+                # duration to walk a wedged chassis out, and a doubled reverse
+                # into 7 cm of rear room is the failure this cap exists to stop.
+                # The ceiling has to be the last word on the distance.
+                self._begin_maneuver(
+                    self._fit_reverse_to_rear_gap(self._maybe_escalate(maneuver), scan)
+                )
                 self._debug = debug
                 # Hand over the snapshot rather than letting it be rebuilt: it
                 # carries the risk verdict and the trigger ray that caused this
@@ -1636,7 +1657,7 @@ class CoreNavigator(EscapeRecovery):
                 robot_x - self._escape_sequence_start_xy[0],
                 robot_y - self._escape_sequence_start_xy[1],
             )
-            >= self._tuning.escape.STUCK_MOVE_THRESHOLD
+            >= self._escape.STUCK_MOVE_THRESHOLD
         ):
             self._escape_count = 0
             self._escape_sequence_start_xy = None
