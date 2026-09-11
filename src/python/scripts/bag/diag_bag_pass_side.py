@@ -73,12 +73,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
+from rclpy.serialization import deserialize_message  # noqa: E402
+from sensor_msgs.msg import LaserScan  # noqa: E402
 from shared.domain.enums import Axis, Direction  # noqa: E402
 from shared.domain.models import Pose, SignColor, Waypoint  # noqa: E402
 
-from scripts.common.bag_io import create_bags_parser, decode_detections, read_vision_rows, settled_direction  # noqa: E402
+from scripts.bag.diag_localizer_guard_replay import _scan_to_ranges_angles  # noqa: E402
+from scripts.common.bag_io import (  # noqa: E402
+    create_bags_parser,
+    decode_detections,
+    read_vision_rows_and_scans,
+    settled_direction,
+)
+from scripts.common.stats import nearest_by_time  # noqa: E402
 from scripts.common.tables import print_table  # noqa: E402
-from src.config.tuning_helpers import get_tuning  # noqa: E402
+from src.config.tuning_helpers import get_tuning, tuning_with_overrides  # noqa: E402
 from src.navigation.planning.sign_discovery import detection_to_observation  # noqa: E402
 from src.navigation.planning.sign_router import SignRouter  # noqa: E402
 from src.navigation.planning.sign_router.routing import pass_side_lateral_axis  # noqa: E402
@@ -98,17 +107,32 @@ class Pass:
     achieved: int
     lateral_m: float
 
+    # Everything below describes the FIRST tick this sign was committed to,
+    # which is the moment the pass became a steering problem. The fields above
+    # describe the closest tick, which is where the outcome is read. An
+    # execution failure can only be diagnosed by holding both: the verdict says
+    # the chassis ended up on the wrong side, and these say whether it ever had
+    # the room to end up anywhere else.
+    commit_range_m: float
+    commit_lateral_m: float
+    """Signed lateral offset of the CHASSIS at commit, positive = legal side."""
+    commit_commanded_m: float
+    """Signed lateral offset the router ASKED for at commit, same convention."""
+    commit_speed_mps: float | None
+    maneuver_during_pass: bool
+    """An escape/stuck manoeuvre was latched at some point while committed."""
+
 
 def _load(bag_dir: Path):  # noqa: ANN202
-    """Read nav_debug rows and detection frames from one bag."""
-    return read_vision_rows(bag_dir)
+    """Read nav_debug rows, detection frames AND scans from one bag."""
+    return read_vision_rows_and_scans(bag_dir)
 
 
 _detections = decode_detections
 
 
 
-def _passes(run: str, rows, frames) -> list[Pass]:  # noqa: ANN001
+def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  # noqa: ANN001
     """Replay the router, then judge each pillar against the SHIPPED rule.
 
     Legality is evaluated in the WORLD frame with ``pass_side_lateral_axis``,
@@ -117,24 +141,40 @@ def _passes(run: str, rows, frames) -> list[Pass]:  # noqa: ANN001
     what was REQUIRED, what the router COMMANDED (the deformed waypoint it
     actually produced) and what the chassis ACHIEVED (where it really went).
     Those three separate a routing error from an execution one.
+
+    Also returns the PEAK believed sign count over the replay. The track holds
+    at most 8 pillars, so anything above that is the map inventing objects --
+    the quantity ``SNAP_TO_LATTICE_M`` exists to bound, and the one that has to
+    move for a routing verdict to mean anything.
     """
-    tuning = get_tuning(None)
     direction = settled_direction(rows) or Direction.COUNTERCLOCKWISE
     router = SignRouter(signs=[], direction=direction, discover=True, tuning=tuning)
 
     frame_i = 0
+    peak_signs = 0
+    scan_times = [t for t, _ in scans]
     best: dict[tuple[float, float], tuple] = {}
+    first: dict[tuple[float, float], tuple] = {}
+    manoeuvred: dict[tuple[float, float], bool] = {}
 
     for rel, d in rows:
         if d.pose_x is None or d.pose_y is None or d.pose_yaw is None:
             continue
         pose = Pose(x=d.pose_x, y=d.pose_y, yaw=d.pose_yaw)
+        # The same tick's sweep, so LIDAR_RANGE_FUSION* can fire. Without it
+        # detection_to_observation falls back to the pinhole range and an A/B
+        # of the fusion measures nothing at all.
+        ranges = angles = None
+        if scan_times:
+            ranges, angles = _scan_to_ranges_angles(
+                deserialize_message(nearest_by_time(scans, scan_times, rel), LaserScan)
+            )
         obs = []
         while frame_i < len(frames) and frames[frame_i][0] <= rel:
             obs.extend(
                 o
                 for det in _detections(frames[frame_i][1])
-                if (o := detection_to_observation(det, pose, tuning)) is not None
+                if (o := detection_to_observation(det, pose, tuning, ranges, angles)) is not None
             )
             frame_i += 1
         if d.steer_target_x is None:
@@ -146,11 +186,17 @@ def _passes(run: str, rows, frames) -> list[Pass]:  # noqa: ANN001
             d.current_corridor,
             obs,
         )
+        peak_signs = max(peak_signs, router.active_sign_count)
         committed = router.committed_sign_position
         if committed is None:
             continue
         rng = math.hypot(committed.x - d.pose_x, committed.y - d.pose_y)
         key = (round(committed.x, 1), round(committed.y, 1))
+        # Recorded BEFORE the nearest-tick filter below, because the first
+        # commitment is by definition not the nearest one.
+        if key not in first:
+            first[key] = (rng, (d.pose_x, d.pose_y), deformed, d.commanded_speed_mps)
+        manoeuvred[key] = manoeuvred.get(key, False) or d.active_maneuver_type is not None
         if key in best and best[key][0] <= rng:
             continue
         colour = next(
@@ -161,7 +207,7 @@ def _passes(run: str, rows, frames) -> list[Pass]:  # noqa: ANN001
         best[key] = (rng, colour, str(d.current_corridor), rule, committed, (d.pose_x, d.pose_y), deformed)
 
     out: list[Pass] = []
-    for rng, colour, corridor, rule, sign_pos, robot, deformed in best.values():
+    for key, (rng, colour, corridor, rule, sign_pos, robot, deformed) in best.items():
         if rule is None:
             continue
         axis, want = rule
@@ -169,6 +215,10 @@ def _passes(run: str, rows, frames) -> list[Pass]:  # noqa: ANN001
         sign_axis = sign_pos.x if idx == 0 else sign_pos.y
         achieved_delta = robot[idx] - sign_axis
         commanded_delta = deformed[idx] - sign_axis
+        # Commit-time deltas are taken on the SAME axis the verdict is judged
+        # on, not on whatever the corridor was at commit: the question is how
+        # far the chassis had to travel to reach the side it is judged against.
+        c_rng, c_robot, c_deformed, c_speed = first[key]
         out.append(
             Pass(
                 run=run,
@@ -177,22 +227,50 @@ def _passes(run: str, rows, frames) -> list[Pass]:  # noqa: ANN001
                 commanded=(1 if commanded_delta > 0 else -1) * want,
                 achieved=(1 if achieved_delta > 0 else -1) * want,
                 lateral_m=abs(achieved_delta),
+                commit_range_m=c_rng,
+                commit_lateral_m=(c_robot[idx] - sign_axis) * want,
+                commit_commanded_m=(c_deformed[idx] - sign_axis) * want,
+                commit_speed_mps=c_speed,
+                maneuver_during_pass=manoeuvred.get(key, False),
             )
         )
-    return out
+    return out, peak_signs
 
 
 def main() -> None:
     parser = create_bags_parser(__doc__)
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="FIELD=VALUE",
+        help="override one sign_discovery field for the replay, e.g. --set SNAP_TO_LATTICE_M=0.40",
+    )
     args = parser.parse_args()
 
+    overrides = dict(pair.split("=", 1) for pair in args.set)
+    tuning = tuning_with_overrides(overrides, group="sign_discovery") if overrides else get_tuning(None)
+    if overrides:
+        print(f"== sign_discovery overrides: {overrides}")
+
     rows_out = []
+    peaks: list[tuple[str, int]] = []
+    skipped: list[tuple[str, str]] = []
     tally = {"routing": 0, "execution": 0, "ok": 0}
     for bag in args.bag_dirs:
-        rows, frames = _load(Path(bag))
+        try:
+            rows, frames, scans = _load(Path(bag))
+        except (RuntimeError, OSError, ValueError) as exc:
+            # Older bags in the archive carry a metadata version this rosbag2
+            # cannot open. A corpus sweep must not die on one of them, so the
+            # skip is reported and counted rather than raised.
+            skipped.append((Path(bag).name, type(exc).__name__))
+            continue
         direction = settled_direction(rows)
         run = Path(bag).name.replace("run_", "")
-        for p in _passes(run, rows, frames):
+        passes, peak = _passes(run, rows, frames, scans, tuning)
+        peaks.append((run, peak))
+        for p in passes:
             # commanded/achieved are already expressed as +1 when they match the
             # rule's required side, so the reading needs no second convention.
             if p.commanded < 0:
@@ -207,11 +285,33 @@ def main() -> None:
             rows_out.append(
                 [run, str(direction), p.corridor, str(p.colour), round(p.lateral_m, 3), verdict]
             )
+    if skipped:
+        print(f"== SKIPPED {len(skipped)} unreadable bag(s): {', '.join(n for n, _ in skipped[:6])}")
+        print()
+    print("== PEAK BELIEVED SIGNS per run (the track holds at most 8)")
+    for run, peak in peaks:
+        print(f"  {run}  peak={peak:3d}{'   OVER THE PHYSICAL MAX' if peak > 8 else ''}")
+    over = sum(1 for _, p in peaks if p > 8)
+    print(f"  runs over the physical max: {over}/{len(peaks)}   worst={max((p for _, p in peaks), default=0)}")
+    print()
+
     if not rows_out:
         print("No sign passes reconstructed from these bags.")
         return
     print("== PASS SIDE, required vs commanded vs achieved")
     print_table(rows_out, ["run", "direction", "corridor", "colour", "clearance m", "verdict"])
+    print()
+    by_colour: dict[str, dict[str, int]] = {}
+    for _run, _direction, _corr, colour, _lat, verdict in rows_out:
+        bucket = by_colour.setdefault(colour, {"routing": 0, "execution": 0, "ok": 0})
+        bucket["routing" if verdict.startswith("ROUTING") else "execution" if verdict.startswith("EXEC") else "ok"] += 1
+    print("  by colour (routing / exec / ok, and the routing rate):")
+    for colour, b in sorted(by_colour.items()):
+        n_total = b["routing"] + b["execution"] + b["ok"]
+        print(
+            f"    {colour:>16}  {b['routing']:4d} / {b['execution']:4d} / {b['ok']:4d}"
+            f"   routing {100 * b['routing'] / n_total:5.1f}%  of {n_total}"
+        )
     print()
     print(f"  commanded the WRONG side (routing):        {tally['routing']}")
     print(f"  commanded right, chassis went wrong (exec): {tally['execution']}")

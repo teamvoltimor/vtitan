@@ -151,10 +151,31 @@ def read_vision_rows(
     need both in one pass; reading the bag twice costs a minute+ on the
     hardware bags.
     """
+    rows, frames, _ = read_vision_rows_and_scans(bag_dir, with_scans=False)
+    return rows, frames
+
+
+def read_vision_rows_and_scans(
+    bag_dir: Path,
+    with_scans: bool = True,
+) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], list[tuple[float, list[dict]]], list[tuple[float, object]]]:
+    """:func:`read_vision_rows`, plus the ``/scan`` sweeps, in the SAME pass.
+
+    Needed by any replay that exercises the LIDAR range fusion in
+    ``detection_to_observation``: without a sweep to hand it, the fusion path
+    cannot fire at all and an A/B of it silently measures nothing. Scans are
+    kept as raw messages and deserialized by the caller only for the ticks it
+    uses, since a bag carries thousands and a replay needs one per tick.
+
+    ``with_scans=False`` skips collecting them, which is what
+    :func:`read_vision_rows` wants -- the scans are by far the largest topic
+    in the bag and most callers never look at them.
+    """
     reader = open_reader(bag_dir)
     t0 = None
     rows: list[tuple[float, NavigatorDebugSnapshot]] = []
     frames: list[tuple[float, list[dict]]] = []
+    scans: list[tuple[float, object]] = []
     while reader.has_next():
         topic, data, t = reader.read_next()
         if t0 is None:
@@ -164,7 +185,9 @@ def read_vision_rows(
             rows.append((rel, decode_nav_debug(data)))
         elif topic == Topics.VISION_DETECTIONS:
             frames.append((rel, json.loads(deserialize_message(data, String).data) or []))
-    return rows, frames
+        elif with_scans and topic == Topics.SCAN:
+            scans.append((rel, data))
+    return rows, frames, scans
 
 
 def read_nav_debug_rows(
