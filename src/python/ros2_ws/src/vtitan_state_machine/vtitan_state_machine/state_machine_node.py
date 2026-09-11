@@ -577,6 +577,22 @@ class StateMachineNode(Node, ResettableNode):
         """Main state machine loop - runs at 10Hz."""
         current_state = self.state_machine.current_state
 
+        # Sampled here rather than only inside BOOT_CHECK. A jumper reading
+        # that lands AFTER the boot-check timeout used to be unreachable: the
+        # fallback marks the mode provisional precisely so a late reading can
+        # replace it, but the only caller lived in _handle_boot_check, so
+        # leaving that state froze the guess for the whole round. Measured on
+        # 2026-09-11: the Pi 5 gave up at 10:58:30 and the Zero published the
+        # jumper at 10:58:51 -- 21 s late -- and the robot sat in READY
+        # believing OPEN with the jumper physically inserted.
+        #
+        # READY is included and RACING is NOT. Correcting before the button is
+        # exactly the window the operator needs; correcting mid-round would
+        # swap target_laps and switch the sign router on under a running race,
+        # which is worse than the wrong challenge it would be fixing.
+        if current_state in (RobotState.BOOT_CHECK, RobotState.READY):
+            self._sample_challenge_mode()
+
         if current_state == RobotState.BOOT_CHECK:
             self._handle_boot_check()
         elif current_state == RobotState.READY:
@@ -741,7 +757,8 @@ class StateMachineNode(Node, ResettableNode):
 
     def _handle_boot_check(self) -> None:
         """Handle BOOT_CHECK state - verify all hardware."""
-        self._sample_challenge_mode()
+        # _sample_challenge_mode is driven from _state_machine_loop, which also
+        # reaches it in READY -- see the note there.
         system_status = self._check_system_status()
 
         if system_status.all_ready:
@@ -763,7 +780,13 @@ class StateMachineNode(Node, ResettableNode):
                 )
 
     def _handle_ready(self) -> None:
-        """Handle READY state - wait for button press."""
+        """Handle READY state - wait for button press.
+
+        The challenge mode is still being resolved here (from
+        _state_machine_loop) when the boot-check fallback left it provisional,
+        so a Pi Zero that booted late still corrects the mode before the round
+        starts rather than after it is lost.
+        """
         # Just wait - button handling is done in button_check_loop
 
     def _handle_racing(self) -> None:

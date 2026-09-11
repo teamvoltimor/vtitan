@@ -21,7 +21,7 @@ from shared.config.ros_topics import RosMessageType, RosTopicConfig
 from std_msgs.msg import Bool, Int32, String
 
 from src.hardware.button.event import ButtonEvent
-from src.state_machine import RobotState, ScenarioType
+from src.state_machine import RobotState, ScenarioType, StateTransitionReason
 from tests.ros2.common_node_fixtures import wait_for_subscriptions_info
 
 
@@ -201,6 +201,61 @@ class TestChallengeModeDetection:
             node._sample_challenge_mode()
 
         assert [msg.data for msg in published] == ["obstacles"]
+        node.destroy_node()
+
+    def test_a_late_reading_corrects_the_fallback_from_READY(
+        self, ros_context, state_machine_node_class, monkeypatch
+    ):
+        """The Zero booting late must not cost the round.
+
+        MEASURED on hardware 2026-09-11: the Pi 5 timed out at 10:58:30 and the
+        Zero published the jumper at 10:58:51 -- 21 s late. The fallback marks
+        the mode provisional exactly so a late reading can replace it, but the
+        only caller of _sample_challenge_mode lived in _handle_boot_check, so
+        once the camera came back and BOOT_CHECK passed, nobody looked again.
+        The robot sat in READY believing OPEN with the jumper inserted, and
+        nothing in nav_debug would have said so afterwards.
+        """
+        node = state_machine_node_class()
+        monkeypatch.setattr(node, "_challenge_mode_timed_out", lambda: True)
+
+        # No reading yet: the boot-check window expires and the mode is guessed.
+        node._sample_challenge_mode()
+        assert node.challenge_mode == ScenarioType.OPEN
+        assert node._challenge_mode_provisional is True
+
+        # BOOT_CHECK is over; the loop now runs with the machine in READY.
+        node.state_machine.transition_to(RobotState.READY, StateTransitionReason.BOOT_COMPLETE)
+        _publish_jumper(node, inserted=True)
+        for _ in range(3):
+            node._state_machine_loop()
+
+        assert node.challenge_mode == ScenarioType.OBSTACLES
+        assert node.target_laps == CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS
+        assert node._challenge_mode_provisional is False
+        node.destroy_node()
+
+    def test_a_late_reading_does_NOT_switch_the_challenge_mid_race(
+        self, ros_context, state_machine_node_class, monkeypatch
+    ):
+        """Correcting is for before the button, never during the round.
+
+        Swapping target_laps and switching the sign router on under a running
+        race is worse than the wrong challenge it would be fixing, so RACING is
+        deliberately excluded from the sampling above.
+        """
+        node = state_machine_node_class()
+        monkeypatch.setattr(node, "_challenge_mode_timed_out", lambda: True)
+        node._sample_challenge_mode()
+        assert node.challenge_mode == ScenarioType.OPEN
+
+        node.state_machine.transition_to(RobotState.READY, StateTransitionReason.BOOT_COMPLETE)
+        node.state_machine.transition_to(RobotState.RACING, StateTransitionReason.BUTTON_PRESSED)
+        _publish_jumper(node, inserted=True)
+        for _ in range(3):
+            node._state_machine_loop()
+
+        assert node.challenge_mode == ScenarioType.OPEN
         node.destroy_node()
 
     def test_post_reset_re_resolution_republishes_challenge_mode(self, ros_context, state_machine_node_class):
