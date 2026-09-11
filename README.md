@@ -51,15 +51,16 @@ vtitan/
 ├── models/            # Modelos 3D de las piezas impresas
 │   ├── current-models/  #   V-Titan: blueprints/ (planos) + step-files/ (CAD)
 │   └── old-models/      #   Prototipos previos (Klevor)
-├── src/               # → código de competencia (puntero a src/python/)
+├── src/               # python/ (pila ROS2), go/ (reimplementación Go), config/ (TOML
+│                      #   compartido, leído por ambos), assets/ (imágenes compartidas)
 ├── other/             # → simulador, telemetría, entrenamiento, provisionamiento
 ├── docs/              # Bitácora, referencia de configuración, datasheets, prototipos
-├── platform/          # El monorepo de código: robot, backend, frontend, config
-├── deploy/ansible/ + infra/  # Despliegue: provisionamiento Ansible + tareas task rpi:*
-├── data/              # Salidas de ejecución (bags, fotos, videos); vacía en el repo
+├── apps/              # backend/, frontend/, gazebo/, auto-annotator/, hugo-docs/, landing/
+├── contracts/         # proto/ (buf, esquemas gRPC/NATS) y openapi/ (spec-first REST)
 ├── ml/hailo/ ml/weights/  # Entrenamiento del detector y pesos publicados
-├── apps/              # Herramientas con proceso propio: auto-annotator/, hugo-docs/
-├── scripts/ assets/   # Utilidades de desarrollo e imágenes del documento
+├── deploy/ansible/    # Provisionamiento de las placas (tareas task rpi:*, windows:*)
+├── data/              # Salidas de ejecución (bags, fotos, videos); vacía en el repo
+├── scripts/           # Utilidades de desarrollo (configuración de SSH para el robot)
 └── .github/           # Workflows de CI
 ```
 
@@ -71,15 +72,15 @@ vtitan/
 | `video/` | Enlaces a los videos de las rondas y del robot en funcionamiento ([`video/video.md`](video/video.md)) |
 | `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
 | `models/` | Modelos 3D de las piezas impresas: `current-models/` (V-Titan) y `old-models/` (prototipos previos), cada uno con `blueprints/` (planos) y `step-files/` (CAD para imprimir) |
-| `src/` | Puntero al código de competencia, que vive en `src/python/` dentro del monorepo. Ver [`src/README.md`](src/README.md) |
+| `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
 | `other/` | Puntero al resto del proyecto: simulador, backend de telemetría, entrenamiento del detector y provisionamiento. Ver [`other/README.md`](other/README.md) |
 
 ### Cómo explorar este repositorio
 
 Según lo que quieras revisar, esta es la ruta más corta:
 
-- **Código que corre en una ronda**: [`src/README.md`](src/README.md) mapea cada nodo ROS2 de la pila de competencia a su paquete y su rol (percepción, navegación, máquina de estados, drivers).
-- **Configuración que gobierna al robot**: `src/config/`, descrita en [Diseño gobernado por configuración](#diseño-gobernado-por-configuración). Los perfiles de hardware intercambiables están en [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables).
+- **Código que corre en una ronda**: [`src/python/README.md`](src/python/README.md) mapea cada nodo ROS2 de la pila de competencia a su paquete y su rol (percepción, navegación, máquina de estados, drivers).
+- **Configuración que gobierna al robot**: `src/config/`, descrita en [Diseño gobernado por configuración](#diseño-gobernado-por-configuración). Los perfiles de hardware intercambiables están en [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables). La lee tanto `src/python/` como `src/go/`.
 - **Simulador y corpus de escenarios**: [`other/README.md`](other/README.md), sección del simulador; los resultados reproducibles están en [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios).
 - **Cómo se entrenó el detector**: `ml/hailo/` (entrenamiento y compilación), `ml/weights/` (pesos publicados), `apps/auto-annotator/` (anotación asistida).
 - **Cómo se instala el sistema en las placas**: [`docs/pi-setup.md`](docs/pi-setup.md) y `deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
@@ -88,10 +89,12 @@ Según lo que quieras revisar, esta es la ruta más corta:
 Además de las carpetas obligatorias, el repositorio contiene:
 
 - `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), la [referencia de configuración TOML de navegación](docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
-- `platform/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `platform/backend/` y `platform/frontend/` (telemetría), y `src/config/` (la configuración que gobierna al robot).
-- `ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `ml/weights/` con los pesos publicados, `apps/auto-annotator/` con la herramienta de anotación asistida.
-- `deploy/ansible/` y `infra/` con el despliegue: el provisionamiento de las placas con Ansible, y las tareas de infraestructura (`task rpi:*`, `task windows:provision:*`) que lo ejecutan, definidas en `infra/Taskfile.yml`.
-- `scripts/` con utilidades de desarrollo (configuración de SSH para el robot), `assets/` con las imágenes que usa este documento, `.github/` con los workflows de CI, y `apps/hugo-docs/` con el sitio de documentación navegable.
+- `src/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `src/config/` (la configuración TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD de navegación).
+- `apps/` con procesos independientes: `apps/backend/` y `apps/frontend/` (telemetría), `apps/auto-annotator/` (anotación asistida), `apps/hugo-docs/` (sitio de documentación navegable) y `apps/gazebo/` (runtime del simulador).
+- `contracts/` con los contratos de interfaz que generan código para ambos stacks: `contracts/proto/` (buf, esquemas gRPC/NATS) y `contracts/openapi/` (spec-first REST).
+- `ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `ml/weights/` con los pesos publicados.
+- `deploy/ansible/` con el provisionamiento de las placas; las tareas que lo ejecutan (`task rpi:*`, `task windows:provision:*`) están definidas en `tasks/fleet.yml`.
+- `scripts/` con utilidades de desarrollo (configuración de SSH para el robot) y `.github/` con los workflows de CI.
 - `data/` es la carpeta de salida en runtime: `data/live/` y `data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task robot:pull-runs` (bags desde la Pi 5), `task robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
 
 ## Arranque rápido y reproducibilidad
