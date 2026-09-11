@@ -72,3 +72,10 @@ stuck_history_floor_s = 3.0              # Minimum position history kept, even w
 # Written out 2026-09-05; existed only as a Python literal, so no edit to this
 # file could reach it. Shipped value, so naming it changed nothing.
 min_history_for_distance = 2             # Position samples needed before recent-movement distance is trusted
+
+# Steer the OPPOSITE way on an escape's reverse leg, so the forward and reverse
+# arcs curve opposite ways and rotation accumulates instead of cancelling.
+# Measured 2026-09-11: 208 of 243 forward/reverse leg pairs (85.6%) hold the
+# SAME sign today, which is the bay pendulum outside the bay. Ships FALSE --
+# the mechanism is measured but this escape's own A/B is not run.
+escape_mirrors_reverse = false

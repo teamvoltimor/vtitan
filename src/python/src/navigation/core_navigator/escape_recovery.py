@@ -585,6 +585,13 @@ class EscapeRecovery:
             self._escape.max_escape_frames(self._tuning.control.CONTROL_HZ),
         )
         steering = self._escape.rev_steer_norm() * self._escape_steer_sign_for_attempt()
+        # The reverse leg curves the OPPOSITE way, so its rotation adds to the
+        # forward leg's instead of undoing it. Without this the two legs of a
+        # k-turn hold the same lock and retrace one another -- the bay's
+        # pendulum, measured at 85.6% of leg pairs on the open track. See
+        # ESCAPE_MIRRORS_REVERSE; ships off.
+        if self._escape.ESCAPE_MIRRORS_REVERSE:
+            steering = -steering
         self._begin_maneuver(
             EscapeManeuver(
                 maneuver_type=ManeuverType.STUCK_REVERSE,

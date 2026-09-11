@@ -71,6 +71,35 @@ class EscapeManeuverParams(BaseModel):
     REV_SPEED: float = Field(default=-0.20, validation_alias=_alias("REV_SPEED"))  # Reverse speed
     # 44.0 deg is what the previous normalised 0.8 meant at the bench-measured
     # 55 deg road-wheel limit, so this conversion changed no behaviour.
+    ESCAPE_MIRRORS_REVERSE: bool = Field(
+        default=False, validation_alias=_alias("ESCAPE_MIRRORS_REVERSE")
+    )
+    """Steer the OPPOSITE way on an escape's REVERSE leg.
+
+    The same mechanism the bay exit had, outside the bay. Every escape
+    manoeuvre is built from ``rev_steer_norm() * _escape_steer_sign_for_attempt()``
+    -- the SAME sign for STUCK_FORWARD and STUCK_REVERSE, changing only after
+    ESCAPE_SIDE_COMMIT_ATTEMPTS. On an Ackermann chassis a reverse at the same
+    lock UNDOES the forward leg's rotation, so the pair is a pendulum rather
+    than a k-turn.
+
+    MEASURED 2026-09-11 over nine 2026-09-10 obstacles runs, segmenting legs by
+    the sign of the commanded speed: of 243 consecutive forward/reverse pairs
+    that steered on both legs, 208 (85.6%) held the SAME sign. In the gaps
+    BETWEEN escapes the wheel travels 0.120 m of absolute path for 0.033 m of
+    signed path and under 0.10 m of displacement in 34 of 52 intervals, at
+    100% "driving" -- not stalled, not commanded to stop, just rocking.
+
+    That is the same signature BAY_EXIT_GUARD_MIRRORS_REVERSE was shipped
+    against on hardware (0 flips in 111 and 140 legs, 815-1070 deg of rotation
+    for 2-7 net, 0/2 out of the bay; mirrored, 95% efficient and 3/3 out).
+
+    DEFAULTS TO FALSE. The bay evidence is hardware and direct; this is the
+    same mechanism measured the same way, but the escape's own A/B has NOT been
+    run, and the simulator cannot screen it -- its contact model never slides
+    along a wall, which is the situation an escape exists for.
+    """
+
     REV_STEER_DEG: float = Field(
         default=44.0, validation_alias=_alias("REV_STEER_DEG")
     )  # Road-wheel angle while reversing

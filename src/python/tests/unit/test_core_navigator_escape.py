@@ -23,6 +23,7 @@ from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.utils import wrap_angle
+from src.config.tuning_helpers import tuning_with_overrides
 from tests.fixtures import FakeGateway, create_scan_with_sectors
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
@@ -732,3 +733,45 @@ class TestReverseFitsTheRearGap:
         maneuver = self._critical_k_turn(tuning)
 
         assert nav._fit_reverse_to_rear_gap(maneuver, scan) == maneuver
+
+
+class TestEscapeMirrorsReverse:
+    """``ESCAPE_MIRRORS_REVERSE``: the reverse leg curves the OTHER way.
+
+    Every escape manoeuvre is built from the same
+    ``rev_steer_norm() * _escape_steer_sign_for_attempt()``, so a reverse holds
+    the lock the forward leg used and undoes its rotation. Measured 2026-09-11
+    on nine hardware runs: 208 of 243 forward/reverse leg pairs (85.6%) held
+    the same sign. This is the bay's pendulum outside the bay.
+    """
+
+    @staticmethod
+    def _nav_with(tuning, waypoints, mirrors: bool):
+        overridden = tuning_with_overrides({"ESCAPE_MIRRORS_REVERSE": mirrors}, group="escape")
+        ranges = create_scan_with_sectors(front=0.06)
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES))
+        gateway = FakeGateway(Pose(x=1.5, y=0.5, yaw=0.0), scan)
+        return CoreNavigator(
+            gateway=gateway, waypoints=waypoints, num_laps=1, tuning=overridden, sign_router=None
+        )
+
+    def test_ships_off(self, tuning) -> None:
+        assert tuning.escape.ESCAPE_MIRRORS_REVERSE is False
+
+    def test_the_reverse_steers_opposite_to_the_unmirrored_one(self, waypoints, tuning) -> None:
+        """Same attempt, same side commitment; only the reverse leg's sign moves."""
+        plain = self._nav_with(tuning, waypoints, mirrors=False)
+        mirrored = self._nav_with(tuning, waypoints, mirrors=True)
+
+        reverses = []
+        for nav in (plain, mirrored):
+            nav._handle_stuck_escape(1.5, 0.5, 0.0)
+            maneuver = nav._active_maneuver
+            assert maneuver is not None, "the stuck escape must have begun a manoeuvre"
+            reverses.append(maneuver)
+
+        if reverses[0].maneuver_type is not ManeuverType.STUCK_REVERSE:
+            pytest.skip("this geometry did not select a reverse; the sign rule is only defined for one")
+        assert reverses[1].maneuver_type is ManeuverType.STUCK_REVERSE
+        assert reverses[0].steering == pytest.approx(-reverses[1].steering)
+        assert reverses[0].steering != 0.0, "a zero lock would make the comparison vacuous"
