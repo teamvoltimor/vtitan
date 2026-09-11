@@ -116,13 +116,21 @@ class SignRouter:
         # signs with its camera rather than be handed them. See sign_discovery.
         self._sign_map: ObservedSignMap | None
         if discover:
-            discovery_config = discovery_config or SignDiscoveryParams()
+            # Same reason as _config above, and the same bug: a bare
+            # SignDiscoveryParams() is a second copy of the TOML defaults that
+            # the shipped tree can drift away from, and `tuning` is already
+            # accepted here. Passing it on ALSO matters for the fields
+            # ObservedSignMap reads straight off the group rather than through
+            # a named argument -- SNAP_TO_LATTICE_M among them, which was
+            # unreachable from a caller's tuning until this fix.
+            discovery_config = discovery_config or get_tuning(tuning).sign_discovery
             self._sign_map = ObservedSignMap(
                 self._config.min_confidence,
                 max_ingest_range_m=discovery_config.MAX_INGEST_RANGE_M,
                 association_dist_m=discovery_config.ASSOCIATION_DIST_M,
                 min_hits=discovery_config.MIN_HITS,
                 robot_corridor_flip_ticks=discovery_config.ROBOT_CORRIDOR_FLIP_TICKS,
+                tuning=tuning,
             )
         else:
             self._sign_map = None
