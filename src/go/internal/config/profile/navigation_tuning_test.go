@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 func TestLoad_DirectionEstimatorConfig(t *testing.T) {

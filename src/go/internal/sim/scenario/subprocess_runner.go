@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
 )
 
 // Config configures a SubprocessRunner. Every field is something a

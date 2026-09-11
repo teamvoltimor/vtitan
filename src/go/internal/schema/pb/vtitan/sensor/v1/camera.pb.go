@@ -141,7 +141,7 @@ const file_vtitan_sensor_v1_camera_proto_rawDesc = "" +
 	"\x06height\x18\x04 \x01(\rR\x06height\x12\x16\n" +
 	"\x06stride\x18\x05 \x01(\rR\x06stride\x12\x1a\n" +
 	"\bencoding\x18\x06 \x01(\tR\bencoding\x12\x12\n" +
-	"\x04data\x18\a \x01(\fR\x04dataBNZLgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/sensorv1b\x06proto3"
+	"\x04data\x18\a \x01(\fR\x04dataBCZAgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/sensorv1b\x06proto3"
 
 var (
 	file_vtitan_sensor_v1_camera_proto_rawDescOnce sync.Once

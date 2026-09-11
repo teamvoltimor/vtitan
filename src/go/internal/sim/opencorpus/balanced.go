@@ -3,8 +3,8 @@ package opencorpus
 import (
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // Balanced128Size is 16 layouts x 4 sections x 2 directions. The start CELL

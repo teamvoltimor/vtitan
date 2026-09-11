@@ -4,7 +4,7 @@ package vtitan.actuation.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1";
 
 // JointStates mirrors sensor_msgs/JointState. Published on the
 // `vtitan.actuation.v1.joint_states` NATS subject.

@@ -3,7 +3,7 @@ package localization
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // LidarLocalizer estimates (x, y) by matching a LIDAR sweep against known

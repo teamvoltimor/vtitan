@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 const (

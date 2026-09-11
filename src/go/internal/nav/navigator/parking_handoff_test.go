@@ -3,9 +3,9 @@ package navigator_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // TestParkingHandoff_EngagesNearStagingAndDrivesTheManeuver exercises

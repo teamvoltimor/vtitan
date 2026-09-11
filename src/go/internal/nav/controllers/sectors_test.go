@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // TestSectorToModel_SectorFullyInsideWedgeReportsWedgeMasked ports

@@ -10,7 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
 )
 
 // OrchestratorConfig configures an Orchestrator's concurrency limit.

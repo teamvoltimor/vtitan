@@ -3,8 +3,8 @@ package button
 import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	driverbutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
+	driverbutton "github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 )
 
 // KindToProto maps internal/driver/button.Kind onto its wire counterpart --

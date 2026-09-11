@@ -4,9 +4,9 @@ import (
 	"math"
 	"slices"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
 // SectorRanges is the aggregated LIDAR measurements over an angular sector,

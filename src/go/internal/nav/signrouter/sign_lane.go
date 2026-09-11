@@ -11,8 +11,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // controlPoint is one (depth, lateral) sample of a corridor's lane

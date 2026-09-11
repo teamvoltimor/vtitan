@@ -3,8 +3,8 @@ package waypoints_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
 // cornerMin/cornerMax match track.toml's [track] corner_min/corner_max

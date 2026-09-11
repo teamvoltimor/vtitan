@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // symmetricWalls builds a 3x3m track with a 1.0m corridor on every side

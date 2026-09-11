@@ -3,8 +3,8 @@ package controllers
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // WaypointController is a pure pursuit steering controller for waypoint

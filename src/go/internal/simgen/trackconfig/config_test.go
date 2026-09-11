@@ -6,7 +6,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/trackconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/trackconfig"
 )
 
 func dec(s string) decimal.Decimal {

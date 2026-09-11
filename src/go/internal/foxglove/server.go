@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/protoschema"
+	"github.com/teamvoltimor/vtitan/src/go/internal/schema/protoschema"
 )
 
 // serverName is reported in the "serverInfo" handshake message.

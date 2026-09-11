@@ -11,7 +11,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/warthog618/go-gpiocdev"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver"
 )
 
 // gpioLineLow is the raw line-value integer go-gpiocdev's Value returns

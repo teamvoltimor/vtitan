@@ -1,6 +1,6 @@
 package waypoints
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+import "github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 
 // UnconfirmedSections is the set of corridors whose width the PLAN still
 // treats as assumed rather than measured, matching calculate_waypoints'

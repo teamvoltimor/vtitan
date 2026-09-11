@@ -990,7 +990,7 @@ const file_telemetry_v1_commands_proto_rawDesc = "" +
 	"\x13RobotCommandService\x12a\n" +
 	"\x0eStreamCommands\x12*.vtitan.telemetry.v1.StreamCommandsRequest\x1a!.vtitan.telemetry.v1.RobotCommand0\x01\x12]\n" +
 	"\n" +
-	"AckCommand\x12&.vtitan.telemetry.v1.AckCommandRequest\x1a'.vtitan.telemetry.v1.AckCommandResponseBNZLgithub.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1;telemetryv1b\x06proto3"
+	"AckCommand\x12&.vtitan.telemetry.v1.AckCommandRequest\x1a'.vtitan.telemetry.v1.AckCommandResponseBJZHgithub.com/teamvoltimor/vtitan/apps/backend/gen/telemetry/v1;telemetryv1b\x06proto3"
 
 var (
 	file_telemetry_v1_commands_proto_rawDescOnce sync.Once

@@ -3,7 +3,7 @@ package supervise
 import (
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/backoff"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/backoff"
 )
 
 // Config parameterizes a Supervisor. Every field here is a real

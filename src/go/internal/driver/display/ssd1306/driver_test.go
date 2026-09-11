@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/display/ssd1306"
 )
 
 func TestNew_RejectsInvalidConfig(t *testing.T) {

@@ -1,6 +1,6 @@
 package racetracker
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+import "github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 
 // TravelNormal is the unit vector pointing the way the robot travels along a
 // given corridor, matching shared.domain.models.TravelNormal.

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/directionestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
 )
 
 // repoRoot walks up from this test file's package directory

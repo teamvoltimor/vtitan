@@ -16,11 +16,11 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/spf13/cobra"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/preview"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/sdf"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/trackconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/preview"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/sdf"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/trackconfig"
 )
 
 // generatedFile pairs a destination path with the source text to write there.

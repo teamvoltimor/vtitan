@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // StartingConditions is the robot's believed start pose and travel direction,

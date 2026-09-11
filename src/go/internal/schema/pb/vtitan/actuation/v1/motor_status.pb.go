@@ -198,7 +198,7 @@ const file_vtitan_actuation_v1_motor_status_proto_rawDesc = "" +
 	"STATE_IDLE\x10\x01\x12\x11\n" +
 	"\rSTATE_RUNNING\x10\x02\x12\x0f\n" +
 	"\vSTATE_FAULT\x10\x03\x12\x0f\n" +
-	"\vSTATE_ESTOP\x10\x04BQZOgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1b\x06proto3"
+	"\vSTATE_ESTOP\x10\x04BFZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1b\x06proto3"
 
 var (
 	file_vtitan_actuation_v1_motor_status_proto_rawDescOnce sync.Once

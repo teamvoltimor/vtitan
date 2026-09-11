@@ -174,7 +174,7 @@ const file_vtitan_state_v1_race_metrics_proto_rawDesc = "" +
 	"\fgyro_yaw_deg\x18\a \x01(\x01B\a\xbaH\x04\x12\x02@\x01R\n" +
 	"gyroYawDeg\x12)\n" +
 	"\x10current_corridor\x18\b \x01(\tR\x0fcurrentCorridorB\x0e\n" +
-	"\f_target_lapsBMZKgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1b\x06proto3"
+	"\f_target_lapsBBZ@github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/statev1b\x06proto3"
 
 var (
 	file_vtitan_state_v1_race_metrics_proto_rawDescOnce sync.Once

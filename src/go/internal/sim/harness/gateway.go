@@ -4,13 +4,13 @@ import (
 	"math"
 	"math/rand/v2"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
 // sensorErrorStreamSalt separates the sensor-error RNG stream from the LIDAR

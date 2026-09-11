@@ -1,9 +1,9 @@
 package robotcmd
 
 import (
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/telemetry/v1"
+	telemetryv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/telemetry/v1"
 )
 
 // toCommand decodes rc's oneof payload into a command.Command, mirroring

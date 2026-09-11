@@ -8,13 +8,13 @@ package wallheading_test
 
 import (
 	"fmt"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"math"
 	"math/rand/v2"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/wallheading"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/wallheading"
 )
 
 const (

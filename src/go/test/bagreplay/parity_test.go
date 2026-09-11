@@ -9,12 +9,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	navnode "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/nav"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	navnode "github.com/teamvoltimor/vtitan/src/go/internal/node/nav"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
 // repoRootFromPackageDir is the relative path from this package

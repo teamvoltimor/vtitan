@@ -11,7 +11,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.bug.st/serial"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver"
 )
 
 // DenseSerialDriver reads 360-degree Scans from an RPLIDAR C1 over its TTL

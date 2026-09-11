@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // Config aggregates every tuning value internal/nav/controllers' types

@@ -165,7 +165,7 @@ const file_vtitan_ui_v1_button_hold_proto_rawDesc = "" +
 	"thresholds\x1aM\n" +
 	"\tThreshold\x12#\n" +
 	"\x04at_s\x18\x01 \x01(\x01B\x10\xbaH\r\x12\v@\x01)\x00\x00\x00\x00\x00\x00\x00\x00R\x03atS\x12\x1b\n" +
-	"\x04kind\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04kindBJZHgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1b\x06proto3"
+	"\x04kind\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04kindB?Z=github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/uiv1b\x06proto3"
 
 var (
 	file_vtitan_ui_v1_button_hold_proto_rawDescOnce sync.Once

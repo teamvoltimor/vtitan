@@ -29,11 +29,11 @@ import (
 	natsconn "github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/encoder"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
-	nodemotor "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
-	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
+	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
+	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // cliConfig holds every flag motor-node accepts.

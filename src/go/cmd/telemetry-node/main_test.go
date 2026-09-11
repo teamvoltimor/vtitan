@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/telemetry/diag"
+	"github.com/teamvoltimor/vtitan/src/go/internal/telemetry/diag"
 
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 )
 
 func TestNatsSource_LatestScanIMU_ReportsAbsenceUntilSet(t *testing.T) {

@@ -4,7 +4,7 @@ package vtitan.actuation.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1";
 
 // MotorStatus is the Go-stack replacement for the current std_msgs/String
 // status topic published by the BTS7960 motor node. Published on the

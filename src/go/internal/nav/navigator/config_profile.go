@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // speedTOMLPath/headingTOMLPath/speedProfilesDir are declared here rather

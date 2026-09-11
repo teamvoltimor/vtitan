@@ -35,8 +35,8 @@ package widthbelief
 import (
 	"maps"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
 // Gate is the widths the PATH is planned from, which trail the estimator's

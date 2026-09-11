@@ -3,8 +3,8 @@ package corridorfollower
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // Params bundles FollowCorridor's optional arguments, which Python passes as

@@ -31,8 +31,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/scenario"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/scenario"
 )
 
 // resultSimTimeTolS is the absolute tolerance on sim_time_s between the two

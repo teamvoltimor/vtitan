@@ -5,7 +5,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
 func newRNG() *rand.Rand { return rand.New(rand.NewPCG(1, 2)) }

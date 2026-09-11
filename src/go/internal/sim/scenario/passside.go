@@ -4,9 +4,9 @@ import (
 	"math"
 	"slices"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
 // passSideApproachM is the range within which a sign's radius line is worth

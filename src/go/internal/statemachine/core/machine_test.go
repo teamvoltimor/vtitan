@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/core"
 )
 
 // TestTransitionTo_ValidTransitions exercises every (From, Reason, To)

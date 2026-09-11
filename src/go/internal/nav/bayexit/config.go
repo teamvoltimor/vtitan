@@ -1,8 +1,8 @@
 package bayexit
 
 import (
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
 )
 
 // Config is BayExit's tuning, bundling corridorfollower.Config (which owns

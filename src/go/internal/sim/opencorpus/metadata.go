@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // challengeTypeOpen is generate.Metadata.ChallengeType for an Open round,

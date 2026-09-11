@@ -24,11 +24,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/robotcmd"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/robotcmd"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // cliConfig holds every flag state-machine accepts.

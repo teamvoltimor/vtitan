@@ -4,7 +4,7 @@ package vtitan.ui.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/uiv1";
 
 // ButtonEvent is one debounced button transition, matching
 // internal/driver/button.Event (the Go analog of

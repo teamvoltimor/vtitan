@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/backoff"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/supervise"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/backoff"
+	"github.com/teamvoltimor/vtitan/src/go/internal/supervise"
 )
 
 func TestDefaultConfig(t *testing.T) {

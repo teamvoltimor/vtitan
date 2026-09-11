@@ -10,9 +10,9 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
-	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
+	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // Loop holds the running control loop's state: the driver/transport it was

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/lidar"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
 )
 
 func TestScanMessageFor_SortsByAngleAndKeepsRangesAligned(t *testing.T) {

@@ -3,7 +3,7 @@ package statemachine
 import (
 	"errors"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/command"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
 )
 
 // UnimplementedChannelSink implements command.ChannelSink by returning a

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
 )
 
 // testHarness bundles a Controller with the fakes wired into it, so tests

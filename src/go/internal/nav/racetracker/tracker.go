@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // RaceMetrics is the performance record of a run, matching race_tracker.py's

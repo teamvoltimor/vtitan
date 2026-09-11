@@ -1,10 +1,10 @@
 package controllers_test
 
 import (
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 )
 
 // numRays/forwardSectorIndices/rearSectorIndices/lidarCloseThreat/

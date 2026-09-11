@@ -5,7 +5,7 @@ package vtitan.actuation.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/actuationv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1";
 
 // AckermannCmd mirrors ackermann_msgs/AckermannDriveStamped. Published on
 // the `vtitan.actuation.v1.ackermann_cmd` NATS subject. The motor node

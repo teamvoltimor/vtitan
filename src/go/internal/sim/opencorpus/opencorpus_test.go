@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/opencorpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/opencorpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // poseToleranceM is well under a millimetre: the golden carries six decimal

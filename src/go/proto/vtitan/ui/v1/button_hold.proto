@@ -5,7 +5,7 @@ package vtitan.ui.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/uiv1";
 
 // ButtonHold is the Go-stack replacement for /button/hold, currently a
 // std_msgs/String carrying the JSON of ButtonHoldWire (see

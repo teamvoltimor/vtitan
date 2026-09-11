@@ -5,7 +5,7 @@ package vtitan.state.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/statev1";
 
 // SystemStatus is the Go-stack replacement for /system_status, currently a
 // diagnostic_msgs/DiagnosticArray published by both the state machine and

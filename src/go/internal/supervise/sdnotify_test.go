@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/supervise"
+	"github.com/teamvoltimor/vtitan/src/go/internal/supervise"
 )
 
 const notifyReadTimeout = 2 * time.Second

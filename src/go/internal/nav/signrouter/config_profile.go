@@ -5,8 +5,8 @@ import (
 	"math"
 	"path/filepath"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,

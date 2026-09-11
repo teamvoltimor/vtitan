@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
 // repoRoot walks up from this test file's package directory

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
 )
 
 func TestLoad_Directory(t *testing.T) {

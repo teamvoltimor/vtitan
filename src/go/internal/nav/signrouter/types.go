@@ -1,6 +1,6 @@
 package signrouter
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+import "github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 
 // Axis is which world coordinate a sign-routing table entry deforms,
 // matching shared.domain.enums.Axis.

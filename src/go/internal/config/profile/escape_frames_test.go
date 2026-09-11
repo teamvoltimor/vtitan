@@ -3,7 +3,7 @@ package profile_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // shippedControlHz is control.toml's control_hz, the rate every escape

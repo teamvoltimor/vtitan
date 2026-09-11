@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // RobotChassis mirrors robot.toml's [chassis] section.

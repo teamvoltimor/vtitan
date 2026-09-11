@@ -2,12 +2,12 @@ package scenario
 
 import (
 	"fmt"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 )
 
 // benchTrackGeometry is a small synthetic WRO-style layout with a square

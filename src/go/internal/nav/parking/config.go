@@ -5,7 +5,7 @@ import (
 	"math"
 	"path/filepath"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // BlockPosition is a single parking block position in world coordinates,

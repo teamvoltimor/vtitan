@@ -3,7 +3,7 @@ package waypoints
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // roundMM rounds v to millimeter precision (3 decimal places), matching

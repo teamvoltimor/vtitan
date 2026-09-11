@@ -4,10 +4,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorestimator"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navigator"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // corridorScan builds a scan of a corridor of the given width, seen from its

@@ -22,17 +22,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/encoder"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/motor"
-	nodebutton "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/button"
-	nodemotor "github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/motor"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/supervise"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/display/ssd1306"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
+	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
+	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
+	"github.com/teamvoltimor/vtitan/src/go/internal/supervise"
 
-	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // cliConfig holds every flag pi-zero accepts.

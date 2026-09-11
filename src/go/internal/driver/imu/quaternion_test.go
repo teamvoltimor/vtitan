@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/imu"
 )
 
 // quaternionTolerance is the float64 comparison tolerance used throughout

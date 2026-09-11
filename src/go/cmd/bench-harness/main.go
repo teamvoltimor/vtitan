@@ -14,9 +14,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/collision"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 )
 
 type harnessConfig struct {

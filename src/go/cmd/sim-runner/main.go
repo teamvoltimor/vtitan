@@ -26,11 +26,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startconditions"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/opencorpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/scenario"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/opencorpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/scenario"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
 // cliConfig holds every flag sim-runner accepts. Nothing about which

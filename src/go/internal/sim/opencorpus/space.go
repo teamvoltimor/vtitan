@@ -3,9 +3,9 @@ package opencorpus
 import (
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // Corridor widths the Open Challenge can present, in millimetres. The rules

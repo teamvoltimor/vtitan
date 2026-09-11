@@ -7,17 +7,17 @@ import (
 	"math"
 	"slices"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/bayexit"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorestimator"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/corridorfollower"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/directionestimator"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/parking"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/startmeasurement"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startmeasurement"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
 // VisionGateway is the port supplying traffic-sign observations for

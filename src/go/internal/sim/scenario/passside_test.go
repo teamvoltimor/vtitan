@@ -3,8 +3,8 @@ package scenario
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/signrouter"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // A RED sign in the SOUTH corridor driven COUNTERCLOCKWISE: routingTable says

@@ -9,10 +9,10 @@ import (
 
 	"github.com/foxglove/mcap/go/mcap"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/kinematics"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
 // TestNewSimRecorder_NilWhenOff pins the "off" contract the run loop relies

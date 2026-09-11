@@ -3,7 +3,7 @@ package directionestimator
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // InferDirection reports which way round the loop rangesM/anglesRad implies,

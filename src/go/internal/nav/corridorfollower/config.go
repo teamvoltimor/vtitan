@@ -3,7 +3,7 @@ package corridorfollower
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // TurnSide overrides the clearance-based side choice in the back-off and

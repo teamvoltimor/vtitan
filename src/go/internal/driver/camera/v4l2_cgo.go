@@ -3,7 +3,7 @@
 package camera
 
 import (
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/camera/gocv"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera/gocv"
 )
 
 // newV4L2Driver delegates to the gocv-backed V4L2 implementation, compiled only

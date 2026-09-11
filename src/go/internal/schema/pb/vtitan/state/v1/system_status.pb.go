@@ -304,7 +304,7 @@ const file_vtitan_state_v1_system_status_proto_rawDesc = "" +
 	"\n" +
 	"LEVEL_WARN\x10\x02\x12\x0f\n" +
 	"\vLEVEL_ERROR\x10\x03\x12\x0f\n" +
-	"\vLEVEL_STALE\x10\x04BMZKgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/statev1b\x06proto3"
+	"\vLEVEL_STALE\x10\x04BBZ@github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/statev1b\x06proto3"
 
 var (
 	file_vtitan_state_v1_system_status_proto_rawDescOnce sync.Once

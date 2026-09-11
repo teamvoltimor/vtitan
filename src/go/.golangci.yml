@@ -36,7 +36,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/teamvoltimor/vtitan/platform/robot-go
+        - github.com/teamvoltimor/vtitan/src/go
 
     golines:
       max-len: 120

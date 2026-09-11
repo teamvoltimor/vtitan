@@ -205,7 +205,7 @@ const file_vtitan_ui_v1_challenge_mode_proto_rawDesc = "" +
 	"\tChallenge\x12\x19\n" +
 	"\x15CHALLENGE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eCHALLENGE_OPEN\x10\x01\x12\x17\n" +
-	"\x13CHALLENGE_OBSTACLES\x10\x02BJZHgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/uiv1b\x06proto3"
+	"\x13CHALLENGE_OBSTACLES\x10\x02B?Z=github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/uiv1b\x06proto3"
 
 var (
 	file_vtitan_ui_v1_challenge_mode_proto_rawDescOnce sync.Once

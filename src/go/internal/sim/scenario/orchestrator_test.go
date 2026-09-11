@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/corpus"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/sim/scenario"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/corpus"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/scenario"
 )
 
 // fakeOutcome is one scripted response for fakeRunner, keyed by scenario ID.

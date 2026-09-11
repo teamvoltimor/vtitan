@@ -3,7 +3,7 @@ package profile
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // EscapeConfig mirrors the subset of

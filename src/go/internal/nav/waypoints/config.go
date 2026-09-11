@@ -1,6 +1,6 @@
 package waypoints
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
+import "github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 
 // Config parameterizes waypoint generation. DefaultConfig's field values
 // mirror shared.config.navigation_tuning.waypoint.WaypointParams'

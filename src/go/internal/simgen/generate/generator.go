@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/sdf"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/validate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/sdf"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/validate"
 )
 
 // ScenarioGenerator orchestrates world randomization, SDF construction, and

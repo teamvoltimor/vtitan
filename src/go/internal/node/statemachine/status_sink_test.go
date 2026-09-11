@@ -5,10 +5,10 @@ import (
 
 	"buf.build/go/protovalidate"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/node/statemachine"
-	statev1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/state/v1"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/statemachine/core"
+	"github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
+	statev1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/state/v1"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/core"
 )
 
 // TestRaceMetricsMessageFor_CarriesDegreesUnchanged pins the unit decision:

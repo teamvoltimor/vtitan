@@ -11,8 +11,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/foxglove"
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 )
 
 const testTimeout = 5 * time.Second

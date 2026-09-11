@@ -1,6 +1,6 @@
 package sdf
 
-import "github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+import "github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 
 // AddSystemPlugins injects the Sensors and Physics system plugins into a world
 // element, skipping any that are already present.

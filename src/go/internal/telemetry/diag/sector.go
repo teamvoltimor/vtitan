@@ -3,7 +3,7 @@ package diag
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // sectorQuery names one angular sector to aggregate a scan over, matching

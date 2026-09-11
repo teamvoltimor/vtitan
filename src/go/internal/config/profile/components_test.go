@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 func TestLoad_BTS7960Config(t *testing.T) {

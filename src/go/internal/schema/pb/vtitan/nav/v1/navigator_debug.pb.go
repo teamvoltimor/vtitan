@@ -1481,7 +1481,7 @@ const file_vtitan_nav_v1_navigator_debug_proto_rawDesc = "" +
 	"\x16PARK_PHASE_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10PARK_PHASE_STAGE\x10\x01\x12\x14\n" +
 	"\x10PARK_PHASE_ENTER\x10\x02\x12\x13\n" +
-	"\x0fPARK_PHASE_DONE\x10\x03BKZIgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/navv1b\x06proto3"
+	"\x0fPARK_PHASE_DONE\x10\x03B@Z>github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/navv1b\x06proto3"
 
 var (
 	file_vtitan_nav_v1_navigator_debug_proto_rawDescOnce sync.Once

@@ -3,8 +3,8 @@ package validate_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/validate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/validate"
 )
 
 func defaultContext() validate.WorldContext {

@@ -175,7 +175,7 @@ const file_vtitan_sensor_v1_scan_proto_rawDesc = "" +
 	"\trange_max\x18\t \x01(\x02R\brangeMax\x12\x16\n" +
 	"\x06ranges\x18\n" +
 	" \x03(\x02R\x06ranges\x12 \n" +
-	"\vintensities\x18\v \x03(\x02R\vintensitiesBNZLgithub.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/sensorv1b\x06proto3"
+	"\vintensities\x18\v \x03(\x02R\vintensitiesBCZAgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/sensorv1b\x06proto3"
 
 var (
 	file_vtitan_sensor_v1_scan_proto_rawDescOnce sync.Once

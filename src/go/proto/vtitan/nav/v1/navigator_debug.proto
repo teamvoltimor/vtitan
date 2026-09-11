@@ -5,7 +5,7 @@ package vtitan.nav.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/navv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/navv1";
 
 // Phase identifies which branch of the navigator's step() produced a
 // snapshot, and so which of NavigatorDebug's groups are populated. Mirrors

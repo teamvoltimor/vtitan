@@ -41,7 +41,7 @@ package wallheading
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
 // Config is the wall-heading tuning, matching WallHeadingParams.

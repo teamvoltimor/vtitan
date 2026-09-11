@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/generate"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 const _cellTolerance = 1e-9

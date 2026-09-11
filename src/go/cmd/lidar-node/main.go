@@ -22,9 +22,9 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/lidar"
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // cliConfig holds every flag lidar-node accepts.

@@ -3,7 +3,7 @@ package ssd1306_test
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/display/ssd1306"
 )
 
 // TestDrawString_SupportedGlyphSetsExpectedPixels spot-checks 'I' -- a

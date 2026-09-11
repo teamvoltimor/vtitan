@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
+	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
 // encodeLaserScan builds a sensor_msgs/msg/LaserScan exactly as rmw emits it:

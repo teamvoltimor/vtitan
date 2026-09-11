@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
 )
 
 // rawSample is one scripted raw (undebounced) pin reading fed to the

@@ -4,7 +4,7 @@ package vtitan.sensor.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/sensorv1";
+option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/sensorv1";
 
 // CameraFrame is one raw (un-annotated) camera frame, published on the
 // `vtitan.sensor.v1.camera` NATS subject. It is the Go analog of the ROS2

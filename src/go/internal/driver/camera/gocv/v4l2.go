@@ -13,7 +13,7 @@ import (
 
 	"gocv.io/x/gocv"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/camera"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
 )
 
 // Driver captures frames from a V4L2 device using gocv's VideoCapture, the same

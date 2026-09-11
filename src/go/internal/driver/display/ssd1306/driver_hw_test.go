@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/driver/display/ssd1306"
+	"github.com/teamvoltimor/vtitan/src/go/internal/driver/display/ssd1306"
 )
 
 // TestHW_OLED_I2C verifies the only periph.io consumer in the codebase still

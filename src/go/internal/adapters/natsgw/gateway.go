@@ -35,12 +35,12 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/localization"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/nav/trackmodel"
-	actuationv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/actuation/v1"
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
-	natsx "github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	natsx "github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // maxSteeringWheelAngleRad is the road-wheel angle at full lock, mapping

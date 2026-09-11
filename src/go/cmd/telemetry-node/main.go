@@ -30,11 +30,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/telemetry/diag"
+	"github.com/teamvoltimor/vtitan/src/go/internal/telemetry/diag"
 
-	sensorv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/sensor/v1"
-	uiv1 "github.com/teamvoltimor/vtitan/platform/robot-go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/transport/nats"
+	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
 // cliConfig holds every flag telemetry-node accepts.

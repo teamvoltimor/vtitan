@@ -6,8 +6,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/platform/robot-go/internal/recording"
-	"github.com/teamvoltimor/vtitan/platform/robot-go/test/bagreplay"
+	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
+	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 
 // bagDir locates a recorded run to replay. Bags are large and untracked, so
