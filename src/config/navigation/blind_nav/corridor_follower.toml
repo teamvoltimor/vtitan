@@ -353,7 +353,20 @@ bay_exit_max_frames = 900
 # WATCH ON THE NEXT RUN: /motor/drive_speed leaving zero (the point), and fin
 # clearance holding (the risk). If the chassis now overruns the pocket the sim
 # was right and this comes back down.
-bay_exit_speed_mps = 0.10
+#
+# RAISED 0.10 -> 0.15 on 2026-09-10, measured on hardware and ISOLATED against
+# the mirrored reverse that had just landed. 0.10 sits inside the motor
+# deadband: encoder-zero 56.1% of bay ticks, delivered p50 ZERO. At 0.15 the
+# wheel stops stalling outright (0.4%). With the mirror on and nothing else
+# changed, the bay phase went 62.2 s -> 24.1 s for the same exit -- a clean
+# 2.6x on one variable, same placement, same night. The fin clearance the note
+# above asks about held: the run left the pocket and drove 7.6 m.
+#
+# What is left is NOT this value. Each mirrored reversal swings the road wheel
+# lock to lock, 170 deg = 2.97 rad, and MAX_STEERING_RATE ships 1.2 rad/s, so a
+# reversal costs 2.47 s of a standing robot: 9 reversals = 22.2 s of that 24.1.
+# 92% of the bay is now the SERVO, and that rate has never been measured.
+bay_exit_speed_mps = 0.15
 bay_exit_contact_dist_m = 0.08
 # SHIPS DISABLED (0). The recovery returns its reverse BEFORE the clearance
 # guard, so it reverses blind into a fin. Measured on diag_bay_start --corpus
