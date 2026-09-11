@@ -106,9 +106,9 @@ tasks:
         PROTO (buf toolchain — requires buf CLI)
           task proto ACTION=update|generate|lint|breaking|format
 
-        SIMGEN (Go scenario generator, part of the robot-go module)
+        SIMGEN (Go scenario generator, part of the src/go module)
           task simgen:install       Build simgen binary (Go compilation)
-          task simgen:build         Compile binary to robot-go/bin/simgen
+          task simgen:build         Compile binary to src/go/bin/simgen
           task simgen:test          Run simgen tests
           task simgen:lint          Run golangci-lint
           task simgen:lint:fix      Auto-fix simgen lint issues
@@ -319,8 +319,9 @@ tasks:
           esac
 
   # SIMGEN (Go scenario generator) moved to src/go/Taskfile.yml (simgen:*) --
-  # it's self-contained there alongside robot-go:*, this file just calls into
-  # it (simgen:build below, and the lint/install umbrellas above).
+  # it's self-contained there alongside robot-go:* (the src/go module's task
+  # namespace), this file just calls into it (simgen:build below, and the
+  # lint/install umbrellas above).
 
   clean:go:
     desc: Remove Go build cache and compiled binaries
@@ -347,7 +348,7 @@ tasks:
       - "{{.SIMGEN}} generate-track-constants"
 
   gen:robot-command-client:
-    desc: "Regenerate robot-go's local Go+gRPC client stubs for contracts/proto/telemetry/v1/commands.proto (internal/schema/pb/telemetry/v1) -- backend's own generated copy (apps/backend/gen/telemetry/v1) is untouched"
+    desc: "Regenerate src/go's local Go+gRPC client stubs for contracts/proto/telemetry/v1/commands.proto (internal/schema/pb/telemetry/v1) -- backend's own generated copy (apps/backend/gen/telemetry/v1) is untouched"
     dir: src/go
     cmds:
       - buf generate ../../contracts/proto --template buf.gen.commands.yaml --path ../../contracts/proto/telemetry/v1/commands.proto
@@ -406,8 +407,8 @@ tasks:
     desc: >-
       Stream one generated scenario's static layout (walls, signs, parking
       blocks) live to RViz2 straight from its *_metadata.json — no closed-loop
-      navigator run. METADATA=path/to/*_metadata.json (relative to platform/,
-      same var as gen:preview). Run `task sim:navigate:rviz` in another
+      navigator run. METADATA=path/to/*_metadata.json (relative to the repo
+      root, same var as gen:preview). Run `task sim:navigate:rviz` in another
       terminal first (NOT `task sim:rviz`, which loads no saved config and so
       comes up as an empty grid).
     dir: src/python
