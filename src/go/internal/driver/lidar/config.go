@@ -58,7 +58,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 // silently vanish whenever VTITAN_HARDWARE_PROFILE is unset -- a servo spec
 // the LIDAR does not read deciding whether the LIDAR points forward. Both
 // fields live in the base file, so no profile is required to reach them.
-func mountCorrectionFor(logger *slog.Logger, configRoot string) (bool, float64) {
+func mountCorrectionFor(logger *slog.Logger, configRoot string) (inverted bool, mountYawOffsetDeg float64) {
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
 	robotCfg, err := profile.Load[profile.RobotConfig](robotPath, profile.ActiveNames())
 	if err != nil {

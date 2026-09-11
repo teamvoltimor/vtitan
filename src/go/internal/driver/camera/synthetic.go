@@ -2,6 +2,7 @@ package camera
 
 import (
 	"context"
+	"fmt"
 	"image/color"
 	"math"
 )
@@ -12,6 +13,15 @@ type SyntheticDriver struct {
 	cfg Config
 	t   float64
 }
+
+// Pattern geometry constants: RGB8 packs three bytes per pixel, and the
+// generated channels sweep the full 0-255 range around a midpoint.
+const (
+	bytesPerPixel    = 3
+	channelMidpoint  = 128
+	channelAmplitude = 127
+	channelMax       = 255
+)
 
 // NewSynthetic builds a synthetic capture driver. If cfg.NATSSubject is set and
 // a NATS connection is available, frames are echoed from that topic instead of
@@ -31,7 +41,7 @@ func (d *SyntheticDriver) Open(_ context.Context) error {
 func (d *SyntheticDriver) CaptureFrame(ctx context.Context) (*Frame, error) {
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("camera: synthetic capture: %w", ctx.Err())
 	default:
 	}
 
@@ -42,7 +52,7 @@ func (d *SyntheticDriver) CaptureFrame(ctx context.Context) (*Frame, error) {
 	if h == 0 {
 		h = 360
 	}
-	stride := w * 3
+	stride := w * bytesPerPixel
 	data := make([]byte, h*stride)
 
 	d.t += 0.1
@@ -50,11 +60,11 @@ func (d *SyntheticDriver) CaptureFrame(ctx context.Context) (*Frame, error) {
 		for x := 0; x < w; x++ {
 			// Diagonal sweep + vertical bands: visibly different frame to frame.
 			phase := math.Sin(float64(x)/float64(w)*math.Pi*4 + d.t)
-			v := uint8(128 + 127*phase)
-			off := y*stride + x*3
+			v := uint8(channelMidpoint + channelAmplitude*phase)
+			off := y*stride + x*bytesPerPixel
 			data[off+0] = v
-			data[off+1] = uint8(float64(y) / float64(h) * 255)
-			data[off+2] = color.Gray{uint8(float64(x) / float64(w) * 255)}.Y
+			data[off+1] = uint8(float64(y) / float64(h) * channelMax)
+			data[off+2] = color.Gray{uint8(float64(x) / float64(w) * channelMax)}.Y
 		}
 	}
 	return &Frame{Width: w, Height: h, Stride: stride, Encoding: "rgb8", Data: data}, nil

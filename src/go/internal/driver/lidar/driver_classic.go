@@ -65,6 +65,13 @@ type ClassicSerialDriver struct {
 	cfg   Config
 }
 
+// scanResult is the channel payload both serial drivers' Read use to hand a
+// completed (or failed) scan back from the blocking goroutine.
+type scanResult struct {
+	scan Scan
+	err  error
+}
+
 // DefaultBaudRate is the RPLIDAR C1's documented UART baud rate ("Data
 // Communication Interface", Communication Speed = 460800 bps — RPLIDAR C1
 // datasheet rev 1.1, 2024-03-12).
@@ -109,13 +116,6 @@ const (
 	scanReadTimeout = 4 * time.Second
 )
 
-// scanResult is the channel payload both serial drivers' Read use to hand a
-// completed (or failed) scan back from the blocking goroutine.
-type scanResult struct {
-	scan Scan
-	err  error
-}
-
 var (
 	errReadBeforeConnect = errors.New("lidar: Read called before Connect")
 
@@ -149,8 +149,8 @@ func (d *ClassicSerialDriver) Connect(ctx context.Context) error {
 	d.reader = bufio.NewReader(newTimeoutReader(port, scanReadTimeout))
 	// The serial port's per-call read timeout is kept short; the
 	// timeoutReader's maxSilence bounds a stalled read.
-	if err := d.port.SetReadTimeout(serialPollTimeout); err != nil {
-		return fmt.Errorf("lidar: setting read timeout: %w", err)
+	if timeoutErr := d.port.SetReadTimeout(serialPollTimeout); timeoutErr != nil {
+		return fmt.Errorf("lidar: setting read timeout: %w", timeoutErr)
 	}
 
 	// Best-effort: if the device is already scanning from a prior session,
@@ -166,8 +166,8 @@ func (d *ClassicSerialDriver) Connect(ctx context.Context) error {
 	// before we sent STOP -- otherwise the SCAN descriptor read below picks up
 	// a stale sample instead of the real response descriptor (seen live: a
 	// previously-running sllidar node left the RX buffer full of scan data).
-	if err := d.port.ResetInputBuffer(); err != nil {
-		return fmt.Errorf("lidar: purging stale input: %w", err)
+	if purgeErr := d.port.ResetInputBuffer(); purgeErr != nil {
+		return fmt.Errorf("lidar: purging stale input: %w", purgeErr)
 	}
 
 	if _, writeErr := d.port.Write(requestPacket(cmdClassicScan)); writeErr != nil {

@@ -1,6 +1,7 @@
 package encoder
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -41,7 +42,7 @@ const DefaultGPIOChip = "gpiochip0"
 func (c Config) Validate() error {
 	switch {
 	case c.GPIOChip == "":
-		return fmt.Errorf("encoder: GPIOChip is required")
+		return errors.New("encoder: GPIOChip is required")
 	case c.PinA < 0 || c.PinB < 0:
 		return fmt.Errorf("encoder: pins must be non-negative, got A=%d B=%d", c.PinA, c.PinB)
 	case c.PinA == c.PinB:
@@ -64,7 +65,7 @@ func (c Config) Validate() error {
 // cross-motor misconfiguration encoder.toml's split was made to prevent.
 func ConfigFor(configRoot string) (Config, error) {
 	if configRoot == "" {
-		return Config{}, fmt.Errorf("encoder: a config root is required to load encoder.toml")
+		return Config{}, errors.New("encoder: a config root is required to load encoder.toml")
 	}
 
 	names := profile.ActiveNames()

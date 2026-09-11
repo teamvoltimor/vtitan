@@ -16,10 +16,6 @@ import (
 	"fmt"
 )
 
-// errNoNATSConn is returned by NATSSourceDriver.Open when BindConn was not
-// called with a live connection first.
-var errNoNATSConn = errors.New("camera: NATSSourceDriver used before BindConn")
-
 // Config selects and parameterizes a capture backend. It is populated from
 // robot.toml's [camera] section (see config/profile.RobotCamera); nothing here
 // is hardcoded to a specific sensor.
@@ -35,13 +31,6 @@ type Config struct {
 	// NATSSubject is the topic the "topic" backend subscribes to.
 	NATSSubject string
 }
-
-// Source constants. Keep in sync with robot.toml [camera].source values.
-const (
-	SourceV4L2      = "v4l2"
-	SourceTopic     = "topic"
-	SourceSynthetic = "synthetic"
-)
 
 // Frame is one captured image. Data is contiguous rows of Width x Height
 // pixels, Stride bytes per row, in the channel order Encoding names (e.g.
@@ -67,6 +56,17 @@ type Driver interface {
 	// Close releases the source.
 	Close() error
 }
+
+// Source constants. Keep in sync with robot.toml [camera].source values.
+const (
+	SourceV4L2      = "v4l2"
+	SourceTopic     = "topic"
+	SourceSynthetic = "synthetic"
+)
+
+// errNoNATSConn is returned by NATSSourceDriver.Open when BindConn was not
+// called with a live connection first.
+var errNoNATSConn = errors.New("camera: NATSSourceDriver used before BindConn")
 
 // New constructs the Driver named by cfg.Source.
 func New(cfg Config) (Driver, error) {

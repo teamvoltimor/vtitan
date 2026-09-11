@@ -2,6 +2,7 @@ package camera
 
 import (
 	"context"
+	"fmt"
 
 	natsio "github.com/nats-io/nats.go"
 
@@ -51,7 +52,7 @@ func (d *NATSSourceDriver) BindConn(conn *natsio.Conn) error {
 func (d *NATSSourceDriver) CaptureFrame(ctx context.Context) (*Frame, error) {
 	msg, err := d.sub.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("camera: reading frame: %w", err)
 	}
 	return &Frame{
 		Width:    int(msg.GetWidth()),
@@ -67,5 +68,8 @@ func (d *NATSSourceDriver) Close() error {
 	if d.sub == nil {
 		return nil
 	}
-	return d.sub.Close()
+	if err := d.sub.Close(); err != nil {
+		return fmt.Errorf("camera: closing subscription: %w", err)
+	}
+	return nil
 }

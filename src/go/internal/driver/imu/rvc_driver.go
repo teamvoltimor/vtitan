@@ -30,16 +30,16 @@ type RVCDriver struct {
 	reader *bufio.Reader
 }
 
-// DefaultBaudRate is the BNO08x UART-RVC mode's documented serial rate,
-// matching platform/robot's Config.baudrate default.
-const DefaultBaudRate = 115200
-
 // readResult is the channel payload Read uses to hand a completed (or
 // failed) frame back from the blocking goroutine.
 type readResult struct {
 	reading Reading
 	err     error
 }
+
+// DefaultBaudRate is the BNO08x UART-RVC mode's documented serial rate,
+// matching platform/robot's Config.baudrate default.
+const DefaultBaudRate = 115200
 
 var (
 	errReadBeforeConnect = errors.New("imu: Read called before Connect")

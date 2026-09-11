@@ -5,59 +5,6 @@ import (
 	"math"
 )
 
-// errCountsPerRevPositive mirrors control.py's _CPR_POSITIVE guard: every
-// conversion divides by counts_per_rev, so a zero or negative value is a
-// configuration error rather than something to clamp silently.
-var errCountsPerRevPositive = errors.New("encoder: counts_per_rev must be positive")
-
-// secondsPerMinute converts the estimator's revs/second into the RPM the
-// rest of the drivetrain speaks (motors.toml, the feedforward calibration,
-// and the Python oracle all work in rpm).
-const secondsPerMinute = 60.0
-
-// CountsToRevolutions returns output-shaft revolutions for a raw quadrature
-// count. Errors when countsPerRev is not positive.
-func CountsToRevolutions(counts int64, countsPerRev float64) (float64, error) {
-	if countsPerRev <= 0 {
-		return 0, errCountsPerRevPositive
-	}
-	return float64(counts) / countsPerRev, nil
-}
-
-// RevolutionsToDistance returns the linear wheel travel [m] for a number of
-// output-shaft revolutions.
-func RevolutionsToDistance(revolutions, wheelDiameterM float64) float64 {
-	return revolutions * math.Pi * wheelDiameterM
-}
-
-// CountsToDistance returns the linear wheel travel [m] for a raw quadrature
-// count. Errors when countsPerRev is not positive.
-func CountsToDistance(counts int64, countsPerRev, wheelDiameterM float64) (float64, error) {
-	revolutions, err := CountsToRevolutions(counts, countsPerRev)
-	if err != nil {
-		return 0, err
-	}
-	return RevolutionsToDistance(revolutions, wheelDiameterM), nil
-}
-
-// DefaultSmoothing is SpeedEstimator's exponential-smoothing factor,
-// matching control.py's SpeedEstimator(smoothing=0.3) default.
-const DefaultSmoothing = 0.3
-
-// DefaultMinWindowS is the minimum interval SpeedEstimator accumulates
-// counts over before computing a rate, matching control.py's
-// min_window_s=0.1.
-//
-// A single ~20ms nav tick is not enough window on its own at low RPM and
-// coarse counts_per_rev: bench data at 86 counts_per_rev / 13.6rpm target
-// (2026-08-28) averaged ~0.39 counts per tick, so a per-tick rate is a raw
-// 0-vs-1 count difference -- a >100% relative swing smoothing cannot
-// remove, since it damps a noisy signal rather than fixing the signal's own
-// resolution. At the same operating point a 0.1s window averages ~1.95
-// counts, so a +-1 count difference is a ~50% swing instead. Reasoned, NOT
-// live-verified -- re-check after any counts_per_rev/target-rpm change.
-const DefaultMinWindowS = 0.1
-
 // SpeedEstimator estimates signed output-shaft RPM from successive encoder
 // counts. Ported from control.py's SpeedEstimator, including its
 // accumulate-a-window-then-smooth shape; see DefaultMinWindowS for why the
@@ -86,6 +33,59 @@ type SpeedEstimatorParams struct {
 	Smoothing float64
 	// MinWindowS is the minimum interval counts accumulate over, >= 0.
 	MinWindowS float64
+}
+
+// secondsPerMinute converts the estimator's revs/second into the RPM the
+// rest of the drivetrain speaks (motors.toml, the feedforward calibration,
+// and the Python oracle all work in rpm).
+const secondsPerMinute = 60.0
+
+// DefaultSmoothing is SpeedEstimator's exponential-smoothing factor,
+// matching control.py's SpeedEstimator(smoothing=0.3) default.
+const DefaultSmoothing = 0.3
+
+// DefaultMinWindowS is the minimum interval SpeedEstimator accumulates
+// counts over before computing a rate, matching control.py's
+// min_window_s=0.1.
+//
+// A single ~20ms nav tick is not enough window on its own at low RPM and
+// coarse counts_per_rev: bench data at 86 counts_per_rev / 13.6rpm target
+// (2026-08-28) averaged ~0.39 counts per tick, so a per-tick rate is a raw
+// 0-vs-1 count difference -- a >100% relative swing smoothing cannot
+// remove, since it damps a noisy signal rather than fixing the signal's own
+// resolution. At the same operating point a 0.1s window averages ~1.95
+// counts, so a +-1 count difference is a ~50% swing instead. Reasoned, NOT
+// live-verified -- re-check after any counts_per_rev/target-rpm change.
+const DefaultMinWindowS = 0.1
+
+// errCountsPerRevPositive mirrors control.py's _CPR_POSITIVE guard: every
+// conversion divides by counts_per_rev, so a zero or negative value is a
+// configuration error rather than something to clamp silently.
+var errCountsPerRevPositive = errors.New("encoder: counts_per_rev must be positive")
+
+// CountsToRevolutions returns output-shaft revolutions for a raw quadrature
+// count. Errors when countsPerRev is not positive.
+func CountsToRevolutions(counts int64, countsPerRev float64) (float64, error) {
+	if countsPerRev <= 0 {
+		return 0, errCountsPerRevPositive
+	}
+	return float64(counts) / countsPerRev, nil
+}
+
+// RevolutionsToDistance returns the linear wheel travel [m] for a number of
+// output-shaft revolutions.
+func RevolutionsToDistance(revolutions, wheelDiameterM float64) float64 {
+	return revolutions * math.Pi * wheelDiameterM
+}
+
+// CountsToDistance returns the linear wheel travel [m] for a raw quadrature
+// count. Errors when countsPerRev is not positive.
+func CountsToDistance(counts int64, countsPerRev, wheelDiameterM float64) (float64, error) {
+	revolutions, err := CountsToRevolutions(counts, countsPerRev)
+	if err != nil {
+		return 0, err
+	}
+	return RevolutionsToDistance(revolutions, wheelDiameterM), nil
 }
 
 // NewSpeedEstimator builds an estimator over countsPerRev, using

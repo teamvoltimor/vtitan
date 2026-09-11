@@ -46,6 +46,16 @@ type DenseSerialDriver struct {
 	pending []Point
 }
 
+// denseScanState accumulates the Points of a Dense Mode scan as packets are
+// resolved, tracking whether the stream's S flag has been seen and how far
+// the sweep has advanced since the scan's first packet.
+type denseScanState struct {
+	points        []Point
+	started       bool
+	scanStartDeg  float64
+	haveScanStart bool
+}
+
 var (
 	// Compile-time assertion that DenseSerialDriver satisfies
 	// driver.Driver[Scan].
@@ -82,8 +92,8 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 	// loops forever in bufio). scanReadTimeout is set above the C1's observed
 	// ~2.1s inter-scan gap (measured on hardware 2026-08-31) so a healthy
 	// scan assembles across bursts, while a truly dead device still errors.
-	if err := d.port.SetReadTimeout(serialPollTimeout); err != nil {
-		return fmt.Errorf("lidar: setting read timeout: %w", err)
+	if timeoutErr := d.port.SetReadTimeout(serialPollTimeout); timeoutErr != nil {
+		return fmt.Errorf("lidar: setting read timeout: %w", timeoutErr)
 	}
 
 	// Best-effort: if the device is already scanning from a prior session,
@@ -120,8 +130,8 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 	// before we sent STOP -- otherwise the descriptor read below picks up a
 	// stale sample instead of the real response descriptor (same rationale
 	// as ClassicSerialDriver.Connect).
-	if err := d.port.ResetInputBuffer(); err != nil {
-		return fmt.Errorf("lidar: purging stale input: %w", err)
+	if purgeErr := d.port.ResetInputBuffer(); purgeErr != nil {
+		return fmt.Errorf("lidar: purging stale input: %w", purgeErr)
 	}
 
 	if _, writeErr := d.port.Write(denseRequestPacket()); writeErr != nil {
@@ -318,8 +328,8 @@ func (d *DenseSerialDriver) readDensePacket() (densePacket, error) {
 	}
 
 	rest := raw[2:]
-	if _, err := io.ReadFull(d.reader, rest); err != nil {
-		return densePacket{}, fmt.Errorf("lidar: reading resynced dense packet: %w", err)
+	if _, readErr := io.ReadFull(d.reader, rest); readErr != nil {
+		return densePacket{}, fmt.Errorf("lidar: reading resynced dense packet: %w", readErr)
 	}
 
 	pkt, err = decodeDensePacket(raw)
@@ -337,23 +347,11 @@ func (d *DenseSerialDriver) readDensePacket() (densePacket, error) {
 // point batch (d.pending) across Read calls — the two-field generalization
 // of ClassicSerialDriver.readScan's single d.first carryover.
 func (d *DenseSerialDriver) readScan() (Scan, error) {
-	var points []Point
-	started := false
-	// scanStartDeg is the start angle of the current scan's first packet,
-	// used to measure how far the sweep has advanced; a scan is only closed
-	// once that coverage reaches a full revolution (fullSweepDeg). The C1
-	// sets S=true only on the stream's very first packet, wherever the motor
-	// happens to be, so closing on the fixed wrap drop alone returns a
-	// PARTIAL first scan when the stream begins near the sweep end
-	// (verified on hardware 2026-08-31: 18-20 points vs a full 300).
-	// Coverage-from-scan-start guarantees every returned scan is a full
-	// revolution regardless of where the stream began.
-	scanStartDeg := 0.0
-	haveScanStart := false
+	var st denseScanState
 	if d.pending != nil {
-		points = append(points, d.pending...)
+		st.points = append(st.points, d.pending...)
 		d.pending = nil
-		started = true
+		st.started = true
 	}
 
 	prev := d.prev
@@ -367,43 +365,53 @@ func (d *DenseSerialDriver) readScan() (Scan, error) {
 
 		if prev != nil {
 			resolved := resolveDenseCabins(*prev, cur.startAngleDeg)
-
-			if prev.startOfScan {
-				started = true
-			}
-			if started {
-				if !haveScanStart {
-					scanStartDeg = prev.startAngleDeg
-					haveScanStart = true
-				}
-				points = append(points, resolved...)
-
-				// The C1 Express/Dense stream only flags the start of a scan
-				// (S=1) on its first packet; subsequent packets never re-set
-				// S, so a scan can't be closed on a second S flag (verified on
-				// hardware 2026-08-31: S was true exactly once per stream).
-				// Instead the scan ends when the per-packet start angle wraps
-				// back toward 0 (i.e. drops below the previous packet's angle
-				// after having increased monotonically through 360deg).
-				if prev.startAngleDeg > cur.startAngleDeg+scanWrapAngleDeg {
-					covered := cur.startAngleDeg + fullSweepDeg - scanStartDeg
-					if covered < fullSweepDeg {
-						// The stream's single S=true packet landed mid-
-						// revolution, so this first scan covered only the tail
-						// of a rotation. Discard it and keep collecting from
-						// the wrap packet, which is the true start of a full
-						// revolution.
-						points = nil
-						haveScanStart = false
-					} else {
-						d.prev = &cur
-						d.pending = resolved
-						return points, nil
-					}
-				}
+			if st.accumulate(resolved, *prev, cur) {
+				d.prev = &cur
+				d.pending = resolved
+				return st.points, nil
 			}
 		}
 
 		prev = &cur
 	}
+}
+
+// accumulate folds resolved (prev's points, resolved against cur's start
+// angle) into the scan. It reports true when the scan is complete: cur
+// closed a full rotation without the partial-first-scan discard.
+func (st *denseScanState) accumulate(resolved []Point, prev, cur densePacket) bool {
+	if prev.startOfScan {
+		st.started = true
+	}
+	if !st.started {
+		return false
+	}
+	if !st.haveScanStart {
+		st.scanStartDeg = prev.startAngleDeg
+		st.haveScanStart = true
+	}
+	st.points = append(st.points, resolved...)
+
+	// The C1 Express/Dense stream only flags the start of a scan
+	// (S=1) on its first packet; subsequent packets never re-set S, so a
+	// scan can't be closed on a second S flag (verified on hardware
+	// 2026-08-31: S was true exactly once per stream). Instead the scan
+	// ends when the per-packet start angle wraps back toward 0 (i.e.
+	// drops below the previous packet's angle after having increased
+	// monotonically through 360deg).
+	if prev.startAngleDeg <= cur.startAngleDeg+scanWrapAngleDeg {
+		return false
+	}
+
+	covered := cur.startAngleDeg + fullSweepDeg - st.scanStartDeg
+	if covered < fullSweepDeg {
+		// The stream's single S=true packet landed mid-revolution, so
+		// this first scan covered only the tail of a rotation. Discard
+		// it and keep collecting from the wrap packet, which is the true
+		// start of a full revolution.
+		st.points = nil
+		st.haveScanStart = false
+		return false
+	}
+	return true
 }

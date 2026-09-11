@@ -42,37 +42,6 @@ import (
 	"go.bug.st/serial"
 )
 
-// yawOffsetDeg is the residual mount miscalibration (degrees) applied on
-// top of mountInverted's mirroring (see Config.YawOffsetDeg). It is a
-// package-level value rather than a decodeClassicMeasurement parameter
-// because decodeClassicMeasurement is on the documented wire-format
-// signature (Figure 4-4) and is also exercised by the frame-unit tests with
-// no offset; NewClassic/Connect install it from Config.
-var yawOffsetDeg float64
-
-// mountInverted marks the LIDAR as physically mounted upside-down (rotated
-// 180deg about a horizontal axis, not the vertical/yaw axis), matching
-// Config.Inverted. Installed from Config by NewClassic/NewDense alongside
-// yawOffsetDeg; see correctAngleDeg for why this needs its own field
-// instead of folding into yawOffsetDeg as a constant +180.
-var mountInverted bool
-
-// correctAngleDeg maps rawDeg (the sensor's own 0-360 angle reference, with
-// no correction applied) into the robot frame, where 0 is straight ahead.
-// When mounted upside-down, the LIDAR's apparent spin direction reverses in
-// the robot's top-down frame -- a constant offset can't express that, only
-// a mirror (negation) can. Verified on hardware 2026-08-31: an 8-bearing
-// object placement test found front/back swapped while left/right read
-// correctly with a plain rawDeg+180 offset; a rotation moves every bearing
-// together; only the mirror -rawDeg+offset reproduced "front and back swap,
-// left and right unchanged" from that same data.
-func correctAngleDeg(rawDeg float64, inverted bool, residualOffsetDeg float64) float64 {
-	if inverted {
-		return -rawDeg + residualOffsetDeg
-	}
-	return rawDeg + residualOffsetDeg
-}
-
 type (
 	// descriptor is a parsed RPLIDAR response descriptor: the fixed 7-byte
 	// header (0xA5 0x5A + 30-bit length + 2-bit send mode + 1-byte data
@@ -112,6 +81,23 @@ type (
 	// across scan modes.
 	Scan []Point
 )
+
+// timeoutReader wraps a serial.Port so that the underlying driver's
+// "timed-out read returns (0, nil)" quirk (go.bug.st/serial v1.8.0,
+// serial_unix.go:93) doesn't cause an endless retry. bufio.Reader.fill (and
+// io.ReadFull) treat a (0, nil) read as "no data available yet, try again"
+// and loop forever, which otherwise hangs Connect and Read indefinitely
+// whenever the device is slow or silent — confirmed on the C1 (2026-08-31: a
+// non-streaming lidar hung the dense driver for the full test timeout).
+//
+// Instead of erroring on the very first empty read (which would also kill a
+// healthy scan that has a brief inter-packet gap), timeoutReader tolerates
+// short silences up to maxSilence, then returns ErrReadTimeout so a truly
+// stalled device still fails fast.
+type timeoutReader struct {
+	port       serial.Port
+	maxSilence time.Duration
+}
 
 // HealthStatus string representations, returned by HealthStatus.String().
 const (
@@ -232,6 +218,52 @@ const (
 	classicMeasurementCheckBit = 0x01
 )
 
+// motorDefaultRpm is the RPM value sent to start the motor via the HQ
+// motor-speed command. The sllidar SDK's startMotor() drives the motor to a
+// nominal speed; 600 RPM matches the spin-up observed streaming correctly on
+// the C1 (verified on hardware 2026-08-31).
+const motorDefaultRpm = 600
+
+// serialPollTimeout is the per-call read timeout configured on the serial
+// port. timeoutReader retries (0, nil) reads up to maxSilence, so this stays
+// short; it only bounds a single empty read, not the total scan wait.
+const serialPollTimeout = 250 * time.Millisecond
+
+// scanWrapAngleDeg is the angle-drop threshold that identifies a per-packet
+// start-angle wrap past 360deg. The C1 Express/Dense stream sets the S
+// (start-of-scan) flag only on the first packet of the whole stream, so a
+// scan's end is detected from the per-packet start angle wrapping back toward
+// 0 (verified on hardware 2026-08-31). The wrap is recognized as a drop of
+// more than scanWrapAngleDeg between consecutive packet start angles; a full
+// 360deg rotation of the motor (e.g. one packet from 358deg to 32deg) is
+// always far more than this, while the ~35deg spacing of consecutive packets
+// is far less.
+const scanWrapAngleDeg = 180.0
+
+// fullSweepDeg is the angular coverage that completes a Dense Mode scan. A
+// scan is closed only once its per-packet start angles have advanced a full
+// revolution past the scan's first packet (see DenseSerialDriver.readScan) --
+// the C1 sets S=true on the stream's first packet wherever the motor happens
+// to be, so closing on a fixed wrap drop alone returns a partial first scan
+// when the stream begins near the sweep end (verified on hardware 2026-08-31:
+// 18-20 points vs a full 300).
+const fullSweepDeg = 360.0
+
+// yawOffsetDeg is the residual mount miscalibration (degrees) applied on
+// top of mountInverted's mirroring (see Config.YawOffsetDeg). It is a
+// package-level value rather than a decodeClassicMeasurement parameter
+// because decodeClassicMeasurement is on the documented wire-format
+// signature (Figure 4-4) and is also exercised by the frame-unit tests with
+// no offset; NewClassic/Connect install it from Config.
+var yawOffsetDeg float64
+
+// mountInverted marks the LIDAR as physically mounted upside-down (rotated
+// 180deg about a horizontal axis, not the vertical/yaw axis), matching
+// Config.Inverted. Installed from Config by NewClassic/NewDense alongside
+// yawOffsetDeg; see correctAngleDeg for why this needs its own field
+// instead of folding into yawOffsetDeg as a constant +180.
+var mountInverted bool
+
 var (
 	// ErrShortBuffer means fewer bytes were supplied than the structure
 	// being decoded requires. Shared across scan modes.
@@ -260,6 +292,22 @@ var (
 	// outside the documented 0-2 range. Shared across scan modes.
 	ErrUnknownHealthStatus = errors.New("lidar: unknown health status value")
 )
+
+// correctAngleDeg maps rawDeg (the sensor's own 0-360 angle reference, with
+// no correction applied) into the robot frame, where 0 is straight ahead.
+// When mounted upside-down, the LIDAR's apparent spin direction reverses in
+// the robot's top-down frame -- a constant offset can't express that, only
+// a mirror (negation) can. Verified on hardware 2026-08-31: an 8-bearing
+// object placement test found front/back swapped while left/right read
+// correctly with a plain rawDeg+180 offset; a rotation moves every bearing
+// together; only the mirror -rawDeg+offset reproduced "front and back swap,
+// left and right unchanged" from that same data.
+func correctAngleDeg(rawDeg float64, inverted bool, residualOffsetDeg float64) float64 {
+	if inverted {
+		return -rawDeg + residualOffsetDeg
+	}
+	return rawDeg + residualOffsetDeg
+}
 
 // requestPacket builds a no-payload request packet for cmd. STOP, RESET,
 // classic SCAN, and GET_HEALTH all carry no payload, so a request is
@@ -296,57 +344,9 @@ func payloadRequestPacket(cmd byte, payload []byte) []byte {
 // to its default speed. Must be sent before any scan request, or the device
 // answers the scan request with no data stream (verified on hardware
 // 2026-08-31: Express Scan returned zero bytes until the motor was started).
-// motorDefaultRpm is the RPM value sent to start the motor via the HQ
-// motor-speed command. The sllidar SDK's startMotor() drives the motor to a
-// nominal speed; 600 RPM matches the spin-up observed streaming correctly on
-// the C1 (verified on hardware 2026-08-31).
-const motorDefaultRpm = 600
-
-// serialPollTimeout is the per-call read timeout configured on the serial
-// port. timeoutReader retries (0, nil) reads up to maxSilence, so this stays
-// short; it only bounds a single empty read, not the total scan wait.
-const serialPollTimeout = 250 * time.Millisecond
-
-// scanWrapAngleDeg is the angle-drop threshold that identifies a per-packet
-// start-angle wrap past 360deg. The C1 Express/Dense stream sets the S
-// (start-of-scan) flag only on the first packet of the whole stream, so a
-// scan's end is detected from the per-packet start angle wrapping back toward
-// 0 (verified on hardware 2026-08-31). The wrap is recognized as a drop of
-// more than scanWrapAngleDeg between consecutive packet start angles; a full
-// 360deg rotation of the motor (e.g. one packet from 358deg to 32deg) is
-// always far more than this, while the ~35deg spacing of consecutive packets
-// is far less.
-const scanWrapAngleDeg = 180.0
-
-// fullSweepDeg is the angular coverage that completes a Dense Mode scan. A
-// scan is closed only once its per-packet start angles have advanced a full
-// revolution past the scan's first packet (see DenseSerialDriver.readScan) --
-// the C1 sets S=true on the stream's first packet wherever the motor happens
-// to be, so closing on a fixed wrap drop alone returns a partial first scan
-// when the stream begins near the sweep end (verified on hardware 2026-08-31:
-// 18-20 points vs a full 300).
-const fullSweepDeg = 360.0
-
 func startMotorPacket() []byte {
 	rpm := uint16(motorDefaultRpm)
-	return payloadRequestPacket(cmdHQMatorSpeedCtrl, []byte{byte(rpm), byte(rpm >> 8)})
-}
-
-// timeoutReader wraps a serial.Port so that the underlying driver's
-// "timed-out read returns (0, nil)" quirk (go.bug.st/serial v1.8.0,
-// serial_unix.go:93) doesn't cause an endless retry. bufio.Reader.fill (and
-// io.ReadFull) treat a (0, nil) read as "no data available yet, try again"
-// and loop forever, which otherwise hangs Connect and Read indefinitely
-// whenever the device is slow or silent — confirmed on the C1 (2026-08-31: a
-// non-streaming lidar hung the dense driver for the full test timeout).
-//
-// Instead of erroring on the very first empty read (which would also kill a
-// healthy scan that has a brief inter-packet gap), timeoutReader tolerates
-// short silences up to maxSilence, then returns ErrReadTimeout so a truly
-// stalled device still fails fast.
-type timeoutReader struct {
-	port       serial.Port
-	maxSilence time.Duration
+	return payloadRequestPacket(cmdHQMatorSpeedCtrl, []byte{byte(rpm), byte(rpm >> highByteShift)})
 }
 
 func (t *timeoutReader) Read(p []byte) (int, error) {
@@ -354,7 +354,10 @@ func (t *timeoutReader) Read(p []byte) (int, error) {
 	for {
 		n, err := t.port.Read(p)
 		if n > 0 || err != nil {
-			return n, err
+			if err == nil {
+				return n, nil
+			}
+			return n, fmt.Errorf("lidar: reading from serial port: %w", err)
 		}
 		// n == 0 && err == nil: the serial lib's timeout quirk.
 		silence += t.portReadTimeout()
