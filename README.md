@@ -105,7 +105,7 @@ Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el 
 
 - [Task](https://taskfile.dev) (`go install github.com/go-task/task/v3/cmd/task@latest` o el instalador de la página)
 - [Pixi](https://pixi.sh) (gestiona los entornos de Python + ROS2 en el robot y la simulación)
-- [Go](https://go.dev) 1.25+ (backend de telemetría, generador de escenarios y binarios del robot)
+- [Go](https://go.dev) 1.26+ (backend de telemetría, generador de escenarios y binarios del robot)
 - Node.js 22+ (dashboard, el panel de telemetría)
 
 ### Desarrollo y simulación (en el computador de desarrollo)
@@ -1152,7 +1152,7 @@ Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale 
 
 Cada ejecución escribe un *bag* en formato **MCAP** con todos los tópicos: barridos del LIDAR, pose estimada, comandos de dirección y velocidad, estado de la máquina de estados y detecciones de visión. Los bags se descargan del robot a `data/` y se analizan en frío, fuera de la pista.
 
-Sobre esos bags corren **68 scripts de diagnóstico** especializados: uno reconstruye el conteo de vueltas, otro mide la sobrecorrección en las esquinas, otro compara la dirección inferida contra lo que realmente ocurrió, otro revisa la robustez de los rayos laterales. Para inspección visual, los bags se abren en **Foxglove**.
+Sobre esos bags corren decenas de scripts de diagnóstico especializados: uno reconstruye el conteo de vueltas, otro mide la sobrecorrección en las esquinas, otro compara la dirección inferida contra lo que realmente ocurrió, otro revisa la robustez de los rayos laterales. Para inspección visual, los bags se abren en **Foxglove**.
 
 La diferencia práctica es grande: un fallo no se resuelve repitiendo la ronda y esperando que se manifieste de nuevo, sino **reproduciendo el instante exacto tantas veces como haga falta**, con los mismos datos, hasta encontrar la causa. Varios de los hallazgos listados más abajo salieron de un bag, no de la pista.
 
@@ -1179,7 +1179,7 @@ Esta sección no describe qué hace el robot, sino **cómo tomamos las decisione
 
 La regla que más impacto tuvo en la calidad del sistema es simple de enunciar: **ninguna constante de comportamiento vive dentro del código**. Todas están en archivos de configuración, y cada una tiene escrito al lado por qué vale lo que vale.
 
-Hoy son **203 constantes repartidas en 21 archivos TOML**, acompañadas de **1093 líneas de comentario**: algo más de **cinco líneas de explicación por cada valor**.
+Hoy son decenas de constantes repartidas en varios archivos TOML, cada una acompañada de varias líneas de comentario explicando por qué vale lo que vale.
 
 No es documentación decorativa. Un número suelto en el código es imposible de auditar: nadie recuerda, tres meses después, si `0.20` se midió, se calculó o simplemente se estimó sin medir. Al obligarnos a escribir la justificación junto al valor, cada constante lleva su propia historia (qué se midió, con qué método, qué pasó cuando valía otra cosa). Un ejemplo real, del archivo que gobierna la inferencia de dirección:
 
