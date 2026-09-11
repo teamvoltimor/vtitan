@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     from rclpy.publisher import Publisher
 
     from src.hardware.camera.base import Driver as CameraDriver
+    from src.hardware.hailo.base import Config as HailoConfig
 
 
 class Config(HardwareBaseSettings):
@@ -157,6 +158,10 @@ class VisionNode(Node):
 
         from src.vision.detector import DEFAULT_CLASS_TO_COLOR, DetectorConfig
 
+        # Built once here and injected into both the threshold lookup and the
+        # detector factory, instead of each loading its own HailoConfig (which
+        # re-reads hailo.toml + env every time).
+        hailo_config = self._build_hailo_config(backend)
         # Take the mapping from the detector rather than restating it: this copy
         # said (red, green, magenta), which is the dataset's stale order and the
         # opposite of what the model emits for red and green. It silently
@@ -164,9 +169,9 @@ class VisionNode(Node):
         config = DetectorConfig(
             model_path=model_path,
             class_to_color=DEFAULT_CLASS_TO_COLOR,
-            min_confidence=self._detection_threshold(backend),
+            min_confidence=self._detection_threshold(backend, hailo_config),
         )
-        detector = create_detector(backend, config)
+        detector = create_detector(backend, config, hailo_config=hailo_config)
         # Enter context manager for backends that hold hardware resources (Hailo).
         # For YOLO the __enter__ is a no-op; calling it unconditionally is safe.
         if hasattr(detector, "__enter__"):
@@ -305,7 +310,21 @@ class VisionNode(Node):
         self._model_status_pub.publish(msg)
 
     @staticmethod
-    def _detection_threshold(backend: str) -> float:
+    def _build_hailo_config(backend: str) -> "HailoConfig | None":
+        """Load the Hailo driver config once, only when the Hailo backend is selected.
+
+        ``None`` for the YOLO backend, which never reads it. Kept as a single
+        load so the threshold lookup and ``create_detector`` share one instance
+        rather than each re-reading ``hailo.toml`` + env.
+        """
+        if backend != "hailo":
+            return None
+        from src.hardware.hailo.base import Config as HailoConfig
+
+        return HailoConfig()
+
+    @staticmethod
+    def _detection_threshold(backend: str, hailo_config: "HailoConfig | None" = None) -> float:
         """Return the confidence floor detections must clear.
 
         For the Hailo backend this comes from HailoConfig, so HAILO_MIN_CONFIDENCE
@@ -321,9 +340,12 @@ class VisionNode(Node):
             # docstring) -- placeholders here since only min_confidence's
             # resolved TOML/env value is wanted.
             return DetectorConfig(model_path="", class_to_color={}).min_confidence
-        from src.hardware.hailo.base import Config as HailoConfig
+        if hailo_config is None:
+            from src.hardware.hailo.base import Config as HailoConfig
 
-        return HailoConfig().min_confidence
+            hailo_config = HailoConfig()
+
+        return hailo_config.min_confidence
 
     def _start_direct_capture(self, capture_fps: float) -> None:
         """Open the camera in-process and drive detection from a timer.

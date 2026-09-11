@@ -1,6 +1,7 @@
 """Vision module exports and detector factory."""
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 # shared.domain.enums and shared.domain.models import from each other (enums
 # re-exports GMR_CLASS_NAMES, defined in models, to break the cycle -- see
@@ -22,6 +23,9 @@ from src.vision.detector import (
     HailoDetector,
     LocalYoloDetector,
 )
+
+if TYPE_CHECKING:
+    from src.hardware.hailo.base import Config as HailoConfig
 
 
 class VisionBackend(StrEnum):
@@ -49,13 +53,18 @@ __all__ = [
 
 
 def create_detector(
-    backend: VisionBackend | str = VisionBackend.YOLO, config: DetectorConfig | None = None
+    backend: VisionBackend | str = VisionBackend.YOLO,
+    config: DetectorConfig | None = None,
+    hailo_config: "HailoConfig | None" = None,
 ) -> DetectorBase:
     """Create a detector instance with optional configuration injection.
 
     Args:
         backend: Detector backend (VisionBackend enum or string 'yolo'/'hailo' for backward compat).
         config: Optional DetectorConfig for custom model path and class mappings.
+        hailo_config: Optional Hailo driver config. Passed by a node entry point
+            that already built it, so this factory does not load it a second
+            time; falls back to loading it only for standalone callers.
 
     Returns:
         DetectorBase: Instantiated detector. The 'hailo' backend returns a
@@ -72,16 +81,20 @@ def create_detector(
         return LocalYoloDetector(config)
     if backend == VisionBackend.HAILO:
         try:
-            from src.hardware.hailo.base import Config as HailoConfig
+            from src.hardware.hailo.base import Config as HailoConfigBase
             from src.hardware.hailo.hailo_8.driver import Driver
         except ImportError as e:
             msg = "hailo_platform not found. Are you running on the Raspberry Pi 5 with HailoRT installed?"
             raise ImportError(msg) from e
+        if hailo_config is None:
+            hailo_config = HailoConfigBase()
         if config is None:
-            config = DetectorConfig(
-                model_path=HailoConfig().model_path,
-                class_to_color=DEFAULT_CLASS_TO_COLOR,
-            )
-        return HailoDetector(Driver(HailoConfig(model_path=config.model_path)), config)
+            config = DetectorConfig(model_path=hailo_config.model_path, class_to_color=DEFAULT_CLASS_TO_COLOR)
+        # The driver's model path always follows the caller's DetectorConfig
+        # (the vision node's ROS param) or, when none was supplied, the loaded
+        # Hailo config's own path -- never hailo.toml's default overriding a
+        # path the caller named.
+        driver_config = hailo_config.model_copy(update={"model_path": config.model_path})
+        return HailoDetector(Driver(driver_config), config)
     msg = f"Unknown detector backend: {backend}"
     raise ValueError(msg)

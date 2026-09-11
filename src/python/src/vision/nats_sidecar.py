@@ -26,6 +26,7 @@ import logging
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -115,6 +116,17 @@ def _to_proto(det: Detection) -> detections_pb2.Detection:
     return proto
 
 
+def _grab_detections(camera: CameraDriver, detector: DetectorBase) -> list[Detection]:
+    """Capture one frame and run detection over it; runs off the event loop.
+
+    Both calls are synchronous and CPU/hardware-bound (frame grab plus YOLO or
+    Hailo NPU inference), so calling them directly inside ``run`` would stall
+    the loop -- and with it NATS keepalive -- for the whole inference.
+    """
+    frame = camera.capture_frame().frame
+    return detector.detect(camera.to_rgb(frame))
+
+
 async def run(nats_url: str, backend: str, fps: float) -> None:
     """Connect to NATS, open the camera/detector, and publish Detections at ~fps until cancelled."""
     nc = await nats.connect(nats_url)
@@ -129,12 +141,15 @@ async def run(nats_url: str, backend: str, fps: float) -> None:
         detector.__enter__()
 
     interval_s = 1.0 / max(fps, 1.0)
+    # Single dedicated worker, not the shared default executor: the detector is
+    # opened on this thread (above) and every frame runs on the same one, so a
+    # backend with thread affinity (HailoRT) never sees a different thread.
+    loop = asyncio.get_running_loop()
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="vision-detect")
     try:
         while True:
             start = time.monotonic()
-            frame = camera.capture_frame().frame
-            rgb = camera.to_rgb(frame)
-            detections = detector.detect(rgb)
+            detections = await loop.run_in_executor(executor, _grab_detections, camera, detector)
 
             msg = detections_pb2.Detections()
             msg.stamp.GetCurrentTime()
@@ -145,6 +160,7 @@ async def run(nats_url: str, backend: str, fps: float) -> None:
             elapsed = time.monotonic() - start
             await asyncio.sleep(max(0.0, interval_s - elapsed))
     finally:
+        executor.shutdown(wait=True)
         if hasattr(detector, "__exit__"):
             detector.__exit__(None, None, None)
         camera.close()
