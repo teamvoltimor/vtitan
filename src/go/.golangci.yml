@@ -406,6 +406,44 @@ linters:
         linters:
           - all
 
+      # Foxglove's websocket protocol mandates camelCase JSON keys
+      # (supportedEncodings, schemaName, ...), so tagliatelle's snake_case
+      # rule cannot apply to the wire types. The external protocol is the
+      # source of truth, not the repo naming convention.
+      - path: 'internal/foxglove/'
+        linters:
+          - tagliatelle
+
+      # Adapter seams deliberately return the port interface they implement
+      # (camera.Driver, recording.VideoSink); returning the concrete type
+      # would defeat the seam the constructor exists to hide.
+      - path: 'internal/driver/camera/'
+        linters:
+          - ireturn
+      - path: 'internal/recording/sink_(dispatch|mjpeg)\.go$'
+        linters:
+          - ireturn
+      - path: 'internal/node/capture/capture\.go$'
+        linters:
+          - ireturn
+
+      # Config-default literals restate their TOML tuning keys one-for-one.
+      # The "no behavior constants inline" rule targets logic, not these
+      # tables: a named const here would only duplicate the field it
+      # initializes, and the value lives in the TOML file regardless.
+      - path: 'internal/config/profile/'
+        linters:
+          - mnd
+      - path: 'internal/sim/harness/config\.go$'
+        linters:
+          - mnd
+      - path: 'internal/sim/kinematics/config\.go$'
+        linters:
+          - mnd
+      - path: 'internal/sim/visionsim/visionsim\.go$'
+        linters:
+          - mnd
+
       # go:generate directives are routinely long
       - linters:
           - lll
