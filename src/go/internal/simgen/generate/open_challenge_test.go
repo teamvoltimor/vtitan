@@ -136,10 +136,10 @@ func TestOpenChallenge_StartingConditionsValid(t *testing.T) {
 		}
 
 		// Section and direction are valid
-		if _, err := simconfig.ParseSection(strings.ToLower(sc.Section)); err != nil {
+		if _, err = simconfig.ParseSection(strings.ToLower(sc.Section)); err != nil {
 			t.Errorf("scenario %d: invalid section %q", i, sc.Section)
 		}
-		if _, err := simconfig.ParseDirection(sc.Direction); err != nil {
+		if _, err = simconfig.ParseDirection(sc.Direction); err != nil {
 			t.Errorf("scenario %d: invalid direction %q", i, sc.Direction)
 		}
 	}
@@ -198,7 +198,7 @@ func TestOpenChallenge_WritesFiles(t *testing.T) {
 	}
 
 	var parsed generate.Metadata
-	if err := json.Unmarshal(data, &parsed); err != nil {
+	if err = json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("metadata JSON parse failed: %v", err)
 	}
 	if parsed.ScenarioID != meta.ScenarioID {
@@ -218,7 +218,7 @@ func BenchmarkOpenChallenge_CreateScenario(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := range b.N {
-		if _, _, err := gen.CreateScenario(i); err != nil {
+		if _, _, err = gen.CreateScenario(i); err != nil {
 			b.Errorf("scenario %d: %v", i, err)
 		}
 	}

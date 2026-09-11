@@ -153,7 +153,7 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 	}
 
 	meta = BuildMetadata(idx, g.challengeType, corridorWidths, sc, signs, parking, g.seed)
-	if err := g.saveMetadata(meta, idx); err != nil {
+	if err = g.saveMetadata(meta, idx); err != nil {
 		return "", Metadata{}, err
 	}
 
@@ -189,7 +189,7 @@ func (g *ScenarioGenerator) saveWorld(root *sdf.Node, idx int) (string, error) {
 		return "", fmt.Errorf("create world file: %w", err)
 	}
 	defer f.Close()
-	if _, err := root.WriteTo(f); err != nil {
+	if _, err = root.WriteTo(f); err != nil {
 		return "", fmt.Errorf("write world SDF: %w", err)
 	}
 	return path, nil
@@ -202,7 +202,10 @@ func (g *ScenarioGenerator) saveMetadata(meta Metadata, idx int) error {
 	if err != nil {
 		return fmt.Errorf("marshal metadata: %w", err)
 	}
-	return os.WriteFile(path, data, simconfig.FilePermissions)
+	if err = os.WriteFile(path, data, simconfig.FilePermissions); err != nil {
+		return fmt.Errorf("write metadata: %w", err)
+	}
+	return nil
 }
 
 // adjustSignsForParking moves outer-lane signs in the parking section to the

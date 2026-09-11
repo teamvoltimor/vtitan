@@ -137,7 +137,7 @@ func GenerateSVG(metadataPath, outPath string) (string, error) {
 		return "", fmt.Errorf("read metadata: %w", err)
 	}
 	var meta generate.Metadata
-	if err := json.Unmarshal(data, &meta); err != nil {
+	if err = json.Unmarshal(data, &meta); err != nil {
 		return "", fmt.Errorf("parse metadata: %w", err)
 	}
 	if outPath == "" {
@@ -147,7 +147,10 @@ func GenerateSVG(metadataPath, outPath string) (string, error) {
 		}
 		outPath = base + simconfig.PreviewSuffix
 	}
-	return outPath, os.WriteFile(outPath, []byte(renderSVG(meta)), simconfig.FilePermissions)
+	if err = os.WriteFile(outPath, []byte(renderSVG(meta)), simconfig.FilePermissions); err != nil {
+		return outPath, fmt.Errorf("write preview: %w", err)
+	}
+	return outPath, nil
 }
 
 // wx converts a world X coordinate (meters) to SVG X (pixels).

@@ -109,10 +109,10 @@ func (n *Node) WriteTo(w io.Writer) (int64, error) {
 	}
 	enc := xml.NewEncoder(w)
 	enc.Indent("", "  ")
-	if err := encodeNode(enc, n); err != nil {
+	if err = encodeNode(enc, n); err != nil {
 		return int64(nWritten), err
 	}
-	if err := enc.Flush(); err != nil {
+	if err = enc.Flush(); err != nil {
 		return int64(nWritten), err
 	}
 	return int64(nWritten), nil
@@ -127,11 +127,11 @@ func encodeNode(enc *xml.Encoder, n *Node) error {
 		})
 	}
 	if err := enc.EncodeToken(start); err != nil {
-		return err
+		return fmt.Errorf("encode start element %q: %w", n.Tag, err)
 	}
 	if n.Text != "" {
 		if err := enc.EncodeToken(xml.CharData(n.Text)); err != nil {
-			return err
+			return fmt.Errorf("encode text for %q: %w", n.Tag, err)
 		}
 	}
 	for _, child := range n.Children {
@@ -139,7 +139,10 @@ func encodeNode(enc *xml.Encoder, n *Node) error {
 			return err
 		}
 	}
-	return enc.EncodeToken(xml.EndElement{Name: xml.Name{Local: n.Tag}})
+	if err := enc.EncodeToken(xml.EndElement{Name: xml.Name{Local: n.Tag}}); err != nil {
+		return fmt.Errorf("encode end element %q: %w", n.Tag, err)
+	}
+	return nil
 }
 
 // Parse reads XML into a Node tree (used for loading the base world SDF template).
@@ -164,13 +167,13 @@ func buildNode(dec *xml.Decoder, se xml.StartElement) (*Node, error) {
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read sdf token: %w", err)
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
-			child, err := buildNode(dec, t)
-			if err != nil {
-				return nil, err
+			child, buildErr := buildNode(dec, t)
+			if buildErr != nil {
+				return nil, buildErr
 			}
 			n.Children = append(n.Children, child)
 		case xml.CharData:

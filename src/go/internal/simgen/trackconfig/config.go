@@ -244,10 +244,10 @@ func Load(path string, robotWidth decimal.Decimal) (*Config, error) {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
+	if err = toml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
-	if err := cfg.Validate(robotWidth); err != nil {
+	if err = cfg.Validate(robotWidth); err != nil {
 		return nil, fmt.Errorf("validate %s: %w", path, err)
 	}
 	return &cfg, nil
