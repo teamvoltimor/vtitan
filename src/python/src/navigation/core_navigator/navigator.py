@@ -194,11 +194,6 @@ class CoreNavigator(EscapeRecovery):
         # instead of a single 50 ms tick, and repeated escapes escalate (reverse
         # longer, switch side) rather than repeating an identical failed pulse.
         self._active_maneuver: EscapeManeuver | None = None
-        self._maneuver_start_yaw: float | None = None
-        """Yaw when the current manoeuvre began, or None between manoeuvres."""
-        self._reseek_after_turn = False
-        """Set when a manoeuvre ended having rotated the chassis past
-        ``ESCAPE_RESEEK_TURN_DEG``. Consumed on the next driving tick."""
         self._maneuver_frames_left = 0
         self._escape_count = 0  # escapes begun since the last normal drive tick with real progress
         # Base side for escapes, not a running toggle: which side a given
@@ -500,67 +495,6 @@ class CoreNavigator(EscapeRecovery):
         # case the robot cannot rule out for itself.
         if self._waypoint_index - previous_index > len(waypoints) // 2:
             self._suppress_next_wrap = True
-
-    def _reseek_for_new_heading(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:
-        """Re-aim the waypoint index after a manoeuvre rotated the chassis.
-
-        ``replace_path`` already has a heading-aware seek, but it only runs when
-        the PATH is replaced, and its two guards -- ``REPLAN_MONOTONIC_INDEX``
-        and ``FORWARD_ONLY_RESEEK`` -- exist to stop a rebuilt path knocking the
-        index backwards. Both are right for that cause and wrong for this one: a
-        chassis that has physically turned around genuinely needs a different
-        target, and those guards forbid giving it one.
-
-        Nothing did this, and the cost was the whole of the 2026-09-11 evening.
-        After a k_turn swung the yaw by 180-300 deg, ``_waypoint_index`` FROZE
-        for 20-45 s -- it never stepped backward, which is why every
-        backward-jump guard read clean; it simply stopped advancing, because
-        advancing requires REACHING a waypoint the robot was now driving away
-        from. The steer target sat across the mat behind the chassis while
-        ``crosstrack_error_m`` stayed at 0.0-0.5 m, so the tracker believed it
-        was on-path throughout, and the car covered 0.24-0.63 of a lap the wrong
-        way at POSITIVE commanded speed on all three rounds.
-
-        Chooses among waypoints near the closest one by OUTGOING BEARING, the
-        same tie-break ``replace_path`` uses, because after a reversal the
-        nearest point by distance is exactly the one just left behind. Moving
-        the index backward is allowed here and only here: the robot really is
-        further back along the path than it was.
-        """
-        waypoints = self._waypoints
-        if not waypoints:
-            return
-        # ONLY when the current target is genuinely behind the chassis. Without
-        # this the seek snaps to the nearest waypoint on every turning escape
-        # and hands back ground already covered -- which is the exact ratchet
-        # REPLAN_MONOTONIC_INDEX exists to stop, arriving by another door. Caught
-        # by its own control test: on a straight path with the heading UNCHANGED
-        # the unguarded version moved the index 6 -> 4.
-        #
-        # Behind is the condition that matters downstream, not merely far: a
-        # target behind is where WaypointController abandons the curvature
-        # formula and saturates to FULL LOCK.
-        target = waypoints[self._waypoint_index]
-        to_target = math.atan2(target.y - robot_y, target.x - robot_x)
-        if abs(wrap_angle(to_target - robot_yaw)) <= math.pi / 2:
-            return
-        distances = [wp.distance_to_xy(robot_x, robot_y) for wp in waypoints]
-        nearest = min(range(len(waypoints)), key=lambda i: distances[i])
-        margin = distances[nearest] + self._tuning.waypoints.REPLAN_HEADING_TIE_MARGIN_M
-        candidates = [i for i, d in enumerate(distances) if d <= margin]
-        chosen = min(
-            candidates,
-            key=lambda i: abs(wrap_angle(_outgoing_bearing(waypoints, i) - robot_yaw)),
-        )
-        if chosen == self._waypoint_index:
-            return
-        logger.info(
-            "Re-seeking after a turning escape: waypoint %d -> %d (yaw %.2f rad)",
-            self._waypoint_index,
-            chosen,
-            robot_yaw,
-        )
-        self._waypoint_index = chosen
 
     def _advance_replan_blend(self) -> None:
         """Step the replanned path one tick further in, if a fade is running.
@@ -943,10 +877,6 @@ class CoreNavigator(EscapeRecovery):
         if self._active_maneuver is not None and not self._side_correction_blends():
             self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ACTIVE_MANEUVER)
             return
-
-        if self._reseek_after_turn:
-            self._reseek_after_turn = False
-            self._reseek_for_new_heading(robot_x, robot_y, robot_yaw)
 
         # Update stuck detector — runs while actively driving OR maneuvering
         # into the parking gap, but not once the robot has reached its final

@@ -25,7 +25,7 @@ from src.navigation.control.controllers import (
     bumper_gap_behind,
 )
 from src.navigation.ports import DriveCommand, LidarScan
-from src.navigation.utils import trail_clearance_behind, wrap_angle
+from src.navigation.utils import trail_clearance_behind
 
 if TYPE_CHECKING:
     from collections import deque
@@ -337,24 +337,8 @@ class EscapeRecovery:
         maneuver = self._active_maneuver
         if maneuver is None:
             return
-        if self._maneuver_start_yaw is None:
-            self._maneuver_start_yaw = robot_yaw
         self._maneuver_frames_left -= 1
         if self._maneuver_frames_left <= 0:
-            # How far the chassis actually ROTATED, measured rather than
-            # assumed from the manoeuvre's own steering: a k_turn's arc depends
-            # on what it was against, and the case that matters is the one
-            # nobody designed -- measured 2026-09-11 on three hardware rounds,
-            # a k_turn swung the yaw -161 -> +138, -170 -> +126 and -11 -> +41
-            # deg, after which the waypoint index FROZE for 20-45 s and the car
-            # drove 0.24-0.63 of a lap the wrong way at POSITIVE speed. See
-            # ESCAPE_RESEEK_TURN_DEG for why the index freezes rather than
-            # stepping back, which is what hid this from every guard.
-            turned = abs(wrap_angle(robot_yaw - self._maneuver_start_yaw))
-            self._reseek_after_turn = turned >= math.radians(
-                self._tuning.escape.ESCAPE_RESEEK_TURN_DEG
-            )
-            self._maneuver_start_yaw = None
             self._active_maneuver = None
             self._retracing = False
         # A retrace is re-aimed every tick, unlike a latched arc: the whole

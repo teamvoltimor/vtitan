@@ -171,39 +171,6 @@ class EscapeManeuverParams(BaseModel):
     saturate the wheel or produce a curvature neither layer asked for.
     """
 
-    ESCAPE_RESEEK_TURN_DEG: float = Field(
-        default=90.0, ge=0.0, validation_alias=_alias("ESCAPE_RESEEK_TURN_DEG")
-    )
-    """Rotation across one manoeuvre past which the waypoint index is re-seeked.
-
-    MEASURED 2026-09-11, and it cost all three evening rounds. A k_turn swung the
-    chassis by 180-300 deg (yaw -161 -> +138, -170 -> +126, -11 -> +41), and
-    afterwards ``_waypoint_index`` FROZE for 20-45 s. It never stepped BACKWARD,
-    which is precisely why every backward-jump guard in this tree read clean; it
-    stopped advancing, because advancing requires REACHING a waypoint the robot
-    was now driving away from. Drawdown from peak lap progress: 220, 86 and 227
-    deg -- 0.24 to 0.63 of a lap the WRONG way, at POSITIVE commanded speed, with
-    ``crosstrack_error_m`` at 0.0-0.5 m the whole time so the tracker believed it
-    was on-path.
-
-    The localizer is NOT involved: out-of-track beam fraction reads p50 0.006-0.013
-    on those runs against 0.005 on a clean 3-lap round, with yaw+180 and pose+0.5 m
-    negative controls at 0.34-0.52 in the same query. The pose was honest; the
-    robot really did turn around.
-
-    90 deg because the threshold has to separate a manoeuvre that merely nudged
-    the nose from one that changed which way the robot faces. Below 90 the target
-    ahead is still ahead; past it the previous target is behind the chassis, where
-    ``WaypointController`` abandons the curvature formula and saturates to FULL
-    LOCK -- a U-turn attempt against a 0.29 m minimum radius inside a 1.0 m
-    corridor.
-
-    A side correction is 16.5 deg over 0.20 s and cannot reach this; a k_turn
-    against an obstacle is what does. 0 re-seeks after EVERY manoeuvre, which is
-    not what this is for -- a manoeuvre that did not turn the robot has nothing to
-    re-aim.
-    """
-
     REV_STEER_DEG: float = Field(
         default=44.0, validation_alias=_alias("REV_STEER_DEG")
     )  # Road-wheel angle while reversing
