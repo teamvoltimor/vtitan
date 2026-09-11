@@ -32,6 +32,8 @@ func sampleCycles(d *encoder.Decoder, cycles int, forward bool) int64 {
 }
 
 func TestDecoder_ForwardCycleCountsFourEdges(t *testing.T) {
+	t.Parallel()
+
 	var d encoder.Decoder
 	// Seed on 10, the state a forward cycle ENDS on, so the walk's opening
 	// 00 is a real transition rather than a repeat of the seed and all 12
@@ -44,6 +46,8 @@ func TestDecoder_ForwardCycleCountsFourEdges(t *testing.T) {
 }
 
 func TestDecoder_ReverseCountsNegative(t *testing.T) {
+	t.Parallel()
+
 	var d encoder.Decoder
 	d.Sample(false, false)
 
@@ -53,6 +57,8 @@ func TestDecoder_ReverseCountsNegative(t *testing.T) {
 }
 
 func TestDecoder_ForwardThenReverseReturnsToZero(t *testing.T) {
+	t.Parallel()
+
 	var d encoder.Decoder
 	d.Sample(false, false)
 
@@ -63,6 +69,8 @@ func TestDecoder_ForwardThenReverseReturnsToZero(t *testing.T) {
 }
 
 func TestDecoder_FirstSampleOnlySeedsState(t *testing.T) {
+	t.Parallel()
+
 	var d encoder.Decoder
 	// Without the seeding rule, an opening sample of 11 against a zeroed
 	// reference state would be read as a two-bit jump and, worse, a
@@ -73,6 +81,8 @@ func TestDecoder_FirstSampleOnlySeedsState(t *testing.T) {
 }
 
 func TestDecoder_SkippedStateContributesNothing(t *testing.T) {
+	t.Parallel()
+
 	var d encoder.Decoder
 	d.Sample(false, false)
 	// 00 -> 11 is two bits at once: a missed edge or bounce. It carries no
@@ -87,6 +97,8 @@ func TestDecoder_SkippedStateContributesNothing(t *testing.T) {
 }
 
 func TestDecoder_RepeatedSampleIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	var d encoder.Decoder
 	d.Sample(false, false)
 	d.Sample(false, true)
@@ -99,6 +111,8 @@ func TestDecoder_RepeatedSampleIsNoOp(t *testing.T) {
 }
 
 func TestDecoder_ResetZeroesAndReseeds(t *testing.T) {
+	t.Parallel()
+
 	var d encoder.Decoder
 	d.Sample(false, false)
 	sampleCycles(&d, 2, true)

@@ -17,6 +17,8 @@ const shippedCountsPerRev = 60.0
 const shippedWheelDiameterM = 0.07
 
 func TestCountsToRevolutions(t *testing.T) {
+	t.Parallel()
+
 	got, err := encoder.CountsToRevolutions(120, shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("CountsToRevolutions: %v", err)
@@ -27,6 +29,8 @@ func TestCountsToRevolutions(t *testing.T) {
 }
 
 func TestCountsToRevolutions_RejectsNonPositiveCountsPerRev(t *testing.T) {
+	t.Parallel()
+
 	// A missing motor profile leaves counts_per_rev at zero. It must error
 	// rather than divide, since a NaN/Inf distance propagates silently
 	// through the whole odometry chain.
@@ -36,6 +40,8 @@ func TestCountsToRevolutions_RejectsNonPositiveCountsPerRev(t *testing.T) {
 }
 
 func TestCountsToDistance_MatchesCircumference(t *testing.T) {
+	t.Parallel()
+
 	got, err := encoder.CountsToDistance(
 		shippedCountsPerRev, shippedCountsPerRev, shippedWheelDiameterM,
 	)
@@ -49,6 +55,8 @@ func TestCountsToDistance_MatchesCircumference(t *testing.T) {
 }
 
 func TestCountsToDistance_SignedForReverse(t *testing.T) {
+	t.Parallel()
+
 	got, err := encoder.CountsToDistance(
 		-shippedCountsPerRev, shippedCountsPerRev, shippedWheelDiameterM,
 	)
@@ -64,6 +72,8 @@ func TestCountsToDistance_SignedForReverse(t *testing.T) {
 }
 
 func TestSpeedEstimator_HoldsUntilWindowFills(t *testing.T) {
+	t.Parallel()
+
 	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
@@ -77,6 +87,8 @@ func TestSpeedEstimator_HoldsUntilWindowFills(t *testing.T) {
 }
 
 func TestSpeedEstimator_EmitsAfterWindow(t *testing.T) {
+	t.Parallel()
+
 	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
@@ -100,6 +112,8 @@ func TestSpeedEstimator_EmitsAfterWindow(t *testing.T) {
 }
 
 func TestSpeedEstimator_ReverseIsNegative(t *testing.T) {
+	t.Parallel()
+
 	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
@@ -116,6 +130,8 @@ func TestSpeedEstimator_ReverseIsNegative(t *testing.T) {
 }
 
 func TestSpeedEstimator_NonPositiveDTHoldsValue(t *testing.T) {
+	t.Parallel()
+
 	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
@@ -135,6 +151,8 @@ func TestSpeedEstimator_NonPositiveDTHoldsValue(t *testing.T) {
 }
 
 func TestSpeedEstimator_ResetClearsHistory(t *testing.T) {
+	t.Parallel()
+
 	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
@@ -158,6 +176,8 @@ func TestSpeedEstimator_ResetClearsHistory(t *testing.T) {
 }
 
 func TestNewSpeedEstimatorWith_RejectsBadParameters(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name         string
 		countsPerRev float64
@@ -170,6 +190,8 @@ func TestNewSpeedEstimatorWith_RejectsBadParameters(t *testing.T) {
 		{"negative window", 60, 0.3, -0.1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := encoder.NewSpeedEstimatorWith(encoder.SpeedEstimatorParams{
 				CountsPerRev: tc.countsPerRev,
 				Smoothing:    tc.smoothing,
@@ -183,6 +205,8 @@ func TestNewSpeedEstimatorWith_RejectsBadParameters(t *testing.T) {
 }
 
 func TestConfig_ValidateRejectsIncompleteWiring(t *testing.T) {
+	t.Parallel()
+
 	valid := encoder.Config{
 		GPIOChip:       encoder.DefaultGPIOChip,
 		PinA:           16,
@@ -205,6 +229,8 @@ func TestConfig_ValidateRejectsIncompleteWiring(t *testing.T) {
 		{"no wheel diameter", func(c *encoder.Config) { c.WheelDiameterM = 0 }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := valid
 			tc.mutate(&cfg)
 			if err := cfg.Validate(); err == nil {

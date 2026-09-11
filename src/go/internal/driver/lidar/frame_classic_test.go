@@ -319,9 +319,27 @@ func TestCorrectAngleDeg(t *testing.T) {
 		{name: "upright, no residual, passthrough", rawDeg: 37, inverted: false, residualDeg: 0, wantCorrectDeg: 37},
 		{name: "upright with residual", rawDeg: 37, inverted: false, residualDeg: 5, wantCorrectDeg: 42},
 		{name: "inverted, raw 0 mirrors to residual", rawDeg: 0, inverted: true, residualDeg: 0, wantCorrectDeg: 0},
-		{name: "inverted, front/back swap: raw 180 -> 180 (unmirrored midpoint)", rawDeg: 180, inverted: true, residualDeg: 0, wantCorrectDeg: -180},
-		{name: "inverted, left/right fixed points: raw 90 -> -90", rawDeg: 90, inverted: true, residualDeg: 0, wantCorrectDeg: -90},
-		{name: "inverted, left/right fixed points: raw 270 -> -270", rawDeg: 270, inverted: true, residualDeg: 0, wantCorrectDeg: -270},
+		{
+			name:           "inverted, front/back swap: raw 180 -> 180 (unmirrored midpoint)",
+			rawDeg:         180,
+			inverted:       true,
+			residualDeg:    0,
+			wantCorrectDeg: -180,
+		},
+		{
+			name:           "inverted, left/right fixed points: raw 90 -> -90",
+			rawDeg:         90,
+			inverted:       true,
+			residualDeg:    0,
+			wantCorrectDeg: -90,
+		},
+		{
+			name:           "inverted, left/right fixed points: raw 270 -> -270",
+			rawDeg:         270,
+			inverted:       true,
+			residualDeg:    0,
+			wantCorrectDeg: -270,
+		},
 		{name: "inverted with residual", rawDeg: 37, inverted: true, residualDeg: 5, wantCorrectDeg: -32},
 	}
 

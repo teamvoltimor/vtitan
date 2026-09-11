@@ -45,9 +45,10 @@ func startTestNATS(t *testing.T) string {
 // pattern for handing an HTTP server under test a real, unused address
 // (run's httpServer.ListenAndServe binds its own listener internally, so
 // there is no injectable-listener seam to avoid this).
-func freeHTTPAddr(t *testing.T) string {
+func freeHTTPAddr(ctx context.Context, t *testing.T) string {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	l, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -64,11 +65,13 @@ func freeHTTPAddr(t *testing.T) string {
 // this command's own wiring (bridgeAllSubjects registering all subjects,
 // the NATS subscription loop, the HTTP server lifecycle).
 func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {
-	natsURL := startTestNATS(t)
-	httpAddr := freeHTTPAddr(t)
+	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
+
+	natsURL := startTestNATS(t)
+	httpAddr := freeHTTPAddr(ctx, t)
 
 	logger := slog.New(slog.DiscardHandler)
 	cfg := cliConfig{Common: cmdkit.Common{NATSURL: natsURL, NodeName: "test-bridge"}, httpAddr: httpAddr}
@@ -77,16 +80,16 @@ func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {
 	go func() { runErrCh <- run(ctx, logger, cfg) }()
 
 	wsURL := "ws://" + httpAddr
-	conn := dialFoxglove(t, ctx, wsURL)
+	conn := dialFoxglove(ctx, t, wsURL)
 
 	var info map[string]any
-	readJSONFrame(t, ctx, conn, &info)
+	readJSONFrame(ctx, t, conn, &info)
 	if info["op"] != "serverInfo" {
 		t.Fatalf(`first message op = %v, want "serverInfo"`, info["op"])
 	}
 
 	var advertise foxglovetest.AdvertiseResponse
-	readJSONFrame(t, ctx, conn, &advertise)
+	readJSONFrame(ctx, t, conn, &advertise)
 	if advertise.Op != "advertise" {
 		t.Fatalf(`second message op = %v, want "advertise"`, advertise.Op)
 	}
@@ -176,15 +179,20 @@ func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {
 	}
 }
 
-func dialFoxglove(t *testing.T, ctx context.Context, wsURL string) *websocket.Conn {
+func dialFoxglove(ctx context.Context, t *testing.T, wsURL string) *websocket.Conn {
 	t.Helper()
 	deadline := time.Now().Add(testTimeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
 			Subprotocols: []string{"foxglove.websocket.v1"},
 			HTTPClient:   &http.Client{Timeout: 500 * time.Millisecond},
 		})
+		if resp != nil && resp.Body != nil {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Logf("websocket.Dial: closing handshake response body: %v", closeErr)
+			}
+		}
 		if err == nil {
 			// The default 32KiB per-message read limit is comfortably
 			// enough for one channel's advertise but not all 17 registered
@@ -203,7 +211,7 @@ func dialFoxglove(t *testing.T, ctx context.Context, wsURL string) *websocket.Co
 	return nil
 }
 
-func readJSONFrame(t *testing.T, ctx context.Context, conn *websocket.Conn, v any) {
+func readJSONFrame(ctx context.Context, t *testing.T, conn *websocket.Conn, v any) {
 	t.Helper()
 	kind, data, err := conn.Read(ctx)
 	if err != nil {

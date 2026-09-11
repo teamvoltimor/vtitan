@@ -10,6 +10,15 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
 
+// testWriter adapts *testing.T to io.Writer so slog output surfaces in test
+// logs instead of stderr.
+type testWriter struct{ t *testing.T }
+
+func (w testWriter) Write(p []byte) (int, error) {
+	w.t.Log(string(p))
+	return len(p), nil
+}
+
 func TestParseDirection(t *testing.T) {
 	t.Parallel()
 
@@ -28,7 +37,7 @@ func TestParseDirection(t *testing.T) {
 		t.Errorf("parseDirection(undetermined) = (%v, %v, %v), want (Clockwise, nil, nil)", provisional, known, err)
 	}
 
-	if _, _, err := parseDirection("sideways"); err == nil {
+	if _, _, parseErr := parseDirection("sideways"); parseErr == nil {
 		t.Error("parseDirection(sideways) = nil error, want a rejection")
 	}
 }
@@ -61,13 +70,4 @@ func TestNewBlindLayout(t *testing.T) {
 			t.Errorf("geometry width for %v = %v, want the NARROW prior %v", section, got, blindNarrowWidthM)
 		}
 	}
-}
-
-// testWriter adapts *testing.T to io.Writer so slog output surfaces in test
-// logs instead of stderr.
-type testWriter struct{ t *testing.T }
-
-func (w testWriter) Write(p []byte) (int, error) {
-	w.t.Log(string(p))
-	return len(p), nil
 }

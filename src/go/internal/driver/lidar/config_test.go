@@ -10,6 +10,8 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
 )
 
+const serialTOML = "serial_port = \"/dev/ttyUSB1\"\nserial_baudrate = 460800\n"
+
 // writeConfigRoot lays out the two files ConfigFor reads -- the serial
 // settings in lidar.toml and the physical mount in robot.toml -- under a
 // temporary root, at the same relative paths the repo uses.
@@ -32,13 +34,13 @@ func writeConfigRoot(t *testing.T, lidarTOML, robotTOML string) string {
 	return root
 }
 
-const serialTOML = "serial_port = \"/dev/ttyUSB1\"\nserial_baudrate = 460800\n"
-
 // TestConfigForResolvesMountCorrection is the regression guard for the
 // defect this wiring closes: ConfigFor used to set only Port and BaudRate,
 // so the driver ran with Inverted=false and published raw sensor bearings
 // no matter what robot.toml said about the mount.
 func TestConfigForResolvesMountCorrection(t *testing.T) {
+	t.Parallel()
+
 	root := writeConfigRoot(t, serialTOML,
 		"[lidar]\ninverted = true\nmount_yaw_offset_deg = 5.0\n")
 
@@ -78,6 +80,8 @@ func TestConfigForMountCorrectionNeedsNoHardwareProfile(t *testing.T) {
 // upright mount must not acquire a correction from the mere presence of the
 // section.
 func TestConfigForUprightMountLeavesAnglesAlone(t *testing.T) {
+	t.Parallel()
+
 	root := writeConfigRoot(t, serialTOML,
 		"[lidar]\ninverted = false\nmount_yaw_offset_deg = 0.0\n")
 
@@ -94,6 +98,8 @@ func TestConfigForUprightMountLeavesAnglesAlone(t *testing.T) {
 // TestConfigForMissingRobotTOMLKeepsStreaming pins the degradation choice:
 // an unreadable robot.toml costs the correction, not the sensor.
 func TestConfigForMissingRobotTOMLKeepsStreaming(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	full := filepath.Join(root, profile.DefaultLidarLaunchTOMLPath)
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {

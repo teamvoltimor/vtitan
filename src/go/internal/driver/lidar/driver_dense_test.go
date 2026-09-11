@@ -26,7 +26,7 @@ func encodeDensePacketForTest(startAngleDeg float64, startOfScan bool, distMM ui
 		b3 |= denseSFlagBit
 	}
 	raw[3] = b3
-	for k := 0; k < denseCabinsPerPacket; k++ {
+	for k := range denseCabinsPerPacket {
 		off := denseHeaderLen + k*denseCabinLen
 		binary.LittleEndian.PutUint16(raw[off:off+2], distMM)
 	}
@@ -47,6 +47,8 @@ func encodeDensePacketForTest(startAngleDeg float64, startOfScan bool, distMM ui
 // that partial first scan and keep collecting until a full revolution is
 // covered.
 func TestDenseSerialDriverReadScan_DiscardsPartialFirstScan(t *testing.T) {
+	t.Parallel()
+
 	// First packet S=true at 359deg (mid-revolution), then a full sweep to
 	// 359deg again, then the wrap packet back to 32deg.
 	angles := []float64{359, 32, 68, 104, 140, 176, 212, 248, 284, 320, 359, 32}
@@ -79,6 +81,8 @@ func TestDenseSerialDriverReadScan_DiscardsPartialFirstScan(t *testing.T) {
 // readDensePacket must scan forward to the next 0xA? 0x5? sync pair and
 // keep assembling the scan.
 func TestDenseSerialDriverReadScan_ResyncsAcrossCorruptPacket(t *testing.T) {
+	t.Parallel()
+
 	angles := []float64{0, 36, 72, 108, 144, 180, 216, 252, 288, 324, 0}
 
 	var buf bytes.Buffer
@@ -102,7 +106,10 @@ func TestDenseSerialDriverReadScan_ResyncsAcrossCorruptPacket(t *testing.T) {
 	// The corrupt 108deg packet's 40 cabins are dropped (resync skips it),
 	// leaving 9 valid packets x 40 cabins.
 	if want := 9 * denseCabinsPerPacket; len(scan) != want {
-		t.Errorf("readScan() returned %d points, want %d (corrupt packet dropped, rest of revolution kept)", len(scan), want)
+		t.Errorf(
+			"readScan() returned %d points, want %d (corrupt packet dropped, rest of revolution kept)",
+			len(scan), want,
+		)
 	}
 }
 
@@ -111,6 +118,8 @@ func TestDenseSerialDriverReadScan_ResyncsAcrossCorruptPacket(t *testing.T) {
 // (0deg), the FIRST scan is already a full revolution and must be returned
 // without discarding anything.
 func TestDenseSerialDriverReadScan_FullScanWhenStreamStartsAtZero(t *testing.T) {
+	t.Parallel()
+
 	// First packet S=true at 0deg, then a full sweep to 324deg, then the
 	// wrap packet back to 0deg.
 	angles := []float64{0, 36, 72, 108, 144, 180, 216, 252, 288, 324, 0}
