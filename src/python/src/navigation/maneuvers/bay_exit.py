@@ -26,6 +26,13 @@ from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
 from src.navigation.utils import _forward_clearance, clamp, wrap_angle
 
+_GUARD_SPEED_WINDOW_TICKS = 5
+"""Guard ticks the measured-coast estimate takes its max over (0.25 s at 20 Hz).
+
+Short enough to follow a leg reversal, long enough that one zero-travel sample
+-- ordinary at the standstill each leg begins with -- does not read as a
+stopped chassis and hand the guard a coast of nothing."""
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -300,6 +307,11 @@ class BayExit:
         self._leg_is_reverse = False
         self._leg_start_m: float | None = None
         self._last_travelled_m = 0.0
+        self._guard_prev_travelled_m: float | None = None
+        self._guard_recent_speeds: list[float] = []
+        """Wheel speeds the chassis ACTUALLY reached over the last few guard
+        ticks, for ``BAY_EXIT_GUARD_MEASURED_COAST``. A list rather than one
+        value because a single tick reading zero is a sample, not a stop."""
         self._leg_stall_ticks = 0
         # Moving ticks the current leg has run, bounded by BAY_EXIT_LEG_MAX_S.
         self._leg_ticks = 0
@@ -699,6 +711,15 @@ class BayExit:
             self._dead_reckon(travelled_m, wheel_norm, tuning, measured_yaw)
             return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
 
+        # ABS of the delta: ``travelled_m`` is SIGNED and a ratchet cancels it,
+        # so a forward leg and the reverse that follows sum toward zero. What
+        # the coast estimate wants is SPEED, which has no sign.
+        if self._guard_prev_travelled_m is not None:
+            moved = abs(travelled_m - self._guard_prev_travelled_m)
+            self._guard_recent_speeds.append(moved * tuning.control.CONTROL_HZ)
+            del self._guard_recent_speeds[:-_GUARD_SPEED_WINDOW_TICKS]
+        self._guard_prev_travelled_m = travelled_m
+
         self._dead_reckon(travelled_m, wheel_norm, tuning, measured_yaw)
         if self._guard_min_gap is None:
             self._guard_min_gap = self._predicted_gap(0.0, wheel_norm, tuning)
@@ -734,7 +755,24 @@ class BayExit:
         # how a manoeuvre that never predicted a touch still measured one.
         # ``BAY_EXIT_SPEED_SCALE`` is the lever on this, and it only became one
         # once the settle above stopped the slew competing with the leg.
-        coast_m = speed * RobotSpecs.SPEED_RESPONSE_TAU_S
+        # MEASURED 2026-09-10 on run_20260910_2105*: at a commanded 0.15 the
+        # wheel never stalls (0.0% against 56.1% at the shipped 0.10) but
+        # DELIVERS p50 0.027 -- 18% -- because the leg runs at |steer| 1.00,
+        # where the load is largest. Budgeting the coast from the COMMAND
+        # therefore over-reads it 5.5x (52.5 mm against a real 9.5 mm) on an
+        # along-wall budget of 31-57 mm, and the guard vetoed 39-71% of ticks:
+        # 306 and 195 reversals, zero net travel, never out of the bay. The
+        # manoeuvre is squeezed between a command too low to move the wheel and
+        # a command high enough that the guard forbids using it.
+        #
+        # `min` with the command, never `max`: this may only make the estimate
+        # SLOWER than commanded, never faster, so it cannot approve a step the
+        # command-based guard would have refused on speed the chassis actually
+        # has. `step` stays command-based and so stays conservative.
+        coast_speed = speed
+        if follower.BAY_EXIT_GUARD_MEASURED_COAST and self._guard_recent_speeds:
+            coast_speed = min(speed, max(self._guard_recent_speeds))
+        coast_m = coast_speed * RobotSpecs.SPEED_RESPONSE_TAU_S
         reach = step + math.copysign(coast_m, step)
         # The rectangle-against-fin gap at that reachable pose IS the bound. A
         # worst-case along-wall limit used to sit alongside it, taking the swept

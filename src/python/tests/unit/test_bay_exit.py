@@ -40,8 +40,20 @@ _RANGES_M = (1.0, ParkingLotSpecs.WALL_OFFSET, 0.2)
 
 
 def _guard_tuning(**changes: object):
-    """Shipped tuning with the clearance guard on, plus any per-test overrides."""
-    return tuning_with_overrides({"BAY_EXIT_CLEARANCE_GUARD": True, **changes})
+    """Shipped tuning with the clearance guard on, plus any per-test overrides.
+
+    ``BAY_EXIT_GUARD_MEASURED_COAST`` is pinned OFF rather than inherited, so
+    these tests keep describing the COMMAND-based guard whatever the shipped
+    default becomes. It is not a detail: with the measured coast on, the
+    stopping distance shrinks with delivered speed, and the trapped states two
+    of these tests construct on purpose stop being trapped -- the assertions
+    would silently start measuring a different guard. A test that pins the flag
+    it depends on says which one it is about. Override it explicitly to test the
+    other.
+    """
+    return tuning_with_overrides(
+        {"BAY_EXIT_CLEARANCE_GUARD": True, "BAY_EXIT_GUARD_MEASURED_COAST": False, **changes}
+    )
 
 
 def _true_fin_gap(along: float, out: float, yaw: float) -> float:

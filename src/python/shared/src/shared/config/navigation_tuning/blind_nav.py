@@ -864,6 +864,51 @@ class CorridorFollowerParams(BaseModel):
     maximises reversals is not the one that maximises escapes.
     """
 
+    BAY_EXIT_GUARD_MEASURED_COAST: bool = Field(
+        default=False, validation_alias=_alias("BAY_EXIT_GUARD_MEASURED_COAST")
+    )
+    """Budget the guard's stopping distance from the MEASURED wheel speed, not
+    the commanded one. INERT pending a hardware trial.
+
+    ``_guarded_command`` ends a leg when the reachable pose -- the step plus
+    ``speed * SPEED_RESPONSE_TAU_S`` of coast -- would come inside
+    ``BAY_EXIT_CLEARANCE_MARGIN_M`` of a fin. That ``speed`` is what was
+    COMMANDED, and in this manoeuvre the two diverge badly.
+
+    **Measured on hardware 2026-09-10** (`run_20260910_210503`, `_210538`, with
+    `bay_exit_speed_mps` trialled at 0.15):
+
+    | commanded | stall % | delivered p50 | coast budgeted | coast real |
+    |---|---|---|---|---|
+    | 0.10 (ships) | **56.1%** | ~0 | 35.0 mm | ~0 |
+    | 0.15 (trial) | **0.0%** | **0.027** | **52.5 mm** | **9.5 mm** |
+
+    Raising the command FIXES the deadband -- the wheel stops stalling
+    entirely -- but delivery is only 18% of it, because the leg runs at
+    ``|steer|`` 1.00 where the load is largest. So the guard budgets 52.5 mm of
+    coast against an along-wall budget of 31-57 mm for a chassis that would
+    actually coast 9.5, and vetoed **39% and 71%** of ticks: 306 and 195
+    reversals, **zero net travel, out of the bay 0/2**.
+
+    The manoeuvre is therefore squeezed from both sides -- a command too low to
+    turn the wheel at all, and a command high enough that the guard forbids
+    using it. Nothing in between exists to tune, which is why this is a code
+    change and not another value.
+
+    Takes ``min`` with the command so the estimate may only ever be SLOWER than
+    commanded; it cannot approve a step on speed the chassis does not have.
+    ``step`` stays command-based and so stays conservative. Note the estimate is
+    a max over ``_GUARD_SPEED_WINDOW_TICKS``, not an instant reading, so the
+    zero-travel standstill that opens every leg does not read as a stopped
+    chassis.
+
+    UNVERIFIED. `SPEED_RESPONSE_TAU_S` 0.35 is itself a SIM CALIBRATION
+    (fitted so the simulator matched an mcap recording), never a measured
+    drivetrain decay, and the bags still cannot check it -- 2 clean coast
+    episodes even across 500 reversals, because the command never stays at zero
+    long enough. Bench it.
+    """
+
     BAY_EXIT_GUARD_OVERLAP_RECOVERY: bool = Field(
         default=True, validation_alias=_alias("BAY_EXIT_GUARD_OVERLAP_RECOVERY")
     )

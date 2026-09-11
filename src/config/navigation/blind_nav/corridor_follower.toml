@@ -384,6 +384,13 @@ bay_exit_target_yaw_deg = 70.0
 # Cap the free-turn check of each exit leg by the longest measured
 # leave-the-bay leg (s); 0 = unbounded.
 bay_exit_leg_max_s = 0.5
+# Budget the guard's stopping distance from the MEASURED wheel speed instead of
+# the commanded one. INERT pending a hardware trial. Measured 2026-09-10: at a
+# commanded 0.15 the wheel never stalls (0.0% vs 56.1% at the shipped 0.10) but
+# DELIVERS 0.027, so the guard budgets 52.5 mm of coast for a real 9.5 and
+# vetoed 39-71% of ticks -- 306 and 195 reversals, zero net travel, 0/2 out of
+# the bay. See BAY_EXIT_GUARD_MEASURED_COAST for the table.
+bay_exit_guard_measured_coast = false
 # Mirror the bay-exit dead reckoning: compare guarded and mirrored-reverse
 # exits tick by tick on the post-0.29 m-radius model. Verdict:
 # BAY_EXIT_GUARD_MIRRORS_REVERSE. Inert until wired to a consumer.
