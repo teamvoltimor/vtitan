@@ -23,7 +23,8 @@ const (
 	RobotChassisMass      = 1.3                // kg, body alone
 	RobotWheelMass        = 0.05               // kg per wheel
 
-	// Drive motor limits. Hard ceilings the kinematics clamp to, not tuning.
+	// RobotMaxSpeedMPS and the motor limits below are hard ceilings the
+	// kinematics clamp to, not tuning.
 	RobotMaxSpeedMPS    = 0.156
 	RobotMaxAccelMPS2   = 2.0
 	RobotRearSteerRatio = 1.0 // 1.0 = counter-phase four-wheel steering
@@ -46,10 +47,11 @@ const (
 	// RobotLidarInverted's 180deg -- added on top of it, not a replacement.
 	RobotLidarMountYawOffsetDeg = 0.0
 
-	// IMU mounted near the chassis floor.
+	// RobotImuMountZOffset mounts the IMU near the chassis floor.
 	RobotImuMountZOffset = 0.01
 
-	// Camera mounted directly over the LIDAR, tilted down.
+	// RobotCameraMountXOffset mounts the camera directly over the LIDAR,
+	// tilted down.
 	RobotCameraMountXOffset = 0.1222
 	RobotCameraMountZOffset = 0.20
 	RobotCameraPitchRad     = 0.1745 // ~10°, tilted down

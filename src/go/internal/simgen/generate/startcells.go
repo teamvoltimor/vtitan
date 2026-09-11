@@ -26,8 +26,8 @@ const bandFitEpsilon = 1e-9
 // inward and, within a band, along the travel axis — so index 0 is always the
 // cell hard against the outer wall.
 //
-// Each side of the mat carries a marked square, a metre along the corridor by
-// a metre across, split into simconfig.StartingZoneBandWidths out from the
+// Each side of the mat carries a marked square, a meter along the corridor by
+// a meter across, split into simconfig.StartingZoneBandWidths out from the
 // outer wall, each band into two cells of simconfig.StartingZoneDefaultLength.
 // A band is a legal start only while it lies inside the corridor; past the
 // corridor's inner edge the band is under the centre square. So a narrow
@@ -41,7 +41,7 @@ const bandFitEpsilon = 1e-9
 // the 0.20 m chassis spans 0.32 to 0.52, sitting in two bands at once.
 func StartCells(section simconfig.Section, corridorWidth float64) []StartCell {
 	trackMax := simconfig.TrackMaxCoord
-	// The square occupies the middle metre of the side, leaving a metre of
+	// The square occupies the middle meter of the side, leaving a meter of
 	// corner region at each end; the two cells sit either side of the midpoint.
 	alongs := [2]float64{simconfig.GridLengthSectionLeft, simconfig.GridLengthSectionRight}
 

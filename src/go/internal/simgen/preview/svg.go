@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
@@ -370,7 +371,7 @@ func drawLabelBar(b *strings.Builder, meta generate.Metadata) {
 
 	seed := "random"
 	if meta.Seed != nil {
-		seed = fmt.Sprintf("%d", *meta.Seed)
+		seed = strconv.FormatInt(*meta.Seed, 10)
 	}
 	label := fmt.Sprintf(
 		"#%04d  %s  %d signs  parking=%v  seed=%s  dir=%s (%s)",

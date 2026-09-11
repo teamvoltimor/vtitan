@@ -37,6 +37,16 @@ type imuNoiseSpec struct {
 	noise float64
 }
 
+const (
+	// inertiaOneTwelfth is the 1/12 factor shared by the solid-cuboid and
+	// cylinder moment-of-inertia formulas.
+	inertiaOneTwelfth = 1.0 / 12.0
+	// inertiaOneHalf is the 1/2 factor in a cylinder's axial inertia.
+	inertiaOneHalf = 0.5
+	// roundTo4Scale is the 10^4 scale used to round a value to four decimals.
+	roundTo4Scale = 10000.0
+)
+
 var (
 	// wheelRollPose is the 6-DOF pose that rotates a cylinder 90° around X to align
 	// its axis with Y (the wheel roll axis in Gazebo).
@@ -65,9 +75,9 @@ func buildChassis(robot *Node) {
 	halfH := simconfig.RobotHeight / 2
 	cm := simconfig.RobotChassisMass
 	// Box inertia tensor (uniform density).
-	ixx := (1.0 / 12) * cm * (sq(simconfig.RobotWidth) + sq(simconfig.RobotHeight))
-	iyy := (1.0 / 12) * cm * (sq(simconfig.RobotLength) + sq(simconfig.RobotHeight))
-	izz := (1.0 / 12) * cm * (sq(simconfig.RobotLength) + sq(simconfig.RobotWidth))
+	ixx := inertiaOneTwelfth * cm * (sq(simconfig.RobotWidth) + sq(simconfig.RobotHeight))
+	iyy := inertiaOneTwelfth * cm * (sq(simconfig.RobotLength) + sq(simconfig.RobotHeight))
+	izz := inertiaOneTwelfth * cm * (sq(simconfig.RobotLength) + sq(simconfig.RobotWidth))
 
 	base := robot.Sub("link", "name", simconfig.RobotBaseFrameID)
 
@@ -135,8 +145,8 @@ func buildWheelLink(parent *Node, name, poseText string) {
 	wm := simconfig.RobotWheelMass
 
 	// Cylinder inertia (solid, roll axis = Y after wheelRollPose rotation).
-	wheelIxx := (1.0 / 12) * wm * (3*sq(r) + sq(w))
-	wheelIyy := 0.5 * wm * sq(r)
+	wheelIxx := inertiaOneTwelfth * wm * (3*sq(r) + sq(w))
+	wheelIyy := inertiaOneHalf * wm * sq(r)
 
 	// Stripe geometry scales linearly with wheel radius from reference values.
 	stripeOffset := roundTo4(r * simconfig.StripeOffsetFactor)
@@ -458,5 +468,5 @@ func sq(x float64) float64 {
 
 // roundTo4 rounds to 4 decimal places (matches Python's round(..., 4)).
 func roundTo4(x float64) float64 {
-	return math.Round(x*10000) / 10000
+	return math.Round(x*roundTo4Scale) / roundTo4Scale
 }

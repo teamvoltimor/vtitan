@@ -112,7 +112,7 @@ func TestSpawnOffsetsHugTheChosenEdge(t *testing.T) {
 
 // TestSpawnOffsetsFollowTheChassis pins that the placement is derived, not
 // declared: a re-measured chassis moves the offsets by itself. The middle band
-// is only millimetres wider than the robot, so a hardcoded offset would quietly
+// is only millimeters wider than the robot, so a hardcoded offset would quietly
 // stop meaning "flush against the edge".
 func TestSpawnOffsetsFollowTheChassis(t *testing.T) {
 	t.Parallel()

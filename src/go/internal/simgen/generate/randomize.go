@@ -21,6 +21,10 @@ type Randomizer struct {
 	rng *rand.Rand
 }
 
+// secondBlockFlipThreshold splits the middle-depth choice for the second
+// parking block evenly between the near and far side.
+const secondBlockFlipThreshold = 0.5
+
 func NewRandomizer(rng *rand.Rand) *Randomizer {
 	return &Randomizer{rng: rng}
 }
@@ -47,7 +51,7 @@ func (r *Randomizer) RandomizeLighting() simconfig.LightingConfig {
 // RandomizeCorridorWidths assigns each corridor randomly as narrow or wide
 // (Open challenge). Obstacles widths are always fixed — use fixedCorridorWidths().
 func (r *Randomizer) RandomizeCorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
-	result := make(map[simconfig.Section]simconfig.CorridorWidth, 4)
+	result := make(map[simconfig.Section]simconfig.CorridorWidth, len(simconfig.AllSections))
 	types := []string{simconfig.WidthTypeNarrow, simconfig.WidthTypeWide}
 	widths := map[string]float64{
 		simconfig.WidthTypeNarrow: simconfig.CorridorNarrow,
@@ -62,7 +66,7 @@ func (r *Randomizer) RandomizeCorridorWidths() map[simconfig.Section]simconfig.C
 
 // FixedCorridorWidths returns 1.0 m corridors for all sections (obstacles challenge).
 func FixedCorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
-	result := make(map[simconfig.Section]simconfig.CorridorWidth, 4)
+	result := make(map[simconfig.Section]simconfig.CorridorWidth, len(simconfig.AllSections))
 	for _, s := range simconfig.AllSections {
 		result[s] = simconfig.CorridorWidth{Type: simconfig.WidthTypeFixed, Width: simconfig.CorridorObstacles}
 	}
@@ -226,7 +230,7 @@ func (r *Randomizer) computeSecondBlockDepth(depth, spacing float64) float64 {
 	if depth == far {
 		return depth - spacing
 	}
-	if r.rng.Float64() < 0.5 {
+	if r.rng.Float64() < secondBlockFlipThreshold {
 		return depth + spacing
 	}
 	return depth - spacing

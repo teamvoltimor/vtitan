@@ -50,7 +50,7 @@ func (f *FullRandomization) StartingConditions(
 }
 
 func (DeterministicDefaults) CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
-	result := make(map[simconfig.Section]simconfig.CorridorWidth, 4)
+	result := make(map[simconfig.Section]simconfig.CorridorWidth, len(simconfig.AllSections))
 	for _, s := range simconfig.AllSections {
 		result[s] = simconfig.CorridorWidth{Type: simconfig.WidthTypeWide, Width: simconfig.CorridorWide}
 	}

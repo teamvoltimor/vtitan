@@ -20,6 +20,7 @@
 package trackconfig
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -28,8 +29,8 @@ import (
 )
 
 type (
-	// Config is the parsed contents of track.toml. All lengths are metres,
-	// colours are normalized RGB triples.
+	// Config is the parsed contents of track.toml. All lengths are meters,
+	// colors are normalized RGB triples.
 	Config struct {
 		Track        Track        `toml:"track"`
 		Wall         Wall         `toml:"wall"`
@@ -73,7 +74,7 @@ type (
 		DivisionLines []decimal.Decimal `toml:"division_lines"`
 	}
 
-	// Sign holds the traffic pillar dimensions, grid rows and colours.
+	// Sign holds the traffic pillar dimensions, grid rows and colors.
 	Sign struct {
 		RedColor                RGB             `toml:"red_color"`
 		GreenColor              RGB             `toml:"green_color"`
@@ -151,7 +152,7 @@ func (c Corridor) BandWidths() []decimal.Decimal {
 }
 
 // CellCentersAlong returns the along-corridor midpoints of the two cells in
-// each band: the starting square occupies the middle metre of a side, so the
+// each band: the starting square occupies the middle meter of a side, so the
 // cells sit half a cell either side of the track centre.
 func (c Config) CellCentersAlong() (left, right decimal.Decimal) {
 	half := c.StartingZone.DefaultLength.Div(two)
@@ -164,7 +165,7 @@ func (c Config) CellCentersAlong() (left, right decimal.Decimal) {
 // named in spawn_alignment.
 //
 // Deriving rather than declaring is what keeps the placement correct across a
-// re-measurement of the chassis: the middle band is only a few millimetres
+// re-measurement of the chassis: the middle band is only a few millimeters
 // wider than the robot, so a hardcoded offset silently stops meaning "flush"
 // the moment the width changes.
 func (c Config) SpawnOffsets(robotWidth decimal.Decimal) ([]decimal.Decimal, error) {
@@ -211,7 +212,7 @@ func (c Config) SpawnOffsets(robotWidth decimal.Decimal) ([]decimal.Decimal, err
 // genuinely fits, not because it fell inside an epsilon.
 func (c Config) Validate(robotWidth decimal.Decimal) error {
 	if len(c.Corridor.DivisionLines) == 0 {
-		return fmt.Errorf("corridor.division_lines is empty")
+		return errors.New("corridor.division_lines is empty")
 	}
 	prev := decimal.Zero
 	for i, line := range c.Corridor.DivisionLines {

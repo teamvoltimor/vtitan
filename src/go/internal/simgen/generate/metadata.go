@@ -66,7 +66,7 @@ func BuildMetadata(
 	parking *simconfig.ParkingConfig,
 	seed *int64,
 ) Metadata {
-	cwMeta := make(map[string]WidthMeta, 4)
+	cwMeta := make(map[string]WidthMeta, len(simconfig.AllSections))
 	for _, section := range simconfig.AllSections {
 		w := corridorWidths[section]
 		cwMeta[string(section)] = WidthMeta{

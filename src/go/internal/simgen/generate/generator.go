@@ -18,6 +18,7 @@ import (
 type ScenarioGenerator struct {
 	randomizer    *Randomizer
 	strategy      Strategy
+	logger        *slog.Logger
 	seed          *int64
 	challengeType simconfig.ScenarioType
 	outputDir     string
@@ -54,6 +55,7 @@ func NewScenarioGenerator(
 		seed:          seed,
 		randomizer:    r,
 		strategy:      strategy,
+		logger:        slog.New(slog.NewTextHandler(os.Stderr, nil)),
 	}, nil
 }
 
@@ -70,7 +72,7 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 		signs   []simconfig.Sign
 		parking *simconfig.ParkingConfig
 	)
-	for attempt := 0; attempt < simconfig.MaxScenarioRetries; attempt++ {
+	for attempt := range simconfig.MaxScenarioRetries {
 		sc = g.strategy.StartingConditions(corridorWidths)
 		signs, parking = g.resolveObstacles(corridorWidths, sc.Section)
 
@@ -122,7 +124,7 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 				msgs,
 			)
 		}
-		slog.Warn("scenario geometry invalid, retrying",
+		g.logger.Warn("scenario geometry invalid, retrying",
 			"attempt", attempt+1,
 			"max", simconfig.MaxScenarioRetries,
 			"violations", violations,

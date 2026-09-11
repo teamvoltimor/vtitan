@@ -176,7 +176,7 @@ func addStartingZonePlaceholder(world *Node) {
 	model := world.Sub("model", "name", simconfig.ModelStartingZonePlaceholder)
 	model.SubT("static", "true")
 	model.SubT("pose", pose6(
-		simconfig.TrackCenterCoord, 0.5, simconfig.ZStartingZoneBase, 0, 0, 0,
+		simconfig.TrackCenterCoord, simconfig.TrackCornerMin/2, simconfig.ZStartingZoneBase, 0, 0, 0,
 	))
 	sizeStr := vec3(simconfig.StartingZoneDefaultLength, simconfig.StartingZoneWidth, simconfig.StartingZoneThickness)
 	vis := model.Sub("link", "name", "link").Sub("visual", "name", "visual")

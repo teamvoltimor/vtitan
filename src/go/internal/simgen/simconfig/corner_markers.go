@@ -14,14 +14,31 @@ type CornerMarker struct {
 	YawRad float64 // rotation about Z, radians
 }
 
+const (
+	// markerInsetHalf and markerInsetDiag are the two distances a marker
+	// centre sits in from the nearest track edge (0.50 m and approximately
+	// 0.50*sqrt(2) m). The far variants are their complements measured from
+	// TrackMaxCoord, where each corner's twin pair sits.
+	markerInsetHalf = 0.50
+	markerInsetDiag = 0.71
+	markerFarHalf   = TrackMaxCoord - markerInsetHalf
+	markerFarDiag   = TrackMaxCoord - markerInsetDiag
+
+	// Corner marker yaw angles, in 30 degree increments.
+	cornerYaw30  = math.Pi / 6
+	cornerYaw60  = 2 * math.Pi / 6
+	cornerYaw120 = 4 * math.Pi / 6
+	cornerYaw150 = 5 * math.Pi / 6
+)
+
 // CornerMarkers is the shared geometry table, ordered NE, SE, SW, NW.
 var CornerMarkers = []CornerMarker{
-	{Name: ModelCornerNEBlue, Blue: true, CX: 2.50, CY: 2.29, YawRad: 1 * math.Pi / 6},
-	{Name: ModelCornerNEOrange, Blue: false, CX: 2.29, CY: 2.50, YawRad: 2 * math.Pi / 6},
-	{Name: ModelCornerSEOrange, Blue: false, CX: 2.50, CY: 0.71, YawRad: -1 * math.Pi / 6},
-	{Name: ModelCornerSEBlue, Blue: true, CX: 2.29, CY: 0.50, YawRad: -2 * math.Pi / 6},
-	{Name: ModelCornerSWBlue, Blue: true, CX: 0.50, CY: 0.71, YawRad: -5 * math.Pi / 6},
-	{Name: ModelCornerSWOrange, Blue: false, CX: 0.71, CY: 0.50, YawRad: -4 * math.Pi / 6},
-	{Name: ModelCornerNWOrange, Blue: false, CX: 0.50, CY: 2.29, YawRad: 5 * math.Pi / 6},
-	{Name: ModelCornerNWBlue, Blue: true, CX: 0.71, CY: 2.50, YawRad: 4 * math.Pi / 6},
+	{Name: ModelCornerNEBlue, Blue: true, CX: markerFarHalf, CY: markerFarDiag, YawRad: cornerYaw30},
+	{Name: ModelCornerNEOrange, Blue: false, CX: markerFarDiag, CY: markerFarHalf, YawRad: cornerYaw60},
+	{Name: ModelCornerSEOrange, Blue: false, CX: markerFarHalf, CY: markerInsetDiag, YawRad: -cornerYaw30},
+	{Name: ModelCornerSEBlue, Blue: true, CX: markerFarDiag, CY: markerInsetHalf, YawRad: -cornerYaw60},
+	{Name: ModelCornerSWBlue, Blue: true, CX: markerInsetHalf, CY: markerInsetDiag, YawRad: -cornerYaw150},
+	{Name: ModelCornerSWOrange, Blue: false, CX: markerInsetDiag, CY: markerInsetHalf, YawRad: -cornerYaw120},
+	{Name: ModelCornerNWOrange, Blue: false, CX: markerInsetHalf, CY: markerFarDiag, YawRad: cornerYaw150},
+	{Name: ModelCornerNWBlue, Blue: true, CX: markerInsetDiag, CY: markerFarHalf, YawRad: cornerYaw120},
 }
