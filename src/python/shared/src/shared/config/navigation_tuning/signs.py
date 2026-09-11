@@ -985,6 +985,35 @@ class SignDiscoveryParams(BaseModel):
     estimate.
     """
 
+    MAX_SIGNS_PER_SECTION: int = Field(default=0, ge=0, validation_alias=_alias("MAX_SIGNS_PER_SECTION"))
+    """Refuse to publish a sign into a section that already holds this many.
+
+    The rulebook allows at most TWO pillars per section, and eight on the
+    track. The map does not know that. Measured 2026-09-11 on the two hardware
+    rounds that completed 3/3 laps, believed pillars per section:
+
+        run_131459   east 8   west 7   north 5   south 3
+        run_132017   south 12  west 5   north 4   east 1
+
+    Eight and twelve where two are possible. This is the same quantity
+    ``SNAP_TO_LATTICE_M`` was aimed at and missed -- it quantised the
+    POSITION and left the COUNT alone, so two fragments of one pillar could
+    land on two different legal points and the lattice legitimised both
+    (peak belief 26 -> 40 on the 78-bag corpus).
+
+    A cap needs no opinion about which tracks are duplicates, which is the
+    question the two dedup variants in ``newly_confirmed`` failed on. It is
+    also monotone: a track is only ever WITHHELD, never unpublished, so a
+    converged sign cannot be pulled out from under the router mid-run.
+
+    THE RISK IT SHIPS OFF TO MEASURE: an early phantom that publishes first
+    holds a slot the real pillar then cannot have. That is dedup variant 1's
+    failure mode (209/256 collisions against a 202 baseline) arriving by a
+    different road, and the corpus is what will say whether it does.
+
+    0 disables. The rulebook value is 2.
+    """
+
     COLOUR_POOL_RADIUS_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("COLOUR_POOL_RADIUS_M"))
     """Radius over which a track's colour vote pools its NEIGHBOURS' votes.
 

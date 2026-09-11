@@ -97,4 +97,14 @@ snap_to_lattice_m = 0.0
 lidar_range_fusion_cluster = true
 lidar_range_fusion_agreement = 0.5
 
+# Refuse to publish a sign into a section already holding this many. The
+# rulebook allows TWO per section and eight on the track; the map believed 8,
+# 7, 12 and 5 per section on the 2026-09-11 hardware rounds. Unlike
+# snap_to_lattice_m above, which quantised the POSITION and left the COUNT
+# alone, a cap needs no opinion about which tracks are duplicates. SHIPS OFF
+# (0): the risk is that an early phantom holds a slot the real pillar then
+# cannot have, which is the failure mode of an earlier dedup attempt. The
+# rulebook value is 2.
+max_signs_per_section = 0
+
 colour_pool_radius_m = 0.0   # pool colour votes across fragments of one pillar within this radius (0 = off)

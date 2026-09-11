@@ -566,6 +566,7 @@ class ObservedSignMap:
         self._min_hits = min_hits if min_hits is not None else sd.MIN_HITS
         self._snap_m = sd.SNAP_TO_LATTICE_M
         self._colour_pool_m = sd.COLOUR_POOL_RADIUS_M
+        self._max_per_section = sd.MAX_SIGNS_PER_SECTION
         self._robot_corridor_flip_ticks = (
             robot_corridor_flip_ticks if robot_corridor_flip_ticks is not None else sd.ROBOT_CORRIDOR_FLIP_TICKS
         )
@@ -774,6 +775,34 @@ class ObservedSignMap:
                 best = track
         return best
 
+    def _section_publication_cap(self) -> dict[Section, int] | None:
+        """Published tracks per section, or None when the cap is disabled.
+
+        Counted over ALREADY-PUBLISHED tracks only. Counting candidates too
+        would make the outcome depend on the order a single tick's confirmations
+        happen to be iterated in, which is not a property of the track.
+        """
+        if self._max_per_section <= 0:
+            return None
+        # Keyed on the SIGN'S OWN position, not on ``track.corridor``, which is
+        # the ROBOT's corridor at detection time. The rulebook constrains where
+        # a pillar may STAND, so counting by the observer's label answers a
+        # different question -- and a wrong one: the robot's corridor flips
+        # 37-39 times in a three-lap run, so one physical section accumulates
+        # several labels and the cap withholds legitimate signs while the
+        # over-full section stays over-full. Measured as exactly that churn on
+        # the 16-scenario sim battery, where the map is EXACT and the cap
+        # should therefore have been a byte-identical no-op: it fixed 7 and
+        # broke 6 instead.
+        counts: dict[Section, int] = {}
+        for track in self._tracks:
+            if track.published_index is None:
+                continue
+            section = corridor_for_position(track.x, track.y)
+            if section is not None:
+                counts[section] = counts.get(section, 0) + 1
+        return counts
+
     def newly_confirmed(self) -> list[_SignTrack]:
         """Tracks that have crossed ``self._min_hits`` and are not yet published.
 
@@ -825,9 +854,32 @@ class ObservedSignMap:
         pass side, whose every routing decision would then decline. Holding it
         back until the camera votes keeps the router's world exactly as it was
         while still letting the proposal refine the position in the meantime.
+
+        THE CARDINALITY CAP IS DIFFERENT IN KIND from those two, which is why
+        it is tried at all after that warning. Both were position matches --
+        "is this track the same object as that one" -- and both failed on
+        exactly the question position cannot answer. This asks nothing about
+        identity. The rulebook allows at most ``MAX_SIGNS_PER_SECTION`` pillars
+        in a section, so a section holding more is wrong whatever the reason,
+        and the cap needs no opinion about WHICH of them are duplicates.
+
+        It is also monotone where those were not: a track is only ever
+        withheld from publication, never unpublished, so a converged sign
+        cannot be yanked out from under the router mid-run -- the disruption
+        that made variant 2 worse than variant 1. The cost is the mirror
+        image: an early phantom that publishes first holds a slot the real
+        pillar then cannot have, which is variant 1's failure mode arriving by
+        a different road. That is the risk this ships OFF to measure.
         """
+        capped = self._section_publication_cap()
         return [
-            t for t in self._tracks if t.published_index is None and t.hits >= self._min_hits and t.votes
+            t
+            for t in self._tracks
+            if t.published_index is None and t.hits >= self._min_hits and t.votes
+            and (
+                capped is None
+                or capped.get(corridor_for_position(t.x, t.y), 0) < self._max_per_section
+            )
         ]
 
     def published(self) -> list[_SignTrack]:

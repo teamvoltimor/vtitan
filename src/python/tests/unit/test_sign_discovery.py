@@ -21,12 +21,14 @@ from dataclasses import replace
 import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Section
 from shared.domain.models import Detection, Pose, SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import tuning_with_overrides
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
+    _SignTrack,
     _detection_to_world,
     detection_to_observation,
     lattice_cell,
@@ -636,6 +638,80 @@ class TestClusteredLidarRangeFusion:
         shipped = NavigationTuning.load_default().sign_discovery
         assert shipped.LIDAR_RANGE_FUSION is True
         assert shipped.LIDAR_RANGE_FUSION_CLUSTER is True
+
+
+class TestPerSectionCap:
+    """The rulebook allows two pillars per section. The map believed up to twelve.
+
+    Measured on the 2026-09-11 hardware rounds that completed 3/3 laps: east 8
+    and west 7 on one, south 12 on the other. This is the same quantity
+    SNAP_TO_LATTICE_M aimed at and missed -- it quantised the POSITION and left
+    the COUNT alone, so two fragments of one pillar could land on two different
+    legal points and the lattice legitimised both.
+    """
+
+    def test_it_ships_off(self):
+        """Off because the risk is real, not because the idea is doubted.
+
+        An early phantom that publishes first holds a slot the real pillar then
+        cannot have -- dedup variant 1's measured failure (209/256 collisions
+        against a 202 baseline) arriving by a different road. The corpus
+        decides, not this test.
+        """
+        assert NavigationTuning.load_default().sign_discovery.MAX_SIGNS_PER_SECTION == 0
+
+    def test_the_cap_withholds_the_third_sign_in_a_section(self):
+        tuning = tuning_with_overrides({"MAX_SIGNS_PER_SECTION": 2, "MIN_HITS": 1}, group="sign_discovery")
+        sign_map = ObservedSignMap(0.0, tuning=tuning)
+        published = []
+        for i in range(3):
+            track = _SignTrack(
+                x=1.0 + 0.4 * i, y=0.4, corridor=Section.SOUTH, hits=5, best_range=1.0,
+                votes={SignColor.RED: 1.0},
+            )
+            sign_map._tracks.append(track)  # noqa: SLF001
+            for confirmed in sign_map.newly_confirmed():
+                confirmed.published_index = len(published)
+                published.append(confirmed)
+
+        assert len(published) == 2, "a section may hold two; the third must be withheld"
+
+    def test_a_different_section_is_unaffected(self):
+        """The cap is per section, so a full SOUTH must not starve WEST.
+
+        Worth pinning separately: a cap written against a global count would
+        pass the test above and silently cost the other three quarters of the
+        track its signs.
+        """
+        tuning = tuning_with_overrides({"MAX_SIGNS_PER_SECTION": 1, "MIN_HITS": 1}, group="sign_discovery")
+        sign_map = ObservedSignMap(0.0, tuning=tuning)
+        published = []
+        # Real POSITIONS, not corridor labels: the cap keys on where the pillar
+        # stands, because that is what the rulebook constrains. Two on the
+        # south line, one on the west.
+        for x, y in ((1.0, 0.4), (2.0, 0.4), (0.4, 1.5)):
+            track = _SignTrack(
+                x=x, y=y, corridor=Section.SOUTH, hits=5, votes={SignColor.RED: 1.0}, best_range=1.0
+            )
+            sign_map._tracks.append(track)  # noqa: SLF001
+            for confirmed in sign_map.newly_confirmed():
+                confirmed.published_index = len(published)
+                published.append(confirmed)
+
+        assert [(t.x, t.y) for t in published] == [(1.0, 0.4), (0.4, 1.5)], (
+            "the second SOUTH pillar is withheld; the WEST one is not"
+        )
+
+    def test_zero_is_an_exact_no_op(self):
+        """The off-switch every earlier measurement is read against."""
+        tuning = tuning_with_overrides({"MAX_SIGNS_PER_SECTION": 0, "MIN_HITS": 1}, group="sign_discovery")
+        sign_map = ObservedSignMap(0.0, tuning=tuning)
+        for i in range(4):
+            sign_map._tracks.append(  # noqa: SLF001
+                _SignTrack(x=1.0 + 0.3 * i, y=0.4, corridor=Section.SOUTH, hits=5, best_range=1.0,
+                           votes={SignColor.RED: 1.0})
+            )
+        assert len(sign_map.newly_confirmed()) == 4
 
 
 class TestLatticeSnap:
