@@ -259,6 +259,54 @@ class EscapeRecovery:
         # first post-maneuver command against a stale pre-maneuver angle.
         self._waypoint_controller.reset()
 
+    def _side_correction_blends(self) -> bool:
+        """Whether the latched manoeuvre should BIAS the plan rather than replace it.
+
+        Only a FORWARD side correction qualifies. A k-turn or a stuck reverse is
+        a real manoeuvre that needs the chassis to itself, and a side correction
+        that has switched to reverse (``already_touching``) is one too -- the
+        planner has no model for backing off a wall it is already against.
+
+        MEASURED 2026-09-11 on the two Obstacles rounds that wedged: while a
+        manoeuvre was latched it supplied 100% of the commanded steering and
+        ``steer_target`` went unpublished on 92-93% of those ticks, because the
+        navigator returns before the planner runs. Outside them the commanded
+        steering agreed with the router's own lateral request on 98-100% of
+        ticks. So the planner is not wrong and the correction is not wrong --
+        they simply never run together, and alternate at 2.7-4.4x absolute over
+        signed wheel travel. `side_correction` dominates those windows 184 and
+        198 ticks against the k-turn's 22.
+
+        Ships OFF. Adding two steering signals can saturate the wheel or
+        produce a curvature neither layer asked for, which is exactly the kind
+        of thing a corpus has to rule out.
+        """
+        maneuver = self._active_maneuver
+        return (
+            maneuver is not None
+            and self._escape.SIDE_CORRECTION_BLENDS
+            and maneuver.maneuver_type is ManeuverType.SIDE_CORRECTION
+            and maneuver.speed >= 0.0
+        )
+
+    def _take_side_correction_bias(self) -> tuple[float, float] | None:
+        """Consume one tick of a blending side correction: (steering, speed).
+
+        Counts the latch down here because ``_drive_active_maneuver`` -- which
+        normally owns that countdown -- is deliberately not reached on this
+        path. Without it the correction would latch forever and bias every
+        subsequent tick.
+        """
+        if not self._side_correction_blends():
+            return None
+        maneuver = self._active_maneuver
+        assert maneuver is not None  # noqa: S101 - narrowed by _side_correction_blends
+        self._maneuver_frames_left -= 1
+        if self._maneuver_frames_left <= 0:
+            self._active_maneuver = None
+            self._retracing = False
+        return maneuver.steering, maneuver.speed
+
     def _drive_active_maneuver(
         self,
         robot_x: float,

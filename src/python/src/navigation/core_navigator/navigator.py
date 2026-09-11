@@ -874,7 +874,7 @@ class CoreNavigator(EscapeRecovery):
         # Continue an in-progress escape maneuver until its latched duration
         # elapses, so escapes are real motions rather than single-tick pulses that
         # never clear the wall.
-        if self._active_maneuver is not None:
+        if self._active_maneuver is not None and not self._side_correction_blends():
             self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ACTIVE_MANEUVER)
             return
 
@@ -1701,6 +1701,20 @@ class CoreNavigator(EscapeRecovery):
             # Centred while backing off: a steered reverse swings the tail into
             # ground the chassis has not seen, and the leg exists to buy room.
             steering_normalized = 0.0
+        bias = self._take_side_correction_bias()
+        if bias is not None:
+            # ADDED to the plan, not substituted for it. A side correction is a
+            # 16.5 deg nudge lasting 0.20 s, not a manoeuvre that needs the
+            # chassis to itself, and substituting discards the router's
+            # deformation for the duration -- measured 2026-09-11, a latched
+            # manoeuvre supplied 100% of the commanded steering while
+            # steer_target went unpublished on 92-93% of its ticks, so the two
+            # layers alternated and undid each other at 2.7-4.4x absolute over
+            # signed wheel travel.
+            steering_normalized = max(-1.0, min(1.0, steering_normalized + bias[0]))
+            # The SLOWER of the two: the correction's speed exists to buy
+            # reaction time near a threat, and taking the plan's would spend it.
+            speed = min(speed, bias[1])
         self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))
         debug.phase = NavigatorPhase.NORMAL_DRIVE
         debug.commanded_speed_mps = speed

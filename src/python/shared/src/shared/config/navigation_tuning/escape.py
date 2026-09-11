@@ -117,6 +117,60 @@ class EscapeManeuverParams(BaseModel):
     """
 
 
+    SIDE_CORRECTION_BLENDS: bool = Field(
+        default=False, validation_alias=_alias("SIDE_CORRECTION_BLENDS")
+    )
+    """Let a forward side correction BIAS the planned steering instead of replacing it.
+
+    A latched manoeuvre makes the navigator return before the planner runs, so
+    for its whole duration the router's deformation is not merely overridden --
+    it is never computed. MEASURED 2026-09-11 on the two Obstacles rounds that
+    wedged at one point, and again on the two that completed 3/3 laps but ran
+    244 s and 303 s against a 180 s limit:
+
+    | | in a manoeuvre | outside one |
+    |---|---|---|
+    | commanded steering IS the manoeuvre's | 100% | -- |
+    | ``steer_target`` published | 7-8% | 98-99% |
+    | steering agrees with the router's request | not computable | 98-100% |
+
+    So neither layer is wrong. The planner steers correctly whenever it runs,
+    and the correction is a reasonable reflex; they simply never run together,
+    and alternate at 2.7-4.4x absolute-over-signed wheel travel while the
+    chassis goes nowhere. ``side_correction`` dominates those windows at 184
+    and 198 ticks against the k-turn's 22.
+
+    SCOPED TO THE FORWARD CORRECTION ONLY. A k-turn or a stuck reverse is a
+    real manoeuvre that needs the chassis to itself, and a side correction that
+    has switched to reverse because it is already touching is one too -- the
+    planner has no model for backing off a wall it is against. What qualifies
+    is the 16.5 deg, 0.20 s nudge at 0.1 m/s, which never needed to own a tick.
+
+    REFUTED, and kept only as the record of why. The scoping above is exactly
+    what makes it inert: the forward nudge it qualifies is a rounding error in
+    the population it was built for. Ticks running a ``side_correction``, split
+    by the branch that produced them:
+
+    | run | forward | already touching (reverse) |
+    |---|---|---|
+    | run_20260911_131459 | 44 (0.8%) | 550 (10.2%) |
+    | run_20260911_132017 | 12 (0.3%) | 572 (13.1%) |
+    | run_20260911_110404 | 0 (0.0%) | 143 (21.1%) |
+    | run_20260911_110734 | 0 (0.0%) | 88 (16.8%) |
+
+    Practically every side correction on hardware is the ``already_touching``
+    reverse, which this deliberately excludes. So the flag changes 0.0-0.8% of
+    driving ticks and cannot move the alternation it was written for.
+
+    Widening it to cover the reverse branch is NOT the obvious next step: the
+    planner genuinely has no model for backing off something the chassis is
+    already against. The measurement it points at instead is WHY the robot is in
+    contact 10-21% of the time at all, which is upstream of every manoeuvre.
+
+    Ships FALSE for the original reason too: summing two steering signals can
+    saturate the wheel or produce a curvature neither layer asked for.
+    """
+
     REV_STEER_DEG: float = Field(
         default=44.0, validation_alias=_alias("REV_STEER_DEG")
     )  # Road-wheel angle while reversing

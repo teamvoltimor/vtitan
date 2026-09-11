@@ -62,6 +62,21 @@ stuck_timeout_s = 2.0         # Time without movement before "stuck"
 side_correction_steer_deg = 16.5
 side_correction_speed = 0.1   # Forward speed during a side-threat correction
 side_correction_s = 0.20      # Duration of a side-threat correction
+# Let a FORWARD side correction bias the planned steering instead of replacing
+# it. A latched manoeuvre makes the navigator return before the planner runs,
+# so the router's deformation is not merely overridden, it is never computed:
+# measured 2026-09-11, the manoeuvre supplied 100% of the commanded steering
+# while steer_target went unpublished on 92-93% of those ticks, and the two
+# layers alternated at 2.7-4.4x absolute-over-signed wheel travel.
+# side_correction dominates those windows 184/198 ticks against the k-turn's 22.
+# Scoped to the forward nudge: a k-turn, a stuck reverse, or a side correction
+# already reversing off a wall all still own the chassis outright. SHIPS OFF --
+# summing two steering signals can saturate the wheel. REFUTED and left off:
+# the scoping is what makes it inert -- practically every side correction on
+# hardware is the already-touching REVERSE branch, which this excludes. The
+# forward nudge it qualifies is 44/12/0/0 ticks (0.8/0.3/0.0/0.0%) against
+# 550/572/143/88 reversing, over the four 2026-09-11 Obstacles rounds.
+side_correction_blends = false
 escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
 escape_side_commit_attempts = 2  # Attempts spent on one side before trying the other (1 = alternate every attempt, which cancels itself out)
 max_escape_s = 1.8            # Hard cap on any single escalated escape duration
