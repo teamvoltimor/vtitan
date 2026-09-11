@@ -623,7 +623,8 @@ tasks:
 
   # ROBOT-GO / SIMGEN (Go reimplementation + scenario generator) moved to
   # src/go/Taskfile.yml (robot-go:*, simgen:*) -- fully self-contained except
-  # simgen:build, called from gen:track below.
+  # simgen:build, a dep of gen:track, gen:track-constants, gen:scenarios and
+  # gen:corpus below.
 
   # RECORD (video + frame pipeline) moved to apps/gazebo/Taskfile.yml
   # (record:*) -- fully self-contained, no cross-references into this file.
