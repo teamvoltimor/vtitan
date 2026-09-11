@@ -1,6 +1,7 @@
 package foxglove_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -18,17 +19,17 @@ import (
 
 const testTimeout = 5 * time.Second
 
-func newTestServer(t *testing.T) (*foxglove.Server, *httptest.Server) {
+func newTestServer(t *testing.T) (server *foxglove.Server, httpSrv *httptest.Server) {
 	t.Helper()
-	s := foxglove.NewServer(slog.New(slog.DiscardHandler))
-	httpSrv := httptest.NewServer(s.Handler())
+	server = foxglove.NewServer(slog.New(slog.DiscardHandler))
+	httpSrv = httptest.NewServer(server.Handler())
 	t.Cleanup(httpSrv.Close)
-	return s, httpSrv
+	return server, httpSrv
 }
 
 // dial connects a raw websocket client to httpSrv using the Foxglove
 // subprotocol, matching what Foxglove Studio's own client negotiates.
-func dial(t *testing.T, ctx context.Context, wsURL string) *websocket.Conn {
+func dial(ctx context.Context, t *testing.T, wsURL string) *websocket.Conn {
 	t.Helper()
 	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
 		Subprotocols: []string{"foxglove.websocket.v1"},
@@ -41,7 +42,7 @@ func dial(t *testing.T, ctx context.Context, wsURL string) *websocket.Conn {
 }
 
 // readJSON reads the next TEXT frame and decodes it as JSON into v.
-func readJSON(t *testing.T, ctx context.Context, conn *websocket.Conn, v any) {
+func readJSON(ctx context.Context, t *testing.T, conn *websocket.Conn, v any) {
 	t.Helper()
 	kind, data, err := conn.Read(ctx)
 	if err != nil {
@@ -61,10 +62,10 @@ func TestServeWS_SendsServerInfoOnConnect(t *testing.T) {
 	defer cancel()
 
 	_, httpSrv := newTestServer(t)
-	conn := dial(t, ctx, wsURL(httpSrv.URL))
+	conn := dial(ctx, t, wsURL(httpSrv.URL))
 
 	var info map[string]any
-	readJSON(t, ctx, conn, &info)
+	readJSON(ctx, t, conn, &info)
 	if info["op"] != "serverInfo" {
 		t.Errorf(`first message op = %v, want "serverInfo"`, info["op"])
 	}
@@ -83,12 +84,12 @@ func TestServeWS_AdvertisesAlreadyRegisteredChannelsOnConnect(t *testing.T) {
 		t.Fatalf("EnsureChannel: %v", err)
 	}
 
-	conn := dial(t, ctx, wsURL(httpSrv.URL))
+	conn := dial(ctx, t, wsURL(httpSrv.URL))
 	var info map[string]any
-	readJSON(t, ctx, conn, &info) // serverInfo
+	readJSON(ctx, t, conn, &info) // serverInfo
 
 	var advertise foxglovetest.AdvertiseResponse
-	readJSON(t, ctx, conn, &advertise)
+	readJSON(ctx, t, conn, &advertise)
 	if advertise.Op != "advertise" {
 		t.Fatalf(`second message op = %v, want "advertise"`, advertise.Op)
 	}
@@ -103,16 +104,16 @@ func TestServeWS_AdvertisesANewChannelToAnAlreadyConnectedClient(t *testing.T) {
 	defer cancel()
 
 	s, httpSrv := newTestServer(t)
-	conn := dial(t, ctx, wsURL(httpSrv.URL))
+	conn := dial(ctx, t, wsURL(httpSrv.URL))
 	var info map[string]any
-	readJSON(t, ctx, conn, &info) // serverInfo, no channels registered yet
+	readJSON(ctx, t, conn, &info) // serverInfo, no channels registered yet
 
 	if _, err := s.EnsureChannel(sensorv1.ImuSubject, &sensorv1.Imu{}); err != nil {
 		t.Fatalf("EnsureChannel: %v", err)
 	}
 
 	var advertise foxglovetest.AdvertiseResponse
-	readJSON(t, ctx, conn, &advertise)
+	readJSON(ctx, t, conn, &advertise)
 	if advertise.Op != "advertise" || len(advertise.Channels) != 1 {
 		t.Fatalf("advertise = %+v, want one newly-registered channel", advertise)
 	}
@@ -133,11 +134,11 @@ func TestPublish_SubscribedClientReceivesMessageDataWithItsOwnSubscriptionID(t *
 		t.Fatalf("EnsureChannel: %v", err)
 	}
 
-	conn := dial(t, ctx, wsURL(httpSrv.URL))
+	conn := dial(ctx, t, wsURL(httpSrv.URL))
 	var info map[string]any
-	readJSON(t, ctx, conn, &info) // serverInfo
+	readJSON(ctx, t, conn, &info) // serverInfo
 	var advertise foxglovetest.AdvertiseResponse
-	readJSON(t, ctx, conn, &advertise) // advertise
+	readJSON(ctx, t, conn, &advertise) // advertise
 
 	const subscriptionID uint32 = 42
 	subMsg, _ := json.Marshal(map[string]any{
@@ -159,8 +160,8 @@ func TestPublish_SubscribedClientReceivesMessageDataWithItsOwnSubscriptionID(t *
 	// effect server-side or that read returns.
 	resultCh := make(chan foxglovetest.ReadResult, 1)
 	go func() {
-		kind, data, err := conn.Read(ctx)
-		resultCh <- foxglovetest.ReadResult{Kind: kind, Data: data, Err: err}
+		kind, data, readErr := conn.Read(ctx)
+		resultCh <- foxglovetest.ReadResult{Kind: kind, Data: data, Err: readErr}
 	}()
 
 	payload := []byte{0xDE, 0xAD, 0xBE, 0xEF}
@@ -198,7 +199,7 @@ func TestPublish_SubscribedClientReceivesMessageDataWithItsOwnSubscriptionID(t *
 		t.Errorf("frame timestamp = %v, want %v", gotTimestamp, stamp.UnixNano())
 	}
 	gotPayload := frame[13:]
-	if string(gotPayload) != string(payload) {
+	if !bytes.Equal(gotPayload, payload) {
 		t.Errorf("frame payload = %v, want %v", gotPayload, payload)
 	}
 }
@@ -214,11 +215,11 @@ func TestPublish_UnsubscribedClientReceivesNothing(t *testing.T) {
 		t.Fatalf("EnsureChannel: %v", err)
 	}
 
-	conn := dial(t, ctx, wsURL(httpSrv.URL))
+	conn := dial(ctx, t, wsURL(httpSrv.URL))
 	var info map[string]any
-	readJSON(t, ctx, conn, &info)
+	readJSON(ctx, t, conn, &info)
 	var advertise foxglovetest.AdvertiseResponse
-	readJSON(t, ctx, conn, &advertise)
+	readJSON(ctx, t, conn, &advertise)
 
 	// No subscribe message sent.
 	s.Publish(channelID, time.Now(), []byte{0x01})

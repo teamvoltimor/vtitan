@@ -12,19 +12,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-// sendBufferSize bounds how many outbound frames a client's writer may lag
-// behind by before frames start being dropped. Sized generously for a
-// telemetry stream at typical ROBOT control-loop rates (20-30 Hz across a
-// dozen-odd channels) -- a client that falls this far behind is presumed
-// gone, not merely slow, and dropping keeps every OTHER client's stream
-// live rather than making them all wait on it.
-const sendBufferSize = 256
-
-// encodingProtobuf is the Foxglove wire-encoding name this bridge advertises
-// and stamps on every message (the Foxglove WebSocket protocol's
-// "protobuf" encoding).
-const encodingProtobuf = "protobuf"
-
 // client is one connected Foxglove Studio session: its own subscription
 // state (which channel IDs it wants, keyed by the SUBSCRIPTION id it
 // assigned, per the protocol) and a bounded outbound frame queue drained
@@ -45,6 +32,28 @@ type wireFrame struct {
 	kind websocket.MessageType
 	data []byte
 }
+
+// messageDataTemplate is a Message Data frame with its subscriptionId
+// field left as a hole, so one Publish call can stamp a different
+// subscription ID per subscribed client without re-serializing the
+// (potentially large) payload each time.
+type messageDataTemplate struct {
+	timestamp uint64
+	payload   []byte
+}
+
+// sendBufferSize bounds how many outbound frames a client's writer may lag
+// behind by before frames start being dropped. Sized generously for a
+// telemetry stream at typical ROBOT control-loop rates (20-30 Hz across a
+// dozen-odd channels) -- a client that falls this far behind is presumed
+// gone, not merely slow, and dropping keeps every OTHER client's stream
+// live rather than making them all wait on it.
+const sendBufferSize = 256
+
+// encodingProtobuf is the Foxglove wire-encoding name this bridge advertises
+// and stamps on every message (the Foxglove WebSocket protocol's
+// "protobuf" encoding).
+const encodingProtobuf = "protobuf"
 
 func newClient(conn *websocket.Conn) *client {
 	return &client{
@@ -197,11 +206,9 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		c.writeLoop(ctx)
-	}()
+	})
 
 	c.readLoop(ctx) // blocks until the client disconnects or errors
 	cancel()
@@ -238,17 +245,11 @@ func advertiseFrame(channels []*channel) wireFrame {
 	return wireFrame{kind: websocket.MessageText, data: data}
 }
 
-// messageDataTemplate is a Message Data frame with its subscriptionId
-// field left as a hole, so one Publish call can stamp a different
-// subscription ID per subscribed client without re-serializing the
-// (potentially large) payload each time.
-type messageDataTemplate struct {
-	timestamp uint64
-	payload   []byte
-}
-
 func messageDataFrame(timestamp time.Time, payload []byte) messageDataTemplate {
-	return messageDataTemplate{timestamp: uint64(timestamp.UnixNano()), payload: payload} //nolint:gosec // wall-clock nanoseconds never approach uint64 overflow
+	return messageDataTemplate{
+		timestamp: uint64(timestamp.UnixNano()),
+		payload:   payload,
+	}
 }
 
 func (t messageDataTemplate) withSubscriptionID(subscriptionID uint32) []byte {

@@ -13,9 +13,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/schema/protoschema"
 )
 
-// serverName is reported in the "serverInfo" handshake message.
-const serverName = "vtitan-foxglove-bridge"
-
 // channel is one registered subject/schema pair, matching the protocol's
 // Channel object plus the pre-computed fields Publish needs on every call.
 type channel struct {
@@ -43,6 +40,9 @@ type Server struct {
 	nextID  uint32
 	clients map[*client]struct{}
 }
+
+// serverName is reported in the "serverInfo" handshake message.
+const serverName = "vtitan-foxglove-bridge"
 
 // NewServer returns a Server ready to accept connections via Handler.
 func NewServer(logger *slog.Logger) *Server {
@@ -108,6 +108,12 @@ func (s *Server) Publish(channelID uint32, timestamp time.Time, payload []byte) 
 	}
 }
 
+// Handler returns the HTTP handler that upgrades incoming requests to the
+// Foxglove WebSocket protocol and serves them until the client disconnects.
+func (s *Server) Handler() http.Handler {
+	return http.HandlerFunc(s.serveWS)
+}
+
 // clientSnapshotLocked returns the current client set as a slice, callable
 // with s.mu held (read or write) so the caller can release the lock before
 // touching any client -- sending to a client's channel while holding
@@ -118,12 +124,6 @@ func (s *Server) clientSnapshotLocked() []*client {
 		out = append(out, c)
 	}
 	return out
-}
-
-// Handler returns the HTTP handler that upgrades incoming requests to the
-// Foxglove WebSocket protocol and serves them until the client disconnects.
-func (s *Server) Handler() http.Handler {
-	return http.HandlerFunc(s.serveWS)
 }
 
 // channelsSnapshot returns every currently registered channel, for a

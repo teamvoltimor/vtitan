@@ -1,19 +1,5 @@
 package foxglove
 
-// subprotocol is the WebSocket subprotocol Foxglove Studio negotiates for
-// this protocol version, matching the spec's own name.
-const subprotocol = "foxglove.websocket.v1"
-
-// binaryOpcodeMessageData is the first byte of every server->client BINARY
-// frame this package sends -- the protocol also defines opcodes for
-// service-call responses and time updates, neither of which this
-// one-directional telemetry bridge uses.
-const binaryOpcodeMessageData byte = 0x01
-
-// messageDataHeaderLen is subscriptionId (4 bytes) + timestamp (8 bytes)
-// preceding the payload in a Message Data frame.
-const messageDataHeaderLen = 4 + 8
-
 // serverInfoMessage is the first message a server sends after a client
 // connects, matching the "serverInfo" server->client JSON message.
 type serverInfoMessage struct {
@@ -78,3 +64,17 @@ type unsubscribeMessage struct {
 	Op              string   `json:"op"`
 	SubscriptionIDs []uint32 `json:"subscriptionIds"`
 }
+
+// subprotocol is the WebSocket subprotocol Foxglove Studio negotiates for
+// this protocol version, matching the spec's own name.
+const subprotocol = "foxglove.websocket.v1"
+
+// binaryOpcodeMessageData is the first byte of every server->client BINARY
+// frame this package sends -- the protocol also defines opcodes for
+// service-call responses and time updates, neither of which this
+// one-directional telemetry bridge uses.
+const binaryOpcodeMessageData byte = 0x01
+
+// messageDataHeaderLen is subscriptionId (4 bytes) + timestamp (8 bytes)
+// preceding the payload in a Message Data frame.
+const messageDataHeaderLen = 4 + 8
