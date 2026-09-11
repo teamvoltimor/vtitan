@@ -40,6 +40,31 @@ const (
 // per value of the 4-bit mask WidthSetFromBits decodes.
 const WidthLayoutCount = 16
 
+// fullSpaceCapacity is the shipped space's size: 2 directions x 16 layouts x
+// 4 sections x 4..6 cells = 640. Used only to preallocate the slices below;
+// the space still derives its size from the geometry rather than asserting
+// this value.
+const fullSpaceCapacity = 640
+
+// mmPerM converts the millimeter widths WidthSet carries into the meters the
+// start-cell and metadata APIs speak.
+const mmPerM = 1000.0
+
+// widthBit* are the bit positions WidthSetFromBits reads:
+// CorridorWidthSet.from_bits' south is bit 0, north bit 1, east bit 2, west
+// bit 3.
+const (
+	widthBitSouth = 0b0001
+	widthBitNorth = 0b0010
+	widthBitEast  = 0b0100
+	widthBitWest  = 0b1000
+)
+
+// outerWallCellCapacityDivisor sizes the OuterWallCells result slice: cell 0
+// is roughly a quarter of a space's cells, so len/divisor is a good enough
+// preallocation without asserting an exact count.
+const outerWallCellCapacityDivisor = 4
+
 // SectionOrder is the section enumeration order of Python's _OPEN_SECTIONS.
 // See the package doc: this is NOT simconfig.AllSections, and substituting
 // it renumbers every case.
@@ -70,10 +95,10 @@ func WidthSetFromBits(bits int) WidthSet {
 		return NarrowMM
 	}
 	return WidthSet{
-		SouthMM: widthFor(0b0001),
-		NorthMM: widthFor(0b0010),
-		EastMM:  widthFor(0b0100),
-		WestMM:  widthFor(0b1000),
+		SouthMM: widthFor(widthBitSouth),
+		NorthMM: widthFor(widthBitNorth),
+		EastMM:  widthFor(widthBitEast),
+		WestMM:  widthFor(widthBitWest),
 	}
 }
 
@@ -103,7 +128,7 @@ func (w WidthSet) IsWide(section simconfig.Section) bool {
 func (w WidthSet) MetresByName() map[simconfig.Section]float64 {
 	widths := make(map[simconfig.Section]float64, len(SectionOrder))
 	for _, section := range SectionOrder {
-		widths[section] = float64(w.WidthMMFor(section)) / 1000.0
+		widths[section] = float64(w.WidthMMFor(section)) / mmPerM
 	}
 	return widths
 }
@@ -119,7 +144,7 @@ func (w WidthSet) MetresByName() map[simconfig.Section]float64 {
 // so a band-layout edit in track.toml fails loudly instead of quietly
 // resizing the corpus.
 func (w WidthSet) StartCellCount(section simconfig.Section) int {
-	return len(generate.StartCells(section, float64(w.WidthMMFor(section))/1000.0))
+	return len(generate.StartCells(section, float64(w.WidthMMFor(section))/mmPerM))
 }
 
 // Label is the human-readable scenario label, byte-identical to
@@ -149,7 +174,7 @@ func Space() []Params {
 	// (640 for the shipped band layout) is deliberately not asserted here --
 	// it follows from the geometry, and hardcoding it would turn a track
 	// change into a mismatch rather than a new, larger corpus.
-	params := make([]Params, 0, 640)
+	params := make([]Params, 0, fullSpaceCapacity)
 	index := 0
 	for _, direction := range DirectionOrder {
 		for bits := range WidthLayoutCount {
@@ -181,7 +206,7 @@ func Space() []Params {
 // screen anything new on: a blind robot's opening readings depend on where
 // across the corridor it starts, and this freezes exactly that.
 func OuterWallCells(params []Params) []Params {
-	filtered := make([]Params, 0, len(params)/4)
+	filtered := make([]Params, 0, len(params)/outerWallCellCapacityDivisor)
 	for _, p := range params {
 		if p.StartCell == 0 {
 			filtered = append(filtered, p)

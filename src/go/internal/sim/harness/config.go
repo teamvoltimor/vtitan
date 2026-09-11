@@ -107,13 +107,18 @@ type Config struct {
 	StartCollisionGraceS  float64
 }
 
+// defaultControlHz is the control rate a Config falls back to when ControlHz
+// is unset: dt must still yield a usable timestep rather than dividing by
+// zero or returning an infinite one.
+const defaultControlHz = 20.0
+
 // DefaultConfig returns the all-default Config: 20 Hz control, 360-ray LIDAR
 // at 0.15–8 m, no noise, no dropout, perfect odometry, 3 m mat, 0.30x0.194 m
 // chassis. The noise/dropout/margin values are parity defaults for the
 // unported simulation.toml fields (plan §2), not measured values.
 func DefaultConfig() Config {
 	return Config{
-		ControlHz:               20.0,
+		ControlHz:               defaultControlHz,
 		NoProgressWindowS:       30.0,
 		NoProgressDisplacementM: 0.08,
 		LidarHz:                 0.0,
@@ -142,7 +147,7 @@ func (c Config) ControlDt() float64 {
 // dt returns the control interval (seconds).
 func (c Config) dt() float64 {
 	if c.ControlHz <= 0 {
-		return 1.0 / 20.0
+		return 1.0 / defaultControlHz
 	}
 	return 1.0 / c.ControlHz
 }

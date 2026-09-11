@@ -29,6 +29,32 @@ const (
 	mtMatrixA   = 0x9908b0df
 	mtUpperMask = 0x80000000
 	mtLowerMask = 0x7fffffff
+
+	// mtInitMultiplier/mtInitShift are init_genrand's seed multiplier and the
+	// right-shift that folds the previous word's high bits into the next,
+	// from the reference MT19937.
+	mtInitMultiplier = 1812433253
+	mtInitShift      = 30
+
+	// mtInitByArraySeed/mtInitByArrayMult1/mtInitByArrayMult2 are
+	// init_by_array's initial seed and the two multipliers CPython applies,
+	// from the reference implementation.
+	mtInitByArraySeed  = 19650218
+	mtInitByArrayMult1 = 1664525
+	mtInitByArrayMult2 = 1566083941
+
+	// mtTemper* are the tempering shifts and masks of the reference
+	// genrand_uint32.
+	mtTemperShiftA = 11
+	mtTemperShiftB = 7
+	mtTemperMaskB  = 0x9d2c5680
+	mtTemperShiftC = 15
+	mtTemperMaskC  = 0xefc60000
+	mtTemperShiftD = 18
+
+	// mtWordBits is an MT19937 state word's width; getRandBits right-shifts
+	// by this minus the requested bit count.
+	mtWordBits = 32
 )
 
 // initGenrand is CPython's init_genrand: the scalar seeding routine, used
@@ -37,7 +63,7 @@ func (m *mt19937) initGenrand(seed uint32) {
 	m.state[0] = seed
 	for i := 1; i < mtN; i++ {
 		prev := m.state[i-1]
-		m.state[i] = 1812433253*(prev^(prev>>30)) + uint32(i)
+		m.state[i] = mtInitMultiplier*(prev^(prev>>mtInitShift)) + uint32(i)
 	}
 	m.index = mtN
 }
@@ -47,12 +73,12 @@ func (m *mt19937) initGenrand(seed uint32) {
 // instead produces a different stream from the same integer, which would
 // look like a working implementation right up until the corpora diverged.
 func (m *mt19937) initByArray(key []uint32) {
-	m.initGenrand(19650218)
+	m.initGenrand(mtInitByArraySeed)
 	i, j := 1, 0
 	k := max(mtN, len(key))
 	for ; k > 0; k-- {
 		prev := m.state[i-1]
-		m.state[i] = (m.state[i] ^ ((prev ^ (prev >> 30)) * 1664525)) + key[j] + uint32(j)
+		m.state[i] = (m.state[i] ^ ((prev ^ (prev >> mtInitShift)) * mtInitByArrayMult1)) + key[j] + uint32(j)
 		i++
 		j++
 		if i >= mtN {
@@ -65,7 +91,7 @@ func (m *mt19937) initByArray(key []uint32) {
 	}
 	for k = mtN - 1; k > 0; k-- {
 		prev := m.state[i-1]
-		m.state[i] = (m.state[i] ^ ((prev ^ (prev >> 30)) * 1566083941)) - uint32(i)
+		m.state[i] = (m.state[i] ^ ((prev ^ (prev >> mtInitShift)) * mtInitByArrayMult2)) - uint32(i)
 		i++
 		if i >= mtN {
 			m.state[0] = m.state[mtN-1]
@@ -85,8 +111,8 @@ func newPyRandom(seed uint64) *mt19937 {
 	if seed == 0 {
 		key = []uint32{0}
 	} else {
-		for n := seed; n > 0; n >>= 32 {
-			key = append(key, uint32(n&0xffffffff))
+		for n := seed; n > 0; n >>= mtWordBits {
+			key = append(key, uint32(n))
 		}
 	}
 	m := &mt19937{}
@@ -109,10 +135,10 @@ func (m *mt19937) genrandUint32() uint32 {
 	}
 	y := m.state[m.index]
 	m.index++
-	y ^= y >> 11
-	y ^= (y << 7) & 0x9d2c5680
-	y ^= (y << 15) & 0xefc60000
-	y ^= y >> 18
+	y ^= y >> mtTemperShiftA
+	y ^= (y << mtTemperShiftB) & mtTemperMaskB
+	y ^= (y << mtTemperShiftC) & mtTemperMaskC
+	y ^= y >> mtTemperShiftD
 	return y
 }
 
@@ -122,7 +148,7 @@ func (m *mt19937) getRandBits(k uint) uint32 {
 	if k == 0 {
 		return 0
 	}
-	return m.genrandUint32() >> (32 - k)
+	return m.genrandUint32() >> (mtWordBits - k)
 }
 
 // randBelow is CPython's _randbelow_with_getrandbits: draw k bits where k is

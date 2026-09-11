@@ -161,67 +161,73 @@ func (p *passSideScorer) check(x, y, yaw float64) []int {
 	}
 	corners := rectCorners(x, y, yaw, p.chassisLen, p.chassisWid)
 	for index, sign := range p.signs {
-		if _, done := p.scored[index]; done {
-			continue
-		}
-		if math.Hypot(sign.X-x, sign.Y-y) > passSideApproachM {
-			continue
-		}
-		depthAxis, ahead, lateralAxis, permitted, ok := p.radiusGeometry(sign)
-		if !ok {
-			continue
-		}
-		signDepth := sign.Y
+		p.checkSign(index, sign, x, y, corners)
+	}
+	return p.violations()
+}
+
+// checkSign judges one sign against the chassis footprint and records a
+// crossing on the forbidden side. See check for the rule.
+func (p *passSideScorer) checkSign(
+	index int, sign signrouter.SignSpec, x, y float64, corners [4][2]float64,
+) {
+	if _, done := p.scored[index]; done {
+		return
+	}
+	if math.Hypot(sign.X-x, sign.Y-y) > passSideApproachM {
+		return
+	}
+	depthAxis, ahead, lateralAxis, permitted, ok := p.radiusGeometry(sign)
+	if !ok {
+		return
+	}
+	signDepth := sign.Y
+	if depthAxis == signrouter.AxisX {
+		signDepth = sign.X
+	}
+	if signPastDistance(corners, depthAxis, signDepth, ahead) <= 0.0 {
+		// Still straddling the line, or not there yet -- the rules let the
+		// vehicle fix its side from here, so nothing is decided.
+		p.engaged[index] = struct{}{}
+		return
+	}
+	if _, wasEngaged := p.engaged[index]; !wasEngaged {
+		// Beyond the radius without this scorer ever having seen the
+		// chassis on the approach side, so no crossing HAPPENED here: the
+		// vehicle was PLACED beyond the line (the in-bay start sits inside
+		// the approach radius of a sign whose radius is already behind the
+		// pocket), or a lap boundary cleared the state while the chassis
+		// stood just past one.
+		//
+		// Deliberately NOT marked scored: doing so would consume the sign,
+		// and the genuine crossing later in the same lap would go unjudged.
+		return
+	}
+	p.scored[index] = struct{}{}
+	robotLat, signLat := y, sign.Y
+	if lateralAxis == signrouter.AxisX {
+		robotLat, signLat = x, sign.X
+	}
+	if robotLat != signLat && signOf(robotLat-signLat) != permitted {
+		p.wrong = append(p.wrong, index)
+	}
+}
+
+// signPastDistance is the smallest signed distance by which any chassis
+// corner has crossed the sign's radius line along depthAxis, positive when
+// fully past in the direction the round is driven.
+func signPastDistance(
+	corners [4][2]float64, depthAxis signrouter.Axis, signDepth float64, ahead int,
+) float64 {
+	minPast := math.Inf(1)
+	for _, c := range corners {
+		d := c[1]
 		if depthAxis == signrouter.AxisX {
-			signDepth = sign.X
+			d = c[0]
 		}
-		minPast := math.Inf(1)
-		for _, c := range corners {
-			d := c[1]
-			if depthAxis == signrouter.AxisX {
-				d = c[0]
-			}
-			if v := (d - signDepth) * float64(ahead); v < minPast {
-				minPast = v
-			}
-		}
-		if minPast <= 0.0 {
-			// Still straddling the line, or not there yet -- the rules let the
-			// vehicle fix its side from here, so nothing is decided.
-			p.engaged[index] = struct{}{}
-			continue
-		}
-		if _, wasEngaged := p.engaged[index]; !wasEngaged {
-			// Beyond the radius without this scorer ever having seen the
-			// chassis on the approach side, so no crossing HAPPENED here: the
-			// vehicle was PLACED beyond the line (the in-bay start sits inside
-			// the approach radius of a sign whose radius is already behind the
-			// pocket), or a lap boundary cleared the state while the chassis
-			// stood just past one.
-			//
-			// Deliberately NOT marked scored: doing so would consume the sign,
-			// and the genuine crossing later in the same lap would go unjudged.
-			continue
-		}
-		p.scored[index] = struct{}{}
-		robotLat, signLat := y, sign.Y
-		if lateralAxis == signrouter.AxisX {
-			robotLat, signLat = x, sign.X
-		}
-		if robotLat != signLat {
-			side := -1
-			if robotLat > signLat {
-				side = 1
-			}
-			if side != permitted {
-				p.wrong = append(p.wrong, index)
-			}
+		if v := (d - signDepth) * float64(ahead); v < minPast {
+			minPast = v
 		}
 	}
-	if len(p.wrong) == 0 {
-		return nil
-	}
-	out := slices.Clone(p.wrong)
-	slices.Sort(out)
-	return out
+	return minPast
 }

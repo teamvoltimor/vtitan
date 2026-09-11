@@ -74,6 +74,11 @@ type SimHardwareGateway struct {
 // noise sequence an unperturbed control run was measured on.
 const sensorErrorStreamSalt = 0xa076_1d64_78bd_642f
 
+// lidarStreamSalt is the fixed offset that splits the LIDAR sampler's RNG
+// stream from the raw run seed, so a stream seeded with 0 is still distinct
+// from the sensor-error one above.
+const lidarStreamSalt = 0x9e3779b97f4a7c15
+
 // NewSimHardwareGateway builds a gateway from a kinematic state, the track
 // model, and the harness config.
 func NewSimHardwareGateway(
@@ -87,7 +92,7 @@ func NewSimHardwareGateway(
 		cfg:         cfg,
 		track:       track,
 		kin:         kin,
-		rng:         rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)),
+		rng:         rand.New(rand.NewPCG(seed, seed^lidarStreamSalt)),
 		state:       initial,
 		prevTrueYaw: initial.Yaw,
 	}

@@ -17,6 +17,15 @@ import (
 // matching shared.domain.enums.ScenarioType.OPEN's wire value.
 const challengeTypeOpen = "open"
 
+// Permissions for a materialized scenario tree: owner-only read/write, and
+// owner read/write/traverse on the directory. Neither is sensitive, but the
+// corpus may be written into a shared runs tree, so the narrow defaults are
+// kept explicit rather than left to the umask.
+const (
+	metadataDirPerm  = 0o750
+	metadataFilePerm = 0o600
+)
+
 // Metadata builds the scenario metadata for one parameter set, in the same
 // schema cmd/simgen writes and internal/sim/scenario reads. Ports
 // scenario_builder.build_open_metadata.
@@ -100,7 +109,7 @@ func Metadata(p Params, cfg startconditions.Config) (generate.Metadata, error) {
 // it inspectable -- a case that fails can be diffed or replayed on its own,
 // which an in-memory-only space would not allow.
 func Write(dir string, params []Params, cfg startconditions.Config) ([]corpus.Scenario, error) {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, metadataDirPerm); err != nil {
 		return nil, fmt.Errorf("opencorpus: creating %s: %w", dir, err)
 	}
 
@@ -115,7 +124,7 @@ func Write(dir string, params []Params, cfg startconditions.Config) ([]corpus.Sc
 			return nil, fmt.Errorf("opencorpus: encoding %s: %w", p.ID(), err)
 		}
 		path := filepath.Join(dir, p.ID()+"_metadata.json")
-		if writeErr := os.WriteFile(path, raw, 0o600); writeErr != nil {
+		if writeErr := os.WriteFile(path, raw, metadataFilePerm); writeErr != nil {
 			return nil, fmt.Errorf("opencorpus: writing %s: %w", path, writeErr)
 		}
 		scenarios = append(scenarios, corpus.Scenario{ID: p.ID(), MetadataPath: path})

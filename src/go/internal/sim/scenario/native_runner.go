@@ -2,16 +2,11 @@ package scenario
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log/slog"
 	"math"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
@@ -146,37 +141,38 @@ type NativeRunnerConfig struct {
 	Localize bool
 }
 
-// simVisionGateway implements navigator.VisionGateway by emulating sign
-// detections from the simulation's TRUE chassis pose each tick, matching
-// how ScenarioSimulator wires vision_emulator.emulate_sign_observations
-// into the Python gateway. Ground-truth pose only (no believed-pose
-// reprojection): the native runner's Localize is unsupported (see
-// harness.Config.Localize's doc comment), so there is no separate believed
-// pose to diverge from the true one yet.
-type simVisionGateway struct {
-	gw    simGateway
-	signs []signrouter.SignSpec
-	cfg   visionsim.Config
-}
-
-// simGateway is the simulation-only hardware surface the native runner's
-// closed-loop helpers need: the navigator-facing scan source plus the
-// physics advance/state/collision methods of harness.SimHardwareGateway.
-// Declared at the point of use (go-architect §4) so NativeRunner stays
-// testable against a fake instead of coupled to the concrete gateway.
-type simGateway interface {
-	controllers.PoseSource
-	// Sensors is what the blind layout-belief loop reads and re-seeds --
-	// embedded rather than restated so the two cannot drift apart.
-	widthbelief.Sensors
+// simMotion is the physics half of the simulation-only hardware surface:
+// stepping the body and reading back its state.
+type simMotion interface {
 	// State returns the current simulated chassis state.
 	State() kinematics.AckermannState
 	// Advance integrates the simulation by dt seconds.
 	Advance(dt float64)
+}
+
+// simContact is the collision half: whether the chassis has hit a wall this
+// step and, if so, where.
+type simContact interface {
 	// Collided reports whether the chassis has hit a wall this step.
 	Collided() bool
 	// CollisionXY returns the contact point of the latest collision, if any.
 	CollisionXY() (float64, float64)
+}
+
+// simGateway is the simulation-only hardware surface the native runner's
+// closed-loop helpers need: the navigator-facing scan source (embedded as
+// widthbelief.Sensors, which is the belief loop's own narrow port), the
+// physics advance/state methods, and the collision methods.
+//
+// It is composed of three narrow ports rather than one flat interface so the
+// gateway no longer has to satisfy controllers.PoseSource's wheel odometry,
+// which no sim caller reads. Declared at the point of use (go-architect §4)
+// so NativeRunner stays testable against a fake instead of coupled to the
+// concrete gateway.
+type simGateway interface {
+	widthbelief.Sensors
+	simMotion
+	simContact
 }
 
 // scoreInput groups score's inputs, replacing a fourteen-argument signature
@@ -198,14 +194,6 @@ type scoreInput struct {
 	trueSigns     int
 }
 
-// signNudgeState accumulates each sign's push-displacement across ticks,
-// matching scoring.py's ScenarioSimulator._score_obstacle_contact /
-// _sign_push / _prev_contact_xy. One instance per run.
-type signNudgeState struct {
-	push         map[int]float64
-	prevX, prevY float64
-}
-
 // scenarioStart bundles the parsed spawn pose + travel direction + starting
 // section, matching ScenarioSimulator's believed_start (the fields
 // park_controller_from_metadata needs to build the parking-lot geometry).
@@ -213,6 +201,21 @@ type scenarioStart struct {
 	X, Y, Yaw float64
 	Direction trackmodel.Direction
 	Section   trackmodel.Section
+}
+
+// loopState carries the per-tick accumulators the run loop updates and the
+// final score reads. Grouping them here keeps loop's body small and lets the
+// per-tick folding live in methods.
+type loopState struct {
+	steps        int
+	contactCount int
+	distanceM    float64
+	maxSpeedMPS  float64
+	minRangeM    float64
+	prevX, prevY float64
+	anchorX      float64
+	anchorY      float64
+	anchorStep   int
 }
 
 // DefaultMaxRunS is the wall-clock budget a single scenario gets before it
@@ -243,6 +246,14 @@ const (
 // round_time_limit_s: the shipped rule-book budget, used as a last resort when
 // the defaults map somehow lacks the key.
 const defaultRoundTimeLimitS = 180.0
+
+// mmPerM converts the millimeter widths scenario metadata carries into the
+// meters the track geometry works in.
+const mmPerM = 1000.0
+
+// parkingMarkerCount is how many collision obstacles parkBlocksFromMetadata
+// can append -- the two marker fins -- reserved up front alongside the signs.
+const parkingMarkerCount = 2
 
 // maxLegalSignDisplacementM is how far a pillar may be pushed and still have
 // a corner in its placement circle, matching
@@ -363,7 +374,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 
 	signs := signsFromMetadata(meta)
 	axisAlignTolerance := r.collCfg.AxisAlignTolerance
-	obstacleSpecs := make([]collision.ObstacleSpec, 0, len(signs)+8)
+	obstacleSpecs := make([]collision.ObstacleSpec, 0, len(signs)+parkingMarkerCount)
 	for _, sign := range signs {
 		obstacleSpecs = append(obstacleSpecs, collision.ObstacleSpec{
 			CX: sign.X, CY: sign.Y, Length: signObstacleWidthM, Width: signObstacleDepthM,
@@ -497,72 +508,6 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	return r.loop(sc, gw, nav, track, targetLaps, layout, rec, passSide)
 }
 
-func (v *simVisionGateway) GetVisionDetections() ([]signrouter.TrafficSignObservation, bool) {
-	st := v.gw.State()
-	obs := visionsim.EmulateSignObservations(v.signs, st.X, st.Y, st.Yaw, v.cfg, nil)
-	return obs, len(obs) > 0
-}
-
-// signsFromMetadata builds the ground-truth SignSpec list for an Obstacles
-// Challenge scenario, matching the sign half of track_model.py's
-// obstacles_from_metadata (the parking-block half is deliberately not
-// ported here -- see collision.ObstacleBox's is_parking_lot gap, tracked
-// separately). Empty for Open Challenge metadata (no sign_positions key),
-// exactly as Python's obstacles_from_metadata returns an empty list for it.
-func signsFromMetadata(meta generate.Metadata) []signrouter.SignSpec {
-	if len(meta.SignPositions) == 0 {
-		return nil
-	}
-	signs := make([]signrouter.SignSpec, len(meta.SignPositions))
-	for i, s := range meta.SignPositions {
-		color := signrouter.SignColorGreen
-		if s.Color == "red" {
-			color = signrouter.SignColorRed
-		}
-		signs[i] = signrouter.SignSpec{X: s.X, Y: s.Y, Color: color}
-	}
-	return signs
-}
-
-// parkBlocksFromMetadata builds the two parking-lot marker fins as
-// collision.ObstacleSpec, matching the parking half of obstacles_from_metadata
-// (track_model.py) -- the sign half lives in signsFromMetadata. Empty when
-// the scenario has no parking lot.
-func parkBlocksFromMetadata(meta generate.Metadata) []collision.ObstacleSpec {
-	if meta.ParkingLot == nil {
-		return nil
-	}
-	lot := meta.ParkingLot
-	return []collision.ObstacleSpec{
-		{
-			CX: lot.Block1Position.X, CY: lot.Block1Position.Y,
-			Length: parking.DefaultParkingLotLengthM, Width: parking.DefaultParkingLotWidthM,
-			Yaw: lot.Block1Yaw, IsParkingLot: true,
-		},
-		{
-			CX: lot.Block2Position.X, CY: lot.Block2Position.Y,
-			Length: parking.DefaultParkingLotLengthM, Width: parking.DefaultParkingLotWidthM,
-			Yaw: lot.Block2Yaw, IsParkingLot: true,
-		},
-	}
-}
-
-// parkControllerFromMetadata builds a parking.ParkController from scenario
-// metadata, matching park_controller_from_metadata. nil when the scenario
-// has no parking lot.
-func parkControllerFromMetadata(
-	meta generate.Metadata, section trackmodel.Section, direction trackmodel.Direction, cfg parking.Config,
-) *parking.ParkController {
-	if meta.ParkingLot == nil {
-		return nil
-	}
-	lot := &parking.ParkingLot{
-		Block1: parking.BlockPosition{X: meta.ParkingLot.Block1Position.X, Y: meta.ParkingLot.Block1Position.Y},
-		Block2: parking.BlockPosition{X: meta.ParkingLot.Block2Position.X, Y: meta.ParkingLot.Block2Position.Y},
-	}
-	return parking.ParkControllerFromMetadata(lot, section, direction, cfg)
-}
-
 // loop runs the control loop until terminal (laps / collision / timeout /
 // stuck) and scores the Result.
 func (r *NativeRunner) loop(
@@ -576,14 +521,12 @@ func (r *NativeRunner) loop(
 	passSide *passSideScorer,
 ) (Result, error) {
 	dt := r.cfg.ControlDt()
-
-	var steps int
-	var contactCount int
-	var distanceM float64
-	var maxSpeedMPS float64
-	var minRangeM = math.Inf(1)
-	prevX, prevY := gw.State().X, gw.State().Y
-	nudge := newSignNudgeState(prevX, prevY)
+	acc := &loopState{
+		prevX: gw.State().X, prevY: gw.State().Y,
+		minRangeM: math.Inf(1),
+	}
+	acc.anchorX, acc.anchorY = acc.prevX, acc.prevY
+	nudge := newSignNudgeState(acc.prevX, acc.prevY)
 	// Which wall this challenge forbids: a non-nil SignRouter is what
 	// identifies an Obstacles Challenge run to the native runner elsewhere in
 	// this file, so it is the same signal used here.
@@ -599,10 +542,8 @@ func (r *NativeRunner) loop(
 	// a recoverable stall as terminal.
 	noProgressWindow := int(math.Round(r.cfg.NoProgressWindowS / dt))
 	noProgressDisp := r.cfg.NoProgressDisplacementM
-	anchorX, anchorY := prevX, prevY
-	anchorStep := 0
-
 	prevLaps := nav.LapsCompleted()
+
 	// scoreRun fills scoreInput's run-level fields from the loop's live
 	// accumulators, leaving each call site to name only the terminal cause.
 	scoreRun := func(surface collision.ContactSurface, stuck bool, passSideWrong []int) Result {
@@ -610,12 +551,12 @@ func (r *NativeRunner) loop(
 			sc:            sc,
 			gw:            gw,
 			nav:           nav,
-			steps:         steps,
+			steps:         acc.steps,
 			dt:            dt,
-			distanceM:     distanceM,
-			maxSpeedMPS:   maxSpeedMPS,
-			minRangeM:     minRangeM,
-			contactCount:  contactCount,
+			distanceM:     acc.distanceM,
+			maxSpeedMPS:   acc.maxSpeedMPS,
+			minRangeM:     acc.minRangeM,
+			contactCount:  acc.contactCount,
 			targetLaps:    targetLaps,
 			surface:       surface,
 			stuck:         stuck,
@@ -623,59 +564,31 @@ func (r *NativeRunner) loop(
 			trueSigns:     len(passSide.signs),
 		})
 	}
-	for steps < r.maxSteps {
+	for acc.steps < r.maxSteps {
 		nav.Step()
 		// Driven every tick, not only when the estimator speaks: a deferred
 		// belief is released by the robot LEAVING a corridor, so the tick that
 		// applies it is usually one with no new reading at all. A nil layout
 		// (sighted) is a no-op.
 		layout.Update(nav, gw, nav.Direction())
-		if rec != nil {
-			scan, scanOK := gw.GetLidarScan()
-			// The REPORTED yaw, not the true one: /imu/data must carry what
-			// the robot believes, so a run with sensor errors shows the belief
-			// diverging from the ground-truth transform.
-			reportedYaw := gw.State().Yaw
-			if pose, poseOK := gw.GetCurrentPose(); poseOK {
-				reportedYaw = pose.Yaw
-			}
-			if err := rec.tick(scan, scanOK, nav, gw.State(), reportedYaw, dt); err != nil {
-				return Result{}, err
-			}
+		if err := r.recordStep(rec, gw, nav, dt); err != nil {
+			return Result{}, err
 		}
 		gw.Advance(dt)
-		steps++
+		acc.steps++
 
 		st := gw.State()
-		stepDist := math.Hypot(st.X-prevX, st.Y-prevY)
-		distanceM += stepDist
-		prevX, prevY = st.X, st.Y
-		if st.V > maxSpeedMPS {
-			maxSpeedMPS = st.V
-		}
-		if scan, ok := gw.GetLidarScan(); ok {
-			for _, rng := range scan.RangesM {
-				if !math.IsInf(rng, 0) && rng < minRangeM {
-					minRangeM = rng
-				}
-			}
-		}
-
+		acc.observe(st, gw)
 		if gw.Collided() {
-			contactCount++
+			acc.contactCount++
 		}
 
 		// Pass-side, checked EVERY tick and terminal, matching the Python run
 		// loop's `if violation_signs is not None: break`. Re-armed per lap so
 		// each lap is judged on its own crossings, while committed violations
 		// persist.
-		if lapsNow := nav.LapsCompleted(); lapsNow != prevLaps {
-			passSide.resetForNewLap()
-			prevLaps = lapsNow
-		}
-		if v := passSide.check(st.X, st.Y, st.Yaw); len(v) > 0 {
-			res := scoreRun(collision.SurfaceNone, false, v)
-			return res, nil
+		if v := passSideCheck(nav, st, passSide, &prevLaps); len(v) > 0 {
+			return scoreRun(collision.SurfaceNone, false, v), nil
 		}
 
 		// Terminal surface: a contact against a wall THIS CHALLENGE forbids
@@ -698,34 +611,21 @@ func (r *NativeRunner) loop(
 		// on the very first tick regardless of when it began.
 		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
-		if contacts.update(steps, surface) {
-			res := scoreRun(contacts.surface, false, passSide.violations())
-			return res, nil
+		if contacts.update(acc.steps, surface) {
+			return scoreRun(contacts.surface, false, passSide.violations()), nil
 		}
 
 		// Lap completion alone isn't terminal when a ParkController is
 		// attached: the round only ends once it is also done (parked
 		// cleanly or gave up), matching the Python run loop's
 		// `laps_completed >= num_laps and (pc is None or pc.is_done)`.
-		pc := nav.ParkController()
-		// The runner must read the same flag as handleFinish, not just
-		// IsDone: with the pursuit deferred the controller exists and never
-		// completes, so an IsDone-only break keeps stepping a robot already
-		// at rest and charges the whole budget to sim_time_s -- the exact
-		// number in-time is measured against.
-		if nav.LapsCompleted() >= targetLaps &&
-			(pc == nil || !pc.AttemptAfterFinalLap() || pc.IsDone()) {
-			res := scoreRun(collision.SurfaceNone, false, passSide.violations())
-			return res, nil
+		if roundSettled(nav, targetLaps) {
+			return scoreRun(collision.SurfaceNone, false, passSide.violations()), nil
 		}
 
 		// No-progress check.
-		if math.Hypot(st.X-anchorX, st.Y-anchorY) >= noProgressDisp {
-			anchorX, anchorY = st.X, st.Y
-			anchorStep = steps
-		} else if (steps - anchorStep) >= noProgressWindow {
-			res := scoreRun(collision.SurfaceNone, true, passSide.violations())
-			return res, nil
+		if acc.stalled(st, noProgressWindow, noProgressDisp) {
+			return scoreRun(collision.SurfaceNone, true, passSide.violations()), nil
 		}
 	}
 
@@ -733,6 +633,50 @@ func (r *NativeRunner) loop(
 	res := scoreRun(collision.SurfaceNone, false, passSide.violations())
 	res.TimedOut = nav.LapsCompleted() < targetLaps
 	return res, nil
+}
+
+// recordStep writes one tick to the bag, if recording is on. The REPORTED
+// yaw goes on /imu/data -- the belief, not ground truth -- so a run with
+// sensor errors shows the belief diverging from the ground-truth transform.
+func (r *NativeRunner) recordStep(
+	rec *simRecorder, gw simGateway, nav *navigator.Navigator, dt float64,
+) error {
+	if rec == nil {
+		return nil
+	}
+	scan, scanOK := gw.GetLidarScan()
+	reportedYaw := gw.State().Yaw
+	if pose, poseOK := gw.GetCurrentPose(); poseOK {
+		reportedYaw = pose.Yaw
+	}
+	return rec.tick(scan, scanOK, nav, gw.State(), reportedYaw, dt)
+}
+
+// observe folds one tick's state into the motion accumulators: distance
+// traveled, top speed, and the closest finite LIDAR range seen so far.
+func (s *loopState) observe(st kinematics.AckermannState, gw simGateway) {
+	s.distanceM += math.Hypot(st.X-s.prevX, st.Y-s.prevY)
+	s.prevX, s.prevY = st.X, st.Y
+	s.maxSpeedMPS = max(s.maxSpeedMPS, st.V)
+	if scan, ok := gw.GetLidarScan(); ok {
+		for _, rng := range scan.RangesM {
+			if !math.IsInf(rng, 0) && rng < s.minRangeM {
+				s.minRangeM = rng
+			}
+		}
+	}
+}
+
+// stalled reports whether the chassis has failed to move far enough in the
+// no-progress window. Any move past the displacement threshold re-anchors the
+// window, so the clock only runs while the robot is genuinely not progressing.
+func (s *loopState) stalled(st kinematics.AckermannState, window int, displacementM float64) bool {
+	if math.Hypot(st.X-s.anchorX, st.Y-s.anchorY) >= displacementM {
+		s.anchorX, s.anchorY = st.X, st.Y
+		s.anchorStep = s.steps
+		return false
+	}
+	return (s.steps - s.anchorStep) >= window
 }
 
 func (r *NativeRunner) score(in scoreInput) Result {
@@ -812,92 +756,6 @@ func (r *NativeRunner) score(in scoreInput) Result {
 	}
 }
 
-func resTimedOut(steps, maxSteps, laps, target int) bool {
-	return steps >= maxSteps && laps < target
-}
-
-func avgSpeed(distanceM float64, steps int, dt float64) float64 {
-	if steps <= 0 || dt <= 0 {
-		return 0
-	}
-	return distanceM / (float64(steps) * dt)
-}
-
-func orZero(v float64) float64 {
-	if math.IsInf(v, 0) || math.IsNaN(v) {
-		return 0
-	}
-	return v
-}
-
-// newSignNudgeState seeds the reference point at the run's start pose,
-// matching _prev_contact_xy's __init__ assignment.
-func newSignNudgeState(x, y float64) *signNudgeState {
-	return &signNudgeState{prevX: x, prevY: y, push: make(map[int]float64)}
-}
-
-// score downgrades a legal pillar nudge (WRO 9.20) to a non-collision surface,
-// matching _score_obstacle_contact. Fin/wall surfaces pass through untouched
-// -- only SurfaceObstacle (traffic signs; no parking fin ever reaches this
-// runner yet, see signsFromMetadata) gets the leniency.
-//
-// The reference point advances EVERY call, not only while touching: updating
-// it only during contact would make the accumulated displacement the
-// distance since the last touch, so a sign brushed twice a meter apart would
-// accumulate that whole meter as if it had been pushed through it.
-func (s *signNudgeState) score(
-	track *collision.TrackModel, surface collision.ContactSurface, x, y, yaw, length, width float64,
-) collision.ContactSurface {
-	dx, dy := x-s.prevX, y-s.prevY
-	s.prevX, s.prevY = x, y
-	if surface != collision.SurfaceObstacle {
-		return surface
-	}
-	for index := range track.ObstacleDisplacements(x, y, yaw, length, width) {
-		// Only the component of travel pointing AT the sign moves it: a
-		// chassis sliding past a sign it is brushing covers distance
-		// without pushing it anywhere.
-		center, ok := track.ObstacleCenter(index)
-		if !ok {
-			continue
-		}
-		toX, toY := center.X-x, center.Y-y
-		norm := math.Hypot(toX, toY)
-		if norm <= 0.0 {
-			continue
-		}
-		push := (dx*toX + dy*toY) / norm
-		if push > 0.0 {
-			s.push[index] += push
-		}
-	}
-	for _, push := range s.push {
-		if push > maxLegalSignDisplacementM {
-			return surface
-		}
-	}
-	// Touched, but still inside its placement circle: not a collision.
-	return collision.SurfaceNone
-}
-
-// loadMetadata reads and parses a *_metadata.json file into generate.Metadata
-// -- the SAME struct cmd/simgen writes (internal/simgen/generate), not a
-// separately maintained mirror of its schema. The two used to be independent,
-// hand-kept-in-sync definitions (one per Go module); unified once simgen
-// joined this module, so a schema change in one can no longer silently drift
-// from the other.
-func loadMetadata(path string) (generate.Metadata, error) {
-	raw, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return generate.Metadata{}, fmt.Errorf("reading %s: %w", path, err)
-	}
-	var meta generate.Metadata
-	if unmarshalErr := json.Unmarshal(raw, &meta); unmarshalErr != nil {
-		return generate.Metadata{}, fmt.Errorf("parsing %s: %w", path, unmarshalErr)
-	}
-	return meta, nil
-}
-
 // buildScenario derives the track geometry, spawn pose, and the planned path
 // from scenario metadata.
 //
@@ -910,7 +768,9 @@ func loadMetadata(path string) (generate.Metadata, error) {
 // 37/640 against Python's 638/640, with the failures concentrated at corner
 // entry, because a square corner asks for a turn no Ackermann chassis can
 // execute.
-func (r *NativeRunner) buildScenario(meta generate.Metadata) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {
+func (r *NativeRunner) buildScenario(
+	meta generate.Metadata,
+) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {
 	cfg := r.cfg
 	sectionsByName := map[string]trackmodel.Section{
 		"north": trackmodel.North,
@@ -926,7 +786,7 @@ func (r *NativeRunner) buildScenario(meta generate.Metadata) (trackmodel.Corrido
 			return trackmodel.CorridorGeometry{}, scenarioStart{}, nil,
 				fmt.Errorf("metadata missing corridor width for %q", name)
 		}
-		widthsM[which] = float64(wm.WidthMM) / 1000.0
+		widthsM[which] = float64(wm.WidthMM) / mmPerM
 	}
 
 	geom := trackmodel.CorridorGeometryFromWidths(widthsM, cfg.TrackMaxCoordM)
@@ -966,44 +826,4 @@ func (r *NativeRunner) buildScenario(meta generate.Metadata) (trackmodel.Corrido
 			fmt.Errorf("planning the believed path: %w", err)
 	}
 	return geom, start, path, nil
-}
-
-// sightedCenterBiasM is the planning bias for a sighted round: nil on Open,
-// which takes waypoints.toml's narrow/wide split, and the uniform Obstacles
-// override otherwise. Mirrors blindCenterBiasM, keyed off the same fact
-// (does this scenario carry signs) rather than off the metadata's
-// challenge_type string, so a mislabeled fixture cannot plan one challenge
-// with the other's bias.
-func sightedCenterBiasM(meta generate.Metadata, wpCfg waypoints.Config) *float64 {
-	return blindCenterBiasM(len(meta.SignPositions) > 0, wpCfg)
-}
-
-// defaultLaps returns the Open Challenge default lap count.
-func defaultLaps(_ generate.Metadata) int {
-	return navigator.DefaultOpenChallengeLaps
-}
-
-// roundTimeLimitSFor reads competition_specs.toml's round_time_limit_s, or
-// falls back to the shipped default when there is no config root or the file
-// will not load. Scoring a run against a hardcoded limit is the same class of
-// bug as reading a hardcoded sensor spec: the rule book is a file.
-func roundTimeLimitSFor(logger *slog.Logger, configRoot string) float64 {
-	fallback, ok := profile.CompetitionDefaults()["round_time_limit_s"].(float64)
-	if !ok {
-		logger.Warn("native runner: competition defaults missing round_time_limit_s, using fallback")
-		fallback = defaultRoundTimeLimitS
-	}
-	if configRoot == "" {
-		return fallback
-	}
-	path := filepath.Join(configRoot, profile.DefaultCompetitionTOMLPath)
-	cc, err := profile.LoadWithDefaults[profile.CompetitionConfig](
-		path, nil, profile.CompetitionDefaults(),
-	)
-	if err != nil {
-		logger.Warn("native runner: loading competition_specs.toml, falling back to default",
-			"config_root", configRoot, "error", err)
-		return fallback
-	}
-	return cc.RoundTimeLimitS
 }

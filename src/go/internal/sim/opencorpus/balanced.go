@@ -26,6 +26,16 @@ type balancedKey struct {
 	startCell int
 }
 
+// productBit* are the bit positions widthSetFromProductIndex reads. The
+// product order varies its LAST element fastest, so over
+// (south, north, east, west) west is bit 0 and south is bit 3.
+const (
+	productBitWest  = 0
+	productBitEast  = 1
+	productBitNorth = 2
+	productBitSouth = 3
+)
+
 // Balanced128Size is 16 layouts x 4 sections x 2 directions. The start CELL
 // is what varies within it, not the count.
 const Balanced128Size = WidthLayoutCount * len(comboSectionOrder) * len(DirectionOrder)
@@ -110,7 +120,7 @@ func Balanced128(seed uint64) ([]Params, error) {
 	// to mean the same thing here as in every other harness -- otherwise
 	// "case 300" would name one scenario in a 640 sweep and a different one
 	// in a screening run.
-	byKey := make(map[balancedKey]Params, 640)
+	byKey := make(map[balancedKey]Params, fullSpaceCapacity)
 	for _, p := range Space() {
 		byKey[keyOf(p)] = p
 	}
@@ -155,10 +165,10 @@ func widthSetFromProductIndex(i int) WidthSet {
 		return NarrowMM
 	}
 	return WidthSet{
-		SouthMM: widthFor(3),
-		NorthMM: widthFor(2),
-		EastMM:  widthFor(1),
-		WestMM:  widthFor(0),
+		SouthMM: widthFor(productBitSouth),
+		NorthMM: widthFor(productBitNorth),
+		EastMM:  widthFor(productBitEast),
+		WestMM:  widthFor(productBitWest),
 	}
 }
 

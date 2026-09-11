@@ -88,7 +88,10 @@ func TestSignNudgeState_SustainedPushPastToleranceIsACollision(t *testing.T) {
 	}
 
 	if surface != collision.SurfaceObstacle {
-		t.Errorf("score() after sustained approach = %v, want SurfaceObstacle (push exceeds maxLegalSignDisplacementM)", surface)
+		t.Errorf(
+			"score() after sustained approach = %v, want SurfaceObstacle (push exceeds maxLegalSignDisplacementM)",
+			surface,
+		)
 	}
 }
 
@@ -114,6 +117,9 @@ func TestSignNudgeState_ReceedingTravelDoesNotAccumulate(t *testing.T) {
 	}
 
 	if surface != collision.SurfaceNone {
-		t.Errorf("score() after 50 receding ticks = %v, want SurfaceNone (no tick ever pushed toward the sign)", surface)
+		t.Errorf(
+			"score() after 50 receding ticks = %v, want SurfaceNone (no tick ever pushed toward the sign)",
+			surface,
+		)
 	}
 }

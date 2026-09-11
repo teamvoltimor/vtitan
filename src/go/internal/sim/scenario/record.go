@@ -269,20 +269,8 @@ func (r *simRecorder) tick(
 	// robot's believed one -- it plans from an assumed start -- so the path
 	// appears where the navigator thinks it is going, which is exactly the
 	// view that explains a blind failure.
-	if plan := nav.Waypoints(); !slices.Equal(plan, r.lastPlan) {
-		points := make([]recording.PathPointCDR, len(plan))
-		for i, wp := range plan {
-			points[i] = recording.PathPointCDR{X: wp.X, Y: wp.Y}
-		}
-		if err := r.run.WriteROS2(
-			planTopic, recording.PathType, recording.PathSchema,
-			recording.EncodePath(recording.PathCDR{
-				FrameID: mapFrame, StampSec: sec, StampNanosec: nsec, Points: points,
-			}), logTime,
-		); err != nil {
-			return fmt.Errorf("sim recorder: writing plan: %w", err)
-		}
-		r.lastPlan = slices.Clone(plan)
+	if err := r.writePlan(nav, sec, nsec, logTime); err != nil {
+		return err
 	}
 
 	// /nav_debug is the std_msgs/String JSON the Python navigator publishes,
@@ -310,6 +298,30 @@ func (r *simRecorder) tick(
 		return fmt.Errorf("sim recorder: writing nav debug JSON: %w", writeErr)
 	}
 	r.simClockNanos += uint64(dt * nanosPerSecond)
+	return nil
+}
+
+// writePlan publishes /plan when the route changed since the last tick.
+func (r *simRecorder) writePlan(
+	nav *navigator.Navigator, sec int32, nsec uint32, logTime uint64,
+) error {
+	plan := nav.Waypoints()
+	if slices.Equal(plan, r.lastPlan) {
+		return nil
+	}
+	points := make([]recording.PathPointCDR, len(plan))
+	for i, wp := range plan {
+		points[i] = recording.PathPointCDR{X: wp.X, Y: wp.Y}
+	}
+	if err := r.run.WriteROS2(
+		planTopic, recording.PathType, recording.PathSchema,
+		recording.EncodePath(recording.PathCDR{
+			FrameID: mapFrame, StampSec: sec, StampNanosec: nsec, Points: points,
+		}), logTime,
+	); err != nil {
+		return fmt.Errorf("sim recorder: writing plan: %w", err)
+	}
+	r.lastPlan = slices.Clone(plan)
 	return nil
 }
 
