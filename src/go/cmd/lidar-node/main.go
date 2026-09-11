@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
@@ -29,11 +30,10 @@ import (
 
 // cliConfig holds every flag lidar-node accepts.
 type cliConfig struct {
-	natsURL    string
-	nodeName   string
-	port       string
-	baudRate   int
-	configRoot string
+	cmdkit.Common
+
+	port     string
+	baudRate int
 }
 
 // scanFrameID is this sensor's TF frame, matching
@@ -63,16 +63,11 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(
-		&cfg.nodeName,
-		"name",
-		"lidar-node",
-		"NATS client name, visible in nats-server's connz output",
-	)
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "lidar-node")
 	flags.StringVar(&cfg.port, "port", lidar.DefaultPort, "LIDAR serial port")
 	flags.IntVar(&cfg.baudRate, "baud-rate", lidar.DefaultBaudRate, "LIDAR serial baud rate")
-	flags.StringVar(&cfg.configRoot, "config-root", "",
+	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
 			"overrides --port/--baud-rate when set")
 
@@ -135,8 +130,8 @@ func scanMessageFor(scan lidar.Scan, sinceLastScan time.Duration) *sensorv1.Scan
 // non-cancellation error occurs.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	drvCfg := lidar.Config{Port: cfg.port, BaudRate: cfg.baudRate}
-	if cfg.configRoot != "" {
-		drvCfg = lidar.ConfigFor(logger, cfg.configRoot)
+	if cfg.ConfigRoot != "" {
+		drvCfg = lidar.ConfigFor(logger, cfg.ConfigRoot)
 	}
 
 	drv, err := lidar.NewClassic(drvCfg)
@@ -152,7 +147,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -160,7 +155,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	pub := nats.NewPublisher[*sensorv1.Scan](conn, sensorv1.ScanSubject)
 
-	logger.Info("lidar-node: connected", "nats_url", cfg.natsURL, "port", drvCfg.Port)
+	logger.Info("lidar-node: connected", "nats_url", cfg.NATSURL, "port", drvCfg.Port)
 	return publishLoop(ctx, logger, drv, pub)
 }
 

@@ -18,10 +18,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/capture"
@@ -49,11 +49,8 @@ func repoRoot() (string, error) {
 }
 
 type cliConfig struct {
-	natsURL    string
-	nodeName   string
-	runsRoot   string
-	configRoot string
-	profiles   string
+	cmdkit.Common
+
 	fps        float64
 	video      bool
 	photoEvery time.Duration
@@ -68,11 +65,11 @@ func runMain() int {
 
 	var cfg cliConfig
 	fs := flag.NewFlagSet("pi5", flag.ContinueOnError)
-	fs.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	fs.StringVar(&cfg.nodeName, "name", "pi5", "NATS client name")
-	fs.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir (default: repo-root data/live/runs)")
-	fs.StringVar(&cfg.configRoot, "config-root", "", "repo root for robot.toml (VTITAN_HARDWARE_PROFILE selects the active profile)")
-	fs.StringVar(&cfg.profiles, "profiles", "", "comma-separated hardware profiles (overrides VTITAN_HARDWARE_PROFILE)")
+	cfg.RegisterNATSURL(fs)
+	fs.StringVar(&cfg.NodeName, "name", "pi5", "NATS client name")
+	cfg.RegisterRunsRoot(fs, "runs root dir (default: repo-root data/live/runs)")
+	cfg.RegisterConfigRoot(fs, "repo root for robot.toml (VTITAN_HARDWARE_PROFILE selects the active profile)")
+	cfg.RegisterProfiles(fs)
 	fs.Float64Var(&cfg.fps, "fps", 15.0, "capture frame rate")
 	fs.BoolVar(&cfg.video, "video", true, "record the debug video")
 	fs.DurationVar(&cfg.photoEvery, "photo-interval", 10*time.Second, "periodic dataset-photo cadence (0 = off)")
@@ -100,8 +97,8 @@ func runMain() int {
 	// and (where relevant) one NATS connection.
 	captureCfg := capture.Config{
 		Camera:          camCfg,
-		NATS:            nats.DefaultConfig(cfg.natsURL, cfg.nodeName),
-		RunsRoot:        cfg.runsRoot,
+		NATS:            nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		RunsRoot:        cfg.RunsRoot,
 		FPS:             cfg.fps,
 		Video:           cfg.video,
 		PhotoInterval:   cfg.photoEvery,
@@ -126,8 +123,8 @@ func runMain() int {
 // It falls back to a synthetic source when no hardware profile is configured, so
 // cmd/pi5 is runnable on a dev machine without a CSI camera.
 func loadCamera(_ context.Context, cfg cliConfig, logger *slog.Logger) (camera.Config, error) {
-	profiles := splitProfiles(cfg.profiles)
-	basePath := cfg.configRoot
+	profiles := profile.ParseNames(cfg.Profiles)
+	basePath := cfg.ConfigRoot
 	if basePath == "" {
 		root, err := repoRoot()
 		if err != nil {
@@ -154,17 +151,4 @@ func loadCamera(_ context.Context, cfg cliConfig, logger *slog.Logger) (camera.C
 		FPS:         cfg.fps,
 		NATSSubject: "vtitan.sensor.v1.camera",
 	}, nil
-}
-
-func splitProfiles(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }

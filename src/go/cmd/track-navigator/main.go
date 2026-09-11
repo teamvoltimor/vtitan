@@ -29,7 +29,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -38,6 +37,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsgw"
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsvision"
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
@@ -112,31 +112,11 @@ func parseDirection(s string) (provisional trackmodel.Direction, known *trackmod
 
 // cliConfig holds every flag track-navigator accepts.
 type cliConfig struct {
-	natsURL    string
-	nodeName   string
-	profiles   string
-	direction  string
-	rateHz     float64
-	record     bool
-	runsRoot   string
-	configRoot string
-}
+	cmdkit.Common
 
-// splitProfiles parses a comma-separated hardware-profile list, matching
-// cmd/pi5's own helper of the same name (each cmd/* binary that takes
-// --profiles has its own copy rather than sharing one -- there is no shared
-// CLI package for a two-line string split).
-func splitProfiles(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
+	direction string
+	rateHz    float64
+	record    bool
 }
 
 // exit codes: 0 means track-navigator ran and shut down cleanly (including via
@@ -164,21 +144,15 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(
-		&cfg.nodeName,
-		"name",
-		"track-navigator",
-		"NATS client name, visible in nats-server's connz output",
-	)
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "track-navigator")
 	flags.Float64Var(&cfg.rateHz, "rate-hz", 20.0, "navigator Step rate")
 	flags.BoolVar(&cfg.record, "record", false,
 		"record the run to data/live/runs as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node")
-	flags.StringVar(&cfg.runsRoot, "runs-root", "", "runs root dir for --record (default: repo-root data/live/runs)")
-	flags.StringVar(&cfg.configRoot, "config-root", "",
+	cfg.RegisterRunsRoot(flags, "runs root dir for --record (default: repo-root data/live/runs)")
+	cfg.RegisterConfigRoot(flags,
 		"repo root to read the shipped TOML tree from; empty runs on Go literal defaults")
-	flags.StringVar(&cfg.profiles, "profiles", "",
-		"comma-separated hardware profiles (overrides VTITAN_HARDWARE_PROFILE)")
+	cfg.RegisterProfiles(flags)
 	flags.StringVar(&cfg.direction, "direction", directionUndetermined,
 		"travel direction for the round: cw, ccw, or undetermined (default). "+
 			"undetermined means the robot creeps and infers it from LIDAR, matching "+
@@ -272,8 +246,8 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	if err != nil {
 		return err
 	}
-	profiles := splitProfiles(cfg.profiles)
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	profiles := profile.ParseNames(cfg.Profiles)
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -342,8 +316,8 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// Loaded once, before either consumer, so the two cannot disagree about
 	// which robot they are describing.
 	robotPath := profile.DefaultRobotTOMLPath
-	if cfg.configRoot != "" {
-		robotPath = filepath.Join(cfg.configRoot, profile.DefaultRobotTOMLPath)
+	if cfg.ConfigRoot != "" {
+		robotPath = filepath.Join(cfg.ConfigRoot, profile.DefaultRobotTOMLPath)
 	}
 	robotCfg, robotCfgErr := profile.LoadRobotConfig(robotPath, profiles)
 	wheelRadiusM := defaultWheelRadiusM
@@ -358,10 +332,10 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 			"chassis_width_m", chassisWidthM)
 	}
 
-	trackMaxCoordM := loadTrackMaxCoordM(logger, cfg.configRoot)
-	wpCfg := waypoints.ConfigFor(logger, cfg.configRoot)
-	startCfg := startconditions.ConfigFor(logger, cfg.configRoot)
-	estCfg := corridorestimator.ConfigFor(logger, cfg.configRoot)
+	trackMaxCoordM := loadTrackMaxCoordM(logger, cfg.ConfigRoot)
+	wpCfg := waypoints.ConfigFor(logger, cfg.ConfigRoot)
+	startCfg := startconditions.ConfigFor(logger, cfg.ConfigRoot)
+	estCfg := corridorestimator.ConfigFor(logger, cfg.ConfigRoot)
 
 	path, priorGeometry, layout, err := newBlindLayout(
 		logger,
@@ -395,7 +369,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// signrouter.Config carries are meaningful independent of that, and
 	// building them once here means a future SignRouter wire-in needs no
 	// second config-loading pass.
-	srCfg := signrouter.ConfigFor(logger, cfg.configRoot)
+	srCfg := signrouter.ConfigFor(logger, cfg.ConfigRoot)
 	visionGW, err := natsvision.New(srCfg, signrouter.DefaultMinReliableBBoxHeightPX, signrouter.DefaultMinValidLidarRangeM, gw)
 	if err != nil {
 		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
@@ -404,15 +378,15 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// bayexit config-root wiring matches every other config loaded above:
 	// empty --config-root falls back to the Go literal defaults rather than
 	// failing the run.
-	bxCfg := bayexit.ConfigFor(logger, cfg.configRoot, profiles)
+	bxCfg := bayexit.ConfigFor(logger, cfg.ConfigRoot, profiles)
 
 	nav, err := navigator.New(navigator.Params{
 		Gateway:                 gw,
 		Vision:                  visionGW,
 		Waypoints:               path,
 		Direction:               knownDirection,
-		Config:                  navigator.ConfigFor(logger, cfg.configRoot, profiles),
-		ControllersConfig:       controllers.ConfigFor(logger, cfg.configRoot, profiles),
+		Config:                  navigator.ConfigFor(logger, cfg.ConfigRoot, profiles),
+		ControllersConfig:       controllers.ConfigFor(logger, cfg.ConfigRoot, profiles),
 		BayExitConfig:           &bxCfg,
 		CorridorEstimatorConfig: &estCfg,
 		Logger:                  logger,
@@ -421,16 +395,16 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		return err //nolint:wrapcheck // navigator.New already wraps with "navigator: ..." context
 	}
 
-	logger.Info("track-navigator: connected", "nats_url", cfg.natsURL, "rate_hz", cfg.rateHz)
+	logger.Info("track-navigator: connected", "nats_url", cfg.NATSURL, "rate_hz", cfg.rateHz)
 
 	var rec *recording.RunRecorder
 	if cfg.record {
-		r, err := recording.NewRun(cfg.runsRoot, recording.RunOptions{Video: false})
-		if err != nil {
-			return fmt.Errorf("track-navigator: creating run: %w", err)
+		r, recErr := recording.NewRun(cfg.RunsRoot, recording.RunOptions{Video: false})
+		if recErr != nil {
+			return fmt.Errorf("track-navigator: creating run: %w", recErr)
 		}
-		if err = r.Open(); err != nil {
-			return fmt.Errorf("track-navigator: opening run: %w", err)
+		if recErr = r.Open(); recErr != nil {
+			return fmt.Errorf("track-navigator: opening run: %w", recErr)
 		}
 		rec = r
 		defer func() {

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove/foxglovetest"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 )
@@ -70,7 +71,7 @@ func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {
 	defer cancel()
 
 	logger := slog.New(slog.DiscardHandler)
-	cfg := cliConfig{natsURL: natsURL, nodeName: "test-bridge", httpAddr: httpAddr}
+	cfg := cliConfig{Common: cmdkit.Common{NATSURL: natsURL, NodeName: "test-bridge"}, httpAddr: httpAddr}
 
 	runErrCh := make(chan error, 1)
 	go func() { runErrCh <- run(ctx, logger, cfg) }()

@@ -24,6 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
@@ -33,8 +34,8 @@ import (
 
 // cliConfig holds every flag state-machine accepts.
 type cliConfig struct {
-	natsURL     string
-	nodeName    string
+	cmdkit.Common
+
 	backendAddr string
 	robotID     string
 }
@@ -70,13 +71,8 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(
-		&cfg.nodeName,
-		"name",
-		"state-machine",
-		"NATS client name, visible in nats-server's connz output",
-	)
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "state-machine")
 	flags.StringVar(
 		&cfg.backendAddr,
 		"backend-addr",
@@ -102,7 +98,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 // run wires the robotcmd client to a NATS-backed ButtonSink and blocks
 // until ctx is done or the command channel hits an unrecoverable error.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -128,7 +124,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}()
 
 	logger.Info("state-machine: connected",
-		"nats_url", cfg.natsURL, "backend_addr", cfg.backendAddr, "robot_id", cfg.robotID)
+		"nats_url", cfg.NATSURL, "backend_addr", cfg.backendAddr, "robot_id", cfg.robotID)
 	if err = client.Run(ctx, dispatcher); err != nil {
 		return fmt.Errorf("state-machine: %w", err)
 	}

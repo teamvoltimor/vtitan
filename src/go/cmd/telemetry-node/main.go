@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/telemetry/diag"
 
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
@@ -39,10 +40,9 @@ import (
 
 // cliConfig holds every flag telemetry-node accepts.
 type cliConfig struct {
-	natsURL    string
-	nodeName   string
-	rateHz     float64
-	configRoot string
+	cmdkit.Common
+
+	rateHz float64
 }
 
 // natsSource implements diag.Source by caching the latest message received
@@ -85,15 +85,10 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(
-		&cfg.nodeName,
-		"name",
-		"telemetry-node",
-		"NATS client name, visible in nats-server's connz output",
-	)
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "telemetry-node")
 	flags.Float64Var(&cfg.rateHz, "rate-hz", defaultRateHz, "TelemetrySummary publish rate")
-	flags.StringVar(&cfg.configRoot, "config-root", "",
+	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
 			"empty uses a zero LIDAR yaw offset")
 
@@ -169,7 +164,7 @@ func summaryMessageFor(summary diag.TelemetrySummary) *uiv1.TelemetrySummary {
 // run wires the aggregator to NATS and blocks until ctx is done or a
 // subscription hits a non-cancellation error.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -208,7 +203,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// robot frame already (lidar.ConfigFor). Re-applying it would double it.
 	aggregator := diag.NewAggregator(source, diag.DefaultConfig())
 
-	logger.Info("telemetry-node: connected", "nats_url", cfg.natsURL, "rate_hz", cfg.rateHz)
+	logger.Info("telemetry-node: connected", "nats_url", cfg.NATSURL, "rate_hz", cfg.rateHz)
 
 	group, gctx := errgroup.WithContext(ctx)
 	group.Go(func() error { return watchLoop(gctx, imuSub, source.setIMU) })

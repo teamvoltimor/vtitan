@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/display/ssd1306"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
@@ -37,12 +38,10 @@ import (
 
 // cliConfig holds every flag pi-zero accepts.
 type cliConfig struct {
-	natsURL  string
-	nodeName string
+	cmdkit.Common
 
 	motorCommandTimeout time.Duration
 	motorInvert         bool
-	configRoot          string
 
 	buttonLine   int
 	buttonPullUp bool
@@ -102,13 +101,8 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(
-		&cfg.nodeName,
-		"name",
-		"pi-zero",
-		"NATS client name, visible in nats-server's connz output",
-	)
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "pi-zero")
 
 	flags.DurationVar(
 		&cfg.motorCommandTimeout,
@@ -118,7 +112,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	)
 	flags.BoolVar(&cfg.motorInvert, "motor-invert", false,
 		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed")
-	flags.StringVar(&cfg.configRoot, "config-root", "",
+	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
 			"empty uses nodemotor.DefaultSpeedScalePercentPerMPS")
 
@@ -253,10 +247,10 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		Width: cfg.oledWidth, Height: cfg.oledHeight,
 		I2CAddress: cfg.oledI2CAddress, I2CBus: cfg.oledI2CBus,
 	}
-	if cfg.configRoot != "" {
-		motorCfg = motor.ConfigFor(logger, cfg.configRoot)
-		buttonCfg = button.ConfigFor(logger, cfg.configRoot)
-		oledCfg = ssd1306.ConfigFor(logger, cfg.configRoot)
+	if cfg.ConfigRoot != "" {
+		motorCfg = motor.ConfigFor(logger, cfg.ConfigRoot)
+		buttonCfg = button.ConfigFor(logger, cfg.ConfigRoot)
+		oledCfg = ssd1306.ConfigFor(logger, cfg.ConfigRoot)
 	}
 	motorCfg.Invert = cfg.motorInvert
 
@@ -287,7 +281,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer closeLogged(logger, "OLED driver", oledDrv.Close)
 
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -326,7 +320,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		logger,
 		motorDrv,
 		motorStatusPub,
-		nodemotor.SpeedScaleFor(logger, cfg.configRoot),
+		nodemotor.SpeedScaleFor(logger, cfg.ConfigRoot),
 	)
 
 	// The encoder is optional: a Zero with no encoder wired (or no motor
@@ -335,7 +329,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// Fabricating a counts_per_rev to keep the loop alive would produce
 	// confident, wrong distances instead.
 	var feedbackTargets []supervise.Target
-	encCfg, encCfgErr := encoder.ConfigFor(cfg.configRoot)
+	encCfg, encCfgErr := encoder.ConfigFor(cfg.ConfigRoot)
 	switch {
 	case encCfgErr != nil:
 		logger.Warn("pi-zero: no wheel encoder configured, not publishing joint_states",
@@ -366,7 +360,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 			"counts_per_rev", encCfg.CountsPerRev)
 	}
 
-	logger.Info("pi-zero: connected", "nats_url", cfg.natsURL)
+	logger.Info("pi-zero: connected", "nats_url", cfg.NATSURL)
 	targets := []supervise.Target{
 		{Name: "motor", Fn: func(ctx context.Context) error {
 			return mLoop.Run(ctx, ackermannSub, cfg.motorCommandTimeout)

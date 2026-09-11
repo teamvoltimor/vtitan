@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/imu"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
@@ -26,11 +27,10 @@ import (
 
 // cliConfig holds every flag imu-node accepts.
 type cliConfig struct {
-	natsURL    string
-	nodeName   string
-	port       string
-	baudRate   int
-	configRoot string
+	cmdkit.Common
+
+	port     string
+	baudRate int
 }
 
 // imuFrameID is this sensor's TF frame, matching
@@ -78,16 +78,11 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(
-		&cfg.nodeName,
-		"name",
-		"imu-node",
-		"NATS client name, visible in nats-server's connz output",
-	)
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "imu-node")
 	flags.StringVar(&cfg.port, "port", imu.DefaultPort, "IMU serial port")
 	flags.IntVar(&cfg.baudRate, "baud-rate", imu.DefaultBaudRate, "IMU serial baud rate")
-	flags.StringVar(&cfg.configRoot, "config-root", "",
+	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
 			"overrides --port/--baud-rate when set")
 
@@ -123,8 +118,8 @@ func imuMessageFor(reading imu.Reading) *sensorv1.Imu {
 // non-cancellation error occurs.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	drvCfg := imu.Config{Port: cfg.port, BaudRate: cfg.baudRate}
-	if cfg.configRoot != "" {
-		drvCfg = imu.ConfigFor(logger, cfg.configRoot)
+	if cfg.ConfigRoot != "" {
+		drvCfg = imu.ConfigFor(logger, cfg.ConfigRoot)
 	}
 
 	drv, err := imu.New(drvCfg)
@@ -140,7 +135,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -148,7 +143,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	pub := nats.NewPublisher[*sensorv1.Imu](conn, sensorv1.ImuSubject)
 
-	logger.Info("imu-node: connected", "nats_url", cfg.natsURL, "port", drvCfg.Port)
+	logger.Info("imu-node: connected", "nats_url", cfg.NATSURL, "port", drvCfg.Port)
 	return publishLoop(ctx, logger, drv, pub)
 }
 

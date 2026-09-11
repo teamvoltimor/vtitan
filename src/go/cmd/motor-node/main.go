@@ -29,6 +29,7 @@ import (
 	natsconn "github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
 	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
@@ -38,11 +39,10 @@ import (
 
 // cliConfig holds every flag motor-node accepts.
 type cliConfig struct {
-	natsURL        string
-	nodeName       string
+	cmdkit.Common
+
 	commandTimeout time.Duration
 	invert         bool
-	configRoot     string
 }
 
 // exit codes: 0 means motor-node ran and shut down cleanly (including via
@@ -69,20 +69,15 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(
-		&cfg.nodeName,
-		"name",
-		"motor-node",
-		"NATS client name, visible in nats-server's connz output",
-	)
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "motor-node")
 	flags.DurationVar(&cfg.commandTimeout, "command-timeout", nodemotor.DefaultCommandTimeout,
 		"safety-stop the drive if no AckermannCmd arrives within this duration")
 	flags.BoolVar(
 		&cfg.invert, "invert", false,
 		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed",
 	)
-	flags.StringVar(&cfg.configRoot, "config-root", "",
+	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
 			"empty uses nodemotor.DefaultSpeedScalePercentPerMPS")
 
@@ -111,7 +106,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		}
 	}()
 
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -135,18 +130,18 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	logger.Info(
 		"motor-node: connected",
 		"nats_url",
-		cfg.natsURL,
+		cfg.NATSURL,
 		"command_timeout",
 		cfg.commandTimeout,
 	)
 
-	stopFeedback, err := startEncoderFeedback(ctx, logger, conn, cfg.configRoot)
+	stopFeedback, err := startEncoderFeedback(ctx, logger, conn, cfg.ConfigRoot)
 	if err != nil {
 		return err
 	}
 	defer stopFeedback()
 
-	loop := nodemotor.NewLoop(logger, drv, pub, nodemotor.SpeedScaleFor(logger, cfg.configRoot))
+	loop := nodemotor.NewLoop(logger, drv, pub, nodemotor.SpeedScaleFor(logger, cfg.ConfigRoot))
 	if err = loop.Run(ctx, sub, cfg.commandTimeout); err != nil {
 		return fmt.Errorf("motor-node: %w", err)
 	}

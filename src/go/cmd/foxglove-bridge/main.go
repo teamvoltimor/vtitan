@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	navv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/nav/v1"
@@ -47,8 +48,8 @@ const (
 )
 
 type cliConfig struct {
-	natsURL  string
-	nodeName string
+	cmdkit.Common
+
 	httpAddr string
 }
 
@@ -68,8 +69,8 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cfg.natsURL, "nats-url", nats.DefaultURL(), "nats-server URL")
-	flags.StringVar(&cfg.nodeName, "name", "foxglove-bridge", "NATS client name, visible in nats-server's connz output")
+	cfg.RegisterNATSURL(flags)
+	cfg.RegisterNodeName(flags, "foxglove-bridge")
 	flags.StringVar(&cfg.httpAddr, "http-addr", defaultHTTPAddr, "address to serve the Foxglove WebSocket protocol on")
 
 	return cmd
@@ -81,7 +82,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 type natsConn = natsio.Conn
 
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.natsURL, cfg.nodeName))
+	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
 	if err != nil {
 		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
 	}
@@ -97,7 +98,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 
 	group.Go(func() error {
-		logger.Info("foxglove-bridge: serving", "addr", cfg.httpAddr, "nats_url", cfg.natsURL)
+		logger.Info("foxglove-bridge: serving", "addr", cfg.httpAddr, "nats_url", cfg.NATSURL)
 		if serveErr := httpServer.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			return fmt.Errorf("foxglove-bridge: http server: %w", serveErr)
 		}
