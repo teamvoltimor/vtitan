@@ -62,42 +62,67 @@ import (
 // corrected by widthbelief.Layout as the estimator measures each corridor.
 // Sighted mode (the default) keeps taking both from metadata.
 type NativeRunner struct {
-	cfg harness.Config
+	recordRoot string
+	cfg        harness.Config
 	// Resolved once at construction rather than per scenario: a corpus sweep
 	// runs hundreds of scenarios, and re-reading the same TOML tree for each
 	// would be both wasteful and a source of per-scenario divergence if a
 	// file changed mid-sweep.
-	navCfg  navigator.Config
-	ctrlCfg controllers.Config
-	wpCfg   waypoints.Config
-	srCfg   signrouter.Config
-	discCfg signrouter.DiscoveryConfig
-	// roundTimeLimitS is competition_specs.toml's round_time_limit_s, the
-	// rule-book budget a run is scored against -- NOT maxSteps, which is the
-	// harness's own runaway guard and is deliberately looser.
-	roundTimeLimitS float64
-	startCfg        startconditions.Config
-	followCfg       corridorfollower.Config
-	bxCfg           bayexit.Config
-	estCfg          corridorestimator.Config
-	kinParams       kinematics.Params
-	collCfg         collision.Config
-	parkCfg         parking.Config
-	recordRoot      string
+	navCfg    navigator.Config
+	ctrlCfg   controllers.Config
+	bxCfg     bayexit.Config
+	followCfg corridorfollower.Config
+	srCfg     signrouter.Config
+	parkCfg   parking.Config
+	startCfg  startconditions.Config
+	wpCfg     waypoints.Config
+	discCfg   signrouter.DiscoveryConfig
+	kinParams kinematics.Params
+	estCfg    corridorestimator.Config
 	// recGeom is chassis geometry only the BAG needs -- wheel size, steering
 	// limit, LIDAR mount. None of it belongs in kinematics.Params: a bicycle
 	// model turns on wheelbase, not wheel size, and knows nothing of where a
 	// sensor is bolted.
-	recGeom  recorderGeometry
-	seed     uint64
-	maxSteps int
-	blind    bool
+	recGeom recorderGeometry
+	collCfg collision.Config
+	// roundTimeLimitS is competition_specs.toml's round_time_limit_s, the
+	// rule-book budget a run is scored against -- NOT maxSteps, which is the
+	// harness's own runaway guard and is deliberately looser.
+	roundTimeLimitS float64
+	seed            uint64
+	maxSteps        int
+	blind           bool
 }
 
 // NativeRunnerConfig configures a NativeRunner.
 type NativeRunnerConfig struct {
 	// Harness overrides the harness Config; nil uses harness.DefaultConfig().
 	Harness *harness.Config
+	// ConfigRoot is the repo root the shipped TOML tree is read from, and
+	// HardwareProfiles names one profile per component (drive motor,
+	// steering servo) to overlay on it -- the two inputs every nav package's
+	// own ConfigFor already takes.
+	//
+	// An empty ConfigRoot keeps every package on its Go literal defaults.
+	// That is NOT the shipped robot: the base navigation tree caps speed at
+	// max_mps 0.156 and carries no Open speed ladder at all, while the
+	// ladder that Open's results were measured against (0.26/0.38/0.50)
+	// lives only in profiles/rev-hd-hex-motor-6000rpm/motion/speed.toml. A
+	// sweep run without these is measuring a robot that drives a third as
+	// fast as the one the numbers describe, so any comparison against a
+	// Python baseline must set both.
+	ConfigRoot string
+	// RecordRoot, when non-empty, writes each scenario's run to an MCAP bag
+	// under <RecordRoot>/<scenario ID>/. Off by default: a 640-case sweep
+	// records 640 bags, which is worth it when debugging a specific failure
+	// and pure overhead when scoring.
+	RecordRoot       string
+	HardwareProfiles []string
+	// SensorErrors perturbs what the robot knows about ITSELF -- its start
+	// pose and its heading -- on top of whatever Blind withholds about the
+	// track. Zero (a perfect robot) is what every corpus number here was
+	// measured on, and is Python's default too.
+	SensorErrors sensorerrors.Errors
 	// Seed is the RNG seed for LIDAR noise/dropout (parity default 0, matching
 	// the Python np.random.default_rng(0)).
 	Seed uint64
@@ -119,31 +144,6 @@ type NativeRunnerConfig struct {
 	// ground truth -- ScenarioSimulator's own default, and the harder
 	// condition, so a cross-stack comparison needs it set.
 	Localize bool
-	// ConfigRoot is the repo root the shipped TOML tree is read from, and
-	// HardwareProfiles names one profile per component (drive motor,
-	// steering servo) to overlay on it -- the two inputs every nav package's
-	// own ConfigFor already takes.
-	//
-	// An empty ConfigRoot keeps every package on its Go literal defaults.
-	// That is NOT the shipped robot: the base navigation tree caps speed at
-	// max_mps 0.156 and carries no Open speed ladder at all, while the
-	// ladder that Open's results were measured against (0.26/0.38/0.50)
-	// lives only in profiles/rev-hd-hex-motor-6000rpm/motion/speed.toml. A
-	// sweep run without these is measuring a robot that drives a third as
-	// fast as the one the numbers describe, so any comparison against a
-	// Python baseline must set both.
-	ConfigRoot       string
-	HardwareProfiles []string
-	// RecordRoot, when non-empty, writes each scenario's run to an MCAP bag
-	// under <RecordRoot>/<scenario ID>/. Off by default: a 640-case sweep
-	// records 640 bags, which is worth it when debugging a specific failure
-	// and pure overhead when scoring.
-	RecordRoot string
-	// SensorErrors perturbs what the robot knows about ITSELF -- its start
-	// pose and its heading -- on top of whatever Blind withholds about the
-	// track. Zero (a perfect robot) is what every corpus number here was
-	// measured on, and is Python's default too.
-	SensorErrors sensorerrors.Errors
 }
 
 // ControlDt returns the simulation timestep (s). It resolves the effective
@@ -258,11 +258,11 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 
 	signs := signsFromMetadata(meta)
 	axisAlignTolerance := r.collCfg.AxisAlignTolerance
-	obstacleSpecs := make([]collision.ObstacleSpec, len(signs))
-	for i, sign := range signs {
-		obstacleSpecs[i] = collision.ObstacleSpec{
+	obstacleSpecs := make([]collision.ObstacleSpec, 0, len(signs)+8)
+	for _, sign := range signs {
+		obstacleSpecs = append(obstacleSpecs, collision.ObstacleSpec{
 			CX: sign.X, CY: sign.Y, Length: signObstacleWidthM, Width: signObstacleDepthM,
-		}
+		})
 	}
 	obstacleSpecs = append(obstacleSpecs, parkBlocksFromMetadata(meta)...)
 
@@ -337,7 +337,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	// navigator is not told is the answer -- it has to reach it itself before
 	// it follows this path at all.
 	var layout *widthbelief.Layout
-	direction := func() *trackmodel.Direction { d := startPose.Direction; return &d }()
+	direction := new(startPose.Direction)
 	if r.blind {
 		blind, blindErr := newBlindSetup(
 			plannerBaseFor(meta, r.cfg),
@@ -783,8 +783,8 @@ func orZero(v float64) float64 {
 // matching scoring.py's ScenarioSimulator._score_obstacle_contact /
 // _sign_push / _prev_contact_xy. One instance per run.
 type signNudgeState struct {
-	prevX, prevY float64
 	push         map[int]float64
+	prevX, prevY float64
 }
 
 // newSignNudgeState seeds the reference point at the run's start pose,
@@ -943,7 +943,9 @@ func sightedCenterBiasM(meta generate.Metadata, wpCfg waypoints.Config) *float64
 }
 
 // defaultLaps returns the Open Challenge default lap count.
-func defaultLaps(_ generate.Metadata) int { return navigator.DefaultOpenChallengeLaps }
+func defaultLaps(_ generate.Metadata) int {
+	return navigator.DefaultOpenChallengeLaps
+}
 
 // compile-time assertion that NativeRunner satisfies Runner.
 var _ Runner = (*NativeRunner)(nil)

@@ -197,7 +197,7 @@ func TestAllowedStep_ClearMoveIsUnrestricted(t *testing.T) {
 	t.Parallel()
 
 	tm := symmetricTrackModel(t)
-	solid := map[collision.ContactSurface]bool{collision.SurfaceOuterWall: true, collision.SurfaceInnerWall: true}
+	solid := collision.NewSurfaceSet(collision.SurfaceOuterWall, collision.SurfaceInnerWall)
 	state := kinematics.AckermannState{X: 0.5, Y: 0.5, Yaw: 0.0}
 	candidate := kinematics.AckermannState{X: 0.55, Y: 0.5, Yaw: 0.0, V: 0.1}
 
@@ -217,7 +217,7 @@ func TestAllowedStep_HeadOnIntoAWallDoesNotMove(t *testing.T) {
 	t.Parallel()
 
 	tm := symmetricTrackModel(t)
-	solid := map[collision.ContactSurface]bool{collision.SurfaceOuterWall: true, collision.SurfaceInnerWall: true}
+	solid := collision.NewSurfaceSet(collision.SurfaceOuterWall, collision.SurfaceInnerWall)
 	// Chassis nose already at the outer wall (x=0); a further -x step can
 	// only push deeper in.
 	state := kinematics.AckermannState{X: chassisLengthM / 2, Y: 0.5, Yaw: 0.0}
@@ -239,7 +239,7 @@ func TestAllowedStep_GrazingTurnStillMovesForward(t *testing.T) {
 	t.Parallel()
 
 	tm := symmetricTrackModel(t)
-	solid := map[collision.ContactSurface]bool{collision.SurfaceOuterWall: true, collision.SurfaceInnerWall: true}
+	solid := collision.NewSurfaceSet(collision.SurfaceOuterWall, collision.SurfaceInnerWall)
 
 	// Nose 0.12m from the south outer wall (y=0), driving forward (+x)
 	// while also commanding a large yaw change. At the full candidate yaw

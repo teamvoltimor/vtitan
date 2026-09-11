@@ -400,40 +400,56 @@ func New(p Params) (*Navigator, error) {
 
 // DebugSnapshot is the full internal state of the most recent Step call,
 // matching the debug_snapshot property.
-func (n *Navigator) DebugSnapshot() DebugSnapshot { return n.debug }
+func (n *Navigator) DebugSnapshot() DebugSnapshot {
+	return n.debug
+}
 
 // CurrentCorridor is the track corridor derived from the robot's position,
 // matching the current_corridor property. nil before the first Step.
-func (n *Navigator) CurrentCorridor() *trackmodel.Section { return n.currentCorridor }
+func (n *Navigator) CurrentCorridor() *trackmodel.Section {
+	return n.currentCorridor
+}
 
 // SignRouter is the traffic-sign router, or nil outside the Obstacles
 // Challenge, matching the sign_router property.
-func (n *Navigator) SignRouter() *signrouter.SignRouter { return n.signRouter }
+func (n *Navigator) SignRouter() *signrouter.SignRouter {
+	return n.signRouter
+}
 
 // ParkController is the post-final-lap parking maneuver, or nil for the
 // Open Challenge (or any scenario with no parking lot), matching the
 // park_controller property.
-func (n *Navigator) ParkController() *parking.ParkController { return n.parkController }
+func (n *Navigator) ParkController() *parking.ParkController {
+	return n.parkController
+}
 
 // Direction is the round's travel direction, nil while a blind round's
 // bootstrap has not settled one yet. Exposed because the host's layout-belief
 // loop (internal/nav/widthbelief) cannot attribute a corridor reading without
 // it, and must not guess: attributing to the wrong section folds a
 // measurement of one corridor into another's estimate.
-func (n *Navigator) Direction() *trackmodel.Direction { return n.direction }
+func (n *Navigator) Direction() *trackmodel.Direction {
+	return n.direction
+}
 
 // LapsCompleted is the number of laps confirmed completed so far, matching
 // the laps_completed property.
-func (n *Navigator) LapsCompleted() int { return n.lapsCompleted }
+func (n *Navigator) LapsCompleted() int {
+	return n.lapsCompleted
+}
 
 // WaypointIndex is the index of the waypoint currently being driven
 // toward, matching _waypoint_index. Exposed because ReplacePath's re-seek
 // and the wrap-detection branch are otherwise unobservable from outside.
-func (n *Navigator) WaypointIndex() int { return n.waypointIndex }
+func (n *Navigator) WaypointIndex() int {
+	return n.waypointIndex
+}
 
 // Waypoints is the path currently being driven -- the planned centerline,
 // or its sign-lane transform once one has been laid over it.
-func (n *Navigator) Waypoints() []trackmodel.Waypoint { return slices.Clone(n.waypoints) }
+func (n *Navigator) Waypoints() []trackmodel.Waypoint {
+	return slices.Clone(n.waypoints)
+}
 
 // outgoingBearing is the direction the path points at index, toward its
 // next waypoint, matching navigator.py's _outgoing_bearing.
@@ -461,8 +477,7 @@ func (n *Navigator) Step() {
 		return
 	}
 
-	robotX, robotY, robotYaw := pose.X, pose.Y, pose.Yaw
-	corridor := waypoints.CorridorForPosition(robotX, robotY, n.cfg.CornerMinM, n.cfg.CornerMaxM)
+	corridor := waypoints.CorridorForPosition(pose.X, pose.Y, n.cfg.CornerMinM, n.cfg.CornerMaxM)
 	n.currentCorridor = &corridor
 
 	n.recordPoseTrail(pose)
@@ -471,7 +486,7 @@ func (n *Navigator) Step() {
 	// elapses, so escapes are real motions rather than single-tick pulses
 	// that never clear the wall.
 	if n.activeManeuver != nil {
-		n.driveActiveManeuver(robotX, robotY, robotYaw, PhaseActiveManeuver)
+		n.driveActiveManeuver(pose, PhaseActiveManeuver)
 		return
 	}
 
@@ -481,7 +496,7 @@ func (n *Navigator) Step() {
 	// settles, hand off to the planned path. Sighted runs (Direction set at
 	// construction) never reach this branch.
 	if n.direction == nil {
-		n.blindCreep(robotX, robotY, robotYaw)
+		n.blindCreep(pose)
 		return
 	}
 
@@ -501,9 +516,9 @@ func (n *Navigator) Step() {
 	if n.parkController != nil && n.parkController.IsRepositioning() {
 		n.stuckDetector.Reset()
 	} else if !n.isHolding() {
-		n.stuckDetector.Update(trackmodel.Waypoint{X: robotX, Y: robotY})
+		n.stuckDetector.Update(trackmodel.Waypoint{X: pose.X, Y: pose.Y})
 		if n.stuckDetector.GetDiagnostics().IsStuck {
-			n.handleStuckEscape(robotX, robotY, robotYaw)
+			n.handleStuckEscape(pose)
 			return
 		}
 	}
@@ -512,11 +527,11 @@ func (n *Navigator) Step() {
 	// actually in the parking corridor and within reach of the staging
 	// point (see handleFinish/shouldEngageParking). Until then keep
 	// navigating so the handoff never fires mid-corridor.
-	if n.lapsCompleted >= n.numLaps && n.handleFinish(robotX, robotY, robotYaw) {
+	if n.lapsCompleted >= n.numLaps && n.handleFinish(pose) {
 		return
 	}
 
-	if n.handleWaypointWrap(robotX, robotY, robotYaw) {
+	if n.handleWaypointWrap(pose) {
 		return
 	}
 
@@ -527,7 +542,7 @@ func (n *Navigator) Step() {
 	// search all read it, and the router only runs after those.
 	n.refreshSignLanes()
 
-	rawWP := n.advancePastPassedWaypoints(robotX, robotY, robotYaw)
+	rawWP := n.advancePastPassedWaypoints(pose)
 
 	percept := n.assessPerception(pose)
 
@@ -538,9 +553,9 @@ func (n *Navigator) Step() {
 	// trajectory may never pass within the threshold of the deformed point
 	// -- checking that point would freeze the index indefinitely while the
 	// sign stays engaged, corrupting every later tick's lookahead search.
-	if rawWP.DistanceTo(trackmodel.Waypoint{X: robotX, Y: robotY}) < n.waypointThreshold {
+	if rawWP.DistanceTo(trackmodel.Waypoint{X: pose.X, Y: pose.Y}) < n.waypointThreshold {
 		n.waypointIndex++
-		debug := n.baseDebug(robotX, robotY, robotYaw)
+		debug := n.baseDebug(pose)
 		debug.Phase = PhaseWaypointReached
 		debug.ForwardClearanceM = new(percept.forwardClearance)
 		debug.MinLidarRangeM = percept.minRange
@@ -591,11 +606,11 @@ func (n *Navigator) applyPathWallBudget() {
 // baseDebug is the fields available on every phase once pose is known --
 // the common prefix every Step branch's snapshot builds on, matching
 // _base_debug.
-func (n *Navigator) baseDebug(robotX, robotY, robotYaw float64) DebugSnapshot {
+func (n *Navigator) baseDebug(pose trackmodel.Pose) DebugSnapshot {
 	snapshot := DebugSnapshot{
-		PoseX:         new(robotX),
-		PoseY:         new(robotY),
-		PoseYaw:       new(robotYaw),
+		PoseX:         new(pose.X),
+		PoseY:         new(pose.Y),
+		PoseYaw:       new(pose.Yaw),
 		Direction:     n.direction,
 		WaypointIndex: new(n.waypointIndex),
 		LapsCompleted: n.lapsCompleted,
@@ -662,8 +677,8 @@ func (n *Navigator) ApplyBelievedStart(measured trackmodel.Pose, pose trackmodel
 // camera sign detections, matching CoreNavigator.step's blind bootstrap. Once
 // the direction settles (parking-bay read or enough agreeing scans), the
 // navigator adopts it and the next tick follows the planned path.
-func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
-	debug := n.baseDebug(robotX, robotY, robotYaw)
+func (n *Navigator) blindCreep(pose trackmodel.Pose) {
+	debug := n.baseDebug(pose)
 	debug.Phase = PhaseBlindCreep
 
 	scan, haveScan := n.gateway.GetLidarScan()
@@ -675,7 +690,7 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 	// Accumulate camera sign detections into the discovery map (discover
 	// mode), so signs are published to the router as they confirm.
 	if n.discovery != nil {
-		n.discovery.Observe(n.visionDetections(), trackmodel.Waypoint{X: robotX, Y: robotY})
+		n.discovery.Observe(n.visionDetections(), trackmodel.Waypoint{X: pose.X, Y: pose.Y})
 		n.discovery.Publish()
 	}
 
@@ -683,7 +698,7 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 	// under a corridor yet -- that needs the direction -- but they are the
 	// cleanest readings of the whole round. See recordCreepWidth.
 	if haveScan {
-		n.recordCreepWidth(ranges, angles, robotYaw)
+		n.recordCreepWidth(ranges, angles, pose.Yaw)
 	}
 
 	// Resolve the direction: a boxed-in parking bay names it outright;
@@ -718,7 +733,7 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 			}
 		}
 		if !boxed && !n.exitingBay && haveScan {
-			n.dirEstimator.Observe(ranges, angles, robotYaw, n.dirEstCfg)
+			n.dirEstimator.Observe(ranges, angles, pose.Yaw, n.dirEstCfg)
 		}
 
 		// Out of the pocket. Falls through to the settle block below rather
@@ -743,7 +758,7 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 			if n.bayExit == nil {
 				n.bayExit = bayexit.New()
 			}
-			cmd := n.bayExit.Command(ranges, angles, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg, &robotYaw)
+			cmd := n.bayExit.Command(ranges, angles, odom.DistanceM, n.cfg.CreepSpeedMPS(), bxCfg, &pose.Yaw)
 			n.gateway.PublishDrive(cmd)
 			debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
 			debug.CommandedSteerNorm = new(cmd.SteeringNorm)
@@ -760,8 +775,8 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 					ranges, angles, dir, trackmodel.South, n.startMeasCfg,
 				); measuredOK {
 					n.ApplyBelievedStart(
-						trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: robotYaw},
-						trackmodel.Pose{X: robotX, Y: robotY, Yaw: robotYaw},
+						trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: pose.Yaw},
+						pose,
 					)
 				}
 			}
@@ -791,8 +806,8 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 			// between them arbitrarily.
 			n.ReplacePath(
 				n.waypoints,
-				trackmodel.Waypoint{X: robotX, Y: robotY},
-				&robotYaw,
+				trackmodel.Waypoint{X: pose.X, Y: pose.Y},
+				&pose.Yaw,
 			)
 			n.debug = debug
 			return
@@ -808,11 +823,11 @@ func (n *Navigator) blindCreep(robotX, robotY, robotYaw float64) {
 		n.debug = debug
 		return
 	}
-	yaw := robotYaw
+	yaw := pose.Yaw
 	followParams := corridorfollower.Params{
 		SpeedMPS:       n.cfg.CreepSpeedMPS(),
 		Yaw:            &yaw,
-		ForcedTurnSide: n.signDodgeSide(robotX, robotY),
+		ForcedTurnSide: n.signDodgeSide(pose),
 	}
 	if believed, ok := n.BelievedCreepWidthM(); ok {
 		followParams.BelievedWidthM = &believed
@@ -916,7 +931,7 @@ func (n *Navigator) recordCreepWidth(rangesM, anglesRad []float64, robotYaw floa
 // Ports TrackNavigatorNode._sign_dodge_side. Returns TurnSideNone for the
 // Open Challenge, which has no signs, and when no sign is close enough to
 // matter.
-func (n *Navigator) signDodgeSide(robotX, robotY float64) corridorfollower.TurnSide {
+func (n *Navigator) signDodgeSide(pose trackmodel.Pose) corridorfollower.TurnSide {
 	if n.signRouter == nil {
 		return corridorfollower.TurnSideNone
 	}
@@ -930,7 +945,7 @@ func (n *Navigator) signDodgeSide(robotX, robotY float64) corridorfollower.TurnS
 		if obs.Confidence < n.signRouterCfg.MinConfidence {
 			continue
 		}
-		dist := math.Hypot(obs.WorldXM-robotX, obs.WorldYM-robotY)
+		dist := math.Hypot(obs.WorldXM-pose.X, obs.WorldYM-pose.Y)
 		if dist < nearestDist {
 			nearestDist = dist
 			found := obs

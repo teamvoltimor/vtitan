@@ -81,8 +81,7 @@ func (n *Navigator) assessPerception(pose trackmodel.Pose) perception {
 // driveNormally is step()'s tail: steering selection, the speed ladder, the
 // sign-contact evade, the escape trigger, and the normal publish.
 func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
-	robotX, robotY, robotYaw := pose.X, pose.Y, pose.Yaw
-	here := trackmodel.Waypoint{X: robotX, Y: robotY}
+	here := trackmodel.Waypoint{X: pose.X, Y: pose.Y}
 
 	// Steer at a lookahead point, not directly at the (often much closer)
 	// next waypoint -- otherwise the lookahead distance is computed but
@@ -90,7 +89,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	//
 	// Lookahead selection is gated on crosstrack error (how far off the
 	// planned path the robot actually is), not forward LIDAR clearance.
-	crosstrack := trackmodel.CrossTrackError(n.waypoints, robotX, robotY)
+	crosstrack := trackmodel.CrossTrackError(n.waypoints, pose.X, pose.Y)
 	// Crosstrack alone arms the short lookahead only after a corner has
 	// been missed; the path's own upcoming turn arms it on entry.
 	turnAhead := trackmodel.PathTurnAhead(
@@ -104,16 +103,15 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	// the wrong way. Hold the preview open until the turn it promised has
 	// actually been driven. See CornerLatch for the hardware trace.
 	turnAhead = n.cornerLatch.Update(
-		turnAhead, robotYaw, n.waypointController.CornerTurnThresholdRad,
+		turnAhead, pose.Yaw, n.waypointController.CornerTurnThresholdRad,
 	)
-	signAhead := n.signAhead(robotX, robotY, robotYaw)
+	signAhead := n.signAhead(pose)
 	lookahead := n.waypointController.SelectLookahead(crosstrack, turnAhead, signAhead)
 	// Full waypoint list, not a slice from waypointIndex -- SelectTargetPoint
 	// wraps the search around the lap itself; slicing here would cut that
 	// wraparound off again.
 	steerTarget := n.waypointController.SelectTargetPoint(
-		here,
-		robotYaw,
+		pose,
 		n.waypoints,
 		n.waypointIndex,
 		lookahead,
@@ -122,7 +120,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	steerTarget, signDeformMagnitude, activeSignCount := n.applySignRouting(
 		steerTarget,
 		here,
-		robotYaw,
+		pose.Yaw,
 	)
 
 	dt := 0.0
@@ -130,8 +128,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 		dt = 1.0 / n.cfg.ControlHz
 	}
 	steering, _, angleError := n.waypointController.ComputeSteering(
-		here,
-		robotYaw,
+		pose,
 		steerTarget,
 		crosstrack,
 		dt,
@@ -145,7 +142,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 		signDeformMagnitude,
 	)
 
-	debug := n.baseDebug(robotX, robotY, robotYaw)
+	debug := n.baseDebug(pose)
 	debug.ForwardClearanceM = new(p.forwardClearance)
 	debug.MinLidarRangeM = p.minRange
 	debug.Risk = new(p.risk)
@@ -172,7 +169,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	// contact range, too late for any steering command to matter, which is
 	// why a risk-gated version of this measured flat.
 	if n.cfg.SignContactEvade && n.signRouter != nil {
-		if evade, evading := n.signEvadeSteer(robotX, robotY, robotYaw); evading {
+		if evade, evading := n.signEvadeSteer(pose); evading {
 			steering = navutil.Clamp(steering+evade, -1.0, 1.0)
 			speed = math.Min(speed, n.cfg.CreepSpeedMPS())
 		}
@@ -191,8 +188,8 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	// never reached EscalateAfterAttempts.
 	if n.escapeSequenceStartXY == nil ||
 		math.Hypot(
-			robotX-n.escapeSequenceStartXY.X,
-			robotY-n.escapeSequenceStartXY.Y,
+			pose.X-n.escapeSequenceStartXY.X,
+			pose.Y-n.escapeSequenceStartXY.Y,
 		) >= n.cfg.StuckMoveThreshold {
 		n.escapeCount = 0
 		n.escapeSequenceStartXY = nil

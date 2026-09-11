@@ -21,13 +21,13 @@ import (
 // RoutedSignPositions has no direction filter, so without this a
 // not-yet-passed sign still alongside or just behind the chassis forces the
 // short lookahead just as readily as a genuinely upcoming one.
-func (n *Navigator) signAhead(robotX, robotY, robotYaw float64) bool {
+func (n *Navigator) signAhead(pose trackmodel.Pose) bool {
 	if !n.cfg.SignAwareLookahead || n.signRouter == nil {
 		return false
 	}
-	cosYaw, sinYaw := math.Cos(robotYaw), math.Sin(robotYaw)
+	cosYaw, sinYaw := math.Cos(pose.Yaw), math.Sin(pose.Yaw)
 	for _, wp := range n.signRouter.RoutedSignPositions() {
-		dx, dy := wp.X-robotX, wp.Y-robotY
+		dx, dy := wp.X-pose.X, wp.Y-pose.Y
 		if math.Hypot(dx, dy) < n.cfg.ActivationDistM && dx*cosYaw+dy*sinYaw > 0 {
 			return true
 		}

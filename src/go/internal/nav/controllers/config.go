@@ -314,19 +314,21 @@ func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController 
 }
 
 // NewWaypointController builds a WaypointController from c, matching
-// WaypointController.from_tuning.
+// WaypointController.from_tuning. LookaheadBlendStart defaults to 1.0 (a
+// hard switch), matching WaypointController.__init__'s default.
 func (c Config) NewWaypointController() *WaypointController {
-	return NewWaypointController(
-		c.MaxSteeringAngleRad,
-		c.WheelbaseM,
-		c.LookaheadShort,
-		c.LookaheadLong,
-		c.LookaheadTransition,
-		c.MaxSteeringRate,
-		c.ControllerReachedDistanceM,
-		c.CornerTurnThresholdRad,
-		c.YawGainCompensation,
-	)
+	return &WaypointController{
+		MaxSteeringAngle:         c.MaxSteeringAngleRad,
+		WheelbaseM:               c.WheelbaseM,
+		LookaheadShort:           c.LookaheadShort,
+		LookaheadLong:            c.LookaheadLong,
+		LookaheadTransition:      c.LookaheadTransition,
+		MaxSteeringRate:          c.MaxSteeringRate,
+		WaypointReachedDistanceM: c.ControllerReachedDistanceM,
+		CornerTurnThresholdRad:   c.CornerTurnThresholdRad,
+		YawGainCompensation:      c.YawGainCompensation,
+		LookaheadBlendStart:      1.0,
+	}
 }
 
 // NewStuckDetector builds a StuckDetector from c, matching

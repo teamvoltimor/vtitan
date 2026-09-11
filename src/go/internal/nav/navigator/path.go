@@ -26,7 +26,7 @@ import (
 // position can then hand WaypointController a point past the turn,
 // demanding a correction far larger than finishing the corner needs --
 // measured on real hardware as a ~193 deg swing where ~90 deg would do.
-// Passing a non-nil robotYaw re-ranks the near-tied-by-distance candidates
+// Passing a non-nil pose.Yaw re-ranks the near-tied-by-distance candidates
 // (ReplanHeadingTieMarginM) by heading agreement instead. Pass nil where
 // the robot has been tracking a path very similar to the new one, where
 // nearest-by-position alone is already safe.
@@ -156,17 +156,17 @@ func (n *Navigator) Reset() {
 // handleFinish handles the post-final-lap phase, matching _handle_finish.
 // Returns true if a command was issued (caller should stop this tick);
 // false if the robot should keep navigating toward the parking corridor.
-func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) bool {
+func (n *Navigator) handleFinish(pose trackmodel.Pose) bool {
 	pc := n.parkController
 	if pc == nil || !pc.AttemptAfterFinalLap() {
 		// Open Challenge (no maneuver), or Obstacles with the pursuit
 		// deferred: hold position in the finish section. Matches
 		// _handle_finish's `pc is None or not ATTEMPT_AFTER_FINAL_LAP`.
-		n.holdFinished(robotX, robotY, robotYaw)
+		n.holdFinished(pose)
 		return true
 	}
 
-	if !n.parkingEngaged && n.shouldEngageParking(robotX, robotY) {
+	if !n.parkingEngaged && n.shouldEngageParking(pose) {
 		// currentCorridor is set every tick before this branch is reachable
 		// (Step's very first assignment), so it is never nil here.
 		n.logger.Info("parking engaged", "corridor", *n.currentCorridor)
@@ -177,11 +177,11 @@ func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) bool {
 	}
 
 	if pc.IsDone() {
-		n.holdFinished(robotX, robotY, robotYaw)
+		n.holdFinished(pose)
 		return true
 	}
 
-	cmd := pc.Update(trackmodel.Pose{X: robotX, Y: robotY, Yaw: robotYaw})
+	cmd := pc.Update(pose)
 	linear := cmd.LinearMPS
 	if scan, ok := n.gateway.GetLidarScan(); ok {
 		// One call for both parking stop-check clearances (narrow-forward
@@ -197,7 +197,7 @@ func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) bool {
 	}
 
 	n.gateway.PublishDrive(controllers.DriveCommand{SpeedMPS: linear, SteeringNorm: cmd.SteeringNorm})
-	debug := n.baseDebug(robotX, robotY, robotYaw)
+	debug := n.baseDebug(pose)
 	debug.Phase = PhaseParking
 	parkPhase := cmd.Phase
 	debug.ParkPhase = &parkPhase
@@ -210,9 +210,9 @@ func (n *Navigator) handleFinish(robotX, robotY, robotYaw float64) bool {
 // holdFinished publishes a zero drive command and the FINISHED_HOLD
 // snapshot, matching the two identical branches of _handle_finish (no
 // ParkController, and a done one) that both do exactly this.
-func (n *Navigator) holdFinished(robotX, robotY, robotYaw float64) {
+func (n *Navigator) holdFinished(pose trackmodel.Pose) {
 	n.gateway.PublishDrive(controllers.DriveCommand{})
-	debug := n.baseDebug(robotX, robotY, robotYaw)
+	debug := n.baseDebug(pose)
 	debug.Phase = PhaseFinishedHold
 	debug.CommandedSpeedMPS = new(0.0)
 	debug.CommandedSteerNorm = new(0.0)
@@ -222,7 +222,7 @@ func (n *Navigator) holdFinished(robotX, robotY, robotYaw float64) {
 // shouldEngageParking reports whether the parking handoff should engage:
 // only once in the parking corridor and near the staging point, matching
 // _should_engage_parking.
-func (n *Navigator) shouldEngageParking(robotX, robotY float64) bool {
+func (n *Navigator) shouldEngageParking(pose trackmodel.Pose) bool {
 	pc := n.parkController
 	if pc == nil {
 		return false
@@ -231,7 +231,7 @@ func (n *Navigator) shouldEngageParking(robotX, robotY float64) bool {
 		return false
 	}
 	staging := pc.Staging()
-	return math.Hypot(staging.X-robotX, staging.Y-robotY) < n.cfg.ParkEngageDistM
+	return math.Hypot(staging.X-pose.X, staging.Y-pose.Y) < n.cfg.ParkEngageDistM
 }
 
 // handleWaypointWrap detects the index running off the end of the lap and
@@ -242,7 +242,7 @@ func (n *Navigator) shouldEngageParking(robotX, robotY float64) bool {
 // LapDetector's geometric confirmation and falls back to counting wraps
 // directly; LapDetector has no Go equivalent (see doc.go), so the fallback
 // branch is always the one taken.
-func (n *Navigator) handleWaypointWrap(robotX, robotY, robotYaw float64) bool {
+func (n *Navigator) handleWaypointWrap(pose trackmodel.Pose) bool {
 	if n.waypointIndex < len(n.waypoints) {
 		return false
 	}
@@ -259,7 +259,7 @@ func (n *Navigator) handleWaypointWrap(robotX, robotY, robotYaw float64) bool {
 	if n.signRouter != nil {
 		n.signRouter.ResetForNewLap()
 	}
-	debug := n.baseDebug(robotX, robotY, robotYaw)
+	debug := n.baseDebug(pose)
 	debug.Phase = PhaseWaypointWrapFallback
 	n.debug = debug
 	return true
@@ -292,15 +292,15 @@ func (n *Navigator) handleWaypointWrap(robotX, robotY, robotYaw float64) bool {
 // tick, even though local-frame ahead/behind already shows the chassis has
 // swept past them.
 func (n *Navigator) advancePastPassedWaypoints(
-	robotX, robotY, robotYaw float64,
+	pose trackmodel.Pose,
 ) trackmodel.Waypoint {
-	here := trackmodel.Waypoint{X: robotX, Y: robotY}
+	here := trackmodel.Waypoint{X: pose.X, Y: pose.Y}
 	rawWP := n.waypoints[n.waypointIndex]
 
 	rescueBehind := n.signRouter != nil && n.cfg.StaleTargetRescue
 	cosYaw, sinYaw := 0.0, 0.0
 	if rescueBehind {
-		cosYaw, sinYaw = math.Cos(robotYaw), math.Sin(robotYaw)
+		cosYaw, sinYaw = math.Cos(pose.Yaw), math.Sin(pose.Yaw)
 	}
 
 	count := len(n.waypoints)
@@ -308,7 +308,7 @@ func (n *Navigator) advancePastPassedWaypoints(
 		nextIndex := n.waypointIndex + 1
 		nextWP := n.waypoints[nextIndex%count]
 		nextCloser := nextWP.DistanceTo(here) < rawWP.DistanceTo(here)
-		rawBehind := rescueBehind && (rawWP.X-robotX)*cosYaw+(rawWP.Y-robotY)*sinYaw <= 0
+		rawBehind := rescueBehind && (rawWP.X-pose.X)*cosYaw+(rawWP.Y-pose.Y)*sinYaw <= 0
 		if !nextCloser && !rawBehind {
 			break
 		}

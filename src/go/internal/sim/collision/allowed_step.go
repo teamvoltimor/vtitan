@@ -48,11 +48,11 @@ const stepBisections = 8
 // them explicitly (e.g. from profile.RobotConfig).
 func AllowedStep(
 	track *TrackModel,
-	solidSurfaces map[ContactSurface]bool,
+	solidSurfaces SurfaceSet,
 	length, width float64,
 	state, candidate kinematics.AckermannState,
 ) *kinematics.AckermannState {
-	if !solidSurfaces[track.ContactSurfaceAt(candidate.X, candidate.Y, candidate.Yaw, length, width)] {
+	if !solidSurfaces.Contains(track.ContactSurfaceAt(candidate.X, candidate.Y, candidate.Yaw, length, width)) {
 		return &candidate
 	}
 
@@ -61,7 +61,7 @@ func AllowedStep(
 
 	free := func(move, turn float64) bool {
 		surface := track.ContactSurfaceAt(state.X+dx*move, state.Y+dy*move, state.Yaw+dyaw*turn, length, width)
-		return !solidSurfaces[surface]
+		return !solidSurfaces.Contains(surface)
 	}
 
 	largest := func(fits func(float64) bool) float64 {

@@ -20,6 +20,10 @@ type StartingConditions struct {
 	Yaw       float64
 }
 
+// trackMinCoordM is the track's inner boundary coordinate (matches
+// track.toml [track] min_coord).
+const trackMinCoordM = 0.0
+
 // ReplannedAt returns a copy of sc with the believed pose/direction swapped
 // in, matching StartingConditions.replanned_at -- typed replacement for a
 // believed pose during replanning.
@@ -193,12 +197,17 @@ func cornerRadius(
 	)
 }
 
+// BelievedStart is the start pose/direction/section triple the robot
+// currently believes, as distinct from the ground-truth record in
+// PlannerInput.Starting. It is exactly a StartingConditions, named apart so
+// a believed belief is not accidentally confused with the confirmed one.
+type BelievedStart = StartingConditions
+
 // PlanBelievedPath builds a one-lap path for the layout the robot currently
 // believes it is on, matching generation.py's plan_believed_path. Shared by
 // the simulator and the navigator: both replan from a believed corridor-width
 // estimate and a believed start pose that can differ from the ground-truth
-// record, which is why the believed section/position/yaw/direction are
-// threaded in separately.
+// record, which is why believedStart is threaded in as its own value.
 //
 // numLaps is forced to 1: a caller that wants the real lap count cycles this
 // single canonical lap the required number of times (matching the Python
@@ -206,20 +215,15 @@ func cornerRadius(
 // when the navigator already wraps one lap).
 func PlanBelievedPath(
 	base PlannerInput,
-	believed trackmodel.CorridorGeometry,
-	direction *trackmodel.Direction,
-	believedSection trackmodel.Section,
-	believedPosition trackmodel.Waypoint,
-	believedYaw float64,
+	believedGeometry trackmodel.CorridorGeometry,
+	believedStart BelievedStart,
 	cfg Config,
 	centerBiasM *float64,
 	unconfirmed UnconfirmedSections,
 ) ([]trackmodel.Waypoint, error) {
 	replanned := base
-	replanned.Geometry = believed
-	replanned.Starting = base.Starting.ReplannedAt(
-		direction, believedSection, believedPosition, believedYaw,
-	)
+	replanned.Geometry = believedGeometry
+	replanned.Starting = believedStart
 	return CalculateWaypoints(replanned, 1, cfg, centerBiasM, unconfirmed)
 }
 
@@ -227,10 +231,9 @@ func PlanBelievedPath(
 // waypoint, matching generation.py's validate_bounds -- every waypoint must
 // stay on the track and clear of the restricted inner square.
 func validateBounds(waypoints []trackmodel.Waypoint, maxCoordM float64) error {
-	const minCoordM = 0.0
 	block := innerSquareExclusion(maxCoordM)
 	for _, w := range waypoints {
-		if w.X < minCoordM || w.X > maxCoordM || w.Y < minCoordM || w.Y > maxCoordM {
+		if w.X < trackMinCoordM || w.X > maxCoordM || w.Y < trackMinCoordM || w.Y > maxCoordM {
 			return fmt.Errorf(
 				"waypoints: generated waypoint (%.3f, %.3f) falls outside the track bounds", w.X, w.Y,
 			)

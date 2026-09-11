@@ -11,9 +11,7 @@ import "github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 // round"). The parking lot has no such concession: 9.24.7 ends the round on
 // contact, full stop, so a surface that is fatal by rule cannot be waited
 // out no matter when the streak started or how short it is.
-var unforgivableContactSurfaces = map[collision.ContactSurface]bool{
-	collision.SurfaceParkingLot: true,
-}
+var unforgivableContactSurfaces = collision.NewSurfaceSet(collision.SurfaceParkingLot)
 
 // OpenForbiddenSurfaces/ObstaclesForbiddenSurfaces mirror Python's
 // TERMINAL_SURFACES (scenario_result.py): each challenge forbids exactly one
@@ -28,14 +26,9 @@ var unforgivableContactSurfaces = map[collision.ContactSurface]bool{
 // for Obstacles would re-base every Obstacles figure in the repo at once, so
 // it stays a deliberate per-challenge decision, not an oversight.
 var (
-	OpenForbiddenSurfaces = map[collision.ContactSurface]bool{
-		collision.SurfaceOuterWall: true,
-	}
-	ObstaclesForbiddenSurfaces = map[collision.ContactSurface]bool{
-		collision.SurfaceInnerWall:  true,
-		collision.SurfaceObstacle:   true,
-		collision.SurfaceParkingLot: true,
-	}
+	OpenForbiddenSurfaces = collision.NewSurfaceSet(collision.SurfaceOuterWall)
+	ObstaclesForbiddenSurfaces = collision.NewSurfaceSet(
+		collision.SurfaceInnerWall, collision.SurfaceObstacle, collision.SurfaceParkingLot)
 )
 
 // contactTracker decides when a contact streak stops being survivable and
@@ -53,7 +46,7 @@ type contactTracker struct {
 	dt           float64
 	startWindowS float64
 	startGraceS  float64
-	forbidden    map[collision.ContactSurface]bool
+	forbidden    collision.SurfaceSet
 
 	haveStreak  bool
 	streakStart int
@@ -74,7 +67,7 @@ type contactTracker struct {
 // newContactTracker builds a tracker over the given control interval,
 // start-of-run forgiveness window/grace (seconds), and the set of surfaces
 // this challenge forbids (see OpenForbiddenSurfaces/ObstaclesForbiddenSurfaces).
-func newContactTracker(dt, startWindowS, startGraceS float64, forbidden map[collision.ContactSurface]bool) *contactTracker {
+func newContactTracker(dt, startWindowS, startGraceS float64, forbidden collision.SurfaceSet) *contactTracker {
 	return &contactTracker{dt: dt, startWindowS: startWindowS, startGraceS: startGraceS, forbidden: forbidden}
 }
 
@@ -90,7 +83,7 @@ func (c *contactTracker) update(step int, surface collision.ContactSurface) bool
 	}
 	c.inContact = touching
 
-	if !touching || !c.forbidden[surface] {
+	if !touching || !c.forbidden.Contains(surface) {
 		c.haveStreak = false
 		return false
 	}
@@ -102,7 +95,7 @@ func (c *contactTracker) update(step int, surface collision.ContactSurface) bool
 	c.timeS += c.dt
 	streakS := float64(step-c.streakStart) * c.dt
 
-	if unforgivableContactSurfaces[surface] {
+	if unforgivableContactSurfaces.Contains(surface) {
 		// No grace of any kind, matching the Python comment: both graces
 		// used to apply here and between them hid the bay-exit manoeuvre
 		// entirely (the start window comfortably covers a whole bay exit).

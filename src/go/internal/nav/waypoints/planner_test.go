@@ -115,8 +115,12 @@ func TestPlanBelievedPath_ReplansFromBelievedGeometry(t *testing.T) {
 
 	wps, err := PlanBelievedPath(
 		base, believed,
-		&dir, trackmodel.East,
-		trackmodel.Waypoint{X: 2.0, Y: 0.5}, 0.0,
+		StartingConditions{
+			Direction: &dir,
+			Section:   trackmodel.East,
+			Position:  trackmodel.Waypoint{X: 2.0, Y: 0.5},
+			Yaw:       0.0,
+		},
 		cfg, nil, AllConfirmed(),
 	)
 	if err != nil {

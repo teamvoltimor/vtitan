@@ -17,16 +17,6 @@ import (
 // matching shared.domain.enums.ScenarioType.OPEN's wire value.
 const challengeTypeOpen = "open"
 
-// sectionsByName maps the metadata schema's section names onto the
-// navigation domain's Section. simconfig.Section is already the name, so
-// this is the only conversion the package needs.
-var sectionsByName = map[simconfig.Section]trackmodel.Section{
-	simconfig.SectionNorth: trackmodel.North,
-	simconfig.SectionSouth: trackmodel.South,
-	simconfig.SectionEast:  trackmodel.East,
-	simconfig.SectionWest:  trackmodel.West,
-}
-
 // Metadata builds the scenario metadata for one parameter set, in the same
 // schema cmd/simgen writes and internal/sim/scenario reads. Ports
 // scenario_builder.build_open_metadata.
@@ -38,7 +28,7 @@ var sectionsByName = map[simconfig.Section]trackmodel.Section{
 // start_cell=None -- but the centreline is not one of the legal cells, so no
 // case in the enumerated space uses it and this signature does not offer it.
 func Metadata(p Params, cfg startconditions.Config) (generate.Metadata, error) {
-	section, ok := sectionsByName[p.Section]
+	section, ok := p.Section.Domain()
 	if !ok {
 		return generate.Metadata{}, fmt.Errorf("opencorpus: unknown section %q", p.Section)
 	}
@@ -46,7 +36,11 @@ func Metadata(p Params, cfg startconditions.Config) (generate.Metadata, error) {
 	widthsByName := p.Widths.MetresByName()
 	widthsM := make(map[trackmodel.Section]float64, len(widthsByName))
 	for name, metres := range widthsByName {
-		widthsM[sectionsByName[name]] = metres
+		domainSection, ok := name.Domain()
+		if !ok {
+			return generate.Metadata{}, fmt.Errorf("opencorpus: unknown section %q", name)
+		}
+		widthsM[domainSection] = metres
 	}
 
 	_, _, yaw, ok := startconditions.StartPose(section, p.Direction, widthsM, cfg, nil)

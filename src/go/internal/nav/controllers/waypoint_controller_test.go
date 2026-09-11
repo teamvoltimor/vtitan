@@ -23,12 +23,12 @@ func TestComputeSteering_LargeAngleErrorIsRateLimitedAcrossTicks(t *testing.T) {
 	maxDeltaNorm := (2.0 * dt) / controller.MaxSteeringAngle
 	target := trackmodel.Waypoint{X: -1.0, Y: 0.0}
 
-	first, _, _ := controller.ComputeSteering(trackmodel.Waypoint{}, 0.0, target, 0.0, dt)
+	first, _, _ := controller.ComputeSteering(trackmodel.Pose{}, target, 0.0, dt)
 	if math.Abs(first-maxDeltaNorm) > 1e-9 {
 		t.Errorf("first = %v, want %v", first, maxDeltaNorm)
 	}
 
-	second, _, _ := controller.ComputeSteering(trackmodel.Waypoint{}, 0.0, target, 0.0, dt)
+	second, _, _ := controller.ComputeSteering(trackmodel.Pose{}, target, 0.0, dt)
 	if math.Abs(math.Abs(second-first)-maxDeltaNorm) > 1e-9 {
 		t.Errorf("abs(second-first) = %v, want %v", math.Abs(second-first), maxDeltaNorm)
 	}
@@ -43,7 +43,7 @@ func TestComputeSteering_SmallAngleErrorIsNotRateLimited(t *testing.T) {
 	controller.MaxSteeringRate = 2.0
 
 	steering, _, angleError := controller.ComputeSteering(
-		trackmodel.Waypoint{}, 0.0, trackmodel.Waypoint{X: 1.0, Y: 0.01}, 0.0, 0.05,
+		trackmodel.Pose{}, trackmodel.Waypoint{X: 1.0, Y: 0.01}, 0.0, 0.05,
 	)
 	if !(steering > 0.0 && steering < 0.05) {
 		t.Errorf("steering = %v, want in (0, 0.05)", steering)
@@ -63,10 +63,10 @@ func TestReset_ClearsRateLimitMemory(t *testing.T) {
 	const dt = 0.05
 	target := trackmodel.Waypoint{X: -1.0, Y: 0.0}
 
-	controller.ComputeSteering(trackmodel.Waypoint{}, 0.0, target, 0.0, dt)
+	controller.ComputeSteering(trackmodel.Pose{}, target, 0.0, dt)
 	controller.Reset()
 
-	steering, _, _ := controller.ComputeSteering(trackmodel.Waypoint{}, 0.0, target, 0.0, dt)
+	steering, _, _ := controller.ComputeSteering(trackmodel.Pose{}, target, 0.0, dt)
 	maxDeltaNorm := (2.0 * dt) / controller.MaxSteeringAngle
 	if math.Abs(steering-maxDeltaNorm) > 1e-9 {
 		t.Errorf("steering after reset = %v, want %v", steering, maxDeltaNorm)
@@ -84,7 +84,7 @@ func TestComputeSteering_ForwardTargetUsesCurvatureNotGain(t *testing.T) {
 	controller.MaxSteeringRate = 100.0 // effectively unrated for this check
 
 	steering, _, angleError := controller.ComputeSteering(
-		trackmodel.Waypoint{}, 0.0, trackmodel.Waypoint{X: 0.40, Y: 0.20}, 0.0, 0.05,
+		trackmodel.Pose{}, trackmodel.Waypoint{X: 0.40, Y: 0.20}, 0.0, 0.05,
 	)
 	if angleError <= 0 {
 		t.Errorf("angleError = %v, want > 0", angleError)
@@ -116,8 +116,7 @@ func TestSelectTargetPoint_WrapsPastTheEndOfTheLap(t *testing.T) {
 	}
 
 	target := controller.SelectTargetPoint(
-		trackmodel.Waypoint{X: 0.0, Y: 1.0},
-		0.0,
+		trackmodel.Pose{X: 0.0, Y: 1.0},
 		waypoints,
 		3,
 		1.0,
@@ -139,7 +138,7 @@ func TestSelectTargetPoint_SkipsABehindCandidateEvenWhenFartherByDistance(t *tes
 	controller := newDefaultWaypointController()
 	waypoints := []trackmodel.Waypoint{{X: 0.0, Y: 0.0}, {X: -5.0, Y: 0.0}, {X: 3.0, Y: 0.0}}
 
-	target := controller.SelectTargetPoint(trackmodel.Waypoint{}, 0.0, waypoints, 0, 1.0)
+	target := controller.SelectTargetPoint(trackmodel.Pose{}, waypoints, 0, 1.0)
 	want := trackmodel.Waypoint{X: 3.0, Y: 0.0}
 	if target != want {
 		t.Errorf("SelectTargetPoint() = %+v, want %+v", target, want)
@@ -157,7 +156,7 @@ func TestSelectTargetPoint_FallsBackToNearestAheadWhenNothingReachesLookahead(t 
 	waypoints := []trackmodel.Waypoint{{X: 0.0, Y: 0.0}, {X: 0.1, Y: 0.0}, {X: 0.2, Y: 0.0}}
 
 	// lookahead 5.0 is farther than anything on this tiny loop.
-	target := controller.SelectTargetPoint(trackmodel.Waypoint{}, 0.0, waypoints, 0, 5.0)
+	target := controller.SelectTargetPoint(trackmodel.Pose{}, waypoints, 0, 5.0)
 	want := trackmodel.Waypoint{X: 0.1, Y: 0.0} // nearest point that is still ahead
 	if target != want {
 		t.Errorf("SelectTargetPoint() = %+v, want %+v", target, want)

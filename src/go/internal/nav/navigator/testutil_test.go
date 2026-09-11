@@ -58,7 +58,9 @@ func (g *fakeGateway) ResetPosition(x, y float64) {
 	g.resetPositions = append(g.resetPositions, trackmodel.Waypoint{X: x, Y: y})
 }
 
-func (g *fakeGateway) ResetHeadingReference() { g.headingResets++ }
+func (g *fakeGateway) ResetHeadingReference() {
+	g.headingResets++
+}
 
 func (g *fakeGateway) CorrectHeadingForDirectionChange(deltaRad float64) {
 	g.headingCorrections = append(g.headingCorrections, deltaRad)

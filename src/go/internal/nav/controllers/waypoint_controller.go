@@ -44,29 +44,6 @@ type WaypointController struct {
 	crosstrackBudgetM *float64
 }
 
-// NewWaypointController builds a WaypointController with
-// LookaheadBlendStart defaulted to 1.0 (a hard switch), matching
-// WaypointController.__init__'s default.
-func NewWaypointController(
-	maxSteeringAngle, wheelbaseM, lookaheadShort, lookaheadLong, lookaheadTransition,
-	maxSteeringRate, waypointReachedDistanceM, cornerTurnThresholdRad,
-	yawGainCompensation float64,
-) *WaypointController {
-	const defaultLookaheadBlendStart = 1.0
-	return &WaypointController{
-		MaxSteeringAngle:         maxSteeringAngle,
-		WheelbaseM:               wheelbaseM,
-		LookaheadShort:           lookaheadShort,
-		LookaheadLong:            lookaheadLong,
-		LookaheadTransition:      lookaheadTransition,
-		MaxSteeringRate:          maxSteeringRate,
-		WaypointReachedDistanceM: waypointReachedDistanceM,
-		CornerTurnThresholdRad:   cornerTurnThresholdRad,
-		YawGainCompensation:      yawGainCompensation,
-		LookaheadBlendStart:      defaultLookaheadBlendStart,
-	}
-}
-
 // EffectiveTransition is the crosstrack threshold actually in force, after
 // the wall budget, matching WaypointController.effective_transition.
 func (w *WaypointController) EffectiveTransition() float64 {
@@ -108,16 +85,16 @@ func (w *WaypointController) SelectLookahead(
 // Searches forward from waypointIndex, wrapping around the end of the list
 // back to the start (at most one full lap). waypoints is the full
 // canonical-lap path, not a pre-sliced remainder. Also skips any candidate
-// that is behind the chassis in its current local frame.
+// that is behind the chassis in its current local frame. pose is the
+// chassis pose in the world frame.
 func (w *WaypointController) SelectTargetPoint(
-	currentPos trackmodel.Waypoint,
-	currentYaw float64,
+	pose trackmodel.Pose,
 	waypointsPath []trackmodel.Waypoint,
 	waypointIndex int,
 	lookaheadDistance float64,
 ) trackmodel.Waypoint {
 	n := len(waypointsPath)
-	cosYaw, sinYaw := math.Cos(currentYaw), math.Sin(currentYaw)
+	cosYaw, sinYaw := math.Cos(pose.Yaw), math.Sin(pose.Yaw)
 
 	var nearestAhead *trackmodel.Waypoint
 	nearestAheadDist := math.Inf(1)
@@ -126,7 +103,7 @@ func (w *WaypointController) SelectTargetPoint(
 
 	for offset := range n {
 		wp := waypointsPath[(waypointIndex+offset)%n]
-		dx, dy := wp.X-currentPos.X, wp.Y-currentPos.Y
+		dx, dy := wp.X-pose.X, wp.Y-pose.Y
 		dist := math.Hypot(dx, dy)
 		if dist < nearestAnyDist {
 			nearestAnyDist = dist
@@ -168,12 +145,11 @@ func (w *WaypointController) Reset() {
 // limiting; angleErrorRad is the signed bearing error before rate
 // limiting, letting the caller slow down for a sharp turn.
 func (w *WaypointController) ComputeSteering(
-	currentPos trackmodel.Waypoint, currentYaw float64, targetWaypoint trackmodel.Waypoint,
+	pose trackmodel.Pose, targetWaypoint trackmodel.Waypoint,
 	crosstrackError, dt float64,
 ) (steeringNormalized, lookaheadDistanceM, angleErrorRad float64) {
 	lookahead := w.SelectLookahead(crosstrackError, 0.0, false)
 
-	pose := trackmodel.Pose{X: currentPos.X, Y: currentPos.Y, Yaw: currentYaw}
 	xLocal, yLocal := pose.ToLocalFrame(targetWaypoint)
 	distance := math.Hypot(xLocal, yLocal)
 
