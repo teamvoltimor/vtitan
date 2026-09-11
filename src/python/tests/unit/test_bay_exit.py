@@ -52,7 +52,12 @@ def _guard_tuning(**changes: object):
     other.
     """
     return tuning_with_overrides(
-        {"BAY_EXIT_CLEARANCE_GUARD": True, "BAY_EXIT_GUARD_MEASURED_COAST": False, **changes}
+        {
+            "BAY_EXIT_CLEARANCE_GUARD": True,
+            "BAY_EXIT_GUARD_MEASURED_COAST": False,
+            "BAY_EXIT_CLEARANCE_TOLERANCE_M": 0.0,
+            **changes,
+        }
     )
 
 

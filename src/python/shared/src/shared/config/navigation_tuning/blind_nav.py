@@ -864,6 +864,40 @@ class CorridorFollowerParams(BaseModel):
     maximises reversals is not the one that maximises escapes.
     """
 
+    BAY_EXIT_CLEARANCE_TOLERANCE_M: float = Field(
+        default=0.0, ge=0.0, validation_alias=_alias("BAY_EXIT_CLEARANCE_TOLERANCE_M")
+    )
+    """Predicted fin OVERLAP the guard tolerates, in metres. Ships 0.0 = inert.
+
+    Subtracted from ``BAY_EXIT_CLEARANCE_MARGIN_M``, so the effective threshold
+    can go negative without loosening that field's ``ge=0.0``, which exists to
+    stop a margin being set backwards by accident.
+
+    **Why this knob rather than another speed.** Measured on hardware
+    2026-09-10 (`run_20260910_212129`, at `bay_exit_speed_mps` 0.15 with
+    `BAY_EXIT_GUARD_MEASURED_COAST` on): the guard refuses on a PREDICTED gap of
+    **4 mm** against a **1 mm** margin, while the pose it predicts from is dead
+    reckoned and **~29 mm wrong**
+    ([[bay_guard_arbitrates_1mm_with_a_29mm_pose_error]]). It is arbitrating an
+    order of magnitude below its own model's error, so a refusal carries no
+    information -- and each one FLIPS the leg, paying a full servo swing:
+    **324 legs averaging 0.06 s across 39.3 s, 814 deg of rotation for 5.3 net,
+    zero net travel, out of the bay 0/1.**
+
+    That also rules out the two levers tried before it on the same night.
+    Commanding 0.10 stalls the wheel 56.1% of ticks; commanding 0.15 fixes that
+    outright (encoder-zero 0.4%) but the guard then vetoes 38-71%; and
+    budgeting the coast from measured rather than commanded speed moved the veto
+    rate 39% -> 38%, i.e. not at all, because the coast term was never the
+    binding one.
+
+    **The risk is real and physical.** Tolerating predicted overlap means the
+    chassis may touch a fin, and a fin here is the parking structure -- which a
+    trial on this same night already knocked over. Trial small (0.010-0.020)
+    with a hand on the robot, and read `bay_guard_gap_m` afterwards rather than
+    trusting that nothing touched.
+    """
+
     BAY_EXIT_GUARD_MEASURED_COAST: bool = Field(
         default=False, validation_alias=_alias("BAY_EXIT_GUARD_MEASURED_COAST")
     )

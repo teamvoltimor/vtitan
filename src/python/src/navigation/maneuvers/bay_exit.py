@@ -658,7 +658,18 @@ class BayExit:
         their fields for the numbers.
         """
         follower = tuning.corridor_follower
-        margin = follower.BAY_EXIT_CLEARANCE_MARGIN_M
+        # MEASURED 2026-09-10 on run_20260910_212129: the guard refuses on a
+        # PREDICTED gap of ~4 mm against a 1 mm margin, while the pose it
+        # predicts from is dead-reckoned and ~29 mm wrong. It is arbitrating an
+        # order of magnitude below its own model's error, so the refusals are
+        # noise, and each one FLIPS the leg and pays a full servo swing: 324
+        # legs of 0.06 s in 39.3 s, 814 deg of rotation for 5.3 net, zero
+        # travel. Subtracting a tolerance lets the guard refuse only where the
+        # model is confidently -- not marginally -- inside a fin. The physical
+        # wall is what stops the chassis, and the operator reports the real
+        # exit is made by LEANING on it, which is exactly what a 1 mm margin on
+        # a 29 mm model forbids.
+        margin = follower.BAY_EXIT_CLEARANCE_MARGIN_M - follower.BAY_EXIT_CLEARANCE_TOLERANCE_M
         sign = 1.0 if open_is_left else -1.0
         arc = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
         # ONE angle for both legs -- see the docstring; the reverse holds it

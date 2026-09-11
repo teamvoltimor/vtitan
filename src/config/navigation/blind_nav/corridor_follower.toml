@@ -391,6 +391,13 @@ bay_exit_leg_max_s = 0.5
 # vetoed 39-71% of ticks -- 306 and 195 reversals, zero net travel, 0/2 out of
 # the bay. See BAY_EXIT_GUARD_MEASURED_COAST for the table.
 bay_exit_guard_measured_coast = false
+# Predicted fin OVERLAP the guard tolerates (m). Ships 0.0 = inert. The guard
+# refuses on a predicted 4 mm gap against a 1 mm margin while its dead-reckoned
+# pose is ~29 mm wrong, so the refusals are noise -- and each one flips the leg
+# and pays a servo swing: 324 legs of 0.06 s in 39.3 s, 814 deg rotation for 5.3
+# net, zero travel. RISK: tolerating overlap means the chassis may touch a fin,
+# and a fin is the parking structure. Trial 0.010-0.020 with a hand on it.
+bay_exit_clearance_tolerance_m = 0.0
 # Mirror the bay-exit dead reckoning: compare guarded and mirrored-reverse
 # exits tick by tick on the post-0.29 m-radius model. Verdict:
 # BAY_EXIT_GUARD_MIRRORS_REVERSE. Inert until wired to a consumer.
