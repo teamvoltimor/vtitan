@@ -559,6 +559,26 @@ func (r *NativeRunner) loop(
 	anchorStep := 0
 
 	prevLaps := nav.LapsCompleted()
+	// scoreRun fills scoreInput's run-level fields from the loop's live
+	// accumulators, leaving each call site to name only the terminal cause.
+	scoreRun := func(surface collision.ContactSurface, stuck bool, passSideWrong []int) Result {
+		return r.score(scoreInput{
+			sc:            sc,
+			gw:            gw,
+			nav:           nav,
+			steps:         steps,
+			dt:            dt,
+			distanceM:     distanceM,
+			maxSpeedMPS:   maxSpeedMPS,
+			minRangeM:     minRangeM,
+			contactCount:  contactCount,
+			targetLaps:    targetLaps,
+			surface:       surface,
+			stuck:         stuck,
+			passSideWrong: passSideWrong,
+			trueSigns:     len(passSide.signs),
+		})
+	}
 	for steps < r.maxSteps {
 		nav.Step()
 		// Driven every tick, not only when the estimator speaks: a deferred
@@ -610,7 +630,7 @@ func (r *NativeRunner) loop(
 			prevLaps = lapsNow
 		}
 		if v := passSide.check(st.X, st.Y, st.Yaw); len(v) > 0 {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, v, len(passSide.signs))
+			res := scoreRun(collision.SurfaceNone, false, v)
 			return res, nil
 		}
 
@@ -635,7 +655,7 @@ func (r *NativeRunner) loop(
 		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		if contacts.update(steps, surface) {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, contacts.surface, false, passSide.violations(), len(passSide.signs))
+			res := scoreRun(contacts.surface, false, passSide.violations())
 			return res, nil
 		}
 
@@ -651,7 +671,7 @@ func (r *NativeRunner) loop(
 		// number in-time is measured against.
 		if nav.LapsCompleted() >= targetLaps &&
 			(pc == nil || !pc.AttemptAfterFinalLap() || pc.IsDone()) {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations(), len(passSide.signs))
+			res := scoreRun(collision.SurfaceNone, false, passSide.violations())
 			return res, nil
 		}
 
@@ -660,37 +680,43 @@ func (r *NativeRunner) loop(
 			anchorX, anchorY = st.X, st.Y
 			anchorStep = steps
 		} else if (steps - anchorStep) >= noProgressWindow {
-			res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, true, passSide.violations(), len(passSide.signs))
+			res := scoreRun(collision.SurfaceNone, true, passSide.violations())
 			return res, nil
 		}
 	}
 
 	// Timed out.
-	res := r.score(sc, gw, nav, steps, dt, distanceM, maxSpeedMPS, minRangeM, contactCount, targetLaps, collision.SurfaceNone, false, passSide.violations(), len(passSide.signs))
+	res := scoreRun(collision.SurfaceNone, false, passSide.violations())
 	res.TimedOut = nav.LapsCompleted() < targetLaps
 	return res, nil
 }
 
-func (r *NativeRunner) score(
-	sc corpus.Scenario,
-	gw simGateway,
-	nav *navigator.Navigator,
-	steps int,
-	dt float64,
-	distanceM, maxSpeedMPS, minRangeM float64,
-	contactCount int,
-	targetLaps int,
-	surface collision.ContactSurface,
-	stuck bool,
-	passSideWrong []int,
-	trueSigns int,
-) Result {
+// scoreInput groups score's inputs, replacing a fourteen-argument signature
+// whose adjacent float64s and ints were easy to transpose silently.
+type scoreInput struct {
+	sc            corpus.Scenario
+	gw            simGateway
+	nav           *navigator.Navigator
+	steps         int
+	dt            float64
+	distanceM     float64
+	maxSpeedMPS   float64
+	minRangeM     float64
+	contactCount  int
+	targetLaps    int
+	surface       collision.ContactSurface
+	stuck         bool
+	passSideWrong []int
+	trueSigns     int
+}
+
+func (r *NativeRunner) score(in scoreInput) Result {
 	// collided is derived from the surface rather than passed alongside it,
 	// so the two can never disagree about whether the run ended in contact.
-	collided := surface != collision.SurfaceNone
-	laps := nav.LapsCompleted()
-	st := gw.State()
-	cx, cy := gw.CollisionXY()
+	collided := in.surface != collision.SurfaceNone
+	laps := in.nav.LapsCompleted()
+	st := in.gw.State()
+	cx, cy := in.gw.CollisionXY()
 
 	// PassSideViolationSigns/PassSideViolation are only ever populated by an
 	// Obstacles Challenge run (nav.SignRouter() nil for Open), matching
@@ -704,7 +730,7 @@ func (r *NativeRunner) score(
 	var routerWrongSide []int
 	var passRecords []signrouter.PassRecord
 	var discoveredSigns int
-	if sr := nav.SignRouter(); sr != nil {
+	if sr := in.nav.SignRouter(); sr != nil {
 		for index := range sr.WrongSideViolations() {
 			routerWrongSide = append(routerWrongSide, index)
 		}
@@ -712,9 +738,9 @@ func (r *NativeRunner) score(
 		passRecords = sr.PassRecords()
 		discoveredSigns = len(sr.Signs())
 	}
-	passSideViolation := len(passSideWrong) > 0
+	passSideViolation := len(in.passSideWrong) > 0
 
-	success := !collided && !stuck && !passSideViolation && !resTimedOut(steps, r.maxSteps, laps, targetLaps)
+	success := !collided && !in.stuck && !passSideViolation && !resTimedOut(in.steps, r.maxSteps, laps, in.targetLaps)
 
 	// Parked is nil for a scenario with no parking lot, matching
 	// SimResult.parked's None. ParkPoints additionally scores the final
@@ -723,7 +749,7 @@ func (r *NativeRunner) score(
 	// and never wired into SimResult either.
 	var parked *bool
 	var parkPoints *int
-	if pc := nav.ParkController(); pc != nil {
+	if pc := in.nav.ParkController(); pc != nil {
 		p := pc.IsDone() && !pc.IsTimedOut()
 		parked = &p
 		score := parking.ScorePark(st.X, st.Y, st.Yaw, pc.Zone(), r.parkCfg)
@@ -732,32 +758,32 @@ func (r *NativeRunner) score(
 	}
 
 	return Result{
-		TerminalSurface:        surface.String(),
-		Scenario:               sc.ID,
-		PassSideViolationSigns: passSideWrong,
+		TerminalSurface:        in.surface.String(),
+		Scenario:               in.sc.ID,
+		PassSideViolationSigns: in.passSideWrong,
 		RouterWrongSideSigns:   routerWrongSide,
 		DiscoveredSigns:        discoveredSigns,
-		TrueSigns:              trueSigns,
+		TrueSigns:              in.trueSigns,
 		PassRecords:            passRecords,
 		CollisionXY:            []float64{cx, cy},
 		FinalPose:              []float64{st.X, st.Y, st.Yaw},
 		Parked:                 parked,
 		ParkPoints:             parkPoints,
-		SimTimeS:               float64(steps) * dt,
-		DistanceM:              distanceM,
-		MaxSpeedMPS:            maxSpeedMPS,
-		AvgSpeedMPS:            avgSpeed(distanceM, steps, dt),
-		MinLidarRangeM:         orZero(minRangeM),
-		TargetLaps:             targetLaps,
+		SimTimeS:               float64(in.steps) * in.dt,
+		DistanceM:              in.distanceM,
+		MaxSpeedMPS:            in.maxSpeedMPS,
+		AvgSpeedMPS:            avgSpeed(in.distanceM, in.steps, in.dt),
+		MinLidarRangeM:         orZero(in.minRangeM),
+		TargetLaps:             in.targetLaps,
 		LapsCompleted:          laps,
-		Steps:                  steps,
-		ContactCount:           contactCount,
+		Steps:                  in.steps,
+		ContactCount:           in.contactCount,
 		Collided:               collided,
 		PassSideViolation:      passSideViolation,
-		TimedOut:               resTimedOut(steps, r.maxSteps, laps, targetLaps),
-		Stuck:                  stuck,
+		TimedOut:               resTimedOut(in.steps, r.maxSteps, laps, in.targetLaps),
+		Stuck:                  in.stuck,
 		Success:                success,
-		OverTime:               float64(steps)*dt > r.roundTimeLimitS,
+		OverTime:               float64(in.steps)*in.dt > r.roundTimeLimitS,
 	}
 }
 

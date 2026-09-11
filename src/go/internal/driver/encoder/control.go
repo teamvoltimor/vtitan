@@ -77,29 +77,43 @@ type SpeedEstimator struct {
 	rpm          float64
 }
 
+// SpeedEstimatorParams configures NewSpeedEstimatorWith, mirroring the
+// kinematics.Params pattern: three interchangeable float64s named at the
+// call site instead of relying on positional order.
+type SpeedEstimatorParams struct {
+	CountsPerRev float64
+	// Smoothing is the exponential-smoothing factor, in (0, 1].
+	Smoothing float64
+	// MinWindowS is the minimum interval counts accumulate over, >= 0.
+	MinWindowS float64
+}
+
 // NewSpeedEstimator builds an estimator over countsPerRev, using
 // DefaultSmoothing and DefaultMinWindowS. countsPerRev must be positive.
 func NewSpeedEstimator(countsPerRev float64) (*SpeedEstimator, error) {
-	return NewSpeedEstimatorWith(countsPerRev, DefaultSmoothing, DefaultMinWindowS)
+	return NewSpeedEstimatorWith(SpeedEstimatorParams{
+		CountsPerRev: countsPerRev,
+		Smoothing:    DefaultSmoothing,
+		MinWindowS:   DefaultMinWindowS,
+	})
 }
 
-// NewSpeedEstimatorWith is NewSpeedEstimator with explicit smoothing (in
-// (0, 1]) and window (>= 0), for callers tuning against a different
-// operating point.
-func NewSpeedEstimatorWith(countsPerRev, smoothing, minWindowS float64) (*SpeedEstimator, error) {
-	if countsPerRev <= 0 {
+// NewSpeedEstimatorWith is NewSpeedEstimator with explicit smoothing and
+// window, for callers tuning against a different operating point.
+func NewSpeedEstimatorWith(p SpeedEstimatorParams) (*SpeedEstimator, error) {
+	if p.CountsPerRev <= 0 {
 		return nil, errCountsPerRevPositive
 	}
-	if smoothing <= 0 || smoothing > 1 {
+	if p.Smoothing <= 0 || p.Smoothing > 1 {
 		return nil, errors.New("encoder: smoothing must be in (0, 1]")
 	}
-	if minWindowS < 0 {
+	if p.MinWindowS < 0 {
 		return nil, errors.New("encoder: min_window_s must be >= 0")
 	}
 	return &SpeedEstimator{
-		countsPerRev: countsPerRev,
-		smoothing:    smoothing,
-		minWindowS:   minWindowS,
+		countsPerRev: p.CountsPerRev,
+		smoothing:    p.Smoothing,
+		minWindowS:   p.MinWindowS,
 	}, nil
 }
 

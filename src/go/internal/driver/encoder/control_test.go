@@ -170,7 +170,11 @@ func TestNewSpeedEstimatorWith_RejectsBadParameters(t *testing.T) {
 		{"negative window", 60, 0.3, -0.1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := encoder.NewSpeedEstimatorWith(tc.countsPerRev, tc.smoothing, tc.minWindowS)
+			_, err := encoder.NewSpeedEstimatorWith(encoder.SpeedEstimatorParams{
+				CountsPerRev: tc.countsPerRev,
+				Smoothing:    tc.smoothing,
+				MinWindowS:   tc.minWindowS,
+			})
 			if err == nil {
 				t.Fatal("want error, got nil")
 			}
