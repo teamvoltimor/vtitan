@@ -124,6 +124,15 @@ type Config struct {
 	// before an escape sequence's counter resets, matching
 	// STUCK_MOVE_THRESHOLD.
 	StuckMoveThreshold float64
+	// KTurnFitRearGap truncates a reversing escape to the rear room the
+	// LIDAR actually measures, matching K_TURN_FIT_REAR_GAP (see
+	// fitReverseToRearGap). ObstaclesKTurnFitRearGap matches
+	// OBSTACLES_K_TURN_FIT_REAR_GAP, resolved onto KTurnFitRearGap by
+	// ForChallenge exactly as ObstaclesContactDist resolves onto ContactDist
+	// -- a pointer because absent must mean "leave KTurnFitRearGap alone",
+	// not "false".
+	KTurnFitRearGap          bool
+	ObstaclesKTurnFitRearGap *bool
 
 	// SignClearanceMarginM is the extra margin beyond the chassis and sign
 	// half-widths the lane offset is built from, matching
@@ -273,6 +282,7 @@ const (
 	DefaultMaxEscapeFrames                 = 20
 	DefaultStuckEscalationFramesPerAttempt = 2
 	DefaultStuckMoveThreshold              = 0.03
+	DefaultKTurnFitRearGap                 = false
 
 	// DefaultSignClearanceMarginM and the following are the sign-router
 	// knobs (signs/sign_router.toml + SignRouterParams' Pydantic defaults
@@ -335,6 +345,12 @@ const (
 	halfTurnDeg = 180.0
 )
 
+// defaultObstaclesKTurnFitRearGap backs DefaultConfig's
+// ObstaclesKTurnFitRearGap: Go cannot take the address of a const, and
+// Python's own OBSTACLES_K_TURN_FIT_REAR_GAP field defaults to True (unlike
+// the speed-tier overrides, which default absent).
+var defaultObstaclesKTurnFitRearGap = true
+
 // DefaultConfig returns the Config matching the shipped TOML defaults
 // listed in the Default* block above.
 func DefaultConfig() Config {
@@ -376,6 +392,8 @@ func DefaultConfig() Config {
 		MaxEscapeFrames:                 DefaultMaxEscapeFrames,
 		StuckEscalationFramesPerAttempt: DefaultStuckEscalationFramesPerAttempt,
 		StuckMoveThreshold:              DefaultStuckMoveThreshold,
+		KTurnFitRearGap:                 DefaultKTurnFitRearGap,
+		ObstaclesKTurnFitRearGap:        &defaultObstaclesKTurnFitRearGap,
 
 		SignClearanceMarginM:      DefaultSignClearanceMarginM,
 		ActivationDistM:           DefaultActivationDistM,
@@ -469,6 +487,19 @@ func (c Config) ForChallenge(isObstacles bool) Config {
 	if tiers.FastMPS != nil {
 		c.FastMPS = *tiers.FastMPS
 	}
+	return c
+}
+
+// ForObstaclesChallenge resolves KTurnFitRearGap onto its Obstacles-only
+// override, matching EscapeManeuverParams.for_obstacles_challenge(). Returns
+// c unchanged when no ObstaclesKTurnFitRearGap override is set, so Open and
+// an un-overridden Obstacles stay byte-identical -- the same identity
+// guarantee controllers.Config.ForObstaclesChallenge makes for ContactDist.
+func (c Config) ForObstaclesChallenge() Config {
+	if c.ObstaclesKTurnFitRearGap == nil {
+		return c
+	}
+	c.KTurnFitRearGap = *c.ObstaclesKTurnFitRearGap
 	return c
 }
 

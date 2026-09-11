@@ -208,6 +208,72 @@ func trailClearanceBehind(
 	return reachable, true
 }
 
+// fitReverseToRearGap shortens a reversing escape to the rear room actually
+// measured, matching _fit_reverse_to_rear_gap.
+//
+// reversingIntoUnseenWall above answers "may this reverse start?" and
+// nothing else: it compares the gap at the FIRST frame against ContactDistM
+// and then the maneuver runs its full latched duration regardless. That
+// duration comes from the severity of what is in FRONT (K_TURN_MAX_S at
+// CRITICAL, K_TURN_MIN_S otherwise), so at REV_SPEED the critical escape
+// asks for 21.6 cm of reverse against a rear gap measured at p50 17 cm and
+// p10 7 cm -- the gate waves it through at 17 cm and the chassis is driven
+// into the pillar it is escaping. Measured over 46 escape episodes on the
+// 2026-09-10 bags: 35% did not fit.
+//
+// A CEILING, not a replacement. Front severity still proposes; the rear
+// room only caps. A reverse that already fits comes back unchanged, which
+// is 65% of them, so this cannot shorten the maneuvers that work.
+//
+// Two deliberate non-interventions, matching the Python doc comment:
+//
+//   - An unmeasured rear sector is left ALONE, not capped to zero. The slot
+//     this mount leaves is ~40 deg and can vanish entirely; capping on a
+//     sentinel would silently delete the maneuver on a chassis with no rear
+//     vision. Authorizing that reverse stays reversingIntoUnseenWall's job.
+//   - A gap already inside ContactDistM is left alone too: that is a
+//     refusal, not a truncation, and the gate above already makes it.
+//
+// Obstacles-only by configuration (KTurnFitRearGap), not by construction:
+// Open escapes fire in corners against walls, where a shortened reverse
+// under-rotates and re-triggers, and nothing has been measured that says
+// Open wants this.
+func (n *Navigator) fitReverseToRearGap(
+	maneuver controllers.EscapeManeuver,
+	scan controllers.LidarScan,
+) controllers.EscapeManeuver {
+	if !n.cfg.KTurnFitRearGap || maneuver.Speed >= 0 || n.retracing {
+		// Retracing backs along ground the chassis physically occupied, so
+		// its room is vouched for by the trail rather than by the rear
+		// sector -- the same exemption reversingIntoUnseenWall makes.
+		return maneuver
+	}
+	rear := n.collisionController.RearSector(scan.RangesM, scan.AnglesRad)
+	if !rear.Measured() {
+		return maneuver
+	}
+	room := controllers.BumperGapBehind(rear.MinRangeM, n.cfg.LidarToRearBumperM) - n.cfg.ContactDistM
+	if room <= 0.0 {
+		return maneuver
+	}
+	perFrame := math.Abs(maneuver.Speed) / n.cfg.ControlHz
+	if perFrame <= 0.0 {
+		return maneuver
+	}
+	fits := max(1, int(room/perFrame))
+	if fits >= maneuver.DurationFrames {
+		return maneuver
+	}
+	n.logger.Info(
+		"reverse escape shortened to fit rear gap",
+		"rear_gap_m", controllers.BumperGapBehind(rear.MinRangeM, n.cfg.LidarToRearBumperM),
+		"from_frames", maneuver.DurationFrames,
+		"to_frames", fits,
+	)
+	maneuver.DurationFrames = fits
+	return maneuver
+}
+
 // beginManeuver latches an escape maneuver so it executes for its full
 // duration, matching _begin_maneuver.
 func (n *Navigator) beginManeuver(maneuver controllers.EscapeManeuver) {
@@ -646,7 +712,11 @@ func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSna
 		n.escapeSequenceStartXY = &trackmodel.Waypoint{X: pose.X, Y: pose.Y}
 	}
 	n.escapeCount++
-	n.beginManeuver(n.maybeEscalate(maneuver))
+	// Fitted AFTER escalation, not before: escalation doubles the duration
+	// to walk a wedged chassis out, and a doubled reverse into 7 cm of rear
+	// room is the failure this cap exists to stop. The ceiling has to be
+	// the last word on the distance.
+	n.beginManeuver(n.fitReverseToRearGap(n.maybeEscalate(maneuver), p.scan))
 	// Decorate the caller's snapshot rather than assigning it and letting
 	// driveActiveManeuver rebuild over the top -- that ordering silently
 	// erased the clearance/risk evidence for this exact tick.

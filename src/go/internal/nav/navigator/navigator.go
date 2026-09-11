@@ -313,6 +313,15 @@ func New(p Params) (*Navigator, error) {
 	// the base ladder unchanged when the motor profile declares no overrides,
 	// so a drivetrain without headroom to spare needs no special case.
 	cfg := p.Config.ForChallenge(p.SignRouter != nil)
+	// KTurnFitRearGap is resolved on the same discriminator, matching
+	// EscapeManeuverParams.for_obstacles_challenge (CoreNavigator.__init__
+	// calls it once at construction too, for the same reason: everything
+	// downstream must read the resolved value, never the shared field
+	// directly, or a gate resolved "obviously" and one resolved by habit
+	// silently diverge -- see Config.ForObstaclesChallenge's doc comment).
+	if p.SignRouter != nil {
+		cfg = cfg.ForObstaclesChallenge()
+	}
 
 	followerCfg := corridorfollower.DefaultConfig()
 	if p.CorridorFollowerConfig != nil {

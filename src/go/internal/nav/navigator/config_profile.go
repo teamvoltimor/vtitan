@@ -83,6 +83,11 @@ type navEscapeTOML struct {
 	MaxEscapeS                 float64 `mapstructure:"max_escape_s"`
 	StuckEscalationPerAttemptS float64 `mapstructure:"stuck_escalation_per_attempt_s"`
 	StuckMoveThreshold         float64 `mapstructure:"stuck_move_threshold"`
+	KTurnFitRearGap            bool    `mapstructure:"k_turn_fit_rear_gap"`
+	// ObstaclesKTurnFitRearGap matches OBSTACLES_K_TURN_FIT_REAR_GAP -- a
+	// pointer for the same reason profile.ClearanceConfig.ObstaclesContactDist
+	// is one: absent must mean "leave KTurnFitRearGap alone", not "false".
+	ObstaclesKTurnFitRearGap *bool `mapstructure:"obstacles_k_turn_fit_rear_gap"`
 }
 
 // navSignRouterTOML mirrors the sign_router.toml / SignRouterParams fields
@@ -376,6 +381,8 @@ func applyEscapeTOML(cfg *Config, loaded navEscapeTOML) {
 	cfg.MaxEscapeFrames = profile.Frames(loaded.MaxEscapeS, cfg.ControlHz)
 	cfg.StuckEscalationFramesPerAttempt = profile.Frames(loaded.StuckEscalationPerAttemptS, cfg.ControlHz)
 	cfg.StuckMoveThreshold = loaded.StuckMoveThreshold
+	cfg.KTurnFitRearGap = loaded.KTurnFitRearGap
+	cfg.ObstaclesKTurnFitRearGap = loaded.ObstaclesKTurnFitRearGap
 }
 
 // applySignRouterTOML copies loaded sign_router.toml values onto cfg, for
