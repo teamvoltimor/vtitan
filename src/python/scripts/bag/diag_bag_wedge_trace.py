@@ -20,6 +20,23 @@ identical from the outside and want completely different fixes:
    wedge, so the chassis was reacting to an obstacle nothing had planned
    around. That points back at the anticipation budget rather than at control.
 
+MEASURED on the two runs that wedged at the same point, and it is (2): the
+chassis commands and the wheel turns on 97-100% of ticks, absolute wheel travel
+runs 3.7x the signed on both, and the ROUTER WAS ENGAGED THROUGHOUT -- a sign
+committed on 62% and 67% of the wedge's ticks against 26% and 53% over the
+whole run. So the sign lane saw it, committed to it, commanded around it, and
+the chassis still could not get past. An execution failure with the plan
+already in hand.
+
+RETRACTION, kept because the mistake is the reusable part: this script first
+reported ZERO commitments through both wedges, which read as the router being
+blind and pointed the whole investigation at perception. The field is
+``committed_sign_x_m``, with the unit suffix; a getattr for
+``committed_sign_x`` returns None on every tick and counts a trivial zero
+indistinguishable from the real thing. That is a null published without a
+control. The count now prints the whole-run rate beside the window's, so a zero
+can be told from a typo.
+
 Reported alongside what the robot BELIEVED at the time -- forward and rear
 clearance, the escape's own trigger bearing and range, whether it read itself
 as stuck -- because the belief is what it acted on, right or wrong.
