@@ -824,11 +824,27 @@ width="350">
 * **Control de Peso (1500 g):** Al ensamblar el conjunto, se detectó un exceso de 150g.
 
 * **Acciones Correctivas:**
+
+* Uso de materiales de impresión más ligeros como el ASA (Acrilonitrilo Estireno Acrilato) para mayor optimización de peso.
+
 * Reducción de la densidad de relleno en la impresión 3D.
 
 * Disminución de espesores de pared y creación de vacíos estructurales en el chasis, rines y bancadas sin comprometer la rigidez.
 
 * **Resultado Final:** Se logró ingresar dentro del rango de peso reglamentario y consolidar un chasis rígido impreso en 3D con soportes dedicados para la electrónica.
+
+#### **Fase 5: Integración del HD Hex Motor**
+
+<p align="center">
+	<img src="assets/images/development/hd-hex-motor-integration.webp" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
+width="350">
+	<br>
+	<i>Integración del REV HD Hex Motor al Sistema de Transmisión</i>
+</p>
+
+* **Nuevo Motor**: Tras realizar el montaje final, se detectó que el motor utilizado previamente, un motor genérico 540, contaba con un torque relativamente bajo, si bien era capaz de mover a vTitan, no podía alcanzar velocidades superiores a 15cm/s en pista, resultando en vTitan siendo incapaz de completar los desafíos en el tiempo límite, la solución más simple y más efectiva, fue cambiar el motor genérico 540 por un motor HD Hex por sus mejores especificaciones.
+
+* **Resultado Final**: Tras adaptar el chasis inferior para el encaje del HD Hex Motor, se detectó un incremento de velocidad de alrededor de 25 a 30cm/s, de esta manera, vTitan tiene la velocidad necesaria para completar los desafíos sin exceder el tiempo límite establecido de 3 minutos.
 
 ## Sistema de Transmisión
 
