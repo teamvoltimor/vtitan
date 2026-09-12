@@ -705,6 +705,66 @@ class SignRouterParams(BaseModel):
     there -- a flat sim A/B would measure the sim's map, not this.
     """
 
+    SLOT_SIGN_MAP: bool = Field(default=False, validation_alias=_alias("SLOT_SIGN_MAP"))
+    """Assign evidence to the rulebook's 24 legal cells instead of clustering freely.
+
+    See ``src.navigation.planning.sign_slot_map`` for the design and the full
+    measurement. Over 125 bags against the shipped map on identical
+    observations: routing error 23.3% -> 15.0%, worst believed-sign peak 24 ->
+    7, runs over the physical maximum 32/125 -> 0/125, position changes per run
+    44.9 -> 3.1, and re-points and colour flips while COMMITTED both 0.
+
+    SHIPS OFF. It replaces the map the whole tree's Obstacles figures were
+    measured against, and it cannot be screened in the simulator -- the sim's
+    sign map is exact, so every number above collapses to zero there. Turn it on
+    for a hardware A/B and say which map produced a result.
+    """
+
+    SLOT_ACCEPT_RADIUS_M: float = Field(default=0.30, gt=0.0, validation_alias=_alias("SLOT_ACCEPT_RADIUS_M"))
+    """How close an observation must be to a legal cell to claim it.
+
+    Further than this it claims NOTHING rather than being pulled to the nearest,
+    because a pillar cannot stand off the lattice and such a reading is about
+    measurement rather than the world. 12.2% of observations fall in that class
+    at 0.30 m (p50 distance to the nearest cell 0.141 m, p90 0.322).
+
+    Tightening to 0.20 makes the accept/reject cut clear in 67.2% of
+    section-runs against 56.5%, but discards 32.8% of observations for it.
+    """
+
+    SLOT_MIN_EVIDENCE: float = Field(default=0.75, ge=0.0, validation_alias=_alias("SLOT_MIN_EVIDENCE"))
+    """Summed confidence a cell needs before it can hold a slot.
+
+    0.75 is ``MIN_HITS * MIN_CONFIDENCE``, i.e. the same bar the track map sets,
+    expressed as weight rather than as a count so one confident look outweighs
+    several doubtful ones.
+
+    Raising it trades coverage for churn -- 0.75/3.0/8.0 give routing
+    15.8/16.8/19.0% at 5.5/4.1/2.5 re-points per run -- and it also widens the
+    blind window: at 3.0 the share of ticks with an empty map goes to 34.3% and
+    twelve more runs never publish at all. 0.75 is the floor that keeps first
+    publication at p50 18.8 s, level with the shipped map's 18.9 s.
+    """
+
+    SLOT_REPOINT_MARGIN: float = Field(default=1.5, ge=1.0, validation_alias=_alias("SLOT_REPOINT_MARGIN"))
+    """How far a challenger cell must out-weigh an incumbent to take its slot.
+
+    A bare comparison churns: the cut between the last accepted cell and the
+    first rejected one is clear (2x or better) in only 56.5% of section-runs,
+    p10 ratio 1.20, so about a third of assignments would flip on noise.
+
+    | margin | re-points | flips | delay p50 | delay p90 | stranded |
+    |---|---|---|---|---|---|
+    | 1.0 | 708 | 302 | - | - | 0 |
+    | **1.5** | **383** | **157** | **0.55 s** | **9.20 s** | 54 |
+    | 2.0 | 298 | 132 | 0.87 s | 13.85 s | 75 |
+    | 3.0 | 229 | 107 | 1.05 s | 19.44 s | 96 |
+
+    1.5 halves the churn for a median 0.55 s of phantom hold. Past 2.0 the p90
+    tail and the stranded count -- a challenger that led at the end of the run
+    and never got the slot -- grow faster than the churn falls.
+    """
+
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
     ESCAPE_MASK_CLUSTER_ASSOC_M: float = Field(
         default=0.0, ge=0.0, validation_alias=_alias("ESCAPE_MASK_CLUSTER_ASSOC_M")

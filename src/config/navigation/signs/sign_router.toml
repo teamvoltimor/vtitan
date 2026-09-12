@@ -53,6 +53,18 @@ settle_ticks = 150                # ticks after lap start before bookkeeping act
 # and mapping error. Do NOT raise this much further: the wall behind a sign can
 # be as close as ~0.15 m in a narrow corridor, and masking that wall too would
 # remove a guard nothing else replaces. Set to 0.0 to disable the split.
+# Assign evidence to the rulebook 24 legal cells (2 per section) instead of
+# clustering camera reports freely. Measured over 125 bags: routing error 23.3%
+# -> 15.0%, worst believed-sign peak 24 -> 7, runs over the physical max 32/125
+# -> 0/125, position changes per run 44.9 -> 3.1, and zero re-points or colour
+# flips while the router is COMMITTED. SHIPS OFF: it replaces the map every
+# Obstacles figure in this repo was measured against, and the simulator cannot
+# screen it (its sign map is exact, so all of the above collapses to zero).
+slot_sign_map = false
+slot_accept_radius_m = 0.30
+slot_min_evidence = 0.75
+slot_repoint_margin = 1.5
+
 escape_mask_radius_m = 0.12
 # Snap that mask onto the LIDAR CLUSTER nearest the believed sign, instead of
 # anchoring it on the belief. The radius above was covering two things at once

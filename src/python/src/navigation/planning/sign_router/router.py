@@ -18,6 +18,7 @@ from shared.domain.models import SignColor, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.planning.sign_discovery import ObservedSignMap, SignSpec
+from src.navigation.planning.sign_slot_map import SlotSignMap
 from src.navigation.planning.sign_router.config import SignRouterConfig, SignRouterContext
 from src.navigation.planning.sign_router.deformation import apply_deformation, match_detection_to_sign
 from src.navigation.planning.sign_router.routing import (
@@ -125,14 +126,23 @@ class SignRouter:
             # a named argument -- SNAP_TO_LATTICE_M among them, which was
             # unreachable from a caller's tuning until this fix.
             discovery_config = discovery_config or get_tuning(tuning).sign_discovery
-            self._sign_map = ObservedSignMap(
-                self._config.min_confidence,
-                max_ingest_range_m=discovery_config.MAX_INGEST_RANGE_M,
-                association_dist_m=discovery_config.ASSOCIATION_DIST_M,
-                min_hits=discovery_config.MIN_HITS,
-                robot_corridor_flip_ticks=discovery_config.ROBOT_CORRIDOR_FLIP_TICKS,
-                tuning=tuning,
-            )
+            if get_tuning(tuning).sign_router.SLOT_SIGN_MAP:
+                # A constrained assignment over the 24 legal cells, capped at
+                # two per section, instead of free clustering. Same surface --
+                # observe/propose/newly_confirmed/published -- so this loop does
+                # not change; what changes is that a published position IS a
+                # legal cell and a section never publishes a third pillar. See
+                # sign_slot_map for the design and the 125-bag measurement.
+                self._sign_map = SlotSignMap(self._config.min_confidence, tuning=tuning)
+            else:
+                self._sign_map = ObservedSignMap(
+                    self._config.min_confidence,
+                    max_ingest_range_m=discovery_config.MAX_INGEST_RANGE_M,
+                    association_dist_m=discovery_config.ASSOCIATION_DIST_M,
+                    min_hits=discovery_config.MIN_HITS,
+                    robot_corridor_flip_ticks=discovery_config.ROBOT_CORRIDOR_FLIP_TICKS,
+                    tuning=tuning,
+                )
         else:
             self._sign_map = None
 
@@ -248,6 +258,18 @@ class SignRouter:
                 spec.y,
                 track.hits,
             )
+
+        # The map cannot see these two facts and both change what it may do: a
+        # committed slot must not be re-pointed underneath the router, and a
+        # PASSED index must never be re-pointed at all (the new pillar would
+        # inherit the "behind us" flag and vanish for the lap).
+        commit = getattr(self._sign_map, "set_committed", None)
+        if commit is not None:
+            commit(self._committed)
+        retire = getattr(self._sign_map, "retire", None)
+        if retire is not None:
+            for passed_index in self._passed:
+                retire(passed_index)
 
         for track in self._sign_map.published():
             index = track.published_index
