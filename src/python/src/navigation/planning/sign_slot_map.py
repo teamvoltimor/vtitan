@@ -104,6 +104,11 @@ class _CellEvidence:
     """Summed confidence. The floor is compared against this, not against a
     count, so one confident look outweighs several doubtful ones."""
 
+    hits: int = 0
+    """Observations that claimed this cell. Not what the floor is judged on --
+    that is ``weight`` -- but the router logs it when a sign is discovered, and
+    a count is what a human reading that line expects."""
+
     votes: dict[SignColor, float] = field(default_factory=lambda: defaultdict(float))
     """Confidence-weighted colour votes for this cell."""
 
@@ -140,6 +145,11 @@ class SignSlot:
     steering around swapped underneath it."""
 
     colour: SignColor = SignColor.UNKNOWN
+    hits: int = 0
+    """Observations behind the cell this slot points at, for the router's
+    discovery log. Part of the surface ``ObservedSignMap`` presents, so it is
+    part of being a drop-in -- a missing attribute here took every scenario out
+    at the first discovery, which is what the sim crash-check is for."""
 
     def as_spec(self):  # noqa: ANN201 - SignSpec, imported lazily to avoid a cycle
         """The slot as the router sees it. The position IS a legal cell, exactly."""
@@ -222,6 +232,7 @@ class SlotSignMap:
             return
         evidence = self._cells.setdefault(best, _CellEvidence())
         evidence.weight += obs.confidence
+        evidence.hits += 1
         evidence.votes[obs.color] += obs.confidence
 
     # ------------------------------------------------------------ assignment
@@ -282,7 +293,8 @@ class SlotSignMap:
         return evidence.weight if evidence else 0.0
 
     def _open_slot(self, cell: Cell, section: Section) -> None:
-        slot = SignSlot(cell=cell, section=section, colour=self._cells[cell].colour)
+        evidence = self._cells[cell]
+        slot = SignSlot(cell=cell, section=section, colour=evidence.colour, hits=evidence.hits)
         self._unpublished.append(slot)
 
     def _repoint(self, slot: SignSlot, cell: Cell) -> None:
@@ -310,11 +322,13 @@ class SlotSignMap:
         )
         slot.cell = cell
         slot.colour = self._cells[cell].colour
+        slot.hits = self._cells[cell].hits
 
     def _refresh_colour(self, slot: SignSlot) -> None:
         if slot.frozen:
             return
         slot.colour = self._cells[slot.cell].colour
+        slot.hits = self._cells[slot.cell].hits
 
     # ---------------------------------------------------------------- output
 
