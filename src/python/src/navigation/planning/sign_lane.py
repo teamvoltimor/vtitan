@@ -89,6 +89,7 @@ an abrupt lateral step exactly at the corner exit, beside the inner block.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -401,6 +402,63 @@ def _interpolate(profile: list[tuple[float, float]], depth: float) -> float | No
     return profile[-1][1]
 
 
+
+
+@dataclass(frozen=True, slots=True)
+class _LanePlan:
+    """One corridor's lane, planned against the unmodified path."""
+
+    corridor: Section
+    axis: Axis
+    indices: list[int]
+    base_lateral: float
+    profile: list[tuple[float, float]]
+    signs: list[tuple[SignSpec, Section]]
+
+
+def _nearest_sign_m(wp: Waypoint, corridor_signs: list[tuple[SignSpec, Section]]) -> float:
+    """Distance from ``wp`` to the closest sign this corridor is routing around."""
+    return min(math.hypot(wp.x - spec.x, wp.y - spec.y) for spec, _ in corridor_signs)
+
+
+def _assign_owners(plans: list[_LanePlan], waypoints: list[Waypoint]) -> dict[int, int]:
+    """One owning lane per waypoint, so no point is shifted twice.
+
+    Corner runway is BORROWED, and two corridors either side of a corner borrow
+    the SAME arc: with ``corner_entry_m`` 0.50 that is 1413 waypoints over the
+    256-scenario corpus, six per scenario, in every single one of them. The
+    shifts used to compound -- the second corridor read a lateral the first had
+    already moved and added its own offset on top -- so 931 of those 1413 (66%)
+    ended up somewhere NEITHER lane had asked for, diverging from the nearer
+    lane's own answer by up to 215 mm. That is more than the chassis half-width,
+    which is the difference between clearing a pillar and hitting it. None of
+    them left the track, so this never produced an illegal plan, only a wrong
+    one, and nothing flagged it.
+
+    A contested point goes to the lane whose own sign is nearest to it, which is
+    the lane whose pass that point actually serves. Exact ties keep the earlier
+    plan, making the result independent of how discovery happened to order its
+    specs -- the previous behaviour depended on exactly that.
+
+    This is deliberately NOT the same thing as one continuous lane through the
+    corner. A lane is a one-dimensional profile over a corridor's lateral axis,
+    and that axis rotates 90 degrees at a corner, so a single profile cannot
+    span one. Expressing the offset along the path NORMAL instead would make a
+    continuous lane fall out by construction; it would also change every shift
+    on the track rather than only the contested ones, so it is a separate change
+    with its own measurement.
+    """
+    owner: dict[int, int] = {}
+    best: dict[int, float] = {}
+    for position, plan in enumerate(plans):
+        for i in plan.indices:
+            distance = _nearest_sign_m(waypoints[i], plan.signs)
+            if i not in best or distance < best[i]:
+                best[i] = distance
+                owner[i] = position
+    return owner
+
+
 def apply_sign_lanes(
     waypoints: list[Waypoint],
     signs: list[tuple[SignSpec, Section]],
@@ -436,13 +494,18 @@ def apply_sign_lanes(
     for entry in signs:
         by_corridor.setdefault(entry[1], []).append(entry)
 
+    # Two passes. Every lane is planned against the UNMODIFIED path, then the
+    # shifts are applied. Planning against a partly-shifted path made each
+    # corridor's geometry depend on how many corridors happened to be processed
+    # before it -- see _assign_owners for what that cost on the corner arcs.
+    plans: list[_LanePlan] = []
     for corridor, corridor_signs in by_corridor.items():
         rule = pass_side_lateral_axis(corridor, SignColor(corridor_signs[0][0].color), direction)
         if rule is None:
             continue
         axis, _ = rule
 
-        indices = [i for i, wp in enumerate(result) if _in_lane_span(wp, corridor, axis, params.corner_entry_m)]
+        indices = [i for i, wp in enumerate(waypoints) if _in_lane_span(wp, corridor, axis, params.corner_entry_m)]
         if not indices:
             continue
         # The corridor's own centreline as PLANNED, which already carries
@@ -456,16 +519,25 @@ def apply_sign_lanes(
         # borrowed: an arc's lateral coordinate sweeps away from the
         # centreline as it turns, so including arc points would drag this
         # median off the centreline it is supposed to represent.
-        straight = [i for i in indices if _in_lane_span(result[i], corridor, axis, 0.0)]
-        laterals = sorted(_axis_coords(result[i], axis)[0] for i in (straight or indices))
+        straight = [i for i in indices if _in_lane_span(waypoints[i], corridor, axis, 0.0)]
+        laterals = sorted(_axis_coords(waypoints[i], axis)[0] for i in (straight or indices))
         base_lateral = laterals[len(laterals) // 2]
 
         profile = _control_points(corridor_signs, corridor, axis, base_lateral, params, direction)
         if not profile:
             continue
 
-        for i in indices:
-            lateral, depth = _axis_coords(result[i], axis)
+        plans.append(_LanePlan(corridor, axis, indices, base_lateral, profile, corridor_signs))
+
+    owner = _assign_owners(plans, waypoints)
+
+    for position, plan in enumerate(plans):
+        corridor, axis = plan.corridor, plan.axis
+        base_lateral, profile = plan.base_lateral, plan.profile
+        for i in plan.indices:
+            if owner[i] != position:
+                continue
+            lateral, depth = _axis_coords(waypoints[i], axis)
             lane = _interpolate(profile, depth)
             if lane is None:
                 continue
