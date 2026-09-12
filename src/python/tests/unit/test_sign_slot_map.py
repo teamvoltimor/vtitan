@@ -165,3 +165,57 @@ class TestFailSafe:
             sign_map.propose([cell], here)
 
         assert sign_map.newly_confirmed() == []
+
+
+class TestTheCapHoldsUnderPressure:
+    """The cap is the whole point, so it is tested on the paths that broke it.
+
+    Measured on run_20260911_225646: the believed-sign peak read 12 against a
+    physical maximum of 8, because a section opened a third slot whenever no
+    incumbent was displaceable. It still beat the shipped map's 64, which is why
+    the leak had to be caught rather than celebrated.
+    """
+
+    def test_a_frozen_section_does_not_grow_a_third_slot(self) -> None:
+        sign_map = _map()
+        cells = _cells_of(corridor_for_position(*legal_sign_positions()[0]))
+        for cell in cells[:2]:
+            _feed(sign_map, cell, SignColor.RED, times=3)
+        for i, slot in enumerate(sign_map.newly_confirmed()):
+            slot.published_index = i
+        sign_map.set_committed(0)
+
+        # A third cell out-evidences everything, with one slot frozen and the
+        # other holding a wanted cell -- the exact state that used to leak.
+        _feed(sign_map, cells[2], SignColor.GREEN, times=30)
+        sign_map.observe(None, Waypoint(cells[2][0], cells[2][1] - 0.4))
+
+        live = sign_map._slots + sign_map._unpublished  # noqa: SLF001
+        assert len(live) <= 2, f"section grew to {len(live)} slots"
+
+    def test_the_control_the_third_cell_really_did_out_evidence_them(self) -> None:
+        """Otherwise the cap above passes because nothing wanted a slot."""
+        sign_map = _map()
+        cells = _cells_of(corridor_for_position(*legal_sign_positions()[0]))
+        for cell in cells[:2]:
+            _feed(sign_map, cell, SignColor.RED, times=3)
+        _feed(sign_map, cells[2], SignColor.GREEN, times=30)
+
+        assert sign_map._weight(cells[2]) > sign_map._weight(cells[0]) * 1.5  # noqa: SLF001
+
+    def test_a_retired_slot_may_still_be_replaced(self) -> None:
+        """Retired indices are not live pillars -- active_sign_count excludes
+        _passed -- so refusing to replace one would strand a real pillar."""
+        sign_map = _map()
+        cells = _cells_of(corridor_for_position(*legal_sign_positions()[0]))
+        for cell in cells[:2]:
+            _feed(sign_map, cell, SignColor.RED, times=3)
+        for i, slot in enumerate(sign_map.newly_confirmed()):
+            slot.published_index = i
+        sign_map.retire(0)
+        sign_map.retire(1)
+
+        _feed(sign_map, cells[2], SignColor.GREEN, times=30)
+        sign_map.observe(None, Waypoint(cells[2][0], cells[2][1] - 0.4))
+
+        assert [s.cell for s in sign_map.newly_confirmed()] == [cells[2]]

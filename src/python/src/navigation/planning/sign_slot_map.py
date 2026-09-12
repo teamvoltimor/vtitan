@@ -255,17 +255,33 @@ class SlotSignMap:
             self._apply_section(section, [cell for _, cell in scored[:_SIGNS_PER_SECTION]])
 
     def _apply_section(self, section: Section, wanted: list[Cell]) -> None:
-        """Point this section's slots at ``wanted``, creating slots as needed."""
-        slots = [s for s in self._slots + self._unpublished if s.section == section]
-        held = {s.cell for s in slots}
+        """Point this section's LIVE slots at ``wanted``, never opening a third.
 
+        The cap is the whole point of this map, so it is enforced on every path
+        out of this method rather than assumed. An earlier version opened a slot
+        whenever no incumbent was displaceable, which let a section hold three --
+        measured on run_20260911_225646 as a believed-sign peak of 12 against the
+        physical maximum of 8. It still beat the shipped map's 64, which is
+        exactly why the leak needed catching rather than celebrating.
+
+        Slots at a RETIRED index do not count: the router excludes ``_passed``
+        from ``active_sign_count``, so they are not live pillars and refusing to
+        replace them would strand a real one for the rest of the lap.
+        """
         for cell in wanted:
-            if cell in held:
+            slots = [s for s in self._slots + self._unpublished if s.section == section]
+            live = [s for s in slots if s.published_index not in self._retired]
+            if any(s.cell == cell for s in slots):
                 self._refresh_colour(next(s for s in slots if s.cell == cell))
                 continue
-            free = [s for s in slots if s.cell not in wanted and not s.frozen]
-            if len(slots) < _SIGNS_PER_SECTION or not free:
+            if len(live) < _SIGNS_PER_SECTION:
                 self._open_slot(cell, section)
+                continue
+            free = [s for s in live if s.cell not in wanted and not s.frozen]
+            if not free:
+                # At the cap with nothing displaceable. Wait: the evidence does
+                # not expire, so this cell takes a slot as soon as one frees,
+                # and opening a third here is what the rulebook forbids.
                 continue
             incumbent = min(free, key=lambda s: self._weight(s.cell))
             if not self._displaces(cell, incumbent.cell):
