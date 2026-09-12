@@ -572,7 +572,7 @@ class PurePursuitParams(BaseModel):
     for, rather than a new silent failure.
     """
     SERVO_SLEW_RATE_RAD_S: float = Field(
-        default=1.2, gt=0.0, validation_alias=_alias("SERVO_SLEW_RATE_RAD_S")
+        default=2.4, gt=0.0, validation_alias=_alias("SERVO_SLEW_RATE_RAD_S")
     )
     """How fast the servo ACTUALLY moves, as opposed to how fast we let the command move.
 
@@ -595,7 +595,39 @@ class PurePursuitParams(BaseModel):
     fields. Ships at 1.2, identical to what it replaced: this split removes the
     coupling, it does not claim a new number.
 
-    THE NUMBER IS STILL UNMEASURED, and the bags cannot measure it.
+    **MEASURED 2026-09-11 on the bench, and it is at least twice the assumed
+    value.** Method: park the wheel at one lock, command the other, hold for
+    ``t``, then command back -- and ask whether the wheel REACHED the far stop or
+    turned back mid-sweep. The naked eye judges that reliably where it cannot
+    judge a duration, and above the boundary the wheel visibly DWELLS at the stop
+    before reversing. Wheel loaded against the mat, since unloaded is optimistic.
+    Tool: ``scripts/hardware/diag_servo_slew.py``.
+
+    Result: reached at 1.20 s, turned back early at 0.90 s. Over the 170 deg
+    (2.967 rad) lock-to-lock swing that brackets the servo between **2.47 and
+    3.30 rad/s**.
+
+    Shipped at **2.4**, the conservative end and slightly under the lower bound.
+    Too HIGH under-budgets the pause, and the bay's dead reckoning would then
+    assume a wheel angle the servo has not reached; too low only wastes time. So
+    the error is taken in the direction that costs seconds rather than geometry.
+
+    | rate | ticks | per reversal | 9 reversals |
+    |---|---|---|---|
+    | 1.2 (assumed) | 50 | 2.50 s | 22.5 s |
+    | **2.4 (measured)** | **25** | **1.25 s** | **11.2 s** |
+    | 3.30 (upper bound) | 18 | 0.90 s | 8.1 s |
+
+    Confirmed against the track before the change: commanded-zero runs in the bay
+    lasted p50 2.551 / 2.556 / 2.552 s, i.e. the 2.50 s the old value predicts, to
+    within a tick. So the budget is what the bay was spending, and halving it is
+    worth 11 s of a round that finishes at 213-295 s against a 180 s limit.
+
+    Worth tightening later: the 0.90-1.20 s bracket is coarse, and a finer ladder
+    between them would justify moving nearer 3.0. Not worth a flat battery
+    tonight.
+
+    WHAT THE BAGS STILL CANNOT DO.
     ``/motor/steering_position`` is NOT feedback -- ``ServoDriver`` returns the
     last commanded angle, and a fit against ``/ackermann_cmd`` gives slope
     57.2958 (= 180/pi) at lag 0 with R^2 = 1.000000. The same fit on

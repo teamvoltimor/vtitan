@@ -64,7 +64,24 @@ import time
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from shared.config.constants import RobotSpecs
+
+QOS_ACKERMANN_CMD = QoSProfile(
+    depth=10,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+    deadline=Duration(nanoseconds=200_000_000),
+)
+"""Restated rather than imported from ``src.ros2.qos``: this script runs from
+``scripts/`` on the Pi without the repo root on ``sys.path``, and a hardware tool
+that cannot start is worth less than a duplicated four-line profile. It must stay
+identical to the navigator's -- a deadline mismatch would silently drop commands,
+which is the failure this whole measurement was chasing."""
+
+_COMMAND_HZ = 20.0
+"""Republish rate, matching ``ControlParams.CONTROL_HZ``. The topic is a STREAM
+on this robot, not a latched setpoint."""
 
 _SETTLE_S = 1.5
 """Time parked at the starting lock before a trial, so every trial begins from
@@ -74,6 +91,10 @@ _RECOVER_S = 3.0
 """Rest at CENTRE between trials. Generous on purpose: a trial that starts from
 a half-way position measures nothing, and the gap is what lets an observer tell
 one trial from the next."""
+
+_REVERSAL_S = 1.6
+"""Time given to the reversal in step 3, long enough that it is unmistakably a
+turn BACK rather than the tail of the dash."""
 
 _LO_S, _HI_S = 0.10, 3.00
 """Bracket for the bisection. 3.00 s clears the shipped 1.2 rad/s (which would
@@ -89,7 +110,10 @@ class _Servo:
     def __init__(self) -> None:
         rclpy.init()
         self._node = rclpy.create_node("diag_servo_slew")
-        self._pub = self._node.create_publisher(AckermannDriveStamped, "/ackermann_cmd", 10)
+        # The SAME profile the navigator publishes with. A default profile is
+        # not obviously wrong here, but "obviously" is what this session keeps
+        # paying for, and a deadline mismatch would silently drop commands.
+        self._pub = self._node.create_publisher(AckermannDriveStamped, "/ackermann_cmd", QOS_ACKERMANN_CMD)
 
     def command(self, angle_deg: float) -> None:
         msg = AckermannDriveStamped()
@@ -97,6 +121,20 @@ class _Servo:
         msg.drive.steering_angle = math.radians(angle_deg)
         msg.drive.speed = 0.0
         self._pub.publish(msg)
+
+    def hold(self, angle_deg: float, seconds: float) -> None:
+        """Command ``angle_deg`` CONTINUOUSLY for ``seconds``, at the control rate.
+
+        One message and a sleep is not how this topic is driven: the navigator
+        republishes every control tick, and both the motor node's closed loop
+        and its watchdog are built for a stream. Sending a single command and
+        waiting produced "they barely moved at all" on the mat across every
+        trial of the first three attempts at this measurement.
+        """
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            self.command(angle_deg)
+            time.sleep(1.0 / _COMMAND_HZ)
 
     def close(self) -> None:
         # Centre on EVERY exit path, Ctrl-C included: a servo left at full lock
@@ -108,27 +146,39 @@ class _Servo:
 
 
 def _trial(servo: _Servo, angle_deg: float, hold_s: float) -> None:
-    """One trial: park at one lock, dash for the other, then rest at CENTRE.
+    """One trial: settle at one lock, dash for the other, REVERSE, then park centre.
 
-    Resting at centre rather than at the far lock is what makes the trial
-    readable. Parked at a lock, every leg is a 170 deg sweep and the timed dash
-    looks exactly like the return, so an observer sees "it went one way, then the
-    other" and cannot say which one was measured -- reported from the mat on the
-    first two runs of this tool.
+    Two things have to be true at once and the first two versions of this each
+    got one of them, which is why it is written out here.
 
-    The signature to watch for is inside the dash itself:
+    The dash must end in a REVERSAL, not in a move to centre. Centre lies ON the
+    path of the dash, so a short hold makes the wheel continue in the SAME
+    direction and simply stop at 0 -- one smooth crossing with nothing to see.
+    Reported from the mat: "around the seventh I saw it crossing again", which is
+    exactly that, and it is why the signal has to be the wheel turning BACK
+    toward the lock it came from.
 
-    * hold above the slew time -- the wheel ARRIVES at the far lock and DWELLS
-      there before reversing. The dwell is the signal.
-    * below it -- the wheel reverses MID-SWEEP, having never touched the stop.
+    And trials must be separable, which parking at a lock destroys: every leg is
+    then a 170 deg sweep and the timed dash looks like the return. So the trial
+    ends by parking at CENTRE, well after the reversal has been seen.
+
+    Sequence, and only step 2 is timed:
+
+        1. go to -angle and settle
+        2. GO: command +angle, hold ``hold_s``
+        3. command -angle  <- the reversal; this is the measurement
+        4. let it get back
+        5. park at centre, which marks the end of the trial
+
+    Above the slew time the wheel ARRIVES at +angle and DWELLS before step 3
+    turns it round. Below it, the wheel turns round MID-SWEEP having never
+    touched the stop.
     """
-    servo.command(-angle_deg)
-    time.sleep(_SETTLE_S)
+    servo.hold(-angle_deg, _SETTLE_S)
     print(f"\n  >>> GO  (hold {hold_s:.2f} s)", flush=True)
-    servo.command(+angle_deg)
-    time.sleep(hold_s)
-    servo.command(0.0)
-    time.sleep(_RECOVER_S)
+    servo.hold(+angle_deg, hold_s)
+    servo.hold(-angle_deg, _REVERSAL_S)
+    servo.hold(0.0, _RECOVER_S)
 
 
 def _ask(hold_s: float) -> bool:

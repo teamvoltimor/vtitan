@@ -91,7 +91,16 @@ target_search_span_m = 1.0
 # not a value, and too HIGH under-budgets the pause. Needs a loaded bench
 # measurement, together with max_wheel_angle_deg, which multiplies into the
 # same swing and is itself unverified.
-servo_slew_rate_rad_s = 1.2
+# MEASURED 2026-09-11 on the bench with the wheel LOADED, via
+# scripts/hardware/diag_servo_slew.py: reached the far lock at a 1.20 s hold,
+# turned back mid-sweep at 0.90 s. Over the 170 deg (2.967 rad) lock-to-lock
+# swing that brackets the servo between 2.47 and 3.30 rad/s -- at least TWICE
+# the 1.2 that had been assumed since the constant was written.
+# Set to the conservative end: too HIGH under-budgets the bay's servo pause and
+# its dead reckoning would assume an angle the wheel has not reached, while too
+# low only wastes time. Bay budget goes 50 ticks (2.50 s) -> 25 (1.25 s) per
+# reversal, about 11 s of a round that finishes at 213-295 s against a 180 limit.
+servo_slew_rate_rad_s = 2.4
 
 # The operative crosstrack threshold is the smaller of lookahead_transition and
 # what the path's own distance to the outer wall actually affords. Under the
