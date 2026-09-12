@@ -258,6 +258,15 @@ class ScenarioSimulator(PassSideScorer):
                 yaw=float(assumed[DictKeys.YAW]),
             )
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
+        if not is_open_challenge and not self._tuning.simulation.OBSTACLES_INNER_WALL_TERMINAL:
+            # Score rule 9.18 as written: a wall the vehicle touches without
+            # MOVING it costs nothing, and only the Open challenge's outer
+            # boundary is named untouchable. The parking lot and a displaced
+            # sign stay terminal, which is what actually ends an Obstacles
+            # round. See OBSTACLES_INNER_WALL_TERMINAL for why this is a flag
+            # rather than a correction -- it re-bases every Obstacles figure in
+            # the repo, so a result must say which scoring produced it.
+            self._terminal_surfaces = self._terminal_surfaces - {ContactSurface.INNER_WALL}
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.

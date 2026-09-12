@@ -51,6 +51,50 @@ class SimulationParams(BaseModel):
 
     START_COLLISION_WINDOW_S: float = Field(default=2.0, validation_alias=_alias("START_COLLISION_WINDOW_S"))
     START_COLLISION_GRACE_S: float = Field(default=15.0, validation_alias=_alias("START_COLLISION_GRACE_S"))
+    OBSTACLES_INNER_WALL_TERMINAL: bool = Field(
+        default=True, validation_alias=_alias("OBSTACLES_INNER_WALL_TERMINAL")
+    )
+    """Whether inner-wall contact ENDS an Obstacles run, as this simulator scores it.
+
+    It does in the competition's rules only for the OPEN challenge's outer
+    boundary. Rule 9.18: "if the vehicle touches or bumps the walls, and the
+    walls are not moved, the vehicle may continue the round, and no penalties
+    will be incurred". ``TERMINAL_SURFACES``'s own docstring has said so since
+    2026-09-03 and kept the strict scoring anyway, because relaxing it re-bases
+    every Obstacles figure in the repo at once.
+
+    Operator-confirmed 2026-09-11, and stated as the rule set rather than as one
+    exception:
+
+    * OPEN: the OUTER wall may not be touched. Unchanged by this flag -- Open's
+      terminal set is ``{OUTER_WALL}`` and stays that way.
+    * BOTH: a wall may not be MOVED if it is not fixed. In practice that takes
+      considerable force, so a scrape at this chassis's mass and speed does not
+      reach it. This is the fact that makes relaxing the flag sound rather than
+      merely permitted.
+    * OBSTACLES: the PARKING LOT may not be touched (9.24.7). Terminal here
+      regardless of this flag.
+
+    Also terminal regardless: displacing a sign out of its 85 mm placement
+    circle (9.20, already softened by ``_score_obstacle_contact``) and passing on
+    the wrong side (9.19/9.24.5). Those three are the whole of what ends an
+    Obstacles round.
+
+    Why it matters beyond bookkeeping: the strict scoring is what REFUTED the
+    one lever that would widen the sign lane. ``SIGN_LANE_OFFSET_FRAC`` at full
+    offset was rejected on wall collisions going 3 -> 23, and
+    ``clamp_lateral``'s wall margin is sized off the chassis half-diagonal
+    (0.1786 m, correct at 45 deg) rather than half-width plus margin (0.137 m on
+    a straight). The lane's plateau reaches +0.172 m on failing crossings
+    against a +0.304 m intent, and the counterfactual for a yaw-aware clearance
+    is +0.228 m with coverage above 0.15 m going 52.7% -> 76.7%. If those 23
+    contacts are legal, the refutation does not apply to the competition.
+
+    DEFAULTS TRUE, i.e. the strict scoring every figure in this repo was
+    measured under. Set it False for an A/B that scores the ACTUAL rule, and say
+    which scoring a result used -- a number taken under one and compared against
+    the other is meaningless.
+    """
     LIDAR_INVALID_RAY_RATE: float = Field(default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE"))
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
 

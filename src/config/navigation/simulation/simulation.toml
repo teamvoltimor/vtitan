@@ -19,6 +19,22 @@ start_collision_window_s = 2.0
 # failure rather than "still steering clear".
 start_collision_grace_s = 15.0
 
+# Does inner-wall contact END an Obstacles run? In the RULES it does not.
+# The rule set, operator-confirmed 2026-09-11:
+#   OPEN      -- the OUTER wall may not be touched (unchanged by this flag).
+#   BOTH      -- a wall may not be MOVED if it is not fixed, and moving one
+#                takes considerable force, which a scrape at this chassis's
+#                mass and speed does not reach. That is what makes relaxing
+#                this sound and not merely permitted.
+#   OBSTACLES -- the PARKING LOT may not be touched (9.24.7).
+# Terminal regardless of this flag: the parking lot, displacing a sign out of
+# its 85 mm circle (9.20), and the wrong pass side (9.19/9.24.5). Those three
+# are the whole of what ends an Obstacles round.
+# TRUE keeps the strict scoring every figure in this repo was measured under.
+# Set FALSE to score the actual rule, and state which scoring a result used --
+# one taken under each and compared is meaningless.
+obstacles_inner_wall_terminal = true
+
 # Fraction of LIDAR rays returning no measurement, emitted as NaN/inf so the
 # sanitising path the real driver uses is actually exercised.
 #
