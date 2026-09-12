@@ -1288,6 +1288,26 @@ class CoreNavigator(EscapeRecovery):
             )
             if not suppress_deform:
                 steer_target = deformed
+            elif self._tuning.sign_router.SIGN_LANE_DEFORM_FALLBACK_M > 0.0:
+                # The lane and the deform are two answers to the same question,
+                # and suppressing the deform globally assumes the lane always
+                # gives one. Measured 2026-09-11 over 129 bags: on failed
+                # CROSSING passes the lane reached the legal side on only 37.4%
+                # of passes while the deform's target was on it on 47.3% -- a
+                # correct command computed every tick and thrown away. Where the
+                # deform did land legal the pass failed 62.6% against 82.1%
+                # where it did not (chi2=17.0, p=4e-5).
+                #
+                # So the deform is used ONLY where the lane is not already
+                # holding the target on the legal side. The two can then never
+                # add, which is the double-correction SIGN_LANE_SUPPRESS_DEFORM
+                # exists to prevent.
+                legal_offset = self._sign_router.committed_pass_side_offset(raw_target)
+                if (
+                    legal_offset is not None
+                    and legal_offset < self._tuning.sign_router.SIGN_LANE_DEFORM_FALLBACK_M
+                ):
+                    steer_target = deformed
             sign_deform_magnitude = math.hypot(deformed[0] - raw_target[0], deformed[1] - raw_target[1])
             active_sign_count = self._sign_router.active_sign_count
             # Magnitude alone cannot say WHICH SIDE the robot was aimed at, so

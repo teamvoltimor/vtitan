@@ -25,6 +25,7 @@ from src.navigation.planning.sign_router.routing import (
     ROUTING_TABLE,
     depth_consistent_corridor,
     is_squarely_in_corridor,
+    pass_side_lateral_axis,
     satisfiable_corridor,
 )
 from src.navigation.planning.waypoints import corridor_for_position
@@ -454,6 +455,30 @@ class SignRouter:
             return None
         spec = self._signs[self._committed]
         return Waypoint(spec.x, spec.y)
+
+    def committed_pass_side_offset(self, point: tuple[float, float]) -> float | None:
+        """How far ``point`` sits on the LEGAL side of the committed sign, signed.
+
+        Positive is the side rule 9.19 requires for that sign's colour in the
+        current travel direction; negative is the side that ends the round.
+        ``None`` when nothing is committed or the direction is unknown -- which
+        callers must treat as "the rule is unavailable this tick", never as
+        zero, for the reason ``pass_side_lateral_axis`` documents: a coin flip
+        between two opposite answers is worse than declining to answer.
+
+        Exists so a caller can ask whether the path it is ALREADY following
+        satisfies the rule, rather than inferring it from the magnitude of a
+        correction. Magnitude cannot say which side.
+        """
+        if self._committed is None or not 0 <= self._committed < len(self._signs):
+            return None
+        spec = self._signs[self._committed]
+        axis_sign = pass_side_lateral_axis(spec.corridor, spec.color, self._direction)
+        if axis_sign is None:
+            return None
+        axis, multiplier = axis_sign
+        delta = point[0] - spec.x if axis is Axis.X else point[1] - spec.y
+        return delta * multiplier
 
     def _record_pass_side(self, index: int, robot_pos: Waypoint) -> None:
         """Decide whether ``index`` was cleared on its permitted side.

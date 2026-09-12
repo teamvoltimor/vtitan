@@ -281,8 +281,41 @@ class SignRouterParams(BaseModel):
         SIGN_LANE_HOLD_M: Along-corridor half-width (m) of the full-offset
             plateau held either side of a sign's own depth. Swept on subset64
             sighted at 0.10/0.25/0.40/0.55 -- collisions 56/53/53/62,
-            laps>=3 8/11/11/2. Defaults 0.25, a genuine peak rather than a
-            flat knob. Only meaningful with ``SIGN_LANE_PLANNER``.
+            laps>=3 8/11/11/2. **0.40 since 2026-09-11**, raised from 0.25 on
+            hardware evidence the sim sweep could not carry.
+
+            The plateau is the only part of the profile that is legal when the
+            base path is not, and on a failing CROSSING the base path IS
+            illegal: measured over 141 bags / 1098 pillars, the believed pillar
+            sits p50 **+0.122 m** past the corridor centreline on the legal
+            side for crossing failures, against +0.044 for crossing successes
+            and **-0.198 m** for already-legal passes. That one signed variable
+            orders all three populations, and it is geometry rather than a bug
+            -- a pillar whose colour sends the robot past it on the inner-square
+            side is structurally the hard half.
+
+            What the failures lose is the CARROT, not the plan. Stage by stage,
+            crossing FAIL against crossing SUCCESS as the matched control: the
+            planned stages differ by 3-5 cm, but the observed ``steer_target``
+            differs by **0.241 m** (-0.041 against +0.200). The lookahead point
+            sits on the RAMP rather than the plateau on 47% of closest
+            approaches, and the ramp near a crossing pillar is itself illegal.
+            Widening the plateau is what puts the carrot back on it.
+
+            Asymmetric by construction: already-legal passes have a base that is
+            already 0.198 m legal, so this is a no-op for them. The control that
+            says the query is sound is that they carry +0.304 at the carrot,
+            exactly the intended offset.
+
+            **0.40 and NOT the 0.50 the analysis asked for.** A section holds at
+            most two signs 1.00 m apart, so at 0.50 the plateaux of adjacent
+            signs meet and one sign's plan starts governing another's pass --
+            which ``SIGN_LANE_SPLIT_OVERLAP`` measures as wrong-side 58% of the
+            time against a 13% base rate. The sweep agrees: 0.55 collapses
+            laps>=3 to 2 while 0.40 matches 0.25 on both collisions and laps.
+            0.40 takes 60% more plateau and stops short of the overlap edge.
+
+            Only meaningful with ``SIGN_LANE_PLANNER``.
         SIGN_LANE_SPLIT_OVERLAP: Give each sign a flat hold over the stretch
             where it is actually passed, by splitting overlapping plateaux at
             their midpoint instead of letting one dip through another. A plateau
@@ -624,7 +657,7 @@ class SignRouterParams(BaseModel):
     )
     SIGN_LANE_SUPPRESS_DEFORM: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_SUPPRESS_DEFORM"))
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
-    SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
+    SIGN_LANE_HOLD_M: float = Field(default=0.40, validation_alias=_alias("SIGN_LANE_HOLD_M"))
     SIGN_LANE_SPLIT_OVERLAP: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_SPLIT_OVERLAP"))
     SIGN_LANE_RELABEL_UNSATISFIABLE: bool = Field(
         default=True, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
@@ -640,6 +673,38 @@ class SignRouterParams(BaseModel):
     DETECTION_MATCH_DIST_M: float = Field(default=0.30, validation_alias=_alias("DETECTION_MATCH_DIST_M"))
     MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
+    SIGN_LANE_DEFORM_FALLBACK_M: float = Field(
+        default=0.0, ge=0.0, validation_alias=_alias("SIGN_LANE_DEFORM_FALLBACK_M")
+    )
+    """Use the router's deform when the LANE has not got the target this far onto the legal side.
+
+    ``SIGN_LANE_SUPPRESS_DEFORM`` discards the deformed target globally, because
+    a lane and a deform are two answers to the same question and applying both
+    double-corrects. That is right whenever the lane answers. It assumes the lane
+    ALWAYS answers, and it does not.
+
+    MEASURED 2026-09-11 over 129 bags / 1113 passes. On failed CROSSING passes:
+
+    | | lane reached legal side | deform target on legal side |
+    |---|---|---|
+    | crossing FAIL (n=262) | 37.4% | **47.3%** |
+    | already-legal FAIL | 31.4% | **88.6%** |
+
+    A correct command, computed every tick, thrown away. Conditioned on it: where
+    the deform landed on the legal side the pass failed 62.6%, where it did not
+    82.1% (chi2=17.0, p=4e-5).
+
+    0.0 keeps the global suppression, which is what shipped. A positive value is
+    the offset the lane must ALREADY have achieved for the deform to stay
+    suppressed; below it the deform is applied instead -- never as well, so the
+    two cannot add. The intended lane offset is 0.28 m and the failures' lane
+    peaks at 0.130 m, so a value in between is where this bites.
+
+    SHIPS OFF, and only hardware can decide it. The simulator's sign map is
+    EXACT, so its lane materialises correctly and this branch would hardly fire
+    there -- a flat sim A/B would measure the sim's map, not this.
+    """
+
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
     ESCAPE_MASK_CLUSTER_ASSOC_M: float = Field(
         default=0.0, ge=0.0, validation_alias=_alias("ESCAPE_MASK_CLUSTER_ASSOC_M")

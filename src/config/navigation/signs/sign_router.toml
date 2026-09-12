@@ -219,13 +219,37 @@ sign_lane_planner = true
 sign_lane_offset_frac = 1.0
 # Metres over which the lane offset ramps in, and is then held.
 sign_lane_ramp_m = 0.9
-sign_lane_hold_m = 0.25
+# Half-width of the full-offset plateau. Raised 0.25 -> 0.40 on 2026-09-11.
+# The plateau is the only part of the profile that is legal when the base path
+# is not, and on a failing CROSSING the base IS illegal: over 141 bags the
+# believed pillar sits p50 +0.122 m past the centreline on the legal side for
+# crossing failures, +0.044 for crossing successes, -0.198 m for already-legal
+# passes. The failures lose it at the CARROT, not in the plan -- planned stages
+# differ 3-5 cm between fail and success while the observed steer_target differs
+# 0.241 m, because the lookahead sits on the RAMP on 47% of closest approaches
+# and the ramp near a crossing pillar is itself illegal.
+# NOT 0.50, which the analysis asked for: a section holds two signs 1.00 m
+# apart, so at 0.50 adjacent plateaux meet and one sign's plan governs another's
+# pass (wrong-side 58% vs a 13% base rate). The sim sweep agrees -- 0.55 drops
+# laps>=3 to 2 while 0.40 matches 0.25 on collisions and laps.
+sign_lane_hold_m = 0.40
 # Commit the lane this far ahead of the sign; 0 = at the sign.
 sign_lane_commit_ahead_m = 0.0
 # Distance from a corner at which lane entry is suppressed.
 sign_lane_corner_entry_m = 0.5
 # Suppress the older per-waypoint deformation while the lane planner drives.
 sign_lane_suppress_deform = true
+# ...but the lane does not always answer. Use the router's DEFORM on ticks
+# where the lane has not got the target this far onto the legal side; below
+# the value the deform replaces it, never adds to it. Measured 2026-09-11 over
+# 129 bags: on failed CROSSING passes the lane reached the legal side on 37.4%
+# while the deform's target was on it on 47.3%, and where the deform landed
+# legal the pass failed 62.6% against 82.1% where it did not (p=4e-5). The
+# intended lane offset is 0.28 m and the failures' lane peaks at 0.130 m.
+# 0.0 keeps the global suppression, which is what shipped. SHIPS OFF: the sim's
+# sign map is EXACT so its lane materialises and this branch barely fires there
+# -- a flat sim A/B would be measuring the sim, not this.
+sign_lane_deform_fallback_m = 0.0
 # Re-label a lane that cannot be satisfied rather than skipping it outright.
 sign_lane_relabel_unsatisfiable = true
 sign_lane_skip_unsatisfiable = false
