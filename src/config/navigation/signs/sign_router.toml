@@ -245,6 +245,45 @@ sign_lane_ramp_m = 0.9
 # pass (wrong-side 58% vs a 13% base rate). The sim sweep agrees -- 0.55 drops
 # laps>=3 to 2 while 0.40 matches 0.25 on collisions and laps.
 sign_lane_hold_m = 0.40
+# How far a SQUEEZED plateau moves off clamp_lateral's boundary limit toward the
+# midpoint of its free gap. 0.0 is the clamped placement; 1.0 is full centring.
+# Binds only where the full offset does not fit -- 646 of the corpus's 1282
+# signs, in 248 of its 256 scenarios.
+#
+# SET TO 1.0 ON 2026-09-12, REVERSING A REFUTATION. Measured as a 2x3 factorial
+# (three placements x two inner-wall scorings) in ONE invocation on the 256
+# corpus, blind, park off:
+#
+#   placement   scoring   collisions (wall/sign)  laps>=3  in-time
+#   clamped     strict      61  ( 0 / 61)           185      144
+#   clamped     real        61  ( 0 / 61)           185      144
+#   0.40        strict      66  ( 1 / 65)           181      155
+#   0.40        real        65  ( 0 / 65)           182      156
+#   1.00        strict      38  ( 4 / 34)           213      182
+#   1.00        real        35  ( 0 / 35)           215      183
+#
+# So -26 collisions, +30 laps>=3, +39 in-time against the shipped placement.
+# 0.40 is NOT monotonic (collisions 66 vs 61 while in-time improves), so the
+# mechanism is not simply "more pillar margin"; 1.00 wins on both columns.
+#
+# WHY THE 2026-08-20 REFUTATION (229/256 vs 202/256, wall 3 -> 61) DOES NOT
+# STAND: it is not wrong, it is OBSOLETE. It was measured on a tree without the
+# depth pin, with parking pursued after the final lap, and at hold 0.25 -- a
+# baseline that scored 202 collisions where this one scores 61. The wall column
+# it turned on is now 0 -> 1 -> 4 instead of 3 -> 11 -> 61. Sweeps are not
+# comparable across time and this is the clearest case of it on file.
+#
+# NOT VALIDATED ON HARDWARE. The refutation's mechanism was that full centring
+# buys 0.9 cm of planned margin against a 6.3-6.6 cm crosstrack shortfall, and
+# that argument is untouched by this measurement: if the simulator tracks its
+# lane better than the car does, this gain is overstated. The whole adjustable
+# range is 31 mm of plan (measured on 8 scenarios, 304 waypoints moved).
+# Re-measure on the Pi before trusting the magnitude.
+#
+# The inner-wall scoring flag is NOT the lever here: its entire effect across
+# the corpus is 3 collisions and 2 laps, and at the shipped placement it is
+# exactly zero. See simulation.obstacles_inner_wall_terminal.
+sign_lane_gap_centre_frac = 1.0
 # Commit the lane this far ahead of the sign; 0 = at the sign.
 sign_lane_commit_ahead_m = 0.0
 # Distance from a corner at which lane entry is suppressed.
