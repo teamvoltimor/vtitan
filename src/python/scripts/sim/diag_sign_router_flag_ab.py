@@ -58,13 +58,19 @@ ROUND_TIME_LIMIT_S = 180.0
 _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
 
 
-def run_case(payload: tuple[str, int, str, bool, int]) -> tuple[bool, bool, bool, bool, bool, bool]:
+def run_case(payload: tuple[str, int, str, bool, int, str, bool]) -> tuple[bool, bool, bool, bool, bool, bool]:
     """Run one (scenario, seed, flag value) case. Module-level for ProcessPoolExecutor."""
-    path, seed, field, value, max_steps = payload
+    path, seed, field, value, max_steps, group, sighted = payload
     metadata = ScenarioMetadata.model_validate(json.loads(Path(path).read_text()))
-    tuning = tuning_with_overrides({field: value}, group="sign_router")
+    tuning = tuning_with_overrides({field: value}, group=group)
     result = ScenarioSimulator(
-        metadata, num_laps=3, seed=seed, blind=True, park=False, tuning=tuning
+        metadata,
+        num_laps=3,
+        seed=seed,
+        blind=not sighted,
+        park=False,
+        tuning=tuning,
+        emit_vision_detections=sighted,
     ).run(max_steps=max_steps)
     in_time = (
         result.laps_completed >= 3
@@ -84,7 +90,18 @@ def run_case(payload: tuple[str, int, str, bool, int]) -> tuple[bool, bool, bool
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--field", default="COMMIT_HYSTERESIS", help="SignRouterParams boolean to A/B")
+    parser.add_argument("--field", default="COMMIT_HYSTERESIS", help="boolean tuning field to A/B")
+    parser.add_argument(
+        "--group",
+        default="sign_router",
+        help="tuning group the field lives in, e.g. escape for SIDE_CORRECTION_BLENDS",
+    )
+    parser.add_argument(
+        "--sighted",
+        action="store_true",
+        help="run the emulated camera. Pass-side violations and sign collisions only "
+        "mean anything sighted; the blind default measures the laps, not the routing.",
+    )
     parser.add_argument("--seeds", type=int, default=6)
     parser.add_argument("--limit", type=int, default=0, help="Scenarios to use; 0 means all.")
     parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
@@ -96,14 +113,17 @@ def main() -> None:
         paths = paths[: args.limit]
     arms = (False, True)
     payloads = [
-        (str(p), seed, args.field, value, args.max_steps)
+        (str(p), seed, args.field, value, args.max_steps, args.group, args.sighted)
         for value in arms
         for p in paths
         for seed in range(args.seeds)
     ]
 
     jobs = resolve_jobs(args.jobs)
-    print(f"{len(payloads)} runs over {jobs} workers, {args.field}, {len(paths)} scenarios x {args.seeds} seeds, blind")
+    print(
+        f"{len(payloads)} runs over {jobs} workers, {args.group}.{args.field}, "
+        f"{len(paths)} scenarios x {args.seeds} seeds, {'SIGHTED' if args.sighted else 'blind'}"
+    )
     results = run_pool(run_case, payloads, jobs, on_result=print_pool_progress(args.field.lower()))
 
     print()

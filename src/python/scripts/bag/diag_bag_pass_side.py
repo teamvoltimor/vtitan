@@ -67,6 +67,7 @@ from __future__ import annotations
 
 import math
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -106,6 +107,11 @@ class Pass:
     commanded: int | None
     achieved: int
     lateral_m: float
+    commanded_m: float
+    """Lateral offset the router ASKED for at the SAME tick ``lateral_m`` is
+    read at. ``commit_commanded_m`` below is the ask at commit, which is a
+    different instant: pairing it against ``lateral_m`` compares two moments
+    and cannot separate a bad plan from bad tracking. This one can."""
 
     # Everything below describes the FIRST tick this sign was committed to,
     # which is the moment the pass became a steering problem. The fields above
@@ -121,6 +127,14 @@ class Pass:
     commit_speed_mps: float | None
     maneuver_during_pass: bool
     """An escape/stuck manoeuvre was latched at some point while committed."""
+
+    maneuver_ticks: Counter[str]
+    """Latched-manoeuvre ticks while committed, BY TYPE. ``maneuver_during_pass``
+    collapses every manoeuvre into one bit, and that cannot tell a k_turn (a
+    deliberate re-orientation) apart from side_correction (the reactive layer
+    taking the wheel). Reported from the track on 2026-09-12: the corrections
+    themselves often fail to reach the legal side or to avoid contact, which is
+    a claim about ONE manoeuvre type and needs the type to test."""
 
     manoeuvre_agrees: int
     """Latched-manoeuvre ticks steering TOWARD the side the router asked for."""
@@ -171,6 +185,7 @@ def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  #
     best: dict[tuple[float, float], tuple] = {}
     first: dict[tuple[float, float], tuple] = {}
     manoeuvred: dict[tuple[float, float], bool] = {}
+    man_types: dict[tuple[float, float], Counter[str]] = {}
     steer_vote: dict[tuple[float, float], list[int]] = {}
 
     for rel, d in rows:
@@ -213,6 +228,8 @@ def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  #
         if key not in first:
             first[key] = (rng, (d.pose_x, d.pose_y), deformed, d.commanded_speed_mps)
         manoeuvred[key] = manoeuvred.get(key, False) or d.active_maneuver_type is not None
+        if d.active_maneuver_type is not None:
+            man_types.setdefault(key, Counter())[str(d.active_maneuver_type)] += 1
         # Does the latched manoeuvre steer toward the side the router asked
         # for? Compared in the ROBOT frame, because a steering sign is a
         # left/right command and the router's request is a world vector: the
@@ -255,11 +272,13 @@ def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  #
                 commanded=(1 if commanded_delta > 0 else -1) * want,
                 achieved=(1 if achieved_delta > 0 else -1) * want,
                 lateral_m=abs(achieved_delta),
+                commanded_m=abs(commanded_delta),
                 commit_range_m=c_rng,
                 commit_lateral_m=(c_robot[idx] - sign_axis) * want,
                 commit_commanded_m=(c_deformed[idx] - sign_axis) * want,
                 commit_speed_mps=c_speed,
                 maneuver_during_pass=manoeuvred.get(key, False),
+                maneuver_ticks=man_types.get(key, Counter()),
                 manoeuvre_agrees=steer_vote.get(key, [0, 0])[0],
                 manoeuvre_opposes=steer_vote.get(key, [0, 0])[1],
                 sign_x=sign_pos.x,
@@ -286,6 +305,7 @@ def main() -> None:
         print(f"== sign_discovery overrides: {overrides}")
 
     rows_out = []
+    ask_rows: list[tuple[str, str, str, float, float, float, float, str, bool]] = []
     peaks: list[tuple[str, int]] = []
     skipped: list[tuple[str, str]] = []
     tally = {"routing": 0, "execution": 0, "ok": 0}
@@ -317,6 +337,15 @@ def main() -> None:
             rows_out.append(
                 [run, str(direction), p.corridor, str(p.colour), round(p.lateral_m, 3), verdict]
             )
+            # Signed against the rule's legal side, so a negative ask is the
+            # router itself planning the wrong side and a negative achievement
+            # with a positive ask is the chassis failing to follow it.
+            ask_rows.append(
+                (run, str(p.colour), p.corridor,
+                 (p.commanded or 0) * p.commanded_m, p.achieved * p.lateral_m,
+                 p.commit_commanded_m, p.commit_lateral_m, verdict,
+                 p.maneuver_during_pass)
+            )
     if skipped:
         print(f"== SKIPPED {len(skipped)} unreadable bag(s): {', '.join(n for n, _ in skipped[:6])}")
         print()
@@ -343,6 +372,60 @@ def main() -> None:
         print(
             f"    {colour:>16}  {b['routing']:4d} / {b['execution']:4d} / {b['ok']:4d}"
             f"   routing {100 * b['routing'] / n_total:5.1f}%  of {n_total}"
+        )
+    print()
+    # ASKED vs ACHIEVED, both read at the closest tick, so the gap between the
+    # two columns is tracking error and nothing else. This is the control that
+    # decides whether a near-miss is a PLAN failure (the router asked for the
+    # clearance it got) or a TRACKING failure (it asked for much more).
+    print("== ASKED vs ACHIEVED at the closest tick (signed, + = legal side)")
+    ask_table = [
+        [run, colour, corr, round(ask, 3), round(got, 3), round(got - ask, 3),
+         round(c_ask, 3), round(c_got, 3), verdict.split(":")[0]]
+        for run, colour, corr, ask, got, c_ask, c_got, verdict, _man in ask_rows
+    ]
+    print_table(
+        ask_table,
+        ["run", "colour", "corridor", "ask m", "got m", "got-ask", "ask@commit", "pose@commit", "verdict"],
+    )
+    print()
+    grazes = [r for r in ask_rows if abs(r[4]) < 0.030]
+    print(f"  passes grazing under 30 mm: {len(grazes)} of {len(ask_rows)}")
+    for label, subset in (("ALL passes", ask_rows), ("grazes <30mm", grazes)):
+        if not subset:
+            continue
+        asks = [abs(r[3]) for r in subset]
+        gots = [abs(r[4]) for r in subset]
+        errs = [abs(r[4] - r[3]) for r in subset]
+        n = len(subset)
+        print(
+            f"    {label:>14}  n={n:3d}  mean |ask|={sum(asks) / n:.3f}"
+            f"  mean |got|={sum(gots) / n:.3f}  mean |got-ask|={sum(errs) / n:.3f}"
+            f"  max |got-ask|={max(errs):.3f}"
+        )
+    # The two worlds the measurement has to separate, counted on the grazes.
+    plan_fail = sum(1 for r in grazes if abs(r[3]) < 0.030)
+    track_fail = sum(1 for r in grazes if abs(r[3]) >= 0.030)
+    print(f"    of the grazes: PLAN asked <30mm too: {plan_fail}   TRACKING asked >=30mm: {track_fail}")
+    # A tracking failure has to come from somewhere. The open chain says the
+    # planner is silent during manoeuvres, so split the SAME error by whether a
+    # manoeuvre was latched: if the error lives in the manoeuvre ticks, the
+    # open-loop arcs are the mechanism; if it does not, they are exonerated.
+    print()
+    print("  tracking error split by whether a manoeuvre was latched while committed:")
+    for label, subset in (
+        ("manoeuvred", [r for r in ask_rows if r[8]]),
+        ("clean", [r for r in ask_rows if not r[8]]),
+    ):
+        if not subset:
+            print(f"    {label:>12}  n=  0")
+            continue
+        errs = [abs(r[4] - r[3]) for r in subset]
+        graze = sum(1 for r in subset if abs(r[4]) < 0.030)
+        n = len(subset)
+        print(
+            f"    {label:>12}  n={n:3d}  mean |got-ask|={sum(errs) / n:.3f}"
+            f"  grazes {graze}/{n} = {100 * graze / n:5.1f}%"
         )
     print()
     print(f"  commanded the WRONG side (routing):        {tally['routing']}")
