@@ -35,6 +35,34 @@ class ParkingParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    DERIVE_LOT_FROM_IN_BAY_START: bool = Field(
+        default=True, validation_alias=_alias("DERIVE_LOT_FROM_IN_BAY_START")
+    )
+    """Build the parking lot from the START POSE when metadata carries none.
+
+    Without this, parking is unreachable code on hardware. Blind runs give the
+    navigator only ``starting_conditions``, so ``park_controller_from_metadata``
+    finds no ``parking_lot`` and returns None -- and measured over 255 bags a
+    ParkController has NEVER been constructed on this robot: 0 of 227 readable,
+    with 67 of them reaching three laps, so the lap precondition was met 67 times
+    and parking still never engaged. Every parking figure this project holds
+    comes from the simulator.
+
+    The lot needs no sensing to be located: in the Obstacles Challenge the robot
+    STARTS INSIDE IT, so the start pose IS the lot, with the two fins
+    ``BLOCK_SPACING_FACTOR`` chassis lengths apart (0.45 m) along the wall.
+
+    ON by default because "it never even tried" is a worse failure than "it tried
+    and could not", and the operator asked to SEE it attempt the manoeuvre.
+
+    IT WILL VERY PROBABLY FAIL, and that is not this flag's doing. Depth is
+    0.194 m of chassis against a 0.20 m pocket -- 6 mm of total slack, +/-3 mm on
+    the centre -- and the maximum heading error is 1.16 deg against the 6.0 deg
+    the rule allows, while measured cross-track at sign passes is 46.3 mm. Nobody
+    should read a park attempt appearing in a bag as the problem being solved;
+    what it buys is that the failure becomes measurable instead of invisible.
+    """
+
     PARALLEL_TOLERANCE_M: float = Field(default=0.02, validation_alias=_alias("PARALLEL_TOLERANCE_M"))
     POS_REACH_DIST_M: float = Field(default=0.04, validation_alias=_alias("POS_REACH_DIST_M"))
     DEFAULT_MAX_FRAMES: int = Field(default=400, validation_alias=_alias("DEFAULT_MAX_FRAMES"))

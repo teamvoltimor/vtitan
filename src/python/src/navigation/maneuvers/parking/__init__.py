@@ -18,6 +18,7 @@ from src.navigation.maneuvers.parking.controller import (
     bearing_error,
     inside_zone,
     park_controller_from_metadata,
+    parking_lot_from_in_bay_start,
     pure_pursuit_steer,
 )
 from src.navigation.maneuvers.parking.footprint import (
@@ -51,6 +52,7 @@ __all__ = [
     "is_beyond_lot_centre",
     "normalise_angle",
     "park_controller_from_metadata",
+    "parking_lot_from_in_bay_start",
     "pure_pursuit_steer",
     "staging_pos",
 ]

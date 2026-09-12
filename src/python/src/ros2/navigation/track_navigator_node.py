@@ -47,7 +47,11 @@ from src.navigation.corridor_follower import TurnSide, follow_corridor
 from src.navigation.deferred_width_belief import DeferredWidthBelief
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
 from src.navigation.maneuvers.bay_exit import BayExit
-from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
+from src.navigation.maneuvers.parking import (
+    ParkController,
+    park_controller_from_metadata,
+    parking_lot_from_in_bay_start,
+)
 from src.navigation.planning.sign_router import (
     SignRouter,
     SignRouterConfig,
@@ -545,8 +549,26 @@ class TrackNavigator(Node, ResettableNode):
 
         park_controller: ParkController | None = None
         if not self._is_open_challenge:
+            metadata = self._metadata
+            if DictKeys.PARKING_LOT not in metadata and tuning.parking.DERIVE_LOT_FROM_IN_BAY_START:
+                # Blind runs carry only starting_conditions, so the factory
+                # below finds no lot and returns None -- which is why a
+                # ParkController has NEVER been constructed on this robot (0 of
+                # 227 bags, 67 of which reached three laps). The lot does not
+                # need sensing: in the Obstacles Challenge the robot STARTS
+                # INSIDE IT, so the start pose is the lot.
+                metadata = dict(metadata)
+                metadata[DictKeys.PARKING_LOT] = parking_lot_from_in_bay_start(
+                    start_xy[0], start_xy[1], start_section
+                )
+                self.get_logger().info(
+                    "Parking lot derived from the in-bay start at (%.2f, %.2f) in %s",
+                    start_xy[0],
+                    start_xy[1],
+                    start_section.value,
+                )
             park_controller = park_controller_from_metadata(
-                self._metadata,
+                metadata,
                 start_section,
                 start_direction,
                 tuning=tuning,

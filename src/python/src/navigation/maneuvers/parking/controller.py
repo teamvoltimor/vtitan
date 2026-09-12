@@ -21,7 +21,7 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from shared.config.constants import DictKeys
+from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs
 from shared.domain.enums import Direction, ParkPhase, Section
 from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
 
@@ -396,6 +396,49 @@ def pure_pursuit_steer(x_local: float, y_local: float, context: ParkingContext) 
     formula and its physical reasoning.
     """
     return _shared_pure_pursuit_steer(x_local, y_local, context.constants.min_lookahead_dist_m)
+
+
+def parking_lot_from_in_bay_start(start_x: float, start_y: float, section: Section) -> dict:
+    """The parking lot implied by an IN-BAY start, for a robot given no metadata.
+
+    On hardware the navigator runs blind: ``_metadata`` carries only
+    ``starting_conditions``, so ``park_controller_from_metadata`` finds no
+    ``parking_lot`` and returns None. Measured over 255 bags, a ParkController
+    has therefore NEVER been constructed on this robot -- 0 of 227 readable, and
+    67 of them reached three laps, so the lap precondition was met and parking
+    still never engaged. Every parking result this project holds comes from the
+    simulator.
+
+    The lot does not have to be sensed to be known: in the Obstacles Challenge
+    the robot STARTS INSIDE IT, so the start pose IS the lot. The two magenta
+    fins stand perpendicular to the outer wall, ``BLOCK_SPACING_FACTOR`` chassis
+    lengths apart along it, each centred ``WALL_OFFSET`` from the wall face.
+
+    Deriving it this way needs no new sensing and no new detection class, which
+    is the point -- the alternative is fusing the magenta detections, and that is
+    a build rather than a wiring.
+
+    WHAT THIS DOES NOT FIX. The geometry still blocks the manoeuvre: depth is
+    0.194 m of chassis against a 0.20 m pocket, which is 6 mm of total slack and
+    +/-3 mm on the centre, with a maximum heading error of 1.16 deg against the
+    6.0 deg the rule allows. Measured cross-track at sign passes is 46.3 mm.
+    Wiring this makes the attempt VISIBLE and its failure measurable; it does not
+    make it succeed, and nobody should read a park attempt appearing in a bag as
+    the problem being solved.
+    """
+    # The factor multiplies the CHASSIS length, not the fin's -- the lot is
+    # 1.5 chassis lengths along the wall (0.45 m), not 1.5 fin lengths (0.30 m).
+    # Same expression `test_bay_exit` uses for the pocket's along-wall bound.
+    half_span = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
+    along_x = section in (Section.SOUTH, Section.NORTH)
+    if along_x:
+        blocks = [(start_x - half_span, start_y), (start_x + half_span, start_y)]
+    else:
+        blocks = [(start_x, start_y - half_span), (start_x, start_y + half_span)]
+    return {
+        DictKeys.BLOCK1_POSITION: {DictKeys.X: blocks[0][0], DictKeys.Y: blocks[0][1]},
+        DictKeys.BLOCK2_POSITION: {DictKeys.X: blocks[1][0], DictKeys.Y: blocks[1][1]},
+    }
 
 
 def park_controller_from_metadata(
