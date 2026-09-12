@@ -836,7 +836,7 @@ width="350">
 #### **Fase 5: Integración del HD Hex Motor**
 
 <p align="center">
-	<img src="assets/images/development/hd-hex-motor-integration.webp" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
+	<img src="assets/images/development/hd-hex-motor-integration.jpg" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Integración del REV HD Hex Motor al Sistema de Transmisión</i>
