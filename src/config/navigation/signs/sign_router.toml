@@ -60,7 +60,7 @@ settle_ticks = 150                # ticks after lap start before bookkeeping act
 # flips while the router is COMMITTED. SHIPS OFF: it replaces the map every
 # Obstacles figure in this repo was measured against, and the simulator cannot
 # screen it (its sign map is exact, so all of the above collapses to zero).
-slot_sign_map = false
+slot_sign_map = true
 slot_accept_radius_m = 0.30
 slot_min_evidence = 0.75
 slot_repoint_margin = 1.5
