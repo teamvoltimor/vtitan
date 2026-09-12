@@ -70,9 +70,10 @@ _SETTLE_S = 1.5
 """Time parked at the starting lock before a trial, so every trial begins from
 the same place and the wheel is stationary rather than still arriving."""
 
-_RECOVER_S = 2.5
-"""Time to let the wheel finish returning after a trial. Generous on purpose: a
-trial that starts from a half-way position measures nothing."""
+_RECOVER_S = 3.0
+"""Rest at CENTRE between trials. Generous on purpose: a trial that starts from
+a half-way position measures nothing, and the gap is what lets an observer tell
+one trial from the next."""
 
 _LO_S, _HI_S = 0.10, 3.00
 """Bracket for the bisection. 3.00 s clears the shipped 1.2 rad/s (which would
@@ -107,13 +108,26 @@ class _Servo:
 
 
 def _trial(servo: _Servo, angle_deg: float, hold_s: float) -> None:
-    """One bisection trial: park at one lock, dash for the other, come back."""
+    """One trial: park at one lock, dash for the other, then rest at CENTRE.
+
+    Resting at centre rather than at the far lock is what makes the trial
+    readable. Parked at a lock, every leg is a 170 deg sweep and the timed dash
+    looks exactly like the return, so an observer sees "it went one way, then the
+    other" and cannot say which one was measured -- reported from the mat on the
+    first two runs of this tool.
+
+    The signature to watch for is inside the dash itself:
+
+    * hold above the slew time -- the wheel ARRIVES at the far lock and DWELLS
+      there before reversing. The dwell is the signal.
+    * below it -- the wheel reverses MID-SWEEP, having never touched the stop.
+    """
     servo.command(-angle_deg)
     time.sleep(_SETTLE_S)
     print(f"\n  >>> GO  (hold {hold_s:.2f} s)", flush=True)
     servo.command(+angle_deg)
     time.sleep(hold_s)
-    servo.command(-angle_deg)
+    servo.command(0.0)
     time.sleep(_RECOVER_S)
 
 
