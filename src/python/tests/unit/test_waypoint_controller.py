@@ -375,3 +375,62 @@ class TestTargetMustBeReachable:
         )
         assert target in {self.SIDEWAYS, (0.08, -0.30)}
         assert controller.last_target_unreachable is True
+
+
+class TestTargetSearchSpan:
+    """The search may not walk a whole lap looking for a point in front.
+
+    Unbounded it returns the first waypoint merely IN FRONT of the chassis,
+    which once the chassis has turned toward the way it came is on the FAR SIDE
+    of the ring. Measured 2026-09-11: the selected target sat p50 2.08-2.50 m
+    away at 97-140 deg backwards around the loop on 60-91% of ticks, and pure
+    pursuit tracked it perfectly. A clean 3-lap round never selected a target
+    beyond 0.91 m in 2533 ticks.
+    """
+
+    def _ring(self, n: int = 40, radius: float = 1.0) -> list[tuple[float, float]]:
+        """A closed loop, so "the far side" is a real place the search can reach."""
+        return [
+            (radius * math.cos(2 * math.pi * i / n), radius * math.sin(2 * math.pi * i / n))
+            for i in range(n)
+        ]
+
+    def _controller(self, span_m: float) -> WaypointController:
+        tuning = NavigationTuning()
+        controller = WaypointController.from_tuning(tuning)
+        controller.target_search_span_m = span_m
+        return controller
+
+    def test_a_reversed_chassis_is_not_handed_the_far_side_of_the_ring(self) -> None:
+        ring = self._ring()
+        # On the ring at index 0, facing BACKWARDS along it. Everything just
+        # ahead in index order is now behind the chassis.
+        pos = ring[0]
+        yaw = math.atan2(ring[0][1] - ring[1][1], ring[0][0] - ring[1][0])
+
+        bounded = self._controller(1.0).select_target_point(pos, yaw, ring, 0, 0.32)
+
+        assert math.dist(bounded, pos) <= 1.0, (
+            f"bounded search still returned a target {math.dist(bounded, pos):.2f} m away"
+        )
+
+    def test_the_control_unbounded_does_reach_it(self) -> None:
+        """Without the bound the same call crosses the ring -- the bug, reproduced."""
+        ring = self._ring()
+        pos = ring[0]
+        yaw = math.atan2(ring[0][1] - ring[1][1], ring[0][0] - ring[1][0])
+
+        unbounded = self._controller(0.0).select_target_point(pos, yaw, ring, 0, 0.32)
+
+        assert math.dist(unbounded, pos) > 1.0, (
+            "the unbounded search no longer reproduces the far-side pick, so the "
+            "test above proves nothing"
+        )
+
+    def test_healthy_driving_is_untouched(self) -> None:
+        """Facing the right way, bounded and unbounded must agree exactly."""
+        ring = self._ring()
+        pos = ring[0]
+        yaw = math.atan2(ring[1][1] - ring[0][1], ring[1][0] - ring[0][0])
+
+        assert self._controller(1.0).select_target_point(pos, yaw, ring, 0, 0.32) == self._controller(0.0).select_target_point(pos, yaw, ring, 0, 0.32)

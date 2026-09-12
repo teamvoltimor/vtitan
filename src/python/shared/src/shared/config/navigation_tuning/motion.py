@@ -532,6 +532,45 @@ class PurePursuitParams(BaseModel):
     # construction was running a rate 67% higher than anything the robot ships
     # with, so a weave measured on bare tuning was not measuring the robot.
     MAX_STEERING_RATE: float = Field(default=1.2, validation_alias=_alias("MAX_STEERING_RATE"))  # rad/s
+    TARGET_SEARCH_SPAN_M: float = Field(
+        default=1.0, ge=0.0, validation_alias=_alias("TARGET_SEARCH_SPAN_M")
+    )
+    """How far ALONG THE PATH ``select_target_point`` may walk. 0 = a whole lap.
+
+    Without a bound the search wraps the entire loop and returns the first
+    waypoint merely IN FRONT of the chassis -- which, once the chassis has turned
+    toward the way it came, is on the FAR SIDE OF THE RING.
+
+    That is what lost all three rounds of 2026-09-11, and it is the mechanism
+    behind the operator's report that the car turned around and drove back.
+    Measured inside those windows: the selected target sat p50 2.08-2.50 m away
+    at a bearing 97-140 deg BACKWARDS around the loop, on 60-91% of ticks, while
+    pure pursuit tracked it perfectly -- crosstrack 0.0-0.5 m, ``angle_error``
+    pinned at its clamp -- because driving toward the far side of a ring
+    corridor IS driving back the way you came.
+
+    | run | selected-target distance p50 | ticks beyond 1.0 m |
+    |---|---|---|
+    | run_20260911_152318 (clean, 3 laps) | 0.44 m | **0 / 2533 (0.0%)** |
+    | run_20260911_171915 | 2.09 m | 932 / 3179 (29.3%) |
+    | run_20260911_172334 | 2.50 m | 380 / 1267 (30.0%) |
+    | run_20260911_172543 | 2.08 m | 784 / 2851 (27.5%) |
+
+    1.0 m is chosen off that control: healthy driving never came near it -- the
+    clean round's farthest selected target in 2533 ticks was 0.91 m -- while it
+    removes every pathological pick. Against a lookahead of 0.16-0.32 m it is 3x
+    the largest value the search can legitimately need.
+
+    A SPAN, not a replacement for the wrap: the modulo stays, so the 2026-08-03
+    seam fix is untouched, and the search never writes ``waypoint_index``, so
+    ``REPLAN_MONOTONIC_INDEX``, ``FORWARD_ONLY_RESEEK``, the seam guard and the
+    lap odometer are byte-for-byte unaffected. Raised to at least
+    ``lookahead + spacing`` at runtime so it can never starve the search.
+
+    When nothing in the span qualifies, ``last_target_unreachable`` is set and
+    the existing fallback tiers run -- an outcome the tree already has a meaning
+    for, rather than a new silent failure.
+    """
     SERVO_SLEW_RATE_RAD_S: float = Field(
         default=1.2, gt=0.0, validation_alias=_alias("SERVO_SLEW_RATE_RAD_S")
     )

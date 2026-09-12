@@ -23,6 +23,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_MIN_SEARCH_CANDIDATES = 5
+"""Waypoints ``select_target_point`` always examines, whatever the span says.
+
+The span is an arc length, and a path can legitimately be coarser than it -- the
+bay's first few points, or any synthetic path. Below a handful of candidates the
+search stops being a search, so the floor wins over the span."""
+
 
 class WaypointController:
     """Pure pursuit steering controller for waypoint following.
@@ -61,6 +68,7 @@ class WaypointController:
         lookahead_blend_start: float = 1.0,
         yaw_gain_compensation: float = 1.0,
         min_target_radius_m: float = 0.0,
+        target_search_span_m: float = 0.0,
     ):
         """Initialize pure pursuit controller.
 
@@ -101,6 +109,7 @@ class WaypointController:
         self.lookahead_transition = lookahead_transition
         self.steer_kp = steer_kp
         self.max_steering_rate = max_steering_rate
+        self.target_search_span_m = target_search_span_m
         self.waypoint_reached_distance_m = waypoint_reached_distance_m
         self.corner_turn_threshold_rad = corner_turn_threshold_rad
         self.lookahead_blend_start = lookahead_blend_start
@@ -152,6 +161,7 @@ class WaypointController:
             lookahead_blend_start=pursuit.LOOKAHEAD_BLEND_START,
             yaw_gain_compensation=pursuit.YAW_GAIN_COMPENSATION,
             min_target_radius_m=pursuit.MIN_TARGET_RADIUS_M,
+            target_search_span_m=pursuit.TARGET_SEARCH_SPAN_M,
         )
 
     def select_lookahead(
@@ -370,7 +380,50 @@ class WaypointController:
         # for a weaker correction. Measured NEGATIVE at 0.29 -- see
         # PurePursuitParams.MIN_TARGET_RADIUS_M -- which is why it ships off.
         nearest_unreachable: tuple[float, float] | None = None
+        # How far ALONG THE PATH the scan may walk. Without a bound this loop
+        # wraps a whole lap and returns the first waypoint that is merely
+        # geometrically in front of the chassis -- which, once the chassis has
+        # turned toward the way it came, is on the FAR SIDE OF THE RING.
+        #
+        # That is not hypothetical; it is what lost all three rounds of
+        # 2026-09-11 and it is the mechanism behind "the car turned around and
+        # drove back". Measured in those windows: the selected target sat p50
+        # 2.08-2.50 m away at a bearing 97-140 deg BACKWARDS around the loop,
+        # on 60-91% of ticks, while pure pursuit tracked it perfectly -- small
+        # crosstrack, angle_error pinned at its clamp -- because driving toward
+        # the far side of a ring corridor means driving back the way you came.
+        # ``waypoint_index`` froze meanwhile, since advancing it needs a
+        # waypoint the robot is receding from, which is why every backward-jump
+        # guard in this tree reads clean.
+        #
+        # The bound is a SPAN, not a replacement for the wrap: the modulo stays,
+        # so the 2026-08-03 seam fix is untouched. And it never writes
+        # ``waypoint_index``, so REPLAN_MONOTONIC_INDEX, FORWARD_ONLY_RESEEK,
+        # the seam guard and the lap odometer are byte-for-byte unaffected.
+        #
+        # 1.0 m because the control says healthy driving never comes near it:
+        # over a clean 3-lap round the selected target never exceeded 0.91 m in
+        # 2533 ticks and 0 of them were beyond 1.0 m, against 27-30% of ticks
+        # beyond it on each of the three lost rounds.
+        #
+        # Measured as ARC LENGTH walked, not as a waypoint count derived from
+        # mean spacing: spacing is not uniform (a sign lane, a replan and a
+        # width-belief rebuild all change it), and a count sized off the mean
+        # silently examines two candidates where the path happens to be coarse.
+        # A floor of MIN_SEARCH_CANDIDATES keeps it honest on any path whose
+        # spacing exceeds the span outright.
+        span_m = self.target_search_span_m
+        walked = 0.0
         for offset in range(n):
+            if (
+                span_m > 0.0
+                and offset >= _MIN_SEARCH_CANDIDATES
+                and walked > max(span_m, lookahead_distance)
+            ):
+                break
+            if offset > 0:
+                prev = waypoints[(waypoint_index + offset - 1) % n]
+                walked += math.dist(prev, waypoints[(waypoint_index + offset) % n])
             wx, wy = waypoints[(waypoint_index + offset) % n]
             dx, dy = wx - cx, wy - cy
             dist = math.hypot(dx, dy)
@@ -390,7 +443,7 @@ class WaypointController:
             if dist < nearest_ahead_dist:
                 nearest_ahead_dist = dist
                 nearest_ahead = (wx, wy)
-        # Nothing reachable in a whole lap. Fall back exactly as before rather
+        # Nothing reachable in the searched span. Fall back exactly as before rather
         # than inventing a target: the previous tiers are themselves the
         # answers to measured hardware failures (see this method's docstring),
         # and the flag says the chassis is in a position steering alone cannot

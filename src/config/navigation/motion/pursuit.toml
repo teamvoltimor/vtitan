@@ -67,6 +67,17 @@ steer_kp = 1.2                # Proportional gain for the steering P-controller
 # exact value is untested; re-check lap completion if this regresses hardware
 # cornering.
 max_steering_rate = 1.2       # Maximum steering command rate (rad/s)
+# How far ALONG THE PATH select_target_point may walk before giving up. 0 = a
+# whole lap, which is what shipped and what lost all three rounds of
+# 2026-09-11: unbounded, the search wraps the ring and returns the first
+# waypoint merely IN FRONT of the chassis, which once the car has turned is on
+# the FAR SIDE of the loop. Measured in those windows the selected target sat
+# p50 2.08-2.50 m away at 97-140 deg BACKWARDS around the ring, on 60-91% of
+# ticks, and pure pursuit tracked it perfectly. A clean 3-lap round never
+# selected a target beyond 0.91 m in 2533 ticks (0 beyond 1.0 m) against
+# 27-30% beyond it on each lost round. Lookahead is 0.16-0.32 m, so 1.0 m is
+# 3x anything the search can legitimately need.
+target_search_span_m = 1.0
 # How fast the servo ACTUALLY moves, as opposed to how fast we let the command
 # move. Split from max_steering_rate on 2026-09-11: that one is a CORNERING
 # POLICY, lowered 2.0 -> 1.2 on 2026-08-28 because cornering was too drastic,
