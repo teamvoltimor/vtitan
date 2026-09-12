@@ -96,7 +96,13 @@ from shared.config.constants import TrackDimensions
 from shared.domain.enums import Direction, Section
 from shared.domain.models import SignColor, Waypoint
 
-from src.navigation.planning.sign_router import Axis, SignSpec, clamp_lateral, pass_side_lateral_axis
+from src.navigation.planning.sign_router import (
+    Axis,
+    SignSpec,
+    clamp_lateral,
+    pass_lateral,
+    pass_side_lateral_axis,
+)
 
 __all__ = ["SignLaneParams", "apply_sign_lanes"]
 
@@ -153,6 +159,21 @@ class SignLaneParams:
     next corridor, and delivering it already on the lane is strictly closer to
     what the robot must end up doing. ``clamp_lateral`` still bounds every
     point it moves.
+    """
+
+    gap_centre_frac: float | None = None
+    """How far a squeezed plateau moves off the boundary-clearance limit
+    toward the midpoint of its free gap. ``0.0`` is the clamped placement.
+
+    Only affects signs where the full ``lateral_offset`` does not fit -- 646
+    of the corpus's 1282, in 248 of its 256 scenarios. Full centring (1.0)
+    trades 31 sign collisions for 58 wall collisions under STRICT scoring;
+    see ``sign_router.pass_lateral`` for the geometry, the measured yaw
+    margins, and why that refutation is being re-measured against the real
+    inner-wall rule.
+
+    Ships at 0.0, so the lane planner is byte-identical to the clamped
+    placement until a measurement says otherwise.
     """
 
     def __post_init__(self) -> None:
@@ -265,7 +286,9 @@ def _control_points(
             continue
         _, mult = rule
         sign_lateral, sign_depth = _axis_coords(Waypoint(spec.x, spec.y), axis)
-        target = clamp_lateral(sign_lateral + mult * params.lateral_offset, corridor)
+        target = pass_lateral(
+            sign_lateral, mult, corridor, params.lateral_offset, params.gap_centre_frac
+        )
         if params.skip_unsatisfiable and (target - sign_lateral) * mult <= 0.0:
             # The clamp put this sign's own target on the forbidden side of it,
             # so every point of its plateau would violate the rule it exists to
@@ -334,6 +357,36 @@ def _control_points(
     entry = min(max(points[0][0] - params.ramp_m, low), points[0][0])
     exit_ = max(min(points[-1][0] + params.ramp_m, high), points[-1][0])
     return [(entry, base_lateral), *points, (exit_, base_lateral)]
+
+
+
+def _clamp_shift(value: float, corridor: Section, lane: float, gap_centre_frac: float) -> float:
+    """Bound a shifted waypoint, without undoing a deliberately gap-centred lane.
+
+    ``clamp_lateral`` is doing two jobs here. For a borrowed CORNER ARC point
+    it is real protection: the shift translates the whole arc, and an arc that
+    already curves toward the boundary can be pushed through it. For the
+    PLATEAU it is redundant -- ``pass_lateral`` has already placed that value
+    and bounded it -- and worse than redundant under gap-centring, because its
+    margin is precisely what gap-centring rebalances. Applied blindly it pulls
+    the plateau straight back to the boundary-clearance limit, silently
+    reducing the whole change to a different ramp shape.
+
+    So the clamp is relaxed exactly as far as ``lane``, the profile value for
+    this depth, and no further: a point may reach the lane the planner chose,
+    while anything overshooting BEYOND it -- which is only ever arc curvature,
+    never the plateau -- is still caught. At ``gap_centre_frac`` 0 this is
+    ``clamp_lateral`` unchanged, since ``lane`` is then the clamped value
+    itself and the relaxation has nothing to give.
+    """
+    clamped = clamp_lateral(value, corridor)
+    if gap_centre_frac <= 0.0:
+        return clamped
+    if value < clamped:
+        return max(value, min(clamped, lane))
+    if value > clamped:
+        return min(value, max(clamped, lane))
+    return clamped
 
 
 def _interpolate(profile: list[tuple[float, float]], depth: float) -> float | None:
@@ -425,7 +478,9 @@ def apply_sign_lanes(
             # the turn instead of offsetting it. Shifting translates the arc
             # while leaving its shape intact, which is exactly the "exit the
             # corner already on the lane" behaviour this borrows runway for.
-            shifted = clamp_lateral(lateral + (lane - base_lateral), corridor)
+            shifted = _clamp_shift(
+                lateral + (lane - base_lateral), corridor, lane, params.gap_centre_frac
+            )
             if shifted == lateral:
                 continue
             result[i] = _rebuild(result[i], axis, shifted)

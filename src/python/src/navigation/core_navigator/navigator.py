@@ -42,8 +42,11 @@ from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
 from src.navigation.corridor_estimator import classify_width
 from src.navigation.geometry import chassis_half_diagonal_m
-from src.navigation.planning.lidar_proposer import ProposerParams, find_clusters
-from src.navigation.planning.lidar_proposer import propose as propose_sign_positions
+from src.navigation.planning.lidar_proposer import (
+    ProposerParams,
+    find_clusters,
+    propose as propose_sign_positions,
+)
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand, LidarScan
@@ -576,6 +579,10 @@ class CoreNavigator(EscapeRecovery):
                 skip_unsatisfiable=sr.SIGN_LANE_SKIP_UNSATISFIABLE,
                 split_overlap=sr.SIGN_LANE_SPLIT_OVERLAP,
                 corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+                # Read from the PASSED group, not resolved in __post_init__:
+                # that helper loads the shipped tree, which would make a
+                # sweep arm overriding this knob silently inert.
+                gap_centre_frac=sr.SIGN_LANE_GAP_CENTRE_FRAC,
             ),
             # The ROUTER's direction, not the navigator's: the lane must be
             # built on the same one the pass-side decision was made under.
