@@ -77,6 +77,7 @@ from shared.domain.models import (
 )
 
 import src.navigation.planning.sign_router as sign_router_module
+
 # The SUBMODULE, not the package. Every gateway_module.X below patches a name
 # that `simulator.py` imported and calls -- SignRouter, SignRouterConfig,
 # TrackModel, obstacles_from_metadata -- and the package `__init__` re-exports
@@ -86,8 +87,8 @@ import src.navigation.planning.sign_router as sign_router_module
 # lateral_offset block below: patching the defining module never reaches a
 # caller that bound the name at import time.
 import src.simulation.scenario_simulator.simulator as gateway_module
-from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.provenance import environment as _provenance
+from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
 from scripts.common.tables import print_table
@@ -219,7 +220,7 @@ class CollisionKind(StrEnum):
     NONE = "none"
 
 
-def _with(group: Any, **fields: float | None) -> Any:
+def _with(group: Any, **fields: float | bool | None) -> Any:
     """Copy a frozen pydantic tuning group, applying only the non-None fields."""
     updates = {name: value for name, value in fields.items() if value is not None}
     return group.model_copy(update=updates) if updates else group
@@ -557,6 +558,30 @@ class SweepConfig:
     widths and travel direction but skips discovery.
     """
 
+    obstacles_inner_wall_terminal: bool | None = None
+    """Score the Obstacles inner wall by the REAL rule instead of the strict one.
+
+    ``None`` keeps the shipped value (``True``, strict). ``False`` drops
+    ``INNER_WALL`` from ``TERMINAL_SURFACES``, which is what the rules actually
+    say: Open must not touch the OUTER wall, both challenges must not MOVE a
+    wall, and Obstacles must not touch the parking lot. Brushing the inner
+    block ends no real round. ``scenario_result.TERMINAL_SURFACES`` already
+    admits the shipped value is "stricter than the rules and is knowingly left
+    that way".
+
+    NOT A PURE RESCORING -- it moves the PHYSICS too. ``ScenarioSimulator``
+    derives its solid set as the COMPLEMENT of the terminal set, so an inner
+    wall that stops being terminal becomes a SOLID blocker instead. Against a
+    contact model that never slides, a chassis that used to end its round on
+    the inner block now grinds along it and can reach the no-progress bailout.
+    Expect this arm to move ``stuck`` and ``timeouts``, not only
+    ``collisions`` -- read the three columns together or the comparison says
+    nothing.
+
+    Every Obstacles figure in this repo was measured strict, so an arm that
+    flips this re-bases all of them. Quote the scoring with the number.
+    """
+
     scenarios_dir: str | None = None
     """Run against a generated corpus instead of the committed 16 fixtures.
 
@@ -660,6 +685,15 @@ class SweepConfig:
 
     Along-corridor distance the lane takes to transition on and off the
     centreline. Only meaningful with ``sign_lane_planner=True``.
+    """
+
+    sign_lane_gap_centre_frac: float | None = None
+    """Move a squeezed sign-lane plateau toward the midpoint of its free gap.
+
+    ``0.0`` (shipped) is the clamped placement. See
+    ``sign_router.pass_lateral``. Refuted at 2026-08-20 under STRICT inner-wall
+    scoring; pair this with ``obstacles_inner_wall_terminal`` to separate the
+    geometry from the criterion.
     """
 
     sign_lane_hold: float | None = None
@@ -940,6 +974,7 @@ class SweepConfig:
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
             SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
             SIGN_LANE_CORNER_ENTRY_M=self.sign_lane_corner_entry,
+            SIGN_LANE_GAP_CENTRE_FRAC=self.sign_lane_gap_centre_frac,
             SIGN_DEFORM_SPEED_THRESHOLD_M=self.sign_deform_speed_threshold,
             CORRIDOR_FLIP_TICKS=self.corridor_flip_ticks,
             DEFORM_DEPTH_BUFFER_M=self.deform_depth_buffer,
@@ -965,6 +1000,10 @@ class SweepConfig:
             ROBOT_CORRIDOR_FLIP_TICKS=self.robot_corridor_flip_ticks,
         )
         lidar_sectors = _with(base.lidar_sectors, MIN_VALID_RANGE_M=self.min_valid_range)
+        simulation = _with(
+            base.simulation,
+            OBSTACLES_INNER_WALL_TERMINAL=self.obstacles_inner_wall_terminal,
+        )
         return replace(
             base,
             lidar_sectors=lidar_sectors,
@@ -977,6 +1016,7 @@ class SweepConfig:
             sign_discovery=sign_discovery,
             corridor_follower=corridor_follower,
             parking=parking,
+            simulation=simulation,
         )
 
 
@@ -5203,6 +5243,38 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
 """Modes that sweep one numeric knob across the values given on the CLI."""
 
 _FIXED_MODES: dict[str, list[SweepConfig]] = {
+    # The gap-centre refutation, re-measured against the rule the event
+    # actually has. A 2x3 factorial in ONE invocation: two scorings of the
+    # Obstacles inner wall crossed with three lane placements.
+    #
+    # WHY. `clamp_lateral` hands the whole squeeze to the pillar, so a
+    # gap-centred plateau is the maximin placement. Measured on 2026-08-20 it
+    # moved the SIGN column exactly as the geometry predicts (199 -> 168 at
+    # frac 1.0) and lost far more to the WALL (3 -> 61), for 229/256 against
+    # 202/256. It was reverted on that basis. But the wall column was scored
+    # with INNER_WALL terminal, which no rule says -- so the refutation rests
+    # entirely on the one column a stricter-than-the-event criterion inflates.
+    # Under the real rule those strikes are not round-ending and the verdict
+    # may invert.
+    #
+    # READ ALL OF collisions / stuck / timeouts / laps>=3. Dropping INNER_WALL
+    # from the terminal set makes it SOLID instead (the simulator derives
+    # solidity as the complement), and this contact model never slides, so a
+    # round that used to END on the inner block may now GRIND along it into
+    # the no-progress bailout. That trades collisions for timeouts and is NOT
+    # a win. The strict arms are what makes that separable.
+    #
+    # The two fracs are the strict optimum (0.40, 211) and the sign-column
+    # optimum (1.00, 168 signs / 61 walls) -- the arm the real rule should
+    # favour most if the mechanism is what it looks like.
+    "inner-wall-rule": [
+        SweepConfig("clamped plateau, STRICT inner wall (shipped baseline)", blind=True),
+        SweepConfig("clamped plateau, REAL inner-wall rule", blind=True, obstacles_inner_wall_terminal=False),
+        SweepConfig("gap-centre 0.40, STRICT inner wall", blind=True, sign_lane_gap_centre_frac=0.40),
+        SweepConfig("gap-centre 0.40, REAL inner-wall rule", blind=True, sign_lane_gap_centre_frac=0.40, obstacles_inner_wall_terminal=False),
+        SweepConfig("gap-centre 1.00, STRICT inner wall", blind=True, sign_lane_gap_centre_frac=1.00),
+        SweepConfig("gap-centre 1.00, REAL inner-wall rule", blind=True, sign_lane_gap_centre_frac=1.00, obstacles_inner_wall_terminal=False),
+    ],
     "baseline": [SweepConfig("defaults")],
     "profile": [
         SweepConfig("defaults"),

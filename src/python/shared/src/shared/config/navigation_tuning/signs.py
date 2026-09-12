@@ -457,6 +457,32 @@ class SignRouterParams(BaseModel):
             distorting the turn it is riding through. This one parameter
             dominates everything else in the lane planner. Only meaningful
             with ``SIGN_LANE_PLANNER``.
+        SIGN_LANE_GAP_CENTRE_FRAC: When the full avoidance offset does not
+            fit between a sign and its corridor boundary, how far to move the
+            lane off the boundary-clearance limit ``clamp_lateral`` allows,
+            toward the midpoint of the free gap. ``0.0`` keeps the clamped
+            placement and is what ships.
+
+            The clamped placement spends its margin asymmetrically: it keeps
+            the full wall clearance and gives the leftover squeeze entirely
+            to the pillar. Against the simulator's own collision test (exact
+            SAT, oriented chassis, so the required gap grows with yaw) the
+            clamped lane clears the sign only while the chassis is within
+            +/-28.2 deg of the corridor axis, whereas the fully centred lane
+            clears both sides at every yaw with 0.9 cm to spare.
+
+            REFUTED 2026-08-20 UNDER STRICT SCORING, and that is the whole
+            caveat: at 1.0 the sign column moved exactly as the geometry
+            predicts (199 collisions to 168) and the wall column destroyed
+            the gain (3 to 61), for 229/256 against a 202/256 baseline. Those
+            wall collisions were scored with the Obstacles INNER wall as
+            round-ending, which no rule says -- see
+            ``SimulationParams.OBSTACLES_INNER_WALL_TERMINAL``. The refutation
+            therefore rests on the one column a criterion stricter than the
+            event inflates. Affects only the 646 of 1282 corpus signs where
+            the clamp binds (248 of 256 scenarios). See
+            ``sign_router.pass_lateral``. Only meaningful with
+            ``SIGN_LANE_PLANNER``.
         SIGN_LANE_OFFSET_FRAC: Fraction of the full avoidance offset the LANE
             carries; the carrot override still commands the full value at the
             pass. Exists to buy back the wall collisions the lane costs
@@ -668,6 +694,9 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_SKIP_UNSATISFIABLE: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_SKIP_UNSATISFIABLE"))
     SIGN_LANE_OFFSET_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("SIGN_LANE_OFFSET_FRAC"))
     SIGN_LANE_CORNER_ENTRY_M: float = Field(default=0.50, ge=0.0, validation_alias=_alias("SIGN_LANE_CORNER_ENTRY_M"))
+    SIGN_LANE_GAP_CENTRE_FRAC: float = Field(
+        default=0.0, ge=0.0, le=1.0, validation_alias=_alias("SIGN_LANE_GAP_CENTRE_FRAC")
+    )
     SIGN_DEFORM_SPEED_THRESHOLD_M: float = Field(default=0.02, validation_alias=_alias("SIGN_DEFORM_SPEED_THRESHOLD_M"))
     PIN_HEADING_GUARD_DEG: float = Field(default=35.0, validation_alias=_alias("PIN_HEADING_GUARD_DEG"))
     DETECTION_MATCH_DIST_M: float = Field(default=0.30, validation_alias=_alias("DETECTION_MATCH_DIST_M"))
