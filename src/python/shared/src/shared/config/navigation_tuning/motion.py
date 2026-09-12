@@ -603,9 +603,30 @@ class PurePursuitParams(BaseModel):
     before reversing. Wheel loaded against the mat, since unloaded is optimistic.
     Tool: ``scripts/hardware/diag_servo_slew.py``.
 
-    Result: reached at 1.20 s, turned back early at 0.90 s. Over the 170 deg
-    (2.967 rad) lock-to-lock swing that brackets the servo between **2.47 and
-    3.30 rad/s**.
+    Result: reached at 1.20 s; at 0.90 s it stopped about **20 deg short**. The
+    shortfall is the better datum, because it is a distance covered in a known
+    time rather than a yes/no: 150 deg in 0.90 s is **2.91 rad/s**, which implies
+    a full swing of 1.02 s -- consistent with not finishing at 0.90 and finishing
+    at 1.20, so the two observations corroborate each other rather than merely
+    bracketing.
+
+    | rate | ticks | budget | margin over the measured 1.02 s |
+    |---|---|---|---|
+    | 1.2 (assumed) | 50 | 2.50 s | +145% |
+    | **2.4 (shipped)** | **25** | **1.25 s** | **+23%** |
+    | 2.7 | 22 | 1.10 s | +8% |
+    | 2.91 (estimate) | 21 | 1.05 s | +3% |
+
+    Kept at 2.4 rather than moved to 2.9. The 20 deg is eyeballed, and 2.9 leaves
+    3% of margin on an estimate whose input carries maybe +/-10 deg; 2.4 leaves
+    23% and still halves the old budget. The remaining 1.35 s per round between
+    them is not worth spending the margin on an eyeball.
+
+    One caveat that would make the true rate LOWER than this: the wheel reaching
+    "its stop" may mean a MECHANICAL limit short of the commanded 85 deg, in
+    which case the swing is under 170 deg and the rate computed from it is
+    overstated. That is the same unverified ``MAX_WHEEL_ANGLE_DEG`` below, and it
+    is another reason to sit at the conservative end.
 
     Shipped at **2.4**, the conservative end and slightly under the lower bound.
     Too HIGH under-budgets the pause, and the bay's dead reckoning would then
@@ -623,9 +644,9 @@ class PurePursuitParams(BaseModel):
     within a tick. So the budget is what the bay was spending, and halving it is
     worth 11 s of a round that finishes at 213-295 s against a 180 s limit.
 
-    Worth tightening later: the 0.90-1.20 s bracket is coarse, and a finer ladder
-    between them would justify moving nearer 3.0. Not worth a flat battery
-    tonight.
+    Worth tightening later: a finer ladder between 0.90 and 1.20 s, plus an
+    actual reading of the angle the wheel reaches, would justify 2.7-2.9. Not
+    worth a flat battery tonight.
 
     WHAT THE BAGS STILL CANNOT DO.
     ``/motor/steering_position`` is NOT feedback -- ``ServoDriver`` returns the

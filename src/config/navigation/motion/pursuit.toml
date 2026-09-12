@@ -93,12 +93,15 @@ target_search_span_m = 1.0
 # same swing and is itself unverified.
 # MEASURED 2026-09-11 on the bench with the wheel LOADED, via
 # scripts/hardware/diag_servo_slew.py: reached the far lock at a 1.20 s hold,
-# turned back mid-sweep at 0.90 s. Over the 170 deg (2.967 rad) lock-to-lock
-# swing that brackets the servo between 2.47 and 3.30 rad/s -- at least TWICE
+# and at 0.90 s stopped about 20 deg SHORT. That shortfall is the better datum:
+# 150 deg in 0.90 s is 2.91 rad/s, implying a 1.02 s full swing, which agrees
+# with not finishing at 0.90 and finishing at 1.20. Over the 170 deg lock-to-lock
+# swing the estimate is ~2.9 rad/s -- at least TWICE
 # the 1.2 that had been assumed since the constant was written.
 # Set to the conservative end: too HIGH under-budgets the bay's servo pause and
 # its dead reckoning would assume an angle the wheel has not reached, while too
-# low only wastes time. Bay budget goes 50 ticks (2.50 s) -> 25 (1.25 s) per
+# low only wastes time; 2.4 leaves 23% margin over the measured 1.02 s while
+# 2.9 would leave 3%, on a 20 deg read by eye. Bay budget 50 ticks (2.50 s) -> 25 (1.25 s) per
 # reversal, about 11 s of a round that finishes at 213-295 s against a 180 limit.
 servo_slew_rate_rad_s = 2.4
 
