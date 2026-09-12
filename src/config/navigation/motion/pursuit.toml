@@ -78,6 +78,34 @@ max_steering_rate = 1.2       # Maximum steering command rate (rad/s)
 # 27-30% beyond it on each lost round. Lookahead is 0.16-0.32 m, so 1.0 m is
 # 3x anything the search can legitimately need.
 target_search_span_m = 1.0
+# Reject a candidate the chassis would only reach by going round the loop the
+# WRONG WAY: the pose->candidate bearing projected on the path's own direction
+# of travel at that candidate must be positive. SPAN and SENSE are different
+# quantities, and the span bound above CONVERTED this failure instead of
+# closing it. Measured 2026-09-12 inside the known reversal windows, against a
+# clean 3-lap control reading 0.7% wrong-sense:
+#
+#   run                          target wrong sense   target behind chassis
+#   152318 clean control                       0.7%                    0.0%
+#   171915 before the span bound              90.9%                    0.0%
+#   172543 before the span bound              56.2%                    0.0%
+#   172334 before the span bound              71.1%                    0.0%
+#   064539 AFTER the span bound                2.8%                   35.4%
+#
+# The bound works -- selected-target range fell from p50 2.04-2.07 m (97.9-99.3%
+# beyond 1.0 m) to 0.43-0.47 m (0.0-2.8% beyond) -- and the car still drove 0.23
+# of a lap backwards, because at 0.45 m the correctly-chosen point sits BEHIND a
+# chassis that has turned round, and nothing in this tree turns a chassis round.
+#
+# So this is PREVENTION aimed at the precursor: on that run, BEFORE the reversal
+# window, wrong-sense targets ran 23.0% of ticks with the chassis still
+# correctly oriented, arriving in bursts of up to 117 ticks against a longest
+# of 14 on the clean control. It does NOT cover the sign-deformation origin --
+# that is sign_router.toml's sign_deform_sense_guard.
+#
+# SHIPS OFF AND UNVALIDATED ON TRACK. Diagnostic:
+# scripts/bag/diag_bag_target_loop_sense.py
+target_sense_gate = false
 # How fast the servo ACTUALLY moves, as opposed to how fast we let the command
 # move. Split from max_steering_rate on 2026-09-11: that one is a CORNERING
 # POLICY, lowered 2.0 -> 1.2 on 2026-08-28 because cornering was too drastic,

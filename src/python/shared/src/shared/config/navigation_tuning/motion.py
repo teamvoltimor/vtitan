@@ -571,6 +571,56 @@ class PurePursuitParams(BaseModel):
     the existing fallback tiers run -- an outcome the tree already has a meaning
     for, rather than a new silent failure.
     """
+    TARGET_SENSE_GATE: bool = Field(default=False, validation_alias=_alias("TARGET_SENSE_GATE"))
+    """Reject a candidate the chassis would reach by going round the loop the
+    WRONG WAY. Ships False.
+
+    ``TARGET_SEARCH_SPAN_M`` above constrains how far the scan may WALK, and
+    that is a different quantity from SENSE: a closed loop has two tangent
+    directions at every point, and a point one metre along the path in the
+    wrong one is still one metre away and still inside the forward half-plane
+    of a chassis that has already rotated, which is all ``x_local > 0`` tests.
+
+    **The span bound CONVERTED the failure rather than closing it**, measured
+    2026-09-12 inside the known reversal windows against a clean 3-lap control
+    reading 0.7% wrong-sense:
+
+    | run | target wrong sense | target behind chassis |
+    |---|---|---|
+    | `152318` clean control | 0.7% | 0.0% |
+    | `171915` before the span bound | 90.9% | **0.0%** |
+    | `172543` before the span bound | 56.2% | **0.0%** |
+    | `172334` before the span bound | 71.1% | **0.0%** |
+    | `064539` AFTER the span bound | **2.8%** | **35.4%** |
+
+    The bound works -- the selected target's range fell from a p50 of 2.04-2.07
+    m (97.9-99.3% beyond 1.0 m) to 0.43-0.47 m (0.0-2.8% beyond it) -- and the
+    car still drove 0.23 of a lap backwards, because at 0.45 m the
+    correctly-chosen point sits BEHIND a chassis that is turned round, and
+    nothing in the tree turns a chassis round: every manoeuvre latch keys on
+    forward-lane LIDAR or on 3 cm of odometry over 2 s, and neither fires on a
+    robot moving fine while pointed the wrong way.
+
+    So this gate is PREVENTION, not recovery, and it is aimed at the precursor:
+    on the same run, BEFORE the reversal window, wrong-sense targets ran 23.0%
+    of ticks while the chassis was still correctly oriented (heading-wrong only
+    6.6%). Those ticks arrive in BURSTS -- 5 runs of 20+ ticks holding 83% of
+    them, the longest 117 ticks, against a longest of 14 and zero such runs on
+    the clean control.
+
+    **It does not cover the other origin, and must not be read as if it did.**
+    ``steer_target`` is reassigned to the sign-deformed point before it reaches
+    steering, and on that same run every wrong-sense target carried a
+    deformation (p50 0.554 m against 0.031 m on right-sense ticks) whose
+    magnitude was roughly TWICE the target's own range. That is the lane
+    shoving a correctly-chosen point across the tangent, and it is
+    ``SIGN_DEFORM_SENSE_GUARD``'s job, not this one's.
+
+    Cost, and it is why the gate is a filter rather than a hard reject: a
+    skipped candidate simply leaves the scan walking forward, and the existing
+    fallback tiers still answer when nothing in the span qualifies. Diagnostic:
+    ``scripts/bag/diag_bag_target_loop_sense.py``.
+    """
     SERVO_SLEW_RATE_RAD_S: float = Field(
         default=2.4, gt=0.0, validation_alias=_alias("SERVO_SLEW_RATE_RAD_S")
     )

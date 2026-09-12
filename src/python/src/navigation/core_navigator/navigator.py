@@ -66,6 +66,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _bearing_agrees_with_path(
+    target: tuple[float, float],
+    robot_x: float,
+    robot_y: float,
+    waypoints: list[Waypoint],
+    index: int,
+) -> bool:
+    """Is `target` approached along the path's own direction of travel?
+
+    Shares its definition with ``waypoint_controller._agrees_with_path_sense``
+    but answers about the FINAL aim point rather than about a candidate, which
+    is a different question once the sign lane has moved that point: the
+    search can choose correctly and the deformation can still push the result
+    across the path's direction. Both origins were measured, and they are not
+    the same runs -- see ``PurePursuitParams.TARGET_SENSE_GATE`` and
+    ``SignRouterParams.SIGN_DEFORM_SENSE_GUARD``.
+    """
+    dx, dy = target[0] - robot_x, target[1] - robot_y
+    dist = math.hypot(dx, dy)
+    if dist <= 0.0 or not waypoints:
+        return True
+    bearing = _outgoing_bearing(waypoints, index % len(waypoints))
+    return (dx / dist) * math.cos(bearing) + (dy / dist) * math.sin(bearing) > 0.0
+
+
 def _outgoing_bearing(waypoints: list[Waypoint], index: int) -> float:
     """Direction the path points at ``index``, toward its next waypoint.
 
@@ -110,6 +135,11 @@ class CoreNavigator(EscapeRecovery):
         self._waypoint_index = 0
         self._laps_completed = 0
         self._suppress_next_wrap = False
+        self._deform_sense_rejects = 0
+        """Ticks ``SIGN_DEFORM_SENSE_GUARD`` dropped the deform on. Cumulative
+        and never reset: it sizes how often the lane pushed the aim point
+        against the path, which is the claim the guard rests on, and a
+        per-lap counter would hide a burst inside one corridor."""
         self._corner_latch = CornerLatch()
         self._corridor_width_belief: dict[Section, float] = {}
         # Replan fade state -- see replace_path and REPLAN_BLEND_TICKS.
@@ -1388,6 +1418,27 @@ class CoreNavigator(EscapeRecovery):
             wrong_side_pass_count = len(self._sign_router.wrong_side_violations)
             committed_sign = self._sign_router.committed_sign_position
             sign_target = deformed
+            if (
+                self._tuning.sign_router.SIGN_DEFORM_SENSE_GUARD
+                and steer_target is not raw_target
+                and not _bearing_agrees_with_path(
+                    steer_target, robot_x, robot_y, self._waypoints, self._waypoint_index
+                )
+                and _bearing_agrees_with_path(
+                    raw_target, robot_x, robot_y, self._waypoints, self._waypoint_index
+                )
+            ):
+                # The lane shoved a correctly-chosen point across the path's own
+                # direction of travel, so the bias is worse than none. Measured
+                # 2026-09-12 on run_20260912_064539: every wrong-sense target
+                # carried a deformation, p50 0.554 m against 0.031 m on the
+                # right-sense ticks, and that shove was roughly TWICE the
+                # target's own 0.281 m range -- it moved the aim point further
+                # sideways than it was forward. Only the deform is dropped; the
+                # router has already been called, so engage/pass bookkeeping,
+                # the discovery ingest and routed_sign_positions are untouched.
+                steer_target = raw_target
+                self._deform_sense_rejects += 1
 
         # Get steering from waypoint controller
         steering_normalized, _, angle_error = self._waypoint_controller.compute_steering(

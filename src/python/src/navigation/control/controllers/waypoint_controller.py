@@ -31,6 +31,53 @@ bay's first few points, or any synthetic path. Below a handful of candidates the
 search stops being a search, so the floor wins over the span."""
 
 
+def _agrees_with_path_sense(
+    dx: float,
+    dy: float,
+    dist: float,
+    waypoints: list[tuple[float, float]],
+    index: int,
+) -> bool:
+    """Would the chassis reach this candidate travelling the path's own way?
+
+    The bearing from the pose to the candidate is projected on the path's
+    direction of travel AT the candidate. A negative projection means the
+    approach runs against the path -- the candidate is reached by going round
+    the loop the wrong way.
+
+    **Why the span bound does not already cover this.** A closed loop has two
+    tangent directions at every point, and ``target_search_span_m`` constrains
+    only how far the scan may WALK. A point one metre along the path in the
+    wrong sense is still one metre away and still in the forward half-plane of
+    a chassis that has already rotated, so ``x_local > 0`` admits it freely.
+    Measured 2026-09-12 inside the known reversal windows, against a clean
+    3-lap control reading 0.7%: wrong-sense targets ran 56-91% of ticks before
+    the span bound shipped and 2.8% after, while target-behind-the-chassis went
+    from 0.0% exactly to 35.4%. The bound converted the failure rather than
+    closing it -- see ``scripts/bag/diag_bag_target_loop_sense.py``.
+
+    The path direction is the outgoing bearing at the candidate, which needs no
+    track model and no new geometry: it is the same quantity
+    ``navigator._outgoing_bearing`` already uses to pick a start waypoint.
+    """
+    if dist <= 0.0:
+        return True
+    n = len(waypoints)
+    wx, wy = waypoints[index % n]
+    nx, ny = waypoints[(index + 1) % n]
+    # A duplicated waypoint has no outgoing direction, so it cannot disagree.
+    path = _unit_or_none(nx - wx, ny - wy)
+    if path is None:
+        return True
+    return (dx / dist) * path[0] + (dy / dist) * path[1] > 0.0
+
+
+def _unit_or_none(dx: float, dy: float) -> tuple[float, float] | None:
+    """`(dx, dy)` normalised, or None when it is too short to have a bearing."""
+    n = math.hypot(dx, dy)
+    return None if n <= 1e-12 else (dx / n, dy / n)
+
+
 class WaypointController:
     """Pure pursuit steering controller for waypoint following.
 
@@ -69,6 +116,7 @@ class WaypointController:
         yaw_gain_compensation: float = 1.0,
         min_target_radius_m: float = 0.0,
         target_search_span_m: float = 0.0,
+        target_sense_gate: bool = False,
     ):
         """Initialize pure pursuit controller.
 
@@ -90,6 +138,10 @@ class WaypointController:
                 lookahead starts sliding from long toward short. 1.0 (the
                 default) reproduces the original hard switch exactly, so a
                 caller that does not pass it is unaffected.
+            target_sense_gate: Reject a candidate the chassis would have to
+                approach against the path's own direction of travel. False
+                (the default) is bit-identical to not having the gate -- see
+                ``PurePursuitParams.TARGET_SENSE_GATE``.
             min_target_radius_m: Tightest pure-pursuit circle a target may
                 demand. Candidates needing a tighter one are skipped by
                 :meth:`select_target_point`. 0.0 (the default) disables the
@@ -114,6 +166,7 @@ class WaypointController:
         self.corner_turn_threshold_rad = corner_turn_threshold_rad
         self.lookahead_blend_start = lookahead_blend_start
         self.min_target_radius_m = min_target_radius_m
+        self.target_sense_gate = target_sense_gate
         self._prev_steering_rad = 0.0
         # True when select_target_point found NO reachable candidate and fell
         # back to the old behaviour. Sizes how often the chassis would have to
@@ -162,6 +215,7 @@ class WaypointController:
             yaw_gain_compensation=pursuit.YAW_GAIN_COMPENSATION,
             min_target_radius_m=pursuit.MIN_TARGET_RADIUS_M,
             target_search_span_m=pursuit.TARGET_SEARCH_SPAN_M,
+            target_sense_gate=pursuit.TARGET_SENSE_GATE,
         )
 
     def select_lookahead(
@@ -432,6 +486,10 @@ class WaypointController:
                 nearest_any = (wx, wy)
             x_local = dx * cos_yaw + dy * sin_yaw
             if x_local <= 0:
+                continue
+            if self.target_sense_gate and not _agrees_with_path_sense(
+                dx, dy, dist, waypoints, waypoint_index + offset
+            ):
                 continue
             if dist >= lookahead_distance:
                 if self._reachable(dx, dy, x_local, cos_yaw, sin_yaw, dist):

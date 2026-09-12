@@ -683,7 +683,7 @@ class SignRouterParams(BaseModel):
     )
     SIGN_LANE_SUPPRESS_DEFORM: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_SUPPRESS_DEFORM"))
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
-    SIGN_LANE_HOLD_M: float = Field(default=0.40, validation_alias=_alias("SIGN_LANE_HOLD_M"))
+    SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
     SIGN_LANE_SPLIT_OVERLAP: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_SPLIT_OVERLAP"))
     SIGN_LANE_RELABEL_UNSATISFIABLE: bool = Field(
         default=True, validation_alias=_alias("SIGN_LANE_RELABEL_UNSATISFIABLE")
@@ -695,13 +695,81 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_OFFSET_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("SIGN_LANE_OFFSET_FRAC"))
     SIGN_LANE_CORNER_ENTRY_M: float = Field(default=0.50, ge=0.0, validation_alias=_alias("SIGN_LANE_CORNER_ENTRY_M"))
     SIGN_LANE_GAP_CENTRE_FRAC: float = Field(
-        default=0.0, ge=0.0, le=1.0, validation_alias=_alias("SIGN_LANE_GAP_CENTRE_FRAC")
+        default=1.0, ge=0.0, le=1.0, validation_alias=_alias("SIGN_LANE_GAP_CENTRE_FRAC")
     )
     SIGN_DEFORM_SPEED_THRESHOLD_M: float = Field(default=0.02, validation_alias=_alias("SIGN_DEFORM_SPEED_THRESHOLD_M"))
     PIN_HEADING_GUARD_DEG: float = Field(default=35.0, validation_alias=_alias("PIN_HEADING_GUARD_DEG"))
     DETECTION_MATCH_DIST_M: float = Field(default=0.30, validation_alias=_alias("DETECTION_MATCH_DIST_M"))
     MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
+    SIGN_DEFORM_SENSE_GUARD: bool = Field(
+        default=False, validation_alias=_alias("SIGN_DEFORM_SENSE_GUARD")
+    )
+    """Drop the deform when it pushes the aim point AGAINST the path's own
+    direction of travel, and only when the undeformed point did not. Ships
+    False, and **is INERT on the shipped tree** -- read the retraction below
+    before spending a run on it.
+
+    **INERT BY CONFIG, verified 2026-09-12.** ``SIGN_LANE_PLANNER`` and
+    ``SIGN_LANE_SUPPRESS_DEFORM`` both ship true and
+    ``SIGN_LANE_DEFORM_FALLBACK_M`` ships 0.0, so ``navigator.step`` never
+    reassigns ``steer_target`` to ``deformed`` at all. This guard sits behind
+    an identity check on that reassignment and was evaluated on **0 ticks** of
+    four sighted scenarios with the flag forced on. It is kept only so the
+    deform is not re-enabled without it; it changes nothing today.
+
+    **AND THE MEASUREMENT BELOW DOES NOT SAY WHAT IT FIRST APPEARED TO.**
+    ``sign_deform_magnitude_m`` is computed UNCONDITIONALLY from ``deformed``
+    against ``raw_target``, whether or not the deform was applied. Under
+    shipped suppression it is a COUNTERFACTUAL: the offset the router would
+    have applied. So the separation below is real as a correlation and does
+    NOT identify the deform as the cause -- it says wrong-sense targets happen
+    where the router wanted a large lateral offset, and under shipped config it
+    is the LANE, not the deform, that acts on that wish. Same error class as
+    reading ``min_lidar_range_m`` as evidence of contact when it is computed
+    before the range filter.
+
+    The lane and the deform are lateral offsets, and a lateral offset applied
+    to a CLOSE target rotates its bearing without limit: the magnitude is
+    bounded, the angle is not. Measured 2026-09-12 on `run_20260912_064539`,
+    the one post-span-bound hardware round that still drove a quarter of a lap
+    backwards:
+
+    | set | deform p50 | deform / target range p50 | ratio >= 1 |
+    |---|---|---|---|
+    | wrong-sense targets | **0.554 m** | **1.56** | **55%** |
+    | right-sense targets | 0.031 m | 0.06 | 8% |
+
+    An 18x separation in magnitude, on a quantity that was never applied. What
+    survives is the shape of the wish: where the router wanted a 0.554 m offset
+    on a target only 0.281 m ahead, the commanded line is nearly twice as far
+    sideways as it is forward, and the aim point that results has little to do
+    with the path. Which component delivers that is the open question, and the
+    lane is the candidate -- it REPLACES the target's lateral coordinate.
+
+    **The ratio is NOT the test, and the control is why.** A clamp on
+    deform/range would have to fire near 1.0, and the clean 3-lap control of
+    2026-09-11 carries a ratio at or above 1.0 on 12% of its RIGHT-sense ticks
+    -- a large shove on a near target is routine and usually harmless. What
+    separates the failure is not the size of the shove but its OUTCOME: the
+    clean control's targets come out wrong-sense on 0.7% of ticks against
+    23.0% before the reversal on `064539`. So the guard tests the outcome
+    directly and costs essentially nothing on a healthy round.
+
+    **Distinct from ``PurePursuitParams.TARGET_SENSE_GATE``, and the two are
+    not redundant.** That one filters the SEARCH's candidates and is aimed at
+    the pre-span-bound mechanism, where the wrong-sense targets carried no
+    deformation at all (p50 0.000 m, only 27-44% deformed on the three
+    2026-09-11 rounds). This one is aimed at the post-bound mechanism, where
+    100% of them did. Same symptom, two origins, measured on different runs.
+
+    Only the deform is dropped. The router has already been CALLED, so
+    engage/pass bookkeeping, the blind discovery ingest and
+    ``routed_sign_positions`` -- which the escape mask reads -- are untouched.
+
+    SHIPS OFF AND UNVALIDATED ON TRACK. Diagnostic:
+    ``scripts/bag/diag_bag_target_loop_sense.py``.
+    """
     SIGN_LANE_DEFORM_FALLBACK_M: float = Field(
         default=0.0, ge=0.0, validation_alias=_alias("SIGN_LANE_DEFORM_FALLBACK_M")
     )

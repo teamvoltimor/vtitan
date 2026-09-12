@@ -137,9 +137,25 @@ class TestObstaclesDemoScenariosRun:
         orig = sign_router_module.SignRouter.deform_waypoint
         deform_count = 0
 
-        def counting_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, observations=None):
+        def counting_deform_waypoint(
+            self,
+            waypoint,
+            robot_pos,
+            robot_yaw,
+            corridor,
+            observations=None,
+            lidar_proposals=None,
+        ):
+            # MIRRORS SignRouter.deform_waypoint's signature and has to be
+            # widened whenever that one grows a parameter: the navigator passes
+            # them by KEYWORD, so a missing one is a TypeError at call time
+            # rather than a silently dropped argument. c424c7d3 added
+            # lidar_proposals; the sibling stub in test_signs_engage_on_every_lap
+            # was widened for it and this one was missed, leaving the whole
+            # battery red -- the same failure mode that memory records as a
+            # stale stub masking a test for two days.
             nonlocal deform_count
-            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations)
+            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations, lidar_proposals)
             if result != waypoint:
                 deform_count += 1
             return result

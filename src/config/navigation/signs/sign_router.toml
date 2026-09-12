@@ -331,6 +331,53 @@ sign_lane_suppress_deform = true
 # sign map is EXACT so its lane materialises and this branch barely fires there
 # -- a flat sim A/B would be measuring the sim, not this.
 sign_lane_deform_fallback_m = 0.0
+# Drop the deform when it pushes the aim point AGAINST the path's own direction
+# of travel, and only when the undeformed point did not.
+#
+# INERT ON THIS TREE, verified 2026-09-12: sign_lane_planner and
+# sign_lane_suppress_deform are both true above and sign_lane_deform_fallback_m
+# is 0.0, so navigator.step NEVER reassigns steer_target to the deformed point.
+# This guard sits behind an identity check on that reassignment and evaluated on
+# 0 ticks of four sighted scenarios with the flag forced on. Kept so the deform
+# cannot be re-enabled without it. Turning it on today does nothing.
+#
+# AND THE NUMBERS BELOW DO NOT SAY WHAT THEY FIRST APPEARED TO.
+# sign_deform_magnitude_m is computed UNCONDITIONALLY, applied or not, so under
+# shipped suppression it is a COUNTERFACTUAL -- the offset the router WANTED.
+# The separation is a real correlation and does NOT identify the deform as the
+# cause: it says wrong-sense targets happen where the router wanted a large
+# lateral offset, and here it is the LANE that acts on that wish, not the
+# deform. Same error class as reading min_lidar_range_m as contact evidence.
+#
+# Measured 2026-09-12 on run_20260912_064539, the one post-span-bound round
+# that still drove a quarter of a lap backwards:
+#
+#   set                    deform p50   deform/range p50   ratio >= 1
+#   wrong-sense targets        0.554 m               1.56          55%
+#   right-sense targets        0.031 m               0.06           8%
+#
+# 18x in magnitude, on a quantity that was never applied. What survives is the
+# SHAPE OF THE WISH: where the router wanted 0.554 m of offset on a target only
+# 0.281 m ahead, the commanded line is nearly twice as far sideways as it is
+# forward. Which component delivers that is open, and the lane is the candidate.
+#
+# THE RATIO IS NOT THE TEST, and the control is why: a clamp would have to fire
+# near 1.0, and the clean 3-lap control carries ratio >= 1.0 on 12% of its
+# RIGHT-sense ticks. A big shove on a near target is routine and usually
+# harmless. What separates the failure is the OUTCOME -- 0.7% wrong-sense on
+# the clean control against 23.0% before the reversal -- so the guard tests
+# that directly.
+#
+# Distinct from motion/pursuit.toml's target_sense_gate and NOT redundant with
+# it: that one filters the search's candidates, for the pre-bound mechanism
+# where wrong-sense targets carried NO deformation (p50 0.000 m, 27-44%
+# deformed across the three 2026-09-11 rounds). Here 100% of them did. Same
+# symptom, two origins, measured on different runs.
+#
+# Only the deform is dropped -- the router has already been called, so
+# engage/pass bookkeeping, the discovery ingest and routed_sign_positions stay
+# intact. SHIPS OFF AND UNVALIDATED ON TRACK.
+sign_deform_sense_guard = false
 # Re-label a lane that cannot be satisfied rather than skipping it outright.
 sign_lane_relabel_unsatisfiable = true
 sign_lane_skip_unsatisfiable = false
