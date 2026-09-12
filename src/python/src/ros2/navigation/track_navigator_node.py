@@ -528,6 +528,50 @@ class TrackNavigator(Node, ResettableNode):
             tuning=tuning,
         )
 
+    def _metadata_with_derived_lot(
+        self, tuning: NavigationTuning, start_xy: Waypoint, start_section: Section
+    ) -> dict:
+        """``self._metadata`` plus the parking lot implied by an in-bay start.
+
+        Blind runs carry only ``starting_conditions``, so
+        ``park_controller_from_metadata`` finds no ``parking_lot`` and returns
+        None -- which is why a ParkController had NEVER been constructed on this
+        robot (0 of 227 bags, 67 of which reached three laps). The lot does not
+        need sensing: in the Obstacles Challenge the robot STARTS INSIDE IT, so
+        the start pose is the lot.
+
+        SHARED BY BOTH CONSTRUCTION PATHS, which is the whole reason it is a
+        method. The derivation used to live inline in ``_build_core_navigator``,
+        writing into a LOCAL copy that never reached ``self._metadata``; then
+        ``reset()`` -- which runs before every race -- rebuilt the controller
+        from the raw ``self._metadata``, got None, and handed that to
+        ``replace_park_controller``, destroying the one construction had just
+        built. So the derivation shipped, deployed, and was discarded before
+        every round: three hardware rounds on 2026-09-12 reached three laps with
+        ``parking_engaged`` still null in all of them.
+
+        This is the same omission the SignRouter comment in ``reset()`` warns
+        about, on the line below where the controller is rebuilt. That one was
+        threaded through; this one was not.
+        """
+        metadata = self._metadata
+        if DictKeys.PARKING_LOT in metadata or not tuning.parking.DERIVE_LOT_FROM_IN_BAY_START:
+            return metadata
+        metadata = dict(metadata)
+        metadata[DictKeys.PARKING_LOT] = parking_lot_from_in_bay_start(
+            start_xy.x, start_xy.y, start_section
+        )
+        # One f-string, not printf args: RcutilsLogger.info() takes the message
+        # only, and the %-style call this replaced raised TypeError. It never
+        # surfaced because the branch it sat in is skipped on blind hardware --
+        # the node starts believing it is the Open challenge -- so the
+        # derivation was both unreachable AND broken.
+        self.get_logger().info(
+            f"Parking lot derived from the in-bay start at "
+            f"({start_xy.x:.2f}, {start_xy.y:.2f}) in {start_section.value}"
+        )
+        return metadata
+
     def _build_core_navigator(
         self,
         *,
@@ -549,26 +593,8 @@ class TrackNavigator(Node, ResettableNode):
 
         park_controller: ParkController | None = None
         if not self._is_open_challenge:
-            metadata = self._metadata
-            if DictKeys.PARKING_LOT not in metadata and tuning.parking.DERIVE_LOT_FROM_IN_BAY_START:
-                # Blind runs carry only starting_conditions, so the factory
-                # below finds no lot and returns None -- which is why a
-                # ParkController has NEVER been constructed on this robot (0 of
-                # 227 bags, 67 of which reached three laps). The lot does not
-                # need sensing: in the Obstacles Challenge the robot STARTS
-                # INSIDE IT, so the start pose is the lot.
-                metadata = dict(metadata)
-                metadata[DictKeys.PARKING_LOT] = parking_lot_from_in_bay_start(
-                    start_xy[0], start_xy[1], start_section
-                )
-                self.get_logger().info(
-                    "Parking lot derived from the in-bay start at (%.2f, %.2f) in %s",
-                    start_xy[0],
-                    start_xy[1],
-                    start_section.value,
-                )
             park_controller = park_controller_from_metadata(
-                metadata,
+                self._metadata_with_derived_lot(tuning, start_xy, start_section),
                 start_section,
                 start_direction,
                 tuning=tuning,
@@ -1550,8 +1576,11 @@ class TrackNavigator(Node, ResettableNode):
 
         park_controller: ParkController | None = None
         if not self._is_open_challenge:
+            # The DERIVED metadata, not the raw one. Passing self._metadata here
+            # threw away the in-bay lot on every race -- see
+            # _metadata_with_derived_lot.
             park_controller = park_controller_from_metadata(
-                self._metadata,
+                self._metadata_with_derived_lot(self._tuning, self._start_xy, self._start_section),
                 self._start_section,
                 self._direction,
                 tuning=self._tuning,

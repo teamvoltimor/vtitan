@@ -842,6 +842,31 @@ class TestBlindChallengeSwitch:
         finally:
             navigator.destroy_node()
 
+    def test_obstacles_from_the_button_still_gets_a_park_controller(self, ros_context):
+        """The in-bay lot derivation has to survive ``reset()``, not just construction.
+
+        Deployed 2026-09-11 and INERT. The derivation wrote the lot into a LOCAL
+        copy of the metadata inside the construction path; ``reset()`` -- the
+        path that actually runs at every RACING transition -- rebuilt the
+        controller from the raw ``self._metadata``, got None, and handed that to
+        ``replace_park_controller``, destroying what construction had built.
+        Three hardware rounds on 2026-09-12 reached three laps with
+        ``parking_engaged`` null in all of them.
+
+        The sibling test above pins ``sign_router is not None`` on this exact
+        flow and stops there, which is why the omission survived: both objects
+        are rebuilt side by side in ``reset()`` and only one was asserted.
+        """
+        navigator = self._blind_navigator()
+        try:
+            navigator._on_challenge_mode_active(String(data="obstacles"))
+            navigator._on_robot_state(String(data="racing"))
+
+            assert navigator._is_open_challenge is False
+            assert navigator._core_navigator._park_controller is not None
+        finally:
+            navigator.destroy_node()
+
     def test_round_trip_open_to_obstacles_and_back_in_one_process(self, ros_context):
         """Mirrors FINISHED -> BOOT_CHECK -> READY -> RACING cycled twice with the
         jumper moved in between -- the long-press reset re-arms challenge
