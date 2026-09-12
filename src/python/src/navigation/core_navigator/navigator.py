@@ -844,6 +844,66 @@ class CoreNavigator(EscapeRecovery):
             parking_engaged=self._parking_engaged if self._park_controller is not None else None,
         )
 
+    def _ingest_sign_observations(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:
+        """Fold this tick's sign evidence into the router WITHOUT steering by it.
+
+        ``step()`` returns early while an escape maneuver is latched, so the
+        whole planning block below -- including the router call at
+        ``deform_waypoint`` -- is skipped for the maneuver's full duration.
+        That call is not only a steering computation: its own site comments
+        note the router "owns engage/pass bookkeeping, the blind discovery
+        ingest and routed_sign_positions (which the escape mask reads)". None
+        of that runs during a maneuver.
+
+        MEASURED 2026-09-12 on three hardware rounds: 183 maneuver episodes,
+        22.3% of all ticks, 97.8% of them holding a CONSTANT steering value --
+        an open-loop arc up to 44 ticks (2.2 s) long. Throughout it the sign
+        map takes in nothing, and the escape mask reads a sign list that stops
+        being updated exactly when the chassis is moving most unpredictably.
+
+        This replays the ingest half only. The deformed waypoint is discarded,
+        so the maneuver keeps the chassis to itself and this cannot move the
+        wheel -- the flag buys a fresh map on the far side of the maneuver, not
+        a second steering signal. That distinction is deliberate:
+        ``SIDE_CORRECTION_BLENDS`` already covers "let the planner steer too",
+        and is separately dead (99.4% of hardware side_correction is reverse,
+        which its gate excludes).
+
+        Ships OFF behind ``TICK_ROUTER_DURING_MANEUVER``. Untested on the
+        track: the operator lost track access before it could be validated, and
+        the sim cannot stand in -- it exercises side_correction on 1.09% of
+        ticks against hardware's 19-25%, and its own blend gate opened on 0 of
+        254 such ticks.
+        """
+        router = self._sign_router
+        if router is None or self._current_corridor is None:
+            return
+        observations = self._gateway.get_vision_detections(self._current_corridor)
+        scan = self._gateway.get_lidar_scan()
+        lidar_proposals = (
+            propose_sign_positions(scan, (robot_x, robot_y, robot_yaw))
+            if scan is not None and self._tuning.sign_router.SIGN_LIDAR_PROPOSE
+            else None
+        )
+        # The router deforms a target it is GIVEN; with no planning this tick
+        # there is no steer target, so the current path waypoint stands in. Its
+        # only role is to give the deformation something to act on -- the
+        # return value is dropped. Falling back to the robot's own position
+        # keeps the call well-formed when the index is past the end.
+        if 0 <= self._waypoint_index < len(self._waypoints):
+            stand_in = self._waypoints[self._waypoint_index]
+            target = (stand_in.x, stand_in.y)
+        else:
+            target = (robot_x, robot_y)
+        router.deform_waypoint(
+            waypoint=target,
+            robot_pos=(robot_x, robot_y),
+            robot_yaw=robot_yaw,
+            corridor=self._current_corridor,
+            observations=observations,
+            lidar_proposals=lidar_proposals,
+        )
+
     def step(self) -> None:
         """Execute one control step.
 
@@ -882,6 +942,8 @@ class CoreNavigator(EscapeRecovery):
         # elapses, so escapes are real motions rather than single-tick pulses that
         # never clear the wall.
         if self._active_maneuver is not None and not self._side_correction_blends():
+            if self._escape.TICK_ROUTER_DURING_MANEUVER:
+                self._ingest_sign_observations(robot_x, robot_y, robot_yaw)
             self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ACTIVE_MANEUVER)
             return
 

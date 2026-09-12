@@ -117,6 +117,40 @@ class EscapeManeuverParams(BaseModel):
     """
 
 
+    TICK_ROUTER_DURING_MANEUVER: bool = Field(
+        default=False, validation_alias=_alias("TICK_ROUTER_DURING_MANEUVER")
+    )
+    """Keep feeding the sign router while a maneuver holds the chassis.
+
+    ``step()`` returns early for a latched maneuver, so the router is not
+    called at all for its duration -- and that call owns the blind discovery
+    ingest, engage/pass bookkeeping and ``routed_sign_positions``, which the
+    escape mask itself reads. MEASURED 2026-09-12 over three hardware rounds:
+
+    | | |
+    |---|---|
+    | maneuver episodes | 183 |
+    | share of all ticks inside one | 22.3% (150 s of 686 s) |
+    | episodes holding a CONSTANT steering value | 179 of 183 (97.8%) |
+    | episode length, ticks | p50 11, p90 22, max 44 |
+
+    So for roughly a quarter of a race the wheel runs open-loop on a latched
+    value AND the sign map takes in nothing.
+
+    This flag does NOT let the router steer -- ``_ingest_sign_observations``
+    discards the deformed waypoint. It buys a map that is current when the
+    maneuver ends, instead of one frozen at the moment it began. The steering
+    half is ``SIDE_CORRECTION_BLENDS``, which is separately dead: its gate
+    needs forward speed and 99.4% of hardware side_correction is reverse.
+
+    Ships OFF and is UNVALIDATED. It could not be measured before track access
+    was lost, and the sim cannot substitute -- it runs side_correction on 1.09%
+    of ticks against hardware's 19-25%. Validate on hardware by re-running
+    ``scripts/bag/diag_bag_planner_silence.py`` and
+    ``scripts/bag/diag_bag_pass_side.py`` against the three 2026-09-12 rounds
+    as the control arm.
+    """
+
     SIDE_CORRECTION_BLENDS: bool = Field(
         default=False, validation_alias=_alias("SIDE_CORRECTION_BLENDS")
     )

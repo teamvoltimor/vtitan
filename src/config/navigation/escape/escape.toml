@@ -77,6 +77,27 @@ side_correction_s = 0.20      # Duration of a side-threat correction
 # forward nudge it qualifies is 44/12/0/0 ticks (0.8/0.3/0.0/0.0%) against
 # 550/572/143/88 reversing, over the four 2026-09-11 Obstacles rounds.
 side_correction_blends = false
+
+# Keep FEEDING the sign router while a maneuver holds the chassis. Not the same
+# knob as side_correction_blends above: that one lets the planner STEER during a
+# correction and is refuted; this one only keeps the map current and discards
+# the deformed waypoint, so it cannot move the wheel.
+#
+# What it addresses: step() returns early for a latched maneuver, so the router
+# call -- which owns the blind discovery ingest, engage/pass bookkeeping and
+# routed_sign_positions, the list the escape mask itself reads -- does not run
+# at all for the maneuver's duration. Measured 2026-09-12 over three hardware
+# rounds: 183 episodes, 22.3% of all ticks (150 s of 686 s), and 179 of 183
+# (97.8%) hold a CONSTANT steering value, up to 44 ticks / 2.2 s. For a quarter
+# of the race the wheel is open-loop AND the sign map takes in nothing.
+#
+# SHIPS OFF AND UNVALIDATED. Track access was lost before it could be run, and
+# the sim cannot stand in for this class -- it exercises side_correction on
+# 1.09% of ticks against hardware's 19-25%. Validate by re-running
+# scripts/bag/diag_bag_planner_silence.py and scripts/bag/diag_bag_pass_side.py
+# with the three 2026-09-12 rounds as the control arm.
+tick_router_during_maneuver = false
+
 escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
 escape_side_commit_attempts = 2  # Attempts spent on one side before trying the other (1 = alternate every attempt, which cancels itself out)
 max_escape_s = 1.8            # Hard cap on any single escalated escape duration
