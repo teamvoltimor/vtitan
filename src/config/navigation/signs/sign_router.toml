@@ -231,20 +231,50 @@ sign_lane_planner = true
 sign_lane_offset_frac = 1.0
 # Metres over which the lane offset ramps in, and is then held.
 sign_lane_ramp_m = 0.9
-# Half-width of the full-offset plateau. Raised 0.25 -> 0.40 on 2026-09-11.
-# The plateau is the only part of the profile that is legal when the base path
-# is not, and on a failing CROSSING the base IS illegal: over 141 bags the
+# Half-width of the full-offset plateau.
+#
+# REVERTED 0.40 -> 0.25 on 2026-09-12. The 0.40 was set the previous evening
+# from a bag study that still stands on its own terms: over 141 bags the
 # believed pillar sits p50 +0.122 m past the centreline on the legal side for
-# crossing failures, +0.044 for crossing successes, -0.198 m for already-legal
-# passes. The failures lose it at the CARROT, not in the plan -- planned stages
-# differ 3-5 cm between fail and success while the observed steer_target differs
-# 0.241 m, because the lookahead sits on the RAMP on 47% of closest approaches
-# and the ramp near a crossing pillar is itself illegal.
-# NOT 0.50, which the analysis asked for: a section holds two signs 1.00 m
-# apart, so at 0.50 adjacent plateaux meet and one sign's plan governs another's
-# pass (wrong-side 58% vs a 13% base rate). The sim sweep agrees -- 0.55 drops
-# laps>=3 to 2 while 0.40 matches 0.25 on collisions and laps.
-sign_lane_hold_m = 0.40
+# crossing FAILURES, +0.044 for crossing successes, -0.198 m for already-legal
+# passes, and the failures lose it at the CARROT rather than in the plan --
+# planned stages differ 3-5 cm between fail and success while the observed
+# steer_target differs 0.241 m, because the lookahead sits on the RAMP on 47%
+# of closest approaches and the ramp near a crossing pillar is itself illegal.
+# Widening the plateau to cover the ramp follows from that.
+#
+# What did not follow is the VALUE. Two problems with how 0.40 was chosen:
+#
+# 1. Every one of those 141 bags was RECORDED AT 0.25. The number was derived
+#    from hardware and never tested against hardware; 0.40 has run in at most
+#    four rounds, three of them the night it was reverted.
+# 2. The sweep that cleared it was read on the wrong columns. "0.40 matches
+#    0.25 on collisions and laps" is true -- and in-time, which nobody looked
+#    at, is where the whole difference lives.
+#
+# Measured on the 256 corpus, both arms in ONE invocation, with the shipped
+# gap_centre 1.0 and the corner-arc adjudication in place:
+#
+#   arm         collisions (wall/sign)  laps>=3  in-time  escapes/lap
+#   hold 0.40      25 (2/23)              222      191       7.01
+#   hold 0.25      21 (4/17)              225      218       4.34
+#
+# +27 rounds in time and 37% fewer escapes. Joined against the per-pair cell
+# taxonomy (scripts/sim/diag_pair_cells.py), 0.25 improves EVERY cell group and
+# hurts none -- including the crossings that motivated widening it: across a
+# corner 16 -> 14 collisions of 186, same-section 24 -> 21 of 218. That was the
+# one objection worth testing and it does not hold.
+#
+# The mechanism is NOT the demanded radius, which barely moves (0.331 m at 0.25
+# vs 0.334 m at 0.40) because what sets it is the LATERAL to cover, not the
+# longitudinal available. It is time spent off-centre: the plateau lives on the
+# straights, and hardware escapes cluster on straights at 2.4-2.9x the corner
+# rate. A narrower plateau returns the chassis to the centreline sooner.
+#
+# 0.50 remains refuted and for an unrelated reason: a section holds two signs
+# 1.00 m apart, so at 0.50 adjacent plateaux MEET and one sign's plan governs
+# another's pass (wrong-side 58% against a 13% base rate).
+sign_lane_hold_m = 0.25
 # How far a SQUEEZED plateau moves off clamp_lateral's boundary limit toward the
 # midpoint of its free gap. 0.0 is the clamped placement; 1.0 is full centring.
 # Binds only where the full offset does not fit -- 646 of the corpus's 1282
