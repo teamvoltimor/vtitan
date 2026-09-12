@@ -5243,6 +5243,45 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
 """Modes that sweep one numeric knob across the values given on the CLI."""
 
 _FIXED_MODES: dict[str, list[SweepConfig]] = {
+    # The three levers a band change could buy radius with, screened as GLOBAL
+    # constants before any per-cell machinery is built.
+    #
+    # WHY THIS ORDER. Measured on the 256 corpus over the driven lane (not the
+    # centreline -- the centreline frame understates the corner cases and was
+    # wrong once already), consecutive sign pairs split into 8 cells: 4 band
+    # transitions x {same section, across a corner}. 581 of 1026 pairs are
+    # CROSSINGS, 239 of them across a corner. The tightest radius the PLAN
+    # demands between two opposite-band signs is ~0.33 m same-section and
+    # ~0.18 m across a corner (calibrated: the method reads 12% low against the
+    # configured 0.45 m arc), against a chassis floor of R = 0.053 + 1.86v --
+    # 0.462 m at 0.22 m/s. So EVERY band change in the corpus demands a radius
+    # the chassis does not have at cruise speed, and the same-section case does
+    # it on a base path that is a STRAIGHT: the lane manufactures all of it.
+    #
+    # Three ways out, and each cell can only afford some of them:
+    #   * ramp -- start the transition earlier. Same-section crossings have
+    #     1.26 m of runway and a straight base, so there is room to spend.
+    #   * hold -- a narrower plateau returns runway between two plateaux.
+    #     Suspect: measured radius barely moves (0.331 at 0.25 vs 0.334 at
+    #     0.40), because what sets the radius is the LATERAL to cover, not the
+    #     longitudinal available. This arm exists to confirm that null.
+    #   * corner_entry -- how much corner arc a lane borrows. At 0.50 two lanes
+    #     either side of a corner claim the SAME arc (1413 waypoints, every
+    #     scenario). Adjudication fixed the double-shift; this asks whether
+    #     borrowing that much arc is worth anything at all.
+    #
+    # NOT COVERED HERE: slowing down through the band change, which is the only
+    # lever the across-corner cells can use (their arc is already at the floor
+    # and a corner cannot be made longer). There is no tunable for it -- it
+    # needs code, and this screen decides whether it is worth writing.
+    "band-change-levers": [
+        SweepConfig("shipped (control)", blind=True),
+        SweepConfig("ramp 1.20 -- start earlier", blind=True, sign_lane_ramp=1.20),
+        SweepConfig("ramp 1.50 -- start earlier still", blind=True, sign_lane_ramp=1.50),
+        SweepConfig("hold 0.25 -- narrower plateau", blind=True, sign_lane_hold=0.25),
+        SweepConfig("corner_entry 0.25 -- borrow less arc", blind=True, sign_lane_corner_entry=0.25),
+        SweepConfig("corner_entry 0.00 -- borrow no arc", blind=True, sign_lane_corner_entry=0.0),
+    ],
     # The gap-centre refutation, re-measured against the rule the event
     # actually has. A 2x3 factorial in ONE invocation: two scorings of the
     # Obstacles inner wall crossed with three lane placements.
