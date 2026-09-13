@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from xml.dom.minidom import Element
 
 _DESCRIPTION = (
-    Path(__file__).resolve().parents[4] / "apps" / "gazebo" / "runtime" / "robot_description" / "wro_robot.urdf.xacro"
+    Path(__file__).resolve().parents[4] / "other" / "apps" / "gazebo" / "runtime" / "robot_description" / "wro_robot.urdf.xacro"
 )
 
 

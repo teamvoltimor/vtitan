@@ -349,9 +349,11 @@ class ConfigTool:
         for path, prop in schema_leaves(json.loads(schema_path.read_text(encoding="utf-8"))).items():
             for ref in journal_refs(prop):
                 if ref.startswith("adr:"):
-                    target = self.repo_root / "docs" / "adr" / f"{ref[4:]}.md"
+                    target = self.repo_root / "other" / "docs" / "adr" / f"{ref[4:]}.md"
                 else:
-                    target = self.repo_root / ref.split("#", 1)[0]
+                    # Non-adr refs are docs-relative (e.g. docs/bitacora_ingenieria.md);
+                    # the docs tree lives under other/ after the repo re-layout.
+                    target = self.repo_root / "other" / ref.split("#", 1)[0]
                 if not target.exists():
                     failures.append(f"{schema_path.name}: {path}: {ref} -> {target}")
         return failures

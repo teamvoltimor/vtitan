@@ -197,9 +197,9 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		&cfg.record,
 		"record",
 		false,
-		"record the run to data/live/runs as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node",
+		"record the run to other/data/live/runs as a run_<stamp>/ (MCAP bag of /scan + /nav_debug); video/photos are captured separately by cmd/capture-node",
 	)
-	cfg.RegisterRunsRoot(flags, "runs root dir for --record (default: repo-root data/live/runs)")
+	cfg.RegisterRunsRoot(flags, "runs root dir for --record (default: repo-root other/data/live/runs)")
 	cfg.RegisterConfigRoot(flags,
 		"repo root to read the shipped TOML tree from; empty runs on Go literal defaults")
 	cfg.RegisterProfiles(flags)

@@ -36,7 +36,7 @@ from shared.config.constants import RobotSpecs
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
-_BAG_ROOT = Path(__file__).resolve().parents[4] / "data" / "live" / "runs"
+_BAG_ROOT = Path(__file__).resolve().parents[4] / "other" / "data" / "live" / "runs"
 _NAV_DEBUG_TOPIC = RosTopicConfig.load_default().navigation.nav_debug
 # The window that matters is the opening drive, before any escape maneuver has
 # had a chance to reorient the robot: escapes reverse on purpose, so "moved

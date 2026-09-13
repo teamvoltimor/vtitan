@@ -35,25 +35,28 @@ const (
 	PhotosDir = "photos"
 )
 
-// dataDirName is the repo-root directory that holds every pulled artifact.
-const dataDirName = "data"
+// dataDirName is the repo-root-relative directory that holds every pulled
+// artifact. The shared data tree lives under other/ after the 2026 re-layout,
+// so the walk-up below probes for other/data rather than data at the root.
+const dataDirName = "other/data"
 
 // dirMode is the permission mode for artifact directories: owner read/write/
 // execute, group and others read/execute, matching the pulled hardware tree.
 const dirMode = 0o750
 
-// RunRoot returns the absolute path to <repo-root>/data, the shared pulled-
-// artifact tree. It walks up from the current working directory (the module is
-// always built/run beneath the repo root) until it finds a directory containing
-// data/, so it works whether invoked from the module, the repo root, or a test
-// binary elsewhere under the tree. It does not hardcode an absolute path.
+// RunRoot returns the absolute path to <repo-root>/other/data, the shared
+// pulled-artifact tree. It walks up from the current working directory (the
+// module is always built/run beneath the repo root) until it finds a directory
+// containing other/data, so it works whether invoked from the module, the repo
+// root, or a test binary elsewhere under the tree. It does not hardcode an
+// absolute path.
 func RunRoot() (string, error) {
 	dir, err := filepath.Abs(".")
 	if err != nil {
 		return "", fmt.Errorf("recording: resolving cwd: %w", err)
 	}
 	for {
-		candidate := filepath.Join(dir, dataDirName)
+		candidate := filepath.Join(dir, filepath.FromSlash(dataDirName))
 		if info, statErr := statDir(candidate); statErr == nil && info {
 			return candidate, nil
 		}

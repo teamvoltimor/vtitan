@@ -7,7 +7,7 @@
 # (see vision_node's _on_robot_state -- recording stops on the RACING ->
 # not-RACING edge, not on process exit). Then tears down the bench launch,
 # restores vtitan-pi5.service to whatever state bench-hud-start.sh found it
-# in, and pulls the finished video back into the repo-root data/live/videos/.
+# in, and pulls the finished video back into the repo-root other/data/live/videos/.
 #
 # Usage:
 #   bash scripts/bench-hud-stop.sh
@@ -89,4 +89,4 @@ log "Pulling $run_name..."
 PI5_HOST="$PI5_HOST" bash "$ROBOT_DIR/scripts/sync/pull-videos-from-pi5.sh" "$run_name" ||
   die "video pull failed -- retry with: task robot:pull-videos PATTERN=$run_name"
 
-log "Done. See data/live/videos/$run_name/video.mp4"
+log "Done. See other/data/live/videos/$run_name/video.mp4"

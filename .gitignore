@@ -164,30 +164,30 @@ opencode.json
 # sim = sim-runner output), each with runs/videos/photos siblings. Both the
 # Python and Go stacks reference this, never the robot module's own dir.
 # Large binary data, never committed; the .gitkeep markers are tracked.
-data/live/runs/*
-!data/live/runs/.gitkeep
-data/live/videos/*
-!data/live/videos/.gitkeep
-data/live/photos/*
-!data/live/photos/.gitkeep
+other/data/live/runs/*
+!other/data/live/runs/.gitkeep
+other/data/live/videos/*
+!other/data/live/videos/.gitkeep
+other/data/live/photos/*
+!other/data/live/photos/.gitkeep
 # Simulator-recorded bags (sim-runner --record). Kept apart from
 # data/live/ because a single 640-case sweep writes ~1.2 GB across 640
 # bags, and burying the handful of expensive real track runs under that is
 # how one gets deleted by accident.
-data/sim/runs/*
-!data/sim/runs/.gitkeep
-data/sim/videos/*
-!data/sim/videos/.gitkeep
-data/sim/photos/*
-!data/sim/photos/.gitkeep
+other/data/sim/runs/*
+!other/data/sim/runs/.gitkeep
+other/data/sim/videos/*
+!other/data/sim/videos/.gitkeep
+other/data/sim/photos/*
+!other/data/sim/photos/.gitkeep
 # Raw sweep arms rescued from deleted session worktrees. Regenerable only by
 # re-running the sweep, which is why they are kept, but they are bulk JSON and
 # must never enter a commit.
-data/archive/*
-!data/archive/.gitkeep
+other/data/archive/*
+!other/data/archive/.gitkeep
 
 # Internal docs
-docs/internal/
+other/docs/internal/
 
 # Debug recordings pulled off the robot by task robot:record-vision
 src/python/vision-*.mp4
@@ -197,7 +197,7 @@ src/python/.corpus/
 
 # Generated data (created by simulation, consumed by robot)
 telemetry_sessions/
-apps/backend/telemetry_sessions/
+other/apps/backend/telemetry_sessions/
 src/python/shared/dist/
 fixtures/
 # ...except the scenario metadata, which IS the unit-test battery rather than
@@ -236,8 +236,8 @@ landing/
 # obs_*, s_*, latch_*, latchsweep_*), kept only to eyeball a single run;
 # reproducible from the gate script + profile, so never committed. Live in
 # data/sweeps/, not the repo root; the .gitkeep marker is tracked.
-data/sweeps/*
-!data/sweeps/.gitkeep
+other/data/sweeps/*
+!other/data/sweeps/.gitkeep
 
 # Generated doc artifacts (rendered SVGs) — sources are the mermaid/png
 # siblings that are tracked; these are build output.

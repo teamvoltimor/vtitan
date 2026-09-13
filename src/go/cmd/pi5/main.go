@@ -46,19 +46,20 @@ const (
 )
 
 // repoRoot walks up from the working directory to the repo root (the directory
-// containing data/), so robot.toml can be located without an absolute path.
+// containing other/data), so robot.toml can be located without an absolute
+// path.
 func repoRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("pi5: getting working directory: %w", err)
 	}
 	for {
-		if info, statErr := os.Stat(filepath.Join(dir, "data")); statErr == nil && info.IsDir() {
+		if info, statErr := os.Stat(filepath.Join(dir, "other", "data")); statErr == nil && info.IsDir() {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", errors.New("pi5: repo root (data/) not found walking up from cwd")
+			return "", errors.New("pi5: repo root (other/data) not found walking up from cwd")
 		}
 		dir = parent
 	}
@@ -75,7 +76,7 @@ func runMain() int {
 	fs := flag.NewFlagSet("pi5", flag.ContinueOnError)
 	cfg.RegisterNATSURL(fs)
 	fs.StringVar(&cfg.NodeName, "name", "pi5", "NATS client name")
-	cfg.RegisterRunsRoot(fs, "runs root dir (default: repo-root data/live/runs)")
+	cfg.RegisterRunsRoot(fs, "runs root dir (default: repo-root other/data/live/runs)")
 	cfg.RegisterConfigRoot(fs, "repo root for robot.toml (VTITAN_HARDWARE_PROFILE selects the active profile)")
 	cfg.RegisterProfiles(fs)
 	fs.Float64Var(&cfg.fps, "fps", defaultFPS, "capture frame rate")

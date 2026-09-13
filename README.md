@@ -6,7 +6,7 @@
 > 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](MEMORIAL.md) vive en [`MEMORIAL.md`](MEMORIAL.md).
 
 <p align="center">
-    <img src="assets/voltimor-logo-square.png" alt="" width="400">
+    <img src="other/assets/voltimor-logo-square.png" alt="" width="400">
     <br>
     <i>Logo del Equipo</i>
 </p>
@@ -56,14 +56,16 @@ vtitan/
 │   └── old-models/      #   Prototipos previos (Klevor)
 ├── src/               # python/ (pila ROS2), go/ (reimplementación Go), config/ (TOML
 │                      #   compartido, leído por ambos), assets/ (imágenes compartidas)
-├── other/             # → simulador, telemetría, entrenamiento, provisionamiento
-├── docs/              # Bitácora, referencia de configuración, datasheets, prototipos
-├── apps/              # backend/, frontend/, gazebo/, auto-annotator/, hugo-docs/, landing/
 ├── contracts/         # proto/ (buf, esquemas gRPC/NATS) y openapi/ (spec-first REST)
-├── ml/hailo/ ml/weights/  # Entrenamiento del detector y pesos publicados
-├── deploy/ansible/    # Provisionamiento de las placas (tareas task rpi:*, windows:*)
-├── data/              # Salidas de ejecución (bags, fotos, videos); vacía en el repo
-├── scripts/           # Utilidades de desarrollo (configuración de SSH para el robot)
+├── other/             # Todo lo que no es material de competencia
+│   ├── apps/          #   backend/, frontend/, gazebo/, auto-annotator/, hugo-docs/, landing/
+│   ├── assets/        #   Logos e imágenes de esta documentación
+│   ├── data/          #   Salidas de ejecución (bags, fotos, videos); vacía en el repo
+│   ├── deploy/ansible/#   Provisionamiento de las placas (tareas task rpi:*, windows:*)
+│   ├── docs/          #   Bitácora, referencia de configuración, datasheets, prototipos
+│   ├── ml/hailo/ ml/weights/  # Entrenamiento del detector y pesos publicados
+│   ├── scripts/       #   Utilidades de desarrollo (configuración de SSH para el robot)
+│   └── tasks/         #   Tareas del Taskfile raíz (fleet.yml, platform.yml, infra.yml)
 └── .github/           # Workflows de CI
 ```
 
@@ -76,7 +78,8 @@ vtitan/
 | `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
 | `models/` | Modelos 3D de las piezas impresas: `current-models/` (V-Titan) y `old-models/` (prototipos previos), cada uno con `blueprints/` (planos) y `step-files/` (CAD para imprimir) |
 | `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
-| `other/` | Puntero al resto del proyecto: simulador, backend de telemetría, entrenamiento del detector y provisionamiento. Ver [`other/README.md`](other/README.md) |
+| `contracts/` | Contratos de interfaz compartidos: `contracts/proto/` (buf, esquemas gRPC/NATS para robot, backend y frontend) y `contracts/openapi/` (spec-first REST) |
+| `other/` | Todo lo que no es material de competencia: `other/apps/` (telemetría, simulador, auto-anotador, docs), `other/ml/` (entrenamiento y pesos), `other/deploy/ansible/`, `other/docs/`, `other/data/`, `other/scripts/`, `other/tasks/` y `other/assets/`. Ver [`other/README.md`](other/README.md) |
 
 ### Cómo explorar este repositorio
 
@@ -85,20 +88,20 @@ Según lo que quieras revisar, esta es la ruta más corta:
 - **Código que corre en una ronda**: [`src/python/README.md`](src/python/README.md) mapea cada nodo ROS2 de la pila de competencia a su paquete y su rol (percepción, navegación, máquina de estados, drivers).
 - **Configuración que gobierna al robot**: `src/config/`, descrita en [Diseño gobernado por configuración](#diseño-gobernado-por-configuración). Los perfiles de hardware intercambiables están en [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables). La lee tanto `src/python/` como `src/go/`.
 - **Simulador y corpus de escenarios**: [`other/README.md`](other/README.md), sección del simulador; los resultados reproducibles están en [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios).
-- **Cómo se entrenó el detector**: `ml/hailo/` (entrenamiento y compilación), `ml/weights/` (pesos publicados), `apps/auto-annotator/` (anotación asistida).
-- **Cómo se instala el sistema en las placas**: [`docs/pi-setup.md`](docs/pi-setup.md) y `deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
-- **El historial del proyecto**: bitácora de ingeniería en [`docs/bitacora_ingenieria.md`](docs/bitacora_ingenieria.md), prototipos previos en [`docs/development/previous-prototypes/`](docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` post-regional) con mensajes de commit convencionales.
+- **Cómo se entrenó el detector**: `other/ml/hailo/` (entrenamiento y compilación), `other/ml/weights/` (pesos publicados), `other/apps/auto-annotator/` (anotación asistida).
+- **Cómo se instala el sistema en las placas**: [`other/docs/pi-setup.md`](other/docs/pi-setup.md) y `other/deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
+- **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora_ingenieria.md`](other/docs/bitacora_ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` post-regional) con mensajes de commit convencionales.
 
 Además de las carpetas obligatorias, el repositorio contiene:
 
-- `docs/` con la documentación de apoyo: la [bitácora de ingeniería](docs/bitacora_ingenieria.md), la [referencia de configuración TOML de navegación](docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](docs/pi-setup.md), las hojas de datos en `docs/reference/datasheets/` y el historial de prototipos en `docs/development/previous-prototypes/`.
 - `src/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `src/config/` (la configuración TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD de navegación).
-- `apps/` con procesos independientes: `apps/backend/` y `apps/frontend/` (telemetría), `apps/auto-annotator/` (anotación asistida), `apps/hugo-docs/` (sitio de documentación navegable) y `apps/gazebo/` (runtime del simulador).
 - `contracts/` con los contratos de interfaz que generan código para ambos stacks: `contracts/proto/` (buf, esquemas gRPC/NATS) y `contracts/openapi/` (spec-first REST).
-- `ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `ml/weights/` con los pesos publicados.
-- `deploy/ansible/` con el provisionamiento de las placas; las tareas que lo ejecutan (`task rpi:*`, `task windows:provision:*`) están definidas en `tasks/fleet.yml`.
-- `scripts/` con utilidades de desarrollo (configuración de SSH para el robot) y `.github/` con los workflows de CI.
-- `data/` es la carpeta de salida en runtime: `data/live/` y `data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task robot:pull-runs` (bags desde la Pi 5), `task robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
+- `other/docs/` con la documentación de apoyo: la [bitácora de ingeniería](other/docs/bitacora_ingenieria.md), la [referencia de configuración TOML de navegación](other/docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](other/docs/pi-setup.md), las hojas de datos en `other/docs/reference/datasheets/` y el historial de prototipos en `other/docs/development/previous-prototypes/`.
+- `other/apps/` con procesos independientes: `other/apps/backend/` y `other/apps/frontend/` (telemetría), `other/apps/auto-annotator/` (anotación asistida), `other/apps/hugo-docs/` (sitio de documentación navegable) y `other/apps/gazebo/` (runtime del simulador).
+- `other/ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `other/ml/weights/` con los pesos publicados.
+- `other/deploy/ansible/` con el provisionamiento de las placas; las tareas que lo ejecutan (`task rpi:*`, `task windows:provision:*`) están definidas en `other/tasks/fleet.yml`.
+- `other/scripts/` con utilidades de desarrollo (configuración de SSH para el robot) y `.github/` con los workflows de CI.
+- `other/data/` es la carpeta de salida en runtime: `other/data/live/` y `other/data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task robot:pull-runs` (bags desde la Pi 5), `task robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
 
 ## Arranque rápido y reproducibilidad
 
@@ -174,10 +177,10 @@ Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para 
 3. **[Arranque rápido y reproducibilidad](#arranque-rápido-y-reproducibilidad)**
 4. **[Historial del equipo](#historial-del-equipo)**
     1. [Klevor (WRO 2025)](#klevor-wro-2025)
-        1. [Klevor v0.1](docs/development/previous-prototypes/klevor-v0.1.md)
-        2. [Klevor v0.1.1](docs/development/previous-prototypes/klevor-v0.1.1.md)
-        3. [Klevor v0.2](docs/development/previous-prototypes/klevor-v0.2.md)
-        4. [Klevor v1.0](docs/development/previous-prototypes/klevor-v1.0.md)
+        1. [Klevor v0.1](other/docs/development/previous-prototypes/klevor-v0.1.md)
+        2. [Klevor v0.1.1](other/docs/development/previous-prototypes/klevor-v0.1.1.md)
+        3. [Klevor v0.2](other/docs/development/previous-prototypes/klevor-v0.2.md)
+        4. [Klevor v1.0](other/docs/development/previous-prototypes/klevor-v1.0.md)
     2. [V-Titan (WRO 2026)](#v-titan-wro-2026)
 5. **[Arquitectura de energía y sensores](#arquitectura-de-energía-y-sensores)**
     1. [Lista de Componentes](#lista-de-componentes)
@@ -385,7 +388,7 @@ A continuación, está la descripción de todos los componentes principales de V
 ### Raspberry Pi 5 (16GB RAM)
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-5.webp" alt="Raspberry Pi 5" 
+	<img src="other/assets/images/components/raspberry-pi-5.webp" alt="Raspberry Pi 5" 
 width="350">
 	<br>
 	<i>Raspberry Pi 5</i>
@@ -409,7 +412,7 @@ Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 
 ### Raspberry Pi Camera Module 3 Wide
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-camera-module-3.webp" alt="Raspberry Pi Camera Module 3" 
+	<img src="other/assets/images/components/raspberry-pi-camera-module-3.webp" alt="Raspberry Pi Camera Module 3" 
 width="350">
 	<br>
 	<i>Raspberry Pi Camera Module 3</i>
@@ -431,7 +434,7 @@ La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como l
 ### Raspberry Pi AI HAT+ (26 TOPS)
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-ai-hat-plus.webp" alt="Raspberry Pi AI HAT+ 26 TOPS" 
+	<img src="other/assets/images/components/raspberry-pi-ai-hat-plus.webp" alt="Raspberry Pi AI HAT+ 26 TOPS" 
 width="350">
 	<br>
 	<i>Raspberry Pi AI HAT+ 26 TOPS</i>
@@ -451,7 +454,7 @@ El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones 
 ### Raspberry Pi Zero 2 W
 
 <p align="center">
-	<img src="assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero W" 
+	<img src="other/assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero W" 
 width="350">
 	<br>
 	<i>Raspberry Pi Zero W</i>
@@ -473,7 +476,7 @@ Incorpora conectividad Wi-Fi/Bluetooth y cabezales de pines GPIO soldados. Esto 
 ### RPLiDAR C1
 
 <p align="center">
-	<img src="assets/images/components/rplidar-c1.webp" alt="RPLiDAR C1" 
+	<img src="other/assets/images/components/rplidar-c1.webp" alt="RPLiDAR C1" 
 width="350">
 	<br>
 	<i>RPLiDAR C1</i>
@@ -503,7 +506,7 @@ Especificaciones técnicas:
 
 <!-- github-only-start -->
 <p align="center">
-	<img src="assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Hiwonder HPS-3527SG 35kg Servo" 
+	<img src="other/assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Hiwonder HPS-3527SG 35kg Servo" 
 width="350">
 	<br>
 	<i>Hiwonder HPS-3527SG 35kg Servo</i>
@@ -526,7 +529,7 @@ Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
 ### HD Hex Motor
 
 <p align="center">
-	<img src="assets/images/components/hd-hex-motor.webp" alt="HD Hex Motor" 
+	<img src="other/assets/images/components/hd-hex-motor.webp" alt="HD Hex Motor" 
 width="350">
 	<br>
 	<i>HD Hex Motor</i>
@@ -543,7 +546,7 @@ Después de probar distintos modelos de motor, al final optamos por utilizar el 
 ### IMU GY-BNO085
 
 <p align="center">
-	<img src="assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
+	<img src="other/assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
 width="350">
 	<br>
 	<i>Giroscopio BNO085</i>
@@ -571,7 +574,7 @@ La implementación maneja dos variables: `yaw_deg` (orientación relativa desde 
 ### Ovonic Air 11.1V Li-Po Battery
 
 <p align="center">
-	<img src="assets/images/components/ovonic-air-11.1v-lipo-battery.webp" alt="Ovonic Air 11.1V Li-Po Battery" 
+	<img src="other/assets/images/components/ovonic-air-11.1v-lipo-battery.webp" alt="Ovonic Air 11.1V Li-Po Battery" 
 width="350">
 	<br>
 	<i>Ovonic Air 11.1V Li-Po Battery</i>
@@ -609,7 +612,7 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 ### Puente H BTS7960 / IBT-2
 
 <p align="center">
-	<img src="assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
+	<img src="other/assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
 	<br>
 	<i>Puente H BTS7960 / IBT-2 (el que monta V-Titan actualmente)</i>
 </p>
@@ -617,7 +620,7 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 El BTS7960 es el puente H que controla el motor de tracción. **No fue nuestra primera opción: reemplazó al L298N, y el motivo fue puramente de corriente.**
 
 <p align="center">
-	<img src="assets/images/components/puente-h-l298n.webp" alt="Puente H L298N" width="300">
+	<img src="other/assets/images/components/puente-h-l298n.webp" alt="Puente H L298N" width="300">
 	<br>
 	<i>Puente H L298N - el diseño anterior, descartado por corriente insuficiente</i>
 </p>
@@ -638,7 +641,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 ### Step Down Mini-560 Pro
 
 <p align="center">
-	<img src="assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
+	<img src="other/assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
 	<br>
 	<i>Step Down Mini-560 Pro (el que monta V-Titan actualmente)</i>
 </p>
@@ -646,7 +649,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 El Mini-560 Pro es el regulador que alimenta el riel propio del servo de dirección, separándolo del riel de 5V de la Raspberry Pi para que los picos de corriente del servo no lleguen al computador.
 
 <p align="center">
-	<img src="assets/images/components/step-down-xlc4016.webp" alt="Step Down XLC4016" width="300">
+	<img src="other/assets/images/components/step-down-xlc4016.webp" alt="Step Down XLC4016" width="300">
 	<br>
 	<i>Step Down XLC4016 - el regulador anterior, descartado por peso</i>
 </p>
@@ -666,7 +669,7 @@ Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el pun
 ### SSD1306 OLED Display
 
 <p align="center">
-	<img src="assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="350">
+	<img src="other/assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="350">
 	<br>
 	<i>SSD1306 OLED Display 128x64</i>
 </p>
@@ -763,7 +766,7 @@ Con todos estos componentes en mente, queríamos implementar esta idea en un sis
 #### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
 
 <p align="center">
-	<img src="assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
+	<img src="other/assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Primer Prototipo del Sistema de Dirección</i>
@@ -780,7 +783,7 @@ width="350">
 #### **Fase 2: Pruebas de Integración y Detección de Fallas**
 
 <p align="center">
-	<img src="assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
+	<img src="other/assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
 width="350">
 	<br>
 	<i>Iteración de diseño en CAD entre prototipos impresos</i>
@@ -798,7 +801,7 @@ width="350">
 #### **Fase 3: Rediseño a Engranajes Perpendiculares, Coronas y Correa Dentada**
 
 <p align="center">
-	<img src="assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
+	<img src="other/assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
 width="350">
 	<br>
 	<i>Sistema de dirección por engranajes, vista inferior: coronas integradas a los rines</i>
@@ -816,7 +819,7 @@ width="350">
 #### **Fase 4: Optimización de Peso, Integración y Chasis Final**
 
 <p align="center">
-	<img src="assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
+	<img src="other/assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
 width="350">
 	<br>
 	<i>Integración de la electrónica sobre el monochasis agujereado</i>
@@ -839,7 +842,7 @@ width="350">
 #### **Fase 5: Integración del HD Hex Motor**
 
 <p align="center">
-	<img src="assets/images/development/hd-hex-motor-integration.jpg" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
+	<img src="other/assets/images/development/hd-hex-motor-integration.jpg" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Integración del REV HD Hex Motor al Sistema de Transmisión</i>
@@ -852,7 +855,7 @@ width="350">
 ## Sistema de Transmisión
 
 <p align="center">
-	<img src="assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
+	<img src="other/assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
 width="350">
 	<br>
 	<i>Sistema de Transmisión, visto desde arriba</i>
@@ -865,7 +868,7 @@ Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción e
 ## Sistema de Dirección
 
 <p align="center">
-	<img src="assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
+	<img src="other/assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
 width="350">
 	<br>
 	<i>Sistema de Dirección, visto desde arriba</i>
@@ -933,7 +936,7 @@ Al efectuar toda la operación obtenemos como resultado que se necesita un torqu
 Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al torque mínimo ($0.207\ \text{Nm}$), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
 
 <p align="center">
-	<img src="assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
+	<img src="other/assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
 width="350">
 	<br>
 	<i>Relación de Engranajes</i>
@@ -1169,7 +1172,7 @@ Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los f
 
 Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale mal, observar el robot no revela la causa. Por eso todo lo que ocurre a bordo queda grabado.
 
-Cada ejecución escribe un *bag* en formato **MCAP** con todos los tópicos: barridos del LIDAR, pose estimada, comandos de dirección y velocidad, estado de la máquina de estados y detecciones de visión. Los bags se descargan del robot a `data/` y se analizan en frío, fuera de la pista.
+Cada ejecución escribe un *bag* en formato **MCAP** con todos los tópicos: barridos del LIDAR, pose estimada, comandos de dirección y velocidad, estado de la máquina de estados y detecciones de visión. Los bags se descargan del robot a `other/data/` y se analizan en frío, fuera de la pista.
 
 Sobre esos bags corren decenas de scripts de diagnóstico especializados: uno reconstruye el conteo de vueltas, otro mide la sobrecorrección en las esquinas, otro compara la dirección inferida contra lo que realmente ocurrió, otro revisa la robustez de los rayos laterales. Para inspección visual, los bags se abren en **Foxglove**.
 

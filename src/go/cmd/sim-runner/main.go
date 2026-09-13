@@ -219,13 +219,13 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		"record",
 		false,
 		"--runner native only: write each scenario's run to an MCAP bag under "+
-			"<repo-root>/data/sim/runs/sweep_<stamp>/<scenario>/, openable in Foxglove Studio",
+			"<repo-root>/other/data/sim/runs/sweep_<stamp>/<scenario>/, openable in Foxglove Studio",
 	)
 	flags.StringVar(
 		&cfg.recordDir,
 		"record-dir",
 		"",
-		"--record only: write the bags here instead of under data/sim/runs",
+		"--record only: write the bags here instead of under other/data/sim/runs",
 	)
 
 	// Sensor errors: what the robot is wrong about regarding ITSELF, as

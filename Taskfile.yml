@@ -2,15 +2,15 @@ version: "3"
 
 includes:
   platform:
-    taskfile: ./tasks/platform.yml
+    taskfile: ./other/tasks/platform.yml
     dir: .
     flatten: true
   infra:
-    taskfile: ./tasks/infra.yml
+    taskfile: ./other/tasks/infra.yml
     dir: .
     flatten: true
   fleet:
-    taskfile: ./tasks/fleet.yml
+    taskfile: ./other/tasks/fleet.yml
     dir: .
     flatten: true
   src:
@@ -26,33 +26,33 @@ includes:
     dir: ./src/go
     flatten: true
   apps-frontend:
-    taskfile: ./apps/frontend/Taskfile.yml
-    dir: ./apps/frontend
+    taskfile: ./other/apps/frontend/Taskfile.yml
+    dir: ./other/apps/frontend
     flatten: true
   apps-backend:
-    taskfile: ./apps/backend/Taskfile.yml
-    dir: ./apps/backend
+    taskfile: ./other/apps/backend/Taskfile.yml
+    dir: ./other/apps/backend
     flatten: true
   apps-gazebo:
-    taskfile: ./apps/gazebo/Taskfile.yml
-    dir: ./apps/gazebo/runtime
+    taskfile: ./other/apps/gazebo/Taskfile.yml
+    dir: ./other/apps/gazebo/runtime
     flatten: true
   deploy-ansible:
-    taskfile: ./deploy/ansible/Taskfile.yml
-    dir: ./deploy/ansible
+    taskfile: ./other/deploy/ansible/Taskfile.yml
+    dir: ./other/deploy/ansible
     flatten: true
   auto-annotator:
-    taskfile: ./apps/auto-annotator/Taskfile.yml
-    dir: ./apps/auto-annotator
+    taskfile: ./other/apps/auto-annotator/Taskfile.yml
+    dir: ./other/apps/auto-annotator
   hailo:
-    taskfile: ./ml/hailo/Taskfile.yml
-    dir: ./ml/hailo
+    taskfile: ./other/ml/hailo/Taskfile.yml
+    dir: ./other/ml/hailo
   models:
-    taskfile: ./ml/weights/Taskfile.yml
-    dir: ./ml/weights
+    taskfile: ./other/ml/weights/Taskfile.yml
+    dir: ./other/ml/weights
   hugo-docs:
-    taskfile: ./apps/hugo-docs/Taskfile.yml
-    dir: ./apps/hugo-docs
+    taskfile: ./other/apps/hugo-docs/Taskfile.yml
+    dir: ./other/apps/hugo-docs
 
 tasks:
   default:
@@ -121,11 +121,12 @@ tasks:
 
   assets:sync-logos:
     desc: >-
-      Copy the canonical Voltimor logo files (assets/) into every frontend's
-      public/ dir. assets/ is the single source of truth -- Vite can't
-      reference files outside a project's own root, so each frontend needs
-      its own copy; re-run this after replacing either source PNG.
+      Copy the canonical Voltimor logo files (other/assets/) into every
+      frontend's public/ dir. other/assets/ is the single source of truth --
+      Vite can't reference files outside a project's own root, so each
+      frontend needs its own copy; re-run this after replacing either source
+      PNG.
     cmds:
-      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png apps/auto-annotator/frontend/public/
-      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png apps/frontend/public/
-      - echo "[OK] Synced logo assets to apps/auto-annotator/frontend/public and apps/frontend/public"
+      - cp other/assets/voltimor-logo-square.png other/assets/voltimor-logo-banner.png other/apps/auto-annotator/frontend/public/
+      - cp other/assets/voltimor-logo-square.png other/assets/voltimor-logo-banner.png other/apps/frontend/public/
+      - echo "[OK] Synced logo assets to other/apps/auto-annotator/frontend/public and other/apps/frontend/public"

@@ -43,7 +43,7 @@ func run() int {
 		device        = flag.String("device", "/dev/video0", "V4L2 device node (v4l2 backend)")
 		natsURL       = flag.String("nats-url", nats.DefaultDevURL, "nats-server URL (topic backend)")
 		nodeName      = flag.String("name", "capture-node", "NATS client name")
-		runsRoot      = flag.String("runs-root", "", "runs root dir (default: repo-root data/live/runs)")
+		runsRoot      = flag.String("runs-root", "", "runs root dir (default: repo-root other/data/live/runs)")
 		fps           = flag.Float64("fps", defaultFPS, "capture/video frame rate")
 		photoInterval = flag.Duration(
 			"photo-interval",
