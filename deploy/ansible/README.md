@@ -52,35 +52,40 @@ tasks: WiFi band lock, SSH-trust bootstrap).
 - `--check --diff` (`task rpi:ansible:check`) is a real dry run against an
   already-provisioned Pi - expect no changes if nothing has drifted.
 
-## Pre-rename checkout migration
+## Carrying the calibrated `.env` across the restructure
 
-Real hardware as of 2026-07-29 still has the pre-rename checkout(s)
-(`~/vtitan`, remote `teamvoldemor/vtitan`, systemd units named
-`vtitan-pi5.service`/`vtitan-lidar.service`/`vtitan-pi-zero.service`)
-- the org/repo rename to `teamvoltimor/vtitan` never landed on the robots.
+The checkout lives at `~/vtitan` on both boards, and the `common` role brings it
+to `repo_ref` in place: `gh repo clone` is `creates:`-guarded, so on a board that
+already has one it does nothing and the `fetch` / `checkout` / `merge --ff-only`
+below it do the work.
 
-The `common` role always does a **fresh `gh repo clone`** into `~/vtitan`
-(`old_repo_dir` in `inventory/group_vars/all.yml` names the old location), regardless
-of whether that old location is a git checkout (Pi 5) or a tarball-deployed
-directory with no git history at all (Pi Zero, via
-`scripts/provisioning/deploy-dev-env-to-zero.sh`). The only thing carried over from the
-old deployment is the real gitignored `.env` (steering offsets, LiDAR yaw,
-Hailo model path) - a fresh clone can't reproduce that, so it's copied
-across explicitly before the `.env.example` fallback could otherwise stomp
-it. Once that copy is confirmed, the old deployment directory is removed.
+The one thing a checkout cannot carry itself is the real gitignored `.env`
+(steering offsets, LiDAR yaw, Hailo model path). The 2026-09-10 restructure
+dissolved `platform/` into `src/`, which moves `robot_dir` out from under it and
+strands it at `platform/robot/.env` (`legacy_env_path` in
+`inventory/group_vars/all.yml`). The role copies it across before the
+`.env.example` fallback could stomp it.
 
-This used to be an in-place `mv` + `git remote set-url` + `git pull
---rebase` for git checkouts, to preserve reflog/stash history - changed to a
-fresh clone on 2026-07-30 after confirming (`git log --branches --not
---remotes`, empty on every branch) that nothing on the Pi 5's checkouts was
-unpushed, so there was no history worth the extra complexity of preserving.
+### The removal this replaced, and why it was dangerous
+
+Until 2026-09-13 the same block also removed an `old_repo_dir` once the `.env`
+copy was confirmed, written for the 2026-07 `teamvoldemor -> teamvoltimor`
+rename. **That rename renamed the GitHub org, not the checkout directory**, so
+`old_repo_dir` was defined as `/home/{{ ansible_user }}/vtitan` - byte-identical
+to `repo_dir`. Its guard was `old_repo_dir_stat.stat.exists and
+final_env_stat.stat.exists`, with no comparison against `repo_dir`, so on any
+board that already had a checkout and a landed `.env` it would have deleted the
+live repo, including the calibrated `.env` just copied into it. Verified on
+2026-09-13 that **both** Pis satisfied that guard. The removal is gone; only the
+`.env` migration it wrapped survives.
 
 The Pi 5 also had 5 sibling `git worktree` checkouts of other branches
 (`vtitan-auto-annotator`, `-docs`, `-hailo`, `-hugo-docs`, `-platform`)
 plus a stale manual `vtitan-session-backup` dir from an older rename.
 All confirmed clean the same way - the `pi5` role removes them
-(`old_worktree_dirs` in `inventory/group_vars/robot_pi5.yml`) once the main migration
-succeeds, leaving a single `~/vtitan` checkout. `deploy/ansible/` and `scripts/`
+(`old_worktree_dirs` in `inventory/group_vars/robot_pi5.yml`), leaving a single
+`~/vtitan` checkout. Every entry there is a SIBLING of `~/vtitan`, never
+`~/vtitan` itself. `deploy/ansible/` and `scripts/`
 both live on `master` now, so nothing else needs that separate worktree -
 `ANSIBLE_DIR`/`PLATFORM_SCRIPTS` in the root `Taskfile.yml` point straight
 at `~/vtitan`.

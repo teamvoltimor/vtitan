@@ -493,6 +493,6 @@
     enabled: true
     daemon_reload: true
 
-# Removal of the leftover pre-rename deployment ({{ old_repo_dir }}) is
-# handled generically by the common role now (covers both the Zero's
-# tarball deployment and the Pi 5's git checkout the same way).
+# Carrying the calibrated .env across the platform/ -> src/ restructure is
+# handled generically by the common role, which covers both boards the same
+# way. Nothing removes the leftover platform/ tree -- see the README.

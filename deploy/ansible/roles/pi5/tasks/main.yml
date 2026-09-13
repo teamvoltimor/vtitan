@@ -233,16 +233,16 @@
 # `git log --branches --not --remotes` (empty in every one) that none carry
 # commits missing from GitHub, and their content is largely redundant with
 # what's already on GitHub, so dropped in favor of a single ~/vtitan
-# checkout. Gated on the common role's migration (old_repo_dir_stat /
-# final_env_stat) having actually run, so a fresh Pi 5 with none of these
-# directories present doesn't need special-casing.
+# checkout. Every path in old_worktree_dirs is a SIBLING of ~/vtitan, never
+# ~/vtitan itself, and `state: absent` is already a no-op on a fresh Pi 5 that
+# has none of them -- so this needs no gate. It used to carry one, on the
+# common role's old_repo_dir_stat/final_env_stat, which no longer exist.
 - name: Remove old sibling worktree / backup directories
   tags: [cleanup]
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop: "{{ old_worktree_dirs }}"
-  when: old_repo_dir_stat.stat.exists and final_env_stat.stat.exists
 
 # Optional (see install_extra_tools in roles/common/defaults/main.yml).
 # hailo-ai/hailo-apps -- the official Hailo Applications Infrastructure, ready-

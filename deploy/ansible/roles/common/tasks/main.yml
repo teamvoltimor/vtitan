@@ -172,21 +172,12 @@
     executable: /bin/bash
   when: task_check.rc != 0
 
-# Pre-rename deployment migration (teamvoldemor/vtitan ->
-# teamvoltimor/vtitan). Always a fresh clone now, git-based (Pi 5's
-# ~/vtitan and its sibling git-worktree checkouts) or tarball-deployed
-# (Pi Zero, via scripts/provisioning/deploy-dev-env-to-zero.sh) alike -- verified
-# 2026-07-30 that no worktree/branch on the Pi 5 had commits missing from
-# GitHub (`git log --branches --not --remotes` empty everywhere), so nothing
-# is lost by discarding the old checkout(s) outright. Only the real
-# gitignored .env (steering offsets, LiDAR yaw, Hailo model path) is carried
-# over, since a fresh clone can't reproduce it.
-- name: Check for pre-rename deployment ({{ old_repo_dir }})
-  tags: [repo]
-  ansible.builtin.stat:
-    path: "{{ old_repo_dir }}"
-  register: old_repo_dir_stat
-
+# The checkout always lives at repo_dir, on both boards. An earlier version of
+# this role also carried a "pre-rename deployment" at old_repo_dir that it
+# removed once the .env had been copied out -- but the 2026-07 rename was of the
+# GitHub org, not of the checkout directory, so old_repo_dir was defined as the
+# same path as repo_dir and that removal would have deleted the live checkout.
+# Only the .env migration it was wrapped around is real, and it survives below.
 - name: Clone vtitan repo
   tags: [repo]
   ansible.builtin.command: "gh repo clone {{ github_repo }} {{ repo_dir }}"
@@ -238,28 +229,31 @@
     chdir: "{{ repo_dir }}"
   changed_when: true
 
-- name: Check for real .env in the pre-rename deployment
+# The .env is gitignored (steering offsets, LiDAR yaw, Hailo model path), so the
+# fast-forward above moves robot_dir out from under it and leaves it behind at
+# the pre-restructure path. Carry it across before the .env.example fallback can
+# stomp it -- a fresh clone cannot reproduce a calibrated board.
+- name: Check for a stranded .env at the pre-restructure path
   tags: [repo]
   ansible.builtin.stat:
-    path: "{{ old_repo_dir }}/platform/robot/.env"
-  register: old_env_stat
-  when: old_repo_dir_stat.stat.exists
+    path: "{{ legacy_env_path }}"
+  register: legacy_env_stat
 
-- name: Check for existing .env in the fresh clone
+- name: Check for existing .env in {{ robot_dir }}
   tags: [repo]
   ansible.builtin.stat:
     path: "{{ robot_dir }}/.env"
   register: env_stat
 
-- name: Copy real .env from the pre-rename deployment into the fresh clone
+- name: Carry the stranded .env across into {{ robot_dir }}
   tags: [repo]
   ansible.builtin.copy:
-    src: "{{ old_repo_dir }}/platform/robot/.env"
+    src: "{{ legacy_env_path }}"
     dest: "{{ robot_dir }}/.env"
     remote_src: true
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-  when: old_repo_dir_stat.stat.exists and old_env_stat.stat.exists and not env_stat.stat.exists
+  when: legacy_env_stat.stat.exists and not env_stat.stat.exists
 
 - name: Copy .env.example to .env
   tags: [repo]
@@ -269,21 +263,7 @@
     remote_src: true
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-  when: not env_stat.stat.exists and not (old_repo_dir_stat.stat.exists and old_env_stat.stat.exists)
-
-- name: Confirm .env landed before removing the pre-rename deployment
-  tags: [repo]
-  ansible.builtin.stat:
-    path: "{{ robot_dir }}/.env"
-  register: final_env_stat
-  when: old_repo_dir_stat.stat.exists
-
-- name: Remove pre-rename deployment ({{ old_repo_dir }})
-  tags: [repo]
-  ansible.builtin.file:
-    path: "{{ old_repo_dir }}"
-    state: absent
-  when: old_repo_dir_stat.stat.exists and final_env_stat.stat.exists
+  when: not env_stat.stat.exists and not legacy_env_stat.stat.exists
 
 - name: Install udev rules
   tags: [os]
