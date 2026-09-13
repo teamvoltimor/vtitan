@@ -22,9 +22,14 @@ import (
 
 type harnessConfig struct {
 	steps      int
+	configRoot string
 	cpuprofile string
 	memprofile string
 }
+
+// defaultConfigRoot is the repository config directory holding track.toml,
+// relative to the repo root.
+const defaultConfigRoot = "src/config"
 
 // Benchmark loop constants: a synthetic ray count plus the fixed start pose,
 // command inputs, and corridor width the harness exercises.
@@ -53,6 +58,12 @@ func main() {
 		},
 	}
 	root.Flags().IntVar(&cfg.steps, "steps", benchDefaultSteps, "number of scenario steps to run")
+	root.Flags().StringVar(
+		&cfg.configRoot,
+		"config-root",
+		defaultConfigRoot,
+		"repository config root holding track.toml (repo-root relative)",
+	)
 	root.Flags().StringVar(&cfg.cpuprofile, "cpuprofile", "", "write a CPU profile to this path")
 	root.Flags().StringVar(&cfg.memprofile, "memprofile", "", "write a memory profile to this path")
 
@@ -82,7 +93,16 @@ func run(cfg *harnessConfig) error {
 		steps = 1
 	}
 
-	tm := benchTrackModel()
+	robot, err := simconfig.LoadRobot(cfg.configRoot, simconfig.ActiveHardwareProfiles())
+	if err != nil {
+		return fmt.Errorf("load robot: %w", err)
+	}
+	track, err := simconfig.LoadTrack(cfg.configRoot, robot.RobotWidth)
+	if err != nil {
+		return fmt.Errorf("load track: %w", err)
+	}
+
+	tm := benchTrackModel(track)
 	k := benchKinematics()
 
 	angles := make([]float64, benchNumRays)
@@ -107,9 +127,9 @@ func run(cfg *harnessConfig) error {
 		float64(steps)/elapsed.Seconds())
 
 	if cfg.memprofile != "" {
-		f, err := os.Create(cfg.memprofile)
-		if err != nil {
-			return fmt.Errorf("creating mem profile: %w", err)
+		f, createErr := os.Create(cfg.memprofile)
+		if createErr != nil {
+			return fmt.Errorf("creating mem profile: %w", createErr)
 		}
 		defer f.Close()
 		if perr := pprof.WriteHeapProfile(f); perr != nil {
@@ -123,20 +143,20 @@ func run(cfg *harnessConfig) error {
 	return nil
 }
 
-func benchTrackGeometry() trackmodel.CorridorGeometry {
+func benchTrackGeometry(track *simconfig.Track) trackmodel.CorridorGeometry {
 	return trackmodel.CorridorGeometryFromWidths(map[trackmodel.Section]float64{
 		trackmodel.North: benchCorridorWidthM,
 		trackmodel.South: benchCorridorWidthM,
 		trackmodel.East:  benchCorridorWidthM,
 		trackmodel.West:  benchCorridorWidthM,
-	}, simconfig.TrackMaxCoord)
+	}, track.TrackMaxCoord)
 }
 
-func benchTrackModel() *collision.TrackModel {
+func benchTrackModel(track *simconfig.Track) *collision.TrackModel {
 	return collision.NewTrackModel(collision.NewTrackModelParams{
-		Geometry:           benchTrackGeometry(),
+		Geometry:           benchTrackGeometry(track),
 		MinCoordM:          0.0,
-		MaxCoordM:          simconfig.TrackMaxCoord,
+		MaxCoordM:          track.TrackMaxCoord,
 		Obstacles:          nil,
 		LidarSeesObstacles: false,
 		CollisionMarginM:   0.0,

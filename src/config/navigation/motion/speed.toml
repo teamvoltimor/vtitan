@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/motion/speed.schema.json
 # Speed control parameters, in ABSOLUTE m/s.
 #
 # See shared.config.navigation_tuning.SpeedControlParams. The drivetrain

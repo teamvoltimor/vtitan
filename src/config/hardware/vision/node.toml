@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/vision/node.schema.json
 # VisionNode ROS2 parameter fallback defaults -- src/ros2/vision/node.py
 # rpi5_nodes.launch.py overrides backend/model_path/camera_source/
 # publish_annotated/publish_raw at launch time via ROS2 parameters; these are

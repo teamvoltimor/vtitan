@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/waypoint/waypoints.schema.json
 # Waypoint generation geometry parameters.
 #
 # See shared.config.navigation_tuning.WaypointParams.

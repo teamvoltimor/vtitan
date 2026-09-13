@@ -82,4 +82,8 @@ const (
 	// consumed by anything in this package, kept only so SignColor mirrors
 	// the domain enum's full value set.
 	SignColorMagenta
+	// SignColorUnknown matches SignColor.UNKNOWN -- a cell with no colour
+	// vote. Never routed around: PassSideLateralAxis has no rule for it, so
+	// the slot map refuses to publish one.
+	SignColorUnknown
 )

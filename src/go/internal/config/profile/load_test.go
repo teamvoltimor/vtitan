@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -123,7 +124,12 @@ func TestLoad_TrackConfig(t *testing.T) {
 	if cfg.Corridor.DivisionLines != [2]float64{0.40, 0.60} {
 		t.Errorf("Corridor.DivisionLines = %v, want [0.40, 0.60]", cfg.Corridor.DivisionLines)
 	}
-	if cfg.StartingZone.SpawnAlignment != [3]string{"inner", "outer", "outer"} {
+	wantAlignment := [3]generated.SpawnAlignment{
+		generated.SpawnAlignmentInner,
+		generated.SpawnAlignmentOuter,
+		generated.SpawnAlignmentOuter,
+	}
+	if cfg.StartingZone.SpawnAlignment != wantAlignment {
 		t.Errorf(
 			"StartingZone.SpawnAlignment = %v, want [inner outer outer]",
 			cfg.StartingZone.SpawnAlignment,

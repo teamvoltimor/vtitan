@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/imu/bno08x_mcp2221_uart_rvc.schema.json",
+  "title": "HardwareImuBno08xMcp2221UartRvc",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "default_port": {
+      "type": "string",
+      "description": "Default port."
+    },
+    "baudrate": {
+      "type": "integer",
+      "description": "Baudrate."
+    },
+    "poll_rate_hz": {
+      "type": "number",
+      "description": "Poll rate hz."
+    },
+    "serial_timeout": {
+      "type": "number",
+      "description": "Driver-internal timing (see src/hardware/imu/bno08x/uart_rvc.py): a raw pyserial read/thread-join timeout, and how long to wait for new data."
+    },
+    "data_lock_timeout": {
+      "type": "number",
+      "description": "Data lock timeout."
+    },
+    "quaternion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "euler_sequence": {
+          "type": "string",
+          "description": "Euler sequence."
+        },
+        "negate_yaw": {
+          "type": "boolean",
+          "description": "Negate yaw."
+        },
+        "negate_pitch": {
+          "type": "boolean",
+          "description": "Negate pitch."
+        },
+        "negate_roll": {
+          "type": "boolean",
+          "description": "Negate roll."
+        }
+      },
+      "required": [
+        "euler_sequence",
+        "negate_yaw",
+        "negate_pitch",
+        "negate_roll"
+      ]
+    },
+    "mcp2221": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vid": {
+          "type": "string",
+          "description": "Vid."
+        },
+        "pid": {
+          "type": "string",
+          "description": "Pid."
+        }
+      },
+      "required": [
+        "vid",
+        "pid"
+      ]
+    }
+  },
+  "required": [
+    "default_port",
+    "baudrate",
+    "poll_rate_hz",
+    "serial_timeout",
+    "data_lock_timeout",
+    "quaternion",
+    "mcp2221"
+  ]
+}

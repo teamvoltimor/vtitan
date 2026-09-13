@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/button/gpio.schema.json
 # GPIO push-button driver -- src/hardware/button/gpio/driver.py
 # button_gpio_pin matches the field's validation_alias (which also accepts
 # the SHOUT_CASE BUTTON_GPIO_PIN env-var override), not its snake_case

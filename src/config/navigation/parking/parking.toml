@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/parking/parking.schema.json
 # Parallel-parking maneuver parameters.
 #
 # See shared.config.navigation_tuning.ParkingParams.

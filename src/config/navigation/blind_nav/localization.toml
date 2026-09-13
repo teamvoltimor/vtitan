@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/blind_nav/localization.schema.json
 # LIDAR-based pose search (LidarLocalizer) parameters.
 #
 # See shared.config.navigation_tuning.LocalizationParams.

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/state_machine/state_machine_node.schema.json",
+  "title": "HardwareStateMachineStateMachineNode",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "challenge_mode_samples_required": {
+      "type": "integer",
+      "description": "Challenge mode samples required."
+    },
+    "challenge_mode_timeout_sec": {
+      "type": "number",
+      "description": "Challenge mode timeout sec."
+    }
+  },
+  "required": [
+    "challenge_mode_samples_required",
+    "challenge_mode_timeout_sec"
+  ]
+}

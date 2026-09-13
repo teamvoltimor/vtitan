@@ -389,3 +389,8 @@ docstring-code-line-length = "dynamic"
 
 # Preview features (opt-in to new formatting)
 preview = false
+
+[lint.per-file-ignores]
+# Config schema tooling: a standalone script run from the repo root, not part of
+# a Python package. It prints progress and drives the generators.
+"src/tools/*.py" = ["INP001", "T201", "S603", "S607", "D103"]

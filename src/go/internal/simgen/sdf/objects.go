@@ -16,7 +16,7 @@ type parkingBlockSpec struct {
 
 // AddTrafficSigns appends one box model per sign to the world element.
 // positions and colors must be the same length.
-func AddTrafficSigns(world *Node, signs []simconfig.Sign) {
+func AddTrafficSigns(world *Node, track *simconfig.Track, robot *simconfig.Robot, signs []simconfig.Sign) {
 	for i, s := range signs {
 		var prefix string
 		if s.Color.Name == simconfig.ColorNameRed {
@@ -26,34 +26,34 @@ func AddTrafficSigns(world *Node, signs []simconfig.Sign) {
 		}
 		model := New("model", "name", fmt.Sprintf("%s%d", prefix, i))
 		model.SubT("static", "true")
-		model.SubT("pose", pose6(s.Position[0], s.Position[1], simconfig.SignZPosition, 0, 0, 0))
+		model.SubT("pose", pose6(s.Position[0], s.Position[1], track.SignZPosition, 0, 0, 0))
 		link := model.Sub("link", "name", "link")
-		AddBoxVisual(link, simconfig.SignWidth, simconfig.SignDepth, simconfig.SignHeight, s.Color.RGB, "visual")
-		AddBoxCollision(link, simconfig.SignWidth, simconfig.SignDepth, simconfig.SignHeight, "collision")
+		AddBoxVisual(link, track.SignWidth, track.SignDepth, track.SignHeight, s.Color.RGB, "visual")
+		AddBoxCollision(link, track.SignWidth, track.SignDepth, track.SignHeight, "collision")
 		world.Add(model)
 	}
 }
 
 // AddParkingLot appends the two parking limitation block models to the world element.
-func AddParkingLot(world *Node, cfg simconfig.ParkingConfig) {
-	parkColor := simconfig.ParkingColor
+func AddParkingLot(world *Node, track *simconfig.Track, robot *simconfig.Robot, cfg simconfig.ParkingConfig) {
+	parkColor := track.ParkingColor
 	for _, block := range []parkingBlockSpec{
 		{simconfig.ModelParkingBlock1, cfg.Block1Pos, cfg.Block1Yaw},
 		{simconfig.ModelParkingBlock2, cfg.Block2Pos, cfg.Block2Yaw},
 	} {
 		model := New("model", "name", block.name)
 		model.SubT("static", "true")
-		model.SubT("pose", pose6(block.pos[0], block.pos[1], simconfig.ParkingZPosition, 0, 0, block.yaw))
+		model.SubT("pose", pose6(block.pos[0], block.pos[1], track.ParkingZPosition, 0, 0, block.yaw))
 		link := model.Sub("link", "name", "link")
 		AddBoxVisual(
 			link,
-			simconfig.ParkingLength,
-			simconfig.ParkingWidth,
-			simconfig.ParkingHeight,
+			track.ParkingLength,
+			track.ParkingWidth,
+			track.ParkingHeight,
 			parkColor,
 			"visual",
 		)
-		AddBoxCollision(link, simconfig.ParkingLength, simconfig.ParkingWidth, simconfig.ParkingHeight, "collision")
+		AddBoxCollision(link, track.ParkingLength, track.ParkingWidth, track.ParkingHeight, "collision")
 		world.Add(model)
 	}
 }

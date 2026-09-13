@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/navigation/escape/escape.schema.json",
+  "title": "NavigationEscapeEscape",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "pose_trail_min_step_m": {
+      "type": "number",
+      "description": "Pose trail followed by a retrace-reverse: ground the chassis occupied a moment ago is known free without any rear-facing sensor, which is the only reason reversing blind is safe at all. Module constants in core_navigator until 2026-08-22.  The spacing is a distance-per-TICK threshold, so it interacts with speed: at 0.156 m/s and 20 Hz the chassis advances ~0.008 m per tick and a creeping robot's trail gets thinned as intended; at 0.234 m/s it advances ~0.012 m and nothing is thinned. Re-check this alongside any speed-profile change."
+    },
+    "pose_trail_len": {
+      "type": "integer",
+      "description": "~1.3 m of travel at the spacing above"
+    },
+    "rev_speed": {
+      "type": "number",
+      "description": "Reverse speed during escapes (m/s)"
+    },
+    "rev_steer_deg": {
+      "type": "number",
+      "description": "Road-wheel steering angle held while reversing out, in DEGREES.  Was rev_steering_scale = 0.8, a normalised fraction of full lock -- which named itself a scale while every call site used it as a magnitude (steering = value * side_sign), and which silently meant a different physical angle on every steering geometry: 44 deg at the bench-measured 55 deg limit, 68 deg on a 270 deg servo. 44.0 preserves the 55 deg behaviour exactly."
+    },
+    "k_turn_min_s": {
+      "type": "number",
+      "description": "Escape durations are in SECONDS, converted to control ticks at load by EscapeManeuverParams.frames(). They used to be frame counts, which silently mean a different duration at a different loop rate: 40 frames is 2 s at the shipped 20 Hz and 0.8 s at 50 Hz, so raising control_hz would have made the robot declare itself stuck 2.5x sooner and truncate every escape, with nothing raising and no value here edited. Each value below is the old frame count divided by 20, so behaviour at the shipped rate is unchanged. Minimum K-turn duration (OBSTACLE risk)"
+    },
+    "k_turn_max_s": {
+      "type": "number",
+      "description": "Maximum K-turn duration (CRITICAL risk)"
+    },
+    "k_turn_fit_rear_gap": {
+      "type": "boolean",
+      "description": "Cap the reverse above by the rear room the LIDAR actually measures, instead of committing the full duration chosen from FRONT severity alone. At rev_speed 0.20 m/s those two durations are 10.8 cm and 21.6 cm of reverse, against a rear gap measured at p50 17 cm / p10 7 cm over 46 escape episodes (09-10 bags) -- the reverse did not fit in 35% of them, and the existing rear guard cannot see it because it only checks the gap at the START of the manoeuvre. A CEILING, not a replacement: a reverse that fits is untouched, and an unmeasured rear sector is left alone rather than capped to zero.  Obstacles only. All of the evidence is Obstacles bags (the thing 7-17 cm behind the chassis is a pillar); Open escapes fire in corners against walls, where a shortened reverse under-rotates and re-triggers, feeding the corner escape loop that already costs ~20% of runs. Set k_turn_fit_rear_gap = true to extend it to Open -- unmeasured there."
+    },
+    "obstacles_k_turn_fit_rear_gap": {
+      "type": "boolean",
+      "description": "Obstacles k turn fit rear gap."
+    },
+    "slalom_reverse_s": {
+      "type": "number",
+      "description": "Time spent reversing during slalom"
+    },
+    "slalom_forward_s": {
+      "type": "number",
+      "description": "Time spent forward-turning during slalom"
+    },
+    "stuck_move_threshold": {
+      "type": "number",
+      "description": "Distance threshold (m) to detect stuck"
+    },
+    "stuck_timeout_s": {
+      "type": "number",
+      "description": "Time without movement before \"stuck\""
+    },
+    "side_correction_steer_deg": {
+      "type": "number",
+      "description": "Road-wheel steering angle for a side-threat correction, in DEGREES. Was side_correction_steer = 0.3 normalised; 16.5 deg is that value at the 55 deg road-wheel limit it was tuned against."
+    },
+    "side_correction_speed": {
+      "type": "number",
+      "description": "Forward speed during a side-threat correction"
+    },
+    "side_correction_s": {
+      "type": "number",
+      "description": "Duration of a side-threat correction"
+    },
+    "side_correction_blends": {
+      "type": "boolean",
+      "description": "Let a FORWARD side correction bias the planned steering instead of replacing it. A latched manoeuvre makes the navigator return before the planner runs, so the router's deformation is not merely overridden, it is never computed: measured 2026-09-11, the manoeuvre supplied 100% of the commanded steering while steer_target went unpublished on 92-93% of those ticks, and the two layers alternated at 2.7-4.4x absolute-over-signed wheel travel. side_correction dominates those windows 184/198 ticks against the k-turn's 22. Scoped to the forward nudge: a k-turn, a stuck reverse, or a side correction already reversing off a wall all still own the chassis outright. SHIPS OFF -- summing two steering signals can saturate the wheel. REFUTED and left off: the scoping is what makes it inert -- practically every side correction on hardware is the already-touching REVERSE branch, which this excludes. The forward nudge it qualifies is 44/12/0/0 ticks (0.8/0.3/0.0/0.0%) against 550/572/143/88 reversing, over the four 2026-09-11 Obstacles rounds."
+    },
+    "tick_router_during_maneuver": {
+      "type": "boolean",
+      "description": "Keep FEEDING the sign router while a maneuver holds the chassis. Not the same knob as side_correction_blends above: that one lets the planner STEER during a correction and is refuted; this one only keeps the map current and discards the deformed waypoint, so it cannot move the wheel.  What it addresses: step() returns early for a latched maneuver, so the router call -- which owns the blind discovery ingest, engage/pass bookkeeping and routed_sign_positions, the list the escape mask itself reads -- does not run at all for the maneuver's duration. Measured 2026-09-12 over three hardware rounds: 183 episodes, 22.3% of all ticks (150 s of 686 s), and 179 of 183 (97.8%) hold a CONSTANT steering value, up to 44 ticks / 2.2 s. For a quarter of the race the wheel is open-loop AND the sign map takes in nothing.  SHIPS OFF AND UNVALIDATED. Track access was lost before it could be run, and the sim cannot stand in for this class -- it exercises side_correction on 1.09% of ticks against hardware's 19-25%. Validate by re-running scripts/bag/diag_bag_planner_silence.py and scripts/bag/diag_bag_pass_side.py with the three 2026-09-12 rounds as the control arm."
+    },
+    "escalate_after_attempts": {
+      "type": "integer",
+      "description": "Consecutive escapes before escalating (longer duration, opposite side)"
+    },
+    "escape_side_commit_attempts": {
+      "type": "integer",
+      "description": "Attempts spent on one side before trying the other (1 = alternate every attempt, which cancels itself out)"
+    },
+    "max_escape_s": {
+      "type": "number",
+      "description": "Hard cap on any single escalated escape duration"
+    },
+    "stuck_confirmation_checks": {
+      "type": "integer",
+      "description": "Consecutive below-threshold checks before declaring \"stuck\""
+    },
+    "stuck_escalation_per_attempt_s": {
+      "type": "number",
+      "description": "Time added to a stuck-reverse duration per repeated attempt"
+    },
+    "stuck_history_floor_s": {
+      "type": "number",
+      "description": "Minimum position history kept, even when timeout*2 is smaller"
+    },
+    "min_history_for_distance": {
+      "type": "integer",
+      "description": "Written out 2026-09-05; existed only as a Python literal, so no edit to this file could reach it. Shipped value, so naming it changed nothing. Position samples needed before recent-movement distance is trusted"
+    },
+    "escape_mirrors_reverse": {
+      "type": "boolean",
+      "description": "Steer the OPPOSITE way on an escape's reverse leg, so the forward and reverse arcs curve opposite ways and rotation accumulates instead of cancelling. Measured 2026-09-11: 208 of 243 forward/reverse leg pairs (85.6%) hold the SAME sign today, which is the bay pendulum outside the bay.  FALSE shared, TRUE for Obstacles -- same split as k_turn_fit_rear_gap above, and for the same reason: the measurement is entirely from Obstacles bags (the thing being rocked against is a pillar), while Open escapes in corners against walls and sits at 638/640. The sim cannot screen either side; the first hardware round with this on IS the A/B."
+    },
+    "obstacles_escape_mirrors_reverse": {
+      "type": "boolean",
+      "description": "Obstacles escape mirrors reverse."
+    },
+    "escape_side_follows_committed_sign": {
+      "type": "boolean",
+      "description": "Steer a K-turn toward the side the ROUTER committed to passing on, instead of toward whichever +-45 deg side sector reads further away.  The two answer different questions -- \"which wall is nearer\" against \"which side of the PILLAR must I pass\" -- and they agree 56% of the time, 48-49% in a corner. MEASURED over 194 hardware escape episodes with a sign committed, 2026-09-12: when the steering agrees with the router the escape nets +0.050 m toward the pass and improves 87% of episodes; when it opposes, -0.017 m and 16%. So half the time the escape SPENDS the placement the plan bought.  REFUTED, do not re-try: that this is a near-tie the LIDAR cannot resolve. 18 of 37 opposing escapes were decided on a margin of 0.20 m or more.  SHIPS OFF. The gain is a contrafactual over observed episodes, not an A/B, and the simulator cannot screen it -- there the sign map is exact and the disagreement collapses to nothing. Turn on `obstacles_` only: the Open Challenge has no committed sign, so the shared flag is inert there anyway."
+    },
+    "obstacles_escape_side_follows_committed_sign": {
+      "type": "boolean",
+      "description": "Obstacles escape side follows committed sign."
+    },
+    "escape_side_override_min_clearance_m": {
+      "type": "number",
+      "description": "Clearance the router's side must ALREADY have before it may be forced. Not optional alongside the flag above: forcing a side in a 1.00 m corridor with no floor drives the chassis into the wall the LIDAR was right about.  ABSOLUTE, not a margin between sides. A relative band wide enough to catch the problem (0.20 m) also overrules 22 of the 49 episodes that choose correctly today; the sensitivity table sits at a ratio of 1.00 or worse from 0.05 m upward. An absolute floor only engages when the wanted side is physically shut. 0.12 is a shade over half the 0.194 m chassis width."
+    }
+  },
+  "required": [
+    "pose_trail_min_step_m",
+    "pose_trail_len",
+    "rev_speed",
+    "rev_steer_deg",
+    "k_turn_min_s",
+    "k_turn_max_s",
+    "k_turn_fit_rear_gap",
+    "obstacles_k_turn_fit_rear_gap",
+    "slalom_reverse_s",
+    "slalom_forward_s",
+    "stuck_move_threshold",
+    "stuck_timeout_s",
+    "side_correction_steer_deg",
+    "side_correction_speed",
+    "side_correction_s",
+    "side_correction_blends",
+    "tick_router_during_maneuver",
+    "escalate_after_attempts",
+    "escape_side_commit_attempts",
+    "max_escape_s",
+    "stuck_confirmation_checks",
+    "stuck_escalation_per_attempt_s",
+    "stuck_history_floor_s",
+    "min_history_for_distance",
+    "escape_mirrors_reverse",
+    "obstacles_escape_mirrors_reverse",
+    "escape_side_follows_committed_sign",
+    "obstacles_escape_side_follows_committed_sign",
+    "escape_side_override_min_clearance_m"
+  ]
+}

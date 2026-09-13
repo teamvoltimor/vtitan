@@ -39,10 +39,24 @@ type WaypointController struct {
 	// the lookahead starts sliding from long toward short. 1.0 (the
 	// default) reproduces a hard switch exactly.
 	LookaheadBlendStart float64
+	// TargetSearchSpanM is how far ALONG THE PATH SelectTargetPoint may walk,
+	// in metres. 0 means a whole lap -- see the span comment in
+	// SelectTargetPoint. Mirrors TARGET_SEARCH_SPAN_M.
+	TargetSearchSpanM float64
+	// TargetSenseGate rejects a candidate the chassis would reach by going
+	// round the loop the WRONG WAY. Mirrors TARGET_SENSE_GATE (ships false).
+	TargetSenseGate bool
 
 	prevSteeringRad   float64
 	crosstrackBudgetM *float64
 }
+
+// minSearchCandidates is how many waypoints SelectTargetPoint always
+// examines, whatever the span says. A path can legitimately be coarser than
+// the span (the bay's first few points, any synthetic path), and below a
+// handful of candidates the search stops being a search -- so the floor wins
+// over the span. Mirrors waypoint_controller._MIN_SEARCH_CANDIDATES.
+const minSearchCandidates = 5
 
 // EffectiveTransition is the crosstrack threshold actually in force, after
 // the wall budget, matching WaypointController.effective_transition.
@@ -101,8 +115,28 @@ func (w *WaypointController) SelectTargetPoint(
 	nearestAny := waypointsPath[((waypointIndex%n)+n)%n]
 	nearestAnyDist := math.Inf(1)
 
+	// How far ALONG THE PATH the scan may walk. Without a bound this loop
+	// wraps a whole lap and returns the first waypoint merely geometrically
+	// in front of the chassis -- which, once the chassis has turned toward
+	// the way it came, is on the FAR SIDE OF THE RING. Measured 2026-09-11:
+	// the selected target sat p50 2.08-2.50 m away at a bearing 97-140 deg
+	// BACKWARDS around the loop on 60-91% of ticks, while pure pursuit
+	// tracked it perfectly. A clean 3-lap control never selected a target
+	// beyond 0.91 m in 2533 ticks; 1.0 m removes every pathological pick and
+	// is raised to at least lookaheadDistance so it can never starve the
+	// search. The modulo stays, so the 2026-08-03 seam fix is untouched.
+	spanM := w.TargetSearchSpanM
+	walked := 0.0
 	for offset := range n {
-		wp := waypointsPath[(waypointIndex+offset)%n]
+		if spanM > 0.0 && offset >= minSearchCandidates && walked > max(spanM, lookaheadDistance) {
+			break
+		}
+		index := safeMod(waypointIndex+offset, n)
+		if offset > 0 {
+			prev := waypointsPath[safeMod(waypointIndex+offset-1, n)]
+			walked += math.Hypot(waypointsPath[index].X-prev.X, waypointsPath[index].Y-prev.Y)
+		}
+		wp := waypointsPath[index]
 		dx, dy := wp.X-pose.X, wp.Y-pose.Y
 		dist := math.Hypot(dx, dy)
 		if dist < nearestAnyDist {
@@ -111,6 +145,9 @@ func (w *WaypointController) SelectTargetPoint(
 		}
 		xLocal := dx*cosYaw + dy*sinYaw
 		if xLocal <= 0 {
+			continue
+		}
+		if w.TargetSenseGate && !agreesWithPathSense(dx, dy, dist, waypointsPath, waypointIndex+offset) {
 			continue
 		}
 		if dist >= lookaheadDistance {
@@ -184,6 +221,49 @@ func (w *WaypointController) ComputeSteering(
 	w.prevSteeringRad = steeringRad
 
 	return steeringRad / w.MaxSteeringAngle, lookahead, angleError
+}
+
+// agreesWithPathSense reports whether the chassis would reach a candidate
+// travelling the path's own way, matching
+// waypoint_controller._agrees_with_path_sense. The bearing from the pose to
+// the candidate is projected on the path's direction of travel AT the
+// candidate; a negative projection means the approach runs against the path
+// -- the candidate is reached by going round the loop the wrong way.
+//
+// This covers a different quantity from TargetSearchSpanM: a closed loop has
+// two tangent directions at every point, and a point one metre along the path
+// in the wrong sense is still one metre away and still in the forward
+// half-plane of a rotated chassis. Measured 2026-09-12: the span bound
+// converted the reversal rather than closing it (wrong-sense targets 56-91%
+// -> 2.8%, but target-behind-chassis 0.0% -> 35.4%).
+func agreesWithPathSense(dx, dy, dist float64, path []trackmodel.Waypoint, index int) bool {
+	if dist <= 0.0 {
+		return true
+	}
+	n := len(path)
+	wp := path[safeMod(index, n)]
+	next := path[safeMod(index+1, n)]
+	// A duplicated waypoint has no outgoing direction, so it cannot disagree.
+	px, py, ok := unitOrNone(next.X-wp.X, next.Y-wp.Y)
+	if !ok {
+		return true
+	}
+	return (dx/dist)*px+(dy/dist)*py > 0.0
+}
+
+// unitOrNone normalises (dx, dy), reporting false when it is too short to
+// have a bearing. Mirrors waypoint_controller._unit_or_none.
+func unitOrNone(dx, dy float64) (float64, float64, bool) {
+	n := math.Hypot(dx, dy)
+	if n <= 1e-12 {
+		return 0.0, 0.0, false
+	}
+	return dx / n, dy / n, true
+}
+
+// safeMod returns i mod n in [0, n), matching Python's % for negative i.
+func safeMod(i, n int) int {
+	return ((i % n) + n) % n
 }
 
 // demand is how far toward the short lookahead one signal asks to go, in

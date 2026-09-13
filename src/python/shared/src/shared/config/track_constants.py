@@ -1,12 +1,13 @@
-"""Mat geometry constants for the WRO 2026 Future Engineers track.
+"""Hand-written wrapper over the generated ``TrackConfig`` DTO.
 
-Loads ``src/config/track.toml`` directly at runtime -- the single
-source of truth also consumed by the Go ``simconfig`` package (regenerated via
-``task gen:track-constants``). Python used to read a checked-in generated
-module (``track_constants_gen.py``) instead, which duplicated the TOML into a
-second, driftable Python file; this reads the TOML itself, the same way
-:class:`~shared.config.navigation_tuning.NavigationTuning` reads its own TOML
-tree.
+The DTO (``shared.config.generated.track_config``) is generated from
+``src/config/schemas/track.schema.json`` and holds only the TOML's fields and
+their descriptions. Everything with behavior lives here: the exact-decimal
+derivations (band widths, corner size, spawn offsets), the ``division_lines``
+invariant, and the TOML loader.
+
+Kept behind the same public names the codebase already imports, so the split
+between generated DTO and hand-written wrapper is invisible to callers.
 """
 
 from __future__ import annotations
@@ -14,16 +15,38 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING, ClassVar
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import model_validator
+
+from shared.config.generated.track_schema import (
+    Corridor as _CorridorDTO,
+    Markings,
+    Parking,
+    Sign,
+    SpawnAlignment,
+    StartingZone,
+    Track as _TrackDTO,
+    TrackConfig as _TrackConfigDTO,
+    Wall,
+)
+from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-from shared.config.paths import SHARED_CONFIG_ROOT, TomlLoadableModel
+__all__ = [
+    "Corridor",
+    "Markings",
+    "Parking",
+    "Sign",
+    "StartingZone",
+    "Track",
+    "TrackConstants",
+    "Wall",
+]
 
 DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "track.toml"
-"""src/config/track.toml -- resolved via shared.config.paths rather
-than a fragile ``parents[N]`` relative to this file."""
+"""src/config/track.toml -- resolved via shared.config.paths rather than a
+fragile ``parents[N]`` relative to this file."""
 
 
 def _dec(x: float) -> Decimal:
@@ -32,25 +55,14 @@ def _dec(x: float) -> Decimal:
     ``Decimal(0.6) - Decimal(0.4)`` still goes through float64 first and
     reproduces the same ``0.19999999999999996`` error this exists to avoid;
     routing through ``str()`` reparses the shortest decimal string that
-    round-trips to that float, which for every value this TOML actually holds
-    is the value as written. Mirrors the Go generator's own use of
-    ``decimal.Decimal`` for this arithmetic -- see track_constants.gen.go's
-    package doc for why float64 alone is not closed over the TOML's values.
+    round-trips to that float, which for every value the TOML holds is the
+    value as written. Mirrors the Go generator's own decimal arithmetic.
     """
     return Decimal(str(x))
 
 
-class Track(BaseModel):
-    """Mat and driveable-track extents and the corner region."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    mat_size: float
-    size: float
-    min_coord: float
-    max_coord: float
-    corner_min: float
-    corner_max: float
+class Track(_TrackDTO):
+    """Mat and driveable-track extents, plus the derived center and corner size."""
 
     @property
     def center_coord(self) -> float:
@@ -63,40 +75,15 @@ class Track(BaseModel):
         return float(_dec(self.corner_max) - _dec(self.corner_min))
 
 
-class Wall(BaseModel):
-    """Exterior and interior wall dimensions."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    height: float
-    thickness: float
-    collision_thickness: float
-    exterior_offset: float
-    interior_offset: float
-    color: tuple[float, float, float]
-
-
-class Corridor(BaseModel):
-    """Legal corridor widths and the division lines that cut every corridor lengthwise."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    narrow: float
-    wide: float
-    obstacles: float
-    min_width: float
-    max_width: float
-    division_lines: tuple[float, ...]
+class Corridor(_CorridorDTO):
+    """Legal corridor widths, the division lines, and the bands they delimit."""
 
     @model_validator(mode="after")
     def _check_division_lines_increase(self) -> Corridor:
         """Reject division lines that don't strictly increase within the corridor.
 
-        Mirrors the Go generator's own ``Config.Validate`` -- Python now reads
-        track.toml directly instead of a checked-in generated file, so a bad
-        edit here used to be caught by Go codegen failing before the stale
-        (still-valid) generated file was ever overwritten. Reading the TOML
-        live bypasses that gate, so the same check has to live here too.
+        Reading the TOML live bypasses the Go generator's own ``Config.Validate``,
+        so the same check has to live here too.
         """
         prev = 0.0
         for i, line in enumerate(self.division_lines):
@@ -113,8 +100,9 @@ class Corridor(BaseModel):
     def band_widths(self) -> tuple[float, ...]:
         """Division lines converted into the widths of the bands they delimit.
 
-        Measured out from the outer wall across a full-width corridor: lines
-        at 0.40 and 0.60 in a 1.0 m corridor give (0.40, 0.20, 0.40).
+        Measured out from the outer wall across a full-width corridor: lines at
+        0.40 and 0.60 in a 1.0 m corridor give (0.40, 0.20, 0.40). Exact-decimal
+        so the middle band is 0.2, not 0.19999999999999996.
         """
         bands = []
         prev = Decimal(0)
@@ -130,80 +118,22 @@ class Corridor(BaseModel):
         return self.band_widths[1]
 
 
-class Sign(BaseModel):
-    """Traffic pillar dimensions, grid rows and colours."""
+class TrackConstants(_TrackConfigDTO):
+    """Mat geometry constants, loaded from track.toml.
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    width: float
-    depth: float
-    height: float
-    z_position: float
-    grid_depth_near: float
-    grid_depth_middle: float
-    grid_depth_far: float
-    placement_circle_diameter: float
-    min_count: int
-    max_count: int
-    red_color: tuple[float, float, float]
-    green_color: tuple[float, float, float]
-    red_std: tuple[float, float, float]
-    green_std: tuple[float, float, float]
-
-
-class Parking(BaseModel):
-    """Magenta parking block dimensions and bay sizing."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    length: float
-    width: float
-    height: float
-    z_position: float
-    wall_offset: float
-    spacing_factor: float
-    color: tuple[float, float, float]
-
-
-class StartingZone(BaseModel):
-    """Starting square's cell size, appearance and per-band spawn alignment."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    default_length: float
-    thickness: float
-    obstacles_size_factor: float
-    indicator_radius: float
-    color: tuple[float, float, float]
-    clockwise_color: tuple[float, float, float]
-    counterclockwise_color: tuple[float, float, float]
-    spawn_alignment: tuple[str, ...]
-
-
-class Markings(BaseModel):
-    """Corner-line colours and angle painted on the mat."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    orange_color: tuple[float, float, float]
-    blue_color: tuple[float, float, float]
-    angle: int
-
-
-class TrackConstants(TomlLoadableModel):
-    """Mat geometry constants, loaded from track.toml."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    Subclasses the generated DTO purely to attach the derived values and the
+    loader; the field declarations are all generated.
+    """
 
     track: Track
-    wall: Wall
     corridor: Corridor
-    sign: Sign
-    parking: Parking
-    starting_zone: StartingZone
-    markings: Markings
 
     default_config_path: ClassVar[Path] = DEFAULT_CONFIG_PATH
+
+    @classmethod
+    def load_default(cls) -> TrackConstants:
+        """Load and validate from track.toml."""
+        return load_toml_model(cls, DEFAULT_CONFIG_PATH)
 
     @property
     def cell_centers_along(self) -> tuple[float, float]:
@@ -221,15 +151,13 @@ class TrackConstants(TomlLoadableModel):
 
         Derived by pushing the chassis flush against the band edge named in
         ``starting_zone.spawn_alignment``, never centred: one band edge is a
-        painted line the robot can sit against harmlessly, the other may be
-        the inner block, so splitting the slack evenly would spend half the
-        margin on the line. Deriving rather than declaring is what keeps the
-        placement correct across a chassis re-measurement.
+        painted line the robot can sit against harmlessly, the other may be the
+        inner block, so splitting the slack evenly would spend half the margin
+        on the line.
 
         Args:
-            chassis_width: Robot chassis width (m) -- ``RobotConstants``'s
-                ``chassis.width``, passed in rather than read here so this
-                model has no dependency on ``RobotConstants``.
+            chassis_width: Robot chassis width (m), passed in rather than read
+                here so this model has no dependency on RobotConstants.
 
         Returns:
             One offset per band, in the same order as ``spawn_alignment``.
@@ -250,9 +178,9 @@ class TrackConstants(TomlLoadableModel):
                 msg = f"band {i} is {band} m wide, narrower than the {chassis_width} m chassis, so no start fits in it"
                 raise ValueError(msg)
             match alignment[i]:
-                case "outer":
+                case SpawnAlignment.outer:
                     offsets.append(lo + half)
-                case "inner":
+                case SpawnAlignment.inner:
                     offsets.append(hi - half)
                 case other:
                     msg = f'starting_zone.spawn_alignment[{i}] = "{other}", want "outer" or "inner"'

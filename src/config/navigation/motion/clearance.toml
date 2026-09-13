@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/motion/clearance.schema.json
 # LIDAR clearance thresholds for speed control (meters).
 #
 # Zones around the robot where speed is controlled based on obstacle

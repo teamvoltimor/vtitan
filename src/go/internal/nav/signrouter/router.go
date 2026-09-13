@@ -7,6 +7,7 @@
 package signrouter
 
 import (
+	"maps"
 	"math"
 	"slices"
 	"sort"
@@ -131,6 +132,39 @@ func (r *SignRouter) AppendSign(spec SignSpec) int {
 	idx := len(r.signs) - 1
 	r.signCorridors = append(r.signCorridors, r.corridorForSpec(spec))
 	return idx
+}
+
+// CommittedIndex is the sign index currently being routed around, or nil,
+// matching the committed property. The discovery map reads it to freeze the
+// committed slot so a commitment can never have the object it is steering
+// around swapped underneath it.
+func (r *SignRouter) CommittedIndex() *int {
+	if r.committed == nil {
+		return nil
+	}
+	v := *r.committed
+	return &v
+}
+
+// PassedIndices returns a snapshot of the sign indices marked passed this lap,
+// matching the _passed set. The discovery map reads it so a passed index is
+// never re-pointed (the new pillar would inherit the "behind us" flag and
+// vanish for the lap).
+func (r *SignRouter) PassedIndices() map[int]struct{} {
+	out := make(map[int]struct{}, len(r.passed))
+	maps.Copy(out, r.passed)
+	return out
+}
+
+// UpdateSign refreshes a published sign's spec in place, matching
+// _ingest_observations' refinement of _signs[index] from the map's published
+// track. Its corridor is re-derived exactly as AppendSign derives it.
+func (r *SignRouter) UpdateSign(index int, spec SignSpec) {
+	if index < 0 || index >= len(r.signs) {
+		return
+	}
+	r.signs[index] = spec
+	r.signCorridors[index] = r.corridorForSpec(spec)
 }
 
 // LaneSpecs returns every routed sign paired with the corridor label the

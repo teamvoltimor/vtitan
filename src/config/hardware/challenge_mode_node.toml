@@ -1,3 +1,4 @@
+#:schema ../../model/hardware/challenge_mode_node.schema.json
 # challenge_mode_node's own republish cadence -- src/ros2 has no equivalent
 # module; see vtitan_drivers/vtitan_drivers/challenge_mode_node.py.
 # Distinct from challenge_mode.toml alongside this file, which is the GPIO

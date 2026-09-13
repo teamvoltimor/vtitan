@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/imu/bno08x_uart_rvc.schema.json
 # BNO08x IMU over plain UART RVC -- src/hardware/imu/bno08x/uart_rvc.py
 # port: device path stays in .env (BNO08X_UART_RVC_PORT) by preference, but
 # falls back to default_port if unset. Override per-unit with env var if needed.

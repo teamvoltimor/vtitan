@@ -5,15 +5,17 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig/simconfigtest"
 )
 
 func TestApplyScenarioToSection_InvalidID(t *testing.T) {
 	t.Parallel()
-	_, err := generate.ApplyScenarioToSection(0, simconfig.SectionSouth)
+	track := simconfigtest.Load(t)
+	_, err := generate.ApplyScenarioToSection(track, 0, simconfig.SectionSouth)
 	if err == nil {
 		t.Fatal("expected error for scenario ID 0")
 	}
-	_, err = generate.ApplyScenarioToSection(37, simconfig.SectionSouth)
+	_, err = generate.ApplyScenarioToSection(track, 37, simconfig.SectionSouth)
 	if err == nil {
 		t.Fatal("expected error for scenario ID 37")
 	}
@@ -21,8 +23,9 @@ func TestApplyScenarioToSection_InvalidID(t *testing.T) {
 
 func TestApplyScenarioToSection_SouthIdentity(t *testing.T) {
 	t.Parallel()
+	track := simconfigtest.Load(t)
 	// South is the template section — positions must come through unchanged.
-	pillars, err := generate.ApplyScenarioToSection(1, simconfig.SectionSouth)
+	pillars, err := generate.ApplyScenarioToSection(track, 1, simconfig.SectionSouth)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -37,9 +40,10 @@ func TestApplyScenarioToSection_SouthIdentity(t *testing.T) {
 
 func TestApplyScenarioToSection_AllScenariosAllSections(t *testing.T) {
 	t.Parallel()
+	track := simconfigtest.Load(t)
 	for id := 1; id <= 36; id++ {
 		for _, section := range simconfig.AllSections {
-			pillars, err := generate.ApplyScenarioToSection(id, section)
+			pillars, err := generate.ApplyScenarioToSection(track, id, section)
 			if err != nil {
 				t.Errorf("scenario %d section %s: unexpected error: %v", id, section, err)
 				continue
@@ -48,10 +52,10 @@ func TestApplyScenarioToSection_AllScenariosAllSections(t *testing.T) {
 				t.Errorf("scenario %d section %s: expected at least one pillar", id, section)
 			}
 			for _, p := range pillars {
-				if p.X < 0 || p.X > simconfig.TrackMaxCoord {
+				if p.X < 0 || p.X > track.TrackMaxCoord {
 					t.Errorf("scenario %d section %s: pillar X %v out of bounds", id, section, p.X)
 				}
-				if p.Y < 0 || p.Y > simconfig.TrackMaxCoord {
+				if p.Y < 0 || p.Y > track.TrackMaxCoord {
 					t.Errorf("scenario %d section %s: pillar Y %v out of bounds", id, section, p.Y)
 				}
 				if p.Color != simconfig.ColorNameRed && p.Color != simconfig.ColorNameGreen {
@@ -64,9 +68,10 @@ func TestApplyScenarioToSection_AllScenariosAllSections(t *testing.T) {
 
 func TestApplyScenarioToSection_DoublePillarCount(t *testing.T) {
 	t.Parallel()
+	track := simconfigtest.Load(t)
 	// Scenarios 13–36 are double pillars
 	for id := 13; id <= 36; id++ {
-		pillars, err := generate.ApplyScenarioToSection(id, simconfig.SectionSouth)
+		pillars, err := generate.ApplyScenarioToSection(track, id, simconfig.SectionSouth)
 		if err != nil {
 			t.Errorf("scenario %d: unexpected error: %v", id, err)
 			continue

@@ -1,3 +1,4 @@
+#:schema ../../../model/robot.schema.json
 # Steering servo: Hiwonder 35 kg, 270 degree range (the current build).
 #
 # One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE --

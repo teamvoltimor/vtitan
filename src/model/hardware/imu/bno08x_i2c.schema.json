@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/imu/bno08x_i2c.schema.json",
+  "title": "HardwareImuBno08xI2c",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enable_sensors_delay": {
+      "type": "number",
+      "description": "Enable sensors delay."
+    }
+  },
+  "required": [
+    "enable_sensors_delay"
+  ]
+}

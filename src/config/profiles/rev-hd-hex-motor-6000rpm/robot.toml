@@ -1,3 +1,4 @@
+#:schema ../../../model/robot.schema.json
 # Drive motor: REV HD Hex 6000 rpm (the current build).
 #
 # One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE --

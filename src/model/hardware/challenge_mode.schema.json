@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/challenge_mode.schema.json",
+  "title": "HardwareChallengeMode",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "challenge_mode_gpio_pin": {
+      "type": "integer",
+      "description": "Challenge mode gpio pin."
+    }
+  },
+  "required": [
+    "challenge_mode_gpio_pin"
+  ]
+}

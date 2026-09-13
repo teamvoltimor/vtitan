@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/hailo.schema.json",
+  "title": "HardwareHailo",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "model_path": {
+      "type": "string",
+      "description": "Model path."
+    },
+    "inference_timeout_ms": {
+      "type": "integer",
+      "description": "Inference timeout ms."
+    },
+    "benchmark_iterations": {
+      "type": "integer",
+      "description": "Benchmark iterations."
+    },
+    "data_yaml_path": {
+      "type": "string",
+      "description": "Data yaml path."
+    }
+  },
+  "required": [
+    "model_path",
+    "inference_timeout_ms",
+    "benchmark_iterations",
+    "data_yaml_path"
+  ]
+}

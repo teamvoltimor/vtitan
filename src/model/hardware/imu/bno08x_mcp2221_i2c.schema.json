@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/imu/bno08x_mcp2221_i2c.schema.json",
+  "title": "HardwareImuBno08xMcp2221I2c",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "imu_i2c_address": {
+      "type": "string",
+      "description": "Imu i2c address."
+    }
+  },
+  "required": [
+    "imu_i2c_address"
+  ]
+}

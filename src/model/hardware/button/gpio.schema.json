@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/button/gpio.schema.json",
+  "title": "HardwareButtonGpio",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "button_gpio_pin": {
+      "type": "integer",
+      "description": "Button gpio pin."
+    },
+    "button": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pull_up": {
+          "type": "boolean",
+          "description": "Pull up."
+        },
+        "debounce_ms": {
+          "type": "integer",
+          "description": "Debounce ms."
+        },
+        "long_press_threshold_sec": {
+          "type": "number",
+          "description": "Long press threshold sec."
+        },
+        "shutdown_press_threshold_sec": {
+          "type": "number",
+          "description": "Shutdown press threshold sec."
+        }
+      },
+      "required": [
+        "pull_up",
+        "debounce_ms",
+        "long_press_threshold_sec",
+        "shutdown_press_threshold_sec"
+      ]
+    }
+  },
+  "required": [
+    "button_gpio_pin",
+    "button"
+  ]
+}

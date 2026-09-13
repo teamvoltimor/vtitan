@@ -1,3 +1,4 @@
+#:schema ../../model/hardware/challenge_mode.schema.json
 # Challenge-mode jumper GPIO driver -- src/hardware/challenge_mode/config.py
 # Wired to the PI ZERO; this file matters on the Zero's checkout, not Pi 5's.
 

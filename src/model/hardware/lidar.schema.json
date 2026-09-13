@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/lidar.schema.json",
+  "title": "HardwareLidar",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "serial_port": {
+      "type": "string",
+      "description": "Serial port."
+    },
+    "serial_baudrate": {
+      "type": "integer",
+      "description": "Serial baudrate."
+    },
+    "scan_mode": {
+      "type": "string",
+      "description": "Scan mode."
+    },
+    "angle_compensate": {
+      "type": "boolean",
+      "description": "Angle compensate."
+    }
+  },
+  "required": [
+    "serial_port",
+    "serial_baudrate",
+    "scan_mode",
+    "angle_compensate"
+  ]
+}

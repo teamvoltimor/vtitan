@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/blind_nav/corridor_follower.schema.json
 # Blind corridor-following and corner-turn parameters.
 #
 # See shared.config.navigation_tuning.CorridorFollowerParams.

@@ -1,3 +1,4 @@
+#:schema ../../model/hardware/hailo.schema.json
 # Hailo AI configuration -- src/hardware/hailo/config.py
 
 model_path = "/usr/local/hailo/models/gmr.hef"

@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/blind_nav/direction_estimator.schema.json
 # Blind travel-direction inference parameters.
 #
 # See shared.config.navigation_tuning.DirectionEstimatorParams.

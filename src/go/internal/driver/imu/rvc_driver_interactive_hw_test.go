@@ -88,10 +88,15 @@ func TestHW_IMU_Rotate_Dynamic(t *testing.T) {
 
 	const plausibilityDeg = 10.0
 	if maxDelta < plausibilityDeg {
-		t.Fatalf("HW FAIL: IMU readings barely moved (max delta %.2f deg) despite rotation -- sensor not tracking", maxDelta)
+		t.Fatalf(
+			"HW FAIL: IMU readings barely moved (max delta %.2f deg) despite rotation -- sensor not tracking",
+			maxDelta,
+		)
 	}
 
-	if !waitForAck(fmt.Sprintf("Did the board actually rotate and the angles track it (max delta %.1f deg)?", maxDelta)) {
+	if !waitForAck(
+		fmt.Sprintf("Did the board actually rotate and the angles track it (max delta %.1f deg)?", maxDelta),
+	) {
 		t.Fatalf("HW FAIL: operator did not confirm IMU tracked rotation")
 	}
 

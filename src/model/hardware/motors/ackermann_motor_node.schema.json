@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/motors/ackermann_motor_node.schema.json",
+  "title": "HardwareMotorsAckermannMotorNode",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "publisher_rate_hz": {
+      "type": "number",
+      "description": "Publisher rate hz."
+    },
+    "diagnostics_rate_hz": {
+      "type": "number",
+      "description": "Diagnostics rate hz."
+    }
+  },
+  "required": [
+    "publisher_rate_hz",
+    "diagnostics_rate_hz"
+  ]
+}

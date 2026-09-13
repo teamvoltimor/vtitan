@@ -9,6 +9,16 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
+// blindFollowSpeedMPS is the speed the blind bootstrap follows at, both for
+// the creep along the corridor and for the in-bay exit. Matches Python's
+// ScenarioSimulator._blind_follow_speed, which is speed.medium_mps() -- the
+// MEDIUM tier (0.1326 m/s), NOT the creep tier. The creep tier (0.1014) is a
+// separate, slower policy used elsewhere; using it here made Go's blind phase
+// run ~24% slower than the Python oracle.
+func (n *Navigator) blindFollowSpeedMPS() float64 {
+	return n.cfg.MediumSpeedMPS()
+}
+
 // blindCreep drives the BLIND_CREEP phase: creep along the corridor centred
 // between visible walls, infer the travel direction from LIDAR, and accumulate
 // camera sign detections, matching CoreNavigator.step's blind bootstrap. Once
@@ -124,7 +134,7 @@ func (n *Navigator) updateBayExit(
 	if n.bayExit == nil {
 		n.bayExit = bayexit.New()
 	}
-	cmd := n.bayExit.Command(scan, odom.DistanceM, n.cfg.CreepSpeedMPS(), n.bayExitCfg, &pose.Yaw)
+	cmd := n.bayExit.Command(scan, odom.DistanceM, n.blindFollowSpeedMPS(), n.bayExitCfg, &pose.Yaw)
 	n.gateway.PublishDrive(cmd)
 	debug.CommandedSpeedMPS = new(cmd.SpeedMPS)
 	debug.CommandedSteerNorm = new(cmd.SteeringNorm)
@@ -175,7 +185,7 @@ func (n *Navigator) adoptDirection(
 func (n *Navigator) creepFollow(pose trackmodel.Pose, scan controllers.LidarScan, debug DebugSnapshot) {
 	yaw := pose.Yaw
 	followParams := corridorfollower.Params{
-		SpeedMPS:       n.cfg.CreepSpeedMPS(),
+		SpeedMPS:       n.blindFollowSpeedMPS(),
 		Yaw:            &yaw,
 		ForcedTurnSide: n.signDodgeSide(pose),
 	}

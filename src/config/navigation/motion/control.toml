@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/motion/control.schema.json
 # Navigation control loop rate.
 #
 # See shared.config.navigation_tuning.ControlLoopParams.

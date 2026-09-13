@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/motors/l298n.schema.json
 # L298N drive H-bridge PWM -- src/hardware/motors/l298n/config.py
 
 pwmchip = 0

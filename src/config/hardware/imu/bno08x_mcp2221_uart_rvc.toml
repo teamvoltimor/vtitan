@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/imu/bno08x_mcp2221_uart_rvc.schema.json
 # BNO08x IMU via MCP2221A UART RVC bridge -- the actively deployed IMU
 # backend (src/hardware/imu/bno08x/mcp2221/uart_rvc.py). port: device path
 # stays in .env (BNO08X_UART_RVC_PORT) by preference, but falls back to

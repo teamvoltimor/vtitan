@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/simulation/simulation.schema.json
 # Knobs that exist only in the headless simulator.
 #
 # See shared.config.navigation_tuning.SimulationParams.

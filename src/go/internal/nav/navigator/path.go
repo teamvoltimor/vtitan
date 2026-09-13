@@ -151,6 +151,11 @@ func (n *Navigator) Reset() {
 	if n.signRouter != nil {
 		n.signRouter.ResetForNewLap()
 	}
+	if n.discovery != nil {
+		// Passed indices come back next lap, so the discovery map's retired
+		// set must clear with the router's own.
+		n.discovery.ResetForNewLap()
+	}
 }
 
 // handleFinish handles the post-final-lap phase, matching _handle_finish.
@@ -258,6 +263,9 @@ func (n *Navigator) handleWaypointWrap(pose trackmodel.Pose) bool {
 	n.logger.Info("lap complete (waypoint-only fallback)", "laps_completed", n.lapsCompleted)
 	if n.signRouter != nil {
 		n.signRouter.ResetForNewLap()
+	}
+	if n.discovery != nil {
+		n.discovery.ResetForNewLap()
 	}
 	debug := n.baseDebug(pose)
 	debug.Phase = PhaseWaypointWrapFallback

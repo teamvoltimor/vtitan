@@ -7,6 +7,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig/simconfigtest"
 )
 
 const spacingTolerance = 1e-9
@@ -18,7 +19,9 @@ const spacingTolerance = 1e-9
 // producing a bay exactly as long as the car with zero room to maneuver.
 func TestGenerateParkingLotPositions_SpacingClearsRobotLength(t *testing.T) {
 	t.Parallel()
-	r := generate.NewRandomizer(rand.New(rand.NewSource(1)))
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	r := generate.NewRandomizer(track, robot, rand.New(rand.NewSource(1)))
 
 	for _, section := range simconfig.AllSections {
 		for trial := range 20 {
@@ -35,14 +38,14 @@ func TestGenerateParkingLotPositions_SpacingClearsRobotLength(t *testing.T) {
 				spacing = -spacing
 			}
 
-			if spacing <= simconfig.RobotLength {
+			if spacing <= robot.RobotLength {
 				t.Fatalf(
 					"section %s trial %d: parking bay spacing %.3fm does not clear RobotLength %.3fm",
-					section, trial, spacing, simconfig.RobotLength,
+					section, trial, spacing, robot.RobotLength,
 				)
 			}
 
-			wantSpacing := simconfig.ParkingSpacingFactor * simconfig.RobotLength
+			wantSpacing := track.ParkingSpacingFactor * robot.RobotLength
 			if math.Abs(spacing-wantSpacing) > spacingTolerance {
 				t.Fatalf(
 					"section %s trial %d: spacing = %.3fm, want ParkingSpacingFactor*RobotLength = %.3fm",

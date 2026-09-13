@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/signs/sign_router.schema.json
 # Traffic-sign avoidance routing parameters.
 #
 # See shared.config.navigation_tuning.SignRouterParams.

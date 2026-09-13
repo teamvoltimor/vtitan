@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/escape/escape.schema.json
 # Escape maneuver parameters for collision recovery (K-turn, slalom, side
 # correction).
 #

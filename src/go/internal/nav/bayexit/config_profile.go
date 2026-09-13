@@ -78,6 +78,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 			"config_root", configRoot, "error", err)
 	} else {
 		cfg.MaxSteeringRateRadPerS = p.MaxSteeringRate
+		cfg.ServoSlewRateRadPerS = p.ServoSlewRateRadS
 	}
 
 	return cfg

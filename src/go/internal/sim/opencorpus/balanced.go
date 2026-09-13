@@ -82,7 +82,7 @@ var comboSectionOrder = [4]simconfig.Section{
 // as in Python. Varying the seed draws an independent balanced corpus, which
 // is the honest way to check a result is not an artifact of one spawn
 // assignment.
-func Balanced128(seed uint64) ([]Params, error) {
+func Balanced128(track *simconfig.Track, robot *simconfig.Robot, seed uint64) ([]Params, error) {
 	combos := make([]balancedCombo, 0, Balanced128Size)
 	for i := range WidthLayoutCount {
 		widths := widthSetFromProductIndex(i)
@@ -92,7 +92,7 @@ func Balanced128(seed uint64) ([]Params, error) {
 					widths:    widths,
 					section:   section,
 					direction: direction,
-					cellCount: widths.StartCellCount(section),
+					cellCount: widths.StartCellCount(track, robot, section),
 				})
 			}
 		}
@@ -121,7 +121,7 @@ func Balanced128(seed uint64) ([]Params, error) {
 	// "case 300" would name one scenario in a 640 sweep and a different one
 	// in a screening run.
 	byKey := make(map[balancedKey]Params, fullSpaceCapacity)
-	for _, p := range Space() {
+	for _, p := range Space(track, robot) {
 		byKey[keyOf(p)] = p
 	}
 

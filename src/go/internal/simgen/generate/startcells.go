@@ -9,7 +9,7 @@ type StartCell struct {
 	// corridor by BandWidth across it.
 	ZoneCentre simconfig.Vec2
 	// Spawn is where the robot is placed inside that cell. It is offset from
-	// ZoneCentre across the corridor - see simconfig.StartingZoneSpawnOffsets
+	// ZoneCentre across the corridor - see simconfig.Track.StartingZoneSpawnOffsets
 	// for why the two differ.
 	Spawn simconfig.Vec2
 	// BandWidth is the cross-corridor width of the band the cell sits in, and
@@ -27,8 +27,8 @@ const bandFitEpsilon = 1e-9
 // cell hard against the outer wall.
 //
 // Each side of the mat carries a marked square, a meter along the corridor by
-// a meter across, split into simconfig.StartingZoneBandWidths out from the
-// outer wall, each band into two cells of simconfig.StartingZoneDefaultLength.
+// a meter across, split into track.StartingZoneBandWidths out from the
+// outer wall, each band into two cells of track.StartingZoneDefaultLength.
 // A band is a legal start only while it lies inside the corridor; past the
 // corridor's inner edge the band is under the centre square. So a narrow
 // (0.6 m) corridor yields four cells and a wide (1.0 m) one yields six.
@@ -39,11 +39,11 @@ const bandFitEpsilon = 1e-9
 // scaled its offsets with the corridor, so it emitted six positions whatever
 // the width and could straddle a band boundary — at 0.42 of a narrow corridor
 // the 0.20 m chassis spans 0.32 to 0.52, sitting in two bands at once.
-func StartCells(section simconfig.Section, corridorWidth float64) []StartCell {
-	trackMax := simconfig.TrackMaxCoord
+func StartCells(track *simconfig.Track, section simconfig.Section, corridorWidth float64) []StartCell {
+	trackMax := track.TrackMaxCoord
 	// The square occupies the middle meter of the side, leaving a meter of
 	// corner region at each end; the two cells sit either side of the midpoint.
-	alongs := [2]float64{simconfig.GridLengthSectionLeft, simconfig.GridLengthSectionRight}
+	alongs := [2]float64{track.GridLengthSectionLeft, track.GridLengthSectionRight}
 
 	appendCells := func(cells []StartCell, zoneAcross, spawnAcross, band float64) []StartCell {
 		for _, along := range alongs {
@@ -58,14 +58,14 @@ func StartCells(section simconfig.Section, corridorWidth float64) []StartCell {
 		return cells
 	}
 
-	cells := make([]StartCell, 0, 2*len(simconfig.StartingZoneBandWidths))
+	cells := make([]StartCell, 0, 2*len(track.StartingZoneBandWidths))
 	edge := 0.0
-	for i, band := range simconfig.StartingZoneBandWidths {
+	for i, band := range track.StartingZoneBandWidths {
 		farEdge := edge + band
 		if farEdge > corridorWidth+bandFitEpsilon {
 			break
 		}
-		cells = appendCells(cells, edge+band/2, simconfig.StartingZoneSpawnOffsets[i], band)
+		cells = appendCells(cells, edge+band/2, track.StartingZoneSpawnOffsets[i], band)
 		edge = farEdge
 	}
 

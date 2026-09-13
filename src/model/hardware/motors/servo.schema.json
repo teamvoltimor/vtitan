@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/motors/servo.schema.json",
+  "title": "HardwareMotorsServo",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "gpio_pin": {
+      "type": "integer",
+      "description": "Gpio pin."
+    },
+    "pwmchip": {
+      "type": "integer",
+      "description": "Pwmchip."
+    },
+    "pwm_channel": {
+      "type": "integer",
+      "description": "Pwm channel."
+    },
+    "min_pulse_us": {
+      "type": "number",
+      "description": "Min pulse us."
+    },
+    "max_pulse_us": {
+      "type": "number",
+      "description": "Max pulse us."
+    },
+    "range_deg": {
+      "type": "number",
+      "description": "Range deg."
+    },
+    "center_pulse_us": {
+      "type": "number",
+      "description": "Center pulse us."
+    },
+    "reversed": {
+      "type": "boolean",
+      "description": "Reversed."
+    },
+    "pwm_frequency_hz": {
+      "type": "integer",
+      "description": "Pwm frequency hz."
+    }
+  },
+  "required": [
+    "gpio_pin",
+    "pwmchip",
+    "pwm_channel",
+    "min_pulse_us",
+    "max_pulse_us",
+    "range_deg",
+    "center_pulse_us",
+    "reversed",
+    "pwm_frequency_hz"
+  ]
+}

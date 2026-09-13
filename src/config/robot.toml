@@ -1,3 +1,4 @@
+#:schema ../model/robot.schema.json
 # Single source of truth for the WRO robot's physical constants (custom chassis, counter-phase
 # four-wheel steering). Measured 2026-07-11 — see src/docs/robot-physical-constants.md.
 #

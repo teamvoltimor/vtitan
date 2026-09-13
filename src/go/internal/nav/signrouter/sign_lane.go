@@ -42,6 +42,10 @@ type SignLaneParams struct {
 	// SkipUnsatisfiable drops a sign whose clamped target is on the
 	// forbidden side of it, matching SIGN_LANE_SKIP_UNSATISFIABLE.
 	SkipUnsatisfiable bool
+	// GapCentreFrac moves a squeezed plateau off the boundary-clearance limit
+	// toward the midpoint of its free gap. 0.0 is the clamped placement,
+	// 1.0 full centring, matching gap_centre_frac / SIGN_LANE_GAP_CENTRE_FRAC.
+	GapCentreFrac float64
 	// CornerEntryM is how far past the corridor's straight the lane may
 	// extend into the corner arcs either side (m); 0.0 confines it to the
 	// straight, matching SIGN_LANE_CORNER_ENTRY_M.
@@ -113,7 +117,9 @@ func signPlateaux(
 			trackmodel.Waypoint{X: entry.Spec.X, Y: entry.Spec.Y},
 			axis,
 		)
-		target := ClampLateral(signLateral+float64(mult)*params.LateralOffsetM, corridor, cfg)
+		target := PassLateral(
+			signLateral, mult, corridor, params.LateralOffsetM, params.GapCentreFrac, cfg,
+		)
 		if params.SkipUnsatisfiable && (target-signLateral)*float64(mult) <= 0.0 {
 			// The clamp put this sign's own target on the forbidden side of
 			// it, so every point of its plateau would violate the rule it
@@ -275,46 +281,118 @@ func medianLateral(waypoints []trackmodel.Waypoint, axis Axis, indices, straight
 	return laterals[len(laterals)/2]
 }
 
-// applyLaneToCorridor rewrites result's waypoints (in place) within one
-// corridor's lane span onto that corridor's pass-side lane profile,
-// matching apply_sign_lanes' per-corridor loop body.
-func applyLaneToCorridor(
-	result []trackmodel.Waypoint, corridor trackmodel.Section, corridorSigns []LaneSpec,
+// lanePlan is one corridor's lane, planned against the UNMODIFIED path,
+// matching sign_lane._LanePlan.
+type lanePlan struct {
+	corridor    trackmodel.Section
+	axis        Axis
+	indices     []int
+	baseLateral float64
+	profile     []controlPoint
+	signs       []LaneSpec
+}
+
+// planLane builds one corridor's lane profile, matching the planning half of
+// apply_sign_lanes' per-corridor loop body. It reads only the unmodified
+// source waypoints: planning against a partly-shifted path made each
+// corridor's geometry depend on how many corridors happened to be processed
+// before it -- see assignOwners.
+func planLane(
+	waypoints []trackmodel.Waypoint, corridor trackmodel.Section, corridorSigns []LaneSpec,
 	params SignLaneParams, direction trackmodel.Direction, cfg Config,
-) {
+) (lanePlan, bool) {
 	axis, _, ok := PassSideLateralAxis(corridor, corridorSigns[0].Spec.Color, direction)
 	if !ok {
-		return
+		return lanePlan{}, false
 	}
 
-	indices, straight := corridorLaneIndices(result, corridor, axis, params, cfg)
+	indices, straight := corridorLaneIndices(waypoints, corridor, axis, params, cfg)
 	if len(indices) == 0 {
-		return
+		return lanePlan{}, false
 	}
-	baseLateral := medianLateral(result, axis, indices, straight)
+	baseLateral := medianLateral(waypoints, axis, indices, straight)
 
 	profile := controlPoints(corridorSigns, corridor, axis, baseLateral, params, direction, cfg)
 	if profile == nil {
-		return
+		return lanePlan{}, false
 	}
+	return lanePlan{
+		corridor:    corridor,
+		axis:        axis,
+		indices:     indices,
+		baseLateral: baseLateral,
+		profile:     profile,
+		signs:       corridorSigns,
+	}, true
+}
 
-	for _, i := range indices {
-		lateral, depth := axisCoords(result[i], axis)
-		lane, laneOK := interpolate(profile, depth)
-		if !laneOK {
-			continue
+// nearestSignM is the distance from wp to the closest sign this corridor is
+// routing around, matching _nearest_sign_m.
+func nearestSignM(wp trackmodel.Waypoint, corridorSigns []LaneSpec) float64 {
+	best := math.Inf(1)
+	for _, entry := range corridorSigns {
+		if d := math.Hypot(wp.X-entry.Spec.X, wp.Y-entry.Spec.Y); d < best {
+			best = d
 		}
-		// Apply the profile as a SHIFT from the centerline, not as an
-		// absolute lateral -- on borrowed corner runway an arc point's own
-		// lateral is partway through the turn, and an absolute value would
-		// snap it back onto the centerline, destroying the turn instead of
-		// offsetting it.
-		shifted := ClampLateral(lateral+(lane-baseLateral), corridor, cfg)
-		if shifted == lateral {
-			continue
-		}
-		result[i] = rebuildWaypoint(result[i], axis, shifted)
 	}
+	return best
+}
+
+// assignOwners gives each waypoint ONE owning lane, so no point is shifted
+// twice, matching _assign_owners.
+//
+// Corner runway is BORROWED, and two corridors either side of a corner borrow
+// the SAME arc: with cornerEntryM 0.50 that is six waypoints per scenario over
+// the 256-scenario corpus, in every one of them. The shifts used to compound
+// -- the second corridor read a lateral the first had already moved and added
+// its own offset on top -- so 66% of those points ended up somewhere NEITHER
+// lane asked for, diverging by up to 215 mm, more than the chassis half-width.
+//
+// A contested point goes to the lane whose own sign is nearest, which is the
+// lane whose pass that point actually serves. Exact ties keep the earlier
+// plan, making the result independent of discovery's spec order -- the
+// previous behaviour depended on exactly that.
+func assignOwners(plans []lanePlan, waypoints []trackmodel.Waypoint) map[int]int {
+	owner := make(map[int]int)
+	best := make(map[int]float64)
+	for position, plan := range plans {
+		for _, i := range plan.indices {
+			distance := nearestSignM(waypoints[i], plan.signs)
+			if current, seen := best[i]; !seen || distance < current {
+				best[i] = distance
+				owner[i] = position
+			}
+		}
+	}
+	return owner
+}
+
+// clampShift bounds a shifted waypoint without undoing a deliberately
+// gap-centred lane, matching _clamp_shift.
+//
+// ClampLateral is real protection for a borrowed CORNER ARC point -- the
+// shift translates the whole arc, and an arc already curving toward the
+// boundary can be pushed through it. For the PLATEAU it is redundant, and
+// under gap-centring worse than redundant: its margin is exactly what
+// gap-centring rebalances, so applying it blindly pulls the plateau back to
+// the boundary limit. The clamp is relaxed exactly as far as lane, the
+// profile value for this depth, and no further: a point may reach the lane
+// chosen, while an overshoot BEYOND it (only ever arc curvature) is caught.
+// At gapCentreFrac 0 this is ClampLateral unchanged.
+func clampShift(
+	value float64, corridor trackmodel.Section, lane, gapCentreFrac float64, cfg Config,
+) float64 {
+	clamped := ClampLateral(value, corridor, cfg)
+	if gapCentreFrac <= 0.0 {
+		return clamped
+	}
+	if value < clamped {
+		return math.Max(value, math.Min(clamped, lane))
+	}
+	if value > clamped {
+		return math.Min(value, math.Max(clamped, lane))
+	}
+	return clamped
 }
 
 // ApplySignLanes returns waypointsIn with each signed corridor's straight
@@ -352,8 +430,42 @@ func ApplySignLanes(
 		byCorridor[entry.Corridor] = append(byCorridor[entry.Corridor], entry)
 	}
 
+	// Two passes. Every lane is planned against the UNMODIFIED path, then the
+	// shifts are applied. Planning against a partly-shifted path made each
+	// corridor's geometry depend on how many corridors happened to be
+	// processed before it -- see assignOwners for what that cost.
+	plans := make([]lanePlan, 0, len(corridorOrder))
 	for _, corridor := range corridorOrder {
-		applyLaneToCorridor(result, corridor, byCorridor[corridor], params, *direction, cfg)
+		if plan, ok := planLane(waypointsIn, corridor, byCorridor[corridor], params, *direction, cfg); ok {
+			plans = append(plans, plan)
+		}
+	}
+
+	owner := assignOwners(plans, waypointsIn)
+
+	for position, plan := range plans {
+		for _, i := range plan.indices {
+			if owner[i] != position {
+				continue
+			}
+			lateral, depth := axisCoords(waypointsIn[i], plan.axis)
+			lane, laneOK := interpolate(plan.profile, depth)
+			if !laneOK {
+				continue
+			}
+			// Apply the profile as a SHIFT from the centerline, not as an
+			// absolute lateral -- on borrowed corner runway an arc point's own
+			// lateral is partway through the turn, and an absolute value would
+			// snap it back onto the centerline, destroying the turn instead of
+			// offsetting it.
+			shifted := clampShift(
+				lateral+(lane-plan.baseLateral), plan.corridor, lane, params.GapCentreFrac, cfg,
+			)
+			if shifted == lateral {
+				continue
+			}
+			result[i] = rebuildWaypoint(result[i], plan.axis, shifted)
+		}
 	}
 
 	return result

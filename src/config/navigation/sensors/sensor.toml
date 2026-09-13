@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/sensors/sensor.schema.json
 # Sensor dropout / staleness detection for the hardware gateway.
 #
 # See shared.config.navigation_tuning.SensorHealthParams.

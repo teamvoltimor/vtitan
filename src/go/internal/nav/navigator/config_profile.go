@@ -107,6 +107,7 @@ type navSignRouterTOML struct {
 	SignLaneSplitOverlap      bool    `mapstructure:"sign_lane_split_overlap"       default:"false"`
 	SignLaneSkipUnsatisfiable bool    `mapstructure:"sign_lane_skip_unsatisfiable"  default:"false"`
 	SignLaneOffsetFrac        float64 `mapstructure:"sign_lane_offset_frac"         default:"1.0"`
+	SignLaneGapCentreFrac     float64 `mapstructure:"sign_lane_gap_centre_frac"     default:"1.0"`
 	SignLaneCornerEntryM      float64 `mapstructure:"sign_lane_corner_entry_m"      default:"0.50"`
 	SignLaneCommitAheadM      float64 `mapstructure:"sign_lane_commit_ahead_m"      default:"0.0"`
 	SignAwareLookahead        bool    `mapstructure:"sign_aware_lookahead"          default:"true"`
@@ -346,6 +347,7 @@ func applySignRouterTOML(cfg *Config, loaded navSignRouterTOML) {
 	cfg.SignLaneSplitOverlap = loaded.SignLaneSplitOverlap
 	cfg.SignLaneSkipUnsatisfiable = loaded.SignLaneSkipUnsatisfiable
 	cfg.SignLaneOffsetFrac = loaded.SignLaneOffsetFrac
+	cfg.SignLaneGapCentreFrac = loaded.SignLaneGapCentreFrac
 	cfg.SignLaneCornerEntryM = loaded.SignLaneCornerEntryM
 	cfg.SignLaneCommitAheadM = loaded.SignLaneCommitAheadM
 	cfg.SignAwareLookahead = loaded.SignAwareLookahead

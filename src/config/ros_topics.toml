@@ -1,3 +1,4 @@
+#:schema ../model/ros_topics.schema.json
 # Single source of truth for ROS2 topic names used by the robot and telemetry.
 # Updated 2026-08-08 — replaced stale cmd_vel/Twist with the real ackermann_cmd
 # topic, and filled in the topics the 2026-08-08 audit found hardcoded across

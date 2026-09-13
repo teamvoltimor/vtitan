@@ -41,7 +41,14 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		cfg.TrackCornerMinM = tc.Track.CornerMin
 		cfg.TrackCornerMaxM = tc.Track.CornerMax
 		signWidthM = tc.Sign.Width
+		cfg.SignWidthM = tc.Sign.Width
 		cfg.SignHeightM = tc.Sign.Height
+		cfg.GridDepthNear = tc.Sign.GridDepthNear
+		cfg.GridDepthMiddle = tc.Sign.GridDepthMiddle
+		cfg.GridDepthFar = tc.Sign.GridDepthFar
+		cfg.GridWidthOuter = tc.Corridor.DivisionLines[0]
+		cfg.GridWidthInner = tc.Corridor.DivisionLines[1]
+		cfg.TrackSizeM = tc.Track.Size
 	}
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
@@ -79,6 +86,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		cfg.PinCornerGuard = sr.PinCornerGuard
 		cfg.PinHeadingGuard = sr.PinHeadingGuard
 		cfg.PinHeadingGuardRad = sr.PinHeadingGuardDeg * math.Pi / navutil.DegreesPerHalfTurn
+		cfg.SlotSignMap = sr.SlotSignMap
+		cfg.SlotAcceptRadiusM = sr.SlotAcceptRadiusM
+		cfg.SlotMinEvidence = sr.SlotMinEvidence
+		cfg.SlotRepointMargin = sr.SlotRepointMargin
 	}
 
 	cfg.LateralOffsetM = cfg.ChassisHalfDiagonalM + signWidthM/2 + signClearanceMarginM

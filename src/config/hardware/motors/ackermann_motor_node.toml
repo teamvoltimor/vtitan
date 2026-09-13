@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/motors/ackermann_motor_node.schema.json
 # ackermann_motor_node's own publish/diagnostics cadence --
 # vtitan_drivers/vtitan_drivers/motors/ackermann_motor_node.py.
 # Distinct from motors.toml/l298n.toml/bts7960.toml/encoder.toml/servo.toml alongside this file,

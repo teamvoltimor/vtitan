@@ -19,7 +19,10 @@ type (
 	FullRandomization struct{ r *Randomizer }
 
 	// DeterministicDefaults returns fixed, reproducible values — useful for testing.
-	DeterministicDefaults struct{}
+	DeterministicDefaults struct {
+		Track *simconfig.Track
+		Robot *simconfig.Robot
+	}
 
 	// PartialRandomization randomizes only the parameters flagged as true.
 	PartialRandomization struct {
@@ -49,10 +52,10 @@ func (f *FullRandomization) StartingConditions(
 	return f.r.RandomizeStartingConditions(w)
 }
 
-func (DeterministicDefaults) CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
+func (d DeterministicDefaults) CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
 	result := make(map[simconfig.Section]simconfig.CorridorWidth, len(simconfig.AllSections))
 	for _, s := range simconfig.AllSections {
-		result[s] = simconfig.CorridorWidth{Type: simconfig.WidthTypeWide, Width: simconfig.CorridorWide}
+		result[s] = simconfig.CorridorWidth{Type: simconfig.WidthTypeWide, Width: d.Track.CorridorWide}
 	}
 	return result
 }
@@ -71,11 +74,11 @@ func (DeterministicDefaults) Lighting() simconfig.LightingConfig {
 // starting cell hard against the outer wall. It uses a real cell rather than a
 // hardcoded pose so the non-randomized path and the randomized one agree on
 // what a legal start is.
-func (DeterministicDefaults) StartingConditions(
+func (d DeterministicDefaults) StartingConditions(
 	w map[simconfig.Section]simconfig.CorridorWidth,
 ) simconfig.StartingConditions {
 	section := simconfig.SectionSouth
-	cells := StartCells(section, w[section].Width)
+	cells := StartCells(d.Track, section, w[section].Width)
 	return simconfig.StartingConditions{
 		Direction:   simconfig.DirectionClockwise,
 		Section:     section,
@@ -93,6 +96,7 @@ func NewPartialRandomization(r *Randomizer, randWidths, randLighting, randStarti
 		RandWidths:   randWidths,
 		RandLighting: randLighting,
 		RandStarting: randStarting,
+		defaults:     DeterministicDefaults{Track: r.Track, Robot: r.Robot},
 	}
 }
 

@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/camera/config.schema.json
 # Camera streaming configuration -- src/hardware/camera/config.py
 
 device = "/dev/video0"

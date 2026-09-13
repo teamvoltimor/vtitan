@@ -40,6 +40,25 @@ def median(values: Sequence[float]) -> float:
     return float(np.median(values))
 
 
+def fmean(values: Sequence[float]) -> float:
+    """Arithmetic mean of ``values`` (``statistics.fmean``'s replacement)."""
+    if not values:
+        return math.nan
+    return float(np.mean(values))
+
+
+def mean(values: Sequence[float]) -> float:
+    """Alias of :func:`fmean`, matching ``statistics.mean``'s spelling."""
+    return fmean(values)
+
+
+def pstdev(values: Sequence[float]) -> float:
+    """Population standard deviation of ``values`` (``statistics.pstdev``)."""
+    if not values:
+        return math.nan
+    return float(np.std(values))
+
+
 def nearest_by_time[T](
     series: Sequence[tuple[float, T]],
     times: Sequence[float],

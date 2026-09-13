@@ -70,7 +70,17 @@ type Config struct {
 	LookaheadBlendStart          float64
 	SteerKp                      float64
 	MaxSteeringRate              float64
-	CornerTurnThresholdRad       float64
+	// ServoSlewRateRadS matches SERVO_SLEW_RATE_RAD_S -- the servo's real
+	// slew rate, split from MaxSteeringRate (the command policy). Consumed by
+	// the bay-exit servo standstill budget, not by the pursuit controller.
+	ServoSlewRateRadS float64
+	// TargetSearchSpanM matches TARGET_SEARCH_SPAN_M -- how far along the
+	// path SelectTargetPoint may walk (0 = a whole lap).
+	TargetSearchSpanM float64
+	// TargetSenseGate matches TARGET_SENSE_GATE -- reject candidates reached
+	// by going round the loop the wrong way.
+	TargetSenseGate        bool
+	CornerTurnThresholdRad float64
 
 	// Lidar sectors (sensors/lidar_sectors.toml).
 	FrontHalfFovDeg         float64
@@ -140,6 +150,12 @@ const (
 	DefaultLookaheadBlendStart = 0.70
 	DefaultSteerKp             = 1.2
 	DefaultMaxSteeringRate     = 1.2
+	// DefaultServoSlewRateRadS matches servo_slew_rate_rad_s, 2.4 (measured).
+	DefaultServoSlewRateRadS = 2.4
+	// DefaultTargetSearchSpanM matches target_search_span_m, 1.0 (ships on).
+	DefaultTargetSearchSpanM = 1.0
+	// DefaultTargetSenseGate matches target_sense_gate, false.
+	DefaultTargetSenseGate = false
 	// DefaultYawGainCompensation matches pursuit.toml's yaw_gain_compensation:
 	// the base/Open value, i.e. compensation OFF.
 	DefaultYawGainCompensation    = 1.0
@@ -217,6 +233,9 @@ func DefaultConfig() Config {
 		LookaheadBlendStart:    DefaultLookaheadBlendStart,
 		SteerKp:                DefaultSteerKp,
 		MaxSteeringRate:        DefaultMaxSteeringRate,
+		ServoSlewRateRadS:      DefaultServoSlewRateRadS,
+		TargetSearchSpanM:      DefaultTargetSearchSpanM,
+		TargetSenseGate:        DefaultTargetSenseGate,
 		CornerTurnThresholdRad: DefaultCornerTurnThresholdRad,
 		YawGainCompensation:    DefaultYawGainCompensation,
 
@@ -328,6 +347,8 @@ func (c Config) NewWaypointController() *WaypointController {
 		CornerTurnThresholdRad:   c.CornerTurnThresholdRad,
 		YawGainCompensation:      c.YawGainCompensation,
 		LookaheadBlendStart:      1.0,
+		TargetSearchSpanM:        c.TargetSearchSpanM,
+		TargetSenseGate:          c.TargetSenseGate,
 	}
 }
 

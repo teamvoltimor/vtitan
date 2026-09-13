@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/button/mcp2221.schema.json
 # MCP2221A button driver -- src/hardware/button/mcp2221/config.py
 # gpio_pin (validation_alias MCP2221_BUTTON_GPIO_PIN) has no known real
 # value documented in .env.example -- left out here, same as before this

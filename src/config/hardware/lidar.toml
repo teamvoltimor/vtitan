@@ -1,3 +1,4 @@
+#:schema ../../model/hardware/lidar.schema.json
 # Defaults for lidar_launch.py's sllidar_ros2 node parameters.
 # See src.config.launch_settings.LidarLaunchDefaults.
 # serial_port is a DeclareLaunchArgument (runtime override with serial_port:=...).

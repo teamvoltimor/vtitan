@@ -511,7 +511,11 @@ func (b *BayExit) beginLeg(isReverse bool, travelledM float64, cfg Config, fromN
 		toNorm = -back * sign
 	}
 	swingRad := math.Abs(toNorm-fromNorm) * cfg.followerMaxSteeringAngleRad()
-	perTickRad := cfg.MaxSteeringRateRadPerS / cfg.ControlHz
+	// The SERVO's rate, not the command rate limiter. They were one field
+	// until 2026-09-11 and pull opposite ways: the limiter is a cornering
+	// policy deliberately held low, while this budget wastes 2.5 s per
+	// reversal whenever it sits below the truth. See ServoSlewRateRadPerS.
+	perTickRad := cfg.ServoSlewRateRadPerS / cfg.ControlHz
 	settle := 0
 	if perTickRad > 0 {
 		settle = int(math.Ceil(swingRad / perTickRad))

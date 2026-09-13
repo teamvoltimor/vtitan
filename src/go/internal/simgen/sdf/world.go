@@ -35,20 +35,20 @@ type subdivisionSpec struct {
 // The world includes physics, lights, ground, exterior walls, corner markers,
 // grid lines, corridor subdivision guides, a placeholder starting zone, and the
 // central logo. It is then mutated by the per-scenario builders.
-func GenerateBaseWorld() (root, world *Node) {
+func GenerateBaseWorld(track *simconfig.Track, robot *simconfig.Robot) (root, world *Node) {
 	root = New("sdf", "version", "1.7")
 	world = root.Sub("world", "name", "wro_track_2026")
 
 	addPhysics(world)
 	addSunLight(world)
 	addAmbientLight(world)
-	addGround(world)
-	addExteriorWalls(world)
-	addCornerMarkers(world)
-	addStartingZonePlaceholder(world)
-	addCentralLogo(world)
-	addGridLines(world)
-	addCorridorSubdivisions(world)
+	addGround(world, track)
+	addExteriorWalls(world, track)
+	addCornerMarkers(world, track)
+	addStartingZonePlaceholder(world, track)
+	addCentralLogo(world, track)
+	addGridLines(world, track)
+	addCorridorSubdivisions(world, track)
 
 	return root, world
 }
@@ -85,13 +85,13 @@ func addAmbientLight(world *Node) {
 	att.SubT("quadratic", ff(simconfig.AmbientLightQuadraticAtten))
 }
 
-func addGround(world *Node) {
+func addGround(world *Node, track *simconfig.Track) {
 	model := world.Sub("model", "name", simconfig.ModelGround)
 	model.SubT("static", "true")
-	model.SubT("pose", pose6(simconfig.TrackCenterCoord, simconfig.TrackCenterCoord, 0, 0, 0, 0))
+	model.SubT("pose", pose6(track.TrackCenterCoord, track.TrackCenterCoord, 0, 0, 0, 0))
 	link := model.Sub("link", "name", "link")
 
-	planeSizeStr := fmt.Sprintf("%s %s", ff(simconfig.TrackMatSize), ff(simconfig.TrackMatSize))
+	planeSizeStr := fmt.Sprintf("%s %s", ff(track.TrackMatSize), ff(track.TrackMatSize))
 	vis := link.Sub("visual", "name", "visual")
 	groundPlane := vis.Sub("geometry").Sub("plane")
 	groundPlane.SubT("normal", axisZ)
@@ -110,20 +110,20 @@ func addGround(world *Node) {
 	ode.SubT("mu2", ff(simconfig.GroundFrictionMu))
 }
 
-func addExteriorWalls(world *Node) {
+func addExteriorWalls(world *Node, track *simconfig.Track) {
 	// Visual length = mat size + wall thickness; collision length adds extra on each side.
-	visLen := simconfig.TrackMatSize + simconfig.WallThickness
-	colLen := simconfig.TrackMatSize + simconfig.WallCollisionThickness
-	h := simconfig.WallHeight
-	center := simconfig.TrackCenterCoord
-	outerEdge := simconfig.TrackMaxCoord + simconfig.WallThickness/2 // 3.05
-	innerEdge := -simconfig.WallThickness / 2                        // -0.05
+	visLen := track.TrackMatSize + track.WallThickness
+	colLen := track.TrackMatSize + track.WallCollisionThickness
+	h := track.WallHeight
+	center := track.TrackCenterCoord
+	outerEdge := track.TrackMaxCoord + track.WallThickness/2 // 3.05
+	innerEdge := -track.WallThickness / 2                    // -0.05
 
 	walls := []wallSpec{
-		{simconfig.ModelExteriorWallNorth, center, outerEdge, visLen, h, colLen, simconfig.WallCollisionThickness},
-		{simconfig.ModelExteriorWallSouth, center, innerEdge, visLen, h, colLen, simconfig.WallCollisionThickness},
-		{simconfig.ModelExteriorWallEast, outerEdge, center, h, visLen, simconfig.WallCollisionThickness, colLen},
-		{simconfig.ModelExteriorWallWest, innerEdge, center, h, visLen, simconfig.WallCollisionThickness, colLen},
+		{simconfig.ModelExteriorWallNorth, center, outerEdge, visLen, h, colLen, track.WallCollisionThickness},
+		{simconfig.ModelExteriorWallSouth, center, innerEdge, visLen, h, colLen, track.WallCollisionThickness},
+		{simconfig.ModelExteriorWallEast, outerEdge, center, h, visLen, track.WallCollisionThickness, colLen},
+		{simconfig.ModelExteriorWallWest, innerEdge, center, h, visLen, track.WallCollisionThickness, colLen},
 	}
 
 	for _, w := range walls {
@@ -134,7 +134,7 @@ func addExteriorWalls(world *Node) {
 
 		vis := link.Sub("visual", "name", "visual")
 		vis.Sub("geometry").Sub("box").SubT("size", vec3(w.visX, w.visY, h))
-		wc := rgba(simconfig.WallColor)
+		wc := rgba(track.WallColor)
 		wallMat := vis.Sub("material")
 		wallMat.SubT("ambient", wc)
 		wallMat.SubT("diffuse", wc)
@@ -149,14 +149,14 @@ func addExteriorWalls(world *Node) {
 	}
 }
 
-func addCornerMarkers(world *Node) {
+func addCornerMarkers(world *Node, track *simconfig.Track) {
 	blue := rgba(simconfig.CornerMarkerBlueColor)
 	orange := rgba(simconfig.CornerMarkerOrangeColor)
 	markerSize := vec3(simconfig.CornerMarkerLength, simconfig.CornerMarkerWidth, simconfig.CornerMarkerHeight)
 
 	// Corner diagonal markers: two per corner (one blue, one orange).
 	// Positions and rotations are fixed by WRO field geometry (π/6 increments).
-	for _, c := range simconfig.CornerMarkers {
+	for _, c := range simconfig.CornerMarkers(track) {
 		color := orange
 		if c.Blue {
 			color = blue
@@ -172,13 +172,13 @@ func addCornerMarkers(world *Node) {
 	}
 }
 
-func addStartingZonePlaceholder(world *Node) {
+func addStartingZonePlaceholder(world *Node, track *simconfig.Track) {
 	model := world.Sub("model", "name", simconfig.ModelStartingZonePlaceholder)
 	model.SubT("static", "true")
 	model.SubT("pose", pose6(
-		simconfig.TrackCenterCoord, simconfig.TrackCornerMin/2, simconfig.ZStartingZoneBase, 0, 0, 0,
+		track.TrackCenterCoord, track.TrackCornerMin/2, simconfig.ZStartingZoneBase, 0, 0, 0,
 	))
-	sizeStr := vec3(simconfig.StartingZoneDefaultLength, simconfig.StartingZoneWidth, simconfig.StartingZoneThickness)
+	sizeStr := vec3(track.StartingZoneDefaultLength, track.StartingZoneWidth, track.StartingZoneThickness)
 	vis := model.Sub("link", "name", "link").Sub("visual", "name", "visual")
 	vis.Sub("geometry").Sub("box").SubT("size", sizeStr)
 	mat := vis.Sub("material")
@@ -187,10 +187,10 @@ func addStartingZonePlaceholder(world *Node) {
 	mat.SubT("diffuse", pc)
 }
 
-func addCentralLogo(world *Node) {
+func addCentralLogo(world *Node, track *simconfig.Track) {
 	model := world.Sub("model", "name", simconfig.ModelCentralLogo)
 	model.SubT("static", "true")
-	model.SubT("pose", pose6(simconfig.TrackCenterCoord, simconfig.TrackCenterCoord, simconfig.ZGridLines, 0, 0, 0))
+	model.SubT("pose", pose6(track.TrackCenterCoord, track.TrackCenterCoord, simconfig.ZGridLines, 0, 0, 0))
 	sizeStr := vec3(simconfig.CentralLogoSize, simconfig.CentralLogoSize, simconfig.GridLineHeight)
 	vis := model.Sub("link", "name", "link").Sub("visual", "name", "visual")
 	vis.Sub("geometry").Sub("box").SubT("size", sizeStr)
@@ -200,46 +200,46 @@ func addCentralLogo(world *Node) {
 	mat.SubT("diffuse", lc)
 }
 
-func addGridLines(world *Node) {
+func addGridLines(world *Node, track *simconfig.Track) {
 	color := rgba(simconfig.GridLineColor)
-	trackLen := ff(simconfig.TrackSize)
-	center := simconfig.TrackCenterCoord
+	trackLen := ff(track.TrackSize)
+	center := track.TrackCenterCoord
 	thick := ff(simconfig.GridLineThickness)
 	height := ff(simconfig.GridLineHeight)
 	z := ff(simconfig.ZGridLines)
 
 	// Vertical lines at x = TrackCornerMin (1.0) and TrackCornerMax (2.0)
 	for _, line := range []gridLine{
-		{simconfig.ModelGridLinePrefix + "v1", simconfig.TrackCornerMin},
-		{simconfig.ModelGridLinePrefix + "v2", simconfig.TrackCornerMax},
+		{simconfig.ModelGridLinePrefix + "v1", track.TrackCornerMin},
+		{simconfig.ModelGridLinePrefix + "v2", track.TrackCornerMax},
 	} {
 		sizeStr := fmt.Sprintf("%s %s %s", thick, trackLen, height)
 		addThinBoxModel(world, line.name, line.coord, center, z, sizeStr, color)
 	}
 	// Horizontal lines at y = TrackCornerMin (1.0) and TrackCornerMax (2.0)
 	for _, line := range []gridLine{
-		{simconfig.ModelGridLinePrefix + "h1", simconfig.TrackCornerMin},
-		{simconfig.ModelGridLinePrefix + "h2", simconfig.TrackCornerMax},
+		{simconfig.ModelGridLinePrefix + "h1", track.TrackCornerMin},
+		{simconfig.ModelGridLinePrefix + "h2", track.TrackCornerMax},
 	} {
 		sizeStr := fmt.Sprintf("%s %s %s", trackLen, thick, height)
 		addThinBoxModel(world, line.name, center, line.coord, z, sizeStr, color)
 	}
 }
 
-func addCorridorSubdivisions(world *Node) {
+func addCorridorSubdivisions(world *Node, track *simconfig.Track) {
 	color := rgba(simconfig.CorridorSubdivisionColor)
 	thick := ff(simconfig.SubdivLineThickness)
 	height := ff(simconfig.SubdivLineHeight)
 	z := ff(simconfig.ZGridLines)
-	span := ff(simconfig.TrackCornerSize) // 1.0 m — width of the inner square
-	center := simconfig.TrackCenterCoord
+	span := ff(track.TrackCornerSize) // 1.0 m — width of the inner square
+	center := track.TrackCenterCoord
 
-	southMid := simconfig.TrackCornerMin / 2                          // 0.5
-	northMid := simconfig.TrackCornerMax + simconfig.TrackCornerMin/2 // 2.5
-	divOuter := simconfig.CorridorDivOuter                            // 0.4
-	divInner := simconfig.CorridorDivInner                            // 0.6
-	farDivOuter := simconfig.TrackMaxCoord - divOuter                 // 2.6
-	farDivInner := simconfig.TrackMaxCoord - divInner                 // 2.4
+	southMid := track.TrackCornerMin / 2                      // 0.5
+	northMid := track.TrackCornerMax + track.TrackCornerMin/2 // 2.5
+	divOuter := track.CorridorDivOuter                        // 0.4
+	divInner := track.CorridorDivInner                        // 0.6
+	farDivOuter := track.TrackMaxCoord - divOuter             // 2.6
+	farDivInner := track.TrackMaxCoord - divInner             // 2.4
 
 	// NS corridors: center line is thin along X, span along Y; width markers are reversed.
 	nsCenter := fmt.Sprintf("%s %s %s", thick, span, height)

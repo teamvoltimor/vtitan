@@ -1,0 +1,48 @@
+version: "3"
+
+# Config schema tooling: generate the typed artifacts from src/model
+# and check that the TOML, its schema and the ADR references agree.
+#
+# Tasks run from the repo root so every path is repo-relative, and, on Windows,
+# so the schema path handed to go-jsonschema has no drive letter (it parses the
+# path as a URL and rejects a scheme like "C").
+
+tasks:
+  config:gen:
+    desc: Regenerate generated config artifacts from the JSON Schemas
+    cmds:
+      - task: config:gen-go-dto
+      - task: config:gen-py
+
+  config:gen-go-dto:
+    desc: Generate one Go file per config with go-jsonschema (mirrored subpackages)
+    cmds:
+      - python src/tools/configgen.py generate-go
+
+  config:gen-py:
+    desc: Generate one Python module per config from src/model
+    cmds:
+      - python -c "from pathlib import Path; [p.unlink() for p in Path('src/python/shared/src/shared/config/generated').rglob('*.py') if p.name != '__init__.py']"
+      - uvx --from datamodel-code-generator datamodel-codegen --input src/model --input-file-type jsonschema --output src/python/shared/src/shared/config/generated --output-model-type pydantic_v2.BaseModel --base-class shared.config.codegen_base.StrictModel --reuse-model --collapse-reuse-models --reuse-scope tree --shared-module-name _models --use-tuple-for-fixed-length-arrays --use-specialized-enum --use-type-alias --target-python-version 3.12 --disable-timestamp
+
+  config:check:
+    desc: Check every model TOML key is described and every x-journal ref resolves
+    cmds:
+      - python src/tools/configgen.py check
+
+  config:lint:
+    desc: Validate config TOML against its JSON Schema with Taplo
+    cmds:
+      - taplo lint "src/config/**/*.toml"
+
+  config:fmt:
+    desc: Format config TOML with Taplo
+    cmds:
+      - taplo fmt "src/config/**/*.toml"
+
+  config:verify:
+    desc: Fail if the generated config artifacts are stale (run before committing)
+    cmds:
+      - task: config:gen
+      - git diff --exit-code -- src/go/internal/config/generated
+      - git diff --exit-code -- src/python/shared/src/shared/config/generated

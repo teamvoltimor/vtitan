@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/sensors/start_measurement.schema.json
 # LIDAR-based start-pose measurement (measure_start_pose) parameters.
 #
 # See shared.config.navigation_tuning.StartMeasurementParams.

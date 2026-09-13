@@ -31,23 +31,36 @@ type (
 	}
 )
 
-// Precomputed minimum-clearance thresholds (meters).
-var (
-	// Minimum center-to-center spacing between two traffic signs.
-	signMinSpacing = simconfig.SignWidth * simconfig.SignSpacingFactor
+// clearances holds the precomputed minimum-clearance thresholds (meters) for
+// one loaded Track.
+type clearances struct {
+	signMinSpacing      float64
+	signParkingMinDist  float64
+	spawnSignMinDist    float64
+	spawnParkingMinDist float64
+	signBoundaryMargin  float64
+}
 
-	// Minimum clearance between a sign center and a parking block center.
-	signParkingMinDist = simconfig.ParkingLength/2 + simconfig.SignDepth/2 + simconfig.ValidationClearanceMargin
+// computeClearances derives the minimum-clearance thresholds from the track
+// and robot geometry.
+func computeClearances(track *simconfig.Track, robot *simconfig.Robot) clearances {
+	return clearances{
+		// Minimum center-to-center spacing between two traffic signs.
+		signMinSpacing: track.SignWidth * simconfig.SignSpacingFactor,
 
-	// Minimum clearance between robot spawn center and a sign center.
-	spawnSignMinDist = simconfig.RobotLength/2 + simconfig.SignDepth/2 + simconfig.ValidationClearanceMargin
+		// Minimum clearance between a sign center and a parking block center.
+		signParkingMinDist: track.ParkingLength/2 + track.SignDepth/2 + simconfig.ValidationClearanceMargin,
 
-	// Minimum clearance between robot spawn center and a parking block center.
-	spawnParkingMinDist = simconfig.RobotLength/2 + simconfig.ParkingLength/2 + simconfig.ValidationClearanceMargin
+		// Minimum clearance between robot spawn center and a sign center.
+		spawnSignMinDist: robot.RobotLength/2 + track.SignDepth/2 + simconfig.ValidationClearanceMargin,
 
-	// Signs must stay this far inside the track boundary.
-	signBoundaryMargin = simconfig.SignWidth / 2
-)
+		// Minimum clearance between robot spawn center and a parking block center.
+		spawnParkingMinDist: robot.RobotLength/2 + track.ParkingLength/2 + simconfig.ValidationClearanceMargin,
+
+		// Signs must stay this far inside the track boundary.
+		signBoundaryMargin: track.SignWidth / 2,
+	}
+}
 
 func (v ViolationError) Error() string {
 	return fmt.Sprintf("[%s] %s", v.Rule, v.Message)
@@ -55,22 +68,25 @@ func (v ViolationError) Error() string {
 
 // ValidateScenario runs all geometry checks and returns any violations found.
 // An empty slice means the scenario is valid.
-func ValidateScenario(ctx WorldContext) []ViolationError {
+func ValidateScenario(track *simconfig.Track, robot *simconfig.Robot, ctx WorldContext) []ViolationError {
+	c := computeClearances(track, robot)
 	var violations []ViolationError
-	violations = append(violations, checkSignBounds(ctx.Signs)...)
-	violations = append(violations, checkSignOverlap(ctx.Signs)...)
+	violations = append(violations, checkSignBounds(track, c, ctx.Signs)...)
+	violations = append(violations, checkSignOverlap(c, ctx.Signs)...)
 	if ctx.ParkingConfig != nil {
-		violations = append(violations, checkParkingBounds(ctx.ParkingConfig)...)
-		violations = append(violations, checkSignParkingClearance(ctx.Signs, ctx.ParkingConfig)...)
+		violations = append(violations, checkParkingBounds(track, ctx.ParkingConfig)...)
+		violations = append(violations, checkSignParkingClearance(c, ctx.Signs, ctx.ParkingConfig)...)
 	}
-	violations = append(violations, checkRobotSpawnClearance(ctx.StartingConditions, ctx.Signs, ctx.ParkingConfig)...)
+	violations = append(
+		violations,
+		checkRobotSpawnClearance(c, ctx.StartingConditions, ctx.Signs, ctx.ParkingConfig)...)
 	return violations
 }
 
 // checkSignBounds validates that all signs are within the track boundaries.
-func checkSignBounds(signs []simconfig.Sign) []ViolationError {
-	lo := simconfig.TrackMinCoord + signBoundaryMargin
-	hi := simconfig.TrackMaxCoord - signBoundaryMargin
+func checkSignBounds(track *simconfig.Track, c clearances, signs []simconfig.Sign) []ViolationError {
+	lo := track.TrackMinCoord + c.signBoundaryMargin
+	hi := track.TrackMaxCoord - c.signBoundaryMargin
 	var out []ViolationError
 	for i, s := range signs {
 		x, y := s.Position[0], s.Position[1]
@@ -85,15 +101,21 @@ func checkSignBounds(signs []simconfig.Sign) []ViolationError {
 }
 
 // checkSignOverlap validates that traffic signs maintain minimum spacing.
-func checkSignOverlap(signs []simconfig.Sign) []ViolationError {
+func checkSignOverlap(c clearances, signs []simconfig.Sign) []ViolationError {
 	var out []ViolationError
 	for i := range signs {
 		for j := i + 1; j < len(signs); j++ {
 			d := dist2d(signs[i].Position, signs[j].Position)
-			if d < signMinSpacing {
+			if d < c.signMinSpacing {
 				out = append(out, ViolationError{
-					Rule:    "sign_overlap",
-					Message: fmt.Sprintf("signs %d and %d overlap: dist=%.3f m < min=%.3f m", i, j, d, signMinSpacing),
+					Rule: "sign_overlap",
+					Message: fmt.Sprintf(
+						"signs %d and %d overlap: dist=%.3f m < min=%.3f m",
+						i,
+						j,
+						d,
+						c.signMinSpacing,
+					),
 				})
 			}
 		}
@@ -102,10 +124,10 @@ func checkSignOverlap(signs []simconfig.Sign) []ViolationError {
 }
 
 // checkParkingBounds validates that parking blocks are within track boundaries.
-func checkParkingBounds(cfg *simconfig.ParkingConfig) []ViolationError {
-	half := simconfig.ParkingLength / 2
-	lo := simconfig.TrackMinCoord + half
-	hi := simconfig.TrackMaxCoord - half
+func checkParkingBounds(track *simconfig.Track, cfg *simconfig.ParkingConfig) []ViolationError {
+	half := track.ParkingLength / 2
+	lo := track.TrackMinCoord + half
+	hi := track.TrackMaxCoord - half
 	var out []ViolationError
 	for label, pos := range map[string]simconfig.Vec2{simconfig.ParkingBlockIDBlock1: cfg.Block1Pos, simconfig.ParkingBlockIDBlock2: cfg.Block2Pos} {
 		x, y := pos[0], pos[1]
@@ -120,7 +142,7 @@ func checkParkingBounds(cfg *simconfig.ParkingConfig) []ViolationError {
 }
 
 // checkSignParkingClearance validates minimum distance between signs and parking blocks.
-func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingConfig) []ViolationError {
+func checkSignParkingClearance(c clearances, signs []simconfig.Sign, cfg *simconfig.ParkingConfig) []ViolationError {
 	blocks := []parkingBlock{
 		{"block1", cfg.Block1Pos},
 		{"block2", cfg.Block2Pos},
@@ -129,7 +151,7 @@ func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingCon
 	for si, sign := range signs {
 		for _, block := range blocks {
 			d := dist2d(sign.Position, block.pos)
-			if d < signParkingMinDist {
+			if d < c.signParkingMinDist {
 				out = append(out, ViolationError{
 					Rule: "sign_parking_clearance",
 					Message: fmt.Sprintf(
@@ -137,7 +159,7 @@ func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingCon
 						si,
 						block.label,
 						d,
-						signParkingMinDist,
+						c.signParkingMinDist,
 					),
 				})
 			}
@@ -148,6 +170,7 @@ func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingCon
 
 // checkRobotSpawnClearance validates minimum distance between robot spawn and obstacles.
 func checkRobotSpawnClearance(
+	c clearances,
 	sc simconfig.StartingConditions,
 	signs []simconfig.Sign,
 	cfg *simconfig.ParkingConfig,
@@ -156,14 +179,14 @@ func checkRobotSpawnClearance(
 	var out []ViolationError
 	for i, sign := range signs {
 		d := dist2d(spawn, sign.Position)
-		if d < spawnSignMinDist {
+		if d < c.spawnSignMinDist {
 			out = append(out, ViolationError{
 				Rule: "spawn_sign_clearance",
 				Message: fmt.Sprintf(
 					"robot spawn too close to sign %d: dist=%.3f m < min=%.3f m",
 					i,
 					d,
-					spawnSignMinDist,
+					c.spawnSignMinDist,
 				),
 			})
 		}
@@ -171,14 +194,14 @@ func checkRobotSpawnClearance(
 	if cfg != nil {
 		for label, pos := range map[string]simconfig.Vec2{"block1": cfg.Block1Pos, "block2": cfg.Block2Pos} {
 			d := dist2d(spawn, pos)
-			if d < spawnParkingMinDist {
+			if d < c.spawnParkingMinDist {
 				out = append(out, ViolationError{
 					Rule: "spawn_parking_clearance",
 					Message: fmt.Sprintf(
 						"robot spawn too close to parking %s: dist=%.3f m < min=%.3f m",
 						label,
 						d,
-						spawnParkingMinDist,
+						c.spawnParkingMinDist,
 					),
 				})
 			}

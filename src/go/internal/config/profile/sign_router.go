@@ -49,6 +49,16 @@ type SignRouterConfig struct {
 	// _geometric_corridor consume both outside the lane planner too.
 	RelabelUnsatisfiable    bool `mapstructure:"sign_lane_relabel_unsatisfiable"     default:"true"`
 	DepthConsistentCorridor bool `mapstructure:"sign_lane_depth_consistent_corridor" default:"true"`
+
+	// SlotSignMap/SlotAcceptRadiusM/SlotMinEvidence/SlotRepointMargin match
+	// SLOT_SIGN_MAP/SLOT_ACCEPT_RADIUS_M/SLOT_MIN_EVIDENCE/SLOT_REPOINT_MARGIN.
+	// The TOML ships slot_sign_map = true but omits the three radii, so the
+	// `default` tags keep a missing key from silently reverting them to zero
+	// (an accept radius of 0 would reject every observation).
+	SlotSignMap       bool    `mapstructure:"slot_sign_map"       default:"false"`
+	SlotAcceptRadiusM float64 `mapstructure:"slot_accept_radius_m" default:"0.30"`
+	SlotMinEvidence   float64 `mapstructure:"slot_min_evidence"    default:"0.75"`
+	SlotRepointMargin float64 `mapstructure:"slot_repoint_margin"  default:"1.5"`
 }
 
 // DefaultSignRouterTOMLPath is

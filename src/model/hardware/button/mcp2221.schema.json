@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/button/mcp2221.schema.json",
+  "title": "HardwareButtonMcp2221",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "mcp2221": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vid": {
+          "type": "string",
+          "description": "Vid."
+        },
+        "pid": {
+          "type": "string",
+          "description": "Pid."
+        }
+      },
+      "required": [
+        "vid",
+        "pid"
+      ]
+    },
+    "button": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pull_up": {
+          "type": "boolean",
+          "description": "Pull up."
+        },
+        "debounce_ms": {
+          "type": "integer",
+          "description": "Debounce ms."
+        },
+        "long_press_threshold_sec": {
+          "type": "number",
+          "description": "Long press threshold sec."
+        },
+        "shutdown_press_threshold_sec": {
+          "type": "number",
+          "description": "Kept in step with gpio.toml, which is the driver actually wired into button_node -- see its comments for why these two values are what they are."
+        }
+      },
+      "required": [
+        "pull_up",
+        "debounce_ms",
+        "long_press_threshold_sec",
+        "shutdown_press_threshold_sec"
+      ]
+    }
+  },
+  "required": [
+    "mcp2221",
+    "button"
+  ]
+}

@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/camera/rpi_camera_module_3.schema.json
 # Picamera2 driver for RPi Camera Module 3 Wide -- src/hardware/camera/rpi/camera_module_3/driver.py
 # Keys use the fields' validation_alias (shared camera_* names with the
 # rpicam driver; the SHOUT_CASE CAMERA_* spelling also still works as an

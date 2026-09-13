@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/display/oled_node.schema.json",
+  "title": "HardwareDisplayOledNode",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ui_refresh_rate_hz": {
+      "type": "number",
+      "description": "Keys use the fields' validation_alias, which accepts both the lowercase spelling below and the SHOUT_CASE UI_REFRESH_RATE_HZ / DISPLAY_BACKEND env-var names -- pydantic only matches a TOML key against the alias when one is declared."
+    },
+    "display_backend": {
+      "type": "string",
+      "description": "Display backend."
+    }
+  },
+  "required": [
+    "ui_refresh_rate_hz",
+    "display_backend"
+  ]
+}

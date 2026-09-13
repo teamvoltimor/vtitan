@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/navigation/sensors/sensor.schema.json",
+  "title": "NavigationSensorsSensor",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stale_timeout_sec": {
+      "type": "number",
+      "description": "A cached sensor reading older than this is treated as a dropout -- the gateway reports it as unavailable so the navigator degrades safely instead of acting on frozen data. Derived as 5x the LIDAR scan period (RobotSpecs.LIDAR_UPDATE_RATE), the slowest sensor feed the control loop depends on."
+    }
+  },
+  "required": [
+    "stale_timeout_sec"
+  ]
+}

@@ -14,6 +14,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/opencorpus"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig/simconfigtest"
 )
 
 // goldenRow is one line of the Python-generated space dump.
@@ -59,8 +60,10 @@ const poseToleranceM = 1e-6
 func TestSpace_MatchesPythonEnumeration(t *testing.T) {
 	t.Parallel()
 
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
 	want := readGolden(t)
-	got := opencorpus.Space()
+	got := opencorpus.Space(track, robot)
 	cfg := startconditions.DefaultConfig()
 
 	if len(got) != len(want) {
@@ -94,7 +97,7 @@ func TestSpace_MatchesPythonEnumeration(t *testing.T) {
 			t.Errorf("case %d: Label() = %q, want %q", i, p.Label(), row.label)
 		}
 
-		meta, err := opencorpus.Metadata(p, cfg)
+		meta, err := opencorpus.Metadata(track, robot, p, cfg)
 		if err != nil {
 			t.Fatalf("case %d: Metadata: %v", i, err)
 		}
@@ -135,13 +138,15 @@ func TestSpace_SectionOrderIsNotAllSections(t *testing.T) {
 func TestStartCellCount_MatchesPythonLiterals(t *testing.T) {
 	t.Parallel()
 
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
 	narrow := opencorpus.WidthSetFromBits(0)
 	wide := opencorpus.WidthSetFromBits(0b1111)
 	for _, section := range opencorpus.SectionOrder {
-		if got := narrow.StartCellCount(section); got != 4 {
+		if got := narrow.StartCellCount(track, robot, section); got != 4 {
 			t.Errorf("narrow %s: StartCellCount = %d, want 4", section, got)
 		}
-		if got := wide.StartCellCount(section); got != 6 {
+		if got := wide.StartCellCount(track, robot, section); got != 6 {
 			t.Errorf("wide %s: StartCellCount = %d, want 6", section, got)
 		}
 	}
@@ -153,7 +158,9 @@ func TestStartCellCount_MatchesPythonLiterals(t *testing.T) {
 func TestOuterWallCells_IsTheLegacy128(t *testing.T) {
 	t.Parallel()
 
-	legacy := opencorpus.OuterWallCells(opencorpus.Space())
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	legacy := opencorpus.OuterWallCells(opencorpus.Space(track, robot))
 	const want = opencorpus.WidthLayoutCount * len(opencorpus.SectionOrder) * len(opencorpus.DirectionOrder)
 	if len(legacy) != want {
 		t.Fatalf("OuterWallCells returned %d scenarios, want %d", len(legacy), want)
@@ -172,7 +179,9 @@ func TestOuterWallCells_IsTheLegacy128(t *testing.T) {
 func TestMetadata_IsAnOpenRound(t *testing.T) {
 	t.Parallel()
 
-	meta, err := opencorpus.Metadata(opencorpus.Space()[0], startconditions.DefaultConfig())
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	meta, err := opencorpus.Metadata(track, robot, opencorpus.Space(track, robot)[0], startconditions.DefaultConfig())
 	if err != nil {
 		t.Fatalf("Metadata: %v", err)
 	}
@@ -202,8 +211,10 @@ func TestWrite_RoundTripsThroughTheCorpusLoader(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	params := opencorpus.Space()
-	written, err := opencorpus.Write(dir, params, startconditions.DefaultConfig())
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	params := opencorpus.Space(track, robot)
+	written, err := opencorpus.Write(track, robot, dir, params, startconditions.DefaultConfig())
 	if err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -280,6 +291,8 @@ func readGolden(t *testing.T) []goldenRow {
 func TestBalanced128_MatchesPython(t *testing.T) {
 	t.Parallel()
 
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
 	bySeed := map[uint64][]balancedGoldenRow{}
 	var seeds []uint64
 	for _, row := range readBalancedGolden(t) {
@@ -294,7 +307,7 @@ func TestBalanced128_MatchesPython(t *testing.T) {
 
 	for _, seed := range seeds {
 		want := bySeed[seed]
-		got, err := opencorpus.Balanced128(seed)
+		got, err := opencorpus.Balanced128(track, robot, seed)
 		if err != nil {
 			t.Fatalf("seed %d: Balanced128: %v", seed, err)
 		}
@@ -326,7 +339,9 @@ func TestBalanced128_MatchesPython(t *testing.T) {
 func TestBalanced128_CoversTheGridExactlyOnce(t *testing.T) {
 	t.Parallel()
 
-	got, err := opencorpus.Balanced128(0)
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	got, err := opencorpus.Balanced128(track, robot, 0)
 	if err != nil {
 		t.Fatalf("Balanced128: %v", err)
 	}

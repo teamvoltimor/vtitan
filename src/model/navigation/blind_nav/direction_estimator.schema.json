@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/navigation/blind_nav/direction_estimator.schema.json",
+  "title": "NavigationBlindNavDirectionEstimator",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "alignment_tolerance_rad": {
+      "type": "number",
+      "description": "Maximum heading error against the nearest track axis for a side-ray reading to be trusted -- 25 degrees. Off axis the side rays cut a diagonal and read long for no good reason.  corridor_estimator.measure_corridor_width gates the same side rays on the same geometry and reads this same value; the two must agree, or a scan can be trusted for width and rejected for direction. Deliberately not one of the heading.toml zones: those modulate speed, and retuning speed must not move this gate."
+    },
+    "corner_clearance_m": {
+      "type": "number",
+      "description": "Forward clearance below which the corridor counts as ending, opening the window in which the robot reads which side is open.  Deliberately larger than corridor_follower.toml's turn_clearance_m, and NavigationTuning enforces that ordering across the two files. Turning swings the heading past the alignment gate, so a robot that begins its turn the instant the comparison becomes decisive rotates straight through its only measurement window and comes out with a wall on both sides and nothing learned. Measured with both at 0.75 m: three fixtures never settled at all and two settled wrong after 20-plus seconds of wandering."
+    },
+    "max_in_track_range_m": {
+      "type": "number",
+      "description": "Side rays longer than this cannot be a wall of this 3 m track, so they are rejected rather than voted on.  This is not a tidiness bound. A LIDAR dropout is substituted with MAX RANGE (12 m) by both the real driver and the simulator, which reads as \"this side is wide open\" -- precisely the signal this module hunts for. Sweeps arrive at 10 Hz against a 20 Hz control loop, so one bad sweep could supply a whole vote block and send the robot around the track backwards with a clean scoreboard."
+    },
+    "min_asymmetry_m": {
+      "type": "number",
+      "description": "Minimum left/right difference for a sweep to count as evidence rather than noise. Was 0.30, which discarded the asymmetry a robot starting near the centre of a wide corridor actually sees."
+    },
+    "plausible_span_threshold_m": {
+      "type": "number",
+      "description": "Maximum sum of left + right ranges that still represents one corridor.  The widest legal corridor is 1.0 m and the LIDAR sits at the chassis centre, so the two side rays sum to the corridor width wherever the robot sits across it. A sum past this has to mean one ray missed the inner block and ran off down the next corridor. The margin absorbs scanning slightly off-axis; it is the same plausibility bound used elsewhere to reject stray readings.  Exceeding this sum means one ray ran off-track into an adjacent corridor rather than both reading walls of the current one."
+    },
+    "min_votes": {
+      "type": "integer",
+      "description": "Agreeing observations DirectionEstimator requires before settling on a direction. Voting rather than trusting a single scan, for the same reason corridor_estimator.toml's min_samples does."
+    },
+    "gate_log_period_ticks": {
+      "type": "integer",
+      "description": "Log one direction-gate verdict every this many unresolved blind-creep ticks, in track_navigator_node's direction-not-yet-settled logging. Diagnostic only: at the ~20 Hz control rate, logging every tick during a prolonged corridor-follower hold would flood the log; this keeps enough resolution to see which gate is refusing readings without drowning it out."
+    }
+  },
+  "required": [
+    "alignment_tolerance_rad",
+    "corner_clearance_m",
+    "max_in_track_range_m",
+    "min_asymmetry_m",
+    "plausible_span_threshold_m",
+    "min_votes",
+    "gate_log_period_ticks"
+  ]
+}

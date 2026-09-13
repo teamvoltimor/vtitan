@@ -1,3 +1,4 @@
+#:schema ../../../model/robot.schema.json
 # Steering servo: Injora 14 kg, 180 degree range (the original build).
 #
 # One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE.

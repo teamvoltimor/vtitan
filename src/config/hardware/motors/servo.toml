@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/motors/servo.schema.json
 # Servo steering driver -- src/hardware/motors/servo/config.py
 
 gpio_pin = 12

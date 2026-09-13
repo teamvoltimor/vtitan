@@ -139,6 +139,7 @@ func (n *Navigator) refreshSignLanes() {
 			HoldM:             n.cfg.SignLaneHoldM,
 			SplitOverlap:      n.cfg.SignLaneSplitOverlap,
 			SkipUnsatisfiable: n.cfg.SignLaneSkipUnsatisfiable,
+			GapCentreFrac:     n.cfg.SignLaneGapCentreFrac,
 			CornerEntryM:      n.cfg.SignLaneCornerEntryM,
 		},
 		&direction,
@@ -152,15 +153,21 @@ func (n *Navigator) refreshSignLanes() {
 // laneFingerprintOf derives the sign layout a lane path would be built for,
 // standing in for SignRouter.lane_fingerprint (see laneFingerprintEntry).
 func laneFingerprintOf(router *signrouter.SignRouter) []laneFingerprintEntry {
-	specs := router.LaneSpecs()
+	specs := router.Signs()
 	fingerprint := make([]laneFingerprintEntry, 0, len(specs))
 	for _, spec := range specs {
 		fingerprint = append(fingerprint, laneFingerprintEntry{
-			X: spec.Spec.X, Y: spec.Spec.Y, Corridor: spec.Corridor,
+			X:     math.Round(spec.X*fingerprintCentimetres) / fingerprintCentimetres,
+			Y:     math.Round(spec.Y*fingerprintCentimetres) / fingerprintCentimetres,
+			Color: spec.Color,
 		})
 	}
 	return fingerprint
 }
+
+// fingerprintCentimetres scales a position to centimetres before rounding,
+// matching Python's round(s.x, 2) / round(s.y, 2).
+const fingerprintCentimetres = 100.0
 
 // holdCommittedPath keeps a lane rebuild from moving the path the chassis
 // is already on, matching _hold_committed_path.

@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/blind_nav/corridor_estimator.schema.json
 # Blind corridor-width estimation parameters.
 #
 # See shared.config.navigation_tuning.CorridorEstimatorParams.

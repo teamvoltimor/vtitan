@@ -163,6 +163,164 @@ func TestSelectTargetPoint_FallsBackToNearestAheadWhenNothingReachesLookahead(t 
 	}
 }
 
+// ringWays builds a closed loop so "the far side" is a real place the search
+// can reach. Ports TestTargetSearchSpan._ring.
+func ringWays(n int, radius float64) []trackmodel.Waypoint {
+	ring := make([]trackmodel.Waypoint, n)
+	for i := range n {
+		angle := 2 * math.Pi * float64(i) / float64(n)
+		ring[i] = trackmodel.Waypoint{X: radius * math.Cos(angle), Y: radius * math.Sin(angle)}
+	}
+	return ring
+}
+
+// TestSelectTargetPoint_ReversedChassisIsNotHandedTheFarSide ports
+// TestTargetSearchSpan.test_a_reversed_chassis_is_not_handed_the_far_side_of_the_ring:
+// unbounded, the search returns the first waypoint merely IN FRONT of a
+// chassis that has turned toward the way it came -- the far side of the ring.
+func TestSelectTargetPoint_ReversedChassisIsNotHandedTheFarSide(t *testing.T) {
+	t.Parallel()
+
+	ring := ringWays(40, 1.0)
+	pose := trackmodel.Pose{
+		X: ring[0].X,
+		Y: ring[0].Y,
+		Yaw: math.Atan2(
+			ring[0].Y-ring[1].Y,
+			ring[0].X-ring[1].X,
+		),
+	}
+
+	bounded := newDefaultWaypointController() // TargetSearchSpanM = 1.0
+	target := bounded.SelectTargetPoint(pose, ring, 0, 0.32)
+	if d := math.Hypot(target.X-pose.X, target.Y-pose.Y); d > 1.0 {
+		t.Errorf("bounded search returned a target %v m away, want <= 1.0", d)
+	}
+}
+
+// TestSelectTargetPoint_UnboundedReachesTheFarSide is the control: without the
+// bound the same call crosses the ring, so the test above proves something.
+func TestSelectTargetPoint_UnboundedReachesTheFarSide(t *testing.T) {
+	t.Parallel()
+
+	ring := ringWays(40, 1.0)
+	pose := trackmodel.Pose{
+		X: ring[0].X,
+		Y: ring[0].Y,
+		Yaw: math.Atan2(
+			ring[0].Y-ring[1].Y,
+			ring[0].X-ring[1].X,
+		),
+	}
+
+	unbounded := newDefaultWaypointController()
+	unbounded.TargetSearchSpanM = 0.0
+	target := unbounded.SelectTargetPoint(pose, ring, 0, 0.32)
+	if d := math.Hypot(target.X-pose.X, target.Y-pose.Y); d <= 1.0 {
+		t.Errorf("unbounded search returned a target %v m away, want > 1.0", d)
+	}
+}
+
+// TestSelectTargetPoint_HealthyDrivingIsUntouched ports
+// test_healthy_driving_is_untouched: facing the right way, bounded and
+// unbounded must agree exactly.
+func TestSelectTargetPoint_HealthyDrivingIsUntouched(t *testing.T) {
+	t.Parallel()
+
+	ring := ringWays(40, 1.0)
+	pose := trackmodel.Pose{
+		X: ring[0].X,
+		Y: ring[0].Y,
+		Yaw: math.Atan2(
+			ring[1].Y-ring[0].Y,
+			ring[1].X-ring[0].X,
+		),
+	}
+
+	bounded := newDefaultWaypointController()
+	unbounded := newDefaultWaypointController()
+	unbounded.TargetSearchSpanM = 0.0
+
+	got := bounded.SelectTargetPoint(pose, ring, 0, 0.32)
+	want := unbounded.SelectTargetPoint(pose, ring, 0, 0.32)
+	if got != want {
+		t.Errorf("bounded = %+v, want %+v (healthy driving must be untouched)", got, want)
+	}
+}
+
+// TestSelectTargetPoint_SenseGateOffMatchesOnWhenAligned ports
+// TestSearchGate.test_off_is_the_shipped_path_and_the_two_agree_when_aligned:
+// sitting on the loop facing along it, nothing is wrong-sense, so the gate
+// must not change the answer.
+func TestSelectTargetPoint_SenseGateOffMatchesOnWhenAligned(t *testing.T) {
+	t.Parallel()
+
+	ring := ringWays(24, 1.0)
+	pose := trackmodel.Pose{
+		X:   ring[0].X * 0.95,
+		Y:   ring[0].Y * 0.95,
+		Yaw: math.Atan2(ring[1].Y-ring[0].Y, ring[1].X-ring[0].X),
+	}
+
+	off := newDefaultWaypointController()
+	on := newDefaultWaypointController()
+	on.TargetSenseGate = true
+
+	if got, want := on.SelectTargetPoint(pose, ring, 0, 0.20), off.SelectTargetPoint(pose, ring, 0, 0.20); got != want {
+		t.Errorf("gated = %+v, want %+v (aligned approach must be unchanged)", got, want)
+	}
+}
+
+// TestSelectTargetPoint_SenseGateSkipsWrongSenseForLaterRightSense ports
+// test_a_wrong_sense_candidate_is_skipped_for_a_later_right_sense_one: index
+// 1's outgoing segment doubles back, so a candidate reached by travelling +x
+// runs AGAINST the path there, while index 2's runs with it.
+func TestSelectTargetPoint_SenseGateSkipsWrongSenseForLaterRightSense(t *testing.T) {
+	t.Parallel()
+
+	path := []trackmodel.Waypoint{
+		{X: 0.0, Y: 0.0}, {X: 1.0, Y: 0.0}, {X: 0.5, Y: 0.0}, {X: 2.0, Y: 0.0}, {X: 3.0, Y: 0.0},
+	}
+	pose := trackmodel.Pose{X: 0.0, Y: 0.0, Yaw: 0.0}
+
+	off := newDefaultWaypointController()
+	on := newDefaultWaypointController()
+	on.TargetSenseGate = true
+
+	if got := off.SelectTargetPoint(pose, path, 1, 0.20); got != (trackmodel.Waypoint{X: 1.0, Y: 0.0}) {
+		t.Errorf("ungated = %+v, want {1 0}", got)
+	}
+	if got := on.SelectTargetPoint(pose, path, 1, 0.20); got != (trackmodel.Waypoint{X: 0.5, Y: 0.0}) {
+		t.Errorf("gated = %+v, want {0.5 0}", got)
+	}
+}
+
+// TestSelectTargetPoint_FullyRotatedChassisIsNotRescuedByGate ports
+// test_a_fully_rotated_chassis_is_not_rescued_by_the_gate: the gate is
+// PREVENTION, not recovery. Turned right round, every candidate in the span is
+// wrong-sense, so the fallback tiers hand back the same point as the ungated
+// search -- and that must never be a nil/silent failure.
+func TestSelectTargetPoint_FullyRotatedChassisIsNotRescuedByGate(t *testing.T) {
+	t.Parallel()
+
+	ring := ringWays(24, 1.0)
+	pose := trackmodel.Pose{
+		X:   ring[0].X * 0.95,
+		Y:   ring[0].Y * 0.95,
+		Yaw: math.Atan2(ring[1].Y-ring[0].Y, ring[1].X-ring[0].X) + math.Pi,
+	}
+
+	off := newDefaultWaypointController()
+	on := newDefaultWaypointController()
+	on.TargetSenseGate = true
+
+	got := on.SelectTargetPoint(pose, ring, 0, 0.20)
+	want := off.SelectTargetPoint(pose, ring, 0, 0.20)
+	if got != want {
+		t.Errorf("gated = %+v, want %+v (the gate cannot rescue a reversed chassis)", got, want)
+	}
+}
+
 // -- TestCrosstrackBudgetFromWallDistance: the crosstrack threshold must not
 // exceed what the path can afford.
 

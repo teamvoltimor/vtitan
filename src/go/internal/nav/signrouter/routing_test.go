@@ -1,6 +1,7 @@
 package signrouter_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
@@ -379,5 +380,54 @@ func TestIsSquarelyInCorridor_FalseWhenDepthIsPastTheBufferedCorner(t *testing.T
 	pastBuffer := cfg.TrackCornerMaxM + cfg.DeformDepthBufferM + 0.01
 	if signrouter.IsSquarelyInCorridor(pastBuffer, 0.4, trackmodel.South, cfg) {
 		t.Error("IsSquarelyInCorridor(pastBuffer, 0.4, South) = true, want false")
+	}
+}
+
+// TestPassLateral_GapCentresTheSqueeze ports pass_lateral's worked example:
+// a RED SOUTH sign at y=0.40 passed OUTWARD (mult -1) against the wall. The
+// clamped placement parks at the boundary-clearance limit; full centring puts
+// the lane at the midpoint of the free gap (0.1875 m), which is the maximin
+// placement the simulator's exact SAT test clears at every yaw.
+func TestPassLateral_GapCentresTheSqueeze(t *testing.T) {
+	t.Parallel()
+
+	cfg := signrouter.DefaultConfig()
+	const signLateral = 0.40
+	const mult = -1
+	const offset = 0.28
+
+	clamped := signrouter.ClampLateral(signLateral+float64(mult)*offset, trackmodel.South, cfg)
+	if got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, 0.0, cfg); got != clamped {
+		t.Errorf("PassLateral(frac=0) = %v, want the clamped %v", got, clamped)
+	}
+
+	wantCentred := (cfg.TrackMinCoordM + signLateral - cfg.SignWidthM/2) / 2
+	if got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, 1.0, cfg); math.Abs(got-wantCentred) > 1e-9 {
+		t.Errorf("PassLateral(frac=1) = %v, want %v", got, wantCentred)
+	}
+
+	// Halfway between the two endpoints.
+	wantHalf := clamped + (wantCentred-clamped)/2
+	if got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, 0.5, cfg); math.Abs(got-wantHalf) > 1e-9 {
+		t.Errorf("PassLateral(frac=0.5) = %v, want %v", got, wantHalf)
+	}
+}
+
+// TestPassLateral_UnsqueezedSignIsUntouchedAtEveryFrac: where the full offset
+// already fits, the result is exactly ClampLateral's for every fraction, so
+// the change can only move the squeezed signs.
+func TestPassLateral_UnsqueezedSignIsUntouchedAtEveryFrac(t *testing.T) {
+	t.Parallel()
+
+	cfg := signrouter.DefaultConfig()
+	const signLateral = 0.40
+	const mult = +1 // inward, away from the low boundary
+	const offset = 0.28
+
+	want := signrouter.ClampLateral(signLateral+float64(mult)*offset, trackmodel.South, cfg)
+	for _, frac := range []float64{0.0, 0.25, 0.5, 1.0} {
+		if got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, frac, cfg); math.Abs(got-want) > 1e-9 {
+			t.Errorf("PassLateral(frac=%v) = %v, want untouched %v", frac, got, want)
+		}
 	}
 }

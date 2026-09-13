@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/button/button_node.schema.json",
+  "title": "HardwareButtonButtonNode",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "poll_hz": {
+      "type": "number",
+      "description": "Poll hz."
+    }
+  },
+  "required": [
+    "poll_hz"
+  ]
+}

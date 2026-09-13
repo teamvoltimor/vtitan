@@ -134,6 +134,60 @@ func ClampLateral(value float64, corridor trackmodel.Section, cfg Config) float6
 	return value
 }
 
+// PassLateral returns the lateral coordinate of the pass-side lane for one
+// sign, gap-centred when the full offset is squeezed, matching pass_lateral.
+//
+// ClampLateral answers "is this waypoint clear of the boundary?" and knows
+// nothing about the sign. That is right for a deformed carrot but wrong for
+// a lane: when the full offset would put the lane past the boundary-clearance
+// limit, clamping parks it hard against that limit and hands every remaining
+// metre of the squeeze to the SIGN side -- over-margined at the wall,
+// under-margined at the pillar. Against the simulator's exact SAT collision
+// test the clamped placement clears the sign only within +/-28.2 deg of the
+// corridor axis, while the free-gap midpoint clears both sides at every yaw.
+//
+// frac travels from the clamped placement toward the gap midpoint: 0.0
+// reproduces ClampLateral exactly, 1.0 is full centring. Only the squeeze is
+// interpolated, so a sign whose offset already fits is untouched at every
+// value. Nothing is loosened: the result is never further from the sign than
+// lateralOffsetM asked and never outside the corridor.
+func PassLateral(
+	signLateral float64,
+	mult int,
+	corridor trackmodel.Section,
+	lateralOffsetM, frac float64,
+	cfg Config,
+) float64 {
+	desired := signLateral + float64(mult)*lateralOffsetM
+	clamped := ClampLateral(desired, corridor, cfg)
+	if frac <= 0.0 {
+		return clamped
+	}
+
+	var low, high float64
+	if corridor == trackmodel.South || corridor == trackmodel.West {
+		low, high = cfg.TrackMinCoordM, cfg.TrackCornerMinM
+	} else {
+		low, high = cfg.TrackCornerMaxM, cfg.TrackMaxCoordM
+	}
+
+	signHalf := cfg.SignWidthM / 2
+	var centred float64
+	if mult < 0 {
+		// Passing toward `low`: the usable gap runs from that boundary to the
+		// sign's near face, and max keeps the full offset whenever it already
+		// sits short of the midpoint, so an unsqueezed sign is untouched.
+		centred = math.Max(desired, (low+signLateral-signHalf)/2)
+	} else {
+		centred = math.Min(desired, (signLateral+signHalf+high)/2)
+	}
+
+	// Deliberately NOT re-clamped: ClampLateral's margin is the very thing
+	// being rebalanced. The corridor's hard bounds still stand.
+	blended := clamped + (centred-clamped)*math.Min(frac, 1.0)
+	return math.Min(math.Max(blended, low), high)
+}
+
 // CandidateCorridors returns the corridors a point could plausibly belong
 // to, matching candidate_corridors. On a straight this is one section; in
 // a CORNER (both coordinates outside the inner square) it is the two

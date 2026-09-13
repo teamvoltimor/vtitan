@@ -6,14 +6,15 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig/simconfigtest"
 )
 
 const _cellTolerance = 1e-9
 
 // acrossAlong projects a track-coordinate point onto the starting section's own
 // axes: distance out from the outer wall, and distance along the corridor.
-func acrossAlong(section simconfig.Section, p simconfig.Vec2) (across, along float64) {
-	trackMax := simconfig.TrackMaxCoord
+func acrossAlong(track *simconfig.Track, section simconfig.Section, p simconfig.Vec2) (across, along float64) {
+	trackMax := track.TrackMaxCoord
 	switch section {
 	case simconfig.SectionSouth:
 		return p[1], p[0]
@@ -31,18 +32,19 @@ func acrossAlong(section simconfig.Section, p simconfig.Vec2) (across, along flo
 // under the centre square and cannot be a start.
 func TestStartCells_CountPerWidth(t *testing.T) {
 	t.Parallel()
+	track := simconfigtest.Load(t)
 	for _, tc := range []struct {
 		name  string
 		width float64
 		want  int
 	}{
-		{"narrow", simconfig.CorridorNarrow, 4},
-		{"wide", simconfig.CorridorWide, 6},
+		{"narrow", track.CorridorNarrow, 4},
+		{"wide", track.CorridorWide, 6},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, section := range simconfig.AllSections {
-				if got := len(generate.StartCells(section, tc.width)); got != tc.want {
+				if got := len(generate.StartCells(track, section, tc.width)); got != tc.want {
 					t.Errorf("%s/%s: %d cells, want %d", section, tc.name, got, tc.want)
 				}
 			}
@@ -61,21 +63,22 @@ func TestStartCells_CountPerWidth(t *testing.T) {
 // block over centring.
 func TestStartCells_SpawnOffsets(t *testing.T) {
 	t.Parallel()
-	o := simconfig.StartingZoneSpawnOffsets
+	track := simconfigtest.Load(t)
+	o := track.StartingZoneSpawnOffsets
 	for _, tc := range []struct {
 		name  string
 		width float64
 		want  []float64
 	}{
-		{"narrow", simconfig.CorridorNarrow, []float64{o[0], o[0], o[1], o[1]}},
-		{"wide", simconfig.CorridorWide, []float64{o[0], o[0], o[1], o[1], o[2], o[2]}},
+		{"narrow", track.CorridorNarrow, []float64{o[0], o[0], o[1], o[1]}},
+		{"wide", track.CorridorWide, []float64{o[0], o[0], o[1], o[1], o[2], o[2]}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, section := range simconfig.AllSections {
-				cells := generate.StartCells(section, tc.width)
+				cells := generate.StartCells(track, section, tc.width)
 				for i, cell := range cells {
-					across, _ := acrossAlong(section, cell.Spawn)
+					across, _ := acrossAlong(track, section, cell.Spawn)
 					if math.Abs(across-tc.want[i]) > _cellTolerance {
 						t.Errorf("%s cell %d: spawn %.4f m from outer wall, want %.4f",
 							section, i, across, tc.want[i])
@@ -91,12 +94,14 @@ func TestStartCells_SpawnOffsets(t *testing.T) {
 // the starting square at once.
 func TestStartCells_ChassisInsideBand(t *testing.T) {
 	t.Parallel()
-	half := simconfig.RobotWidth / 2
-	for _, width := range []float64{simconfig.CorridorNarrow, simconfig.CorridorWide} {
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	half := robot.RobotWidth / 2
+	for _, width := range []float64{track.CorridorNarrow, track.CorridorWide} {
 		for _, section := range simconfig.AllSections {
-			for i, cell := range generate.StartCells(section, width) {
-				zoneAcross, _ := acrossAlong(section, cell.ZoneCentre)
-				spawnAcross, _ := acrossAlong(section, cell.Spawn)
+			for i, cell := range generate.StartCells(track, section, width) {
+				zoneAcross, _ := acrossAlong(track, section, cell.ZoneCentre)
+				spawnAcross, _ := acrossAlong(track, section, cell.Spawn)
 				bandLo := zoneAcross - cell.BandWidth/2
 				bandHi := zoneAcross + cell.BandWidth/2
 
@@ -117,11 +122,13 @@ func TestStartCells_ChassisInsideBand(t *testing.T) {
 // stay clear of the inner block, and every cell must stay on the mat.
 func TestStartCells_WithinCorridor(t *testing.T) {
 	t.Parallel()
-	half := simconfig.RobotWidth / 2
-	for _, width := range []float64{simconfig.CorridorNarrow, simconfig.CorridorWide} {
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	half := robot.RobotWidth / 2
+	for _, width := range []float64{track.CorridorNarrow, track.CorridorWide} {
 		for _, section := range simconfig.AllSections {
-			for i, cell := range generate.StartCells(section, width) {
-				across, along := acrossAlong(section, cell.Spawn)
+			for i, cell := range generate.StartCells(track, section, width) {
+				across, along := acrossAlong(track, section, cell.Spawn)
 				if across-half < -_cellTolerance {
 					t.Errorf("%s w=%.1f cell %d: chassis crosses the outer wall", section, width, i)
 				}
@@ -129,7 +136,7 @@ func TestStartCells_WithinCorridor(t *testing.T) {
 					t.Errorf("%s w=%.1f cell %d: chassis crosses into the inner block (%.4f > %.4f)",
 						section, width, i, across+half, width)
 				}
-				if along != simconfig.GridLengthSectionLeft && along != simconfig.GridLengthSectionRight {
+				if along != track.GridLengthSectionLeft && along != track.GridLengthSectionRight {
 					t.Errorf("%s w=%.1f cell %d: along-corridor %.4f is not a cell midpoint",
 						section, width, i, along)
 				}
@@ -142,11 +149,12 @@ func TestStartCells_WithinCorridor(t *testing.T) {
 // wall, which callers rely on for a deterministic default start.
 func TestStartCells_OrderedOuterInward(t *testing.T) {
 	t.Parallel()
+	track := simconfigtest.Load(t)
 	for _, section := range simconfig.AllSections {
-		cells := generate.StartCells(section, simconfig.CorridorWide)
+		cells := generate.StartCells(track, section, track.CorridorWide)
 		prev := math.Inf(-1)
 		for i, cell := range cells {
-			across, _ := acrossAlong(section, cell.Spawn)
+			across, _ := acrossAlong(track, section, cell.Spawn)
 			if across < prev-_cellTolerance {
 				t.Errorf("%s cell %d: offset %.4f goes back outward from %.4f", section, i, across, prev)
 			}
@@ -159,11 +167,12 @@ func TestStartCells_OrderedOuterInward(t *testing.T) {
 // band even though the spawn inside it is deliberately off-centre.
 func TestStartCells_ZoneIsBandCentre(t *testing.T) {
 	t.Parallel()
+	track := simconfigtest.Load(t)
 	wantCentres := []float64{0.20, 0.20, 0.50, 0.50, 0.80, 0.80}
 	wantBands := []float64{0.40, 0.40, 0.20, 0.20, 0.40, 0.40}
 	for _, section := range simconfig.AllSections {
-		for i, cell := range generate.StartCells(section, simconfig.CorridorWide) {
-			across, _ := acrossAlong(section, cell.ZoneCentre)
+		for i, cell := range generate.StartCells(track, section, track.CorridorWide) {
+			across, _ := acrossAlong(track, section, cell.ZoneCentre)
 			if math.Abs(across-wantCentres[i]) > _cellTolerance {
 				t.Errorf("%s cell %d: zone centre %.4f, want %.4f", section, i, across, wantCentres[i])
 			}

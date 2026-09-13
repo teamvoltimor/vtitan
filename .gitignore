@@ -247,3 +247,4 @@ schemes/flowcharts/common/svg-editorial/
 # judges read and rebuilding them needs the whole tscircuit toolchain. The
 # toolchain's own throwaway output stays ignored by the nested
 # schemes/wiring/tscircuit/.gitignore.
+

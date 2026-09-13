@@ -31,6 +31,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/opencorpus"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/scenario"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
 )
 
 // cliConfig holds every flag sim-runner accepts. Nothing about which
@@ -70,6 +71,11 @@ const (
 	runnerPython = "python"
 	runnerNative = "native"
 )
+
+// defaultConfigRoot is the repository config directory holding track.toml,
+// relative to the repo root. It is used to resolve the track geometry when
+// --config-root is left empty.
+const defaultConfigRoot = "src/config"
 
 // secondsPerMinute converts deg/min IMU drift quotes into per-second rates.
 const secondsPerMinute = 60.0
@@ -340,12 +346,29 @@ func resolveCorpus(logger *slog.Logger, cfg cliConfig) (scenarios []corpus.Scena
 		return loaded, noop, nil
 	}
 
-	params := opencorpus.Space()
+	configRoot := cfg.configRoot
+	if configRoot == "" {
+		configRoot = defaultConfigRoot
+	}
+	profiles := splitCSV(cfg.hwProfiles)
+	if len(profiles) == 0 {
+		profiles = simconfig.ActiveHardwareProfiles()
+	}
+	robot, err := simconfig.LoadRobot(configRoot, profiles)
+	if err != nil {
+		return nil, noop, fmt.Errorf("sim-runner: loading robot: %w", err)
+	}
+	track, err := simconfig.LoadTrack(configRoot, robot.RobotWidth)
+	if err != nil {
+		return nil, noop, fmt.Errorf("sim-runner: loading track: %w", err)
+	}
+
+	params := opencorpus.Space(track, robot)
 	switch cfg.openSpace {
 	case openSpace128:
 		params = opencorpus.OuterWallCells(params)
 	case openSpaceBalanced:
-		balanced, balErr := opencorpus.Balanced128(cfg.openSeed)
+		balanced, balErr := opencorpus.Balanced128(track, robot, cfg.openSeed)
 		if balErr != nil {
 			return nil, noop, fmt.Errorf("sim-runner: %w", balErr)
 		}
@@ -367,7 +390,7 @@ func resolveCorpus(logger *slog.Logger, cfg cliConfig) (scenarios []corpus.Scena
 		}
 	}
 
-	generated, writeErr := opencorpus.Write(dir, params, startconditions.DefaultConfig())
+	generated, writeErr := opencorpus.Write(track, robot, dir, params, startconditions.DefaultConfig())
 	if writeErr != nil {
 		cleanup()
 		return nil, noop, fmt.Errorf("sim-runner: generating the Open corpus: %w", writeErr)

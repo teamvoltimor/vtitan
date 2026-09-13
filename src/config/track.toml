@@ -1,3 +1,4 @@
+#:schema ../model/track.schema.json
 # Single source of truth for the WRO 2026 Future Engineers mat geometry.
 #
 # Edit this file, then regenerate its Go consumer with `task gen:track-constants`:

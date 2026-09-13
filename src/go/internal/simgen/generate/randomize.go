@@ -18,15 +18,17 @@ type startKey struct {
 // Note: seed-for-seed output does not match the Python generator (Python uses
 // separate random/numpy seeds with different PRNG algorithms).
 type Randomizer struct {
-	rng *rand.Rand
+	Track *simconfig.Track
+	Robot *simconfig.Robot
+	rng   *rand.Rand
 }
 
 // secondBlockFlipThreshold splits the middle-depth choice for the second
 // parking block evenly between the near and far side.
 const secondBlockFlipThreshold = 0.5
 
-func NewRandomizer(rng *rand.Rand) *Randomizer {
-	return &Randomizer{rng: rng}
+func NewRandomizer(track *simconfig.Track, robot *simconfig.Robot, rng *rand.Rand) *Randomizer {
+	return &Randomizer{Track: track, Robot: robot, rng: rng}
 }
 
 // RandomizeLighting picks one of the six WRO lighting presets and samples
@@ -54,8 +56,8 @@ func (r *Randomizer) RandomizeCorridorWidths() map[simconfig.Section]simconfig.C
 	result := make(map[simconfig.Section]simconfig.CorridorWidth, len(simconfig.AllSections))
 	types := []string{simconfig.WidthTypeNarrow, simconfig.WidthTypeWide}
 	widths := map[string]float64{
-		simconfig.WidthTypeNarrow: simconfig.CorridorNarrow,
-		simconfig.WidthTypeWide:   simconfig.CorridorWide,
+		simconfig.WidthTypeNarrow: r.Track.CorridorNarrow,
+		simconfig.WidthTypeWide:   r.Track.CorridorWide,
 	}
 	for _, s := range simconfig.AllSections {
 		t := types[r.rng.Intn(2)]
@@ -65,10 +67,10 @@ func (r *Randomizer) RandomizeCorridorWidths() map[simconfig.Section]simconfig.C
 }
 
 // FixedCorridorWidths returns 1.0 m corridors for all sections (obstacles challenge).
-func FixedCorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
+func FixedCorridorWidths(track *simconfig.Track) map[simconfig.Section]simconfig.CorridorWidth {
 	result := make(map[simconfig.Section]simconfig.CorridorWidth, len(simconfig.AllSections))
 	for _, s := range simconfig.AllSections {
-		result[s] = simconfig.CorridorWidth{Type: simconfig.WidthTypeFixed, Width: simconfig.CorridorObstacles}
+		result[s] = simconfig.CorridorWidth{Type: simconfig.WidthTypeFixed, Width: track.CorridorObstacles}
 	}
 	return result
 }
@@ -84,7 +86,7 @@ func (r *Randomizer) RandomizeStartingConditions(
 	section := allSections[r.rng.Intn(len(allSections))]
 	direction := simconfig.AllDirections[r.rng.Intn(len(simconfig.AllDirections))]
 
-	cells := StartCells(section, widths[section].Width)
+	cells := StartCells(r.Track, section, widths[section].Width)
 	cell := r.rng.Intn(len(cells))
 	yaw := computeStartingYaw(section, direction)
 
@@ -102,9 +104,9 @@ func (r *Randomizer) RandomizeStartingConditions(
 // starting section's corner (obstacles challenge only).
 func (r *Randomizer) GenerateParkingLotPositions(startSection simconfig.Section) simconfig.ParkingConfig {
 	depthChoices := []float64{
-		simconfig.SignGridDepthNear,
-		simconfig.SignGridDepthMiddle,
-		simconfig.SignGridDepthFar,
+		r.Track.SignGridDepthNear,
+		r.Track.SignGridDepthMiddle,
+		r.Track.SignGridDepthFar,
 	}
 	depth := depthChoices[r.rng.Intn(len(depthChoices))]
 	// Along-travel gap between the two blocks — the actual usable bay length
@@ -112,10 +114,10 @@ func (r *Randomizer) GenerateParkingLotPositions(startSection simconfig.Section)
 	// that has to fit inside the bay), not RobotWidth: at RobotWidth (0.2m)
 	// this came out to exactly RobotLength (0.3m), a zero-clearance bay the
 	// robot could never actually enter.
-	spacing := simconfig.ParkingSpacingFactor * simconfig.RobotLength
+	spacing := r.Track.ParkingSpacingFactor * r.Robot.RobotLength
 	depth2 := r.computeSecondBlockDepth(depth, spacing)
 
-	b1, b2, yaw := parkingPositionsForSection(startSection, depth, depth2, simconfig.ParkingWallOffset)
+	b1, b2, yaw := parkingPositionsForSection(r.Track, startSection, depth, depth2, r.Track.ParkingWallOffset)
 	return simconfig.ParkingConfig{
 		Block1Pos: b1,
 		Block2Pos: b2,
@@ -133,20 +135,21 @@ func (r *Randomizer) GenerateParkingLotPositions(startSection simconfig.Section)
 // they used to be randomized independently, and AddStartingZone then silently
 // overwrote the spawn with the zone centre.
 func GenerateStartingZone(
+	track *simconfig.Track,
 	section simconfig.Section,
 	corridorWidth float64,
 	startCell int,
 	parking *simconfig.ParkingConfig,
 ) simconfig.StartingZone {
-	defaultLength := simconfig.StartingZoneDefaultLength
+	defaultLength := track.StartingZoneDefaultLength
 
 	if parking != nil {
-		zone := zoneFromParking(section, parking, defaultLength)
-		zone.Width = simconfig.StartingZoneWidth
+		zone := zoneFromParking(track, section, parking, defaultLength)
+		zone.Width = track.StartingZoneWidth
 		return zone
 	}
 
-	cells := StartCells(section, corridorWidth)
+	cells := StartCells(track, section, corridorWidth)
 	cell := cells[startCell%len(cells)]
 	return simconfig.StartingZone{
 		Length: defaultLength,
@@ -190,7 +193,7 @@ func (r *Randomizer) GenerateSignPositions(
 			continue
 		}
 		scenarioID := r.rng.Intn(simconfig.ScenarioIDMax-simconfig.ScenarioIDMin+1) + simconfig.ScenarioIDMin
-		pillars, err := ApplyScenarioToSection(scenarioID, section)
+		pillars, err := ApplyScenarioToSection(r.Track, scenarioID, section)
 		if err != nil {
 			continue
 		}
@@ -198,10 +201,10 @@ func (r *Randomizer) GenerateSignPositions(
 			var colorRGB simconfig.RGB
 			var colorName string
 			if p.Color == simconfig.ColorNameRed {
-				colorRGB = simconfig.SignColorRed
+				colorRGB = r.Track.SignColorRed
 				colorName = simconfig.ColorNameRed
 			} else {
-				colorRGB = simconfig.SignColorGreen
+				colorRGB = r.Track.SignColorGreen
 				colorName = simconfig.ColorNameGreen
 			}
 			signs = append(signs, simconfig.Sign{
@@ -222,8 +225,8 @@ func (r *Randomizer) uniform(lo, hi float64) float64 {
 
 // computeSecondBlockDepth calculates the depth position of the second parking block given the first block's depth.
 func (r *Randomizer) computeSecondBlockDepth(depth, spacing float64) float64 {
-	near := simconfig.SignGridDepthNear
-	far := simconfig.SignGridDepthFar
+	near := r.Track.SignGridDepthNear
+	far := r.Track.SignGridDepthFar
 	if depth == near {
 		return depth + spacing
 	}
@@ -254,11 +257,12 @@ func computeStartingYaw(section simconfig.Section, direction simconfig.Direction
 
 // parkingPositionsForSection computes the world coordinates of the two parking blocks for a given section.
 func parkingPositionsForSection(
+	track *simconfig.Track,
 	section simconfig.Section,
 	depth, depth2, wallOffset float64,
 ) (pos1, pos2 simconfig.Vec2, yaw float64) {
 	halfPi := math.Pi / 2
-	trackMax := simconfig.TrackMaxCoord
+	trackMax := track.TrackMaxCoord
 	switch section {
 	case simconfig.SectionSouth:
 		return simconfig.Vec2{depth, wallOffset}, simconfig.Vec2{depth2, wallOffset}, halfPi
@@ -285,6 +289,7 @@ func parkingPositionsForSection(
 // Challenge corridor — comfortably clears both the inner block and the outer
 // wall.
 func zoneFromParking(
+	track *simconfig.Track,
 	section simconfig.Section,
 	parking *simconfig.ParkingConfig,
 	defaultLength float64,
@@ -293,10 +298,10 @@ func zoneFromParking(
 	isNS := section == simconfig.SectionNorth || section == simconfig.SectionSouth
 	invertWidth := section == simconfig.SectionNorth || section == simconfig.SectionEast
 
-	corridorCenter := simconfig.CorridorObstacles / 2
+	corridorCenter := track.CorridorObstacles / 2
 	widthCoord := corridorCenter
 	if invertWidth {
-		widthCoord = simconfig.TrackMaxCoord - corridorCenter
+		widthCoord = track.TrackMaxCoord - corridorCenter
 	}
 
 	var spacing, zoneX, zoneY float64
@@ -310,10 +315,10 @@ func zoneFromParking(
 		zoneX = widthCoord
 	}
 
-	availableGap := spacing - simconfig.ParkingWidth
+	availableGap := spacing - track.ParkingWidth
 	length := defaultLength
 	if availableGap < defaultLength {
-		candidate := availableGap * simconfig.StartingZoneObstaclesFactor
+		candidate := availableGap * track.StartingZoneObstaclesFactor
 		if candidate < length {
 			length = candidate
 		}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/vision/detector.schema.json",
+  "title": "HardwareVisionDetector",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "model_path": {
+      "type": "string",
+      "description": "Model path."
+    },
+    "min_confidence": {
+      "type": "number",
+      "description": "Min confidence."
+    },
+    "output_format": {
+      "type": "string",
+      "description": "THE one shipped detection-confidence floor. The hailo backends (hailo.toml, hailo_streaming.toml) no longer declare their own copy: their pydantic fields resolve it back to this line, so a backend change is deliberate (env HAILO_MIN_CONFIDENCE / DETECTOR_MIN_CONFIDENCE), never a forgotten literal."
+    }
+  },
+  "required": [
+    "model_path",
+    "min_confidence",
+    "output_format"
+  ]
+}

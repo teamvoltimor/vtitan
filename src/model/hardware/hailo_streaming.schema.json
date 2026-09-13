@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/hailo_streaming.schema.json",
+  "title": "HardwareHailoStreaming",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "device": {
+      "type": "string",
+      "description": "Device."
+    },
+    "width": {
+      "type": "integer",
+      "description": "Width."
+    },
+    "height": {
+      "type": "integer",
+      "description": "Height."
+    },
+    "fps": {
+      "type": "integer",
+      "description": "Fps."
+    },
+    "rotation": {
+      "type": "integer",
+      "description": "Rotation."
+    },
+    "hflip": {
+      "type": "boolean",
+      "description": "Hflip."
+    },
+    "vflip": {
+      "type": "boolean",
+      "description": "Vflip."
+    },
+    "model_input_width": {
+      "type": "integer",
+      "description": "Model input width."
+    },
+    "model_input_height": {
+      "type": "integer",
+      "description": "Model input height."
+    },
+    "queue_size": {
+      "type": "integer",
+      "description": "Queue size."
+    },
+    "async_inference": {
+      "type": "boolean",
+      "description": "Async inference."
+    }
+  },
+  "required": [
+    "device",
+    "width",
+    "height",
+    "fps",
+    "rotation",
+    "hflip",
+    "vflip",
+    "model_input_width",
+    "model_input_height",
+    "queue_size",
+    "async_inference"
+  ]
+}

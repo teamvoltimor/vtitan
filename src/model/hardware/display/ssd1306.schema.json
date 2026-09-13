@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/display/ssd1306.schema.json",
+  "title": "HardwareDisplaySsd1306",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "width": {
+      "type": "integer",
+      "description": "Width."
+    },
+    "height": {
+      "type": "integer",
+      "description": "Height."
+    },
+    "i2c_address": {
+      "type": "string",
+      "description": "I2c address."
+    },
+    "i2c_bus": {
+      "type": "integer",
+      "description": "I2c bus."
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "i2c_address",
+    "i2c_bus"
+  ]
+}

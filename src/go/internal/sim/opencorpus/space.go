@@ -143,8 +143,8 @@ func (w WidthSet) MetresByName() map[simconfig.Section]float64 {
 // TestStartCellCount_MatchesPythonLiterals pins the values Python hardcodes
 // so a band-layout edit in track.toml fails loudly instead of quietly
 // resizing the corpus.
-func (w WidthSet) StartCellCount(section simconfig.Section) int {
-	return len(generate.StartCells(section, float64(w.WidthMMFor(section))/mmPerM))
+func (w WidthSet) StartCellCount(track *simconfig.Track, robot *simconfig.Robot, section simconfig.Section) int {
+	return len(generate.StartCells(track, section, float64(w.WidthMMFor(section))/mmPerM))
 }
 
 // Label is the human-readable scenario label, byte-identical to
@@ -169,7 +169,7 @@ func (p Params) ID() string {
 // Space returns the complete legal Open Challenge scenario space in Python's
 // deterministic enumeration order. See the package doc on why the nesting
 // below is load-bearing.
-func Space() []Params {
+func Space(track *simconfig.Track, robot *simconfig.Robot) []Params {
 	// 2 directions x 16 layouts x 4 sections x 4..6 cells. The exact total
 	// (640 for the shipped band layout) is deliberately not asserted here --
 	// it follows from the geometry, and hardcoding it would turn a track
@@ -180,7 +180,7 @@ func Space() []Params {
 		for bits := range WidthLayoutCount {
 			widths := WidthSetFromBits(bits)
 			for _, section := range SectionOrder {
-				for cell := range widths.StartCellCount(section) {
+				for cell := range widths.StartCellCount(track, robot, section) {
 					params = append(params, Params{
 						Index:     index,
 						Direction: direction,

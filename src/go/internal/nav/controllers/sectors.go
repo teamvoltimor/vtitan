@@ -201,6 +201,37 @@ func ChassisExitRangeM(a float64, geo SectorGeometry) float64 {
 	return math.Min(along, across)
 }
 
+// RangesBeyondChassis returns a copy of the scan with every self-return
+// replaced by +Inf -- no scalar range floor. A consumer that must look at
+// returns RIGHT NEXT TO the chassis still has to reject the chassis itself,
+// and a scalar floor cannot do both: it is either above the returns of
+// interest or below the robot's own. ChassisExitRangeM separates them per
+// bearing, which is where the distinction actually lives.
+//
+// Measured 2026-09-11 at the 105 ticks a contact recovery engaged: this
+// associates a cluster 55 points more often than the 0.15 m floor it
+// replaces (86.7% vs 31.4%) while admitting FEWER self-returns (1.3% vs
+// 4.6%), and the 0.15 m floor left the recovery firing on 81.9% of those
+// ticks -- no better than masking nothing. Matches
+// sectors.ranges_beyond_chassis.
+//
+// +Inf rather than a large finite range so a consumer filtering on
+// IsInf drops these as "no measurement outside the body along this ray".
+func RangesBeyondChassis(scan LidarScan, marginM float64, geo SectorGeometry) []float64 {
+	out := make([]float64, len(scan.RangesM))
+	copy(out, scan.RangesM)
+	if len(out) == 0 {
+		return out
+	}
+	angles := resolveAngles(scan)
+	for i, r := range out {
+		if !(r >= ChassisExitRangeM(angles[i], geo)+marginM) {
+			out[i] = math.Inf(1)
+		}
+	}
+	return out
+}
+
 // SectorToModel computes aggregate metrics for an angular sector as a
 // SectorRanges, matching sectors._sector_to_model.
 func SectorToModel(

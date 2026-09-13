@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/sensors/lidar_sectors.schema.json
 # LIDAR angular-sector definitions shared by collision avoidance and the OLED.
 #
 # See shared.config.navigation_tuning.LidarSectorParams.

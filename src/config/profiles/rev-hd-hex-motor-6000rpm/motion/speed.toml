@@ -1,3 +1,4 @@
+#:schema ../../../../model/navigation/motion/speed.schema.json
 # Speed ladder for the REV HD Hex 6000 rpm motor, in ABSOLUTE m/s.
 #
 # The ladder lives with the MOTOR because the spread between tiers is chosen

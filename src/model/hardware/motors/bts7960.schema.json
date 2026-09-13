@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/motors/bts7960.schema.json",
+  "title": "HardwareMotorsBts7960",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "pwmchip": {
+      "type": "integer",
+      "description": "Pwmchip."
+    },
+    "pwm_channel": {
+      "type": "integer",
+      "description": "Pwm channel."
+    },
+    "frequency_hz": {
+      "type": "integer",
+      "description": "Frequency hz."
+    },
+    "forward_pwm_pin": {
+      "type": "integer",
+      "description": "RPWM, hardware PWM (forward -- the frequent, performance-critical direction)"
+    },
+    "reverse_pwm_pin": {
+      "type": "integer",
+      "description": "LPWM, software PWM (reverse -- parking/recovery only, tolerates the jitter)"
+    },
+    "r_en_pin": {
+      "type": "integer",
+      "description": "Held permanently HIGH at connect() -- these gate the module's overcurrent/thermal protection, not direction. Physical BCM number vs the module's own R_EN/L_EN silkscreen doesn't matter now that both are always HIGH (it mattered under the old shared-PWM/EN-toggle design; see git log)."
+    },
+    "l_en_pin": {
+      "type": "integer",
+      "description": "L en pin."
+    }
+  },
+  "required": [
+    "pwmchip",
+    "pwm_channel",
+    "frequency_hz",
+    "forward_pwm_pin",
+    "reverse_pwm_pin",
+    "r_en_pin",
+    "l_en_pin"
+  ]
+}

@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/blind_nav/state_estimator.schema.json
 # Odometry/IMU fusion parameters.
 #
 # See shared.config.navigation_tuning.StateEstimatorParams.

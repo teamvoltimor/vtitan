@@ -1,0 +1,19 @@
+# Taplo workspace config.
+#
+# The JSON Schemas under src/model/ are the single home for the
+# description and provenance of every config key. The TOML files themselves
+# stay lean while the docs live in exactly one place. The Go constants emitter
+# reads the model schemas at generation time (see internal/simgen/trackconfig),
+# and the Python DTOs are generated from them by `task config:gen`.
+#
+# Schema association is per file, via a `#:schema` directive at the top of the
+# TOML (for example `#:schema ./model/track.schema.json`). A [[rule]] in this
+# file maps schema in the editor but taplo's CLI does not apply it during lint,
+# so the directive is the one that is actually enforced by `task config:lint`.
+
+include = ["src/config/*.toml", "src/config/**/*.toml"]
+
+[formatting]
+# Config files are grouped and hand-spaced; taplo fmt would reflow them into a
+# diff on every run. Formatting is opt-in via `task config:fmt`, never a gate.
+align_entries = false

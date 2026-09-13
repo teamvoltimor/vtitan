@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/signs/sign_discovery.schema.json
 # Blind sign-discovery (ObservedSignMap) parameters.
 #
 # See shared.config.navigation_tuning.SignDiscoveryParams.

@@ -170,8 +170,12 @@ type Config struct {
 	SignLaneSplitOverlap      bool
 	SignLaneSkipUnsatisfiable bool
 	SignLaneOffsetFrac        float64
-	SignLaneCornerEntryM      float64
-	SignLaneCommitAheadM      float64
+	// SignLaneGapCentreFrac moves a squeezed lane off the boundary-clearance
+	// limit toward the midpoint of its free gap; 0.0 is the clamped
+	// placement, 1.0 full centring (matches SIGN_LANE_GAP_CENTRE_FRAC).
+	SignLaneGapCentreFrac float64
+	SignLaneCornerEntryM  float64
+	SignLaneCommitAheadM  float64
 	// SignAwareLookahead/SignAwareSpeed/SignDeformSpeedThresholdM/
 	// StaleTargetRescue are the Obstacles-only extensions to the ordinary
 	// lookahead, speed and waypoint-advance pipelines.
@@ -321,6 +325,7 @@ const (
 	DefaultSignLaneSplitOverlap      = false
 	DefaultSignLaneSkipUnsatisfiable = false
 	DefaultSignLaneOffsetFrac        = 1.0
+	DefaultSignLaneGapCentreFrac     = 1.0
 	DefaultSignLaneCornerEntryM      = 0.50
 	DefaultSignLaneCommitAheadM      = 0.0
 	DefaultSignAwareLookahead        = true
@@ -429,6 +434,7 @@ func DefaultConfig() Config {
 		SignLaneSplitOverlap:      DefaultSignLaneSplitOverlap,
 		SignLaneSkipUnsatisfiable: DefaultSignLaneSkipUnsatisfiable,
 		SignLaneOffsetFrac:        DefaultSignLaneOffsetFrac,
+		SignLaneGapCentreFrac:     DefaultSignLaneGapCentreFrac,
 		SignLaneCornerEntryM:      DefaultSignLaneCornerEntryM,
 		SignLaneCommitAheadM:      DefaultSignLaneCommitAheadM,
 		SignAwareLookahead:        DefaultSignAwareLookahead,

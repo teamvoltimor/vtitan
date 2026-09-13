@@ -42,6 +42,24 @@ type DiscoveryConfig struct {
 	CornerMaxM float64
 }
 
+// SignMap is the discovery surface the navigator consumes, so the free
+// clustering ObservedSignMap and the rulebook-constrained SlotSignMap are
+// interchangeable. Python selects between them on SLOT_SIGN_MAP; the Go
+// navigator does the same in New.
+type SignMap interface {
+	// Observe folds one frame of world-coordinate observations into the map.
+	Observe(observations []TrafficSignObservation, robotPos trackmodel.Waypoint)
+	// Publish appends newly-confirmed signs into the router the map holds,
+	// feeds router state back (committed/passed), and refines published signs
+	// in place.
+	Publish()
+	// IsDiscovering reports whether the map is actively feeding a router.
+	IsDiscovering() bool
+	// ResetForNewLap clears per-lap bookkeeping (a no-op for the
+	// free-clustering map, which keeps none).
+	ResetForNewLap()
+}
+
 // signTrack is one candidate sign, accumulated across frames, matching
 // sign_discovery.py's _SignTrack.
 type signTrack struct {
@@ -241,12 +259,20 @@ func (m *ObservedSignMap) Observe(
 	observations []TrafficSignObservation,
 	robotPos trackmodel.Waypoint,
 ) {
-	if len(observations) == 0 {
-		return
-	}
+	// The debounce advances on EVERY tick, before the empty-frame return.
+	// Behind it, RobotCorridorFlipTicks counted detection FRAMES while
+	// calling itself ticks: measured 2026-09-11 over 125 bags, only 11.6% of
+	// ticks carry a detection, so the shipped 5 meant roughly 43 ticks of
+	// wall time and the settled label was stale by construction at the exact
+	// moment a detection finally arrived -- which is when it is read. The
+	// corridor is a property of where the robot IS, and the robot keeps
+	// moving through the frames the camera has nothing to say about.
 	robotCorridor := m.settleRobotCorridor(
 		waypoints.CorridorForPosition(robotPos.X, robotPos.Y, m.cfg.CornerMinM, m.cfg.CornerMaxM),
 	)
+	if len(observations) == 0 {
+		return
+	}
 	for i := range observations {
 		obs := observations[i]
 		if obs.Confidence < m.cfg.MinConfidence {
@@ -278,7 +304,8 @@ func (m *ObservedSignMap) NewlyConfirmed() []*signTrack {
 }
 
 // Publish folds every newly-confirmed track into the SignRouter (discover
-// mode), assigning it the next index. No-op without a router.
+// mode), assigning it the next index, then refines every published sign in
+// place. No-op without a router.
 func (m *ObservedSignMap) Publish() {
 	if m.sd == nil {
 		return
@@ -288,7 +315,20 @@ func (m *ObservedSignMap) Publish() {
 		i := idx
 		t.publishedIndex = &i
 	}
+	// Refine every published track in place, matching _ingest_observations'
+	// published-signs loop: a track's position is refined from the closest
+	// observation as it arrives, and the router's own copy must follow rather
+	// than freeze at the value it held when the track was first confirmed.
+	for _, t := range m.tracks {
+		if t.publishedIndex != nil {
+			m.sd.UpdateSign(*t.publishedIndex, t.asSpec())
+		}
+	}
 }
+
+// ResetForNewLap is a no-op for the free-clustering map: it keeps no per-lap
+// state. Present so ObservedSignMap satisfies SignMap.
+func (m *ObservedSignMap) ResetForNewLap() {}
 
 // Specs returns the world-frame SignSpec for every track, matching the Python
 // _SignTrack.as_spec over all tracks (published and pending).

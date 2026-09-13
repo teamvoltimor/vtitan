@@ -14,35 +14,37 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/shopspring/decimal"
 	"github.com/spf13/cobra"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/preview"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/sdf"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
-	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/trackconfig"
 )
 
-// generatedFile pairs a destination path with the source text to write there.
-type generatedFile struct {
-	path     string
-	contents string
-}
+// defaultConfigRoot is the repository config directory holding track.toml,
+// relative to the repo root.
+const defaultConfigRoot = "src/config"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	configRoot := defaultConfigRoot
 
 	root := &cobra.Command{
 		Use:          "simgen",
 		Short:        "WRO 2026 Gazebo SDF world generator",
 		SilenceUsage: true,
 	}
+	root.PersistentFlags().StringVar(
+		&configRoot,
+		"config-root",
+		defaultConfigRoot,
+		"repository config root holding track.toml (repo-root relative)",
+	)
 	root.AddCommand(
-		generateCmd(logger),
-		generateTrackCmd(logger),
-		generateTrackConstantsCmd(logger),
-		previewCmd(logger),
+		generateCmd(logger, &configRoot),
+		generateTrackCmd(logger, &configRoot),
+		previewCmd(logger, &configRoot),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -50,7 +52,39 @@ func main() {
 	}
 }
 
-func generateCmd(logger *slog.Logger) *cobra.Command {
+// loadConfig loads robot.toml (overlaid with the active hardware profiles)
+// and track.toml from the config root. The loaded robot supplies the chassis
+// width the track's spawn offsets are derived from.
+func loadConfig(configRoot string) (*simconfig.Track, *simconfig.Robot, error) {
+	robot, err := simconfig.LoadRobot(configRoot, simconfig.ActiveHardwareProfiles())
+	if err != nil {
+		return nil, nil, fmt.Errorf("load robot: %w", err)
+	}
+	track, err := simconfig.LoadTrack(configRoot, robot.RobotWidth)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load track: %w", err)
+	}
+	return track, robot, nil
+}
+
+// writePreview renders and logs the SVG preview for one generated scenario.
+func writePreview(
+	logger *slog.Logger,
+	track *simconfig.Track,
+	robot *simconfig.Robot,
+	scenarioDir string,
+	i int,
+) {
+	metaName := fmt.Sprintf("%s%04d%s", simconfig.ScenarioPrefix, i, simconfig.MetadataSuffix)
+	metaPath := filepath.Join(scenarioDir, metaName)
+	if svgPath, svgErr := preview.GenerateSVG(track, robot, metaPath, ""); svgErr != nil {
+		logger.Warn("preview generation failed", "index", i, "err", svgErr)
+	} else {
+		logger.Info("preview written", "index", i, "path", svgPath)
+	}
+}
+
+func generateCmd(logger *slog.Logger, configRoot *string) *cobra.Command {
 	var (
 		challenge     string
 		numScenarios  int
@@ -68,6 +102,11 @@ func generateCmd(logger *slog.Logger) *cobra.Command {
 				return err
 			}
 
+			track, robot, err := loadConfig(*configRoot)
+			if err != nil {
+				return err
+			}
+
 			var seedPtr *int64
 			if seed >= 0 {
 				seedPtr = &seed
@@ -75,11 +114,11 @@ func generateCmd(logger *slog.Logger) *cobra.Command {
 
 			var strategy generate.Strategy
 			if deterministic {
-				strategy = generate.DeterministicDefaults{}
+				strategy = generate.DeterministicDefaults{Track: track, Robot: robot}
 			}
 
 			scenarioDir := filepath.Join(outputDir, simconfig.FolderScenarios)
-			gen, err := generate.NewScenarioGenerator(scenarioDir, challengeType, seedPtr, strategy)
+			gen, err := generate.NewScenarioGenerator(track, robot, scenarioDir, challengeType, seedPtr, strategy)
 			if err != nil {
 				return fmt.Errorf("init generator: %w", err)
 			}
@@ -103,13 +142,7 @@ func generateCmd(logger *slog.Logger) *cobra.Command {
 				logger.Info("scenario written", "index", i, "path", worldPath)
 				ok++
 
-				metaName := fmt.Sprintf("%s%04d%s", simconfig.ScenarioPrefix, i, simconfig.MetadataSuffix)
-				metaPath := filepath.Join(scenarioDir, metaName)
-				if svgPath, svgErr := preview.GenerateSVG(metaPath, ""); svgErr != nil {
-					logger.Warn("preview generation failed", "index", i, "err", svgErr)
-				} else {
-					logger.Info("preview written", "index", i, "path", svgPath)
-				}
+				writePreview(logger, track, robot, scenarioDir, i)
 			}
 
 			logger.Info("generation complete", "ok", ok, "failed", failed)
@@ -130,22 +163,26 @@ func generateCmd(logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-func generateTrackCmd(logger *slog.Logger) *cobra.Command {
+func generateTrackCmd(logger *slog.Logger, configRoot *string) *cobra.Command {
 	var output string
 
 	cmd := &cobra.Command{
 		Use:   "generate-track",
 		Short: "Generate the base track SDF template",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := os.MkdirAll(filepath.Dir(output), simconfig.DirPermissions); err != nil {
-				return fmt.Errorf("create output dir: %w", err)
-			}
-			f, err := os.Create(output)
+			track, robot, err := loadConfig(*configRoot)
 			if err != nil {
-				return fmt.Errorf("create output file: %w", err)
+				return err
+			}
+			if mkdirErr := os.MkdirAll(filepath.Dir(output), simconfig.DirPermissions); mkdirErr != nil {
+				return fmt.Errorf("create output dir: %w", mkdirErr)
+			}
+			f, createErr := os.Create(output)
+			if createErr != nil {
+				return fmt.Errorf("create output file: %w", createErr)
 			}
 
-			root, _ := sdf.GenerateBaseWorld()
+			root, _ := sdf.GenerateBaseWorld(track, robot)
 			if _, writeErr := root.WriteTo(f); writeErr != nil {
 				f.Close()
 				return fmt.Errorf("write SDF: %w", writeErr)
@@ -161,60 +198,7 @@ func generateTrackCmd(logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-func generateTrackConstantsCmd(logger *slog.Logger) *cobra.Command {
-	var (
-		config   string
-		goOutput string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "generate-track-constants",
-		Short: "Regenerate mat geometry constants from track.toml",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			// The chassis width is what decides whether a spawn offset fits
-			// inside its band, so validation needs it; it comes from the
-			// already-generated robot constants, keeping one direction of
-			// dependency between the two sources of truth.
-			cfg, err := trackconfig.Load(config, decimal.NewFromFloat(simconfig.RobotWidth))
-			if err != nil {
-				return fmt.Errorf("load track config: %w", err)
-			}
-
-			chassisWidth := decimal.NewFromFloat(simconfig.RobotWidth)
-			goSrc, err := trackconfig.GenerateGo(cfg, chassisWidth)
-			if err != nil {
-				return fmt.Errorf("generate go constants: %w", err)
-			}
-
-			outputs := []generatedFile{
-				{path: goOutput, contents: goSrc},
-			}
-			for _, out := range outputs {
-				if mkdirErr := os.MkdirAll(filepath.Dir(out.path), simconfig.DirPermissions); mkdirErr != nil {
-					return fmt.Errorf("create output dir for %s: %w", out.path, mkdirErr)
-				}
-				if writeErr := os.WriteFile(
-					out.path,
-					[]byte(out.contents),
-					simconfig.FilePermissions,
-				); writeErr != nil {
-					return fmt.Errorf("write %s: %w", out.path, writeErr)
-				}
-				logger.Info("track constants written", "path", out.path)
-			}
-
-			return nil
-		},
-	}
-
-	cmd.Flags().StringVar(&config, "config", "./src/config/track.toml", "Path to track.toml source of truth")
-	cmd.Flags().StringVar(&goOutput, "go-output",
-		"./src/go/internal/simgen/simconfig/track_constants.gen.go", "Go const block output path")
-
-	return cmd
-}
-
-func previewCmd(logger *slog.Logger) *cobra.Command {
+func previewCmd(logger *slog.Logger, configRoot *string) *cobra.Command {
 	var (
 		metadata string
 		output   string
@@ -227,7 +211,11 @@ func previewCmd(logger *slog.Logger) *cobra.Command {
 			if metadata == "" {
 				return errors.New("--metadata is required")
 			}
-			outPath, err := preview.GenerateSVG(metadata, output)
+			track, robot, err := loadConfig(*configRoot)
+			if err != nil {
+				return err
+			}
+			outPath, err := preview.GenerateSVG(track, robot, metadata, output)
 			if err != nil {
 				return fmt.Errorf("generate SVG preview: %w", err)
 			}

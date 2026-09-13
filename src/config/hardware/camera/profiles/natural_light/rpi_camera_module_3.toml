@@ -1,3 +1,4 @@
+#:schema ../../../../../model/hardware/camera/rpi_camera_module_3.schema.json
 # Hardware-profile overlay for practicing under natural/daylight instead of
 # the WRO venue's controlled artificial white light, deep-merged onto the
 # base src/config/hardware/camera/rpi_camera_module_3.toml (see

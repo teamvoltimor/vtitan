@@ -26,8 +26,22 @@ type PursuitConfig struct {
 	// (see WaypointController's doc comment), kept only so the field has
 	// somewhere to land.
 	SteerKp float64 `mapstructure:"steer_kp"`
-	// MaxSteeringRate matches MAX_STEERING_RATE (rad/s).
+	// MaxSteeringRate matches MAX_STEERING_RATE (rad/s). As a POLICY it
+	// rate-limits the outgoing command; see ServoSlewRateRadS for the model.
 	MaxSteeringRate float64 `mapstructure:"max_steering_rate"`
+	// ServoSlewRateRadS matches SERVO_SLEW_RATE_RAD_S: how fast the servo
+	// ACTUALLY moves, as opposed to how fast the command is allowed to move.
+	// Split from MaxSteeringRate because one number was doing two jobs that
+	// pull in opposite directions; consumed by bay exit's servo standstill
+	// budget. Ships 2.4 (measured 2026-09-11, >= 2x the old assumed 1.2).
+	ServoSlewRateRadS float64 `mapstructure:"servo_slew_rate_rad_s"`
+	// TargetSearchSpanM matches TARGET_SEARCH_SPAN_M: how far ALONG THE PATH
+	// select_target_point may walk. 0 = a whole lap. Bounds the search so a
+	// reversed chassis is not handed the far side of the ring.
+	TargetSearchSpanM float64 `mapstructure:"target_search_span_m"`
+	// TargetSenseGate matches TARGET_SENSE_GATE: reject a candidate the
+	// chassis would reach by going round the loop the WRONG WAY. Ships false.
+	TargetSenseGate bool `mapstructure:"target_sense_gate"`
 	// WallMarginSafetyM matches WALL_MARGIN_SAFETY_M (m).
 	WallMarginSafetyM float64 `mapstructure:"wall_margin_safety_m"`
 	// MinLookaheadTransitionM matches MIN_LOOKAHEAD_TRANSITION_M (m).

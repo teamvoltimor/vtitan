@@ -81,7 +81,11 @@ var (
 //
 // The transform mirrors/rotates to produce the correct world (x, y) for each
 // of the four corridors. scenarioID must be in [1, 36].
-func ApplyScenarioToSection(scenarioID int, section simconfig.Section) ([]ScenarioPillar, error) {
+func ApplyScenarioToSection(
+	track *simconfig.Track,
+	scenarioID int,
+	section simconfig.Section,
+) ([]ScenarioPillar, error) {
 	if scenarioID < simconfig.ScenarioIDMin || scenarioID > simconfig.ScenarioIDMax {
 		return nil, fmt.Errorf(
 			"scenario_id must be %d–%d, got %d",
@@ -99,9 +103,9 @@ func ApplyScenarioToSection(scenarioID int, section simconfig.Section) ([]Scenar
 		case simconfig.SectionSouth:
 			wx, wy = e.x, e.y
 		case simconfig.SectionNorth:
-			wx, wy = e.x, simconfig.TrackMaxCoord-e.y
+			wx, wy = e.x, track.TrackMaxCoord-e.y
 		case simconfig.SectionEast:
-			wx, wy = simconfig.TrackMaxCoord-e.y, e.x
+			wx, wy = track.TrackMaxCoord-e.y, e.x
 		case simconfig.SectionWest:
 			wx, wy = e.y, e.x
 		default:

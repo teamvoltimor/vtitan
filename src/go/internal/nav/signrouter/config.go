@@ -31,6 +31,10 @@ type Config struct {
 	// track.toml's [sign] height -- the only dimension the pinhole range
 	// model needs.
 	SignHeightM float64
+	// SignWidthM is the sign's real-world width, from track.toml's [sign]
+	// width. Consumed by PassLateral's gap-centring arithmetic; mirrored
+	// separately from LateralOffsetM (which folds in only half of it).
+	SignWidthM float64
 	// LateralOffsetM is the lateral deformation magnitude (m), matching
 	// SignRouterConfig.lateral_offset. Not a raw tunable: it is chassis
 	// half-diagonal + sign half-width + SIGN_CLEARANCE_MARGIN_M, computed
@@ -67,6 +71,30 @@ type Config struct {
 	// SignRouterParams.SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR: resolve a
 	// corner sign by which face its depth lies along, not which is nearest.
 	DepthConsistentCorridor bool
+
+	// SlotSignMap matches SignRouterParams.SLOT_SIGN_MAP: assign evidence to
+	// the rulebook's 24 legal cells (SlotSignMap) instead of clustering freely
+	// (ObservedSignMap). Ships TRUE in the checked-in sign_router.toml.
+	SlotSignMap bool
+	// SlotAcceptRadiusM matches SLOT_ACCEPT_RADIUS_M: how close an
+	// observation must be to a legal cell to claim it.
+	SlotAcceptRadiusM float64
+	// SlotMinEvidence matches SLOT_MIN_EVIDENCE: summed confidence a cell
+	// needs before it can hold a slot.
+	SlotMinEvidence float64
+	// SlotRepointMargin matches SLOT_REPOINT_MARGIN: how far a challenger
+	// cell must out-weigh an incumbent to take its slot.
+	SlotRepointMargin float64
+
+	// GridDepthNear/Middle/Far match track.toml's [sign] grid_depth_* -- the
+	// three along-corridor rows of the legal sign lattice.
+	GridDepthNear, GridDepthMiddle, GridDepthFar float64
+	// GridWidthOuter/GridWidthInner are the corridor division lines measured
+	// from the outer wall, matching track.toml's division_lines.
+	GridWidthOuter, GridWidthInner float64
+	// TrackSizeM is track.toml's [track] size; the far width lines are
+	// measured back from it.
+	TrackSizeM float64
 
 	// WallClearanceMarginM matches SignRouterConstants.wall_clearance_margin_m.
 	WallClearanceMarginM float64
@@ -141,6 +169,20 @@ const (
 	DefaultTrackMaxCoordM       = 3.0
 	DefaultTrackCornerMinM      = 1.0
 	DefaultTrackCornerMaxM      = 2.0
+	// DefaultSlotAcceptRadiusM/DefaultSlotMinEvidence/DefaultSlotRepointMargin
+	// match SLOT_ACCEPT_RADIUS_M/SLOT_MIN_EVIDENCE/SLOT_REPOINT_MARGIN.
+	DefaultSlotAcceptRadiusM = 0.30
+	DefaultSlotMinEvidence   = 0.75
+	DefaultSlotRepointMargin = 1.5
+	// DefaultGridDepthNear/Middle/Far and DefaultGridWidthOuter/Inner mirror
+	// track.toml's [sign] grid_depth_* and [corridor] division_lines.
+	DefaultGridDepthNear   = 1.0
+	DefaultGridDepthMiddle = 1.5
+	DefaultGridDepthFar    = 2.0
+	DefaultGridWidthOuter  = 0.40
+	DefaultGridWidthInner  = 0.60
+	// DefaultTrackSizeM mirrors track.toml's [track] size.
+	DefaultTrackSizeM = 3.0
 	// DefaultChassisLengthM/DefaultChassisWidthM mirror robot.toml's
 	// [chassis] length/width -- 0.30/0.194 as of this port. See
 	// ChassisHalfDiagonalM's doc comment for why ConfigFor re-derives this
@@ -185,8 +227,18 @@ func DefaultConfig() Config {
 		CameraFarClipM:          DefaultCameraFarClipM,
 		SensorMountXOffsetM:     DefaultSensorMountXOffsetM,
 		SignHeightM:             DefaultSignHeightM,
+		SignWidthM:              DefaultSignWidthM,
 		RelabelUnsatisfiable:    DefaultRelabelUnsatisfiable,
 		DepthConsistentCorridor: DefaultDepthConsistent,
+		SlotAcceptRadiusM:       DefaultSlotAcceptRadiusM,
+		SlotMinEvidence:         DefaultSlotMinEvidence,
+		SlotRepointMargin:       DefaultSlotRepointMargin,
+		GridDepthNear:           DefaultGridDepthNear,
+		GridDepthMiddle:         DefaultGridDepthMiddle,
+		GridDepthFar:            DefaultGridDepthFar,
+		GridWidthOuter:          DefaultGridWidthOuter,
+		GridWidthInner:          DefaultGridWidthInner,
+		TrackSizeM:              DefaultTrackSizeM,
 		WallClearanceMarginM:    DefaultWallClearanceMarginM,
 		DeformDepthBufferM:      DefaultDeformDepthBufferM,
 		PinCornerGuard:          DefaultPinCornerGuard,

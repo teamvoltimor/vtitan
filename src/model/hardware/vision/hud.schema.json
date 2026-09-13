@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/vision/hud.schema.json",
+  "title": "HardwareVisionHud",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "font_scale": {
+      "type": "number",
+      "description": "Font scale."
+    },
+    "text_thickness": {
+      "type": "integer",
+      "description": "Text thickness."
+    },
+    "line_height_px": {
+      "type": "integer",
+      "description": "Line height px."
+    },
+    "text_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Text rgb."
+    },
+    "label_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Label rgb."
+    },
+    "accent_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Accent rgb."
+    },
+    "border_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Border rgb."
+    },
+    "panel_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Panel rgb."
+    },
+    "panel_alpha": {
+      "type": "number",
+      "description": "Panel alpha."
+    },
+    "margin_px": {
+      "type": "integer",
+      "description": "Margin px."
+    },
+    "column_gap_px": {
+      "type": "integer",
+      "description": "Column gap px."
+    },
+    "radar_radius_px": {
+      "type": "integer",
+      "description": "Radar radius px."
+    },
+    "radar_margin_px": {
+      "type": "integer",
+      "description": "Radar margin px."
+    },
+    "radar_bg_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Radar bg rgb."
+    },
+    "radar_bg_alpha": {
+      "type": "number",
+      "description": "Radar bg alpha."
+    },
+    "radar_ring_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Radar ring rgb."
+    },
+    "radar_crosshair_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Radar crosshair rgb."
+    },
+    "radar_point_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Radar point rgb."
+    },
+    "radar_robot_rgb": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Radar robot rgb."
+    },
+    "max_radar_range_m": {
+      "type": "number",
+      "description": "Max radar range m."
+    },
+    "logo_size_px": {
+      "type": "integer",
+      "description": "Logo size px."
+    },
+    "logo_margin_px": {
+      "type": "integer",
+      "description": "Logo margin px."
+    },
+    "logo_alpha": {
+      "type": "number",
+      "description": "Logo alpha."
+    },
+    "join_timeout_sec": {
+      "type": "number",
+      "description": "Join timeout sec."
+    },
+    "run_path_poll_interval_sec": {
+      "type": "number",
+      "description": "Run path poll interval sec."
+    },
+    "run_path_poll_timeout_sec": {
+      "type": "number",
+      "description": "Run path poll timeout sec."
+    }
+  },
+  "required": [
+    "font_scale",
+    "text_thickness",
+    "line_height_px",
+    "text_rgb",
+    "label_rgb",
+    "accent_rgb",
+    "border_rgb",
+    "panel_rgb",
+    "panel_alpha",
+    "margin_px",
+    "column_gap_px",
+    "radar_radius_px",
+    "radar_margin_px",
+    "radar_bg_rgb",
+    "radar_bg_alpha",
+    "radar_ring_rgb",
+    "radar_crosshair_rgb",
+    "radar_point_rgb",
+    "radar_robot_rgb",
+    "max_radar_range_m",
+    "logo_size_px",
+    "logo_margin_px",
+    "logo_alpha",
+    "join_timeout_sec",
+    "run_path_poll_interval_sec",
+    "run_path_poll_timeout_sec"
+  ]
+}

@@ -177,7 +177,7 @@ type Navigator struct {
 	// travel direction; discovery accumulates camera signs; believedYawOffset
 	// is the belief->map yaw measured at start (start_measurement).
 	dirEstimator      *directionestimator.Estimator
-	discovery         *signrouter.ObservedSignMap
+	discovery         signrouter.SignMap
 	believedYawOffset float64
 	believedYawSet    bool
 
@@ -235,13 +235,15 @@ type Navigator struct {
 }
 
 // laneFingerprintEntry is one sign of the layout a lane path was built
-// for. Python reads SignRouter.lane_fingerprint, a discovery-only property
-// with no Go counterpart (see signrouter's doc.go), so the fingerprint is
-// derived here from LaneSpecs instead -- the same (x, y, corridor) triple,
-// from the same source.
+// for, matching SignRouter.lane_fingerprint's (x, y, str(color)) element.
+// X/Y are rounded to the centimetre: blind discovery refines positions every
+// tick, and sub-millimetre estimate jitter -- which cannot move a waypoint
+// visibly -- must not count as a layout change. The corridor is deliberately
+// NOT part of the fingerprint, matching Python: a corridor flip alone does not
+// rebuild the lane.
 type laneFingerprintEntry struct {
-	X, Y     float64
-	Corridor trackmodel.Section
+	X, Y  float64
+	Color signrouter.SignColor
 }
 
 // perception is the LIDAR-derived picture one tick of Step works from.
@@ -410,7 +412,13 @@ func New(p Params) (*Navigator, error) {
 			if p.SignDiscoveryConfig != nil {
 				discoveryCfg = *p.SignDiscoveryConfig
 			}
-			n.discovery = signrouter.NewObservedSignMap(discoveryCfg, n.signRouter)
+			// SLOT_SIGN_MAP selects the rulebook-constrained assignment over
+			// free clustering, matching SignRouter.__init__'s choice.
+			if n.signRouterCfg.SlotSignMap {
+				n.discovery = signrouter.NewSlotSignMap(n.signRouterCfg, discoveryCfg, n.signRouter)
+			} else {
+				n.discovery = signrouter.NewObservedSignMap(discoveryCfg, n.signRouter)
+			}
 		}
 	}
 	n.applyPathWallBudget()

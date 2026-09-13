@@ -1,0 +1,461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/track.schema.json",
+  "title": "TrackConfig",
+  "description": "Mat geometry source of truth for the WRO 2026 Future Engineers mat. Read at runtime by Python (shared.config.track_constants) and consumed by the Go generator simgen (see trackconfig).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "track": {
+      "description": "Mat and driveable-track extents and the corner region (metres).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mat_size": {
+          "description": "Printed mat side length. Larger than the driveable track it carries.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "TrackMatSize"
+        },
+        "size": {
+          "description": "Driveable track side length.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "TrackSize"
+        },
+        "min_coord": {
+          "description": "Minimum coordinate, bottom-left origin.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "TrackMinCoord"
+        },
+        "max_coord": {
+          "description": "Maximum coordinate, top-right. Equal to the track size for a track that starts at the origin.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "TrackMaxCoord"
+        },
+        "corner_min": {
+          "description": "Corner region start: the middle third of each axis.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "TrackCornerMin"
+        },
+        "corner_max": {
+          "description": "Corner region end.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "TrackCornerMax"
+        }
+      },
+      "required": [
+        "mat_size",
+        "size",
+        "min_coord",
+        "max_coord",
+        "corner_min",
+        "corner_max"
+      ]
+    },
+    "wall": {
+      "description": "Exterior and interior wall dimensions and positioning (metres).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "description": "Wall height.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "WallHeight"
+        },
+        "thickness": {
+          "description": "Visual wall thickness.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "WallThickness"
+        },
+        "collision_thickness": {
+          "description": "Collision thickness. Matches the visual wall; there is no inflation.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "WallCollisionThickness",
+          "x-journal": [
+            "adr:0001-wall-collision-thickness",
+            "adr:0002-lidar-mount-forward-shift"
+          ]
+        },
+        "exterior_offset": {
+          "description": "Exterior wall inset: half the wall thickness.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "WallExteriorOffset"
+        },
+        "interior_offset": {
+          "description": "Interior wall inset: half the wall thickness.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "WallInteriorOffset"
+        },
+        "color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Wall colour, normalized RGB in [0, 1].",
+          "x-go": "WallColor"
+        }
+      },
+      "required": [
+        "height",
+        "thickness",
+        "collision_thickness",
+        "exterior_offset",
+        "interior_offset",
+        "color"
+      ]
+    },
+    "corridor": {
+      "description": "Legal corridor widths and the division lines that cut every corridor lengthwise (metres).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "narrow": {
+          "description": "Narrow corridor width.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "CorridorNarrow"
+        },
+        "wide": {
+          "description": "Wide corridor width.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "CorridorWide"
+        },
+        "obstacles": {
+          "description": "Obstacles-challenge fixed corridor width.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "CorridorObstacles"
+        },
+        "min_width": {
+          "description": "Minimum valid corridor width. Deliberately below the legal minimum so tests can exercise off-spec layouts.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "CorridorMinWidth"
+        },
+        "max_width": {
+          "description": "Maximum valid corridor width. Deliberately above the legal maximum so tests can exercise off-spec layouts.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "CorridorMaxWidth"
+        },
+        "division_lines": {
+          "description": "The two division lines painted across every corridor, measured out from the outer wall. Every other lengthwise division derives from these: the starting square bands and the sign-grid width lines.",
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "narrow",
+        "wide",
+        "obstacles",
+        "min_width",
+        "max_width",
+        "division_lines"
+      ]
+    },
+    "sign": {
+      "description": "Traffic pillar dimensions, grid rows and colours.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "description": "Pillar width.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignWidth"
+        },
+        "depth": {
+          "description": "Pillar depth.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignDepth"
+        },
+        "height": {
+          "description": "Pillar height.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignHeight"
+        },
+        "z_position": {
+          "description": "Pillar centre height. Half the pillar height: pillars are placed by their centre.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignZPosition"
+        },
+        "grid_depth_near": {
+          "description": "Along-corridor position of the near sign-grid row.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignGridDepthNear"
+        },
+        "grid_depth_middle": {
+          "description": "Along-corridor position of the middle sign-grid row.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignGridDepthMiddle"
+        },
+        "grid_depth_far": {
+          "description": "Along-corridor position of the far sign-grid row.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignGridDepthFar"
+        },
+        "placement_circle_diameter": {
+          "description": "Diameter of the circle each pillar is placed within. Touching a pillar is not a failure: the pillar may be nudged while any corner of its square stays inside this circle. Only pushing it fully out counts against the team.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "SignPlacementCircleDiameter",
+          "x-journal": "docs/bitacora_ingenieria.md"
+        },
+        "min_count": {
+          "description": "Minimum number of pillars per round.",
+          "type": "integer",
+          "minimum": 0,
+          "x-go": "SignMinCount"
+        },
+        "max_count": {
+          "description": "Maximum number of pillars per round.",
+          "type": "integer",
+          "minimum": 0,
+          "x-go": "SignMaxCount"
+        },
+        "red_color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Official WRO red pillar colour, normalized RGB in [0, 1].",
+          "x-go": "SignColorRed"
+        },
+        "green_color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Official WRO green pillar colour, normalized RGB in [0, 1].",
+          "x-go": "SignColorGreen"
+        },
+        "red_std": {
+          "$ref": "#/definitions/RGB",
+          "description": "Per-channel stddev for Gaussian colour noise on red pillars.",
+          "x-go": "SignColorRedStd"
+        },
+        "green_std": {
+          "$ref": "#/definitions/RGB",
+          "description": "Per-channel stddev for Gaussian colour noise on green pillars.",
+          "x-go": "SignColorGreenStd"
+        }
+      },
+      "required": [
+        "width",
+        "depth",
+        "height",
+        "z_position",
+        "grid_depth_near",
+        "grid_depth_middle",
+        "grid_depth_far",
+        "placement_circle_diameter",
+        "min_count",
+        "max_count",
+        "red_color",
+        "green_color",
+        "red_std",
+        "green_std"
+      ]
+    },
+    "parking": {
+      "description": "Magenta parking block dimensions and bay sizing (metres).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "length": {
+          "description": "Parking block length.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "ParkingLength"
+        },
+        "width": {
+          "description": "Parking block width.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "ParkingWidth"
+        },
+        "height": {
+          "description": "Parking block height.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "ParkingHeight"
+        },
+        "z_position": {
+          "description": "Parking block centre height. Half the block height: the block is placed by its centre.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "ParkingZPosition"
+        },
+        "wall_offset": {
+          "description": "Distance from the wall to the block centre. Half the block length, so the block sits flush to the wall.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "ParkingWallOffset"
+        },
+        "spacing_factor": {
+          "description": "Bay length as a multiple of the robot's length, the dimension that has to fit inside the bay.",
+          "type": "number",
+          "x-go": "ParkingSpacingFactor"
+        },
+        "color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Parking block colour, normalized RGB in [0, 1].",
+          "x-go": "ParkingColor"
+        }
+      },
+      "required": [
+        "length",
+        "width",
+        "height",
+        "z_position",
+        "wall_offset",
+        "spacing_factor",
+        "color"
+      ]
+    },
+    "starting_zone": {
+      "description": "Starting square's cell size, appearance and per-band spawn alignment (metres).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_length": {
+          "description": "One cell of the starting square, along the corridor.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "StartingZoneDefaultLength"
+        },
+        "thickness": {
+          "description": "Visual thickness of the starting-square marker.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "StartingZoneThickness"
+        },
+        "obstacles_size_factor": {
+          "description": "Starting-square size as a fraction of the obstacles-challenge gap.",
+          "type": "number",
+          "x-go": "StartingZoneObstaclesFactor"
+        },
+        "indicator_radius": {
+          "description": "Radius of the clockwise/counterclockwise direction indicator.",
+          "type": "number",
+          "x-unit": "m",
+          "x-go": "StartingZoneIndicatorRadius"
+        },
+        "color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Starting-square base colour, normalized RGB in [0, 1].",
+          "x-go": "StartingZoneColor"
+        },
+        "clockwise_color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Colour marking a clockwise round, normalized RGB in [0, 1].",
+          "x-go": "StartingZoneClockwiseColor"
+        },
+        "counterclockwise_color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Colour marking a counterclockwise round, normalized RGB in [0, 1].",
+          "x-go": "StartingZoneCounterClockwiseColor"
+        },
+        "spawn_alignment": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SpawnAlignment"
+          },
+          "description": "Which edge of its band the chassis is pushed flush against, one per band. 'outer' is the edge nearer the outer wall, 'inner' the edge nearer the inner block. The spawn offset is derived from this and the chassis width, so a re-measurement does not go stale.",
+          "x-journal": "docs/bitacora_ingenieria.md"
+        }
+      },
+      "required": [
+        "default_length",
+        "thickness",
+        "obstacles_size_factor",
+        "indicator_radius",
+        "color",
+        "clockwise_color",
+        "counterclockwise_color",
+        "spawn_alignment"
+      ]
+    },
+    "markings": {
+      "description": "Corner lines painted on the mat: colours and angle.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "orange_color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Corner line colour, normalized RGB in [0, 1]."
+        },
+        "blue_color": {
+          "$ref": "#/definitions/RGB",
+          "description": "Corner line colour, normalized RGB in [0, 1]."
+        },
+        "angle": {
+          "description": "Corner line half-splay from the bisector.",
+          "type": "number",
+          "x-unit": "deg"
+        }
+      },
+      "required": [
+        "orange_color",
+        "blue_color",
+        "angle"
+      ]
+    }
+  },
+  "x-derived": {
+    "TrackCenterCoord": "Middle of the track on both axes.",
+    "TrackCornerSize": "Side length of one corner region.",
+    "CorridorDivOuter": "Outer division line, measured out from the outer wall.",
+    "CorridorDivInner": "Inner division line, measured out from the outer wall.",
+    "CorridorDivWidth": "Width of the middle band: the gap between the two division lines.",
+    "SignGridWidthOuter": "Outer sign-grid width line. The width lines are the corridor's own division lines, not separate measurements.",
+    "SignGridWidthInner": "Inner sign-grid width line. The width lines are the corridor's own division lines, not separate measurements.",
+    "StartingZoneWidth": "Middle band width, used for the parking-derived starting zone and the base template placeholder.",
+    "StartingZoneBandWidths": "Starting square's bands across the corridor, measured out from the outer wall. Derived from the corridor division lines: they are the widths those lines delimit. A band is a legal start only while it lies inside the corridor, so a narrow corridor holds only the outer bands.",
+    "StartingZoneSpawnOffsets": "Where the robot is placed inside each band, measured out from the outer wall: absolute metres, not fractions of the corridor. Derived by pushing the chassis flush against the band edge named in spawn_alignment, never centred: one band edge is a painted line the robot can sit against harmlessly, the other may be the inner block.",
+    "GridLengthSectionLeft": "Along-corridor midpoint of the left starting cell: half a cell to the left of the track centre.",
+    "GridLengthSectionRight": "Along-corridor midpoint of the right starting cell: half a cell to the right of the track centre.",
+    "group:grid": "Along-corridor midpoints of the two starting cells in each band."
+  },
+  "x-codegen": true,
+  "required": [
+    "track",
+    "wall",
+    "corridor",
+    "sign",
+    "parking",
+    "starting_zone",
+    "markings"
+  ],
+  "definitions": {
+    "RGB": {
+      "description": "Normalized RGB triple in [0, 1].",
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "SpawnAlignment": {
+      "description": "Band edge a spawn hugs: 'outer' near the outer wall, 'inner' near the inner block.",
+      "type": "string",
+      "enum": [
+        "inner",
+        "outer"
+      ]
+    }
+  }
+}

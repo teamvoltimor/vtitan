@@ -53,9 +53,15 @@ type Config struct {
 	ParkingLot parking.ParkingLotSpecs
 
 	// MaxSteeringRateRadPerS is tuning.pursuit.MAX_STEERING_RATE: the
-	// servo's modelled slew rate, used to model the standstill a leg
-	// change costs and the clearance guard's predicted pose.
+	// command rate limiter, used by the clearance guard's predicted pose.
 	MaxSteeringRateRadPerS float64
+	// ServoSlewRateRadPerS is tuning.pursuit.SERVO_SLEW_RATE_RAD_S: how fast
+	// the servo ACTUALLY moves, used to budget the standstill a leg change
+	// costs. Split from MaxSteeringRate on 2026-09-11 because one number was
+	// doing two jobs that pull opposite ways -- the limiter is a cornering
+	// policy held low, while this budget wastes 2.5 s per reversal whenever
+	// it sits below the truth. Ships 2.4 (measured >= 2x the old 1.2).
+	ServoSlewRateRadPerS float64
 	// ControlHz is tuning.control.CONTROL_HZ: ticks per second, for
 	// converting a slew rate into a per-tick angle step.
 	ControlHz float64
@@ -78,6 +84,9 @@ const (
 	// DefaultMaxSteeringRateRadPerS matches
 	// controllers.DefaultMaxSteeringRate.
 	DefaultMaxSteeringRateRadPerS = 1.2
+	// DefaultServoSlewRateRadPerS matches controllers.DefaultServoSlewRateRadS
+	// (servo_slew_rate_rad_s, 2.4).
+	DefaultServoSlewRateRadPerS = 2.4
 	// DefaultControlHz matches controllers.DefaultControlHz.
 	DefaultControlHz = 20.0
 	// DefaultMinTurnRadiusM matches robot.toml's [drivetrain] min_turn_radius_m.
@@ -111,6 +120,7 @@ func DefaultConfig() Config {
 		ParkingLot: parking.DefaultParkingLotSpecs,
 
 		MaxSteeringRateRadPerS: DefaultMaxSteeringRateRadPerS,
+		ServoSlewRateRadPerS:   DefaultServoSlewRateRadPerS,
 		ControlHz:              DefaultControlHz,
 	}
 }

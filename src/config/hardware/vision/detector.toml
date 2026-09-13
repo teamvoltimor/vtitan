@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/vision/detector.schema.json
 # Vision detector -- src/vision/detector.py
 # class_to_color is always passed explicitly by callers (derived from the
 # model's class order). model_path is normally passed explicitly too; the

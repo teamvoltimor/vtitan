@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/motors/bts7960.schema.json
 # BTS7960/IBT-2 drive H-bridge PWM -- src/hardware/motors/bts7960/config.py
 #
 # Independent RPWM/LPWM (not a shared signal) -- see

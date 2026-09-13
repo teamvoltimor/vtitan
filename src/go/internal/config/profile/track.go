@@ -1,5 +1,7 @@
 package profile
 
+import "github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+
 // TrackMat mirrors track.toml's [track] section.
 type TrackMat struct {
 	MatSize   float64 `mapstructure:"mat_size"`
@@ -61,14 +63,14 @@ type TrackParking struct {
 
 // TrackStartingZone mirrors track.toml's [starting_zone] section.
 type TrackStartingZone struct {
-	DefaultLength         float64    `mapstructure:"default_length"`
-	Thickness             float64    `mapstructure:"thickness"`
-	ObstaclesSizeFactor   float64    `mapstructure:"obstacles_size_factor"`
-	IndicatorRadius       float64    `mapstructure:"indicator_radius"`
-	Color                 [3]float64 `mapstructure:"color"`
-	ClockwiseColor        [3]float64 `mapstructure:"clockwise_color"`
-	CounterclockwiseColor [3]float64 `mapstructure:"counterclockwise_color"`
-	SpawnAlignment        [3]string  `mapstructure:"spawn_alignment"`
+	DefaultLength         float64                     `mapstructure:"default_length"`
+	Thickness             float64                     `mapstructure:"thickness"`
+	ObstaclesSizeFactor   float64                     `mapstructure:"obstacles_size_factor"`
+	IndicatorRadius       float64                     `mapstructure:"indicator_radius"`
+	Color                 [3]float64                  `mapstructure:"color"`
+	ClockwiseColor        [3]float64                  `mapstructure:"clockwise_color"`
+	CounterclockwiseColor [3]float64                  `mapstructure:"counterclockwise_color"`
+	SpawnAlignment        [3]generated.SpawnAlignment `mapstructure:"spawn_alignment"`
 }
 
 // TrackMarkings mirrors track.toml's [markings] section.

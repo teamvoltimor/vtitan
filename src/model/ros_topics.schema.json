@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/ros_topics.schema.json",
+  "title": "RosTopics",
+  "description": "Single source of truth for ROS2 topic names used by the robot and telemetry.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "state_machine",
+    "navigation",
+    "sensors",
+    "commands",
+    "actuators",
+    "challenge_mode",
+    "button",
+    "ui",
+    "bag_recorder",
+    "simulation"
+  ],
+  "properties": {
+    "state_machine": {
+      "description": "Topics published by state_machine_node.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "race_metrics", "system_status"],
+      "properties": {
+        "state": { "description": "Robot state.", "type": "string" },
+        "race_metrics": { "description": "Race metrics, as JSON.", "type": "string" },
+        "system_status": { "description": "System diagnostics, also used by telemetry_bridge_node.", "type": "string" }
+      }
+    },
+    "navigation": {
+      "description": "Topics published by the navigation stack.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["laps_completed", "current_corridor", "nav_debug"],
+      "properties": {
+        "odometry": {
+          "description": "Odometry from track_navigator_node. Currently no node publishes it.",
+          "type": "string"
+        },
+        "laps_completed": { "description": "Lap count from the LapDetector.", "type": "string" },
+        "current_corridor": { "description": "Active track corridor (Section name).", "type": "string" },
+        "nav_debug": { "description": "Per-tick NavigatorDebugSnapshot, as JSON.", "type": "string" }
+      }
+    },
+    "sensors": {
+      "description": "Sensor topics.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scan", "imu", "vision_detections", "camera_image_raw", "joy"],
+      "properties": {
+        "scan": { "description": "LIDAR range data from the Slamtec C1.", "type": "string" },
+        "imu": { "description": "IMU data from the BNO085.", "type": "string" },
+        "vision_detections": { "description": "Vision detections, as JSON.", "type": "string" },
+        "camera_image_raw": { "description": "Raw camera image.", "type": "string" },
+        "joy": { "description": "Joystick input.", "type": "string" }
+      }
+    },
+    "commands": {
+      "description": "Command topics.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ackermann_cmd"],
+      "properties": {
+        "ackermann_cmd": { "description": "Ackermann drive command to the drive and steering nodes.", "type": "string" }
+      }
+    },
+    "actuators": {
+      "description": "Actuator feedback and status topics.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["joint_states", "steering_position", "drive_speed", "status"],
+      "properties": {
+        "joint_states": { "description": "Joint state feedback: steering angle, drive speed, encoder position.", "type": "string" },
+        "steering_position": { "description": "Current steering position in degrees.", "type": "string" },
+        "drive_speed": { "description": "Current drive speed.", "type": "string" },
+        "status": { "description": "Motor status diagnostics.", "type": "string" }
+      }
+    },
+    "challenge_mode": {
+      "description": "Challenge-mode jumper topics.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jumper_inserted", "active"],
+      "properties": {
+        "jumper_inserted": { "description": "Challenge-mode jumper state.", "type": "string" },
+        "active": { "description": "Resolved ScenarioType once latched.", "type": "string" }
+      }
+    },
+    "button": {
+      "description": "Button event topics.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "hold"],
+      "properties": {
+        "event": { "description": "Button events.", "type": "string" },
+        "hold": { "description": "JSON hold-progress feedback, for the OLED countdown.", "type": "string" }
+      }
+    },
+    "ui": {
+      "description": "OLED and telemetry summary topics.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["telemetry_summary", "oled_mirror"],
+      "properties": {
+        "telemetry_summary": { "description": "Low-rate lidar/yaw/detection summary for the OLED.", "type": "string" },
+        "oled_mirror": { "description": "Live mirror of the OLED panel.", "type": "string" }
+      }
+    },
+    "bag_recorder": {
+      "description": "Bag recorder topics.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_path"],
+      "properties": {
+        "run_path": { "description": "Latched run directory the recorder is writing to.", "type": "string" }
+      }
+    },
+    "simulation": {
+      "description": "Simulation-only topics, published by the live visualizer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["odom", "track", "plan", "sign_estimates", "robot_model"],
+      "properties": {
+        "odom": { "description": "Simulated pose.", "type": "string" },
+        "track": { "description": "Simulated track markers.", "type": "string" },
+        "plan": { "description": "Planned polyline the navigator is tracking, as JSON.", "type": "string" },
+        "sign_estimates": { "description": "Sign estimates the plan was built from, as JSON.", "type": "string" },
+        "robot_model": { "description": "Chassis/sensor/wheel geometry in the base_link frame.", "type": "string" }
+      }
+    }
+  }
+}

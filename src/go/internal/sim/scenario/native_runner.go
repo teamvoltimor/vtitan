@@ -192,6 +192,7 @@ type scoreInput struct {
 	stuck         bool
 	passSideWrong []int
 	trueSigns     int
+	lapSteps      []int
 }
 
 // scenarioStart bundles the parsed spawn pose + travel direction + starting
@@ -215,7 +216,11 @@ type loopState struct {
 	prevX, prevY float64
 	anchorX      float64
 	anchorY      float64
-	anchorStep   int
+	// lapSteps records the step index at which each lap completed, matching
+	// SimResult.lap_step_indices, so lap pacing is comparable to the Python
+	// oracle.
+	lapSteps   []int
+	anchorStep int
 }
 
 // DefaultMaxRunS is the wall-clock budget a single scenario gets before it
@@ -557,6 +562,7 @@ func (r *NativeRunner) loop(
 			stuck:         stuck,
 			passSideWrong: passSideWrong,
 			trueSigns:     len(passSide.signs),
+			lapSteps:      acc.lapSteps,
 		})
 	}
 	for acc.steps < r.maxSteps {
@@ -584,6 +590,9 @@ func (r *NativeRunner) loop(
 		// persist.
 		if v := passSideCheck(nav, st, passSide, &prevLaps); len(v) > 0 {
 			return scoreRun(collision.SurfaceNone, false, v), nil
+		}
+		if laps := nav.LapsCompleted(); laps > len(acc.lapSteps) {
+			acc.lapSteps = append(acc.lapSteps, acc.steps)
 		}
 
 		// Terminal surface: a contact against a wall THIS CHALLENGE forbids
@@ -729,6 +738,7 @@ func (r *NativeRunner) score(in scoreInput) Result {
 		DiscoveredSigns:        discoveredSigns,
 		TrueSigns:              in.trueSigns,
 		PassRecords:            passRecords,
+		LapStepIndices:         in.lapSteps,
 		CollisionXY:            []float64{cx, cy},
 		FinalPose:              []float64{st.X, st.Y, st.Yaw},
 		Parked:                 parked,

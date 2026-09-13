@@ -16,6 +16,8 @@ import (
 // ScenarioGenerator orchestrates world randomization, SDF construction, and
 // file output for one or more WRO 2026 scenarios.
 type ScenarioGenerator struct {
+	Track         *simconfig.Track
+	Robot         *simconfig.Robot
 	randomizer    *Randomizer
 	strategy      Strategy
 	logger        *slog.Logger
@@ -27,6 +29,8 @@ type ScenarioGenerator struct {
 // NewScenarioGenerator creates a generator for the given challenge type.
 // If seed is non-nil, the PRNG is seeded for reproducible output.
 func NewScenarioGenerator(
+	track *simconfig.Track,
+	robot *simconfig.Robot,
 	outputDir string,
 	challengeType simconfig.ScenarioType,
 	seed *int64,
@@ -43,13 +47,15 @@ func NewScenarioGenerator(
 		src = rand.NewSource(rand.Int63())
 	}
 	rng := rand.New(src)
-	r := NewRandomizer(rng)
+	r := NewRandomizer(track, robot, rng)
 
 	if strategy == nil {
 		strategy = NewFullRandomization(r)
 	}
 
 	return &ScenarioGenerator{
+		Track:         track,
+		Robot:         robot,
 		outputDir:     outputDir,
 		challengeType: challengeType,
 		seed:          seed,
@@ -98,7 +104,7 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 		//
 		// Neither branch consumes RNG, so resolving them inside the retry loop
 		// leaves the seeded sequence untouched.
-		sc.Zone = GenerateStartingZone(sc.Section, corridorWidths[sc.Section].Width, sc.StartCell, parking)
+		sc.Zone = GenerateStartingZone(g.Track, sc.Section, corridorWidths[sc.Section].Width, sc.StartCell, parking)
 		if parking != nil {
 			sc.Position = simconfig.Vec2{sc.Zone.X, sc.Zone.Y}
 		}
@@ -109,7 +115,7 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 			ParkingConfig:      parking,
 			StartingConditions: sc,
 		}
-		violations := validate.ValidateScenario(ctx)
+		violations := validate.ValidateScenario(g.Track, g.Robot, ctx)
 		if len(violations) == 0 {
 			break
 		}
@@ -133,20 +139,20 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 
 	// Adjust signs that would collide with parking blocks
 	if parking != nil {
-		signs = adjustSignsForParking(signs, sc.Section)
+		signs = adjustSignsForParking(g.Track, signs, sc.Section)
 	}
 
 	// Build SDF world
-	root, world := sdf.GenerateBaseWorld()
+	root, world := sdf.GenerateBaseWorld(g.Track, g.Robot)
 	sdf.AddSystemPlugins(world)
 	sdf.ApplyLighting(world, lighting)
-	sdf.AddInteriorWalls(world, corridorWidths)
-	sdf.AddTrafficSigns(world, signs)
+	sdf.AddInteriorWalls(world, g.Track, g.Robot, corridorWidths)
+	sdf.AddTrafficSigns(world, g.Track, g.Robot, signs)
 	if parking != nil {
-		sdf.AddParkingLot(world, *parking)
+		sdf.AddParkingLot(world, g.Track, g.Robot, *parking)
 	}
-	sdf.AddStartingZone(world, &sc, corridorWidths)
-	sdf.AddRobotModel(world, sc)
+	sdf.AddStartingZone(world, g.Track, g.Robot, &sc, corridorWidths)
+	sdf.AddRobotModel(world, g.Track, g.Robot, sc)
 
 	// Write SDF
 	worldPath, err = g.saveWorld(root, idx)
@@ -166,7 +172,7 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 
 func (g *ScenarioGenerator) resolveCorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
 	if g.challengeType == simconfig.ScenarioTypeObstacles {
-		return FixedCorridorWidths()
+		return FixedCorridorWidths(g.Track)
 	}
 	return g.strategy.CorridorWidths()
 }
@@ -212,16 +218,20 @@ func (g *ScenarioGenerator) saveMetadata(meta Metadata, idx int) error {
 
 // adjustSignsForParking moves outer-lane signs in the parking section to the
 // inner lane to avoid collisions with the parking blocks.
-func adjustSignsForParking(signs []simconfig.Sign, startSection simconfig.Section) []simconfig.Sign {
-	outer := simconfig.SignGridWidthOuter
-	inner := simconfig.SignGridWidthInner
+func adjustSignsForParking(
+	track *simconfig.Track,
+	signs []simconfig.Sign,
+	startSection simconfig.Section,
+) []simconfig.Sign {
+	outer := track.SignGridWidthOuter
+	inner := track.SignGridWidthInner
 	tolerance := simconfig.SignAdjustmentTolerance
-	trackMax := simconfig.TrackMaxCoord
+	trackMax := track.TrackMaxCoord
 
 	result := make([]simconfig.Sign, len(signs))
 	for i, s := range signs {
 		x, y := s.Position[0], s.Position[1]
-		lo, hi := simconfig.TrackCornerMin, simconfig.TrackCornerMax
+		lo, hi := track.TrackCornerMin, track.TrackCornerMax
 		switch startSection {
 		case simconfig.SectionSouth:
 			if lo <= x && x <= hi && abs(y-outer) < tolerance {

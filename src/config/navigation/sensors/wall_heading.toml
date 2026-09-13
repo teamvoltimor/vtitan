@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/sensors/wall_heading.schema.json
 # LIDAR wall-direction estimation for the blind heading reference.
 #
 # See shared.config.navigation_tuning.WallHeadingParams.

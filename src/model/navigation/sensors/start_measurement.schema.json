@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/navigation/sensors/start_measurement.schema.json",
+  "title": "NavigationSensorsStartMeasurement",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ray_half_width_deg": {
+      "type": "number",
+      "description": "wedge half-width for each cardinal ray's median (converted to radians at point of use)"
+    },
+    "closing_tolerance_m": {
+      "type": "number",
+      "description": "how far forward+back may fall short of the mat before a reading is rejected"
+    },
+    "retry_window_s": {
+      "type": "number",
+      "description": "how long after the direction commit a refused measurement keeps being retried"
+    },
+    "retry_align_tolerance_deg": {
+      "type": "number",
+      "description": "how far off the start corridor's bearing a retried measurement is still believed"
+    }
+  },
+  "required": [
+    "ray_half_width_deg",
+    "closing_tolerance_m",
+    "retry_window_s",
+    "retry_align_tolerance_deg"
+  ]
+}

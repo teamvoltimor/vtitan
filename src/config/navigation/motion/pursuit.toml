@@ -1,3 +1,4 @@
+#:schema ../../../model/navigation/motion/pursuit.schema.json
 # Pure pursuit controller parameters for waypoint following.
 #
 # See shared.config.navigation_tuning.PurePursuitParams.

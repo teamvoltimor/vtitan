@@ -9,6 +9,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig"
+	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/simconfig/simconfigtest"
 )
 
 const (
@@ -29,7 +30,9 @@ func isValidYaw(yaw float64) bool {
 
 func newOpenGen(t *testing.T, seed int64) *generate.ScenarioGenerator {
 	t.Helper()
-	gen, err := generate.NewScenarioGenerator(t.TempDir(), simconfig.ScenarioTypeOpen, &seed, nil)
+	track := simconfigtest.Load(t)
+	robot := simconfigtest.LoadRobot(t)
+	gen, err := generate.NewScenarioGenerator(track, robot, t.TempDir(), simconfig.ScenarioTypeOpen, &seed, nil)
 	if err != nil {
 		t.Fatalf("NewScenarioGenerator: %v", err)
 	}
@@ -104,6 +107,7 @@ func TestOpenChallenge_CorridorWidthsValid(t *testing.T) {
 
 func TestOpenChallenge_StartingConditionsValid(t *testing.T) {
 	t.Parallel()
+	track := simconfigtest.Load(t)
 	gen := newOpenGen(t, 999)
 	for i := range _nScenarios {
 		_, meta, err := gen.CreateScenario(i)
@@ -114,22 +118,22 @@ func TestOpenChallenge_StartingConditionsValid(t *testing.T) {
 		sc := meta.StartingConditions
 
 		// Position within track
-		if sc.Position.X < simconfig.TrackMinCoord || sc.Position.X > simconfig.TrackMaxCoord {
+		if sc.Position.X < track.TrackMinCoord || sc.Position.X > track.TrackMaxCoord {
 			t.Errorf(
 				"scenario %d: x=%.3f outside [%.1f, %.1f]",
 				i,
 				sc.Position.X,
-				simconfig.TrackMinCoord,
-				simconfig.TrackMaxCoord,
+				track.TrackMinCoord,
+				track.TrackMaxCoord,
 			)
 		}
-		if sc.Position.Y < simconfig.TrackMinCoord || sc.Position.Y > simconfig.TrackMaxCoord {
+		if sc.Position.Y < track.TrackMinCoord || sc.Position.Y > track.TrackMaxCoord {
 			t.Errorf(
 				"scenario %d: y=%.3f outside [%.1f, %.1f]",
 				i,
 				sc.Position.Y,
-				simconfig.TrackMinCoord,
-				simconfig.TrackMaxCoord,
+				track.TrackMinCoord,
+				track.TrackMaxCoord,
 			)
 		}
 
@@ -178,7 +182,14 @@ func TestOpenChallenge_ReproducibleWithSeed(t *testing.T) {
 func TestOpenChallenge_WritesFiles(t *testing.T) {
 	t.Parallel()
 	seed := int64(7)
-	gen, err := generate.NewScenarioGenerator(t.TempDir(), simconfig.ScenarioTypeOpen, &seed, nil)
+	gen, err := generate.NewScenarioGenerator(
+		simconfigtest.Load(t),
+		simconfigtest.LoadRobot(t),
+		t.TempDir(),
+		simconfig.ScenarioTypeOpen,
+		&seed,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("NewScenarioGenerator: %v", err)
 	}
@@ -217,7 +228,14 @@ func TestOpenChallenge_WritesFiles(t *testing.T) {
 
 func BenchmarkOpenChallenge_CreateScenario(b *testing.B) {
 	seed := int64(42)
-	gen, err := generate.NewScenarioGenerator(b.TempDir(), simconfig.ScenarioTypeOpen, &seed, nil)
+	gen, err := generate.NewScenarioGenerator(
+		simconfigtest.Load(b),
+		simconfigtest.LoadRobot(b),
+		b.TempDir(),
+		simconfig.ScenarioTypeOpen,
+		&seed,
+		nil,
+	)
 	if err != nil {
 		b.Fatalf("NewScenarioGenerator: %v", err)
 	}

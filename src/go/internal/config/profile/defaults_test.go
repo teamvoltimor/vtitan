@@ -115,6 +115,10 @@ func TestSignRouterConfig_DefaultsMatchTags(t *testing.T) {
 		"pin_heading_guard_deg":               DefaultPinHeadingGuardDeg,
 		"sign_lane_relabel_unsatisfiable":     DefaultRelabelUnsatisfiable,
 		"sign_lane_depth_consistent_corridor": DefaultDepthConsistentCorridor,
+		"slot_sign_map":                       false,
+		"slot_accept_radius_m":                0.30,
+		"slot_min_evidence":                   0.75,
+		"slot_repoint_margin":                 1.5,
 	})
 }
 

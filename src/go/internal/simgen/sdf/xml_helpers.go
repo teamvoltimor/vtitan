@@ -79,12 +79,16 @@ func AddBoxCollision(link *Node, width, depth, height float64, collisionName str
 }
 
 // BuildWallModel constructs a static wall <model> element from center coords and dimensions.
-func BuildWallModel(name string, cx, cy, visualX, visualY, collisionX, collisionY float64) *Node {
+func BuildWallModel(
+	track *simconfig.Track,
+	name string,
+	cx, cy, visualX, visualY, collisionX, collisionY float64,
+) *Node {
 	model := New("model", "name", name)
 	model.SubT("static", "true")
 	model.SubT("pose", pose6(cx, cy, 0, 0, 0, 0))
 	link := model.Sub("link", "name", "link")
-	AddBoxVisual(link, visualX, visualY, simconfig.WallHeight, simconfig.WallColor, "visual")
-	AddBoxCollision(link, collisionX, collisionY, simconfig.WallHeight, "collision")
+	AddBoxVisual(link, visualX, visualY, track.WallHeight, track.WallColor, "visual")
+	AddBoxCollision(link, collisionX, collisionY, track.WallHeight, "collision")
 	return model
 }

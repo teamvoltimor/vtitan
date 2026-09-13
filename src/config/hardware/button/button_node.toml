@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/button/button_node.schema.json
 # button_node's own poll cadence -- vtitan_drivers/vtitan_drivers/button_node.py.
 # Distinct from gpio.toml/mcp2221.toml alongside this file, which are the
 # driver's own debounce/threshold config, not this ROS2 node's poll rate.

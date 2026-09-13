@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/camera/config.schema.json",
+  "title": "HardwareCameraConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "device": {
+      "type": "string",
+      "description": "Device."
+    },
+    "width": {
+      "type": "integer",
+      "description": "Width."
+    },
+    "height": {
+      "type": "integer",
+      "description": "Height."
+    },
+    "fps": {
+      "type": "integer",
+      "description": "Fps."
+    },
+    "rotation": {
+      "type": "integer",
+      "description": "Rotation."
+    },
+    "hflip": {
+      "type": "boolean",
+      "description": "Hflip."
+    },
+    "vflip": {
+      "type": "boolean",
+      "description": "Vflip."
+    }
+  },
+  "required": [
+    "device",
+    "width",
+    "height",
+    "fps",
+    "rotation",
+    "hflip",
+    "vflip"
+  ]
+}

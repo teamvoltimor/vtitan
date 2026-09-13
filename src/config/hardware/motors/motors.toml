@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/motors/motors.schema.json
 # Motor configuration -- src/hardware/motors/config.py
 # steering.port / drive.port are left out -- device paths stay in .env
 # (runtime/hardware-instance knobs, not fixed hardware facts), required

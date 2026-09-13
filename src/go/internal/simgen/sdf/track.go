@@ -17,8 +17,13 @@ type interiorWallSpec struct {
 
 // AddInteriorWalls computes the four interior wall positions from corridor widths
 // and appends them to the world element.
-func AddInteriorWalls(world *Node, corridorWidths map[simconfig.Section]simconfig.CorridorWidth) {
-	trackMax := simconfig.TrackMaxCoord
+func AddInteriorWalls(
+	world *Node,
+	track *simconfig.Track,
+	robot *simconfig.Robot,
+	corridorWidths map[simconfig.Section]simconfig.CorridorWidth,
+) {
+	trackMax := track.TrackMaxCoord
 
 	northY := trackMax - corridorWidths[simconfig.SectionNorth].Width
 	southY := corridorWidths[simconfig.SectionSouth].Width
@@ -29,29 +34,29 @@ func AddInteriorWalls(world *Node, corridorWidths map[simconfig.Section]simconfi
 		{
 			simconfig.ModelInteriorWallNorth,
 			(eastX + westX) / 2,
-			northY - simconfig.WallInteriorOffset,
-			eastX - westX, simconfig.WallThickness,
+			northY - track.WallInteriorOffset,
+			eastX - westX, track.WallThickness,
 			true,
 		},
 		{
 			simconfig.ModelInteriorWallSouth,
 			(eastX + westX) / 2,
-			southY + simconfig.WallInteriorOffset,
-			eastX - westX, simconfig.WallThickness,
+			southY + track.WallInteriorOffset,
+			eastX - westX, track.WallThickness,
 			true,
 		},
 		{
 			simconfig.ModelInteriorWallEast,
-			eastX - simconfig.WallInteriorOffset,
+			eastX - track.WallInteriorOffset,
 			(northY + southY) / 2,
-			simconfig.WallThickness, northY - southY,
+			track.WallThickness, northY - southY,
 			false,
 		},
 		{
 			simconfig.ModelInteriorWallWest,
-			westX + simconfig.WallInteriorOffset,
+			westX + track.WallInteriorOffset,
 			(northY + southY) / 2,
-			simconfig.WallThickness, northY - southY,
+			track.WallThickness, northY - southY,
 			false,
 		},
 	}
@@ -59,11 +64,11 @@ func AddInteriorWalls(world *Node, corridorWidths map[simconfig.Section]simconfi
 	for _, w := range walls {
 		var colX, colY float64
 		if w.horizontal {
-			colX, colY = w.vx, simconfig.WallCollisionThickness
+			colX, colY = w.vx, track.WallCollisionThickness
 		} else {
-			colX, colY = simconfig.WallCollisionThickness, w.vy
+			colX, colY = track.WallCollisionThickness, w.vy
 		}
-		world.Add(BuildWallModel(w.name, w.cx, w.cy, w.vx, w.vy, colX, colY))
+		world.Add(BuildWallModel(track, w.name, w.cx, w.cy, w.vx, w.vy, colX, colY))
 	}
 }
 
@@ -77,6 +82,8 @@ func AddInteriorWalls(world *Node, corridorWidths map[simconfig.Section]simconfi
 // chosen StartingZoneSpawnOffsets. CreateScenario owns the spawn pose.
 func AddStartingZone(
 	world *Node,
+	track *simconfig.Track,
+	robot *simconfig.Robot,
 	sc *simconfig.StartingConditions,
 	corridorWidths map[simconfig.Section]simconfig.CorridorWidth,
 ) {
@@ -94,20 +101,20 @@ func AddStartingZone(
 	// wide would misdraw four of the six cells.
 	zoneWidth := zone.Width
 	if zoneWidth <= 0 {
-		zoneWidth = simconfig.StartingZoneWidth
+		zoneWidth = track.StartingZoneWidth
 	}
 	var zoneSizeStr string
 	if isNS {
-		zoneSizeStr = vec3(zone.Length, zoneWidth, simconfig.StartingZoneThickness)
+		zoneSizeStr = vec3(zone.Length, zoneWidth, track.StartingZoneThickness)
 	} else {
-		zoneSizeStr = vec3(zoneWidth, zone.Length, simconfig.StartingZoneThickness)
+		zoneSizeStr = vec3(zoneWidth, zone.Length, track.StartingZoneThickness)
 	}
 
 	var indicatorRGB simconfig.RGB
 	if sc.Direction == simconfig.DirectionClockwise {
-		indicatorRGB = simconfig.StartingZoneClockwiseColor
+		indicatorRGB = track.StartingZoneClockwiseColor
 	} else {
-		indicatorRGB = simconfig.StartingZoneCounterClockwiseColor
+		indicatorRGB = track.StartingZoneCounterClockwiseColor
 	}
 
 	modelName := fmt.Sprintf("%s%s", simconfig.ModelStartingZonePrefix, sc.Section)
@@ -121,7 +128,7 @@ func AddStartingZone(
 	visBase := link.Sub("visual", "name", "visual_base")
 	visBase.Sub("geometry").Sub("box").SubT("size", zoneSizeStr)
 	matBase := visBase.Sub("material")
-	bc := rgba(simconfig.StartingZoneColor)
+	bc := rgba(track.StartingZoneColor)
 	matBase.SubT("ambient", bc)
 	matBase.SubT("diffuse", bc)
 
@@ -129,8 +136,8 @@ func AddStartingZone(
 	visInd := link.Sub("visual", "name", "visual_direction_indicator")
 	visInd.SubT("pose", pose6(0, 0, simconfig.ZDirectionIndicator, 0, 0, 0))
 	cyl := visInd.Sub("geometry").Sub("cylinder")
-	cyl.SubT("radius", ff(simconfig.StartingZoneIndicatorRadius))
-	cyl.SubT("length", ff(simconfig.StartingZoneThickness))
+	cyl.SubT("radius", ff(track.StartingZoneIndicatorRadius))
+	cyl.SubT("length", ff(track.StartingZoneThickness))
 	matInd := visInd.Sub("material")
 	ic := rgba(indicatorRGB)
 	matInd.SubT("ambient", ic)

@@ -1,8 +1,8 @@
 // Package simconfig mirrors the subset of src/python/shared/src/shared/config/
-// that the generation pipeline needs. Robot* constants are generated from
-// src/config/robot.toml (see robot_constants.gen.go and
-// internal/robotconfig) and must not be hand-edited; the rest of this file's
-// values are still hand-maintained and must stay in sync with the Python source.
+// that the generation pipeline needs. Mat and robot geometry are loaded at
+// runtime from src/config/track.toml and robot.toml into the Track and Robot
+// structs (see track.go and robot.go); the remaining values in this file are
+// hand-maintained and must stay in sync with the Python source.
 package simconfig
 
 import "math"
@@ -26,11 +26,10 @@ const (
 )
 
 // Mat geometry - track, wall, corridor, traffic sign, parking and starting
-// zone constants - now lives in track_constants.gen.go, generated from
-// src/config/track.toml.
-//
-// Robot chassis, Ackermann, wheel, LIDAR-mount, and camera-mount constants now live in
-// robot_constants.gen.go, generated from src/config/robot.toml.
+// zone values - is loaded at runtime from src/config/track.toml into Track
+// (track.go). Robot chassis, Ackermann, wheel, LIDAR-mount and camera-mount
+// values are loaded at runtime from src/config/robot.toml into Robot
+// (robot.go). Both are backed by the shared JSON Schemas under src/model.
 
 // Camera sensor (Raspberry Pi Camera Module 3 Wide).
 const (
@@ -193,10 +192,10 @@ const (
 	RobotLidarLinkMass       = 0.05
 )
 
-// Robot sensor placement offsets (meters). LIDAR/IMU mount z-offsets moved to
-// robot_constants.gen.go (RobotLidarMountZOffset/RobotImuMountZOffset), generated from
-// src/config/robot.toml, so Go/xacro/Python share one source instead of three
-// hand-maintained copies that could drift.
+// Robot sensor placement offsets (meters). The LIDAR/IMU mount z-offsets are
+// not here -- they load from src/config/robot.toml into Robot (robot.go), so
+// Go/xacro/Python share one source instead of three hand-maintained copies
+// that could drift.
 const (
 	RobotFrontIndicatorOffsetX = 0.02  // indicator recessed 20 mm from front face
 	RobotFrontIndicatorOffsetZ = 0.003 // indicator floats 3 mm above chassis top

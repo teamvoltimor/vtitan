@@ -22,7 +22,7 @@ package scenario_test
 // Run:
 //
 //	go test -tags=integration ./internal/sim/scenario/... -run TestNativeRunner_ParityVsPython
-//	VTITAN_SIM_PYTHON=python3 go test -tags=integration ./internal/sim/scenario/... -run TestNativeRunner_ParityVsPython
+// 	VTITAN_SIM_PYTHON=python3 go test -tags=integration ./internal/sim/scenario/... -run TestNativeRunner_ParityVsPython
 
 import (
 	"math"

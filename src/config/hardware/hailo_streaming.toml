@@ -1,3 +1,4 @@
+#:schema ../../model/hardware/hailo_streaming.schema.json
 # Continuous Hailo inference with camera -- src/hardware/hailo/config.py's StreamingConfig.
 # Own toml file (not camera/config.toml) since env_prefix differs
 # (hailo_stream_ vs camera_) -- inherited camera fields are repeated here.

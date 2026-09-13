@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/motors/motors.schema.json",
+  "title": "HardwareMotorsMotors",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "steering": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "offset": {
+          "type": "number",
+          "description": "Offset."
+        },
+        "left_limit_angle": {
+          "type": "number",
+          "description": "Left limit angle."
+        },
+        "right_limit_angle": {
+          "type": "number",
+          "description": "Right limit angle."
+        },
+        "center_angle": {
+          "type": "number",
+          "description": "Center angle."
+        },
+        "centering_speed": {
+          "type": "integer",
+          "description": "Centering speed."
+        },
+        "turning_speed": {
+          "type": "integer",
+          "description": "Turning speed."
+        },
+        "reversed": {
+          "type": "boolean",
+          "description": "Reversed."
+        }
+      },
+      "required": [
+        "offset",
+        "left_limit_angle",
+        "right_limit_angle",
+        "center_angle",
+        "centering_speed",
+        "turning_speed",
+        "reversed"
+      ]
+    },
+    "drive": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reversed": {
+          "type": "boolean",
+          "description": "Reversed."
+        },
+        "encoder_reversed": {
+          "type": "boolean",
+          "description": "Encoder reversed."
+        },
+        "min_speed": {
+          "type": "integer",
+          "description": "Min speed."
+        },
+        "max_speed": {
+          "type": "integer",
+          "description": "Max speed."
+        },
+        "speed_scale": {
+          "type": "number",
+          "description": "Speed scale."
+        },
+        "default_speed": {
+          "type": "integer",
+          "description": "Default speed."
+        },
+        "test_duration": {
+          "type": "number",
+          "description": "Test duration."
+        }
+      },
+      "required": [
+        "reversed",
+        "encoder_reversed",
+        "min_speed",
+        "max_speed",
+        "speed_scale",
+        "default_speed",
+        "test_duration"
+      ]
+    }
+  },
+  "required": [
+    "steering",
+    "drive"
+  ]
+}

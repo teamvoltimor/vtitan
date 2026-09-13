@@ -1,3 +1,4 @@
+#:schema ../../model/hardware/teleop.schema.json
 # Joystick teleop bench-testing tool -- src/teleop/config.py
 # Axis/button indices are a best guess at a typical Linux joydev mapping,
 # UNVERIFIED for the 8BitDo Ultimate 2 specifically -- see the class

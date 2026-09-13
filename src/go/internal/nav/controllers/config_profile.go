@@ -58,6 +58,9 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.LookaheadBlendStart = loaded.LookaheadBlendStart
 		cfg.SteerKp = loaded.SteerKp
 		cfg.MaxSteeringRate = loaded.MaxSteeringRate
+		cfg.ServoSlewRateRadS = loaded.ServoSlewRateRadS
+		cfg.TargetSearchSpanM = loaded.TargetSearchSpanM
+		cfg.TargetSenseGate = loaded.TargetSenseGate
 		cfg.CornerTurnThresholdRad = loaded.CornerTurnThresholdRad
 	}
 

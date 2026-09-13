@@ -36,7 +36,12 @@ const (
 // Python's build_open_metadata can also spawn on the centreline, by passing
 // start_cell=None -- but the centreline is not one of the legal cells, so no
 // case in the enumerated space uses it and this signature does not offer it.
-func Metadata(p Params, cfg startconditions.Config) (generate.Metadata, error) {
+func Metadata(
+	track *simconfig.Track,
+	robot *simconfig.Robot,
+	p Params,
+	cfg startconditions.Config,
+) (generate.Metadata, error) {
 	section, ok := p.Section.Domain()
 	if !ok {
 		return generate.Metadata{}, fmt.Errorf("opencorpus: unknown section %q", p.Section)
@@ -58,7 +63,7 @@ func Metadata(p Params, cfg startconditions.Config) (generate.Metadata, error) {
 			"opencorpus: no start pose for section %q direction %q", p.Section, p.Direction)
 	}
 
-	cells := generate.StartCells(p.Section, widthsByName[p.Section])
+	cells := generate.StartCells(track, p.Section, widthsByName[p.Section])
 	if len(cells) == 0 {
 		return generate.Metadata{}, fmt.Errorf("opencorpus: no start cells for section %q", p.Section)
 	}
@@ -108,14 +113,20 @@ func Metadata(p Params, cfg startconditions.Config) (generate.Metadata, error) {
 // globs the same "*_metadata.json" names. Writing the space out also makes
 // it inspectable -- a case that fails can be diffed or replayed on its own,
 // which an in-memory-only space would not allow.
-func Write(dir string, params []Params, cfg startconditions.Config) ([]corpus.Scenario, error) {
+func Write(
+	track *simconfig.Track,
+	robot *simconfig.Robot,
+	dir string,
+	params []Params,
+	cfg startconditions.Config,
+) ([]corpus.Scenario, error) {
 	if err := os.MkdirAll(dir, metadataDirPerm); err != nil {
 		return nil, fmt.Errorf("opencorpus: creating %s: %w", dir, err)
 	}
 
 	scenarios := make([]corpus.Scenario, 0, len(params))
 	for _, p := range params {
-		meta, err := Metadata(p, cfg)
+		meta, err := Metadata(track, robot, p, cfg)
 		if err != nil {
 			return nil, err
 		}

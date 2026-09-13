@@ -55,43 +55,43 @@ var (
 
 // AddRobotModel appends the full WRO robot model to the world element and
 // also inserts the static overhead debug camera as a sibling world model.
-func AddRobotModel(world *Node, sc simconfig.StartingConditions) {
-	robot := New("model", "name", simconfig.ModelRobotName)
-	robot.SubT("pose", pose6(sc.Position[0], sc.Position[1], simconfig.RobotWheelRadius, 0, 0, sc.Yaw))
+func AddRobotModel(world *Node, track *simconfig.Track, robot *simconfig.Robot, sc simconfig.StartingConditions) {
+	model := New("model", "name", simconfig.ModelRobotName)
+	model.SubT("pose", pose6(sc.Position[0], sc.Position[1], robot.RobotWheelRadius, 0, 0, sc.Yaw))
 
-	buildChassis(robot)
-	buildAckermannPlugin(robot)
-	buildRearWheels(robot)
-	buildFrontSteering(robot)
-	buildCameraLink(robot)
-	buildLidarLink(robot)
-	buildImuLink(robot)
+	buildChassis(model, robot)
+	buildAckermannPlugin(model, robot)
+	buildRearWheels(model, robot)
+	buildFrontSteering(model, robot)
+	buildCameraLink(model, robot)
+	buildLidarLink(model, robot)
+	buildImuLink(model, robot)
 
-	world.Add(robot)
-	buildDebugOverheadCamera(world)
+	world.Add(model)
+	buildDebugOverheadCamera(world, track)
 }
 
-func buildChassis(robot *Node) {
-	halfH := simconfig.RobotHeight / 2
-	cm := simconfig.RobotChassisMass
+func buildChassis(robotNode *Node, robot *simconfig.Robot) {
+	halfH := robot.RobotHeight / 2
+	cm := robot.RobotChassisMass
 	// Box inertia tensor (uniform density).
-	ixx := inertiaOneTwelfth * cm * (sq(simconfig.RobotWidth) + sq(simconfig.RobotHeight))
-	iyy := inertiaOneTwelfth * cm * (sq(simconfig.RobotLength) + sq(simconfig.RobotHeight))
-	izz := inertiaOneTwelfth * cm * (sq(simconfig.RobotLength) + sq(simconfig.RobotWidth))
+	ixx := inertiaOneTwelfth * cm * (sq(robot.RobotWidth) + sq(robot.RobotHeight))
+	iyy := inertiaOneTwelfth * cm * (sq(robot.RobotLength) + sq(robot.RobotHeight))
+	izz := inertiaOneTwelfth * cm * (sq(robot.RobotLength) + sq(robot.RobotWidth))
 
-	base := robot.Sub("link", "name", simconfig.RobotBaseFrameID)
+	base := robotNode.Sub("link", "name", simconfig.RobotBaseFrameID)
 
 	// Main chassis box — blue
 	vis := base.Sub("visual", "name", "visual")
 	vis.SubT("pose", pose6(0, 0, halfH, 0, 0, 0))
 	vis.Sub("geometry").
 		Sub("box").
-		SubT("size", vec3(simconfig.RobotLength, simconfig.RobotWidth, simconfig.RobotHeight))
+		SubT("size", vec3(robot.RobotLength, robot.RobotWidth, robot.RobotHeight))
 	setMaterial(vis, simconfig.RobotChassisColor)
 
 	// Red front indicator (sits above LIDAR scan plane so it is always visible).
-	frontX := simconfig.RobotLength/2 - simconfig.RobotFrontIndicatorOffsetX
-	frontZ := simconfig.RobotHeight + simconfig.RobotFrontIndicatorOffsetZ
+	frontX := robot.RobotLength/2 - simconfig.RobotFrontIndicatorOffsetX
+	frontZ := robot.RobotHeight + simconfig.RobotFrontIndicatorOffsetZ
 	ind := base.Sub("visual", "name", "front_indicator")
 	ind.SubT("pose", pose6(frontX, 0, frontZ, 0, 0, 0))
 	sz := simconfig.RobotFrontIndicatorSize
@@ -102,7 +102,7 @@ func buildChassis(robot *Node) {
 	col.SubT("pose", pose6(0, 0, halfH, 0, 0, 0))
 	col.Sub("geometry").
 		Sub("box").
-		SubT("size", vec3(simconfig.RobotLength, simconfig.RobotWidth, simconfig.RobotHeight))
+		SubT("size", vec3(robot.RobotLength, robot.RobotWidth, robot.RobotHeight))
 
 	inertial := base.Sub("inertial")
 	inertial.SubT("mass", ff(cm))
@@ -112,8 +112,8 @@ func buildChassis(robot *Node) {
 	ix.SubT(simconfig.InertiaComponentIzz, fmt.Sprintf("%.6f", izz))
 }
 
-func buildAckermannPlugin(robot *Node) {
-	plugin := robot.Sub("plugin",
+func buildAckermannPlugin(robotNode *Node, robot *simconfig.Robot) {
+	plugin := robotNode.Sub("plugin",
 		"filename", simconfig.PluginAckermannFilename,
 		"name", simconfig.PluginAckermannName,
 	)
@@ -122,12 +122,12 @@ func buildAckermannPlugin(robot *Node) {
 		{"right_joint", simconfig.RobotJointRearRight},
 		{"left_steering_joint", simconfig.RobotJointFrontLeftSteer},
 		{"right_steering_joint", simconfig.RobotJointFrontRightSteer},
-		{"wheel_separation", ff(simconfig.RobotTrackWidth)},
-		{"kingpin_width", ff(simconfig.RobotTrackWidth)},
-		{"wheel_base", ff(simconfig.RobotWheelbase)},
-		{"wheel_radius", ff(simconfig.RobotWheelRadius)},
-		{"min_steering_angle", "-" + ff(simconfig.RobotMaxSteering)},
-		{"max_steering_angle", ff(simconfig.RobotMaxSteering)},
+		{"wheel_separation", ff(robot.RobotTrackWidth)},
+		{"kingpin_width", ff(robot.RobotTrackWidth)},
+		{"wheel_base", ff(robot.RobotWheelbase)},
+		{"wheel_radius", ff(robot.RobotWheelRadius)},
+		{"min_steering_angle", "-" + ff(robot.RobotMaxSteering)},
+		{"max_steering_angle", ff(robot.RobotMaxSteering)},
 		{"topic", simconfig.RobotCmdVelTopic},
 		{"odom_topic", simconfig.RobotOdomTopic},
 		{"odom_publish_frequency", simconfig.RobotOdomFrequency},
@@ -139,10 +139,10 @@ func buildAckermannPlugin(robot *Node) {
 	}
 }
 
-func buildWheelLink(parent *Node, name, poseText string) {
-	r := simconfig.RobotWheelRadius
-	w := simconfig.RobotWheelWidth
-	wm := simconfig.RobotWheelMass
+func buildWheelLink(parent *Node, robot *simconfig.Robot, name, poseText string) {
+	r := robot.RobotWheelRadius
+	w := robot.RobotWheelWidth
+	wm := robot.RobotWheelMass
 
 	// Cylinder inertia (solid, roll axis = Y after wheelRollPose rotation).
 	wheelIxx := inertiaOneTwelfth * wm * (3*sq(r) + sq(w))
@@ -197,22 +197,22 @@ func buildWheelLink(parent *Node, name, poseText string) {
 	ix.SubT(simconfig.InertiaComponentIzz, fmt.Sprintf("%.8f", wheelIxx))
 }
 
-func buildRearWheels(robot *Node) {
-	halfWB := simconfig.RobotWheelbase / 2
-	halfTrack := simconfig.RobotTrackWidth / 2
+func buildRearWheels(robotNode *Node, robot *simconfig.Robot) {
+	halfWB := robot.RobotWheelbase / 2
+	halfTrack := robot.RobotTrackWidth / 2
 
 	for _, side := range []wheelSide{
 		{simconfig.RobotLinkRearLeftWheel, 1},
 		{simconfig.RobotLinkRearRightWheel, -1},
 	} {
-		buildWheelLink(robot, side.linkName, poseXY(-halfWB, side.ySign*halfTrack))
+		buildWheelLink(robotNode, robot, side.linkName, poseXY(-halfWB, side.ySign*halfTrack))
 	}
 
 	for _, jt := range []rearJointSpec{
 		{simconfig.RobotJointRearLeft, simconfig.RobotLinkRearLeftWheel},
 		{simconfig.RobotJointRearRight, simconfig.RobotLinkRearRightWheel},
 	} {
-		j := robot.Sub("joint", "name", jt.jointName, "type", "revolute")
+		j := robotNode.Sub("joint", "name", jt.jointName, "type", "revolute")
 		j.SubT("parent", simconfig.RobotBaseFrameID)
 		j.SubT("child", jt.childName)
 		ax := j.Sub("axis")
@@ -228,9 +228,9 @@ func buildRearWheels(robot *Node) {
 	}
 }
 
-func buildFrontSteering(robot *Node) {
-	halfWB := simconfig.RobotWheelbase / 2
-	halfTrack := simconfig.RobotTrackWidth / 2
+func buildFrontSteering(robotNode *Node, robot *simconfig.Robot) {
+	halfWB := robot.RobotWheelbase / 2
+	halfTrack := robot.RobotTrackWidth / 2
 
 	for _, side := range []steeringSide{
 		{
@@ -252,7 +252,7 @@ func buildFrontSteering(robot *Node) {
 		poseText := poseXY(halfWB, yPos)
 
 		// Near-zero-inertia hinge link for the steering pivot.
-		steerLink := robot.Sub("link", "name", side.steerLink)
+		steerLink := robotNode.Sub("link", "name", side.steerLink)
 		steerLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(poseText)
 		si := steerLink.Sub("inertial")
 		si.SubT("mass", ff(simconfig.RobotSteeringLinkMass))
@@ -273,22 +273,22 @@ func buildFrontSteering(robot *Node) {
 		}
 
 		// Steering revolute joint (Z-axis rotation).
-		sj := robot.Sub("joint", "name", side.steerJoint, "type", "revolute")
+		sj := robotNode.Sub("joint", "name", side.steerJoint, "type", "revolute")
 		sj.SubT("parent", simconfig.RobotBaseFrameID)
 		sj.SubT("child", side.steerLink)
 		sax := sj.Sub("axis")
 		sax.SubT("xyz", axisZ)
 		slim := sax.Sub("limit")
-		slim.SubT("lower", "-"+ff(simconfig.RobotMaxSteering))
-		slim.SubT("upper", ff(simconfig.RobotMaxSteering))
+		slim.SubT("lower", "-"+ff(robot.RobotMaxSteering))
+		slim.SubT("upper", ff(robot.RobotMaxSteering))
 		slim.SubT("effort", ff(simconfig.RobotSteeringEffort))
 		slim.SubT("velocity", ff(simconfig.RobotSteeringVelocity))
 
 		// Wheel attached to steering hinge.
-		buildWheelLink(robot, side.wheelLink, poseText)
+		buildWheelLink(robotNode, robot, side.wheelLink, poseText)
 
 		// Wheel roll joint (Y-axis, attached to steering hinge as parent).
-		wj := robot.Sub("joint", "name", side.wheelJoint, "type", "revolute")
+		wj := robotNode.Sub("joint", "name", side.wheelJoint, "type", "revolute")
 		wj.SubT("parent", side.steerLink)
 		wj.SubT("child", side.wheelLink)
 		wax := wj.Sub("axis")
@@ -301,13 +301,13 @@ func buildFrontSteering(robot *Node) {
 	}
 }
 
-func buildCameraLink(robot *Node) {
+func buildCameraLink(robotNode *Node, robot *simconfig.Robot) {
 	camPose := pose6(
-		simconfig.RobotCameraMountXOffset, 0, simconfig.RobotCameraMountZOffset,
-		0, simconfig.RobotCameraPitchRad, 0,
+		robot.RobotCameraMountXOffset, 0, robot.RobotCameraMountZOffset,
+		0, robot.RobotCameraPitchRad, 0,
 	)
 
-	camLink := robot.Sub("link", "name", simconfig.RobotLinkCamera)
+	camLink := robotNode.Sub("link", "name", simconfig.RobotLinkCamera)
 	camLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(camPose)
 	setNominalInertial(camLink, simconfig.RobotCameraLinkMass)
 
@@ -327,17 +327,17 @@ func buildCameraLink(robot *Node) {
 	clip.SubT("near", ff(simconfig.CameraNearClip))
 	clip.SubT("far", ff(simconfig.CameraFarClip))
 
-	jt := robot.Sub("joint", "name", simconfig.RobotJointCamera, "type", "fixed")
+	jt := robotNode.Sub("joint", "name", simconfig.RobotJointCamera, "type", "fixed")
 	jt.SubT("parent", simconfig.RobotBaseFrameID)
 	jt.SubT("child", simconfig.RobotLinkCamera)
 }
 
-func buildLidarLink(robot *Node) {
-	lidarZ := simconfig.RobotHeight + simconfig.RobotLidarMountZOffset
+func buildLidarLink(robotNode *Node, robot *simconfig.Robot) {
+	lidarZ := robot.RobotHeight + robot.RobotLidarMountZOffset
 
-	lidarLink := robot.Sub("link", "name", simconfig.RobotLinkLidar)
+	lidarLink := robotNode.Sub("link", "name", simconfig.RobotLinkLidar)
 	lidarLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(
-		pose6(simconfig.RobotLidarMountXOffset, 0, lidarZ, 0, 0, 0))
+		pose6(robot.RobotLidarMountXOffset, 0, lidarZ, 0, 0, 0))
 	setNominalInertial(lidarLink, simconfig.RobotLidarLinkMass)
 
 	sensor := lidarLink.Sub("sensor", "name", "lidar", "type", "gpu_lidar")
@@ -360,15 +360,15 @@ func buildLidarLink(robot *Node) {
 	noise.SubT("mean", floatZero)
 	noise.SubT("stddev", ff(simconfig.LidarNoiseStddev))
 
-	jt := robot.Sub("joint", "name", simconfig.RobotJointLidar, "type", "fixed")
+	jt := robotNode.Sub("joint", "name", simconfig.RobotJointLidar, "type", "fixed")
 	jt.SubT("parent", simconfig.RobotBaseFrameID)
 	jt.SubT("child", simconfig.RobotLinkLidar)
 }
 
-func buildImuLink(robot *Node) {
-	imuLink := robot.Sub("link", "name", simconfig.RobotLinkImu)
+func buildImuLink(robotNode *Node, robot *simconfig.Robot) {
+	imuLink := robotNode.Sub("link", "name", simconfig.RobotLinkImu)
 	imuLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(
-		fmt.Sprintf("0 0 %s 0 0 0", ff(simconfig.RobotImuMountZOffset)))
+		fmt.Sprintf("0 0 %s 0 0 0", ff(robot.RobotImuMountZOffset)))
 
 	ii := imuLink.Sub("inertial")
 	ii.SubT("mass", ff(simconfig.ImuMass))
@@ -410,16 +410,16 @@ func buildImuLink(robot *Node) {
 		}
 	}
 
-	jt := robot.Sub("joint", "name", simconfig.RobotJointImu, "type", "fixed")
+	jt := robotNode.Sub("joint", "name", simconfig.RobotJointImu, "type", "fixed")
 	jt.SubT("parent", simconfig.RobotBaseFrameID)
 	jt.SubT("child", simconfig.RobotLinkImu)
 }
 
-func buildDebugOverheadCamera(world *Node) {
+func buildDebugOverheadCamera(world *Node, track *simconfig.Track) {
 	model := New("model", "name", simconfig.ModelDebugCameraName)
 	model.SubT("static", "true")
 	model.SubT("pose", pose6(
-		simconfig.TrackCenterCoord, simconfig.TrackCenterCoord, simconfig.DebugCameraZ, 0, 0, 0,
+		track.TrackCenterCoord, track.TrackCenterCoord, simconfig.DebugCameraZ, 0, 0, 0,
 	))
 	sensor := model.Sub("link", "name", "link").Sub("sensor", "name", "camera", "type", "camera")
 	sensor.SubT("update_rate", fi(simconfig.DebugCameraUpdateRate))

@@ -1,3 +1,4 @@
+#:schema ../../../../model/navigation/motion/speed.schema.json
 # Speed ladder for the generic 1500 rpm motor, in ABSOLUTE m/s.
 #
 # The ladder lives with the MOTOR rather than in the generic base because the

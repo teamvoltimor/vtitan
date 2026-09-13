@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/display/oled_node.schema.json
 # OLED display node -- oled_display_node.py's own NodeConfig.
 # Picks WHICH driver class gets used (blinka vs raw_i2c); ssd1306.toml
 # configures whichever one gets picked.

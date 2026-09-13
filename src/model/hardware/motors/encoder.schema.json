@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/motors/encoder.schema.json",
+  "title": "HardwareMotorsEncoder",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "pin_a": {
+      "type": "integer",
+      "description": "Pin a."
+    },
+    "pin_b": {
+      "type": "integer",
+      "description": "Pin b."
+    },
+    "max_duty": {
+      "type": "number",
+      "description": "Max duty."
+    }
+  },
+  "required": [
+    "pin_a",
+    "pin_b",
+    "max_duty"
+  ]
+}

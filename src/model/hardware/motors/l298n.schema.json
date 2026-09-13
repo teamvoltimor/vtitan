@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/motors/l298n.schema.json",
+  "title": "HardwareMotorsL298n",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "pwmchip": {
+      "type": "integer",
+      "description": "Pwmchip."
+    },
+    "pwm_channel": {
+      "type": "integer",
+      "description": "Pwm channel."
+    },
+    "frequency_hz": {
+      "type": "integer",
+      "description": "Frequency hz."
+    },
+    "pwm_pin": {
+      "type": "integer",
+      "description": "L298N ENA"
+    },
+    "dir_a_pin": {
+      "type": "integer",
+      "description": "L298N IN3"
+    },
+    "dir_b_pin": {
+      "type": "integer",
+      "description": "L298N IN4"
+    }
+  },
+  "required": [
+    "pwmchip",
+    "pwm_channel",
+    "frequency_hz",
+    "pwm_pin",
+    "dir_a_pin",
+    "dir_b_pin"
+  ]
+}

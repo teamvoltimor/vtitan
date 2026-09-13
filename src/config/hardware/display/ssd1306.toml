@@ -1,3 +1,4 @@
+#:schema ../../../model/hardware/display/ssd1306.schema.json
 # SSD1306 OLED display driver (Pi Zero) -- src/hardware/display/ssd1306/config.py
 
 width = 128

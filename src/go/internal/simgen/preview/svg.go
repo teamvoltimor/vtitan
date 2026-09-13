@@ -22,7 +22,6 @@ const (
 	marginSide = 30.0
 	trackPx    = 600.0 // 600 px for 3 m × 3 m track
 	labelH     = 20.0  // label bar height below track
-	pxPerMeter = trackPx / simconfig.TrackMaxCoord
 )
 
 // SVG color palette — visual-only, not in Gazebo.
@@ -77,13 +76,9 @@ const (
 	arrowShapeD     = "M0,0 L8,4 L0,8 Z"
 )
 
-// Display sizes (meters, in world space — converted to pixels via wp()).
-const (
-	robotDisplayRadius = simconfig.RobotWidth / 2 // 75 mm radius circle for spawn point
-	arrowDisplayLength = simconfig.RobotLength    // 280 mm arrow — robot body length
-	// signDisplayHalf is 20% larger than the actual sign for preview legibility.
-	signDisplayHalf = simconfig.SignWidth / 2 * 1.2 // 30 mm (spec: 25 mm)
-)
+// signDisplayGrowthFactor makes the preview sign 20% larger than the actual
+// sign for legibility.
+const signDisplayGrowthFactor = 1.2
 
 // Label bar layout constants (pixels).
 const (
@@ -128,11 +123,21 @@ const (
 	fmtText = `  <text x="%.1f" y="%.1f" font-family="monospace" font-size="%d" fill="%s">%s</text>` + "\n"
 )
 
+// signDisplayHalf is the half-size of the preview sign rectangle.
+func signDisplayHalf(track *simconfig.Track) float64 {
+	return track.SignWidth / 2 * signDisplayGrowthFactor // 30 mm (spec: 25 mm)
+}
+
+// pxPerMeter converts a world length in meters to pixels for one track.
+func pxPerMeter(track *simconfig.Track) float64 {
+	return trackPx / track.TrackMaxCoord
+}
+
 // GenerateSVG reads metadataPath, renders an SVG top-down preview, and writes it to outPath.
 // If outPath is empty it is derived from metadataPath by replacing MetadataSuffix with
 // PreviewSuffix (falling back to appending PreviewSuffix for other extensions).
 // The resolved output path is returned alongside any error.
-func GenerateSVG(metadataPath, outPath string) (string, error) {
+func GenerateSVG(track *simconfig.Track, robot *simconfig.Robot, metadataPath, outPath string) (string, error) {
 	data, err := os.ReadFile(metadataPath)
 	if err != nil {
 		return "", fmt.Errorf("read metadata: %w", err)
@@ -148,30 +153,30 @@ func GenerateSVG(metadataPath, outPath string) (string, error) {
 		}
 		outPath = base + simconfig.PreviewSuffix
 	}
-	if err = os.WriteFile(outPath, []byte(renderSVG(meta)), simconfig.FilePermissions); err != nil {
+	if err = os.WriteFile(outPath, []byte(renderSVG(track, robot, meta)), simconfig.FilePermissions); err != nil {
 		return outPath, fmt.Errorf("write preview: %w", err)
 	}
 	return outPath, nil
 }
 
 // wx converts a world X coordinate (meters) to SVG X (pixels).
-func wx(x float64) float64 {
-	return marginSide + x*pxPerMeter
+func wx(track *simconfig.Track, x float64) float64 {
+	return marginSide + x*pxPerMeter(track)
 }
 
 // wy converts a world Y coordinate (meters) to SVG Y (pixels).
 // World Y=0 is at the bottom; SVG Y=0 is at the top, so we flip.
-func wy(y float64) float64 {
-	return marginTop + (simconfig.TrackMaxCoord-y)*pxPerMeter
+func wy(track *simconfig.Track, y float64) float64 {
+	return marginTop + (track.TrackMaxCoord-y)*pxPerMeter(track)
 }
 
 // wp converts a world length (meters) to pixels.
-func wp(v float64) float64 {
-	return v * pxPerMeter
+func wp(track *simconfig.Track, v float64) float64 {
+	return v * pxPerMeter(track)
 }
 
 // renderSVG generates the SVG content for a scenario metadata.
-func renderSVG(meta generate.Metadata) string {
+func renderSVG(track *simconfig.Track, robot *simconfig.Robot, meta generate.Metadata) string {
 	var b strings.Builder
 
 	svgH := int(marginTop + trackPx + labelH + marginTop)
@@ -187,24 +192,33 @@ func renderSVG(meta generate.Metadata) string {
 	writeRect(&b, 0, 0, float64(svgW), float64(svgH), colorCanvas, "none", 0)
 
 	// Track floor (WRO spec: white)
-	writeRect(&b, wx(0), wy(simconfig.TrackMaxCoord), trackPx, trackPx, colorTrackFloor, colorWall, strokeTrack)
+	writeRect(
+		&b,
+		wx(track, 0),
+		wy(track, track.TrackMaxCoord),
+		trackPx,
+		trackPx,
+		colorTrackFloor,
+		colorWall,
+		strokeTrack,
+	)
 
 	// Inner forbidden zone derived from corridor widths
-	drawInnerZone(&b, meta.CorridorWidths)
+	drawInnerZone(&b, track, meta.CorridorWidths)
 
 	// Corner diagonal markers — two per corner (blue + orange), matching addCornerMarkers in sdf/world.go.
-	drawCornerMarkers(&b)
+	drawCornerMarkers(&b, track)
 
 	// Corner boundary grid lines: vertical at x=1.0/2.0, horizontal at y=1.0/2.0.
 	// These are the lines at the 1m×1m corner-square edges (matches addGridLines in sdf/world.go).
-	drawGridLines(&b)
+	drawGridLines(&b, track)
 
 	// Corridor subdivision guides: centerlines and sign-placement width markers
 	// (matches addCorridorSubdivisions in sdf/world.go).
-	drawSubdivisionLines(&b)
+	drawSubdivisionLines(&b, track)
 
 	// Interior wall boundary lines (thick — where navigable corridor ends)
-	drawInteriorWalls(&b, meta.CorridorWidths)
+	drawInteriorWalls(&b, track, meta.CorridorWidths)
 
 	// Traffic signs (50×50 mm pillars, top-down view)
 	for _, sign := range meta.SignPositions {
@@ -212,26 +226,27 @@ func renderSVG(meta generate.Metadata) string {
 		if sign.Color == simconfig.ColorNameGreen {
 			color = colorSignGreen
 		}
-		writeRect(&b, wx(sign.X)-signDisplayHalf, wy(sign.Y)-signDisplayHalf,
-			signDisplayHalf*2, signDisplayHalf*2, color, colorSignStroke, strokeSign)
+		half := signDisplayHalf(track)
+		writeRect(&b, wx(track, sign.X)-half, wy(track, sign.Y)-half,
+			half*2, half*2, color, colorSignStroke, strokeSign)
 	}
 
 	// Parking blocks (200×20 mm, magenta). Long axis is perpendicular to the outer wall.
 	if meta.ParkingLot != nil {
 		section := strings.ToLower(meta.StartingConditions.Section)
-		drawParkingBlock(&b, meta.ParkingLot.Block1Position.X, meta.ParkingLot.Block1Position.Y, section)
-		drawParkingBlock(&b, meta.ParkingLot.Block2Position.X, meta.ParkingLot.Block2Position.Y, section)
+		drawParkingBlock(&b, track, meta.ParkingLot.Block1Position.X, meta.ParkingLot.Block1Position.Y, section)
+		drawParkingBlock(&b, track, meta.ParkingLot.Block2Position.X, meta.ParkingLot.Block2Position.Y, section)
 	}
 
 	// Robot spawn: filled circle
 	sc := meta.StartingConditions
-	cx, cy := wx(sc.Position.X), wy(sc.Position.Y)
-	robotR := wp(robotDisplayRadius)
+	cx, cy := wx(track, sc.Position.X), wy(track, sc.Position.Y)
+	robotR := wp(track, robot.RobotWidth/2)
 	fmt.Fprintf(&b, fmtCircle, cx, cy, robotR, colorRobot, colorRobotStroke, strokeRobot)
 
 	// Direction arrow: line from center along yaw.
 	// World yaw is CCW from +X; SVG Y is flipped so the Y component is negated.
-	arrowLen := wp(arrowDisplayLength)
+	arrowLen := wp(track, robot.RobotLength)
 	endX := cx + arrowLen*math.Cos(sc.Yaw)
 	endY := cy - arrowLen*math.Sin(sc.Yaw)
 	fmt.Fprintf(&b, fmtArrowLine, cx, cy, endX, endY, colorArrow, strokeArrow)
@@ -246,16 +261,52 @@ func renderSVG(meta generate.Metadata) string {
 // drawGridLines draws the four full-track corner-boundary lines that define the
 // 1m×1m corner squares (x=1.0, x=2.0 vertical; y=1.0, y=2.0 horizontal).
 // These match the grid_line_* models generated by addGridLines in sdf/world.go.
-func drawGridLines(b *strings.Builder) {
-	tMax := simconfig.TrackMaxCoord
-	cMin := simconfig.TrackCornerMin // 1.0 m
-	cMax := simconfig.TrackCornerMax // 2.0 m
+func drawGridLines(b *strings.Builder, track *simconfig.Track) {
+	tMax := track.TrackMaxCoord
+	cMin := track.TrackCornerMin // 1.0 m
+	cMax := track.TrackCornerMax // 2.0 m
 	// Vertical corner boundary lines
-	writeDashedLine(b, wx(cMin), wy(0), wx(cMin), wy(tMax), colorGridLine, strokeGridLine, dashGrid)
-	writeDashedLine(b, wx(cMax), wy(0), wx(cMax), wy(tMax), colorGridLine, strokeGridLine, dashGrid)
+	writeDashedLine(
+		b,
+		wx(track, cMin),
+		wy(track, 0),
+		wx(track, cMin),
+		wy(track, tMax),
+		colorGridLine,
+		strokeGridLine,
+		dashGrid,
+	)
+	writeDashedLine(
+		b,
+		wx(track, cMax),
+		wy(track, 0),
+		wx(track, cMax),
+		wy(track, tMax),
+		colorGridLine,
+		strokeGridLine,
+		dashGrid,
+	)
 	// Horizontal corner boundary lines
-	writeDashedLine(b, wx(0), wy(cMin), wx(tMax), wy(cMin), colorGridLine, strokeGridLine, dashGrid)
-	writeDashedLine(b, wx(0), wy(cMax), wx(tMax), wy(cMax), colorGridLine, strokeGridLine, dashGrid)
+	writeDashedLine(
+		b,
+		wx(track, 0),
+		wy(track, cMin),
+		wx(track, tMax),
+		wy(track, cMin),
+		colorGridLine,
+		strokeGridLine,
+		dashGrid,
+	)
+	writeDashedLine(
+		b,
+		wx(track, 0),
+		wy(track, cMax),
+		wx(track, tMax),
+		wy(track, cMax),
+		colorGridLine,
+		strokeGridLine,
+		dashGrid,
+	)
 }
 
 // drawSubdivisionLines draws the corridor centerlines and sign-placement width markers
@@ -266,50 +317,158 @@ func drawGridLines(b *strings.Builder) {
 // at the outer (0.4/2.6) and inner (0.6/2.4) positions spanning x=1.0→2.0.
 // For EW corridors (west/east): horizontal centerline at y=1.5, vertical width markers
 // at the outer and inner positions spanning y=1.0→2.0.
-func drawSubdivisionLines(b *strings.Builder) {
-	tMax := simconfig.TrackMaxCoord
-	cMin := simconfig.TrackCornerMin     // 1.0
-	cMax := simconfig.TrackCornerMax     // 2.0
-	center := simconfig.TrackCenterCoord // 1.5
-	dOuter := simconfig.CorridorDivOuter // 0.4
-	dInner := simconfig.CorridorDivInner // 0.6
-	farInner := tMax - dInner            // 2.4
-	farOuter := tMax - dOuter            // 2.6
+func drawSubdivisionLines(b *strings.Builder, track *simconfig.Track) {
+	tMax := track.TrackMaxCoord
+	cMin := track.TrackCornerMin     // 1.0
+	cMax := track.TrackCornerMax     // 2.0
+	center := track.TrackCenterCoord // 1.5
+	dOuter := track.CorridorDivOuter // 0.4
+	dInner := track.CorridorDivInner // 0.6
+	farInner := tMax - dInner        // 2.4
+	farOuter := tMax - dOuter        // 2.6
 
 	// South corridor (y=0 → 1.0): centerline along x=1.5, width markers across corridor
-	writeDashedLine(b, wx(center), wy(0), wx(center), wy(cMin), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(cMin), wy(dOuter), wx(cMax), wy(dOuter), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(cMin), wy(dInner), wx(cMax), wy(dInner), colorSubdivLine, strokeSubdivLine, dashSubdiv)
+	writeDashedLine(
+		b,
+		wx(track, center),
+		wy(track, 0),
+		wx(track, center),
+		wy(track, cMin),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, cMin),
+		wy(track, dOuter),
+		wx(track, cMax),
+		wy(track, dOuter),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, cMin),
+		wy(track, dInner),
+		wx(track, cMax),
+		wy(track, dInner),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
 
 	// North corridor (y=2.0 → 3.0): centerline along x=1.5, width markers across corridor
-	writeDashedLine(b, wx(center), wy(cMax), wx(center), wy(tMax), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(cMin), wy(farInner), wx(cMax), wy(farInner), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(cMin), wy(farOuter), wx(cMax), wy(farOuter), colorSubdivLine, strokeSubdivLine, dashSubdiv)
+	writeDashedLine(
+		b,
+		wx(track, center),
+		wy(track, cMax),
+		wx(track, center),
+		wy(track, tMax),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, cMin),
+		wy(track, farInner),
+		wx(track, cMax),
+		wy(track, farInner),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, cMin),
+		wy(track, farOuter),
+		wx(track, cMax),
+		wy(track, farOuter),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
 
 	// West corridor (x=0 → 1.0): centerline along y=1.5, width markers across corridor
-	writeDashedLine(b, wx(0), wy(center), wx(cMin), wy(center), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(dOuter), wy(cMin), wx(dOuter), wy(cMax), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(dInner), wy(cMin), wx(dInner), wy(cMax), colorSubdivLine, strokeSubdivLine, dashSubdiv)
+	writeDashedLine(
+		b,
+		wx(track, 0),
+		wy(track, center),
+		wx(track, cMin),
+		wy(track, center),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, dOuter),
+		wy(track, cMin),
+		wx(track, dOuter),
+		wy(track, cMax),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, dInner),
+		wy(track, cMin),
+		wx(track, dInner),
+		wy(track, cMax),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
 
 	// East corridor (x=2.0 → 3.0): centerline along y=1.5, width markers across corridor
-	writeDashedLine(b, wx(cMax), wy(center), wx(tMax), wy(center), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(farInner), wy(cMin), wx(farInner), wy(cMax), colorSubdivLine, strokeSubdivLine, dashSubdiv)
-	writeDashedLine(b, wx(farOuter), wy(cMin), wx(farOuter), wy(cMax), colorSubdivLine, strokeSubdivLine, dashSubdiv)
+	writeDashedLine(
+		b,
+		wx(track, cMax),
+		wy(track, center),
+		wx(track, tMax),
+		wy(track, center),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, farInner),
+		wy(track, cMin),
+		wx(track, farInner),
+		wy(track, cMax),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
+	writeDashedLine(
+		b,
+		wx(track, farOuter),
+		wy(track, cMin),
+		wx(track, farOuter),
+		wy(track, cMax),
+		colorSubdivLine,
+		strokeSubdivLine,
+		dashSubdiv,
+	)
 }
 
 // drawCornerMarkers renders the eight diagonal decorative markers (two per corner:
 // one blue, one orange) that appear on the WRO 2026 field.
 // Geometry comes from the shared simconfig.CornerMarkers table; only the
 // color representation is SVG-specific.
-func drawCornerMarkers(b *strings.Builder) {
-	halfLen := wp(simconfig.CornerMarkerLength / 2)
-	strokeW := math.Max(wp(simconfig.CornerMarkerWidth), minCornerMarkerPx)
-	for _, m := range simconfig.CornerMarkers {
+func drawCornerMarkers(b *strings.Builder, track *simconfig.Track) {
+	halfLen := wp(track, simconfig.CornerMarkerLength/2)
+	strokeW := math.Max(wp(track, simconfig.CornerMarkerWidth), minCornerMarkerPx)
+	for _, m := range simconfig.CornerMarkers(track) {
 		color := colorCornerOrange
 		if m.Blue {
 			color = colorCornerBlue
 		}
-		cx, cy := wx(m.CX), wy(m.CY)
+		cx, cy := wx(track, m.CX), wy(track, m.CY)
 		// World yaw θ: unit vector is (cos θ, sin θ); SVG Y is flipped so ΔyS = -sin θ.
 		x1 := cx - halfLen*math.Cos(m.YawRad)
 		y1 := cy + halfLen*math.Sin(m.YawRad)
@@ -319,7 +478,7 @@ func drawCornerMarkers(b *strings.Builder) {
 	}
 }
 
-func drawInnerZone(b *strings.Builder, widths map[string]generate.WidthMeta) {
+func drawInnerZone(b *strings.Builder, track *simconfig.Track, widths map[string]generate.WidthMeta) {
 	sw := mmToM(widths[string(simconfig.SectionSouth)].WidthMM)
 	nw := mmToM(widths[string(simconfig.SectionNorth)].WidthMM)
 	ew := mmToM(widths[string(simconfig.SectionEast)].WidthMM)
@@ -328,11 +487,11 @@ func drawInnerZone(b *strings.Builder, widths map[string]generate.WidthMeta) {
 		return
 	}
 	x1, y1 := ww, sw
-	x2, y2 := simconfig.TrackMaxCoord-ew, simconfig.TrackMaxCoord-nw
-	writeRect(b, wx(x1), wy(y2), wp(x2-x1), wp(y2-y1), colorInnerZone, "none", 0)
+	x2, y2 := track.TrackMaxCoord-ew, track.TrackMaxCoord-nw
+	writeRect(b, wx(track, x1), wy(track, y2), wp(track, x2-x1), wp(track, y2-y1), colorInnerZone, "none", 0)
 }
 
-func drawInteriorWalls(b *strings.Builder, widths map[string]generate.WidthMeta) {
+func drawInteriorWalls(b *strings.Builder, track *simconfig.Track, widths map[string]generate.WidthMeta) {
 	sw := mmToM(widths[string(simconfig.SectionSouth)].WidthMM)
 	nw := mmToM(widths[string(simconfig.SectionNorth)].WidthMM)
 	ew := mmToM(widths[string(simconfig.SectionEast)].WidthMM)
@@ -340,28 +499,44 @@ func drawInteriorWalls(b *strings.Builder, widths map[string]generate.WidthMeta)
 	if sw <= 0 || nw <= 0 || ew <= 0 || ww <= 0 {
 		return
 	}
-	tMax := simconfig.TrackMaxCoord
+	tMax := track.TrackMaxCoord
 	// Each wall spans only between the two perpendicular interior boundaries,
 	// matching the SDF wall dimensions (eastX-westX / northY-southY).
-	writeLine(b, wx(ww), wy(sw), wx(tMax-ew), wy(sw), colorWall, strokeInteriorWall)
-	writeLine(b, wx(ww), wy(tMax-nw), wx(tMax-ew), wy(tMax-nw), colorWall, strokeInteriorWall)
-	writeLine(b, wx(ww), wy(sw), wx(ww), wy(tMax-nw), colorWall, strokeInteriorWall)
-	writeLine(b, wx(tMax-ew), wy(sw), wx(tMax-ew), wy(tMax-nw), colorWall, strokeInteriorWall)
+	writeLine(b, wx(track, ww), wy(track, sw), wx(track, tMax-ew), wy(track, sw), colorWall, strokeInteriorWall)
+	writeLine(
+		b,
+		wx(track, ww),
+		wy(track, tMax-nw),
+		wx(track, tMax-ew),
+		wy(track, tMax-nw),
+		colorWall,
+		strokeInteriorWall,
+	)
+	writeLine(b, wx(track, ww), wy(track, sw), wx(track, ww), wy(track, tMax-nw), colorWall, strokeInteriorWall)
+	writeLine(
+		b,
+		wx(track, tMax-ew),
+		wy(track, sw),
+		wx(track, tMax-ew),
+		wy(track, tMax-nw),
+		colorWall,
+		strokeInteriorWall,
+	)
 }
 
 // drawParkingBlock renders a single parking block at the given world coordinates.
-func drawParkingBlock(b *strings.Builder, x, y float64, section string) {
+func drawParkingBlock(b *strings.Builder, track *simconfig.Track, x, y float64, section string) {
 	// WRO spec: 200×20 mm. Long axis is perpendicular to the corridor's outer wall (pointing inward).
 	// South/North outer walls run along X → long axis is Y (200 mm), narrow axis is X (20 mm).
 	// East/West outer walls run along Y → long axis is X (200 mm), narrow axis is Y (20 mm).
 	var bw, bh float64
 	switch section {
 	case string(simconfig.SectionNorth), string(simconfig.SectionSouth):
-		bw, bh = wp(simconfig.ParkingWidth), wp(simconfig.ParkingLength)
+		bw, bh = wp(track, track.ParkingWidth), wp(track, track.ParkingLength)
 	default: // east, west
-		bw, bh = wp(simconfig.ParkingLength), wp(simconfig.ParkingWidth)
+		bw, bh = wp(track, track.ParkingLength), wp(track, track.ParkingWidth)
 	}
-	writeRect(b, wx(x)-bw/2, wy(y)-bh/2, bw, bh, colorParking, colorParkingStroke, strokeParkingBlock)
+	writeRect(b, wx(track, x)-bw/2, wy(track, y)-bh/2, bw, bh, colorParking, colorParkingStroke, strokeParkingBlock)
 }
 
 // drawLabelBar renders the scenario information label bar at the bottom of the SVG.

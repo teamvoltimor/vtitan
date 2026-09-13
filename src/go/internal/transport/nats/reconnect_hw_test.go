@@ -77,7 +77,10 @@ func TestHW_NATS_ConnectAndReconnectOverBrokerRestart(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 	}
 	if !reconnected {
-		t.Fatalf("HW FAIL: client did not reconnect within 45s after broker restart (IsConnected=%v)", conn.IsConnected())
+		t.Fatalf(
+			"HW FAIL: client did not reconnect within 45s after broker restart (IsConnected=%v)",
+			conn.IsConnected(),
+		)
 	}
 	t.Log("HW PASS: client reconnected after broker restart")
 

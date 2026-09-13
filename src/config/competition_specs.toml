@@ -1,3 +1,4 @@
+#:schema ../model/competition_specs.schema.json
 # Competition match rules for the WRO Future Engineers challenge.
 # Source of truth for round timing and lap counts -- previously hand-maintained
 # literals in src/python/shared/src/shared/config/constants/simulation.py.

@@ -13,6 +13,10 @@ includes:
     taskfile: ./tasks/fleet.yml
     dir: .
     flatten: true
+  src:
+    taskfile: ./src/Taskfile.yml
+    dir: .
+    flatten: true
   src-python:
     taskfile: ./src/python/Taskfile.yml
     dir: ./src/python
