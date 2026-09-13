@@ -1,5 +1,8 @@
 # Team Voltimor
 
+> [!NOTE]
+> Este repositorio corresponde a nuestra participación en la World Robot Olympiad 2026 con V-Titan. Si buscas información sobre nuestra participación en la World Robot Olympiad 2025 con Klevor, el robot del Team Steel Bot, visita el repositorio [**klevor**](https://github.com/teamsteelbot/klevor).
+
 > 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](MEMORIAL.md) vive en [`MEMORIAL.md`](MEMORIAL.md).
 
 <p align="center">
