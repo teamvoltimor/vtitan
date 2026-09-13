@@ -30,6 +30,7 @@ from src.navigation.control.controllers.collision_avoidance.sectors import (
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.config.navigation_tuning.escape import EscapeManeuverParams
     from shared.config.navigation_tuning.motion import ClearanceZones
     from shared.domain.models import SectorRanges
 
@@ -118,6 +119,8 @@ class CollisionAvoidanceController:
         blind_wedge_right_max_deg: float,
         ahead_of_bumper: bool = False,
         rear_self_detection_from_chassis: bool = True,
+        escape_side_follows_committed_sign: bool = False,
+        escape_side_override_min_clearance_m: float = 0.12,
     ):
         """Initialize collision avoidance controller.
 
@@ -174,6 +177,8 @@ class CollisionAvoidanceController:
         self.fast_dist = fast_dist
         self.escape_rev_speed = escape_rev_speed
         self.escape_steer_scale = escape_steer_scale
+        self.escape_side_follows_committed_sign = escape_side_follows_committed_sign
+        self.escape_side_override_min_clearance_m = escape_side_override_min_clearance_m
         self.stuck_threshold = stuck_threshold
         self.path_half_width = RobotSpecs.WIDTH / 2.0 + path_margin
         self.k_turn_min_frames = k_turn_min_frames
@@ -196,7 +201,10 @@ class CollisionAvoidanceController:
 
     @classmethod
     def from_tuning(
-        cls, tuning: NavigationTuning, clearance: ClearanceZones | None = None
+        cls,
+        tuning: NavigationTuning,
+        clearance: ClearanceZones | None = None,
+        escape: EscapeManeuverParams | None = None,
     ) -> CollisionAvoidanceController:
         """Build controller from NavigationTuning parameters.
 
@@ -210,11 +218,20 @@ class CollisionAvoidanceController:
                 caller that has already resolved the per-challenge overrides
                 (``ClearanceZones.for_obstacles_challenge``). Defaults to
                 ``tuning.clearance``, so every existing call is unchanged.
+            escape: Escape parameters in place of ``tuning.escape``, for the
+                same reason and by the same rule. Without this the Obstacles
+                overrides on this group are INERT here: the navigator resolves
+                them into its own ``_escape`` and passes the raw tuning in, so
+                reading ``tuning.escape`` directly reads the shared field and a
+                flag set only under ``obstacles_`` never reaches the chassis.
+                That is the exact failure OBSTACLES_CONTACT_DIST had, which is
+                why ``clearance`` above exists at all.
 
         Returns:
             CollisionAvoidanceController with values from tuning.
         """
         clearance = clearance if clearance is not None else tuning.clearance
+        escape = escape if escape is not None else tuning.escape
         # Escape durations are stored in seconds and converted here: a frame
         # count would mean a different duration if CONTROL_HZ ever moved.
         hz = tuning.control.CONTROL_HZ
@@ -223,15 +240,17 @@ class CollisionAvoidanceController:
             risk_ray_window=clearance.RISK_RAY_WINDOW,
             slow_dist=clearance.SLOW_DIST,
             fast_dist=clearance.FAST_DIST,
-            escape_rev_speed=tuning.escape.REV_SPEED,
-            escape_steer_scale=tuning.escape.rev_steer_norm(),
-            stuck_threshold=tuning.escape.STUCK_MOVE_THRESHOLD,
+            escape_rev_speed=escape.REV_SPEED,
+            escape_steer_scale=escape.rev_steer_norm(),
+            escape_side_follows_committed_sign=escape.ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN,
+            escape_side_override_min_clearance_m=escape.ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M,
+            stuck_threshold=escape.STUCK_MOVE_THRESHOLD,
             path_margin=clearance.PATH_MARGIN,
-            k_turn_min_frames=tuning.escape.k_turn_min_frames(hz),
-            k_turn_max_frames=tuning.escape.k_turn_max_frames(hz),
-            side_correction_steer=tuning.escape.side_correction_steer_norm(),
-            side_correction_speed=tuning.escape.SIDE_CORRECTION_SPEED,
-            side_correction_frames=tuning.escape.side_correction_frames(hz),
+            k_turn_min_frames=escape.k_turn_min_frames(hz),
+            k_turn_max_frames=escape.k_turn_max_frames(hz),
+            side_correction_steer=escape.side_correction_steer_norm(),
+            side_correction_speed=escape.SIDE_CORRECTION_SPEED,
+            side_correction_frames=escape.side_correction_frames(hz),
             front_half_fov_deg=tuning.lidar_sectors.FRONT_HALF_FOV_DEG,
             threat_half_fov_deg=tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
             self_detection_threshold_m=tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,
@@ -654,6 +673,7 @@ class CollisionAvoidanceController:
         lidar_ranges: np.ndarray | tuple[float, ...] | None,
         lidar_angles: np.ndarray | tuple[float, ...] | None,
         direction: Direction | None = None,
+        preferred_sign: float | None = None,
     ) -> float:
         """Steering sign that swings the nose toward the clearer side in reverse.
 
@@ -751,6 +771,19 @@ class CollisionAvoidanceController:
             if left.valid_count > 0 or right.valid_count > 0:
                 left_clear = left.min_range_m if left.valid_count > 0 else self.no_data_range_m
                 right_clear = right.min_range_m if right.valid_count > 0 else self.no_data_range_m
+                # The router's side outranks the clearance comparison when the
+                # side it wants is not physically shut, because the comparison
+                # is answering a different question (see this method's measured
+                # note). The floor is ABSOLUTE rather than a margin between the
+                # two sides: a relative band wide enough to catch the failures
+                # also overrules 22 of the 49 episodes that choose correctly.
+                if preferred_sign is not None and self.escape_side_follows_committed_sign:
+                    wanted_clear = left_clear if preferred_sign < 0 else right_clear
+                    if wanted_clear >= self.escape_side_override_min_clearance_m:
+                        return preferred_sign
+                    # Otherwise fall through: the LIDAR is right that this side
+                    # is closed, and driving into a wall costs more than a
+                    # wrong-side pass costs to correct on the next approach.
                 if left_clear != right_clear:
                     # Swing left (negative steering while reversing) when the left
                     # is clearer; swing right (positive) when the right is clearer.
@@ -768,6 +801,7 @@ class CollisionAvoidanceController:
         lidar_ranges: np.ndarray | tuple[float, ...] | None = None,
         lidar_angles: np.ndarray | tuple[float, ...] | None = None,
         direction: Direction | None = None,
+        preferred_sign: float | None = None,
     ) -> EscapeManeuver | None:
         """Generate escape maneuver for detected threat.
 
@@ -779,6 +813,12 @@ class CollisionAvoidanceController:
             lidar_angles: Per-ray bearings matching ``lidar_ranges``.
             direction: Inferred travel direction, the fallback for the K-turn's
                 side when LIDAR alone cannot tell (see ``_k_turn_steer_sign``).
+            preferred_sign: Steering sign the sign router wants, negative for
+                left, derived from the side its committed pillar must be passed
+                on. Honoured only when ``ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN`` is
+                set AND that side has ``ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M``
+                of room. ``None`` whenever the rule is unavailable, which is
+                every tick of the Open Challenge.
 
         Returns:
             EscapeManeuver command or None if no maneuver needed
@@ -789,7 +829,7 @@ class CollisionAvoidanceController:
         if threat_dir == ThreatDirection.FRONT:
             # K-turn: reverse while steering hard for CRITICAL risk; a shorter,
             # straight reverse to open clearance for the milder OBSTACLE risk.
-            steer_sign = self._k_turn_steer_sign(lidar_ranges, lidar_angles, direction)
+            steer_sign = self._k_turn_steer_sign(lidar_ranges, lidar_angles, direction, preferred_sign)
             return EscapeManeuver(
                 maneuver_type=ManeuverType.K_TURN,
                 steering=self.escape_steer_scale * steer_sign if risk == RiskLevel.CRITICAL else 0.0,

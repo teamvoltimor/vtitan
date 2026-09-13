@@ -1651,3 +1651,64 @@ class TestDirectionAdoption:
         router._passed.add(0)
         router.adopt_direction(Direction.COUNTERCLOCKWISE)
         assert router._passed == {0}
+
+
+class TestCommittedPassSideWorld:
+    """The pass side as a DIRECTION, for a caller that must choose a way to go.
+
+    ``committed_pass_side_offset`` says how wrong a point is; the escape layer
+    needs to know which way to push. These pin that the two are the same rule
+    read two ways, because a second source of truth for a round-ending rule is
+    how a wrong-side pass gets manufactured.
+    """
+
+    @staticmethod
+    def _committed(router: SignRouter, index: int = 0) -> None:
+        router._committed = index
+
+    def test_nothing_committed_declines_rather_than_defaulting(self, router_config):
+        router = _router([_sign_at(1.0, 0.5, "red")], router_config)
+
+        assert router.committed_pass_side_world is None
+
+    def test_it_is_a_unit_vector_on_one_world_axis(self, router_config):
+        sign = _sign_at(1.0, 0.5, "red")
+        router = _router([sign], router_config)
+        self._committed(router)
+
+        wanted = router.committed_pass_side_world
+
+        assert wanted is not None
+        # Exactly one axis carries the rule; the other is exactly zero.
+        assert sorted(abs(component) for component in wanted) == [0.0, 1.0]
+
+    @pytest.mark.parametrize("colour", ["red", "green"])
+    @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
+    def test_it_agrees_with_the_offset_it_shares_a_lookup_with(self, router_config, colour, direction):
+        """Step one metre from the sign along the direction this property gives.
+        The offset must then read POSITIVE -- i.e. the legal side. If the two
+        ever disagree, one of them is steering the chassis into a round-ending
+        pass."""
+        sign = _sign_at(1.0, 0.5, colour)
+        router = _router([sign], router_config, direction=direction)
+        self._committed(router)
+
+        wanted = router.committed_pass_side_world
+        assert wanted is not None
+        probe = (sign.x + wanted[0], sign.y + wanted[1])
+
+        offset = router.committed_pass_side_offset(probe)
+        assert offset is not None
+        assert offset > 0.0
+        # And the opposite step must be exactly as wrong, so neither accessor
+        # has smuggled in an asymmetry.
+        mirror = router.committed_pass_side_offset((sign.x - wanted[0], sign.y - wanted[1]))
+        assert mirror == pytest.approx(-offset)
+
+    def test_an_uncoloured_sign_has_no_permitted_side(self, router_config):
+        """UNKNOWN cannot violate a colour-keyed rule, so it cannot prefer a
+        side either -- the same reason _record_pass_side returns early."""
+        router = _router([_sign_at(1.0, 0.5, "unknown")], router_config)
+        self._committed(router)
+
+        assert router.committed_pass_side_world is None

@@ -885,3 +885,106 @@ class TestRangesBeyondChassis:
         kept = ranges_beyond_chassis(ranges, ANGLES_FULL_ROTATION, self._MARGIN)
 
         assert np.allclose(kept, ranges)
+
+
+class TestEscapeSideFollowsCommittedSign:
+    """The K-turn's side against the side the ROUTER committed to.
+
+    The two answer different questions -- "which wall is nearer" against "which
+    side of the PILLAR must I pass" -- and agree 56% of the time overall,
+    48-49% in a corner. These pin the override and, just as importantly, that
+    it is REACHABLE: a flag verified only in the off state is how a previous
+    guard shipped inert.
+    """
+
+    @staticmethod
+    def _lopsided_scan() -> tuple[np.ndarray, np.ndarray]:
+        """A scan with the RIGHT side unambiguously clearer than the left.
+
+        So the unaided comparison returns +1 (steer right), and an override
+        toward the left has something to overrule.
+        """
+        ranges = create_numpy_scan()
+        left = angle_to_index(math.pi / 2)
+        right = angle_to_index(-math.pi / 2)
+        ranges[left - 20 : left + 20] = 0.30
+        ranges[right - 20 : right + 20] = 0.90
+        return ranges, ANGLES_FULL_ROTATION
+
+    def _controller(self, *, follows: bool, floor: float = 0.12):
+        tuning = NavigationTuning.load_default()
+        escape = tuning.escape.model_copy(
+            update={
+                "ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN": follows,
+                "ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M": floor,
+            },
+        )
+        return CollisionAvoidanceController.from_tuning(tuning, escape=escape)
+
+    def test_the_unaided_comparison_picks_the_clearer_side(self):
+        """The control: without the flag this is what the scan says."""
+        ranges, angles = self._lopsided_scan()
+        assert self._controller(follows=False)._k_turn_steer_sign(ranges, angles) == 1.0
+
+    def test_off_ignores_the_routers_side_entirely(self):
+        ranges, angles = self._lopsided_scan()
+        controller = self._controller(follows=False)
+
+        assert controller._k_turn_steer_sign(ranges, angles, None, -1.0) == 1.0
+
+    def test_on_overrules_the_clearer_side_when_the_wanted_side_has_room(self):
+        """REACHABILITY: the same inputs that give +1 above must give -1 here,
+        or the flag is inert and no sweep of it means anything."""
+        ranges, angles = self._lopsided_scan()
+        # Left reads 0.30 m, comfortably over the 0.12 m floor, so the override
+        # is allowed even though the right side is three times clearer.
+        controller = self._controller(follows=True)
+
+        assert controller._k_turn_steer_sign(ranges, angles, None, -1.0) == -1.0
+
+    def test_on_refuses_when_the_wanted_side_is_physically_shut(self):
+        """The guard that makes this safe in a 1.00 m corridor."""
+        ranges, angles = self._lopsided_scan()
+        controller = self._controller(follows=True, floor=0.50)  # 0.30 m left is now below it
+
+        assert controller._k_turn_steer_sign(ranges, angles, None, -1.0) == 1.0
+
+    def test_on_without_a_committed_sign_leaves_the_comparison_alone(self):
+        """Every tick of the Open Challenge, and most ticks of Obstacles."""
+        ranges, angles = self._lopsided_scan()
+        controller = self._controller(follows=True)
+
+        assert controller._k_turn_steer_sign(ranges, angles, None, None) == 1.0
+
+    def test_the_override_reaches_the_maneuver_not_just_the_helper(self):
+        ranges, angles = self._lopsided_scan()
+        forward = angle_to_index(0.0)
+        ranges[forward - 10 : forward + 10] = 0.05  # a FRONT threat, so a K-turn
+
+        held = self._controller(follows=False).compute_escape_maneuver(
+            RiskLevel.CRITICAL, ThreatDirection.FRONT, ranges, angles, None, -1.0,
+        )
+        overridden = self._controller(follows=True).compute_escape_maneuver(
+            RiskLevel.CRITICAL, ThreatDirection.FRONT, ranges, angles, None, -1.0,
+        )
+
+        assert held is not None
+        assert overridden is not None
+        assert held.steering > 0
+        assert overridden.steering < 0
+        assert held.steering == pytest.approx(-overridden.steering)
+
+    def test_the_floor_is_absolute_not_a_margin_between_sides(self):
+        """A relative band would also overrule 22 of the 49 episodes that
+        choose correctly today. This pins that the comparison is against the
+        wanted side's own clearance and nothing else."""
+        controller = self._controller(follows=True, floor=0.25)
+        ranges = create_numpy_scan()
+        left = angle_to_index(math.pi / 2)
+        right = angle_to_index(-math.pi / 2)
+        # Both sides identical and both over the floor: the margin between them
+        # is zero, which a relative rule would treat as "no information".
+        ranges[left - 20 : left + 20] = 0.40
+        ranges[right - 20 : right + 20] = 0.40
+
+        assert controller._k_turn_steer_sign(ranges, ANGLES_FULL_ROTATION, None, -1.0) == -1.0

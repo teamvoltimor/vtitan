@@ -116,6 +116,76 @@ class EscapeManeuverParams(BaseModel):
     for why the scope is Obstacles and not the whole tree.
     """
 
+    ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN: bool = Field(
+        default=False, validation_alias=_alias("ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN")
+    )
+    """Steer a K-turn toward the side the ROUTER committed to passing on.
+
+    The K-turn's side is picked by comparing two +-45 deg side sectors and
+    taking the one that reads further away. That answers "which wall is
+    nearer". The router asks "which side of the PILLAR must I pass". The second
+    is not a function of the first, and the numbers are what an unrelated
+    variable looks like -- MEASURED over 194 hardware escape episodes with a
+    sign committed, on the 2026-09-12 rounds:
+
+    | | agreement | net lateral toward the pass | improved |
+    |---|---|---|---|
+    | overall | 56% | | |
+    | steering AGREES with the router | 109 episodes | +0.050 m | 87% |
+    | steering OPPOSES the router | 85 episodes | -0.017 m | 16% |
+    | in a CORNER | 48-49% | | |
+
+    So when it falls the wrong way the escape SPENDS the placement the plan had
+    already bought, and in corners -- where the failures live -- it is a coin
+    flip. Lateral displacement follows the STEERING side in 86-88% of episodes
+    and the nose's side in 12%, the mirror expected in reverse, so the steering
+    sign is the correct lever.
+
+    REFUTED, do not re-try: that the comparison is merely noisy and a near-tie
+    band would fix it. 18 of 37 opposing escapes (49%) were decided on a margin
+    of 0.20 m or more and 9 on 0.40 m or more, which in a 1 m corridor with a
+    0.194 m chassis is not a tie by any definition. The comparison is not
+    imprecise, it is measuring something else.
+
+    SHIPS OFF, and the gain is a CONTRAFACTUAL over observed episodes rather
+    than an A/B. The simulator cannot screen it: there the sign map is exact and
+    the disagreement this exists to fix collapses to nothing. It is measured on
+    a track or it is not measured. Pair it with
+    ``ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M``, which is not optional.
+    """
+
+    OBSTACLES_ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN: bool | None = Field(
+        default=None, validation_alias=_alias("OBSTACLES_ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN")
+    )
+    """Obstacles-Challenge ``ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN``.
+
+    ``None`` -> shared field, so the shipped tree is byte-identical. Kept
+    separate because the Open Challenge has no committed sign at all, making
+    the shared flag inert there: this is the knob to turn, and turning it
+    cannot touch Open.
+    """
+
+    ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M: float = Field(
+        default=0.12, validation_alias=_alias("ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M")
+    )
+    """Clearance the router's side must already have before it may be forced.
+
+    NOT OPTIONAL alongside ``ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN``. Forcing a
+    side in a 1.00 m corridor with no floor drives the chassis into the wall the
+    LIDAR was looking at, which is the one thing the side comparison does get
+    right.
+
+    ABSOLUTE, deliberately, not a margin between the two sides. A relative band
+    wide enough to catch the problem -- 0.20 m -- would also overrule 22 of the
+    49 episodes that currently choose correctly, because the sensitivity table
+    has the ratio at 1.00 or worse from 0.05 m up. An absolute floor only
+    engages when the side the router wants is physically shut, so it cannot
+    spend a correct reading.
+
+    0.12 m is a shade over half the 0.194 m chassis width: enough that the body
+    fits through, small enough that it does not veto a gap the car can take.
+    Inert while the flag above is off.
+    """
 
     TICK_ROUTER_DURING_MANEUVER: bool = Field(
         default=False, validation_alias=_alias("TICK_ROUTER_DURING_MANEUVER")
@@ -395,6 +465,7 @@ class EscapeManeuverParams(BaseModel):
         overrides = {
             "K_TURN_FIT_REAR_GAP": self.OBSTACLES_K_TURN_FIT_REAR_GAP,
             "ESCAPE_MIRRORS_REVERSE": self.OBSTACLES_ESCAPE_MIRRORS_REVERSE,
+            "ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN": self.OBSTACLES_ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN,
         }
         # Dropping the Nones rather than writing them back is what keeps the
         # promise above: with every override unset this returns `self`, so the

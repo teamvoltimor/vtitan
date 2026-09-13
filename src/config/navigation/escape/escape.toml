@@ -121,3 +121,34 @@ min_history_for_distance = 2             # Position samples needed before recent
 # first hardware round with this on IS the A/B.
 escape_mirrors_reverse = false
 obstacles_escape_mirrors_reverse = true
+
+# Steer a K-turn toward the side the ROUTER committed to passing on, instead of
+# toward whichever +-45 deg side sector reads further away.
+#
+# The two answer different questions -- "which wall is nearer" against "which
+# side of the PILLAR must I pass" -- and they agree 56% of the time, 48-49% in
+# a corner. MEASURED over 194 hardware escape episodes with a sign committed,
+# 2026-09-12: when the steering agrees with the router the escape nets +0.050 m
+# toward the pass and improves 87% of episodes; when it opposes, -0.017 m and
+# 16%. So half the time the escape SPENDS the placement the plan bought.
+#
+# REFUTED, do not re-try: that this is a near-tie the LIDAR cannot resolve. 18
+# of 37 opposing escapes were decided on a margin of 0.20 m or more.
+#
+# SHIPS OFF. The gain is a contrafactual over observed episodes, not an A/B,
+# and the simulator cannot screen it -- there the sign map is exact and the
+# disagreement collapses to nothing. Turn on `obstacles_` only: the Open
+# Challenge has no committed sign, so the shared flag is inert there anyway.
+escape_side_follows_committed_sign = false
+obstacles_escape_side_follows_committed_sign = false
+
+# Clearance the router's side must ALREADY have before it may be forced.
+# Not optional alongside the flag above: forcing a side in a 1.00 m corridor
+# with no floor drives the chassis into the wall the LIDAR was right about.
+#
+# ABSOLUTE, not a margin between sides. A relative band wide enough to catch
+# the problem (0.20 m) also overrules 22 of the 49 episodes that choose
+# correctly today; the sensitivity table sits at a ratio of 1.00 or worse from
+# 0.05 m upward. An absolute floor only engages when the wanted side is
+# physically shut. 0.12 is a shade over half the 0.194 m chassis width.
+escape_side_override_min_clearance_m = 0.12

@@ -478,6 +478,48 @@ class SignRouter:
         spec = self._signs[self._committed]
         return Waypoint(spec.x, spec.y)
 
+    @property
+    def committed_pass_side_world(self) -> tuple[float, float] | None:
+        """Unit world vector pointing from the committed sign toward its legal side.
+
+        The same ``pass_side_lateral_axis`` lookup ``committed_pass_side_offset``
+        uses, returned as a direction instead of collapsed against a point.
+        ``None`` on the same terms: nothing committed, or a direction the round
+        has not inferred yet. A caller must treat that as "no answer", never as
+        a default side -- guessing between two opposite answers is how a
+        wrong-side pass gets manufactured, and a wrong-side pass ends the round.
+
+        Exists for the escape layer, which needs to know WHICH WAY to push the
+        chassis and cannot get that from a scalar offset: the offset says how
+        wrong the current position is, not where to go.
+        """
+        axis_sign = self._committed_pass_side_axis()
+        if axis_sign is None:
+            return None
+        axis, multiplier = axis_sign
+        return (float(multiplier), 0.0) if axis is Axis.X else (0.0, float(multiplier))
+
+    def _committed_pass_side_axis(self) -> tuple[Axis, int] | None:
+        """The world axis and legal multiplier for the committed sign, or ``None``.
+
+        Keyed on ``self._sign_corridors[index]``, which is the SETTLED corridor
+        the router itself decides with (see ``_pass_side_for`` and
+        ``_record_pass_side``). Both public accessors used to read
+        ``spec.corridor``, which ``SignSpec`` does not have and never has: it
+        carries x, y and colour only. That raised ``AttributeError`` on every
+        call, and went unnoticed because the only caller sits behind
+        ``SIGN_LANE_DEFORM_FALLBACK_M > 0.0`` and the shipped value is 0.0 --
+        so turning that fallback on would have crashed the navigator on the
+        first committed sign rather than doing what it says.
+
+        Sharing the lookup is the point: two accessors resolving a
+        round-ending rule independently is how they drift apart.
+        """
+        if self._committed is None or not 0 <= self._committed < len(self._signs):
+            return None
+        spec = self._signs[self._committed]
+        return pass_side_lateral_axis(self._sign_corridors[self._committed], spec.color, self._direction)
+
     def committed_pass_side_offset(self, point: tuple[float, float]) -> float | None:
         """How far ``point`` sits on the LEGAL side of the committed sign, signed.
 
@@ -492,12 +534,10 @@ class SignRouter:
         satisfies the rule, rather than inferring it from the magnitude of a
         correction. Magnitude cannot say which side.
         """
-        if self._committed is None or not 0 <= self._committed < len(self._signs):
-            return None
-        spec = self._signs[self._committed]
-        axis_sign = pass_side_lateral_axis(spec.corridor, spec.color, self._direction)
+        axis_sign = self._committed_pass_side_axis()
         if axis_sign is None:
             return None
+        spec = self._signs[self._committed]  # type: ignore[index]  # non-None, checked above
         axis, multiplier = axis_sign
         delta = point[0] - spec.x if axis is Axis.X else point[1] - spec.y
         return delta * multiplier

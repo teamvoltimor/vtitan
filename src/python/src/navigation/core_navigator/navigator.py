@@ -254,7 +254,7 @@ class CoreNavigator(EscapeRecovery):
         # reversing escape at `contact_dist` -- resolving everywhere except
         # here would leave the override inert on the path it was added for.
         self._collision_controller = CollisionAvoidanceController.from_tuning(
-            self._tuning, clearance=self._clearance
+            self._tuning, clearance=self._clearance, escape=self._escape
         )
 
         self._stuck_detector = StuckDetector.from_tuning(self._tuning)
@@ -674,6 +674,41 @@ class CoreNavigator(EscapeRecovery):
             return None
         cap = signs.SIGN_LIDAR_ALIGN_MAX_STEER
         return max(-cap, min(cap, signs.SIGN_LIDAR_ALIGN_GAIN * bearing))
+
+    def _committed_sign_steer_sign(self, robot_yaw: float) -> float | None:
+        """Which way a K-turn should steer to serve the committed sign's pass side.
+
+        ``None`` whenever the rule is unavailable -- no router, nothing
+        committed, or a travel direction the round has not inferred -- and the
+        controller then falls back to its LIDAR comparison. Never a default
+        side: guessing between two opposite answers is how a wrong-side pass is
+        manufactured, and that ENDS the round rather than costing points.
+
+        Sign convention is the controller's, not a new one: negative steers
+        left. It is the steering side rather than the nose's because lateral
+        displacement follows the STEERING side in 86-88% of measured episodes
+        and the nose's in 12% -- the mirror expected in reverse, and a K-turn is
+        100% reverse.
+
+        Cheap enough to call unconditionally: two attribute reads and a dot
+        product on the ticks where a sign is committed, ``None`` immediately
+        otherwise. The flag that decides whether it is USED lives in the
+        controller, so this stays a pure question about geometry.
+        """
+        if self._sign_router is None:
+            return None
+        wanted = self._sign_router.committed_pass_side_world
+        if wanted is None:
+            return None
+        # Robot-frame left in world coordinates, the same basis
+        # ``_sign_evade_steer`` and diag_bag_pass_side both project onto.
+        left_x, left_y = -math.sin(robot_yaw), math.cos(robot_yaw)
+        wants_left = wanted[0] * left_x + wanted[1] * left_y
+        if wants_left == 0.0:
+            # Exactly abeam: the rule has no lateral component to serve this
+            # tick, so it cannot prefer a side. Declining beats rounding.
+            return None
+        return -1.0 if wants_left > 0.0 else 1.0
 
     def _sign_evade_steer(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
         """Steering to swing the chassis clear of a routed sign it is about to clip.
@@ -1761,6 +1796,7 @@ class CoreNavigator(EscapeRecovery):
                 escape_ranges,
                 scan.angles_rad,
                 self._direction,
+                self._committed_sign_steer_sign(robot_yaw),
             )
             # Rear clearance is checked against the RAW scan: a sign behind the
             # robot is still something to not reverse into, whoever owns it.
