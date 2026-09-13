@@ -28,4 +28,11 @@ servo_max_angle_deg = 135.0
 # Note the linkage may not scale linearly with servo travel: 1.5x the servo
 # range does not have to give 1.5x the wheel angle, and 85 deg assumes it
 # roughly does.
+#
+# OPERATOR-CORROBORATED 2026-09-13: the wheels cross "around 85 deg to each
+# side". That is an eye reading, not the protractor called for above, so this
+# stays NOT BENCH-VERIFIED -- but it does rule out the scenario that made the
+# number load-bearing, a mechanical stop well short of 85 like the 180 deg
+# servo's 1.28x error. The lock-to-lock swing is therefore ~170 deg, which is
+# what servo_slew_rate_rad_s in pursuit.toml computes its 2.91 rad/s from.
 max_wheel_angle_deg = 85.0

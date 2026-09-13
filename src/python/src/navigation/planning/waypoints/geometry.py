@@ -34,9 +34,27 @@ def corner_arc_radius(
     ``max`` is also symmetric, so a corner plans the same arc whichever way the
     round is driven.
 
-    With the checked-in 0.6/1.0 m widths and a 0.05 m inner bias this returns
-    the configured 0.45 m everywhere except a narrow-to-narrow corner, where it
-    returns 0.25 m and doubles that corner's clearance.
+    CORRECTED 2026-09-13: this paragraph described a 0.05 m inner bias that the
+    tree has not shipped since 2026-08-29, and the conclusion it drew was wrong
+    for every corridor the robot actually drives. The shipped biases are
+    ``wide_center_bias_m = 0.10``, ``narrow_center_bias_m = 0.0`` and
+    ``obstacles_center_bias_m = 0.15``. ``CORNER_ARC_ASSUME_WIDE`` (shipped
+    true) passes ``WIDE`` for BOTH widths while ``center_bias_for_corridor``
+    still picks the bias from the corridor's TRUE class, so the width term is a
+    constant 1.00 m and only the bias varies::
+
+        true WIDE        min(0.45, 1.00/2 - 0.10) = 0.40   <- the bias binds
+        true NARROW      min(0.45, 1.00/2 - 0.00) = 0.45   <- the ceiling binds
+        Obstacles        min(0.45, 1.00/2 - 0.15) = 0.35   <- the bias binds
+
+    Two consequences the old text hid. ``arc_radius = 0.45`` is INERT wherever a
+    bias applies -- only the narrow class still reaches it. And because the
+    width is forced wide while the bias is not, the WIDE corridor receives the
+    TIGHTER arc of the two, 0.40 against 0.45. Measured in the ring on the
+    2026-09-12 bags as 0.3968 and 0.446. That inversion is the first link in the
+    Open zigzag chain (tighter arc -> shorter straight between arcs -> the short
+    lookahead covers 82% of straight ticks -> loop gain x2.25), not a rounding
+    detail.
 
     Args:
         width_entry_m: Width of the corridor the corner is entered from.

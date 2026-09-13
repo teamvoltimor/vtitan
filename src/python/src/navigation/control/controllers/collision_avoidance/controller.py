@@ -699,6 +699,25 @@ class CollisionAvoidanceController:
         run that never recovered. Substituting ``no_data_range_m`` for a missing
         side keeps that signal instead of discarding it; the direction fallback
         below now only fires when neither side has anything to say.
+
+        MEASURED 2026-09-13, and it changes how to read the three paragraphs
+        above: **the direction fallback never executes.** Its two gates were
+        counted over 228 hardware escape episodes from the 2026-09-12 rounds --
+        exact float equality of ``left_clear`` and ``right_clear`` fired 0 times,
+        and "no valid ray on either side" fired 0 times. ``no_data_range_m``
+        substitution (the paragraph directly above) is what closed it: once a
+        missing side gets a number, two floats tie only by accident.
+
+        So the island reasoning is correct design intent and DEAD CODE, and the
+        standing bias it was written to remove cannot be the explanation for any
+        observed behaviour. What the comparison actually does at a corner is
+        resolve on whichever side reads a few millimetres further -- and it is
+        the wrong question there: the router asks which side of the PILLAR to
+        pass, this asks which wall is nearer. They agree 56% of the time overall
+        and 48-49% in corners, which is what an unrelated variable looks like.
+        Do not "fix the biased fallback"; that hypothesis was tested and refuted
+        (18 of 37 opposing escapes were decided on a margin of 0.20 m or more,
+        so they are not near-ties either).
         """
         if lidar_ranges is not None:
             left = _sector_to_model(

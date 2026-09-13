@@ -373,9 +373,37 @@ class SlotSignMap:
             slot.frozen = slot.published_index is not None and slot.published_index == index
 
     def retire(self, index: int) -> None:
-        """Record that the router has marked ``index`` as passed."""
+        """Record that the router has marked ``index`` as passed.
+
+        NOT WIRED, found 2026-09-13. Nothing in ``src/`` calls this; the only
+        callers are ``tests/unit/test_sign_slot_map.py``. ``SignRouter`` fills
+        its own ``_passed`` set at ``router.py:803`` and never tells the map, so
+        ``_retired`` is empty on every production tick and both branches written
+        against it are dead:
+
+        * ``_apply_section`` counts passed slots as LIVE, so a section holding
+          two pillars the robot has already driven past will not open a slot for
+          a third it can see. Conservative, and it is what keeps the published
+          index count at or under the physical maximum of 8.
+        * ``_repoint``'s retired branch never fires, so a passed slot IS
+          re-pointed and the new pillar inherits the "already behind us" flag --
+          invisible until the lap resets. This module's own docstring measures
+          that at 168 of 708 re-points, 24%.
+
+        Wiring it is a real behaviour change, not a repair: the design was
+        measured as a package (23 recovered passes over 125 runs at +1.0 point
+        of routing error) and it trades index growth for recovered pillars. It
+        needs its own A/B before shipping, which is why this is a note and not a
+        one-line call.
+        """
         self._retired.add(index)
 
     def reset_for_new_lap(self) -> None:
-        """Passed indices come back next lap; the evidence deliberately does not."""
+        """Passed indices come back next lap; the evidence deliberately does not.
+
+        NO-OP TODAY, and forwarding a call to it from
+        ``SignRouter.reset_for_new_lap`` would stay a no-op: ``_retired`` is
+        never populated because ``retire`` above has no production caller. Wire
+        ``retire`` first or this changes nothing.
+        """
         self._retired.clear()
