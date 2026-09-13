@@ -17,12 +17,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import NO_TIME_LIMIT_S, create_bag_parser, load_nav_debug_rows
 
-_DEFAULT_UNTIL_S = NO_TIME_LIMIT_S
-
 
 def main() -> int:
     parser = create_bag_parser("TODO: add description")
-    parser.add_argument("--until", type=float, default=_DEFAULT_UNTIL_S)
+    parser.add_argument("--until", type=float, default=NO_TIME_LIMIT_S)
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)

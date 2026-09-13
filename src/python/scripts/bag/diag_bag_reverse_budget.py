@@ -395,13 +395,14 @@ def main() -> int:  # noqa: PLR0915
         )
     print()
     if args.csv:
-        import csv as _csv
-        from dataclasses import asdict as _asdict
+        import csv
+        from dataclasses import asdict
+
         with open(args.csv, "w", newline="", encoding="utf-8") as fh:
-            w = _csv.DictWriter(fh, fieldnames=list(_asdict(budgets[0]).keys()))
+            w = csv.DictWriter(fh, fieldnames=list(asdict(budgets[0]).keys()))
             w.writeheader()
             for b in budgets:
-                w.writerow(_asdict(b))
+                w.writerow(asdict(b))
         print(f"== wrote {len(budgets)} rows to {args.csv}")
         print()
 

@@ -72,9 +72,6 @@ def _load(bag_dir: Path) -> tuple[list, list]:
     return read_vision_rows(bag_dir)
 
 
-_detections = decode_detections
-
-
 def _replay(bag_dir: Path, *, limits: bool) -> tuple[list[float], float]:
     """Run the sign map over one bag; return committed-point jumps and churn.
 
@@ -107,7 +104,7 @@ def _replay(bag_dir: Path, *, limits: bool) -> tuple[list[float], float]:
         while frame_i < len(frames) and frames[frame_i][0] <= rel:
             observations.extend(
                 obs
-                for det in _detections(frames[frame_i][1])
+                for det in decode_detections(frames[frame_i][1])
                 if (obs := detection_to_observation(det, pose, tuning)) is not None
             )
             frame_i += 1

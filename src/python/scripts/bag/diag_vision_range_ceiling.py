@@ -52,7 +52,7 @@ from std_msgs.msg import String  # noqa: E402
 from scripts.common.bag_io import open_reader  # noqa: E402
 from scripts.common.stats import median, percentile  # noqa: E402
 from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
-from src.navigation.planning import sign_discovery as sd  # noqa: E402
+from src.navigation.planning import sign_discovery  # noqa: E402
 from src.vision.detector import letterbox  # noqa: E402
 
 MODEL_INPUT = 640
@@ -61,7 +61,7 @@ VISION_DETECTIONS = "/vision/detections"
 
 def _decode_range(height_px: float, scale: float) -> float:
     """Bbox height (SOURCE frame px) -> range, exactly as sign_discovery does."""
-    return sd._CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / height_px * scale  # noqa: SLF001
+    return sign_discovery._CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / height_px * scale  # noqa: SLF001
 
 
 def _onnx_boxes(net, frame: np.ndarray, conf_thresh: float) -> list[tuple[float, float]]:

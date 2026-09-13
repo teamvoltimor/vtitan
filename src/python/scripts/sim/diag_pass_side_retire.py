@@ -62,7 +62,7 @@ from scripts.common.provenance import environment
 from scripts.common.scenarios import load_scenario, scenario_paths
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from scripts.common.stats import median
-from src.navigation.planning import sign_router as sign_router_module
+from src.navigation.planning import sign_router
 from src.navigation.planning.sign_lane import _axis_coords, _in_lane_span, _lane_span
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import wrap_angle
@@ -146,7 +146,7 @@ def _side_of(sign: object, x: float, y: float, direction: Direction | None) -> b
     believed is the shared-convention mistake that hid the routing bug for two
     months. ``None`` direction means the rule cannot be evaluated, not "legal".
     """
-    rule = sign_router_module.pass_side_lateral_axis(
+    rule = sign_router.pass_side_lateral_axis(
         corridor_for_position(sign.x, sign.y),  # type: ignore[attr-defined]
         sign.color,  # type: ignore[attr-defined]
         direction,
@@ -170,7 +170,7 @@ def _signed_clearance(sign: object, x: float, y: float, direction: Direction | N
     sitting a full lane width onto the forbidden side (spec is +18.14/+27.86 cm)
     is a lane built on the wrong side to begin with.
     """
-    rule = sign_router_module.pass_side_lateral_axis(
+    rule = sign_router.pass_side_lateral_axis(
         corridor_for_position(sign.x, sign.y),  # type: ignore[attr-defined]
         sign.color,  # type: ignore[attr-defined]
         direction,
@@ -241,7 +241,7 @@ def _spec_depth_error(sim: object, believed_sign: object) -> tuple[float, float]
     # whether the planner delivered the instruction it built, so they must read
     # the rule under the direction it planned with. Judging helpers take the
     # true direction instead -- see ``_side_of``.
-    rule = sign_router_module.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
+    rule = sign_router.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
     if rule is None:
         return None
     lateral_axis, _permitted = rule
@@ -289,7 +289,7 @@ def _plateau_stats(sim: object, believed_sign: object) -> tuple[int, int, bool, 
     # whether the planner delivered the instruction it built, so they must read
     # the rule under the direction it planned with. Judging helpers take the
     # true direction instead -- see ``_side_of``.
-    rule = sign_router_module.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
+    rule = sign_router.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
     if rule is None:
         return None
     lateral_axis, permitted = rule
@@ -315,7 +315,7 @@ def _plateau_stats(sim: object, believed_sign: object) -> tuple[int, int, bool, 
 
     sign_lateral = lateral_of(believed_sign)
     want = sign_lateral + permitted * _LANE_SPEC_FAR_M
-    got = sign_router_module.clamp_lateral(want, corridor)
+    got = sign_router.clamp_lateral(want, corridor)
     boundary = min(
         abs(sign_depth - TrackDimensions.CORNER_MIN), abs(sign_depth - TrackDimensions.CORNER_MAX)
     )
@@ -347,7 +347,7 @@ def _shift_reference_error(sim: object, believed_sign: object) -> tuple[float, f
     # whether the planner delivered the instruction it built, so they must read
     # the rule under the direction it planned with. Judging helpers take the
     # true direction instead -- see ``_side_of``.
-    rule = sign_router_module.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
+    rule = sign_router.pass_side_lateral_axis(corridor, believed_sign.color, router.direction)  # type: ignore[attr-defined]
     if rule is None:
         return None
     lateral_axis, permitted = rule
@@ -379,7 +379,7 @@ def _shift_reference_error(sim: object, believed_sign: object) -> tuple[float, f
     wp_lateral = _axis_coords(base[nearest], lateral_axis)[0]
     lane_lateral = _axis_coords(lane[nearest], lateral_axis)[0]
 
-    target = sign_router_module.clamp_lateral(sign_lateral + permitted * _LANE_SPEC_FAR_M, corridor)
+    target = sign_router.clamp_lateral(sign_lateral + permitted * _LANE_SPEC_FAR_M, corridor)
     deviation = (base_lateral - wp_lateral) * permitted
     shortfall = (target - lane_lateral) * permitted
     return deviation, shortfall
@@ -414,7 +414,7 @@ def _spec_frame_clearance(sim: object) -> list[tuple]:
         distance = math.hypot(spec.x - pose.x, spec.y - pose.y)
         if distance > _PASSED_NEAR_M:
             continue
-        rule = sign_router_module.pass_side_lateral_axis(corridor, spec.color, router.direction)
+        rule = sign_router.pass_side_lateral_axis(corridor, spec.color, router.direction)
         if rule is None:
             continue
         lateral_axis, permitted = rule
@@ -423,7 +423,7 @@ def _spec_frame_clearance(sim: object) -> list[tuple]:
             continue
         plan_lateral = point[1] if lateral_axis == Axis.Y else point[0]
         sign_lateral = spec.y if lateral_axis == Axis.Y else spec.x
-        target = sign_router_module.clamp_lateral(sign_lateral + permitted * _LANE_SPEC_FAR_M, corridor)
+        target = sign_router.clamp_lateral(sign_lateral + permitted * _LANE_SPEC_FAR_M, corridor)
         # Conditioning for the tail. The wrong-side passes are a MINORITY, so an
         # aggregate over all of them reads as a base rate (that has happened to
         # every candidate this session); what is needed is what separates them.
@@ -641,7 +641,7 @@ def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float, direction:
     """
     verdicts = set()
     for dx, dy in ((0.0, 0.0), (_CORRIDOR_PROBE_M, 0.0), (-_CORRIDOR_PROBE_M, 0.0), (0.0, _CORRIDOR_PROBE_M), (0.0, -_CORRIDOR_PROBE_M)):
-        rule = sign_router_module.pass_side_lateral_axis(
+        rule = sign_router.pass_side_lateral_axis(
             corridor_for_position(sign.x + dx, sign.y + dy),  # type: ignore[attr-defined]
             sign.color,  # type: ignore[attr-defined]
             direction,
@@ -677,7 +677,7 @@ def _truth_violations(
 
     Returns ``(passed, wrong_side)`` counts for this scenario.
     """
-    signs = sign_router_module.signs_from_metadata(metadata)
+    signs = sign_router.signs_from_metadata(metadata)
     if not signs or not trail:
         return 0, 0
     passed = wrong = 0
@@ -686,7 +686,7 @@ def _truth_violations(
         near_x, near_y = trail[near_i]
         if math.hypot(sign.x - near_x, sign.y - near_y) > _PASSED_NEAR_M:
             continue
-        rule = sign_router_module.pass_side_lateral_axis(
+        rule = sign_router.pass_side_lateral_axis(
             corridor_for_position(sign.x, sign.y), sign.color, metadata.starting_conditions.direction
         )
         if rule is None:
@@ -725,7 +725,7 @@ def _instrument(true_pose: list[tuple[float, float]]) -> list[tuple[float, bool,
     ``(along_track_m, scored_violation, true_x, true_y, believed_colour)``.
     """
     records: list[tuple[float, bool, float, float, str]] = []
-    router_cls = sign_router_module.SignRouter
+    router_cls = sign_router.SignRouter
     original_candidates = router_cls._active_sign_candidates  # noqa: SLF001
     original_record = router_cls._record_pass_side  # noqa: SLF001
 
@@ -801,7 +801,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
         metadata, num_laps=3, seed=0, blind=True, known_start=known_start, tuning=tuning
     )
 
-    signs = sign_router_module.signs_from_metadata(metadata)
+    signs = sign_router.signs_from_metadata(metadata)
     # Per sign: the closest approach seen so far, and what the navigator was
     # doing AT that tick. Attribution has to be taken live -- the plan and the
     # router's sign list are rebuilt continuously, so nothing about the moment

@@ -272,8 +272,6 @@ def _dual_verdicts(rows, frames, scans, tuning) -> list[tuple[str, str, str, boo
     nothing to the router's labelling. Returned last, with a flag saying whether
     the router's label AGREED with it.
     """
-    import math as _math
-
     from rclpy.serialization import deserialize_message
     from sensor_msgs.msg import LaserScan
     from shared.domain.enums import Axis, Section
@@ -321,7 +319,7 @@ def _dual_verdicts(rows, frames, scans, tuning) -> list[tuple[str, str, str, boo
         committed = router.committed_sign_position
         if committed is None:
             continue
-        rng = _math.hypot(committed.x - d.pose_x, committed.y - d.pose_y)
+        rng = math.hypot(committed.x - d.pose_x, committed.y - d.pose_y)
         key = (round(committed.x, 1), round(committed.y, 1))
         if key not in best:
             order.append(key)

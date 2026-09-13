@@ -69,8 +69,6 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 # worker's navigator logs still flood the output.
 logging.disable(logging.CRITICAL)
 
-ROUND_TIME_LIMIT_S = CompetitionSpecs.ROUND_TIME_LIMIT_S
-
 _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
 
 
@@ -91,7 +89,7 @@ def run_case(payload: tuple[str, int, bool, int]) -> tuple[bool, bool, bool, boo
         result.laps_completed >= 3
         and not result.collided
         and not result.pass_side_violation
-        and result.sim_time_s <= ROUND_TIME_LIMIT_S
+        and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
     )
     return (
         range_model,

@@ -86,7 +86,7 @@ import src.navigation.planning.sign_router as sign_router_module
 # lateral_offset block below: patching the defining module never reaches a
 # caller that bound the name at import time.
 import src.simulation.scenario_simulator.simulator as gateway_module
-from scripts.common.provenance import environment as _provenance
+from scripts.common.provenance import environment
 from scripts.common.scenarios import load_scenario, scenario_from_mapping, scenario_paths
 from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
@@ -6096,7 +6096,7 @@ def report_spec_validity(workers: int, scenarios_dir: str | None) -> None:
     between them, "past the corner" was a property of comparing believed
     coordinates against FIXED nominal bounds -- not evidence about the spec.
     """
-    print(_provenance())
+    print(environment())
     base = replace(SweepConfig("x", blind=True), scenarios_dir=scenarios_dir)
     _spec_validity_arm("blind, shipped defaults", base, workers)
     _spec_validity_arm("blind + known_start (belief offset removed)", replace(base, known_start=True), workers)

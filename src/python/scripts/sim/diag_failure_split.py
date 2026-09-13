@@ -85,10 +85,10 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Axis
 from shared.domain.models import Waypoint
 
-import src.navigation.planning.sign_router as sign_router_module
 from scripts.common.sign_router_capture import patched_deform_waypoint
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import median
+from src.navigation.planning import sign_router
 from src.navigation.track_geometry import project_onto_path
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -534,7 +534,7 @@ def _verdict(
     if not kind.startswith("A-"):
         return Verdict(kind, label)
 
-    routing = sign_router_module.ROUTING_TABLE.get((last["corridors"][last["committed"]], last["direction"]))  # noqa: SLF001
+    routing = sign_router.ROUTING_TABLE.get((last["corridors"][last["committed"]], last["direction"]))  # noqa: SLF001
     if routing is None:
         return Verdict(kind, label)
     axis = 1 if routing.axis is Axis.Y else 0
@@ -695,7 +695,7 @@ def _label(last: dict[str, Any]) -> str:
     # clearance still measured >0.205 m once the lookahead was folded in, so
     # every run classified as ``A-lag`` and the clamp looked exonerated when it
     # is in fact saturated at half of all legal sign/colour combinations.
-    routing = sign_router_module.ROUTING_TABLE.get((last["corridors"][committed], last["direction"]))  # noqa: SLF001
+    routing = sign_router.ROUTING_TABLE.get((last["corridors"][committed], last["direction"]))  # noqa: SLF001
     if routing is None:
         return "A-other"
     axis = 1 if routing.axis is Axis.Y else 0

@@ -72,12 +72,6 @@ CRAWL_RAD = 1.0
 NEAR_SATURATION = 0.9
 """``|commanded_steering_norm|`` at or above this counts as saturated."""
 
-MIN_TURN_RADIUS_M = RobotSpecs.MIN_TURN_RADIUS_M
-"""Measured saturation radius of the chassis (``RobotSpecs.MIN_TURN_RADIUS_M``).
-
-An aim point whose pure-pursuit circle is tighter than this cannot be driven,
-however hard the servo is commanded."""
-
 
 def _describe(name: str, values: list[float], unit: str = "") -> str:
     if not values:
@@ -171,9 +165,11 @@ def analyse(bag_dir: Path) -> None:
     print(_describe("distance / lookahead", dist_over_lookahead))
     print(_describe("radius the aim demands", required_radius, " m"))
     if required_radius:
-        unreachable = sum(1 for r in required_radius if r < MIN_TURN_RADIUS_M)
+        # Below the chassis's measured saturation radius an aim point's
+        # pure-pursuit circle cannot be driven, however hard the servo is commanded.
+        unreachable = sum(1 for r in required_radius if r < RobotSpecs.MIN_TURN_RADIUS_M)
         print(
-            f"    below the chassis minimum ({MIN_TURN_RADIUS_M} m): "
+            f"    below the chassis minimum ({RobotSpecs.MIN_TURN_RADIUS_M} m): "
             f"{unreachable}/{len(required_radius)} ({100 * unreachable / len(required_radius):.1f}%)"
         )
     if recomputable:

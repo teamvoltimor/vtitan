@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402
 
-from scripts.common import pass_side as ps  # noqa: E402
+from scripts.common import pass_side  # noqa: E402
 from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_router import SignRouter  # noqa: E402
@@ -178,7 +178,7 @@ def main() -> int:
     args = parser.parse_args()
     tuning = get_tuning(None)
 
-    ps.SignRouter = _TapRouter  # the tap, installed where collect_passes constructs it
+    pass_side.SignRouter = _TapRouter  # the tap, installed where collect_passes constructs it
 
     records: list[dict] = []
     skipped: list[str] = []
@@ -196,7 +196,7 @@ def main() -> int:
             continue
         run = Path(bag).name.replace("run_", "")
         try:
-            passes, peak = ps.collect_passes(run, rows, frames, scans, tuning)
+            passes, peak = pass_side.collect_passes(run, rows, frames, scans, tuning)
         except (RuntimeError, ValueError, KeyError, IndexError) as exc:
             skipped.append(f"{Path(bag).name}:replay-{type(exc).__name__}")
             continue
