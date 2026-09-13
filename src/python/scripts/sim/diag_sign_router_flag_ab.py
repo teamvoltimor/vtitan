@@ -88,7 +88,7 @@ def run_case(payload: tuple[str, int, str, bool, int, str, bool]) -> tuple[bool,
     )
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--field", default="COMMIT_HYSTERESIS", help="boolean tuning field to A/B")
     parser.add_argument(
@@ -136,7 +136,8 @@ def main() -> None:
             f"{str(value):>20} {len(rows):>4} {sum(r[1] for r in rows):>8} {sum(r[2] for r in rows):>6} "
             f"{sum(r[3] for r in rows):>9} {sum(r[4] for r in rows):>10} {sum(r[5] for r in rows):>6}"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -98,7 +98,7 @@ def _replay(
     return track, float(np.median(costs)) if costs else float("nan")
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     parser.add_argument("--seed", type=float, nargs=2, default=(_DEFAULT_SEED_X_M, _DEFAULT_SEED_Y_M))
     parser.add_argument("--until", type=float, default=_DEFAULT_UNTIL_S)
@@ -108,7 +108,7 @@ def main() -> None:
     walls = final_walls(snapshots)
     if walls is None or not scans:
         print("bag lacks belief widths or /scan")
-        return
+        return 0
     t0 = snapshots[0][0]
     snapshots = [(t, s) for t, s in snapshots if (t - t0) / 1e9 <= args.until]
 
@@ -127,7 +127,8 @@ def main() -> None:
         )
         for ts, x, y in track[:: max(1, len(track) // _DOWNSAMPLE_FACTOR)]:
             print(f"    {ts:6.2f}s ({x:6.3f},{y:6.3f})")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

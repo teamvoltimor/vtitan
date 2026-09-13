@@ -44,7 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.common.bag_io import load_nav_debug_rows  # noqa: E402
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -96,7 +96,7 @@ def main() -> None:
 
     if not all_lengths:
         print("\nno manoeuvre episodes")
-        return
+        return 0
     s = sorted(all_lengths)
     print(f"\n== {total_episodes} episodes over {len(bags)} bag(s)")
     print(f"  episode length ticks: min {s[0]}  p50 {s[len(s) // 2]}  p90 {s[int(0.9 * len(s))]}  max {s[-1]}")
@@ -111,7 +111,8 @@ def main() -> None:
         "\n  length the wheel cannot respond to a sign, a waypoint or a corridor edge,"
         "\n  regardless of what the router still has committed in memory."
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -124,7 +124,7 @@ def _worst_drawdown(series: list[tuple[float, float]]):  # noqa: ANN202
     return worst, window
 
 
-def main() -> None:
+def main() -> int:
     """Report backward travel per bag, with a positive control alongside."""
     parser = create_bags_parser(__doc__)
     args = parser.parse_args()
@@ -206,7 +206,8 @@ def main() -> None:
     print()
     print(f"  a drawdown over {NOISE_DEG:.0f} deg is a reversal; the 2026-09-11 clean 3-lap control read 18")
     print("  affected 2026-09-11 runs read 86 / 220 / 227 deg -- if today reads clean, check the control read clean too")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

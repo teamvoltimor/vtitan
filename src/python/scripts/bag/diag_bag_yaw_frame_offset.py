@@ -22,13 +22,13 @@ Usage:
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
+from scripts.common.stats import mean, median, pstdev
 from scripts.common.tables import print_table
 from src.navigation.utils import axis_error_rad
 
@@ -41,7 +41,7 @@ def _axis_error_deg(yaw: float) -> float:
     return math.degrees(axis_error_rad(yaw))
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser("Analyze multiple bags")
     args = parser.parse_args()
 
@@ -57,9 +57,9 @@ def main() -> None:
             (
                 bag_dir.name.replace("run_2026", ""),
                 len(errors),
-                f"{statistics.median(errors):.1f}",
-                f"{statistics.mean(errors):.1f}",
-                f"{statistics.pstdev(errors):.1f}",
+                f"{median(errors):.1f}",
+                f"{mean(errors):.1f}",
+                f"{pstdev(errors):.1f}",
                 f"{100.0 * sum(1 for e in errors if e < 8.0) / len(errors):.0f}%",
                 f"{100.0 * sum(1 for e in errors if e > 20.0) / len(errors):.0f}%",
             ),
@@ -77,7 +77,8 @@ def main() -> None:
             n = sum(1 for e in errors if low <= e < low + _BUCKET_DEG)
             bar = "#" * round(60.0 * n / len(errors))
             print(f"  {low:2d}-{low + int(_BUCKET_DEG):2d} deg {100.0 * n / len(errors):5.1f}% {bar}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -690,7 +690,7 @@ DEFAULT_ARMS = [
 ]
 
 
-def main() -> None:  # noqa: C901, PLR0915
+def main() -> int:  # noqa: C901, PLR0915
     parser = create_bags_parser(__doc__)
     parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
     parser.add_argument("--accept-r", type=float, default=0.30,
@@ -747,7 +747,7 @@ def main() -> None:  # noqa: C901, PLR0915
         skipped["no_pose"] += len(empty)
     print(f"\n== CORPUS  {len(stats)} bags replayed, {sum(skipped.values())} skipped {dict(skipped)}")
     if not stats:
-        return
+        return 0
     n = len(stats)
 
     drops = [d for s in stats for d in s.drop_dists]
@@ -905,7 +905,8 @@ def main() -> None:  # noqa: C901, PLR0915
         rows_out.append([label, nn, tot["routing"], f"{100 * tot['routing'] / max(1, nn):.1f}%",
                          tot["execution"], tot["ok"]])
     print_table(rows_out, ["map", "passes", "routing", "routing rate", "execution", "ok"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

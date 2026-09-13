@@ -41,7 +41,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
@@ -50,6 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import RobotSpecs
 
 from scripts.common.bag_io import create_bags_parser, read_motion_streams
+from scripts.common.stats import median
 
 _SHIPPED_MAX_STEERING_RATE = 1.2  # rad/s, the constant under test
 _CONTROL_HZ = 20.0
@@ -98,7 +98,7 @@ def _lag_scan(
     if len(feedback) < 10:
         return []
     dts = [b[0] - a[0] for a, b in zip(feedback, feedback[1:], strict=False)]
-    dt = statistics.median(dts) if dts else 0.05
+    dt = median(dts) if dts else 0.05
     out = []
     for lag in range(-max_lag, max_lag + 1):
         pairs = []
@@ -221,7 +221,7 @@ def _command_slew_and_coast(bag_dir: Path) -> tuple[list[float], float, list[flo
     return slews, at_cap, coast_mm, zero_dur
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__, formatter_class=__import__("argparse").RawDescriptionHelpFormatter)
     parser.add_argument("--min-step-rad", type=float, default=0.20, help="commanded wheel-angle jump counted as a step")
     parser.add_argument("--min-step-mps", type=float, default=0.08, help="commanded speed jump counted as a step")
@@ -298,7 +298,7 @@ def main() -> None:
     print(f"  CANDIDATE implied slew    (rad/s): {_q(all_steer_slew)}")
     print(f"  CONTROL   speed    step->90% (s): {_q(all_speed_times)}")
     if all_steer_slew:
-        med = statistics.median(all_steer_slew)
+        med = median(all_steer_slew)
         ticks_shipped = math.ceil(_LOCK_TO_LOCK_RAD / (_SHIPPED_MAX_STEERING_RATE / _CONTROL_HZ))
         ticks_meas = math.ceil(_LOCK_TO_LOCK_RAD / (med / _CONTROL_HZ)) if med > 0 else -1
         print(
@@ -311,7 +311,8 @@ def main() -> None:
         "  CONTROL needs several samples and carries residual, the candidate is the command echoed back\n"
         "  and its 'slew rate' is the publish cadence, NOT the servo. No bag can then measure the servo."
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

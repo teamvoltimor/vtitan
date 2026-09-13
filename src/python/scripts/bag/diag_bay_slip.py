@@ -59,7 +59,6 @@ Usage (from ``src``)::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from bisect import bisect_left
 from itertools import pairwise
@@ -74,6 +73,7 @@ from scripts.common.bag_io import (
     load_nav_debug_rows,
     read_motion_streams,
 )
+from scripts.common.stats import median
 from scripts.common.tables import print_table
 
 BAY_PHASE = "bay_exit"
@@ -393,7 +393,7 @@ def _fit_table(corridor: list[tuple[float, ...]]) -> None:
     print_table(rows, ("speed bin m/s", "n", "mean speed", "R achieved m"))
 
 
-def main() -> None:
+def main() -> int:
     """Report achieved-vs-model turn radius in the pocket, per run and pooled."""
     parser = create_bags_parser(__doc__ or "")
     parser.add_argument(
@@ -460,13 +460,13 @@ def main() -> None:
                 round(travel, 3),
                 round(math.degrees(turned), 1),
                 round(travel / turned, 4),
-                round(statistics.median(ratios), 3) if ratios else None,
+                round(median(ratios), 3) if ratios else None,
             )
         )
 
     if not table:
         print("no bag reached the bay_exit phase with usable motion", flush=True)
-        return
+        return 0
     print_table(table, headers)
 
     travel = sum(s[0] for s in pooled)
@@ -480,7 +480,7 @@ def main() -> None:
     )
     print(
         f"  ACHIEVED radius m: p10 {radii[len(radii) // 10]:.4f}  "
-        f"median {statistics.median(radii):.4f}  p90 {radii[len(radii) * 9 // 10]:.4f}  "
+        f"median {median(radii):.4f}  p90 {radii[len(radii) * 9 // 10]:.4f}  "
         f"(pooled {travel / turned:.4f})",
         flush=True,
     )
@@ -512,7 +512,7 @@ def main() -> None:
         tighter = sum(1 for r in ratios if r < 1.0) / len(ratios)
         print(
             f"  ACHIEVED / MODEL: p10 {ratios[len(ratios) // 10]:.3f}  "
-            f"median {statistics.median(ratios):.3f}  p90 {ratios[len(ratios) * 9 // 10]:.3f}; "
+            f"median {median(ratios):.3f}  p90 {ratios[len(ratios) * 9 // 10]:.3f}; "
             f"TIGHTER THAN THE MODEL ALLOWS on {tighter:.0%} of intervals",
             flush=True,
         )
@@ -520,7 +520,8 @@ def main() -> None:
     if control:
         _paired_table(pooled, control)
         _fit_table(control)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

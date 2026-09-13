@@ -177,7 +177,7 @@ def _report(
     )
 
 
-def main() -> None:
+def main() -> int:
     """Print per-lap step, distance and swept-angle splits for Open scenarios."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--blind", action="store_true")
@@ -218,7 +218,7 @@ def main() -> None:
             )
             label = f"[{index:>3}] {'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}"
             _report(metadata, laps=args.laps, seed=index, label=label, blind=True, tuning=tuning)
-        return
+        return 0
 
     for scenario in all_test_scenarios():
         if args.only and args.only not in scenario.label:
@@ -231,7 +231,8 @@ def main() -> None:
             blind=args.blind,
             tuning=tuning,
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

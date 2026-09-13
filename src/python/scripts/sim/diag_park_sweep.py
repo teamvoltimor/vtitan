@@ -335,14 +335,15 @@ def report_straight_in() -> None:
     print("\nok = whole footprint inside the bay at the stop point; out = clear but protruding; HIT = contact")
 
 
-def main() -> None:
+def main() -> int:
     """Run the report named on the command line (default: all)."""
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
     if which in ("contacts", "containment", "all"):
         report_contacts_and_containment()
     if which in ("straightin", "all"):
         report_straight_in()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -80,6 +80,7 @@ from typing import TYPE_CHECKING
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401  (imported first: models <-> enums cycle)
+from shared.config.constants import RobotSpecs
 from shared.domain.enums import Direction
 
 from scripts.common.bag_io import (
@@ -301,7 +302,7 @@ def _analyse(rows, centre, sign) -> Senses:  # noqa: ANN001
     return out
 
 
-def main() -> None:
+def main() -> int:
     """Report wrong-sense target, heading and motion shares per bag."""
     parser = create_bags_parser(__doc__)
     parser.add_argument(
@@ -434,7 +435,7 @@ def main() -> None:
                 radius_out.append([
                     run, label, len(rr),
                     f"{_q(0.05):.3f}", f"{_q(0.25):.3f}", f"{_q(0.50):.3f}", f"{_q(0.75):.3f}",
-                    f"{100 * sum(1 for r in rr if r < 0.29) / len(rr):.0f}%",
+                    f"{100 * sum(1 for r in rr if r < RobotSpecs.MIN_TURN_RADIUS_M) / len(rr):.0f}%",
                 ])
             burst_out.append([
                 run, len(runs), runs[0] if runs else 0,
@@ -493,7 +494,7 @@ def main() -> None:
         print()
         print("== REQUIRED PURE-PURSUIT RADIUS, the gate _reachable already implements and ships OFF")
         print_table(radius_out, [
-            "run", "set", "ticks", "p05 m", "p25 m", "p50 m", "p75 m", "under 0.29 m",
+            "run", "set", "ticks", "p05 m", "p25 m", "p50 m", "p75 m", f"under {RobotSpecs.MIN_TURN_RADIUS_M:.2f} m",
         ])
         print()
         print("  enabling min_target_radius_m is only worth it if it is SELECTIVE: wrong-sense targets")
@@ -519,7 +520,8 @@ def main() -> None:
     print("  motion wrong  = CONTEXT ONLY, never scored: the clean control reads 14.2% here against 0.0%")
     print("                  heading-wrong, because a per-tick pose delta on a weaving chassis is mostly lateral")
     print(f"  verdict fires on target-wrong over {100 * TARGET_WRONG_THRESHOLD:.0f}%; the clean 3-lap control reads 0.7%")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

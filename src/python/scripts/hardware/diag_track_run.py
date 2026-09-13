@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import statistics
 import sys
 import time
 from pathlib import Path
@@ -33,6 +32,7 @@ from sensor_msgs.msg import LaserScan
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
+from scripts.common.stats import fmean
 from scripts.common.tables import print_table
 
 _QOS_STATE = QoSProfile(
@@ -155,7 +155,7 @@ def _summarise(probe: TrackRunProbe) -> None:
             print_table(rows, ["t", "steer_deg", "speed", "bar"])
         steers = [s.steering_rad for s in driving]
         print(
-            f"\n  steering: mean={math.degrees(statistics.fmean(steers)):+.1f}deg  "
+            f"\n  steering: mean={math.degrees(fmean(steers)):+.1f}deg  "
             f"min={math.degrees(min(steers)):+.1f}  max={math.degrees(max(steers)):+.1f}",
         )
         left = sum(1 for s in steers if s > _STEERING_BIAS_THRESHOLD_RAD)
@@ -170,7 +170,7 @@ def _summarise(probe: TrackRunProbe) -> None:
             print_table(rows, ["t", "front", "left", "right"])
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=_DEFAULT_RUN_SECONDS, help="How long to let it drive")
     args = parser.parse_args()
@@ -199,7 +199,8 @@ def main() -> None:
         _summarise(probe)
         probe.destroy_node()
         rclpy.shutdown()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

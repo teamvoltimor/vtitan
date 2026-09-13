@@ -125,7 +125,7 @@ def find_parking_lot(frames, rows, tuning) -> tuple[float, float] | None:  # noq
     return sum(xs) / len(xs), sum(ys) / len(ys)
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
     args = parser.parse_args()
@@ -187,7 +187,7 @@ def main() -> None:
         print()
     if not tagged:
         print("No sign passes reconstructed from these bags.")
-        return
+        return 0
 
     def rate(members: list[Pass]) -> str:
         if not members:
@@ -228,7 +228,8 @@ def main() -> None:
         won = sum(1 for p in crossers if p.achieved >= 0)
         rows_x.append([label, share, f"{won}/{len(crossers)}" if crossers else "--"])
     print_table(rows_x, ["population", "had to cross", "crossings won"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

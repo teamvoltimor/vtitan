@@ -36,7 +36,7 @@ _STARTUP_DEADLINE_S = 25.0
 _SPIN_TIMEOUT_S = 0.2
 _SECTOR_HALF_WIDTH_DEG = 10.0
 _MIN_RANGE_M = 0.05
-_MAX_RANGE_M = 12.0
+_MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE
 
 
 class Probe(Node):
@@ -58,7 +58,7 @@ class Probe(Node):
         self.yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 
 
-def main() -> None:
+def main() -> int:
     rclpy.init()
     probe = Probe()
     deadline = time.monotonic() + _STARTUP_DEADLINE_S
@@ -67,7 +67,7 @@ def main() -> None:
 
     if probe.scan is None or probe.yaw is None:
         print(f"missing input: scan={probe.scan is not None} imu={probe.yaw is not None}")
-        return
+        return 0
 
     msg = probe.scan
     ranges = np.array(msg.ranges, dtype=float)
@@ -95,7 +95,8 @@ def main() -> None:
 
     probe.destroy_node()
     rclpy.shutdown()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

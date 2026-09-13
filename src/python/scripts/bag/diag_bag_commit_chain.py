@@ -158,7 +158,7 @@ def chain_for_run(rows, frames, scans, tuning) -> list[dict[str, float]]:  # noq
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
     args = parser.parse_args()
@@ -179,7 +179,7 @@ def main() -> None:
         print(f"== SKIPPED {skipped} unreadable bag(s)")
     if not chains:
         print("No committed pillars reconstructed from these bags.")
-        return
+        return 0
 
     print(f"== {len(chains)} committed pillars. Range at each stage, and what the stage COST.")
     stages = ("seen", "ingested", "published", "committed")
@@ -213,7 +213,8 @@ def main() -> None:
               f"  ({100 * len(could) / len(chains):.1f}%)")
         print("   Those are the only ones where activation_dist_m is the binding constraint.")
         print("   For the rest the router engaged as soon as a sign existed, and raising it is inert.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

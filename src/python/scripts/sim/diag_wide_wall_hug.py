@@ -78,7 +78,7 @@ def _run(args: tuple[int, int, bool]) -> _WideWallResult:
     )
 
 
-def main() -> None:
+def main() -> int:
     """Run every start on a wide track and report wall contact."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--width-mm", type=int, default=int(CorridorDimensions.WIDE * 1000))
@@ -104,7 +104,8 @@ def main() -> None:
         table_rows.append((r.label, "yes" if r.success else "NO", r.laps_completed, r.contact_count, r.contact_time_s, r.min_lidar_range_m))
     print_table(table_rows, ["start", "pass", "laps", "contacts", "contact_s", "min_rng"], floatfmt=[None, None, None, None, ".2f", ".3f"])
     print(f"\n{passed}/{len(rows)} passed   {contacted}/{len(rows)} touched a wall at least once")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

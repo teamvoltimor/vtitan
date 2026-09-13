@@ -37,7 +37,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import statistics
 import sys
 from pathlib import Path
 
@@ -51,7 +50,7 @@ from shared.config.constants import TrafficSignSpecs  # noqa: E402
 from std_msgs.msg import String  # noqa: E402
 
 from scripts.common.bag_io import open_reader  # noqa: E402
-from scripts.common.stats import percentile  # noqa: E402
+from scripts.common.stats import median, percentile  # noqa: E402
 from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
 from src.navigation.planning import sign_discovery as sd  # noqa: E402
 from src.vision.detector import letterbox  # noqa: E402
@@ -95,7 +94,7 @@ def _onnx_boxes(net, frame: np.ndarray, conf_thresh: float) -> list[tuple[float,
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("run_dir", type=Path)
     parser.add_argument("--model", type=Path, default=Path("../../models/gmr/v1/best.onnx"))
@@ -147,12 +146,12 @@ def main() -> None:
     def describe(name: str, vals: list[float]) -> None:
         if not vals:
             print(f"  {name:6s} n=0")
-            return
+            return 0
         v = sorted(vals)
 
         beyond = {t: sum(1 for x in v if x > t) / len(v) for t in (1.4, 1.5, 2.0, 2.5)}
         print(
-            f"  {name:6s} n={len(v):5d}  p50 {statistics.median(v):.2f}  p90 {percentile(v, 0.9):.2f}  max {v[-1]:.2f}   "
+            f"  {name:6s} n={len(v):5d}  p50 {median(v):.2f}  p90 {percentile(v, 0.9):.2f}  max {v[-1]:.2f}   "
             + "  ".join(f">{t}m {f:.1%}" for t, f in beyond.items())
         )
 
@@ -179,7 +178,8 @@ def main() -> None:
         print('')
         print('  Both backends reach ~2 m at least occasionally, so distant signs ARE')
         print('  in frame: framing alone does not explain the ceiling.')
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

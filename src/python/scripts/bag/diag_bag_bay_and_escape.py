@@ -26,7 +26,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -35,6 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows  # noqa: E402
+from scripts.common.stats import median
 from scripts.common.tables import print_table  # noqa: E402
 
 BAY_PHASE = "bay_exit"
@@ -183,7 +183,7 @@ def _analyse_escape(run: str, rows) -> EscapeResult:  # noqa: ANN001
         run=run,
         escape_count=final_count,
         episodes=len(episodes),
-        median_s=statistics.median(durations) if durations else 0.0,
+        median_s=median(durations) if durations else 0.0,
         max_s=max(durations) if durations else 0.0,
         retrigger_frac=(retrig / (len(episodes) - 1)) if len(episodes) > 1 else 0.0,
         kinds=kinds,
@@ -192,7 +192,7 @@ def _analyse_escape(run: str, rows) -> EscapeResult:  # noqa: ANN001
     )
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__ or "")
     args = parser.parse_args()
 
@@ -234,9 +234,9 @@ def main() -> None:
         out = sum(1 for b in with_bay if b.got_out)
         secs = sorted(b.bay_s for b in with_bay)
         print(f"  GOT OUT {out}/{len(with_bay)} ({out / len(with_bay):.0%})")
-        print(f"  bay_exit duration s: min {secs[0]:.1f} / median {statistics.median(secs):.1f} / max {secs[-1]:.1f}")
+        print(f"  bay_exit duration s: min {secs[0]:.1f} / median {median(secs):.1f} / max {secs[-1]:.1f}")
         rot = sorted(abs(b.net_deg) for b in with_bay)
-        print(f"  |net rotation| deg:  min {rot[0]:.1f} / median {statistics.median(rot):.1f} / max {rot[-1]:.1f}")
+        print(f"  |net rotation| deg:  min {rot[0]:.1f} / median {median(rot):.1f} / max {rot[-1]:.1f}")
         wrong = sum(1 for b in with_bay if b.got_out and b.abs_deg > 3 * abs(b.net_deg))
         print(f"  rotated back and forth (|total| > 3x |net|): {wrong}/{len(with_bay)}")
 
@@ -265,14 +265,15 @@ def main() -> None:
             front = sum(1 for b in all_bearings if abs(b) <= 45)
             print(
                 f"  trigger bearing deg: n={len(all_bearings)} "
-                f"median {statistics.median(all_bearings):+.1f}  |bearing|<=45 {front / len(all_bearings):.0%}"
+                f"median {median(all_bearings):+.1f}  |bearing|<=45 {front / len(all_bearings):.0%}"
             )
         if all_ranges:
             rs = sorted(all_ranges)
             print(
-                f"  trigger range m:     min {rs[0]:.3f} / median {statistics.median(rs):.3f} / max {rs[-1]:.3f}"
+                f"  trigger range m:     min {rs[0]:.3f} / median {median(rs):.3f} / max {rs[-1]:.3f}"
             )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

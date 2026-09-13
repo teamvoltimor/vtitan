@@ -42,7 +42,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import statistics
 import sys
 from pathlib import Path
 
@@ -53,6 +52,7 @@ from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32
 
 from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import mean
 
 WHEEL_RADIUS_M = 0.035
 """Half of the 7 cm wheel diameter recorded in robot.toml."""
@@ -116,7 +116,7 @@ def _percentile(values: list[float], q: float) -> float:
     return ordered[idx]
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bags", nargs="+", type=Path)
     parser.add_argument("--bin", type=float, default=0.05, help="Speed bin width (m/s)")
@@ -137,7 +137,7 @@ def main() -> None:
 
     if not pooled:
         print("\nNO usable ticks. Check the bag paths before concluding anything.")
-        return
+        return 0
     if not any_gyro:
         print("\nNOTE: /imu/data angular_velocity was zero in every bag. Yaw rate is")
         print("differentiated from pose_yaw, so it carries the localizer's noise.")
@@ -164,7 +164,7 @@ def main() -> None:
         speeds = [s for s, _, _ in rows]
         rates = [w for _, w, _ in rows]
         steers = [c for _, _, c in rows]
-        v_mean = statistics.mean(speeds)
+        v_mean = mean(speeds)
         w90, w99 = _percentile(rates, 0.90), _percentile(rates, 0.99)
         r90 = v_mean / w90 if w90 > 1e-6 else float("inf")
         r99 = v_mean / w99 if w99 > 1e-6 else float("inf")
@@ -182,7 +182,8 @@ def main() -> None:
     print("|steer| p95 shows how hard the wheel was being asked in that bin: a bin that")
     print("never approaches 1.0 has NOT been driven to its limit, so its envelope is a")
     print("lower bound on the chassis capability, not the capability itself.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

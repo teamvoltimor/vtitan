@@ -173,7 +173,7 @@ def _rate_table(records, key_fn, labels, title) -> None:  # noqa: ANN001
     print()
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     args = parser.parse_args()
     tuning = get_tuning(None)
@@ -426,7 +426,8 @@ def main() -> None:
                 lambda r: 0 if r["needed"] < 0.10 else (1 if r["needed"] < 0.20 else 2),
                 lambda i: ("cross <0.10 m", "0.10-0.20 m", ">=0.20 m")[i],
                 "how far it had to cross")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

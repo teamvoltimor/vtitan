@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import json
 import math
-import statistics
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -43,7 +42,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
 from scripts.common.bag_io import open_reader
-from scripts.common.stats import percentile
+from scripts.common.stats import median, percentile
 from scripts.common.tables import print_table
 
 _VISION_TOPIC = "/vision/detections"
@@ -223,7 +222,7 @@ def _report_tracks(runs: list[dict]) -> None:
             dur = [t["t_end"] - t["t_start"] for t in usable]
             row.append(len(tr))
             row.append(len(usable))
-            row.append(f"{statistics.median(dur):.2f}" if dur else "-")
+            row.append(f"{median(dur):.2f}" if dur else "-")
         rows.append(row)
     print_table(rows, headers=["run", "red trk", "red usable", "red s", "grn trk", "grn usable", "grn s"])
 
@@ -336,7 +335,7 @@ def _report_confidence_by_band(runs: list[dict]) -> None:
             for cls in ("red", "green"):
                 st = r["per_class"].get(cls, ClassStats())
                 vals = [c for c, d in zip(st.conf, st.ranges, strict=False) if lo <= d < hi]
-                cell.append(f"{statistics.median(vals):.3f}" if len(vals) >= 10 else "-")
+                cell.append(f"{median(vals):.3f}" if len(vals) >= 10 else "-")
             row.append(" | ".join(cell))
         rows.append(row)
     print_table(rows, headers=["run", *[f"{lo:.1f}-{hi:.1f}" for lo, hi in _RANGE_BANDS]])
@@ -354,12 +353,12 @@ def _report_shape(runs: list[dict]) -> None:
                 row.append("-")
                 continue
             wide = 100 * sum(1 for a in st.aspect if a > 1.0) / len(st.aspect)
-            row.append(f"{statistics.median(st.aspect):.2f} ({wide:.0f}% wide)")
+            row.append(f"{median(st.aspect):.2f} ({wide:.0f}% wide)")
         rows.append(row)
     print_table(rows, headers=["run", "red", "green", "magenta"])
 
 
-def main() -> None:
+def main() -> int:
     bag_dirs = [Path(a) for a in sys.argv[1:]]
     if not bag_dirs:
         print("usage: diag_bag_green_loss.py <bag_dir> [<bag_dir> ...]")
@@ -385,7 +384,8 @@ def main() -> None:
     _report_range(runs)
     _report_confidence_by_band(runs)
     _report_shape(runs)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

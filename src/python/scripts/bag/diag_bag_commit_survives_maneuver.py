@@ -45,7 +45,7 @@ LOOKAHEAD = 5
 """Ticks after onset to give commitment a chance to come back."""
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -94,7 +94,7 @@ def main() -> None:
     print(f"== {o} manoeuvre onsets across {len(bags)} bag(s)")
     if not o:
         print("  no onsets -- nothing to conclude")
-        return
+        return 0
     print(
         f"  a sign was committed in the {LOOKBACK} ticks before onset: {cb} ({100 * cb / o:.1f}% of onsets)"
     )
@@ -104,7 +104,7 @@ def main() -> None:
     )
     if not cb:
         print("\n  VERDICT: SUPPRESSION -- a manoeuvre never starts while a sign is committed.")
-        return
+        return 0
     ev = grand["evicted"]
     print(f"\n  of those {cb}: survived the onset {grand['survived']}, EVICTED {ev} ({100 * ev / cb:.1f}%)")
     print(f"  of the evicted, commitment returned within {LOOKAHEAD} ticks: {grand['returned']}")
@@ -152,7 +152,8 @@ def main() -> None:
             f"  median {sorted(lens)[len(lens) // 2]:4d}  total {sum(lens):5d} ticks"
             f"  |  committed for {100 * share:5.1f}% of the episode"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

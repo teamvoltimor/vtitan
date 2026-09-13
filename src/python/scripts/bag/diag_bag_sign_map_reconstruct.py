@@ -51,7 +51,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -71,7 +70,7 @@ from scripts.common.bag_io import (
     scan_to_ranges_angles,
     settled_direction,
 )
-from scripts.common.stats import nearest_by_time
+from scripts.common.stats import fmean, nearest_by_time
 from scripts.common.tables import print_table
 from src.config.tuning_helpers import get_tuning, tuning_with_overrides
 from src.navigation.planning.sign_discovery import detection_to_observation, legal_sign_positions
@@ -269,7 +268,7 @@ def _pct(values: list[float], q: float) -> float:
     return values[min(int(q * len(values)), len(values) - 1)]
 
 
-def main() -> None:  # noqa: C901, PLR0912, PLR0915
+def main() -> int:  # noqa: C901, PLR0912, PLR0915
     """Report the recorded belief first, then the two-arm replay beside it."""
     parser = create_bags_parser(__doc__)
     parser.add_argument("--latency", type=float, default=0.12, help="camera latency assumed when pairing a frame with its pose")
@@ -305,7 +304,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
 
     if not recorded:
         print("no bags read -- nothing below means anything")
-        return
+        return 0
 
     print(f"\n== RECORDED BELIEF (straight off /nav_debug, {len(recorded)} runs)")
     table = []
@@ -326,7 +325,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             f"{100 * st.committed_ticks / max(st.ticks, 1):.0f}%",
             distinct,
             len(st.committed_jumps),
-            f"{statistics.fmean(st.committed_offlattice):.3f}" if st.committed_offlattice else "-",
+            f"{fmean(st.committed_offlattice):.3f}" if st.committed_offlattice else "-",
         ])
     print_table(
         table,
@@ -409,7 +408,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
         print("   <- a manoeuvre planned off the map cannot exist before this instant")
 
     if args.no_replay:
-        return
+        return 0
 
     # ---------------- replayed half ----------------
     arms = {
@@ -438,7 +437,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
     print("   <- if the bag count is 0, the corpus carried no /vision/detections and")
     print("      nothing in this section means anything")
     if not usable:
-        return
+        return 0
     rt = []
     for name, stats in results.items():
         if not stats:
@@ -455,10 +454,10 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             peaks_r[len(peaks_r) // 2],
             peaks_r[-1],
             f"{sum(1 for s in stats if s.over_max > 0)}/{len(stats)}",
-            f"{statistics.fmean([s.position_changes for s in stats]):.1f}",
+            f"{fmean([s.position_changes for s in stats]):.1f}",
             f"{_pct(jumps, 0.5):.3f}" if jumps else "-",
             f"{100 * sum(1 for v in offs if v > 1e-6) / max(len(offs), 1):.0f}%",
-            f"{statistics.fmean(firsts):.1f}" if firsts else "-",
+            f"{fmean(firsts):.1f}" if firsts else "-",
             f"{100 * empty / max(ticks, 1):.0f}%",
         ])
     print_table(
@@ -469,7 +468,8 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
     print("\n   SPEC PREDICTION for the slot arm (src/navigation/planning/sign_slot_map.py,")
     print("   125 bags): worst peak 24 -> 7, runs over the physical max 32/125 -> 0/125,")
     print("   position changes per run 44.9 -> 3.1. Compare the two rows above against it.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -155,13 +155,14 @@ def analyse(bag_dir: Path, stride: int) -> None:
         )
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--stride", type=int, default=10, help="analyse every Nth nav_debug tick")
     args = parser.parse_args()
     for bag_dir in args.bag_dirs:
         analyse(bag_dir, args.stride)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

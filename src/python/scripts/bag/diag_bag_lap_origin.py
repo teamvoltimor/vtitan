@@ -60,7 +60,7 @@ def _replay(posed, origin, section, direction):
     return laps, geo_only
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -68,12 +68,12 @@ def main() -> None:
     posed = posed_rows(rows)
     if not posed:
         print("no posed samples")
-        return
+        return 0
 
     direction = settled_direction(rows)
     if direction is None:
         print("direction never settled -- lap counting was never reachable")
-        return
+        return 0
 
     # What the node believed before it measured anything: the launch default.
     # Both directions are shown because the bag records only the SETTLED
@@ -121,7 +121,8 @@ def main() -> None:
         )
     print()
     print_table(out, ["origin", "position", "laps", "lap_times", "blocked_by"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

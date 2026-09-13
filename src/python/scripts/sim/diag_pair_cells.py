@@ -132,7 +132,7 @@ def _pairs_for(
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenarios-dir", default=None)
     parser.add_argument("--corpus", action="store_true", help=f"shorthand for --scenarios-dir {CORPUS_DIR}")
@@ -142,11 +142,11 @@ def main() -> None:
     directory = Path(args.scenarios_dir) if args.scenarios_dir else (CORPUS_DIR if args.corpus else None)
     if directory is None:
         print("Pass --corpus or --scenarios-dir; the committed fixtures are too few to read a cell from.")
-        return
+        return 0
     files = scenario_paths(Path(directory))
     if not files:
         print(f"NO SCENARIOS under {directory} -- the corpus is gitignored, run `task gen:corpus`.")
-        return
+        return 0
 
     tuning = NavigationTuning.load_default()
     params = _lane_params(tuning)
@@ -194,7 +194,8 @@ def main() -> None:
             for scenario, direction, counts in rows:
                 handle.write(f"{scenario},{direction}," + ",".join(str(counts[c]) for c in cells) + "\n")
         print(f"\nwrote {out} ({len(rows)} rows, {len(cells)} cells) -- join this on a sweep's DETAIL labels")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

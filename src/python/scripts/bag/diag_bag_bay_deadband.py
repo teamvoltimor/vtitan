@@ -36,7 +36,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
@@ -46,6 +45,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import Float32
 
 from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import median
 
 WHEEL_CIRCUM_M = math.pi * 0.07
 """7 cm wheel (robot.toml). deg/s -> m/s is (deg/s / 360) * circumference."""
@@ -158,30 +158,30 @@ def analyse(bag_dir: Path) -> dict[str, object] | None:
     return {
         "run": bag_dir.name[-6:],
         "bay_ticks": bay_ticks,
-        "cmd_med": statistics.median([abs(c) for c in cmd_nonzero]) if cmd_nonzero else 0.0,
+        "cmd_med": median([abs(c) for c in cmd_nonzero]) if cmd_nonzero else 0.0,
         "cmd_nonzero_pct": 100.0 * len(cmd_nonzero) / bay_ticks,
         "enc_n": len(sampled_drive),
         "enc_zero_pct": 100.0 * (len(sampled_drive) - len(moving)) / max(len(sampled_drive), 1),
-        "enc_med_moving_deg_s": statistics.median(moving) if moving else 0.0,
-        "enc_med_moving_mps": deg_s_to_mps(statistics.median(moving)) if moving else 0.0,
+        "enc_med_moving_deg_s": median(moving) if moving else 0.0,
+        "enc_med_moving_mps": deg_s_to_mps(median(moving)) if moving else 0.0,
         "legs": len(legs),
-        "leg_med_s": statistics.median([d for _, d in legs]) if legs else 0.0,
+        "leg_med_s": median([d for _, d in legs]) if legs else 0.0,
         "abs_travel_m": abs_travel,
         "net_yaw_deg": math.degrees(net_yaw),
         "abs_yaw_deg": math.degrees(abs_yaw),
         "enc_dist_m": enc_dist,
-        "guard_med": statistics.median(guard_gaps) if guard_gaps else float("nan"),
+        "guard_med": median(guard_gaps) if guard_gaps else float("nan"),
         "dr_along_absmax": max((abs(v) for v in dr_along), default=float("nan")),
         "dr_out_absmax": max((abs(v) for v in dr_out), default=float("nan")),
     }
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     rows = [r for r in (analyse(b) for b in bags if b.is_dir()) if r]
     if not rows:
         print("no bag reached the bay_exit phase")
-        return
+        return 0
 
     hdr = (f"{'run':8}{'ticks':>6}{'cmd m/s':>9}{'cmd%':>6}{'encN':>6}{'enc0%':>7}"
            f"{'encDeg/s':>9}{'enc m/s':>9}{'legs':>5}{'legS':>6}{'encM':>7}{'poseM':>7}{'netYaw':>8}{'|yaw|':>7}{'guard':>7}")
@@ -197,17 +197,18 @@ def main() -> None:
     print()
     zp = [r["enc_zero_pct"] for r in rows if r["enc_n"]]
     if zp:
-        print(f"encoder-zero % during bay_exit: min {min(zp):.1f} / median {statistics.median(zp):.1f} / max {max(zp):.1f}")
+        print(f"encoder-zero % during bay_exit: min {min(zp):.1f} / median {median(zp):.1f} / max {max(zp):.1f}")
     cm = [r["cmd_med"] for r in rows]
-    print(f"commanded m/s: min {min(cm):.3f} / median {statistics.median(cm):.3f} / max {max(cm):.3f}")
+    print(f"commanded m/s: min {min(cm):.3f} / median {median(cm):.3f} / max {max(cm):.3f}")
     mv = [r["enc_med_moving_mps"] for r in rows if r["enc_med_moving_mps"] > 0]
     if mv:
-        print(f"encoder m/s WHEN MOVING: median {statistics.median(mv):.3f}")
+        print(f"encoder m/s WHEN MOVING: median {median(mv):.3f}")
     print(f"|travel| m: {[round(r['abs_travel_m'], 3) for r in rows]}")
     print(f"encoder distance m: {[round(r['enc_dist_m'], 3) for r in rows]}")
     print(f"net rotation deg: {[round(r['net_yaw_deg'], 1) for r in rows]}")
     print(f"abs rotation deg: {[round(r['abs_yaw_deg'], 1) for r in rows]}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

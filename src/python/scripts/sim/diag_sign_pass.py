@@ -164,7 +164,7 @@ def _analyse(index: int) -> PassAnalysisResult:
     )
 
 
-def main() -> None:
+def main() -> int:
     """Run every fixture and print achieved vs commanded clearance per sign."""
     with ProcessPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(_analyse, range(len(all_obstacles_demo_scenarios()))))
@@ -204,7 +204,8 @@ def main() -> None:
     print(f"\npasses measured: {total}")
     print(f"  below square-pass need ({square_need:.3f}): {tight_square}")
     print(f"  below mid-turn need    ({turning_need:.3f}): {tight_turning}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -310,7 +310,7 @@ def _report(label: str, rows: list[Recon], params: SignLaneParams) -> None:
     )
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--per-lap", action="store_true")
     args = parser.parse_args()
@@ -448,7 +448,8 @@ def main() -> None:
         p90 = offs[int(len(offs) * 0.9)]
         inside = 100.0 * sum(1 for v in offs if v <= params.hold_m) / len(offs)
         print(f"   {label:<24} carrot |depth-sign| p50 {p50:.3f}  p90 {p90:.3f}  inside hold {inside:5.1f}%")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

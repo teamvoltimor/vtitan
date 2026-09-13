@@ -67,12 +67,12 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
+from scripts.common.stats import fmean
 from scripts.common.tables import print_table
 
 # The rulebook track: a 3.0 m square with a 1.0 x 1.0 m inner island spanning
@@ -231,8 +231,8 @@ def _close(run: str, ep: dict, by_index: dict, posed: list, settle: int) -> Epis
 
     steer = ep["steer"]
     speed = ep["speed"]
-    steer_mean = statistics.fmean(steer) if steer else 0.0
-    speed_mean = statistics.fmean(speed) if speed else 0.0
+    steer_mean = fmean(steer) if steer else 0.0
+    speed_mean = fmean(speed) if speed else 0.0
     nose = _sign(steer_mean) * _sign(speed_mean)
 
     # The after-pose: `settle` posed ticks past the exit, so the measurement
@@ -297,10 +297,10 @@ def _fmt(values: list[float]) -> str:
         return "n=0"
     values = sorted(values)
     p50 = values[len(values) // 2]
-    return f"n={len(values):3} mean={statistics.fmean(values):+.3f} p50={p50:+.3f}"
+    return f"n={len(values):3} mean={fmean(values):+.3f} p50={p50:+.3f}"
 
 
-def main() -> None:  # noqa: C901, PLR0912, PLR0915
+def main() -> int:  # noqa: C901, PLR0912, PLR0915
     """Inventory every latched escape, then score it against the router's aim."""
     parser = create_bags_parser(__doc__)
     parser.add_argument(
@@ -328,7 +328,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
 
     if not metas:
         print("no bags read -- nothing below means anything")
-        return
+        return 0
 
     tag = f"  [{args.label}]" if args.label else ""
     print(f"== ESCAPE INVENTORY{tag}   {len(metas)} runs, {len(all_eps)} latched episodes")
@@ -369,8 +369,8 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             k, n, f"{100 * n / len(all_eps):.0f}%",
             f"{sum(e.duration for e in ks):.1f}",
             f"{100 * sum(e.duration for e in ks) / max(esc_dur, 1e-9):.0f}%",
-            f"{statistics.fmean([e.duration for e in ks]):.2f}",
-            f"{statistics.fmean([e.speed_mean for e in ks]):+.2f}",
+            f"{fmean([e.duration for e in ks]):.2f}",
+            f"{fmean([e.speed_mean for e in ks]):+.2f}",
             sum(1 for e in ks if e.committed_windowed),
         ])
     print_table(ktable, ["kind", "episodes", "share", "total s", "share of esc s", "mean s", "mean speed", "committed"])
@@ -394,7 +394,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
     if not usable:
         uncommitted = [e for e in all_eps if not e.committed_windowed]
         print(f"   (episodes with NO committed sign at all: {len(uncommitted)})")
-        return
+        return 0
 
     # STEERING is the control variable, not the nose. Both forward and reverse
     # curve the BODY toward the steered side (the reverse only flips which way
@@ -419,7 +419,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
         if not deltas:
             continue
         better = sum(1 for d in deltas if d > 0.0)
-        dt.append([label, len(deltas), f"{statistics.fmean(deltas):+.3f}",
+        dt.append([label, len(deltas), f"{fmean(deltas):+.3f}",
                    f"{sorted(deltas)[len(deltas) // 2]:+.3f}",
                    f"{better}/{len(deltas)} ({100 * better / len(deltas):.0f}%)"])
     print_table(dt, ["group", "n", "mean dA", "p50 dA", "improved"])
@@ -506,7 +506,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             a = sum(1 for e in ks if _sign(e.steer_mean) == e.wanted_side)
             deltas = [e.d_align for e in ks if e.d_align is not None]
             kt.append([k, z, len(ks), f"{a}/{len(ks)} ({100 * a / len(ks):.0f}%)",
-                       f"{statistics.fmean(deltas):+.3f}" if deltas else "-"])
+                       f"{fmean(deltas):+.3f}" if deltas else "-"])
     print_table(kt, ["kind", "zone", "usable", "steer agrees", "mean dA"])
 
     # ---------------- the control ----------------
@@ -517,7 +517,8 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
           f"{sum(1 for e in all_eps if e.committed_strict)} of {len(all_eps)}")
     print("   <- a large gap between strict and windowed means the windowed attribution")
     print("      is inheriting a stale belief; prefer the strict column then")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

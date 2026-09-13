@@ -34,7 +34,7 @@ shorter budget reported it as "never settles" when it merely settles late.
 _VERDICT_WIDTH = 9
 
 
-def main() -> None:
+def main() -> int:
     """Report inferred vs true travel direction for every Open fixture."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--creep-steps", type=int, default=_DEFAULT_CREEP_STEPS)
@@ -64,7 +64,8 @@ def main() -> None:
 
     total = len(all_test_scenarios())
     print(f"\n{total - wrong - unsettled}/{total} correct, {wrong} wrong, {unsettled} unsettled")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

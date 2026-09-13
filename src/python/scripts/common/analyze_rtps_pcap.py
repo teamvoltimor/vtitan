@@ -103,7 +103,7 @@ def classify_rtps(payload):
             break  # last submessage extends to end of packet, per RTPS spec
 
 
-def main():
+def main() -> int:
     path = sys.argv[1]
     bucket_sec = 10
     # buckets[bucket][(port_pair)][submsg_name] = count
@@ -140,7 +140,8 @@ def main():
                 continue
             counts_str = ", ".join(f"{n}={c}" for n, c in sorted(counts.items(), key=lambda kv: -kv[1]))
             print(f"{bucket:>6}  {port_key:45}  {counts_str}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

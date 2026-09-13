@@ -28,7 +28,7 @@ from scripts.common.tables import print_table
 from src.navigation.race_tracker import TRAVEL_DIRS
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -37,7 +37,7 @@ def main() -> None:
     posed = [(t, snap) for t, snap in rows if isinstance(snap.pose_x, (int, float))]
     if not posed:
         print("no posed samples")
-        return
+        return 0
 
     direction = next((snap.direction for _, snap in rows if snap.direction), None)
     print(f"== {args.bag_dir.name}  direction={direction}  samples={len(posed)}")
@@ -77,7 +77,8 @@ def main() -> None:
     # How much time was actually spent in each corridor?
     counts = Counter(str(snap.current_corridor) for _, snap in posed)
     print("corridor sample counts: " + ", ".join(f"{k}={v}" for k, v in counts.most_common()))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

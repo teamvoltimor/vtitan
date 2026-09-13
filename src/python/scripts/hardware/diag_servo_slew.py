@@ -58,13 +58,12 @@ from __future__ import annotations
 
 import argparse
 import math
-import sys
 import time
 
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
-from rclpy.node import Node
 from rclpy.duration import Duration
+from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from shared.config.constants import RobotSpecs
 
@@ -262,4 +261,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

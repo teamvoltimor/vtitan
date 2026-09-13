@@ -62,7 +62,6 @@ Usage::
 from __future__ import annotations
 
 import json
-import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -71,6 +70,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
 from scripts.common.bag_io import create_bags_parser, elapsed_seconds, open_reader
+from scripts.common.stats import median
 
 _PILLAR_CLASSES = ("red", "green")
 
@@ -89,7 +89,7 @@ def _boxes_overlap(a: list[float], b: list[float]) -> float:
     return inter / smaller
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--overlap", type=float, default=0.30, help="min intersection-over-smaller to call two boxes the same object")
     parser.add_argument("--assoc-x", type=float, default=0.12, help="max normalised-x gap to associate across frames")
@@ -190,9 +190,9 @@ def main() -> None:
     print(f"  CONTROL same-colour pairs      : {same_pairs}"
           "   <- if this is ~0 too, the frames just have no overlaps and the line above means nothing")
     if cross_overlaps:
-        print(f"  overlap (int/smaller) p50      : {statistics.median(cross_overlaps):.2f}")
-        print(f"  confidence, lower of the pair  : p50 {statistics.median(conf_minority):.2f}")
-        print(f"  confidence, higher of the pair : p50 {statistics.median(conf_majority):.2f}")
+        print(f"  overlap (int/smaller) p50      : {median(cross_overlaps):.2f}")
+        print(f"  confidence, lower of the pair  : p50 {median(conf_minority):.2f}")
+        print(f"  confidence, higher of the pair : p50 {median(conf_majority):.2f}")
         for pair, n in cross_by_pair.most_common():
             print(f"    {pair}: {n}")
     print()
@@ -204,7 +204,8 @@ def main() -> None:
     print(f"  class flips : {flips}")
     for k, n in flip_detail.most_common():
         print(f"    {k}: {n}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

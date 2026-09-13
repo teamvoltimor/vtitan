@@ -52,7 +52,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,7 +66,7 @@ from shared.domain.enums import Axis  # noqa: E402
 
 from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans, scan_to_ranges_angles  # noqa: E402
 from scripts.common.cross_attempt import classify, replay  # noqa: E402
-from scripts.common.stats import nearest_by_time  # noqa: E402
+from scripts.common.stats import fmean, median, nearest_by_time  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_router.routing import pass_side_lateral_axis  # noqa: E402
 from src.navigation.utils import _rear_clearance, trail_clearance_behind  # noqa: E402
@@ -216,7 +215,7 @@ def _dist(label: str, vals: list[float]) -> None:
         return s[min(len(s) - 1, int(f * len(s)))]
 
     print(
-        f"   {label:<34} n={len(s):4d}  mean {statistics.fmean(s):+.3f}  "
+        f"   {label:<34} n={len(s):4d}  mean {fmean(s):+.3f}  "
         f"p10 {q(0.10):+.3f}  p50 {q(0.50):+.3f}  p90 {q(0.90):+.3f}  max {s[-1]:+.3f}"
     )
 
@@ -229,11 +228,11 @@ def _report(label: str, rows: list[Budget], contact: float) -> None:
     short = [r for r in rows if r.shortfall > 0]
     print(f"  {label:<28} n={n:4d}")
     print(
-        f"      speed {statistics.fmean([r.v_commit for r in rows]):.3f} m/s"
-        f"   R {statistics.fmean([r.radius for r in rows]):.3f} m"
-        f"   y_need {statistics.fmean([r.y_need for r in rows]):.3f} m"
-        f"   L_min {statistics.fmean([r.l_min for r in rows]):.3f} m"
-        f"   road {statistics.fmean([r.road for r in rows]):.3f} m"
+        f"      speed {fmean([r.v_commit for r in rows]):.3f} m/s"
+        f"   R {fmean([r.radius for r in rows]):.3f} m"
+        f"   y_need {fmean([r.y_need for r in rows]):.3f} m"
+        f"   L_min {fmean([r.l_min for r in rows]):.3f} m"
+        f"   road {fmean([r.road for r in rows]):.3f} m"
     )
     print(f"      SHORTFALL > 0                {_pct(len(short), n)}")
     _dist("      shortfall (all passes)", [r.shortfall for r in rows])
@@ -253,7 +252,7 @@ def _report(label: str, rows: list[Budget], contact: float) -> None:
     print(f"      rear sector readable on {_pct(len(rv), len(short))} of short passes")
 
 
-def main() -> None:  # noqa: PLR0915
+def main() -> int:  # noqa: PLR0915
     parser = create_bags_parser(__doc__)
     parser.add_argument(
         "--margin",
@@ -371,18 +370,18 @@ def main() -> None:  # noqa: PLR0915
             )
     if rates:
         print(
-            f"   ACROSS {len(rates)} runs: firings/run mean {statistics.fmean(rates):.2f}"
-            f"  median {statistics.median(rates):.1f}  max {max(rates)}"
+            f"   ACROSS {len(rates)} runs: firings/run mean {fmean(rates):.2f}"
+            f"  median {median(rates):.1f}  max {max(rates)}"
         )
         print(
-            f"   added time/run: mean {statistics.fmean(costs):.1f} s"
-            f"  median {statistics.median(costs):.1f} s  max {max(costs):.1f} s"
+            f"   added time/run: mean {fmean(costs):.1f} s"
+            f"  median {median(costs):.1f} s  max {max(costs):.1f} s"
             f"   (round limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f} s)"
         )
     print()
 
     print("== 1b ROAD MEASURED AS PATH ACTUALLY DRIVEN (commit range under-reads a curved approach)")
-    print(f"   mean path driven: fail {statistics.fmean([b.path_m for b in cf]):.3f} m   success {statistics.fmean([b.path_m for b in cs]):.3f} m")
+    print(f"   mean path driven: fail {fmean([b.path_m for b in cf]):.3f} m   success {fmean([b.path_m for b in cs]):.3f} m")
     print(f"   L_min > path driven:  fail {_pct(sum(1 for b in cf if b.shortfall_path > 0), len(cf))}"
           f"   success {_pct(sum(1 for b in cs if b.shortfall_path > 0), len(cs))}")
     _dist("   shortfall_path FAIL", [b.shortfall_path for b in cf])
@@ -415,7 +414,8 @@ def main() -> None:  # noqa: PLR0915
         f"   erased by slowing alone                        "
         f"{_pct(sum(1 for b in s_now if b.shortfall_slow <= 0), len(s_now))}"
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

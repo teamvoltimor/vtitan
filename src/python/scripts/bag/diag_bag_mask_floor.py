@@ -54,6 +54,7 @@ from pathlib import Path
 import numpy as np
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import ManeuverType
 from shared.domain.models import Pose, Waypoint
@@ -80,7 +81,7 @@ CHASSIS_MARGIN_M = 0.01
 has tolerance, so a return a few millimetres outside it is still the robot.
 Matches ``diag_bag_contact_bearing``'s ``SELF_MARGIN_M``."""
 
-DROPPED_RANGE_M = 12.0
+DROPPED_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE
 """Beyond ``ProposerParams.max_range_m``, so ``find_clusters`` discards the ray.
 A finite value rather than inf because ``decode_scan`` already substitutes a
 finite range for dropouts and this must not read as a different KIND of miss."""

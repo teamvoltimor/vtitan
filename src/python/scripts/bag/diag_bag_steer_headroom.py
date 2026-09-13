@@ -46,7 +46,7 @@ _TURN_THRESHOLD_RAD = NavigationTuning.load_default().pursuit.CORNER_TURN_THRESH
 _SPEED_LOW_THRESHOLD_MPS = 0.10
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -69,7 +69,7 @@ def main() -> None:
     print("state transitions: " + ", ".join(f"{t:.1f}s->{s}" for t, s in states))
     if not rows:
         print("no /nav_debug samples")
-        return
+        return 0
     print(f"nav_debug samples: {len(rows)}  span {rows[0][0]:.1f}s..{rows[-1][0]:.1f}s")
 
     # Lap boundaries as reported by the navigator itself.
@@ -173,7 +173,8 @@ def main() -> None:
             f"\ncommanded speed (m/s): median={percentile(speeds, 0.5):.3f} p90={percentile(speeds, 0.9):.3f} "
             f"max={max(speeds):.3f}  frac<{_SPEED_LOW_THRESHOLD_MPS}={sum(s < _SPEED_LOW_THRESHOLD_MPS for s in speeds) / len(speeds):.3f}"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

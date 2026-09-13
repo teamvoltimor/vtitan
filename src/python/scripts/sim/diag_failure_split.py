@@ -712,7 +712,7 @@ def _job(args: tuple[int, str | None, bool]) -> Verdict:
     return _classify(index, Path(fixtures) if fixtures else None, blind)
 
 
-def main() -> None:
+def main() -> int:
     """Classify every failing scenario and report the split."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", action="store_true", help="use the pinned-seed 256 corpus")
@@ -767,6 +767,7 @@ def main() -> None:
         _report_yaw([v for v in verdicts if v.frames])
     if args.approach:
         _report_approach([v for v in verdicts if v.approach is not None])
+    return 0
 
 
 def _sign_pair_kind(metadata: object) -> str:
@@ -968,4 +969,4 @@ def _report_frame(frames: list[Frame]) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -104,7 +104,7 @@ def _tuning_for(args: argparse.Namespace) -> NavigationTuning | None:
     return replace(base, sign_router=base.sign_router.model_copy(update=overrides))
 
 
-def main() -> None:
+def main() -> int:
     """Trace one scenario and print the ticks near the chosen sign."""
     args = _parse_args()
 
@@ -175,7 +175,7 @@ def main() -> None:
             step[0] += 1
             if focus is not None and math.hypot(focus.x - state.x, focus.y - state.y) > args.radius:
                 last.clear()
-                return
+                return 0
             dist = "" if focus is None else math.hypot(focus.x - state.x, focus.y - state.y)
             rows.append(_trace_row(step[0], state, gw.last_command, last, dist))
 
@@ -186,6 +186,7 @@ def main() -> None:
         f"\ncollided={result.collided} laps={result.laps_completed} "
         f"steps={result.steps} final={tuple(round(v, 3) for v in result.final_pose)}"
     )
+    return 0
 
 
 def _trace_row(
@@ -229,4 +230,4 @@ def _fmt(pt: object) -> str:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

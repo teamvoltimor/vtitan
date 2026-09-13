@@ -33,7 +33,7 @@ SIDE_CORRECTION = "side_correction"
 SIM_FORWARD_SHARE = "0 of 254 side_correction ticks (sighted corpus, 2026-09-12)"
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -76,7 +76,7 @@ def main() -> None:
     print(f"\n== {len(bags)} bag(s), {grand['ticks']} ticks")
     if not sc:
         print("  no side_correction at all -- the flag cannot fire here either")
-        return
+        return 0
     gate = grand["forward"] + grand["zero"]
     print(f"  side_correction ticks: {sc} ({100 * sc / grand['ticks']:.1f}% of all ticks)")
     print(f"    forward  {grand['forward']:5d} ({100 * grand['forward'] / sc:5.1f}%)")
@@ -108,7 +108,8 @@ def main() -> None:
             "\n  robot is not mis-steering around pillars, it is backing off contact it has"
             "\n  ALREADY made, and the blend flag was never the lever."
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

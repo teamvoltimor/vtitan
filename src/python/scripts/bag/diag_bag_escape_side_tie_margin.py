@@ -56,7 +56,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
@@ -70,6 +69,7 @@ from shared.config.constants import RobotSpecs
 
 from scripts.bag.diag_bag_escape_sign_agreement import _collect, _sign
 from scripts.common.bag_io import Topics, create_bags_parser, open_reader, scan_to_ranges_angles
+from scripts.common.stats import fmean
 from scripts.common.tables import print_table
 from src.config.tuning_helpers import get_tuning
 from src.navigation.control.controllers import CollisionAvoidanceController
@@ -174,7 +174,7 @@ def _pcts(values: list[float]) -> str:
     return f"{q(0.10):.3f} / {q(0.25):.3f} / {q(0.50):.3f} / {q(0.75):.3f} / {q(0.90):.3f}"
 
 
-def main() -> None:  # noqa: C901, PLR0912, PLR0915
+def main() -> int:  # noqa: C901, PLR0912, PLR0915
     """Reconstruct the k-turn side comparison at every latch tick and band it."""
     parser = create_bags_parser(__doc__)
     parser.add_argument("--commit-window", type=int, default=8)
@@ -237,7 +237,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
 
     if not rows:
         print("no episodes with a scan -- nothing below means anything")
-        return
+        return 0
 
     kt = [r for r in rows if r["kind"] == args.kind]
     print(f"\n   {len(rows)} latched episodes, {len(kt)} of kind '{args.kind}'")
@@ -285,9 +285,9 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             agree = [r[key] for r in zs if r["steer"] == r["wanted"]]
             oppose = [r[key] for r in zs if r["steer"] != r["wanted"]]
             mt.append([zone, "AGREES", len(agree), _pcts(agree),
-                       f"{statistics.fmean(agree):.3f}" if agree else "-"])
+                       f"{fmean(agree):.3f}" if agree else "-"])
             mt.append([zone, "OPPOSES", len(oppose), _pcts(oppose),
-                       f"{statistics.fmean(oppose):.3f}" if oppose else "-"])
+                       f"{fmean(oppose):.3f}" if oppose else "-"])
         print_table(mt, ["zone", "group", "n", "p10 / p25 / p50 / p75 / p90", "mean"])
 
         # ---------------- the sensitivity table ----------------
@@ -324,7 +324,8 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             print(f"   OPPOSES taken on a CONFIDENT margin >= {cut:.2f} m: "
                   f"{confident}/{len(oppose_all)} ({100 * confident / max(len(oppose_all), 1):.0f}%)"
                   "   <- unreachable by ANY tie band")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

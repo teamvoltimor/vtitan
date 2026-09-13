@@ -158,7 +158,7 @@ def blockers_for_run(rows, frames, scans, tuning) -> dict[str, int]:  # noqa: AN
     return tally
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
     args = parser.parse_args()
@@ -181,7 +181,7 @@ def main() -> None:
     ticks = sum(total.values())
     if not ticks:
         print("No ticks reconstructed from these bags.")
-        return
+        return 0
 
     print(f"== {ticks} navigation ticks, by what blocked the NEXT (uncommitted) sign")
     rows_out = [
@@ -200,7 +200,8 @@ def main() -> None:
         ):
             n = total.get(reason, 0)
             print(f"   {reason:<46} {n:6d}  {100 * n / waiting:5.1f}% of those")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

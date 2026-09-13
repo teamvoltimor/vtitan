@@ -39,11 +39,11 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import mean
 
 
 def _sign(v: float, dead: float = 1e-6) -> int:
@@ -54,7 +54,7 @@ def _sign(v: float, dead: float = 1e-6) -> int:
     return 0
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--min-ticks", type=int, default=2, help="ignore legs shorter than this many ticks")
     args = parser.parse_args()
@@ -122,10 +122,10 @@ def main() -> None:
         for label, group in (("forward", fwd), ("reverse", rev)):
             if not group:
                 continue
-            st = [statistics.mean(lg["steer"]) for lg in group if lg["steer"]]
+            st = [mean(lg["steer"]) for lg in group if lg["steer"]]
             yaw = [math.degrees(lg["yaw"]) for lg in group]
-            print(f"  {label:8} n={len(group):3}  steer mean {statistics.mean(st):+.2f}"
-                  f"  yaw/leg mean {statistics.mean(yaw):+.2f} deg"
+            print(f"  {label:8} n={len(group):3}  steer mean {mean(st):+.2f}"
+                  f"  yaw/leg mean {mean(yaw):+.2f} deg"
                   f"  |yaw| sum {sum(abs(v) for v in yaw):.0f} deg"
                   f"  net {sum(yaw):+.0f} deg")
 
@@ -137,7 +137,7 @@ def main() -> None:
         for a, b in zip(moving, moving[1:], strict=False):
             if not a["steer"] or not b["steer"]:
                 continue
-            sa, sb = _sign(statistics.mean(a["steer"])), _sign(statistics.mean(b["steer"]))
+            sa, sb = _sign(mean(a["steer"])), _sign(mean(b["steer"]))
             if sa != 0 and sb != 0:
                 if sa == sb:
                     held += 1
@@ -154,7 +154,8 @@ def main() -> None:
               "   <- a ratchet needs FLIPPED; HELD means the reverse undoes the forward")
         print(f"  consecutive-leg yaw: ADDS {adds}, CANCELS {cancels}"
               f"  ({cancels / pairs:.0%} cancelling)" if pairs else "  no yaw pairs")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

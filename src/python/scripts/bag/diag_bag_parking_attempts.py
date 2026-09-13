@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.common.bag_io import load_nav_debug_rows  # noqa: E402
 
 
-def main() -> None:
+def main() -> int:
     root = Path(sys.argv[1])
     prefix = sys.argv[2] if len(sys.argv) > 2 else "run_"
     bags = sorted(d for d in root.iterdir() if d.is_dir() and d.name.startswith(prefix))
@@ -87,7 +87,8 @@ def main() -> None:
     print("\nCONTROL -- max laps_completed per bag:")
     for laps, c in sorted(lap_hist.items()):
         print(f"  laps={laps}: {c} bags")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

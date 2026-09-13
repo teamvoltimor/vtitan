@@ -15,9 +15,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
-
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -106,7 +105,7 @@ def summarize(bag_dir: Path) -> dict[str, object]:
     }
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("root", type=Path)
     ap.add_argument("--prefix", default="run_")
@@ -125,7 +124,7 @@ def main() -> None:
 
     if args.json:
         print(json.dumps(rows, indent=1, default=str))
-        return
+        return 0
 
     hdr = f"{'run':22} {'dur':>7} {'ticks':>6} {'laps':>5} {'escN':>5} {'escTk':>6} {'esc%':>5} {'flaps':>6} {'dir':>16}  final_phase"
     print(hdr)
@@ -135,7 +134,8 @@ def main() -> None:
         print(f"{r['run']:22} {r['dur']:7.1f} {r['nav_ticks']:6} "
               f"{r['laps']}/{r['num_laps']:>3} {r['escape_entries']:5} {r['escape_ticks']:6} "
               f"{pct:5.1f} {r['corridor_flaps']:6} {r['direction']:>16}  {r['final_phase']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

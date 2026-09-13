@@ -28,7 +28,7 @@ _SHORT_LOOKAHEAD_M = NavigationTuning.load_default().pursuit.LOOKAHEAD_SHORT
 _PEAK_XTRACK_WINDOW_S = 8.0
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("Show pursuit controller behavior through corners")
     parser.add_argument("--max-corners", type=int, default=8, help="Max corners to display")
     args = parser.parse_args()
@@ -94,7 +94,8 @@ def main() -> None:
             print(f"   => short lookahead armed at {armed:+.1f}s ({when})")
         else:
             print("   => short lookahead never armed through this corner")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

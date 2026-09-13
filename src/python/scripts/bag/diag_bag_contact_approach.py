@@ -68,11 +68,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (models <-> enums import cycle)
+from shared.config.constants.track import TrackDimensions  # noqa: E402
+from shared.domain.enums import ManeuverType  # noqa: E402
+
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows  # noqa: E402
 from scripts.common.stats import percentile  # noqa: E402
 from scripts.common.tables import print_table  # noqa: E402
-from shared.config.constants.track import TrackDimensions  # noqa: E402
-from shared.domain.enums import ManeuverType  # noqa: E402
 
 CONTACT_GAP_M = 0.122
 """Chassis half-width + sign half-width: below this the bodies overlap."""
@@ -267,7 +268,7 @@ def _p(vals, q) -> float:  # noqa: ANN001
     return percentile(vals, q) if vals else math.nan
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--link-window", type=float, default=6.0, help="seconds a contact recovery may precede a wrong-side verdict and still count")
     parser.add_argument("--min-ticks", type=int, default=5, help="drop episodes shorter than this")
@@ -713,7 +714,8 @@ def main() -> None:
             rows_d,
             ["run", "t0", "ticks", "belief", "|across| @1.4/1.0/0.6/0.3/0.1", "lost|man", "lost|rtr", "man ticks"],
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

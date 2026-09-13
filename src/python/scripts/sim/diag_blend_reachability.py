@@ -53,7 +53,7 @@ _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenar
 HARDWARE_SIDE_CORRECTION_SHARE = "19-25% of ALL ticks (3 rounds, 2026-09-12)"
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--scenarios", type=int, default=6)
     parser.add_argument("--seeds", type=int, default=2)
@@ -82,7 +82,7 @@ def main() -> None:
                 totals["ticks"] += 1
                 man = nav._active_maneuver  # noqa: SLF001  (no public accessor)
                 if man is None:
-                    return
+                    return 0
                 totals["maneuver"] += 1
                 totals[f"type:{man.maneuver_type.name}"] += 1
                 if man.maneuver_type is ManeuverType.SIDE_CORRECTION:
@@ -97,7 +97,7 @@ def main() -> None:
     print(f"  ticks                 {n}")
     if not n:
         print("  no ticks -- nothing to conclude")
-        return
+        return 0
     for key in ("maneuver", "side_correction", "blendable"):
         print(f"  {key:<20}  {totals[key]:6d}  ({100 * totals[key] / n:5.2f}% of ticks)")
     print("\n  manoeuvre mix:")
@@ -113,7 +113,8 @@ def main() -> None:
             else "NOT REACHABLE -- the A/B compared two identical worlds and is VOID"
         )
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

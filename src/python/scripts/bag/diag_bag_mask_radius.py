@@ -37,7 +37,7 @@ from pathlib import Path
 import numpy as np
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
-from shared.config.constants import TrackDimensions
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import ManeuverType, Section
 from shared.domain.models import Pose, Waypoint
@@ -58,7 +58,7 @@ from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 ASSOC_M = 0.35
 CHASSIS_MARGIN_M = 0.01
-DROPPED_RANGE_M = 12.0
+DROPPED_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE
 PILLAR_EXTENT_M = 0.06
 """A sign is 0.05 m across, so a return within this of the anchor is the sign
 itself rather than something standing behind it."""
@@ -307,7 +307,7 @@ def main() -> int:
     def band(name: str, vals: list[float]) -> None:
         if not vals:
             print(f"   {name}: none")
-            return
+            return 0
         print(
             f"   {name}: p10={percentile(vals, 0.10):.3f} p50={percentile(vals, 0.50):.3f} "
             f"p90={percentile(vals, 0.90):.3f} m (n={len(vals)})"

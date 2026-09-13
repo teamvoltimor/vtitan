@@ -110,7 +110,7 @@ def _room_m(p: Pass, section: str, is_inner: bool, direction: Direction | None) 
     return wall_gap - PILLAR_HALF - CHASSIS_W, legal_side_is_inner
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
     args = parser.parse_args()
@@ -158,7 +158,7 @@ def main() -> None:
         print(f"== SKIPPED {len(skipped)} unreadable bag(s): {', '.join(skipped[:6])}")
     if not records:
         print("No sign passes reconstructed from these bags.")
-        return
+        return 0
 
     print()
     print(f"== {len(records)} passes over {runs} runs")
@@ -308,7 +308,8 @@ def main() -> None:
     print("CAVEAT: the inner/outer label comes from the BELIEVED position, whose error")
     print("(0.15-0.25 m) exceeds the 0.20 m gap between the two lines. The mixing that")
     print("causes is conservative -- it shrinks any true difference, never invents one.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

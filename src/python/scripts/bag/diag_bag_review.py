@@ -227,7 +227,7 @@ def _print_slowdowns(driving: list[tuple[float, NavigatorDebugSnapshot]], slow_b
     print_table(rows, ["t", "speed", "clear_v", "head_v", "fwd_clr", "min_rng", "xtrack", "risk", "phase"])
 
 
-def main() -> None:
+def main() -> int:
     """Print the review for the bag named on the command line."""
     parser = create_bag_parser("Review a race bag: start measurement, slowdowns, wall proximity, recovery.")
     parser.add_argument("--slow-below", type=float, default=0.14, help="m/s counted as a slowdown")
@@ -309,7 +309,8 @@ def main() -> None:
         _print_stats(driving)
     if args.center_bias:
         _print_center_bias(driving, _parse_widths(args.widths))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

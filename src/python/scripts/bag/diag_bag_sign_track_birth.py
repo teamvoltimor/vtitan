@@ -457,7 +457,7 @@ def _wire_publications(bag_dirs) -> None:  # noqa: ANN001, C901
         print(f"   within +/-{w:2d} ticks of a flip: publications {100 * p_pub:5.1f}%   base {100 * p_base:5.1f}%   lift {lift:.2f}x")
 
 
-def main() -> None:  # noqa: C901
+def main() -> int:  # noqa: C901
     parser = create_bags_parser(__doc__)
     parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
     parser.add_argument(
@@ -479,7 +479,7 @@ def main() -> None:  # noqa: C901
 
     if args.wire_only:
         _wire_publications(args.bag_dirs)
-        return
+        return 0
 
     overrides = dict(pair.split("=", 1) for pair in args.set)
     tuning = tuning_with_overrides(overrides, group="sign_discovery") if overrides else get_tuning(None)
@@ -521,7 +521,7 @@ def main() -> None:  # noqa: C901
     print(f"   detection/pose pairing source: {dict(lag_source)}")
     if not stats:
         print("   nothing to report")
-        return
+        return 0
 
     ticks = sum(s.ticks for s in stats)
     map_ticks = sum(s.map_ticks for s in stats)
@@ -642,7 +642,8 @@ def main() -> None:  # noqa: C901
         ],
         ["run", "ticks", "peak", "dbg flips", "settled flips", "births", "pub", "illegal", "dup", "cells"],
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

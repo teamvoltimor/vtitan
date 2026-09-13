@@ -89,7 +89,7 @@ from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import get_tuning, tuning_with_overrides  # noqa: E402
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument(
         "--set",
@@ -159,7 +159,7 @@ def main() -> None:
 
     if not rows_out:
         print("No sign passes reconstructed from these bags.")
-        return
+        return 0
     print("== PASS SIDE, required vs commanded vs achieved")
     print_table(rows_out, ["run", "direction", "corridor", "colour", "clearance m", "verdict"])
     print()
@@ -232,7 +232,8 @@ def main() -> None:
     print(f"  commanded the WRONG side (routing):        {tally['routing']}")
     print(f"  commanded right, chassis went wrong (exec): {tally['execution']}")
     print(f"  correct:                                    {tally['ok']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

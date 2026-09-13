@@ -336,7 +336,7 @@ def _try_reversed(bag_dir: Path, width_m: float, arc: float | None, section: str
         )
 
 
-def main() -> None:
+def main() -> int:
     """Parse CLI args and dispatch to the selected mode (replay/candidate-scan/solve-rotation/try-reversed)."""
     parser = create_bag_parser(
         "Reconstruct the planned waypoint path and replay select_target_point against a bag's logged pose/waypoint_index.",
@@ -390,7 +390,8 @@ def main() -> None:
         _try_reversed(args.bag_dir, args.width, args.arc, args.section, args.laps, args.jobs)
     else:
         _replay_and_compare(args.bag_dir, args.width, args.arc, args.direction, args.section, args.laps)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

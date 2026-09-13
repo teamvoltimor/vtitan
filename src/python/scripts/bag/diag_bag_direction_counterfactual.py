@@ -96,7 +96,7 @@ def true_direction(rows: list[tuple[float, NavigatorDebugSnapshot]]) -> tuple[st
     return ("counterclockwise" if total > 0 else "clockwise"), laps
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -176,7 +176,8 @@ def main() -> None:
             table_rows.append((name, direction, t, cast, mark))
     if table_rows:
         print_table(table_rows, ["variant", "result", "time_s", "votes", "status"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

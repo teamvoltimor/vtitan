@@ -16,7 +16,7 @@ _DST = Path(__file__).resolve().parents[3] / "assets" / "vision" / "voltimor-mar
 _MARK_SIZE = 160  # final square size, px -- full logo incl. wordmark needs more room than the icon alone
 
 
-def main() -> None:
+def main() -> int:
     img = Image.open(_SRC).convert("RGBA")
     bg = img.getpixel((0, 0))
     print(f"source size={img.size} corner colour={bg}")
@@ -50,7 +50,8 @@ def main() -> None:
     _DST.parent.mkdir(parents=True, exist_ok=True)
     square.save(_DST)
     print(f"wrote {_DST} ({square.size}, mode={square.mode})")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

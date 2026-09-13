@@ -19,7 +19,6 @@ Usage:
 
 from __future__ import annotations
 
-import statistics
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -27,6 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import load_nav_debug_rows, posed_rows  # noqa: E402
+from scripts.common.stats import median
 
 CELL_M = 0.25
 """Grid pitch. The chassis is 0.30 x 0.194 m, so a cell this size is entered
@@ -36,7 +36,7 @@ progress rather than merely passing through slowly."""
 TOP_N = 6
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -79,7 +79,7 @@ def main() -> None:
                 run_man[str(s.active_maneuver_type)] += 1
 
         total = sum(dwell.values())
-        median_cell = statistics.median(dwell.values())
+        median_cell = median(dwell.values())
         print(f"\n### {bag.name}")
         print(f"  posed ticks {len(posed)}  span {posed[-1][0] - posed[0][0]:.1f}s  cells {len(dwell)}")
         print(f"  median cell dwell {median_cell:.2f}s   <- the floor a hot cell must beat")
@@ -96,7 +96,8 @@ def main() -> None:
                 f"  ({cx:5.2f},{cy:5.2f})   {d:8.1f} {100 * d / total:5.1f}% {visits[cell]:7d}"
                 f"  {first_t[cell]:6.1f}-{last_t[cell]:6.1f}s  {ph}  |  {mn}",
             )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

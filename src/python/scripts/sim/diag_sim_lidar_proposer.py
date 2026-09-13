@@ -151,7 +151,7 @@ def score_scenario(payload: tuple[str, argparse.Namespace]) -> dict | None:
     }
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--limit", type=int, default=8, help="Scenarios to run; 0 means all.")
     parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
@@ -227,6 +227,7 @@ def main() -> None:
     print(f"  measured corridor width: {fmt_p50_p90(widths)}")
     print(f"  wall dist, TRUE signs:   {fmt_p50_p90(wall_true)}   (lattice predicts ~{args.lattice_offset_m:.2f} m)")
     print(f"  wall dist, FALSE tracks: {fmt_p50_p90(wall_false)}")
+    return 0
 
 
 def _pct(n: int, d: int) -> str:
@@ -234,4 +235,4 @@ def _pct(n: int, d: int) -> str:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

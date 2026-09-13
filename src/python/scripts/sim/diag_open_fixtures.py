@@ -31,7 +31,7 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 _SPEED_FORMAT = ".2f"
 
 
-def main() -> None:
+def main() -> int:
     """Report the outcome of a full run for each Open Challenge fixture."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -68,7 +68,8 @@ def main() -> None:
 
     total = len(all_test_scenarios())
     print(f"\n{total - failures}/{total} fixtures completed cleanly")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

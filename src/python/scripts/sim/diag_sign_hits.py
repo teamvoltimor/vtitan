@@ -82,7 +82,7 @@ def _analyse(index: int) -> HitReport:
     )
 
 
-def main() -> None:
+def main() -> int:
     """Run every fixture and print which sign each collision belongs to."""
     with ProcessPoolExecutor(max_workers=_DEFAULT_WORKERS) as pool:
         reports = list(pool.map(_analyse, range(len(all_obstacles_demo_scenarios()))))
@@ -103,7 +103,8 @@ def main() -> None:
     print("\nCollisions by sign depth along its corridor:")
     for depth, count in sorted(depths.items()):
         print(f"  depth {depth:.2f}: {count}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

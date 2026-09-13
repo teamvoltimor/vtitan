@@ -61,6 +61,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
+
 from scripts.common.bag_io import (  # noqa: E402
     create_bags_parser,
     read_motion_streams,
@@ -119,7 +120,7 @@ def find_wedge(rows) -> tuple[int, int] | None:  # noqa: ANN001
     return best
 
 
-def main() -> None:
+def main() -> int:
     args = create_bags_parser(__doc__).parse_args()
 
     for bag in args.bag_dirs:
@@ -225,7 +226,8 @@ def main() -> None:
         print(f"      phases    : {dict(sorted(phases.items(), key=lambda kv: -kv[1])[:4])}")
         print(f"      manoeuvres: {dict(sorted(man.items(), key=lambda kv: -kv[1]))}")
         print()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

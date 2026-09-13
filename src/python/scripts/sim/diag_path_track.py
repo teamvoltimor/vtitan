@@ -521,7 +521,7 @@ def run_scenario(
     return csv_path, rows
 
 
-def main() -> None:
+def main() -> int:
     """Parse arguments and run the requested scenario."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenario", type=int, default=450, help="Scenario index to run.")
@@ -582,7 +582,7 @@ def main() -> None:
         print(f"Corpus: {args.corpus}, {count} scenarios, blind")
         report_batch(results, stall_multiple=args.stall_multiple)
         print(f"\nWrote {out}")
-        return
+        return 0
 
     run_scenario(
         args.scenario,
@@ -594,7 +594,8 @@ def main() -> None:
         output_dir=args.output_dir,
         stall_ticks=args.stall_ticks,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -17,7 +17,6 @@ Usage:
 
 from __future__ import annotations
 
-import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -27,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.domain.enums import NavigatorPhase
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows, measured_start, settled_direction
+from scripts.common.stats import median
 from src.navigation.planning.waypoints import corridor_for_position
 
 _REPORTED_PHASES = (
@@ -71,7 +71,7 @@ def _pct(count: int, total: int) -> str:
 
 
 def _num(values: list[float], fmt: str = "{:.2f}") -> str:
-    return fmt.format(statistics.median(values)) if values else "-"
+    return fmt.format(median(values)) if values else "-"
 
 
 def _summarize(bag_dir: Path) -> dict[str, str]:
@@ -135,7 +135,7 @@ def _summarize(bag_dir: Path) -> dict[str, str]:
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser("Analyze multiple bags")
     args = parser.parse_args()
 
@@ -152,7 +152,8 @@ def main() -> None:
         if key == "run":
             continue
         print(f"{key:<{width}} | " + " | ".join(f"{s.get(key, '-'):>16}" for s in summaries))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

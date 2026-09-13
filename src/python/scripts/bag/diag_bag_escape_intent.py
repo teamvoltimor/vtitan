@@ -40,18 +40,18 @@ Usage::
 
 from __future__ import annotations
 
-import statistics
 from collections import Counter
 from pathlib import Path
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import mean
 
 
 def _sign(v: float, dead: float = 1e-6) -> int:
     return 1 if v > dead else (-1 if v < -dead else 0)
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--pre-ticks", type=int, default=6, help="ticks before the latch that define the plan's intent")
     parser.add_argument("--min-intent", type=float, default=0.05, help="mean |steer| below which the pre-window has no side")
@@ -90,11 +90,11 @@ def main() -> None:
                     if not pre or not dur:
                         dropped_no_side += 1
                     else:
-                        intent = statistics.mean(pre)
+                        intent = mean(pre)
                         if abs(intent) < args.min_intent:
                             dropped_flat += 1
                         else:
-                            during = statistics.mean(dur)
+                            during = mean(dur)
                             k = str(cur["kind"])
                             by_kind[k] += 1
                             if _sign(intent) == _sign(during) or _sign(during) == 0:
@@ -121,7 +121,7 @@ def main() -> None:
           f"   (dropped: no side {dropped_no_side}, plan barely steering {dropped_flat})")
     print("   <- if usable is near zero, nothing below means anything")
     if not usable:
-        return
+        return 0
     print()
     print(f"  the escape steers the SAME way the plan was going : {agrees}  ({agrees / usable:.0%})")
     print(f"  the escape steers the OPPOSITE way                : {opposes}  ({opposes / usable:.0%})")
@@ -132,7 +132,8 @@ def main() -> None:
         print("  opposed, by manoeuvre kind:")
         for k, n in by_kind.most_common():
             print(f"    {k:18} {opposed_by_kind.get(k, 0):3} of {n:3}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

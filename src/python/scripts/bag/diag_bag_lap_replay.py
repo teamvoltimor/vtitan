@@ -30,7 +30,7 @@ from scripts.common.tables import print_table
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -39,12 +39,12 @@ def main() -> None:
     posed = posed_rows(rows)
     if not posed:
         print("no posed samples")
-        return
+        return 0
 
     direction = settled_direction(rows)
     if direction is None:
         print("direction never settled -- lap counting was never reachable")
-        return
+        return 0
     origin = (posed[0][1].pose_x, posed[0][1].pose_y)
 
     print(f"== {args.bag_dir.name}  direction={direction.value}  posed samples={len(posed)}")
@@ -101,7 +101,8 @@ def main() -> None:
             blocked = "never crossed the line while inside this section"
         rows.append((section.value, str(normal), len(laps), times, blocked))
     print_table(rows, ["start_section", "normal", "laps", "lap_times", "blocked_by"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

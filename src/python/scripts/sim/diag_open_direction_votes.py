@@ -97,13 +97,14 @@ def _report(scenario: Any, max_steps: int) -> None:
         print(line)
 
 
-def main() -> None:
+def main() -> int:
     """Print every accepted direction vote for the fixtures named on argv."""
     wanted = sys.argv[1:] or list(_DEFAULT_SCENARIOS)
     for scenario in all_test_scenarios():
         if any(w in scenario.label for w in wanted):
             _report(scenario, max_steps=_DEFAULT_MAX_STEPS)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

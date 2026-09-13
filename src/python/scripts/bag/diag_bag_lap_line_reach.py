@@ -30,7 +30,7 @@ from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.start_conditions import CANONICAL_SECTION, assumed_start_conditions
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -39,7 +39,7 @@ def main() -> None:
     direction = settled_direction(rows)
     if direction is None or not posed:
         print("nothing to measure")
-        return
+        return 0
     section = CANONICAL_SECTION
     nx, ny = TRAVEL_DIRS[(section, direction)]
 
@@ -65,7 +65,8 @@ def main() -> None:
         if origin is None:
             continue
         print(f"{label:>8} origin ({origin[0]:.3f}, {origin[1]:.3f}) -> lap line at proj = {origin[0] * nx + origin[1] * ny:.3f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

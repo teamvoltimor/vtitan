@@ -15,12 +15,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
+from scripts.common.bag_io import NO_TIME_LIMIT_S, create_bag_parser, load_nav_debug_rows
 
-_DEFAULT_UNTIL_S = 1e9
+_DEFAULT_UNTIL_S = NO_TIME_LIMIT_S
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     parser.add_argument("--until", type=float, default=_DEFAULT_UNTIL_S)
     args = parser.parse_args()
@@ -49,7 +49,8 @@ def main() -> None:
             f"dir={snap.direction!s:18} pose=({snap.pose_x:.3f},{snap.pose_y:.3f},{snap.pose_yaw:.2f}) "
             f"min_r={snap.min_lidar_range_m!s:8} stuck={snap.stuck_count}",
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

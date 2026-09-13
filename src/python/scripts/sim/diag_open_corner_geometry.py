@@ -148,7 +148,7 @@ def _measure(widths_mm: dict[str, int], direction: Direction, tuning) -> list[di
     return rows
 
 
-def main() -> None:
+def main() -> int:
     """Report planned-path clearance by corner type, over every width layout."""
     parser = argparse.ArgumentParser(description=__doc__)
     add_tuning_arg(parser)
@@ -203,7 +203,8 @@ def main() -> None:
         "with no tracking error spent yet.",
         flush=True,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

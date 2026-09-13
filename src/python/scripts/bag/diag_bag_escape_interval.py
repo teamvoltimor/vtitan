@@ -124,7 +124,7 @@ def analyse(bag_dir: Path) -> list[tuple]:
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     args = parser.parse_args()
     deadband = NavigationTuning.load_default().escape.STUCK_MOVE_THRESHOLD
@@ -136,7 +136,7 @@ def main() -> None:
             continue
     if not all_rows:
         print("No inter-escape intervals found.")
-        return
+        return 0
 
     print(f"== {len(all_rows)} inter-escape intervals   (stuck move threshold {deadband} m)")
     print(f"{'run':>16} {'gap s':>7} {'moved m':>8} {'cmd m/s':>8} {'wheel m/s':>10} {'steer deg':>10}  verdict")
@@ -166,7 +166,8 @@ def main() -> None:
         print(f"    wheel path travelled, SIGNED:   {np.median([r[7] for r in stuck]):.3f} m")
         print(f"    net yaw turned:                 {np.median([r[8] for r in stuck]):.1f} deg")
         print(f"    wheel path / displacement:      x{np.median([r[6] / max(r[2], 1e-3) for r in stuck]):.1f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

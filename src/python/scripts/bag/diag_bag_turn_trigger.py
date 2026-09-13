@@ -70,7 +70,7 @@ def _arc_max(ranges: Sequence[float], angles: Sequence[float], half_fov: float) 
     return max(vals) if vals else 0.0
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -86,7 +86,7 @@ def main() -> None:
     print(f"== {args.bag_dir.name}  scans={len(scans)}")
     if not scans or not poses:
         print("insufficient data")
-        return
+        return 0
 
     rows = []
     for t, scan in scans:
@@ -147,7 +147,8 @@ def main() -> None:
             episodes(mask)
         ))
     print_table(table_rows, ["test", "fires", "%", "prec", "recall", "episodes"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

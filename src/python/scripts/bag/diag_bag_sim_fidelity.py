@@ -357,7 +357,7 @@ def _print_replay(streams: MotionStreams) -> None:
     print("  re-measured after a tyre, weight or mat change -- not a universal constant.")
 
 
-def main() -> None:
+def main() -> int:
     """Parse CLI args and print whichever fidelity sections were asked for."""
     parser = create_bag_parser(
         "Compare a recorded run against the simulator's AckermannKinematics: yaw gain "
@@ -381,7 +381,8 @@ def main() -> None:
         _print_speed(streams)
     if everything or args.replay:
         _print_replay(streams)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

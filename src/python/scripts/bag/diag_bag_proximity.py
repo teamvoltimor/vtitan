@@ -62,7 +62,7 @@ def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], li
     return ticks, scans
 
 
-def main() -> None:
+def main() -> int:
     """Print the proximity review for the bag named on the command line."""
     parser = create_bag_parser("TODO: add description")
     parser.add_argument("--slow-below", type=float, default=0.14)
@@ -129,7 +129,8 @@ def main() -> None:
             f"  {t0:7.1f}s -> {t1:6.1f}s  peak escape_count {peak:2d}  "
             f"at ({d0.pose_x or 0:.2f},{d0.pose_y or 0:.2f})  {','.join(sorted(kinds)) or '-'}"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

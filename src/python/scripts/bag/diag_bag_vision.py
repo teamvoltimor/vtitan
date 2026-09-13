@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import json
 import math
-import statistics
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -43,7 +42,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
 from scripts.common.bag_io import create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
-from scripts.common.stats import percentile
+from scripts.common.stats import median, percentile
 from scripts.common.tables import print_table
 
 _TRACK_GAP_S = 0.5
@@ -111,10 +110,10 @@ def _report_census(by_cls: dict[str, list]) -> None:
             [
                 cls,
                 len(group),
-                f"{statistics.median([g[2] for g in group]):.2f}",
+                f"{median([g[2] for g in group]):.2f}",
                 f"{percentile([g[2] for g in group], 0.1):.2f}",
-                f"{statistics.median([g[3] for g in group]):.0f}",
-                f"{statistics.median([g[4] for g in group]):.2f}",
+                f"{median([g[3] for g in group]):.0f}",
+                f"{median([g[4] for g in group]):.2f}",
             ]
             for cls, group in sorted(by_cls.items(), key=lambda kv: -len(kv[1]))
         ],
@@ -151,10 +150,10 @@ def _report_tracks(tracks: list[Track]) -> None:
             [
                 cls,
                 len(group),
-                f"{statistics.median([tr.t_end - tr.t_start for tr in group]):.2f}s",
-                f"{statistics.median([tr.n for tr in group]):.0f}",
-                f"{statistics.median([max(tr.area) for tr in group]):.0f}",
-                f"{statistics.median([statistics.median(tr.x_norm) for tr in group]):+.2f}",
+                f"{median([tr.t_end - tr.t_start for tr in group]):.2f}s",
+                f"{median([tr.n for tr in group]):.0f}",
+                f"{median([max(tr.area) for tr in group]):.0f}",
+                f"{median([median(tr.x_norm) for tr in group]):+.2f}",
             ]
             for cls, group in (
                 (cls, [tr for tr in tracks if tr.cls == cls]) for cls in sorted({tr.cls for tr in tracks})
@@ -184,7 +183,7 @@ def _report_blur(per_frame: list[tuple]) -> None:
         rows.append([
             label,
             len(group),
-            f"{statistics.median(confs):.2f}",
+            f"{median(confs):.2f}",
             f"{percentile(confs, 0.1):.2f}",
             f"{sum(1 for c in confs if c < _CONF_FLOOR) / len(confs):.1%}",
         ])
@@ -246,8 +245,8 @@ def _report_shape_split(by_cls: dict[str, list], centre_x: float) -> None:
                 cls,
                 label,
                 len(group),
-                f"{statistics.median([g[3] for g in group]):.0f}",
-                f"{statistics.median([(g[5] - centre_x) / centre_x for g in group]):+.2f}",
+                f"{median([g[3] for g in group]):.0f}",
+                f"{median([(g[5] - centre_x) / centre_x for g in group]):+.2f}",
                 ", ".join(
                     f"{s} {n / len(group):.0%}"
                     for s, n in Counter(g[7] for g in group).most_common(2)
@@ -272,18 +271,18 @@ def _report_pass_side(tracks: list[Track]) -> None:
         group = [
             tr
             for tr in tracks
-            if tr.cls == cls and statistics.median(tr.aspect) <= _PILLAR_MAX_ASPECT and tr.n >= _MIN_TRACK_FRAMES
+            if tr.cls == cls and median(tr.aspect) <= _PILLAR_MAX_ASPECT and tr.n >= _MIN_TRACK_FRAMES
         ]
         if not group:
             rows.append([cls, 0, "-", "-", "-"])
             continue
-        exits = [statistics.median(tr.x_norm[-3:]) for tr in group]
+        exits = [median(tr.x_norm[-3:]) for tr in group]
         correct = sum(1 for e in exits if (e > 0) is want_positive_exit[cls])
         rows.append([
             cls,
             len(group),
             "RIGHT (x>0)" if want_positive_exit[cls] else "LEFT (x<0)",
-            f"{statistics.median(exits):+.2f}",
+            f"{median(exits):+.2f}",
             f"{correct}/{len(group)}",
         ])
     print_table(rows, ["class", "tracks", "required exit", "actual exit p50", "CORRECT"])
@@ -308,7 +307,7 @@ def _report_latency(tracks: list[Track]) -> None:
         rows.append([
             cls,
             len(group),
-            f"{statistics.median(windows):.2f}s",
+            f"{median(windows):.2f}s",
             f"{percentile(windows, 0.1):.2f}s",
         ])
     print_table(rows, ["class", "tracks", "confident window p50", "p10"])
@@ -374,7 +373,7 @@ def _collect(reader: object) -> tuple[list[tuple], list[float], int, int, int]:
     return per_frame, box_right, frames_total, frames_with_any, laps_now
 
 
-def main() -> None:
+def main() -> int:
     """Print the census, then the blur / confusion / latency splits."""
     parser = create_bag_parser("Vision detection census for a recorded run.")
     args = parser.parse_args()
@@ -382,7 +381,7 @@ def main() -> None:
 
     if not frames_total:
         print("no /vision/detections in this bag")
-        return
+        return 0
 
     # Widest box edge the run ever produced IS the frame edge, because boxes
     # clip there: 22 of 800 detections in run_20260905_214920 land exactly on
@@ -412,7 +411,8 @@ def main() -> None:
     _report_shape_split(by_cls, centre_x)
     _report_pass_side(tracks)
     _report_latency(tracks)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -329,7 +329,7 @@ def _report_sim_time_delta(base: dict[int, _ArmResult], variant: dict[int, _ArmR
     )
 
 
-def main() -> None:
+def main() -> int:
     """Run both arms over the same sample and report what the override changed."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("overrides", nargs="+", help="group.FIELD=value, applied to the variant arm.")
@@ -419,9 +419,10 @@ def main() -> None:
 
     both_ok = [i for i in sorted(base) if base[i].verdict == "ok" and variant[i].verdict == "ok"]
     if not both_ok:
-        return
+        return 0
     _report_sim_time_delta(base, variant, both_ok)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

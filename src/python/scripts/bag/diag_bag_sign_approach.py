@@ -28,7 +28,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,6 +35,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows  # noqa: E402
+from scripts.common.stats import median
 from scripts.common.tables import print_table  # noqa: E402
 
 # Chassis half-width + sign half-width. Below this the bodies overlap.
@@ -103,7 +103,7 @@ def _analyse(run: str, rows, same_sign_m: float) -> RunStats:  # noqa: ANN001
     return stats
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__ or "")
     parser.add_argument("--per-run", action="store_true", help="also print a row per run")
     parser.add_argument(
@@ -133,7 +133,7 @@ def main() -> None:
     print(f"\n== SIGN APPROACHES  ({len(approaches)} commitments over {len(all_runs)} runs)")
     if not approaches:
         print("  no committed_sign_* samples -- nothing to measure")
-        return
+        return 0
 
     if args.per_run:
         print_table(
@@ -141,9 +141,9 @@ def main() -> None:
                 [
                     st.run.replace("run_", ""),
                     str(len(st.approaches)),
-                    f"{statistics.median([a.commit_range_m for a in st.approaches]):.2f}",
+                    f"{median([a.commit_range_m for a in st.approaches]):.2f}",
                     f"{min(a.closest_m for a in st.approaches):.3f}",
-                    f"{statistics.median([a.closest_m for a in st.approaches]):.3f}",
+                    f"{median([a.closest_m for a in st.approaches]):.3f}",
                     str(sum(1 for a in st.approaches if a.closest_m < CONTACT_GAP_M)),
                 ]
                 for st in all_runs
@@ -158,12 +158,12 @@ def main() -> None:
         return vals[min(len(vals) - 1, int(p * len(vals)))]
 
     print(
-        f"  commit range m:    p10 {pct(commits, 0.1):.2f} / median {statistics.median(commits):.2f} "
+        f"  commit range m:    p10 {pct(commits, 0.1):.2f} / median {median(commits):.2f} "
         f"/ p90 {pct(commits, 0.9):.2f} / max {commits[-1]:.2f}"
     )
     print(f"  reached the 0.9 m ramp: {sum(1 for a in approaches if a.ramp_reached)}/{len(approaches)}")
     print(
-        f"  closest approach m: p10 {pct(close, 0.1):.3f} / median {statistics.median(close):.3f} "
+        f"  closest approach m: p10 {pct(close, 0.1):.3f} / median {median(close):.3f} "
         f"/ p90 {pct(close, 0.9):.3f}"
     )
     contacts = sum(1 for a in approaches if a.closest_m < CONTACT_GAP_M)
@@ -171,14 +171,15 @@ def main() -> None:
 
     # Does committing EARLY buy clearance? If anticipation is the lever, these
     # two groups separate; if they don't, more anticipation is not the fix.
-    early = [a.closest_m for a in approaches if a.commit_range_m >= statistics.median(commits)]
-    late = [a.closest_m for a in approaches if a.commit_range_m < statistics.median(commits)]
+    early = [a.closest_m for a in approaches if a.commit_range_m >= median(commits)]
+    late = [a.closest_m for a in approaches if a.commit_range_m < median(commits)]
     if early and late:
         print(
-            f"  closest approach by commit range: EARLY half median {statistics.median(early):.3f} m "
-            f"vs LATE half median {statistics.median(late):.3f} m"
+            f"  closest approach by commit range: EARLY half median {median(early):.3f} m "
+            f"vs LATE half median {median(late):.3f} m"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

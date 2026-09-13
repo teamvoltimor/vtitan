@@ -6132,7 +6132,7 @@ def _build_configs(mode: str, values: list[float]) -> list[SweepConfig]:
     raise ValueError(msg)
 
 
-def main() -> None:
+def main() -> int:
     """Parse arguments and run the requested sweep."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -6172,7 +6172,7 @@ def main() -> None:
 
     if args.mode == "crosstrack":
         report_cross_track(args.workers, args.values)
-        return
+        return 0
 
     scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
     if args.mode == "timeout-anatomy":
@@ -6184,15 +6184,15 @@ def main() -> None:
             args.workers,
             replace(SweepConfig("blind, shipped tuning", blind=True), scenarios_dir=scenarios_dir),
         )
-        return
+        return 0
 
     if args.mode == "lane-geometry":
         report_lane_geometry(scenarios_dir, args.values)
-        return
+        return 0
 
     if args.mode == "spec-validity":
         report_spec_validity(args.workers, scenarios_dir)
-        return
+        return 0
 
     if args.mode in ("sign-crosstrack", "yaw-screen"):
         arms = (
@@ -6230,7 +6230,7 @@ def main() -> None:
         if args.strip_parking:
             arms = [replace(a, strip_parking=True) for a in arms]
         report_sign_pass_crosstrack(args.workers, arms)
-        return
+        return 0
 
     configs = _build_configs(args.mode, args.values)
     if scenarios_dir:
@@ -6247,7 +6247,8 @@ def main() -> None:
         except IndexError:
             parser.error(f"--arms out of range: mode {args.mode!r} has {len(configs)} arm(s)")
     run_sweep(configs, args.workers, verbose=args.verbose)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

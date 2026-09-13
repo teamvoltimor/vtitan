@@ -36,14 +36,12 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
-
 from shared.domain.enums import Direction  # noqa: E402
 from shared.domain.models import Pose, Waypoint  # noqa: E402
 
@@ -53,6 +51,7 @@ from scripts.common.bag_io import (  # noqa: E402
     read_vision_rows,
     settled_direction,
 )
+from scripts.common.stats import median
 from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
 from src.navigation.planning.sign_discovery import detection_to_observation  # noqa: E402
@@ -153,7 +152,7 @@ def _replay(bag_dir: Path, *, limits: bool) -> tuple[list[float], float]:
     return jumps, churn
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     args = parser.parse_args()
 
@@ -166,14 +165,15 @@ def main() -> None:
                     Path(bag).name.replace("run_", ""),
                     label,
                     len(jumps),
-                    round(statistics.median(jumps), 3) if jumps else 0.0,
+                    round(median(jumps), 3) if jumps else 0.0,
                     round(max(jumps), 3) if jumps else 0.0,
                     round(churn, 1),
                 ]
             )
     print("== COMMITTED SIGN POSITION, replayed over recorded detections")
     print_table(out, ["run", "limits", "jumps", "med jump m", "max jump m", "churn"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

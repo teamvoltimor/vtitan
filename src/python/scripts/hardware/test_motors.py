@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import statistics
 import time
 
 from dotenv import load_dotenv
@@ -46,6 +45,7 @@ from shared.config.ros_topics import RosTopicConfig  # noqa: E402
 from std_msgs.msg import Float32  # noqa: E402
 
 from scripts.common.motor_hold import publish_hold  # noqa: E402
+from scripts.common.stats import fmean, pstdev
 from src.ros2.qos import QOS_ACKERMANN_CMD  # noqa: E402
 
 STEERING_TOLERANCE_DEG = 1.0
@@ -130,8 +130,8 @@ def run_drive_test(
     # Drop the spin-up window so the acceleration ramp doesn't drag the mean.
     steady = [v for t, v in samples if t - hold_start >= spinup_s]
     if steady:
-        mean = statistics.fmean(steady)
-        stdev = statistics.pstdev(steady) if len(steady) > 1 else 0.0
+        mean = fmean(steady)
+        stdev = pstdev(steady) if len(steady) > 1 else 0.0
         print(
             f"  steady-state (after {spinup_s}s spin-up, n={len(steady)}): "
             f"mean {mean:.1f} deg/s, min {min(steady):.1f}, max {max(steady):.1f}, stdev {stdev:.1f}",
@@ -202,7 +202,7 @@ def run_min_speed_test(node: Node, pub, latest: dict, candidates: list[float], h
     return found
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--steering-angle-deg", type=float, default=15.0)
     parser.add_argument("--skip-drive", action="store_true", help="Only run the steering test")
@@ -288,4 +288,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

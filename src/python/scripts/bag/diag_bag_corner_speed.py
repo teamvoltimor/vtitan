@@ -32,7 +32,6 @@ Usage::
 
 from __future__ import annotations
 
-import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -40,6 +39,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import median
 
 WINDOW_S = 3.0
 """Seconds either side of a corridor transition to report."""
@@ -126,18 +126,18 @@ def analyse(bag_dir: Path) -> dict | None:
         "corners": len(corners),
         "floor": floor,
         "episodes": len(durs),
-        "med_s": statistics.median(durs) if durs else 0.0,
+        "med_s": median(durs) if durs else 0.0,
         "max_s": max(durs) if durs else 0.0,
         "share": 100.0 * sum(durs) / span if span else 0.0,
         "attrib": attrib,
     }
 
 
-def main() -> None:
+def main() -> int:
     results = [r for r in (analyse(Path(a)) for a in sys.argv[1:] if Path(a).is_dir()) if r]
     if not results:
         print("no bag had enough normal_drive ticks")
-        return
+        return 0
 
     hdr = f"{'run':8}{'ticks':>7}{'transit':>8}{'floor':>7}{'crawls':>8}{'medS':>7}{'maxS':>7}{'share%':>8}"
     print(hdr)
@@ -153,7 +153,8 @@ def main() -> None:
     print(f"\nwhat bound the speed across all {n} normal_drive ticks:")
     for k, v in total.most_common():
         print(f"  {k:24} {v:6}  {100.0 * v / n:5.1f}%")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -150,7 +150,7 @@ def probe(index: int) -> LayoutProbeResult:
     )
 
 
-def main() -> None:
+def main() -> int:
     """Probe every obstacles fixture blind and attribute each failure."""
     verdicts: Counter = Counter()
     for i in range(len(all_obstacles_demo_scenarios())):
@@ -171,7 +171,8 @@ def main() -> None:
             flush=True,
         )
     print("\nSUMMARY " + "  ".join(f"{k}={v}" for k, v in verdicts.most_common()))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

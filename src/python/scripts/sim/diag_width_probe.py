@@ -86,7 +86,7 @@ def measure_width(scan_ranges: list[float], scan_angles: list[float], yaw: float
     return width
 
 
-def main() -> None:
+def main() -> int:
     """Report classification accuracy over every Open Challenge fixture."""
     correct = 0
     wrong = 0
@@ -106,16 +106,16 @@ def main() -> None:
             nonlocal correct, wrong, usable_ticks, total_ticks
             total_ticks += 1
             if scan is None:
-                return
+                return 0
             measured = measure_width(list(scan.ranges_m), list(scan.angles_rad), state.yaw)
             if measured is None:
-                return
+                return 0
             # Skip corners: only score where the robot is squarely alongside
             # one corridor, which is where a real estimator would trust it.
             corridor = corridor_for_position(state.x, state.y)
             depth = state.x if corridor in (Section.SOUTH, Section.NORTH) else state.y
             if not (TrackDimensions.CORNER_MIN < depth < TrackDimensions.CORNER_MAX):
-                return
+                return 0
             usable_ticks += 1
             truth = widths[corridor]
             errors.append(measured - truth)
@@ -141,7 +141,8 @@ def main() -> None:
     )
     if per_section_wrong:
         print(f"misclassified by section: {dict(per_section_wrong)}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

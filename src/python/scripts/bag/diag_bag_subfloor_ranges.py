@@ -62,7 +62,7 @@ def _hist(values: list[float]) -> str:
     )
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -128,7 +128,8 @@ def main() -> None:
         "\n  sub-floor only in min_lidar_range_m        -> cosmetic reporting bug, contact is real"
         "\n  sub-floor in the triggers                  -> escapes fire on impossible ranges"
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

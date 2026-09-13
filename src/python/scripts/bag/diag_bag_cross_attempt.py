@@ -153,7 +153,7 @@ def _xtab(label: str, rows: list[Row], pred) -> None:  # noqa: ANN001
     print(f"   {label:<38} YES {rate(yes)}   NO {rate(no)}")
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--lane-thresh", type=float, default=0.15)
     parser.add_argument("--per-lap", action="store_true", help="judge each lap's pass separately")
@@ -254,7 +254,8 @@ def main() -> None:
         sub = [r for r in hold if r.lap == lap]
         f = sum(1 for r in sub if r.verdict == "execution")
         print(f"   lap {lap}: {f}/{len(sub)} = {100 * f / len(sub):5.1f}% fail")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

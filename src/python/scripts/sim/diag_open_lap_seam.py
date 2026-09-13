@@ -104,13 +104,14 @@ def _report(scenario: Any) -> None:
         print(event)
 
 
-def main() -> None:
+def main() -> int:
     """Trace index jumps and lap credits for the fixtures named on argv."""
     wanted = sys.argv[1:] or list(_DEFAULT_FIXTURES)
     for scenario in all_test_scenarios():
         if any(w in scenario.label for w in wanted):
             _report(scenario)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -37,7 +37,7 @@ COMBOS: tuple[tuple[str, bool, bool], ...] = (
 """(label, park, emit_vision_detections) -- laps alone first, then one switch at a time."""
 
 
-def main() -> None:
+def main() -> int:
     """Run every fixture under each combo and print one line per run."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--laps", type=int, default=None, help="override each fixture's lap target")
@@ -65,7 +65,8 @@ def main() -> None:
                 flush=True,
             )
         print(f"{label:<{_LABEL_WIDTH}} TOTAL {sum(outcomes)}/{len(outcomes)}", flush=True)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

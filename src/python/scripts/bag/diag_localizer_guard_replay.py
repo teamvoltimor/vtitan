@@ -160,14 +160,15 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
     print(f"  {jump_count} jump tick(s) found, guard would reject {would_reject}/{jump_count}")
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--min-distinctiveness", type=float, default=_DEFAULT_MIN_DISTINCTIVENESS)
     parser.add_argument("--cost-floor", type=float, default=_DEFAULT_COST_FLOOR)
     args = parser.parse_args()
     for bag_dir in args.bag_dirs:
         replay(bag_dir, args.min_distinctiveness, args.cost_floor)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

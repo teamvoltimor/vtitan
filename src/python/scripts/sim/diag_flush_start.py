@@ -36,7 +36,7 @@ def _run(meta: object, laps: int, seed: int, *, recover: bool, grace_s: float) -
     return sim.run(contact_grace_s=grace_s if recover else None)
 
 
-def main() -> None:
+def main() -> int:
     """Run each narrow middle-band case under both contact policies."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--laps", type=int, default=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
@@ -71,7 +71,8 @@ def main() -> None:
     total = len(cases)
     print(f"\nestricto: {strict_ok}/{total} ok")
     print(f"recover:  {recover_ok}/{total} ok")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

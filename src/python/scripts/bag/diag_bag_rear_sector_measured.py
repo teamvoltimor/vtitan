@@ -62,7 +62,7 @@ def _is_reverse(row) -> bool:  # noqa: ANN001
     return row.active_maneuver_type is not None and (row.maneuver_speed_mps or 0.0) < 0.0
 
 
-def main() -> None:
+def main() -> int:
     args = create_bags_parser(__doc__).parse_args()
     controller = CollisionAvoidanceController.from_tuning(get_tuning(None))
 
@@ -124,7 +124,7 @@ def main() -> None:
         print()
     if not all_total:
         print("No sweeps found in these bags.")
-        return
+        return 0
 
     def pct(n: int, d: int) -> str:
         return f"{100 * n / d:5.1f}%" if d else "    --"
@@ -157,7 +157,8 @@ def main() -> None:
         print("   unmeasured sector is left alone rather than capped to zero.")
     else:
         print("== No reverse launches in this corpus, so the cap was never reachable here.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

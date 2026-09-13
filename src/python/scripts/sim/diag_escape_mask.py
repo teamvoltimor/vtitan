@@ -385,7 +385,7 @@ def report_census(workers: int, scenarios_dir: str | None) -> None:
     )
 
 
-def main() -> None:
+def main() -> int:
     """Probe one fixture or all of them."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("index", nargs="?", type=int)
@@ -399,7 +399,7 @@ def main() -> None:
     scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
     if args.census:
         report_census(args.workers, scenarios_dir)
-        return
+        return 0
 
     indices = [args.index] if args.index is not None else range(len(all_obstacles_demo_scenarios()))
     total: Counter = Counter()
@@ -412,7 +412,8 @@ def main() -> None:
         print(f"FIXTURE {i:>2} " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())), flush=True)
     if len(list(indices)) > 1:
         print("TOTAL " + "  ".join(f"{k}={v}" for k, v in sorted(total.items())))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

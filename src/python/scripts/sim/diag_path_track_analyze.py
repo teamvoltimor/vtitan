@@ -124,7 +124,7 @@ def analyze(csv_path: Path) -> None:
     )
 
 
-def main() -> None:
+def main() -> int:
     """Parse arguments and analyse each supplied CSV."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", nargs="+", type=Path, help="CSV file(s) from diag_path_track.py.")
@@ -132,7 +132,8 @@ def main() -> None:
 
     for path in args.csv:
         analyze(path)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

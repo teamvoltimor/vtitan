@@ -53,7 +53,7 @@ recorded passes at 5, 6 and 9 mm, which is contact."""
 SIDE_CORRECTION = "side_correction"
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -106,7 +106,7 @@ def main() -> None:
         print(f"== SKIPPED {len(skipped)} unreadable bag(s): {', '.join(n for n, _ in skipped[:6])}\n")
     if not rows_out:
         print("No sign passes reconstructed from these bags.")
-        return
+        return 0
 
     print("== EVERY PASS, split by whether side_correction held the wheel")
     print_table(
@@ -188,7 +188,8 @@ def main() -> None:
             f"  while correcting, the wheel steered AGAINST the router's side on"
             f" {100 * a_opp / (a_agr + a_opp):.1f}% of manoeuvre ticks ({a_opp} of {a_agr + a_opp})"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

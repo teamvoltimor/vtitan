@@ -537,7 +537,7 @@ def pair_geometry(a: Rec, b: Rec) -> tuple[float, float, float]:
     return d_lat, along, radius
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument(
@@ -569,7 +569,7 @@ def main() -> None:
         print(f"   skipped: {', '.join(skipped[:8])}")
     if not recs:
         print("No sign passes reconstructed -- nothing to say.")
-        return
+        return 0
     unplaceable = sum(1 for r in recs if r.section is None)
     print(f"   unplaceable on the lattice: {unplaceable} ({100 * unplaceable / len(recs):.1f}%)")
     print()
@@ -1064,7 +1064,8 @@ def main() -> None:
     print("CAVEAT: line and slot come from the BELIEVED position snapped to the lattice;")
     print("the believed error exceeds the 0.20 m gap between the two division lines, so")
     print("the band label is noisy and that noise can only SHRINK a true difference.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

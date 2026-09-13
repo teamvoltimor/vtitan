@@ -860,7 +860,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main() -> int:
     """Run both starts over the same scenarios and print them side by side."""
     parser = _build_parser()
     args = parser.parse_args()
@@ -937,7 +937,8 @@ def main() -> None:
         ]
         rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
         _summarise(name, rows)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

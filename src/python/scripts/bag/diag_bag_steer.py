@@ -52,6 +52,7 @@ from rclpy.serialization import deserialize_message
 from shared.config.constants import RobotSpecs
 
 from scripts.common.bag_io import (
+    NO_TIME_LIMIT_S,
     Topics,
     create_bag_parser,
     decode_nav_debug,
@@ -365,7 +366,7 @@ def _print_effectiveness(bag_dirs: Sequence[Path]) -> None:
     print("     linkage_ratio -- indistinguishable here, both scale the prediction alike.")
 
 
-def main() -> None:
+def main() -> int:
     """Parse CLI args, print the selected preset's table, and optionally the --stats block."""
     parser = create_bag_parser(
         "Replay /nav_debug from a race bag under one of three column presets "
@@ -379,7 +380,7 @@ def main() -> None:
         "fields, steer=pure-pursuit inputs (default, the original diag_bag_steer.py).",
     )
     parser.add_argument("--start", type=float, default=0.0, help="Seconds into the bag to start printing (trace/steer).")
-    parser.add_argument("--until", type=float, default=1e9, help="Seconds into the bag to stop printing (trace/steer).")
+    parser.add_argument("--until", type=float, default=NO_TIME_LIMIT_S, help="Seconds into the bag to stop printing (trace/steer).")
     parser.add_argument(
         "--every",
         type=float,
@@ -406,7 +407,7 @@ def main() -> None:
 
     if args.effectiveness:
         _print_effectiveness([args.bag_dir, *args.pool])
-        return
+        return 0
 
     every = args.every if args.every is not None else (_DEFAULT_COARSE_INTERVAL_S if args.preset == "coarse" else 0.0)
 
@@ -424,7 +425,8 @@ def main() -> None:
             # _print_trace only collected the windowed rows; stats look at the whole bag.
             rows, _topics = load_nav_debug_rows(args.bag_dir)
         _print_stats(rows)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

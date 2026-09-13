@@ -42,7 +42,6 @@ import argparse
 import dataclasses
 import logging
 import math
-import statistics
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
@@ -62,6 +61,7 @@ from shared.domain.models import ScenarioMetadata, Waypoint  # noqa: E402
 from scripts.common.provenance import environment
 from scripts.common.scenarios import load_scenario, scenario_paths
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
+from scripts.common.stats import median
 from src.navigation.planning import sign_router as sign_router_module
 from src.navigation.planning.sign_lane import _axis_coords, _in_lane_span, _lane_span
 from src.navigation.planning.waypoints import corridor_for_position
@@ -879,7 +879,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     counts["run_ended_by_router"] += int(any(v for _a, v, *_ in records))
     counts["run_truly_violated"] += int(truth_wrong > 0)
     if early_pose_errors:
-        _EARLY.append((truth_wrong > 0, statistics.median(early_pose_errors)))
+        _EARLY.append((truth_wrong > 0, median(early_pose_errors)))
     hygiene_row = (len(signs), hygiene["peak"], hygiene["mislabelled"], truth_wrong > 0)
     spec_rows = [row[1:] for row in spec_frame.values()]
 
@@ -943,7 +943,7 @@ def _report_retirement_summary(
     print(f"  ENV {environment()}")
     print(f"  along-track: RETREAT (sign ahead) {counts['retreat']:>4}   PASS (sign behind) {counts['pass']:>4}")
     if alongs:
-        print(f"    median {statistics.median(alongs):+.2f} m")
+        print(f"    median {median(alongs):+.2f} m")
     print(f"  ROUTER (believed frame, discovered colour): {counts['router_wrong']:>4} wrong-side of {total} retirements")
     print(f"  TRUTH  (true layout, true trajectory):      {counts['truth_wrong']:>4} wrong-side of {counts['truth_passed']} signs actually passed")
     runs = counts["term:runs"]
@@ -964,7 +964,7 @@ def _report_violation_detail(violations: list) -> None:
     margins = sorted(v[2] for v in violations)
     print(f"  violation detail ({len(violations)}):")
     print(f"    VERDICT flips under a {_CORRIDOR_PROBE_M:.2f} m corridor nudge  {len(ambiguous)}  ({len(ambiguous) / len(violations):.1%})")
-    print(f"    margin onto forbidden side: p10 {margins[len(margins) // 10]:.3f} m  median {statistics.median(margins):.3f} m  p90 {margins[-max(len(margins) // 10, 1)]:.3f} m")
+    print(f"    margin onto forbidden side: p10 {margins[len(margins) // 10]:.3f} m  median {median(margins):.3f} m  p90 {margins[-max(len(margins) // 10, 1)]:.3f} m")
     print(f"    marginal (<0.05 m) {sum(1 for m in margins if m < 0.05)}   by corridor {dict(Counter(v[1] for v in violations))}   by colour {dict(Counter(v[0] for v in violations))}")
     print(f"    phase at closest approach {dict(Counter(v[4] for v in violations).most_common())}")
 
@@ -990,7 +990,7 @@ def _report_plan_clearance(plan_clearances: list[tuple[str, float]]) -> None:
         inverted = sum(1 for c in values if c <= -_LANE_SPEC_NEAR_M)
         print(
             f"    {name:<38} n={len(values):>4}  p10 {values[len(values) // 10]:+.3f}  "
-            f"median {statistics.median(values):+.3f}  p90 {values[-max(len(values) // 10, 1)]:+.3f}  "
+            f"median {median(values):+.3f}  p90 {values[-max(len(values) // 10, 1)]:+.3f}  "
             f"beyond -{_LANE_SPEC_NEAR_M:.2f} m {inverted}"
         )
 
@@ -1004,8 +1004,8 @@ def _report_lane_delivery(deliveries: list[tuple[str, float]]) -> None:
         values = sorted(d for b, d in deliveries if b == name)
         never = sum(1 for d in values if abs(d) < 0.01)
         print(
-            f"    {name:<38} n={len(values):>4}  median {statistics.median(values):+.3f}  "
-            f"({statistics.median(values) / _LANE_SPEC_FAR_M:>4.0%} of spec)  never-applied (<1 cm) {never}"
+            f"    {name:<38} n={len(values):>4}  median {median(values):+.3f}  "
+            f"({median(values) / _LANE_SPEC_FAR_M:>4.0%} of spec)  never-applied (<1 cm) {never}"
         )
 
 
@@ -1031,7 +1031,7 @@ def _report_lane_shape(
             magnitudes = sorted(abs(d) for d in finite)
             beyond = sum(1 for m in magnitudes if m > _HOLD_M)
             print(
-                f"    n={len(finite)}  median |err| {statistics.median(magnitudes):.3f} m  "
+                f"    n={len(finite)}  median |err| {median(magnitudes):.3f} m  "
                 f"p90 {magnitudes[-max(len(magnitudes) // 10, 1)]:.3f} m  "
                 f"BEYOND the hold {beyond} ({beyond / len(magnitudes):.0%})"
             )
@@ -1039,7 +1039,7 @@ def _report_lane_shape(
                 values = sorted(abs(d) for sh, d, _lat in depth_errors if sh == shape and math.isfinite(d))
                 past = sum(1 for m in values if m > _HOLD_M)
                 print(
-                    f"    {shape:<18} n={len(values):>4}  median |err| {statistics.median(values):.3f} m  "
+                    f"    {shape:<18} n={len(values):>4}  median |err| {median(values):.3f} m  "
                     f"beyond hold {past} ({past / len(values):.0%})"
                 )
         print(f"    no spec within {_SPEC_MATCH_M:.2f} m of the true sign: {unmatched}")
@@ -1048,7 +1048,7 @@ def _report_lane_shape(
         print("  LANE CENTRING, LATERAL axis (spec minus true, + = toward the PERMITTED side):")
         print(
             f"    n={len(laterals)}  p10 {laterals[len(laterals) // 10]:+.3f}  "
-            f"median {statistics.median(laterals):+.3f}  p90 {laterals[-max(len(laterals) // 10, 1)]:+.3f}"
+            f"median {median(laterals):+.3f}  p90 {laterals[-max(len(laterals) // 10, 1)]:+.3f}"
         )
         print(
             f"    a consistent + median means the lane is built off a sign the router believes is "
@@ -1064,7 +1064,7 @@ def _report_spec_hygiene(hygiene_rows: list) -> None:
     dirty = [row for row in hygiene_rows if row[2] > 0]
     print("  ROUTER SPEC HYGIENE (peak lane specs held, against the true sign count):")
     print(
-        f"    specs per true sign: median {statistics.median(ratios):.2f}x  "
+        f"    specs per true sign: median {median(ratios):.2f}x  "
         f"p90 {ratios[-max(len(ratios) // 10, 1)]:.2f}x  runs at >1.5x {sum(1 for r in ratios if r > 1.5)}/{len(ratios)}"
     )
     print(
@@ -1099,14 +1099,14 @@ def _report_plateau_coverage(plateaux: list) -> None:
         delivered = sorted(row[4] for row in rows)
         boundary = sorted(row[3] for row in rows)
         print(
-            f"    {label:<18} n={len(rows):>4}  in-plateau median {statistics.median(present):.0f}  "
-            f"shifted median {statistics.median(moved):.0f}  ZERO shifted {none_moved} ({none_moved / len(rows):.0%})  "
+            f"    {label:<18} n={len(rows):>4}  in-plateau median {median(present):.0f}  "
+            f"shifted median {median(moved):.0f}  ZERO shifted {none_moved} ({none_moved / len(rows):.0%})  "
             f"empty plateau {empty} ({empty / len(rows):.0%})"
         )
         print(
-            f"    {'':<18}       delivered median {statistics.median(delivered):+.3f} m  "
-            f"({statistics.median(delivered) / _LANE_SPEC_FAR_M:.0%} of spec)  "
-            f"sign-to-boundary median {statistics.median(boundary):.2f} m"
+            f"    {'':<18}       delivered median {median(delivered):+.3f} m  "
+            f"({median(delivered) / _LANE_SPEC_FAR_M:.0%} of spec)  "
+            f"sign-to-boundary median {median(boundary):.2f} m"
         )
 
 
@@ -1119,11 +1119,11 @@ def _report_shift_reference(shift_refs: list[tuple[float, float]]) -> None:
     agree = sum(1 for d, sf in shift_refs if abs(d - sf) < 0.02)
     print("  SHIFT REFERENCE (the lane moves each waypoint by target-minus-CORRIDOR-MEDIAN, not to the target):")
     print(
-        f"    n={len(shift_refs)}  waypoint deviation from the median: median {statistics.median(deviations):+.3f} m  "
+        f"    n={len(shift_refs)}  waypoint deviation from the median: median {median(deviations):+.3f} m  "
         f"p90 {deviations[-max(len(deviations) // 10, 1)]:+.3f} m"
     )
     print(
-        f"    shortfall of the lane from its own target:  median {statistics.median(shortfalls):+.3f} m  "
+        f"    shortfall of the lane from its own target:  median {median(shortfalls):+.3f} m  "
         f"p90 {shortfalls[-max(len(shortfalls) // 10, 1)]:+.3f} m"
     )
     print(
@@ -1141,11 +1141,11 @@ def _report_believed_delivery(spec_rows: list) -> None:
     print("  BELIEVED-FRAME DELIVERY (plan vs the ROUTER'S OWN spec -- no frame mapping, no true-sign matching):")
     print(
         f"    n={len(clearances)}  clearance p10 {clearances[len(clearances) // 10]:+.3f}  "
-        f"median {statistics.median(clearances):+.3f}  p90 {clearances[-max(len(clearances) // 10, 1)]:+.3f} m"
+        f"median {median(clearances):+.3f}  p90 {clearances[-max(len(clearances) // 10, 1)]:+.3f} m"
     )
     if ratios:
         print(
-            f"    as a fraction of what the router COMMANDED: median {statistics.median(ratios):.0%}  "
+            f"    as a fraction of what the router COMMANDED: median {median(ratios):.0%}  "
             f"below 50% {sum(1 for r in ratios if r < 0.5)}/{len(ratios)}  "
             f"on the WRONG side {sum(1 for r in ratios if r < 0)}/{len(ratios)}"
         )
@@ -1170,8 +1170,8 @@ def _report_tail_conditioning(spec_rows: list) -> None:
         right_rate = sum(1 for row in right if row[index]) / len(right)
         lift = wrong_rate / right_rate if right_rate else float("inf")
         print(f"    {name:<34} wrong {wrong_rate:>5.0%}  correct {right_rate:>5.0%}  lift {lift:>4.1f}x")
-    wrong_boundary = statistics.median(row[4] for row in wrong)
-    right_boundary = statistics.median(row[4] for row in right)
+    wrong_boundary = median(row[4] for row in wrong)
+    right_boundary = median(row[4] for row in right)
     print(f"    {'sign-to-boundary median (m)':<34} wrong {wrong_boundary:>5.2f}  correct {right_boundary:>5.2f}")
     # Dose-response, not a median split: a 0.40-vs-0.06 m median gap can
     # be produced by one over-represented cluster. If the rate climbs
@@ -1215,11 +1215,11 @@ def _report_early_window(early: list[tuple[bool, float]]) -> None:
     clean = [e for hit, e in early if not hit]
     if offenders and clean:
         print(f"  EARLY-WINDOW CONTROL (median pose error over the first {_EARLY_WINDOW_TICKS} ticks, before the approaches):")
-        print(f"    runs that later violated  n={len(offenders):>3}  median {statistics.median(offenders):.3f} m")
-        print(f"    runs that never violated  n={len(clean):>3}  median {statistics.median(clean):.3f} m")
+        print(f"    runs that later violated  n={len(offenders):>3}  median {median(offenders):.3f} m")
+        print(f"    runs that never violated  n={len(clean):>3}  median {median(clean):.3f} m")
 
 
-def main() -> None:
+def main() -> int:
     """Aggregate retirement geometry across a scenario directory."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenarios-dir", required=True)
@@ -1279,7 +1279,8 @@ def main() -> None:
     _report_believed_delivery(spec_rows)
     _report_tail_conditioning(spec_rows)
     _report_early_window(early)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

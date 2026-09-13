@@ -33,7 +33,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +40,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows  # noqa: E402
+from scripts.common.stats import median
 from scripts.common.tables import print_table  # noqa: E402
 
 CONTACT_GAP_M = 0.122
@@ -128,7 +128,7 @@ def _approaches(run: str, rows: list) -> list[Approach]:
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__, formatter_class=__import__("argparse").RawDescriptionHelpFormatter)
     args = parser.parse_args()
 
@@ -139,7 +139,7 @@ def main() -> None:
 
     if not approaches:
         print("No sign commitments found in these bags.")
-        return
+        return 0
 
     rows_out = []
     for run in sorted({a.run for a in approaches}):
@@ -148,10 +148,10 @@ def main() -> None:
             [
                 run,
                 len(group),
-                round(statistics.median(a.best_lateral_m for a in group), 3),
-                round(statistics.median(a.final_lateral_m for a in group), 3),
-                round(statistics.median(a.given_back_m for a in group), 3),
-                round(statistics.median(a.flips for a in group), 1),
+                round(median(a.best_lateral_m for a in group), 3),
+                round(median(a.final_lateral_m for a in group), 3),
+                round(median(a.given_back_m for a in group), 3),
+                round(median(a.flips for a in group), 1),
             ]
         )
     print(f"== SIGN ALIGNMENT  ({len(approaches)} approaches)")
@@ -198,12 +198,13 @@ def main() -> None:
     never = len(approaches) - len(was_clear)
     print(f"  never reached a contact-free offset at all:  {never}/{len(approaches)}")
     if lost_it:
-        print(f"  median flips when it gave it back: {statistics.median(a.flips for a in lost_it):.1f}")
+        print(f"  median flips when it gave it back: {median(a.flips for a in lost_it):.1f}")
     if was_clear:
         held = [a for a in was_clear if a.final_lateral_m >= CONTACT_GAP_M]
         if held:
-            print(f"  median flips when it HELD:         {statistics.median(a.flips for a in held):.1f}")
+            print(f"  median flips when it HELD:         {median(a.flips for a in held):.1f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

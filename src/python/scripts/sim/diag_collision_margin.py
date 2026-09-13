@@ -45,7 +45,7 @@ def _cases(limit: int) -> list[tuple[tuple[int, ...], Section, Direction, int]]:
     return out[:limit] if limit else out
 
 
-def main() -> None:
+def main() -> int:
     """Run each affected start with the margin on and off."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--laps", type=int, default=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
@@ -83,7 +83,8 @@ def main() -> None:
 
     print(f"\ncon margen: {with_margin}/{len(cases)} ok")
     print(f"sin margen: {without}/{len(cases)} ok")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -47,12 +47,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
-from scripts.common.bag_io import create_bags_parser, decode_detections, read_vision_rows_and_scans  # noqa: E402
-from scripts.common.stats import percentile  # noqa: E402
-from scripts.common.tables import print_table  # noqa: E402
 from shared.config.constants.robot import RobotSpecs  # noqa: E402
 from shared.config.constants.track import TrafficSignSpecs  # noqa: E402
 from shared.domain.models import SignColor  # noqa: E402
+
+from scripts.common.bag_io import create_bags_parser, decode_detections, read_vision_rows_and_scans  # noqa: E402
+from scripts.common.stats import percentile  # noqa: E402
+from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_discovery import _CAMERA_FOCAL_PX  # noqa: E402
 
@@ -64,7 +65,7 @@ def implied_range(height_px: float, range_scale: float) -> float:
     return _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / height_px * range_scale
 
 
-def main() -> None:
+def main() -> int:
     args = create_bags_parser(__doc__).parse_args()
     tuning = get_tuning(None).sign_discovery
 
@@ -128,7 +129,7 @@ def main() -> None:
         print(f"== SKIPPED {skipped} unreadable bag(s)")
     if not heights:
         print("No RED/GREEN detections in these bags.")
-        return
+        return 0
 
     print(f"== {len(heights)} RED/GREEN boxes. Pinhole: d = {_CAMERA_FOCAL_PX:.1f} * "
           f"{TrafficSignSpecs.HEIGHT} / h * {tuning.RANGE_SCALE}")
@@ -173,7 +174,8 @@ def main() -> None:
     print()
     print(f"  confidence over all boxes: p10 {percentile(confidences, 0.1):.3f}  "
           f"p50 {percentile(confidences, 0.5):.3f}  p90 {percentile(confidences, 0.9):.3f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

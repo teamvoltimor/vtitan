@@ -131,7 +131,7 @@ def _render(name: str, nav_debug: dict | None, active_challenge: str | None, out
     print(f"wrote {path}")
 
 
-def main() -> None:
+def main() -> int:
     """Render each sample telemetry scenario to a PNG under --out."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=Path(__file__).parent / "output")
@@ -142,7 +142,8 @@ def main() -> None:
     _render("escape_maneuver", _ESCAPE_NAV_DEBUG, "obstacles", args.out)
     _render("open_challenge", {**_TYPICAL_NAV_DEBUG, "active_sign_count": None}, "open", args.out)
     _render("before_first_nav_debug", None, None, args.out)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

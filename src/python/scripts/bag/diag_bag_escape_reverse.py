@@ -34,7 +34,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +44,7 @@ from shared.config.constants import RobotSpecs  # noqa: E402
 
 from scripts.common.bag_io import create_bags_parser, decode_scan, elapsed_seconds, open_reader  # noqa: E402
 from scripts.common.episodes import reversing_spans
+from scripts.common.stats import median
 from scripts.common.tables import print_table  # noqa: E402
 
 REAR_OVERHANG_M = 0.272
@@ -115,7 +115,7 @@ def _episodes(run: str, rows: list, scans: list) -> list[Episode]:
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     args = parser.parse_args()
 
@@ -134,15 +134,15 @@ def main() -> None:
             if topic == Topics.NAV_DEBUG:
                 rows.append((rel, decode_nav_debug(data)))
             elif topic == Topics.SCAN:
-                from sensor_msgs.msg import LaserScan  # noqa: PLC0415
                 from rclpy.serialization import deserialize_message  # noqa: PLC0415
+                from sensor_msgs.msg import LaserScan  # noqa: PLC0415
 
                 scans.append((rel, decode_scan(deserialize_message(data, LaserScan), 0.0, RobotSpecs.LIDAR_MAX_RANGE)))
         episodes.extend(_episodes(Path(bag).name.replace("run_", ""), rows, scans))
 
     if not episodes:
         print("No reversing escape episodes in these bags.")
-        return
+        return 0
 
     table = []
     for run in sorted({e.run for e in episodes}):
@@ -152,10 +152,10 @@ def main() -> None:
             [
                 run,
                 len(group),
-                round(statistics.median(e.duration_s for e in group), 2),
+                round(median(e.duration_s for e in group), 2),
                 round(max(e.duration_s for e in group), 2),
-                round(statistics.median(e.rotation_deg for e in group), 1),
-                round(statistics.median(rooms), 2) if rooms else None,
+                round(median(e.rotation_deg for e in group), 1),
+                round(median(rooms), 2) if rooms else None,
                 sum(1 for r in rooms if r < CONTACT_M),
             ]
         )
@@ -170,12 +170,13 @@ def main() -> None:
     print()
     print(f"  episodes with a usable rear reading: {len(rooms)}/{len(episodes)}")
     if rooms:
-        print(f"  rear room at trigger m: p10 {sorted(rooms)[len(rooms) // 10]:.2f} / median {statistics.median(rooms):.2f}")
+        print(f"  rear room at trigger m: p10 {sorted(rooms)[len(rooms) // 10]:.2f} / median {median(rooms):.2f}")
         print(f"  reverse actually FIT the measured room: {len(fits)}/{len(rooms)}")
         print(f"  triggers with under {CONTACT_M} m behind: {sum(1 for r in rooms if r < CONTACT_M)}")
-    print(f"  rotation deg: median {statistics.median(e.rotation_deg for e in episodes):.1f}")
-    print(f"  duration s:   median {statistics.median(e.duration_s for e in episodes):.2f}")
+    print(f"  rotation deg: median {median(e.rotation_deg for e in episodes):.1f}")
+    print(f"  duration s:   median {median(e.duration_s for e in episodes):.2f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -42,7 +42,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import statistics
 import sys
 import time
 
@@ -65,6 +64,7 @@ from shared.config.ros_topics import RosTopicConfig  # noqa: E402
 from std_msgs.msg import Float32  # noqa: E402
 
 from scripts.common.motor_hold import publish_hold  # noqa: E402
+from scripts.common.stats import fmean
 from src.hardware.motors.encoder import EncoderConfig  # noqa: E402
 from src.ros2.qos import QOS_ACKERMANN_CMD  # noqa: E402
 
@@ -108,7 +108,7 @@ class _Probe(Node):
         publish_hold(self, self.pub, stop, 2.5, publish_interval_s=0.0)
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--speed",
@@ -169,7 +169,7 @@ def main() -> None:
                 if not moving:
                     print("  no motion detected -- speed too low? skipping\n")
                     continue
-                revs = statistics.fmean(moving) * elapsed / 360.0
+                revs = fmean(moving) * elapsed / 360.0
                 counts = revs * args.counts_per_rev_config
                 source = "integrated speed (approx)"
 
@@ -197,13 +197,14 @@ def main() -> None:
     for i, r in enumerate(results, 1):
         print(f"  run {i}: {r:.1f}")
     if len(results) > 1:
-        spread = (max(results) - min(results)) / statistics.fmean(results) * 100
+        spread = (max(results) - min(results)) / fmean(results) * 100
         print(f"  spread {spread:.1f}%  (this is your wheel-slip signal)")
     print(f"\nBest estimate (lowest, least slip): counts_per_rev = {best:.0f}")
     print(f"  currently configured: {args.counts_per_rev_config:.0f}  ({best / args.counts_per_rev_config:.2f}x off)")
     print("=" * 62)
     print("\nSet counts_per_rev in src/config/hardware/motors/encoder.toml")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -400,7 +400,7 @@ def _report_turn_sections(rows: list[_CaseResult]) -> None:
         )
 
 
-def main() -> None:
+def main() -> int:
     """Sweep the scenario space and report where in the lap the reversing happens."""
     parser = argparse.ArgumentParser(description=__doc__)
     add_sweep_args(
@@ -436,7 +436,8 @@ def main() -> None:
     print(f"\nverdicts: {dict(verdicts)}, stuck={sum(1 for row in rows if row.stuck)}\n", flush=True)
 
     _report_turn_sections(rows)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

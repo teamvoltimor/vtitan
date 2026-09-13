@@ -44,7 +44,6 @@ import collections
 import concurrent.futures
 import dataclasses
 import math
-import statistics
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -55,11 +54,15 @@ from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.open_cases import balanced_128_cases
+from scripts.common.stats import median
 from src.navigation import corridor_follower, direction_estimator
 from src.navigation.corridor_estimator import classify_width
 from src.navigation.utils import _forward_clearance, _nearest_ray, _rear_clearance, axis_error_rad
 from src.simulation.scenario_catalog import _OPEN_CHALLENGE_SPACE, all_test_scenarios
-from src.simulation.scenario_simulator import ScenarioSimulator, simulator as simulator_module
+from src.simulation.scenario_simulator import (
+    ScenarioSimulator,
+    simulator as simulator_module,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -369,7 +372,7 @@ def _worker_run(scenario: Any) -> tuple[str, str, int | None, int, float, str, s
         _outcome(result),
         tracer.settled_at,
         tracer.creep_ticks,
-        statistics.median(axis_errors) if axis_errors else float("nan"),
+        median(axis_errors) if axis_errors else float("nan"),
         top[0][0] if top else "-",
         " ".join(f"{name}:{n}" for name, n in tracer.branches.most_common()),
         tracer.drive_ticks,
@@ -459,7 +462,7 @@ def _summary(
         print(f"  {key:<24} {count}")
 
 
-def main() -> None:
+def main() -> int:
     """Print gate verdicts for the fixtures named on argv."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("labels", nargs="*", default=[])
@@ -530,10 +533,11 @@ def main() -> None:
             args.corner_steer_deg,
             args.latch_completion,
         )
-        return
+        return 0
     for scenario in scenarios:
         _report(scenario, args.steps, args.show_span_fails)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

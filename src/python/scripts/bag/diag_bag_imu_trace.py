@@ -38,7 +38,7 @@ enough rate that printing every row floods the terminal; 24 was enough to see th
 motion pattern in the run this was written for. Override with --limit."""
 
 
-def main() -> None:
+def main() -> int:
     """Replay a bag's raw IMU/motor/state/cmd topics and print each as a table."""
     parser = create_bag_parser("Raw-topic (/imu/data, /motor/*, /robot_state, /ackermann_cmd) trace for bags lacking /nav_debug or /scan.")
     parser.add_argument("--limit", type=int, default=_DEFAULT_MOTOR_ROW_LIMIT, help="max /motor/* feedback rows to print (0 = all)")
@@ -87,7 +87,8 @@ def main() -> None:
     print(f"\nIMU heading ({len(imu_rows)} samples):")
     if imu_rows:
         print_table([(f"{t:.2f}", f"{yaw:.2f}", f"{gz:.4f}") for t, yaw, gz in imu_rows], ["t", "yaw_deg", "gyro_z"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

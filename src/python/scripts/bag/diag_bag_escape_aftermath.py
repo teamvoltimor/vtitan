@@ -29,7 +29,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows  # noqa: E402
 from scripts.common.episodes import reversing_spans
+from scripts.common.stats import median
 from scripts.common.tables import print_table  # noqa: E402
 
 IMMEDIATE_S = 1.0
@@ -70,7 +70,7 @@ def _episodes(run: str, rows: list) -> list[Aftermath]:
     return out
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     args = parser.parse_args()
 
@@ -81,7 +81,7 @@ def main() -> None:
 
     if not episodes:
         print("No escape episodes in these bags.")
-        return
+        return 0
 
     table = []
     for run in sorted({e.run for e in episodes}):
@@ -92,10 +92,10 @@ def main() -> None:
             [
                 run,
                 len(group),
-                round(statistics.median(gaps), 2) if gaps else None,
+                round(median(gaps), 2) if gaps else None,
                 sum(1 for g in gaps if g < IMMEDIATE_S),
-                round(statistics.median(clears), 3) if clears else None,
-                round(statistics.median(e.travelled_m for e in group), 3),
+                round(median(clears), 3) if clears else None,
+                round(median(e.travelled_m for e in group), 3),
             ]
         )
     print(f"== ESCAPE AFTERMATH  ({len(episodes)} episodes)")
@@ -110,18 +110,19 @@ def main() -> None:
     print()
     if gaps:
         gs = sorted(gaps)
-        print(f"  gap to next escape s: p10 {gs[len(gs) // 10]:.2f} / median {statistics.median(gs):.2f} / p90 {gs[int(len(gs) * 0.9)]:.2f}")
+        print(f"  gap to next escape s: p10 {gs[len(gs) // 10]:.2f} / median {median(gs):.2f} / p90 {gs[int(len(gs) * 0.9)]:.2f}")
         print(f"  re-fired within {IMMEDIATE_S}s: {len(immediate)}/{len(gaps)} ({100 * len(immediate) / len(gaps):.0f}%)")
     if clears:
         cs = sorted(clears)
-        print(f"  forward clearance at release m: p10 {cs[len(cs) // 10]:.3f} / median {statistics.median(cs):.3f}")
+        print(f"  forward clearance at release m: p10 {cs[len(cs) // 10]:.3f} / median {median(cs):.3f}")
         print(f"  released with under {WEDGED_M} m ahead: {sum(1 for c in cs if c < WEDGED_M)}/{len(cs)}")
     if immediate:
         ic = [e.release_clearance_m for e in immediate if e.release_clearance_m is not None]
         if ic:
-            print(f"  ...of those that re-fired fast, median release clearance: {statistics.median(ic):.3f} m")
-        print(f"  ...median distance travelled before re-firing: {statistics.median(e.travelled_m for e in immediate):.3f} m")
+            print(f"  ...of those that re-fired fast, median release clearance: {median(ic):.3f} m")
+        print(f"  ...median distance travelled before re-firing: {median(e.travelled_m for e in immediate):.3f} m")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

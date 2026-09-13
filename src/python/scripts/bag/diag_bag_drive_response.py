@@ -33,7 +33,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -44,6 +43,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import Float32
 
 from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import median
 
 WHEEL_CIRCUM_M = math.pi * 0.07
 ZERO_DEG_S = 1.0
@@ -109,14 +109,14 @@ def report(title: str, groups: dict) -> None:
         else:
             cmds, encs = [], vals
         stall = 100.0 * sum(1 for e in encs if e <= ZERO_DEG_S) / len(encs)
-        med = statistics.median(encs)
-        cmd_med = statistics.median(cmds) if cmds else float("nan")
+        med = median(encs)
+        cmd_med = median(cmds) if cmds else float("nan")
         med_mps = deg_s_to_mps(med)
         deliver = 100.0 * med_mps / cmd_med if cmds and cmd_med else float("nan")
         print(f"{k:22}{len(encs):7}{stall:8.1f}{med:9.1f}{med_mps:12.3f}{cmd_med:9.3f}{deliver:10.1f}")
 
 
-def main() -> None:
+def main() -> int:
     by_bin: dict[str, list] = defaultdict(list)
     by_phase: dict[str, list] = defaultdict(list)
     by_steer: dict[str, list] = defaultdict(list)
@@ -127,14 +127,15 @@ def main() -> None:
 
     if not by_bin:
         print("no ticks with a nonzero commanded speed")
-        return
+        return 0
 
     report("BY COMMANDED SPEED BIN (m/s)", by_bin)
     report("BY PHASE", by_phase)
     report("BY STEERING (full lock = |norm| >= 0.95)", by_steer)
     print("\nstall% = ticks where |/motor/drive_speed| <= 1 deg/s")
     print("deliver% = median encoder m/s as a share of median commanded m/s")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

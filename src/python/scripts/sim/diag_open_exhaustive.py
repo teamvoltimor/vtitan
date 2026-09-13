@@ -50,7 +50,7 @@ _DEFAULT_SAMPLE_SIZE = 128
 _DEFAULT_SEED = 0
 
 
-def main() -> None:
+def main() -> int:
     """Run a seeded sample of the scenario space and summarise by dimension."""
     parser = argparse.ArgumentParser(description=__doc__)
     add_sweep_args(
@@ -109,7 +109,8 @@ def main() -> None:
         print(f"\n{len(failures)} fallos:", flush=True)
         for line in failures:
             print(f"  {line}", flush=True)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

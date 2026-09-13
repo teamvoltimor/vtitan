@@ -32,7 +32,7 @@ from src.navigation.utils import _forward_clearance, _nearest_ray, axis_offset_r
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("Check direction inference window conditions")
     args = parser.parse_args()
 
@@ -49,7 +49,7 @@ def main() -> None:
     print(f"== {args.bag_dir.name}  scans={len(scans)}")
     if not scans or not yaws:
         print("insufficient data")
-        return
+        return 0
 
     rows = []
     for t, scan in scans:
@@ -104,7 +104,8 @@ def main() -> None:
             for t, fwd, axis, left, right in sorted(near_corner, key=lambda r: r[1])[:15]
         ]
         print_table(rows, ["t", "fwd", "axis_deg", "left", "right"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -44,7 +44,7 @@ def _wrap(a: float) -> float:
     return math.atan2(math.sin(a), math.cos(a))
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -104,7 +104,8 @@ def main() -> None:
             )
         elif below_filtered:
             print(f"  -> Observable: the side term fired on {below_filtered} sectors.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

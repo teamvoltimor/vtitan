@@ -146,7 +146,7 @@ def _report(label: str, results: list[tuple[bool, int, float]]) -> None:
     print(f"{label:<48} pass {passed}/{len(_STARTS)}  min_laps {worst}  slowest {slowest:5.1f}s", flush=True)
 
 
-def main() -> None:
+def main() -> int:
     """Run the 8 narrow starts, on the active profile or over the speed sweep."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -175,7 +175,8 @@ def main() -> None:
         for case in cases:
             results = list(pool.map(_run, [(case, i) for i in range(len(_STARTS))]))
             _report(case.label if case else shipped, results)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

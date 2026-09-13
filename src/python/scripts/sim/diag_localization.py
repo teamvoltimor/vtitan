@@ -492,7 +492,7 @@ def report_open_fixtures(workers: int) -> None:
                     )
 
 
-def main() -> None:
+def main() -> int:
     """Run the requested comparison."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=[m.value for m in DiagMode])
@@ -520,7 +520,8 @@ def main() -> None:
         report_perturbed(args.workers, args.sweep, args.verbose)
     else:
         report_obstacles(args.workers)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -37,7 +37,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import statistics
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -50,6 +49,7 @@ from shared.config.constants import CompetitionSpecs  # noqa: E402
 
 from scripts.common.scenarios import scenario_from_mapping, scenario_paths  # noqa: E402
 from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
+from scripts.common.stats import median
 from scripts.sim.diag_bay_start import (  # noqa: E402
     _COMMITTED_DIR,
     _CONTACT_GRACE_S,
@@ -250,7 +250,7 @@ def _run_one(
             trues = [row[true_i] * scale for row in drift]
             print(
                 f"  drift {label:<6} true span {min(trues):+.4f}..{max(trues):+.4f}  "
-                f"dr-true: median {statistics.median(errs):+.4f} final {errs[-1]:+.4f} "
+                f"dr-true: median {median(errs):+.4f} final {errs[-1]:+.4f} "
                 f"worst {max(errs, key=abs):+.4f}",
                 flush=True,
             )
@@ -305,7 +305,7 @@ def _report(
     return len(driven), len(one_tick), slacks, best_exit, ends, out_pair
 
 
-def main() -> None:
+def main() -> int:
     """Run the probe over a few in-bay scenarios and summarise what binds."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=4, help="Scenario count (0 = all).")
@@ -457,18 +457,18 @@ def main() -> None:
         print(
             f"\n{name:<16} legs {total_legs:<5} tick-1 deaths {total_one_tick:<5} "
             f"out {got_out}/{len(exits)}  best exit max {max(exits):+.4f} median "
-            f"{statistics.median(exits):+.4f} m  ended {ended}",
+            f"{median(exits):+.4f} m  ended {ended}",
             flush=True,
         )
         print(
             f"{'':<16} lowest slack reached: min {ordered[0]:+.4f}  "
-            f"median {statistics.median(ordered):+.4f}  max {ordered[-1]:+.4f} m; "
+            f"median {median(ordered):+.4f}  max {ordered[-1]:+.4f} m; "
             f"legs that reached the margin {sum(1 for x in all_slacks if x <= 0)}",
             flush=True,
         )
         if out_pairs:
-            true_m = statistics.median(t for t, _ in out_pairs)
-            believed_m = statistics.median(b for _, b in out_pairs)
+            true_m = median(t for t, _ in out_pairs)
+            believed_m = median(b for _, b in out_pairs)
             print(
                 f"{'':<16} outward travel: BELIEVED {believed_m:.4f} m vs TRUE {true_m:.4f} m "
                 f"({believed_m / true_m:.1f}x over-read)"
@@ -476,7 +476,8 @@ def main() -> None:
                 else f"{'':<16} outward travel: BELIEVED {believed_m:.4f} m vs TRUE {true_m:.4f} m",
                 flush=True,
             )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

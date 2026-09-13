@@ -245,7 +245,7 @@ def report_shuffle() -> None:
         print(f"  protrusion from bay = {prot * 100:.1f} cm\n")
 
 
-def main() -> None:
+def main() -> int:
     """Run the report named on the command line (default: all)."""
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
     if which in ("analytic", "all"):
@@ -254,7 +254,8 @@ def main() -> None:
         report_search()
     if which in ("shuffle", "all"):
         report_shuffle()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

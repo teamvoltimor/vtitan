@@ -98,7 +98,7 @@ def run_case(payload: tuple[str, int, float, int]) -> tuple[float, bool, bool, b
     )
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--durations", type=float, nargs="+", default=[1.0, 1.4, 1.8, 2.3, 3.0])
     parser.add_argument("--seeds", type=int, default=3)
@@ -131,7 +131,8 @@ def main() -> None:
             f"{duration:>13.1f} {len(rows):>4} {sum(r[1] for r in rows):>8} {sum(r[2] for r in rows):>6} "
             f"{sum(r[3] for r in rows):>9} {sum(r[4] for r in rows):>6} {sum(r[5] for r in rows):>6}"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

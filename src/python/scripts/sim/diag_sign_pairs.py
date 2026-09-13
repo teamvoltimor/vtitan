@@ -239,7 +239,7 @@ def _report_summary(
         print(f"STRAIGHT-WAS-CLEAR at collision: {clear}/{total} ({100 * clear / total:.0f}%)")
 
 
-def main() -> None:
+def main() -> int:
     """Probe one fixture or all of them."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("index", nargs="?", type=int)
@@ -286,7 +286,8 @@ def main() -> None:
             flush=True,
         )
     _report_summary(verdicts, total_switches, clear_when_collided, args)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

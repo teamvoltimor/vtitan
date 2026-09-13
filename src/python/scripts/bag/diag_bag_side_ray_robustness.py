@@ -532,7 +532,7 @@ def _rear_occlusion(bag_dir: Path, bin_deg: float) -> None:
     )
 
 
-def main() -> None:
+def main() -> int:
     """Replay a bag's /scan and /nav_debug, print the side-ray recovery report, and any opt-in sections."""
     parser = create_bag_parser(
         "Compare a single side-facing LIDAR ray against a windowed median, to test whether "
@@ -567,7 +567,7 @@ def main() -> None:
         _centre_offset(args.bag_dir, args.window_deg)
     if args.rear_occlusion:
         _rear_occlusion(args.bag_dir, args.rear_bin_deg)
-        return
+        return 0
 
     tuning = NavigationTuning.load_default()
     estimator = tuning.direction_estimator
@@ -587,7 +587,7 @@ def main() -> None:
 
     if not scans:
         print("no /scan messages")
-        return
+        return 0
 
     beams = len(scans[0][1].ranges_m)
     total = sum(len(scan.ranges_m) for _, scan in scans)
@@ -668,7 +668,8 @@ def main() -> None:
             t, direction, cast = result
             mark = "OK" if direction == truth else "WRONG"
             print(f"  {label:24s} settles {direction} at {t:6.1f}s ({cast} votes) [{mark}]")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

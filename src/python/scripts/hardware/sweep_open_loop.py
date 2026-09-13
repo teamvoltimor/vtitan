@@ -59,7 +59,6 @@ and coast, so a long --step-hold-s isn't silent.
 from __future__ import annotations
 
 import argparse
-import statistics
 import subprocess
 import sys
 import time
@@ -74,6 +73,7 @@ from dotenv import load_dotenv
 # `097ab6cf` for run-lidar. Calling load_dotenv() any later is too late.
 load_dotenv()
 
+from scripts.common.stats import fmean
 from src.hardware.motors.bts7960 import Driver as Bts7960Driver  # noqa: E402 - see load_dotenv() note above
 from src.hardware.motors.config import Config  # noqa: E402
 from src.hardware.motors.encoder import EncoderConfig, QuadratureEncoder  # noqa: E402
@@ -140,7 +140,7 @@ def sweep_drive(
         driver.stop_drive()
         time.sleep(0.5)  # coast to a stop before the next step
 
-        mean_rpm = statistics.fmean(samples) if samples else 0.0
+        mean_rpm = fmean(samples) if samples else 0.0
         mean_mps = rpm_to_mps(mean_rpm)
         print(
             f"  [{direction}] duty={frac:.2f} -> mean {mean_rpm:+.1f} rpm "
@@ -162,8 +162,8 @@ def _linear_fit_r2(points: list[tuple[float, float]]) -> float:
         return 0.0
     ts = [t for t, _ in points]
     rpms = [r for _, r in points]
-    t_mean = statistics.fmean(ts)
-    r_mean = statistics.fmean(rpms)
+    t_mean = fmean(ts)
+    r_mean = fmean(rpms)
     ss_t = sum((t - t_mean) ** 2 for t in ts)
     if ss_t == 0:
         return 0.0
@@ -252,7 +252,7 @@ def step_response(
     # Steady-state estimate: mean of the last 20% of the hold window, right
     # before the stop command -- the most settled part of the ramp.
     steady_window = [(t, r) for t, r in samples if t_stop * 0.8 <= t < t_stop]
-    steady_rpm = statistics.fmean(r for _, r in steady_window) if steady_window else 0.0
+    steady_rpm = fmean(r for _, r in steady_window) if steady_window else 0.0
     steady_abs = abs(steady_rpm)
 
     rise_10 = _time_to_threshold(samples, steady_abs, 0.10)
@@ -298,7 +298,7 @@ def sweep_servo(driver: ServoDriver, servo_config: ServoConfig, steps: int) -> N
         print(f"  commanded={angle:+.1f} deg -> readback={readback:+.1f} deg")
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--skip-drive", action="store_true")
     parser.add_argument("--skip-servo", action="store_true")
@@ -365,7 +365,7 @@ def main() -> None:
             )
             if reply.strip().lower() != "yes":
                 print("Drive sweep skipped (not confirmed).")
-                return
+                return 0
 
         config = Config()  # type: ignore[call-arg]
         encoder_config = EncoderConfig.load()
@@ -407,7 +407,8 @@ def main() -> None:
             drive.stop_drive()
             drive.disconnect()
             encoder.disconnect()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import statistics
 import sys
 from pathlib import Path
 
@@ -29,6 +28,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
 from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import mean, median
 
 
 def summarize(bag_dir: Path) -> dict[str, object]:
@@ -85,8 +85,8 @@ def summarize(bag_dir: Path) -> dict[str, object]:
                 name = str(record.get("class_name") or record.get("class") or "?").lower()
                 detection_colours[name] = detection_colours.get(name, 0) + 1
 
-    median_width = statistics.median(widths) if widths else None
-    start_width = statistics.median(start_widths) if start_widths else None
+    median_width = median(widths) if widths else None
+    start_width = median(start_widths) if start_widths else None
     pillars = sum(n for name, n in detection_colours.items() if "red" in name or "green" in name)
     challenge = "obstacles" if (max_signs > 0 or pillars > 0) else "open"
 
@@ -111,8 +111,8 @@ def summarize(bag_dir: Path) -> dict[str, object]:
         "pillars": pillars,
         "width": median_width,
         "start_width": start_width,
-        "xtrack_abs": statistics.mean(abs(v) for v in crosstrack) if crosstrack else None,
-        "steer_abs": statistics.mean(abs(v) for v in steering) if steering else None,
+        "xtrack_abs": mean(abs(v) for v in crosstrack) if crosstrack else None,
+        "steer_abs": mean(abs(v) for v in steering) if steering else None,
         "rev_rate": reversal_rate,
     }
 
@@ -123,7 +123,7 @@ def _fmt(value: object, spec: str = "") -> str:
     return format(value, spec)
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("--prefix", default="run_")
@@ -150,7 +150,8 @@ def main() -> None:
             f"{_fmt(row['xtrack_abs'], '>7.3f')}{_fmt(row['steer_abs'], '>7.3f')}"
             f"{row['rev_rate'] * 100:>7.1f}"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

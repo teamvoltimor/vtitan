@@ -42,7 +42,7 @@ _HOLD_S = 0.5
 _PUBLISH_INTERVAL_S = 0.05
 
 
-def main() -> None:
+def main() -> int:
     """Publish a zero-speed, zero-steering command for a short hold, then exit."""
     rclpy.init()
     node = Node("reset_motors")
@@ -57,7 +57,8 @@ def main() -> None:
     node.destroy_node()
     rclpy.shutdown()
     print("Sent stop + center-steering command.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

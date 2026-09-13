@@ -44,7 +44,7 @@ WATCH = (
 )
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     parser.add_argument("--every", type=float, default=20.0, help="seconds between printed samples")
     args = parser.parse_args()
@@ -58,7 +58,7 @@ def main() -> None:
 
     if not rows:
         print("no /nav_debug samples")
-        return
+        return 0
 
     print(f"\nnav_debug samples: {len(rows)}  span: {rows[0][0]:.1f}..{rows[-1][0]:.1f}s")
 
@@ -87,7 +87,8 @@ def main() -> None:
         table_rows.append(row)
     if table_rows:
         print_table(table_rows, ["t", *present])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

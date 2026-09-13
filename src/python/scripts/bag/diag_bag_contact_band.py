@@ -62,7 +62,7 @@ def _wrap(a: float) -> float:
     return math.atan2(math.sin(a), math.cos(a))
 
 
-def main() -> None:
+def main() -> int:
     bags = [Path(a) for a in sys.argv[1:]]
     if not bags:
         print(__doc__)
@@ -129,7 +129,7 @@ def main() -> None:
 
     if not total_scans:
         print("no scans with a valid side sector -- nothing to decide")
-        return
+        return 0
 
     print(f"== WHERE THE SIDE MINIMUM ACTUALLY SITS  ({total_scans} scans)")
     for i in range(len(BANDS) - 1):
@@ -152,7 +152,8 @@ def main() -> None:
         "\n  fires mostly while FREE. A high committed share means it would trip on"
         "\n  pillars the router already aimed past, and each trip evicts the commitment."
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

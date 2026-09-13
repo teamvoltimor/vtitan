@@ -135,7 +135,7 @@ def classify(p: Pass) -> tuple[str, float, float]:
     return "had room", needed, available
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument(
         "--set",
@@ -168,7 +168,7 @@ def main() -> None:
         print()
     if not passes:
         print("No sign passes reconstructed from these bags.")
-        return
+        return 0
 
     # The same three-way split diag_bag_pass_side.py reports, so the execution
     # count here is checkable against that script rather than a second opinion.
@@ -276,7 +276,8 @@ def main() -> None:
             continue
         print(f"    {label:>9}  p10 {percentile(ranges, 0.1):.3f}  p50 {percentile(ranges, 0.5):.3f}"
               f"  p90 {percentile(ranges, 0.9):.3f}   n={len(ranges)}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

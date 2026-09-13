@@ -65,6 +65,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
 from rclpy.serialization import deserialize_message  # noqa: E402
 from sensor_msgs.msg import Imu  # noqa: E402
+from shared.config.constants.robot import RobotSpecs  # noqa: E402
+from shared.config.constants.track import TrafficSignSpecs  # noqa: E402
+from shared.domain.models import SignColor  # noqa: E402
 from std_msgs.msg import String  # noqa: E402
 
 from scripts.common.bag_io import (  # noqa: E402
@@ -77,9 +80,6 @@ from scripts.common.bag_io import (  # noqa: E402
 )
 from scripts.common.stats import percentile  # noqa: E402
 from scripts.common.tables import print_table  # noqa: E402
-from shared.config.constants.robot import RobotSpecs  # noqa: E402
-from shared.config.constants.track import TrafficSignSpecs  # noqa: E402
-from shared.domain.models import SignColor  # noqa: E402
 
 _FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 """Pinhole focal length in pixels, same expression sign_discovery uses."""
@@ -242,7 +242,7 @@ def _stats_line(group: list[tuple]) -> list[str]:
 _STAT_COLS = ["boxes", "conf p50", "conf p10", f"share<{_CONF_FLOOR}", "aspect w/h p50", "width px p50", "range p50"]
 
 
-def main() -> None:
+def main() -> int:
     """Print the smear budget, then the measured yaw-rate splits with controls."""
     parser = create_bags_parser(__doc__)
     parser.add_argument("--lag-s", type=float, default=_DEFAULT_LAG_S,
@@ -277,7 +277,7 @@ def main() -> None:
 
     if not rows:
         print("\nno red/green boxes matched -- nothing to correlate")
-        return
+        return 0
 
     yaws = [r[0] for r in rows]
     print("\n=== YAW SPREAD CONTROL (at capture, per detection) ===")
@@ -316,6 +316,7 @@ def main() -> None:
         print_table(table, ["|yaw| rad/s", *_STAT_COLS])
 
     _report_effective_exposure(rows)
+    return 0
 
 
 def _report_effective_exposure(rows: list[tuple]) -> None:
@@ -358,4 +359,4 @@ def _report_effective_exposure(rows: list[tuple]) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

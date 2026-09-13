@@ -178,7 +178,7 @@ def _fisher(label: str, a: list[Rec], b: list[Rec]) -> None:
     print(f"   FISHER {label}: {af}/{len(a)} vs {bf}/{len(b)} failed, odds={odds:.2f}  p={p:.3f}")
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument(
@@ -206,7 +206,7 @@ def main() -> None:
         print(f"   skipped: {', '.join(skipped[:8])}")
     if not recs:
         print("No sign passes reconstructed.")
-        return
+        return 0
     peaks = {r.run: r.peak for r in recs}
     over = sum(1 for v in peaks.values() if v > 8)
     print(f"   runs whose peak believed sign count EXCEEDS the physical max of 8: {over}/{len(peaks)}")
@@ -472,7 +472,8 @@ def main() -> None:
     print()
     print("CAVEAT: the line label comes from the BELIEVED position, whose error exceeds the")
     print("0.20 m gap between the two lines; that mixing shrinks any true difference.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

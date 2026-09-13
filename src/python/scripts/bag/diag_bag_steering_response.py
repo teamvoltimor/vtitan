@@ -42,19 +42,19 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import mean, median
 
 _MAX_STEERING_RATE = 1.2  # rad/s, the shipped constant this exists to check
 _REV_STEER_RAD = math.radians(44.0)
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__)
     parser.add_argument("--step", type=float, default=0.30, help="min jump in commanded steering_norm to count as a step")
     parser.add_argument("--min-speed", type=float, default=0.15, help="m/s below which yaw rate is too small to read")
@@ -110,7 +110,7 @@ def main() -> None:
                 dropped_unsteady += 1
                 continue
             tail = [abs(w[3]) for w in win[len(win) // 2:]]
-            plateau = statistics.median(tail) if tail else 0.0
+            plateau = median(tail) if tail else 0.0
             if plateau < args.min_rate:
                 dropped_flat += 1
                 continue
@@ -122,29 +122,30 @@ def main() -> None:
                     t90 = t - t_step
                     break
             if t63 is not None and t90 is not None:
-                rows.append((t63, t90, plateau, statistics.mean(speeds)))
+                rows.append((t63, t90, plateau, mean(speeds)))
 
     print(f"steering steps of >= {args.step} seen in normal_drive: {steps_seen}")
     print(f"  dropped: too slow {dropped_slow}, speed not steady {dropped_unsteady}, no yaw plateau {dropped_flat}")
     print(f"  USABLE: {len(rows)}"
           "   <- if this is near zero, nothing below means anything")
     if not rows:
-        return
+        return 0
     t63 = sorted(r[0] for r in rows)
     t90 = sorted(r[1] for r in rows)
     pl = [r[2] for r in rows]
     sp = [r[3] for r in rows]
     print()
-    print(f"  time to 63% of the plateau: p50 {statistics.median(t63):.3f} s   p90 {t63[int(0.9 * (len(t63) - 1))]:.3f} s")
-    print(f"  time to 90% of the plateau: p50 {statistics.median(t90):.3f} s   p90 {t90[int(0.9 * (len(t90) - 1))]:.3f} s")
-    print(f"  plateau yaw rate p50 {statistics.median(pl):.2f} rad/s, at speed p50 {statistics.median(sp):.2f} m/s")
+    print(f"  time to 63% of the plateau: p50 {median(t63):.3f} s   p90 {t63[int(0.9 * (len(t63) - 1))]:.3f} s")
+    print(f"  time to 90% of the plateau: p50 {median(t90):.3f} s   p90 {t90[int(0.9 * (len(t90) - 1))]:.3f} s")
+    print(f"  plateau yaw rate p50 {median(pl):.2f} rad/s, at speed p50 {median(sp):.2f} m/s")
     print()
     predicted = _REV_STEER_RAD / _MAX_STEERING_RATE
     print(f"  SHIPPED MAX_STEERING_RATE {_MAX_STEERING_RATE} rad/s predicts {predicted:.3f} s to reach 44 deg")
     print(f"  the escape has {0.49:.2f} s (measured median duration)")
     print("  -> if the measured 90% time is well UNDER the prediction, the constant is pessimistic")
     print("     and raising it gives the escape the angle it already asks for.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

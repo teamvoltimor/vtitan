@@ -54,7 +54,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from pathlib import Path
 
@@ -63,6 +62,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import TrackDimensions
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows, posed_rows
+from scripts.common.stats import median
 
 CENTER = (TrackDimensions.CENTER_COORD, TrackDimensions.CENTER_COORD)
 
@@ -225,7 +225,7 @@ def _fmt(vals: list[float]) -> str:
     ordered = sorted(vals)
     last = len(ordered) - 1
     return (
-        f"n={len(ordered)} p10={ordered[last // 10]:+.2f} p50={statistics.median(ordered):+.2f} "
+        f"n={len(ordered)} p10={ordered[last // 10]:+.2f} p50={median(ordered):+.2f} "
         f"p90={ordered[min(last, 9 * len(ordered) // 10)]:+.2f} "
         f"min={ordered[0]:+.2f} max={ordered[last]:+.2f}"
     )
@@ -290,7 +290,7 @@ def _report(bag_dir: Path, trace: bool) -> None:
         _trace(inside)
 
 
-def main() -> None:
+def main() -> int:
     """Parse arguments and report every bag named on the command line."""
     parser = create_bags_parser("Signed along-loop lead of the steering target relative to the robot.")
     parser.add_argument("--trace", action="store_true", help="Print a thinned per-tick trace inside the window")
@@ -300,7 +300,8 @@ def main() -> None:
             _report(Path(bag_dir), args.trace)
         except Exception as exc:  # noqa: BLE001
             print(f"\n=== {Path(bag_dir).name} === FAILED: {type(exc).__name__}: {exc}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -90,7 +90,7 @@ def run_case(payload: tuple[str, int, bool, int]) -> tuple[bool, int, int, float
     )
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--seeds", type=int, default=4)
     parser.add_argument("--limit", type=int, default=0)
@@ -128,7 +128,8 @@ def main() -> None:
             f"{str(value):>8} {len(rows):>5} {ticks:>8} {sat:>8} ({100 * sat / ticks:5.2f}%)"
             f" {mean_d:>16.5f} {1000 * rev / ticks:>13.2f} {sum(r[5] for r in rows):>6}"
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -37,7 +37,7 @@ class Probe(Node):
         summarize("right", right)
 
 
-def main():
+def main() -> int:
     rclpy.init()
     node = Probe()
     import time
@@ -47,7 +47,8 @@ def main():
         rclpy.spin_once(node, timeout_sec=_SPIN_TIMEOUT_SEC)
     node.destroy_node()
     rclpy.shutdown()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

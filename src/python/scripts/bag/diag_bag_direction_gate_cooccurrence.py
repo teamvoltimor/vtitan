@@ -59,7 +59,7 @@ def _gates(scan, yaw: float, tuning: NavigationTuning) -> GateResult:
     )
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser("Analyze multiple bags")
     args = parser.parse_args()
 
@@ -99,7 +99,8 @@ def main() -> None:
         out,
         ["run", "scans", *names, "aligned&span", "ALL", "if independent"],
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

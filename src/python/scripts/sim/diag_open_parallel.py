@@ -109,7 +109,7 @@ def _report_verdict_summary(
         summarise(title, counts)
 
 
-def main() -> None:
+def main() -> int:
     """Run a seeded sample concurrently and summarise by dimension."""
     parser = argparse.ArgumentParser(description=__doc__)
     add_sweep_args(
@@ -169,7 +169,8 @@ def main() -> None:
             [[r.index, r.label, r.verdict, f"{r.laps}/{r.target}", f"{r.sim_time_s:.1f}s"] for r in failed],
             ["#", "scenario", "verdict", "laps", "sim time"],
         )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

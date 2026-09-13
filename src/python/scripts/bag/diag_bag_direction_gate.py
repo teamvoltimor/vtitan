@@ -24,7 +24,7 @@ from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
 from scripts.common.tables import print_table
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     parser.add_argument("--every", type=float, default=20.0)
     args = parser.parse_args()
@@ -84,7 +84,8 @@ def main() -> None:
         table_rows.append(row)
     if table_rows:
         print_table(table_rows, ["t", *list(col_labels)])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

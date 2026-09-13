@@ -27,7 +27,7 @@ from scripts.common.bag_io import (
 from scripts.common.tables import print_table
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
@@ -97,7 +97,8 @@ def main() -> None:
         print(f"\nfirst nav_debug @ {nav_debug_first[0]:.2f}s: {nav_debug_first[1]!r:.400}")
     if nav_debug_last:
         print(f"\nlast nav_debug @ {nav_debug_last[0]:.2f}s: {nav_debug_last[1]!r:.400}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

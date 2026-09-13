@@ -50,6 +50,9 @@ if TYPE_CHECKING:
 LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
 """Mount-rotation correction production applies to every LIDAR yaw."""
 
+NO_TIME_LIMIT_S = 1e9
+"""``--until`` default meaning "to the end of the bag": far longer than any recorded run."""
+
 
 class Topics:
     """Topic names shared by the diag_bag_*.py scripts."""

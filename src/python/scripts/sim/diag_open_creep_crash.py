@@ -75,13 +75,14 @@ def _report(scenario: Any) -> None:
         print(line)
 
 
-def main() -> None:
+def main() -> int:
     """Print the creep trace leading into each named fixture's collision."""
     wanted = sys.argv[1:] or ["go_open_0012", "go_open_0020"]
     for scenario in all_test_scenarios():
         if any(w in scenario.label for w in wanted):
             _report(scenario)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

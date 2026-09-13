@@ -56,7 +56,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import statistics
 import sys
 from pathlib import Path
 
@@ -65,7 +64,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import RobotSpecs
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
-from scripts.common.stats import percentile
+from scripts.common.stats import fmean, percentile
 
 CRAWL_RAD = 1.0
 """``HeadingErrorZones.CRAWL``: at or above this the heading term commands creep."""
@@ -190,7 +189,7 @@ def analyse(bag_dir: Path) -> None:
             f"{small_steer_big_err}/{len(big_steer)} ({100 * small_steer_big_err / len(big_steer):.1f}%)"
         )
     if published:
-        print(f"    mean |angle_error| = {statistics.fmean(published):.1f} deg")
+        print(f"    mean |angle_error| = {fmean(published):.1f} deg")
 
 
 def main() -> int:

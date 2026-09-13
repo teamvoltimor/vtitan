@@ -24,14 +24,14 @@ from scripts.common.tables import print_table
 from src.navigation.utils import wrap_angle
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("Look for _commit_direction branch fingerprint in yaw discontinuities")
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
     if not rows:
         print("empty bag")
-        return
+        return 0
 
     states = []
     prev_state = object()
@@ -57,7 +57,8 @@ def main() -> None:
         prev = (t, yaw)
     print(f"\nyaw discontinuities > 1.0 rad between consecutive samples: {len(jumps)}")
     print_table(jumps[:10], ["t_before", "t_after", "yaw_before", "yaw_after", "delta"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -22,7 +22,6 @@ Usage::
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -33,6 +32,7 @@ from rclpy.serialization import deserialize_message
 from std_msgs.msg import Float32
 
 from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import mean, median
 
 ZERO_DEG_S = 1.0
 AGE_BINS = [0.0, 0.2, 0.5, 1.0, 2.0, 4.0, 8.0, 1e9]
@@ -45,7 +45,7 @@ def age_bin(a: float) -> str:
     return "?"
 
 
-def main() -> None:
+def main() -> int:
     by_age: dict[str, list[float]] = defaultdict(list)
     leg_lengths: list[float] = []
     per_run: dict[str, list[float]] = defaultdict(list)
@@ -91,7 +91,7 @@ def main() -> None:
 
     if not by_age:
         print("no bay_exit legs found")
-        return
+        return 0
 
     hdr = f"{'leg age s':14}{'n':>7}{'stall%':>8}{'encMed':>9}{'encMean':>9}"
     print(hdr)
@@ -99,12 +99,13 @@ def main() -> None:
     for k in sorted(by_age, key=lambda s: float(s.split("-")[0].replace("+", ""))):
         v = by_age[k]
         stall = 100.0 * sum(1 for e in v if e <= ZERO_DEG_S) / len(v)
-        print(f"{k:14}{len(v):7}{stall:8.1f}{statistics.median(v):9.1f}{statistics.mean(v):9.1f}")
+        print(f"{k:14}{len(v):7}{stall:8.1f}{median(v):9.1f}{mean(v):9.1f}")
 
     if leg_lengths:
-        print(f"\nleg durations s: n={len(leg_lengths)} median {statistics.median(leg_lengths):.2f} "
+        print(f"\nleg durations s: n={len(leg_lengths)} median {median(leg_lengths):.2f} "
               f"p90 {sorted(leg_lengths)[int(0.9 * len(leg_lengths))]:.2f} max {max(leg_lengths):.2f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

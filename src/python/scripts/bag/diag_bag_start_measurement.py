@@ -118,7 +118,7 @@ def _verdict(
     return "ok", rays
 
 
-def main() -> None:
+def main() -> int:
     """Print the per-scan start-measurement replay for the bag named on the command line."""
     parser = create_bag_parser("Replay measure_start_pose over a bag's whole scan stream")
     parser.add_argument("--section", default=Section.SOUTH.value, help="Start section (default south)")
@@ -133,7 +133,7 @@ def main() -> None:
     scans, rows = _read(args.bag_dir)
     if not scans:
         print("bag carries no /scan")
-        return
+        return 0
 
     direction = Direction(args.direction) if args.direction else settled_direction(rows)
     if direction is None:
@@ -193,7 +193,8 @@ def main() -> None:
     print(f"\nverdicts over the whole bag: {verdict_counts}")
     print(f"first scan a measurement would have succeeded on: "
           f"{f'{first_ok:.2f} s' if first_ok is not None else 'never'}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

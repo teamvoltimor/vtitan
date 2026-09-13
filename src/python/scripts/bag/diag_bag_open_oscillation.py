@@ -88,13 +88,13 @@ from __future__ import annotations
 
 import argparse
 import math
-import statistics
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import load_nav_debug_rows
+from scripts.common.stats import fmean, median
 
 # Shipped values, quoted only to LABEL the measurement. This script never loads
 # tuning: hard-coding keeps the report explicit about what it assumed, and each
@@ -157,12 +157,12 @@ def _p(values: list[float], q: float) -> float:
 
 def _med(values: list[float]) -> float:
     clean = [v for v in values if v is not None and not math.isnan(v)]
-    return statistics.median(clean) if clean else float("nan")
+    return median(clean) if clean else float("nan")
 
 
 def _mean(values: list[float]) -> float:
     clean = [v for v in values if v is not None and not math.isnan(v)]
-    return statistics.fmean(clean) if clean else float("nan")
+    return fmean(clean) if clean else float("nan")
 
 
 class Tick:
@@ -455,7 +455,7 @@ def signed_crosstrack(
         have = [v for v in tgt_lat if v is not None]
         if len(have) < 5:
             continue
-        path_lat = statistics.median(have)
+        path_lat = median(have)
         rows: list[tuple[float, float, float, float]] = []
         for tk, p in zip(seg, tgt_lat, strict=False):
             q = tk.x * n[0] + tk.y * n[1]
@@ -467,12 +467,12 @@ def signed_crosstrack(
 
     stats: dict[str, float] = {"n": float(len(recon))}
     if len(recon) > 30:
-        mr, mp = statistics.fmean(recon), statistics.fmean(published)
+        mr, mp = fmean(recon), fmean(published)
         num = sum((a - mr) * (b - mp) for a, b in zip(recon, published, strict=False))
         dr = math.sqrt(sum((a - mr) ** 2 for a in recon))
         dp = math.sqrt(sum((b - mp) ** 2 for b in published))
         stats["corr"] = num / (dr * dp) if dr > 0 and dp > 0 else float("nan")
-        stats["med_abs_diff"] = statistics.median([abs(a - b) for a, b in zip(recon, published, strict=False)])
+        stats["med_abs_diff"] = median([abs(a - b) for a, b in zip(recon, published, strict=False)])
         stats["recon_mean"] = mr
         stats["published_mean"] = mp
     return out, stats
@@ -529,15 +529,15 @@ def oscillation_of(series: list[list[tuple[float, float, float]]]) -> dict[str, 
         "crossings": float(crossings),
         "cross_per_m": crossings / length if length > 0 else float("nan"),
         "cross_per_s": crossings / elapsed if elapsed > 0 else float("nan"),
-        "wavelength_m": 2.0 * statistics.median(half_lengths) if half_lengths else float("nan"),
+        "wavelength_m": 2.0 * median(half_lengths) if half_lengths else float("nan"),
         "wl_p25": 2.0 * _p(half_lengths, 0.25) if half_lengths else float("nan"),
         "wl_p75": 2.0 * _p(half_lengths, 0.75) if half_lengths else float("nan"),
-        "period_s": 2.0 * statistics.median(half_times) if half_times else float("nan"),
-        "ptp_med": statistics.median(swings) if swings else float("nan"),
+        "period_s": 2.0 * median(half_times) if half_times else float("nan"),
+        "ptp_med": median(swings) if swings else float("nan"),
         "ptp_p90": _p(swings, 0.90) if swings else float("nan"),
-        "peak_med": statistics.median(extrema) if extrema else float("nan"),
-        "abs_mean": statistics.fmean(abs(v) for v in samples) if samples else float("nan"),
-        "rms": math.sqrt(statistics.fmean([v * v for v in samples])) if samples else float("nan"),
+        "peak_med": median(extrema) if extrema else float("nan"),
+        "abs_mean": fmean(abs(v) for v in samples) if samples else float("nan"),
+        "rms": math.sqrt(fmean([v * v for v in samples])) if samples else float("nan"),
         "n": float(len(samples)),
     }
 
@@ -562,7 +562,7 @@ def lagged_corr(pairs: list[list[tuple[float, float]]], max_lag: int = 30) -> tu
                     ys.append(seg[j][1])
         if len(xs) < 50:
             continue
-        mx, my = statistics.fmean(xs), statistics.fmean(ys)
+        mx, my = fmean(xs), fmean(ys)
         num = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=False))
         dx = math.sqrt(sum((x - mx) ** 2 for x in xs))
         dy = math.sqrt(sum((y - my) ** 2 for y in ys))
@@ -591,8 +591,8 @@ def fit_circle(points: list[tuple[float, float]]) -> tuple[float, float]:
     n = len(points)
     if n < 8:
         return float("nan"), float("nan")
-    mx = statistics.fmean(p[0] for p in points)
-    my = statistics.fmean(p[1] for p in points)
+    mx = fmean(p[0] for p in points)
+    my = fmean(p[1] for p in points)
     suu = suv = svv = suuu = svvv = suvv = svuu = 0.0
     for px, py in points:
         u, v = px - mx, py - my
@@ -609,7 +609,7 @@ def fit_circle(points: list[tuple[float, float]]) -> tuple[float, float]:
     uc = (svv * (suuu + suvv) - suv * (svvv + svuu)) / det
     vc = (suu * (svvv + svuu) - suv * (suuu + suvv)) / det
     radius = math.sqrt(uc * uc + vc * vc + (suu + svv) / n)
-    rms = math.sqrt(statistics.fmean([(math.hypot(px - mx - uc, py - my - vc) - radius) ** 2 for px, py in points]))
+    rms = math.sqrt(fmean([(math.hypot(px - mx - uc, py - my - vc) - radius) ** 2 for px, py in points]))
     return radius, rms
 
 
@@ -700,7 +700,7 @@ def exit_profile(
             d = tk.s - s0
             if d <= span_m and tk.xt is not None:
                 bins.setdefault(int(d / bin_m), []).append(tk.xt)
-    return [(k * bin_m, statistics.fmean(v), len(v)) for k, v in sorted(bins.items()) if len(v) >= 5]
+    return [(k * bin_m, fmean(v), len(v)) for k, v in sorted(bins.items()) if len(v) >= 5]
 
 
 def sign_runs(series: list[list[tuple[float, float, float]]]) -> dict[str, float]:
@@ -962,7 +962,7 @@ def print_report(results: list[dict[str, object]], label: str) -> None:
                     node = node.get(key, float("nan"))
             if isinstance(node, (int, float)) and not (isinstance(node, float) and math.isnan(node)):
                 vals.append(float(node))
-        return statistics.median(vals) if vals else float("nan")
+        return median(vals) if vals else float("nan")
 
     lines: list[tuple[str, float | None]] = [
         ("-- reconstruction control --", None),
@@ -1035,10 +1035,10 @@ def print_report(results: list[dict[str, object]], label: str) -> None:
     print(f"  {'target/pose rms ratio':<42}{ratio:>10.4f}")
     laps = [lt for r in ok for lt in r["lap_times"]]
     if laps:
-        print(f"  {'lap time (s), median of ' + str(len(laps)):<42}{statistics.median(laps):>10.2f}")
-    print(f"  {'xt->steer best lag (ticks)':<42}{statistics.median([r['lag'][0] for r in ok]):>10.1f}")
-    print(f"  {'xt->steer corr at best lag':<42}{statistics.median([r['lag'][1] for r in ok]):>10.3f}")
-    print(f"  {'xt->steer corr at lag 0':<42}{statistics.median([r['lag'][2] for r in ok]):>10.3f}")
+        print(f"  {'lap time (s), median of ' + str(len(laps)):<42}{median(laps):>10.2f}")
+    print(f"  {'xt->steer best lag (ticks)':<42}{median([r['lag'][0] for r in ok]):>10.1f}")
+    print(f"  {'xt->steer corr at best lag':<42}{median([r['lag'][1] for r in ok]):>10.3f}")
+    print(f"  {'xt->steer corr at lag 0':<42}{median([r['lag'][2] for r in ok]):>10.3f}")
 
     print()
     print(f"=== {label}: STRAIGHT-ENTRY PROFILE (mean published |xt| vs metres after the corner) ===")
@@ -1047,7 +1047,7 @@ def print_report(results: list[dict[str, object]], label: str) -> None:
         for d, v, _n in r["exit_profile"]:
             all_bins.setdefault(round(d, 2), []).append(v)
     for d in sorted(all_bins):
-        print(f"  {d:>5.2f} m   {statistics.fmean(all_bins[d]):>7.4f}   (bags {len(all_bins[d])})")
+        print(f"  {d:>5.2f} m   {fmean(all_bins[d]):>7.4f}   (bags {len(all_bins[d])})")
 
     print()
     print(f"=== {label}: SPEED / CLEARANCE / LOOKAHEAD vs path_turn_ahead_rad ===")
@@ -1066,7 +1066,7 @@ def print_report(results: list[dict[str, object]], label: str) -> None:
         )
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("bag_dirs", type=Path, nargs="+")
     parser.add_argument("--label", default="SET")
@@ -1079,7 +1079,8 @@ def main() -> None:
         except Exception as exc:
             results.append({"run": bag.name, "error": repr(exc)})
     print_report(results, args.label)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

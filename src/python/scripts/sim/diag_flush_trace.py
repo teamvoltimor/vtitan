@@ -35,7 +35,7 @@ _DEFAULT_TICKS = 400
 _DEFAULT_DOWNSAMPLE = 10
 
 
-def main() -> None:
+def main() -> int:
     """Trace one failing start and print a downsampled per-tick table."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--section", default="south")
@@ -74,7 +74,7 @@ def main() -> None:
     def on_step(state: object, scan: object) -> None:
         i = len(rows)
         if i >= args.ticks:
-            return
+            return 0
         ranges, angles = scan.ranges_m, scan.angles_rad
         fwd = _forward_clearance(ranges, angles, tuning)
         left = _nearest_ray(ranges, angles, math.pi / 2)
@@ -98,7 +98,8 @@ def main() -> None:
         f"collided={result.collided} contactos={result.contact_count} "
         f"t={result.sim_time_s:.1f}s dist={result.distance_m:.2f}m",
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

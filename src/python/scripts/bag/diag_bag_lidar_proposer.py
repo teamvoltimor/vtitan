@@ -233,7 +233,7 @@ def camera_tracks(
     return associate(observations, args.assoc_radius)
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bags_parser(__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--min-range", type=float, default=0.30, help="Nearest cluster range considered.")
     parser.add_argument("--max-range", type=float, default=2.50, help="Farthest cluster range considered.")
@@ -374,6 +374,7 @@ def main() -> None:
     print(f"  measured corridor width:           {fmt_p50_p90(corridor_widths)}   (known truth: 1.00 m)")
     print(f"  wall dist, camera-CONFIRMED:       {fmt_p50_p90(wall_confirmed)}   (prior predicts ~{args.lattice_offset_m:.2f} m)")
     print(f"  wall dist, UNCONFIRMED:            {fmt_p50_p90(wall_unconfirmed)}")
+    return 0
 
 
 def _print_summary(totals: dict[str, int], all_leads: Sequence[float], args) -> None:  # noqa: ANN001
@@ -407,4 +408,4 @@ def _pct(n: int, d: int) -> str:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

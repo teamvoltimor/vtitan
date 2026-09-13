@@ -26,7 +26,7 @@ from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.start_conditions import CANONICAL_SECTION, assumed_start_conditions
 
 
-def main() -> None:
+def main() -> int:
     parser = create_bag_parser("TODO: add description")
     parser.add_argument("--origin", choices=("assumed", "measured"), default="measured")
     args = parser.parse_args()
@@ -36,7 +36,7 @@ def main() -> None:
     direction = settled_direction(rows)
     if direction is None or not posed:
         print("nothing to measure")
-        return
+        return 0
     section = CANONICAL_SECTION
     nx, ny = TRAVEL_DIRS[(section, direction)]
 
@@ -47,7 +47,7 @@ def main() -> None:
         origin = measured_start(rows)
         if origin is None:
             print("bag has no measured start")
-            return
+            return 0
 
     print(f"== {args.bag_dir.name}  direction={direction.value}  origin={args.origin} ({origin[0]:.3f}, {origin[1]:.3f})")
 
@@ -69,9 +69,10 @@ def main() -> None:
         prev_dot = dot
     if not out:
         print("no negative-to-non-negative flips at all")
-        return
+        return 0
     print_table(out, ["t", "label_at_flip", "in_start_section", "prev_dot", "dot", "pose"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

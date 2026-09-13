@@ -122,7 +122,7 @@ def analyse(bag_dir: Path, stride: int, bin_s: float, tmax: float | None) -> Non
         print(f"   {el:6.1f}  {txt}")
 
 
-def main() -> None:
+def main() -> int:
     p = create_bags_parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--stride", type=int, default=10)
     p.add_argument("--bin", type=float, default=1.0, dest="bin_s")
@@ -130,7 +130,8 @@ def main() -> None:
     a = p.parse_args()
     for d in a.bag_dirs:
         analyse(d, a.stride, a.bin_s, a.tmax)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
