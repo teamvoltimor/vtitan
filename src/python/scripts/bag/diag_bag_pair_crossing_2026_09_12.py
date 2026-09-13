@@ -1013,10 +1013,18 @@ def main() -> None:
         ])
     print_table(
         grows,
-        ["pair class", "n", "lane shift p50 m", "along-track p50 m", "R demanded p50 m", "R available p50 m", "FAIL%"],
+        ["pair class", "n", "lane shift p50 m", "along-track p50 m", "R demanded p50 m", "R floor p50 m", "FAIL%"],
     )
-    print("   R demanded is an S-curve bound, L^2/(4*dLat); R available is 0.053+1.86|v|.")
-    print("   A demand BELOW the available radius is comfortable; ABOVE it is impossible.")
+    print("   R demanded is an S-curve bound, L^2/(4*dLat); R floor is 0.053+1.86|v|,")
+    print("   the TIGHTEST arc the chassis can cut -- a floor, not an allowance.")
+    # This legend was inverted until 2026-09-13 ("a demand BELOW the available
+    # radius is comfortable"), which reads a gentle crossing as an impossible
+    # one. A LARGER demanded radius is a STRAIGHTER path: feasibility is
+    # demanded >= floor, because a chassis can always turn wider than its
+    # minimum and never tighter. The corner crossings demand 2.76 m p50 against
+    # a 0.35 m floor, so they are comfortable by ~8x, which is what refutes the
+    # corner-shear hypothesis rather than confirming it.
+    print("   FEASIBLE when demanded >= floor. Bigger demanded radius = gentler path.")
     print()
 
     print("== SLOT PAIRING: does the pair really sit AT the corner (A exit -> B entry)?")

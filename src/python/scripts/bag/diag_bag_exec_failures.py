@@ -73,6 +73,22 @@ def turn_radius_at(speed_mps: float | None) -> float:
     ``RobotSpecs.MIN_TURN_RADIUS_M`` (0.29) is this curve's value at ONE speed,
     about 0.118 m/s. Using the curve rather than the constant is what keeps the
     bound honest at the speeds a sign pass runs.
+
+    HONEST ONLY BELOW ~0.17 m/s, flagged 2026-09-13. The curve was measured over
+    33 bay bags between 0.02 and 0.16 m/s. Above that the bins fall to n=20-37
+    and go non-monotonic, and ``robot.toml`` states outright that
+    ``MIN_TURN_RADIUS_CAP_M = 0.35`` is a carried bound and NOT a measurement:
+    at full lock the chassis is slow by definition, because it slows down to
+    turn, so the saturation cannot be read from those bags at all.
+
+    The cap is also not a chassis limit in any geometric sense. This chassis is
+    COUNTER-PHASE four-wheel steering (``rear_steer_ratio = 1.0``) with 85 deg
+    of wheel travel per side, which halves the effective wheelbase to 0.095 m
+    and permits R = 0.095/tan(85 deg) = 0.008 m on paper. The measured 0.090 m
+    at creep is an 11x loss to slip and linkage compliance, real and confirmed
+    (the bay A/B reads 0.0093 m with the simulator's slide resolver and 0.0091
+    without it, so the 3.6x the curve buys over a constant floor is the
+    chassis). What is NOT known is where that loss lands at 0.26-0.50 m/s.
     """
     if speed_mps is None:
         return RobotSpecs.MIN_TURN_RADIUS_M
@@ -98,6 +114,15 @@ def classify(p: Pass) -> tuple[str, float, float]:
 
     ``commit_lateral_m`` is signed with positive meaning the legal side, so a
     negative value is the distance the chassis had to cross from scratch.
+
+    READ "no room" AS UNPROVEN, NOT AS IMPOSSIBLE. The bucket compares against
+    ``turn_radius_at``, whose cap is explicitly not measured above ~0.17 m/s
+    (see that docstring). Obstacles commits run above it, so for those passes
+    the verdict rests on an extrapolation plus a carried bound and is sound in
+    NEITHER direction. A 2026-09-13 reading of "the chassis leaves the corner
+    owing 0.421 m against 0.350 m available, impossible for the median" was
+    withdrawn for exactly this reason. Settling it needs a free-space radius
+    sweep at 0.26-0.50 m/s, which no bag in the corpus supplies.
     """
     needed = max(0.0, -p.commit_lateral_m)
     radius = turn_radius_at(p.commit_speed_mps)
