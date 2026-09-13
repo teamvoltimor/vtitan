@@ -42,12 +42,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
 from rclpy.serialization import deserialize_message  # noqa: E402
-from scripts.bag.diag_localizer_guard_replay import _scan_to_ranges_angles  # noqa: E402
-from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
-from scripts.common.stats import fmt_p50_p90, nearest_by_time  # noqa: E402
-from scripts.common.tables import print_table  # noqa: E402
 from sensor_msgs.msg import LaserScan  # noqa: E402
 from shared.config.constants.robot import RobotSpecs  # noqa: E402
+
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans, scan_to_ranges_angles  # noqa: E402
+from scripts.common.stats import fmt_p50_p90, nearest_by_time  # noqa: E402
+from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.control.controllers.collision_avoidance import CollisionAvoidanceController  # noqa: E402
 
@@ -89,7 +89,7 @@ def main() -> None:
         scan_times = [t for t, _ in scans]
 
         for rel, msg in scans:
-            ranges, angles = _scan_to_ranges_angles(deserialize_message(msg, LaserScan))
+            ranges, angles = scan_to_ranges_angles(deserialize_message(msg, LaserScan))
             sector = controller.rear_sector(ranges, angles)
             all_total += 1
             if sector.measured:
@@ -111,7 +111,7 @@ def main() -> None:
             reversing = _is_reverse(row)
             if reversing and not was_reversing:
                 msg = nearest_by_time(scans, scan_times, rel)
-                ranges, angles = _scan_to_ranges_angles(deserialize_message(msg, LaserScan))
+                ranges, angles = scan_to_ranges_angles(deserialize_message(msg, LaserScan))
                 sector = controller.rear_sector(ranges, angles)
                 rev_total += 1
                 if sector.measured:

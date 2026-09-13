@@ -69,8 +69,7 @@ from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 
 from scripts.bag.diag_bag_escape_sign_agreement import _collect, _sign
-from scripts.bag.diag_localizer_guard_replay import _scan_to_ranges_angles
-from scripts.common.bag_io import Topics, create_bags_parser, open_reader
+from scripts.common.bag_io import Topics, create_bags_parser, open_reader, scan_to_ranges_angles
 from scripts.common.tables import print_table
 from src.config.tuning_helpers import get_tuning
 from src.navigation.control.controllers import CollisionAvoidanceController
@@ -212,7 +211,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             i = _nearest(times, ep.t_entry)
             if i is None:
                 continue
-            ranges, angles = _scan_to_ranges_angles(deserialize_message(blobs[i], LaserScan))
+            ranges, angles = scan_to_ranges_angles(deserialize_message(blobs[i], LaserScan))
             lc, rc, lv, rv = _side_clearances(controller, ranges, angles)
             rec = {
                 "kind": ep.kind,

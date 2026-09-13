@@ -34,11 +34,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
 from shared.config.constants import TrafficSignSpecs  # noqa: E402
 from shared.config.navigation_tuning import NavigationTuning  # noqa: E402
 from shared.domain.enums import Direction, Section  # noqa: E402
 from shared.domain.models import SignColor  # noqa: E402
+
+from scripts.common.scenarios import scenario_paths  # noqa: E402
+from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
 from src.navigation.geometry import chassis_half_diagonal_m  # noqa: E402
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes  # noqa: E402
 from src.navigation.planning.sign_router import signs_from_metadata  # noqa: E402
@@ -141,7 +143,7 @@ def main() -> None:
     if directory is None:
         print("Pass --corpus or --scenarios-dir; the committed fixtures are too few to read a cell from.")
         return
-    files = sorted(Path(directory).glob("*_metadata.json"))
+    files = scenario_paths(Path(directory))
     if not files:
         print(f"NO SCENARIOS under {directory} -- the corpus is gitignored, run `task gen:corpus`.")
         return

@@ -48,13 +48,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
 from rclpy.serialization import deserialize_message  # noqa: E402
-from scripts.bag.diag_bag_pass_side import _load, _scan_to_ranges_angles  # noqa: E402
-from scripts.common.bag_io import create_bags_parser, decode_detections, settled_direction  # noqa: E402
-from scripts.common.stats import nearest_by_time  # noqa: E402
-from scripts.common.tables import print_table  # noqa: E402
 from sensor_msgs.msg import LaserScan  # noqa: E402
 from shared.domain.enums import Direction  # noqa: E402
-from shared.domain.models import Pose, SignColor, Waypoint  # noqa: E402
+from shared.domain.models import Pose, SignColor  # noqa: E402
+
+from scripts.common.bag_io import (  # noqa: E402
+    create_bags_parser,
+    decode_detections,
+    read_vision_rows_and_scans,
+    scan_to_ranges_angles,
+    settled_direction,
+)
+from scripts.common.stats import nearest_by_time  # noqa: E402
+from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import get_tuning, tuning_with_overrides  # noqa: E402
 from src.navigation.planning.sign_discovery import detection_to_observation  # noqa: E402
 from src.navigation.planning.sign_router import (  # noqa: E402
@@ -86,7 +92,7 @@ def blockers_for_run(rows, frames, scans, tuning) -> dict[str, int]:  # noqa: AN
         pose = Pose(x=d.pose_x, y=d.pose_y, yaw=d.pose_yaw)
         ranges = angles = None
         if scan_times:
-            ranges, angles = _scan_to_ranges_angles(
+            ranges, angles = scan_to_ranges_angles(
                 deserialize_message(nearest_by_time(scans, scan_times, rel), LaserScan)
             )
         obs = []
@@ -163,7 +169,7 @@ def main() -> None:
     skipped = 0
     for bag in args.bag_dirs:
         try:
-            rows, frames, scans = _load(Path(bag))
+            rows, frames, scans = read_vision_rows_and_scans(Path(bag))
         except (RuntimeError, OSError, ValueError):
             skipped += 1
             continue

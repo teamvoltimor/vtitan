@@ -123,8 +123,8 @@ from shared.domain.enums import Direction
 from scripts.bag.diag_bag_exec_failures import reachable_lateral_m, turn_radius_at
 from scripts.bag.diag_bag_pass_geometry import classify_lattice
 from scripts.bag.diag_bag_pass_pairs import CCW_NEXT, CW_NEXT
-from scripts.bag.diag_bag_pass_side import _load, _passes
-from scripts.common.bag_io import create_bags_parser, settled_direction
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans, settled_direction
+from scripts.common.pass_side import collect_passes
 from scripts.common.tables import print_table
 from src.config.tuning_helpers import get_tuning
 
@@ -279,8 +279,7 @@ def _dual_verdicts(rows, frames, scans, tuning) -> list[tuple[str, str, str, boo
     from shared.domain.enums import Axis, Section
     from shared.domain.models import Pose, SignColor
 
-    from scripts.bag.diag_localizer_guard_replay import _scan_to_ranges_angles
-    from scripts.common.bag_io import decode_detections
+    from scripts.common.bag_io import decode_detections, scan_to_ranges_angles
     from scripts.common.stats import nearest_by_time
     from src.navigation.planning.sign_discovery import detection_to_observation
     from src.navigation.planning.sign_router import SignRouter
@@ -299,7 +298,7 @@ def _dual_verdicts(rows, frames, scans, tuning) -> list[tuple[str, str, str, boo
         pose = Pose(x=d.pose_x, y=d.pose_y, yaw=d.pose_yaw)
         ranges = angles = None
         if scan_times:
-            ranges, angles = _scan_to_ranges_angles(
+            ranges, angles = scan_to_ranges_angles(
                 deserialize_message(nearest_by_time(scans, scan_times, rel), LaserScan)
             )
         obs = []
@@ -381,14 +380,14 @@ def _dual_verdicts(rows, frames, scans, tuning) -> list[tuple[str, str, str, boo
 def _one_bag(arg: tuple[str, str]) -> tuple[str, list[Rec], str | None]:
     bag, group = arg
     try:
-        rows, frames, scans = _load(Path(bag))
+        rows, frames, scans = read_vision_rows_and_scans(Path(bag))
     except (RuntimeError, OSError, ValueError) as exc:
         return Path(bag).name, [], type(exc).__name__
     tuning = get_tuning(None)
     run = Path(bag).name.replace("run_", "")
     direction = str(settled_direction(rows) or Direction.COUNTERCLOCKWISE)
     laps = max((d.laps_completed for _, d in rows), default=0)
-    passes, _peak = _passes(run, rows, frames, scans, tuning)
+    passes, _peak = collect_passes(run, rows, frames, scans, tuning)
     duals = _dual_verdicts(rows, frames, scans, tuning)
     out: list[Rec] = []
     for i, p in enumerate(passes):

@@ -59,11 +59,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
-from scripts.bag.diag_bag_pass_side import Pass, _load, _passes  # noqa: E402
-from scripts.common.bag_io import create_bags_parser  # noqa: E402
+from shared.config.constants.robot import RobotSpecs  # noqa: E402
+
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
+from scripts.common.pass_side import Pass, collect_passes  # noqa: E402
 from scripts.common.stats import fmt_p50_p90, percentile  # noqa: E402
 from scripts.common.tables import print_table  # noqa: E402
-from shared.config.constants.robot import RobotSpecs  # noqa: E402
 from src.config.tuning_helpers import get_tuning, tuning_with_overrides  # noqa: E402
 
 
@@ -154,12 +155,12 @@ def main() -> None:
     passes: list[Pass] = []
     for bag in args.bag_dirs:
         try:
-            rows, frames, scans = _load(Path(bag))
+            rows, frames, scans = read_vision_rows_and_scans(Path(bag))
         except (RuntimeError, OSError, ValueError) as exc:
             skipped.append(f"{Path(bag).name} ({type(exc).__name__})")
             continue
         run = Path(bag).name.replace("run_", "")
-        found, _peak = _passes(run, rows, frames, scans, tuning)
+        found, _peak = collect_passes(run, rows, frames, scans, tuning)
         passes.extend(found)
 
     if skipped:

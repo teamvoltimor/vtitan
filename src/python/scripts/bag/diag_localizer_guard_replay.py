@@ -39,21 +39,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
-from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
-from shared.domain.enums import Section
 
-from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
+from scripts.common.bag_io import (
+    create_bags_parser,
+    final_walls,
+    read_posed_bag,
+    scan_to_ranges_angles,
+)
 from scripts.common.stats import nearest_by_time
 from src.navigation.localization import LidarLocalizer
-from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
 if TYPE_CHECKING:
-    from shared.domain.models import NavigatorDebugSnapshot
+    from sensor_msgs.msg import LaserScan
 
-_LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
+    from src.navigation.track_geometry import TrackWalls
+
 # Real motion between LIDAR-refresh ticks tops out well under this even during
 # a K-turn; anything faster is not real motion, it is the search snapping to a
 # wrong candidate. 2x MAX_SPEED_MPS leaves margin for IMU/encoder noise in the
@@ -64,67 +66,6 @@ _IMPOSSIBLE_SPEED_MPS = 2.0 * RobotSpecs.MAX_SPEED_MPS
 _DEFAULT_MIN_DISTINCTIVENESS = 0.02
 _DEFAULT_COST_FLOOR = 3.0
 _GRID_SEARCH_RADIUS_SCALE = 2.0
-
-
-def _read_bag(bag_dir: Path) -> tuple[list[tuple[int, NavigatorDebugSnapshot]], list[tuple[int, LaserScan]]]:
-    """Return (nav_debug snapshots, scans), each as (bag-time-ns, msg), time-ordered.
-
-    Scans are kept as raw messages, decoded lazily only for the handful of
-    jump ticks that actually need them (via _scan_to_ranges_angles below) --
-    a bag can carry thousands of /scan messages and only a few matter here.
-    """
-    reader = open_reader(bag_dir)
-    nav_debug: list[tuple[int, NavigatorDebugSnapshot]] = []
-    scans: list[tuple[int, LaserScan]] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if topic == Topics.NAV_DEBUG:
-            snapshot = decode_nav_debug(data)
-            if snapshot.pose_x is not None and snapshot.pose_y is not None:
-                nav_debug.append((t, snapshot))
-        elif topic == Topics.SCAN:
-            scans.append((t, deserialize_message(data, LaserScan)))
-    return nav_debug, scans
-
-
-def _scan_to_ranges_angles(msg: LaserScan) -> tuple[np.ndarray, np.ndarray]:
-    """Mirror ros2_hardware_gateway._lidar_callback's exact preprocessing.
-
-    The raw Slamtec driver emits NaN/inf for no-return rays. Production
-    replaces both with LIDAR_MAX_RANGE and clips before the localizer ever
-    sees the scan -- skipping that step (as an earlier version of this script
-    did) leaves ~20% of rays reading literal inf, which inflates cost
-    uniformly across every tick, jump or not, and makes the ambiguity guard
-    look untrustworthy when the real problem is unfiltered input.
-    """
-    raw = np.asarray(msg.ranges, dtype=float)
-    raw[~np.isfinite(raw)] = RobotSpecs.LIDAR_MAX_RANGE
-    raw = np.clip(raw, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
-    angles = np.linspace(msg.angle_min, msg.angle_max, len(raw)) + _LIDAR_YAW_OFFSET_RAD
-    return raw, angles
-
-
-def _final_walls(nav_debug: list[tuple[int, NavigatorDebugSnapshot]]) -> TrackWalls | None:
-    """Ground-truth geometry for the whole run: the physical corridor widths
-    never change mid-run, only the robot's blind-mode belief about them does
-    (see CorridorWidthEstimator) -- so the LAST snapshot's belief, once
-    evidence has accumulated over the whole run, is a far better stand-in for
-    the true walls than any single tick's (possibly still-converging) belief.
-    Using each tick's own belief was tried first and produced universally
-    inflated cost even on non-jump ticks, because early-run geometry
-    reconstructed from an unconverged belief doesn't match the track the
-    scan was actually taken against.
-    """
-    for _, snapshot in reversed(nav_debug):
-        widths = {
-            Section.NORTH: snapshot.belief_north_m,
-            Section.SOUTH: snapshot.belief_south_m,
-            Section.EAST: snapshot.belief_east_m,
-            Section.WEST: snapshot.belief_west_m,
-        }
-        if all(w is not None for w in widths.values()):
-            return TrackWalls(corridor_geometry_from_widths(widths))
-    return None
 
 
 class GridSearchResult(NamedTuple):
@@ -173,14 +114,14 @@ def _grid_search_costs(
 
 
 def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None:
-    nav_debug, scans = _read_bag(bag_dir)
+    nav_debug, scans = read_posed_bag(bag_dir)
     if len(nav_debug) < 2 or not scans:
         print(f"{bag_dir.name}: not enough data (nav_debug={len(nav_debug)}, scan={len(scans)})")
         return
 
     print(f"\n== {bag_dir.name} == ({len(nav_debug)} nav_debug ticks, {len(scans)} scans)")
 
-    walls = _final_walls(nav_debug)
+    walls = final_walls(nav_debug)
     if walls is None:
         print("  no belief widths recorded in this run, skipping replay")
         return
@@ -202,7 +143,7 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
         jump_count += 1
         # scans was confirmed non-empty above, so this always finds a match.
         scan: LaserScan = nearest_by_time(scans, scan_times, t1)
-        ranges, angles = _scan_to_ranges_angles(scan)
+        ranges, angles = scan_to_ranges_angles(scan)
         prior_xy = (prev.pose_x, prev.pose_y)
         _, _, best_cost, second_cost = _grid_search_costs(walls, prior_xy, cur.pose_yaw, ranges, angles)
 

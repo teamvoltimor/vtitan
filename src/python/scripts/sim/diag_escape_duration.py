@@ -31,7 +31,6 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from pathlib import Path
@@ -39,9 +38,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401  (imported first: models <-> enums cycle)
-from shared.domain.models import ScenarioMetadata
+from shared.config.constants import CompetitionSpecs, RobotSpecs
 
 from scripts.common.diag_base import print_pool_progress, resolve_jobs, run_pool
+from scripts.common.scenarios import load_scenario, scenario_paths
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.config.tuning_helpers import tuning_with_overrides
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -51,8 +51,8 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 # worker's navigator logs still flood the output.
 logging.disable(logging.CRITICAL)
 
-ROUND_TIME_LIMIT_S = 180.0
-TURN_RADIUS_FLOOR_M = 0.29
+ROUND_TIME_LIMIT_S = CompetitionSpecs.ROUND_TIME_LIMIT_S
+TURN_RADIUS_FLOOR_M = RobotSpecs.MIN_TURN_RADIUS_M
 """The MEASURED chassis floor. Forced on -- see the module docstring."""
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
@@ -66,7 +66,7 @@ def run_case(payload: tuple[str, int, float, int]) -> tuple[float, bool, bool, b
     awkward to send.
     """
     path, seed, max_escape_s, max_steps = payload
-    metadata = ScenarioMetadata.model_validate(json.loads(Path(path).read_text()))
+    metadata = load_scenario(Path(path))
     tuning = tuning_with_overrides({"MIN_TURN_RADIUS_M": TURN_RADIUS_FLOOR_M}, group="simulation")
     tuning = tuning_with_overrides(
         {
@@ -107,7 +107,7 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=OBSTACLES_MAX_STEPS)
     args = parser.parse_args()
 
-    paths = sorted(_FIXTURES.glob("*_metadata.json"))
+    paths = scenario_paths(_FIXTURES)
     if args.limit:
         paths = paths[: args.limit]
     payloads = [

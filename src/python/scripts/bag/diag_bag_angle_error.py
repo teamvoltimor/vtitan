@@ -62,6 +62,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.constants import RobotSpecs
+
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
 from scripts.common.stats import percentile
 
@@ -71,7 +73,7 @@ CRAWL_RAD = 1.0
 NEAR_SATURATION = 0.9
 """``|commanded_steering_norm|`` at or above this counts as saturated."""
 
-MIN_TURN_RADIUS_M = 0.29
+MIN_TURN_RADIUS_M = RobotSpecs.MIN_TURN_RADIUS_M
 """Measured saturation radius of the chassis (``RobotSpecs.MIN_TURN_RADIUS_M``).
 
 An aim point whose pure-pursuit circle is tighter than this cannot be driven,

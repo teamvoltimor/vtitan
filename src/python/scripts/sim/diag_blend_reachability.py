@@ -31,7 +31,6 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from collections import Counter
@@ -41,8 +40,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401  (imported first: models <-> enums cycle)
 from shared.domain.enums import ManeuverType
-from shared.domain.models import ScenarioMetadata
 
+from scripts.common.scenarios import load_scenario, scenario_paths
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.config.tuning_helpers import tuning_with_overrides
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -61,13 +60,13 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=OBSTACLES_MAX_STEPS)
     args = parser.parse_args()
 
-    paths = sorted(_FIXTURES.glob("*_metadata.json"))[: args.scenarios]
+    paths = scenario_paths(_FIXTURES)[: args.scenarios]
     tuning = tuning_with_overrides({"SIDE_CORRECTION_BLENDS": True}, group="escape")
 
     totals = Counter()
     for path in paths:
         for seed in range(args.seeds):
-            metadata = ScenarioMetadata.model_validate(json.loads(path.read_text()))
+            metadata = load_scenario(path)
             sim = ScenarioSimulator(
                 metadata,
                 num_laps=3,

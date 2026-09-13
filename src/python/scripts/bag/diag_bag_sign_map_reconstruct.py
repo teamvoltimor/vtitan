@@ -64,11 +64,11 @@ from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.domain.models import Pose
 
-from scripts.bag.diag_localizer_guard_replay import _scan_to_ranges_angles
 from scripts.common.bag_io import (
     create_bags_parser,
     decode_detections,
     read_vision_rows_and_scans,
+    scan_to_ranges_angles,
     settled_direction,
 )
 from scripts.common.stats import nearest_by_time
@@ -204,7 +204,7 @@ def _replay(run: str, rows, frames, scans, tuning, arm: str, latency: float) -> 
 
         ranges = angles = None
         if scan_times:
-            ranges, angles = _scan_to_ranges_angles(
+            ranges, angles = scan_to_ranges_angles(
                 deserialize_message(nearest_by_time(scans, scan_times, rel), LaserScan)
             )
 

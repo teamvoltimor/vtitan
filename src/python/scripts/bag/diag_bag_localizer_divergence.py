@@ -30,8 +30,7 @@ import numpy as np
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 
-from scripts.bag.diag_localizer_guard_replay import _final_walls, _read_bag, _scan_to_ranges_angles
-from scripts.common.bag_io import create_bags_parser
+from scripts.common.bag_io import create_bags_parser, final_walls, read_posed_bag, scan_to_ranges_angles
 from scripts.common.stats import nearest_by_time
 from src.navigation.localization import LidarLocalizer
 
@@ -54,11 +53,11 @@ def _off_track_beam_fraction(walls, x, y, yaw, ranges, angles) -> tuple[float, i
 
 
 def analyse(bag_dir: Path, stride: int, bin_s: float, tmax: float | None) -> None:
-    nav_debug, scans = _read_bag(bag_dir)
+    nav_debug, scans = read_posed_bag(bag_dir)
     if len(nav_debug) < 2 or not scans:
         print(f"{bag_dir.name}: NOT ENOUGH DATA nav_debug={len(nav_debug)} scan={len(scans)}")
         return
-    walls = _final_walls(nav_debug)
+    walls = final_walls(nav_debug)
     if walls is None:
         print(f"{bag_dir.name}: no converged belief widths, skipping")
         return
@@ -78,7 +77,7 @@ def analyse(bag_dir: Path, stride: int, bin_s: float, tmax: float | None) -> Non
         if s.pose_yaw is None:
             continue
         scan = nearest_by_time(scans, scan_times, t)
-        ranges, angles = _scan_to_ranges_angles(scan)
+        ranges, angles = scan_to_ranges_angles(scan)
         frac, n = _off_track_beam_fraction(walls, s.pose_x, s.pose_y, s.pose_yaw, ranges, angles)
         cost = localizer._fit_cost(s.pose_x, s.pose_y, s.pose_yaw, ranges, angles)  # noqa: SLF001
         ang = math.degrees(math.atan2(s.pose_y - _MAT_CENTRE[1], s.pose_x - _MAT_CENTRE[0]))

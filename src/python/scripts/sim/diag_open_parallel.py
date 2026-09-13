@@ -37,10 +37,11 @@ from scripts.common.diag_base import (
     resolve_jobs,
     run_pool,
     select_cases,
+    summarise,
+    verdict,
 )
 from scripts.common.open_cases import SIDES, case_space
 from scripts.common.tables import print_table
-from scripts.sim.diag_open_exhaustive import _summarise, _verdict
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -84,7 +85,7 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
     result = ScenarioSimulator(meta, num_laps=laps, tuning=tuning, seed=index, blind=True).run()
     return _CaseResult(
         index=index,
-        verdict=_verdict(result),
+        verdict=verdict(result),
         section=section.value,
         direction=direction.value,
         cell=cell,
@@ -101,11 +102,11 @@ def _report_verdict_summary(
 ) -> None:
     ok = by_verdict.get("ok", 0)
     print(f"\n{ok}/{total} ok ({ok / total:.0%}) in {elapsed:.0f}s wall", flush=True)
-    for verdict, count in by_verdict.most_common():
-        if verdict != "ok":
-            print(f"  {verdict:<12} {count}", flush=True)
+    for label, count in by_verdict.most_common():
+        if label != "ok":
+            print(f"  {label:<12} {count}", flush=True)
     for title, counts in dims.items():
-        _summarise(title, counts)
+        summarise(title, counts)
 
 
 def main() -> None:

@@ -69,11 +69,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
-from scripts.bag.diag_bag_pass_geometry import classify_lattice  # noqa: E402
-from scripts.bag.diag_bag_pass_side import _load, _passes  # noqa: E402
-from scripts.common.bag_io import create_bags_parser, settled_direction  # noqa: E402
-from scripts.common.tables import print_table  # noqa: E402
 from shared.domain.enums import Direction  # noqa: E402
+
+from scripts.bag.diag_bag_pass_geometry import classify_lattice  # noqa: E402
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans, settled_direction  # noqa: E402
+from scripts.common.pass_side import collect_passes  # noqa: E402
+from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 
 # The ring, as travelled. Each section is named by the wall its pillars line up
@@ -111,13 +112,13 @@ def _verdict(p) -> str:  # noqa: ANN001
 
 def _one_bag(bag: str) -> tuple[str, list[Rec], str | None]:
     try:
-        rows, frames, scans = _load(Path(bag))
+        rows, frames, scans = read_vision_rows_and_scans(Path(bag))
     except (RuntimeError, OSError, ValueError) as exc:
         return Path(bag).name, [], type(exc).__name__
     tuning = get_tuning(None)
     run = Path(bag).name.replace("run_", "")
     direction = settled_direction(rows) or Direction.COUNTERCLOCKWISE
-    passes, peak = _passes(run, rows, frames, scans, tuning)
+    passes, peak = collect_passes(run, rows, frames, scans, tuning)
     out: list[Rec] = []
     for i, p in enumerate(passes):
         cell = classify_lattice(p.sign_x, p.sign_y)

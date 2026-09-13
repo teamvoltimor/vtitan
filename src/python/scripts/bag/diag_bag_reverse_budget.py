@@ -62,11 +62,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
 from rclpy.serialization import deserialize_message  # noqa: E402
 from sensor_msgs.msg import LaserScan  # noqa: E402
+from shared.config.constants import CompetitionSpecs  # noqa: E402
 from shared.domain.enums import Axis  # noqa: E402
 
-from scripts.bag.diag_bag_cross_attempt import _classify, _replay  # noqa: E402
-from scripts.bag.diag_localizer_guard_replay import _scan_to_ranges_angles  # noqa: E402
-from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans, scan_to_ranges_angles  # noqa: E402
+from scripts.common.cross_attempt import classify, replay  # noqa: E402
 from scripts.common.stats import nearest_by_time  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_router.routing import pass_side_lateral_axis  # noqa: E402
@@ -140,7 +140,7 @@ def _commit_state(p, direction):  # noqa: ANN001,ANN201
 
 
 def _price(p, direction, rows_trail, scans, scan_times, tuning, margin, trail_len) -> Budget | None:  # noqa: ANN001,PLR0913
-    row = _classify(p, direction, 0.15)
+    row = classify(p, direction, 0.15)
     state = _commit_state(p, direction)
     if row is None or state is None:
         return None
@@ -168,7 +168,7 @@ def _price(p, direction, rows_trail, scans, scan_times, tuning, margin, trail_le
         trail_m = trail_clearance_behind([(x, y, yaw) for _, x, y, yaw in window], tx, ty, tyaw)
     rear_m = None
     if scan_times:
-        ranges, angles = _scan_to_ranges_angles(
+        ranges, angles = scan_to_ranges_angles(
             deserialize_message(nearest_by_time(scans, scan_times, first.rel), LaserScan)
         )
         rear_m = _rear_clearance(ranges, angles, tuning)
@@ -289,7 +289,7 @@ def main() -> None:  # noqa: PLR0915
             continue
         read += 1
         run = Path(bag).name.replace("run_", "")
-        pillars, direction = _replay(run, data, frames, scans, tuning, args.per_lap)
+        pillars, direction = replay(run, data, frames, scans, tuning, args.per_lap)
         trail = _trail_points(data, esc.POSE_TRAIL_MIN_STEP_M)
         scan_times = [t for t, _ in scans]
         run_span[run] = (data[-1][0] - data[0][0]) if data else 0.0
@@ -377,7 +377,7 @@ def main() -> None:  # noqa: PLR0915
         print(
             f"   added time/run: mean {statistics.fmean(costs):.1f} s"
             f"  median {statistics.median(costs):.1f} s  max {max(costs):.1f} s"
-            f"   (round limit 180 s)"
+            f"   (round limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f} s)"
         )
     print()
 

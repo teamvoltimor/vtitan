@@ -59,10 +59,10 @@ from scripts.common.diag_base import (
     print_pool_progress,
     resolve_jobs,
     run_pool,
+    verdict,
 )
 from scripts.common.open_cases import SIDES, case_space
 from scripts.common.tables import print_table
-from scripts.sim.diag_open_exhaustive import _verdict
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import CONTROL_DT, ScenarioSimulator
 
@@ -263,7 +263,7 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
 
     return _CaseResult(
         index=index,
-        verdict=_verdict(result),
+        verdict=verdict(result),
         stuck=result.stuck,
         sim_time_s=result.sim_time_s,
         legs=_legs(tracer, _corner_sequence(widths_mm, section, direction)),

@@ -49,10 +49,10 @@ from scripts.common.diag_base import (
     print_pool_progress,
     resolve_jobs,
     run_pool,
+    verdict,
 )
 from scripts.common.open_cases import SIDES, WIDE_MM, balanced_128_cases, case_space
 from scripts.common.tables import print_table
-from scripts.sim.diag_open_exhaustive import _verdict
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -136,7 +136,7 @@ def _run_case(
         finished_in_section = corridor_for_position(final_x, final_y) is section
     return _ArmResult(
         index=index,
-        verdict=_verdict(result),
+        verdict=verdict(result),
         laps=result.laps_completed,
         sim_time_s=result.sim_time_s,
         finished_in_section=finished_in_section,

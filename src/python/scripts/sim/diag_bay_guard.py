@@ -47,8 +47,8 @@ from typing import TYPE_CHECKING
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs  # noqa: E402
-from shared.domain.models import ScenarioMetadata  # noqa: E402
 
+from scripts.common.scenarios import scenario_from_mapping, scenario_paths  # noqa: E402
 from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
 from scripts.sim.diag_bay_start import (  # noqa: E402
     _COMMITTED_DIR,
@@ -183,7 +183,7 @@ def _run_one(
             {"NO_PROGRESS_WINDOW_S": args.no_progress_window}, group="simulation", base=tuning
         )
     sim = ScenarioSimulator(
-        ScenarioMetadata.model_validate(raw),
+        scenario_from_mapping(raw),
         num_laps=args.laps,
         tuning=tuning,
         seed=raw["scenario_id"],
@@ -379,7 +379,7 @@ def main() -> None:
     args = parser.parse_args()
 
     directory = Path(args.scenarios_dir) if args.scenarios_dir else (CORPUS_DIR if args.corpus else _COMMITTED_DIR)
-    paths = sorted(directory.glob("*_metadata.json"))
+    paths = scenario_paths(directory)
     if not paths:
         parser.error(f"no *_metadata.json under {directory}")
     if args.limit:

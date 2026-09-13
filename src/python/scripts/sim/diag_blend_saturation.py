@@ -31,7 +31,6 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from pathlib import Path
@@ -40,9 +39,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401  (imported first: models <-> enums cycle)
 from shared.config.constants import RobotSpecs
-from shared.domain.models import ScenarioMetadata
 
 from scripts.common.diag_base import print_pool_progress, resolve_jobs, run_pool
+from scripts.common.scenarios import load_scenario, scenario_paths
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.config.tuning_helpers import tuning_with_overrides
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -59,7 +58,7 @@ _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenar
 def run_case(payload: tuple[str, int, bool, int]) -> tuple[bool, int, int, float, int, int]:
     """Run one (scenario, seed, flag) case and return wheel statistics."""
     path, seed, value, max_steps = payload
-    metadata = ScenarioMetadata.model_validate(json.loads(Path(path).read_text()))
+    metadata = load_scenario(Path(path))
     tuning = tuning_with_overrides({"SIDE_CORRECTION_BLENDS": value}, group="escape")
 
     limit = RobotSpecs.MAX_STEERING_ANGLE * SAT_FRAC
@@ -99,7 +98,7 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=OBSTACLES_MAX_STEPS)
     args = parser.parse_args()
 
-    paths = sorted(_FIXTURES.glob("*_metadata.json"))
+    paths = scenario_paths(_FIXTURES)
     if args.limit:
         paths = paths[: args.limit]
     arms = (False, True)

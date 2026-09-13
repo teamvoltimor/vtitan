@@ -39,6 +39,7 @@ from shared.config.constants import CompetitionSpecs
 from shared.domain.enums import ScenarioType
 from shared.domain.models import ScenarioMetadata
 
+from scripts.common.scenarios import load_scenario
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.simulation.scenario_result import SimResult
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -116,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run one scenario and print its result as JSON. Returns the process exit code."""
     args = _parse_args(argv)
     try:
-        metadata = ScenarioMetadata.model_validate(json.loads(args.metadata.read_text()))
+        metadata = load_scenario(args.metadata)
         laps = args.laps if args.laps is not None else _default_laps(metadata)
         result = ScenarioSimulator(
             metadata,

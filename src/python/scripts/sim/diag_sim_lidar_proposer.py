@@ -49,7 +49,6 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import math
 import sys
@@ -72,6 +71,7 @@ from scripts.common.lidar_clusters import (
     wall_distance,
     width_of,
 )
+from scripts.common.scenarios import load_scenario, scenario_paths
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from scripts.common.stats import fmt_p50_p90
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -121,7 +121,7 @@ def score_scenario(payload: tuple[str, argparse.Namespace]) -> dict | None:
     """
     path_str, args = payload
     path = Path(path_str)
-    metadata = ScenarioMetadata.model_validate(json.loads(path.read_text()))
+    metadata = load_scenario(path)
     signs = [(s.x, s.y) for s in metadata.sign_positions]
     if not signs:
         return None
@@ -181,7 +181,7 @@ def main() -> None:
     parser.add_argument("--lattice-tol-m", type=float, default=0.12)
     args = parser.parse_args()
 
-    paths = sorted(_FIXTURES.glob("*_metadata.json"))
+    paths = scenario_paths(_FIXTURES)
     if args.limit:
         paths = paths[: args.limit]
 

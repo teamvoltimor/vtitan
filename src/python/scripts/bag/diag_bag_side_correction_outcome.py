@@ -40,8 +40,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.bag.diag_bag_pass_side import _load, _passes  # noqa: E402
-from scripts.common.bag_io import settled_direction  # noqa: E402
+from scripts.common.bag_io import read_vision_rows_and_scans, settled_direction  # noqa: E402
+from scripts.common.pass_side import collect_passes  # noqa: E402
 from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 
@@ -67,13 +67,13 @@ def main() -> None:
 
     for bag in bags:
         try:
-            rows, frames, scans = _load(bag)
+            rows, frames, scans = read_vision_rows_and_scans(bag)
         except (RuntimeError, OSError, ValueError) as exc:
             skipped.append((bag.name, type(exc).__name__))
             continue
         direction = settled_direction(rows)
         run = bag.name.replace("run_", "")
-        passes, _peak = _passes(run, rows, frames, scans, tuning)
+        passes, _peak = collect_passes(run, rows, frames, scans, tuning)
 
         for p in passes:
             sc_ticks = p.maneuver_ticks.get(SIDE_CORRECTION, 0)
@@ -150,7 +150,7 @@ def main() -> None:
     sc_in = sc_out = kt_in = kt_out = 0
     for bag in bags:
         try:
-            rows, _frames, _scans = _load(bag)
+            rows, _frames, _scans = read_vision_rows_and_scans(bag)
         except (RuntimeError, OSError, ValueError):
             continue
         for _t, s in rows:

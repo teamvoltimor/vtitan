@@ -58,6 +58,7 @@ import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -67,8 +68,8 @@ from shared.config.constants.robot import RobotSpecs  # noqa: E402
 from shared.domain.enums import Axis, Direction, Section  # noqa: E402
 from shared.domain.models import SignColor, Waypoint  # noqa: E402
 
-from scripts.bag.diag_bag_cross_attempt import Pillar, _replay  # noqa: E402
 from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
+from scripts.common.cross_attempt import replay  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_discovery import SignSpec  # noqa: E402
 from src.navigation.planning.sign_lane import (  # noqa: E402
@@ -80,6 +81,9 @@ from src.navigation.planning.sign_lane import (  # noqa: E402
 from src.navigation.planning.sign_router.routing import clamp_lateral, pass_side_lateral_axis  # noqa: E402
 from src.navigation.planning.waypoints.generation import calculate_waypoints  # noqa: E402
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths  # noqa: E402
+
+if TYPE_CHECKING:
+    from scripts.common.cross_attempt import Pillar
 
 # The chassis half-diagonal the clamp is built from. Imported rather than
 # retyped so a robot.toml edit moves this reading with it.
@@ -343,7 +347,7 @@ def main() -> None:
             skipped += 1
             continue
         read += 1
-        pillars, direction = _replay(Path(bag).name.replace("run_", ""), data, frames, scans, tuning, args.per_lap)
+        pillars, direction = replay(Path(bag).name.replace("run_", ""), data, frames, scans, tuning, args.per_lap)
         if direction not in bases:
             bases[direction] = _base_path(direction, tuning)
         for p in pillars:

@@ -28,21 +28,27 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import rosbag2_py
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
+from shared.domain.enums import Section
 from shared.domain.models import Detection, NavigatorDebugSnapshot, SignColor
 from std_msgs.msg import Float32, String
 
 from src.navigation.ports import LidarScan
+from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.domain.enums import Direction
+
+LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
+"""Mount-rotation correction production applies to every LIDAR yaw."""
 
 
 class Topics:
@@ -94,6 +100,26 @@ def decode_scan(
         for i in range(n)
     ]
     return LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(angles))
+
+
+def scan_to_ranges_angles(
+    msg: LaserScan,
+    yaw_offset_rad: float = LIDAR_YAW_OFFSET_RAD,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Decode a LaserScan to robot-frame ``(ranges, angles)`` numpy arrays.
+
+    Mirrors ``ros2_hardware_gateway._lidar_callback``'s exact preprocessing:
+    the raw Slamtec driver emits NaN/inf for no-return rays, and production
+    replaces both with `LIDAR_MAX_RANGE` and clips before the localizer sees
+    the scan. Skipping that step leaves ~20% of rays reading literal inf and
+    inflates cost uniformly across every tick, which makes an ambiguity guard
+    look untrustworthy when the real problem is unfiltered input.
+    """
+    raw = np.asarray(msg.ranges, dtype=float)
+    raw[~np.isfinite(raw)] = RobotSpecs.LIDAR_MAX_RANGE
+    raw = np.clip(raw, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
+    angles = np.linspace(msg.angle_min, msg.angle_max, len(raw)) + yaw_offset_rad
+    return raw, angles
 
 
 def decode_nav_debug(data: bytes) -> NavigatorDebugSnapshot:
@@ -286,6 +312,57 @@ def read_bag(
         elif topic == Topics.NAV_DEBUG:
             rows.append((rel, decode_nav_debug(data)))
     return scans, rows
+
+
+def read_posed_bag(
+    bag_dir: Path,
+) -> tuple[list[tuple[int, NavigatorDebugSnapshot]], list[tuple[int, LaserScan]]]:
+    """Replay a bag once, returning posed snapshots and raw scans in bag-time ns.
+
+    Unlike :func:`read_bag`, snapshots without a fix are dropped and scans stay
+    raw ``LaserScan`` messages, decoded lazily only for the handful of ticks a
+    caller actually needs (a bag can carry thousands of /scan messages and a
+    localizer replay looks at a few).
+
+    Split out of ``diag_localizer_guard_replay`` where it was a private helper
+    imported by a dozen scripts; a private cross-script import is a hidden
+    library, not an API.
+    """
+    reader = open_reader(bag_dir)
+    snapshots: list[tuple[int, NavigatorDebugSnapshot]] = []
+    scans: list[tuple[int, LaserScan]] = []
+    while reader.has_next():
+        topic, data, t = reader.read_next()
+        if topic == Topics.NAV_DEBUG:
+            snapshot = decode_nav_debug(data)
+            if snapshot.pose_x is not None and snapshot.pose_y is not None:
+                snapshots.append((t, snapshot))
+        elif topic == Topics.SCAN:
+            scans.append((t, deserialize_message(data, LaserScan)))
+    return snapshots, scans
+
+
+def final_walls(nav_debug: Sequence[tuple[int, NavigatorDebugSnapshot]]) -> TrackWalls | None:
+    """Ground-truth geometry for a whole run, from its LAST snapshot's belief.
+
+    The physical corridor widths never change mid-run, only the robot's
+    blind-mode belief about them does (see ``CorridorWidthEstimator``), so the
+    last snapshot's belief -- accumulated over the whole run -- is a far better
+    stand-in for the true walls than any single tick's possibly still-converging
+    belief. Using each tick's own belief inflates cost even on non-jump ticks,
+    because early-run geometry reconstructed from an unconverged belief does not
+    match the track the scan was taken against.
+    """
+    for _, snapshot in reversed(nav_debug):
+        widths = {
+            Section.NORTH: snapshot.belief_north_m,
+            Section.SOUTH: snapshot.belief_south_m,
+            Section.EAST: snapshot.belief_east_m,
+            Section.WEST: snapshot.belief_west_m,
+        }
+        if all(w is not None for w in widths.values()):
+            return TrackWalls(corridor_geometry_from_widths(widths))
+    return None
 
 
 def quaternion_yaw(q) -> float:  # noqa: ANN001

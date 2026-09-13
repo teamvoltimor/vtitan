@@ -37,14 +37,14 @@ import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs, ParkingLotSpecs, RobotSpecs  # noqa: E402
-from shared.domain.models import ScenarioMetadata  # noqa: E402
 
 from scripts.common.diag_base import print_pool_progress, resolve_jobs, run_pool  # noqa: E402
+from scripts.common.scenarios import scenario_from_mapping, scenario_paths  # noqa: E402
 from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
 from src.config.tuning_helpers import tuning_with_overrides  # noqa: E402
 from src.navigation.track_geometry import parking_bay_centre  # noqa: E402
@@ -355,7 +355,7 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         start["position"]["y"] = centre[1] + bay_offset_m * math.sin(start["yaw"])
         moved = True
 
-    meta = ScenarioMetadata.model_validate(raw)
+    meta = scenario_from_mapping(raw)
     # The bay ratchet nets millimetres per second by construction, so the
     # simulator's own no-progress bailout -- 0.08 m of net displacement inside
     # 30 s -- ends the run long before the manoeuvre can be judged. That bound
@@ -866,7 +866,7 @@ def main() -> None:
     args = parser.parse_args()
 
     directory = Path(args.scenarios_dir) if args.scenarios_dir else (CORPUS_DIR if args.corpus else _COMMITTED_DIR)
-    paths = sorted(directory.glob("*_metadata.json"))
+    paths = scenario_paths(directory)
     if not paths:
         parser.error(f"no *_metadata.json under {directory}")
     if args.limit:

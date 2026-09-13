@@ -40,32 +40,33 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import json
 import logging
 import math
 import statistics
 import sys
 from collections import Counter
-from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.provenance import environment
-from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from shared.config.constants import TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Axis, Direction
+
+# After the simulator: importing shared.domain.models first hits the
+# models<->enums cycle that enums.py resolves by deferring its re-export.
+from shared.domain.models import ScenarioMetadata, Waypoint  # noqa: E402
+
+from scripts.common.provenance import environment
+from scripts.common.scenarios import load_scenario, scenario_paths
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.navigation.planning import sign_router as sign_router_module
 from src.navigation.planning.sign_lane import _axis_coords, _in_lane_span, _lane_span
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-# After the simulator: importing shared.domain.models first hits the
-# models<->enums cycle that enums.py resolves by deferring its re-export.
-from shared.domain.models import ScenarioMetadata, Waypoint  # noqa: E402
 
 _BEHIND_EPS_M = 0.0
 """Along-track sign that separates a pass from a retreat; 0 is the geometric split."""
@@ -779,7 +780,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
     _EARLY.clear()
     trail: list[tuple[float, float]] = []
     phases: list[str] = []
-    metadata = ScenarioMetadata.model_validate(json.loads(Path(path_str).read_text()))
+    metadata = load_scenario(Path(path_str))
     # The round's TRUE direction. Every wrong-side verdict below is scored against
     # this, never against the router's belief -- the scorer must not share its
     # convention with the thing it scores.
@@ -1242,7 +1243,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    paths = sorted(Path(args.scenarios_dir).glob("*_metadata.json"))[: args.limit]
+    paths = scenario_paths(Path(args.scenarios_dir))[: args.limit]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         results = list(
             pool.map(

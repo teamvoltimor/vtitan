@@ -46,7 +46,6 @@ override actually reaches the navigator before concluding anything — see
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
 from collections import Counter, deque
@@ -88,6 +87,7 @@ import src.navigation.planning.sign_router as sign_router_module
 # caller that bound the name at import time.
 import src.simulation.scenario_simulator.simulator as gateway_module
 from scripts.common.provenance import environment as _provenance
+from scripts.common.scenarios import load_scenario, scenario_from_mapping, scenario_paths
 from scripts.common.sensor_errors import REAL_SENSOR_ERRORS
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
@@ -1477,7 +1477,7 @@ def _true_sign_xy(metadata: dict[str, Any]) -> tuple[tuple[float, float], ...]:
     than an exception.
     """
     try:
-        meta = ScenarioMetadata.model_validate(metadata)
+        meta = scenario_from_mapping(metadata)
     except ValueError:
         return ()
     return tuple((s.x, s.y) for s in meta.sign_positions)
@@ -4294,7 +4294,7 @@ def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -
     the believed width while the turn count does not.
     """
     directory = Path(scenarios_dir) if scenarios_dir else None
-    paths = sorted((directory or CORPUS_DIR).glob("*_metadata.json"))
+    paths = scenario_paths(directory or CORPUS_DIR)
     tuning = NavigationTuning.load_default()
     sr = tuning.sign_router
     params = SignLaneParams(
@@ -4308,7 +4308,7 @@ def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -
         in_box: list[bool] = []
         on_arc: list[bool] = []
         for path in paths:
-            meta = ScenarioMetadata.model_validate(json.loads(path.read_text()))
+            meta = load_scenario(path)
             if not meta.sign_positions:
                 continue
             gaps_here = _lane_geometry_for(meta, params, tuning, width_error)

@@ -86,11 +86,11 @@ from shared.domain.models import Pose, SignColor  # noqa: E402
 
 from scripts.bag.diag_bag_pass_geometry import classify_lattice  # noqa: E402
 from scripts.bag.diag_bag_sign_track_birth import _frame_lag, _pose_at  # noqa: E402
-from scripts.bag.diag_localizer_guard_replay import _scan_to_ranges_angles  # noqa: E402
 from scripts.common.bag_io import (  # noqa: E402
     create_bags_parser,
     decode_detections,
     read_vision_rows_and_scans,
+    scan_to_ranges_angles,
     settled_direction,
 )
 from scripts.common.stats import nearest_by_time  # noqa: E402
@@ -551,7 +551,7 @@ def _replay(run, rows, frames, scans, tuning, latency, stamped, accept_r, min_ev
         pose = Pose(x=d.pose_x, y=d.pose_y, yaw=d.pose_yaw)
         ranges = angles = None
         if scan_times:
-            ranges, angles = _scan_to_ranges_angles(
+            ranges, angles = scan_to_ranges_angles(
                 deserialize_message(nearest_by_time(scans, scan_times, rel), LaserScan)
             )
         obs = []

@@ -58,12 +58,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from typing import TYPE_CHECKING
 
 from shared.domain.enums import Section
-from shared.domain.models import ScenarioMetadata, Waypoint
+from shared.domain.models import Waypoint
 
 from scripts.common.diag_base import add_tuning_arg, load_tuning
+from scripts.common.scenarios import scenario_from_mapping
+from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.track_geometry import project_onto_path
-from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from src.simulation.scenario_catalog import (
     _OPEN_CHALLENGE_SPACE,
     all_obstacles_demo_scenarios,
@@ -448,7 +449,7 @@ def run_scenario(
         tuning=tuning,
     )
 
-    meta = ScenarioMetadata.model_validate(scenario.metadata)
+    meta = scenario_from_mapping(scenario.metadata)
     true_path = calculate_waypoints(meta, num_laps=laps, tuning=tuning)
 
     _report_scenario_header(scenario_index, scenario, sim, true_path)

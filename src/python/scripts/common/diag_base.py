@@ -19,16 +19,64 @@ import dataclasses
 import os
 import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from shared.config.navigation_tuning import NavigationTuning
 
 if TYPE_CHECKING:
     import argparse
+    from collections import Counter
     from collections.abc import Callable, Sequence
+
+    from src.simulation.scenario_result import SimResult
 
 _SPARE_CORES = 2
 """Cores left for the rest of the machine, so a sweep does not make it unusable."""
+
+
+class Verdict(StrEnum):
+    """Why a simulated run failed, or ``ok``. One label, most severe first.
+
+    The round-enders come before ``incomplete``, because they CAUSE it: rule
+    9.21 stops the round where it fires, so the run necessarily finishes short
+    of its lap target. Testing laps first labels every one of them
+    ``incomplete``, which reads as "the robot could not get round" when what
+    happened is "the robot was legally stopped" -- a different failure with a
+    different fix. Measured 2026-09-05: all four failures of one Open sweep
+    were rule 9.21 terminations reported under the ``incomplete`` label.
+    """
+
+    OK = "ok"
+    COLLISION = "collision"
+    REV_RUN = "rev-run"
+    PASS_SIDE = "pass-side"
+    INCOMPLETE = "incomplete"
+    OVER_TIME = "over-time"
+
+
+def verdict(result: SimResult) -> Verdict:
+    """Classify one ``SimResult`` into a single :class:`Verdict`."""
+    if result.collided:
+        return Verdict.COLLISION
+    if result.reverse_run_violation:
+        return Verdict.REV_RUN
+    if result.pass_side_violation:
+        return Verdict.PASS_SIDE
+    if result.laps_completed < result.target_laps:
+        return Verdict.INCOMPLETE
+    if result.over_time:
+        return Verdict.OVER_TIME
+    return Verdict.OK
+
+
+def summarise(title: str, counts: Counter[tuple[str, str]]) -> None:
+    """Print an ok/total breakdown for one dimension."""
+    print(f"\n{title}", flush=True)
+    for key in sorted({k for k, _ in counts}):
+        row = {v: c for (k, v), c in counts.items() if k == key}
+        ok = row.pop(Verdict.OK, 0)
+        print(f"  {key:<18} {ok:>3}/{ok + sum(row.values()):<3} ok  {row or ''}", flush=True)
 
 
 def add_sweep_args(

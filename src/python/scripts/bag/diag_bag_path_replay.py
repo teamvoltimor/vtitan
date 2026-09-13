@@ -44,9 +44,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import CorridorDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Section
-from shared.domain.models import CorridorWidthEntry, CorridorWidths, ScenarioMetadata
+from shared.domain.models import CorridorWidthEntry, CorridorWidths
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
+from scripts.common.scenarios import scenario_from_mapping
 from scripts.common.tables import print_table
 from src.navigation.control.controllers.waypoint_controller import WaypointController
 from src.navigation.planning.waypoints import calculate_waypoints
@@ -89,7 +90,7 @@ def _build_path(
     """Build the full multi-lap waypoint path for a uniform corridor-width belief."""
     tuning = NavigationTuning.load_default()
     widths = CorridorWidths(**{s.value: CorridorWidthEntry(width_mm=round(width_m * 1000)) for s in Section})
-    meta = ScenarioMetadata.model_validate(
+    meta = scenario_from_mapping(
         {"corridor_widths": widths, "starting_conditions": {"direction": direction, "section": section}},
     )
     # calculate_waypoints returns list[Waypoint]; the rest of this script is

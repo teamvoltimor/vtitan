@@ -40,13 +40,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402  (imported first: models <-> enums cycle)
-from scripts.bag.diag_bag_pass_geometry import classify_lattice  # noqa: E402
-from scripts.bag.diag_bag_pass_side import Pass, _load, _passes  # noqa: E402
-from scripts.common.bag_io import create_bags_parser, settled_direction  # noqa: E402
-from scripts.common.tables import print_table  # noqa: E402
 from shared.config.constants.robot import RobotSpecs  # noqa: E402
 from shared.config.constants.track import CorridorDimensions, TrafficSignSpecs  # noqa: E402
 from shared.domain.enums import Axis, Direction, Section  # noqa: E402
+
+from scripts.bag.diag_bag_pass_geometry import classify_lattice  # noqa: E402
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans, settled_direction  # noqa: E402
+from scripts.common.pass_side import Pass, collect_passes  # noqa: E402
+from scripts.common.tables import print_table  # noqa: E402
 from src.config.tuning_helpers import get_tuning, tuning_with_overrides  # noqa: E402
 from src.navigation.planning.sign_router.routing import pass_side_lateral_axis  # noqa: E402
 
@@ -126,14 +127,14 @@ def main() -> None:
 
     for bag in args.bag_dirs:
         try:
-            rows, frames, scans = _load(Path(bag))
+            rows, frames, scans = read_vision_rows_and_scans(Path(bag))
         except (RuntimeError, OSError, ValueError) as exc:
             skipped.append(f"{Path(bag).name} ({type(exc).__name__})")
             continue
         runs += 1
         run = Path(bag).name.replace("run_", "")
         direction = settled_direction(rows) or Direction.COUNTERCLOCKWISE
-        passes, peak = _passes(run, rows, frames, scans, tuning)
+        passes, peak = collect_passes(run, rows, frames, scans, tuning)
         print(f"  {run}: {len(passes):3d} passes, direction={direction}, peak believed signs={peak}")
         for p in passes:
             cell = classify_lattice(p.sign_x, p.sign_y)

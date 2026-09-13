@@ -1,9 +1,9 @@
 r"""Does the SPEED carried at commitment separate the pass-side outcome?
 
-Wraps ``diag_bag_pass_side`` WITHOUT re-deriving its rule: it imports ``_passes``
+Wraps ``diag_bag_pass_side`` WITHOUT re-deriving its rule: it imports ``collect_passes``
 and reuses the shipped three-way verdict verbatim (routing / execution / ok).
 What it adds is the per-pass CONTEXT at the commit tick, recovered through a
-side-channel tap on ``SignRouter.deform_waypoint`` so ``_passes`` itself runs
+side-channel tap on ``SignRouter.deform_waypoint`` so ``collect_passes`` itself runs
 unmodified: commanded speed, forward clearance, risk, path turn ahead, and which
 of the two speed limiters (heading crawl vs clearance) was binding.
 
@@ -18,7 +18,7 @@ Controls carried, because a null is unreadable without them:
 * the pooled three-way tally is printed so it can be diffed against the shipped
   script's own output over the same bags;
 * the speed recovered through the tap is compared against ``Pass.commit_speed_mps``
-  which ``_passes`` recorded independently -- they must agree on ~100% of passes
+  which ``collect_passes`` recorded independently -- they must agree on ~100% of passes
   or the tap is mis-aligned and nothing downstream means anything;
 * the known-present crossing-vs-holding separation is recomputed, and printed
   first, so a pipeline that cannot see a real effect is visible as such.
@@ -39,8 +39,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import shared.domain.enums  # noqa: F401,E402
-from scripts.bag import diag_bag_pass_side as dps  # noqa: E402
-from scripts.common.bag_io import create_bags_parser  # noqa: E402
+
+from scripts.common import pass_side as ps  # noqa: E402
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_router import SignRouter  # noqa: E402
 
@@ -58,7 +59,7 @@ class _TapRouter(SignRouter):
     """A SignRouter that records which sign it was committed to, per tick.
 
     Behaviourally identical to the shipped router -- it only appends to a
-    module-level log after delegating -- so ``_passes`` sees exactly the replay
+    module-level log after delegating -- so ``collect_passes`` sees exactly the replay
     it would have seen, and the verdicts are the shipped ones.
     """
 
@@ -177,7 +178,7 @@ def main() -> None:
     args = parser.parse_args()
     tuning = get_tuning(None)
 
-    dps.SignRouter = _TapRouter  # the tap, installed where _passes constructs it
+    ps.SignRouter = _TapRouter  # the tap, installed where collect_passes constructs it
 
     records: list[dict] = []
     skipped: list[str] = []
@@ -189,13 +190,13 @@ def main() -> None:
     for bag in args.bag_dirs:
         _TAP.clear()
         try:
-            rows, frames, scans = dps._load(Path(bag))
+            rows, frames, scans = read_vision_rows_and_scans(Path(bag))
         except (RuntimeError, OSError, ValueError, KeyError) as exc:
             skipped.append(f"{Path(bag).name}:{type(exc).__name__}")
             continue
         run = Path(bag).name.replace("run_", "")
         try:
-            passes, peak = dps._passes(run, rows, frames, scans, tuning)
+            passes, peak = ps.collect_passes(run, rows, frames, scans, tuning)
         except (RuntimeError, ValueError, KeyError, IndexError) as exc:
             skipped.append(f"{Path(bag).name}:replay-{type(exc).__name__}")
             continue
@@ -267,7 +268,7 @@ def main() -> None:
     print(f"   ok        {tally['ok']:5d}")
     print(f"   n={total};  execution share of correctly-commanded passes: "
           f"{100 * tally['execution'] / max(1, tally['execution'] + tally['ok']):.1f}%")
-    print(f"   tap/_passes speed disagreements: {tap_mismatch} (MUST be 0)")
+    print(f"   tap/collect_passes speed disagreements: {tap_mismatch} (MUST be 0)")
     print()
 
     cc = [r for r in records if r["verdict"] in ("execution", "ok")]
