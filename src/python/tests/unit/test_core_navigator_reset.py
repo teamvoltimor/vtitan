@@ -16,11 +16,6 @@ from src.navigation.ports import DriveCommand, LidarScan
 from tests.fixtures import FakeGateway
 
 
-@pytest.fixture()
-def tuning():
-    return NavigationTuning.load_default()
-
-
 def test_reset_clears_lap_and_waypoint_state(tuning):
     gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0))
     waypoints = [Waypoint(5.0, 0.0), Waypoint(10.0, 0.0)]

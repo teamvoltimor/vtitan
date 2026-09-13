@@ -9,19 +9,17 @@ never planned a path, and scored zero laps.
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 import pytest
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation.corridor_follower import TurnSide, follow_corridor
 from tests.fixtures import LidarScanBuilder
 from tests.test_constants import CREEP_SPEED_MPS, TURN_ENTRY_MARGIN_M
 
-
-@pytest.fixture()
-def tuning():
-    return NavigationTuning.load_default()
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
 
 @pytest.fixture()

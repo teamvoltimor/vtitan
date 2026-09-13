@@ -23,6 +23,7 @@ from src.vision.detector import (
     HailoDetector,
     LocalYoloDetector,
 )
+from src.vision.exceptions import UnknownVisionBackendError, VisionError
 
 if TYPE_CHECKING:
     from src.hardware.hailo.base import Config as HailoConfig
@@ -47,7 +48,9 @@ __all__ = [
     "HailoDetector",
     "LocalYoloDetector",
     "SignColor",
+    "UnknownVisionBackendError",
     "VisionBackend",
+    "VisionError",
     "create_detector",
 ]
 
@@ -72,9 +75,13 @@ def create_detector(
         pipeline stays open for the session lifetime.
 
     Raises:
-        ValueError: If backend is not recognized.
+        UnknownVisionBackendError: If backend is not recognized.
     """
-    backend = VisionBackend(backend) if isinstance(backend, str) else backend
+    try:
+        backend = VisionBackend(backend) if isinstance(backend, str) else backend
+    except ValueError as e:
+        msg = f"Unknown detector backend: {backend!r}"
+        raise UnknownVisionBackendError(msg) from e
     if backend == VisionBackend.YOLO:
         if config is None:
             config = DetectorConfig(class_to_color=DEFAULT_CLASS_TO_COLOR)
@@ -97,4 +104,4 @@ def create_detector(
         driver_config = hailo_config.model_copy(update={"model_path": config.model_path})
         return HailoDetector(Driver(driver_config), config)
     msg = f"Unknown detector backend: {backend}"
-    raise ValueError(msg)
+    raise UnknownVisionBackendError(msg)

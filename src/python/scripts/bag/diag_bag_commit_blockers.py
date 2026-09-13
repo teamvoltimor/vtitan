@@ -92,7 +92,7 @@ def blockers_for_run(rows, frames, scans, tuning) -> dict[str, int]:  # noqa: AN
         obs = []
         while frame_i < len(frames) and frames[frame_i][0] <= rel:
             for det in decode_detections(frames[frame_i][1]):
-                if det.class_name not in (SignColor.RED, SignColor.GREEN):
+                if det.color not in (SignColor.RED, SignColor.GREEN):
                     continue
                 o = detection_to_observation(det, pose, tuning, ranges, angles)
                 if o is not None:

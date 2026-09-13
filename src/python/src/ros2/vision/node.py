@@ -555,7 +555,7 @@ class VisionNode(Node):
             data = [
                 {
                     CAPTURED_AT_KEY: stamp,
-                    CLASS_NAME_KEY: det.class_name,
+                    CLASS_NAME_KEY: det.color,
                     CONFIDENCE_KEY: det.confidence,
                     BBOX_KEY: det.bbox,
                     X_KEY: det.x,
@@ -658,6 +658,8 @@ class VisionNode(Node):
     def destroy_node(self) -> None:
         """Release the camera and detector, then tear down the node."""
         self._stop_recording()  # closes an in-flight video the same way _camera.close() below does the camera
+        if self._dataset_capture is not None:
+            self._dataset_capture.close()  # drain queued capture frames before the process exits
         if self._camera is not None:
             with suppress(Exception):
                 self._camera.close()

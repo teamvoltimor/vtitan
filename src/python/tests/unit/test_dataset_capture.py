@@ -9,13 +9,17 @@ leak into the next.
 
 from __future__ import annotations
 
-import numpy as np
+from typing import TYPE_CHECKING
 
 from src.vision.dataset_capture import DatasetFrameCapture
+from tests.fixtures import blank_frame
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 def _frame(width: int = 32, height: int = 24) -> np.ndarray:
-    return np.zeros((height, width, 3), dtype=np.uint8)
+    return blank_frame(width, height)
 
 
 def test_no_run_path_never_saves() -> None:
@@ -33,6 +37,7 @@ def test_open_challenge_saves_unconditionally_once_interval_elapses(tmp_path) ->
 
     capture.maybe_capture(0.0, _frame(), run_path=str(run_dir), require_detection=False, has_detection=False)
     assert capture._count == 1
+    capture.flush()
     assert (run_dir / "captures" / "capture_0000.jpg").exists()
 
     # Too soon -- interval hasn't elapsed yet.
@@ -41,7 +46,9 @@ def test_open_challenge_saves_unconditionally_once_interval_elapses(tmp_path) ->
 
     capture.maybe_capture(10.0, _frame(), run_path=str(run_dir), require_detection=False, has_detection=False)
     assert capture._count == 2
+    capture.flush()
     assert (run_dir / "captures" / "capture_0001.jpg").exists()
+    capture.close()
 
 
 def test_obstacles_challenge_waits_for_a_detection_past_the_interval(tmp_path) -> None:
@@ -90,4 +97,6 @@ def test_reset_clears_cadence_and_filename_counter(tmp_path) -> None:
     other_run_dir.mkdir()
     capture.maybe_capture(0.0, _frame(), run_path=str(other_run_dir), require_detection=False, has_detection=False)
     assert capture._count == 1
+    capture.flush()
     assert (other_run_dir / "captures" / "capture_0000.jpg").exists()
+    capture.close()

@@ -105,7 +105,7 @@ def _to_proto(det: Detection) -> detections_pb2.Detection:
     downstream.
     """
     proto = detections_pb2.Detection()
-    proto.class_name = _SIGN_COLOR_TO_PROTO.get(det.class_name, detections_pb2.SIGN_COLOR_UNSPECIFIED)
+    proto.class_name = _SIGN_COLOR_TO_PROTO.get(det.color, detections_pb2.SIGN_COLOR_UNSPECIFIED)
     proto.confidence = det.confidence
     proto.bbox.x_min, proto.bbox.y_min, proto.bbox.x_max, proto.bbox.y_max = det.bbox
     proto.x = det.x
@@ -132,13 +132,15 @@ async def run(nats_url: str, backend: str, fps: float) -> None:
     nc = await nats.connect(nats_url)
     logger.info("connected to NATS at %s", nats_url)
 
-    camera = _open_camera()
+    # Camera open and detector setup are synchronous/hardware-bound; run them off
+    # the loop so NATS keepalive is not starved during connection setup.
+    camera = await asyncio.to_thread(_open_camera)
     detector: DetectorBase = create_detector(VisionBackend(backend))
     # For YOLO __enter__ is a no-op; calling it unconditionally is safe --
     # matches VisionNode's own hasattr guard, since only HailoDetector needs
     # the device handle opened/closed around the session.
     if hasattr(detector, "__enter__"):
-        detector.__enter__()
+        await asyncio.to_thread(detector.__enter__)
 
     interval_s = 1.0 / max(fps, 1.0)
     # Single dedicated worker, not the shared default executor: the detector is
@@ -160,10 +162,12 @@ async def run(nats_url: str, backend: str, fps: float) -> None:
             elapsed = time.monotonic() - start
             await asyncio.sleep(max(0.0, interval_s - elapsed))
     finally:
-        executor.shutdown(wait=True)
+        # Teardown is blocking too (executor join, Hailo close, camera deinit);
+        # offload each so the final drain is not delayed past NATS keepalive.
+        await asyncio.to_thread(executor.shutdown, wait=True)
         if hasattr(detector, "__exit__"):
-            detector.__exit__(None, None, None)
-        camera.close()
+            await asyncio.to_thread(detector.__exit__, None, None, None)
+        await asyncio.to_thread(camera.close)
         await nc.drain()
 
 

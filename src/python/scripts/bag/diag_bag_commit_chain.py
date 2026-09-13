@@ -97,7 +97,7 @@ def chain_for_run(rows, frames, scans, tuning) -> list[dict[str, float]]:  # noq
         obs = []
         while frame_i < len(frames) and frames[frame_i][0] <= rel:
             for det in decode_detections(frames[frame_i][1]):
-                if det.class_name not in (SignColor.RED, SignColor.GREEN):
+                if det.color not in (SignColor.RED, SignColor.GREEN):
                     continue
                 # SEEN is the raw box, before any gate. Located through the
                 # same projection the map uses, so the four stages are measured

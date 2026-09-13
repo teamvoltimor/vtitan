@@ -9,11 +9,6 @@ from shared.domain.models import Waypoint
 from src.navigation.control.controllers.stuck_detector import StuckDetector
 
 
-@pytest.fixture()
-def tuning():
-    return NavigationTuning.load_default()
-
-
 def test_history_size_smaller_than_timeout_frames_rejected(tuning):
     with pytest.raises(ValueError, match="history_size"):
         StuckDetector(move_threshold=0.03, timeout_frames=40, history_size=10, confirmation_checks=3, tuning=tuning)

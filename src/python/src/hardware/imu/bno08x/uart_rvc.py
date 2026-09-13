@@ -2,7 +2,6 @@
 
 import logging
 import threading
-import time
 from threading import Thread
 from typing import override
 
@@ -77,6 +76,7 @@ class Driver(ABC_RVCDriver):
         self._latest_data: RVCReading | None = None
         self._conn_lock: threading.Lock = threading.Lock()
         self._running: threading.Lock = threading.Lock()
+        self._stop_event: threading.Event = threading.Event()
         self._data_lock: threading.Event = threading.Event()
         self.logger: logging.Logger = logging.getLogger(__name__)
 
@@ -84,26 +84,25 @@ class Driver(ABC_RVCDriver):
     def connect(self) -> None:
         """Connect to IMU via UART."""
         # Acquire lock to prevent concurrent connections
-        self._conn_lock.acquire()
-        self.logger.info("Connecting to BNO08x via UART RVC...")
+        with self._conn_lock:
+            self.logger.info("Connecting to BNO08x via UART RVC...")
 
-        port = self.config.port
-        if not port:
-            port = self.config.default_port
-            self.logger.info("No serial port specified, attempting with configured default port %s", port)
+            port = self.config.port
+            if not port:
+                port = self.config.default_port
+                self.logger.info("No serial port specified, attempting with configured default port %s", port)
 
-        # The adafruit_bno08x_rvc library does not support direct USB communication,
-        # but it can work with a serial port provided in UART mode.
-        # We will use pyserial to open the serial port and pass it to the B
-        self.logger.info(
-            "Connecting to BNO08x",
-            extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
-        )
-        self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=self.config.serial_timeout)
+            # The adafruit_bno08x_rvc library does not support direct USB communication,
+            # but it can work with a serial port provided in UART mode.
+            # We will use pyserial to open the serial port and pass it to the B
+            self.logger.info(
+                "Connecting to BNO08x",
+                extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
+            )
+            self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=self.config.serial_timeout)
 
-        self._rvc = BNO08x_RVC(self._serial)
-        self.logger.info("Connected to BNO08x RVC")
-        self._conn_lock.release()
+            self._rvc = BNO08x_RVC(self._serial)
+            self.logger.info("Connected to BNO08x RVC")
 
     @override
     def start_polling(self) -> None:
@@ -113,6 +112,7 @@ class Driver(ABC_RVCDriver):
 
         # The adafruit_bno08x_rvc library does not have a built-in polling mechanism, so we will implement our own
         # background thread that continuously reads data from the sensor at the specified poll rate.
+        self._stop_event.clear()
         self._running.acquire()
         self._thread = Thread(target=self._poll_loop, daemon=True)
         self._thread.start()
@@ -124,6 +124,9 @@ class Driver(ABC_RVCDriver):
         if not self._running.locked():
             return
 
+        # Signal the loop BEFORE joining: the loop only exits on the stop
+        # event, so joining first would always wait out the full timeout.
+        self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=self.config.serial_timeout)
 
@@ -134,7 +137,7 @@ class Driver(ABC_RVCDriver):
         """Background polling loop."""
         interval = 1.0 / self.config.poll_rate_hz
 
-        while self._running.locked():
+        while self._running.locked() and not self._stop_event.is_set():
             try:
                 # The adafruit_bno08x_rvc library does not have a built-in method to check if new data is available,
                 # so we will just read the latest heading data on each loop iteration. This may not be the most efficient approach,
@@ -168,7 +171,7 @@ class Driver(ABC_RVCDriver):
                 # forever with nothing left to log the failure past a stray
                 # traceback from Python's default thread excepthook.
                 self.logger.warning("Polling error", extra={"error": str(e)})
-            time.sleep(interval)
+            self._stop_event.wait(interval)
 
     @override
     def get_data(self) -> RVCReading | None:
@@ -183,12 +186,11 @@ class Driver(ABC_RVCDriver):
     @override
     def close(self) -> None:
         """Close connection."""
-        self._conn_lock.acquire()
-        self.logger.info("Closing connection to BNO08x RVC")
-        self.stop_polling()
+        with self._conn_lock:
+            self.logger.info("Closing connection to BNO08x RVC")
+            self.stop_polling()
 
-        # The adafruit_bno08x_rvc library does not have a close method, but if it did, we would call it here.
-        if self._serial and self._serial.is_open:
-            self._serial.close()
-        self.logger.info("Connection closed")
-        self._conn_lock.release()
+            # The adafruit_bno08x_rvc library does not have a close method, but if it did, we would call it here.
+            if self._serial and self._serial.is_open:
+                self._serial.close()
+            self.logger.info("Connection closed")

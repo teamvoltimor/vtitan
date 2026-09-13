@@ -23,7 +23,12 @@ zero use ``None`` defaults and coalesce at the read site (see the OLED's use of
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+HoldKind = Literal["long", "shutdown"]
+"""The two hold-threshold kinds ``/button/hold`` carries."""
 
 
 class RaceMetricsWire(BaseModel):
@@ -55,7 +60,7 @@ class ButtonHoldThreshold(BaseModel):
     """One ``/button/hold`` hold-threshold entry."""
 
     at: float
-    kind: str
+    kind: HoldKind
 
 
 class ButtonHoldWire(BaseModel):

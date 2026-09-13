@@ -11,13 +11,13 @@ import json
 import math
 import threading
 import time
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
 import rclpy
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection
 from std_msgs.msg import String
 
 from src.ros2.vision.detection_payload_keys import (
@@ -30,6 +30,10 @@ from src.ros2.vision.detection_payload_keys import (
     X_KEY,
     Y_KEY,
 )
+from tests.fixtures import detection_from_bbox
+
+if TYPE_CHECKING:
+    from shared.domain.models import Detection
 
 # The real value the node loads from lidar_sectors.toml at runtime (see
 # telemetry_bridge_node.TelemetryBridgeNode.__init__). Read from the checked-in
@@ -58,18 +62,9 @@ def bridge_node(bridge_module):
     node.destroy_node()
 
 
-def _detection(class_name: str, confidence: float, size_x: float, size_y: float) -> Detection:
+def _detection(color: str, confidence: float, size_x: float, size_y: float) -> Detection:
     """A shared.domain.models.Detection, the type _best_detection now takes directly."""
-    return Detection(
-        class_name=class_name,
-        confidence=confidence,
-        bbox=(0.0, 0.0, size_x, size_y),
-        x=size_x / 2,
-        y=size_y / 2,
-        width=size_x,
-        height=size_y,
-        area=size_x * size_y,
-    )
+    return detection_from_bbox((0.0, 0.0, size_x, size_y), color=color, confidence=confidence)
 
 
 def _vision_msg(*detections: Detection) -> String:
@@ -83,7 +78,7 @@ def _vision_msg(*detections: Detection) -> String:
     msg.data = json.dumps(
         [
             {
-                CLASS_NAME_KEY: d.class_name,
+                CLASS_NAME_KEY: d.color,
                 CONFIDENCE_KEY: d.confidence,
                 BBOX_KEY: list(d.bbox),
                 X_KEY: d.x,

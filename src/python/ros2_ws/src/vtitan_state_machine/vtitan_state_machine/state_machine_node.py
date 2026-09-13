@@ -47,6 +47,7 @@ from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool, Int32, String
 
 from src.hardware.settings_base import CONFIG_DIR, SAFE_SHUTDOWN_BOTH_SCRIPT, HardwareBaseSettings
+from src.logger import configure_json_logging
 from src.ros2.params import declare_and_get_bool_param, declare_and_get_float_param, declare_and_get_int_param
 from src.ros2.qos import (
     QOS_ACKERMANN_CMD,
@@ -1007,6 +1008,7 @@ class StateMachineNode(Node, ResettableNode):
 
 def main(args: list[str] | None = None) -> None:
     """Main entry point for state machine node."""
+    configure_json_logging()
     rclpy.init(args=args)
     node = StateMachineNode()
 

@@ -66,10 +66,18 @@ for _pkg_dir in sorted(_ROS2_WS_SRC.glob("vtitan_*")):
 
 @pytest.fixture()
 def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
+    """Initialize and cleanup ROS2 context for each test.
+
+    Only an ``rclpy.init()`` failure is downgraded to a skip (a missing/
+    misconfigured ROS runtime is an environment gap). Exceptions raised by the
+    test body itself propagate as failures; wrapping the yield in the same
+    ``try`` would have silently converted real regressions into skips.
+    """
     try:
         rclpy.init()
-        yield
-        rclpy.shutdown()
     except Exception as e:
         pytest.skip(f"ROS2 initialization failed: {e}")
+    try:
+        yield
+    finally:
+        rclpy.shutdown()

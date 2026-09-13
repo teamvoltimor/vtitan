@@ -68,31 +68,30 @@ class Driver(ABC_Driver):
     @override
     def connect(self) -> None:
         """Initialize GPIO and configure button pin."""
-        self._lock.acquire()
-        self.logger.info(
-            "Connecting to button",
-            extra={
-                "details": {
-                    "gpio_pin": self.config.gpio_pin,
-                    "pull_up": self.config.button.pull_up,
-                    "debounce_ms": self.config.button.debounce_ms,
+        with self._lock:
+            self.logger.info(
+                "Connecting to button",
+                extra={
+                    "details": {
+                        "gpio_pin": self.config.gpio_pin,
+                        "pull_up": self.config.button.pull_up,
+                        "debounce_ms": self.config.button.debounce_ms,
+                    },
                 },
-            },
-        )
+            )
 
-        # Create button with debouncing
-        self._button = Button(
-            self.config.gpio_pin,
-            pull_up=self.config.button.pull_up,
-            bounce_time=self.config.button.debounce_ms / 1000.0,  # Convert to seconds
-        )
+            # Create button with debouncing
+            self._button = Button(
+                self.config.gpio_pin,
+                pull_up=self.config.button.pull_up,
+                bounce_time=self.config.button.debounce_ms / 1000.0,  # Convert to seconds
+            )
 
-        # Set up event callbacks
-        self._button.when_pressed = self._on_pressed
-        self._button.when_released = self._on_released
+            # Set up event callbacks
+            self._button.when_pressed = self._on_pressed
+            self._button.when_released = self._on_released
 
-        self.logger.info("Button connected successfully")
-        self._lock.release()
+            self.logger.info("Button connected successfully")
 
     def _on_pressed(self) -> None:
         """Internal callback when button is pressed."""

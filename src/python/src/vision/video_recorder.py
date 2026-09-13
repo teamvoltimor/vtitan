@@ -108,14 +108,28 @@ class VideoRecorder:
         if self._thread is None:
             return
         join_timeout_sec = self._hud_config.join_timeout_sec
-        self._queue.put(None)  # sentinel; a blocking put is fine here, this is not the hot path
-        self._thread.join(timeout=join_timeout_sec)
-        if self._thread.is_alive():
-            logger.error(
-                "Video recorder thread did not finish finalizing within %.0fs -- "
-                "the output file may be missing or unplayable",
-                join_timeout_sec,
-            )
+        thread = self._thread
+        if not thread.is_alive():
+            logger.warning("Video recorder thread already stopped before finalizing")
+        else:
+            # Bounded sentinel put: an unbounded put blocks forever when the
+            # encoder thread has died and left the queue full, so stop() would
+            # never return and the run could not finalize.
+            try:
+                self._queue.put(None, timeout=join_timeout_sec)
+            except queue.Full:
+                logger.exception(
+                    "Video recorder queue full after %.0fs; sentinel not delivered, "
+                    "the output file may be truncated",
+                    join_timeout_sec,
+                )
+            thread.join(timeout=join_timeout_sec)
+            if thread.is_alive():
+                logger.error(
+                    "Video recorder thread did not finish finalizing within %.0fs -- "
+                    "the output file may be missing or unplayable",
+                    join_timeout_sec,
+                )
         self._thread = None
 
     def _run(self, path: Path) -> None:

@@ -20,15 +20,18 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
 from shared.domain.models import Pose, Waypoint
 
-from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.sign_router import SignRouter
 from src.navigation.race_tracker import LapDetector
-from tests.fixtures import FakeGateway
+from tests.fixtures import FakeGateway, build_navigator
+
+if TYPE_CHECKING:
+    from src.navigation.core_navigator import CoreNavigator
 
 # Mirrors the traced go_obstacles_0042 geometry: waypoint 0 and 1 both sit
 # well behind a chassis that has cut hard across the corner.
@@ -44,19 +47,19 @@ _ROBOT_POSE = Pose(x=2.000, y=0.790, yaw=math.radians(73.0))
 def _navigator(tuning: NavigationTuning, *, with_sign_router: bool) -> tuple[CoreNavigator, FakeGateway]:
     gateway = FakeGateway(_ROBOT_POSE)
     sign_router = SignRouter([], direction=Direction.CLOCKWISE, tuning=tuning) if with_sign_router else None
-    nav = CoreNavigator(
-        gateway=gateway,
-        waypoints=_WAYPOINTS,
+    nav = build_navigator(
+        gateway,
+        _WAYPOINTS,
+        tuning,
         num_laps=3,
-        tuning=tuning,
         sign_router=sign_router,
         lap_detector=LapDetector(
             start_pos=_WAYPOINTS[0],
             start_section=Section.EAST,
             direction=Direction.CLOCKWISE,
         ),
+        current_corridor=Section.EAST,
     )
-    nav._current_corridor = Section.EAST
     return nav, gateway
 
 

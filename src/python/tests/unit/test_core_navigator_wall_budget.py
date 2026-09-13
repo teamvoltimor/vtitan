@@ -23,24 +23,18 @@ from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose, Waypoint
 
-from src.navigation.core_navigator import CoreNavigator
-from tests.fixtures import FakeGateway
+from tests.fixtures import FakeGateway, build_navigator
 
 if TYPE_CHECKING:
+    from src.navigation.core_navigator import CoreNavigator
     from src.navigation.ports import DriveCommand, LidarScan
 
 
-@pytest.fixture()
-def tuning():
-    return NavigationTuning.load_default()
-
-
 def _navigator(waypoints: list[tuple[float, float]], tuning: NavigationTuning | None = None) -> CoreNavigator:
-    return CoreNavigator(
-        gateway=FakeGateway(Pose(x=waypoints[0][0], y=waypoints[0][1], yaw=0.0)),
-        waypoints=[Waypoint(*wp) for wp in waypoints],
-        num_laps=1,
-        tuning=tuning or NavigationTuning.load_default(),
+    return build_navigator(
+        FakeGateway(Pose(x=waypoints[0][0], y=waypoints[0][1], yaw=0.0)),
+        [Waypoint(*wp) for wp in waypoints],
+        tuning or NavigationTuning.load_default(),
     )
 
 

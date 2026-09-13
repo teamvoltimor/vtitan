@@ -86,7 +86,7 @@ def main() -> None:
             continue
         for _rel, payload in frames:
             for det in decode_detections(payload):
-                if det.class_name not in (SignColor.RED, SignColor.GREEN):
+                if det.color not in (SignColor.RED, SignColor.GREEN):
                     continue
                 bbox = det.as_bbox()
                 h = bbox.y_max - bbox.y_min

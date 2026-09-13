@@ -111,9 +111,9 @@ def collect(bag_dir: Path) -> tuple[list[RedBox], Counter]:
         for det in decode_detections(payload):
             bbox = det.as_bbox()
             box = (bbox.x_min, bbox.y_min, bbox.x_max, bbox.y_max)
-            if det.class_name == SignColor.MAGENTA:
+            if det.color == SignColor.MAGENTA:
                 magenta_sections[corridor or "None"] += 1
-            elif det.class_name == SignColor.RED:
+            elif det.color == SignColor.RED:
                 reds.append((box, corridor))
 
     return reds, magenta_sections

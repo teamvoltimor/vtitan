@@ -79,11 +79,11 @@ class IMU_UART_RVCNode(LifecycleHardwareNode[IMU_UART_RVCDriver]):
 
         # QuaternionReading's field order is (w, x, y, z); ROS 2's
         # geometry_msgs/Quaternion is (x, y, z, w).
-        qw, qx, qy, qz = data.quaternion
-        msg.orientation.x = qx
-        msg.orientation.y = qy
-        msg.orientation.z = qz
-        msg.orientation.w = qw
+        quaternion = data.quaternion
+        msg.orientation.x = quaternion.x
+        msg.orientation.y = quaternion.y
+        msg.orientation.z = quaternion.z
+        msg.orientation.w = quaternion.w
 
         msg.orientation_covariance = [-1.0] + [0.0] * 8
 

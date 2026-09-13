@@ -8,30 +8,21 @@ misleading picture.
 from __future__ import annotations
 
 import numpy as np
-from shared.domain.models import BBox, Detection, SignColor
+from shared.domain.models import Detection, SignColor
 
 from src.vision.hud import HudConfig
 from src.vision.overlay import annotate
+from tests.fixtures import blank_frame, detection_from_bbox
 
 _HUD = HudConfig()
 
 
 def _blank(width: int = 200, height: int = 120) -> np.ndarray:
-    return np.zeros((height, width, 3), dtype=np.uint8)
+    return blank_frame(width, height)
 
 
 def _detection(bbox: tuple[float, float, float, float], colour: SignColor) -> Detection:
-    box = BBox(*bbox)
-    return Detection(
-        class_name=colour,
-        confidence=0.9,
-        bbox=tuple(box),
-        x=box.center.x,
-        y=box.center.y,
-        width=box.width,
-        height=box.height,
-        area=box.area,
-    )
+    return detection_from_bbox(bbox, color=colour)
 
 
 def test_draws_something_for_a_detection() -> None:

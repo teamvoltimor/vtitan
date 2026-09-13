@@ -18,18 +18,21 @@ makes the flag safe to try at all: feeding the router must not move the wheel.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Pose, SignColor, Waypoint
 
 from src.config.tuning_helpers import tuning_with_overrides
 from src.navigation.control.controllers import EscapeManeuver, ManeuverType
-from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec
-from tests.fixtures import FakeGateway
+from src.navigation.ports import LidarScan
+from tests.fixtures import FakeGateway, build_navigator
 from tests.test_constants import ANGLES_FULL_ROTATION, LIDAR_DEFAULT_FAR, NUM_RAYS
 
-from src.navigation.ports import LidarScan
+if TYPE_CHECKING:
+    from src.navigation.core_navigator import CoreNavigator
 
 LATCHED_STEERING = 0.42
 """An arbitrary value no planner would produce, so an assertion that the
@@ -65,20 +68,14 @@ def _navigator(*, flag: bool) -> tuple[CoreNavigator, FakeGateway, list[int]]:
     calls: list[int] = []
     original = router.deform_waypoint
 
-    def counting(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+    def counting(*args, **kwargs):
         calls.append(1)
         return original(*args, **kwargs)
 
     router.deform_waypoint = counting  # type: ignore[method-assign]
 
     gateway = FakeGateway(Pose(x=1.0, y=0.5, yaw=0.0), _scan())
-    nav = CoreNavigator(
-        gateway=gateway,
-        waypoints=[Waypoint(5.0, 0.5), Waypoint(10.0, 0.5)],
-        num_laps=1,
-        tuning=tuning,
-        sign_router=router,
-    )
+    nav = build_navigator(gateway, [Waypoint(5.0, 0.5), Waypoint(10.0, 0.5)], tuning, sign_router=router)
     # Latch a manoeuvre with enough frames left that this step cannot end it,
     # so the early return is exercised rather than the tick that clears it.
     nav._active_maneuver = EscapeManeuver(

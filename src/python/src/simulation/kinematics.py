@@ -88,8 +88,8 @@ class _KinematicsConstants:
             rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
             speed_tau_s=RobotSpecs.SPEED_RESPONSE_TAU_S,
             yaw_gain=RobotSpecs.YAW_GAIN,
-            min_turn_radius_m=get_tuning(tuning).simulation.MIN_TURN_RADIUS_M,
-            radius_tracks_speed=get_tuning(tuning).simulation.MIN_TURN_RADIUS_TRACKS_SPEED,
+            min_turn_radius_m=tuning.simulation.MIN_TURN_RADIUS_M,
+            radius_tracks_speed=tuning.simulation.MIN_TURN_RADIUS_TRACKS_SPEED,
         )
 
 

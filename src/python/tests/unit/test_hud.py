@@ -14,12 +14,13 @@ import math
 import numpy as np
 
 from src.vision.hud import HudConfig, _fmt_heading_deg, draw_logo, draw_radar, draw_stats
+from tests.fixtures import blank_frame
 
 _HUD = HudConfig()
 
 
 def _blank(width: int = 640, height: int = 360) -> np.ndarray:
-    return np.zeros((height, width, 3), dtype=np.uint8)
+    return blank_frame(width, height)
 
 
 _NAV_DEBUG = {

@@ -20,21 +20,17 @@ import math
 from typing import TYPE_CHECKING
 
 import pytest
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
 from shared.domain.models import Pose, Waypoint
 
-from src.navigation.core_navigator import CoreNavigator
 from src.navigation.race_tracker import LapDetector
-from tests.fixtures import FakeGateway
+from tests.fixtures import FakeGateway, build_navigator
 
 if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
+
+    from src.navigation.core_navigator import CoreNavigator
     from src.navigation.ports import DriveCommand, LidarScan
-
-
-@pytest.fixture()
-def tuning():
-    return NavigationTuning.load_default()
 
 
 def _square_loop(side: float = 2.0, per_side: int = 12, origin: float = 0.5) -> list[tuple[float, float]]:
@@ -56,11 +52,11 @@ def _square_loop(side: float = 2.0, per_side: int = 12, origin: float = 0.5) -> 
 
 def _navigator(waypoints: list[tuple[float, float]], pose: Pose, tuning: NavigationTuning) -> tuple[CoreNavigator, FakeGateway]:
     gateway = FakeGateway(pose)
-    nav = CoreNavigator(
-        gateway=gateway,
-        waypoints=[Waypoint(*wp) for wp in waypoints],
+    nav = build_navigator(
+        gateway,
+        [Waypoint(*wp) for wp in waypoints],
+        tuning,
         num_laps=3,
-        tuning=tuning,
         lap_detector=LapDetector(
             start_pos=Waypoint(*waypoints[0]),
             start_section=Section.SOUTH,

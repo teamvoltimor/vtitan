@@ -99,8 +99,11 @@ def detection_to_observation(
             fusion -- see :func:`_detection_to_world`. ``None`` (the default)
             uses the pinhole-only distance estimate.
         lidar_angles_rad: Matching robot-frame bearings for ``lidar_ranges_m``.
+        barrier_possible: Whether the parking-lot barrier could be in view this
+            tick. When True, a box too wide to be a pillar is taken for the
+            barrier and dropped; when False that rejection is skipped.
     """
-    if det.class_name not in (SignColor.RED, SignColor.GREEN):
+    if det.color not in (SignColor.RED, SignColor.GREEN):
         return None
     tuning = get_tuning(tuning)
     # A pillar is taller than it is wide. Rejecting the rest is what keeps the
@@ -156,7 +159,7 @@ def detection_to_observation(
     return TrafficSignObservation(
         world_x_m=world[0],
         world_y_m=world[1],
-        color=det.class_name,
+        color=det.color,
         confidence=det.confidence,
         detected_at_timestamp=0.0,
         bbox_xmin=int(bbox.x_min),

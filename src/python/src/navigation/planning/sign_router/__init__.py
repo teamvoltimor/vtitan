@@ -1,16 +1,18 @@
 """WRO 2026 traffic-sign routing for the obstacles challenge.
 
-Computes lateral waypoint deformations so the robot avoids a red obstacle on
-its OUTWARD side (toward the outer wall) and a green obstacle on its INWARD
-side (toward the inner square) -- an absolute rule tied to the track geometry,
-not the travel direction: it holds identically whether the round is run
-clockwise or counterclockwise.
+Computes lateral waypoint deformations so the robot passes a red obstacle on
+its own RIGHT and a green one on its own LEFT, for the direction actually
+driven. "Right" is a vehicle-relative rule that names opposite world axes
+depending on which way the round is driven, so the per-(corridor, direction)
+polarity lives in ``ROUTING_TABLE`` and is looked up with the committed
+direction, never assumed direction-agnostic -- an absolute outward/inward
+rule was the bug corrected on 2026-09-03.
 
 Pure Python -- no ROS2 dependencies. Designed to be unit-tested independently.
 
-Pass-side rule:
-    - Red obstacle   -> robot passes on the OUTWARD side (away from centre).
-    - Green obstacle -> robot passes on the INWARD side (toward centre).
+Pass-side rule (in the vehicle's own frame):
+    - Red obstacle   -> robot passes on its RIGHT.
+    - Green obstacle -> robot passes on its LEFT.
 
 The implementation is split into submodules (config/constants, routing table
 + pure helpers, deformation math, the stateful router). This package

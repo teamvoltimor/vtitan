@@ -41,12 +41,13 @@ class JSONFormatter(logging.Formatter):
         return payload.to_json()
 
 
-def configure_json_logging(level: int | None = None) -> logging.Logger:
+def configure_json_logging(level: int | str | None = None) -> logging.Logger:
     """
     Attach a JSON stream handler to the root logger.
 
     Args:
-        level: The minimum log level to output. Defaults to LOG_LEVEL env var.
+        level: The minimum log level to output, as a numeric ``logging`` level
+            or a level name such as ``"DEBUG"``. Defaults to the LOG_LEVEL env var.
 
     Returns:
         The configured root logger.
@@ -60,8 +61,14 @@ def configure_json_logging(level: int | None = None) -> logging.Logger:
         return root
 
     # Otherwise, configure JSON logging with the specified level or LOG_LEVEL env var.
-    level_str = LOG_LEVEL.upper() if level is None else str(level)
-    logging_level = getattr(logging, level_str, logging.INFO)
+    if level is None:
+        logging_level = getattr(logging, LOG_LEVEL.upper(), logging.INFO)
+    elif isinstance(level, int):
+        # A numeric level is used directly: str(10) would miss getattr and
+        # silently fall back to INFO.
+        logging_level = level
+    else:
+        logging_level = getattr(logging, level.upper(), logging.INFO)
 
     handler = logging.StreamHandler()
     handler.setFormatter(JSONFormatter())

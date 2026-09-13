@@ -53,10 +53,10 @@ def annotate(rgb: np.ndarray, detections: list[Detection], *, config: HudConfig)
         if x2 <= x1 or y2 <= y1:
             continue
 
-        colour = _BOX_RGB.get(detection.class_name, _FALLBACK_RGB)
+        colour = _BOX_RGB.get(detection.color, _FALLBACK_RGB)
         cv2.rectangle(canvas, (x1, y1), (x2, y2), colour, _THICKNESS)
 
-        label = f"{detection.class_name} {detection.confidence:.2f}"
+        label = f"{detection.color} {detection.confidence:.2f}"
         (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, config.font_scale, 1)
         # Put the label inside the box when there is no room above it, so it
         # never lands off-frame for a detection touching the top edge.

@@ -12,15 +12,18 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
 from shared.domain.models import Pose, SignColor, Waypoint
 
-from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.sign_router import SignRouter, SignSpec
 from src.navigation.race_tracker import LapDetector
-from tests.fixtures import FakeGateway
+from tests.fixtures import FakeGateway, build_navigator
+
+if TYPE_CHECKING:
+    from src.navigation.core_navigator import CoreNavigator
 
 # SOUTH corridor centreline, spanning the straight the lane may rewrite.
 _WAYPOINTS = [Waypoint(1.0 + 0.1 * i, 0.5) for i in range(11)]
@@ -38,20 +41,19 @@ def _navigator(tuning: NavigationTuning, *, with_sign_router: bool) -> CoreNavig
     router = (
         SignRouter([_SIGN], direction=Direction.COUNTERCLOCKWISE, tuning=tuning) if with_sign_router else None
     )
-    nav = CoreNavigator(
-        gateway=gateway,
-        waypoints=_WAYPOINTS,
+    return build_navigator(
+        gateway,
+        _WAYPOINTS,
+        tuning,
         num_laps=3,
-        tuning=tuning,
         sign_router=router,
         lap_detector=LapDetector(
             start_pos=_WAYPOINTS[0],
             start_section=Section.SOUTH,
             direction=Direction.COUNTERCLOCKWISE,
         ),
+        current_corridor=Section.SOUTH,
     )
-    nav._current_corridor = Section.SOUTH
-    return nav
 
 
 def _max_lateral_shift(nav: CoreNavigator) -> float:

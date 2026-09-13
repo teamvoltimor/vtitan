@@ -124,7 +124,7 @@ class TestVisionCallbackParsesDetections:
             gateway._vision_callback(msg)
 
             assert len(gateway._latest_detections) == 1
-            assert gateway._latest_detections[0].class_name == "red"
+            assert gateway._latest_detections[0].color == "red"
             assert gateway._latest_detections[0].confidence == pytest.approx(0.9)
         finally:
             node.destroy_node()

@@ -13,13 +13,17 @@ fields, not re-test their drawing.
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
 from unittest import mock
 
-import numpy as np
 import pytest
 
 from src.vision.hud import HudConfig
 from src.vision.video_recorder import FrameSnapshot, VideoRecorder
+from tests.fixtures import blank_frame
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 def _recorder(video_width: int = 160, fps: float = 10.0) -> VideoRecorder:
@@ -36,7 +40,7 @@ def _recorder(video_width: int = 160, fps: float = 10.0) -> VideoRecorder:
 
 
 def _frame(width: int = 320, height: int = 180) -> np.ndarray:
-    return np.zeros((height, width, 3), dtype=np.uint8)
+    return blank_frame(width, height)
 
 
 def _snapshot(**kwargs) -> FrameSnapshot:

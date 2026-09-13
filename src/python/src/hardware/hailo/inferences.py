@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NamedTuple
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -99,7 +100,8 @@ def iter_nms_by_class(raw_output: object) -> Iterator[Detection]:
             yield _unpack(class_id, box)
 
 
-class BoundingBox(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class BoundingBox:
     """Represents a bounding box for detected objects in an image."""
 
     x: int
@@ -147,7 +149,8 @@ class BoundingBox(NamedTuple):
         return BBox(x_min=self.x, y_min=self.y, x_max=self.x + self.width, y_max=self.y + self.height)
 
 
-class YoloDetection(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class YoloDetection:
     """Represents a single detection from a YOLO model."""
 
     class_id: int
@@ -156,7 +159,8 @@ class YoloDetection(NamedTuple):
     bbox: BoundingBox
 
 
-class InferenceResult(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class InferenceResult:
     """Represents the result of an inference, including detections and latency."""
 
     detections: list[YoloDetection]

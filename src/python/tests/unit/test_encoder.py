@@ -238,40 +238,37 @@ class FakeDrive:
 
 
 class TestClosedLoopDrive:
-    def test_connect_connects_both(self):
-        drive = FakeDrive()
+    @pytest.fixture()
+    def drive(self) -> FakeDrive:
+        return FakeDrive()
+
+    @pytest.fixture()
+    def loop(self, drive: FakeDrive) -> ClosedLoopDrive:
         encoder = SimulatedEncoder(counts_per_rev=200, wheel_diameter_m=0.06)
-        loop = ClosedLoopDrive(drive, encoder, PIDController(kp=1.0, ki=0.0))
+        return ClosedLoopDrive(drive, encoder, PIDController(kp=1.0, ki=0.0))
+
+    def test_connect_connects_both(self, drive, loop):
         loop.connect()
         assert drive.connected
 
-    def test_positive_pid_output_drives_forward(self):
-        drive = FakeDrive()
-        encoder = SimulatedEncoder(counts_per_rev=200, wheel_diameter_m=0.06)
-        loop = ClosedLoopDrive(drive, encoder, PIDController(kp=1.0, ki=0.0))
-        loop.run_drive_at_rpm(100.0, dt=0.1)
-        assert drive.last_forward is not None
-        assert drive.last_reverse is None
+    @pytest.mark.parametrize(
+        ("rpm", "moved", "idle"),
+        [
+            (100.0, "last_forward", "last_reverse"),
+            (-100.0, "last_reverse", "last_forward"),
+        ],
+    )
+    def test_pid_sign_drives_the_matching_direction(self, drive, loop, rpm, moved, idle):
+        loop.run_drive_at_rpm(rpm, dt=0.1)
+        assert getattr(drive, moved) is not None
+        assert getattr(drive, idle) is None
 
-    def test_negative_pid_output_drives_reverse(self):
-        drive = FakeDrive()
-        encoder = SimulatedEncoder(counts_per_rev=200, wheel_diameter_m=0.06)
-        loop = ClosedLoopDrive(drive, encoder, PIDController(kp=1.0, ki=0.0))
-        loop.run_drive_at_rpm(-100.0, dt=0.1)
-        assert drive.last_reverse is not None
-        assert drive.last_forward is None
-
-    def test_stop_drive_stops_and_resets_pid(self):
-        drive = FakeDrive()
-        encoder = SimulatedEncoder(counts_per_rev=200, wheel_diameter_m=0.06)
-        pid = PIDController(kp=1.0, ki=1.0)
-        loop = ClosedLoopDrive(drive, encoder, pid)
+    def test_stop_drive_stops_and_resets_pid(self, drive, loop):
         loop.run_drive_at_rpm(100.0, dt=0.1)
         loop.stop_drive()
         assert drive.stopped
 
-    def test_get_drive_counts_delegates_to_encoder(self):
-        drive = FakeDrive()
+    def test_get_drive_counts_delegates_to_encoder(self, drive):
         clock = FakeClock()
         encoder = SimulatedEncoder(counts_per_rev=200, wheel_diameter_m=0.06, time_source=clock)
         encoder.connect()

@@ -196,7 +196,10 @@ class RaceTracker:
         self.metrics = RaceMetrics()
         self._start_time = time.perf_counter()
         self._last_pos: Waypoint | None = None
-        self._speed_samples: list[float] = []
+        # Running mean state, not a sample list: the list grew without bound and
+        # every update re-summed it (O(n) per tick, O(n^2) per run).
+        self._speed_sum: float = 0.0
+        self._speed_count: int = 0
         self._lap_start_distance: float = 0.0
 
     def update_position(
@@ -229,11 +232,11 @@ class RaceTracker:
 
         # Track speed
         self.metrics.max_speed = max(self.metrics.max_speed, current_speed)
-        self._speed_samples.append(current_speed)
+        self._speed_sum += current_speed
+        self._speed_count += 1
 
         # Update average speed
-        if self._speed_samples:
-            self.metrics.avg_speed = sum(self._speed_samples) / len(self._speed_samples)
+        self.metrics.avg_speed = self._speed_sum / self._speed_count
 
     def increment_lap(self) -> None:
         """Record completion of current lap.

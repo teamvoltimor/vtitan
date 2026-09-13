@@ -203,7 +203,7 @@ def _collect(bag_dir: Path, lag_s: float) -> tuple[list[tuple], int, int, int]:
     for rel, payload in frames:
         rate = yaw_track.rate_at(rel - lag_s)
         for det in decode_detections(payload):
-            if det.class_name not in (SignColor.RED, SignColor.GREEN):
+            if det.color not in (SignColor.RED, SignColor.GREEN):
                 continue
             bbox = det.as_bbox()
             h = bbox.y_max - bbox.y_min
@@ -213,7 +213,7 @@ def _collect(bag_dir: Path, lag_s: float) -> tuple[list[tuple], int, int, int]:
             if rate is None:
                 unmatched += 1
                 continue
-            rows.append((abs(rate), float(det.confidence), str(det.class_name), w, h, _implied_range(h)))
+            rows.append((abs(rate), float(det.confidence), str(det.color), w, h, _implied_range(h)))
 
     gyro_nonzero = sum(1 for g in yaw_track.gyro_z if g != 0.0)
     return rows, len(yaw_track.t), gyro_nonzero, unmatched

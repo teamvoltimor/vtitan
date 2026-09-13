@@ -101,7 +101,7 @@ def emulate_sign_observations(
             TrafficSignObservation(
                 world_x_m=report_pos.x + distance * math.cos(report_bearing),
                 world_y_m=report_pos.y + distance * math.sin(report_bearing),
-                color=SignColor.RED if sign.color == "red" else SignColor.GREEN,
+                color=SignColor.RED if sign.color == SignColor.RED else SignColor.GREEN,
                 confidence=detection_confidence,
                 detected_at_timestamp=0.0,
             ),
@@ -181,7 +181,7 @@ def emulate_sign_detections(
         y_max = cy + pixel_height / 2.0
         detections.append(
             Detection(
-                class_name=SignColor.RED if sign.color == "red" else SignColor.GREEN,
+                color=SignColor.RED if sign.color == SignColor.RED else SignColor.GREEN,
                 confidence=confidence,
                 bbox=(x_min, y_min, x_max, y_max),
                 x=cx,

@@ -36,9 +36,9 @@ from typing import TYPE_CHECKING
 
 from src.hardware.exceptions import MotorConnectionError
 from src.hardware.motors import constants as motor_const
-from src.hardware.motors.base import DriveDriver
+from src.hardware.motors.base import DEFAULT_DRIVE_DUTY_PERCENT, DriveDriver
 from src.hardware.motors.bts7960.config import Bts7960PwmConfig
-from src.hardware.motors.pwm_sysfs import EXPORT_TIMEOUT_S, SYSFS_PWM_ROOT, wait_for_pwm_channel_writable
+from src.hardware.motors.pwm_sysfs import SYSFS_PWM_ROOT, export_pwm_channel
 from src.navigation.utils import clamp
 
 if TYPE_CHECKING:
@@ -88,33 +88,12 @@ class Driver(DriveDriver):
 
     def _export_channel(self) -> Path:
         """Export the forward (RPWM) hardware-PWM channel and wait for it to become writable."""
-        chip = self._chip_dir
-        if not chip.is_dir():
-            msg = (
-                f"{chip} not present -- hardware PWM overlay missing. Add "
-                "'dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4' to "
-                "/boot/firmware/config.txt and reboot"
-            )
-            raise self._fail(msg)
-
-        channel_dir = chip / f"pwm{self._pwm_config.pwm_channel}"
-        if not channel_dir.is_dir():
-            try:
-                (chip / "export").write_text(str(self._pwm_config.pwm_channel))
-            except OSError as err:
-                # EBUSY means someone already exported it, which is fine.
-                if not channel_dir.is_dir():
-                    msg = f"cannot export PWM channel: {err}"
-                    raise self._fail(msg) from err
-
-        if wait_for_pwm_channel_writable(channel_dir):
-            return channel_dir
-
-        msg = (
-            f"{channel_dir} did not become writable within {EXPORT_TIMEOUT_S}s "
-            "(is the service user in the 'gpio' group?)"
+        return export_pwm_channel(
+            self._chip_dir,
+            self._pwm_config.pwm_channel,
+            overlay_hint="'dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4'",
+            fail=self._fail,
         )
-        raise self._fail(msg)
 
     def connect(self) -> None:
         """Open the H-bridge: RPWM hardware PWM, LPWM software PWM, EN pins latched HIGH.
@@ -252,11 +231,11 @@ class Driver(DriveDriver):
 
     def run_drive_forward(self, speed: float | None = None) -> None:
         """Open-loop forward at ``speed`` percent duty (default 50%)."""
-        self._set_output((50 if speed is None else speed) / 100.0)
+        self._set_output((DEFAULT_DRIVE_DUTY_PERCENT if speed is None else speed) / 100.0)
 
     def run_drive_reverse(self, speed: float | None = None) -> None:
         """Open-loop reverse at ``speed`` percent duty (default 50%)."""
-        self._set_output(-(50 if speed is None else speed) / 100.0)
+        self._set_output(-(DEFAULT_DRIVE_DUTY_PERCENT if speed is None else speed) / 100.0)
 
     def stop_drive(self) -> None:
         """Stop the drive (both channels to 0 duty)."""

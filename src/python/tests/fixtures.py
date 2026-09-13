@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
-from shared.domain.models import BlockPosition, Detection, IMUReading, ParkingLot, Pose, Waypoint
+from shared.domain.models import BlockPosition, Detection, IMUReading, ParkingLot, Pose, SignColor, Waypoint
 
 from src.simulation.kinematics import AckermannState
 from tests.test_constants import (
@@ -31,9 +31,13 @@ from tests.test_constants import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.enums import Section
 
+    from src.navigation.core_navigator import CoreNavigator
+    from src.navigation.planning.sign_router import SignRouter
     from src.navigation.ports import DriveCommand
+    from src.navigation.race_tracker import LapDetector
 
 
 @dataclass(frozen=True)
@@ -364,6 +368,37 @@ def create_numpy_scan(default_distance_m: float = 10.0) -> np.ndarray:
     return np.full(NUM_RAYS, default_distance_m)
 
 
+def blank_frame(width: int = 320, height: int = 180) -> np.ndarray:
+    """A solid black BGR frame (all zeros) for vision/perception tests."""
+    return np.zeros((height, width, 3), dtype=np.uint8)
+
+
+def detection_from_bbox(
+    bbox: tuple[float, float, float, float],
+    *,
+    color: SignColor | str = SignColor.RED,
+    confidence: float = 0.9,
+) -> Detection:
+    """A :class:`Detection` built from an ``(x_min, y_min, x_max, y_max)`` box.
+
+    Derives the centre and size fields the model carries alongside the raw
+    bbox, so a test states only the box it is pinning. ``color`` is typed
+    loosely because the telemetry tests use arbitrary labels for their
+    best-detection picker rather than real sign colours.
+    """
+    x_min, y_min, x_max, y_max = bbox
+    return Detection(
+        color=color,
+        confidence=confidence,
+        bbox=bbox,
+        x=(x_min + x_max) / 2.0,
+        y=(y_min + y_max) / 2.0,
+        width=x_max - x_min,
+        height=y_max - y_min,
+        area=(x_max - x_min) * (y_max - y_min),
+    )
+
+
 def angle_to_index(bearing_rad: float, angles: np.ndarray = ANGLES_FULL_ROTATION) -> int:
     """Find the ray index closest to a given bearing angle.
 
@@ -452,3 +487,35 @@ class FakeGateway:
         """
         del current_corridor
         return []
+
+
+def build_navigator(
+    gateway: FakeGateway,
+    waypoints: list[Waypoint],
+    tuning: NavigationTuning,
+    *,
+    num_laps: int = 1,
+    sign_router: SignRouter | None = None,
+    lap_detector: LapDetector | None = None,
+    current_corridor: Section | None = None,
+) -> CoreNavigator:
+    """Build a CoreNavigator around a test gateway with the shared kwargs.
+
+    The per-file ``_navigator`` helpers in the core-navigator test modules each
+    repeated this construction (gateway + waypoints + tuning, optional sign
+    router and lap detector, then the current-corridor latch); only the
+    defaults and the per-test extras differ, so those are parameters.
+    """
+    from src.navigation.core_navigator import CoreNavigator
+
+    nav = CoreNavigator(
+        gateway=gateway,
+        waypoints=list(waypoints),
+        num_laps=num_laps,
+        tuning=tuning,
+        sign_router=sign_router,
+        lap_detector=lap_detector,
+    )
+    if current_corridor is not None:
+        nav._current_corridor = current_corridor
+    return nav

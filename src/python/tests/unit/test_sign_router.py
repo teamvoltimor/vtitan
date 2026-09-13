@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
+from typing import ClassVar
 
 import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
@@ -971,7 +972,7 @@ def _detection_at_distance_bearing(
     half = pixel_height / 2
     box = BBox(cx - half, cy - half, cx + half, cy + half)
     return Detection(
-        class_name=color,
+        color=color,
         confidence=confidence,
         bbox=tuple(box),
         x=cx,
@@ -1049,7 +1050,7 @@ class TestDetectionToWorld:
         tiny_height = _MIN_RELIABLE_BBOX_HEIGHT_PX - 1
         box = BBox(100.0, 100.0, 101.0, 100.0 + tiny_height)
         det = Detection(
-            class_name="red",
+            color="red",
             confidence=0.9,
             bbox=tuple(box),
             x=box.center.x,
@@ -1092,7 +1093,7 @@ class TestDetectionToWorldLidarFusion:
     each of these into a test of the pinhole instead.
     """
 
-    UNGATED = {"LIDAR_RANGE_FUSION": True, "LIDAR_RANGE_FUSION_CLUSTER": False}
+    UNGATED: ClassVar[dict[str, bool]] = {"LIDAR_RANGE_FUSION": True, "LIDAR_RANGE_FUSION_CLUSTER": False}
 
     def test_the_shipped_default_does_not_override_the_pinhole(self, router_config):
         """The default must be measurable from the test, not assumed.

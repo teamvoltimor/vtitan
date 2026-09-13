@@ -105,57 +105,56 @@ class RawI2CDriver(ABC_Driver):
     @override
     def connect(self) -> None:
         """Initialize I2C connection and configure display."""
-        self._conn_lock.acquire()
-        self.logger.info(
-            "Connecting to SSD1306 display (raw_i2c backend)",
-            extra={
-                "details": {
-                    "width": self.config.width,
-                    "height": self.config.height,
-                    "i2c_address": hex(self.config.i2c_address),
-                    "i2c_bus": self.config.i2c_bus,
+        with self._conn_lock:
+            self.logger.info(
+                "Connecting to SSD1306 display (raw_i2c backend)",
+                extra={
+                    "details": {
+                        "width": self.config.width,
+                        "height": self.config.height,
+                        "i2c_address": hex(self.config.i2c_address),
+                        "i2c_bus": self.config.i2c_bus,
+                    },
                 },
-            },
-        )
+            )
 
-        self._fd = os.open(f"/dev/i2c-{self.config.i2c_bus}", os.O_RDWR)
-        ioctl(self._fd, _I2C_SLAVE, self.config.i2c_address)
+            self._fd = os.open(f"/dev/i2c-{self.config.i2c_bus}", os.O_RDWR)
+            ioctl(self._fd, _I2C_SLAVE, self.config.i2c_address)
 
-        multiplex = self.config.height - 1
-        com_pins = 0x12 if self.config.height == _DISPLAY_HEIGHT_128X64 else 0x02
+            multiplex = self.config.height - 1
+            com_pins = 0x12 if self.config.height == _DISPLAY_HEIGHT_128X64 else 0x02
 
-        self._write_command(
-            _DISPLAYOFF,
-            _SETDISPLAYCLOCKDIV,
-            0x80,
-            _SETMULTIPLEX,
-            multiplex,
-            _SETDISPLAYOFFSET,
-            0x00,
-            _SETSTARTLINE,
-            _CHARGEPUMP,
-            0x14,
-            _MEMORYMODE,
-            0x00,
-            _SEGREMAP,
-            _COMSCANDEC,
-            _SETCOMPINS,
-            com_pins,
-            _SETCONTRAST,
-            0xCF,
-            _SETPRECHARGE,
-            0xF1,
-            _SETVCOMDETECT,
-            0x40,
-            _DISPLAYALLON_RESUME,
-            _NORMALDISPLAY,
-            _DISPLAYON,
-        )
+            self._write_command(
+                _DISPLAYOFF,
+                _SETDISPLAYCLOCKDIV,
+                0x80,
+                _SETMULTIPLEX,
+                multiplex,
+                _SETDISPLAYOFFSET,
+                0x00,
+                _SETSTARTLINE,
+                _CHARGEPUMP,
+                0x14,
+                _MEMORYMODE,
+                0x00,
+                _SEGREMAP,
+                _COMSCANDEC,
+                _SETCOMPINS,
+                com_pins,
+                _SETCONTRAST,
+                0xCF,
+                _SETPRECHARGE,
+                0xF1,
+                _SETVCOMDETECT,
+                0x40,
+                _DISPLAYALLON_RESUME,
+                _NORMALDISPLAY,
+                _DISPLAYON,
+            )
 
-        self.clear()
+            self.clear()
 
-        self.logger.info("SSD1306 display connected successfully (raw_i2c backend)")
-        self._conn_lock.release()
+            self.logger.info("SSD1306 display connected successfully (raw_i2c backend)")
 
     @override
     def clear(self) -> None:
@@ -239,11 +238,10 @@ class RawI2CDriver(ABC_Driver):
     @override
     def close(self) -> None:
         """Clean up display resources."""
-        self._conn_lock.acquire()
-        if self._fd is not None:
-            self._write_command(_DISPLAYOFF)
-            os.close(self._fd)
-            self._fd = None
+        with self._conn_lock:
+            if self._fd is not None:
+                self._write_command(_DISPLAYOFF)
+                os.close(self._fd)
+                self._fd = None
 
-        self.logger.info("Display connection closed (raw_i2c backend)")
-        self._conn_lock.release()
+            self.logger.info("Display connection closed (raw_i2c backend)")

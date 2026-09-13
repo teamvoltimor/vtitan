@@ -47,6 +47,8 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, TrafficSignSpecs
 
+from src.navigation.utils import wrap_angle
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -170,7 +172,7 @@ def corridor_walls(scan: LidarScan, params: ProposerParams) -> tuple[float, floa
     for r, a in zip(scan.ranges_m, scan.angles_rad, strict=True):
         if not math.isfinite(r) or r < _MIN_WALL_RANGE_M or r > params.max_wall_range_m:
             continue
-        norm = math.atan2(math.sin(a), math.cos(a))
+        norm = wrap_angle(a)
         if abs(norm - math.pi / 2) <= window:
             left.append(r * math.sin(norm))
         elif abs(norm + math.pi / 2) <= window:

@@ -35,31 +35,30 @@ class Driver(ABC_Driver):
     @override
     def connect(self) -> None:
         """Initialize I2C connection and configure display."""
-        self._conn_lock.acquire()
-        self.logger.info(
-            "Connecting to SSD1306 display",
-            extra={
-                "details": {
-                    "width": self.config.width,
-                    "height": self.config.height,
-                    "i2c_address": hex(self.config.i2c_address),
-                    "i2c_bus": self.config.i2c_bus,
+        with self._conn_lock:
+            self.logger.info(
+                "Connecting to SSD1306 display",
+                extra={
+                    "details": {
+                        "width": self.config.width,
+                        "height": self.config.height,
+                        "i2c_address": hex(self.config.i2c_address),
+                        "i2c_bus": self.config.i2c_bus,
+                    },
                 },
-            },
-        )
+            )
 
-        # If using MCP2221A, Blinka will automatically detect it as a USB HID device and provide I2C access via busio
-        # Remember that if that's the case, BLINKA_MCP2221 env var must be set to "1" and the MCP2221A must be properly connected to the I2C bus with correct wiring and power.
-        self._i2c = busio.I2C(board.SCL, board.SDA)
+            # If using MCP2221A, Blinka will automatically detect it as a USB HID device and provide I2C access via busio
+            # Remember that if that's the case, BLINKA_MCP2221 env var must be set to "1" and the MCP2221A must be properly connected to the I2C bus with correct wiring and power.
+            self._i2c = busio.I2C(board.SCL, board.SDA)
 
-        # Create display object
-        self._display = SSD1306_I2C(self.config.width, self.config.height, self._i2c, addr=self.config.i2c_address)
+            # Create display object
+            self._display = SSD1306_I2C(self.config.width, self.config.height, self._i2c, addr=self.config.i2c_address)
 
-        # Clear display on startup
-        self.clear()
+            # Clear display on startup
+            self.clear()
 
-        self.logger.info("SSD1306 display connected successfully")
-        self._conn_lock.release()
+            self.logger.info("SSD1306 display connected successfully")
 
     @override
     def clear(self) -> None:
@@ -124,14 +123,13 @@ class Driver(ABC_Driver):
     @override
     def close(self) -> None:
         """Clean up display resources."""
-        self._conn_lock.acquire()
-        if self._display is not None:
-            self.clear()
-            self._display = None
+        with self._conn_lock:
+            if self._display is not None:
+                self.clear()
+                self._display = None
 
-        if self._i2c is not None:
-            self._i2c.deinit()
-            self._i2c = None
+            if self._i2c is not None:
+                self._i2c.deinit()
+                self._i2c = None
 
-        self.logger.info("Display connection closed")
-        self._conn_lock.release()
+            self.logger.info("Display connection closed")

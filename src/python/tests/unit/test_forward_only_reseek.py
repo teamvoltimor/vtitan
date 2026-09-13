@@ -23,7 +23,7 @@ from shared.domain.models import Pose, Waypoint
 from src.config.tuning_helpers import tuning_with_overrides
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.ports import LidarScan
-from tests.fixtures import FakeGateway, create_scan_with_sectors
+from tests.fixtures import FakeGateway, build_navigator, create_scan_with_sectors
 from tests.test_constants import ANGLES_FULL_ROTATION
 
 _PATH_LEN = 20
@@ -42,7 +42,7 @@ def _navigator(tuning, waypoints):
         Pose(x=0.0, y=0.0, yaw=0.0),
         LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION.tolist())),
     )
-    return CoreNavigator(gateway=gateway, waypoints=list(waypoints), num_laps=1, tuning=tuning)
+    return build_navigator(gateway, list(waypoints), tuning)
 
 
 @pytest.fixture()

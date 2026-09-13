@@ -58,7 +58,7 @@ def _sign_detection(color: SignColor = SignColor.RED, confidence: float = 0.9) -
     x1, y1, x2, y2 = 1.0, 2.0, 5.0, 6.0
     w, h = x2 - x1, y2 - y1
     return Detection(
-        class_name=color,
+        color=color,
         confidence=confidence,
         bbox=(x1, y1, x2, y2),
         x=(x1 + x2) / 2,

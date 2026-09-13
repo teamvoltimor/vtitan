@@ -74,6 +74,16 @@ if TYPE_CHECKING:
     from src.simulation.track_model import TrackModel
 
 
+def _sign_marker_color(color: SignColor) -> tuple[float, float, float]:
+    """Official RGB for a traffic-sign marker, by sign colour.
+
+    One definition of the red/green choice instead of the same inline ternary
+    at each marker builder (they had drifted only in the alpha that is applied
+    afterwards, not in the colour itself).
+    """
+    return TrafficSignSpecs.RED_COLOR if color == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
+
+
 class LiveScenarioVisualizer(Node):
     """Publishes one running scenario's pose/LIDAR/track to ROS2 topics."""
 
@@ -336,7 +346,7 @@ class LiveScenarioVisualizer(Node):
         marker.scale.x = TrafficSignSpecs.WIDTH
         marker.scale.y = TrafficSignSpecs.DEPTH
         marker.scale.z = TrafficSignSpecs.HEIGHT
-        color = TrafficSignSpecs.RED_COLOR if spec.color == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
+        color = _sign_marker_color(spec.color)
         marker.color.r, marker.color.g, marker.color.b, marker.color.a = *color, 0.35
         return marker
 
@@ -661,7 +671,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = TrafficSignSpecs.WIDTH
         m.scale.y = TrafficSignSpecs.DEPTH
         m.scale.z = TrafficSignSpecs.HEIGHT
-        color = TrafficSignSpecs.RED_COLOR if sign.color == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
+        color = _sign_marker_color(sign.color)
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
         return m
 

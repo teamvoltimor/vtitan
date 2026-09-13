@@ -42,7 +42,7 @@ def parse_detection(d: dict) -> Detection | None:
     except ValueError:
         return None
     return Detection(
-        class_name=color,
+        color=color,
         confidence=d.get(CONFIDENCE_KEY, 0.0),
         bbox=tuple(d.get(BBOX_KEY, (0.0, 0.0, 0.0, 0.0))),
         x=d.get(X_KEY, 0.0),

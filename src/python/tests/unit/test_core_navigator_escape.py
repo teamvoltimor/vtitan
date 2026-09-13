@@ -18,12 +18,12 @@ from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose, SignColor, Waypoint
 
+from src.config.tuning_helpers import tuning_with_overrides
 from src.navigation.control.controllers import EscapeManeuver, ManeuverType
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.utils import wrap_angle
-from src.config.tuning_helpers import tuning_with_overrides
 from tests.fixtures import FakeGateway, create_scan_with_sectors
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
@@ -51,11 +51,6 @@ def seed_straight_pose_trail(nav: CoreNavigator, length_m: float = 1.0, spacing_
     count = int(length_m / spacing_m)
     # Chassis faces +x in all these fixtures (yaw=0), so "behind" is -x.
     nav._pose_trail.extend(Pose(pose.x - (count - i) * spacing_m, pose.y, pose.yaw) for i in range(count + 1))
-
-
-@pytest.fixture()
-def tuning():
-    return NavigationTuning.load_default()
 
 
 @pytest.fixture()
@@ -746,7 +741,7 @@ class TestEscapeMirrorsReverse:
     """
 
     @staticmethod
-    def _nav_with(tuning, waypoints, mirrors: bool):
+    def _nav_with(_tuning, waypoints, mirrors: bool):
         overridden = tuning_with_overrides({"ESCAPE_MIRRORS_REVERSE": mirrors}, group="escape")
         ranges = create_scan_with_sectors(front=0.06)
         scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES))

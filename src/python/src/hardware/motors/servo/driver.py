@@ -49,9 +49,8 @@ from src.hardware.motors.base import (
     SteeringDriver,
 )
 from src.hardware.motors.pwm_sysfs import (
-    EXPORT_TIMEOUT_S,
     SYSFS_PWM_ROOT,
-    wait_for_pwm_channel_writable,
+    export_pwm_channel,
 )
 from src.hardware.motors.servo.config import ServoConfig
 
@@ -97,36 +96,11 @@ class Driver(SteeringDriver):
 
     def _export_channel(self) -> Path:
         """Export the PWM channel and wait for it to become writable."""
-        chip = self._chip_dir
-        if not chip.is_dir():
-            msg = (
-                f"{chip} not present -- hardware PWM overlay missing. Add "
-                f"'dtoverlay=pwm,pin={self._config.gpio_pin},func=4' to "
-                "/boot/firmware/config.txt and reboot"
-            )
-            raise self._fail(
-                msg,
-            )
-
-        channel_dir = chip / f"pwm{self._config.pwm_channel}"
-        if not channel_dir.is_dir():
-            try:
-                (chip / "export").write_text(str(self._config.pwm_channel))
-            except OSError as err:
-                # EBUSY means someone already exported it, which is fine.
-                if not channel_dir.is_dir():
-                    msg = f"cannot export PWM channel: {err}"
-                    raise self._fail(msg) from err
-
-        if wait_for_pwm_channel_writable(channel_dir):
-            return channel_dir
-
-        msg = (
-            f"{channel_dir} did not become writable within {EXPORT_TIMEOUT_S}s "
-            "(is the service user in the 'gpio' group?)"
-        )
-        raise self._fail(
-            msg,
+        return export_pwm_channel(
+            self._chip_dir,
+            self._config.pwm_channel,
+            overlay_hint=f"'dtoverlay=pwm,pin={self._config.gpio_pin},func=4'",
+            fail=self._fail,
         )
 
     @override

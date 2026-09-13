@@ -50,6 +50,12 @@ already reaches the concrete drivers (servo/driver.py, build_hat/driver.py)
 through their own config, not through this default -- it only matters for a
 caller that omits ``speed`` entirely."""
 
+DEFAULT_DRIVE_DUTY_PERCENT = 50
+"""Default open-loop drive duty (percent) when a caller omits ``speed``.
+
+Shared by the L298N and BTS7960 H-bridge drivers so their no-argument
+``run_drive_forward``/``run_drive_reverse`` cannot drift apart."""
+
 
 @dataclass(frozen=True)
 class CalibrationData:

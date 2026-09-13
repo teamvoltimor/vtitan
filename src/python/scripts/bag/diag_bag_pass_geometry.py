@@ -113,7 +113,7 @@ def find_parking_lot(frames, rows, tuning) -> tuple[float, float] | None:  # noq
         stamp = min(pose_times, key=lambda t: abs(t - rel))
         px, py, pyaw = poses[stamp]
         for det in decode_detections(payload):
-            if det.class_name is not SignColor.MAGENTA:
+            if det.color is not SignColor.MAGENTA:
                 continue
             world = _detection_to_world(det, (px, py), pyaw, tuning=tuning)
             if world is not None:

@@ -60,53 +60,46 @@ class Driver(BNO08xI2CDriver):
     def connect(self) -> None:
         """Connect to IMU via I2C."""
         # Acquire lock to prevent concurrent connections
-        self._conn_lock.acquire()
-
-        self.logger.info(
-            "Connecting to BNO08x via I2C (Blinka)",
-            extra={DETAILS_KEY: {"i2c_address": hex(self.config.address)}},
-        )
-
-        try:
-            # If using MCP2221A, Blinka will automatically detect it as a USB HID device and provide I2C access via busio
-            # Remember that if that's the case, BLINKA_MCP2221 env var must be set to "1" and the MCP2221A must be properly connected to the I2C bus with correct wiring and power.
-            self._i2c = busio.I2C(board.SCL, board.SDA)
-
-            # Initialize BNO08x with the I2C bus
-            self._imu = BNO08X_I2C(self._i2c, address=self.config.address)
-            self.logger.info("Connected to BNO08x IMU via I2C")
-        except (RuntimeError, OSError) as e:
-            self.logger.exception("Failed to connect to IMU", extra={DETAILS_KEY: {"error": str(e)}})
-            raise IMUConnectionError(
-                hex(self.config.address),
-                "Connection failed (check wiring, power, and I2C address)",
-            ) from e
-        except Exception as e:
-            self.logger.exception(
-                "Unexpected error connecting to IMU",
-                extra={DETAILS_KEY: {"error": str(e)}},
+        with self._conn_lock:
+            self.logger.info(
+                "Connecting to BNO08x via I2C (Blinka)",
+                extra={DETAILS_KEY: {"i2c_address": hex(self.config.address)}},
             )
-            raise IMUConnectionError(
-                hex(self.config.address),
-                f"Unexpected connection error: {type(e).__name__}",
-            ) from e
-        finally:
-            # Release lock regardless of success or failure to allow retries
-            self._conn_lock.release()
+
+            try:
+                # If using MCP2221A, Blinka will automatically detect it as a USB HID device and provide I2C access via busio
+                # Remember that if that's the case, BLINKA_MCP2221 env var must be set to "1" and the MCP2221A must be properly connected to the I2C bus with correct wiring and power.
+                self._i2c = busio.I2C(board.SCL, board.SDA)
+
+                # Initialize BNO08x with the I2C bus
+                self._imu = BNO08X_I2C(self._i2c, address=self.config.address)
+                self.logger.info("Connected to BNO08x IMU via I2C")
+            except (RuntimeError, OSError) as e:
+                self.logger.exception("Failed to connect to IMU", extra={DETAILS_KEY: {"error": str(e)}})
+                raise IMUConnectionError(
+                    hex(self.config.address),
+                    "Connection failed (check wiring, power, and I2C address)",
+                ) from e
+            except Exception as e:
+                self.logger.exception(
+                    "Unexpected error connecting to IMU",
+                    extra={DETAILS_KEY: {"error": str(e)}},
+                )
+                raise IMUConnectionError(
+                    hex(self.config.address),
+                    f"Unexpected connection error: {type(e).__name__}",
+                ) from e
 
     @override
     def close(self) -> None:
         """Close connection."""
         # Acquire lock to prevent concurrent access during close
-        self._conn_lock.acquire()
-        self.logger.info("Closing connection to IMU")
+        with self._conn_lock:
+            self.logger.info("Closing connection to IMU")
 
-        if self._i2c is not None:
-            self._i2c.deinit()
-            self._i2c = None
+            if self._i2c is not None:
+                self._i2c.deinit()
+                self._i2c = None
 
-        self._imu = None
-        self.logger.info("Connection closed")
-
-        # Release lock after closing connection
-        self._conn_lock.release()
+            self._imu = None
+            self.logger.info("Connection closed")

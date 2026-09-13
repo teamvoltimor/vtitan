@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import math
+from src.navigation.utils import wrap_angle
 
 
 def normalise_angle(angle: float) -> float:
-    """Wrap an angle into the ``(-pi, pi]`` range."""
-    while angle > math.pi:
-        angle -= 2 * math.pi
-    while angle < -math.pi:
-        angle += 2 * math.pi
-    return angle
+    """Wrap an angle into the ``(-pi, pi]`` range.
+
+    Delegates to :func:`src.navigation.utils.wrap_angle` so the parking
+    controller shares the one angle-wrap definition rather than carrying a
+    second loop-based copy.
+    """
+    return wrap_angle(angle)

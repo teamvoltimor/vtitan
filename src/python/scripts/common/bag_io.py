@@ -33,6 +33,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import RobotSpecs
+from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.domain.models import Detection, NavigatorDebugSnapshot, SignColor
 from std_msgs.msg import Float32, String
 
@@ -126,7 +127,7 @@ def decode_detections(payload: list[dict]) -> list[Detection]:
             continue
         out.append(
             Detection(
-                class_name=colour,
+                color=colour,
                 confidence=float(d.get("confidence", 0.0)),
                 bbox=(x_min, y_min, x_max, y_max),
                 x=float(d.get("x", 0.0)),
@@ -299,7 +300,7 @@ def quaternion_yaw(q) -> float:  # noqa: ANN001
     ``pose_yaw`` is NOT a substitute -- it is localizer-fused and damped, and
     differentiating it understates the achieved yaw rate by roughly half.
     """
-    return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+    return quaternion_to_yaw(q.x, q.y, q.z, q.w)
 
 
 @dataclass(slots=True)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Self
 
 import cv2
@@ -32,7 +32,7 @@ _LETTERBOX_PAD_VALUE = 114
 DEFAULT_CLASS_TO_COLOR: dict[int, SignColor] = {class_id: SignColor(name) for class_id, name in GMR_CLASS_NAMES.items()}
 
 
-class BBoxFormat(Enum):
+class BBoxFormat(StrEnum):
     """Output bounding-box coordinate convention."""
 
     NORMALIZED = "normalized"
@@ -92,7 +92,7 @@ def _detection_from_bbox(color: SignColor, bbox: tuple[float, float, float, floa
     box = BBox(x_min=bbox[0], y_min=bbox[1], x_max=bbox[2], y_max=bbox[3])
     center = box.center
     return Detection(
-        class_name=color,
+        color=color,
         confidence=confidence,
         bbox=bbox,
         x=center.x,

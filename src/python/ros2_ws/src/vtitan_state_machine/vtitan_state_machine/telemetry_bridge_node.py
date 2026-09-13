@@ -271,7 +271,7 @@ def _best_detection(detections: list[Detection]) -> tuple[str, float] | None:
         score = det.confidence * det.area
         if score > best_score:
             best_score = score
-            best = (det.class_name, det.confidence)
+            best = (det.color, det.confidence)
     return best
 
 
@@ -686,7 +686,7 @@ class TelemetryBridgeNode(Node):
         yaw = 0.0
         if self._latest_imu is not None:
             q = self._latest_imu.orientation
-            yaw = math.degrees(self._quaternion_to_yaw(q.x, q.y, q.z, q.w))
+            yaw = math.degrees(quaternion_to_yaw(q.x, q.y, q.z, q.w))
         d2 = time.monotonic()
 
         detection = _best_detection(self._latest_vision) if self._latest_vision else None
@@ -730,7 +730,7 @@ class TelemetryBridgeNode(Node):
             robot_position = [pos.x, pos.y, pos.z]
             # Extract yaw from quaternion
             q = self._latest_odom.pose.pose.orientation
-            robot_orientation = self._quaternion_to_yaw(q.x, q.y, q.z, q.w)
+            robot_orientation = quaternion_to_yaw(q.x, q.y, q.z, q.w)
 
         # LiDAR points (convert to world frame)
         lidar_points: list[list[float]] = []
@@ -782,7 +782,7 @@ class TelemetryBridgeNode(Node):
         if self._latest_vision:
             vision_detections = [
                 _VisionDetectionPayload(
-                    className=det.class_name,
+                    className=det.color,
                     confidence=det.confidence,
                     bbox=list(det.bbox),
                 )
@@ -886,9 +886,6 @@ class TelemetryBridgeNode(Node):
             y_world = robot_pos[1] + x_local * math.sin(robot_yaw) + y_local * math.cos(robot_yaw)
             points.append([x_world, y_world, 0.05])
         return points
-
-    def _quaternion_to_yaw(self, x: float, y: float, z: float, w: float) -> float:
-        return quaternion_to_yaw(x, y, z, w)
 
     @override
     def destroy_node(self) -> None:

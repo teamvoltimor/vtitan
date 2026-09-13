@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
+from shared.config.starting_zone import STARTING_ZONE_LAYOUT
 
 if TYPE_CHECKING:
     from shared.domain.models import ScenarioMetadata
@@ -135,7 +136,10 @@ class CorridorWidthSet:
 
     def start_cell_count(self, section: Section) -> int:
         """Legal starting-cell count for this corridor width."""
-        return 6 if self.is_wide(section) else 4
+        # Derived from the layout (bands fit in the corridor x two cells per
+        # band) rather than restated as 6/4, so a layout change cannot desync
+        # this from scenario_builder's own bands_within() slice.
+        return 2 * STARTING_ZONE_LAYOUT.bands_within(self.width_mm_for(section) / 1000.0)
 
     def as_dict(self) -> dict[str, int]:
         """Return the widths in the shape expected by build_open_metadata."""

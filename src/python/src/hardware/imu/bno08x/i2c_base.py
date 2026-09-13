@@ -22,7 +22,7 @@ from src.hardware.imu.readings import (
     AccelerometerReading,
     EulerReading,
     GyroscopeReading,
-    LinearAccelelerometerReading,
+    LinearAccelerometerReading,
     MagnetometerReading,
     QuaternionReading,
 )
@@ -147,7 +147,7 @@ class BNO08xI2CDriver(ABC_Driver):
         return EulerReading(pitch=euler[0], roll=euler[1], yaw=euler[2])
 
     @override
-    def get_linear_acceleration(self) -> LinearAccelelerometerReading:
+    def get_linear_acceleration(self) -> LinearAccelerometerReading:
         """Get linear acceleration (m/s², gravity removed)."""
         if self.imu is None:
             self.logger.warning("IMU not connected, cannot read linear acceleration")
@@ -164,12 +164,12 @@ class BNO08xI2CDriver(ABC_Driver):
     def get_all_data(self) -> Data:
         """Get all sensor data."""
         return Data(
-            accelerometer=self.get_accelerometer(),
-            gyroscope=self.get_gyroscope(),
-            magnetometer=self.get_magnetometer(),
-            quaternion=self.get_quaternion(),
-            euler=self.get_euler(),
-            linear_accel=self.get_linear_acceleration(),
+            accelerometer=self.get_accelerometer().as_tuple(),
+            gyroscope=self.get_gyroscope().as_tuple(),
+            magnetometer=self.get_magnetometer().as_tuple(),
+            quaternion=self.get_quaternion().as_tuple(),
+            euler=self.get_euler().as_tuple(),
+            linear_accel=self.get_linear_acceleration().as_tuple(),
         )
 
     def get_calibration_status(self) -> dict | None:

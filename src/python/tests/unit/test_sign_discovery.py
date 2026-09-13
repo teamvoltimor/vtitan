@@ -28,8 +28,8 @@ from src.config.tuning_helpers import tuning_with_overrides
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
-    _SignTrack,
     _detection_to_world,
+    _SignTrack,
     detection_to_observation,
     lattice_cell,
     legal_sign_positions,
@@ -278,7 +278,7 @@ class TestPillarAspectGate:
         """A detection of the given box shape, centred where a sign would be."""
         centre_x, centre_y = 700.0, 400.0
         return Detection(
-            class_name=colour,
+            color=colour,
             confidence=0.79,
             bbox=(
                 centre_x - width_px / 2,
@@ -319,7 +319,7 @@ class TestPillarAspectGate:
         x_max = float(RobotSpecs.CAMERA_WIDTH)
         y_centre = 500.0
         return Detection(
-            class_name=SignColor.RED,
+            color=SignColor.RED,
             confidence=0.83,
             bbox=(x_max - width_px, y_centre - height_px / 2, x_max, y_centre + height_px / 2),
             x=x_max - width_px / 2,
@@ -378,7 +378,7 @@ def _box_at_column(cx: float, pixel_height: float = 40.0) -> Detection:
     cy = RobotSpecs.CAMERA_HEIGHT / 2
     half = pixel_height / 2
     return Detection(
-        class_name="red",
+        color="red",
         confidence=0.9,
         bbox=(cx - half, cy - half, cx + half, cy + half),
         x=cx,
@@ -554,7 +554,7 @@ class TestClusteredLidarRangeFusion:
     def _detection(centre_x: float, height_px: float) -> Detection:
         width_px = height_px / 2
         return Detection(
-            class_name=SignColor.RED,
+            color=SignColor.RED,
             confidence=0.8,
             bbox=(
                 centre_x - width_px / 2,
@@ -574,11 +574,9 @@ class TestClusteredLidarRangeFusion:
         """A wall at ``background`` with one pillar-width notch in front of it."""
         n = 720
         angles = [(-math.pi + 2 * math.pi * i / n) for i in range(n)]
-        ranges = []
-        for a in angles:
-            # 0.05 m sign subtends ~2.9 deg at 1 m; two samples either side of
-            # the bearing is a chord inside the proposer's 0.02-0.18 m band.
-            ranges.append(pillar_range if abs(a - pillar_bearing) <= math.radians(1.5) else background)
+        # 0.05 m sign subtends ~2.9 deg at 1 m; two samples either side of
+        # the bearing is a chord inside the proposer's 0.02-0.18 m band.
+        ranges = [pillar_range if abs(a - pillar_bearing) <= math.radians(1.5) else background for a in angles]
         return ranges, angles
 
     def _tuning(self, **overrides):
@@ -596,7 +594,8 @@ class TestClusteredLidarRangeFusion:
         pinhole = _detection_to_world(det, pos, yaw, tuning=tuning_with_overrides({}, group="sign_discovery"))
         ranges, angles = self._scan(0.9, bearing)
         fused = _detection_to_world(det, pos, yaw, lidar_ranges_m=ranges, lidar_angles_rad=angles, tuning=tuning)
-        assert fused is not None and pinhole is not None
+        assert fused is not None
+        assert pinhole is not None
         # The fused estimate must actually move -- a gate that never fires is
         # indistinguishable from the mechanism being off.
         assert math.dist(fused, pinhole) > 0.01
@@ -669,7 +668,7 @@ class TestPerSectionCap:
                 x=1.0 + 0.4 * i, y=0.4, corridor=Section.SOUTH, hits=5, best_range=1.0,
                 votes={SignColor.RED: 1.0},
             )
-            sign_map._tracks.append(track)  # noqa: SLF001
+            sign_map._tracks.append(track)
             for confirmed in sign_map.newly_confirmed():
                 confirmed.published_index = len(published)
                 published.append(confirmed)
@@ -693,7 +692,7 @@ class TestPerSectionCap:
             track = _SignTrack(
                 x=x, y=y, corridor=Section.SOUTH, hits=5, votes={SignColor.RED: 1.0}, best_range=1.0
             )
-            sign_map._tracks.append(track)  # noqa: SLF001
+            sign_map._tracks.append(track)
             for confirmed in sign_map.newly_confirmed():
                 confirmed.published_index = len(published)
                 published.append(confirmed)
@@ -707,7 +706,7 @@ class TestPerSectionCap:
         tuning = tuning_with_overrides({"MAX_SIGNS_PER_SECTION": 0, "MIN_HITS": 1}, group="sign_discovery")
         sign_map = ObservedSignMap(0.0, tuning=tuning)
         for i in range(4):
-            sign_map._tracks.append(  # noqa: SLF001
+            sign_map._tracks.append(
                 _SignTrack(x=1.0 + 0.3 * i, y=0.4, corridor=Section.SOUTH, hits=5, best_range=1.0,
                            votes={SignColor.RED: 1.0})
             )
@@ -915,7 +914,7 @@ class TestRobotCorridorDebounceRate:
 
         from src.navigation.planning.waypoints import corridor_for_position
 
-        assert sign_map._robot_corridor == corridor_for_position(here.x, here.y)  # noqa: SLF001
+        assert sign_map._robot_corridor == corridor_for_position(here.x, here.y)
 
     def test_the_label_is_current_when_the_first_detection_lands(self) -> None:
         """The control: without the fix this is still None on that tick."""
@@ -924,7 +923,7 @@ class TestRobotCorridorDebounceRate:
         for _ in range(NavigationTuning().sign_discovery.ROBOT_CORRIDOR_FLIP_TICKS + 1):
             sign_map.observe([], here)
 
-        assert sign_map._robot_corridor is not None, (  # noqa: SLF001
+        assert sign_map._robot_corridor is not None, (
             "the settled corridor was never computed, so the first detection "
             "would be associated against a label that does not exist yet"
         )

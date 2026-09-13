@@ -24,7 +24,6 @@ Topics:
 
 from __future__ import annotations
 
-
 from typing import TYPE_CHECKING, override
 
 import rclpy
@@ -36,7 +35,7 @@ from std_msgs.msg import String
 
 from src.hardware.button.gpio import Driver as ButtonDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
-from src.ros2.wire_models import ButtonHoldThreshold, ButtonHoldWire
+from src.ros2.wire_models import ButtonHoldThreshold, ButtonHoldWire, HoldKind
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -72,7 +71,7 @@ BUTTON_POLL_PERIOD_S = 1.0 / BUTTON_POLL_HZ
 # robot but restarts a finished one -- and this node has no idea which state
 # the machine is in. It publishes when things happen; the display, which does
 # subscribe to /robot_state, decides what to call them.
-_HOLD_KINDS = ("long", "shutdown")
+_HOLD_KINDS: tuple[HoldKind, HoldKind] = ("long", "shutdown")
 
 
 class ButtonNode(LifecycleNode):

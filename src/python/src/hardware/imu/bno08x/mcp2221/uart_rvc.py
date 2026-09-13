@@ -9,8 +9,6 @@ from adafruit_bno08x_rvc import BNO08x_RVC
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
-os.environ.setdefault("BLINKA_MCP2221", "1")
-
 from src.hardware.imu.bno08x.uart_rvc import (
     Config as UARTRVCConfig,
     Driver as UARTRVCDriver,
@@ -103,22 +101,25 @@ class Driver(UARTRVCDriver):
     @override
     def connect(self) -> None:
         """Connect to IMU via MCP2221A UART."""
-        self._conn_lock.acquire()
-        self.logger.info("Connecting to BNO08x via MCP2221 UART RVC...")
+        # Set here, not at import: Blinka reads it when the MCP2221 bridge is
+        # first opened, and a module-level mutation is a hidden process-wide
+        # side effect on every importer.
+        os.environ.setdefault("BLINKA_MCP2221", "1")
+        with self._conn_lock:
+            self.logger.info("Connecting to BNO08x via MCP2221 UART RVC...")
 
-        port: str | None = self.config.port
-        if not port:
-            port = self.find_mcp2221_port()
+            port: str | None = self.config.port
             if not port:
-                port = self.config.default_port
-                self.logger.warning("MCP2221 auto-detect failed, using configured default port %s", port)
+                port = self.find_mcp2221_port()
+                if not port:
+                    port = self.config.default_port
+                    self.logger.warning("MCP2221 auto-detect failed, using configured default port %s", port)
 
-        self.logger.info(
-            "Connecting to BNO08x via MCP2221",
-            extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
-        )
-        self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=self.config.serial_timeout)
+            self.logger.info(
+                "Connecting to BNO08x via MCP2221",
+                extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
+            )
+            self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=self.config.serial_timeout)
 
-        self._rvc = BNO08x_RVC(self._serial)
-        self.logger.info("Connected to BNO08x RVC")
-        self._conn_lock.release()
+            self._rvc = BNO08x_RVC(self._serial)
+            self.logger.info("Connected to BNO08x RVC")

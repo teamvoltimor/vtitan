@@ -16,8 +16,6 @@ from src.hardware.button.state import ButtonState
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY
 
-os.environ.setdefault("BLINKA_MCP2221", "1")
-
 configure_json_logging()
 
 
@@ -68,6 +66,10 @@ class Driver(BaseDriver):
     @override
     def connect(self) -> None:
         """Initialize GPIO and configure button pin."""
+        # Set here, not at import: Blinka reads it when the MCP2221 bridge is
+        # first opened, and a module-level mutation is a hidden process-wide
+        # side effect on every importer.
+        os.environ.setdefault("BLINKA_MCP2221", "1")
         self.logger.info(
             "Connecting to MCP2221 button",
             extra={

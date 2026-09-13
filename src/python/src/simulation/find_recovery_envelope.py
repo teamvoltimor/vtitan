@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.domain.enums import Direction, Section
@@ -75,7 +75,7 @@ def _recovers(scenario: _Scenario, disturbance: PoseDisturbance) -> bool:
     return any(e <= _RECOVERY_THRESHOLD_M for e in window)
 
 
-def _max_recoverable(scenario: _Scenario, axis: str, search_hi: float) -> float:
+def _max_recoverable(scenario: _Scenario, axis: Literal["lateral", "heading"], search_hi: float) -> float:
     """Binary-search the max magnitude on ``axis`` ("lateral"/"heading") that still recovers."""
 
     def disturbance_at(magnitude: float) -> PoseDisturbance:

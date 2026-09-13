@@ -5,7 +5,7 @@ from src.hardware.imu.readings import (
     AccelerometerReading,
     EulerReading,
     GyroscopeReading,
-    LinearAccelelerometerReading,
+    LinearAccelerometerReading,
     MagnetometerReading,
     QuaternionReading,
     RVCReading,
@@ -52,7 +52,7 @@ class Driver(ABC):
         """Get fused Euler angles (pitch, roll, yaw) in degrees."""
 
     @abstractmethod
-    def get_linear_acceleration(self) -> LinearAccelelerometerReading:
+    def get_linear_acceleration(self) -> LinearAccelerometerReading:
         """Get linear acceleration (m/s², gravity removed)."""
 
     @abstractmethod

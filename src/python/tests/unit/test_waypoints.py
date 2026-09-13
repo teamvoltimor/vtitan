@@ -23,11 +23,6 @@ from src.navigation.planning.waypoints import (
 )
 
 
-@pytest.fixture()
-def tuning():
-    return NavigationTuning.load_default()
-
-
 class TestOrderSectionsForLaps:
     """Test section ordering for lap-based navigation."""
 
@@ -276,29 +271,29 @@ def sample_metadata_obstacles():
 class TestCorridorForPosition:
     """Tests for corridor_for_position()."""
 
-    def test_south_corridor(self):
-        assert corridor_for_position(1.5, 0.5) == Section.SOUTH
+    @pytest.mark.parametrize(
+        ("x", "y", "expected"),
+        [
+            (1.5, 0.5, Section.SOUTH),
+            (1.5, 2.5, Section.NORTH),
+            (2.5, 1.5, Section.EAST),
+            (0.5, 1.5, Section.WEST),
+        ],
+    )
+    def test_corridor_centre_classifies_to_its_own_section(self, x, y, expected):
+        assert corridor_for_position(x, y) == expected
 
-    def test_north_corridor(self):
-        assert corridor_for_position(1.5, 2.5) == Section.NORTH
-
-    def test_east_corridor(self):
-        assert corridor_for_position(2.5, 1.5) == Section.EAST
-
-    def test_west_corridor(self):
-        assert corridor_for_position(0.5, 1.5) == Section.WEST
-
-    def test_south_boundary(self):
-        assert corridor_for_position(1.5, 0.99) == Section.SOUTH
-
-    def test_north_boundary(self):
-        assert corridor_for_position(1.5, 2.01) == Section.NORTH
-
-    def test_east_boundary(self):
-        assert corridor_for_position(2.01, 1.5) == Section.EAST
-
-    def test_west_boundary(self):
-        assert corridor_for_position(0.99, 1.5) == Section.WEST
+    @pytest.mark.parametrize(
+        ("x", "y", "expected"),
+        [
+            (1.5, 0.99, Section.SOUTH),
+            (1.5, 2.01, Section.NORTH),
+            (2.01, 1.5, Section.EAST),
+            (0.99, 1.5, Section.WEST),
+        ],
+    )
+    def test_just_inside_boundary_classifies_to_that_section(self, x, y, expected):
+        assert corridor_for_position(x, y) == expected
 
     def test_sw_corner_classifies_to_nearest(self):
         # Point (0.5, 0.5): dist_s=0.5, dist_w=0.5 → tie goes to south (checked first)

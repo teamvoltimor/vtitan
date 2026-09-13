@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING, ClassVar, Protocol, runtime_checkable
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from shared.domain.enums import (
     Axis,
@@ -187,7 +187,7 @@ class Waypoint:
 class Detection:
     """Computer vision object detection."""
 
-    class_name: SignColor
+    color: SignColor
     confidence: float
     bbox: tuple[float, float, float, float]  # x_min, y_min, x_max, y_max
     x: float
@@ -655,14 +655,6 @@ class CreepWidthSample:
 
 
 @dataclass(slots=True, frozen=True)
-class SignedCorridor:
-    """A sign spec paired with the section it was observed in (audit §7c)."""
-
-    sign: object
-    section: Section
-
-
-@dataclass(slots=True, frozen=True)
 class RoutedSignPosition:
     """A sign position resolved to world coordinates within a section (audit §7c)."""
 
@@ -933,7 +925,7 @@ class ScenarioMetadata(BaseModel):
     num_signs: int = 0
     has_parking_lot: bool = False
     parking_lot: ParkingLot | None = None
-    sign_positions: list[SignPosition] = []
+    sign_positions: list[SignPosition] = Field(default_factory=list)
     corridor_widths: CorridorWidths
     starting_conditions: StartingConditions
 
