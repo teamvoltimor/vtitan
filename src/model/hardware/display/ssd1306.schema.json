@@ -7,19 +7,19 @@
   "properties": {
     "width": {
       "type": "integer",
-      "description": "Width."
+      "description": "Display width in pixels (128 for the SSD1306)."
     },
     "height": {
       "type": "integer",
-      "description": "Height."
+      "description": "Display height in pixels (64 for the SSD1306)."
     },
     "i2c_address": {
       "type": "string",
-      "description": "I2c address."
+      "description": "I2C address of the display, as a hex string (typically 0x3C)."
     },
     "i2c_bus": {
       "type": "integer",
-      "description": "I2c bus."
+      "description": "I2C bus number (typically /dev/i2c-1 on a Raspberry Pi)."
     }
   },
   "required": [

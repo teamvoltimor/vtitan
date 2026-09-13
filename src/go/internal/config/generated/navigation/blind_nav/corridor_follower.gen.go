@@ -39,7 +39,8 @@ type NavigationBlindNavCorridorFollower struct {
 	// and a fin is the parking structure. Trial 0.010-0.020 with a hand on it.
 	BayExitClearanceToleranceM float64 `json:"bay_exit_clearance_tolerance_m" yaml:"bay_exit_clearance_tolerance_m" mapstructure:"bay_exit_clearance_tolerance_m"`
 
-	// Bay exit contact dist m.
+	// Forward clearance (m) below which the nose counts as touching a wall,
+	// triggering the straight reverse-off recovery.
 	BayExitContactDistM float64 `json:"bay_exit_contact_dist_m" yaml:"bay_exit_contact_dist_m" mapstructure:"bay_exit_contact_dist_m"`
 
 	// SHIPS DISABLED (0). The recovery returns its reverse BEFORE the clearance
@@ -55,10 +56,12 @@ type NavigationBlindNavCorridorFollower struct {
 	// Kept configurable because which one a real chassis needs is unproven.
 	BayExitCycle bool `json:"bay_exit_cycle" yaml:"bay_exit_cycle" mapstructure:"bay_exit_cycle"`
 
-	// Bay exit cycle reverse m.
+	// Distance (m) the legacy contact-bounded cycle exit reverses before switching
+	// back to a forward leg.
 	BayExitCycleReverseM float64 `json:"bay_exit_cycle_reverse_m" yaml:"bay_exit_cycle_reverse_m" mapstructure:"bay_exit_cycle_reverse_m"`
 
-	// Bay exit cycle reverse steer norm.
+	// Steering held on the legacy cycle exit's reverse leg, as a fraction of full
+	// lock.
 	BayExitCycleReverseSteerNorm float64 `json:"bay_exit_cycle_reverse_steer_norm" yaml:"bay_exit_cycle_reverse_steer_norm" mapstructure:"bay_exit_cycle_reverse_steer_norm"`
 
 	// Dead reckon each bay-exit leg with the yaw the robot actually has instead of
@@ -69,7 +72,8 @@ type NavigationBlindNavCorridorFollower struct {
 	// Ticks before switching to the other legacy exit / handing over; 0 = never.
 	BayExitFallbackFrames int `json:"bay_exit_fallback_frames" yaml:"bay_exit_fallback_frames" mapstructure:"bay_exit_fallback_frames"`
 
-	// Bay exit forward m.
+	// Distance (m) the legacy contact-bounded cycle exit drives forward before
+	// switching back to a reverse leg.
 	BayExitForwardM float64 `json:"bay_exit_forward_m" yaml:"bay_exit_forward_m" mapstructure:"bay_exit_forward_m"`
 
 	// Unbroken ticks of the guard refusing BOTH legs before handing over to the
@@ -104,14 +108,16 @@ type NavigationBlindNavCorridorFollower struct {
 	// still for 14.2 s of a 16.6 s exit at a frozen 44 mm overlap.
 	BayExitGuardOverlapRecovery bool `json:"bay_exit_guard_overlap_recovery" yaml:"bay_exit_guard_overlap_recovery" mapstructure:"bay_exit_guard_overlap_recovery"`
 
-	// Bay exit hold steer.
+	// Hold the forward leg's steering lock through the reverse leg, instead of
+	// re-commanding centre or opposite lock.
 	BayExitHoldSteer bool `json:"bay_exit_hold_steer" yaml:"bay_exit_hold_steer" mapstructure:"bay_exit_hold_steer"`
 
 	// Decide which side is open once, not every tick: once the chassis rotates, the
 	// +/-90 deg comparison is noise and a flip turns the escape into a re-entry.
 	BayExitLatchDirection bool `json:"bay_exit_latch_direction" yaml:"bay_exit_latch_direction" mapstructure:"bay_exit_latch_direction"`
 
-	// Bay exit latch reverse.
+	// Latch the reverse leg done once its distance is covered, so the manoeuvre
+	// cannot chatter back into reverse.
 	BayExitLatchReverse bool `json:"bay_exit_latch_reverse" yaml:"bay_exit_latch_reverse" mapstructure:"bay_exit_latch_reverse"`
 
 	// Cap the free-turn check of each exit leg by the longest measured leave-the-bay
@@ -141,7 +147,8 @@ type NavigationBlindNavCorridorFollower struct {
 	// show, since recording began 1.9-2.6 s after the exit in two of three runs.
 	BayExitOpenSideVotes int `json:"bay_exit_open_side_votes" yaml:"bay_exit_open_side_votes" mapstructure:"bay_exit_open_side_votes"`
 
-	// Bay exit reverse m.
+	// Distance (m) the reverse-then-swing exit reverses before its forward leg
+	// begins.
 	BayExitReverseM float64 `json:"bay_exit_reverse_m" yaml:"bay_exit_reverse_m" mapstructure:"bay_exit_reverse_m"`
 
 	// Opposite lock on the reverse leg -- REFUTED 2026-08-29. Held forward lock
@@ -189,7 +196,8 @@ type NavigationBlindNavCorridorFollower struct {
 	// 3.5 mm of fin margin against this value's 9.0 mm.
 	BayExitSpeedScale float64 `json:"bay_exit_speed_scale" yaml:"bay_exit_speed_scale" mapstructure:"bay_exit_speed_scale"`
 
-	// Bay exit steer norm.
+	// Steering magnitude held on the reverse-then-swing exit's forward leg, as a
+	// fraction of full lock.
 	BayExitSteerNorm float64 `json:"bay_exit_steer_norm" yaml:"bay_exit_steer_norm" mapstructure:"bay_exit_steer_norm"`
 
 	// Rotation from the placement heading at which the exit has turned enough to
@@ -389,6 +397,7 @@ type NavigationBlindNavCorridorFollower struct {
 	// only chance it gets to read which side is open.
 	TurnClearanceM float64 `json:"turn_clearance_m" yaml:"turn_clearance_m" mapstructure:"turn_clearance_m"`
 
-	// Turn open range m.
+	// Longest valid forward return (m) over the turn arc at or above which the way
+	// ahead still counts as open, so the corner turn does not commit.
 	TurnOpenRangeM float64 `json:"turn_open_range_m" yaml:"turn_open_range_m" mapstructure:"turn_open_range_m"`
 }

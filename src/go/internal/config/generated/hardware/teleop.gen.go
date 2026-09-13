@@ -3,30 +3,32 @@
 package hardware
 
 type HardwareTeleop struct {
-	// Deadman button index.
+	// Joy buttons index that must be held for the drive motor to move at all.
 	DeadmanButtonIndex int `json:"deadman_button_index" yaml:"deadman_button_index" mapstructure:"deadman_button_index"`
 
-	// Joy timeout s.
+	// Seconds without a /joy message before the drive command is forced to zero.
 	JoyTimeoutS float64 `json:"joy_timeout_s" yaml:"joy_timeout_s" mapstructure:"joy_timeout_s"`
 
-	// Max speed mps.
+	// Drive speed in metres per second commanded at full stick deflection; kept low
+	// for bench safety.
 	MaxSpeedMps float64 `json:"max_speed_mps" yaml:"max_speed_mps" mapstructure:"max_speed_mps"`
 
-	// Max steering deg.
+	// Steering angle in degrees commanded at full stick deflection.
 	MaxSteeringDeg float64 `json:"max_steering_deg" yaml:"max_steering_deg" mapstructure:"max_steering_deg"`
 
-	// Publish rate hz.
+	// Rate at which /ackermann_cmd is republished, in Hz (must stay under the motor
+	// node's command watchdog).
 	PublishRateHz float64 `json:"publish_rate_hz" yaml:"publish_rate_hz" mapstructure:"publish_rate_hz"`
 
-	// Steering axis index.
+	// Joy axes index used for steering (left stick X in a typical mapping).
 	SteeringAxisIndex int `json:"steering_axis_index" yaml:"steering_axis_index" mapstructure:"steering_axis_index"`
 
-	// Steering invert.
+	// Flip the sign of the steering axis reading.
 	SteeringInvert bool `json:"steering_invert" yaml:"steering_invert" mapstructure:"steering_invert"`
 
-	// Throttle axis index.
+	// Joy axes index used for drive speed (right stick Y in a typical mapping).
 	ThrottleAxisIndex int `json:"throttle_axis_index" yaml:"throttle_axis_index" mapstructure:"throttle_axis_index"`
 
-	// Throttle invert.
+	// Flip the sign of the throttle axis reading.
 	ThrottleInvert bool `json:"throttle_invert" yaml:"throttle_invert" mapstructure:"throttle_invert"`
 }

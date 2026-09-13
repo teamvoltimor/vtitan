@@ -11,13 +11,27 @@ class HardwareCameraRpicam(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    camera_width: int = Field(..., description='Camera width.')
-    camera_height: int = Field(..., description='Camera height.')
-    camera_fps: int = Field(..., description='Camera fps.')
-    camera_inverted: bool = Field(..., description='Camera inverted.')
-    camera_hflip: bool = Field(..., description='Camera hflip.')
-    camera_vflip: bool = Field(..., description='Camera vflip.')
-    camera_read_timeout_sec: float = Field(..., description='Camera read timeout sec.')
+    camera_width: int = Field(..., description='Camera capture width in pixels.')
+    camera_height: int = Field(..., description='Camera capture height in pixels.')
+    camera_fps: int = Field(
+        ..., description='Camera capture rate in frames per second.'
+    )
+    camera_inverted: bool = Field(
+        ...,
+        description='True when the camera is mounted upside-down; applies a 180 degree rotation so a sign passes on the side the robot expects.',
+    )
+    camera_hflip: bool = Field(
+        ...,
+        description='Mirror the image horizontally; note this alone also swaps left and right in detections.',
+    )
+    camera_vflip: bool = Field(
+        ...,
+        description='Mirror the image vertically; prefer camera_inverted for an upside-down mount.',
+    )
+    camera_read_timeout_sec: float = Field(
+        ...,
+        description='Seconds to wait for a complete frame before reporting the stream dead.',
+    )
     camera_af_mode: str = Field(
         ...,
         description='Focus. The Module 3 Wide\'s autofocus hunts continuously while the robot is driving and only settles once it stops, which reads as a blurred frame for most of a run. MANUAL parks the voice coil at a fixed dioptre instead.  0.8 D is ~1.25 m, the lens\'s hyperfocal distance (f=2.75mm, f/2.2, 1.4um pixels, 2px circle of confusion): sharp from ~0.6 m to infinity, which spans the whole useful sign-detection range. Bench-verify before racing -- the theoretical hyperfocal assumes this module\'s dioptre scale is calibrated. "manual" | "auto" | "continuous"',

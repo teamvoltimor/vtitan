@@ -7,11 +7,11 @@
   "properties": {
     "publisher_rate_hz": {
       "type": "number",
-      "description": "Publisher rate hz."
+      "description": "Rate in Hz at which the motor node publishes actuator state (steering, drive speed, joint states)."
     },
     "diagnostics_rate_hz": {
       "type": "number",
-      "description": "Diagnostics rate hz."
+      "description": "Rate in Hz at which the motor node publishes /motor/status diagnostics (much slower than publishing)."
     }
   },
   "required": [

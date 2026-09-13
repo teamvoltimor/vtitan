@@ -42,7 +42,8 @@ type NavigationWaypointWaypoints struct {
 	// default, so the value the robot drives is readable in one place.
 	CornerArcAssumeWide bool `json:"corner_arc_assume_wide" yaml:"corner_arc_assume_wide" mapstructure:"corner_arc_assume_wide"`
 
-	// Corner caution all laps.
+	// Apply the previewed-corner speed reduction on every lap instead of only the
+	// first.
 	CornerCautionAllLaps bool `json:"corner_caution_all_laps" yaml:"corner_caution_all_laps" mapstructure:"corner_caution_all_laps"`
 
 	// Distance below which consecutive generated waypoints are treated as duplicates.
@@ -90,7 +91,7 @@ type NavigationWaypointWaypoints struct {
 	// round, narrow_only restricts it to corridors believed narrow.
 	FirstLapCornerCaution bool `json:"first_lap_corner_caution" yaml:"first_lap_corner_caution" mapstructure:"first_lap_corner_caution"`
 
-	// First lap corner caution narrow only.
+	// Restrict the first-lap corner caution to corridors planned as NARROW.
 	FirstLapCornerCautionNarrowOnly bool `json:"first_lap_corner_caution_narrow_only" yaml:"first_lap_corner_caution_narrow_only" mapstructure:"first_lap_corner_caution_narrow_only"`
 
 	// Written out 2026-09-10 at its shipped value: until then it existed only as a

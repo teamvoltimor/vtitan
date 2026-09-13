@@ -11,33 +11,87 @@ class HardwareVisionHud(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    font_scale: float = Field(..., description='Font scale.')
-    text_thickness: int = Field(..., description='Text thickness.')
-    line_height_px: int = Field(..., description='Line height px.')
-    text_rgb: list[int] = Field(..., description='Text rgb.')
-    label_rgb: list[int] = Field(..., description='Label rgb.')
-    accent_rgb: list[int] = Field(..., description='Accent rgb.')
-    border_rgb: list[int] = Field(..., description='Border rgb.')
-    panel_rgb: list[int] = Field(..., description='Panel rgb.')
-    panel_alpha: float = Field(..., description='Panel alpha.')
-    margin_px: int = Field(..., description='Margin px.')
-    column_gap_px: int = Field(..., description='Column gap px.')
-    radar_radius_px: int = Field(..., description='Radar radius px.')
-    radar_margin_px: int = Field(..., description='Radar margin px.')
-    radar_bg_rgb: list[int] = Field(..., description='Radar bg rgb.')
-    radar_bg_alpha: float = Field(..., description='Radar bg alpha.')
-    radar_ring_rgb: list[int] = Field(..., description='Radar ring rgb.')
-    radar_crosshair_rgb: list[int] = Field(..., description='Radar crosshair rgb.')
-    radar_point_rgb: list[int] = Field(..., description='Radar point rgb.')
-    radar_robot_rgb: list[int] = Field(..., description='Radar robot rgb.')
-    max_radar_range_m: float = Field(..., description='Max radar range m.')
-    logo_size_px: int = Field(..., description='Logo size px.')
-    logo_margin_px: int = Field(..., description='Logo margin px.')
-    logo_alpha: float = Field(..., description='Logo alpha.')
-    join_timeout_sec: float = Field(..., description='Join timeout sec.')
+    font_scale: float = Field(
+        ..., description='OpenCV font scale (size multiplier) for HUD text.'
+    )
+    text_thickness: int = Field(
+        ..., description='OpenCV stroke thickness in pixels for HUD text.'
+    )
+    line_height_px: int = Field(
+        ..., description='Vertical spacing between HUD text lines, in pixels.'
+    )
+    text_rgb: list[int] = Field(
+        ..., description='RGB colour (0-255) of the panel value column.'
+    )
+    label_rgb: list[int] = Field(
+        ..., description='RGB colour (0-255) of the panel label column.'
+    )
+    accent_rgb: list[int] = Field(
+        ...,
+        description='RGB colour (0-255) of the live/foreground accent (panel edge bar and radar points).',
+    )
+    border_rgb: list[int] = Field(
+        ..., description='RGB colour (0-255) of panel borders.'
+    )
+    panel_rgb: list[int] = Field(
+        ..., description='RGB background colour (0-255) of the HUD panels.'
+    )
+    panel_alpha: float = Field(
+        ..., description='Background panel opacity, 0.0 (transparent) to 1.0 (opaque).'
+    )
+    margin_px: int = Field(
+        ..., description='Margin in pixels between the HUD panels and the frame edge.'
+    )
+    column_gap_px: int = Field(
+        ...,
+        description="Gap in pixels between a panel's label column and its value column.",
+    )
+    radar_radius_px: int = Field(
+        ..., description='Radius of the LIDAR radar, in pixels.'
+    )
+    radar_margin_px: int = Field(
+        ..., description='Margin in pixels between the radar and the frame edge.'
+    )
+    radar_bg_rgb: list[int] = Field(
+        ..., description='RGB background colour (0-255) of the radar.'
+    )
+    radar_bg_alpha: float = Field(
+        ..., description='Radar background opacity, 0.0 (transparent) to 1.0 (opaque).'
+    )
+    radar_ring_rgb: list[int] = Field(
+        ..., description='RGB colour (0-255) of the radar range rings.'
+    )
+    radar_crosshair_rgb: list[int] = Field(
+        ..., description='RGB colour (0-255) of the radar crosshair.'
+    )
+    radar_point_rgb: list[int] = Field(
+        ..., description='RGB colour (0-255) of the plotted LIDAR points.'
+    )
+    radar_robot_rgb: list[int] = Field(
+        ..., description='RGB colour (0-255) of the robot marker at the radar centre.'
+    )
+    max_radar_range_m: float = Field(
+        ...,
+        description='Radar display range in metres; LIDAR points beyond this are not drawn.',
+    )
+    logo_size_px: int = Field(
+        ..., description='Width/height of the team logo watermark, in pixels.'
+    )
+    logo_margin_px: int = Field(
+        ..., description='Margin in pixels between the logo and the frame edge.'
+    )
+    logo_alpha: float = Field(
+        ..., description='Logo opacity multiplier, 0.0 (invisible) to 1.0 (solid).'
+    )
+    join_timeout_sec: float = Field(
+        ...,
+        description='Seconds VideoRecorder.stop() waits for the writer thread to finalize the video before giving up.',
+    )
     run_path_poll_interval_sec: float = Field(
-        ..., description='Run path poll interval sec.'
+        ...,
+        description='How often VisionNode polls for the run directory to appear, in seconds.',
     )
     run_path_poll_timeout_sec: float = Field(
-        ..., description='Run path poll timeout sec.'
+        ...,
+        description='How long VisionNode polls for the run directory before giving up on recording video, in seconds.',
     )

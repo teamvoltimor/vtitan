@@ -3,81 +3,84 @@
 package vision
 
 type HardwareVisionHud struct {
-	// Accent rgb.
+	// RGB colour (0-255) of the live/foreground accent (panel edge bar and radar
+	// points).
 	AccentRgb []int `json:"accent_rgb" yaml:"accent_rgb" mapstructure:"accent_rgb"`
 
-	// Border rgb.
+	// RGB colour (0-255) of panel borders.
 	BorderRgb []int `json:"border_rgb" yaml:"border_rgb" mapstructure:"border_rgb"`
 
-	// Column gap px.
+	// Gap in pixels between a panel's label column and its value column.
 	ColumnGapPx int `json:"column_gap_px" yaml:"column_gap_px" mapstructure:"column_gap_px"`
 
-	// Font scale.
+	// OpenCV font scale (size multiplier) for HUD text.
 	FontScale float64 `json:"font_scale" yaml:"font_scale" mapstructure:"font_scale"`
 
-	// Join timeout sec.
+	// Seconds VideoRecorder.stop() waits for the writer thread to finalize the video
+	// before giving up.
 	JoinTimeoutSec float64 `json:"join_timeout_sec" yaml:"join_timeout_sec" mapstructure:"join_timeout_sec"`
 
-	// Label rgb.
+	// RGB colour (0-255) of the panel label column.
 	LabelRgb []int `json:"label_rgb" yaml:"label_rgb" mapstructure:"label_rgb"`
 
-	// Line height px.
+	// Vertical spacing between HUD text lines, in pixels.
 	LineHeightPx int `json:"line_height_px" yaml:"line_height_px" mapstructure:"line_height_px"`
 
-	// Logo alpha.
+	// Logo opacity multiplier, 0.0 (invisible) to 1.0 (solid).
 	LogoAlpha float64 `json:"logo_alpha" yaml:"logo_alpha" mapstructure:"logo_alpha"`
 
-	// Logo margin px.
+	// Margin in pixels between the logo and the frame edge.
 	LogoMarginPx int `json:"logo_margin_px" yaml:"logo_margin_px" mapstructure:"logo_margin_px"`
 
-	// Logo size px.
+	// Width/height of the team logo watermark, in pixels.
 	LogoSizePx int `json:"logo_size_px" yaml:"logo_size_px" mapstructure:"logo_size_px"`
 
-	// Margin px.
+	// Margin in pixels between the HUD panels and the frame edge.
 	MarginPx int `json:"margin_px" yaml:"margin_px" mapstructure:"margin_px"`
 
-	// Max radar range m.
+	// Radar display range in metres; LIDAR points beyond this are not drawn.
 	MaxRadarRangeM float64 `json:"max_radar_range_m" yaml:"max_radar_range_m" mapstructure:"max_radar_range_m"`
 
-	// Panel alpha.
+	// Background panel opacity, 0.0 (transparent) to 1.0 (opaque).
 	PanelAlpha float64 `json:"panel_alpha" yaml:"panel_alpha" mapstructure:"panel_alpha"`
 
-	// Panel rgb.
+	// RGB background colour (0-255) of the HUD panels.
 	PanelRgb []int `json:"panel_rgb" yaml:"panel_rgb" mapstructure:"panel_rgb"`
 
-	// Radar bg alpha.
+	// Radar background opacity, 0.0 (transparent) to 1.0 (opaque).
 	RadarBgAlpha float64 `json:"radar_bg_alpha" yaml:"radar_bg_alpha" mapstructure:"radar_bg_alpha"`
 
-	// Radar bg rgb.
+	// RGB background colour (0-255) of the radar.
 	RadarBgRgb []int `json:"radar_bg_rgb" yaml:"radar_bg_rgb" mapstructure:"radar_bg_rgb"`
 
-	// Radar crosshair rgb.
+	// RGB colour (0-255) of the radar crosshair.
 	RadarCrosshairRgb []int `json:"radar_crosshair_rgb" yaml:"radar_crosshair_rgb" mapstructure:"radar_crosshair_rgb"`
 
-	// Radar margin px.
+	// Margin in pixels between the radar and the frame edge.
 	RadarMarginPx int `json:"radar_margin_px" yaml:"radar_margin_px" mapstructure:"radar_margin_px"`
 
-	// Radar point rgb.
+	// RGB colour (0-255) of the plotted LIDAR points.
 	RadarPointRgb []int `json:"radar_point_rgb" yaml:"radar_point_rgb" mapstructure:"radar_point_rgb"`
 
-	// Radar radius px.
+	// Radius of the LIDAR radar, in pixels.
 	RadarRadiusPx int `json:"radar_radius_px" yaml:"radar_radius_px" mapstructure:"radar_radius_px"`
 
-	// Radar ring rgb.
+	// RGB colour (0-255) of the radar range rings.
 	RadarRingRgb []int `json:"radar_ring_rgb" yaml:"radar_ring_rgb" mapstructure:"radar_ring_rgb"`
 
-	// Radar robot rgb.
+	// RGB colour (0-255) of the robot marker at the radar centre.
 	RadarRobotRgb []int `json:"radar_robot_rgb" yaml:"radar_robot_rgb" mapstructure:"radar_robot_rgb"`
 
-	// Run path poll interval sec.
+	// How often VisionNode polls for the run directory to appear, in seconds.
 	RunPathPollIntervalSec float64 `json:"run_path_poll_interval_sec" yaml:"run_path_poll_interval_sec" mapstructure:"run_path_poll_interval_sec"`
 
-	// Run path poll timeout sec.
+	// How long VisionNode polls for the run directory before giving up on recording
+	// video, in seconds.
 	RunPathPollTimeoutSec float64 `json:"run_path_poll_timeout_sec" yaml:"run_path_poll_timeout_sec" mapstructure:"run_path_poll_timeout_sec"`
 
-	// Text rgb.
+	// RGB colour (0-255) of the panel value column.
 	TextRgb []int `json:"text_rgb" yaml:"text_rgb" mapstructure:"text_rgb"`
 
-	// Text thickness.
+	// OpenCV stroke thickness in pixels for HUD text.
 	TextThickness int `json:"text_thickness" yaml:"text_thickness" mapstructure:"text_thickness"`
 }

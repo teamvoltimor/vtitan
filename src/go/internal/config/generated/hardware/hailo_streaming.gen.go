@@ -3,36 +3,38 @@
 package hardware
 
 type HardwareHailoStreaming struct {
-	// Async inference.
+	// Run inference asynchronously (non-blocking) instead of synchronously.
 	AsyncInference bool `json:"async_inference" yaml:"async_inference" mapstructure:"async_inference"`
 
-	// Device.
+	// V4L2 camera device path used for capture (e.g. /dev/video0).
 	Device string `json:"device" yaml:"device" mapstructure:"device"`
 
-	// Fps.
+	// Camera capture frame rate in frames per second.
 	Fps int `json:"fps" yaml:"fps" mapstructure:"fps"`
 
-	// Height.
+	// Camera capture height in pixels.
 	Height int `json:"height" yaml:"height" mapstructure:"height"`
 
-	// Hflip.
+	// Mirror the captured image horizontally.
 	Hflip bool `json:"hflip" yaml:"hflip" mapstructure:"hflip"`
 
-	// Model input height.
+	// Height the frame is resized to before inference; should match the model input
+	// height.
 	ModelInputHeight int `json:"model_input_height" yaml:"model_input_height" mapstructure:"model_input_height"`
 
-	// Model input width.
+	// Width the frame is resized to before inference; should match the model input
+	// width.
 	ModelInputWidth int `json:"model_input_width" yaml:"model_input_width" mapstructure:"model_input_width"`
 
-	// Queue size.
+	// Maximum number of frames held in the inference queue.
 	QueueSize int `json:"queue_size" yaml:"queue_size" mapstructure:"queue_size"`
 
-	// Rotation.
+	// Image rotation in degrees (0, 90, 180, 270).
 	Rotation int `json:"rotation" yaml:"rotation" mapstructure:"rotation"`
 
-	// Vflip.
+	// Mirror the captured image vertically.
 	Vflip bool `json:"vflip" yaml:"vflip" mapstructure:"vflip"`
 
-	// Width.
+	// Camera capture width in pixels.
 	Width int `json:"width" yaml:"width" mapstructure:"width"`
 }

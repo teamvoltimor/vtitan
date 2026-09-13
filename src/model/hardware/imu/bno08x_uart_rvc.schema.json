@@ -7,15 +7,15 @@
   "properties": {
     "default_port": {
       "type": "string",
-      "description": "Default port."
+      "description": "Fallback serial port used when the BNO08X_UART_RVC_PORT env var is unset."
     },
     "baudrate": {
       "type": "integer",
-      "description": "Baudrate."
+      "description": "UART baud rate for the BNO08x RVC link (typically 115200)."
     },
     "poll_rate_hz": {
       "type": "number",
-      "description": "Poll rate hz."
+      "description": "Rate in Hz at which the driver's background thread reads IMU data."
     },
     "serial_timeout": {
       "type": "number",
@@ -23,7 +23,7 @@
     },
     "data_lock_timeout": {
       "type": "number",
-      "description": "Data lock timeout."
+      "description": "Seconds to wait for a new IMU reading before treating the data as unavailable."
     },
     "quaternion": {
       "type": "object",
@@ -31,19 +31,19 @@
       "properties": {
         "euler_sequence": {
           "type": "string",
-          "description": "Euler sequence."
+          "description": "Order in which the RVC Euler angles are interpreted during quaternion conversion (one of xyz, zyx, xzy, yzx, zxy, yxz)."
         },
         "negate_yaw": {
           "type": "boolean",
-          "description": "Negate yaw."
+          "description": "Negate yaw so counterclockwise rotation is positive in the ROS 2 frame for this mount."
         },
         "negate_pitch": {
           "type": "boolean",
-          "description": "Negate pitch."
+          "description": "Negate pitch so nose-up is positive in the ROS 2 frame for this mount."
         },
         "negate_roll": {
           "type": "boolean",
-          "description": "Negate roll."
+          "description": "Negate roll so banking right is positive in the ROS 2 frame for this mount."
         }
       },
       "required": [

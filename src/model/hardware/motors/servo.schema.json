@@ -7,39 +7,39 @@
   "properties": {
     "gpio_pin": {
       "type": "integer",
-      "description": "Gpio pin."
+      "description": "BCM pin driving the servo signal (informational; the PWM overlay in config.txt fixes the actual pin)."
     },
     "pwmchip": {
       "type": "integer",
-      "description": "Pwmchip."
+      "description": "sysfs PWM controller index (/sys/class/pwm/pwmchip<N>)."
     },
     "pwm_channel": {
       "type": "integer",
-      "description": "Pwm channel."
+      "description": "PWM channel within the controller (channel 0 for GPIO 12 under the single-channel overlay)."
     },
     "min_pulse_us": {
       "type": "number",
-      "description": "Min pulse us."
+      "description": "Pulse width in microseconds at full-left travel."
     },
     "max_pulse_us": {
       "type": "number",
-      "description": "Max pulse us."
+      "description": "Pulse width in microseconds at full-right travel."
     },
     "range_deg": {
       "type": "number",
-      "description": "Range deg."
+      "description": "Total mechanical travel in degrees spanned between min_pulse_us and max_pulse_us."
     },
     "center_pulse_us": {
       "type": "number",
-      "description": "Center pulse us."
+      "description": "Pulse width in microseconds that holds the wheels straight."
     },
     "reversed": {
       "type": "boolean",
-      "description": "Reversed."
+      "description": "Invert steering direction when the servo is mounted so left commands turn right."
     },
     "pwm_frequency_hz": {
       "type": "integer",
-      "description": "Pwm frequency hz."
+      "description": "Servo PWM carrier frequency in Hz; the servo's 20 ms frame period derives from it."
     }
   },
   "required": [

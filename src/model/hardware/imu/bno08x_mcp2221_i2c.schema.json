@@ -7,7 +7,7 @@
   "properties": {
     "imu_i2c_address": {
       "type": "string",
-      "description": "Imu i2c address."
+      "description": "I2C address of the BNO08x IMU as a hex string (0x4A)."
     }
   },
   "required": [

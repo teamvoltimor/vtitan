@@ -11,4 +11,7 @@ class HardwareChallengeMode(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    challenge_mode_gpio_pin: int = Field(..., description='Challenge mode gpio pin.')
+    challenge_mode_gpio_pin: int = Field(
+        ...,
+        description='BCM GPIO pin the challenge-mode jumper is wired to (GPIO23 / physical pin 16 on the Pi Zero).',
+    )

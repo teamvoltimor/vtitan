@@ -11,10 +11,14 @@ class HardwareCameraConfig(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    device: str = Field(..., description='Device.')
-    width: int = Field(..., description='Width.')
-    height: int = Field(..., description='Height.')
-    fps: int = Field(..., description='Fps.')
-    rotation: int = Field(..., description='Rotation.')
-    hflip: bool = Field(..., description='Hflip.')
-    vflip: bool = Field(..., description='Vflip.')
+    device: str = Field(..., description='V4L2 camera device path (e.g. /dev/video0).')
+    width: int = Field(..., description='Camera capture width in pixels.')
+    height: int = Field(..., description='Camera capture height in pixels.')
+    fps: int = Field(
+        ..., description='Target camera capture rate in frames per second.'
+    )
+    rotation: int = Field(
+        ..., description='Camera rotation in degrees (0, 90, 180, 270).'
+    )
+    hflip: bool = Field(..., description='Mirror the camera image horizontally.')
+    vflip: bool = Field(..., description='Mirror the camera image vertically.')

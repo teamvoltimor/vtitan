@@ -3,6 +3,8 @@
 package generated
 
 // Single source of truth for ROS2 topic names used by the robot and telemetry.
+// Loaded via RosTopicConfig.load_default(). Rationale for the values is in
+// other/docs/adr.
 type RosTopics struct {
 	// Actuator feedback and status topics.
 	Actuators RosTopicsActuators `json:"actuators" yaml:"actuators" mapstructure:"actuators"`
@@ -37,40 +39,41 @@ type RosTopics struct {
 
 // Actuator feedback and status topics.
 type RosTopicsActuators struct {
-	// Current drive speed.
+	// Current drive speed in degrees/s, published by ackermann_motor_node.
 	DriveSpeed string `json:"drive_speed" yaml:"drive_speed" mapstructure:"drive_speed"`
 
 	// Joint state feedback: steering angle, drive speed, encoder position.
 	JointStates string `json:"joint_states" yaml:"joint_states" mapstructure:"joint_states"`
 
-	// Motor status diagnostics.
+	// Motor status diagnostics, published by ackermann_motor_node.
 	Status string `json:"status" yaml:"status" mapstructure:"status"`
 
-	// Current steering position in degrees.
+	// Current steering position in degrees, published by ackermann_motor_node.
 	SteeringPosition string `json:"steering_position" yaml:"steering_position" mapstructure:"steering_position"`
 }
 
 // Bag recorder topics.
 type RosTopicsBagRecorder struct {
-	// Latched run directory the recorder is writing to.
+	// Latched run directory the recorder just started writing to, so a separate
+	// process can write into the same mcap directory.
 	RunPath string `json:"run_path" yaml:"run_path" mapstructure:"run_path"`
 }
 
 // Button event topics.
 type RosTopicsButton struct {
-	// Button events.
+	// Button events from button_node on the Pi Zero.
 	Event string `json:"event" yaml:"event" mapstructure:"event"`
 
-	// JSON hold-progress feedback, for the OLED countdown.
+	// JSON hold-progress feedback from button_node, for the OLED countdown.
 	Hold string `json:"hold" yaml:"hold" mapstructure:"hold"`
 }
 
 // Challenge-mode jumper topics.
 type RosTopicsChallengeMode struct {
-	// Resolved ScenarioType once latched.
+	// Resolved ScenarioType (open/obstacles) once latched.
 	Active string `json:"active" yaml:"active" mapstructure:"active"`
 
-	// Challenge-mode jumper state.
+	// Challenge-mode jumper state, published by the Pi Zero.
 	JumperInserted string `json:"jumper_inserted" yaml:"jumper_inserted" mapstructure:"jumper_inserted"`
 }
 
@@ -82,34 +85,37 @@ type RosTopicsCommands struct {
 
 // Topics published by the navigation stack.
 type RosTopicsNavigation struct {
-	// Active track corridor (Section name).
+	// Active track corridor (Section name: north/south/east/west), BEST_EFFORT,
+	// published every control tick.
 	CurrentCorridor string `json:"current_corridor" yaml:"current_corridor" mapstructure:"current_corridor"`
 
-	// Lap count from the LapDetector.
+	// Lap count from track_navigator_node's CoreNavigator/LapDetector, the only thing
+	// that detects a lap crossing.
 	LapsCompleted string `json:"laps_completed" yaml:"laps_completed" mapstructure:"laps_completed"`
 
 	// Per-tick NavigatorDebugSnapshot, as JSON.
 	NavDebug string `json:"nav_debug" yaml:"nav_debug" mapstructure:"nav_debug"`
 
-	// Odometry from track_navigator_node. Currently no node publishes it.
+	// Odometry from track_navigator_node. As of 2026-08-02 no node publishes it; the
+	// telemetry bridge subscribes but receives no data.
 	Odometry *string `json:"odometry,omitempty,omitzero" yaml:"odometry,omitempty" mapstructure:"odometry,omitempty"`
 }
 
 // Sensor topics.
 type RosTopicsSensors struct {
-	// Raw camera image.
+	// Raw camera image, for diagnostics/monitoring.
 	CameraImageRaw string `json:"camera_image_raw" yaml:"camera_image_raw" mapstructure:"camera_image_raw"`
 
 	// IMU data from the BNO085.
 	Imu string `json:"imu" yaml:"imu" mapstructure:"imu"`
 
-	// Joystick input.
+	// Joystick input (sensor_msgs/Joy), consumed by joy_teleop_node.
 	Joy string `json:"joy" yaml:"joy" mapstructure:"joy"`
 
 	// LIDAR range data from the Slamtec C1.
 	Scan string `json:"scan" yaml:"scan" mapstructure:"scan"`
 
-	// Vision detections, as JSON.
+	// Vision detections (std_msgs/String), as JSON, published by vision_node.
 	VisionDetections string `json:"vision_detections" yaml:"vision_detections" mapstructure:"vision_detections"`
 }
 
@@ -118,16 +124,18 @@ type RosTopicsSimulation struct {
 	// Simulated pose.
 	Odom string `json:"odom" yaml:"odom" mapstructure:"odom"`
 
-	// Planned polyline the navigator is tracking, as JSON.
+	// Planned polyline the navigator is tracking right now, as JSON. A belief, not
+	// ground truth.
 	Plan string `json:"plan" yaml:"plan" mapstructure:"plan"`
 
-	// Chassis/sensor/wheel geometry in the base_link frame.
+	// Chassis/sensor/wheel geometry in the base_link frame, split off the track topic
+	// so the per-tick wheels are not wiped by the marker array's DELETEALL.
 	RobotModel string `json:"robot_model" yaml:"robot_model" mapstructure:"robot_model"`
 
 	// Sign estimates the plan was built from, as JSON.
 	SignEstimates string `json:"sign_estimates" yaml:"sign_estimates" mapstructure:"sign_estimates"`
 
-	// Simulated track markers.
+	// Simulated track markers. Cached and re-sent about once a second.
 	Track string `json:"track" yaml:"track" mapstructure:"track"`
 }
 
@@ -145,9 +153,9 @@ type RosTopicsStateMachine struct {
 
 // OLED and telemetry summary topics.
 type RosTopicsUi struct {
-	// Live mirror of the OLED panel.
+	// Live mirror of the OLED panel, published by oled_display_node.
 	OledMirror string `json:"oled_mirror" yaml:"oled_mirror" mapstructure:"oled_mirror"`
 
-	// Low-rate lidar/yaw/detection summary for the OLED.
+	// Low-rate lidar/yaw/detection summary for the OLED, from telemetry_bridge_node.
 	TelemetrySummary string `json:"telemetry_summary" yaml:"telemetry_summary" mapstructure:"telemetry_summary"`
 }

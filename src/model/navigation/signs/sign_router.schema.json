@@ -43,19 +43,19 @@
     },
     "slot_accept_radius_m": {
       "type": "number",
-      "description": "Slot accept radius m."
+      "description": "How close (m) an observation must be to a legal sign-lattice cell to claim it."
     },
     "slot_min_evidence": {
       "type": "number",
-      "description": "Slot min evidence."
+      "description": "Summed detection confidence a lattice cell needs before it may hold a sign slot."
     },
     "slot_repoint_margin": {
       "type": "number",
-      "description": "Slot repoint margin."
+      "description": "Factor by which a challenger cell must out-weigh the incumbent cell to take its sign slot."
     },
     "escape_mask_radius_m": {
       "type": "number",
-      "description": "Escape mask radius m."
+      "description": "How close (m) a LIDAR return must land to a routed sign to be attributed to it and withheld from the reactive escape trigger; 0 disables the mask."
     },
     "escape_mask_cluster_assoc_m": {
       "type": "number",
@@ -67,7 +67,8 @@
     },
     "commit_hysteresis": {
       "type": "boolean",
-      "description": "Once the router has engaged a sign, keep routing around THAT sign until it is cleared, rather than re-running the nearest-wins race every tick. With two signs in play -- the WRO grid spaces them 0.50 m apart along a 1.0 m corridor, so this is common -- a pure per-tick race can flip the winner mid-approach and jump the commanded lateral line from one sign's required value to the other's with no runway left to track it. Set true to hold the committed sign.  ON since 2026-09-07, and the reason it was off is worth keeping. Measured 2026-08-01 over the corpus it read flat (sighted 229 collisions either way, blind 227 off vs 228 on) and was dismissed as not earning its place. Re-run 2026-09-07 the corpus still reads flat: in-time 59 = 59, laps>=3 71 -> 70, collided 18 -> 19.  What changed is the instrument, not the number. This holds the aim point still when two tracks of the SAME pillar compete, and duplicate tracks exist in both worlds at the same rate (sim 2.0x, hardware 2.2x) but NOT at the same separation:  duplicate nearest-neighbour, p50:   sim 0.012 m    hardware 0.21 m  So a winner-switch moves the commanded line 1.2 cm in the corpus and 21 cm on the mat -- a factor of 17. The corpus was pricing a defect it barely has. Replayed over recorded detections from the 09-07 runs (see scripts/bag/diag_bag_sign_target_churn.py), holding the commitment cuts aim-point jumps over 0.15 m from 38 to 21, with the committed-tick count unchanged at 1538 -- so it is not buying that by disengaging.  Reported from the track first: the robot lines up correctly to pass a sign, keeps correcting, and arrives badly placed. It is not a hunting controller (median steering flips during an approach is ZERO); the target was moving."
+      "description": "Once the router has engaged a sign, keep routing around THAT sign until it is cleared, rather than re-running the nearest-wins race every tick. With two signs in play -- the WRO grid spaces them 0.50 m apart along a 1.0 m corridor, so this is common -- a pure per-tick race can flip the winner mid-approach and jump the commanded lateral line from one sign's required value to the other's with no runway left to track it. Set true to hold the committed sign.  ON since 2026-09-07, and the reason it was off is worth keeping. Measured 2026-08-01 over the corpus it read flat (sighted 229 collisions either way, blind 227 off vs 228 on) and was dismissed as not earning its place. Re-run 2026-09-07 the corpus still reads flat: in-time 59 = 59, laps>=3 71 -> 70, collided 18 -> 19.  What changed is the instrument, not the number. This holds the aim point still when two tracks of the SAME pillar compete, and duplicate tracks exist in both worlds at the same rate (sim 2.0x, hardware 2.2x) but NOT at the same separation:  duplicate nearest-neighbour, p50:   sim 0.012 m    hardware 0.21 m  So a winner-switch moves the commanded line 1.2 cm in the corpus and 21 cm on the mat -- a factor of 17. The corpus was pricing a defect it barely has. Replayed over recorded detections from the 09-07 runs (see scripts/bag/diag_bag_sign_target_churn.py), holding the commitment cuts aim-point jumps over 0.15 m from 38 to 21, with the committed-tick count unchanged at 1538 -- so it is not buying that by disengaging.  Reported from the track first: the robot lines up correctly to pass a sign, keeps correcting, and arrives badly placed. It is not a hunting controller (median steering flips during an approach is ZERO); the target was moving.",
+      "x-journal": "adr:0045-sign-router-commit-hysteresis"
     },
     "corridor_flip_ticks": {
       "type": "integer",
@@ -123,7 +124,7 @@
     },
     "sign_lane_skip_unsatisfiable": {
       "type": "boolean",
-      "description": "Sign lane skip unsatisfiable."
+      "description": "Drop a sign from the lane profile when its own clamped target lands on the forbidden side of it."
     },
     "sign_lane_depth_consistent_corridor": {
       "type": "boolean",
@@ -139,11 +140,11 @@
     },
     "pin_corner_guard": {
       "type": "boolean",
-      "description": "Pin corner guard."
+      "description": "Re-check that the robot's real position is squarely in the corridor before the depth pin holds the point abeam a sign."
     },
     "pin_heading_guard": {
       "type": "boolean",
-      "description": "Pin heading guard."
+      "description": "Release the depth pin once the robot's heading has drifted more than pin_heading_guard_deg from where the pin engaged."
     },
     "pin_heading_guard_deg": {
       "type": "number",
@@ -163,11 +164,11 @@
     },
     "retrace_dist_m": {
       "type": "number",
-      "description": "Retrace dist m."
+      "description": "How far back along the pose trail the REFUTED retrace-on-escape aims (m)."
     },
     "retrace_steer_gain_deg": {
       "type": "number",
-      "description": "Retrace steer gain deg."
+      "description": "Road-wheel angle (degrees) commanded by the REFUTED retrace-on-escape when the target sits 45 degrees off the chassis."
     },
     "sign_contact_evade": {
       "type": "boolean",
@@ -175,11 +176,11 @@
     },
     "sign_contact_dist_m": {
       "type": "number",
-      "description": "Sign contact dist m."
+      "description": "Along-track distance (m) within which a routed sign predicted to clip the chassis triggers the OFF sign-contact evade."
     },
     "sign_contact_steer_deg": {
       "type": "number",
-      "description": "Sign contact steer deg."
+      "description": "Road-wheel angle (degrees) steered away from the offending sign by the OFF sign-contact evade."
     },
     "sign_aware_lookahead": {
       "type": "boolean",
@@ -199,11 +200,11 @@
     },
     "sign_lidar_align_max_m": {
       "type": "number",
-      "description": "Sign lidar align max m."
+      "description": "Far edge of the range window (m) a LIDAR pillar return must fall inside to count as a sign's return."
     },
     "sign_lidar_align_fov_deg": {
       "type": "number",
-      "description": "Sign lidar align fov deg."
+      "description": "Half-angle of the forward cone (degrees) searched for an unclassified LIDAR pillar return."
     },
     "sign_lidar_align_depth_m": {
       "type": "number",
@@ -211,7 +212,7 @@
     },
     "sign_lidar_align_max_width_m": {
       "type": "number",
-      "description": "Sign lidar align max width m."
+      "description": "Maximum arc width (m, nearest range times angular span) a LIDAR return may span and still read as pillar-shaped."
     },
     "sign_lidar_align_deadband_deg": {
       "type": "number",
@@ -219,11 +220,11 @@
     },
     "sign_lidar_align_gain": {
       "type": "number",
-      "description": "Sign lidar align gain."
+      "description": "Heading gain of the steer-at-the-return law: the nudge is the return bearing scaled by this and clipped to sign_lidar_align_max_steer."
     },
     "sign_lidar_align_max_steer": {
       "type": "number",
-      "description": "Sign lidar align max steer."
+      "description": "Cap on the normalized steering nudge (fraction of full lock) the unclassified-return align law may add."
     },
     "sign_lidar_propose": {
       "type": "boolean",

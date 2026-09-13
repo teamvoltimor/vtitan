@@ -11,47 +11,49 @@ type HardwareMotorsMotors struct {
 }
 
 type HardwareMotorsMotorsDrive struct {
-	// Default speed.
+	// Fallback drive motor speed command when none is specified.
 	DefaultSpeed int `json:"default_speed" yaml:"default_speed" mapstructure:"default_speed"`
 
-	// Encoder reversed.
+	// Whether the encoder counts up when the robot moves backward; independent of
+	// drive.reversed.
 	EncoderReversed bool `json:"encoder_reversed" yaml:"encoder_reversed" mapstructure:"encoder_reversed"`
 
-	// Max speed.
+	// Highest drive motor speed command considered safe.
 	MaxSpeed int `json:"max_speed" yaml:"max_speed" mapstructure:"max_speed"`
 
-	// Min speed.
+	// Lowest drive motor speed command that operates effectively.
 	MinSpeed int `json:"min_speed" yaml:"min_speed" mapstructure:"min_speed"`
 
-	// Reversed.
+	// Invert the drive direction when forward commands otherwise move the robot
+	// backward.
 	Reversed bool `json:"reversed" yaml:"reversed" mapstructure:"reversed"`
 
-	// Speed scale.
+	// Velocity to motor-speed scale factor: motor_speed = velocity_m_s * speed_scale.
 	SpeedScale float64 `json:"speed_scale" yaml:"speed_scale" mapstructure:"speed_scale"`
 
-	// Test duration.
+	// Duration in seconds for motor test/diagnostic runs.
 	TestDuration float64 `json:"test_duration" yaml:"test_duration" mapstructure:"test_duration"`
 }
 
 type HardwareMotorsMotorsSteering struct {
-	// Center angle.
+	// Servo angle in degrees that corresponds to centred steering.
 	CenterAngle float64 `json:"center_angle" yaml:"center_angle" mapstructure:"center_angle"`
 
-	// Centering speed.
+	// Speed in degrees per second used when centring the steering.
 	CenteringSpeed int `json:"centering_speed" yaml:"centering_speed" mapstructure:"centering_speed"`
 
-	// Left limit angle.
+	// Maximum left steering angle in degrees.
 	LeftLimitAngle float64 `json:"left_limit_angle" yaml:"left_limit_angle" mapstructure:"left_limit_angle"`
 
-	// Offset.
+	// Steering center offset in degrees; positive biases right, negative biases left.
 	Offset float64 `json:"offset" yaml:"offset" mapstructure:"offset"`
 
-	// Reversed.
+	// Invert steering direction when left commands otherwise turn the wheels right.
 	Reversed bool `json:"reversed" yaml:"reversed" mapstructure:"reversed"`
 
-	// Right limit angle.
+	// Maximum right steering angle in degrees.
 	RightLimitAngle float64 `json:"right_limit_angle" yaml:"right_limit_angle" mapstructure:"right_limit_angle"`
 
-	// Turning speed.
+	// Default speed used when moving the steering to a commanded position.
 	TurningSpeed int `json:"turning_speed" yaml:"turning_speed" mapstructure:"turning_speed"`
 }

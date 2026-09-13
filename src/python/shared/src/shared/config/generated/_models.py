@@ -11,15 +11,31 @@ class Quaternion(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    euler_sequence: str = Field(..., description='Euler sequence.')
-    negate_yaw: bool = Field(..., description='Negate yaw.')
-    negate_pitch: bool = Field(..., description='Negate pitch.')
-    negate_roll: bool = Field(..., description='Negate roll.')
+    euler_sequence: str = Field(
+        ...,
+        description='Order in which the RVC Euler angles are interpreted during quaternion conversion (one of xyz, zyx, xzy, yzx, zxy, yxz).',
+    )
+    negate_yaw: bool = Field(
+        ...,
+        description='Negate yaw so counterclockwise rotation is positive in the ROS 2 frame for this mount.',
+    )
+    negate_pitch: bool = Field(
+        ...,
+        description='Negate pitch so nose-up is positive in the ROS 2 frame for this mount.',
+    )
+    negate_roll: bool = Field(
+        ...,
+        description='Negate roll so banking right is positive in the ROS 2 frame for this mount.',
+    )
 
 
 class Mcp2221(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    vid: str = Field(..., description='Vid.')
-    pid: str = Field(..., description='Pid.')
+    vid: str = Field(
+        ..., description='USB vendor ID of the MCP2221A bridge, as a hex string.'
+    )
+    pid: str = Field(
+        ..., description='USB product ID of the MCP2221A bridge, as a hex string.'
+    )

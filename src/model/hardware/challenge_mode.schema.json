@@ -7,7 +7,7 @@
   "properties": {
     "challenge_mode_gpio_pin": {
       "type": "integer",
-      "description": "Challenge mode gpio pin."
+      "description": "BCM GPIO pin the challenge-mode jumper is wired to (GPIO23 / physical pin 16 on the Pi Zero)."
     }
   },
   "required": [

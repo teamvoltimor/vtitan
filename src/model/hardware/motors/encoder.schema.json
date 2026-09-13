@@ -7,15 +7,15 @@
   "properties": {
     "pin_a": {
       "type": "integer",
-      "description": "Pin a."
+      "description": "BCM GPIO pin for the encoder's A channel."
     },
     "pin_b": {
       "type": "integer",
-      "description": "Pin b."
+      "description": "BCM GPIO pin for the encoder's B channel."
     },
     "max_duty": {
       "type": "number",
-      "description": "Max duty."
+      "description": "Safety ceiling on the closed-loop PID's output magnitude, as a fraction of full duty (0-1)."
     }
   },
   "required": [

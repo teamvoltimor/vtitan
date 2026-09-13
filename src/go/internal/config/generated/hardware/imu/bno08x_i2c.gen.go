@@ -3,6 +3,7 @@
 package imu
 
 type HardwareImuBno08XI2C struct {
-	// Enable sensors delay.
+	// Delay in seconds after enabling the sensors to let them stabilize before
+	// reading.
 	EnableSensorsDelay float64 `json:"enable_sensors_delay" yaml:"enable_sensors_delay" mapstructure:"enable_sensors_delay"`
 }

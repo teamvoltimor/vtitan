@@ -3,16 +3,17 @@
 package vision
 
 type HardwareVisionNode struct {
-	// Annotated topic.
+	// ROS2 topic the annotated image stream is published on.
 	AnnotatedTopic string `json:"annotated_topic" yaml:"annotated_topic" mapstructure:"annotated_topic"`
 
-	// Backend.
+	// Vision backend to use: "yolo" (CPU/ultralytics) or "hailo".
 	Backend string `json:"backend" yaml:"backend" mapstructure:"backend"`
 
-	// Camera source.
+	// Frame source: "topic" for a ROS2 image subscription, "direct" to open the
+	// camera in-process.
 	CameraSource string `json:"camera_source" yaml:"camera_source" mapstructure:"camera_source"`
 
-	// Camera topic.
+	// ROS2 image topic the node subscribes to when camera_source is "topic".
 	CameraTopic string `json:"camera_topic" yaml:"camera_topic" mapstructure:"camera_topic"`
 
 	// Periodic raw (un-annotated) frame capture for later dataset accumulation /
@@ -22,22 +23,23 @@ type HardwareVisionNode struct {
 	// detection; Open Challenge saves every capture_interval_s unconditionally.
 	CaptureDatasetFrames bool `json:"capture_dataset_frames" yaml:"capture_dataset_frames" mapstructure:"capture_dataset_frames"`
 
-	// Capture fps.
+	// Capture/publish rate for the node, in frames per second.
 	CaptureFps float64 `json:"capture_fps" yaml:"capture_fps" mapstructure:"capture_fps"`
 
-	// Capture interval s.
+	// Seconds between periodic raw-frame captures when dataset capture is enabled.
 	CaptureIntervalS float64 `json:"capture_interval_s" yaml:"capture_interval_s" mapstructure:"capture_interval_s"`
 
-	// Capture subdir.
+	// Subdirectory (under the run directory) where captured dataset frames are
+	// written.
 	CaptureSubdir string `json:"capture_subdir" yaml:"capture_subdir" mapstructure:"capture_subdir"`
 
-	// Model path.
+	// Fallback model path used when the node is launched with no model_path override.
 	ModelPath string `json:"model_path" yaml:"model_path" mapstructure:"model_path"`
 
-	// Publish annotated.
+	// Publish the annotated (box-drawn) image stream for debugging.
 	PublishAnnotated bool `json:"publish_annotated" yaml:"publish_annotated" mapstructure:"publish_annotated"`
 
-	// Publish raw.
+	// Publish the raw camera image stream for debugging.
 	PublishRaw bool `json:"publish_raw" yaml:"publish_raw" mapstructure:"publish_raw"`
 
 	// Recorded debug video's width; height is derived from the captured frame's own

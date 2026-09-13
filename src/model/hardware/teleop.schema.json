@@ -7,39 +7,39 @@
   "properties": {
     "steering_axis_index": {
       "type": "integer",
-      "description": "Steering axis index."
+      "description": "Joy axes index used for steering (left stick X in a typical mapping)."
     },
     "throttle_axis_index": {
       "type": "integer",
-      "description": "Throttle axis index."
+      "description": "Joy axes index used for drive speed (right stick Y in a typical mapping)."
     },
     "deadman_button_index": {
       "type": "integer",
-      "description": "Deadman button index."
+      "description": "Joy buttons index that must be held for the drive motor to move at all."
     },
     "steering_invert": {
       "type": "boolean",
-      "description": "Steering invert."
+      "description": "Flip the sign of the steering axis reading."
     },
     "throttle_invert": {
       "type": "boolean",
-      "description": "Throttle invert."
+      "description": "Flip the sign of the throttle axis reading."
     },
     "max_steering_deg": {
       "type": "number",
-      "description": "Max steering deg."
+      "description": "Steering angle in degrees commanded at full stick deflection."
     },
     "max_speed_mps": {
       "type": "number",
-      "description": "Max speed mps."
+      "description": "Drive speed in metres per second commanded at full stick deflection; kept low for bench safety."
     },
     "publish_rate_hz": {
       "type": "number",
-      "description": "Publish rate hz."
+      "description": "Rate at which /ackermann_cmd is republished, in Hz (must stay under the motor node's command watchdog)."
     },
     "joy_timeout_s": {
       "type": "number",
-      "description": "Joy timeout s."
+      "description": "Seconds without a /joy message before the drive command is forced to zero."
     }
   },
   "required": [

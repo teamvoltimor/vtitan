@@ -7,47 +7,47 @@
   "properties": {
     "device": {
       "type": "string",
-      "description": "Device."
+      "description": "V4L2 camera device path used for capture (e.g. /dev/video0)."
     },
     "width": {
       "type": "integer",
-      "description": "Width."
+      "description": "Camera capture width in pixels."
     },
     "height": {
       "type": "integer",
-      "description": "Height."
+      "description": "Camera capture height in pixels."
     },
     "fps": {
       "type": "integer",
-      "description": "Fps."
+      "description": "Camera capture frame rate in frames per second."
     },
     "rotation": {
       "type": "integer",
-      "description": "Rotation."
+      "description": "Image rotation in degrees (0, 90, 180, 270)."
     },
     "hflip": {
       "type": "boolean",
-      "description": "Hflip."
+      "description": "Mirror the captured image horizontally."
     },
     "vflip": {
       "type": "boolean",
-      "description": "Vflip."
+      "description": "Mirror the captured image vertically."
     },
     "model_input_width": {
       "type": "integer",
-      "description": "Model input width."
+      "description": "Width the frame is resized to before inference; should match the model input width."
     },
     "model_input_height": {
       "type": "integer",
-      "description": "Model input height."
+      "description": "Height the frame is resized to before inference; should match the model input height."
     },
     "queue_size": {
       "type": "integer",
-      "description": "Queue size."
+      "description": "Maximum number of frames held in the inference queue."
     },
     "async_inference": {
       "type": "boolean",
-      "description": "Async inference."
+      "description": "Run inference asynchronously (non-blocking) instead of synchronously."
     }
   },
   "required": [

@@ -7,7 +7,7 @@
   "properties": {
     "publish_rate_hz": {
       "type": "number",
-      "description": "Publish rate hz."
+      "description": "Republish rate of the challenge-mode jumper state, in Hz."
     }
   },
   "required": [

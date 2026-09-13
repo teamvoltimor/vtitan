@@ -3,15 +3,16 @@
 package hardware
 
 type HardwareHailo struct {
-	// Benchmark iterations.
+	// Number of iterations run by the latency benchmark.
 	BenchmarkIterations int `json:"benchmark_iterations" yaml:"benchmark_iterations" mapstructure:"benchmark_iterations"`
 
-	// Data yaml path.
+	// Path to an optional YOLO data.yaml supplying class id to name; leave absent to
+	// use the built-in class order.
 	DataYamlPath string `json:"data_yaml_path" yaml:"data_yaml_path" mapstructure:"data_yaml_path"`
 
-	// Inference timeout ms.
+	// Milliseconds to wait for a single async inference job before giving up.
 	InferenceTimeoutMs int `json:"inference_timeout_ms" yaml:"inference_timeout_ms" mapstructure:"inference_timeout_ms"`
 
-	// Model path.
+	// Path to the compiled Hailo HEF model loaded for inference.
 	ModelPath string `json:"model_path" yaml:"model_path" mapstructure:"model_path"`
 }

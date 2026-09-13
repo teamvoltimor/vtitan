@@ -7,35 +7,35 @@
   "properties": {
     "camera_topic": {
       "type": "string",
-      "description": "Camera topic."
+      "description": "ROS2 image topic the node subscribes to when camera_source is \"topic\"."
     },
     "model_path": {
       "type": "string",
-      "description": "Model path."
+      "description": "Fallback model path used when the node is launched with no model_path override."
     },
     "backend": {
       "type": "string",
-      "description": "Backend."
+      "description": "Vision backend to use: \"yolo\" (CPU/ultralytics) or \"hailo\"."
     },
     "camera_source": {
       "type": "string",
-      "description": "Camera source."
+      "description": "Frame source: \"topic\" for a ROS2 image subscription, \"direct\" to open the camera in-process."
     },
     "capture_fps": {
       "type": "number",
-      "description": "Capture fps."
+      "description": "Capture/publish rate for the node, in frames per second."
     },
     "publish_annotated": {
       "type": "boolean",
-      "description": "Publish annotated."
+      "description": "Publish the annotated (box-drawn) image stream for debugging."
     },
     "annotated_topic": {
       "type": "string",
-      "description": "Annotated topic."
+      "description": "ROS2 topic the annotated image stream is published on."
     },
     "publish_raw": {
       "type": "boolean",
-      "description": "Publish raw."
+      "description": "Publish the raw camera image stream for debugging."
     },
     "video_width": {
       "type": "integer",
@@ -47,11 +47,11 @@
     },
     "capture_interval_s": {
       "type": "number",
-      "description": "Capture interval s."
+      "description": "Seconds between periodic raw-frame captures when dataset capture is enabled."
     },
     "capture_subdir": {
       "type": "string",
-      "description": "Capture subdir."
+      "description": "Subdirectory (under the run directory) where captured dataset frames are written."
     }
   },
   "required": [

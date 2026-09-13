@@ -3,15 +3,15 @@
 package hardware
 
 type HardwareLidar struct {
-	// Angle compensate.
+	// Enable sllidar_ros2 angle compensation for the rotating scan.
 	AngleCompensate bool `json:"angle_compensate" yaml:"angle_compensate" mapstructure:"angle_compensate"`
 
-	// Scan mode.
+	// sllidar_ros2 scan mode passed to the driver (for example Standard).
 	ScanMode string `json:"scan_mode" yaml:"scan_mode" mapstructure:"scan_mode"`
 
-	// Serial baudrate.
+	// Serial baud rate for LIDAR communication.
 	SerialBaudrate int `json:"serial_baudrate" yaml:"serial_baudrate" mapstructure:"serial_baudrate"`
 
-	// Serial port.
+	// Serial device path for the LIDAR (launch-time override with serial_port:=...).
 	SerialPort string `json:"serial_port" yaml:"serial_port" mapstructure:"serial_port"`
 }

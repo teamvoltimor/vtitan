@@ -11,7 +11,9 @@ class CompetitionSpecs(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    round_time_limit_s: float = Field(..., description='Official round duration.')
+    round_time_limit_s: float = Field(
+        ..., description='Official round duration (seconds): 3 minutes.'
+    )
     open_challenge_laps: conint(ge=0) = Field(
         ..., description='Laps required per Open Challenge run.'
     )

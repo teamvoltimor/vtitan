@@ -11,4 +11,6 @@ class HardwareImuBno08xMcp2221I2c(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    imu_i2c_address: str = Field(..., description='Imu i2c address.')
+    imu_i2c_address: str = Field(
+        ..., description='I2C address of the BNO08x IMU as a hex string (0x4A).'
+    )

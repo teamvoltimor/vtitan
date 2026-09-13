@@ -36,7 +36,8 @@ type NavigationSimulationSimulation struct {
 	// corner-dependent number, exactly as shipping the constant floor did.
 	MinTurnRadiusTracksSpeed bool `json:"min_turn_radius_tracks_speed" yaml:"min_turn_radius_tracks_speed" mapstructure:"min_turn_radius_tracks_speed"`
 
-	// No progress displacement m.
+	// Straight-line displacement (m) a run must net within no_progress_window_s or it
+	// is scored stuck.
 	NoProgressDisplacementM float64 `json:"no_progress_displacement_m" yaml:"no_progress_displacement_m" mapstructure:"no_progress_displacement_m"`
 
 	// The simulator's no-progress bailout: a run is abandoned once the robot moves
@@ -73,10 +74,11 @@ type NavigationSimulationSimulation struct {
 	// fail a placement the rules allow.
 	StartCollisionWindowS float64 `json:"start_collision_window_s" yaml:"start_collision_window_s" mapstructure:"start_collision_window_s"`
 
-	// Vision detect falloff m.
+	// Width (m) of the logistic detection-probability falloff around
+	// vision_detect_r50_m; smaller is a sharper cliff.
 	VisionDetectFalloffM float64 `json:"vision_detect_falloff_m" yaml:"vision_detect_falloff_m" mapstructure:"vision_detect_falloff_m"`
 
-	// Vision detect r50 m.
+	// Emulated camera range (m) at which a sign is detected on about half of frames.
 	VisionDetectR50M float64 `json:"vision_detect_r50_m" yaml:"vision_detect_r50_m" mapstructure:"vision_detect_r50_m"`
 
 	// Emulate detection RANGE falloff (not just geometry) on the emulated camera: a

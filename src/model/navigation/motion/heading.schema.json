@@ -7,7 +7,8 @@
   "properties": {
     "crawl": {
       "type": "number",
-      "description": "~57 deg -- severe misalignment, drop to the creep floor"
+      "description": "~57 deg -- severe misalignment, drop to the creep floor",
+      "x-journal": "adr:0032-heading-single-crawl-threshold"
     },
     "crawl_ramp_start": {
       "type": "number",

@@ -57,7 +57,8 @@ class NavigationSignsSignDiscovery(StrictModel):
         description="The two knobs below parameterise lidar_range_fusion above. The gate requires a free-standing cluster of pillar width at the camera's bearing whose range AGREES with the pinhole within lidar_range_fusion_agreement; failing either test, the pinhole stands. NOT optional: with this false the fusion above is the version measured harmful.",
     )
     lidar_range_fusion_agreement: float = Field(
-        ..., description='Lidar range fusion agreement.'
+        ...,
+        description='Fractional range disagreement (fraction of the pinhole estimate) above which the LIDAR cluster is rejected and the pinhole range stands.',
     )
     max_signs_per_section: int = Field(
         ...,

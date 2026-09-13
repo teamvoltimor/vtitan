@@ -11,13 +11,15 @@ type HardwareButtonMcp2221 struct {
 }
 
 type HardwareButtonMcp2221Button struct {
-	// Debounce ms.
+	// Debounce window in milliseconds that filters electrical contact noise.
 	DebounceMs int `json:"debounce_ms" yaml:"debounce_ms" mapstructure:"debounce_ms"`
 
-	// Long press threshold sec.
+	// Hold time in seconds after which a press is treated as long (E-STOP while
+	// racing, reset once finished).
 	LongPressThresholdSec float64 `json:"long_press_threshold_sec" yaml:"long_press_threshold_sec" mapstructure:"long_press_threshold_sec"`
 
-	// Pull up.
+	// Use the GPIO internal pull-up; the button is wired GND to pin, so a press pulls
+	// the pin low.
 	PullUp bool `json:"pull_up" yaml:"pull_up" mapstructure:"pull_up"`
 
 	// Kept in step with gpio.toml, which is the driver actually wired into
@@ -26,9 +28,9 @@ type HardwareButtonMcp2221Button struct {
 }
 
 type HardwareButtonMcp2221Mcp2221 struct {
-	// Pid.
+	// USB product ID of the MCP2221A bridge, as a hex string.
 	Pid string `json:"pid" yaml:"pid" mapstructure:"pid"`
 
-	// Vid.
+	// USB vendor ID of the MCP2221A bridge, as a hex string.
 	Vid string `json:"vid" yaml:"vid" mapstructure:"vid"`
 }

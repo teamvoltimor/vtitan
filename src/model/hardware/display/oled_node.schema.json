@@ -11,7 +11,7 @@
     },
     "display_backend": {
       "type": "string",
-      "description": "Display backend."
+      "description": "SSD1306 I2C backend: blinka (Adafruit CircuitPython) or raw_i2c (direct /dev/i2c-N ioctl)."
     }
   },
   "required": [

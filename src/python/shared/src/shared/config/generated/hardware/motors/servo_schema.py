@@ -11,12 +11,35 @@ class HardwareMotorsServo(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    gpio_pin: int = Field(..., description='Gpio pin.')
-    pwmchip: int = Field(..., description='Pwmchip.')
-    pwm_channel: int = Field(..., description='Pwm channel.')
-    min_pulse_us: float = Field(..., description='Min pulse us.')
-    max_pulse_us: float = Field(..., description='Max pulse us.')
-    range_deg: float = Field(..., description='Range deg.')
-    center_pulse_us: float = Field(..., description='Center pulse us.')
-    reversed: bool = Field(..., description='Reversed.')
-    pwm_frequency_hz: int = Field(..., description='Pwm frequency hz.')
+    gpio_pin: int = Field(
+        ...,
+        description='BCM pin driving the servo signal (informational; the PWM overlay in config.txt fixes the actual pin).',
+    )
+    pwmchip: int = Field(
+        ..., description='sysfs PWM controller index (/sys/class/pwm/pwmchip<N>).'
+    )
+    pwm_channel: int = Field(
+        ...,
+        description='PWM channel within the controller (channel 0 for GPIO 12 under the single-channel overlay).',
+    )
+    min_pulse_us: float = Field(
+        ..., description='Pulse width in microseconds at full-left travel.'
+    )
+    max_pulse_us: float = Field(
+        ..., description='Pulse width in microseconds at full-right travel.'
+    )
+    range_deg: float = Field(
+        ...,
+        description='Total mechanical travel in degrees spanned between min_pulse_us and max_pulse_us.',
+    )
+    center_pulse_us: float = Field(
+        ..., description='Pulse width in microseconds that holds the wheels straight.'
+    )
+    reversed: bool = Field(
+        ...,
+        description='Invert steering direction when the servo is mounted so left commands turn right.',
+    )
+    pwm_frequency_hz: int = Field(
+        ...,
+        description="Servo PWM carrier frequency in Hz; the servo's 20 ms frame period derives from it.",
+    )

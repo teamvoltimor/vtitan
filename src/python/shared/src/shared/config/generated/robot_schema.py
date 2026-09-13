@@ -11,12 +11,12 @@ class Chassis(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    length: float | None = Field(None, description='Chassis length.')
-    width: float | None = Field(None, description='Chassis width.')
-    height: float | None = Field(None, description='Chassis height.')
+    length: float | None = Field(None, description='Chassis length (m).')
+    width: float | None = Field(None, description='Chassis width (m).')
+    height: float | None = Field(None, description='Chassis height (m).')
     mass: float | None = Field(
         None,
-        description='Chassis body mass, excluding the four wheels. The URDF and the Gazebo model sum it with the wheel masses to get the total.',
+        description='Chassis body mass (kg), excluding the four wheels. The URDF and the Gazebo model sum it with the wheel masses to get the total: 1.3 + 4 x 0.05 = 1.5, a middle value between both battery configurations.',
     )
 
 
@@ -25,10 +25,10 @@ class Ackermann(StrictModel):
         extra='forbid',
     )
     wheelbase: float | None = Field(
-        None, description='Front axle to rear axle distance.'
+        None, description='Front axle to rear axle distance (m).'
     )
     track_width: float | None = Field(
-        None, description='Left wheel to right wheel distance.'
+        None, description='Left wheel to right wheel distance (m).'
     )
 
 
@@ -38,15 +38,15 @@ class Steering(StrictModel):
     )
     servo_max_angle_deg: float | None = Field(
         None,
-        description="Half of full servo travel, from centre to full lock. A geometric fact from the servo's spec.",
+        description="Half of full servo travel, from centre to full lock (deg). A geometric fact from the servo's spec.",
     )
     max_wheel_angle_deg: float | None = Field(
         None,
-        description='Road-wheel angle the linkage produces at full servo lock. Measured with a protractor, not a ratio.',
+        description='Road-wheel angle the linkage produces at full servo lock (deg). Measured with a protractor, not a ratio; the ackermann angle is derived from it.',
     )
     steering_limit_deg: float | None = Field(
         None,
-        description="Road-wheel angle the navigator may actually command. Absent means use the linkage's full travel.",
+        description="Road-wheel angle the navigator may actually command (deg). Absent means use the linkage's full travel.",
     )
 
 
@@ -54,9 +54,11 @@ class Wheel(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    radius: float | None = Field(None, description='Wheel radius.')
-    width: float | None = Field(None, description='Wheel width.')
-    mass: float | None = Field(None, description='Mass of one wheel.')
+    radius: float | None = Field(None, description='Wheel radius (m).')
+    width: float | None = Field(None, description='Wheel width (m).')
+    mass: float | None = Field(
+        None, description='Mass of one wheel (kg). Change together with chassis.mass.'
+    )
 
 
 class Drivetrain(StrictModel):
@@ -65,11 +67,11 @@ class Drivetrain(StrictModel):
     )
     max_speed_mps: float | None = Field(
         None,
-        description='Closed-loop speed ceiling at the shipped duty. A hard clamp the kinematics obey, not a tuning knob.',
+        description='Closed-loop speed ceiling at the shipped duty (m/s). A hard clamp the kinematics obey, not a tuning knob.',
     )
     max_accel_mps2: float | None = Field(
         None,
-        description='Physical acceleration ceiling. A rarely-binding clamp; speed_response_tau_s is what the drivetrain actually obeys.',
+        description='Physical acceleration ceiling (m/s^2). A rarely-binding clamp; speed_response_tau_s is what the drivetrain actually obeys.',
     )
     rear_steer_ratio: float | None = Field(
         None,
@@ -77,25 +79,26 @@ class Drivetrain(StrictModel):
     )
     speed_response_tau_s: float | None = Field(
         None,
-        description='First-order lag between a commanded speed and the achieved one.',
+        description='First-order lag (s) between a commanded speed and the achieved one.',
     )
     yaw_gain: float | None = Field(
         None,
-        description='Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is tyre slip and linkage compliance, which the zero-slip model has no term for.',
+        description='Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is tyre slip and linkage compliance, which the zero-slip model has no term for. Measured 2026-08-29 as 0.55.',
     )
     min_turn_radius_m: float | None = Field(
         None,
-        description='Tightest turn radius the chassis can make, the value of the speed curve at one speed. 0 disables the floor.',
+        description='Tightest turn radius the chassis can make (m), the value of the speed curve at one speed (~0.127 m/s). 0 disables the floor.',
     )
     min_turn_radius_intercept_m: float | None = Field(
-        None, description='Turn-radius floor extrapolated to zero speed.'
+        None, description='Turn-radius floor extrapolated to zero speed (m).'
     )
     min_turn_radius_slope_s: float | None = Field(
-        None, description='How fast the turn-radius floor grows with speed.'
+        None,
+        description='How fast the turn-radius floor grows with speed (s), i.e. R = intercept + slope * v.',
     )
     min_turn_radius_cap_m: float | None = Field(
         None,
-        description='Bound on the speed curve. Not measured: the largest value the measured range supports, so the linear term cannot run away.',
+        description='Bound on the speed curve (m). Not measured: the largest value the measured range supports, so the linear term cannot run away.',
     )
 
 
@@ -105,31 +108,33 @@ class Lidar(StrictModel):
     )
     min_range: float | None = Field(
         None,
-        description='Closest range the unit can report. Anything nearer is unmeasurable rather than clear.',
+        description='Closest range the unit can report (m). Anything nearer is unmeasurable rather than clear.',
     )
     max_range: float | None = Field(
-        None, description='Farthest range the unit reports.'
+        None, description='Farthest range the unit reports (m).'
     )
     samples: int | None = Field(
         None, description='Horizontal sample count of one 360 degree sweep.'
     )
-    update_rate: float | None = Field(None, description='Sweep refresh rate.')
-    noise_stddev: float | None = Field(None, description='Per-ray range noise stddev.')
+    update_rate: float | None = Field(None, description='Sweep refresh rate (Hz).')
+    noise_stddev: float | None = Field(
+        None, description='Per-ray range noise stddev (m).'
+    )
     diameter: float | None = Field(
         None,
-        description='Puck diameter, matching the lidar_link mesh in wro_robot.urdf.xacro.',
+        description='Puck diameter (m), matching the lidar_link mesh in wro_robot.urdf.xacro.',
     )
     height: float | None = Field(
         None,
-        description='Puck height, matching the lidar_link mesh in wro_robot.urdf.xacro.',
+        description='Puck height (m), matching the lidar_link mesh in wro_robot.urdf.xacro.',
     )
     mount_x_offset: float | None = Field(
         None,
-        description='Forward mount offset, derived as chassis.length/2 - mesh radius: the unit mounted flush with the front edge.',
+        description='Forward mount offset (m), derived as chassis.length/2 - mesh radius: the unit mounted flush with the front edge.',
     )
     mount_z_offset: float | None = Field(
         None,
-        description='Height relative to chassis.height. Negative because the unit is recessed, so the scan plane sits below the chassis top.',
+        description='Height relative to chassis.height (m). Negative because the unit is recessed, so the scan plane sits 0.08 m off the floor.',
     )
     inverted: bool | None = Field(
         None,
@@ -137,7 +142,7 @@ class Lidar(StrictModel):
     )
     mount_yaw_offset_deg: float | None = Field(
         None,
-        description='Additional yaw miscalibration not explained by the upside-down mount, added on top of the 180 degrees.',
+        description='Additional yaw miscalibration (deg) not explained by the upside-down mount, added on top of the 180 degrees.',
     )
 
 
@@ -146,18 +151,20 @@ class Imu(StrictModel):
         extra='forbid',
     )
     mount_z_offset: float | None = Field(
-        None, description='Height above the chassis floor.'
+        None, description='Height above the chassis floor (m), 0.01 m.'
     )
-    update_rate: float | None = Field(None, description='Measurement refresh rate.')
+    update_rate: float | None = Field(
+        None, description='Measurement refresh rate (Hz).'
+    )
     gyro_noise: float | None = Field(
-        None, description='Gyroscope angular-rate noise stddev.'
+        None, description='Gyroscope angular-rate noise stddev (rad/s).'
     )
     accel_noise: float | None = Field(
-        None, description='Accelerometer linear-acceleration noise stddev.'
+        None, description='Accelerometer linear-acceleration noise stddev (m/s^2).'
     )
-    mass: float | None = Field(None, description='Board mass.')
+    mass: float | None = Field(None, description='Board mass (kg).')
     size: tuple[float, float, float] | None = Field(
-        None, description='Board form factor: length x width x height.'
+        None, description='Board form factor (m): length x width x height.'
     )
 
 
@@ -166,21 +173,21 @@ class Camera(StrictModel):
         extra='forbid',
     )
     mount_x_offset: float | None = Field(
-        None, description='Forward mount offset. Directly above the LIDAR.'
+        None, description='Forward mount offset (m). Directly above the LIDAR.'
     )
     mount_z_offset: float | None = Field(
         None,
-        description='Height above the chassis top. An estimate pending a real measurement.',
+        description='Height above the chassis top (m). An estimate pending a real measurement.',
     )
     mount_pitch: float | None = Field(
-        None, description='Downward tilt from horizontal.'
+        None, description='Downward tilt from horizontal (rad), ~10 degrees down.'
     )
-    hfov: float | None = Field(None, description='Horizontal field of view.')
-    width: int | None = Field(None, description='Sensor horizontal resolution.')
-    height: int | None = Field(None, description='Sensor vertical resolution.')
-    update_rate: float | None = Field(None, description='Frame capture rate.')
-    near_clip: float | None = Field(None, description='Rendering near-clip plane.')
-    far_clip: float | None = Field(None, description='Rendering far-clip plane.')
+    hfov: float | None = Field(None, description='Horizontal field of view (rad).')
+    width: int | None = Field(None, description='Sensor horizontal resolution (px).')
+    height: int | None = Field(None, description='Sensor vertical resolution (px).')
+    update_rate: float | None = Field(None, description='Frame capture rate (Hz).')
+    near_clip: float | None = Field(None, description='Rendering near-clip plane (m).')
+    far_clip: float | None = Field(None, description='Rendering far-clip plane (m).')
 
 
 class RobotConfig(StrictModel):

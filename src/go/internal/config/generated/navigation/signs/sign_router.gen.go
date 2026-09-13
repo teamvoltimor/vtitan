@@ -110,7 +110,8 @@ type NavigationSignsSignRouter struct {
 	// onto its neighbour. 0.0 disables the snap.
 	EscapeMaskClusterAssocM float64 `json:"escape_mask_cluster_assoc_m" yaml:"escape_mask_cluster_assoc_m" mapstructure:"escape_mask_cluster_assoc_m"`
 
-	// Escape mask radius m.
+	// How close (m) a LIDAR return must land to a routed sign to be attributed to it
+	// and withheld from the reactive escape trigger; 0 disables the mask.
 	EscapeMaskRadiusM float64 `json:"escape_mask_radius_m" yaml:"escape_mask_radius_m" mapstructure:"escape_mask_radius_m"`
 
 	// Speed fraction during the exploratory first lap. 1.0 = no reduction.
@@ -122,16 +123,18 @@ type NavigationSignsSignRouter struct {
 	// distance beyond which a sign is "passed"
 	PassedDistM float64 `json:"passed_dist_m" yaml:"passed_dist_m" mapstructure:"passed_dist_m"`
 
-	// Pin corner guard.
+	// Re-check that the robot's real position is squarely in the corridor before the
+	// depth pin holds the point abeam a sign.
 	PinCornerGuard bool `json:"pin_corner_guard" yaml:"pin_corner_guard" mapstructure:"pin_corner_guard"`
 
-	// Pin heading guard.
+	// Release the depth pin once the robot's heading has drifted more than
+	// pin_heading_guard_deg from where the pin engaged.
 	PinHeadingGuard bool `json:"pin_heading_guard" yaml:"pin_heading_guard" mapstructure:"pin_heading_guard"`
 
 	// Heading disagreement, in degrees, above which the pin is refused.
 	PinHeadingGuardDeg float64 `json:"pin_heading_guard_deg" yaml:"pin_heading_guard_deg" mapstructure:"pin_heading_guard_deg"`
 
-	// Retrace dist m.
+	// How far back along the pose trail the REFUTED retrace-on-escape aims (m).
 	RetraceDistM float64 `json:"retrace_dist_m" yaml:"retrace_dist_m" mapstructure:"retrace_dist_m"`
 
 	// Refuted experiments, kept configurable and OFF Retrace on escape: REFUTED (see
@@ -139,7 +142,8 @@ type NavigationSignsSignRouter struct {
 	// session, same 640-case sweep).
 	RetraceEscape bool `json:"retrace_escape" yaml:"retrace_escape" mapstructure:"retrace_escape"`
 
-	// Retrace steer gain deg.
+	// Road-wheel angle (degrees) commanded by the REFUTED retrace-on-escape when the
+	// target sits 45 degrees off the chassis.
 	RetraceSteerGainDeg float64 `json:"retrace_steer_gain_deg" yaml:"retrace_steer_gain_deg" mapstructure:"retrace_steer_gain_deg"`
 
 	// ticks after lap start before bookkeeping activates
@@ -208,13 +212,15 @@ type NavigationSignsSignRouter struct {
 	// robot.
 	SignClearanceMarginM float64 `json:"sign_clearance_margin_m" yaml:"sign_clearance_margin_m" mapstructure:"sign_clearance_margin_m"`
 
-	// Sign contact dist m.
+	// Along-track distance (m) within which a routed sign predicted to clip the
+	// chassis triggers the OFF sign-contact evade.
 	SignContactDistM float64 `json:"sign_contact_dist_m" yaml:"sign_contact_dist_m" mapstructure:"sign_contact_dist_m"`
 
 	// Evade a sign on contact rather than routing around it in advance.
 	SignContactEvade bool `json:"sign_contact_evade" yaml:"sign_contact_evade" mapstructure:"sign_contact_evade"`
 
-	// Sign contact steer deg.
+	// Road-wheel angle (degrees) steered away from the offending sign by the OFF
+	// sign-contact evade.
 	SignContactSteerDeg float64 `json:"sign_contact_steer_deg" yaml:"sign_contact_steer_deg" mapstructure:"sign_contact_steer_deg"`
 
 	// Drop the deform when it pushes the aim point AGAINST the path's own direction
@@ -356,7 +362,8 @@ type NavigationSignsSignRouter struct {
 	// Re-label a lane that cannot be satisfied rather than skipping it outright.
 	SignLaneRelabelUnsatisfiable bool `json:"sign_lane_relabel_unsatisfiable" yaml:"sign_lane_relabel_unsatisfiable" mapstructure:"sign_lane_relabel_unsatisfiable"`
 
-	// Sign lane skip unsatisfiable.
+	// Drop a sign from the lane profile when its own clamped target lands on the
+	// forbidden side of it.
 	SignLaneSkipUnsatisfiable bool `json:"sign_lane_skip_unsatisfiable" yaml:"sign_lane_skip_unsatisfiable" mapstructure:"sign_lane_skip_unsatisfiable"`
 
 	// Allow two lanes to overlap. REFUTED -- kept off.
@@ -390,19 +397,24 @@ type NavigationSignsSignRouter struct {
 	// looking pillar-shaped to the test.
 	SignLidarAlignDepthM float64 `json:"sign_lidar_align_depth_m" yaml:"sign_lidar_align_depth_m" mapstructure:"sign_lidar_align_depth_m"`
 
-	// Sign lidar align fov deg.
+	// Half-angle of the forward cone (degrees) searched for an unclassified LIDAR
+	// pillar return.
 	SignLidarAlignFovDeg float64 `json:"sign_lidar_align_fov_deg" yaml:"sign_lidar_align_fov_deg" mapstructure:"sign_lidar_align_fov_deg"`
 
-	// Sign lidar align gain.
+	// Heading gain of the steer-at-the-return law: the nudge is the return bearing
+	// scaled by this and clipped to sign_lidar_align_max_steer.
 	SignLidarAlignGain float64 `json:"sign_lidar_align_gain" yaml:"sign_lidar_align_gain" mapstructure:"sign_lidar_align_gain"`
 
-	// Sign lidar align max m.
+	// Far edge of the range window (m) a LIDAR pillar return must fall inside to
+	// count as a sign's return.
 	SignLidarAlignMaxM float64 `json:"sign_lidar_align_max_m" yaml:"sign_lidar_align_max_m" mapstructure:"sign_lidar_align_max_m"`
 
-	// Sign lidar align max steer.
+	// Cap on the normalized steering nudge (fraction of full lock) the
+	// unclassified-return align law may add.
 	SignLidarAlignMaxSteer float64 `json:"sign_lidar_align_max_steer" yaml:"sign_lidar_align_max_steer" mapstructure:"sign_lidar_align_max_steer"`
 
-	// Sign lidar align max width m.
+	// Maximum arc width (m, nearest range times angular span) a LIDAR return may span
+	// and still read as pillar-shaped.
 	SignLidarAlignMaxWidthM float64 `json:"sign_lidar_align_max_width_m" yaml:"sign_lidar_align_max_width_m" mapstructure:"sign_lidar_align_max_width_m"`
 
 	// Proximity window a LIDAR pillar return must fall inside to count as that sign's
@@ -413,13 +425,15 @@ type NavigationSignsSignRouter struct {
 	// camera's boxes. Ships off while discovery's own camera pipeline is trusted.
 	SignLidarPropose bool `json:"sign_lidar_propose" yaml:"sign_lidar_propose" mapstructure:"sign_lidar_propose"`
 
-	// Slot accept radius m.
+	// How close (m) an observation must be to a legal sign-lattice cell to claim it.
 	SlotAcceptRadiusM float64 `json:"slot_accept_radius_m" yaml:"slot_accept_radius_m" mapstructure:"slot_accept_radius_m"`
 
-	// Slot min evidence.
+	// Summed detection confidence a lattice cell needs before it may hold a sign
+	// slot.
 	SlotMinEvidence float64 `json:"slot_min_evidence" yaml:"slot_min_evidence" mapstructure:"slot_min_evidence"`
 
-	// Slot repoint margin.
+	// Factor by which a challenger cell must out-weigh the incumbent cell to take its
+	// sign slot.
 	SlotRepointMargin float64 `json:"slot_repoint_margin" yaml:"slot_repoint_margin" mapstructure:"slot_repoint_margin"`
 
 	// A LIDAR return landing within this distance of a sign the router is still

@@ -20,7 +20,9 @@ wall. The real unit is flush with the front edge of the chassis.
 
 (b). The mount offset is derived, not declared: `chassis.length/2 - mesh
 radius` (0.15 - 0.0278 = 0.1222), matching the `lidar_link` mesh already
-modeled in `wro_robot.urdf.xacro`. The puck geometry in `robot.toml`
+modeled in
+`other/apps/gazebo/runtime/robot_description/wro_robot.urdf.xacro`. The puck
+geometry in `robot.toml`
 (`diameter`, `height`) matches that same mesh so the mount derivation stays
 self-consistent with what is rendered.
 

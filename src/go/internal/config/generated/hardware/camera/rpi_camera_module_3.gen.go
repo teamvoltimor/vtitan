@@ -22,19 +22,21 @@ type HardwareCameraRpiCameraModule3 struct {
 	// "auto" | "tungsten" | "fluorescent" | "indoor" | "daylight" | "cloudy"
 	CameraAwbMode *string `json:"camera_awb_mode,omitempty,omitzero" yaml:"camera_awb_mode,omitempty" mapstructure:"camera_awb_mode,omitempty"`
 
-	// Camera device.
+	// V4L2 camera device path (e.g. /dev/video0).
 	CameraDevice *string `json:"camera_device,omitempty,omitzero" yaml:"camera_device,omitempty" mapstructure:"camera_device,omitempty"`
 
-	// Camera fps.
+	// Camera capture rate in frames per second.
 	CameraFps *int `json:"camera_fps,omitempty,omitzero" yaml:"camera_fps,omitempty" mapstructure:"camera_fps,omitempty"`
 
-	// Camera height.
+	// Camera capture height in pixels.
 	CameraHeight *int `json:"camera_height,omitempty,omitzero" yaml:"camera_height,omitempty" mapstructure:"camera_height,omitempty"`
 
-	// Camera hflip.
+	// Mirror the image horizontally; note this alone also swaps left and right in
+	// detections.
 	CameraHflip *bool `json:"camera_hflip,omitempty,omitzero" yaml:"camera_hflip,omitempty" mapstructure:"camera_hflip,omitempty"`
 
-	// Camera inverted.
+	// True when the camera is mounted upside-down; applies a 180 degree rotation so a
+	// sign passes on the side the robot expects.
 	CameraInverted *bool `json:"camera_inverted,omitempty,omitzero" yaml:"camera_inverted,omitempty" mapstructure:"camera_inverted,omitempty"`
 
 	// 2026-09-11: was 0.8 D (focus 1.25 m, in-focus from 0.63 m). MEASURED over 7149
@@ -65,15 +67,15 @@ type HardwareCameraRpiCameraModule3 struct {
 	// "off" | "fast" | "high_quality" | "minimal"
 	CameraNoiseReductionMode *string `json:"camera_noise_reduction_mode,omitempty,omitzero" yaml:"camera_noise_reduction_mode,omitempty" mapstructure:"camera_noise_reduction_mode,omitempty"`
 
-	// Camera rotation.
+	// Extra rotation in degrees applied on top of camera_inverted.
 	CameraRotation *int `json:"camera_rotation,omitempty,omitzero" yaml:"camera_rotation,omitempty" mapstructure:"camera_rotation,omitempty"`
 
-	// Camera sharpness.
+	// libcamera sharpness multiplier; 1.0 is the sensor default.
 	CameraSharpness *float64 `json:"camera_sharpness,omitempty,omitzero" yaml:"camera_sharpness,omitempty" mapstructure:"camera_sharpness,omitempty"`
 
-	// Camera vflip.
+	// Mirror the image vertically; prefer camera_inverted for an upside-down mount.
 	CameraVflip *bool `json:"camera_vflip,omitempty,omitzero" yaml:"camera_vflip,omitempty" mapstructure:"camera_vflip,omitempty"`
 
-	// Camera width.
+	// Camera capture width in pixels.
 	CameraWidth *int `json:"camera_width,omitempty,omitzero" yaml:"camera_width,omitempty" mapstructure:"camera_width,omitempty"`
 }

@@ -6,16 +6,17 @@ type HardwareMotorsBts7960 struct {
 	// RPWM, hardware PWM (forward -- the frequent, performance-critical direction)
 	ForwardPwmPin int `json:"forward_pwm_pin" yaml:"forward_pwm_pin" mapstructure:"forward_pwm_pin"`
 
-	// Frequency hz.
+	// PWM carrier frequency in Hz.
 	FrequencyHz int `json:"frequency_hz" yaml:"frequency_hz" mapstructure:"frequency_hz"`
 
-	// L en pin.
+	// Held permanently HIGH at connect(), like r_en_pin: it gates the module's
+	// overcurrent/thermal protection, not direction.
 	LEnPin int `json:"l_en_pin" yaml:"l_en_pin" mapstructure:"l_en_pin"`
 
-	// Pwm channel.
+	// PWM channel within the controller (channel 1 under the pwm-2chan overlay).
 	PwmChannel int `json:"pwm_channel" yaml:"pwm_channel" mapstructure:"pwm_channel"`
 
-	// Pwmchip.
+	// sysfs PWM controller index (/sys/class/pwm/pwmchip<N>).
 	Pwmchip int `json:"pwmchip" yaml:"pwmchip" mapstructure:"pwmchip"`
 
 	// Held permanently HIGH at connect() -- these gate the module's

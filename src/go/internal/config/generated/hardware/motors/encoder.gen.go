@@ -3,12 +3,13 @@
 package motors
 
 type HardwareMotorsEncoder struct {
-	// Max duty.
+	// Safety ceiling on the closed-loop PID's output magnitude, as a fraction of full
+	// duty (0-1).
 	MaxDuty float64 `json:"max_duty" yaml:"max_duty" mapstructure:"max_duty"`
 
-	// Pin a.
+	// BCM GPIO pin for the encoder's A channel.
 	PinA int `json:"pin_a" yaml:"pin_a" mapstructure:"pin_a"`
 
-	// Pin b.
+	// BCM GPIO pin for the encoder's B channel.
 	PinB int `json:"pin_b" yaml:"pin_b" mapstructure:"pin_b"`
 }

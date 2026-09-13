@@ -11,6 +11,9 @@ class HardwareMotorsEncoder(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    pin_a: int = Field(..., description='Pin a.')
-    pin_b: int = Field(..., description='Pin b.')
-    max_duty: float = Field(..., description='Max duty.')
+    pin_a: int = Field(..., description="BCM GPIO pin for the encoder's A channel.")
+    pin_b: int = Field(..., description="BCM GPIO pin for the encoder's B channel.")
+    max_duty: float = Field(
+        ...,
+        description="Safety ceiling on the closed-loop PID's output magnitude, as a fraction of full duty (0-1).",
+    )

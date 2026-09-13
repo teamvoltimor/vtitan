@@ -11,4 +11,7 @@ class HardwareImuBno08xI2c(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    enable_sensors_delay: float = Field(..., description='Enable sensors delay.')
+    enable_sensors_delay: float = Field(
+        ...,
+        description='Delay in seconds after enabling the sensors to let them stabilize before reading.',
+    )

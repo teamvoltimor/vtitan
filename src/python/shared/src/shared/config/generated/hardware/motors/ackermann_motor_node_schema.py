@@ -11,5 +11,11 @@ class HardwareMotorsAckermannMotorNode(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    publisher_rate_hz: float = Field(..., description='Publisher rate hz.')
-    diagnostics_rate_hz: float = Field(..., description='Diagnostics rate hz.')
+    publisher_rate_hz: float = Field(
+        ...,
+        description='Rate in Hz at which the motor node publishes actuator state (steering, drive speed, joint states).',
+    )
+    diagnostics_rate_hz: float = Field(
+        ...,
+        description='Rate in Hz at which the motor node publishes /motor/status diagnostics (much slower than publishing).',
+    )

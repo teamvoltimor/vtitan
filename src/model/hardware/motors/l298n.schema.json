@@ -7,15 +7,15 @@
   "properties": {
     "pwmchip": {
       "type": "integer",
-      "description": "Pwmchip."
+      "description": "sysfs PWM controller index (/sys/class/pwm/pwmchip<N>)."
     },
     "pwm_channel": {
       "type": "integer",
-      "description": "Pwm channel."
+      "description": "PWM channel within the controller (channel 1 under the pwm-2chan overlay)."
     },
     "frequency_hz": {
       "type": "integer",
-      "description": "Frequency hz."
+      "description": "PWM carrier frequency in Hz."
     },
     "pwm_pin": {
       "type": "integer",

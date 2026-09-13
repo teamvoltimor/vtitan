@@ -11,11 +11,11 @@
       "properties": {
         "vid": {
           "type": "string",
-          "description": "Vid."
+          "description": "USB vendor ID of the MCP2221A bridge, as a hex string."
         },
         "pid": {
           "type": "string",
-          "description": "Pid."
+          "description": "USB product ID of the MCP2221A bridge, as a hex string."
         }
       },
       "required": [
@@ -29,15 +29,15 @@
       "properties": {
         "pull_up": {
           "type": "boolean",
-          "description": "Pull up."
+          "description": "Use the GPIO internal pull-up; the button is wired GND to pin, so a press pulls the pin low."
         },
         "debounce_ms": {
           "type": "integer",
-          "description": "Debounce ms."
+          "description": "Debounce window in milliseconds that filters electrical contact noise."
         },
         "long_press_threshold_sec": {
           "type": "number",
-          "description": "Long press threshold sec."
+          "description": "Hold time in seconds after which a press is treated as long (E-STOP while racing, reset once finished)."
         },
         "shutdown_press_threshold_sec": {
           "type": "number",

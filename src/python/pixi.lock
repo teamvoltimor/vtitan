@@ -47610,7 +47610,7 @@ packages:
   - pydantic>=2.0.0
   - pyyaml>=6.0 ; extra == 'yaml'
   - ruff>=0.15 ; extra == 'dev'
-  requires_python: '>=3.11'
+  requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/01/8c/15a2de09cc3c30793336cf79798948768611463ddfb2b2669f51569228fb/adafruit_circuitpython_requests-4.1.17-py3-none-any.whl
   name: adafruit-circuitpython-requests
   version: 4.1.17

@@ -11,7 +11,17 @@ class HardwareHailo(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    model_path: str = Field(..., description='Model path.')
-    inference_timeout_ms: int = Field(..., description='Inference timeout ms.')
-    benchmark_iterations: int = Field(..., description='Benchmark iterations.')
-    data_yaml_path: str = Field(..., description='Data yaml path.')
+    model_path: str = Field(
+        ..., description='Path to the compiled Hailo HEF model loaded for inference.'
+    )
+    inference_timeout_ms: int = Field(
+        ...,
+        description='Milliseconds to wait for a single async inference job before giving up.',
+    )
+    benchmark_iterations: int = Field(
+        ..., description='Number of iterations run by the latency benchmark.'
+    )
+    data_yaml_path: str = Field(
+        ...,
+        description='Path to an optional YOLO data.yaml supplying class id to name; leave absent to use the built-in class order.',
+    )

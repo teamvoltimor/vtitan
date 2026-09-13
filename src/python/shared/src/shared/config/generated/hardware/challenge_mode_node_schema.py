@@ -11,4 +11,6 @@ class HardwareChallengeModeNode(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    publish_rate_hz: float = Field(..., description='Publish rate hz.')
+    publish_rate_hz: float = Field(
+        ..., description='Republish rate of the challenge-mode jumper state, in Hz.'
+    )

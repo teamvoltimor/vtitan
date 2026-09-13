@@ -3,6 +3,7 @@
 package hardware
 
 type HardwareChallengeMode struct {
-	// Challenge mode gpio pin.
+	// BCM GPIO pin the challenge-mode jumper is wired to (GPIO23 / physical pin 16 on
+	// the Pi Zero).
 	ChallengeModeGpioPin int `json:"challenge_mode_gpio_pin" yaml:"challenge_mode_gpio_pin" mapstructure:"challenge_mode_gpio_pin"`
 }

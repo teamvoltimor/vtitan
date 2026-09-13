@@ -3,6 +3,6 @@
 package imu
 
 type HardwareImuBno08XMcp2221I2C struct {
-	// Imu i2c address.
+	// I2C address of the BNO08x IMU as a hex string (0x4A).
 	ImuI2CAddress string `json:"imu_i2c_address" yaml:"imu_i2c_address" mapstructure:"imu_i2c_address"`
 }

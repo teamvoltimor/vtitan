@@ -9,15 +9,15 @@ type HardwareMotorsL298N struct {
 	// L298N IN4
 	DirBPin int `json:"dir_b_pin" yaml:"dir_b_pin" mapstructure:"dir_b_pin"`
 
-	// Frequency hz.
+	// PWM carrier frequency in Hz.
 	FrequencyHz int `json:"frequency_hz" yaml:"frequency_hz" mapstructure:"frequency_hz"`
 
-	// Pwm channel.
+	// PWM channel within the controller (channel 1 under the pwm-2chan overlay).
 	PwmChannel int `json:"pwm_channel" yaml:"pwm_channel" mapstructure:"pwm_channel"`
 
 	// L298N ENA
 	PwmPin int `json:"pwm_pin" yaml:"pwm_pin" mapstructure:"pwm_pin"`
 
-	// Pwmchip.
+	// sysfs PWM controller index (/sys/class/pwm/pwmchip<N>).
 	Pwmchip int `json:"pwmchip" yaml:"pwmchip" mapstructure:"pwmchip"`
 }

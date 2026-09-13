@@ -35,7 +35,8 @@ class NavigationEscapeEscape(StrictModel):
         description='Cap the reverse above by the rear room the LIDAR actually measures, instead of committing the full duration chosen from FRONT severity alone. At rev_speed 0.20 m/s those two durations are 10.8 cm and 21.6 cm of reverse, against a rear gap measured at p50 17 cm / p10 7 cm over 46 escape episodes (09-10 bags) -- the reverse did not fit in 35% of them, and the existing rear guard cannot see it because it only checks the gap at the START of the manoeuvre. A CEILING, not a replacement: a reverse that fits is untouched, and an unmeasured rear sector is left alone rather than capped to zero.  Obstacles only. All of the evidence is Obstacles bags (the thing 7-17 cm behind the chassis is a pillar); Open escapes fire in corners against walls, where a shortened reverse under-rotates and re-triggers, feeding the corner escape loop that already costs ~20% of runs. Set k_turn_fit_rear_gap = true to extend it to Open -- unmeasured there.',
     )
     obstacles_k_turn_fit_rear_gap: bool = Field(
-        ..., description='Obstacles k turn fit rear gap.'
+        ...,
+        description='Obstacles-only override of k_turn_fit_rear_gap: cap the K-turn reverse by the rear room the LIDAR actually measures.',
     )
     slalom_reverse_s: float = Field(
         ..., description='Time spent reversing during slalom'
@@ -96,14 +97,16 @@ class NavigationEscapeEscape(StrictModel):
         description="Steer the OPPOSITE way on an escape's reverse leg, so the forward and reverse arcs curve opposite ways and rotation accumulates instead of cancelling. Measured 2026-09-11: 208 of 243 forward/reverse leg pairs (85.6%) hold the SAME sign today, which is the bay pendulum outside the bay.  FALSE shared, TRUE for Obstacles -- same split as k_turn_fit_rear_gap above, and for the same reason: the measurement is entirely from Obstacles bags (the thing being rocked against is a pillar), while Open escapes in corners against walls and sits at 638/640. The sim cannot screen either side; the first hardware round with this on IS the A/B.",
     )
     obstacles_escape_mirrors_reverse: bool = Field(
-        ..., description='Obstacles escape mirrors reverse.'
+        ...,
+        description="Obstacles-only override of escape_mirrors_reverse: steer the opposite way on the escape's reverse leg.",
     )
     escape_side_follows_committed_sign: bool = Field(
         ...,
         description='Steer a K-turn toward the side the ROUTER committed to passing on, instead of toward whichever +-45 deg side sector reads further away.  The two answer different questions -- "which wall is nearer" against "which side of the PILLAR must I pass" -- and they agree 56% of the time, 48-49% in a corner. MEASURED over 194 hardware escape episodes with a sign committed, 2026-09-12: when the steering agrees with the router the escape nets +0.050 m toward the pass and improves 87% of episodes; when it opposes, -0.017 m and 16%. So half the time the escape SPENDS the placement the plan bought.  REFUTED, do not re-try: that this is a near-tie the LIDAR cannot resolve. 18 of 37 opposing escapes were decided on a margin of 0.20 m or more.  SHIPS OFF. The gain is a contrafactual over observed episodes, not an A/B, and the simulator cannot screen it -- there the sign map is exact and the disagreement collapses to nothing. Turn on `obstacles_` only: the Open Challenge has no committed sign, so the shared flag is inert there anyway.',
     )
     obstacles_escape_side_follows_committed_sign: bool = Field(
-        ..., description='Obstacles escape side follows committed sign.'
+        ...,
+        description='Obstacles-only override of escape_side_follows_committed_sign: steer the K-turn toward the side the router committed to passing on.',
     )
     escape_side_override_min_clearance_m: float = Field(
         ...,

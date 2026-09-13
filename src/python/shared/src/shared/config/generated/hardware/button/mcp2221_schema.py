@@ -13,10 +13,17 @@ class Button(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    pull_up: bool = Field(..., description='Pull up.')
-    debounce_ms: int = Field(..., description='Debounce ms.')
+    pull_up: bool = Field(
+        ...,
+        description='Use the GPIO internal pull-up; the button is wired GND to pin, so a press pulls the pin low.',
+    )
+    debounce_ms: int = Field(
+        ...,
+        description='Debounce window in milliseconds that filters electrical contact noise.',
+    )
     long_press_threshold_sec: float = Field(
-        ..., description='Long press threshold sec.'
+        ...,
+        description='Hold time in seconds after which a press is treated as long (E-STOP while racing, reset once finished).',
     )
     shutdown_press_threshold_sec: float = Field(
         ...,

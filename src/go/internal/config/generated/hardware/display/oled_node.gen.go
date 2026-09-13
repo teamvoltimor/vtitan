@@ -3,7 +3,8 @@
 package display
 
 type HardwareDisplayOledNode struct {
-	// Display backend.
+	// SSD1306 I2C backend: blinka (Adafruit CircuitPython) or raw_i2c (direct
+	// /dev/i2c-N ioctl).
 	DisplayBackend string `json:"display_backend" yaml:"display_backend" mapstructure:"display_backend"`
 
 	// Keys use the fields' validation_alias, which accepts both the lowercase

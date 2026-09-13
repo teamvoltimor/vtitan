@@ -50,7 +50,10 @@ class NavigationBlindNavCorridorFollower(StrictModel):
         ...,
         description='Second opinion on "has the corridor ended?", checked before committing to a hard-over corner turn.  turn_clearance_m alone reads the MINIMUM over lidar_sectors.toml\'s +/-8 deg cone, which is too narrow to separate a corridor that has ended from a chassis pointed obliquely at the wall beside it: 0.24 m off a wall at 30 deg puts that whole cone on the wall at 0.24/sin(30) = 0.48 m -- under the threshold, mid-corridor. Measured on run_20260806_162008, that fired the corner branch for 53% of a 305 s round at 47% precision against a 45% base rate, i.e. no better than chance. The robot held hard-over steering half the round, never came square to a corridor, and so never inferred its travel direction, never planned a path, and scored zero laps.  This asks the complementary question -- is there anywhere ahead still open -- as a MAXIMUM over a wider arc. At a real corner the end wall blocks every bearing in the arc; an oblique chassis still has the corridor\'s own axis inside it, reading metres. Scored on run_20260806_161659 (a healthy 3-lap round) the pair fires 12 times, exactly one episode per corner per lap, at 96% precision.',
     )
-    turn_open_range_m: float = Field(..., description='Turn open range m.')
+    turn_open_range_m: float = Field(
+        ...,
+        description='Longest valid forward return (m) over the turn arc at or above which the way ahead still counts as open, so the corner turn does not commit.',
+    )
     corner_leak_margin_m: float = Field(
         ...,
         description='Added to CorridorDimensions.WIDE to get the side-range limit past which a side has "opened" (leaked past the end of the inner block) and is no longer treated as a corridor wall to centre against.',
@@ -100,19 +103,33 @@ class NavigationBlindNavCorridorFollower(StrictModel):
         description='The legacy contact-bounded exits, reachable only with the clearance guard off. Kept configurable because which one a real chassis needs is unproven.',
     )
     bay_exit_cycle_reverse_m: float = Field(
-        ..., description='Bay exit cycle reverse m.'
+        ...,
+        description='Distance (m) the legacy contact-bounded cycle exit reverses before switching back to a forward leg.',
     )
     bay_exit_cycle_reverse_steer_norm: float = Field(
-        ..., description='Bay exit cycle reverse steer norm.'
+        ...,
+        description="Steering held on the legacy cycle exit's reverse leg, as a fraction of full lock.",
     )
-    bay_exit_forward_m: float = Field(..., description='Bay exit forward m.')
-    bay_exit_reverse_m: float = Field(..., description='Bay exit reverse m.')
-    bay_exit_steer_norm: float = Field(..., description='Bay exit steer norm.')
+    bay_exit_forward_m: float = Field(
+        ...,
+        description='Distance (m) the legacy contact-bounded cycle exit drives forward before switching back to a reverse leg.',
+    )
+    bay_exit_reverse_m: float = Field(
+        ...,
+        description='Distance (m) the reverse-then-swing exit reverses before its forward leg begins.',
+    )
+    bay_exit_steer_norm: float = Field(
+        ...,
+        description="Steering magnitude held on the reverse-then-swing exit's forward leg, as a fraction of full lock.",
+    )
     bay_exit_reverse_steer_norm: float = Field(
         ...,
         description='Opposite lock on the reverse leg -- REFUTED 2026-08-29. Held forward lock (bay_exit_hold_steer) is what makes the yaw cross and the ratchet bite.',
     )
-    bay_exit_hold_steer: bool = Field(..., description='Bay exit hold steer.')
+    bay_exit_hold_steer: bool = Field(
+        ...,
+        description="Hold the forward leg's steering lock through the reverse leg, instead of re-commanding centre or opposite lock.",
+    )
     bay_exit_leg_stall_ticks: int = Field(
         ...,
         description='Ticks of no wheel travel that end a leg (1 is a cliff -- no leg ever runs).',
@@ -129,7 +146,10 @@ class NavigationBlindNavCorridorFollower(StrictModel):
         ...,
         description='Ticks polled before the latch. 1 restores the old tick-1 latch, which rested the round on the first scan the node ever receives -- the one frame no bag can show, since recording began 1.9-2.6 s after the exit in two of three runs.',
     )
-    bay_exit_latch_reverse: bool = Field(..., description='Bay exit latch reverse.')
+    bay_exit_latch_reverse: bool = Field(
+        ...,
+        description='Latch the reverse leg done once its distance is covered, so the manoeuvre cannot chatter back into reverse.',
+    )
     bay_exit_fallback_frames: int = Field(
         ...,
         description='Ticks before switching to the other legacy exit / handing over; 0 = never.',
@@ -142,7 +162,10 @@ class NavigationBlindNavCorridorFollower(StrictModel):
         ...,
         description="Nose-against-wall recovery. A forward arc below this distance -- or reporting NOTHING, which is the same wall closer than MIN_VALID_RANGE_M -- backs the chassis straight off before any leg logic runs. ABSOLUTE speed for the bay-exit legs, m/s. 0 = keep the inherited scaling (creep * corner/reverse scale * bay_exit_speed_scale = 0.067 m/s).  0.067 m/s is BELOW WHAT THE DRIVETRAIN DELIVERS. Measured on run_20260906_181613 and _181839: commanded on 876 of 882 ticks with no pause longer than 0.1 s, while /motor/drive_speed read 0 deg/s on 92-97% of them against the ~110 deg/s that speed implies. The chassis was not waiting between legs -- it was never moving. Rotation over 27-44 s was -8.8 / +1.6 / -8.1 deg.  Set this to a speed the motor actually turns at. It is a HARDWARE number and the simulator cannot choose it -- the sim has no deadband, moves at any commanded speed, and reports 0.086 m/s colliding in 32/32 scenarios. Raise it on the robot, watch /motor/drive_speed actually leave zero, and watch the fin clearance: the leg still has to stop inside the pocket. 0.10 chosen on hardware evidence 2026-09-06, against the simulator's advice. The sim says 0.10 collides 32/32 at 0.27 m of travel -- but its failure is OVERRUN, and it assumes the commanded speed is delivered instantly and exactly. On this robot that assumption is false: at 0.067 commanded the encoder read 0 deg/s on 92-97% of bay-exit ticks. The sim cannot see the floor and the robot cannot ignore it, so this value is set from the hardware side and the sim's objection is recorded rather than obeyed.  WATCH ON THE NEXT RUN: /motor/drive_speed leaving zero (the point), and fin clearance holding (the risk). If the chassis now overruns the pocket the sim was right and this comes back down.  RAISED 0.10 -> 0.15 on 2026-09-10, measured on hardware and ISOLATED against the mirrored reverse that had just landed. 0.10 sits inside the motor deadband: encoder-zero 56.1% of bay ticks, delivered p50 ZERO. At 0.15 the wheel stops stalling outright (0.4%). With the mirror on and nothing else changed, the bay phase went 62.2 s -> 24.1 s for the same exit -- a clean 2.6x on one variable, same placement, same night. The fin clearance the note above asks about held: the run left the pocket and drove 7.6 m.  What is left is NOT this value. Each mirrored reversal swings the road wheel lock to lock, 170 deg = 2.97 rad, and MAX_STEERING_RATE ships 1.2 rad/s, so a reversal costs 2.47 s of a standing robot: 9 reversals = 22.2 s of that 24.1. 92% of the bay is now the SERVO, and that rate has never been measured.",
     )
-    bay_exit_contact_dist_m: float = Field(..., description='Bay exit contact dist m.')
+    bay_exit_contact_dist_m: float = Field(
+        ...,
+        description='Forward clearance (m) below which the nose counts as touching a wall, triggering the straight reverse-off recovery.',
+    )
     bay_exit_contact_recovery_ticks: int = Field(
         ...,
         description='SHIPS DISABLED (0). The recovery returns its reverse BEFORE the clearance guard, so it reverses blind into a fin. Measured on diag_bay_start --corpus --limit 32, ticks 12 -> 0:  12       0 distance median   0.06m   23.52m laps>=1           0       22 collided          32      2 fins TOUCHED      32/32   0/32  Touching a parking-lot limitation voids ALL parking points, so this was expensive as well as immobilising. Re-enabling it requires routing the reverse through the same fin-gap prediction _guarded_command uses, not around it.',

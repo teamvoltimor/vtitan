@@ -35,16 +35,18 @@ type HardwareCameraRpicam struct {
 	// compensation; positive lifts an under-exposed frame
 	CameraExposureValue float64 `json:"camera_exposure_value" yaml:"camera_exposure_value" mapstructure:"camera_exposure_value"`
 
-	// Camera fps.
+	// Camera capture rate in frames per second.
 	CameraFps int `json:"camera_fps" yaml:"camera_fps" mapstructure:"camera_fps"`
 
-	// Camera height.
+	// Camera capture height in pixels.
 	CameraHeight int `json:"camera_height" yaml:"camera_height" mapstructure:"camera_height"`
 
-	// Camera hflip.
+	// Mirror the image horizontally; note this alone also swaps left and right in
+	// detections.
 	CameraHflip bool `json:"camera_hflip" yaml:"camera_hflip" mapstructure:"camera_hflip"`
 
-	// Camera inverted.
+	// True when the camera is mounted upside-down; applies a 180 degree rotation so a
+	// sign passes on the side the robot expects.
 	CameraInverted bool `json:"camera_inverted" yaml:"camera_inverted" mapstructure:"camera_inverted"`
 
 	// 2026-09-11: was 0.8 D (focus 1.25 m, in-focus from 0.63 m). MEASURED over 7149
@@ -71,15 +73,15 @@ type HardwareCameraRpicam struct {
 	// "auto" | "off" | "fast" | "high_quality" | "minimal"
 	CameraNoiseReductionMode string `json:"camera_noise_reduction_mode" yaml:"camera_noise_reduction_mode" mapstructure:"camera_noise_reduction_mode"`
 
-	// Camera read timeout sec.
+	// Seconds to wait for a complete frame before reporting the stream dead.
 	CameraReadTimeoutSec float64 `json:"camera_read_timeout_sec" yaml:"camera_read_timeout_sec" mapstructure:"camera_read_timeout_sec"`
 
 	// 1.0 is neutral; the Picamera2 profile wants 1.2, unvalidated here
 	CameraSharpness float64 `json:"camera_sharpness" yaml:"camera_sharpness" mapstructure:"camera_sharpness"`
 
-	// Camera vflip.
+	// Mirror the image vertically; prefer camera_inverted for an upside-down mount.
 	CameraVflip bool `json:"camera_vflip" yaml:"camera_vflip" mapstructure:"camera_vflip"`
 
-	// Camera width.
+	// Camera capture width in pixels.
 	CameraWidth int `json:"camera_width" yaml:"camera_width" mapstructure:"camera_width"`
 }

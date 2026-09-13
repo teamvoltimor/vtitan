@@ -23,10 +23,11 @@ class NavigationMotionClearance(StrictModel):
     )
     contact_reverse_ticks: int = Field(
         ...,
-        description='Back off when the chassis has closed to contact_dist, instead of creeping forward into it. ~0.4 s / 25 mm at creep, with a cooldown that only counts down while CLEAR so the pair cannot oscillate against the same obstacle.  SHIPS DISABLED (0), and the trail gate did not rescue it. Three back-to-back passes over the 256 corpus, 2026-09-06, differing only in this value and the gate:  off(0)   ungated(8)   trail-gated(8) in-time         149        150           150 laps>=3         150        151           151 stuck            26         15            24 collisions        8         13            11 of which wall   4         10             9 timeouts         65         70            66 rev-run           5          4             2  Gating gave back the timeouts and most of the extra collisions, and gave back the stall benefit with them -- the trail rarely confirms 6.1 cm of covered ground at the moment the chassis is against something, which is precisely when it has stopped moving and stopped laying trail. What survives is +5 wall contacts against a FLAT headline, so the behaviour is not earned in either form. The code stays, measured and documented; the value stays 0.  The hardware case it was written for (run_20260906_121254: ten seconds of +0.152 m/s against a green pillar) is real and still unaddressed -- but the sim says a blind reverse is not the answer, and this mount has no rear sensing to make a seeing one.',
+        description='Back off when the chassis has closed to contact_dist, instead of creeping forward into it; the cooldown only counts down while CLEAR so the pair cannot oscillate. Ships disabled (0), and the trail gate did not rescue it.',
     )
     contact_reverse_cooldown_ticks: int = Field(
-        ..., description='Contact reverse cooldown ticks.'
+        ...,
+        description='Ticks a contact-reverse is suppressed after it fires; the countdown only runs while the path is CLEAR, so the back-off and the approach cannot oscillate against the same obstacle.',
     )
     obstacles_contact_dist: float = Field(
         ...,
@@ -42,5 +43,5 @@ class NavigationMotionClearance(StrictModel):
     )
     risk_ray_window: int = Field(
         ...,
-        description='How many ADJACENT rays in the forward lane must corroborate a short return before it counts as an obstacle. The bare minimum over a noisy sweep is an extreme-value statistic, not a clearance: with sigma=0.03 m of range noise across ~500 rays the smallest reading in the lane sits 2-3 sigma below the nearest real surface. 1 restores that bare minimum.',
+        description='How many ADJACENT rays in the forward lane must corroborate a short return before it counts as an obstacle; 1 restores the bare-minimum extreme-value statistic.',
     )

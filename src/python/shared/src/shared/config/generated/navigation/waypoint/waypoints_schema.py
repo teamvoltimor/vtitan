@@ -81,9 +81,13 @@ class NavigationWaypointWaypoints(StrictModel):
         ...,
         description='Corner caution: slow the approach to a corner. Restricted to the FIRST lap, where the layout belief is still forming; all_laps applies it for the whole round, narrow_only restricts it to corridors believed narrow.',
     )
-    corner_caution_all_laps: bool = Field(..., description='Corner caution all laps.')
+    corner_caution_all_laps: bool = Field(
+        ...,
+        description='Apply the previewed-corner speed reduction on every lap instead of only the first.',
+    )
     first_lap_corner_caution_narrow_only: bool = Field(
-        ..., description='First lap corner caution narrow only.'
+        ...,
+        description='Restrict the first-lap corner caution to corridors planned as NARROW.',
     )
     advance_past_passed_waypoint: bool = Field(
         ...,

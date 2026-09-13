@@ -11,4 +11,4 @@ class HardwareButtonButtonNode(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    poll_hz: float = Field(..., description='Poll hz.')
+    poll_hz: float = Field(..., description='Poll rate of button_node, in Hz.')

@@ -7,19 +7,19 @@
   "properties": {
     "serial_port": {
       "type": "string",
-      "description": "Serial port."
+      "description": "Serial device path for the LIDAR (launch-time override with serial_port:=...)."
     },
     "serial_baudrate": {
       "type": "integer",
-      "description": "Serial baudrate."
+      "description": "Serial baud rate for LIDAR communication."
     },
     "scan_mode": {
       "type": "string",
-      "description": "Scan mode."
+      "description": "sllidar_ros2 scan mode passed to the driver (for example Standard)."
     },
     "angle_compensate": {
       "type": "boolean",
-      "description": "Angle compensate."
+      "description": "Enable sllidar_ros2 angle compensation for the rotating scan."
     }
   },
   "required": [

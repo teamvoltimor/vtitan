@@ -11,14 +11,33 @@ class HardwareVisionNode(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    camera_topic: str = Field(..., description='Camera topic.')
-    model_path: str = Field(..., description='Model path.')
-    backend: str = Field(..., description='Backend.')
-    camera_source: str = Field(..., description='Camera source.')
-    capture_fps: float = Field(..., description='Capture fps.')
-    publish_annotated: bool = Field(..., description='Publish annotated.')
-    annotated_topic: str = Field(..., description='Annotated topic.')
-    publish_raw: bool = Field(..., description='Publish raw.')
+    camera_topic: str = Field(
+        ...,
+        description='ROS2 image topic the node subscribes to when camera_source is "topic".',
+    )
+    model_path: str = Field(
+        ...,
+        description='Fallback model path used when the node is launched with no model_path override.',
+    )
+    backend: str = Field(
+        ..., description='Vision backend to use: "yolo" (CPU/ultralytics) or "hailo".'
+    )
+    camera_source: str = Field(
+        ...,
+        description='Frame source: "topic" for a ROS2 image subscription, "direct" to open the camera in-process.',
+    )
+    capture_fps: float = Field(
+        ..., description='Capture/publish rate for the node, in frames per second.'
+    )
+    publish_annotated: bool = Field(
+        ..., description='Publish the annotated (box-drawn) image stream for debugging.'
+    )
+    annotated_topic: str = Field(
+        ..., description='ROS2 topic the annotated image stream is published on.'
+    )
+    publish_raw: bool = Field(
+        ..., description='Publish the raw camera image stream for debugging.'
+    )
     video_width: int = Field(
         ...,
         description="Recorded debug video's width; height is derived from the captured frame's own aspect ratio. Set to the camera's native width (camera_width in rpi_camera_module_3.toml/rpicam.toml) rather than downscaled -- SD card has 460GB free, so a ~6x larger per-run video (~20MB -> ~120MB for 3min) costs nothing. Detection boxes need no extra handling: annotate() already draws them on the full-resolution frame before this resize, so they scale with the image instead of needing separate coordinate transforms.",
@@ -27,5 +46,11 @@ class HardwareVisionNode(StrictModel):
         ...,
         description="Periodic raw (un-annotated) frame capture for later dataset accumulation / fine-tuning -- see src/vision/dataset_capture.py. Saved to <run_dir>/<capture_subdir>/, next to that run's mcap bag and debug video. Obstacles Challenge only ever saves a frame once it actually contains a detection; Open Challenge saves every capture_interval_s unconditionally.",
     )
-    capture_interval_s: float = Field(..., description='Capture interval s.')
-    capture_subdir: str = Field(..., description='Capture subdir.')
+    capture_interval_s: float = Field(
+        ...,
+        description='Seconds between periodic raw-frame captures when dataset capture is enabled.',
+    )
+    capture_subdir: str = Field(
+        ...,
+        description='Subdirectory (under the run directory) where captured dataset frames are written.',
+    )

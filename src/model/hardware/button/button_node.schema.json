@@ -7,7 +7,7 @@
   "properties": {
     "poll_hz": {
       "type": "number",
-      "description": "Poll hz."
+      "description": "Poll rate of button_node, in Hz."
     }
   },
   "required": [

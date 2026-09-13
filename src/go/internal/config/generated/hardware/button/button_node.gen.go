@@ -3,6 +3,6 @@
 package button
 
 type HardwareButtonButtonNode struct {
-	// Poll hz.
+	// Poll rate of button_node, in Hz.
 	PollHz float64 `json:"poll_hz" yaml:"poll_hz" mapstructure:"poll_hz"`
 }

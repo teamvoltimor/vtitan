@@ -7,137 +7,137 @@
   "properties": {
     "font_scale": {
       "type": "number",
-      "description": "Font scale."
+      "description": "OpenCV font scale (size multiplier) for HUD text."
     },
     "text_thickness": {
       "type": "integer",
-      "description": "Text thickness."
+      "description": "OpenCV stroke thickness in pixels for HUD text."
     },
     "line_height_px": {
       "type": "integer",
-      "description": "Line height px."
+      "description": "Vertical spacing between HUD text lines, in pixels."
     },
     "text_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Text rgb."
+      "description": "RGB colour (0-255) of the panel value column."
     },
     "label_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Label rgb."
+      "description": "RGB colour (0-255) of the panel label column."
     },
     "accent_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Accent rgb."
+      "description": "RGB colour (0-255) of the live/foreground accent (panel edge bar and radar points)."
     },
     "border_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Border rgb."
+      "description": "RGB colour (0-255) of panel borders."
     },
     "panel_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Panel rgb."
+      "description": "RGB background colour (0-255) of the HUD panels."
     },
     "panel_alpha": {
       "type": "number",
-      "description": "Panel alpha."
+      "description": "Background panel opacity, 0.0 (transparent) to 1.0 (opaque)."
     },
     "margin_px": {
       "type": "integer",
-      "description": "Margin px."
+      "description": "Margin in pixels between the HUD panels and the frame edge."
     },
     "column_gap_px": {
       "type": "integer",
-      "description": "Column gap px."
+      "description": "Gap in pixels between a panel's label column and its value column."
     },
     "radar_radius_px": {
       "type": "integer",
-      "description": "Radar radius px."
+      "description": "Radius of the LIDAR radar, in pixels."
     },
     "radar_margin_px": {
       "type": "integer",
-      "description": "Radar margin px."
+      "description": "Margin in pixels between the radar and the frame edge."
     },
     "radar_bg_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Radar bg rgb."
+      "description": "RGB background colour (0-255) of the radar."
     },
     "radar_bg_alpha": {
       "type": "number",
-      "description": "Radar bg alpha."
+      "description": "Radar background opacity, 0.0 (transparent) to 1.0 (opaque)."
     },
     "radar_ring_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Radar ring rgb."
+      "description": "RGB colour (0-255) of the radar range rings."
     },
     "radar_crosshair_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Radar crosshair rgb."
+      "description": "RGB colour (0-255) of the radar crosshair."
     },
     "radar_point_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Radar point rgb."
+      "description": "RGB colour (0-255) of the plotted LIDAR points."
     },
     "radar_robot_rgb": {
       "type": "array",
       "items": {
         "type": "integer"
       },
-      "description": "Radar robot rgb."
+      "description": "RGB colour (0-255) of the robot marker at the radar centre."
     },
     "max_radar_range_m": {
       "type": "number",
-      "description": "Max radar range m."
+      "description": "Radar display range in metres; LIDAR points beyond this are not drawn."
     },
     "logo_size_px": {
       "type": "integer",
-      "description": "Logo size px."
+      "description": "Width/height of the team logo watermark, in pixels."
     },
     "logo_margin_px": {
       "type": "integer",
-      "description": "Logo margin px."
+      "description": "Margin in pixels between the logo and the frame edge."
     },
     "logo_alpha": {
       "type": "number",
-      "description": "Logo alpha."
+      "description": "Logo opacity multiplier, 0.0 (invisible) to 1.0 (solid)."
     },
     "join_timeout_sec": {
       "type": "number",
-      "description": "Join timeout sec."
+      "description": "Seconds VideoRecorder.stop() waits for the writer thread to finalize the video before giving up."
     },
     "run_path_poll_interval_sec": {
       "type": "number",
-      "description": "Run path poll interval sec."
+      "description": "How often VisionNode polls for the run directory to appear, in seconds."
     },
     "run_path_poll_timeout_sec": {
       "type": "number",
-      "description": "Run path poll timeout sec."
+      "description": "How long VisionNode polls for the run directory before giving up on recording video, in seconds."
     }
   },
   "required": [

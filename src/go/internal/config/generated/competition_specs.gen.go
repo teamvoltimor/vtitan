@@ -3,7 +3,7 @@
 package generated
 
 // Competition match rules for the WRO Future Engineers challenge: round timing and
-// lap counts.
+// lap counts. Rationale for the values is in other/docs/adr.
 type CompetitionSpecs struct {
 	// Laps required per Obstacle Challenge run.
 	ObstacleChallengeLaps int `json:"obstacle_challenge_laps" yaml:"obstacle_challenge_laps" mapstructure:"obstacle_challenge_laps"`
@@ -11,6 +11,6 @@ type CompetitionSpecs struct {
 	// Laps required per Open Challenge run.
 	OpenChallengeLaps int `json:"open_challenge_laps" yaml:"open_challenge_laps" mapstructure:"open_challenge_laps"`
 
-	// Official round duration.
+	// Official round duration (seconds): 3 minutes.
 	RoundTimeLimitS float64 `json:"round_time_limit_s" yaml:"round_time_limit_s" mapstructure:"round_time_limit_s"`
 }

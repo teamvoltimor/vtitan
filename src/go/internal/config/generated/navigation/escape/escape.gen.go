@@ -82,13 +82,16 @@ type NavigationEscapeEscape struct {
 	// samples needed before recent-movement distance is trusted
 	MinHistoryForDistance int `json:"min_history_for_distance" yaml:"min_history_for_distance" mapstructure:"min_history_for_distance"`
 
-	// Obstacles escape mirrors reverse.
+	// Obstacles-only override of escape_mirrors_reverse: steer the opposite way on
+	// the escape's reverse leg.
 	ObstaclesEscapeMirrorsReverse bool `json:"obstacles_escape_mirrors_reverse" yaml:"obstacles_escape_mirrors_reverse" mapstructure:"obstacles_escape_mirrors_reverse"`
 
-	// Obstacles escape side follows committed sign.
+	// Obstacles-only override of escape_side_follows_committed_sign: steer the K-turn
+	// toward the side the router committed to passing on.
 	ObstaclesEscapeSideFollowsCommittedSign bool `json:"obstacles_escape_side_follows_committed_sign" yaml:"obstacles_escape_side_follows_committed_sign" mapstructure:"obstacles_escape_side_follows_committed_sign"`
 
-	// Obstacles k turn fit rear gap.
+	// Obstacles-only override of k_turn_fit_rear_gap: cap the K-turn reverse by the
+	// rear room the LIDAR actually measures.
 	ObstaclesKTurnFitRearGap bool `json:"obstacles_k_turn_fit_rear_gap" yaml:"obstacles_k_turn_fit_rear_gap" mapstructure:"obstacles_k_turn_fit_rear_gap"`
 
 	// ~1.3 m of travel at the spacing above

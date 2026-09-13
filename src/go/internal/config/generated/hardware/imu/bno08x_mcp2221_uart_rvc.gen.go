@@ -3,19 +3,19 @@
 package imu
 
 type HardwareImuBno08XMcp2221UartRvc struct {
-	// Baudrate.
+	// UART baud rate for the BNO08x RVC link (typically 115200).
 	Baudrate int `json:"baudrate" yaml:"baudrate" mapstructure:"baudrate"`
 
-	// Data lock timeout.
+	// Seconds to wait for a new IMU reading before treating the data as unavailable.
 	DataLockTimeout float64 `json:"data_lock_timeout" yaml:"data_lock_timeout" mapstructure:"data_lock_timeout"`
 
-	// Default port.
+	// Fallback serial port used when the BNO08X_UART_RVC_PORT env var is unset.
 	DefaultPort string `json:"default_port" yaml:"default_port" mapstructure:"default_port"`
 
 	// Mcp2221 corresponds to the JSON schema field "mcp2221".
 	Mcp2221 HardwareImuBno08XMcp2221UartRvcMcp2221 `json:"mcp2221" yaml:"mcp2221" mapstructure:"mcp2221"`
 
-	// Poll rate hz.
+	// Rate in Hz at which the driver's background thread reads IMU data.
 	PollRateHz float64 `json:"poll_rate_hz" yaml:"poll_rate_hz" mapstructure:"poll_rate_hz"`
 
 	// Quaternion corresponds to the JSON schema field "quaternion".
@@ -27,23 +27,25 @@ type HardwareImuBno08XMcp2221UartRvc struct {
 }
 
 type HardwareImuBno08XMcp2221UartRvcMcp2221 struct {
-	// Pid.
+	// USB product ID of the MCP2221A bridge, as a hex string.
 	Pid string `json:"pid" yaml:"pid" mapstructure:"pid"`
 
-	// Vid.
+	// USB vendor ID of the MCP2221A bridge, as a hex string.
 	Vid string `json:"vid" yaml:"vid" mapstructure:"vid"`
 }
 
 type HardwareImuBno08XMcp2221UartRvcQuaternion struct {
-	// Euler sequence.
+	// Order in which the RVC Euler angles are interpreted during quaternion
+	// conversion (one of xyz, zyx, xzy, yzx, zxy, yxz).
 	EulerSequence string `json:"euler_sequence" yaml:"euler_sequence" mapstructure:"euler_sequence"`
 
-	// Negate pitch.
+	// Negate pitch so nose-up is positive in the ROS 2 frame for this mount.
 	NegatePitch bool `json:"negate_pitch" yaml:"negate_pitch" mapstructure:"negate_pitch"`
 
-	// Negate roll.
+	// Negate roll so banking right is positive in the ROS 2 frame for this mount.
 	NegateRoll bool `json:"negate_roll" yaml:"negate_roll" mapstructure:"negate_roll"`
 
-	// Negate yaw.
+	// Negate yaw so counterclockwise rotation is positive in the ROS 2 frame for this
+	// mount.
 	NegateYaw bool `json:"negate_yaw" yaml:"negate_yaw" mapstructure:"negate_yaw"`
 }

@@ -3,9 +3,11 @@
 package motors
 
 type HardwareMotorsAckermannMotorNode struct {
-	// Diagnostics rate hz.
+	// Rate in Hz at which the motor node publishes /motor/status diagnostics (much
+	// slower than publishing).
 	DiagnosticsRateHz float64 `json:"diagnostics_rate_hz" yaml:"diagnostics_rate_hz" mapstructure:"diagnostics_rate_hz"`
 
-	// Publisher rate hz.
+	// Rate in Hz at which the motor node publishes actuator state (steering, drive
+	// speed, joint states).
 	PublisherRateHz float64 `json:"publisher_rate_hz" yaml:"publisher_rate_hz" mapstructure:"publisher_rate_hz"`
 }

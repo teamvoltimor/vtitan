@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vtitan.local/schemas/robot.schema.json",
   "title": "RobotConfig",
-  "description": "Single source of truth for the WRO robot's physical constants (chassis, Ackermann geometry, mounts, sensor specs). Read at runtime by Python (shared.config.robot_constants) and consumed by the Go simconfig package and the URDF xacro. Values that belong to a swappable component (drive motor, steering servo) are supplied by a hardware profile under src/config/profiles and are optional here.",
+  "description": "Single source of truth for the WRO robot's physical constants (chassis, Ackermann geometry, mounts, sensor specs). Read at runtime by Python (shared.config.robot_constants) and consumed by the Go simconfig package and the URDF xacro. Values that belong to a swappable component (drive motor, steering servo) are supplied by a hardware profile under src/config/profiles and are optional here. Rationale for the values is in other/docs/adr.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -11,13 +11,19 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "length": { "description": "Chassis length.", "type": "number", "x-unit": "m" },
-        "width": { "description": "Chassis width.", "type": "number", "x-unit": "m" },
-        "height": { "description": "Chassis height.", "type": "number", "x-unit": "m" },
-        "mass": {
-          "description": "Chassis body mass, excluding the four wheels. The URDF and the Gazebo model sum it with the wheel masses to get the total.",
+        "length": {
+          "description": "Chassis length (m).",
           "type": "number",
-          "x-unit": "kg"
+          "x-unit": "m",
+          "x-journal": "adr:0008-robot-constants-single-source"
+        },
+        "width": { "description": "Chassis width (m).", "type": "number", "x-unit": "m" },
+        "height": { "description": "Chassis height (m).", "type": "number", "x-unit": "m" },
+        "mass": {
+          "description": "Chassis body mass (kg), excluding the four wheels. The URDF and the Gazebo model sum it with the wheel masses to get the total: 1.3 + 4 x 0.05 = 1.5, a middle value between both battery configurations.",
+          "type": "number",
+          "x-unit": "kg",
+          "x-journal": "adr:0009-chassis-mass-battery-middle-value"
         }
       }
     },
@@ -26,8 +32,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "wheelbase": { "description": "Front axle to rear axle distance.", "type": "number", "x-unit": "m" },
-        "track_width": { "description": "Left wheel to right wheel distance.", "type": "number", "x-unit": "m" }
+        "wheelbase": { "description": "Front axle to rear axle distance (m).", "type": "number", "x-unit": "m" },
+        "track_width": { "description": "Left wheel to right wheel distance (m).", "type": "number", "x-unit": "m" }
       }
     },
     "steering": {
@@ -36,19 +42,22 @@
       "additionalProperties": false,
       "properties": {
         "servo_max_angle_deg": {
-          "description": "Half of full servo travel, from centre to full lock. A geometric fact from the servo's spec.",
+          "description": "Half of full servo travel, from centre to full lock (deg). A geometric fact from the servo's spec.",
           "type": "number",
-          "x-unit": "deg"
+          "x-unit": "deg",
+          "x-journal": "adr:0011-hardware-profile-fields-required"
         },
         "max_wheel_angle_deg": {
-          "description": "Road-wheel angle the linkage produces at full servo lock. Measured with a protractor, not a ratio.",
+          "description": "Road-wheel angle the linkage produces at full servo lock (deg). Measured with a protractor, not a ratio; the ackermann angle is derived from it.",
           "type": "number",
-          "x-unit": "deg"
+          "x-unit": "deg",
+          "x-journal": ["adr:0010-wheel-angle-derived-from-steering", "adr:0022-steering-physics-vs-policy"]
         },
         "steering_limit_deg": {
-          "description": "Road-wheel angle the navigator may actually command. Absent means use the linkage's full travel.",
+          "description": "Road-wheel angle the navigator may actually command (deg). Absent means use the linkage's full travel.",
           "type": "number",
-          "x-unit": "deg"
+          "x-unit": "deg",
+          "x-journal": ["adr:0011-hardware-profile-fields-required", "adr:0022-steering-physics-vs-policy"]
         }
       }
     },
@@ -57,9 +66,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "radius": { "description": "Wheel radius.", "type": "number", "x-unit": "m" },
-        "width": { "description": "Wheel width.", "type": "number", "x-unit": "m" },
-        "mass": { "description": "Mass of one wheel.", "type": "number", "x-unit": "kg" }
+        "radius": { "description": "Wheel radius (m).", "type": "number", "x-unit": "m" },
+        "width": { "description": "Wheel width (m).", "type": "number", "x-unit": "m" },
+        "mass": { "description": "Mass of one wheel (kg). Change together with chassis.mass.", "type": "number", "x-unit": "kg" }
       }
     },
     "drivetrain": {
@@ -68,47 +77,55 @@
       "additionalProperties": false,
       "properties": {
         "max_speed_mps": {
-          "description": "Closed-loop speed ceiling at the shipped duty. A hard clamp the kinematics obey, not a tuning knob.",
+          "description": "Closed-loop speed ceiling at the shipped duty (m/s). A hard clamp the kinematics obey, not a tuning knob.",
           "type": "number",
-          "x-unit": "m/s"
+          "x-unit": "m/s",
+          "x-journal": "adr:0011-hardware-profile-fields-required"
         },
         "max_accel_mps2": {
-          "description": "Physical acceleration ceiling. A rarely-binding clamp; speed_response_tau_s is what the drivetrain actually obeys.",
+          "description": "Physical acceleration ceiling (m/s^2). A rarely-binding clamp; speed_response_tau_s is what the drivetrain actually obeys.",
           "type": "number",
-          "x-unit": "m/s^2"
+          "x-unit": "m/s^2",
+          "x-journal": "adr:0011-hardware-profile-fields-required"
         },
         "rear_steer_ratio": {
           "description": "Rear-axle steer fraction. 1.0 is counter-phase, 0.0 would be front-steer only.",
           "type": "number"
         },
         "speed_response_tau_s": {
-          "description": "First-order lag between a commanded speed and the achieved one.",
+          "description": "First-order lag (s) between a commanded speed and the achieved one.",
           "type": "number",
-          "x-unit": "s"
+          "x-unit": "s",
+          "x-journal": "adr:0011-hardware-profile-fields-required"
         },
         "yaw_gain": {
-          "description": "Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is tyre slip and linkage compliance, which the zero-slip model has no term for.",
-          "type": "number"
+          "description": "Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is tyre slip and linkage compliance, which the zero-slip model has no term for. Measured 2026-08-29 as 0.55.",
+          "type": "number",
+          "x-journal": "adr:0012-yaw-gain-measured"
         },
         "min_turn_radius_m": {
-          "description": "Tightest turn radius the chassis can make, the value of the speed curve at one speed. 0 disables the floor.",
+          "description": "Tightest turn radius the chassis can make (m), the value of the speed curve at one speed (~0.127 m/s). 0 disables the floor.",
           "type": "number",
-          "x-unit": "m"
+          "x-unit": "m",
+          "x-journal": "adr:0013-turn-radius-speed-curve"
         },
         "min_turn_radius_intercept_m": {
-          "description": "Turn-radius floor extrapolated to zero speed.",
+          "description": "Turn-radius floor extrapolated to zero speed (m).",
           "type": "number",
-          "x-unit": "m"
+          "x-unit": "m",
+          "x-journal": "adr:0013-turn-radius-speed-curve"
         },
         "min_turn_radius_slope_s": {
-          "description": "How fast the turn-radius floor grows with speed.",
+          "description": "How fast the turn-radius floor grows with speed (s), i.e. R = intercept + slope * v.",
           "type": "number",
-          "x-unit": "s"
+          "x-unit": "s",
+          "x-journal": "adr:0013-turn-radius-speed-curve"
         },
         "min_turn_radius_cap_m": {
-          "description": "Bound on the speed curve. Not measured: the largest value the measured range supports, so the linear term cannot run away.",
+          "description": "Bound on the speed curve (m). Not measured: the largest value the measured range supports, so the linear term cannot run away.",
           "type": "number",
-          "x-unit": "m"
+          "x-unit": "m",
+          "x-journal": "adr:0013-turn-radius-speed-curve"
         }
       }
     },
@@ -118,43 +135,52 @@
       "additionalProperties": false,
       "properties": {
         "min_range": {
-          "description": "Closest range the unit can report. Anything nearer is unmeasurable rather than clear.",
+          "description": "Closest range the unit can report (m). Anything nearer is unmeasurable rather than clear.",
           "type": "number",
-          "x-unit": "m"
+          "x-unit": "m",
+          "x-journal": "adr:0016-sensor-specs-consolidated"
         },
-        "max_range": { "description": "Farthest range the unit reports.", "type": "number", "x-unit": "m" },
+        "max_range": {
+          "description": "Farthest range the unit reports (m).",
+          "type": "number",
+          "x-unit": "m",
+          "x-journal": "adr:0016-sensor-specs-consolidated"
+        },
         "samples": { "description": "Horizontal sample count of one 360 degree sweep.", "type": "integer" },
-        "update_rate": { "description": "Sweep refresh rate.", "type": "number", "x-unit": "Hz" },
-        "noise_stddev": { "description": "Per-ray range noise stddev.", "type": "number", "x-unit": "m" },
+        "update_rate": { "description": "Sweep refresh rate (Hz).", "type": "number", "x-unit": "Hz" },
+        "noise_stddev": { "description": "Per-ray range noise stddev (m).", "type": "number", "x-unit": "m" },
         "diameter": {
-          "description": "Puck diameter, matching the lidar_link mesh in wro_robot.urdf.xacro.",
+          "description": "Puck diameter (m), matching the lidar_link mesh in wro_robot.urdf.xacro.",
           "type": "number",
           "x-unit": "m"
         },
         "height": {
-          "description": "Puck height, matching the lidar_link mesh in wro_robot.urdf.xacro.",
+          "description": "Puck height (m), matching the lidar_link mesh in wro_robot.urdf.xacro.",
           "type": "number",
           "x-unit": "m"
         },
         "mount_x_offset": {
-          "description": "Forward mount offset, derived as chassis.length/2 - mesh radius: the unit mounted flush with the front edge.",
+          "description": "Forward mount offset (m), derived as chassis.length/2 - mesh radius: the unit mounted flush with the front edge.",
           "type": "number",
           "x-unit": "m",
           "x-journal": "adr:0002-lidar-mount-forward-shift"
         },
         "mount_z_offset": {
-          "description": "Height relative to chassis.height. Negative because the unit is recessed, so the scan plane sits below the chassis top.",
+          "description": "Height relative to chassis.height (m). Negative because the unit is recessed, so the scan plane sits 0.08 m off the floor.",
           "type": "number",
-          "x-unit": "m"
+          "x-unit": "m",
+          "x-journal": "adr:0014-lidar-scan-plane-recessed"
         },
         "inverted": {
           "description": "Whether the unit is mounted upside-down. Drives both the driver's own inverted parameter and a 180 degree yaw correction; the two must never be set independently.",
-          "type": "boolean"
+          "type": "boolean",
+          "x-journal": "adr:0015-lidar-inverted-mount"
         },
         "mount_yaw_offset_deg": {
-          "description": "Additional yaw miscalibration not explained by the upside-down mount, added on top of the 180 degrees.",
+          "description": "Additional yaw miscalibration (deg) not explained by the upside-down mount, added on top of the 180 degrees.",
           "type": "number",
-          "x-unit": "deg"
+          "x-unit": "deg",
+          "x-journal": "adr:0015-lidar-inverted-mount"
         }
       }
     },
@@ -163,13 +189,18 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "mount_z_offset": { "description": "Height above the chassis floor.", "type": "number", "x-unit": "m" },
-        "update_rate": { "description": "Measurement refresh rate.", "type": "number", "x-unit": "Hz" },
-        "gyro_noise": { "description": "Gyroscope angular-rate noise stddev.", "type": "number", "x-unit": "rad/s" },
-        "accel_noise": { "description": "Accelerometer linear-acceleration noise stddev.", "type": "number", "x-unit": "m/s^2" },
-        "mass": { "description": "Board mass.", "type": "number", "x-unit": "kg" },
+        "mount_z_offset": {
+          "description": "Height above the chassis floor (m), 0.01 m.",
+          "type": "number",
+          "x-unit": "m",
+          "x-journal": "adr:0016-sensor-specs-consolidated"
+        },
+        "update_rate": { "description": "Measurement refresh rate (Hz).", "type": "number", "x-unit": "Hz" },
+        "gyro_noise": { "description": "Gyroscope angular-rate noise stddev (rad/s).", "type": "number", "x-unit": "rad/s" },
+        "accel_noise": { "description": "Accelerometer linear-acceleration noise stddev (m/s^2).", "type": "number", "x-unit": "m/s^2" },
+        "mass": { "description": "Board mass (kg).", "type": "number", "x-unit": "kg" },
         "size": {
-          "description": "Board form factor: length x width x height.",
+          "description": "Board form factor (m): length x width x height.",
           "type": "array",
           "items": { "type": "number" },
           "minItems": 3,
@@ -183,15 +214,15 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "mount_x_offset": { "description": "Forward mount offset. Directly above the LIDAR.", "type": "number", "x-unit": "m" },
-        "mount_z_offset": { "description": "Height above the chassis top. An estimate pending a real measurement.", "type": "number", "x-unit": "m" },
-        "mount_pitch": { "description": "Downward tilt from horizontal.", "type": "number", "x-unit": "rad" },
-        "hfov": { "description": "Horizontal field of view.", "type": "number", "x-unit": "rad" },
-        "width": { "description": "Sensor horizontal resolution.", "type": "integer", "x-unit": "px" },
-        "height": { "description": "Sensor vertical resolution.", "type": "integer", "x-unit": "px" },
-        "update_rate": { "description": "Frame capture rate.", "type": "number", "x-unit": "Hz" },
-        "near_clip": { "description": "Rendering near-clip plane.", "type": "number", "x-unit": "m" },
-        "far_clip": { "description": "Rendering far-clip plane.", "type": "number", "x-unit": "m" }
+        "mount_x_offset": { "description": "Forward mount offset (m). Directly above the LIDAR.", "type": "number", "x-unit": "m" },
+        "mount_z_offset": { "description": "Height above the chassis top (m). An estimate pending a real measurement.", "type": "number", "x-unit": "m" },
+        "mount_pitch": { "description": "Downward tilt from horizontal (rad), ~10 degrees down.", "type": "number", "x-unit": "rad" },
+        "hfov": { "description": "Horizontal field of view (rad).", "type": "number", "x-unit": "rad" },
+        "width": { "description": "Sensor horizontal resolution (px).", "type": "integer", "x-unit": "px" },
+        "height": { "description": "Sensor vertical resolution (px).", "type": "integer", "x-unit": "px" },
+        "update_rate": { "description": "Frame capture rate (Hz).", "type": "number", "x-unit": "Hz" },
+        "near_clip": { "description": "Rendering near-clip plane (m).", "type": "number", "x-unit": "m" },
+        "far_clip": { "description": "Rendering far-clip plane (m).", "type": "number", "x-unit": "m" }
       }
     }
   }

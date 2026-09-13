@@ -39,7 +39,8 @@
     },
     "lidar_range_fusion": {
       "type": "boolean",
-      "description": "Take the sign's range from the LIDAR ray at the camera's bearing. ONLY VALID PAIRED WITH lidar_range_fusion_cluster BELOW -- the two are one mechanism.  Shipped TRUE until 2026-09-06 and measured to make the estimate WORSE: at the camera's bearing the return is wall-shaped 51% of the time and pillar-shaped 27%, median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of detections (the gate is 0.05 < r < 10.0, i.e. no gate) and a wall behind a sign is always FURTHER, so it was half the outward bias that pinned believed signs to the walls. Costs 28 cm of median position error with the corrected bearing.  Back ON 2026-09-11, gated. Replayed over 78 hardware bags (09-06 to 09-10), pass-side routing errors / passes judged: both off (baseline)     194 / 654   29.7% fusion UNGATED          227 / 605   37.5%   <- reproduces the refutation fusion + cluster gate   180 / 712   25.3%   <- fewer errors, MORE passes The ungated arm reproducing its own refutation is what validates the harness. The gated arm is the only one that improves without shrinking the denominator."
+      "description": "Take the sign's range from the LIDAR ray at the camera's bearing. ONLY VALID PAIRED WITH lidar_range_fusion_cluster BELOW -- the two are one mechanism.  Shipped TRUE until 2026-09-06 and measured to make the estimate WORSE: at the camera's bearing the return is wall-shaped 51% of the time and pillar-shaped 27%, median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of detections (the gate is 0.05 < r < 10.0, i.e. no gate) and a wall behind a sign is always FURTHER, so it was half the outward bias that pinned believed signs to the walls. Costs 28 cm of median position error with the corrected bearing.  Back ON 2026-09-11, gated. Replayed over 78 hardware bags (09-06 to 09-10), pass-side routing errors / passes judged: both off (baseline)     194 / 654   29.7% fusion UNGATED          227 / 605   37.5%   <- reproduces the refutation fusion + cluster gate   180 / 712   25.3%   <- fewer errors, MORE passes The ungated arm reproducing its own refutation is what validates the harness. The gated arm is the only one that improves without shrinking the denominator.",
+      "x-journal": "adr:0042-sign-range-fusion-gated"
     },
     "vision_latency_s": {
       "type": "number",
@@ -51,11 +52,13 @@
     },
     "lidar_range_fusion_cluster": {
       "type": "boolean",
-      "description": "The two knobs below parameterise lidar_range_fusion above. The gate requires a free-standing cluster of pillar width at the camera's bearing whose range AGREES with the pinhole within lidar_range_fusion_agreement; failing either test, the pinhole stands. NOT optional: with this false the fusion above is the version measured harmful."
+      "description": "The two knobs below parameterise lidar_range_fusion above. The gate requires a free-standing cluster of pillar width at the camera's bearing whose range AGREES with the pinhole within lidar_range_fusion_agreement; failing either test, the pinhole stands. NOT optional: with this false the fusion above is the version measured harmful.",
+      "x-journal": "adr:0042-sign-range-fusion-gated"
     },
     "lidar_range_fusion_agreement": {
       "type": "number",
-      "description": "Lidar range fusion agreement."
+      "description": "Fractional range disagreement (fraction of the pinhole estimate) above which the LIDAR cluster is rejected and the pinhole range stands.",
+      "x-journal": "adr:0042-sign-range-fusion-gated"
     },
     "max_signs_per_section": {
       "type": "integer",

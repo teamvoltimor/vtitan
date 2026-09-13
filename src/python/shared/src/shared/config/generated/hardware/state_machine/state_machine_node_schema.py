@@ -12,8 +12,10 @@ class HardwareStateMachineStateMachineNode(StrictModel):
         extra='forbid',
     )
     challenge_mode_samples_required: int = Field(
-        ..., description='Challenge mode samples required.'
+        ...,
+        description='Consecutive agreeing BOOT_CHECK-tick samples required before trusting the challenge-mode jumper reading.',
     )
     challenge_mode_timeout_sec: float = Field(
-        ..., description='Challenge mode timeout sec.'
+        ...,
+        description="Seconds to wait for the Pi Zero's jumper reading before defaulting to Open Challenge.",
     )

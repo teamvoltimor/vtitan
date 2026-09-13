@@ -3,15 +3,15 @@
 package display
 
 type HardwareDisplaySsd1306 struct {
-	// Height.
+	// Display height in pixels (64 for the SSD1306).
 	Height int `json:"height" yaml:"height" mapstructure:"height"`
 
-	// I2c address.
+	// I2C address of the display, as a hex string (typically 0x3C).
 	I2CAddress string `json:"i2c_address" yaml:"i2c_address" mapstructure:"i2c_address"`
 
-	// I2c bus.
+	// I2C bus number (typically /dev/i2c-1 on a Raspberry Pi).
 	I2CBus int `json:"i2c_bus" yaml:"i2c_bus" mapstructure:"i2c_bus"`
 
-	// Width.
+	// Display width in pixels (128 for the SSD1306).
 	Width int `json:"width" yaml:"width" mapstructure:"width"`
 }

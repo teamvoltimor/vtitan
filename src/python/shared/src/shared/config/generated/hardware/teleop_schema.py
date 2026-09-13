@@ -11,12 +11,36 @@ class HardwareTeleop(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    steering_axis_index: int = Field(..., description='Steering axis index.')
-    throttle_axis_index: int = Field(..., description='Throttle axis index.')
-    deadman_button_index: int = Field(..., description='Deadman button index.')
-    steering_invert: bool = Field(..., description='Steering invert.')
-    throttle_invert: bool = Field(..., description='Throttle invert.')
-    max_steering_deg: float = Field(..., description='Max steering deg.')
-    max_speed_mps: float = Field(..., description='Max speed mps.')
-    publish_rate_hz: float = Field(..., description='Publish rate hz.')
-    joy_timeout_s: float = Field(..., description='Joy timeout s.')
+    steering_axis_index: int = Field(
+        ...,
+        description='Joy axes index used for steering (left stick X in a typical mapping).',
+    )
+    throttle_axis_index: int = Field(
+        ...,
+        description='Joy axes index used for drive speed (right stick Y in a typical mapping).',
+    )
+    deadman_button_index: int = Field(
+        ...,
+        description='Joy buttons index that must be held for the drive motor to move at all.',
+    )
+    steering_invert: bool = Field(
+        ..., description='Flip the sign of the steering axis reading.'
+    )
+    throttle_invert: bool = Field(
+        ..., description='Flip the sign of the throttle axis reading.'
+    )
+    max_steering_deg: float = Field(
+        ..., description='Steering angle in degrees commanded at full stick deflection.'
+    )
+    max_speed_mps: float = Field(
+        ...,
+        description='Drive speed in metres per second commanded at full stick deflection; kept low for bench safety.',
+    )
+    publish_rate_hz: float = Field(
+        ...,
+        description="Rate at which /ackermann_cmd is republished, in Hz (must stay under the motor node's command watchdog).",
+    )
+    joy_timeout_s: float = Field(
+        ...,
+        description='Seconds without a /joy message before the drive command is forced to zero.',
+    )

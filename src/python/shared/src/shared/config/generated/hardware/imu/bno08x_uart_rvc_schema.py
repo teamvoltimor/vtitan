@@ -13,12 +13,23 @@ class HardwareImuBno08xUartRvc(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    default_port: str = Field(..., description='Default port.')
-    baudrate: int = Field(..., description='Baudrate.')
-    poll_rate_hz: float = Field(..., description='Poll rate hz.')
+    default_port: str = Field(
+        ...,
+        description='Fallback serial port used when the BNO08X_UART_RVC_PORT env var is unset.',
+    )
+    baudrate: int = Field(
+        ..., description='UART baud rate for the BNO08x RVC link (typically 115200).'
+    )
+    poll_rate_hz: float = Field(
+        ...,
+        description="Rate in Hz at which the driver's background thread reads IMU data.",
+    )
     serial_timeout: float = Field(
         ...,
         description='Driver-internal timing (see src/hardware/imu/bno08x/uart_rvc.py): a raw pyserial read/thread-join timeout, and how long to wait for new data.',
     )
-    data_lock_timeout: float = Field(..., description='Data lock timeout.')
+    data_lock_timeout: float = Field(
+        ...,
+        description='Seconds to wait for a new IMU reading before treating the data as unavailable.',
+    )
     quaternion: field_models.Quaternion

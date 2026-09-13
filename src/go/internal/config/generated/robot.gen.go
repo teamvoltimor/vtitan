@@ -7,7 +7,7 @@ package generated
 // (shared.config.robot_constants) and consumed by the Go simconfig package and the
 // URDF xacro. Values that belong to a swappable component (drive motor, steering
 // servo) are supplied by a hardware profile under src/config/profiles and are
-// optional here.
+// optional here. Rationale for the values is in other/docs/adr.
 type RobotConfig struct {
 	// Steering geometry shared by the drivetrain and the Gazebo Ackermann plugin.
 	Ackermann *RobotConfigAckermann `json:"ackermann,omitempty,omitzero" yaml:"ackermann,omitempty" mapstructure:"ackermann,omitempty"`
@@ -38,122 +38,125 @@ type RobotConfig struct {
 
 // Steering geometry shared by the drivetrain and the Gazebo Ackermann plugin.
 type RobotConfigAckermann struct {
-	// Left wheel to right wheel distance.
+	// Left wheel to right wheel distance (m).
 	TrackWidth *float64 `json:"track_width,omitempty,omitzero" yaml:"track_width,omitempty" mapstructure:"track_width,omitempty"`
 
-	// Front axle to rear axle distance.
+	// Front axle to rear axle distance (m).
 	Wheelbase *float64 `json:"wheelbase,omitempty,omitzero" yaml:"wheelbase,omitempty" mapstructure:"wheelbase,omitempty"`
 }
 
 // RPi Camera Module 3 Wide mount offset, tilt and sensor specs.
 type RobotConfigCamera struct {
-	// Rendering far-clip plane.
+	// Rendering far-clip plane (m).
 	FarClip *float64 `json:"far_clip,omitempty,omitzero" yaml:"far_clip,omitempty" mapstructure:"far_clip,omitempty"`
 
-	// Sensor vertical resolution.
+	// Sensor vertical resolution (px).
 	Height *int `json:"height,omitempty,omitzero" yaml:"height,omitempty" mapstructure:"height,omitempty"`
 
-	// Horizontal field of view.
+	// Horizontal field of view (rad).
 	Hfov *float64 `json:"hfov,omitempty,omitzero" yaml:"hfov,omitempty" mapstructure:"hfov,omitempty"`
 
-	// Downward tilt from horizontal.
+	// Downward tilt from horizontal (rad), ~10 degrees down.
 	MountPitch *float64 `json:"mount_pitch,omitempty,omitzero" yaml:"mount_pitch,omitempty" mapstructure:"mount_pitch,omitempty"`
 
-	// Forward mount offset. Directly above the LIDAR.
+	// Forward mount offset (m). Directly above the LIDAR.
 	MountXOffset *float64 `json:"mount_x_offset,omitempty,omitzero" yaml:"mount_x_offset,omitempty" mapstructure:"mount_x_offset,omitempty"`
 
-	// Height above the chassis top. An estimate pending a real measurement.
+	// Height above the chassis top (m). An estimate pending a real measurement.
 	MountZOffset *float64 `json:"mount_z_offset,omitempty,omitzero" yaml:"mount_z_offset,omitempty" mapstructure:"mount_z_offset,omitempty"`
 
-	// Rendering near-clip plane.
+	// Rendering near-clip plane (m).
 	NearClip *float64 `json:"near_clip,omitempty,omitzero" yaml:"near_clip,omitempty" mapstructure:"near_clip,omitempty"`
 
-	// Frame capture rate.
+	// Frame capture rate (Hz).
 	UpdateRate *float64 `json:"update_rate,omitempty,omitzero" yaml:"update_rate,omitempty" mapstructure:"update_rate,omitempty"`
 
-	// Sensor horizontal resolution.
+	// Sensor horizontal resolution (px).
 	Width *int `json:"width,omitempty,omitzero" yaml:"width,omitempty" mapstructure:"width,omitempty"`
 }
 
 // Robot body's box dimensions and mass.
 type RobotConfigChassis struct {
-	// Chassis height.
+	// Chassis height (m).
 	Height *float64 `json:"height,omitempty,omitzero" yaml:"height,omitempty" mapstructure:"height,omitempty"`
 
-	// Chassis length.
+	// Chassis length (m).
 	Length *float64 `json:"length,omitempty,omitzero" yaml:"length,omitempty" mapstructure:"length,omitempty"`
 
-	// Chassis body mass, excluding the four wheels. The URDF and the Gazebo model sum
-	// it with the wheel masses to get the total.
+	// Chassis body mass (kg), excluding the four wheels. The URDF and the Gazebo
+	// model sum it with the wheel masses to get the total: 1.3 + 4 x 0.05 = 1.5, a
+	// middle value between both battery configurations.
 	Mass *float64 `json:"mass,omitempty,omitzero" yaml:"mass,omitempty" mapstructure:"mass,omitempty"`
 
-	// Chassis width.
+	// Chassis width (m).
 	Width *float64 `json:"width,omitempty,omitzero" yaml:"width,omitempty" mapstructure:"width,omitempty"`
 }
 
 // Drive motor's measured limits and departures from the textbook model. Supplied
 // partly by a hardware-profile motor, partly by the base chassis.
 type RobotConfigDrivetrain struct {
-	// Physical acceleration ceiling. A rarely-binding clamp; speed_response_tau_s is
-	// what the drivetrain actually obeys.
+	// Physical acceleration ceiling (m/s^2). A rarely-binding clamp;
+	// speed_response_tau_s is what the drivetrain actually obeys.
 	MaxAccelMps2 *float64 `json:"max_accel_mps2,omitempty,omitzero" yaml:"max_accel_mps2,omitempty" mapstructure:"max_accel_mps2,omitempty"`
 
-	// Closed-loop speed ceiling at the shipped duty. A hard clamp the kinematics
-	// obey, not a tuning knob.
+	// Closed-loop speed ceiling at the shipped duty (m/s). A hard clamp the
+	// kinematics obey, not a tuning knob.
 	MaxSpeedMps *float64 `json:"max_speed_mps,omitempty,omitzero" yaml:"max_speed_mps,omitempty" mapstructure:"max_speed_mps,omitempty"`
 
-	// Bound on the speed curve. Not measured: the largest value the measured range
-	// supports, so the linear term cannot run away.
+	// Bound on the speed curve (m). Not measured: the largest value the measured
+	// range supports, so the linear term cannot run away.
 	MinTurnRadiusCapM *float64 `json:"min_turn_radius_cap_m,omitempty,omitzero" yaml:"min_turn_radius_cap_m,omitempty" mapstructure:"min_turn_radius_cap_m,omitempty"`
 
-	// Turn-radius floor extrapolated to zero speed.
+	// Turn-radius floor extrapolated to zero speed (m).
 	MinTurnRadiusInterceptM *float64 `json:"min_turn_radius_intercept_m,omitempty,omitzero" yaml:"min_turn_radius_intercept_m,omitempty" mapstructure:"min_turn_radius_intercept_m,omitempty"`
 
-	// Tightest turn radius the chassis can make, the value of the speed curve at one
-	// speed. 0 disables the floor.
+	// Tightest turn radius the chassis can make (m), the value of the speed curve at
+	// one speed (~0.127 m/s). 0 disables the floor.
 	MinTurnRadiusM *float64 `json:"min_turn_radius_m,omitempty,omitzero" yaml:"min_turn_radius_m,omitempty" mapstructure:"min_turn_radius_m,omitempty"`
 
-	// How fast the turn-radius floor grows with speed.
+	// How fast the turn-radius floor grows with speed (s), i.e. R = intercept + slope
+	// * v.
 	MinTurnRadiusSlopeS *float64 `json:"min_turn_radius_slope_s,omitempty,omitzero" yaml:"min_turn_radius_slope_s,omitempty" mapstructure:"min_turn_radius_slope_s,omitempty"`
 
 	// Rear-axle steer fraction. 1.0 is counter-phase, 0.0 would be front-steer only.
 	RearSteerRatio *float64 `json:"rear_steer_ratio,omitempty,omitzero" yaml:"rear_steer_ratio,omitempty" mapstructure:"rear_steer_ratio,omitempty"`
 
-	// First-order lag between a commanded speed and the achieved one.
+	// First-order lag (s) between a commanded speed and the achieved one.
 	SpeedResponseTauS *float64 `json:"speed_response_tau_s,omitempty,omitzero" yaml:"speed_response_tau_s,omitempty" mapstructure:"speed_response_tau_s,omitempty"`
 
 	// Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is
 	// tyre slip and linkage compliance, which the zero-slip model has no term for.
+	// Measured 2026-08-29 as 0.55.
 	YawGain *float64 `json:"yaw_gain,omitempty,omitzero" yaml:"yaw_gain,omitempty" mapstructure:"yaw_gain,omitempty"`
 }
 
 // BNO085 mount offset and measurement specs.
 type RobotConfigImu struct {
-	// Accelerometer linear-acceleration noise stddev.
+	// Accelerometer linear-acceleration noise stddev (m/s^2).
 	AccelNoise *float64 `json:"accel_noise,omitempty,omitzero" yaml:"accel_noise,omitempty" mapstructure:"accel_noise,omitempty"`
 
-	// Gyroscope angular-rate noise stddev.
+	// Gyroscope angular-rate noise stddev (rad/s).
 	GyroNoise *float64 `json:"gyro_noise,omitempty,omitzero" yaml:"gyro_noise,omitempty" mapstructure:"gyro_noise,omitempty"`
 
-	// Board mass.
+	// Board mass (kg).
 	Mass *float64 `json:"mass,omitempty,omitzero" yaml:"mass,omitempty" mapstructure:"mass,omitempty"`
 
-	// Height above the chassis floor.
+	// Height above the chassis floor (m), 0.01 m.
 	MountZOffset *float64 `json:"mount_z_offset,omitempty,omitzero" yaml:"mount_z_offset,omitempty" mapstructure:"mount_z_offset,omitempty"`
 
-	// Board form factor: length x width x height.
+	// Board form factor (m): length x width x height.
 	Size []float64 `json:"size,omitempty,omitzero" yaml:"size,omitempty" mapstructure:"size,omitempty"`
 
-	// Measurement refresh rate.
+	// Measurement refresh rate (Hz).
 	UpdateRate *float64 `json:"update_rate,omitempty,omitzero" yaml:"update_rate,omitempty" mapstructure:"update_rate,omitempty"`
 }
 
 // Slamtec C1 mount offset, orientation and measurement floor.
 type RobotConfigLidar struct {
-	// Puck diameter, matching the lidar_link mesh in wro_robot.urdf.xacro.
+	// Puck diameter (m), matching the lidar_link mesh in wro_robot.urdf.xacro.
 	Diameter *float64 `json:"diameter,omitempty,omitzero" yaml:"diameter,omitempty" mapstructure:"diameter,omitempty"`
 
-	// Puck height, matching the lidar_link mesh in wro_robot.urdf.xacro.
+	// Puck height (m), matching the lidar_link mesh in wro_robot.urdf.xacro.
 	Height *float64 `json:"height,omitempty,omitzero" yaml:"height,omitempty" mapstructure:"height,omitempty"`
 
 	// Whether the unit is mounted upside-down. Drives both the driver's own inverted
@@ -161,59 +164,59 @@ type RobotConfigLidar struct {
 	// independently.
 	Inverted *bool `json:"inverted,omitempty,omitzero" yaml:"inverted,omitempty" mapstructure:"inverted,omitempty"`
 
-	// Farthest range the unit reports.
+	// Farthest range the unit reports (m).
 	MaxRange *float64 `json:"max_range,omitempty,omitzero" yaml:"max_range,omitempty" mapstructure:"max_range,omitempty"`
 
-	// Closest range the unit can report. Anything nearer is unmeasurable rather than
-	// clear.
+	// Closest range the unit can report (m). Anything nearer is unmeasurable rather
+	// than clear.
 	MinRange *float64 `json:"min_range,omitempty,omitzero" yaml:"min_range,omitempty" mapstructure:"min_range,omitempty"`
 
-	// Forward mount offset, derived as chassis.length/2 - mesh radius: the unit
+	// Forward mount offset (m), derived as chassis.length/2 - mesh radius: the unit
 	// mounted flush with the front edge.
 	MountXOffset *float64 `json:"mount_x_offset,omitempty,omitzero" yaml:"mount_x_offset,omitempty" mapstructure:"mount_x_offset,omitempty"`
 
-	// Additional yaw miscalibration not explained by the upside-down mount, added on
-	// top of the 180 degrees.
+	// Additional yaw miscalibration (deg) not explained by the upside-down mount,
+	// added on top of the 180 degrees.
 	MountYawOffsetDeg *float64 `json:"mount_yaw_offset_deg,omitempty,omitzero" yaml:"mount_yaw_offset_deg,omitempty" mapstructure:"mount_yaw_offset_deg,omitempty"`
 
-	// Height relative to chassis.height. Negative because the unit is recessed, so
-	// the scan plane sits below the chassis top.
+	// Height relative to chassis.height (m). Negative because the unit is recessed,
+	// so the scan plane sits 0.08 m off the floor.
 	MountZOffset *float64 `json:"mount_z_offset,omitempty,omitzero" yaml:"mount_z_offset,omitempty" mapstructure:"mount_z_offset,omitempty"`
 
-	// Per-ray range noise stddev.
+	// Per-ray range noise stddev (m).
 	NoiseStddev *float64 `json:"noise_stddev,omitempty,omitzero" yaml:"noise_stddev,omitempty" mapstructure:"noise_stddev,omitempty"`
 
 	// Horizontal sample count of one 360 degree sweep.
 	Samples *int `json:"samples,omitempty,omitzero" yaml:"samples,omitempty" mapstructure:"samples,omitempty"`
 
-	// Sweep refresh rate.
+	// Sweep refresh rate (Hz).
 	UpdateRate *float64 `json:"update_rate,omitempty,omitzero" yaml:"update_rate,omitempty" mapstructure:"update_rate,omitempty"`
 }
 
 // Servo travel and the road-wheel angle it produces. Supplied by a
 // hardware-profile servo, not the base chassis.
 type RobotConfigSteering struct {
-	// Road-wheel angle the linkage produces at full servo lock. Measured with a
-	// protractor, not a ratio.
+	// Road-wheel angle the linkage produces at full servo lock (deg). Measured with a
+	// protractor, not a ratio; the ackermann angle is derived from it.
 	MaxWheelAngleDeg *float64 `json:"max_wheel_angle_deg,omitempty,omitzero" yaml:"max_wheel_angle_deg,omitempty" mapstructure:"max_wheel_angle_deg,omitempty"`
 
-	// Half of full servo travel, from centre to full lock. A geometric fact from the
-	// servo's spec.
+	// Half of full servo travel, from centre to full lock (deg). A geometric fact
+	// from the servo's spec.
 	ServoMaxAngleDeg *float64 `json:"servo_max_angle_deg,omitempty,omitzero" yaml:"servo_max_angle_deg,omitempty" mapstructure:"servo_max_angle_deg,omitempty"`
 
-	// Road-wheel angle the navigator may actually command. Absent means use the
+	// Road-wheel angle the navigator may actually command (deg). Absent means use the
 	// linkage's full travel.
 	SteeringLimitDeg *float64 `json:"steering_limit_deg,omitempty,omitzero" yaml:"steering_limit_deg,omitempty" mapstructure:"steering_limit_deg,omitempty"`
 }
 
 // One wheel's dimensions and mass.
 type RobotConfigWheel struct {
-	// Mass of one wheel.
+	// Mass of one wheel (kg). Change together with chassis.mass.
 	Mass *float64 `json:"mass,omitempty,omitzero" yaml:"mass,omitempty" mapstructure:"mass,omitempty"`
 
-	// Wheel radius.
+	// Wheel radius (m).
 	Radius *float64 `json:"radius,omitempty,omitzero" yaml:"radius,omitempty" mapstructure:"radius,omitempty"`
 
-	// Wheel width.
+	// Wheel width (m).
 	Width *float64 `json:"width,omitempty,omitzero" yaml:"width,omitempty" mapstructure:"width,omitempty"`
 }

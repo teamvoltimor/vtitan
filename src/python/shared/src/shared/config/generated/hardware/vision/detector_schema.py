@@ -11,9 +11,15 @@ class HardwareVisionDetector(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    model_path: str = Field(..., description='Model path.')
-    min_confidence: float = Field(..., description='Min confidence.')
+    model_path: str = Field(
+        ...,
+        description='Default model path used by test/debug callers that build a detector with no config.',
+    )
+    min_confidence: float = Field(
+        ...,
+        description='THE one shipped detection-confidence floor, shared by all three vision backends. The hailo backends (hailo.toml, hailo_streaming.toml) no longer declare their own copy: their pydantic fields resolve it back to this line, so a backend change is deliberate (env HAILO_MIN_CONFIDENCE / DETECTOR_MIN_CONFIDENCE), never a forgotten literal.',
+    )
     output_format: str = Field(
         ...,
-        description='THE one shipped detection-confidence floor. The hailo backends (hailo.toml, hailo_streaming.toml) no longer declare their own copy: their pydantic fields resolve it back to this line, so a backend change is deliberate (env HAILO_MIN_CONFIDENCE / DETECTOR_MIN_CONFIDENCE), never a forgotten literal.',
+        description='Bounding-box coordinate convention emitted by the detector: "normalized" (0-1 relative to the model input frame) or "absolute" (pixels).',
     )

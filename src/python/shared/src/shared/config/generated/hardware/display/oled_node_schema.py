@@ -15,4 +15,7 @@ class HardwareDisplayOledNode(StrictModel):
         ...,
         description="Keys use the fields' validation_alias, which accepts both the lowercase spelling below and the SHOUT_CASE UI_REFRESH_RATE_HZ / DISPLAY_BACKEND env-var names -- pydantic only matches a TOML key against the alias when one is declared.",
     )
-    display_backend: str = Field(..., description='Display backend.')
+    display_backend: str = Field(
+        ...,
+        description='SSD1306 I2C backend: blinka (Adafruit CircuitPython) or raw_i2c (direct /dev/i2c-N ioctl).',
+    )

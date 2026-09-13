@@ -3,24 +3,24 @@
 package camera
 
 type HardwareCameraConfig struct {
-	// Device.
+	// V4L2 camera device path (e.g. /dev/video0).
 	Device string `json:"device" yaml:"device" mapstructure:"device"`
 
-	// Fps.
+	// Target camera capture rate in frames per second.
 	Fps int `json:"fps" yaml:"fps" mapstructure:"fps"`
 
-	// Height.
+	// Camera capture height in pixels.
 	Height int `json:"height" yaml:"height" mapstructure:"height"`
 
-	// Hflip.
+	// Mirror the camera image horizontally.
 	Hflip bool `json:"hflip" yaml:"hflip" mapstructure:"hflip"`
 
-	// Rotation.
+	// Camera rotation in degrees (0, 90, 180, 270).
 	Rotation int `json:"rotation" yaml:"rotation" mapstructure:"rotation"`
 
-	// Vflip.
+	// Mirror the camera image vertically.
 	Vflip bool `json:"vflip" yaml:"vflip" mapstructure:"vflip"`
 
-	// Width.
+	// Camera capture width in pixels.
 	Width int `json:"width" yaml:"width" mapstructure:"width"`
 }

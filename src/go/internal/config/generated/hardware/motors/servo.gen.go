@@ -3,30 +3,35 @@
 package motors
 
 type HardwareMotorsServo struct {
-	// Center pulse us.
+	// Pulse width in microseconds that holds the wheels straight.
 	CenterPulseUs float64 `json:"center_pulse_us" yaml:"center_pulse_us" mapstructure:"center_pulse_us"`
 
-	// Gpio pin.
+	// BCM pin driving the servo signal (informational; the PWM overlay in config.txt
+	// fixes the actual pin).
 	GpioPin int `json:"gpio_pin" yaml:"gpio_pin" mapstructure:"gpio_pin"`
 
-	// Max pulse us.
+	// Pulse width in microseconds at full-right travel.
 	MaxPulseUs float64 `json:"max_pulse_us" yaml:"max_pulse_us" mapstructure:"max_pulse_us"`
 
-	// Min pulse us.
+	// Pulse width in microseconds at full-left travel.
 	MinPulseUs float64 `json:"min_pulse_us" yaml:"min_pulse_us" mapstructure:"min_pulse_us"`
 
-	// Pwm channel.
+	// PWM channel within the controller (channel 0 for GPIO 12 under the
+	// single-channel overlay).
 	PwmChannel int `json:"pwm_channel" yaml:"pwm_channel" mapstructure:"pwm_channel"`
 
-	// Pwm frequency hz.
+	// Servo PWM carrier frequency in Hz; the servo's 20 ms frame period derives from
+	// it.
 	PwmFrequencyHz int `json:"pwm_frequency_hz" yaml:"pwm_frequency_hz" mapstructure:"pwm_frequency_hz"`
 
-	// Pwmchip.
+	// sysfs PWM controller index (/sys/class/pwm/pwmchip<N>).
 	Pwmchip int `json:"pwmchip" yaml:"pwmchip" mapstructure:"pwmchip"`
 
-	// Range deg.
+	// Total mechanical travel in degrees spanned between min_pulse_us and
+	// max_pulse_us.
 	RangeDeg float64 `json:"range_deg" yaml:"range_deg" mapstructure:"range_deg"`
 
-	// Reversed.
+	// Invert steering direction when the servo is mounted so left commands turn
+	// right.
 	Reversed bool `json:"reversed" yaml:"reversed" mapstructure:"reversed"`
 }

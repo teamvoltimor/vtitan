@@ -7,7 +7,7 @@
   "properties": {
     "enable_sensors_delay": {
       "type": "number",
-      "description": "Enable sensors delay."
+      "description": "Delay in seconds after enabling the sensors to let them stabilize before reading."
     }
   },
   "required": [

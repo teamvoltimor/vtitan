@@ -32,42 +32,50 @@
     "open_slow_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional open slow mps override in m/s; absent means the base tier applies."
+      "description": "Optional open slow mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "open_medium_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional open medium mps override in m/s; absent means the base tier applies."
+      "description": "Optional open medium mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "open_fast_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional open fast mps override in m/s; absent means the base tier applies."
+      "description": "Optional open fast mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "open_max_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional open max mps override in m/s; absent means the base tier applies."
+      "description": "Optional open max mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "obstacles_slow_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional obstacles slow mps override in m/s; absent means the base tier applies."
+      "description": "Optional obstacles slow mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "obstacles_medium_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional obstacles medium mps override in m/s; absent means the base tier applies."
+      "description": "Optional obstacles medium mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "obstacles_fast_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional obstacles fast mps override in m/s; absent means the base tier applies."
+      "description": "Optional obstacles fast mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "obstacles_max_mps": {
       "type": "number",
       "x-unit": "m/s",
-      "description": "Optional obstacles max mps override in m/s; absent means the base tier applies."
+      "description": "Optional obstacles max mps override in m/s; absent means the base tier applies.",
+      "x-journal": "adr:0033-per-challenge-speed-ladders"
     },
     "corner_mps": {
       "type": "number",

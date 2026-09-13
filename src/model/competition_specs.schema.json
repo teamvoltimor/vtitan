@@ -2,15 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vtitan.local/schemas/competition_specs.schema.json",
   "title": "CompetitionSpecs",
-  "description": "Competition match rules for the WRO Future Engineers challenge: round timing and lap counts.",
+  "description": "Competition match rules for the WRO Future Engineers challenge: round timing and lap counts. Rationale for the values is in other/docs/adr.",
   "type": "object",
   "additionalProperties": false,
   "required": ["round_time_limit_s", "open_challenge_laps", "obstacle_challenge_laps"],
   "properties": {
     "round_time_limit_s": {
-      "description": "Official round duration.",
+      "description": "Official round duration (seconds): 3 minutes.",
       "type": "number",
-      "x-unit": "s"
+      "x-unit": "s",
+      "x-journal": "adr:0018-competition-specs-single-source"
     },
     "open_challenge_laps": {
       "description": "Laps required per Open Challenge run.",

@@ -7,15 +7,15 @@
   "properties": {
     "pwmchip": {
       "type": "integer",
-      "description": "Pwmchip."
+      "description": "sysfs PWM controller index (/sys/class/pwm/pwmchip<N>)."
     },
     "pwm_channel": {
       "type": "integer",
-      "description": "Pwm channel."
+      "description": "PWM channel within the controller (channel 1 under the pwm-2chan overlay)."
     },
     "frequency_hz": {
       "type": "integer",
-      "description": "Frequency hz."
+      "description": "PWM carrier frequency in Hz."
     },
     "forward_pwm_pin": {
       "type": "integer",
@@ -31,7 +31,7 @@
     },
     "l_en_pin": {
       "type": "integer",
-      "description": "L en pin."
+      "description": "Held permanently HIGH at connect(), like r_en_pin: it gates the module's overcurrent/thermal protection, not direction."
     }
   },
   "required": [

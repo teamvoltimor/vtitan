@@ -15,7 +15,8 @@
     },
     "obstacles_inner_wall_terminal": {
       "type": "boolean",
-      "description": "Does inner-wall contact END an Obstacles run? In the RULES it does not. The rule set, operator-confirmed 2026-09-11: OPEN      -- the OUTER wall may not be touched (unchanged by this flag). BOTH      -- a wall may not be MOVED if it is not fixed, and moving one takes considerable force, which a scrape at this chassis's mass and speed does not reach. That is what makes relaxing this sound and not merely permitted. OBSTACLES -- the PARKING LOT may not be touched (9.24.7). Terminal regardless of this flag: the parking lot, displacing a sign out of its 85 mm circle (9.20), and the wrong pass side (9.19/9.24.5). Those three are the whole of what ends an Obstacles round. TRUE keeps the strict scoring every figure in this repo was measured under. Set FALSE to score the actual rule, and state which scoring a result used -- one taken under each and compared is meaningless."
+      "description": "Does inner-wall contact END an Obstacles run? In the RULES it does not. The rule set, operator-confirmed 2026-09-11: OPEN      -- the OUTER wall may not be touched (unchanged by this flag). BOTH      -- a wall may not be MOVED if it is not fixed, and moving one takes considerable force, which a scrape at this chassis's mass and speed does not reach. That is what makes relaxing this sound and not merely permitted. OBSTACLES -- the PARKING LOT may not be touched (9.24.7). Terminal regardless of this flag: the parking lot, displacing a sign out of its 85 mm circle (9.20), and the wrong pass side (9.19/9.24.5). Those three are the whole of what ends an Obstacles round. TRUE keeps the strict scoring every figure in this repo was measured under. Set FALSE to score the actual rule, and state which scoring a result used -- one taken under each and compared is meaningless.",
+      "x-journal": "adr:0043-obstacles-inner-wall-scoring"
     },
     "lidar_invalid_ray_rate": {
       "type": "number",
@@ -39,7 +40,7 @@
     },
     "no_progress_displacement_m": {
       "type": "number",
-      "description": "No progress displacement m."
+      "description": "Straight-line displacement (m) a run must net within no_progress_window_s or it is scored stuck."
     },
     "vision_through_pinhole": {
       "type": "boolean",
@@ -55,11 +56,11 @@
     },
     "vision_detect_r50_m": {
       "type": "number",
-      "description": "Vision detect r50 m."
+      "description": "Emulated camera range (m) at which a sign is detected on about half of frames."
     },
     "vision_detect_falloff_m": {
       "type": "number",
-      "description": "Vision detect falloff m."
+      "description": "Width (m) of the logistic detection-probability falloff around vision_detect_r50_m; smaller is a sharper cliff."
     }
   },
   "required": [

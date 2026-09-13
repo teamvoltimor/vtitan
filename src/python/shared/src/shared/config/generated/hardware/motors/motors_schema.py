@@ -11,26 +11,60 @@ class Steering(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    offset: float = Field(..., description='Offset.')
-    left_limit_angle: float = Field(..., description='Left limit angle.')
-    right_limit_angle: float = Field(..., description='Right limit angle.')
-    center_angle: float = Field(..., description='Center angle.')
-    centering_speed: int = Field(..., description='Centering speed.')
-    turning_speed: int = Field(..., description='Turning speed.')
-    reversed: bool = Field(..., description='Reversed.')
+    offset: float = Field(
+        ...,
+        description='Steering center offset in degrees; positive biases right, negative biases left.',
+    )
+    left_limit_angle: float = Field(
+        ..., description='Maximum left steering angle in degrees.'
+    )
+    right_limit_angle: float = Field(
+        ..., description='Maximum right steering angle in degrees.'
+    )
+    center_angle: float = Field(
+        ..., description='Servo angle in degrees that corresponds to centred steering.'
+    )
+    centering_speed: int = Field(
+        ..., description='Speed in degrees per second used when centring the steering.'
+    )
+    turning_speed: int = Field(
+        ...,
+        description='Default speed used when moving the steering to a commanded position.',
+    )
+    reversed: bool = Field(
+        ...,
+        description='Invert steering direction when left commands otherwise turn the wheels right.',
+    )
 
 
 class Drive(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    reversed: bool = Field(..., description='Reversed.')
-    encoder_reversed: bool = Field(..., description='Encoder reversed.')
-    min_speed: int = Field(..., description='Min speed.')
-    max_speed: int = Field(..., description='Max speed.')
-    speed_scale: float = Field(..., description='Speed scale.')
-    default_speed: int = Field(..., description='Default speed.')
-    test_duration: float = Field(..., description='Test duration.')
+    reversed: bool = Field(
+        ...,
+        description='Invert the drive direction when forward commands otherwise move the robot backward.',
+    )
+    encoder_reversed: bool = Field(
+        ...,
+        description='Whether the encoder counts up when the robot moves backward; independent of drive.reversed.',
+    )
+    min_speed: int = Field(
+        ..., description='Lowest drive motor speed command that operates effectively.'
+    )
+    max_speed: int = Field(
+        ..., description='Highest drive motor speed command considered safe.'
+    )
+    speed_scale: float = Field(
+        ...,
+        description='Velocity to motor-speed scale factor: motor_speed = velocity_m_s * speed_scale.',
+    )
+    default_speed: int = Field(
+        ..., description='Fallback drive motor speed command when none is specified.'
+    )
+    test_duration: float = Field(
+        ..., description='Duration in seconds for motor test/diagnostic runs.'
+    )
 
 
 class HardwareMotorsMotors(StrictModel):

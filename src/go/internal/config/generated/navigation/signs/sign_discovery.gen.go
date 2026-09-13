@@ -32,7 +32,8 @@ type NavigationSignsSignDiscovery struct {
 	// gated arm is the only one that improves without shrinking the denominator.
 	LidarRangeFusion bool `json:"lidar_range_fusion" yaml:"lidar_range_fusion" mapstructure:"lidar_range_fusion"`
 
-	// Lidar range fusion agreement.
+	// Fractional range disagreement (fraction of the pinhole estimate) above which
+	// the LIDAR cluster is rejected and the pinhole range stands.
 	LidarRangeFusionAgreement float64 `json:"lidar_range_fusion_agreement" yaml:"lidar_range_fusion_agreement" mapstructure:"lidar_range_fusion_agreement"`
 
 	// The two knobs below parameterise lidar_range_fusion above. The gate requires a

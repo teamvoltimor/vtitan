@@ -16,40 +16,42 @@ class Track(StrictModel):
     )
     mat_size: float = Field(
         ...,
-        description='Printed mat side length. Larger than the driveable track it carries.',
+        description='Printed mat side length (m). Larger than the driveable track it carries.',
     )
-    size: float = Field(..., description='Driveable track side length.')
-    min_coord: float = Field(..., description='Minimum coordinate, bottom-left origin.')
+    size: float = Field(..., description='Driveable track side length (m).')
+    min_coord: float = Field(
+        ..., description='Minimum coordinate (m), bottom-left origin.'
+    )
     max_coord: float = Field(
         ...,
-        description='Maximum coordinate, top-right. Equal to the track size for a track that starts at the origin.',
+        description='Maximum coordinate (m), top-right. Equal to the track size for a track that starts at the origin.',
     )
     corner_min: float = Field(
-        ..., description='Corner region start: the middle third of each axis.'
+        ..., description='Corner region start (m): the middle third of each axis.'
     )
-    corner_max: float = Field(..., description='Corner region end.')
+    corner_max: float = Field(..., description='Corner region end (m).')
 
 
 class Corridor(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    narrow: float = Field(..., description='Narrow corridor width.')
-    wide: float = Field(..., description='Wide corridor width.')
+    narrow: float = Field(..., description='Narrow corridor width (m).')
+    wide: float = Field(..., description='Wide corridor width (m).')
     obstacles: float = Field(
-        ..., description='Obstacles-challenge fixed corridor width.'
+        ..., description='Obstacles-challenge fixed corridor width (m).'
     )
     min_width: float = Field(
         ...,
-        description='Minimum valid corridor width. Deliberately below the legal minimum so tests can exercise off-spec layouts.',
+        description='Minimum valid corridor width (m). Deliberately below the legal minimum so tests can exercise off-spec layouts.',
     )
     max_width: float = Field(
         ...,
-        description='Maximum valid corridor width. Deliberately above the legal maximum so tests can exercise off-spec layouts.',
+        description='Maximum valid corridor width (m). Deliberately above the legal maximum so tests can exercise off-spec layouts.',
     )
     division_lines: list[float] = Field(
         ...,
-        description='The two division lines painted across every corridor, measured out from the outer wall. Every other lengthwise division derives from these: the starting square bands and the sign-grid width lines.',
+        description='The two division lines painted across every corridor, measured out from the outer wall (m). Every other lengthwise division derives from these: the starting square bands and the sign-grid width lines.',
         min_length=2,
     )
 
@@ -69,17 +71,17 @@ class Wall(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    height: float = Field(..., description='Wall height.')
-    thickness: float = Field(..., description='Visual wall thickness.')
+    height: float = Field(..., description='Wall height (m).')
+    thickness: float = Field(..., description='Visual wall thickness (m).')
     collision_thickness: float = Field(
         ...,
-        description='Collision thickness. Matches the visual wall; there is no inflation.',
+        description='Collision thickness (m). Matches the visual wall; there is no inflation.',
     )
     exterior_offset: float = Field(
-        ..., description='Exterior wall inset: half the wall thickness.'
+        ..., description='Exterior wall inset (m): half the wall thickness.'
     )
     interior_offset: float = Field(
-        ..., description='Interior wall inset: half the wall thickness.'
+        ..., description='Interior wall inset (m): half the wall thickness.'
     )
     color: RGB = Field(..., description='Wall colour, normalized RGB in [0, 1].')
 
@@ -88,25 +90,25 @@ class Sign(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    width: float = Field(..., description='Pillar width.')
-    depth: float = Field(..., description='Pillar depth.')
-    height: float = Field(..., description='Pillar height.')
+    width: float = Field(..., description='Pillar width (m).')
+    depth: float = Field(..., description='Pillar depth (m).')
+    height: float = Field(..., description='Pillar height (m).')
     z_position: float = Field(
         ...,
-        description='Pillar centre height. Half the pillar height: pillars are placed by their centre.',
+        description='Pillar centre height (m). Half the pillar height: pillars are placed by their centre.',
     )
     grid_depth_near: float = Field(
-        ..., description='Along-corridor position of the near sign-grid row.'
+        ..., description='Along-corridor position of the near sign-grid row (m).'
     )
     grid_depth_middle: float = Field(
-        ..., description='Along-corridor position of the middle sign-grid row.'
+        ..., description='Along-corridor position of the middle sign-grid row (m).'
     )
     grid_depth_far: float = Field(
-        ..., description='Along-corridor position of the far sign-grid row.'
+        ..., description='Along-corridor position of the far sign-grid row (m).'
     )
     placement_circle_diameter: float = Field(
         ...,
-        description='Diameter of the circle each pillar is placed within. Touching a pillar is not a failure: the pillar may be nudged while any corner of its square stays inside this circle. Only pushing it fully out counts against the team.',
+        description='Diameter (m) of the circle each pillar is placed within. Touching a pillar is not a failure: the pillar may be nudged while any corner of its square stays inside this circle. Only pushing it fully out counts against the team.',
     )
     min_count: conint(ge=0) = Field(
         ..., description='Minimum number of pillars per round.'
@@ -133,16 +135,16 @@ class Parking(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    length: float = Field(..., description='Parking block length.')
-    width: float = Field(..., description='Parking block width.')
-    height: float = Field(..., description='Parking block height.')
+    length: float = Field(..., description='Parking block length (m).')
+    width: float = Field(..., description='Parking block width (m).')
+    height: float = Field(..., description='Parking block height (m).')
     z_position: float = Field(
         ...,
-        description='Parking block centre height. Half the block height: the block is placed by its centre.',
+        description='Parking block centre height (m). Half the block height: the block is placed by its centre.',
     )
     wall_offset: float = Field(
         ...,
-        description='Distance from the wall to the block centre. Half the block length, so the block sits flush to the wall.',
+        description='Distance from the wall to the block centre (m). Half the block length, so the block sits flush to the wall.',
     )
     spacing_factor: float = Field(
         ...,
@@ -158,17 +160,18 @@ class StartingZone(StrictModel):
         extra='forbid',
     )
     default_length: float = Field(
-        ..., description='One cell of the starting square, along the corridor.'
+        ..., description='One cell of the starting square, along the corridor (m).'
     )
     thickness: float = Field(
-        ..., description='Visual thickness of the starting-square marker.'
+        ..., description='Visual thickness of the starting-square marker (m).'
     )
     obstacles_size_factor: float = Field(
         ...,
         description='Starting-square size as a fraction of the obstacles-challenge gap.',
     )
     indicator_radius: float = Field(
-        ..., description='Radius of the clockwise/counterclockwise direction indicator.'
+        ...,
+        description='Radius (m) of the clockwise/counterclockwise direction indicator.',
     )
     color: RGB = Field(
         ..., description='Starting-square base colour, normalized RGB in [0, 1].'
@@ -196,7 +199,9 @@ class Markings(StrictModel):
     blue_color: RGB = Field(
         ..., description='Corner line colour, normalized RGB in [0, 1].'
     )
-    angle: float = Field(..., description='Corner line half-splay from the bisector.')
+    angle: float = Field(
+        ..., description='Corner line half-splay from the bisector (deg).'
+    )
 
 
 class TrackConfig(StrictModel):

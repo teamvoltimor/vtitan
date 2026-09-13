@@ -41,10 +41,22 @@ class NavigationSignsSignRouter(StrictModel):
         ...,
         description="A LIDAR return landing within this distance of a sign the router is still routing around is attributed to that sign and withheld from the reactive escape trigger -- the planner owns it, so the escape maneuver must not fire and reverse the robot out of a gap the planner aimed for. Sized as the sign's own half-diagonal (0.035 m for a 50x50 mm footprint) plus ~0.085 m of pose and mapping error. Do NOT raise this much further: the wall behind a sign can be as close as ~0.15 m in a narrow corridor, and masking that wall too would remove a guard nothing else replaces. Set to 0.0 to disable the split. Assign evidence to the rulebook 24 legal cells (2 per section) instead of clustering camera reports freely. Measured over 125 bags: routing error 23.3% -> 15.0%, worst believed-sign peak 24 -> 7, runs over the physical max 32/125 -> 0/125, position changes per run 44.9 -> 3.1, and zero re-points or colour flips while the router is COMMITTED. SHIPS OFF: it replaces the map every Obstacles figure in this repo was measured against, and the simulator cannot screen it (its sign map is exact, so all of the above collapses to zero).",
     )
-    slot_accept_radius_m: float = Field(..., description='Slot accept radius m.')
-    slot_min_evidence: float = Field(..., description='Slot min evidence.')
-    slot_repoint_margin: float = Field(..., description='Slot repoint margin.')
-    escape_mask_radius_m: float = Field(..., description='Escape mask radius m.')
+    slot_accept_radius_m: float = Field(
+        ...,
+        description='How close (m) an observation must be to a legal sign-lattice cell to claim it.',
+    )
+    slot_min_evidence: float = Field(
+        ...,
+        description='Summed detection confidence a lattice cell needs before it may hold a sign slot.',
+    )
+    slot_repoint_margin: float = Field(
+        ...,
+        description='Factor by which a challenger cell must out-weigh the incumbent cell to take its sign slot.',
+    )
+    escape_mask_radius_m: float = Field(
+        ...,
+        description='How close (m) a LIDAR return must land to a routed sign to be attributed to it and withheld from the reactive escape trigger; 0 disables the mask.',
+    )
     escape_mask_cluster_assoc_m: float = Field(
         ...,
         description="Snap that mask onto the LIDAR CLUSTER nearest the believed sign, instead of anchoring it on the belief. The radius above was covering two things at once -- the map's position ERROR and the pillar's EXTENT -- and on hardware no single value covers both. Measured 2026-09-11 over the two Obstacles rounds that wedged at the same point, the nearest LIDAR return sat p50 0.248 m and 0.154 m from the believed sign while the radius is 0.12, so the mask caught 0/209 and 60/316 of the ticks it exists for and both rounds were lost to the limit cycle it exists to prevent.  Association can be generous (a miss only costs the mask, it never masks a wall); the radius above stays tight because a cluster is MEASURED. 0.35 m covers the observed belief error with margin and is still well inside the 0.50 m the WRO grid spaces two pillars by, so one belief cannot snap onto its neighbour. 0.0 disables the snap.",
@@ -105,7 +117,8 @@ class NavigationSignsSignRouter(StrictModel):
         description='Re-label a lane that cannot be satisfied rather than skipping it outright.',
     )
     sign_lane_skip_unsatisfiable: bool = Field(
-        ..., description='Sign lane skip unsatisfiable.'
+        ...,
+        description='Drop a sign from the lane profile when its own clamped target lands on the forbidden side of it.',
     )
     sign_lane_depth_consistent_corridor: bool = Field(
         ...,
@@ -115,8 +128,14 @@ class NavigationSignsSignRouter(StrictModel):
         ..., description='Allow two lanes to overlap. REFUTED -- kept off.'
     )
     depth_pin: bool = Field(..., description='Guards on the depth/heading pin')
-    pin_corner_guard: bool = Field(..., description='Pin corner guard.')
-    pin_heading_guard: bool = Field(..., description='Pin heading guard.')
+    pin_corner_guard: bool = Field(
+        ...,
+        description="Re-check that the robot's real position is squarely in the corridor before the depth pin holds the point abeam a sign.",
+    )
+    pin_heading_guard: bool = Field(
+        ...,
+        description="Release the depth pin once the robot's heading has drifted more than pin_heading_guard_deg from where the pin engaged.",
+    )
     pin_heading_guard_deg: float = Field(
         ...,
         description='Heading disagreement, in degrees, above which the pin is refused.',
@@ -133,14 +152,26 @@ class NavigationSignsSignRouter(StrictModel):
         ...,
         description="Refuted experiments, kept configurable and OFF Retrace on escape: REFUTED (see steer_cap_from_commit_distance's note in corridor_follower.toml -- same session, same 640-case sweep).",
     )
-    retrace_dist_m: float = Field(..., description='Retrace dist m.')
-    retrace_steer_gain_deg: float = Field(..., description='Retrace steer gain deg.')
+    retrace_dist_m: float = Field(
+        ...,
+        description='How far back along the pose trail the REFUTED retrace-on-escape aims (m).',
+    )
+    retrace_steer_gain_deg: float = Field(
+        ...,
+        description='Road-wheel angle (degrees) commanded by the REFUTED retrace-on-escape when the target sits 45 degrees off the chassis.',
+    )
     sign_contact_evade: bool = Field(
         ...,
         description='Evade a sign on contact rather than routing around it in advance.',
     )
-    sign_contact_dist_m: float = Field(..., description='Sign contact dist m.')
-    sign_contact_steer_deg: float = Field(..., description='Sign contact steer deg.')
+    sign_contact_dist_m: float = Field(
+        ...,
+        description='Along-track distance (m) within which a routed sign predicted to clip the chassis triggers the OFF sign-contact evade.',
+    )
+    sign_contact_steer_deg: float = Field(
+        ...,
+        description='Road-wheel angle (degrees) steered away from the offending sign by the OFF sign-contact evade.',
+    )
     sign_aware_lookahead: bool = Field(
         ...,
         description='Use the SHORT pursuit lookahead while a routed sign is engaged (the comment here said "extend" until 2026-09-06; it shortens). Crosstrack is measured against the RAW path, so it never rises during a sign pass and never arms the short lookahead on its own -- a long lookahead flattens the slope to a lateral offset, and the chassis arrives level with the pillar still inside the line it was given.  Enabled 2026-09-06 on hardware evidence: abeam a committed sign the chassis achieves only 35-40% of its commanded lateral offset (0.12-0.14 m of 0.32-0.38 m, runs _112704 and _085551), and a THIRD of passes go within 10 cm of the pillar. Measured back-to-back on the 256 corpus, false -> true:  off    on in-time         149   148     flat laps>=3         150   149     flat pass-side         2     0     round-enders under 9.24.5 rev-run           5     1 collisions        8     5 of which wall   4     0 stuck            26    32     the cost timeouts         65    69     the cost  Shipped ON deliberately against a FLAT headline: a pass-side violation ends the round for zero, a timeout keeps the laps already driven. 7 round-enders become 1. Open is structurally unaffected (no sign router): 127/127 cases byte-identical, 0.0 s delta.',
@@ -156,24 +187,33 @@ class NavigationSignsSignRouter(StrictModel):
         ...,
         description="Proximity window a LIDAR pillar return must fall inside to count as that sign's return, and the FOV cone around the camera bearing it must sit in.",
     )
-    sign_lidar_align_max_m: float = Field(..., description='Sign lidar align max m.')
+    sign_lidar_align_max_m: float = Field(
+        ...,
+        description="Far edge of the range window (m) a LIDAR pillar return must fall inside to count as a sign's return.",
+    )
     sign_lidar_align_fov_deg: float = Field(
-        ..., description='Sign lidar align fov deg.'
+        ...,
+        description='Half-angle of the forward cone (degrees) searched for an unclassified LIDAR pillar return.',
     )
     sign_lidar_align_depth_m: float = Field(
         ...,
         description='Reached depth past a pulled line at which the align branch hands a detected but unclassified return over, and the width a return may span before it stops looking pillar-shaped to the test.',
     )
     sign_lidar_align_max_width_m: float = Field(
-        ..., description='Sign lidar align max width m.'
+        ...,
+        description='Maximum arc width (m, nearest range times angular span) a LIDAR return may span and still read as pillar-shaped.',
     )
     sign_lidar_align_deadband_deg: float = Field(
         ...,
         description="Heading deadband and gain of the steer-at-the-return law, with its own cap. sign_lidar_align's U-turn refutation turns on this gain: do not raise while it ships off.",
     )
-    sign_lidar_align_gain: float = Field(..., description='Sign lidar align gain.')
+    sign_lidar_align_gain: float = Field(
+        ...,
+        description='Heading gain of the steer-at-the-return law: the nudge is the return bearing scaled by this and clipped to sign_lidar_align_max_steer.',
+    )
     sign_lidar_align_max_steer: float = Field(
-        ..., description='Sign lidar align max steer.'
+        ...,
+        description='Cap on the normalized steering nudge (fraction of full lock) the unclassified-return align law may add.',
     )
     sign_lidar_propose: bool = Field(
         ...,

@@ -3,9 +3,11 @@
 package state_machine
 
 type HardwareStateMachineStateMachineNode struct {
-	// Challenge mode samples required.
+	// Consecutive agreeing BOOT_CHECK-tick samples required before trusting the
+	// challenge-mode jumper reading.
 	ChallengeModeSamplesRequired int `json:"challenge_mode_samples_required" yaml:"challenge_mode_samples_required" mapstructure:"challenge_mode_samples_required"`
 
-	// Challenge mode timeout sec.
+	// Seconds to wait for the Pi Zero's jumper reading before defaulting to Open
+	// Challenge.
 	ChallengeModeTimeoutSec float64 `json:"challenge_mode_timeout_sec" yaml:"challenge_mode_timeout_sec" mapstructure:"challenge_mode_timeout_sec"`
 }

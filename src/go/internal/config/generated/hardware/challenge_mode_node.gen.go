@@ -3,6 +3,6 @@
 package hardware
 
 type HardwareChallengeModeNode struct {
-	// Publish rate hz.
+	// Republish rate of the challenge-mode jumper state, in Hz.
 	PublishRateHz float64 `json:"publish_rate_hz" yaml:"publish_rate_hz" mapstructure:"publish_rate_hz"`
 }

@@ -11,7 +11,17 @@ class HardwareLidar(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    serial_port: str = Field(..., description='Serial port.')
-    serial_baudrate: int = Field(..., description='Serial baudrate.')
-    scan_mode: str = Field(..., description='Scan mode.')
-    angle_compensate: bool = Field(..., description='Angle compensate.')
+    serial_port: str = Field(
+        ...,
+        description='Serial device path for the LIDAR (launch-time override with serial_port:=...).',
+    )
+    serial_baudrate: int = Field(
+        ..., description='Serial baud rate for LIDAR communication.'
+    )
+    scan_mode: str = Field(
+        ...,
+        description='sllidar_ros2 scan mode passed to the driver (for example Standard).',
+    )
+    angle_compensate: bool = Field(
+        ..., description='Enable sllidar_ros2 angle compensation for the rotating scan.'
+    )

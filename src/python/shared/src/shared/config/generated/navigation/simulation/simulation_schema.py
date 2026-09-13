@@ -44,7 +44,8 @@ class NavigationSimulationSimulation(StrictModel):
         description="The simulator's no-progress bailout: a run is abandoned once the robot moves less than no_progress_displacement_m within no_progress_window_s. A HARNESS artefact, not a robot behaviour -- it ends a manoeuvre that is working but slow, which is exactly what the bay-exit ratchet looks like (diag_bay_start grew --no-progress-window for this). Written out 2026-09-05; both existed only as Python literals, at these same shipped values.",
     )
     no_progress_displacement_m: float = Field(
-        ..., description='No progress displacement m.'
+        ...,
+        description='Straight-line displacement (m) a run must net within no_progress_window_s or it is scored stuck.',
     )
     vision_through_pinhole: bool = Field(
         ...,
@@ -58,5 +59,11 @@ class NavigationSimulationSimulation(StrictModel):
         ...,
         description="Floor the curvature at min(cap, intercept + slope * |v|) instead of the constant min_turn_radius_m. That constant is the curve's value at ONE speed: re-measured 2026-09-10 over 33 bags in free space at lock >= 30 deg, the achieved radius is 0.105 m at 0.025 m/s, 0.298 at 0.132 and saturates near 0.43 above 0.22, so 0.29 corresponds to ~0.118 m/s. The bay exit creeps end to end, where the constant is nearly 2x too large. The three constants live in robot.toml beside min_turn_radius_m; this only decides whether the simulator uses them. FALSE pending a corpus A/B -- it moves every contact- and corner-dependent number, exactly as shipping the constant floor did.",
     )
-    vision_detect_r50_m: float = Field(..., description='Vision detect r50 m.')
-    vision_detect_falloff_m: float = Field(..., description='Vision detect falloff m.')
+    vision_detect_r50_m: float = Field(
+        ...,
+        description='Emulated camera range (m) at which a sign is detected on about half of frames.',
+    )
+    vision_detect_falloff_m: float = Field(
+        ...,
+        description='Width (m) of the logistic detection-probability falloff around vision_detect_r50_m; smaller is a sharper cliff.',
+    )

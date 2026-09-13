@@ -11,31 +11,31 @@
       "properties": {
         "offset": {
           "type": "number",
-          "description": "Offset."
+          "description": "Steering center offset in degrees; positive biases right, negative biases left."
         },
         "left_limit_angle": {
           "type": "number",
-          "description": "Left limit angle."
+          "description": "Maximum left steering angle in degrees."
         },
         "right_limit_angle": {
           "type": "number",
-          "description": "Right limit angle."
+          "description": "Maximum right steering angle in degrees."
         },
         "center_angle": {
           "type": "number",
-          "description": "Center angle."
+          "description": "Servo angle in degrees that corresponds to centred steering."
         },
         "centering_speed": {
           "type": "integer",
-          "description": "Centering speed."
+          "description": "Speed in degrees per second used when centring the steering."
         },
         "turning_speed": {
           "type": "integer",
-          "description": "Turning speed."
+          "description": "Default speed used when moving the steering to a commanded position."
         },
         "reversed": {
           "type": "boolean",
-          "description": "Reversed."
+          "description": "Invert steering direction when left commands otherwise turn the wheels right."
         }
       },
       "required": [
@@ -54,31 +54,31 @@
       "properties": {
         "reversed": {
           "type": "boolean",
-          "description": "Reversed."
+          "description": "Invert the drive direction when forward commands otherwise move the robot backward."
         },
         "encoder_reversed": {
           "type": "boolean",
-          "description": "Encoder reversed."
+          "description": "Whether the encoder counts up when the robot moves backward; independent of drive.reversed."
         },
         "min_speed": {
           "type": "integer",
-          "description": "Min speed."
+          "description": "Lowest drive motor speed command that operates effectively."
         },
         "max_speed": {
           "type": "integer",
-          "description": "Max speed."
+          "description": "Highest drive motor speed command considered safe."
         },
         "speed_scale": {
           "type": "number",
-          "description": "Speed scale."
+          "description": "Velocity to motor-speed scale factor: motor_speed = velocity_m_s * speed_scale."
         },
         "default_speed": {
           "type": "integer",
-          "description": "Default speed."
+          "description": "Fallback drive motor speed command when none is specified."
         },
         "test_duration": {
           "type": "number",
-          "description": "Test duration."
+          "description": "Duration in seconds for motor test/diagnostic runs."
         }
       },
       "required": [

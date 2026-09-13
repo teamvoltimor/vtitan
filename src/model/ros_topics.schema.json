@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vtitan.local/schemas/ros_topics.schema.json",
   "title": "RosTopics",
-  "description": "Single source of truth for ROS2 topic names used by the robot and telemetry.",
+  "description": "Single source of truth for ROS2 topic names used by the robot and telemetry. Loaded via RosTopicConfig.load_default(). Rationale for the values is in other/docs/adr.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,7 +24,7 @@
       "additionalProperties": false,
       "required": ["state", "race_metrics", "system_status"],
       "properties": {
-        "state": { "description": "Robot state.", "type": "string" },
+        "state": { "description": "Robot state.", "type": "string", "x-journal": "adr:0017-ros-topics-centralized" },
         "race_metrics": { "description": "Race metrics, as JSON.", "type": "string" },
         "system_status": { "description": "System diagnostics, also used by telemetry_bridge_node.", "type": "string" }
       }
@@ -36,11 +36,11 @@
       "required": ["laps_completed", "current_corridor", "nav_debug"],
       "properties": {
         "odometry": {
-          "description": "Odometry from track_navigator_node. Currently no node publishes it.",
+          "description": "Odometry from track_navigator_node. As of 2026-08-02 no node publishes it; the telemetry bridge subscribes but receives no data.",
           "type": "string"
         },
-        "laps_completed": { "description": "Lap count from the LapDetector.", "type": "string" },
-        "current_corridor": { "description": "Active track corridor (Section name).", "type": "string" },
+        "laps_completed": { "description": "Lap count from track_navigator_node's CoreNavigator/LapDetector, the only thing that detects a lap crossing.", "type": "string" },
+        "current_corridor": { "description": "Active track corridor (Section name: north/south/east/west), BEST_EFFORT, published every control tick.", "type": "string" },
         "nav_debug": { "description": "Per-tick NavigatorDebugSnapshot, as JSON.", "type": "string" }
       }
     },
@@ -52,9 +52,9 @@
       "properties": {
         "scan": { "description": "LIDAR range data from the Slamtec C1.", "type": "string" },
         "imu": { "description": "IMU data from the BNO085.", "type": "string" },
-        "vision_detections": { "description": "Vision detections, as JSON.", "type": "string" },
-        "camera_image_raw": { "description": "Raw camera image.", "type": "string" },
-        "joy": { "description": "Joystick input.", "type": "string" }
+        "vision_detections": { "description": "Vision detections (std_msgs/String), as JSON, published by vision_node.", "type": "string" },
+        "camera_image_raw": { "description": "Raw camera image, for diagnostics/monitoring.", "type": "string" },
+        "joy": { "description": "Joystick input (sensor_msgs/Joy), consumed by joy_teleop_node.", "type": "string" }
       }
     },
     "commands": {
@@ -73,9 +73,9 @@
       "required": ["joint_states", "steering_position", "drive_speed", "status"],
       "properties": {
         "joint_states": { "description": "Joint state feedback: steering angle, drive speed, encoder position.", "type": "string" },
-        "steering_position": { "description": "Current steering position in degrees.", "type": "string" },
-        "drive_speed": { "description": "Current drive speed.", "type": "string" },
-        "status": { "description": "Motor status diagnostics.", "type": "string" }
+        "steering_position": { "description": "Current steering position in degrees, published by ackermann_motor_node.", "type": "string" },
+        "drive_speed": { "description": "Current drive speed in degrees/s, published by ackermann_motor_node.", "type": "string" },
+        "status": { "description": "Motor status diagnostics, published by ackermann_motor_node.", "type": "string" }
       }
     },
     "challenge_mode": {
@@ -84,8 +84,8 @@
       "additionalProperties": false,
       "required": ["jumper_inserted", "active"],
       "properties": {
-        "jumper_inserted": { "description": "Challenge-mode jumper state.", "type": "string" },
-        "active": { "description": "Resolved ScenarioType once latched.", "type": "string" }
+        "jumper_inserted": { "description": "Challenge-mode jumper state, published by the Pi Zero.", "type": "string" },
+        "active": { "description": "Resolved ScenarioType (open/obstacles) once latched.", "type": "string" }
       }
     },
     "button": {
@@ -94,8 +94,8 @@
       "additionalProperties": false,
       "required": ["event", "hold"],
       "properties": {
-        "event": { "description": "Button events.", "type": "string" },
-        "hold": { "description": "JSON hold-progress feedback, for the OLED countdown.", "type": "string" }
+        "event": { "description": "Button events from button_node on the Pi Zero.", "type": "string" },
+        "hold": { "description": "JSON hold-progress feedback from button_node, for the OLED countdown.", "type": "string" }
       }
     },
     "ui": {
@@ -104,8 +104,8 @@
       "additionalProperties": false,
       "required": ["telemetry_summary", "oled_mirror"],
       "properties": {
-        "telemetry_summary": { "description": "Low-rate lidar/yaw/detection summary for the OLED.", "type": "string" },
-        "oled_mirror": { "description": "Live mirror of the OLED panel.", "type": "string" }
+        "telemetry_summary": { "description": "Low-rate lidar/yaw/detection summary for the OLED, from telemetry_bridge_node.", "type": "string" },
+        "oled_mirror": { "description": "Live mirror of the OLED panel, published by oled_display_node.", "type": "string" }
       }
     },
     "bag_recorder": {
@@ -114,7 +114,7 @@
       "additionalProperties": false,
       "required": ["run_path"],
       "properties": {
-        "run_path": { "description": "Latched run directory the recorder is writing to.", "type": "string" }
+        "run_path": { "description": "Latched run directory the recorder just started writing to, so a separate process can write into the same mcap directory.", "type": "string" }
       }
     },
     "simulation": {
@@ -124,10 +124,10 @@
       "required": ["odom", "track", "plan", "sign_estimates", "robot_model"],
       "properties": {
         "odom": { "description": "Simulated pose.", "type": "string" },
-        "track": { "description": "Simulated track markers.", "type": "string" },
-        "plan": { "description": "Planned polyline the navigator is tracking, as JSON.", "type": "string" },
+        "track": { "description": "Simulated track markers. Cached and re-sent about once a second.", "type": "string" },
+        "plan": { "description": "Planned polyline the navigator is tracking right now, as JSON. A belief, not ground truth.", "type": "string" },
         "sign_estimates": { "description": "Sign estimates the plan was built from, as JSON.", "type": "string" },
-        "robot_model": { "description": "Chassis/sensor/wheel geometry in the base_link frame.", "type": "string" }
+        "robot_model": { "description": "Chassis/sensor/wheel geometry in the base_link frame, split off the track topic so the per-tick wheels are not wiped by the marker array's DELETEALL.", "type": "string", "x-journal": "adr:0019-simulation-robot-model-topic-split" }
       }
     }
   }

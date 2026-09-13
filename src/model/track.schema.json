@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vtitan.local/schemas/track.schema.json",
   "title": "TrackConfig",
-  "description": "Mat geometry source of truth for the WRO 2026 Future Engineers mat. Read at runtime by Python (shared.config.track_constants) and consumed by the Go generator simgen (see trackconfig).",
+  "description": "Mat geometry source of truth for the WRO 2026 Future Engineers mat. Read at runtime by Python (shared.config.track_constants) and consumed by the Go generator simgen (see trackconfig). Rationale for the values is in other/docs/adr.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -12,37 +12,38 @@
       "additionalProperties": false,
       "properties": {
         "mat_size": {
-          "description": "Printed mat side length. Larger than the driveable track it carries.",
+          "description": "Printed mat side length (m). Larger than the driveable track it carries.",
           "type": "number",
           "x-unit": "m",
-          "x-go": "TrackMatSize"
+          "x-go": "TrackMatSize",
+          "x-journal": "adr:0003-track-constants-single-source"
         },
         "size": {
-          "description": "Driveable track side length.",
+          "description": "Driveable track side length (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "TrackSize"
         },
         "min_coord": {
-          "description": "Minimum coordinate, bottom-left origin.",
+          "description": "Minimum coordinate (m), bottom-left origin.",
           "type": "number",
           "x-unit": "m",
           "x-go": "TrackMinCoord"
         },
         "max_coord": {
-          "description": "Maximum coordinate, top-right. Equal to the track size for a track that starts at the origin.",
+          "description": "Maximum coordinate (m), top-right. Equal to the track size for a track that starts at the origin.",
           "type": "number",
           "x-unit": "m",
           "x-go": "TrackMaxCoord"
         },
         "corner_min": {
-          "description": "Corner region start: the middle third of each axis.",
+          "description": "Corner region start (m): the middle third of each axis.",
           "type": "number",
           "x-unit": "m",
           "x-go": "TrackCornerMin"
         },
         "corner_max": {
-          "description": "Corner region end.",
+          "description": "Corner region end (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "TrackCornerMax"
@@ -63,19 +64,19 @@
       "additionalProperties": false,
       "properties": {
         "height": {
-          "description": "Wall height.",
+          "description": "Wall height (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "WallHeight"
         },
         "thickness": {
-          "description": "Visual wall thickness.",
+          "description": "Visual wall thickness (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "WallThickness"
         },
         "collision_thickness": {
-          "description": "Collision thickness. Matches the visual wall; there is no inflation.",
+          "description": "Collision thickness (m). Matches the visual wall; there is no inflation.",
           "type": "number",
           "x-unit": "m",
           "x-go": "WallCollisionThickness",
@@ -85,13 +86,13 @@
           ]
         },
         "exterior_offset": {
-          "description": "Exterior wall inset: half the wall thickness.",
+          "description": "Exterior wall inset (m): half the wall thickness.",
           "type": "number",
           "x-unit": "m",
           "x-go": "WallExteriorOffset"
         },
         "interior_offset": {
-          "description": "Interior wall inset: half the wall thickness.",
+          "description": "Interior wall inset (m): half the wall thickness.",
           "type": "number",
           "x-unit": "m",
           "x-go": "WallInteriorOffset"
@@ -117,43 +118,44 @@
       "additionalProperties": false,
       "properties": {
         "narrow": {
-          "description": "Narrow corridor width.",
+          "description": "Narrow corridor width (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "CorridorNarrow"
         },
         "wide": {
-          "description": "Wide corridor width.",
+          "description": "Wide corridor width (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "CorridorWide"
         },
         "obstacles": {
-          "description": "Obstacles-challenge fixed corridor width.",
+          "description": "Obstacles-challenge fixed corridor width (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "CorridorObstacles"
         },
         "min_width": {
-          "description": "Minimum valid corridor width. Deliberately below the legal minimum so tests can exercise off-spec layouts.",
+          "description": "Minimum valid corridor width (m). Deliberately below the legal minimum so tests can exercise off-spec layouts.",
           "type": "number",
           "x-unit": "m",
           "x-go": "CorridorMinWidth"
         },
         "max_width": {
-          "description": "Maximum valid corridor width. Deliberately above the legal maximum so tests can exercise off-spec layouts.",
+          "description": "Maximum valid corridor width (m). Deliberately above the legal maximum so tests can exercise off-spec layouts.",
           "type": "number",
           "x-unit": "m",
           "x-go": "CorridorMaxWidth"
         },
         "division_lines": {
-          "description": "The two division lines painted across every corridor, measured out from the outer wall. Every other lengthwise division derives from these: the starting square bands and the sign-grid width lines.",
+          "description": "The two division lines painted across every corridor, measured out from the outer wall (m). Every other lengthwise division derives from these: the starting square bands and the sign-grid width lines.",
           "type": "array",
           "items": {
             "type": "number"
           },
           "minItems": 2,
-          "x-unit": "m"
+          "x-unit": "m",
+          "x-journal": "adr:0004-corridor-division-lines-single-definition"
         }
       },
       "required": [
@@ -171,53 +173,53 @@
       "additionalProperties": false,
       "properties": {
         "width": {
-          "description": "Pillar width.",
+          "description": "Pillar width (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignWidth"
         },
         "depth": {
-          "description": "Pillar depth.",
+          "description": "Pillar depth (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignDepth"
         },
         "height": {
-          "description": "Pillar height.",
+          "description": "Pillar height (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignHeight"
         },
         "z_position": {
-          "description": "Pillar centre height. Half the pillar height: pillars are placed by their centre.",
+          "description": "Pillar centre height (m). Half the pillar height: pillars are placed by their centre.",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignZPosition"
         },
         "grid_depth_near": {
-          "description": "Along-corridor position of the near sign-grid row.",
+          "description": "Along-corridor position of the near sign-grid row (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignGridDepthNear"
         },
         "grid_depth_middle": {
-          "description": "Along-corridor position of the middle sign-grid row.",
+          "description": "Along-corridor position of the middle sign-grid row (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignGridDepthMiddle"
         },
         "grid_depth_far": {
-          "description": "Along-corridor position of the far sign-grid row.",
+          "description": "Along-corridor position of the far sign-grid row (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignGridDepthFar"
         },
         "placement_circle_diameter": {
-          "description": "Diameter of the circle each pillar is placed within. Touching a pillar is not a failure: the pillar may be nudged while any corner of its square stays inside this circle. Only pushing it fully out counts against the team.",
+          "description": "Diameter (m) of the circle each pillar is placed within. Touching a pillar is not a failure: the pillar may be nudged while any corner of its square stays inside this circle. Only pushing it fully out counts against the team.",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignPlacementCircleDiameter",
-          "x-journal": "docs/bitacora_ingenieria.md"
+          "x-journal": "adr:0005-pillar-displacement-tolerance"
         },
         "min_count": {
           "description": "Minimum number of pillars per round.",
@@ -275,31 +277,31 @@
       "additionalProperties": false,
       "properties": {
         "length": {
-          "description": "Parking block length.",
+          "description": "Parking block length (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "ParkingLength"
         },
         "width": {
-          "description": "Parking block width.",
+          "description": "Parking block width (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "ParkingWidth"
         },
         "height": {
-          "description": "Parking block height.",
+          "description": "Parking block height (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "ParkingHeight"
         },
         "z_position": {
-          "description": "Parking block centre height. Half the block height: the block is placed by its centre.",
+          "description": "Parking block centre height (m). Half the block height: the block is placed by its centre.",
           "type": "number",
           "x-unit": "m",
           "x-go": "ParkingZPosition"
         },
         "wall_offset": {
-          "description": "Distance from the wall to the block centre. Half the block length, so the block sits flush to the wall.",
+          "description": "Distance from the wall to the block centre (m). Half the block length, so the block sits flush to the wall.",
           "type": "number",
           "x-unit": "m",
           "x-go": "ParkingWallOffset"
@@ -307,7 +309,8 @@
         "spacing_factor": {
           "description": "Bay length as a multiple of the robot's length, the dimension that has to fit inside the bay.",
           "type": "number",
-          "x-go": "ParkingSpacingFactor"
+          "x-go": "ParkingSpacingFactor",
+          "x-journal": "adr:0006-parking-bay-scales-by-robot-length"
         },
         "color": {
           "$ref": "#/definitions/RGB",
@@ -331,13 +334,13 @@
       "additionalProperties": false,
       "properties": {
         "default_length": {
-          "description": "One cell of the starting square, along the corridor.",
+          "description": "One cell of the starting square, along the corridor (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "StartingZoneDefaultLength"
         },
         "thickness": {
-          "description": "Visual thickness of the starting-square marker.",
+          "description": "Visual thickness of the starting-square marker (m).",
           "type": "number",
           "x-unit": "m",
           "x-go": "StartingZoneThickness"
@@ -348,7 +351,7 @@
           "x-go": "StartingZoneObstaclesFactor"
         },
         "indicator_radius": {
-          "description": "Radius of the clockwise/counterclockwise direction indicator.",
+          "description": "Radius (m) of the clockwise/counterclockwise direction indicator.",
           "type": "number",
           "x-unit": "m",
           "x-go": "StartingZoneIndicatorRadius"
@@ -374,7 +377,7 @@
             "$ref": "#/definitions/SpawnAlignment"
           },
           "description": "Which edge of its band the chassis is pushed flush against, one per band. 'outer' is the edge nearer the outer wall, 'inner' the edge nearer the inner block. The spawn offset is derived from this and the chassis width, so a re-measurement does not go stale.",
-          "x-journal": "docs/bitacora_ingenieria.md"
+          "x-journal": "adr:0007-starting-zone-spawn-alignment"
         }
       },
       "required": [
@@ -402,7 +405,7 @@
           "description": "Corner line colour, normalized RGB in [0, 1]."
         },
         "angle": {
-          "description": "Corner line half-splay from the bisector.",
+          "description": "Corner line half-splay from the bisector (deg).",
           "type": "number",
           "x-unit": "deg"
         }

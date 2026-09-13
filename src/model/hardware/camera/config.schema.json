@@ -7,31 +7,31 @@
   "properties": {
     "device": {
       "type": "string",
-      "description": "Device."
+      "description": "V4L2 camera device path (e.g. /dev/video0)."
     },
     "width": {
       "type": "integer",
-      "description": "Width."
+      "description": "Camera capture width in pixels."
     },
     "height": {
       "type": "integer",
-      "description": "Height."
+      "description": "Camera capture height in pixels."
     },
     "fps": {
       "type": "integer",
-      "description": "Fps."
+      "description": "Target camera capture rate in frames per second."
     },
     "rotation": {
       "type": "integer",
-      "description": "Rotation."
+      "description": "Camera rotation in degrees (0, 90, 180, 270)."
     },
     "hflip": {
       "type": "boolean",
-      "description": "Hflip."
+      "description": "Mirror the camera image horizontally."
     },
     "vflip": {
       "type": "boolean",
-      "description": "Vflip."
+      "description": "Mirror the camera image vertically."
     }
   },
   "required": [

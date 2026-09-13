@@ -24,11 +24,15 @@ class Navigation(StrictModel):
     )
     odometry: str | None = Field(
         None,
-        description='Odometry from track_navigator_node. Currently no node publishes it.',
+        description='Odometry from track_navigator_node. As of 2026-08-02 no node publishes it; the telemetry bridge subscribes but receives no data.',
     )
-    laps_completed: str = Field(..., description='Lap count from the LapDetector.')
+    laps_completed: str = Field(
+        ...,
+        description="Lap count from track_navigator_node's CoreNavigator/LapDetector, the only thing that detects a lap crossing.",
+    )
     current_corridor: str = Field(
-        ..., description='Active track corridor (Section name).'
+        ...,
+        description='Active track corridor (Section name: north/south/east/west), BEST_EFFORT, published every control tick.',
     )
     nav_debug: str = Field(..., description='Per-tick NavigatorDebugSnapshot, as JSON.')
 
@@ -39,9 +43,17 @@ class Sensors(StrictModel):
     )
     scan: str = Field(..., description='LIDAR range data from the Slamtec C1.')
     imu: str = Field(..., description='IMU data from the BNO085.')
-    vision_detections: str = Field(..., description='Vision detections, as JSON.')
-    camera_image_raw: str = Field(..., description='Raw camera image.')
-    joy: str = Field(..., description='Joystick input.')
+    vision_detections: str = Field(
+        ...,
+        description='Vision detections (std_msgs/String), as JSON, published by vision_node.',
+    )
+    camera_image_raw: str = Field(
+        ..., description='Raw camera image, for diagnostics/monitoring.'
+    )
+    joy: str = Field(
+        ...,
+        description='Joystick input (sensor_msgs/Joy), consumed by joy_teleop_node.',
+    )
 
 
 class Commands(StrictModel):
@@ -62,27 +74,40 @@ class Actuators(StrictModel):
         description='Joint state feedback: steering angle, drive speed, encoder position.',
     )
     steering_position: str = Field(
-        ..., description='Current steering position in degrees.'
+        ...,
+        description='Current steering position in degrees, published by ackermann_motor_node.',
     )
-    drive_speed: str = Field(..., description='Current drive speed.')
-    status: str = Field(..., description='Motor status diagnostics.')
+    drive_speed: str = Field(
+        ...,
+        description='Current drive speed in degrees/s, published by ackermann_motor_node.',
+    )
+    status: str = Field(
+        ..., description='Motor status diagnostics, published by ackermann_motor_node.'
+    )
 
 
 class ChallengeMode(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    jumper_inserted: str = Field(..., description='Challenge-mode jumper state.')
-    active: str = Field(..., description='Resolved ScenarioType once latched.')
+    jumper_inserted: str = Field(
+        ..., description='Challenge-mode jumper state, published by the Pi Zero.'
+    )
+    active: str = Field(
+        ..., description='Resolved ScenarioType (open/obstacles) once latched.'
+    )
 
 
 class Button(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    event: str = Field(..., description='Button events.')
+    event: str = Field(
+        ..., description='Button events from button_node on the Pi Zero.'
+    )
     hold: str = Field(
-        ..., description='JSON hold-progress feedback, for the OLED countdown.'
+        ...,
+        description='JSON hold-progress feedback from button_node, for the OLED countdown.',
     )
 
 
@@ -91,9 +116,13 @@ class Ui(StrictModel):
         extra='forbid',
     )
     telemetry_summary: str = Field(
-        ..., description='Low-rate lidar/yaw/detection summary for the OLED.'
+        ...,
+        description='Low-rate lidar/yaw/detection summary for the OLED, from telemetry_bridge_node.',
     )
-    oled_mirror: str = Field(..., description='Live mirror of the OLED panel.')
+    oled_mirror: str = Field(
+        ...,
+        description='Live mirror of the OLED panel, published by oled_display_node.',
+    )
 
 
 class BagRecorder(StrictModel):
@@ -101,7 +130,8 @@ class BagRecorder(StrictModel):
         extra='forbid',
     )
     run_path: str = Field(
-        ..., description='Latched run directory the recorder is writing to.'
+        ...,
+        description='Latched run directory the recorder just started writing to, so a separate process can write into the same mcap directory.',
     )
 
 
@@ -110,15 +140,20 @@ class Simulation(StrictModel):
         extra='forbid',
     )
     odom: str = Field(..., description='Simulated pose.')
-    track: str = Field(..., description='Simulated track markers.')
+    track: str = Field(
+        ...,
+        description='Simulated track markers. Cached and re-sent about once a second.',
+    )
     plan: str = Field(
-        ..., description='Planned polyline the navigator is tracking, as JSON.'
+        ...,
+        description='Planned polyline the navigator is tracking right now, as JSON. A belief, not ground truth.',
     )
     sign_estimates: str = Field(
         ..., description='Sign estimates the plan was built from, as JSON.'
     )
     robot_model: str = Field(
-        ..., description='Chassis/sensor/wheel geometry in the base_link frame.'
+        ...,
+        description="Chassis/sensor/wheel geometry in the base_link frame, split off the track topic so the per-tick wheels are not wiped by the marker array's DELETEALL.",
     )
 
 

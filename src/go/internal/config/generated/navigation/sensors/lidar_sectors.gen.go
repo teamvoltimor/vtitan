@@ -3,7 +3,8 @@
 package sensors
 
 type NavigationSensorsLidarSectors struct {
-	// Blind wedge left max deg.
+	// End bearing (degrees, robot frame) of the rear-left mount-occlusion wedge
+	// masked out of the sectors.
 	BlindWedgeLeftMaxDeg float64 `json:"blind_wedge_left_max_deg" yaml:"blind_wedge_left_max_deg" mapstructure:"blind_wedge_left_max_deg"`
 
 	// Rear occlusion. Measured 2026-08-04 against a real bag as -160..-115 and
@@ -41,10 +42,12 @@ type NavigationSensorsLidarSectors struct {
 	// Validate on track before trusting it.
 	BlindWedgeLeftMinDeg float64 `json:"blind_wedge_left_min_deg" yaml:"blind_wedge_left_min_deg" mapstructure:"blind_wedge_left_min_deg"`
 
-	// Blind wedge right max deg.
+	// End bearing (degrees, robot frame) of the rear-right mount-occlusion wedge
+	// masked out of the sectors.
 	BlindWedgeRightMaxDeg float64 `json:"blind_wedge_right_max_deg" yaml:"blind_wedge_right_max_deg" mapstructure:"blind_wedge_right_max_deg"`
 
-	// Blind wedge right min deg.
+	// Start bearing (degrees, robot frame) of the rear-right mount-occlusion wedge
+	// masked out of the sectors.
 	BlindWedgeRightMinDeg float64 `json:"blind_wedge_right_min_deg" yaml:"blind_wedge_right_min_deg" mapstructure:"blind_wedge_right_min_deg"`
 
 	// src.navigation.utils' corner-detection cone -- NOT front_half_fov_deg, see the

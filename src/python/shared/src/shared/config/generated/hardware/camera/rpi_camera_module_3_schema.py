@@ -11,14 +11,33 @@ class HardwareCameraRpiCameraModule3(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    camera_device: str | None = Field(None, description='Camera device.')
-    camera_width: int | None = Field(None, description='Camera width.')
-    camera_height: int | None = Field(None, description='Camera height.')
-    camera_fps: int | None = Field(None, description='Camera fps.')
-    camera_inverted: bool | None = Field(None, description='Camera inverted.')
-    camera_rotation: int | None = Field(None, description='Camera rotation.')
-    camera_hflip: bool | None = Field(None, description='Camera hflip.')
-    camera_vflip: bool | None = Field(None, description='Camera vflip.')
+    camera_device: str | None = Field(
+        None, description='V4L2 camera device path (e.g. /dev/video0).'
+    )
+    camera_width: int | None = Field(
+        None, description='Camera capture width in pixels.'
+    )
+    camera_height: int | None = Field(
+        None, description='Camera capture height in pixels.'
+    )
+    camera_fps: int | None = Field(
+        None, description='Camera capture rate in frames per second.'
+    )
+    camera_inverted: bool | None = Field(
+        None,
+        description='True when the camera is mounted upside-down; applies a 180 degree rotation so a sign passes on the side the robot expects.',
+    )
+    camera_rotation: int | None = Field(
+        None, description='Extra rotation in degrees applied on top of camera_inverted.'
+    )
+    camera_hflip: bool | None = Field(
+        None,
+        description='Mirror the image horizontally; note this alone also swaps left and right in detections.',
+    )
+    camera_vflip: bool | None = Field(
+        None,
+        description='Mirror the image vertically; prefer camera_inverted for an upside-down mount.',
+    )
     camera_af_mode: str | None = Field(
         None,
         description='Focus, exposure, colour and noise controls that feed the Hailo detector. See Config\'s field docstrings in driver.py for what each does and why.  Defaults below are tuned for the WRO venue: an indoor room under controlled artificial white light (fluorescent/cool-white LED panels), not natural/daylight. Re-tune camera_awb_mode (and re-check the red/green sign colour thresholds downstream) if testing near windows or outdoors -- daylight/cloudy colour temperature is not what these values assume. "manual" | "auto" | "continuous"',
@@ -42,4 +61,6 @@ class HardwareCameraRpiCameraModule3(StrictModel):
     camera_noise_reduction_mode: str | None = Field(
         None, description='"off" | "fast" | "high_quality" | "minimal"'
     )
-    camera_sharpness: float | None = Field(None, description='Camera sharpness.')
+    camera_sharpness: float | None = Field(
+        None, description='libcamera sharpness multiplier; 1.0 is the sensor default.'
+    )

@@ -11,9 +11,14 @@ class HardwareMotorsBts7960(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    pwmchip: int = Field(..., description='Pwmchip.')
-    pwm_channel: int = Field(..., description='Pwm channel.')
-    frequency_hz: int = Field(..., description='Frequency hz.')
+    pwmchip: int = Field(
+        ..., description='sysfs PWM controller index (/sys/class/pwm/pwmchip<N>).'
+    )
+    pwm_channel: int = Field(
+        ...,
+        description='PWM channel within the controller (channel 1 under the pwm-2chan overlay).',
+    )
+    frequency_hz: int = Field(..., description='PWM carrier frequency in Hz.')
     forward_pwm_pin: int = Field(
         ...,
         description='RPWM, hardware PWM (forward -- the frequent, performance-critical direction)',
@@ -26,4 +31,7 @@ class HardwareMotorsBts7960(StrictModel):
         ...,
         description="Held permanently HIGH at connect() -- these gate the module's overcurrent/thermal protection, not direction. Physical BCM number vs the module's own R_EN/L_EN silkscreen doesn't matter now that both are always HIGH (it mattered under the old shared-PWM/EN-toggle design; see git log).",
     )
-    l_en_pin: int = Field(..., description='L en pin.')
+    l_en_pin: int = Field(
+        ...,
+        description="Held permanently HIGH at connect(), like r_en_pin: it gates the module's overcurrent/thermal protection, not direction.",
+    )

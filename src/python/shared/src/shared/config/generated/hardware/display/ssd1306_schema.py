@@ -11,7 +11,15 @@ class HardwareDisplaySsd1306(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    width: int = Field(..., description='Width.')
-    height: int = Field(..., description='Height.')
-    i2c_address: str = Field(..., description='I2c address.')
-    i2c_bus: int = Field(..., description='I2c bus.')
+    width: int = Field(
+        ..., description='Display width in pixels (128 for the SSD1306).'
+    )
+    height: int = Field(
+        ..., description='Display height in pixels (64 for the SSD1306).'
+    )
+    i2c_address: str = Field(
+        ..., description='I2C address of the display, as a hex string (typically 0x3C).'
+    )
+    i2c_bus: int = Field(
+        ..., description='I2C bus number (typically /dev/i2c-1 on a Raspberry Pi).'
+    )

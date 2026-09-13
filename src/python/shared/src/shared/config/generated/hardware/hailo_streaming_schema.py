@@ -11,14 +11,29 @@ class HardwareHailoStreaming(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    device: str = Field(..., description='Device.')
-    width: int = Field(..., description='Width.')
-    height: int = Field(..., description='Height.')
-    fps: int = Field(..., description='Fps.')
-    rotation: int = Field(..., description='Rotation.')
-    hflip: bool = Field(..., description='Hflip.')
-    vflip: bool = Field(..., description='Vflip.')
-    model_input_width: int = Field(..., description='Model input width.')
-    model_input_height: int = Field(..., description='Model input height.')
-    queue_size: int = Field(..., description='Queue size.')
-    async_inference: bool = Field(..., description='Async inference.')
+    device: str = Field(
+        ..., description='V4L2 camera device path used for capture (e.g. /dev/video0).'
+    )
+    width: int = Field(..., description='Camera capture width in pixels.')
+    height: int = Field(..., description='Camera capture height in pixels.')
+    fps: int = Field(..., description='Camera capture frame rate in frames per second.')
+    rotation: int = Field(
+        ..., description='Image rotation in degrees (0, 90, 180, 270).'
+    )
+    hflip: bool = Field(..., description='Mirror the captured image horizontally.')
+    vflip: bool = Field(..., description='Mirror the captured image vertically.')
+    model_input_width: int = Field(
+        ...,
+        description='Width the frame is resized to before inference; should match the model input width.',
+    )
+    model_input_height: int = Field(
+        ...,
+        description='Height the frame is resized to before inference; should match the model input height.',
+    )
+    queue_size: int = Field(
+        ..., description='Maximum number of frames held in the inference queue.'
+    )
+    async_inference: bool = Field(
+        ...,
+        description='Run inference asynchronously (non-blocking) instead of synchronously.',
+    )

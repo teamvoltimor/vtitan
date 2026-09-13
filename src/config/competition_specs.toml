@@ -1,11 +1,6 @@
 #:schema ../model/competition_specs.schema.json
-# Competition match rules for the WRO Future Engineers challenge.
-# Source of truth for round timing and lap counts -- previously hand-maintained
-# literals in src/python/shared/src/shared/config/constants/simulation.py.
+# Competition match rules for the WRO Future Engineers challenge. Rationale in other/docs/adr.
 
-# Official round duration (seconds): 3 minutes.
 round_time_limit_s = 180.0
-# Laps required per Open Challenge run.
 open_challenge_laps = 3
-# Laps required per Obstacle Challenge run.
 obstacle_challenge_laps = 3

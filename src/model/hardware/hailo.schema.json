@@ -7,19 +7,19 @@
   "properties": {
     "model_path": {
       "type": "string",
-      "description": "Model path."
+      "description": "Path to the compiled Hailo HEF model loaded for inference."
     },
     "inference_timeout_ms": {
       "type": "integer",
-      "description": "Inference timeout ms."
+      "description": "Milliseconds to wait for a single async inference job before giving up."
     },
     "benchmark_iterations": {
       "type": "integer",
-      "description": "Benchmark iterations."
+      "description": "Number of iterations run by the latency benchmark."
     },
     "data_yaml_path": {
       "type": "string",
-      "description": "Data yaml path."
+      "description": "Path to an optional YOLO data.yaml supplying class id to name; leave absent to use the built-in class order."
     }
   },
   "required": [

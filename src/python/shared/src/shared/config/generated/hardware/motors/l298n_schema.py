@@ -11,9 +11,14 @@ class HardwareMotorsL298n(StrictModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    pwmchip: int = Field(..., description='Pwmchip.')
-    pwm_channel: int = Field(..., description='Pwm channel.')
-    frequency_hz: int = Field(..., description='Frequency hz.')
+    pwmchip: int = Field(
+        ..., description='sysfs PWM controller index (/sys/class/pwm/pwmchip<N>).'
+    )
+    pwm_channel: int = Field(
+        ...,
+        description='PWM channel within the controller (channel 1 under the pwm-2chan overlay).',
+    )
+    frequency_hz: int = Field(..., description='PWM carrier frequency in Hz.')
     pwm_pin: int = Field(..., description='L298N ENA')
     dir_a_pin: int = Field(..., description='L298N IN3')
     dir_b_pin: int = Field(..., description='L298N IN4')
