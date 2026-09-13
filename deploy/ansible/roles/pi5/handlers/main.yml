@@ -4,11 +4,6 @@
   ansible.builtin.systemd_service:
     daemon_reload: true
 
-- name: Reboot pi5
-  become: true
-  ansible.builtin.reboot:
-    reboot_timeout: 300
-
 # Notified by the workspace/backend build tasks, which is deliberate: those
 # report changed unconditionally (colcon/go build have no idempotency ansible
 # can see), so this fires on every full provisioning run -- matching
@@ -18,6 +13,20 @@
 # would otherwise leave the OLD build running until someone restarts it by
 # hand -- exactly the gap deploy-to-pi5.sh's manual final step exists to
 # cover, now closed on the provisioning path too.
+#
+# Ordered AHEAD of the reboot handler, not after it. Handlers run in the order
+# they are defined here, and a failed handler stops the rest for that host: on
+# 2026-09-13 the reboot below failed and took this restart down with it, so the
+# run rewrote vtitan-backend.service to apps/backend and built the new binary
+# while leaving the process from platform/backend/bin/server up, started eight
+# days earlier. Restarting first also costs nothing when a reboot does follow.
+#
+# vtitan-race.service is in the loop for the reason deploy-to-pi5.sh gives at
+# its RACE_SERVICE definition: the NAVIGATOR does not run in vtitan-pi5.service.
+# That one carries the state machine, vision, IMU and bridge; track_navigator
+# runs under vtitan-race. On 2026-09-06 a navigator change shipped, only
+# vtitan-pi5 restarted, and a round got measured against code that was not on
+# the robot. The script restarts both; this handler was still missing race.
 - name: Restart pi5 services
   become: true
   ansible.builtin.systemd_service:
@@ -25,4 +34,28 @@
     state: restarted
   loop:
     - vtitan-pi5.service
+    - vtitan-race.service
     - vtitan-backend.service
+
+# hosts.yml defaults the Pi 5 to ansible_connection: local, because these runs
+# happen FROM the Pi 5 -- and ansible.builtin.reboot refuses outright there
+# ("would reboot the control node"). Notified by the raspi-config task, which
+# is changed_when: true unconditionally, so on the default connection this
+# handler failed on EVERY provisioning run of the Pi 5.
+#
+# Skip rather than fail, and say so: the interface changes that ask for a
+# reboot are real, so the operator still needs to do it by hand. It runs
+# normally when provisioning the Pi 5 from elsewhere (-e pi5_connection=ssh).
+- name: Reboot pi5
+  become: true
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  when: ansible_connection | default('ssh') != 'local'
+
+- name: Warn that the Pi 5 needs a manual reboot
+  ansible.builtin.debug:
+    msg: >-
+      Interface changes (raspi-config) want a reboot, but this run is on a local
+      connection and ansible cannot reboot its own control node. Reboot the Pi 5
+      by hand when convenient: sudo reboot
+  when: ansible_connection | default('ssh') == 'local'
