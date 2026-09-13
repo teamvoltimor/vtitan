@@ -1323,7 +1323,12 @@ class CoreNavigator(EscapeRecovery):
         turn_ahead = path_turn_ahead(
             self._waypoints,
             self._waypoint_index,
-            self._tuning.pursuit.CORNER_PREVIEW_DISTANCE_M,
+            # Per width CLASS, not one number: the wide corridor gets the
+            # tighter corner arc and so the shorter straight between arcs, and
+            # a preview sized for narrow arms the short lookahead over 82% of a
+            # wide straight. Screened in opposite directions on uniform buckets
+            # -- see WIDE_CORNER_PREVIEW_DISTANCE_M. Unset keeps one value.
+            self._tuning.pursuit.corner_preview_distance_m(narrow=self._in_narrow_corridor()),
         )
         # The preview decays to zero once the chassis is INSIDE the arc, which
         # un-arms the short lookahead mid-corner -- and crosstrack cannot cover

@@ -657,3 +657,41 @@ class TestPerChallengeMirroredReverse:
         resolved = escape.for_obstacles_challenge()
         assert resolved.ESCAPE_MIRRORS_REVERSE is True
         assert resolved.K_TURN_FIT_REAR_GAP is False
+
+
+class TestWideCornerPreviewSplit:
+    """The preview distance resolved per corridor WIDTH CLASS.
+
+    Screened in OPPOSITE directions on uniform buckets (wide -2.04 s over 48
+    cases, narrow +3.63 s over 32), so a single shared value is the wrong one
+    for whichever class it was not chosen for. These pin that an unset override
+    leaves the tree byte-identical, which is the constraint the narrow case has
+    to be protected by -- there is no narrow hardware corpus to validate against.
+    """
+
+    def test_unset_gives_one_value_to_both_classes(self):
+        pursuit = NavigationTuning.load_default().pursuit
+
+        assert pursuit.WIDE_CORNER_PREVIEW_DISTANCE_M is None
+        assert pursuit.corner_preview_distance_m(narrow=True) == pursuit.CORNER_PREVIEW_DISTANCE_M
+        assert pursuit.corner_preview_distance_m(narrow=False) == pursuit.CORNER_PREVIEW_DISTANCE_M
+
+    def test_set_leaves_the_narrow_class_untouched(self):
+        """The whole point of the split: narrow must not move."""
+        pursuit = NavigationTuning.load_default().pursuit
+        split = pursuit.model_copy(update={"WIDE_CORNER_PREVIEW_DISTANCE_M": 0.57})
+
+        assert split.corner_preview_distance_m(narrow=True) == pursuit.CORNER_PREVIEW_DISTANCE_M
+        assert split.corner_preview_distance_m(narrow=False) == 0.57
+
+    def test_an_unknown_corridor_keeps_the_shipped_value(self):
+        """``_in_narrow_corridor`` reads an unknown corridor as narrow, so the
+        resolver must treat narrow as "shared" rather than as "the narrow
+        override" -- otherwise an unplaced corridor silently takes a value
+        nobody chose for it."""
+        split = (
+            NavigationTuning.load_default()
+            .pursuit.model_copy(update={"WIDE_CORNER_PREVIEW_DISTANCE_M": 0.57})
+        )
+
+        assert split.corner_preview_distance_m(narrow=True) == 0.80

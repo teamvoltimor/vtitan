@@ -733,6 +733,37 @@ class PurePursuitParams(BaseModel):
     CORNER_PREVIEW_DISTANCE_M: float = Field(
         default=0.80, validation_alias=_alias("CORNER_PREVIEW_DISTANCE_M")
     )  # Path distance previewed for an upcoming turn
+    WIDE_CORNER_PREVIEW_DISTANCE_M: float | None = Field(
+        default=None, validation_alias=_alias("WIDE_CORNER_PREVIEW_DISTANCE_M")
+    )
+    """``CORNER_PREVIEW_DISTANCE_M`` for corridors planned WIDE. ``None`` -> shared.
+
+    The right preview distance is not the same for the two width classes, and a
+    single value is the wrong one for whichever class it was not chosen for.
+    SCREENED 2026-09-13 on ``diag_open_ab.py``, 0.80 -> 0.57, uniform buckets so
+    the two classes cannot mask each other:
+
+    | corpus | mean sim time | faster / slower |
+    |---|---|---|
+    | uniform WIDE, n=48 | **-2.04 s** | 48 / 0 |
+    | uniform NARROW, n=32 | **+3.63 s** | 3 / 29 |
+
+    Both unanimous and in opposite directions, and the narrow harm is LARGER
+    than the wide gain -- so changing the shared value is a net loss, and this
+    split is the only way to take the wide half. That is the same shape the
+    ``WIDE_``/``NARROW_CENTER_BIAS_M`` split exists for.
+
+    Why wide wants a shorter preview: the wide corridor receives the TIGHTER
+    corner arc (0.40 m against narrow's 0.45 -- see ``corner_arc_radius``), so
+    its straight between arcs is 0.86 m against 1.29 m. A 0.80 m preview
+    therefore arms the short lookahead over 82% of a wide straight, which is
+    the loop-gain term in the measured Open zigzag; on a narrow straight the
+    same number still leaves most of the run previewed as straight.
+
+    Resolved against ``TrackNavigator._in_narrow_corridor``, which reads an
+    unknown corridor as narrow. So an unplaced or unbelieved corridor keeps the
+    shipped value, and with this unset the whole tree is byte-identical.
+    """
     CORNER_TURN_THRESHOLD_RAD: float = Field(
         default=0.35, validation_alias=_alias("CORNER_TURN_THRESHOLD_RAD")
     )  # Heading change over that preview that counts as a corner
@@ -761,6 +792,22 @@ class PurePursuitParams(BaseModel):
     that silently made ``diag_sign_sweep``'s ``escape-gate`` mode measure
     nothing. Only Open sweeps need to clear it.
     """
+
+    def corner_preview_distance_m(self, *, narrow: bool) -> float:
+        """Preview distance for the width class of the corridor being driven.
+
+        A method rather than a resolved copy because the class changes WITHIN a
+        round -- an Open layout mixes widths corridor by corridor -- so there is
+        no one value to bake in at construction the way ``for_open_challenge``
+        bakes in a challenge.
+
+        ``narrow=True`` always returns the shared value, which is what makes an
+        unset override byte-identical: ``_in_narrow_corridor`` reads an unknown
+        corridor as narrow, so anything unplaced keeps the shipped number.
+        """
+        if narrow or self.WIDE_CORNER_PREVIEW_DISTANCE_M is None:
+            return self.CORNER_PREVIEW_DISTANCE_M
+        return self.WIDE_CORNER_PREVIEW_DISTANCE_M
 
     def for_open_challenge(self) -> PurePursuitParams:
         """These parameters as the Open Challenge should run them.

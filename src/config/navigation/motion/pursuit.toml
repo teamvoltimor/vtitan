@@ -171,6 +171,31 @@ min_lookahead_transition_m = 0.10  # Floor for the derived threshold (m)
 # prevent. 0.80 is the smallest value that leads at all; larger spends more of
 # the lap on the short lookahead, and curvature is quadratic in it.
 corner_preview_distance_m = 0.80   # Path distance previewed for an upcoming turn (m)
+# Per-width-class override of the line above, for corridors planned WIDE.
+# ABSENT = one value for both classes, i.e. byte-identical to before this key
+# existed. Uncomment to take the wide half of the split:
+#
+#   wide_corner_preview_distance_m = 0.57
+#
+# SCREENED 2026-09-13 with diag_open_ab.py at 0.57, on UNIFORM buckets so the
+# two classes cannot mask each other:
+#
+#   uniform WIDE   n=48   mean -2.04 s   48 faster / 0 slower
+#   uniform NARROW n=32   mean +3.63 s    3 faster / 29 slower
+#
+# Both unanimous, opposite directions, and the narrow harm is BIGGER than the
+# wide gain -- so lowering the shared value is a net loss and this split is the
+# only way to take the wide half. Narrow resolves through the shared key, and
+# _in_narrow_corridor reads an unknown corridor as narrow, so an unplaced
+# corridor keeps the shipped number.
+#
+# Mechanism: the wide corridor receives the TIGHTER corner arc (0.40 m against
+# narrow's 0.45, see corner_arc_radius), so its straight between arcs is 0.86 m
+# against 1.29 m. A 0.80 m preview then arms the short lookahead over 82% of a
+# wide straight, which is the loop-gain term in the measured Open zigzag.
+#
+# NOT YET DECIDED ON THE FULL 640. The numbers above are a screen; the
+# screening protocol is to reject on the small corpus and decide on --all.
 # Insensitive over 0.21-0.58: the signal is quantised by waypoint spacing and
 # jumps 0.00 -> 0.59 in one step, so every threshold in that band arms at the
 # same waypoint. Not the lever for turn timing -- see the preview above.
