@@ -27,12 +27,21 @@
 
 - name: Authenticate gh via GH_TOKEN
   tags: [auth]
-  # gh refuses to persist credentials via `auth login` when GH_TOKEN is set
-  # in its own environment ("use the env var, don't store it"), so the token
-  # must reach stdin without also being exported for this shell.
+  # gh refuses to persist credentials via `auth login` when GH_TOKEN is set in
+  # its own environment ("The value of the GH_TOKEN environment variable is
+  # being used for authentication"), so the token must reach stdin without
+  # also being exported for the gh process.
+  #
+  # Piping to stdin is not enough on the Pi 5: hosts.yml gives it
+  # ansible_connection: local, so tasks run as children of ansible-playbook and
+  # inherit its environment -- and Taskfile.yml starts it as
+  # `GH_TOKEN=$(gh auth token) ansible-playbook ...`. The token arrived by both
+  # routes and gh exited 1, under no_log, on 2026-09-13. `env -u` scopes the
+  # unset to gh alone. GITHUB_TOKEN goes too: gh honours either name.
   ansible.builtin.shell: |
     set -o pipefail
-    printf '%s' {{ lookup('env', 'GH_TOKEN') | quote }} | gh auth login --with-token
+    printf '%s' {{ lookup('env', 'GH_TOKEN') | quote }} \
+      | env -u GH_TOKEN -u GITHUB_TOKEN gh auth login --with-token
   args:
     executable: /bin/bash
   when: lookup('env', 'GH_TOKEN') | length > 0
