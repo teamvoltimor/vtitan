@@ -38,6 +38,13 @@ two disagree on 22 of these 47 pillars (they legitimately differ at corners).
 Judging by the robot's corridor instead reports 17 routing / 6 execution -- a
 different conclusion from the same data.
 
+HONOURED SINCE 2026-09-13, and it had NOT been until then: the verdict line read
+``d.current_corridor`` while this docstring said not to. Every "routing" count
+this script printed before that date is INFLATED, including the ones quoted
+above. Re-measured on the 2026-09-12 bags, the robot's corridor gives 21 routing
+errors in competition and 22 in practice where the sign's corridor gives 1 and
+0 -- the router commands the legal side 196 times out of 197.
+
 WHAT THE TRACE FOUND, which the counts do not show. On the wrong-side pass
 reported from the track in run_234457, the router commanded the CORRECT side on
 every tick (+0.25 to +0.29) and the chassis was on the wrong side throughout
@@ -244,12 +251,24 @@ def _passes(run: str, rows, frames, scans, tuning) -> tuple[list[Pass], int]:  #
                 vote[0 if same else 1] += 1
         if key in best and best[key][0] <= rng:
             continue
-        colour = next(
-            (s.color for s in router.signs if abs(s.x - committed.x) < 1e-9 and abs(s.y - committed.y) < 1e-9),
-            SignColor.UNKNOWN,
+        # Judge with the SIGN's settled corridor, which is the one the router
+        # itself keys the rule off (``router.py:528`` reads
+        # ``self._sign_corridors[index]``). ``d.current_corridor`` is the
+        # ROBOT's, and the two legitimately disagree at corners -- exactly where
+        # the failures live. Measured on the 2026-09-12 bags, the robot's
+        # corridor reports 21 routing errors in competition and 22 in practice
+        # where the sign's reports 1 and 0. The trap is stated at the top of this
+        # docstring and this line used to commit it anyway.
+        colour, sign_corridor = next(
+            (
+                (spec.color, section)
+                for spec, section in router.lane_specs
+                if abs(spec.x - committed.x) < 1e-9 and abs(spec.y - committed.y) < 1e-9
+            ),
+            (SignColor.UNKNOWN, d.current_corridor),
         )
-        rule = pass_side_lateral_axis(d.current_corridor, colour, direction)
-        best[key] = (rng, colour, str(d.current_corridor), rule, committed, (d.pose_x, d.pose_y), deformed)
+        rule = pass_side_lateral_axis(sign_corridor, colour, direction)
+        best[key] = (rng, colour, str(sign_corridor), rule, committed, (d.pose_x, d.pose_y), deformed)
 
     out: list[Pass] = []
     for key, (rng, colour, corridor, rule, sign_pos, robot, deformed) in best.items():
