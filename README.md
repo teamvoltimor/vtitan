@@ -153,7 +153,7 @@ task robot:test-motors             # Prueba de humo de hardware: rango de servo 
 ```bash
 task windows:provision:pi5         # Provisionar la Pi 5 con Ansible (tags opcionales)
 task rpi:provision:all             # Ambas placas, en tmux, tras reflashear la SD
-task rpi:ansible:check TARGET=pi5  # Dry-run + diff del provisionador
+task rpi:ansible:check BOARD=pi5   # Dry-run + diff del provisionador
 ```
 
 ### Documentación

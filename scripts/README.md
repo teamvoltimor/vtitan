@@ -39,7 +39,7 @@ From the dev Pi 5 (one-time: `task rpi:ansible:setup`):
 ```bash
 task rpi:provision:pi5 PI5_IP=x.x.x.x
 task rpi:provision:zero               # defaults to ZERO_WIFI_IP
-task rpi:ansible:check TARGET=pi5     # dry-run + diff against an already-provisioned Pi
+task rpi:ansible:check BOARD=pi5      # dry-run + diff against an already-provisioned Pi
 ```
 
 GitHub auth (private repo) and the Pi Zero's WiFi 2.4GHz band lock are

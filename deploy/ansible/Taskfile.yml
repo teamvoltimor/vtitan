@@ -130,33 +130,39 @@ tasks:
       - pixi global install ansible || pipx install --include-deps ansible
       - ansible-galaxy collection install -r requirements.yml
 
+  # BOARD, not TARGET: an included Taskfile's `vars:` land in the same scope a
+  # CLI `TARGET=pi5` does and win, so ml/hailo/Taskfile.yml's `TARGET: emulator`
+  # silently rewrote this into playbooks/provision_emulator.yml. Reproduced on
+  # the Pi 5 on 2026-09-13. Any var name declared by ANY included Taskfile is
+  # unusable as a CLI argument here -- PI5_IP/ZERO_IP/TAGS/SKIP_TAGS/IP were
+  # checked and are declared nowhere else.
   rpi:ansible:check:
-    desc: "Dry-run the Ansible provisioner against an already-provisioned Pi and diff (usage: task rpi:ansible:check TARGET=pi5|zero [IP=x.x.x.x])"
+    desc: "Dry-run the Ansible provisioner against an already-provisioned Pi and diff (usage: task rpi:ansible:check BOARD=pi5|zero [IP=x.x.x.x])"
     requires:
       vars:
-        - TARGET
+        - BOARD
     cmds:
       - |
-        playbook="provision_{{.TARGET}}.yml"
-        [ "{{.TARGET}}" = "zero" ] && playbook="provision_pi_zero.yml"
+        playbook="provision_{{.BOARD}}.yml"
+        [ "{{.BOARD}}" = "zero" ] && playbook="provision_pi_zero.yml"
         extra=""
         # Scoped per-host (pi5_ip/zero_ip), not a global ansible_host override —
         # see inventory/hosts.yml's comment on why that matters for the Zero
         # playbook's delegate_to: pi5 tasks.
         if [ -n "{{.IP}}" ]; then
-          [ "{{.TARGET}}" = "zero" ] && extra="-e zero_ip={{.IP}}" || extra="-e pi5_ip={{.IP}}"
+          [ "{{.BOARD}}" = "zero" ] && extra="-e zero_ip={{.IP}}" || extra="-e pi5_ip={{.IP}}"
         fi
         GH_TOKEN=$(gh auth token) ansible-playbook "playbooks/$playbook" $extra --check --diff --ask-become-pass
 
   rpi:ansible:tags:
-    desc: "List the phase tags available on a provisioning playbook, for use with rpi:provision:*'s TAGS/SKIP_TAGS (usage: task rpi:ansible:tags TARGET=pi5|zero)"
+    desc: "List the phase tags available on a provisioning playbook, for use with rpi:provision:*'s TAGS/SKIP_TAGS (usage: task rpi:ansible:tags BOARD=pi5|zero)"
     requires:
       vars:
-        - TARGET
+        - BOARD
     cmds:
       - |
-        playbook="provision_{{.TARGET}}.yml"
-        [ "{{.TARGET}}" = "zero" ] && playbook="provision_pi_zero.yml"
+        playbook="provision_{{.BOARD}}.yml"
+        [ "{{.BOARD}}" = "zero" ] && playbook="provision_pi_zero.yml"
         ansible-playbook "playbooks/$playbook" --list-tags
 
   rpi:cleanup:old-services:
