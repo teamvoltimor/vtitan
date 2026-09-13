@@ -81,7 +81,7 @@ tasks:
       SSH_HOST: '{{.SSH_HOST | default "rpi-zero-local"}}'
 
   rpi:migrate-data:
-    desc: "One-off, idempotent: move a pre-relayout ~/vtitan/data tree into ~/vtitan/other/data on a board (usage: task rpi:migrate-data [SSH_HOST=alias]). Run once per board after pulling the repo re-layout; the Ansible repo role also does this automatically."
+    desc: "One-off, idempotent: move a pre-relayout ~/vtitan/data tree into ~/vtitan/other/data on a board (usage: task rpi:migrate-data [SSH_HOST=alias]). Run it by hand, once per board and only when you actually want the data moved; provisioning does NOT do this unless migrate_legacy_data=true."
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
     cmds:

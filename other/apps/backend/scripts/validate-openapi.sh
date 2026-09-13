@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ok=true
-for file in ../../../contracts/openapi/contexts/*.yaml; do
+for file in ../../contracts/openapi/contexts/*.yaml; do
   if grep -qE '^openapi: 3\.' "$file"; then
     echo "✓ $(basename "$file") valid"
   else

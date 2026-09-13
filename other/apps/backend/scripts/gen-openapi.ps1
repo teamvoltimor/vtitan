@@ -5,7 +5,7 @@ foreach ($entry in $packages.GetEnumerator()) {
     $ctx = $entry.Key
     $pkg = $entry.Value
     Write-Host "Generating $ctx (api/$pkg package)..."
-    oapi-codegen -package $pkg -generate types -o internal/api/$pkg/openapi.gen.go ../../../contracts/openapi/contexts/$ctx.yaml
+    oapi-codegen -package $pkg -generate types -o internal/api/$pkg/openapi.gen.go ../../contracts/openapi/contexts/$ctx.yaml
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Host "  ✓ api/$pkg/openapi.gen.go"
 }

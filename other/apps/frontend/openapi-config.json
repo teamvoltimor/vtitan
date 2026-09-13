@@ -1,5 +1,5 @@
 {
-  "input": "../../../contracts/openapi/contexts/telemetry.yaml",
+  "input": "../../contracts/openapi/contexts/telemetry.yaml",
   "output": "./src/api/generated",
   "plugins": [
     {

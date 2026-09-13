@@ -10,8 +10,8 @@
     "format": "biome format",
     "preview": "vite preview",
     "api:generate": "pnpm run api:generate:telemetry && pnpm run api:generate:robot",
-    "api:generate:telemetry": "openapi-ts -i ../../../contracts/openapi/contexts/telemetry.yaml -o ./src/api/generated -p @hey-api/typescript",
-    "api:generate:robot": "openapi-ts -i ../../../contracts/openapi/contexts/robot.yaml -o ./src/api/generated/robot -p @hey-api/typescript",
+    "api:generate:telemetry": "openapi-ts -i ../../contracts/openapi/contexts/telemetry.yaml -o ./src/api/generated -p @hey-api/typescript",
+    "api:generate:robot": "openapi-ts -i ../../contracts/openapi/contexts/robot.yaml -o ./src/api/generated/robot -p @hey-api/typescript",
     "test": "vitest run",
     "test:watch": "vitest"
   },

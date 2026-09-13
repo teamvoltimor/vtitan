@@ -15,6 +15,6 @@ for ctx in "${!packages[@]}"; do
   echo "Generating $ctx (api/$pkg package)..."
   oapi-codegen -package "$pkg" -generate types \
     -o "internal/api/$pkg/openapi.gen.go" \
-    "../../../contracts/openapi/contexts/$ctx.yaml"
+    "../../contracts/openapi/contexts/$ctx.yaml"
   echo "  ✓ api/$pkg/openapi.gen.go"
 done

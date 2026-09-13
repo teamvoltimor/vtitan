@@ -261,7 +261,10 @@
     rm -rf "{{ repo_dir }}/data"
   args:
     executable: /bin/bash
-  when: legacy_data_stat.stat.exists
+  # Opt-in (migrate_legacy_data, default false): a routine provision must NOT
+  # move a board's recorded corpus. Flip it on deliberately, or run
+  # `task rpi:migrate-data`, when the data move is actually wanted.
+  when: legacy_data_stat.stat.exists and migrate_legacy_data | bool
 
 # The .env is gitignored (steering offsets, LiDAR yaw, Hailo model path), so the
 # fast-forward above moves robot_dir out from under it and leaves it behind at

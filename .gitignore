@@ -219,7 +219,7 @@ src/python/tests/fixtures/scenarios/*/*
 *.bak*
 
 # Redocly bundle output (task openapi:bundle)
-contracts/openapi/openapi.bundled.yaml
+other/contracts/openapi/openapi.bundled.yaml
 
 # Captured stdout of the scripts/sim/diag_*.py sweeps. Each file is one run's
 # tables under one profile, kept only to diff the next run against; a sweep is

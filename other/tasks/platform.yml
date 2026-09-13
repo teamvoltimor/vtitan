@@ -259,19 +259,19 @@ tasks:
 
   openapi:lint:
     desc: Lint the aggregated OpenAPI spec with Redocly (requires the redocly CLI)
-    dir: contracts
+    dir: other/contracts
     cmds:
       - redocly lint
 
   openapi:bundle:
     desc: Bundle the aggregated OpenAPI spec into a single file (requires the redocly CLI)
-    dir: contracts
+    dir: other/contracts
     cmds:
       - redocly bundle main -o openapi/openapi.bundled.yaml
 
   openapi:preview-docs:
     desc: Launch an interactive local preview of the API docs (requires the redocly CLI)
-    dir: contracts
+    dir: other/contracts
     cmds:
       - redocly preview
 
@@ -279,7 +279,7 @@ tasks:
 
   proto:
     desc: "Buf toolchain ops (usage: task proto ACTION=update|generate|lint|breaking|format)"
-    dir: contracts/proto
+    dir: other/contracts/proto
     requires:
       vars:
         - ACTION
@@ -289,7 +289,7 @@ tasks:
             update) buf dep update ;;
             generate) buf generate ;;
             lint) buf lint ;;
-            breaking) buf breaking --against '.git#branch=master,subdir=contracts/proto' ;;
+            breaking) buf breaking --against '.git#branch=master,subdir=other/contracts/proto' ;;
             format) buf format -w ;;
             *) echo "Unknown ACTION: {{.ACTION}}. Use update|generate|lint|breaking|format" && exit 1 ;;
           esac

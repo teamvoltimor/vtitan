@@ -1,5 +1,5 @@
 $ok = $true
-foreach ($file in Get-ChildItem -Path ../../../contracts/openapi/contexts/*.yaml) {
+foreach ($file in Get-ChildItem -Path ../../contracts/openapi/contexts/*.yaml) {
   $content = Get-Content $file.FullName -Raw
   if ($content -match '^openapi: 3\.') {
     Write-Host "✓ $($file.Name) valid"

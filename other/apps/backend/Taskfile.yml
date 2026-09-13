@@ -94,7 +94,7 @@ tasks:
       - cmd: bash scripts/gen-openapi.sh
         platforms: [linux, darwin]
     sources:
-      - ../../../contracts/openapi/contexts/*.yaml
+      - ../../contracts/openapi/contexts/*.yaml
       - scripts/gen-openapi.ps1
       - scripts/gen-openapi.sh
     generates:

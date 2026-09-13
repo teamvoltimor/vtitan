@@ -32,6 +32,11 @@ task_bin: "/home/{{ ansible_user }}/.local/bin/task"
 # Verified 2026-09-13: both Pis satisfied that task's guard.
 legacy_env_path: "{{ repo_dir }}/platform/robot/.env"
 
+# Off by default: provisioning must not move a board's recorded corpus on its
+# own. Flip to true (or run `task rpi:migrate-data`) only when you deliberately
+# want the pre-relayout <repo>/data tree merged into <repo>/other/data.
+migrate_legacy_data: false
+
 usb_gadget_subnet_prefix: 24
 usb_gadget_zero_ip: 192.168.250.1
 usb_gadget_pi5_ip: 192.168.250.2

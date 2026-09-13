@@ -56,10 +56,10 @@ vtitan/
 │   └── old-models/      #   Prototipos previos (Klevor)
 ├── src/               # python/ (pila ROS2), go/ (reimplementación Go), config/ (TOML
 │                      #   compartido, leído por ambos), assets/ (imágenes compartidas)
-├── contracts/         # proto/ (buf, esquemas gRPC/NATS) y openapi/ (spec-first REST)
 ├── other/             # Todo lo que no es material de competencia
 │   ├── apps/          #   backend/, frontend/, gazebo/, auto-annotator/, hugo-docs/, landing/
 │   ├── assets/        #   Logos e imágenes de esta documentación
+│   ├── contracts/     #   proto/ (buf, esquemas gRPC/NATS) y openapi/ (spec-first REST)
 │   ├── data/          #   Salidas de ejecución (bags, fotos, videos); vacía en el repo
 │   ├── deploy/ansible/#   Provisionamiento de las placas (tareas task rpi:*, windows:*)
 │   ├── docs/          #   Bitácora, referencia de configuración, datasheets, prototipos
@@ -78,8 +78,7 @@ vtitan/
 | `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
 | `models/` | Modelos 3D de las piezas impresas: `current-models/` (V-Titan) y `old-models/` (prototipos previos), cada uno con `blueprints/` (planos) y `step-files/` (CAD para imprimir) |
 | `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
-| `contracts/` | Contratos de interfaz compartidos: `contracts/proto/` (buf, esquemas gRPC/NATS para robot, backend y frontend) y `contracts/openapi/` (spec-first REST) |
-| `other/` | Todo lo que no es material de competencia: `other/apps/` (telemetría, simulador, auto-anotador, docs), `other/ml/` (entrenamiento y pesos), `other/deploy/ansible/`, `other/docs/`, `other/data/`, `other/scripts/`, `other/tasks/` y `other/assets/`. Ver [`other/README.md`](other/README.md) |
+| `other/` | Todo lo que no es material de competencia: `other/apps/` (telemetría, simulador, auto-anotador, docs), `other/contracts/` (proto + OpenAPI compartidos), `other/ml/` (entrenamiento y pesos), `other/deploy/ansible/`, `other/docs/`, `other/data/`, `other/scripts/`, `other/tasks/` y `other/assets/`. Ver [`other/README.md`](other/README.md) |
 
 ### Cómo explorar este repositorio
 
@@ -95,7 +94,7 @@ Según lo que quieras revisar, esta es la ruta más corta:
 Además de las carpetas obligatorias, el repositorio contiene:
 
 - `src/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `src/config/` (la configuración TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD de navegación).
-- `contracts/` con los contratos de interfaz que generan código para ambos stacks: `contracts/proto/` (buf, esquemas gRPC/NATS) y `contracts/openapi/` (spec-first REST).
+- `other/contracts/` con los contratos de interfaz que generan código para los tres consumidores (robot, backend y frontend): `other/contracts/proto/` (buf, esquemas gRPC/NATS) y `other/contracts/openapi/` (spec-first REST).
 - `other/docs/` con la documentación de apoyo: la [bitácora de ingeniería](other/docs/bitacora_ingenieria.md), la [referencia de configuración TOML de navegación](other/docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](other/docs/pi-setup.md), las hojas de datos en `other/docs/reference/datasheets/` y el historial de prototipos en `other/docs/development/previous-prototypes/`.
 - `other/apps/` con procesos independientes: `other/apps/backend/` y `other/apps/frontend/` (telemetría), `other/apps/auto-annotator/` (anotación asistida), `other/apps/hugo-docs/` (sitio de documentación navegable) y `other/apps/gazebo/` (runtime del simulador).
 - `other/ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `other/ml/weights/` con los pesos publicados.

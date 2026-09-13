@@ -19,7 +19,7 @@ const (
 	// which matches how `task backend:dev`/`backend:run` invoke the server
 	// (dir: other/apps/backend). Override via TELEMETRY_OPENAPI_SPEC_PATH for any other
 	// invocation (e.g. running the built binary from a different cwd).
-	defaultOpenAPISpecPath = "../../../contracts/openapi/openapi.yaml"
+	defaultOpenAPISpecPath = "../../contracts/openapi/openapi.yaml"
 )
 
 // Config holds all runtime configuration. String fields come first to minimize

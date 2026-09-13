@@ -2,8 +2,7 @@
 
 Herramientas, infraestructura y documentación de apoyo que no son material de
 competencia. La raíz del repositorio queda con las carpetas obligatorias de la
-WRO, `src/` (el robot) y `contracts/` (los contratos compartidos); todo lo demás
-vive aquí dentro.
+WRO y con `src/` (el robot); todo lo demás vive aquí dentro.
 
 | Qué | Dónde |
 |-----|-------|
@@ -16,6 +15,7 @@ vive aquí dentro.
 | Panel de telemetría (dashboard React + Three.js) | [`apps/frontend/`](apps/frontend/) |
 | Simulador Gazebo/ROS2 y generador de escenarios | [`apps/gazebo/`](apps/gazebo/) |
 | Auto-annotator: anotación asistida con SAM2 | [`apps/auto-annotator/`](apps/auto-annotator/) |
+| Contratos compartidos (protobuf + OpenAPI) consumidos por robot, backend y frontend | [`contracts/`](contracts/) |
 | Provisionamiento de las Raspberry Pi con Ansible | [`deploy/ansible/`](deploy/ansible/) |
 | Scripts de diagnóstico sobre bags MCAP | [`../src/python/scripts/bag/`](../src/python/scripts/bag/) |
 | Salidas de ejecución (bags, fotos, videos); vacía en el repo | [`data/`](data/) |
@@ -23,6 +23,7 @@ vive aquí dentro.
 | Tareas del Taskfile raíz (fleet, platform, infra) | [`tasks/`](tasks/) y [`../Taskfile.yml`](../Taskfile.yml) |
 | Sitio de documentación | [`apps/hugo-docs/`](apps/hugo-docs/) |
 
-Los contratos compartidos (protobuf + OpenAPI) y el código del robot no están
-bajo `other/`: viven en [`../contracts/`](../contracts/) y [`../src/`](../src/)
-respectivamente, porque los consumen tanto la pila del robot como las apps.
+El código del robot no está bajo `other/`: vive en [`../src/`](../src/), porque
+es material de competencia. Los contratos compartidos, en cambio, se movieron
+aquí a [`contracts/`](contracts/) junto con sus consumidores (`apps/`), para que
+la raíz quede solo con lo que pide la WRO más `src/`.
