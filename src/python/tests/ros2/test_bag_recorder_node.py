@@ -7,6 +7,7 @@ fake recorder process.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -128,3 +129,135 @@ class TestRunPathPublish:
         assert published[0].data != published[1].data  # distinct run directories
 
         node.destroy_node()
+
+
+class TestProvenanceStamp:
+    """A bag records what the robot did and nothing about which code did it.
+
+    On 2026-09-13 a 55-run competition corpus had to be attributed by comparing
+    a deploy note against `git rev-list`, and the first answer was wrong: a
+    rebase had rewritten the hashes, so counting commits overstated the gap.
+    These tests pin the stamp that removes the guesswork.
+    """
+
+    def test_the_stamp_lands_in_the_run_directory(
+        self, ros_context, bag_recorder_node_class, tmp_path,
+    ):
+        node = _node(bag_recorder_node_class, tmp_path)
+        node._provenance = {"commit": "deadbeef", "branch": "master", "dirty": "false"}
+
+        with mock.patch(
+            "vtitan_state_machine.bag_recorder_node.subprocess.Popen",
+            side_effect=_fake_popen_creating_output_dir,
+        ):
+            node._on_robot_state(String(data="racing"))
+        # `ros2 bag record` has created the directory by now, so the first poll
+        # finds it; the timer only exists to cover the case where it has not.
+        node._poll_for_run_dir()
+
+        stamps = list(tmp_path.glob("run_*/provenance.json"))
+        assert len(stamps) == 1
+        written = json.loads(stamps[0].read_text(encoding="utf-8"))
+        assert written["commit"] == "deadbeef"
+        assert written["branch"] == "master"
+        assert written["dirty"] == "false"
+        # Run-specific fields are added at write time, not resolved at startup.
+        assert written["run"] == stamps[0].parent.name
+        assert "started_at" in written
+
+        node.destroy_node()
+
+    def test_a_directory_that_never_appears_warns_instead_of_raising(
+        self, ros_context, bag_recorder_node_class, tmp_path,
+    ):
+        """The recorder can fail to create its directory. That must cost the
+        stamp and nothing else -- never the round, and never an exception out of
+        a timer callback."""
+        node = _node(bag_recorder_node_class, tmp_path)
+
+        with mock.patch("vtitan_state_machine.bag_recorder_node.subprocess.Popen") as popen_mock:
+            popen_mock.return_value = _fake_popen()  # does NOT create the directory
+            node._on_robot_state(String(data="racing"))
+
+        assert node._provenance_timer is not None
+        node._provenance_deadline = 0.0  # expire it
+        node._poll_for_run_dir()
+
+        assert node._provenance_timer is None
+        assert list(tmp_path.glob("run_*/provenance.json")) == []
+
+        node.destroy_node()
+
+    def test_no_stamp_is_armed_when_the_recorder_fails_to_start(
+        self, ros_context, bag_recorder_node_class, tmp_path,
+    ):
+        node = _node(bag_recorder_node_class, tmp_path)
+
+        with mock.patch(
+            "vtitan_state_machine.bag_recorder_node.subprocess.Popen",
+            side_effect=OSError("no ros2 on PATH"),
+        ):
+            node._on_robot_state(String(data="racing"))
+
+        assert node._provenance_timer is None
+
+        node.destroy_node()
+
+    def test_an_unwritable_run_directory_does_not_raise(
+        self, ros_context, bag_recorder_node_class, tmp_path,
+    ):
+        node = _node(bag_recorder_node_class, tmp_path)
+        run_path = tmp_path / "run_20260913_120000"
+        run_path.mkdir()
+
+        with mock.patch(
+            "vtitan_state_machine.bag_recorder_node.Path.write_text",
+            side_effect=OSError("read-only card"),
+        ):
+            node._write_provenance(run_path)  # must not raise
+
+        node.destroy_node()
+
+
+class TestCodeProvenance:
+    def test_outside_a_git_checkout_the_commit_is_unknown_not_a_crash(self):
+        from vtitan_state_machine import bag_recorder_node
+
+        with mock.patch.object(bag_recorder_node, "_git", return_value=None):
+            provenance = bag_recorder_node._code_provenance()
+
+        assert provenance["commit"] == "unknown"
+        assert "commit_source" in provenance
+
+    def test_a_dirty_tree_is_reported_dirty(self):
+        """The field that decides whether a stamp can be trusted at all: a dirty
+        tree means the recorded commit does NOT describe what ran."""
+        from vtitan_state_machine import bag_recorder_node
+
+        with mock.patch.object(bag_recorder_node, "_git", side_effect=lambda _repo, *args: {
+            ("rev-parse", "--show-toplevel"): "/repo",
+            ("status", "--porcelain"): " M src/python/foo.py",
+        }.get(args, "x")):
+            provenance = bag_recorder_node._code_provenance()
+
+        assert provenance["dirty"] == "true"
+
+    def test_a_clean_tree_is_reported_clean(self):
+        from vtitan_state_machine import bag_recorder_node
+
+        with mock.patch.object(bag_recorder_node, "_git", side_effect=lambda _repo, *args: {
+            ("rev-parse", "--show-toplevel"): "/repo",
+            ("status", "--porcelain"): "",
+        }.get(args, "x")):
+            provenance = bag_recorder_node._code_provenance()
+
+        assert provenance["dirty"] == "false"
+
+    def test_git_failure_collapses_to_none_rather_than_raising(self):
+        from vtitan_state_machine import bag_recorder_node
+
+        with mock.patch(
+            "vtitan_state_machine.bag_recorder_node.subprocess.run",
+            side_effect=OSError("git not installed"),
+        ):
+            assert bag_recorder_node._git(Path("/repo"), "rev-parse", "HEAD") is None
