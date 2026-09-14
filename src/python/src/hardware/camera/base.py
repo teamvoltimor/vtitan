@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from pydantic import AliasChoices, Field
+from shared.config.generated.hardware.camera.config_schema import HardwareCameraConfig
 from shared.domain.models import CameraSize, ImageRotation
 
 from src.hardware.settings_base import HardwareBaseSettings
@@ -20,30 +21,19 @@ class Frame:
     height: int
 
 
-class Config(HardwareBaseSettings):
+class Config(HardwareBaseSettings, HardwareCameraConfig):
     """Fields and orientation logic shared by every concrete camera backend.
 
-    Subclasses add their own backend-specific fields (device path, autofocus,
-    ...) and their own ``model_config`` (env prefix, toml file).
+    Subclasses the generated generic camera DTO for the TOML-backed capture
+    keys. ``inverted`` is the one extra fact this shared layer owns (an
+    upside-down mount), kept as wrapper behaviour; concrete backends add their
+    own backend-specific fields (device path, autofocus, ...) and their own
+    ``model_config`` (env prefix, toml file).
     """
-
-    width: int = Field(default=1536, validation_alias=AliasChoices("CAMERA_WIDTH", "camera_width"))
-    height: int = Field(default=864, validation_alias=AliasChoices("CAMERA_HEIGHT", "camera_height"))
-    fps: int = Field(default=30, validation_alias=AliasChoices("CAMERA_FPS", "camera_fps"))
 
     inverted: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_INVERTED", "camera_inverted"))
     """
     True when the camera is mounted upside-down. Applies a 180 degree rotation, which matters beyond looking right: an unrotated frame mirrors which side of the image a sign falls on, so a sign to be passed on the left is reported to the right of centre.
-    """
-
-    hflip: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_HFLIP", "camera_hflip"))
-    """
-    Mirror horizontally. Note a horizontal flip alone also swaps left and right in the detections.
-    """
-
-    vflip: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_VFLIP", "camera_vflip"))
-    """
-    Mirror vertically. Prefer `inverted` for an upside-down mount: a 180 degree rotation is hflip and vflip together, and setting only one of them mirrors the scene rather than righting it.
     """
 
     def resolved_flips(self) -> tuple[bool, bool]:

@@ -1,13 +1,19 @@
+"""MCP2221A button driver configuration."""
+
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.button.mcp2221_schema import HardwareButtonMcp2221
 
-from src.hardware.button.config import Config as ButtonBaseConfig
-from src.hardware.mcp2221.config import MCP2221Config
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class Config(HardwareBaseSettings):
-    """Configuration for MCP2221A button driver."""
+class Config(HardwareBaseSettings, HardwareButtonMcp2221):
+    """Configuration for MCP2221A button driver.
+
+    Subclasses the generated DTO for the TOML-backed ``mcp2221``/``button``
+    groups. ``gpio_pin`` has no key in button/mcp2221.toml (it is deliberately
+    env-only), so it stays a wrapper field.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="",
@@ -17,11 +23,5 @@ class Config(HardwareBaseSettings):
         toml_file=CONFIG_DIR / "button" / "mcp2221.toml",
     )
 
-    mcp2221: MCP2221Config = Field(default_factory=MCP2221Config)
-    """MCP2221 USB bridge configuration."""
-
     gpio_pin: int = Field(validation_alias="MCP2221_BUTTON_GPIO_PIN")
     """MCP2221A GPIO channel the button is wired to (0-3, i.e. GP0-GP3)."""
-
-    button: ButtonBaseConfig = Field(default_factory=ButtonBaseConfig)
-    """Button-specific configuration."""

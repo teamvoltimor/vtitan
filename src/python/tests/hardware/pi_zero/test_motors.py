@@ -56,8 +56,8 @@ def driver():
             min_speed=0,
             max_speed=100,
             default_speed=15,
+            test_duration=1,
         ),
-        test_duration=1,
     )
     return BuildHatDriver(config=config)
 
@@ -169,8 +169,8 @@ def find_limits_interactive():
             min_speed=0,
             max_speed=100,
             default_speed=15,
+            test_duration=1,
         ),
-        test_duration=1,
     )
     driver = BuildHatDriver(config=config)
     driver.connect()

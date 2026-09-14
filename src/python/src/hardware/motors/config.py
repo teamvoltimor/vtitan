@@ -1,128 +1,97 @@
-from pydantic import BaseModel
+"""Motor configuration, sourced from ``motors.toml`` (+ env overrides)."""
+
+from __future__ import annotations
+
+from typing import Any, ClassVar
+
 from pydantic_settings import SettingsConfigDict
 from shared.config.constants import RobotSpecs
+from shared.config.defaults_model import DefaultsModel
+from shared.config.generated.hardware.motors.motors_schema import (
+    Drive as GeneratedDrive,
+    HardwareMotorsMotors,
+    Steering as GeneratedSteering,
+)
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class MotorSteeringConfig(BaseModel):
-    """Steering configuration."""
+class MotorSteeringConfig(DefaultsModel, GeneratedSteering):
+    """Steering configuration.
+
+    Subclasses the generated ``Steering`` DTO for the motors.toml-backed group.
+    ``port`` is env-only (device paths stay in ``.env``), while
+    ``max_steering_angle`` and ``linkage_ratio`` are physical facts read from
+    ``robot.toml`` through :class:`RobotSpecs` -- not motors.toml keys -- so all
+    three are wrapper behaviour rather than schema fields.
+    """
+
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "offset": 0.0,
+        "centering_speed": 20,
+        "turning_speed": 30,
+        "reversed": False,
+    }
 
     port: str
-    """
-    Port for steering motor. This should be the identifier for the motor controller (e.g., serial port, I2C address, etc.) that controls the steering motor.
-    """
+    """Port for the steering motor (identifier for its controller: serial port, I2C address, ...)."""
 
-    offset: float = 0.0
-    """Steering center angle offset in degrees for calibration. Positive = bias right, Negative = bias left."""
+    @property
+    def max_steering_angle(self) -> float:
+        """Maximum SERVO angle (absolute value) in degrees, from ``robot.toml``.
 
-    left_limit_angle: float
-    """
-    Left limit for steering position in degrees. This defines the maximum left turn angle for the steering motor.
-    """
+        Commands beyond +/-this are clamped for safety. It used to default to
+        45.0, which is not this robot: the servo reaches 90, and the
+        navigator's own steering limit is derived from that number, so a stale
+        default here described a different chassis from the one the planner
+        assumed.
+        """
+        return RobotSpecs.SERVO_MAX_ANGLE_DEG
 
-    right_limit_angle: float
-    """
-    Right limit for steering position in degrees. This defines the maximum right turn angle for the steering motor.
-    """
+    @property
+    def linkage_ratio(self) -> float:
+        """Road-wheel degrees produced per servo degree, from ``robot.toml``.
 
-    center_angle: float
-    """Center position for steering in degrees. This defines the angle that corresponds to the centered steering position."""
-
-    max_steering_angle: float = RobotSpecs.SERVO_MAX_ANGLE_DEG
-    """Maximum SERVO angle (absolute value) in degrees. Commands beyond ±this are clamped for safety.
-
-    Defaults to the servo's measured full travel from robot.toml. It used to
-    default to 45.0, which is not this robot: the servo reaches 90, and the
-    navigator's own steering limit is derived from that number, so a stale
-    default here described a different chassis from the one the planner assumed.
-    """
-
-    centering_speed: int = 20
-    """Speed for centering steering (deg/s). Mirrors motors.toml:steering.centering_speed.
-    This can be used to define how quickly the steering motor should move when centering the wheels.
-    Override per-unit with MOTOR_STEERING__CENTERING_SPEED env var if needed."""
-
-    turning_speed: int = 30
-    """Default speed for turning steering. This can be used as a default speed when moving the steering motor to a specific position, allowing for consistent and predictable steering behavior."""
-
-    reversed: bool = False
-    """Whether the steering motor is reversed. This can be used to invert the direction of the steering motor if it is mounted in a way that causes left commands to actually turn the wheels right."""
-
-    linkage_ratio: float = RobotSpecs.LINKAGE_RATIO
-    """Road-wheel degrees produced per servo degree.
-
-    Measured 0.78 on this chassis (servo 90 deg -> wheels ~70 deg), and read
-    from robot.toml so it cannot disagree with the road-wheel limit derived
-    from it. Everything upstream -- /ackermann_cmd, the navigator, the
-    simulator -- speaks in WHEEL angles, per the ROS convention; only the servo
-    speaks servo angles. Without this conversion the node fed a wheel angle
-    straight to the servo and the wheels under-turned by ~22%, so the robot
-    consistently cornered wider than the path it was following.
-
-    The default used to be 1.0 -- "servo angle is the wheel angle", i.e.
-    direct-drive steering, which this chassis is not.
-    """
+        Everything upstream -- ``/ackermann_cmd``, the navigator, the simulator
+        -- speaks in WHEEL angles, per the ROS convention; only the servo speaks
+        servo angles. Without this conversion the node fed a wheel angle
+        straight to the servo and the wheels under-turned by ~22%.
+        """
+        return RobotSpecs.LINKAGE_RATIO
 
 
-class MotorDriveConfig(BaseModel):
-    """Drive configuration."""
+class MotorDriveConfig(DefaultsModel, GeneratedDrive):
+    """Drive configuration, from motors.toml's ``[drive]`` table (incl. ``test_duration``)."""
+
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "reversed": False,
+        "encoder_reversed": False,
+        "speed_scale": 1.0,
+    }
 
     port: str
+    """Port for the drive motor (identifier for its controller: serial port, I2C address, ...)."""
+
+
+class Config(HardwareBaseSettings, HardwareMotorsMotors):
+    """Motor configuration.
+
+    Subclasses the generated ``HardwareMotorsMotors`` DTO for the TOML-backed
+    ``steering``/``drive`` groups. The annotations below select the wrapper
+    subclasses for each group (which inherit, not redeclare, the generated
+    fields); without them the derived ``max_steering_angle``/``linkage_ratio``
+    would be unreachable.
     """
-    Port for drive motor. This should be the identifier for the motor controller (e.g., serial port, I2C address, etc.) that controls the drive motor.
-    """
-
-    reversed: bool = False
-    """Whether the drive motor is reversed. This can be used to invert the direction of the drive motor if it is mounted in a way that causes forward commands to actually move the robot backward."""
-
-    encoder_reversed: bool = False
-    """Whether the encoder counts up when the robot moves backward.
-
-    Independent of ``reversed`` on purpose: the motor leads and the encoder's
-    A/B channels are separate connections, so inverting one does not invert the
-    other. ``reversed`` also negates the command in software rather than
-    rewiring, which leaves the encoder reporting true physical rotation against
-    a flipped command frame -- so on this robot both flags are set. Wrong here
-    and odometry integrates backwards and a closed speed loop sees inverted
-    error, which is a runaway rather than a wrong number.
-    """
-
-    min_speed: int
-    """Minimum speed for drive motor. This can be used to define the lowest speed at which the drive motor can operate effectively."""
-
-    max_speed: int
-    """Maximum speed for drive motor. This can be used to define the highest speed at which the drive motor can operate safely."""
-
-    speed_scale: float = 1.0
-    """Scaling factor for drive motor speed. This can be used to adjust the speed commands sent to the drive motor, allowing for fine-tuning of the motor's responsiveness."""
-
-    default_speed: int
-    """Default speed for drive motor. This can be used as a fallback speed if no specific speed is provided when running the drive motor."""
-
-
-class Config(HardwareBaseSettings):
-    """Motor configuration."""
 
     model_config = SettingsConfigDict(
         env_prefix="motor_",
         # "__" (not "_") so nested leaf names containing underscores parse
-        # correctly, e.g. MOTOR_DRIVE__MIN_SPEED -> drive.min_speed.
+        # correctly, e.g. MOTOR_DRIVE__MIN_SPEED -> drive.min_speed. A
+        # default_factory would construct the nested model with zero arguments
+        # and bypass this resolution, so the groups stay required.
         env_nested_delimiter="__",
         toml_file=CONFIG_DIR / "motors" / "motors.toml",
     )
 
-    # Plain required nested fields (no default_factory): a default_factory
-    # would construct the nested BaseModel with zero arguments, bypassing
-    # pydantic-settings' env_nested_delimiter resolution entirely and always
-    # failing validation regardless of whether MOTOR_STEERING__*/
-    # MOTOR_DRIVE__* are set. Leaving them required lets the parent
-    # BaseSettings populate them from the nested env vars itself.
     steering: MotorSteeringConfig
-
     drive: MotorDriveConfig
-
-    test_duration: float
-    """
-    Duration in seconds for motor test routines. This can be used to specify how long the motors should run during testing.
-    """

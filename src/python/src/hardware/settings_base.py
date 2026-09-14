@@ -32,10 +32,15 @@ CONFIG_DIR: Path = ROBOT_ROOT.parent / "config" / "hardware"
 SAFE_SHUTDOWN_BOTH_SCRIPT: Path = ROBOT_ROOT / "scripts" / "provisioning" / "safe-shutdown-both.sh"
 
 
+def parse_hex_int(value: str) -> int:
+    """Parse a hex/octal/decimal string (e.g. "0x04D8") into an int."""
+    return int(value, 0)
+
+
 def _parse_hex_int(value: object) -> object:
-    """Coerce hex/octal/decimal strings (e.g. "0x04D8") to int; pass through ints."""
+    """Coerce hex/octal/decimal strings (e.g. "0x04D8") to int; pass through non-strings."""
     if isinstance(value, str):
-        return int(value, 0)
+        return parse_hex_int(value)
     return value
 
 

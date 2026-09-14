@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture()
 def driver():
     """Create driver instance."""
-    config = I2CConfig(i2c_address=0x4A)
+    config = I2CConfig(imu_i2c_address="0x4A")
     return IMU_I2CDriver(config=config)
 
 

@@ -6,8 +6,10 @@ from typing import override
 import serial
 import serial.tools.list_ports
 from adafruit_bno08x_rvc import BNO08x_RVC
-from pydantic import Field
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.imu.bno08x_mcp2221_uart_rvc_schema import (
+    HardwareImuBno08xMcp2221UartRvc,
+)
 
 from src.hardware.imu.bno08x.uart_rvc import (
     Config as UARTRVCConfig,
@@ -19,8 +21,15 @@ from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger.constants import DETAILS_KEY
 
 
-class Config(HardwareBaseSettings):
-    """Configuration for BNO08x via MCP2221A UART RVC."""
+class Config(HardwareBaseSettings, HardwareImuBno08xMcp2221UartRvc):
+    """Configuration for BNO08x via MCP2221A UART RVC.
+
+    Subclasses the generated DTO for every TOML-backed key, including the
+    nested ``quaternion`` and ``mcp2221`` groups. ``port`` is env-only
+    (``BNO08X_UART_RVC_PORT``), so it stays a wrapper field; the nested groups
+    are narrowed to their wrappers to keep the Euler-order validator and the
+    ``vid_int``/``pid_int`` accessors reachable.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="bno08x_uart_rvc_",
@@ -30,28 +39,13 @@ class Config(HardwareBaseSettings):
         toml_file=CONFIG_DIR / "imu" / "bno08x_mcp2221_uart_rvc.toml",
     )
 
-    quaternion: QuaternionConfig = Field(default_factory=QuaternionConfig)
+    quaternion: QuaternionConfig
+
+    mcp2221: MCP2221Config
+    """MCP2221 USB bridge configuration."""
 
     port: str
     """Serial port for UART connection. If empty, the driver will attempt to auto-detect the port based on VID/PID."""
-
-    default_port: str = "/dev/ttyACM0"
-    """Fallback port when port is not configured and MCP2221 auto-detect fails."""
-
-    baudrate: int = 115200
-    """Baud rate for UART communication. The BNO08x RVC library typically uses 115200 baud."""
-
-    poll_rate_hz: float = 100.0
-    """Polling rate in Hz for reading data from the IMU. Higher rates may increase CPU usage."""
-
-    serial_timeout: float = 1.0
-    """Timeout in seconds for serial communication (raw pyserial read/thread-join)."""
-
-    data_lock_timeout: float = 2.0
-    """Timeout in seconds for waiting on new data to be available."""
-
-    mcp2221: MCP2221Config = Field(default_factory=MCP2221Config)
-    """MCP2221 USB bridge configuration."""
 
 
 class Driver(UARTRVCDriver):
@@ -83,7 +77,7 @@ class Driver(UARTRVCDriver):
         ports = serial.tools.list_ports.comports()
 
         for port in ports:
-            if port.vid == self._mcp2221_config.mcp2221.vid and port.pid == self._mcp2221_config.mcp2221.pid:
+            if port.vid == self._mcp2221_config.mcp2221.vid_int and port.pid == self._mcp2221_config.mcp2221.pid_int:
                 self.logger.info("Found MCP2221", extra={DETAILS_KEY: {"port": port.device}})
                 return str(port.device)
 
@@ -91,8 +85,8 @@ class Driver(UARTRVCDriver):
             "MCP2221 not found during auto-detect",
             extra={
                 DETAILS_KEY: {
-                    "vid": hex(self._mcp2221_config.mcp2221.vid),
-                    "pid": hex(self._mcp2221_config.mcp2221.pid),
+                    "vid": hex(self._mcp2221_config.mcp2221.vid_int),
+                    "pid": hex(self._mcp2221_config.mcp2221.pid_int),
                 },
             },
         )

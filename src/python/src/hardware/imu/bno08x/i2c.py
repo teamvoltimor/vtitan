@@ -8,6 +8,7 @@ import busio
 from adafruit_bno08x.i2c import BNO08X_I2C
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.imu.bno08x_i2c_schema import HardwareImuBno08xI2c
 
 from src.hardware.exceptions import IMUConnectionError
 from src.hardware.imu.bno08x.i2c_base import BNO08xI2CDriver
@@ -19,8 +20,13 @@ from src.logger.constants import DETAILS_KEY
 configure_json_logging()
 
 
-class Config(HardwareBaseSettings):
-    """Configuration for BNO08x IMU over I2C."""
+class Config(HardwareBaseSettings, HardwareImuBno08xI2c):
+    """Configuration for BNO08x IMU over I2C.
+
+    Subclasses the generated DTO for the TOML-backed ``enable_sensors_delay``.
+    ``address`` and ``quaternion`` have no key in ``bno08x_i2c.toml`` (see its
+    comment: they are deliberately env-only), so they stay wrapper fields.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="bno08x_i2c_",
@@ -34,9 +40,6 @@ class Config(HardwareBaseSettings):
 
     address: HexInt
     """I2C address of the BNO08x IMU (0x4A or 0x4B depending on ADR pin)"""
-
-    enable_sensors_delay: float = 0.5
-    """Delay in seconds after enabling sensors to allow them to stabilize"""
 
 
 class Driver(BNO08xI2CDriver):

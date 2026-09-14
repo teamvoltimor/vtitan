@@ -24,13 +24,13 @@ configure_json_logging()
 def build_rpi_camera_config(config: CameraConfig) -> RPiCameraConfig:
     """Translate the generic camera Config into the Picamera2 driver's Config."""
     return RPiCameraConfig(
-        device=config.device,
-        width=config.width,
-        height=config.height,
-        fps=config.fps,
-        rotation=config.rotation,
-        hflip=config.hflip,
-        vflip=config.vflip,
+        camera_device=config.device,
+        camera_width=config.width,
+        camera_height=config.height,
+        camera_fps=config.fps,
+        camera_rotation=config.rotation,
+        camera_hflip=config.hflip,
+        camera_vflip=config.vflip,
     )
 
 

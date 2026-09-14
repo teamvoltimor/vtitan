@@ -29,6 +29,9 @@ for _optional in (
     "adafruit_bno08x.i2c",
     "adafruit_bno08x_rvc",
     "fcntl",
+    "picamera2",
+    "libcamera",
+    "libcamera.controls",
 ):
     if _optional not in sys.modules:
         try:
@@ -620,3 +623,242 @@ class TestSecondWaveLoadedValues:
         # resolved_flips folds camera_inverted in: mounted upside-down, so an
         # unflipped config still yields both mirrors.
         assert camera.resolved_flips() == (True, True)
+
+
+class TestFinalWaveHardwareAnchoring:
+    """The final migration wave is anchored to its generated DTOs."""
+
+    def test_motors_configs_subclass_generated_dtos(self):
+        from shared.config.generated.hardware.motors.motors_schema import (
+            Drive,
+            HardwareMotorsMotors,
+            Steering,
+        )
+
+        from src.hardware.motors.config import (
+            Config as MotorsConfig,
+            MotorDriveConfig,
+            MotorSteeringConfig,
+        )
+
+        assert issubclass(MotorsConfig, HardwareMotorsMotors)
+        assert issubclass(MotorSteeringConfig, Steering)
+        assert issubclass(MotorDriveConfig, Drive)
+
+    def test_mcp2221_subclasses_generated_dto(self):
+        from shared.config.generated._models import Mcp2221
+
+        from src.hardware.mcp2221.config import MCP2221Config
+
+        assert issubclass(MCP2221Config, Mcp2221)
+
+    def test_quaternion_subclasses_generated_dto(self):
+        from shared.config.generated._models import Quaternion
+
+        from src.hardware.imu.config import QuaternionConfig
+
+        assert issubclass(QuaternionConfig, Quaternion)
+
+    def test_imu_bno08x_i2c_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.imu.bno08x_i2c_schema import HardwareImuBno08xI2c
+
+        from src.hardware.imu.bno08x.i2c import Config as ImuI2cConfig
+
+        assert issubclass(ImuI2cConfig, HardwareImuBno08xI2c)
+
+    def test_imu_bno08x_mcp2221_i2c_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.imu.bno08x_mcp2221_i2c_schema import (
+            HardwareImuBno08xMcp2221I2c,
+        )
+
+        from src.hardware.imu.bno08x.mcp2221.i2c import Config as ImuMcpI2cConfig
+
+        assert issubclass(ImuMcpI2cConfig, HardwareImuBno08xMcp2221I2c)
+
+    def test_imu_bno08x_mcp2221_uart_rvc_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.imu.bno08x_mcp2221_uart_rvc_schema import (
+            HardwareImuBno08xMcp2221UartRvc,
+        )
+
+        from src.hardware.imu.bno08x.mcp2221.uart_rvc import Config as ImuMcpUartConfig
+
+        assert issubclass(ImuMcpUartConfig, HardwareImuBno08xMcp2221UartRvc)
+
+    def test_button_config_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.button.gpio_schema import Button as GeneratedButton
+
+        from src.hardware.button.config import Config as ButtonConfig
+
+        assert issubclass(ButtonConfig, GeneratedButton)
+
+    def test_button_mcp2221_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.button.mcp2221_schema import HardwareButtonMcp2221
+
+        from src.hardware.button.mcp2221.config import Config as ButtonMcpConfig
+
+        assert issubclass(ButtonMcpConfig, HardwareButtonMcp2221)
+
+    def test_camera_base_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.camera.config_schema import HardwareCameraConfig
+
+        from src.hardware.camera.base import Config as CameraBaseConfig
+
+        assert issubclass(CameraBaseConfig, HardwareCameraConfig)
+
+    def test_camera_module_3_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.camera.rpi_camera_module_3_schema import (
+            HardwareCameraRpiCameraModule3,
+        )
+
+        from src.hardware.camera.rpi.camera_module_3.driver import Config as CamM3Config
+
+        assert issubclass(CamM3Config, HardwareCameraRpiCameraModule3)
+
+
+class TestFinalWaveLoadedValues:
+    """The real shipped TOMLs, as the final-wave wrappers read them."""
+
+    def test_motors_values(self, monkeypatch):
+        monkeypatch.setenv("MOTOR_STEERING__PORT", "A")
+        monkeypatch.setenv("MOTOR_DRIVE__PORT", "B")
+        from shared.config.constants import RobotSpecs
+
+        from src.hardware.motors.config import Config as MotorsConfig
+
+        motors = MotorsConfig()
+
+        assert motors.steering.port == "A"
+        assert motors.steering.offset == pytest.approx(0.0)
+        assert motors.steering.left_limit_angle == pytest.approx(-83.0)
+        assert motors.steering.right_limit_angle == pytest.approx(22.0)
+        assert motors.steering.center_angle == pytest.approx(-30.0)
+        assert motors.steering.centering_speed == 20
+        assert motors.steering.turning_speed == 30
+        assert motors.steering.reversed is False
+        # Derived from robot.toml, not motors.toml.
+        assert motors.steering.max_steering_angle == pytest.approx(RobotSpecs.SERVO_MAX_ANGLE_DEG)
+        assert motors.steering.linkage_ratio == pytest.approx(RobotSpecs.LINKAGE_RATIO)
+
+        assert motors.drive.port == "B"
+        assert motors.drive.reversed is False
+        assert motors.drive.encoder_reversed is True
+        assert motors.drive.min_speed == -100
+        assert motors.drive.max_speed == 100
+        assert motors.drive.speed_scale == pytest.approx(30.0)
+        assert motors.drive.default_speed == 15
+        assert motors.drive.test_duration == pytest.approx(1.5)
+
+    def test_mcp2221_defaults(self):
+        from src.hardware.mcp2221.config import MCP2221Config
+
+        mcp = MCP2221Config()
+
+        assert mcp.vid == "0x04D8"
+        assert mcp.pid == "0x00DD"
+        assert mcp.vid_int == 0x04D8
+        assert mcp.pid_int == 0x00DD
+
+    def test_quaternion_defaults(self):
+        from src.hardware.imu.config import QuaternionConfig
+
+        quat = QuaternionConfig()
+
+        assert quat.euler_sequence == "xyz"
+        assert quat.negate_yaw is True
+        assert quat.negate_pitch is False
+        assert quat.negate_roll is True
+
+    def test_imu_bno08x_i2c_values(self, monkeypatch):
+        monkeypatch.setenv("BNO08X_I2C_ADDRESS", "0x4B")
+        from src.hardware.imu.bno08x.i2c import Config as ImuI2cConfig
+
+        imu = ImuI2cConfig()
+
+        assert imu.address == 0x4B  # env-only, stays a wrapper field
+        assert imu.enable_sensors_delay == pytest.approx(0.5)
+        assert imu.quaternion.euler_sequence == "xyz"
+
+    def test_imu_bno08x_mcp2221_i2c_values(self):
+        from src.hardware.imu.bno08x.mcp2221.i2c import Config as ImuMcpI2cConfig
+
+        imu = ImuMcpI2cConfig()
+
+        assert imu.imu_i2c_address == "0x4A"
+        assert imu.imu_i2c_address_int == 0x4A
+
+    def test_imu_bno08x_mcp2221_uart_rvc_values(self, monkeypatch):
+        monkeypatch.setenv("BNO08X_UART_RVC_PORT", "/dev/ttyACM0")
+        from src.hardware.imu.bno08x.mcp2221.uart_rvc import Config as ImuMcpUartConfig
+
+        imu = ImuMcpUartConfig()
+
+        assert imu.port == "/dev/ttyACM0"
+        assert imu.default_port == "/dev/ttyACM0"
+        assert imu.baudrate == 115200
+        assert imu.poll_rate_hz == pytest.approx(100.0)
+        assert imu.serial_timeout == pytest.approx(1.0)
+        assert imu.data_lock_timeout == pytest.approx(2.0)
+        assert imu.quaternion.euler_sequence == "xyz"
+        assert imu.quaternion.negate_yaw is True
+        assert imu.mcp2221.vid == "0x04D8"
+        assert imu.mcp2221.pid == "0x00DD"
+        assert imu.mcp2221.vid_int == 0x04D8
+        assert imu.mcp2221.pid_int == 0x00DD
+
+    def test_button_values(self):
+        from src.hardware.button.config import Config as ButtonConfig
+
+        button = ButtonConfig()
+
+        assert button.pull_up is True
+        assert button.debounce_ms == 50
+        assert button.long_press_threshold_sec == pytest.approx(3.0)
+        assert button.shutdown_press_threshold_sec == pytest.approx(10.0)
+
+    def test_button_mcp2221_values(self, monkeypatch):
+        monkeypatch.setenv("MCP2221_BUTTON_GPIO_PIN", "2")
+        from src.hardware.button.mcp2221.config import Config as ButtonMcpConfig
+
+        button = ButtonMcpConfig()
+
+        assert button.gpio_pin == 2
+        assert button.mcp2221.vid == "0x04D8"
+        assert button.mcp2221.pid == "0x00DD"
+        assert button.button.pull_up is True
+        assert button.button.debounce_ms == 50
+        assert button.button.long_press_threshold_sec == pytest.approx(3.0)
+        assert button.button.shutdown_press_threshold_sec == pytest.approx(10.0)
+
+    def test_camera_module_3_values(self):
+        from src.hardware.camera.rpi.camera_module_3.driver import (
+            AeExposureMode,
+            AfMode,
+            AwbMode,
+            Config as CamM3Config,
+            NoiseReductionMode,
+        )
+
+        camera = CamM3Config()
+
+        assert camera.camera_device == "/dev/video0"
+        assert camera.camera_width == 1536
+        assert camera.camera_height == 864
+        assert camera.camera_fps == 30
+        assert camera.camera_inverted is True
+        assert camera.camera_rotation == 0
+        assert camera.camera_hflip is False
+        assert camera.camera_vflip is False
+        assert camera.camera_af_mode is AfMode.MANUAL
+        assert camera.camera_lens_position == pytest.approx(1.25)
+        assert camera.camera_ae_exposure_mode is AeExposureMode.SHORT
+        assert camera.camera_analogue_gain == pytest.approx(1.0)
+        assert camera.camera_awb_mode is AwbMode.FLUORESCENT
+        assert camera.camera_noise_reduction_mode is NoiseReductionMode.FAST
+        assert camera.camera_sharpness == pytest.approx(1.2)
+        # Never-committed knobs stay wrapper-only.
+        assert camera.camera_af_speed.value == "normal"
+        assert camera.camera_exposure_time_us is None
+
+        # resolved_flips folds camera_inverted in: mounted upside-down.
+        assert camera.resolved_flips() == (True, True)
+

@@ -1,23 +1,24 @@
-from pydantic import BaseModel
+"""Button configuration shared by the GPIO and MCP2221A backends."""
+
+from __future__ import annotations
+
+from typing import Any, ClassVar
+
+from shared.config.defaults_model import DefaultsModel
+from shared.config.generated.hardware.button.gpio_schema import Button as GeneratedButton
 
 
-class Config(BaseModel):
-    """Configuration for button driver."""
+class Config(DefaultsModel, GeneratedButton):
+    """Configuration for button driver.
 
-    pull_up: bool = True
-    """Whether to use internal pull-up resistor."""
-
-    debounce_ms: int = 50
-    """Debounce delay in milliseconds."""
-
-    long_press_threshold_sec: float = 3.0
-    """Duration threshold for long press detection in seconds."""
-
-    shutdown_press_threshold_sec: float = 10.0
-    """Duration threshold for the clean-shutdown hold, in seconds.
-
-    Must sit well above long_press_threshold_sec. The gap is the margin an
-    operator has to hold the button in an emergency without accidentally
-    asking for a power-off instead of a stop -- and nobody counts seconds
-    during one.
+    Subclasses the generated ``Button`` DTO used by both backends' schemas; the
+    old hand-written defaults are re-applied as wrapper fallbacks rather than by
+    redeclaring a DTO field.
     """
+
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "pull_up": True,
+        "debounce_ms": 50,
+        "long_press_threshold_sec": 3.0,
+        "shutdown_press_threshold_sec": 10.0,
+    }

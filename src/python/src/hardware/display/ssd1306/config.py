@@ -1,7 +1,7 @@
 from pydantic_settings import SettingsConfigDict
 from shared.config.generated.hardware.display.ssd1306_schema import HardwareDisplaySsd1306
 
-from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings, parse_hex_int
 
 
 class Config(HardwareBaseSettings, HardwareDisplaySsd1306):
@@ -21,4 +21,4 @@ class Config(HardwareBaseSettings, HardwareDisplaySsd1306):
     @property
     def i2c_address_int(self) -> int:
         """``i2c_address`` parsed as an int (accepts hex/octal/decimal strings)."""
-        return int(self.i2c_address, 0)
+        return parse_hex_int(self.i2c_address)

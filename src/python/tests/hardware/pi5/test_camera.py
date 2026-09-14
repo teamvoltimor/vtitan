@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture()
 def driver():
     """Create driver instance."""
-    config = CameraConfig(device="/dev/video0", width=1536, height=864, fps=30)
+    config = CameraConfig(camera_device="/dev/video0", camera_width=1536, camera_height=864, camera_fps=30)
     return CameraDriver(config=config)
 
 
@@ -112,7 +112,7 @@ def preview_camera():
 
     import cv2
 
-    config = CameraConfig(device="/dev/video0", fps=30)
+    config = CameraConfig(camera_device="/dev/video0", camera_fps=30)
 
     try:
         driver.open()
