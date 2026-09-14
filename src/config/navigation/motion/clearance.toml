@@ -98,10 +98,38 @@ contact_reverse_cooldown_ticks = 20
 # everything below 0.05 -- which measured +3 collisions on Go sighted. With the
 # floor reading valid the threshold becomes actionable and collisions FALL.
 #
-# HARDWARE CAUTION: this sits 5 mm below the C1's rated minimum, where a real
+# HARDWARE CAUTION: 0.04 sits 5 mm below the C1's rated minimum, where a real
 # sensor is least trustworthy. The sim clips cleanly at 0.045 and cannot model
-# that, so bench the sensor at close range before racing on this value.
-obstacles_contact_dist = 0.04
+# that, so bench the sensor at close range before racing on that value.
+#
+# SET TO 0.10 ON 2026-09-14, which is this block's own instruction above
+# ("revert this line to 0.10 if A3's decision rule says so") taken because
+# Session A has never been run.
+#
+# Until 1a6a46c3 this whole override never reached the navigator -- the first
+# Obstacles race of every process resolved its clearance zones as OPEN and kept
+# them (see that commit). So every hardware round to date ran contact_dist =
+# 0.10, and 0.04 has never been observed on track. Fixing the plumbing silently
+# promoted it from dead config to the live emergency-escape threshold.
+#
+# Priced on the nine 2026-09-13/14 rounds, 141 K-turn latches, by their
+# forward_clearance_m at the latch:
+#
+#   contact_dist 0.10 -> 112 of 141 fire (79%)   <- what those rounds ran
+#   contact_dist 0.07 ->  28 of 141 (20%)
+#   contact_dist 0.04 ->  20 of 141 (14%)
+#
+# So 0.04 removes 86% of K-turns. That is attractive -- the K-turn steers
+# against the plan in 57% of episodes -- but it also cuts the reaction distance
+# to WALLS and to not-yet-mapped pillars from 10 cm to 4 cm (a COMMITTED pillar
+# is masked out of this trigger, so it is not what this knob protects). That
+# trade has never run on hardware, and the operator's call was to change one
+# thing per round: the round in flight carries
+# obstacles_escape_side_follows_committed_sign and nothing else.
+#
+# To revisit: run Session A, then re-price against a round that ran 0.10 with
+# the pass-side flag on, so the two changes stay separable.
+obstacles_contact_dist = 0.10
 
 # Written out 2026-09-05
 #
