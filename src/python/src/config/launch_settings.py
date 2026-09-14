@@ -25,6 +25,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared.config.constants import CompetitionSpecs
+from shared.config.generated.hardware.lidar_schema import HardwareLidar
 from shared.config.ros_topics import RosTopicConfig
 
 from src.hardware.settings_base import CONFIG_DIR, ROBOT_ROOT, HardwareBaseSettings
@@ -166,7 +167,7 @@ class TelemetryBridgeLaunchSettings(BaseSettings):
         }
 
 
-class LidarLaunchDefaults(HardwareBaseSettings):
+class LidarLaunchDefaults(HardwareBaseSettings, HardwareLidar):
     """Defaults for lidar_launch.py's LIDAR driver parameters.
 
     ``serial_port`` is a DeclareLaunchArgument (override at runtime with
@@ -177,14 +178,12 @@ class LidarLaunchDefaults(HardwareBaseSettings):
     unlike the other *LaunchDefaults below, src/go's own LIDAR driver reads
     this same lidar.toml (profile.DefaultLidarLaunchTOMLPath), so it's a
     shared driver fact, not a Python/ROS2-only launch-time concern.
+
+    Subclasses the generated DTO purely to attach the TOML/env settings
+    wiring; the field declarations (and their descriptions) are generated.
     """
 
     model_config = SettingsConfigDict(env_prefix="lidar_launch_", toml_file=CONFIG_DIR / "lidar.toml")
-
-    serial_port: str = "/dev/ttyUSB0"
-    serial_baudrate: int = 460800
-    scan_mode: str = "Standard"
-    angle_compensate: bool = True
 
 
 class StateMachineLaunchDefaults(HardwareBaseSettings):

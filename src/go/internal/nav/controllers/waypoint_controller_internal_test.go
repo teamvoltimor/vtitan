@@ -23,8 +23,20 @@ func TestAgreesWithPathSense(t *testing.T) {
 		want   bool
 	}{
 		{name: "approaching along the path agrees", dx: 1.0, dy: 0.0, dist: 1.0, path: path, index: 1, want: true},
-		{name: "approaching against the path disagrees", dx: -1.0, dy: 0.0, dist: 1.0, path: path, index: 1, want: false},
-		{name: "perpendicular approach disagrees (strict boundary)", dx: 0.0, dy: 1.0, dist: 1.0, path: path, index: 1, want: false},
+		{
+			name: "approaching against the path disagrees",
+			dx:   -1.0, dy: 0.0, dist: 1.0,
+			path: path, index: 1, want: false,
+		},
+		{
+			name:  "perpendicular approach disagrees (strict boundary)",
+			dx:    0.0,
+			dy:    1.0,
+			dist:  1.0,
+			path:  path,
+			index: 1,
+			want:  false,
+		},
 		{
 			name: "duplicated waypoint has no direction and cannot disagree",
 			dx:   -1.0, dy: 0.0, dist: 1.0,

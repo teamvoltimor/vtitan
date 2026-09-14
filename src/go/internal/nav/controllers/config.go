@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"math"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
@@ -177,16 +178,22 @@ const (
 
 	DefaultRevSpeed                = -0.20
 	DefaultRevSteerDeg             = 44.0
-	DefaultKTurnMinFrames          = 6
-	DefaultKTurnMaxFrames          = 12
 	DefaultStuckMoveThreshold      = 0.03
-	DefaultStuckTimeoutFrames      = 40
 	DefaultSideCorrectionSteerDeg  = 16.5
 	DefaultSideCorrectionSpeed     = 0.1
-	DefaultSideCorrectionFrames    = 4
 	DefaultStuckConfirmationChecks = 3
-	DefaultStuckHistoryFloor       = 60
 	DefaultMinHistoryForDistance   = 2
+
+	// DefaultKTurnMinS and the other Default*S constants are the escape
+	// durations in SECONDS exactly as escape.toml stores them. Default*Frames
+	// (below) derive from these via profile.Frames at DefaultControlHz, the
+	// same conversion ConfigFor applies when it loads the file, so the frame
+	// defaults cannot drift from these seconds.
+	DefaultKTurnMinS          = 0.54
+	DefaultKTurnMaxS          = 1.08
+	DefaultStuckTimeoutS      = 2.0
+	DefaultSideCorrectionS    = 0.20
+	DefaultStuckHistoryFloorS = 3.0
 
 	DefaultControllerReachedDistanceM = 0.01
 
@@ -211,6 +218,17 @@ const (
 	// which loads the real, profile-sourced value whenever a hardware
 	// profile is available).
 	DefaultMaxSteeringAngleRad = 1.2252
+)
+
+// Default*Frames match what ConfigFor derives from escape.toml's second-valued
+// durations at DefaultControlHz, so they are computed the same way rather than
+// restated as literals.
+var (
+	DefaultKTurnMinFrames       = profile.Frames(DefaultKTurnMinS, DefaultControlHz)
+	DefaultKTurnMaxFrames       = profile.Frames(DefaultKTurnMaxS, DefaultControlHz)
+	DefaultStuckTimeoutFrames   = profile.Frames(DefaultStuckTimeoutS, DefaultControlHz)
+	DefaultSideCorrectionFrames = profile.Frames(DefaultSideCorrectionS, DefaultControlHz)
+	DefaultStuckHistoryFloor    = profile.Frames(DefaultStuckHistoryFloorS, DefaultControlHz)
 )
 
 // DefaultConfig returns the Config matching the shipped TOML/robot.toml

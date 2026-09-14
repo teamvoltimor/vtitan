@@ -17,16 +17,16 @@ type NavigationMotionSpeed struct {
 	// 0.61 s, during which the robot covers 6.2 cm instead of 3.1 cm, against 0.103 m
 	// of lateral margin. That budget is in METRES, which is why this tier must not be
 	// re-scaled by a motor change.  Was creep_frac = 0.65.
-	CreepMps *float64 `json:"creep_mps,omitempty,omitzero" yaml:"creep_mps,omitempty" mapstructure:"creep_mps,omitempty"`
+	CreepMps float64 `json:"creep_mps" yaml:"creep_mps" mapstructure:"creep_mps"`
 
 	// Open track: >0.50 m clearance, and every heading error below the 57 deg crawl
 	// threshold. At the ceiling today. Was fast_frac = 1.0.
-	FastMps *float64 `json:"fast_mps,omitempty,omitzero" yaml:"fast_mps,omitempty" mapstructure:"fast_mps,omitempty"`
+	FastMps float64 `json:"fast_mps" yaml:"fast_mps" mapstructure:"fast_mps"`
 
 	// Upper bound on any tier. At or above the drivetrain ceiling means "flat out";
 	// the accessors clamp, so a value the motor cannot reach is inert rather than
 	// fiction. Was max_frac = 1.0.
-	MaxMps *float64 `json:"max_mps,omitempty,omitzero" yaml:"max_mps,omitempty" mapstructure:"max_mps,omitempty"`
+	MaxMps float64 `json:"max_mps" yaml:"max_mps" mapstructure:"max_mps"`
 
 	// Moderate clearance (0.25-0.50 m) and the blind corridor-follow before direction
 	// settles.  This is what the zone is WORTH, not which zone applies. The graduated
@@ -35,13 +35,13 @@ type NavigationMotionSpeed struct {
 	// limiter routing ordinary cornering through here. That is fixed where the zone
 	// is chosen, in CoreNavigator, so these keep their meaning for the cases that
 	// genuinely do want a lower speed.  Was medium_frac = 0.85.
-	MediumMps *float64 `json:"medium_mps,omitempty,omitzero" yaml:"medium_mps,omitempty" mapstructure:"medium_mps,omitempty"`
+	MediumMps float64 `json:"medium_mps" yaml:"medium_mps" mapstructure:"medium_mps"`
 
 	// Least speed that overcomes friction and actually moves the robot. A floor on
 	// the tiers below, not a tier itself. Measured no-load and in a straight line;
 	// the true floor under full steering lock is higher (tyre scrub) and has never
 	// been measured.  Was min_frac = 0.32.
-	MinMps *float64 `json:"min_mps,omitempty,omitzero" yaml:"min_mps,omitempty" mapstructure:"min_mps,omitempty"`
+	MinMps float64 `json:"min_mps" yaml:"min_mps" mapstructure:"min_mps"`
 
 	// Optional obstacles fast mps override in m/s; absent means the base tier
 	// applies.
@@ -72,5 +72,5 @@ type NavigationMotionSpeed struct {
 
 	// Near obstacles (0.10-0.25 m clearance) and the risk != SAFE cap. Was slow_frac
 	// = 0.75.
-	SlowMps *float64 `json:"slow_mps,omitempty,omitzero" yaml:"slow_mps,omitempty" mapstructure:"slow_mps,omitempty"`
+	SlowMps float64 `json:"slow_mps" yaml:"slow_mps" mapstructure:"slow_mps"`
 }

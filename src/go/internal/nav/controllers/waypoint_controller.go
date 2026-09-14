@@ -40,7 +40,7 @@ type WaypointController struct {
 	// default) reproduces a hard switch exactly.
 	LookaheadBlendStart float64
 	// TargetSearchSpanM is how far ALONG THE PATH SelectTargetPoint may walk,
-	// in metres. 0 means a whole lap -- see the span comment in
+	// in meters. 0 means a whole lap -- see the span comment in
 	// SelectTargetPoint. Mirrors TARGET_SEARCH_SPAN_M.
 	TargetSearchSpanM float64
 	// TargetSenseGate rejects a candidate the chassis would reach by going
@@ -57,6 +57,11 @@ type WaypointController struct {
 // handful of candidates the search stops being a search -- so the floor wins
 // over the span. Mirrors waypoint_controller._MIN_SEARCH_CANDIDATES.
 const minSearchCandidates = 5
+
+// minNormLen is the shortest (dx, dy) vector unitOrNone will normalise. Below
+// it the vector is too short to have a reliable bearing, matching
+// waypoint_controller._UNIT_EPSILON.
+const minNormLen = 1e-12
 
 // EffectiveTransition is the crosstrack threshold actually in force, after
 // the wall budget, matching WaypointController.effective_transition.
@@ -231,8 +236,8 @@ func (w *WaypointController) ComputeSteering(
 // -- the candidate is reached by going round the loop the wrong way.
 //
 // This covers a different quantity from TargetSearchSpanM: a closed loop has
-// two tangent directions at every point, and a point one metre along the path
-// in the wrong sense is still one metre away and still in the forward
+// two tangent directions at every point, and a point one meter along the path
+// in the wrong sense is still one meter away and still in the forward
 // half-plane of a rotated chassis. Measured 2026-09-12: the span bound
 // converted the reversal rather than closing it (wrong-sense targets 56-91%
 // -> 2.8%, but target-behind-chassis 0.0% -> 35.4%).
@@ -253,9 +258,9 @@ func agreesWithPathSense(dx, dy, dist float64, path []trackmodel.Waypoint, index
 
 // unitOrNone normalises (dx, dy), reporting false when it is too short to
 // have a bearing. Mirrors waypoint_controller._unit_or_none.
-func unitOrNone(dx, dy float64) (float64, float64, bool) {
+func unitOrNone(dx, dy float64) (nx, ny float64, ok bool) {
 	n := math.Hypot(dx, dy)
-	if n <= 1e-12 {
+	if n <= minNormLen {
 		return 0.0, 0.0, false
 	}
 	return dx / n, dy / n, true

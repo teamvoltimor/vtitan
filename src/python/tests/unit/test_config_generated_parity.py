@@ -13,6 +13,9 @@ validates.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 from shared.config.constants.simulation import CompetitionSpecs
 from shared.config.generated.competition_specs_schema import CompetitionSpecs as CompetitionSpecsDTO
@@ -23,6 +26,16 @@ from shared.config.ros_topics import RosMessageType, RosTopicConfig, StateMachin
 
 from src.hardware.motors.encoder import EncoderConfig
 from src.hardware.motors.servo import ServoConfig
+
+# The per-board node implementations (button_node, ackermann_motor_node, ...)
+# live across ament_python packages under ros2_ws/src/vtitan_*, none of which
+# are on PYTHONPATH (they normally require a colcon build). tests/ros2/conftest
+# adds each source dir for the ROS2 suite; the unit suite has no such conftest,
+# so the same bootstrap is repeated here for the node NodeConfig parity checks.
+_ROS2_WS_SRC = Path(__file__).resolve().parents[2] / "ros2_ws" / "src"
+for _pkg_dir in sorted(_ROS2_WS_SRC.glob("vtitan_*")):
+    if str(_pkg_dir) not in sys.path:
+        sys.path.insert(0, str(_pkg_dir))
 
 
 class TestGeneratedAnchoring:
@@ -246,3 +259,111 @@ class TestNavigationTuningAnchoring:
         assert tuning.localization.max_speed_mps == pytest.approx(0.60)
         assert tuning.state_estimator.yaw_correction_gain == pytest.approx(0.05)
         assert tuning.sign_discovery.min_hits == 3
+
+
+class TestHardwareConfigAnchoring:
+    """Every newly migrated hardware/node wrapper is anchored to its DTO.
+
+    The subclass assertion is the migration contract: the wrapper validates the
+    generated field set, and no field is redeclared by hand.
+    """
+
+    def test_camera_config_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.camera.config_schema import HardwareCameraConfig
+
+        from src.hardware.camera.config import Config as CameraConfig
+
+        assert issubclass(CameraConfig, HardwareCameraConfig)
+
+    def test_teleop_config_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.teleop_schema import HardwareTeleop
+
+        from src.teleop.config import Config as TeleopConfig
+
+        assert issubclass(TeleopConfig, HardwareTeleop)
+
+    def test_lidar_launch_defaults_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.lidar_schema import HardwareLidar
+
+        from src.config.launch_settings import LidarLaunchDefaults
+
+        assert issubclass(LidarLaunchDefaults, HardwareLidar)
+
+    def test_ros2_node_configs_subclass_generated_dtos(self):
+        from shared.config.generated.hardware.button.button_node_schema import HardwareButtonButtonNode
+        from shared.config.generated.hardware.challenge_mode_node_schema import HardwareChallengeModeNode
+        from shared.config.generated.hardware.motors.ackermann_motor_node_schema import (
+            HardwareMotorsAckermannMotorNode,
+        )
+        from shared.config.generated.hardware.state_machine.state_machine_node_schema import (
+            HardwareStateMachineStateMachineNode,
+        )
+        from vtitan_drivers.button_node import NodeConfig as ButtonNodeConfig
+        from vtitan_drivers.challenge_mode_node import NodeConfig as ChallengeModeNodeConfig
+        from vtitan_drivers.motors.ackermann_motor_node import NodeConfig as AckermannNodeConfig
+        from vtitan_state_machine.state_machine_node import NodeConfig as StateMachineNodeConfig
+
+        assert issubclass(ButtonNodeConfig, HardwareButtonButtonNode)
+        assert issubclass(ChallengeModeNodeConfig, HardwareChallengeModeNode)
+        assert issubclass(AckermannNodeConfig, HardwareMotorsAckermannMotorNode)
+        assert issubclass(StateMachineNodeConfig, HardwareStateMachineStateMachineNode)
+
+
+class TestHardwareConfigLoadedValues:
+    """The real shipped TOMLs, as the migrated wrappers read them."""
+
+    def test_camera_values(self):
+        from src.hardware.camera.config import Config as CameraConfig
+
+        camera = CameraConfig()
+
+        assert camera.device == "/dev/video0"
+        assert camera.width == 640
+        assert camera.height == 640
+        assert camera.fps == 30
+        assert camera.rotation == 0
+        assert camera.hflip is False
+        assert camera.vflip is False
+
+    def test_teleop_values(self):
+        from src.teleop.config import Config as TeleopConfig
+
+        teleop = TeleopConfig()
+
+        assert teleop.steering_axis_index == 0
+        assert teleop.throttle_axis_index == 4
+        assert teleop.deadman_button_index == 6
+        assert teleop.steering_invert is False
+        assert teleop.throttle_invert is False
+        assert teleop.max_steering_deg == pytest.approx(30.0)
+        assert teleop.max_speed_mps == pytest.approx(0.3)
+        assert teleop.publish_rate_hz == pytest.approx(20.0)
+        assert teleop.joy_timeout_s == pytest.approx(0.5)
+
+    def test_lidar_launch_defaults_values(self):
+        from src.config.launch_settings import LidarLaunchDefaults
+
+        lidar = LidarLaunchDefaults()
+
+        assert lidar.serial_port == "/dev/ttyUSB0"
+        assert lidar.serial_baudrate == 460800
+        assert lidar.scan_mode == "Standard"
+        assert lidar.angle_compensate is True
+
+    def test_ros2_node_config_values(self):
+        from vtitan_drivers.button_node import NodeConfig as ButtonNodeConfig
+        from vtitan_drivers.challenge_mode_node import NodeConfig as ChallengeModeNodeConfig
+        from vtitan_drivers.motors.ackermann_motor_node import NodeConfig as AckermannNodeConfig
+        from vtitan_state_machine.state_machine_node import NodeConfig as StateMachineNodeConfig
+
+        assert ButtonNodeConfig().poll_hz == pytest.approx(20.0)
+
+        assert ChallengeModeNodeConfig().publish_rate_hz == pytest.approx(2.0)
+
+        ackermann = AckermannNodeConfig()
+        assert ackermann.publisher_rate_hz == pytest.approx(20.0)
+        assert ackermann.diagnostics_rate_hz == pytest.approx(2.0)
+
+        state_machine = StateMachineNodeConfig()
+        assert state_machine.challenge_mode_samples_required == 3
+        assert state_machine.challenge_mode_timeout_sec == pytest.approx(180.0)

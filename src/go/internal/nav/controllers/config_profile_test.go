@@ -13,7 +13,7 @@ import (
 // DefaultConfig leaves the override nil (that IS its documented default, and
 // the Open path depends on nil meaning "unset"), so comparing against it
 // would assert the opposite of what ships.
-const shippedObstaclesContactDist = 0.05
+const shippedObstaclesContactDist = 0.04
 
 // hardwareProfileNames matches the currently active profile recorded in
 // this repo's own memory/config (VTITAN_HARDWARE_PROFILE =

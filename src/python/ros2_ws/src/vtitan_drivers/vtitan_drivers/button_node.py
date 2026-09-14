@@ -27,9 +27,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, override
 
 import rclpy
-from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from shared.config.generated.hardware.button.button_node_schema import HardwareButtonButtonNode
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
@@ -48,18 +48,17 @@ NODE_NAME = "button_node"
 DEFAULT_QUEUE_DEPTH = 10
 
 
-class NodeConfig(HardwareBaseSettings):
+class NodeConfig(HardwareBaseSettings, HardwareButtonButtonNode):
     """Node-level timing, configurable via src/config/hardware/button/button_node.toml.
 
     Matches every hardware driver's Config pattern -- separate from
     gpio.toml/mcp2221.toml alongside it, which are the driver's own
-    debounce/threshold config, not this node's poll rate.
+    debounce/threshold config, not this node's poll rate. Subclasses the
+    generated DTO purely to attach the TOML/env settings wiring; the field
+    declarations (and their descriptions) are generated.
     """
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "button" / "button_node.toml")
-
-    poll_hz: float = Field(default=20.0, validation_alias=AliasChoices("POLL_HZ", "poll_hz"))
-    """Rate the physical button is sampled at."""
 
 
 _node_config = NodeConfig()

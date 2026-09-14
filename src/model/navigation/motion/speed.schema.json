@@ -82,5 +82,13 @@
       "x-unit": "m/s",
       "description": "Optional corner mps override in m/s; absent means the base tier applies."
     }
-  }
+  },
+  "required": [
+    "min_mps",
+    "max_mps",
+    "creep_mps",
+    "slow_mps",
+    "medium_mps",
+    "fast_mps"
+  ]
 }

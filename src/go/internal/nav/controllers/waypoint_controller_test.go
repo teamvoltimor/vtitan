@@ -165,11 +165,11 @@ func TestSelectTargetPoint_FallsBackToNearestAheadWhenNothingReachesLookahead(t 
 
 // ringWays builds a closed loop so "the far side" is a real place the search
 // can reach. Ports TestTargetSearchSpan._ring.
-func ringWays(n int, radius float64) []trackmodel.Waypoint {
+func ringWays(n int) []trackmodel.Waypoint {
 	ring := make([]trackmodel.Waypoint, n)
 	for i := range n {
 		angle := 2 * math.Pi * float64(i) / float64(n)
-		ring[i] = trackmodel.Waypoint{X: radius * math.Cos(angle), Y: radius * math.Sin(angle)}
+		ring[i] = trackmodel.Waypoint{X: math.Cos(angle), Y: math.Sin(angle)}
 	}
 	return ring
 }
@@ -181,7 +181,7 @@ func ringWays(n int, radius float64) []trackmodel.Waypoint {
 func TestSelectTargetPoint_ReversedChassisIsNotHandedTheFarSide(t *testing.T) {
 	t.Parallel()
 
-	ring := ringWays(40, 1.0)
+	ring := ringWays(40)
 	pose := trackmodel.Pose{
 		X: ring[0].X,
 		Y: ring[0].Y,
@@ -191,7 +191,7 @@ func TestSelectTargetPoint_ReversedChassisIsNotHandedTheFarSide(t *testing.T) {
 		),
 	}
 
-	bounded := newDefaultWaypointController() // TargetSearchSpanM = 1.0
+	bounded := newDefaultWaypointController() // the default 1.0 m span bounds the search
 	target := bounded.SelectTargetPoint(pose, ring, 0, 0.32)
 	if d := math.Hypot(target.X-pose.X, target.Y-pose.Y); d > 1.0 {
 		t.Errorf("bounded search returned a target %v m away, want <= 1.0", d)
@@ -203,7 +203,7 @@ func TestSelectTargetPoint_ReversedChassisIsNotHandedTheFarSide(t *testing.T) {
 func TestSelectTargetPoint_UnboundedReachesTheFarSide(t *testing.T) {
 	t.Parallel()
 
-	ring := ringWays(40, 1.0)
+	ring := ringWays(40)
 	pose := trackmodel.Pose{
 		X: ring[0].X,
 		Y: ring[0].Y,
@@ -227,7 +227,7 @@ func TestSelectTargetPoint_UnboundedReachesTheFarSide(t *testing.T) {
 func TestSelectTargetPoint_HealthyDrivingIsUntouched(t *testing.T) {
 	t.Parallel()
 
-	ring := ringWays(40, 1.0)
+	ring := ringWays(40)
 	pose := trackmodel.Pose{
 		X: ring[0].X,
 		Y: ring[0].Y,
@@ -255,7 +255,7 @@ func TestSelectTargetPoint_HealthyDrivingIsUntouched(t *testing.T) {
 func TestSelectTargetPoint_SenseGateOffMatchesOnWhenAligned(t *testing.T) {
 	t.Parallel()
 
-	ring := ringWays(24, 1.0)
+	ring := ringWays(24)
 	pose := trackmodel.Pose{
 		X:   ring[0].X * 0.95,
 		Y:   ring[0].Y * 0.95,
@@ -303,7 +303,7 @@ func TestSelectTargetPoint_SenseGateSkipsWrongSenseForLaterRightSense(t *testing
 func TestSelectTargetPoint_FullyRotatedChassisIsNotRescuedByGate(t *testing.T) {
 	t.Parallel()
 
-	ring := ringWays(24, 1.0)
+	ring := ringWays(24)
 	pose := trackmodel.Pose{
 		X:   ring[0].X * 0.95,
 		Y:   ring[0].Y * 0.95,

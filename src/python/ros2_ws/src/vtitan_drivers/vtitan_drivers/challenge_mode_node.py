@@ -23,9 +23,9 @@ wait for the next periodic publish to learn it.
 from __future__ import annotations
 
 import rclpy
-from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 from rclpy.node import Node
+from shared.config.generated.hardware.challenge_mode_node_schema import HardwareChallengeModeNode
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool
 
@@ -36,26 +36,17 @@ from src.ros2.qos import QOS_LATCHED_STATE_RELIABLE
 NODE_NAME = "challenge_mode_node"
 
 
-class NodeConfig(HardwareBaseSettings):
+class NodeConfig(HardwareBaseSettings, HardwareChallengeModeNode):
     """Node-level timing, configurable via src/config/hardware/challenge_mode_node.toml.
 
     Matches every hardware driver's Config pattern -- separate from
     challenge_mode.toml alongside it, which is the GPIO driver's own config
-    (pin number), not this node's publish rate.
+    (pin number), not this node's publish rate. Subclasses the generated DTO
+    purely to attach the TOML/env settings wiring; the field declarations
+    (and their descriptions) are generated.
     """
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "challenge_mode_node.toml")
-
-    publish_rate_hz: float = Field(default=5.0, validation_alias=AliasChoices("PUBLISH_RATE_HZ", "publish_rate_hz"))
-    """Republish rate.
-
-    The jumper is a boot-time setting, not a live control input, so this only
-    has to be frequent enough that the state machine's 3-sample consistency
-    check settles quickly at startup -- 5Hz gets 3 agreeing samples in 0.6s
-    instead of 1.5s at the previous 2Hz, with no cost since the jumper never
-    actually changes mid-sampling. TRANSIENT_LOCAL covers late subscribers,
-    so this is really just a liveness heartbeat.
-    """
 
 
 _node_config = NodeConfig()
