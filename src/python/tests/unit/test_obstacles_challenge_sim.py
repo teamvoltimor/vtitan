@@ -281,8 +281,20 @@ class TestVisionConfirmedSignRouting:
 
         original_emulate = gateway_module.emulate_sign_observations
 
-        def flipped_color_emulate(signs, robot_pos, robot_yaw):
-            detections = original_emulate(signs, Waypoint(*robot_pos), robot_yaw)
+        def flipped_color_emulate(signs, robot_pos, robot_yaw, **kwargs):
+            # ``**kwargs`` rather than the named parameters on purpose. This
+            # stub pinned exactly ``(signs, robot_pos, robot_yaw)`` until
+            # 2026-09-14, and when the gateway grew ``tuning``/``believed_pos``/
+            # ``believed_yaw`` the monkeypatch started raising TypeError before
+            # asserting anything -- so the ONLY test in the repo covering a
+            # wrong camera colour was dead, silently, for as long as those
+            # kwargs have existed. Forwarding whatever it is handed means the
+            # next parameter cannot kill it the same way.
+            # ``robot_pos`` arrives as a Waypoint already -- it was a plain
+            # (x, y) tuple when this stub was written, so the old
+            # ``Waypoint(*robot_pos)`` was a second, independent staleness bug
+            # hiding behind the kwargs one above.
+            detections = original_emulate(signs, robot_pos, robot_yaw, **kwargs)
             return [replace(d, color=SignColor.GREEN if d.color == SignColor.RED else SignColor.RED) for d in detections]
 
         monkeypatch.setattr(gateway_module, "emulate_sign_observations", flipped_color_emulate)
