@@ -425,7 +425,13 @@ class ScenarioSimulator(PassSideScorer):
             localize=use_lidar_localization,
             sensor_errors=self._errors,
             solid_walls=solid_walls,
-            slide_on_contact=slide_on_contact,
+            # Config decides, with the explicit argument still winning so the
+            # diagnostics that sweep this arm are unaffected. Defaults TRUE
+            # since 2026-09-14: the old scale-to-nothing model stopped a chassis
+            # dead on contact at any angle, 56x less progress at 20 degrees than
+            # sliding gives, and the bay exit is a sequence of shallow-angle
+            # contacts.
+            slide_on_contact=slide_on_contact or self._tuning.simulation.contact_slides_along_surfaces,
             scrub_yaw_gain=scrub_yaw_gain,
             # A surface that no longer ends the run has to stop the chassis
             # instead, or the robot simply drives through the inner block and

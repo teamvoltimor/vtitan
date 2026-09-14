@@ -175,3 +175,14 @@ vision_frame_miss_rate = 0.79
 # impossible to screen in simulation at all.
 vision_color_flip_rate = 0.0
 vision_false_positive_rate = 0.0
+
+# ---------------------------------------------------------------------------
+# CONTACT PHYSICS
+#
+# ON by default since 2026-09-14. A blocked translation now slides along the
+# surface instead of being scaled to nothing. The old model stopped a chassis
+# dead on contact at ANY angle, which is not what a smooth track wall does and
+# which measured 56x less progress at a 20 degree approach. The bay exit is a
+# sequence of shallow-angle contacts, so that model voided every in-bay A/B
+# taken before this.
+contact_slides_along_surfaces = true
