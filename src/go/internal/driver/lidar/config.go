@@ -61,7 +61,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 // fields live in the base file, so no profile is required to reach them.
 func mountCorrectionFor(logger *slog.Logger, configRoot string) (inverted bool, mountYawOffsetDeg float64) {
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
-	robotCfg, err := profile.Load[profile.RobotConfig](robotPath, profile.ActiveNames())
+	robotCfg, err := profile.LoadRobotValues(robotPath, profile.ActiveNames())
 	if err != nil {
 		logger.Warn("driver/lidar: loading robot.toml, publishing uncorrected mount frame",
 			"config_root", configRoot, "error", err)

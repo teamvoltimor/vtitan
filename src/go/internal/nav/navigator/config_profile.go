@@ -45,9 +45,9 @@ const (
 // unrelated failure domains -- the same contract controllers.ConfigFor and
 // signrouter.ConfigFor state.
 //
-// profile.Load applies each DTO's shipped fallbacks (the defaults.go registry
-// for a generated type, `default` tags for a hand-written one), so a source
-// whose checked-in TOML omits keys still reads those values rather than zero.
+// Every config value comes from the TOML: the shipped files carry every key
+// their schema declares (Taplo-enforced at lint time), so a key absent here
+// means a hand-edited or partial source, not a missing per-type fallback.
 func loadApplyTOML[T any](logger *slog.Logger, path, what string, apply func(T)) {
 	loaded, err := profile.Load[T](path, nil)
 	if err != nil {

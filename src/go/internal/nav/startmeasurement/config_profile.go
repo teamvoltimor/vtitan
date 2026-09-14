@@ -39,7 +39,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
-	if loaded, err := profile.Load[profile.RobotConfig](robotPath, nil); err != nil {
+	if loaded, err := profile.LoadRobotValues(robotPath, nil); err != nil {
 		logger.Warn("startmeasurement: loading robot.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

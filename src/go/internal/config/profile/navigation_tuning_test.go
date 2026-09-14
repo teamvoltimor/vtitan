@@ -32,7 +32,7 @@ func TestLoad_DirectionEstimatorConfig(t *testing.T) {
 	}
 }
 
-func TestLoad_CorridorFollowerConfig_UsesDefaultForOmittedField(t *testing.T) {
+func TestLoad_CorridorFollowerConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := profile.Load[blind_nav.NavigationBlindNavCorridorFollower](
@@ -46,11 +46,10 @@ func TestLoad_CorridorFollowerConfig_UsesDefaultForOmittedField(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	if cfg.MinForwardClearanceM != 0.30 || cfg.TurnClearanceM != 0.60 {
-		t.Errorf("TOML-present fields wrong: %+v", cfg)
+		t.Errorf("unexpected field values: %+v", cfg)
 	}
-	if cfg.BayWallClearanceM != profile.DefaultBayWallClearanceM {
-		t.Errorf("BayWallClearanceM = %v, want default %v (field omitted from testdata TOML)",
-			cfg.BayWallClearanceM, profile.DefaultBayWallClearanceM)
+	if cfg.BayWallClearanceM != 0.20 {
+		t.Errorf("BayWallClearanceM = %v, want 0.20 (present in TOML)", cfg.BayWallClearanceM)
 	}
 }
 

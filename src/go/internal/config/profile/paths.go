@@ -94,8 +94,8 @@ const DefaultCorridorEstimatorTOMLPath = "src/config/navigation/blind_nav/corrid
 //
 // The file's shape is the generated
 // blind_nav.NavigationBlindNavCorridorFollower DTO; the generated
-// BayExitSpeedMps spelling is kept, and the registry in defaults.go carries
-// the fallbacks its schema does not tag.
+// BayExitSpeedMps spelling is kept, and every value including its fallbacks
+// comes from the TOML.
 const DefaultCorridorFollowerTOMLPath = "src/config/navigation/blind_nav/corridor_follower.toml"
 
 // DefaultDirectionEstimatorTOMLPath is
@@ -121,7 +121,7 @@ const DefaultLocalizationTOMLPath = "src/config/navigation/blind_nav/localizatio
 // src/config/navigation/escape/escape.toml, relative to the
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load. The file's shape is the generated escape.NavigationEscapeEscape DTO;
-// its one untagged fallback lives in the defaults.go registry.
+// its one untagged fallback is carried by the TOML.
 const DefaultEscapeTOMLPath = "src/config/navigation/escape/escape.toml"
 
 // Navigation: motion.
@@ -162,8 +162,8 @@ const DefaultParkingTOMLPath = "src/config/navigation/parking/parking.toml"
 // src/config/navigation/sensors/lidar_sectors.toml, relative
 // to the repo root. No per-component profile overlays -- pass nil
 // profileNames to Load. The file's shape is the generated
-// sensors.NavigationSensorsLidarSectors DTO; its one untagged fallback
-// (rear_self_detection_from_chassis) lives in the defaults.go registry.
+// sensors.NavigationSensorsLidarSectors DTO; rear_self_detection_from_chassis
+// is carried by the TOML.
 const DefaultLidarSectorsTOMLPath = "src/config/navigation/sensors/lidar_sectors.toml"
 
 // DefaultStartMeasurementTOMLPath is
@@ -187,8 +187,8 @@ const DefaultWallHeadingTOMLPath = "src/config/navigation/sensors/wall_heading.t
 // DefaultSignDiscoveryTOMLPath is where sign_discovery.toml lives, relative to
 // the repo root. The file's shape is the generated
 // signs.NavigationSignsSignDiscovery DTO; the generated
-// MinReliableBboxHeightPx spelling and int type are kept, and the registry in
-// defaults.go carries the fallbacks its schema does not tag.
+// MinReliableBboxHeightPx spelling and int type are kept, and every value
+// comes from the TOML.
 const DefaultSignDiscoveryTOMLPath = "src/config/navigation/signs/sign_discovery.toml"
 
 // DefaultSignRouterTOMLPath is
@@ -196,8 +196,7 @@ const DefaultSignDiscoveryTOMLPath = "src/config/navigation/signs/sign_discovery
 // repo root. No per-component profile overlays -- pass nil profileNames to
 // Load. The file's shape is the generated signs.NavigationSignsSignRouter
 // DTO; the generated SignLane* spellings for the relabel and depth-consistency
-// fields are kept, and the registry in defaults.go carries the fallbacks its
-// schema does not tag.
+// fields are kept, and every value comes from the TOML.
 const DefaultSignRouterTOMLPath = "src/config/navigation/signs/sign_router.toml"
 
 // Navigation: simulation.
@@ -226,6 +225,5 @@ const DefaultSimulationTOMLPath = "src/config/navigation/simulation/simulation.t
 // WideCenterBiasSide/NarrowCenterBiasSide stay strings because
 // viper/mapstructure has no decode hook for trackmodel.CorridorSide's
 // "inner"/"outer" TOML values, so internal/nav/waypoints.ConfigFor parses them
-// itself. The fallbacks its schema does not tag live in the defaults.go
-// registry.
+// itself. Every value, including its fallbacks, comes from the TOML.
 const DefaultWaypointsTOMLPath = "src/config/navigation/waypoint/waypoints.toml"

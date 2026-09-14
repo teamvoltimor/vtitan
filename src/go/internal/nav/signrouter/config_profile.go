@@ -54,7 +54,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
-	if rc, err := profile.Load[profile.RobotConfig](robotPath, nil); err != nil {
+	if rc, err := profile.LoadRobotValues(robotPath, nil); err != nil {
 		logger.Warn("signrouter: loading robot.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

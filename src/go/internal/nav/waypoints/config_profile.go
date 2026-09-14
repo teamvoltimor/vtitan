@@ -21,15 +21,11 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	// All three shipped defaults (corner_arc_assume_wide,
-	// unconfirmed_width_inner_bias_m, defer_current_corridor_replan) live on
-	// WaypointsConfig as `default` tags, so profile.Load applies them and an
-	// absent key reads as the shipped value rather than silently as false /
-	// 0.0. A bool and a bias both revert SILENTLY, which is off rather than
-	// absent, and disabling assume-wide corner sizing or both halves of the
-	// 596 -> 638/640 Open result would look like a clean load. Same pattern
-	// as controllers' min_history_for_distance (see EscapeConfig) and
-	// CorridorFollowerConfig's bay_wall_clearance_m.
+	// Every value lives in waypoints.toml, so an absent key reads as the Go
+	// zero value rather than a shipped fallback. The shipped file carries
+	// corner_arc_assume_wide / unconfirmed_width_inner_bias_m /
+	// defer_current_corridor_replan, which Taplo checks against the schema at
+	// lint time, so a zero at runtime means a hand-edited source.
 	loaded, err := profile.Load[waypoint.NavigationWaypointWaypoints](basePath, nil)
 	if err != nil {
 		logger.Warn("waypoints: loading waypoints.toml, falling back to defaults",

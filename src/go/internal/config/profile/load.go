@@ -2,10 +2,8 @@ package profile
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
-	"reflect"
 
 	"github.com/spf13/viper"
 )
@@ -14,11 +12,11 @@ import (
 // profileNames merges that profile's overlay
 // (filepath.Join(filepath.Dir(basePath), "profiles", name,
 // filepath.Base(basePath))) on top, in order, later names winning
-// (viper.MergeInConfig deep-merges nested tables). defaults, if non-nil,
-// is applied via viper.SetDefault before reading -- the idiomatic viper
-// equivalent of a Pydantic Field(default=...) for a TOML key some source
-// files genuinely never set (e.g. a value some but not all navigation-
-// tuning TOML files omit, relying on the Python model's own default).
+// (viper.MergeInConfig deep-merges nested tables). defaults, when non-nil, is
+// applied via viper.SetDefault before reading -- the caller's explicit
+// fallbacks for keys an overlay deliberately omits, not shipped per-type
+// values: every config value lives in the TOML, which is complete for each
+// file it describes and validated against its schema by Taplo.
 //
 // A missing base file is an error. A profileNames entry whose directory
 // doesn't exist is an error, matching
@@ -57,56 +55,33 @@ func merge(basePath string, profileNames []string, defaults map[string]any) (*vi
 	return v, nil
 }
 
-// configDefaults returns the shipped fallbacks that apply to T, from the
-// configDefaultsByType registry when T is a generated DTO with entries there
-// (see defaults.go), or from reflection over T's own `default` struct tags
-// otherwise (see tagDefaults). T carrying no tags and no registry entry
-// resolves to no defaults.
-func configDefaults[T any]() (map[string]any, error) {
-	if defaults, ok := configDefaultsByType[reflect.TypeFor[T]()]; ok {
-		return defaults, nil
-	}
-	return tagDefaults[T]()
-}
-
 // Load reads basePath as TOML, merges profileNames' overlays on top (see
 // merge), and unmarshals the result into a new T. Struct fields need a
 // `mapstructure:"..."` tag wherever the TOML key isn't just the field name
 // lowercased (viper matches case-insensitively but does not
 // snake_case-convert).
 //
-// T's shipped fallbacks are applied automatically (see configDefaults): a
-// generated DTO's untagged values come from the configDefaultsByType
-// registry, a hand-written struct's from its own `default:"..."` tags (see
-// tagDefaults). Either way a key absent from every source file falls back to
-// the shipped value instead of the Go zero value.
+// Every value comes from the TOML: there is no per-type shipped-default layer,
+// so a key absent from every source file reads as the Go zero value. The
+// shipped files carry every key their schema declares, which Taplo enforces at
+// lint time, so a zero at runtime means a hand-edited or partial source, not a
+// missing default.
 func Load[T any](basePath string, profileNames []string) (*T, error) {
-	defaults, err := configDefaults[T]()
-	if err != nil {
-		return nil, err
-	}
-	return load[T](basePath, profileNames, defaults)
+	return load[T](basePath, profileNames, nil)
 }
 
 // LoadWithDefaults is Load, but also applies the given defaults (dotted TOML
-// key -> value, e.g. "corridor_follower.bay_wall_clearance_m") via
-// viper.SetDefault before reading -- for a TOML key some source files never
-// set, relying on the Python model's own Field(default=...) instead (see
-// merge's doc comment). Explicit defaults win over T's own `default` tags, so
-// this remains the migration path for components not yet tagged.
+// key -> value, e.g. "min_mps") via viper.SetDefault before reading -- for a
+// caller that is re-overlaying an already-resolved config and wants the
+// overlay to leave every key it does not itself set at the resolved value
+// (see internal/nav/navigator.loadSpeedConfig). Those defaults are the
+// caller's own resolved values, not a second copy of the shipped config.
 func LoadWithDefaults[T any](
 	basePath string,
 	profileNames []string,
 	defaults map[string]any,
 ) (*T, error) {
-	tagged, err := configDefaults[T]()
-	if err != nil {
-		return nil, err
-	}
-	merged := make(map[string]any, len(tagged)+len(defaults))
-	maps.Copy(merged, tagged)
-	maps.Copy(merged, defaults)
-	return load[T](basePath, profileNames, merged)
+	return load[T](basePath, profileNames, defaults)
 }
 
 // load is the shared tail of Load and LoadWithDefaults: merge the sources,

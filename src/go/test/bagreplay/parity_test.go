@@ -58,7 +58,7 @@ const repoRootFromPackageDir = "../../../.."
 // would have built from the same sensor.
 var lidarYawOffsetRadForBags = sync.OnceValue(func() float64 {
 	basePath := filepath.Join(repoRootFromPackageDir, profile.DefaultRobotTOMLPath)
-	cfg, err := profile.Load[profile.RobotConfig](basePath, profile.ActiveNames())
+	cfg, err := profile.LoadRobotValues(basePath, profile.ActiveNames())
 	if err != nil {
 		slog.Default().Warn("bagreplay: loading robot.toml, replaying with no LIDAR yaw offset",
 			"error", err)

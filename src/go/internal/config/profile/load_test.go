@@ -13,7 +13,7 @@ import (
 func TestLoad_BaseOnly(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.RobotConfig](filepath.Join("testdata", "robot.toml"), nil)
+	cfg, err := profile.LoadRobotValues(filepath.Join("testdata", "robot.toml"), nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestLoad_BaseOnly(t *testing.T) {
 func TestLoad_ProfileOverlayMerges(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.RobotConfig](
+	cfg, err := profile.LoadRobotValues(
 		filepath.Join("testdata", "robot.toml"),
 		[]string{"inverted-mount"},
 	)
@@ -46,7 +46,7 @@ func TestLoad_ProfileOverlayMerges(t *testing.T) {
 func TestLoad_UnknownProfileErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := profile.Load[profile.RobotConfig](
+	_, err := profile.LoadRobotValues(
 		filepath.Join("testdata", "robot.toml"),
 		[]string{"does-not-exist"},
 	)
@@ -58,7 +58,7 @@ func TestLoad_UnknownProfileErrors(t *testing.T) {
 func TestLoad_ProfileDirWithoutMatchingFileIsSkipped(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.RobotConfig](
+	cfg, err := profile.LoadRobotValues(
 		filepath.Join("testdata", "robot.toml"), []string{"empty-overlay-dir"},
 	)
 	if err != nil {
@@ -142,7 +142,7 @@ func TestLoad_TrackConfig(t *testing.T) {
 func TestLoad_MissingBaseErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := profile.Load[profile.RobotConfig](
+	_, err := profile.LoadRobotValues(
 		filepath.Join("testdata", "does-not-exist.toml"),
 		nil,
 	)

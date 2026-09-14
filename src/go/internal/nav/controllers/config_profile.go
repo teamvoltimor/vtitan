@@ -69,10 +69,9 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	lidarSectorsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	// profile.Load applies LidarSectorsConfig's own `default` tags, so
-	// rear_self_detection_from_chassis still reads true when the TOML omits
-	// it rather than reverting SILENTLY to the zero value -- the same class
-	// of trap as waypoints.toml's corner_arc_assume_wide.
+	// lidar_sectors.toml is the single source: it carries
+	// rear_self_detection_from_chassis, so the value is read straight from the
+	// file rather than from a per-type fallback.
 	if loaded, err := profile.Load[sensors.NavigationSensorsLidarSectors](lidarSectorsPath, nil); err != nil {
 		logger.Warn(
 			"controllers: loading lidar_sectors.toml, falling back to defaults",

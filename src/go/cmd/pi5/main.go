@@ -144,13 +144,12 @@ func loadCamera(cfg cliConfig, logger *slog.Logger) camera.Config {
 		return camera.Config{Source: camera.SourceSynthetic, FPS: cfg.fps}
 	}
 	cam := rc.Camera
-	source := cam.Source
-	if source == "" {
-		source = camera.SourceSynthetic
-	}
+	// robot.toml's [camera] section carries the mount and sensor geometry, not
+	// the capture source or device -- those live in the camera driver's own
+	// hardware/camera/config.toml. There is no robot.toml key for either, so
+	// the source stays synthetic here and the driver config owns the rest.
 	return camera.Config{
-		Source:      source,
-		Device:      cam.Device,
+		Source:      camera.SourceSynthetic,
 		Width:       cam.Width,
 		Height:      cam.Height,
 		FPS:         cfg.fps,
