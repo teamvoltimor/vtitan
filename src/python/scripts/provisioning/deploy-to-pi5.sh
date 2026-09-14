@@ -39,7 +39,7 @@ cd "$REPO_DIR"
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
 PI5_REPO="${PI5_REPO:-~/vtitan}"
 BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
-HEF="${HEF-apps/auto-annotator/ml-service/models/gmr/gmr.hef}"
+HEF="${HEF-other/apps/auto-annotator/ml-service/models/gmr/gmr.hef}"
 HEF_DEST="${HEF_DEST:-/usr/local/hailo/models/gmr.hef}"
 SERVICE="${SERVICE:-vtitan-pi5.service}"
 # The NAVIGATOR does not run in $SERVICE. vtitan-pi5.service carries the state
@@ -92,7 +92,7 @@ ssh "${SSH_OPTS[@]}" "$PI5_HOST" "cd $PI5_REPO && git log --oneline -1"
 
 # 2. Model.
 if [ -n "$HEF" ]; then
-  [ -f "$HEF" ] || die "HEF not found: $HEF (compile it with 'task gmr:workflow' in ml/hailo/)"
+  [ -f "$HEF" ] || die "HEF not found: $HEF (compile it with 'task gmr:workflow' in other/ml/hailo/)"
   log "Deploying $(basename "$HEF") -> $HEF_DEST"
   scp "${SSH_OPTS[@]}" -q "$HEF" "$PI5_HOST:/tmp/$(basename "$HEF_DEST")"
   ssh "${SSH_OPTS[@]}" "$PI5_HOST" "sudo mkdir -p '$(dirname "$HEF_DEST")' \
