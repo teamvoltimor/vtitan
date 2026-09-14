@@ -38,7 +38,7 @@ class Driver(BNO08xI2CDriver):
     """Driver for BNO08x IMU via MCP2221A I2C bridge."""
 
     def __init__(self, config: Config | None = None):
-        self.config: Config = config or Config()
+        self.config: Config = config or Config.load()
         super().__init__()
 
     def connect(self) -> None:

@@ -65,7 +65,7 @@ class Driver(DriveDriver):
         invert: bool = False,
         pwm_config: Bts7960PwmConfig | None = None,
     ) -> None:
-        self._pwm_config = pwm_config or Bts7960PwmConfig()
+        self._pwm_config = pwm_config or Bts7960PwmConfig.load()
         self._pins = (
             self._pwm_config.forward_pwm_pin,
             self._pwm_config.reverse_pwm_pin,

@@ -62,7 +62,7 @@ class Driver(DriveDriver):
         invert: bool = False,
         pwm_config: L298nPwmConfig | None = None,
     ) -> None:
-        self._pwm_config = pwm_config or L298nPwmConfig()
+        self._pwm_config = pwm_config or L298nPwmConfig.load()
         self._pins = (self._pwm_config.pwm_pin, self._pwm_config.dir_a_pin, self._pwm_config.dir_b_pin)
         self._period_ns = int(motor_const.NS_PER_S / self._pwm_config.frequency_hz)
         self._channel_dir: Path | None = None

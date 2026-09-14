@@ -21,7 +21,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
-from shared.config.navigation_tuning import LocalizationParams, SensorHealthParams
+from shared.config.navigation_tuning import LocalizationParams, SensorHealthParams, shipped_group
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import (
     CorridorGeometry,
@@ -116,12 +116,14 @@ class ROS2HardwareGateway(HardwareGateway):
         start_y: float,
         start_yaw: float,
         geometry: CorridorGeometry | dict[Section, float],
-        stale_timeout_sec: float = SensorHealthParams().stale_timeout_sec,
+        stale_timeout_sec: float | None = None,
         localization: LocalizationParams | None = None,
     ) -> None:
         self._node = node
         self._estimator = StateEstimator(start_x, start_y, start_yaw)
-        self._localization_params = localization or LocalizationParams()
+        if stale_timeout_sec is None:
+            stale_timeout_sec = shipped_group(SensorHealthParams).stale_timeout_sec
+        self._localization_params = localization or shipped_group(LocalizationParams)
         # Accept dict for backward compat (test callers).
         geom = corridor_geometry_from_widths(geometry) if isinstance(geometry, dict) else geometry
         self._localizer = make_localizer(TrackWalls(geom), self._localization_params)

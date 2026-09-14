@@ -16,6 +16,7 @@ import time
 import numpy as np
 import pytest
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import shipped_group
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Section
 from shared.domain.models import Waypoint
@@ -66,7 +67,7 @@ _CORNER_POSES = [
 
 def _localizer_for(widths: dict[Section, float]) -> tuple[LidarLocalizer, TrackWalls]:
     walls = TrackWalls(widths)
-    return LidarLocalizer(walls, LocalizationParams()), walls
+    return LidarLocalizer(walls, shipped_group(LocalizationParams)), walls
 
 
 @pytest.mark.parametrize("x, y, yaw", _STRAIGHT_POSES + _CORNER_POSES)
@@ -297,7 +298,7 @@ class TestGlobalRelocalization:
         # one the hardware run was in.
         seed = Waypoint(0.3, 1.5)
 
-        params = LocalizationParams()
+        params = shipped_group(LocalizationParams)
         estimate = self._drive(localizer, walls, truth, seed, params.relocalize_after_scans + 1)
 
         assert localizer.relocalization_count == 1
@@ -310,11 +311,11 @@ class TestGlobalRelocalization:
         # exists to absorb. Firing here would throw away a good estimate.
         seed = Waypoint(truth[0] - 0.02, truth[1] - 0.02)
 
-        self._drive(localizer, walls, truth, seed, LocalizationParams().relocalize_after_scans * 3)
+        self._drive(localizer, walls, truth, seed, shipped_group(LocalizationParams).relocalize_after_scans * 3)
 
         assert localizer.relocalization_count == 0
         assert localizer.last_fit_cost is not None
-        assert localizer.last_fit_cost < LocalizationParams().relocalize_cost_threshold
+        assert localizer.last_fit_cost < shipped_group(LocalizationParams).relocalize_cost_threshold
 
     def test_the_streak_has_to_be_consecutive(self) -> None:
         """One explained scan resets the count, so scattered bad ticks cannot accumulate."""
@@ -324,7 +325,7 @@ class TestGlobalRelocalization:
         bad = _sensor_scan(walls, 0.3, 1.5, math.pi / 2, _ANGLES)
 
         estimate = Waypoint(truth[0], truth[1])
-        for i in range(LocalizationParams().relocalize_after_scans * 4):
+        for i in range(shipped_group(LocalizationParams).relocalize_after_scans * 4):
             estimate = localizer.estimate_position(
                 estimate, truth[2], good if i % 3 == 0 else bad, _ANGLES, now_s=i * 0.05
             )
@@ -335,7 +336,7 @@ class TestGlobalRelocalization:
         """A re-seed voids evidence accrued against the estimate it replaces."""
         localizer, walls = _localizer_for(_MIXED_WIDTHS)
         truth = (2.5, 1.5, math.pi / 2)
-        params = LocalizationParams()
+        params = shipped_group(LocalizationParams)
 
         self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.relocalize_after_scans - 1)
         assert localizer.relocalization_count == 0
@@ -358,11 +359,11 @@ class TestGlobalRelocalization:
         localizer, walls = _localizer_for(_UNIFORM_1000)
         truth = (2.5, 1.5, math.pi / 2)
 
-        self._drive(localizer, walls, truth, Waypoint(0.5, 1.5), LocalizationParams().relocalize_after_scans * 2)
+        self._drive(localizer, walls, truth, Waypoint(0.5, 1.5), shipped_group(LocalizationParams).relocalize_after_scans * 2)
 
         assert localizer.relocalization_count == 0
         assert localizer.last_fit_cost is not None
-        assert localizer.last_fit_cost < LocalizationParams().relocalize_cost_threshold
+        assert localizer.last_fit_cost < shipped_group(LocalizationParams).relocalize_cost_threshold
 
     def test_no_jump_when_the_global_winner_is_no_better(self) -> None:
         """A high cost does not always mean the POSE is wrong.
@@ -383,11 +384,11 @@ class TestGlobalRelocalization:
         unexplainable = np.full(len(_ANGLES), 1.0)
 
         estimate = Waypoint(truth[0], truth[1])
-        for i in range(LocalizationParams().relocalize_after_scans * 3):
+        for i in range(shipped_group(LocalizationParams).relocalize_after_scans * 3):
             estimate = localizer.estimate_position(estimate, truth[2], unexplainable, _ANGLES, now_s=i * 0.05)
 
         assert localizer.last_fit_cost is not None
-        assert localizer.last_fit_cost > LocalizationParams().relocalize_cost_threshold, (
+        assert localizer.last_fit_cost > shipped_group(LocalizationParams).relocalize_cost_threshold, (
             "test is void unless the scan really does score badly everywhere"
         )
         assert localizer.relocalization_count == 0

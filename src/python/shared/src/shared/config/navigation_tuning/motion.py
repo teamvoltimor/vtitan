@@ -4,8 +4,7 @@ Covers clearance zones, heading zones, pure pursuit, speed control, and the
 control loop rate they all run at.
 
 Fields are inherited from the generated DTOs under
-:mod:`shared.config.generated.navigation.motion`. These classes add only the
-tuning layer's shipped fallbacks plus the derived behaviour (challenge
+:mod:`shared.config.generated.navigation.motion`. These classes adds the derived behaviour (challenge
 resolution, ceiling clamping, degrees-to-normalised steering) that belongs to
 tuning rather than the schema. The generated field descriptions carry the
 measurement history that used to live here.
@@ -13,7 +12,7 @@ measurement history that used to live here.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from pydantic import model_validator
 
@@ -33,7 +32,6 @@ from shared.config.generated.navigation.motion.pursuit_schema import (
 from shared.config.generated.navigation.motion.speed_schema import (
     NavigationMotionSpeed,
 )
-from shared.config.navigation_tuning._shared import TuningModel
 
 __all__ = [
     "ClearanceZones",
@@ -44,22 +42,8 @@ __all__ = [
 ]
 
 
-class ClearanceZones(TuningModel, NavigationMotionClearance):
+class ClearanceZones(NavigationMotionClearance):
     """LIDAR clearance thresholds for speed control, in metres."""
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "contact_dist": 0.10,
-        "risk_ray_window": 1,
-        "slow_dist": 0.25,
-        "medium_dist": 0.50,
-        "fast_dist": 1.00,
-        "path_margin": 0.10,
-        "contact_reverse_ticks": 0,
-        "contact_reverse_cooldown_ticks": 20,
-        "obstacles_contact_dist": 0.04,
-        "forward_path_ahead_of_bumper": False,
-        "forward_no_data_is_degraded": True,
-    }
 
     def for_obstacles_challenge(self) -> ClearanceZones:
         """These zones as the Obstacles Challenge should run them."""
@@ -86,7 +70,7 @@ class ClearanceZones(TuningModel, NavigationMotionClearance):
         return self
 
 
-class HeadingErrorZones(TuningModel, NavigationMotionHeading):
+class HeadingErrorZones(NavigationMotionHeading):
     """The heading error above which speed is cut, in radians.
 
     One threshold, not a ladder. ``crawl`` is the one that describes something
@@ -95,39 +79,14 @@ class HeadingErrorZones(TuningModel, NavigationMotionHeading):
     taxed every corner rather than catching a dangerous case.
     """
 
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "crawl": 1.0,
-        "crawl_ramp_start": 0.0,
-    }
 
-
-class PurePursuitParams(TuningModel, NavigationMotionPursuit):
+class PurePursuitParams(NavigationMotionPursuit):
     """Pure pursuit controller parameters for waypoint following.
 
     ``corner_preview_distance_m`` is read directly (the per-width-class
     ``wide_corner_preview_distance_m`` override is no longer part of the schema,
     so an unknown corridor and a wide one both keep the shipped value).
     """
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "yaw_gain_compensation": 1.0,
-        "obstacles_yaw_gain_compensation": 0.55,
-        "lookahead_short": 0.16,
-        "lookahead_long": 0.32,
-        "open_lookahead_long": 0.24,
-        "lookahead_transition": 0.30,
-        "lookahead_blend_start": 0.70,
-        "steer_kp": 1.2,
-        "max_steering_rate": 1.2,
-        "target_search_span_m": 1.0,
-        "target_sense_gate": False,
-        "servo_slew_rate_rad_s": 2.4,
-        "wall_margin_safety_m": 0.03,
-        "min_lookahead_transition_m": 0.10,
-        "corner_preview_distance_m": 0.80,
-        "corner_turn_threshold_rad": 0.35,
-        "min_target_radius_m": 0.0,
-    }
 
     def for_open_challenge(self) -> PurePursuitParams:
         """These parameters as the Open Challenge should run them."""
@@ -140,7 +99,7 @@ class PurePursuitParams(TuningModel, NavigationMotionPursuit):
         )
 
 
-class SpeedControlParams(TuningModel, NavigationMotionSpeed):
+class SpeedControlParams(NavigationMotionSpeed):
     """Speed control parameters for different zones, in ABSOLUTE m/s.
 
     Every tier is a real speed. The drivetrain ceiling
@@ -152,15 +111,6 @@ class SpeedControlParams(TuningModel, NavigationMotionSpeed):
     longer a schema field; each such accessor now tracks the shared ``creep_mps``
     tier, which is what they resolved to whenever they were left unset.
     """
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "min_mps": 0.0499,
-        "max_mps": 0.156,
-        "creep_mps": 0.1014,
-        "slow_mps": 0.117,
-        "medium_mps": 0.1326,
-        "fast_mps": 0.156,
-    }
 
     _CHALLENGE_PREFIXES: ClassVar[tuple[str, ...]] = ("open", "obstacles")
 
@@ -267,7 +217,7 @@ class SpeedControlParams(TuningModel, NavigationMotionSpeed):
         return self.creep_mps
 
 
-class ControlLoopParams(TuningModel, NavigationMotionControl):
+class ControlLoopParams(NavigationMotionControl):
     """The rate the navigation control loop runs at.
 
     One number, previously written twice: the waypoint controller carried a
@@ -277,6 +227,3 @@ class ControlLoopParams(TuningModel, NavigationMotionControl):
     against a cadence the simulator never ran at.
     """
 
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "control_hz": 20.0,
-    }

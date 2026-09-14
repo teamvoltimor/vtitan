@@ -81,7 +81,7 @@ def _open_camera() -> CameraDriver:
             Driver as PicamDriver,
         )
 
-        camera: CameraDriver = PicamDriver(PicamConfig())
+        camera: CameraDriver = PicamDriver(PicamConfig.load())
         backend = "picamera2"
     except ImportError:
         from src.hardware.camera.rpicam.driver import (
@@ -89,7 +89,7 @@ def _open_camera() -> CameraDriver:
             Driver as RpicamDriver,
         )
 
-        camera = RpicamDriver(RpicamConfig())
+        camera = RpicamDriver(RpicamConfig.load())
         backend = "rpicam-cli"
     camera.connect()
     size = camera.get_resolution()

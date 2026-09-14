@@ -1,16 +1,12 @@
 """Sensor health, LIDAR sector, and wall-heading estimation tuning groups.
 
 Fields are inherited from the generated DTOs under
-:mod:`shared.config.generated.navigation.sensors`. These classes add only the
-tuning layer's shipped fallbacks, so a bare instance still matches the
-checked-in ``sensors/*.toml`` without re-declaring a field.
+:mod:`shared.config.generated.navigation.sensors`; every field value comes from
+the checked-in ``sensors/*.toml``. These classes add only derived behaviour.
 """
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
-
-from shared.config.constants import RobotSpecs
 from shared.config.generated.navigation.sensors.lidar_sectors_schema import (
     NavigationSensorsLidarSectors,
 )
@@ -23,7 +19,6 @@ from shared.config.generated.navigation.sensors.start_measurement_schema import 
 from shared.config.generated.navigation.sensors.wall_heading_schema import (
     NavigationSensorsWallHeading,
 )
-from shared.config.navigation_tuning._shared import TuningModel
 
 STALE_TIMEOUT_SCAN_PERIODS: float = 5.0
 """How many LIDAR scan periods a cached reading may outlive.
@@ -37,7 +32,7 @@ derivation are held equal by test_navigation_tuning's shipped-TOML contract.
 """
 
 
-class SensorHealthParams(TuningModel, NavigationSensorsSensor):
+class SensorHealthParams(NavigationSensorsSensor):
     """Sensor dropout / staleness detection for the hardware gateway.
 
     ``stale_timeout_sec``: a cached sensor reading older than this is treated as
@@ -48,12 +43,8 @@ class SensorHealthParams(TuningModel, NavigationSensorsSensor):
     depends on.
     """
 
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "stale_timeout_sec": STALE_TIMEOUT_SCAN_PERIODS / RobotSpecs.LIDAR_UPDATE_RATE,
-    }
 
-
-class LidarSectorParams(TuningModel, NavigationSensorsLidarSectors):
+class LidarSectorParams(NavigationSensorsLidarSectors):
     """LIDAR angular-sector definitions shared by collision avoidance and the OLED.
 
     ``front_half_fov_deg``: half-width (deg) of the forward clearance cone,
@@ -82,23 +73,8 @@ class LidarSectorParams(TuningModel, NavigationSensorsLidarSectors):
     see the generated field description for why widening it broke the timing.
     """
 
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "front_half_fov_deg": 30.0,
-        "threat_half_fov_deg": 45.0,
-        "self_detection_threshold_m": 0.08,
-        "rear_self_detection_from_chassis": True,
-        "min_valid_range_m": 0.044,
-        "blind_wedge_left_min_deg": -155.0,
-        "blind_wedge_left_max_deg": -120.0,
-        "blind_wedge_right_min_deg": 120.0,
-        "blind_wedge_right_max_deg": 160.0,
-        "threat_no_detection_range_m": 1.0,
-        "no_data_range_m": 10.0,
-        "direction_arc_half_fov_deg": 8.0,
-    }
 
-
-class StartMeasurementParams(TuningModel, NavigationSensorsStartMeasurement):
+class StartMeasurementParams(NavigationSensorsStartMeasurement):
     """LIDAR-based start-pose measurement (measure_start_pose) parameters.
 
     ``ray_half_width_deg``: half-width (deg) of the wedge each cardinal
@@ -112,15 +88,8 @@ class StartMeasurementParams(TuningModel, NavigationSensorsStartMeasurement):
     corridor's travel bearing for a retried measurement to be believed.
     """
 
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "ray_half_width_deg": 4.0,
-        "closing_tolerance_m": 0.15,
-        "retry_window_s": 8.0,
-        "retry_align_tolerance_deg": 25.0,
-    }
 
-
-class WallHeadingParams(TuningModel, NavigationSensorsWallHeading):
+class WallHeadingParams(NavigationSensorsWallHeading):
     """LIDAR wall-direction estimation for the blind heading reference.
 
     Fits short segments across the LIDAR returns and takes their common
@@ -140,11 +109,3 @@ class WallHeadingParams(TuningModel, NavigationSensorsWallHeading):
     ``min_returns``: fewer usable returns than this cannot form a segment.
     """
 
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "min_concentration": 0.55,
-        "baseline_rays": 15,
-        "max_segment_jump_m": 0.30,
-        "min_segment_m": 0.02,
-        "near_max_range_m": 11.0,
-        "min_returns": 3,
-    }

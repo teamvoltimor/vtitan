@@ -23,7 +23,7 @@ configure_json_logging()
 
 def build_rpi_camera_config(config: CameraConfig) -> RPiCameraConfig:
     """Translate the generic camera Config into the Picamera2 driver's Config."""
-    return RPiCameraConfig(
+    return RPiCameraConfig.load_with(
         camera_device=config.device,
         camera_width=config.width,
         camera_height=config.height,
@@ -38,7 +38,7 @@ class StreamingDriver:
     """Generic streaming driver that wraps camera-specific drivers."""
 
     def __init__(self, config: CameraConfig | None = None):
-        self.config = config or CameraConfig()
+        self.config = config or CameraConfig.load()
         self._camera_driver: CameraDriver = self._create_driver()
         self._logger = logging.getLogger(__name__)
         self._streamer: FrameStreamer[np.ndarray] = FrameStreamer(

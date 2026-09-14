@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
-
 from pydantic_settings import SettingsConfigDict
 from shared.config.constants import RobotSpecs
-from shared.config.defaults_model import DefaultsModel
 from shared.config.generated.hardware.motors.motors_schema import (
     Drive as GeneratedDrive,
     HardwareMotorsMotors,
@@ -16,7 +13,7 @@ from shared.config.generated.hardware.motors.motors_schema import (
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class MotorSteeringConfig(DefaultsModel, GeneratedSteering):
+class MotorSteeringConfig(GeneratedSteering):
     """Steering configuration.
 
     Subclasses the generated ``Steering`` DTO for the motors.toml-backed group.
@@ -25,13 +22,6 @@ class MotorSteeringConfig(DefaultsModel, GeneratedSteering):
     ``robot.toml`` through :class:`RobotSpecs` -- not motors.toml keys -- so all
     three are wrapper behaviour rather than schema fields.
     """
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "offset": 0.0,
-        "centering_speed": 20,
-        "turning_speed": 30,
-        "reversed": False,
-    }
 
     port: str
     """Port for the steering motor (identifier for its controller: serial port, I2C address, ...)."""
@@ -60,14 +50,8 @@ class MotorSteeringConfig(DefaultsModel, GeneratedSteering):
         return RobotSpecs.LINKAGE_RATIO
 
 
-class MotorDriveConfig(DefaultsModel, GeneratedDrive):
+class MotorDriveConfig(GeneratedDrive):
     """Drive configuration, from motors.toml's ``[drive]`` table (incl. ``test_duration``)."""
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "reversed": False,
-        "encoder_reversed": False,
-        "speed_scale": 1.0,
-    }
 
     port: str
     """Port for the drive motor (identifier for its controller: serial port, I2C address, ...)."""

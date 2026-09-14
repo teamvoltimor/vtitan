@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 import rclpy
 from shared.config.constants import CorridorDimensions
+from shared.config.navigation_tuning import shipped_group
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Direction, Section
 from shared.domain.models import CreepWidthSample, IMUReading, Pose, Waypoint
@@ -68,10 +69,10 @@ class TestGatewayBeliefUpdate:
         angles = angles_arr.tolist()
         ranges = TrackModel(true_widths).raycast_scan(truth.x, truth.y, 0.0, angles_arr).tolist()
 
-        right = LidarLocalizer(TrackWalls(true_widths), LocalizationParams()).estimate_position(truth, 0.0, ranges, angles)
+        right = LidarLocalizer(TrackWalls(true_widths), shipped_group(LocalizationParams)).estimate_position(truth, 0.0, ranges, angles)
         wrong = LidarLocalizer(
             TrackWalls(dict.fromkeys(Section, CorridorDimensions.NARROW)),
-            LocalizationParams(),
+            shipped_group(LocalizationParams),
         ).estimate_position(
             truth,
             0.0,

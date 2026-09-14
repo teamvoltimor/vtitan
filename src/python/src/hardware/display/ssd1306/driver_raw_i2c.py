@@ -61,7 +61,7 @@ class RawI2CDriver(ABC_Driver):
     """SSD1306 OLED display driver using raw /dev/i2c-N ioctl calls."""
 
     def __init__(self, config: Config | None = None):
-        self.config: Config = config or Config()
+        self.config: Config = config or Config.load()
         self._fd: int | None = None
         self._pages: int = self.config.height // 8
         self._conn_lock: threading.Lock = threading.Lock()

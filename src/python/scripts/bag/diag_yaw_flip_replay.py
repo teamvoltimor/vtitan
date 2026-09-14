@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
+from shared.config.navigation_tuning import shipped_group
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 from shared.domain.enums import Section
 from shared.domain.models import Waypoint
@@ -76,7 +77,7 @@ def _replay(
     per_tick_walls: bool = False,
 ) -> tuple[list[tuple[float, float, float]], float]:
     """Step the localizer through the run with ``yaw_offset`` added to every believed yaw."""
-    localizer = LidarLocalizer(walls, LocalizationParams())
+    localizer = LidarLocalizer(walls, shipped_group(LocalizationParams))
     pos = Waypoint(*seed)
     track: list[tuple[float, float, float]] = []
     costs: list[float] = []

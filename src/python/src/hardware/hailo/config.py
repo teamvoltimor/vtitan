@@ -29,7 +29,7 @@ def _detection_confidence_floor() -> float:
     """
     from src.vision.detector import DetectorConfig  # noqa: PLC0415 - cycle-break, see docstring
 
-    return DetectorConfig(model_path="", class_to_color={}).min_confidence
+    return DetectorConfig.load_with(model_path="", class_to_color={}).min_confidence
 
 
 class Config(HardwareBaseSettings, HardwareHailo):

@@ -27,7 +27,7 @@ class Driver(ABC_Driver):
     """Driver for Hailo 8 NPU."""
 
     def __init__(self, config: Config | None = None):
-        self.config: Config = config or Config()
+        self.config: Config = config or Config.load()
         self._vdevice: VDevice | None = None
         self._infer_model: InferModel | None = None
         self._configured_model: ConfiguredInferModel | None = None

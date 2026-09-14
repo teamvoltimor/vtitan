@@ -2,7 +2,7 @@
 
 Fields are inherited from the generated DTO
 (:mod:`shared.config.generated.navigation.escape.escape_schema`). This module
-adds the tuning layer's shipped fallbacks plus the derived accessors (seconds to
+adds the derived accessors (seconds to
 control ticks, road-wheel degrees to a normalised steering command) that belong
 to tuning rather than the schema.
 """
@@ -10,17 +10,15 @@ to tuning rather than the schema.
 from __future__ import annotations
 
 import math
-from typing import Any, ClassVar
 
 from shared.config.constants import RobotSpecs
 from shared.config.generated.navigation.escape.escape_schema import (
     NavigationEscapeEscape,
 )
-from shared.config.navigation_tuning._shared import TuningModel
 from shared.domain.steering import angle_rad_to_steering_norm
 
 
-class EscapeManeuverParams(TuningModel, NavigationEscapeEscape):
+class EscapeManeuverParams(NavigationEscapeEscape):
     """Escape maneuver parameters for collision recovery.
 
     When collision risk is detected, the robot executes escape maneuvers
@@ -34,38 +32,6 @@ class EscapeManeuverParams(TuningModel, NavigationEscapeEscape):
     ``side_correction_steer_norm``, so a wider servo produces a smaller
     normalised command for the same physical angle.
     """
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "pose_trail_min_step_m": 0.01,
-        "pose_trail_len": 128,
-        "rev_speed": -0.20,
-        "rev_steer_deg": 44.0,
-        "k_turn_min_s": 0.54,
-        "k_turn_max_s": 1.08,
-        "k_turn_fit_rear_gap": False,
-        "obstacles_k_turn_fit_rear_gap": True,
-        "slalom_reverse_s": 0.40,
-        "slalom_forward_s": 0.50,
-        "stuck_move_threshold": 0.03,
-        "stuck_timeout_s": 2.0,
-        "side_correction_steer_deg": 16.5,
-        "side_correction_speed": 0.1,
-        "side_correction_s": 0.20,
-        "side_correction_blends": False,
-        "tick_router_during_maneuver": False,
-        "escalate_after_attempts": 3,
-        "escape_side_commit_attempts": 2,
-        "max_escape_s": 1.8,
-        "stuck_confirmation_checks": 3,
-        "stuck_escalation_per_attempt_s": 0.10,
-        "stuck_history_floor_s": 3.0,
-        "min_history_for_distance": 2,
-        "escape_mirrors_reverse": False,
-        "obstacles_escape_mirrors_reverse": True,
-        "escape_side_follows_committed_sign": False,
-        "obstacles_escape_side_follows_committed_sign": False,
-        "escape_side_override_min_clearance_m": 0.12,
-    }
 
     @staticmethod
     def frames(seconds: float, control_hz: float) -> int:

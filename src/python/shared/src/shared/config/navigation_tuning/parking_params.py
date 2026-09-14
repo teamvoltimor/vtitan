@@ -2,21 +2,17 @@
 
 Fields are inherited from the generated DTO
 (:mod:`shared.config.generated.navigation.parking.parking_schema`). This module
-adds only the tuning layer's shipped fallbacks, so a bare ``ParkingParams()``
-still matches the checked-in ``parking.toml`` without re-declaring a field.
+adds only derived behaviour; every field value comes from the checked-in TOML.
 """
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
-
 from shared.config.generated.navigation.parking.parking_schema import (
     NavigationParkingParking,
 )
-from shared.config.navigation_tuning._shared import TuningModel
 
 
-class ParkingParams(TuningModel, NavigationParkingParking):
+class ParkingParams(NavigationParkingParking):
     """Parallel-parking maneuver parameters.
 
     Attributes (inherited from the generated DTO):
@@ -43,20 +39,6 @@ class ParkingParams(TuningModel, NavigationParkingParking):
         derive_lot_from_in_bay_start: Build the parking lot from the START
             POSE when metadata carries none.
     """
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "parallel_tolerance_m": 0.02,
-        "pos_reach_dist_m": 0.04,
-        "default_max_frames": 400,
-        "saturated_steer_threshold": 0.999,
-        "saturation_stuck_ticks": 20,
-        "speed": 0.12,
-        "min_lookahead_dist_m": 0.02,
-        "wall_standoff_m": 0.05,
-        "marker_standoff_m": 0.01,
-        "attempt_after_final_lap": False,
-        "derive_lot_from_in_bay_start": True,
-    }
 
     # derive_lot_from_in_bay_start:
     # Build the parking lot from the START POSE when metadata carries none.

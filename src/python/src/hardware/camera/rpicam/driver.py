@@ -265,7 +265,7 @@ class Driver(CameraDriver):
     """
 
     def __init__(self, config: Config | None = None) -> None:
-        self.config = config or Config()
+        self.config = config or Config.load()
         self._process: subprocess.Popen[bytes] | None = None
         self._buffer = b""
 

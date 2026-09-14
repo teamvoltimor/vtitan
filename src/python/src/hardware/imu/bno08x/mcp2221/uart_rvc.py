@@ -57,7 +57,7 @@ class Driver(UARTRVCDriver):
         # classmethod rather than the synthesized __init__ mypy sees.
         config = config or Config.load()
         super().__init__(
-            config=UARTRVCConfig(
+            config=UARTRVCConfig.load_with(
                 quaternion=config.quaternion,
                 port=config.port,
                 baudrate=config.baudrate,

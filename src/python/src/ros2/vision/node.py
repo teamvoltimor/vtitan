@@ -103,7 +103,7 @@ class VisionNode(Node):
     def __init__(self) -> None:
         super().__init__("vision_detector")
 
-        defaults = Config()
+        defaults = Config.load()
         topics = RosTopicConfig.load_default()
         self._topics = topics
         # Declared before _publish_model_status runs (it is called from further
@@ -146,7 +146,7 @@ class VisionNode(Node):
         # said (red, green, magenta), which is the dataset's stale order and the
         # opposite of what the model emits for red and green. It silently
         # inverts the WRO pass side on every obstacle.
-        config = DetectorConfig(
+        config = DetectorConfig.load_with(
             model_path=model_path,
             class_to_color=DEFAULT_CLASS_TO_COLOR,
             min_confidence=self._detection_threshold(backend, hailo_config),
@@ -169,7 +169,7 @@ class VisionNode(Node):
         # Per-run annotated video, colocated with that run's mcap bag -- only
         # meaningful in direct-capture mode, since that's the only mode a real
         # race actually runs in. Cheap to construct even when never started.
-        self._hud_config = HudConfig()
+        self._hud_config = HudConfig.load()
         self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps, hud_config=self._hud_config)
         self._dataset_capture = (
             DatasetFrameCapture(interval_s=capture_interval_s, subdir=capture_subdir)
@@ -301,7 +301,7 @@ class VisionNode(Node):
             return None
         from src.hardware.hailo.base import Config as HailoConfig
 
-        return HailoConfig()
+        return HailoConfig.load()
 
     @staticmethod
     def _detection_threshold(backend: str, hailo_config: "HailoConfig | None" = None) -> float:
@@ -319,11 +319,11 @@ class VisionNode(Node):
             # model_path/class_to_color are always caller-supplied (see class
             # docstring) -- placeholders here since only min_confidence's
             # resolved TOML/env value is wanted.
-            return DetectorConfig(model_path="", class_to_color={}).min_confidence
+            return DetectorConfig.load_with(model_path="", class_to_color={}).min_confidence
         if hailo_config is None:
             from src.hardware.hailo.base import Config as HailoConfig
 
-            hailo_config = HailoConfig()
+            hailo_config = HailoConfig.load()
 
         return hailo_config.min_confidence
 
@@ -346,7 +346,7 @@ class VisionNode(Node):
                 Driver as PicamDriver,
             )
 
-            self._camera = PicamDriver(PicamConfig())
+            self._camera = PicamDriver(PicamConfig.load())
             backend = "picamera2"
         except ImportError:
             from src.hardware.camera.rpicam.driver import (
@@ -354,7 +354,7 @@ class VisionNode(Node):
                 Driver as RpicamDriver,
             )
 
-            self._camera = RpicamDriver(RpicamConfig())
+            self._camera = RpicamDriver(RpicamConfig.load())
             backend = "rpicam-cli"
 
         self._camera.connect()

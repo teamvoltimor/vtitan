@@ -26,7 +26,7 @@ class Driver(ABC_Driver):
     """
 
     def __init__(self, config: Config | None = None):
-        self.config: Config = config or Config()
+        self.config: Config = config or Config.load()
         self._display: SSD1306_I2C | None = None
         self._i2c: busio.I2C | None = None
         self._conn_lock: threading.Lock = threading.Lock()

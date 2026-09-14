@@ -79,7 +79,7 @@ class Driver(SteeringDriver):
         Args:
             config: Servo configuration; defaults to env-derived ``ServoConfig``.
         """
-        self._config = config or ServoConfig()
+        self._config = config or ServoConfig.load()
         # One PWM frame in nanoseconds (20 ms at 50 Hz), from the configured
         # carrier frequency rather than a module literal.
         self._period_ns = int(motor_const.US_PER_SECOND / self._config.pwm_frequency_hz) * motor_const.NS_PER_US

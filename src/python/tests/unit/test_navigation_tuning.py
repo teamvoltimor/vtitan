@@ -41,6 +41,19 @@ _OVERRIDES: dict[str, dict[str, float]] = {
 }
 
 
+def _base_profile(**overrides: dict) -> dict[str, dict]:
+    """The shipped base values (read from the checked-in TOML), with per-group overrides applied.
+
+    The TOML is the single source now, so a profile must carry every group:
+    building one from a bare ``NavigationTuning()`` keeps each test's overrides
+    the only thing it varies.
+    """
+    base = NavigationTuning().to_dict()
+    for group, fields in overrides.items():
+        base[group] = {**base[group], **fields}
+    return base
+
+
 def test_defaults_construct_with_no_args():
     tuning = NavigationTuning()
     assert tuning.clearance.contact_dist == 0.10
@@ -66,14 +79,15 @@ def test_group_accepts_keyword_overrides(group, dataclass_type):
     This is the direct regression check for the ClassVar bug: a ClassVar
     annotation would make the dataclass reject every one of these kwargs.
     """
-    instance = dataclass_type(**_OVERRIDES[group])
+    base = getattr(NavigationTuning(), group).model_dump()
+    instance = dataclass_type(**{**base, **_OVERRIDES[group]})
     for field_name, value in _OVERRIDES[group].items():
         assert getattr(instance, field_name) == pytest.approx(value)
 
 
 def test_load_from_yaml_round_trip(tmp_path):
     path = tmp_path / "profile.yaml"
-    path.write_text(yaml.dump(_OVERRIDES), encoding="utf-8")
+    path.write_text(yaml.dump(_base_profile(**_OVERRIDES)), encoding="utf-8")
 
     tuning = NavigationTuning.load_from_yaml(path)
 
@@ -88,7 +102,7 @@ def test_load_from_yaml_round_trip(tmp_path):
 
 def test_load_from_json_round_trip(tmp_path):
     path = tmp_path / "profile.json"
-    path.write_text(json.dumps(_OVERRIDES), encoding="utf-8")
+    path.write_text(json.dumps(_base_profile(**_OVERRIDES)), encoding="utf-8")
 
     tuning = NavigationTuning.load_from_json(path)
 
@@ -96,20 +110,19 @@ def test_load_from_json_round_trip(tmp_path):
     assert pytest.approx(20.0) == tuning.escape.side_correction_steer_deg
 
 
-def test_load_from_yaml_partial_profile_keeps_other_defaults(tmp_path):
+def test_load_from_yaml_partial_profile_raises(tmp_path):
     path = tmp_path / "partial.yaml"
     path.write_text(yaml.dump({"clearance": {"contact_dist": 0.08}}), encoding="utf-8")
 
-    tuning = NavigationTuning.load_from_yaml(path)
-
-    assert pytest.approx(0.08) == tuning.clearance.contact_dist
-    assert pytest.approx(0.25) == tuning.clearance.slow_dist  # untouched default
-    assert tuning.escape == EscapeManeuverParams()  # untouched group
+    # Every group must be present: a partial profile is an error, not a silent
+    # fallback to a hardcoded value.
+    with pytest.raises(ValidationError):
+        NavigationTuning.load_from_yaml(path)
 
 
 def test_to_dict_round_trips_through_yaml(tmp_path):
     tuning = NavigationTuning.load_from_yaml(
-        _write_yaml(tmp_path, _OVERRIDES),
+        _write_yaml(tmp_path, _base_profile(**_OVERRIDES)),
     )
     exported = tuning.to_dict()
 
@@ -127,6 +140,8 @@ def _write_yaml(tmp_path, data: dict) -> str:
 
 
 def _write_toml_line(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
     return repr(value) if isinstance(value, str) else str(value)
 
 
@@ -141,13 +156,15 @@ def _write_toml_dir(tmp_path, groups: dict[str, dict]) -> str:
     for group, fields in groups.items():
         group_dir = directory / subfolder_by_group[group]
         group_dir.mkdir(exist_ok=True)
-        lines = [f"{key} = {_write_toml_line(value)}" for key, value in fields.items()]
+        lines = [
+            f"{key} = {_write_toml_line(value)}" for key, value in fields.items() if value is not None
+        ]
         (group_dir / f"{group}.toml").write_text("\n".join(lines), encoding="utf-8")
     return str(directory)
 
 
 def test_load_from_toml_dir_round_trip(tmp_path):
-    directory = _write_toml_dir(tmp_path, _OVERRIDES)
+    directory = _write_toml_dir(tmp_path, _base_profile(**_OVERRIDES))
 
     tuning = NavigationTuning.load_from_toml_dir(directory)
 
@@ -160,20 +177,18 @@ def test_load_from_toml_dir_round_trip(tmp_path):
     assert pytest.approx(0.35) == tuning.waypoints.arc_radius
 
 
-def test_load_from_toml_dir_partial_files_keep_other_defaults(tmp_path):
+def test_load_from_toml_dir_partial_tree_raises(tmp_path):
     directory = _write_toml_dir(tmp_path, {"clearance": {"contact_dist": 0.08}})
 
-    tuning = NavigationTuning.load_from_toml_dir(directory)
+    # A partial tree (no escape.toml, and the other groups absent too) is an
+    # error, not a silent fallback.
+    with pytest.raises(ValidationError):
+        NavigationTuning.load_from_toml_dir(directory)
 
-    assert pytest.approx(0.08) == tuning.clearance.contact_dist
-    assert pytest.approx(0.25) == tuning.clearance.slow_dist  # untouched field, same group
-    assert tuning.escape == EscapeManeuverParams()  # untouched group -- no escape.toml at all
 
-
-def test_load_from_toml_dir_missing_directory_returns_defaults(tmp_path):
-    tuning = NavigationTuning.load_from_toml_dir(tmp_path / "does_not_exist")
-
-    assert tuning == NavigationTuning()
+def test_load_from_toml_dir_missing_directory_raises(tmp_path):
+    with pytest.raises(ValidationError):
+        NavigationTuning.load_from_toml_dir(tmp_path / "does_not_exist")
 
 
 def test_load_default_finds_the_checked_in_config_tree():
@@ -203,7 +218,7 @@ def test_load_from_toml_dirs_merges_a_challenge_overlay_last(tmp_path):
     """A later directory's values win -- this is what lets a challenge overlay
     retune a key without touching the base config or any other challenge.
     """
-    base = _write_toml_dir(tmp_path, {"waypoints": {"arc_radius": 0.45}})
+    base = _write_toml_dir(tmp_path, _base_profile(waypoints={"arc_radius": 0.45}))
     overlay = tmp_path / "obstacles_overlay"
     overlay.mkdir()
     (overlay / "waypoint").mkdir()
@@ -348,130 +363,28 @@ class TestConfiguredValuesAreActuallyRead:
         assert not now_read, f"now read, remove from _KNOWN_UNREAD: {now_read}"
 
 
-class TestFieldDefaultsMatchShippedToml:
-    """The pydantic field defaults are a SECOND copy of the shipped TOML values.
+class TestBareTuningReadsTheBaseToml:
+    """A bare ``NavigationTuning()`` is the base TOML, not a second copy in code.
 
-    Nothing keeps them in step, and nothing fails when they part: a bare
-    ``NavigationTuning()`` simply plans a different car than the checked-in
-    config does. ``WIDE_CENTER_BIAS_M`` (then named ``CENTER_BIAS_M``) had
-    drifted to 0.05 against the TOML's 0.10 --
-    half the commanded offset from the corridor centreline -- and every
-    diagnostic that builds tuning bare (``diag_sign_sweep.tuning()`` among them)
-    measured at the drifted value without any signal that it had.
+    With the per-group ``_DEFAULTS`` gone, there is no hardcoded fallback to
+    drift from the checked-in tree: constructing tuning bare reads the same
+    base files ``load_default`` does, so the two agree by construction.
     """
 
-    def test_field_defaults_match_shipped_toml(self, monkeypatch):
-        # Compared against the BASE tree only, with no hardware profile active.
-        # `load_default` composes [DEFAULT_CONFIG_DIR, *profile_dirs()], and
-        # navigation tuning has per-profile overlays of its own
-        # (profiles/<name>/motion/speed.toml), so "the shipped value" is not one
-        # number -- rev-hd-hex-motor-6000rpm ships max_mps 0.50 where the base
-        # ships 0.156. A single Field default cannot mirror every profile, and
-        # comparing it against whichever one happens to be pinned makes this
-        # test fail on correct config: it passed only while the pinned profile
-        # was byte-identical to the base, which stopped being true when
-        # 35a86a3e moved the suite to the current build.
-        #
-        # The drift this guards is still guarded. A bare NavigationTuning() has
-        # no profile by definition, so the base tree is exactly what its
-        # defaults are a second copy of -- WIDE_CENTER_BIAS_M, and the
-        # BLIND_WEDGE_* and MAX_STEERING_RATE drift found in 0d4a8b70, were all
-        # base-vs-default and all still caught here.
+    def test_bare_tuning_matches_base_with_no_profile(self, monkeypatch):
         monkeypatch.setenv("VTITAN_HARDWARE_PROFILE", "")
-        bare = NavigationTuning()
-        shipped = NavigationTuning.load_default()
+        assert NavigationTuning() == NavigationTuning.load_default()
 
-        drifted = {}
-        for group_name in type(bare).__dataclass_fields__:
-            bare_group = getattr(bare, group_name)
-            shipped_group = getattr(shipped, group_name)
-            if not hasattr(bare_group, "model_dump"):
-                continue
-            shipped_values = shipped_group.model_dump()
-            for field, bare_value in bare_group.model_dump().items():
-                # A ``None`` default is an ABSENCE, not a second copy of a
-                # value, so it cannot drift in the way this test guards against.
-                # Optional per-profile overrides (speed's OPEN_*/OBSTACLES_*
-                # tiers) are declared unset precisely so a motor without the
-                # headroom inherits the shared ladder; giving them a concrete
-                # default to satisfy this check would hand every motor the fast
-                # profile's numbers, which is the bug this test exists to catch,
-                # inverted. Fields with a real default are still compared.
-                if bare_value is None:
-                    continue
-                if bare_value != shipped_values[field]:
-                    drifted[f"{group_name}.{field}"] = (bare_value, shipped_values[field])
-
-        assert not drifted, (
-            f"field default(s) out of step with the shipped TOML: {drifted}. "
-            f"Each pair is (bare default, shipped). Update the Field(default=...) "
-            f"to match the config file -- code that constructs tuning bare is "
-            f"otherwise silently running values nobody chose."
-        )
-
-
-class TestShippedTreeIsComplete:
-    """The checked-in base TOML tree must name every knob its groups declare.
-
-    Partial loading is DELIBERATE everywhere else and stays untouched: a
-    hardware profile ships only the keys it retunes, challenge overlays may be
-    empty, and a bare ``NavigationTuning()`` in a sim/test context falls back
-    through everything to pydantic defaults. This check pins only the base
-    tree -- the file ``load_default`` is documented to be "the normal way to
-    construct a NavigationTuning in production code" -- so that a knob with a
-    concrete default cannot be half-landed: declared in the model (where the
-    shipped value rests) but absent from the file an operator would edit to
-    reach it. That failure happened for real, twice: every bay-exit key lived
-    only as a Python literal until 2026-09-05, and an earlier zero-lap round
-    shipped with ``SLOW_MPS`` in the model while speed.toml named nothing of
-    the tier ladder.
-    """
-
-    # Concrete defaults that are RESOLVED rather than restated. The Field
-    # default is not a second opinion here: it is lifted from another single
-    # source at class-definition time, so naming the value in the TOML would
-    # re-create exactly the two-names-for-one-number style this repo deletes.
-    _RESOLVED_DEFAULTS: ClassVar[set[str]] = {
-        # Value is RobotSpecs.MIN_TURN_RADIUS_M, read from robot.toml, the
-        # same measurement the dead reckoning and the kinematics floor cite.
-        "simulation.MIN_TURN_RADIUS_M",
-    }
-
-    def test_every_concrete_default_appears_in_the_base_toml(self):
+    def test_every_group_has_a_base_file(self):
         from shared.config.navigation_tuning import DEFAULT_CONFIG_DIR
 
-        missing = []
-        drifted = {}
-        base = NavigationTuning()
-        for key, _dataclass_type, subfolder in NavigationTuning._GROUPS:
-            toml_path = DEFAULT_CONFIG_DIR / subfolder / f"{key}.toml"
-            if not toml_path.exists():
-                missing.append(f"{key}: no {subfolder}/{key}.toml in the base tree")
-                continue
-            data = tomllib.loads(toml_path.read_text(encoding="utf-8"))
-            bare = getattr(base, key).model_dump()
-            for field_name in type(getattr(base, key)).model_fields:
-                bare_value = bare[field_name]
-                if bare_value is None:
-                    # A None default is an ABSENCE, not a value owed here --
-                    # per-challenge tiers and optional gates are deliberately
-                    # unset and TestFieldDefaultsMatchShippedToml treats them
-                    # the same way.
-                    continue
-                if f"{key}.{field_name}" in self._RESOLVED_DEFAULTS:
-                    continue
-                shipped_key = field_name if field_name in data else field_name.lower()
-                if shipped_key not in data:
-                    missing.append(f"{key}.{field_name}: unnamed in {subfolder}/{key}.toml")
-                elif data.get(shipped_key) != bare_value and not isinstance(
-                    bare_value, bool
-                ):
-                    # bool(repr) format differences do not exist in TOML; only
-                    # float-vs-int spelling can differ (0 vs 0.0), and pydantic
-                    # accepts both, so compare with its tolerance.
-                    drifted[f"{key}.{field_name}"] = (data.get(shipped_key), bare_value)
-        assert not drifted, f"shipped values have drifted from the model: {drifted}"
+        missing = [
+            f"{key}: no {subfolder}/{key}.toml in the base tree"
+            for key, _dataclass_type, subfolder in NavigationTuning._GROUPS
+            if not (DEFAULT_CONFIG_DIR / subfolder / f"{key}.toml").exists()
+        ]
         assert not missing, f"base TOML tree incomplete: {missing}"
+
 
 
 class TestPerChallengeSpeedTiers:

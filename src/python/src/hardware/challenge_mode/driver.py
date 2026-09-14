@@ -24,7 +24,7 @@ class Driver:
     """
 
     def __init__(self, config: Config | None = None) -> None:
-        self.config: Config = config or Config()
+        self.config: Config = config or Config.load()
         self._input: InputDevice | None = None
         self.logger: logging.Logger = logging.getLogger(__name__)
 

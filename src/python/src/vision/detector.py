@@ -165,7 +165,7 @@ class LocalYoloDetector(DetectorBase):
         from ultralytics import YOLO
 
         if config is None:
-            config = DetectorConfig(class_to_color=DEFAULT_CLASS_TO_COLOR)
+            config = DetectorConfig.load_with(class_to_color=DEFAULT_CLASS_TO_COLOR)
 
         self.config = config
         self.model = YOLO(config.model_path)

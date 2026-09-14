@@ -27,13 +27,14 @@ Example usage:
 
 from __future__ import annotations
 
-import copy
 import functools
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, cast
+
+from pydantic import BaseModel
 
 try:
     import yaml
@@ -93,6 +94,7 @@ __all__ = [
     "StateEstimatorParams",
     "WallHeadingParams",
     "WaypointParams",
+    "shipped_group",
 ]
 
 DEFAULT_CONFIG_DIR: Path = SHARED_CONFIG_ROOT / "navigation"
@@ -117,35 +119,73 @@ only needs a file for the specific keys it retunes; everything else falls
 back through ``DEFAULT_CONFIG_DIR``. See :meth:`NavigationTuning.load_default`."""
 
 
-@functools.lru_cache(maxsize=512)
-def _read_toml_file_cached(path: Path) -> dict[str, object]:
-    """Parse one per-group TOML file, memoized for the life of the process.
+# (group key, dataclass, TOML subfolder) triples - the single source of truth
+# for which sections load_from_yaml/load_from_json/to_dict/load_from_toml_dir
+# and _shipped_group handle, so adding a new tuning group never requires
+# touching more than this tuple. The subfolder mirrors this package's own
+# module grouping (motion.py, blind_nav.py, etc.) under src/config/navigation/,
+# so a TOML file's location and its Python group's home module always agree.
+_GROUP_SPECS: tuple[tuple[str, type, str], ...] = (
+    ("clearance", ClearanceZones, "motion"),
+    ("heading", HeadingErrorZones, "motion"),
+    ("pursuit", PurePursuitParams, "motion"),
+    ("speed", SpeedControlParams, "motion"),
+    ("escape", EscapeManeuverParams, "escape"),
+    ("sensor", SensorHealthParams, "sensors"),
+    ("waypoints", WaypointParams, "waypoint"),
+    ("lidar_sectors", LidarSectorParams, "sensors"),
+    ("start_measurement", StartMeasurementParams, "sensors"),
+    ("corridor_estimator", CorridorEstimatorParams, "blind_nav"),
+    ("corridor_follower", CorridorFollowerParams, "blind_nav"),
+    ("direction_estimator", DirectionEstimatorParams, "blind_nav"),
+    ("wall_heading", WallHeadingParams, "sensors"),
+    ("control", ControlLoopParams, "motion"),
+    ("sign_router", SignRouterParams, "signs"),
+    ("sign_discovery", SignDiscoveryParams, "signs"),
+    ("parking", ParkingParams, "parking"),
+    ("localization", LocalizationParams, "blind_nav"),
+    ("state_estimator", StateEstimatorParams, "blind_nav"),
+    ("simulation", SimulationParams, "simulation"),
+)
 
-    Internal to ``_read_toml_cached`` -- callers should use that, not this,
-    since ``lru_cache`` returns the exact same dict object on every hit and
-    this file's caller (``deep_merge``) can end up holding that object by
-    reference in its output, so returning it directly would let one caller's
-    mutation corrupt every other caller's config.
+
+@functools.cache
+def _shipped_group_cached(key: str) -> object:
+    """Parse and validate one group's checked-in base TOML file, memoized.
+
+    The group models are frozen, so the cached instance is safe to share.
     """
-    return load_toml_merged(path)
+    for group_key, group_cls, subfolder in _GROUP_SPECS:
+        if group_key == key:
+            path = DEFAULT_CONFIG_DIR / subfolder / f"{key}.toml"
+            return group_cls.model_validate(load_toml_merged(path))
+    raise KeyError(key)
 
 
-def _read_toml_cached(path: Path) -> dict[str, object]:
-    """Parse one per-group TOML file, cached for the life of the process.
+def _shipped_group(key: str) -> object:
+    """Load one tuning group from its checked-in base TOML file.
 
-    ``load_from_toml_dirs`` is called once per navigation/simulation
-    component construction -- every ``TuningContext`` subclass resolves
-    tuning in ``__init__`` -- so a closed-loop sim run or a real control loop
-    re-reads and re-parses the same checked-in files thousands of times.
-    Profiling one 130s sim scenario found this the single largest cost:
-    ~55s of 113s total, almost all disk I/O and TOML parsing of files whose
-    content cannot change mid-process (they're read from the checked-in repo
-    tree, a resolved hardware-profile directory, or a challenge overlay --
-    none of which are ever edited while a process runs). Returns a fresh
-    copy every call so downstream mutation (``deep_merge``) never touches
-    the memoized value.
+    The TOML is the single source of values: a bare ``NavigationTuning()`` (no
+    hardware profile, no challenge overlay) reads the same base files
+    ``load_default`` does, so there is no parallel copy of the shipped values in
+    code to drift. A missing or partial file raises rather than falling back to
+    a hardcoded value, so an incomplete tree is loud.
     """
-    return copy.deepcopy(_read_toml_file_cached(path))
+    return _shipped_group_cached(key)
+
+
+def shipped_group[ModelT: BaseModel](model_cls: type[ModelT]) -> ModelT:
+    """Load one tuning group as a standalone value object, from the base TOML.
+
+    For callers that need a single group without building the whole
+    :class:`NavigationTuning`. The value comes from the checked-in TOML, never
+    from a hardcoded fallback, so a type it does not recognise is a loud error.
+    """
+    for key, group_cls, _subfolder in _GROUP_SPECS:
+        if group_cls is model_cls:
+            return cast("ModelT", _shipped_group_cached(key))
+    msg = f"{model_cls.__name__} is not a navigation tuning group"
+    raise TypeError(msg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,26 +210,34 @@ class NavigationTuning:
         print(tuning.clearance.slow_dist)
     """
 
-    clearance: ClearanceZones = field(default_factory=ClearanceZones)
-    heading: HeadingErrorZones = field(default_factory=HeadingErrorZones)
-    pursuit: PurePursuitParams = field(default_factory=PurePursuitParams)
-    speed: SpeedControlParams = field(default_factory=SpeedControlParams)
-    escape: EscapeManeuverParams = field(default_factory=EscapeManeuverParams)
-    sensor: SensorHealthParams = field(default_factory=SensorHealthParams)
-    waypoints: WaypointParams = field(default_factory=WaypointParams)
-    lidar_sectors: LidarSectorParams = field(default_factory=LidarSectorParams)
-    start_measurement: StartMeasurementParams = field(default_factory=StartMeasurementParams)
-    corridor_estimator: CorridorEstimatorParams = field(default_factory=CorridorEstimatorParams)
-    corridor_follower: CorridorFollowerParams = field(default_factory=CorridorFollowerParams)
-    direction_estimator: DirectionEstimatorParams = field(default_factory=DirectionEstimatorParams)
-    wall_heading: WallHeadingParams = field(default_factory=WallHeadingParams)
-    control: ControlLoopParams = field(default_factory=ControlLoopParams)
-    sign_router: SignRouterParams = field(default_factory=SignRouterParams)
-    sign_discovery: SignDiscoveryParams = field(default_factory=SignDiscoveryParams)
-    parking: ParkingParams = field(default_factory=ParkingParams)
-    localization: LocalizationParams = field(default_factory=LocalizationParams)
-    state_estimator: StateEstimatorParams = field(default_factory=StateEstimatorParams)
-    simulation: SimulationParams = field(default_factory=SimulationParams)
+    clearance: ClearanceZones = field(default_factory=lambda: _shipped_group("clearance"))
+    heading: HeadingErrorZones = field(default_factory=lambda: _shipped_group("heading"))
+    pursuit: PurePursuitParams = field(default_factory=lambda: _shipped_group("pursuit"))
+    speed: SpeedControlParams = field(default_factory=lambda: _shipped_group("speed"))
+    escape: EscapeManeuverParams = field(default_factory=lambda: _shipped_group("escape"))
+    sensor: SensorHealthParams = field(default_factory=lambda: _shipped_group("sensor"))
+    waypoints: WaypointParams = field(default_factory=lambda: _shipped_group("waypoints"))
+    lidar_sectors: LidarSectorParams = field(default_factory=lambda: _shipped_group("lidar_sectors"))
+    start_measurement: StartMeasurementParams = field(
+        default_factory=lambda: _shipped_group("start_measurement")
+    )
+    corridor_estimator: CorridorEstimatorParams = field(
+        default_factory=lambda: _shipped_group("corridor_estimator")
+    )
+    corridor_follower: CorridorFollowerParams = field(
+        default_factory=lambda: _shipped_group("corridor_follower")
+    )
+    direction_estimator: DirectionEstimatorParams = field(
+        default_factory=lambda: _shipped_group("direction_estimator")
+    )
+    wall_heading: WallHeadingParams = field(default_factory=lambda: _shipped_group("wall_heading"))
+    control: ControlLoopParams = field(default_factory=lambda: _shipped_group("control"))
+    sign_router: SignRouterParams = field(default_factory=lambda: _shipped_group("sign_router"))
+    sign_discovery: SignDiscoveryParams = field(default_factory=lambda: _shipped_group("sign_discovery"))
+    parking: ParkingParams = field(default_factory=lambda: _shipped_group("parking"))
+    localization: LocalizationParams = field(default_factory=lambda: _shipped_group("localization"))
+    state_estimator: StateEstimatorParams = field(default_factory=lambda: _shipped_group("state_estimator"))
+    simulation: SimulationParams = field(default_factory=lambda: _shipped_group("simulation"))
 
     def __post_init__(self) -> None:
         """Check invariants that span two tuning groups.
@@ -237,35 +285,10 @@ class NavigationTuning:
             )
             raise ValueError(msg)
 
-    # (group key, dataclass, TOML subfolder) triples — the single source of
-    # truth for which sections load_from_yaml/load_from_json/to_dict/
-    # load_from_toml_dir/load_from_toml_dirs handle, so adding a new tuning group never requires
-    # touching more than this tuple. The subfolder mirrors this package's own
-    # module grouping (motion.py, blind_nav.py, etc.) under
-    # src/config/navigation/, so a TOML file's location and its
-    # Python group's home module always agree.
-    _GROUPS: ClassVar[tuple[tuple[str, type, str], ...]] = (
-        ("clearance", ClearanceZones, "motion"),
-        ("heading", HeadingErrorZones, "motion"),
-        ("pursuit", PurePursuitParams, "motion"),
-        ("speed", SpeedControlParams, "motion"),
-        ("escape", EscapeManeuverParams, "escape"),
-        ("sensor", SensorHealthParams, "sensors"),
-        ("waypoints", WaypointParams, "waypoint"),
-        ("lidar_sectors", LidarSectorParams, "sensors"),
-        ("start_measurement", StartMeasurementParams, "sensors"),
-        ("corridor_estimator", CorridorEstimatorParams, "blind_nav"),
-        ("corridor_follower", CorridorFollowerParams, "blind_nav"),
-        ("direction_estimator", DirectionEstimatorParams, "blind_nav"),
-        ("wall_heading", WallHeadingParams, "sensors"),
-        ("control", ControlLoopParams, "motion"),
-        ("sign_router", SignRouterParams, "signs"),
-        ("sign_discovery", SignDiscoveryParams, "signs"),
-        ("parking", ParkingParams, "parking"),
-        ("localization", LocalizationParams, "blind_nav"),
-        ("state_estimator", StateEstimatorParams, "blind_nav"),
-        ("simulation", SimulationParams, "simulation"),
-    )
+    # Module-level _GROUP_SPECS, exposed as a ClassVar so tests and callers can
+    # read the (group key, dataclass, TOML subfolder) mapping from the class.
+    _GROUPS: ClassVar[tuple[tuple[str, type, str], ...]] = _GROUP_SPECS
+
 
     # Per-challenge tuning lives in CHALLENGES_ROOT (load_default(challenge=...)),
     # not as a hardcoded for_obstacles()-style classmethod. An earlier
@@ -288,8 +311,8 @@ class NavigationTuning:
 
         Shared by :meth:`load_from_yaml` and :meth:`load_from_json` so both
         formats stay in lockstep with ``_GROUPS`` instead of duplicating the
-        per-group reconstruction. Missing groups fall back to their defaults,
-        allowing partial config files.
+        per-group reconstruction. Every group must be present in the mapping;
+        a missing one raises rather than falling back to a hardcoded value.
         """
         return cls(**{key: dataclass_type(**data.get(key, {})) for key, dataclass_type, _ in cls._GROUPS})
 
@@ -351,12 +374,10 @@ class NavigationTuning:
         top-level fields ARE the group, no wrapper table needed since the
         filename already disambiguates which group it is. The subfolder is
         ``_GROUPS``'s own third element, so it always matches this package's
-        module grouping (see the comment on ``_GROUPS``). A missing file
-        falls back to that group's defaults, same as a missing key in
-        ``load_from_yaml``/``load_from_json``'s single-file mapping. A
-        missing directory returns all-defaults outright, so constructing a
-        navigator in a test/sim context with no config tree on disk still
-        works.
+        module grouping (see the comment on ``_GROUPS``). A missing file is an
+        error: the checked-in tree is complete, so an absent group means a
+        partial or wrong directory rather than a value to invent. A missing
+        directory is likewise an error, not a silent all-defaults result.
 
         Args:
             directory: Directory containing the per-group TOML tree.
@@ -393,7 +414,7 @@ class NavigationTuning:
             for key, _, subfolder in cls._GROUPS:
                 toml_path = directory / subfolder / f"{key}.toml"
                 if toml_path.exists():
-                    group_data = _read_toml_cached(toml_path)
+                    group_data = load_toml_merged(toml_path)
                     data[key] = deep_merge(data[key], group_data) if key in data else group_data
 
         return cls._from_mapping(data)
@@ -403,10 +424,11 @@ class NavigationTuning:
         """Load the checked-in DEFAULT_CONFIG_DIR TOML tree, with any active hardware profile
         and (if given) a challenge-scoped overlay from CHALLENGES_ROOT layered on top.
 
-        The normal way to construct a NavigationTuning in production code --
-        falls back to hardcoded per-group defaults for any file (or the
-        whole directory) that isn't present, so it's also safe to call from
-        a test/sim context that doesn't have the full repo checked out.
+        The normal way to construct a NavigationTuning in production code. The
+        checked-in DEFAULT_CONFIG_DIR tree is complete, so every group loads;
+        a missing file or directory raises rather than falling back to a
+        hardcoded value, which keeps the shrunk TOML tree the only source of
+        truth and makes an incomplete checkout loud.
 
         ``challenge`` is optional and additive: omitting it (the default)
         reproduces the pre-existing behaviour exactly. When given, the
@@ -436,7 +458,7 @@ class NavigationTuning:
     def _load_from_toml_dirs_cached(cls, directories: tuple[Path, ...]) -> NavigationTuning:
         """Memoized core of :meth:`load_default`, keyed on the resolved directory tuple.
 
-        ``_read_toml_file_cached`` already memoized each individual TOML
+        ``paths._read_toml`` already memoized each individual TOML
         file's parse for this reason (see its docstring: "the single
         largest cost" in an earlier profiling pass), but that fix was
         incomplete -- a fresh profile of a 437-step Obstacles scenario

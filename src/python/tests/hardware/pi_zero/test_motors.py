@@ -47,14 +47,21 @@ def driver():
     config = MotorConfig(
         steering=MotorSteeringConfig(
             port="A",
+            offset=0.0,
             left_limit_angle=-83.0,
             center_angle=0.0,
             right_limit_angle=22.0,
+            centering_speed=20,
+            turning_speed=30,
+            reversed=False,
         ),
         drive=MotorDriveConfig(
             port="B",
+            reversed=False,
+            encoder_reversed=True,
             min_speed=0,
             max_speed=100,
+            speed_scale=30.0,
             default_speed=15,
             test_duration=1,
         ),
@@ -160,14 +167,21 @@ def find_limits_interactive():
     config = MotorConfig(
         steering=MotorSteeringConfig(
             port="A",
+            offset=0.0,
             left_limit_angle=-83.0,
             center_angle=0.0,
             right_limit_angle=22.0,
+            centering_speed=20,
+            turning_speed=30,
+            reversed=False,
         ),
         drive=MotorDriveConfig(
             port="B",
+            reversed=False,
+            encoder_reversed=True,
             min_speed=0,
             max_speed=100,
+            speed_scale=30.0,
             default_speed=15,
             test_duration=1,
         ),

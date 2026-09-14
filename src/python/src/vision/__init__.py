@@ -84,7 +84,7 @@ def create_detector(
         raise UnknownVisionBackendError(msg) from e
     if backend == VisionBackend.YOLO:
         if config is None:
-            config = DetectorConfig(class_to_color=DEFAULT_CLASS_TO_COLOR)
+            config = DetectorConfig.load_with(class_to_color=DEFAULT_CLASS_TO_COLOR)
         return LocalYoloDetector(config)
     if backend == VisionBackend.HAILO:
         try:
@@ -94,9 +94,11 @@ def create_detector(
             msg = "hailo_platform not found. Are you running on the Raspberry Pi 5 with HailoRT installed?"
             raise ImportError(msg) from e
         if hailo_config is None:
-            hailo_config = HailoConfigBase()
+            hailo_config = HailoConfigBase.load()
         if config is None:
-            config = DetectorConfig(model_path=hailo_config.model_path, class_to_color=DEFAULT_CLASS_TO_COLOR)
+            config = DetectorConfig.load_with(
+                model_path=hailo_config.model_path, class_to_color=DEFAULT_CLASS_TO_COLOR
+            )
         # The driver's model path always follows the caller's DetectorConfig
         # (the vision node's ROS param) or, when none was supplied, the loaded
         # Hailo config's own path -- never hailo.toml's default overriding a

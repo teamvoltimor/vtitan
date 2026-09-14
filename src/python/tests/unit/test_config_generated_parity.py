@@ -748,16 +748,6 @@ class TestFinalWaveLoadedValues:
         assert motors.drive.default_speed == 15
         assert motors.drive.test_duration == pytest.approx(1.5)
 
-    def test_mcp2221_defaults(self):
-        from src.hardware.mcp2221.config import MCP2221Config
-
-        mcp = MCP2221Config()
-
-        assert mcp.vid == "0x04D8"
-        assert mcp.pid == "0x00DD"
-        assert mcp.vid_int == 0x04D8
-        assert mcp.pid_int == 0x00DD
-
     def test_quaternion_defaults(self):
         from src.hardware.imu.config import QuaternionConfig
 

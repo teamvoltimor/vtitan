@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import shipped_group
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 
 from scripts.common.bag_io import create_bags_parser, final_walls, read_posed_bag, scan_to_ranges_angles
@@ -61,7 +62,7 @@ def analyse(bag_dir: Path, stride: int, bin_s: float, tmax: float | None) -> Non
     if walls is None:
         print(f"{bag_dir.name}: no converged belief widths, skipping")
         return
-    params = LocalizationParams()
+    params = shipped_group(LocalizationParams)
     localizer = LidarLocalizer(walls, params)
     scan_times = [t for t, _ in scans]
     t0 = nav_debug[0][0]

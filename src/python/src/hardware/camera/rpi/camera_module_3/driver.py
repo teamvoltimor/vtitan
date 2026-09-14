@@ -3,13 +3,11 @@
 import logging
 import time
 from collections.abc import Generator
-from typing import Any, ClassVar
 
 import numpy as np
 from picamera2 import Picamera2
 from pydantic import field_validator
 from pydantic_settings import SettingsConfigDict
-from shared.config.defaults_model import DefaultsModel
 from shared.config.generated.hardware.camera.rpi_camera_module_3_schema import (
     HardwareCameraRpiCameraModule3,
 )
@@ -38,41 +36,22 @@ _COLOUR_NDIM = 3
 _RGBA_CHANNELS = 4
 
 
-class Config(DefaultsModel, HardwareBaseSettings, HardwareCameraRpiCameraModule3):
+class Config(HardwareBaseSettings, HardwareCameraRpiCameraModule3):
     """Camera configuration for RPi Camera Module 3.
 
     Subclasses the generated DTO for the TOML-backed ``camera_*`` keys. The
     shared orientation logic (``resolved_flips`` / ``get_resolution``) is kept
     here, and the two never-committed tuning knobs (autofocus speed, manual
     shutter) stay wrapper-only. The generated fields are all optional because a
-    hardware-profile overlay only declares ``camera_awb_mode``; the shipped
-    defaults the old hand-written model carried are re-applied as wrapper
-    fallbacks (never as DTO fields), and the string-valued enum keys are
-    re-cast to their typed enums.
+    hardware-profile overlay only declares ``camera_awb_mode``, but every value
+    comes from ``rpi_camera_module_3.toml`` (the profile overlay deep-merges onto
+    it); the string-valued enum keys are re-cast to their typed enums.
     """
 
     model_config = SettingsConfigDict(
         env_prefix="",
         toml_file=CONFIG_DIR / "camera" / "rpi_camera_module_3.toml",
     )
-
-    _DEFAULTS: ClassVar[dict[str, Any]] = {
-        "camera_device": "/dev/video0",
-        "camera_width": 1536,
-        "camera_height": 864,
-        "camera_fps": 30,
-        "camera_inverted": False,
-        "camera_rotation": 0,
-        "camera_hflip": False,
-        "camera_vflip": False,
-        "camera_af_mode": "continuous",
-        "camera_lens_position": None,
-        "camera_ae_exposure_mode": "normal",
-        "camera_analogue_gain": 1.0,
-        "camera_awb_mode": "auto",
-        "camera_noise_reduction_mode": "fast",
-        "camera_sharpness": 1.0,
-    }
 
     camera_af_speed: AfSpeed = AfSpeed.NORMAL
     """Passed to libcamera. Only applies when `camera_af_mode` is AUTO or CONTINUOUS.
@@ -130,7 +109,7 @@ class Driver(CameraDriver):
     """Driver for RPi Camera Module 3 Wide using Picamera2."""
 
     def __init__(self, config: Config | None = None):
-        self.config = config or Config()
+        self.config = config or Config.load()
         self._picamera2: Picamera2 | None = None
         self.logger = logging.getLogger(__name__)
         self._streamer: FrameStreamer[np.ndarray] = FrameStreamer(

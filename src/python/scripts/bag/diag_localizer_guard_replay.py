@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import shipped_group
 from shared.config.navigation_tuning.blind_nav import LocalizationParams
 
 from scripts.common.bag_io import (
@@ -83,7 +84,7 @@ def _grid_search_costs(
     angles: np.ndarray,
 ) -> GridSearchResult:
     """Replicate LidarLocalizer's exact search, returning (x, y, best_cost, second_cost)."""
-    localizer = LidarLocalizer(walls, LocalizationParams())
+    localizer = LidarLocalizer(walls, shipped_group(LocalizationParams))
     best_x, best_y = prior_xy
     radius = localizer._search_radius  # noqa: SLF001 - diagnostic replay of internal state
     n = localizer._grid_points  # noqa: SLF001
