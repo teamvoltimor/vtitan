@@ -159,40 +159,9 @@ class CoreNavigator(EscapeRecovery):
         #
         # Keyed on sign_router presence, the same Open/Obstacles discriminator
         # STALE_TARGET_RESCUE and RETRACE_ESCAPE already use (it is None for the
-        # Open Challenge by construction). Resolving once also means a tier read
-        # mid-run cannot disagree with one read at startup.
-        self._speed = (
-            self._tuning.speed.for_obstacles_challenge()
-            if sign_router is not None
-            else self._tuning.speed.for_open_challenge()
-        )
-        # The clearance zones this run drives on, resolved ONCE for the same
-        # reasons and on the same discriminator as the speed ladder above.
-        #
-        # Only Obstacles has an override to apply (`for_obstacles_challenge`
-        # returns self when it is unset), so the Open branch reads the base
-        # zones directly rather than through a `for_open_challenge` that could
-        # only ever be the identity.
-        self._clearance = (
-            self._tuning.clearance.for_obstacles_challenge()
-            if sign_router is not None
-            else self._tuning.clearance
-        )
-        # The escape parameters this run drives on, resolved ONCE on the same
-        # discriminator as the two above. `for_obstacles_challenge` returns self
-        # when no OBSTACLES_* override is set, so Open and an un-overridden
-        # Obstacles stay byte-identical.
-        #
-        # Everything downstream reads `self._escape`, NEVER `_tuning.escape`.
-        # Resolving only the gates that "obviously" needed it is what made
-        # OBSTACLES_CONTACT_DIST diverge from its shared field on the 256 corpus
-        # (see EscapeRecovery._clearance); one object, read everywhere, is the
-        # fix that does not have to be remembered.
-        self._escape = (
-            self._tuning.escape.for_obstacles_challenge()
-            if sign_router is not None
-            else self._tuning.escape
-        )
+        # Open Challenge by construction). Resolving once per RACE means a tier
+        # read mid-run cannot disagree with one read at the start of that race.
+        self._resolve_challenge_params(sign_router)
         self._waypoint_threshold = self._tuning.waypoints.main_loop_reached_distance_m
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
@@ -764,6 +733,61 @@ class CoreNavigator(EscapeRecovery):
                 held[i] = old
         self._waypoints = held
 
+    def _resolve_challenge_params(self, sign_router: SignRouter | None) -> None:
+        """Pick the speed ladder, clearance zones and escape params for this race.
+
+        All three key on the SAME Open/Obstacles discriminator -- sign router
+        present -- so they are resolved together, and re-resolved whenever that
+        discriminator can change, which is exactly ``replace_sign_router``.
+
+        Resolving them only in ``__init__`` was a silent misconfiguration.
+        ``track_navigator_node`` builds the navigator before BOOT_CHECK has
+        published a challenge and falls back to Open, so the very first race in
+        a fresh process starts with ``sign_router=None``; the jumper then
+        resolves to Obstacles and ``replace_sign_router`` attaches a router,
+        but these three stayed on their Open values for the rest of the process.
+        Measured on the nine Obstacles rounds of 2026-09-13/14: 13,852 driving
+        ticks commanded an OPEN tier (0.26/0.38/0.50 m/s) and none commanded an
+        Obstacles one (0.22/0.32/0.42), in 9 of 9 rounds, with a sign router
+        active throughout. Beyond the ladder that also silently dropped
+        ``obstacles_k_turn_fit_rear_gap`` and ``obstacles_escape_mirrors_reverse``,
+        so the escape the rounds actually ran was the Open one.
+
+        Speed matters most here because the chassis radius is a speed curve
+        (R = 0.053 + 1.86v): 0.26 m/s buys R = 0.537 m, while the sign lane's
+        band changes demand 0.335-0.371 m over the 256-scenario corpus.
+        """
+        # Open tolerates far more speed than Obstacles -- its binding constraint
+        # is the 180 s round limit, not sign clearance, and Obstacles was
+        # measured degrading monotonically with speed (in-time 38/256 at 0.156
+        # m/s down to 9/256 at 0.60). `for_open_challenge` returns the base
+        # ladder unchanged when the motor profile defines no OPEN_* tiers, so a
+        # drivetrain without headroom to spare needs no special case.
+        self._speed = (
+            self._tuning.speed.for_obstacles_challenge()
+            if sign_router is not None
+            else self._tuning.speed.for_open_challenge()
+        )
+        # Only Obstacles has an override to apply (`for_obstacles_challenge`
+        # returns self when it is unset), so the Open branch reads the base
+        # zones directly rather than through a `for_open_challenge` that could
+        # only ever be the identity.
+        self._clearance = (
+            self._tuning.clearance.for_obstacles_challenge()
+            if sign_router is not None
+            else self._tuning.clearance
+        )
+        # Everything downstream reads `self._escape`, NEVER `_tuning.escape`.
+        # Resolving only the gates that "obviously" needed it is what made
+        # OBSTACLES_CONTACT_DIST diverge from its shared field on the 256 corpus
+        # (see EscapeRecovery._clearance); one object, read everywhere, is the
+        # fix that does not have to be remembered.
+        self._escape = (
+            self._tuning.escape.for_obstacles_challenge()
+            if sign_router is not None
+            else self._tuning.escape
+        )
+
     def replace_sign_router(self, sign_router: SignRouter | None) -> None:
         """Swap in a sign router built for a new race.
 
@@ -778,6 +802,10 @@ class CoreNavigator(EscapeRecovery):
         caller builds a fresh one from the current section/direction/tuning.
         """
         self._sign_router = sign_router
+        # The speed ladder, clearance zones and escape params key on exactly
+        # this discriminator, so swapping the router without re-resolving them
+        # left an Obstacles race driving the Open configuration.
+        self._resolve_challenge_params(sign_router)
         # Whatever lanes the previous router's layout produced belong to that
         # race. Drop back to the planned centreline and let the next tick
         # re-lane from the new router, if there is one.
