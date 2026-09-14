@@ -6,7 +6,7 @@
 > 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](memorial.md) vive en [`memorial.md`](memorial.md).
 
 <p align="center">
-    <img src="other/assets/voltimor-logo-square.png" alt="" width="400">
+    <img src="other/assets/voltimor-logo-square.webp" alt="" width="400">
     <br>
     <i>Logo del Equipo</i>
 </p>
@@ -542,7 +542,7 @@ width="350">
 Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. 
 
 <p align="center">
-	<img src="schemes/counter-phase-steering-system.png" alt="Ejemplo de sistema de dirección en Contrafase" 
+	<img src="schemes/counter-phase-steering-system.webp" alt="Ejemplo de sistema de dirección en Contrafase" 
 width="350">
 	<br>
 	<i>Ejemplo de sistema de dirección en contrafase</i>
@@ -567,7 +567,7 @@ También es importante recalcar la base dentada del rin de las ruedas, o mejor d
 Falta la comparación explícita Ackermann contra contrafase: por qué se descartó
 Ackermann y qué se ganó con contrafase (giro de 90 grados para la salida del
 estacionamiento). El diagrama YA EXISTE y no está enlazado en ninguna parte:
-schemes/ackermann-steering-system.png -->
+schemes/ackermann-steering-system.webp -->
 
 ## Estructura mecánica
 

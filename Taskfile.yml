@@ -138,8 +138,8 @@ tasks:
       frontend's public/ dir. other/assets/ is the single source of truth --
       Vite can't reference files outside a project's own root, so each
       frontend needs its own copy; re-run this after replacing either source
-      PNG.
+      file.
     cmds:
-      - cp other/assets/voltimor-logo-square.png other/assets/voltimor-logo-banner.png other/apps/auto-annotator/frontend/public/
-      - cp other/assets/voltimor-logo-square.png other/assets/voltimor-logo-banner.png other/apps/frontend/public/
+      - cp other/assets/voltimor-logo-square.webp other/assets/voltimor-logo-banner.webp other/apps/auto-annotator/frontend/public/
+      - cp other/assets/voltimor-logo-square.webp other/assets/voltimor-logo-banner.webp other/apps/frontend/public/
       - echo "[OK] Synced logo assets to other/apps/auto-annotator/frontend/public and other/apps/frontend/public"

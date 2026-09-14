@@ -44,7 +44,7 @@ Una parte fundamental para nuestro robot es su sistema de cruce. Es basado en un
 Las ruedas para funcionar están conectadas a un muñón de dirección, luego a un "palier" o "semieje" que pasa por dentro del muñón y se junta con la rueda para que esta gire, el palier gira mientras está junto al diferencial.
 
 <div class="hcenter">
-	<img src="../../../../schemes/ackermann-steering-system.png" 
+	<img src="../../../../schemes/ackermann-steering-system.webp" 
 alt="Sistema Ackermann" class="mechanical-image">
 </div>
 

@@ -62,7 +62,7 @@ export function Sidebar() {
   return (
     <aside className="control-panel">
       <div className="panel-header">
-        <img className="panel-logo" src="/voltimor-logo-square.png" alt="Voltimor" />
+        <img className="panel-logo" src="/voltimor-logo-square.webp" alt="Voltimor" />
         <button
           type="button"
           className={`live-switch${liveMode ? ' is-live' : ' is-replay'}`}

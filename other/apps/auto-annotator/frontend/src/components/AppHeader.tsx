@@ -26,7 +26,7 @@ export function AppHeader({ onToggleTheme }: { onToggleTheme: () => void }) {
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1 }}>
         <Box
           component="img"
-          src="/voltimor-logo-square.png"
+          src="/voltimor-logo-square.webp"
           alt="Voltimor"
           sx={{
             height: 28,
