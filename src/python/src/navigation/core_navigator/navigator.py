@@ -197,23 +197,7 @@ class CoreNavigator(EscapeRecovery):
         self._pose_trail: deque[Pose] = deque(maxlen=self._escape.pose_trail_len)
         self._retracing = False
 
-        # Controllers. Keyed on the same sign_router discriminator as the speed
-        # ladder and clearance zones above, and resolved ONCE for the same
-        # reason: a lookahead read mid-run cannot disagree with one read at
-        # startup. Only Open has an override to apply, so Obstacles reads the
-        # base parameters and its resolution path is untouched.
-        self._waypoint_controller = WaypointController.from_tuning(
-            self._tuning, for_open=sign_router is None
-        )
-        self._apply_path_wall_budget()
-
-        # Built from the RESOLVED zones, not `self._tuning.clearance`. This
-        # controller owns `assess_risk`, which is what actually fires the
-        # reversing escape at `contact_dist` -- resolving everywhere except
-        # here would leave the override inert on the path it was added for.
-        self._collision_controller = CollisionAvoidanceController.from_tuning(
-            self._tuning, clearance=self._clearance, escape=self._escape
-        )
+        self._build_challenge_controllers(sign_router)
 
         self._stuck_detector = StuckDetector.from_tuning(self._tuning)
         # Backing off an obstacle the chassis has closed on. Ticks still owed,
@@ -788,6 +772,37 @@ class CoreNavigator(EscapeRecovery):
             else self._tuning.escape
         )
 
+    def _build_challenge_controllers(self, sign_router: SignRouter | None) -> None:
+        """Rebuild the two controllers that BAKE IN the per-challenge parameters.
+
+        Split from ``_resolve_challenge_params`` only for ordering: the wall
+        budget reads ``self._waypoints``, so this has to run after the caller
+        has settled them, while the parameter objects do not care.
+
+        Both controllers copy their values at construction rather than holding
+        the parameter object, so re-resolving ``self._escape`` and
+        ``self._clearance`` without rebuilding these leaves the OLD challenge's
+        numbers live on the paths that actually use them -- among them
+        ``assess_risk``'s ``contact_dist`` and the K-turn's
+        ``escape_side_follows_committed_sign``, which is the flag that decides
+        which side of a pillar the robot comes out on.
+        """
+        # Keyed on the same sign_router discriminator as the speed ladder and
+        # clearance zones. Only Open has an override to apply, so Obstacles
+        # reads the base parameters and its resolution path is untouched.
+        self._waypoint_controller = WaypointController.from_tuning(
+            self._tuning, for_open=sign_router is None
+        )
+        self._apply_path_wall_budget()
+
+        # Built from the RESOLVED zones, not `self._tuning.clearance`. This
+        # controller owns `assess_risk`, which is what actually fires the
+        # reversing escape at `contact_dist` -- resolving everywhere except
+        # here would leave the override inert on the path it was added for.
+        self._collision_controller = CollisionAvoidanceController.from_tuning(
+            self._tuning, clearance=self._clearance, escape=self._escape
+        )
+
     def replace_sign_router(self, sign_router: SignRouter | None) -> None:
         """Swap in a sign router built for a new race.
 
@@ -811,6 +826,11 @@ class CoreNavigator(EscapeRecovery):
         # re-lane from the new router, if there is one.
         self._waypoints = list(self._lane_base_waypoints)
         self._lane_fingerprint = None
+        # AFTER the waypoints above, because the wall budget is measured off
+        # them. The controllers copy the parameters resolved just above, so
+        # this is what actually makes the switch reach `assess_risk` and the
+        # K-turn's side rule.
+        self._build_challenge_controllers(sign_router)
 
     def replace_park_controller(self, park_controller: ParkController | None) -> None:
         """Swap in a fresh ParkController ahead of a new race.

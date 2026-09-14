@@ -46,7 +46,15 @@ def tuning() -> NavigationTuning:
     speed = base.speed.model_copy(
         update={"open_slow_mps": _OPEN_SLOW, "obstacles_slow_mps": _OBSTACLES_SLOW}
     )
-    return replace(base, speed=speed)
+    # Pinned here rather than read from the shipped TOML so the test states the
+    # split it is asserting: shared off, Obstacles on.
+    escape = base.escape.model_copy(
+        update={
+            "escape_side_follows_committed_sign": False,
+            "obstacles_escape_side_follows_committed_sign": True,
+        }
+    )
+    return replace(base, speed=speed, escape=escape)
 
 
 def _navigator(tuning: NavigationTuning, *, sign_router: SignRouter | None) -> CoreNavigator:
@@ -87,6 +95,25 @@ class TestChallengeParamsFollowTheRouter:
         nav.replace_sign_router(None)
 
         assert nav._speed.slow_mps == pytest.approx(_OPEN_SLOW)
+
+    def test_the_collision_controller_is_rebuilt_with_the_new_params(self, tuning):
+        """The controllers COPY the params, so re-resolving alone is not enough.
+
+        `escape_side_follows_committed_sign` is the flag that decides which
+        side of a pillar the robot comes out of a K-turn on, and the collision
+        controller reads its own copy, taken at construction. Re-resolving
+        `self._escape` without rebuilding the controller leaves the previous
+        challenge's value live on the only path that uses it.
+        """
+        nav = _navigator(tuning, sign_router=None)
+        assert nav._collision_controller.escape_side_follows_committed_sign is False
+
+        nav.replace_sign_router(_router(tuning))
+
+        assert nav._collision_controller.escape_side_follows_committed_sign is True
+        assert nav._collision_controller.contact_dist == pytest.approx(
+            tuning.clearance.for_obstacles_challenge().contact_dist
+        )
 
     def test_clearance_and_escape_switch_with_the_ladder(self, tuning):
         """All three key on the same discriminator, so all three must move.

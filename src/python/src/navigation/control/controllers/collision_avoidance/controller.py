@@ -781,9 +781,18 @@ class CollisionAvoidanceController:
                     wanted_clear = left_clear if preferred_sign < 0 else right_clear
                     if wanted_clear >= self.escape_side_override_min_clearance_m:
                         return preferred_sign
-                    # Otherwise fall through: the LIDAR is right that this side
-                    # is closed, and driving into a wall costs more than a
-                    # wrong-side pass costs to correct on the next approach.
+                    # Otherwise fall through: the LIDAR is right that this
+                    # side is physically shut, and forcing it would push the
+                    # pillar over.
+                    #
+                    # The fall-through then takes the OTHER side, which the
+                    # operator's rule says ends the round (a wrong-side pass is
+                    # not a deduction). So neither branch here is actually
+                    # right when the wanted side is shut -- the answer is to
+                    # decline the pass and re-approach, which lives in
+                    # `sign_router.retrace_escape` and ships off. Left as-is
+                    # deliberately; see escape.toml's note on
+                    # escape_side_override_min_clearance_m.
                 if left_clear != right_clear:
                     # Swing left (negative steering while reversing) when the left
                     # is clearer; swing right (positive) when the right is clearer.

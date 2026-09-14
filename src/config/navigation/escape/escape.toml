@@ -136,12 +136,23 @@ obstacles_escape_mirrors_reverse = true
 # REFUTED, do not re-try: that this is a near-tie the LIDAR cannot resolve. 18
 # of 37 opposing escapes were decided on a margin of 0.20 m or more.
 #
-# SHIPS OFF. The gain is a contrafactual over observed episodes, not an A/B,
-# and the simulator cannot screen it -- there the sign map is exact and the
-# disagreement collapses to nothing. Turn on `obstacles_` only: the Open
-# Challenge has no committed sign, so the shared flag is inert there anyway.
+# ON for Obstacles since 2026-09-14, decided on the OPERATOR'S cost function
+# rather than on an A/B: a wrong-side pass ENDS THE ROUND, so an escape that
+# clears the pillar but leaves the robot on the wrong side has bought nothing.
+# That reclassifies the opposing escapes from a time cost into a round-ender.
+# Re-measured on the nine 2026-09-13/14 bags with diag_bag_escape_intent: the
+# K-turn steers OPPOSITE the plan's own intent in 73 of 128 episodes (57%),
+# against 51 of 239 (21%) for side_correction and 0 of 20 for stuck_reverse.
+# The K-turn is also 88% of hardware manoeuvre time, so this is the manoeuvre
+# that decides which side the robot comes out on.
+#
+# The shared flag stays off: the Open Challenge has no committed sign, so it is
+# inert there anyway.
+#
+# The simulator still cannot screen this (there the sign map is exact and the
+# disagreement collapses to nothing), so the first hardware round IS the A/B.
 escape_side_follows_committed_sign = false
-obstacles_escape_side_follows_committed_sign = false
+obstacles_escape_side_follows_committed_sign = true
 
 # Clearance the router's side must ALREADY have before it may be forced.
 # Not optional alongside the flag above: forcing a side in a 1.00 m corridor
@@ -152,4 +163,14 @@ obstacles_escape_side_follows_committed_sign = false
 # correctly today; the sensitivity table sits at a ratio of 1.00 or worse from
 # 0.05 m upward. An absolute floor only engages when the wanted side is
 # physically shut. 0.12 is a shade over half the 0.194 m chassis width.
+#
+# OPEN QUESTION, and the operator's rule is what opens it. Below this floor the
+# code falls through and takes the OTHER side, on the reasoning that a
+# wrong-side pass is cheaper than driving into a wall. That reasoning is dead:
+# the wrong-side pass ends the round, so it is not cheaper than anything. The
+# answer that satisfies both "pass on the correct side" and "do not touch the
+# pillar" is a third one the fall-through does not have -- decline the pass and
+# re-approach, which is what `sign_router.retrace_escape` provides. Deliberately
+# NOT turned on in the same change as the flag above, so the first hardware
+# round can attribute what it sees to one behaviour.
 escape_side_override_min_clearance_m = 0.12
