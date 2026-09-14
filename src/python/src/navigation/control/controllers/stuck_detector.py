@@ -43,7 +43,7 @@ class StuckDetector:
         confirmation_checks: int,
         min_history_for_distance: int | None = None,
         tuning: NavigationTuning | None = None,
-        progress_window_frames: int = 10**9,  # TEMP control arm
+        progress_window_frames: int = 200,
         progress_min_path_m: float = 1.0,
         progress_radius_m: float = 0.40,
     ):
