@@ -33,25 +33,22 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	signWidthM := DefaultSignWidthM
-	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if tc, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
-		logger.Warn("signrouter: loading track.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.TrackMinCoordM = tc.Track.MinCoord
-		cfg.TrackMaxCoordM = tc.Track.MaxCoord
-		cfg.TrackCornerMinM = tc.Track.CornerMin
-		cfg.TrackCornerMaxM = tc.Track.CornerMax
-		signWidthM = tc.Sign.Width
-		cfg.SignWidthM = tc.Sign.Width
-		cfg.SignHeightM = tc.Sign.Height
-		cfg.GridDepthNear = tc.Sign.GridDepthNear
-		cfg.GridDepthMiddle = tc.Sign.GridDepthMiddle
-		cfg.GridDepthFar = tc.Sign.GridDepthFar
-		cfg.GridWidthOuter = tc.Corridor.DivisionLines[0]
-		cfg.GridWidthInner = tc.Corridor.DivisionLines[1]
-		cfg.TrackSizeM = tc.Track.Size
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultTrackTOMLPath), nil,
+		func(tc generated.TrackConfig) {
+			cfg.TrackMinCoordM = tc.Track.MinCoord
+			cfg.TrackMaxCoordM = tc.Track.MaxCoord
+			cfg.TrackCornerMinM = tc.Track.CornerMin
+			cfg.TrackCornerMaxM = tc.Track.CornerMax
+			signWidthM = tc.Sign.Width
+			cfg.SignWidthM = tc.Sign.Width
+			cfg.SignHeightM = tc.Sign.Height
+			cfg.GridDepthNear = tc.Sign.GridDepthNear
+			cfg.GridDepthMiddle = tc.Sign.GridDepthMiddle
+			cfg.GridDepthFar = tc.Sign.GridDepthFar
+			cfg.GridWidthOuter = tc.Corridor.DivisionLines[0]
+			cfg.GridWidthInner = tc.Corridor.DivisionLines[1]
+			cfg.TrackSizeM = tc.Track.Size
+		})
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
 	if rc, err := profile.LoadRobotValues(robotPath, nil); err != nil {
@@ -67,32 +64,29 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	signClearanceMarginM := DefaultSignClearanceMarginM
-	srPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
-	if sr, err := profile.Load[signs.NavigationSignsSignRouter](srPath, nil); err != nil {
-		logger.Warn("signrouter: loading sign_router.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		signClearanceMarginM = sr.SignClearanceMarginM
-		cfg.ActivationDistM = sr.ActivationDistM
-		cfg.PassedDistM = sr.PassedDistM
-		cfg.DepthPin = sr.DepthPin
-		cfg.DetectionMatchDistM = sr.DetectionMatchDistM
-		cfg.MinConfidence = sr.MinConfidence
-		cfg.CommitHysteresis = sr.CommitHysteresis
-		cfg.CorridorFlipTicks = sr.CorridorFlipTicks
-		cfg.SettleTicks = sr.SettleTicks
-		cfg.RelabelUnsatisfiable = sr.SignLaneRelabelUnsatisfiable
-		cfg.DepthConsistentCorridor = sr.SignLaneDepthConsistentCorridor
-		cfg.WallClearanceMarginM = sr.WallClearanceMarginM
-		cfg.DeformDepthBufferM = sr.DeformDepthBufferM
-		cfg.PinCornerGuard = sr.PinCornerGuard
-		cfg.PinHeadingGuard = sr.PinHeadingGuard
-		cfg.PinHeadingGuardRad = sr.PinHeadingGuardDeg * math.Pi / navutil.DegreesPerHalfTurn
-		cfg.SlotSignMap = sr.SlotSignMap
-		cfg.SlotAcceptRadiusM = sr.SlotAcceptRadiusM
-		cfg.SlotMinEvidence = sr.SlotMinEvidence
-		cfg.SlotRepointMargin = sr.SlotRepointMargin
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath), nil,
+		func(sr signs.NavigationSignsSignRouter) {
+			signClearanceMarginM = sr.SignClearanceMarginM
+			cfg.ActivationDistM = sr.ActivationDistM
+			cfg.PassedDistM = sr.PassedDistM
+			cfg.DepthPin = sr.DepthPin
+			cfg.DetectionMatchDistM = sr.DetectionMatchDistM
+			cfg.MinConfidence = sr.MinConfidence
+			cfg.CommitHysteresis = sr.CommitHysteresis
+			cfg.CorridorFlipTicks = sr.CorridorFlipTicks
+			cfg.SettleTicks = sr.SettleTicks
+			cfg.RelabelUnsatisfiable = sr.SignLaneRelabelUnsatisfiable
+			cfg.DepthConsistentCorridor = sr.SignLaneDepthConsistentCorridor
+			cfg.WallClearanceMarginM = sr.WallClearanceMarginM
+			cfg.DeformDepthBufferM = sr.DeformDepthBufferM
+			cfg.PinCornerGuard = sr.PinCornerGuard
+			cfg.PinHeadingGuard = sr.PinHeadingGuard
+			cfg.PinHeadingGuardRad = sr.PinHeadingGuardDeg * math.Pi / navutil.DegreesPerHalfTurn
+			cfg.SlotSignMap = sr.SlotSignMap
+			cfg.SlotAcceptRadiusM = sr.SlotAcceptRadiusM
+			cfg.SlotMinEvidence = sr.SlotMinEvidence
+			cfg.SlotRepointMargin = sr.SlotRepointMargin
+		})
 
 	cfg.LateralOffsetM = cfg.ChassisHalfDiagonalM + signWidthM/2 + signClearanceMarginM
 	return cfg
@@ -113,34 +107,25 @@ func DiscoveryConfigFor(logger *slog.Logger, configRoot string) DiscoveryConfig 
 		return cfg
 	}
 
-	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if tc, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
-		logger.Warn("signrouter: loading track.toml for discovery, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.CornerMinM = tc.Track.CornerMin
-		cfg.CornerMaxM = tc.Track.CornerMax
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultTrackTOMLPath), nil,
+		func(tc generated.TrackConfig) {
+			cfg.CornerMinM = tc.Track.CornerMin
+			cfg.CornerMaxM = tc.Track.CornerMax
+		})
 
-	sdPath := filepath.Join(configRoot, profile.DefaultSignDiscoveryTOMLPath)
-	if sd, err := profile.Load[signs.NavigationSignsSignDiscovery](sdPath, nil); err != nil {
-		logger.Warn("signrouter: loading sign_discovery.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.MinReliableBBoxHeightPX = float64(sd.MinReliableBboxHeightPx)
-		cfg.MaxIngestRangeM = sd.MaxIngestRangeM
-		cfg.AssociationDistM = sd.AssociationDistM
-		cfg.MinHits = sd.MinHits
-		cfg.RobotCorridorFlipTicks = sd.RobotCorridorFlipTicks
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultSignDiscoveryTOMLPath), nil,
+		func(sd signs.NavigationSignsSignDiscovery) {
+			cfg.MinReliableBBoxHeightPX = float64(sd.MinReliableBboxHeightPx)
+			cfg.MaxIngestRangeM = sd.MaxIngestRangeM
+			cfg.AssociationDistM = sd.AssociationDistM
+			cfg.MinHits = sd.MinHits
+			cfg.RobotCorridorFlipTicks = sd.RobotCorridorFlipTicks
+		})
 
-	srPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
-	if sr, err := profile.Load[signs.NavigationSignsSignRouter](srPath, nil); err != nil {
-		logger.Warn("signrouter: loading sign_router.toml for discovery, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.MinConfidence = sr.MinConfidence
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath), nil,
+		func(sr signs.NavigationSignsSignRouter) {
+			cfg.MinConfidence = sr.MinConfidence
+		})
 
 	return cfg
 }

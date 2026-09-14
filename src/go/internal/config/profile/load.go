@@ -2,11 +2,36 @@ package profile
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/viper"
 )
+
+// Apply loads T from path (with the profileNames overlays) and, on success,
+// hands the decoded value to apply. On failure it logs a warning and returns
+// false, leaving the caller's defaults in place, so a component degrades to its
+// shipped literals rather than to a half-loaded config.
+//
+// This is the shared form of the load-warn-apply block every component's
+// ConfigFor used to repeat. Each source is loaded independently because they
+// are unrelated failure domains: one missing file must not discard the rest.
+func Apply[T any](
+	logger *slog.Logger,
+	path string,
+	profileNames []string,
+	apply func(T),
+) bool {
+	loaded, err := Load[T](path, profileNames)
+	if err != nil {
+		logger.Warn("config: loading TOML, falling back to defaults",
+			"path", path, "error", err)
+		return false
+	}
+	apply(*loaded)
+	return true
+}
 
 // merge reads basePath as TOML via viper, then for each name in
 // profileNames merges that profile's overlay

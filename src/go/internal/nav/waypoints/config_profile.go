@@ -26,37 +26,32 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	// corner_arc_assume_wide / unconfirmed_width_inner_bias_m /
 	// defer_current_corridor_replan, which Taplo checks against the schema at
 	// lint time, so a zero at runtime means a hand-edited source.
-	loaded, err := profile.Load[waypoint.NavigationWaypointWaypoints](basePath, nil)
-	if err != nil {
-		logger.Warn("waypoints: loading waypoints.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-		return cfg
-	}
+	profile.Apply(logger, basePath, nil, func(loaded waypoint.NavigationWaypointWaypoints) {
+		cfg.DedupeDistanceM = loaded.DedupeDistanceM
+		cfg.WideCenterBiasM = loaded.WideCenterBiasM
+		cfg.NarrowCenterBiasM = loaded.NarrowCenterBiasM
+		cfg.ObstaclesCenterBiasM = loaded.ObstaclesCenterBiasM
+		cfg.NarrowWidthThresholdM = loaded.NarrowWidthThresholdM
+		cfg.NumIntermediateArcPoints = loaded.NumIntermediateArcPoints
+		cfg.StraightWaypointCount = loaded.StraightWaypointCount
+		cfg.ArcRadius = loaded.ArcRadius
+		cfg.CornerArcAssumeWide = loaded.CornerArcAssumeWide
+		cfg.UnconfirmedWidthInnerBiasM = loaded.UnconfirmedWidthInnerBiasM
+		cfg.DeferCurrentCorridorReplan = loaded.DeferCurrentCorridorReplan
 
-	cfg.DedupeDistanceM = loaded.DedupeDistanceM
-	cfg.WideCenterBiasM = loaded.WideCenterBiasM
-	cfg.NarrowCenterBiasM = loaded.NarrowCenterBiasM
-	cfg.ObstaclesCenterBiasM = loaded.ObstaclesCenterBiasM
-	cfg.NarrowWidthThresholdM = loaded.NarrowWidthThresholdM
-	cfg.NumIntermediateArcPoints = loaded.NumIntermediateArcPoints
-	cfg.StraightWaypointCount = loaded.StraightWaypointCount
-	cfg.ArcRadius = loaded.ArcRadius
-	cfg.CornerArcAssumeWide = loaded.CornerArcAssumeWide
-	cfg.UnconfirmedWidthInnerBiasM = loaded.UnconfirmedWidthInnerBiasM
-	cfg.DeferCurrentCorridorReplan = loaded.DeferCurrentCorridorReplan
-
-	if side, ok := corridorSideFromString(loaded.WideCenterBiasSide); ok {
-		cfg.WideCenterBiasSide = side
-	} else {
-		logger.Warn("waypoints: waypoints.toml's wide_center_bias_side is not \"inner\"/\"outer\", keeping default",
-			"value", loaded.WideCenterBiasSide)
-	}
-	if side, ok := corridorSideFromString(loaded.NarrowCenterBiasSide); ok {
-		cfg.NarrowCenterBiasSide = side
-	} else {
-		logger.Warn("waypoints: waypoints.toml's narrow_center_bias_side is not \"inner\"/\"outer\", keeping default",
-			"value", loaded.NarrowCenterBiasSide)
-	}
+		if side, ok := corridorSideFromString(loaded.WideCenterBiasSide); ok {
+			cfg.WideCenterBiasSide = side
+		} else {
+			logger.Warn("waypoints: waypoints.toml's wide_center_bias_side is not \"inner\"/\"outer\", keeping default",
+				"value", loaded.WideCenterBiasSide)
+		}
+		if side, ok := corridorSideFromString(loaded.NarrowCenterBiasSide); ok {
+			cfg.NarrowCenterBiasSide = side
+		} else {
+			logger.Warn("waypoints: waypoints.toml's narrow_center_bias_side is not \"inner\"/\"outer\", keeping default",
+				"value", loaded.NarrowCenterBiasSide)
+		}
+	})
 
 	return cfg
 }

@@ -24,41 +24,27 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		return cfg
 	}
 
-	dePath := filepath.Join(configRoot, profile.DefaultDirectionEstimatorTOMLPath)
-	if de, err := profile.Load[blind_nav.NavigationBlindNavDirectionEstimator](dePath, nil); err != nil {
-		logger.Warn(
-			"directionestimator: loading direction_estimator.toml, falling back to defaults",
-			"config_root",
-			configRoot,
-			"error",
-			err,
-		)
-	} else {
-		cfg.AlignmentToleranceRad = de.AlignmentToleranceRad
-		cfg.MaxInTrackRangeM = de.MaxInTrackRangeM
-		cfg.PlausibleSpanThresholdM = de.PlausibleSpanThresholdM
-		cfg.MinAsymmetryM = de.MinAsymmetryM
-		cfg.MinVotes = de.MinVotes
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultDirectionEstimatorTOMLPath), nil,
+		func(de blind_nav.NavigationBlindNavDirectionEstimator) {
+			cfg.AlignmentToleranceRad = de.AlignmentToleranceRad
+			cfg.MaxInTrackRangeM = de.MaxInTrackRangeM
+			cfg.PlausibleSpanThresholdM = de.PlausibleSpanThresholdM
+			cfg.MinAsymmetryM = de.MinAsymmetryM
+			cfg.MinVotes = de.MinVotes
+		})
 
-	lsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	if ls, err := profile.Load[sensors.NavigationSensorsLidarSectors](lsPath, nil); err != nil {
-		logger.Warn("directionestimator: loading lidar_sectors.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.DirectionArcHalfFovDeg = ls.DirectionArcHalfFovDeg
-		cfg.MinValidRangeM = ls.MinValidRangeM
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath), nil,
+		func(ls sensors.NavigationSensorsLidarSectors) {
+			cfg.DirectionArcHalfFovDeg = ls.DirectionArcHalfFovDeg
+			cfg.MinValidRangeM = ls.MinValidRangeM
+		})
 
-	cfPath := filepath.Join(configRoot, profile.DefaultCorridorFollowerTOMLPath)
-	if cf, err := profile.Load[blind_nav.NavigationBlindNavCorridorFollower](cfPath, nil); err != nil {
-		logger.Warn("directionestimator: loading corridor_follower.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.MinForwardClearanceM = cf.MinForwardClearanceM
-		cfg.TurnClearanceM = cf.TurnClearanceM
-		cfg.BayWallClearanceM = cf.BayWallClearanceM
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultCorridorFollowerTOMLPath), nil,
+		func(cf blind_nav.NavigationBlindNavCorridorFollower) {
+			cfg.MinForwardClearanceM = cf.MinForwardClearanceM
+			cfg.TurnClearanceM = cf.TurnClearanceM
+			cfg.BayWallClearanceM = cf.BayWallClearanceM
+		})
 
 	return cfg
 }

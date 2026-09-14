@@ -27,14 +27,9 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultIMUUARTRVCTOMLPath)
-	loaded, err := profile.Load[imu.HardwareImuBno08XUartRvc](basePath, profile.ActiveNames())
-	if err != nil {
-		logger.Warn("driver/imu: loading hardware profile, falling back to default serial config",
-			"config_root", configRoot, "error", err)
-		return cfg
-	}
-
-	cfg.Port = loaded.DefaultPort
-	cfg.BaudRate = loaded.Baudrate
+	profile.Apply(logger, basePath, profile.ActiveNames(), func(loaded imu.HardwareImuBno08XUartRvc) {
+		cfg.Port = loaded.DefaultPort
+		cfg.BaudRate = loaded.Baudrate
+	})
 	return cfg
 }

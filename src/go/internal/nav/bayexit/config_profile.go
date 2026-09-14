@@ -53,35 +53,26 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.LidarMaxRangeM = r.Lidar.MaxRange
 	}
 
-	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if t, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
-		logger.Warn("bayexit: loading track.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.ParkingLot = parking.ParkingLotSpecs{
-			Length:             t.Parking.Length,
-			Width:              t.Parking.Width,
-			WallOffsetM:        t.Parking.WallOffset,
-			BlockSpacingFactor: t.Parking.SpacingFactor,
-		}
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultTrackTOMLPath), nil,
+		func(t generated.TrackConfig) {
+			cfg.ParkingLot = parking.ParkingLotSpecs{
+				Length:             t.Parking.Length,
+				Width:              t.Parking.Width,
+				WallOffsetM:        t.Parking.WallOffset,
+				BlockSpacingFactor: t.Parking.SpacingFactor,
+			}
+		})
 
-	controlPath := filepath.Join(configRoot, profile.DefaultControlTOMLPath)
-	if c, err := profile.Load[motion.NavigationMotionControl](controlPath, nil); err != nil {
-		logger.Warn("bayexit: loading control.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.ControlHz = c.ControlHz
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultControlTOMLPath), nil,
+		func(c motion.NavigationMotionControl) {
+			cfg.ControlHz = c.ControlHz
+		})
 
-	pursuitPath := filepath.Join(configRoot, profile.DefaultPursuitTOMLPath)
-	if p, err := profile.Load[motion.NavigationMotionPursuit](pursuitPath, nil); err != nil {
-		logger.Warn("bayexit: loading pursuit.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.MaxSteeringRateRadPerS = p.MaxSteeringRate
-		cfg.ServoSlewRateRadPerS = p.ServoSlewRateRadS
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultPursuitTOMLPath), nil,
+		func(p motion.NavigationMotionPursuit) {
+			cfg.MaxSteeringRateRadPerS = p.MaxSteeringRate
+			cfg.ServoSlewRateRadPerS = p.ServoSlewRateRadS
+		})
 
 	return cfg
 }

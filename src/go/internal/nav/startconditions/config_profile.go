@@ -22,14 +22,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	loaded, err := profile.Load[generated.TrackConfig](trackPath, nil)
-	if err != nil {
-		logger.Warn("startconditions: loading track.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-		return cfg
-	}
-	cfg.TrackMaxCoordM = loaded.Track.MaxCoord
-	cfg.NarrowWidthM = loaded.Corridor.Narrow
+	profile.Apply(logger, trackPath, nil, func(loaded generated.TrackConfig) {
+		cfg.TrackMaxCoordM = loaded.Track.MaxCoord
+		cfg.NarrowWidthM = loaded.Corridor.Narrow
+	})
 
 	return cfg
 }

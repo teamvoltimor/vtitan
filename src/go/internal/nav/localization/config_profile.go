@@ -24,22 +24,19 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		return cfg
 	}
 
-	locPath := filepath.Join(configRoot, profile.DefaultLocalizationTOMLPath)
-	if lc, err := profile.Load[blind_nav.NavigationBlindNavLocalization](locPath, nil); err != nil {
-		logger.Warn("localization: loading localization.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.SearchRadiusM = lc.SearchRadiusM
-		cfg.Passes = lc.Passes
-		cfg.GridPoints = lc.GridPoints
-		cfg.ResidualClipM = lc.ResidualClipM
-		cfg.MaxSpeedMPS = lc.MaxSpeedMps
-		cfg.JumpConfirmToleranceM = lc.JumpConfirmToleranceM
-		cfg.RelocalizeCostThreshold = lc.RelocalizeCostThreshold
-		cfg.RelocalizeAfterScans = lc.RelocalizeAfterScans
-		cfg.RelocalizeGridStepM = lc.RelocalizeGridStepM
-		cfg.RelocalizeAcceptRatio = lc.RelocalizeAcceptRatio
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultLocalizationTOMLPath), nil,
+		func(lc blind_nav.NavigationBlindNavLocalization) {
+			cfg.SearchRadiusM = lc.SearchRadiusM
+			cfg.Passes = lc.Passes
+			cfg.GridPoints = lc.GridPoints
+			cfg.ResidualClipM = lc.ResidualClipM
+			cfg.MaxSpeedMPS = lc.MaxSpeedMps
+			cfg.JumpConfirmToleranceM = lc.JumpConfirmToleranceM
+			cfg.RelocalizeCostThreshold = lc.RelocalizeCostThreshold
+			cfg.RelocalizeAfterScans = lc.RelocalizeAfterScans
+			cfg.RelocalizeGridStepM = lc.RelocalizeGridStepM
+			cfg.RelocalizeAcceptRatio = lc.RelocalizeAcceptRatio
+		})
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
 	if rc, err := profile.LoadRobotValues(robotPath, nil); err != nil {

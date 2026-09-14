@@ -235,9 +235,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	parkingPath := filepath.Join(configRoot, profile.DefaultParkingTOMLPath)
-	if loaded, err := profile.Load[parking.NavigationParkingParking](parkingPath, nil); err != nil {
-		logger.Warn("parking: loading parking.toml, falling back to defaults", "error", err)
-	} else {
+	profile.Apply(logger, parkingPath, nil, func(loaded parking.NavigationParkingParking) {
 		cfg.ParallelToleranceM = loaded.ParallelToleranceM
 		cfg.PosReachDistM = loaded.PosReachDistM
 		cfg.DefaultMaxFrames = loaded.DefaultMaxFrames
@@ -251,23 +249,19 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		// Yaw tolerance tracks the wheelbase that feeds it; default keeps the
 		// literal value until robot.toml is applied below.
 		cfg.YawTolerance = math.Atan2(loaded.ParallelToleranceM, cfg.WheelbaseM)
-	}
+	})
 
 	escapePath := filepath.Join(configRoot, profile.DefaultEscapeTOMLPath)
 	var escape *escapecfg.NavigationEscapeEscape
-	if loaded, err := profile.Load[escapecfg.NavigationEscapeEscape](escapePath, nil); err != nil {
-		logger.Warn("parking: loading escape.toml, falling back to defaults", "error", err)
-	} else {
+	profile.Apply(logger, escapePath, nil, func(loaded escapecfg.NavigationEscapeEscape) {
 		cfg.RepositionSpeedMPS = loaded.RevSpeed
-		escape = loaded
-	}
+		escape = &loaded
+	})
 
-	waypointsPath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	if loaded, err := profile.Load[waypoint.NavigationWaypointWaypoints](waypointsPath, nil); err != nil {
-		logger.Warn("parking: loading waypoints.toml, falling back to defaults", "error", err)
-	} else {
-		cfg.ApproachClearanceM = loaded.ArcRadius
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath), nil,
+		func(loaded waypoint.NavigationWaypointWaypoints) {
+			cfg.ApproachClearanceM = loaded.ArcRadius
+		})
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
 	if loaded, err := profile.LoadRobotConfig(robotPath, hardwareProfileNames); err != nil {

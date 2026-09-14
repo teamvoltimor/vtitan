@@ -19,15 +19,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		return cfg
 	}
 
-	path := filepath.Join(configRoot, profile.DefaultSimulationTOMLPath)
-	sim, err := profile.Load[simulation.NavigationSimulationSimulation](path, nil)
-	if err != nil {
-		logger.Warn("collision: loading simulation.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-		return cfg
-	}
-
-	cfg.CollisionMarginM = sim.CollisionMarginM
-	cfg.AxisAlignTolerance = sim.AxisAlignTolerance
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultSimulationTOMLPath), nil,
+		func(sim simulation.NavigationSimulationSimulation) {
+			cfg.CollisionMarginM = sim.CollisionMarginM
+			cfg.AxisAlignTolerance = sim.AxisAlignTolerance
+		})
 	return cfg
 }

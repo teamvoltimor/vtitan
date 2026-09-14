@@ -27,24 +27,18 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		return cfg
 	}
 
-	cePath := filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath)
-	if ce, err := profile.Load[blind_nav.NavigationBlindNavCorridorEstimator](cePath, nil); err != nil {
-		logger.Warn("corridorestimator: loading corridor_estimator.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.MinSamples = ce.MinSamples
-		cfg.PlausibleWidthMarginM = ce.PlausibleWidthMarginM
-		cfg.MaxStartSamples = ce.MaxStartSamples
-		cfg.DecisionBoundaryM = ce.DecisionBoundaryM
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath), nil,
+		func(ce blind_nav.NavigationBlindNavCorridorEstimator) {
+			cfg.MinSamples = ce.MinSamples
+			cfg.PlausibleWidthMarginM = ce.PlausibleWidthMarginM
+			cfg.MaxStartSamples = ce.MaxStartSamples
+			cfg.DecisionBoundaryM = ce.DecisionBoundaryM
+		})
 
-	dePath := filepath.Join(configRoot, profile.DefaultDirectionEstimatorTOMLPath)
-	if de, err := profile.Load[blind_nav.NavigationBlindNavDirectionEstimator](dePath, nil); err != nil {
-		logger.Warn("corridorestimator: loading direction_estimator.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.AlignmentToleranceRad = de.AlignmentToleranceRad
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultDirectionEstimatorTOMLPath), nil,
+		func(de blind_nav.NavigationBlindNavDirectionEstimator) {
+			cfg.AlignmentToleranceRad = de.AlignmentToleranceRad
+		})
 
 	return cfg
 }

@@ -21,22 +21,16 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		return cfg
 	}
 
-	sensorPath := filepath.Join(configRoot, profile.DefaultStartMeasurementTOMLPath)
-	if loaded, err := profile.Load[sensors.NavigationSensorsStartMeasurement](sensorPath, nil); err != nil {
-		logger.Warn("startmeasurement: loading start_measurement.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.RayHalfWidthDeg = loaded.RayHalfWidthDeg
-		cfg.ClosingToleranceM = loaded.ClosingToleranceM
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultStartMeasurementTOMLPath), nil,
+		func(loaded sensors.NavigationSensorsStartMeasurement) {
+			cfg.RayHalfWidthDeg = loaded.RayHalfWidthDeg
+			cfg.ClosingToleranceM = loaded.ClosingToleranceM
+		})
 
-	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if loaded, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
-		logger.Warn("startmeasurement: loading track.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.TrackMaxCoordM = loaded.Track.MaxCoord
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultTrackTOMLPath), nil,
+		func(loaded generated.TrackConfig) {
+			cfg.TrackMaxCoordM = loaded.Track.MaxCoord
+		})
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
 	if loaded, err := profile.LoadRobotValues(robotPath, nil); err != nil {

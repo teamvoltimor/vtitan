@@ -34,15 +34,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultLidarLaunchTOMLPath)
-	loaded, err := profile.Load[hardware.HardwareLidar](basePath, profile.ActiveNames())
-	if err != nil {
-		logger.Warn("driver/lidar: loading hardware profile, falling back to default serial config",
-			"config_root", configRoot, "error", err)
-		return cfg
-	}
-
-	cfg.Port = loaded.SerialPort
-	cfg.BaudRate = loaded.SerialBaudrate
+	profile.Apply(logger, basePath, profile.ActiveNames(), func(loaded hardware.HardwareLidar) {
+		cfg.Port = loaded.SerialPort
+		cfg.BaudRate = loaded.SerialBaudrate
+	})
 	cfg.Inverted, cfg.YawOffsetDeg = mountCorrectionFor(logger, configRoot)
 	return cfg
 }

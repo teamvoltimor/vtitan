@@ -21,11 +21,9 @@ func SpeedScaleFor(logger *slog.Logger, configRoot string) float64 {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultMotorsTOMLPath)
-	cfg, err := profile.Load[motors.HardwareMotorsMotors](basePath, profile.ActiveNames())
-	if err != nil {
-		logger.Warn("node/motor: loading hardware profile, falling back to default speed scale",
-			"config_root", configRoot, "error", err, "default", DefaultSpeedScalePercentPerMPS)
-		return DefaultSpeedScalePercentPerMPS
-	}
-	return cfg.Drive.SpeedScale
+	scale := DefaultSpeedScalePercentPerMPS
+	profile.Apply(logger, basePath, profile.ActiveNames(), func(cfg motors.HardwareMotorsMotors) {
+		scale = cfg.Drive.SpeedScale
+	})
+	return scale
 }

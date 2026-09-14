@@ -25,18 +25,13 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultBTS7960TOMLPath)
-	loaded, err := profile.Load[motors.HardwareMotorsBts7960](basePath, profile.ActiveNames())
-	if err != nil {
-		logger.Warn("driver/motor: loading hardware profile, falling back to default wiring config",
-			"config_root", configRoot, "error", err)
-		return cfg
-	}
-
-	cfg.PWMChip = loaded.Pwmchip
-	cfg.PWMChannel = loaded.PwmChannel
-	cfg.FrequencyHz = loaded.FrequencyHz
-	cfg.ReversePWMLine = loaded.ReversePwmPin
-	cfg.REnLine = loaded.REnPin
-	cfg.LEnLine = loaded.LEnPin
+	profile.Apply(logger, basePath, profile.ActiveNames(), func(loaded motors.HardwareMotorsBts7960) {
+		cfg.PWMChip = loaded.Pwmchip
+		cfg.PWMChannel = loaded.PwmChannel
+		cfg.FrequencyHz = loaded.FrequencyHz
+		cfg.ReversePWMLine = loaded.ReversePwmPin
+		cfg.REnLine = loaded.REnPin
+		cfg.LEnLine = loaded.LEnPin
+	})
 	return cfg
 }

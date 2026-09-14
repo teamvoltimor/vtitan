@@ -43,75 +43,66 @@ func ConfigFor(
 		return cfg
 	}
 
-	cfPath := filepath.Join(configRoot, profile.DefaultCorridorFollowerTOMLPath)
-	if cf, err := profile.Load[blind_nav.NavigationBlindNavCorridorFollower](cfPath, nil); err != nil {
-		logger.Warn("corridorfollower: loading corridor_follower.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.TurnClearanceM = cf.TurnClearanceM
-		cfg.NarrowTurnClearanceM = cf.NarrowTurnClearanceM
-		cfg.CenteringGainDegPerM = cf.CenteringGainDegPerM
-		cfg.HeadingGain = cf.HeadingGain
-		cfg.MaxCenteringSteerDeg = cf.MaxCenteringSteerDeg
-		cfg.MaxCornerSteerDeg = cf.MaxCornerSteerDeg
-		cfg.SteerCapFromCommitDistance = cf.SteerCapFromCommitDistance
-		cfg.CornerSpeedScale = cf.CornerSpeedScale
-		cfg.ReverseSpeedScale = cf.ReverseSpeedScale
-		cfg.TurnArcHalfFovDeg = cf.TurnArcHalfFovDeg
-		cfg.TurnOpenRangeM = cf.TurnOpenRangeM
-		cfg.CornerLeakMarginM = cf.CornerLeakMarginM
-		cfg.MinForwardClearanceM = cf.MinForwardClearanceM
-		cfg.MinReverseClearanceM = cf.MinReverseClearanceM
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultCorridorFollowerTOMLPath), nil,
+		func(cf blind_nav.NavigationBlindNavCorridorFollower) {
+			cfg.TurnClearanceM = cf.TurnClearanceM
+			cfg.NarrowTurnClearanceM = cf.NarrowTurnClearanceM
+			cfg.CenteringGainDegPerM = cf.CenteringGainDegPerM
+			cfg.HeadingGain = cf.HeadingGain
+			cfg.MaxCenteringSteerDeg = cf.MaxCenteringSteerDeg
+			cfg.MaxCornerSteerDeg = cf.MaxCornerSteerDeg
+			cfg.SteerCapFromCommitDistance = cf.SteerCapFromCommitDistance
+			cfg.CornerSpeedScale = cf.CornerSpeedScale
+			cfg.ReverseSpeedScale = cf.ReverseSpeedScale
+			cfg.TurnArcHalfFovDeg = cf.TurnArcHalfFovDeg
+			cfg.TurnOpenRangeM = cf.TurnOpenRangeM
+			cfg.CornerLeakMarginM = cf.CornerLeakMarginM
+			cfg.MinForwardClearanceM = cf.MinForwardClearanceM
+			cfg.MinReverseClearanceM = cf.MinReverseClearanceM
 
-		cfg.AssumeBayStart = cf.AssumeBayStart
-		cfg.BayExitClearanceGuard = cf.BayExitClearanceGuard
-		cfg.BayExitClearanceMarginM = cf.BayExitClearanceMarginM
-		cfg.BayExitClearanceToleranceM = cf.BayExitClearanceToleranceM
-		cfg.BayExitArcSteerNorm = cf.BayExitArcSteerNorm
-		cfg.BayExitSpeedScale = cf.BayExitSpeedScale
-		cfg.BayExitCycle = cf.BayExitCycle
-		cfg.BayExitCycleReverseM = cf.BayExitCycleReverseM
-		cfg.BayExitCycleReverseSteerNorm = cf.BayExitCycleReverseSteerNorm
-		cfg.BayExitForwardM = cf.BayExitForwardM
-		cfg.BayExitReverseM = cf.BayExitReverseM
-		cfg.BayExitSteerNorm = cf.BayExitSteerNorm
-		cfg.BayExitReverseSteerNorm = cf.BayExitReverseSteerNorm
-		cfg.BayExitHoldSteer = cf.BayExitHoldSteer
-		cfg.BayExitLegStallTicks = cf.BayExitLegStallTicks
-		cfg.BayExitLatchDirection = cf.BayExitLatchDirection
-		cfg.BayExitLatchReverse = cf.BayExitLatchReverse
-		cfg.BayExitFallbackFrames = cf.BayExitFallbackFrames
-		cfg.BayExitMaxFrames = cf.BayExitMaxFrames
+			cfg.AssumeBayStart = cf.AssumeBayStart
+			cfg.BayExitClearanceGuard = cf.BayExitClearanceGuard
+			cfg.BayExitClearanceMarginM = cf.BayExitClearanceMarginM
+			cfg.BayExitClearanceToleranceM = cf.BayExitClearanceToleranceM
+			cfg.BayExitArcSteerNorm = cf.BayExitArcSteerNorm
+			cfg.BayExitSpeedScale = cf.BayExitSpeedScale
+			cfg.BayExitCycle = cf.BayExitCycle
+			cfg.BayExitCycleReverseM = cf.BayExitCycleReverseM
+			cfg.BayExitCycleReverseSteerNorm = cf.BayExitCycleReverseSteerNorm
+			cfg.BayExitForwardM = cf.BayExitForwardM
+			cfg.BayExitReverseM = cf.BayExitReverseM
+			cfg.BayExitSteerNorm = cf.BayExitSteerNorm
+			cfg.BayExitReverseSteerNorm = cf.BayExitReverseSteerNorm
+			cfg.BayExitHoldSteer = cf.BayExitHoldSteer
+			cfg.BayExitLegStallTicks = cf.BayExitLegStallTicks
+			cfg.BayExitLatchDirection = cf.BayExitLatchDirection
+			cfg.BayExitLatchReverse = cf.BayExitLatchReverse
+			cfg.BayExitFallbackFrames = cf.BayExitFallbackFrames
+			cfg.BayExitMaxFrames = cf.BayExitMaxFrames
 
-		cfg.BayExitGuardOverlapRecovery = cf.BayExitGuardOverlapRecovery
-		cfg.BayExitOpenSideSectorDeg = cf.BayExitOpenSideSectorDeg
-		cfg.BayExitOpenSideVotes = cf.BayExitOpenSideVotes
-		cfg.BayExitSpeedMPS = cf.BayExitSpeedMps
-		cfg.BayExitContactDistM = cf.BayExitContactDistM
-		cfg.BayExitContactRecoveryTicks = cf.BayExitContactRecoveryTicks
-		cfg.BayExitTargetYawDeg = cf.BayExitTargetYawDeg
-		cfg.BayExitLegMaxS = cf.BayExitLegMaxS
-		cfg.BayExitGuardBlockTicks = cf.BayExitGuardBlockTicks
-		cfg.BayExitGuardMeasuredCoast = cf.BayExitGuardMeasuredCoast
-		cfg.BayExitGuardMirrorsReverse = cf.BayExitGuardMirrorsReverse
-		cfg.BayExitDrUsesMeasuredYaw = cf.BayExitDrUsesMeasuredYaw
-	}
+			cfg.BayExitGuardOverlapRecovery = cf.BayExitGuardOverlapRecovery
+			cfg.BayExitOpenSideSectorDeg = cf.BayExitOpenSideSectorDeg
+			cfg.BayExitOpenSideVotes = cf.BayExitOpenSideVotes
+			cfg.BayExitSpeedMPS = cf.BayExitSpeedMps
+			cfg.BayExitContactDistM = cf.BayExitContactDistM
+			cfg.BayExitContactRecoveryTicks = cf.BayExitContactRecoveryTicks
+			cfg.BayExitTargetYawDeg = cf.BayExitTargetYawDeg
+			cfg.BayExitLegMaxS = cf.BayExitLegMaxS
+			cfg.BayExitGuardBlockTicks = cf.BayExitGuardBlockTicks
+			cfg.BayExitGuardMeasuredCoast = cf.BayExitGuardMeasuredCoast
+			cfg.BayExitGuardMirrorsReverse = cf.BayExitGuardMirrorsReverse
+			cfg.BayExitDrUsesMeasuredYaw = cf.BayExitDrUsesMeasuredYaw
+		})
 
-	cePath := filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath)
-	if ce, err := profile.Load[blind_nav.NavigationBlindNavCorridorEstimator](cePath, nil); err != nil {
-		logger.Warn("corridorfollower: loading corridor_estimator.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.DecisionBoundaryM = ce.DecisionBoundaryM
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath), nil,
+		func(ce blind_nav.NavigationBlindNavCorridorEstimator) {
+			cfg.DecisionBoundaryM = ce.DecisionBoundaryM
+		})
 
-	lsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	if ls, err := profile.Load[sensors.NavigationSensorsLidarSectors](lsPath, nil); err != nil {
-		logger.Warn("corridorfollower: loading lidar_sectors.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-	} else {
-		cfg.MinValidRangeM = ls.MinValidRangeM
-	}
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath), nil,
+		func(ls sensors.NavigationSensorsLidarSectors) {
+			cfg.MinValidRangeM = ls.MinValidRangeM
+		})
 
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
 	if r, err := profile.LoadRobotConfig(robotPath, hardwareProfileNames); err != nil {

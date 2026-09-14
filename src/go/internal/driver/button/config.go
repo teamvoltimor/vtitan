@@ -32,16 +32,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	gpioPath := filepath.Join(configRoot, profile.DefaultButtonGPIOTOMLPath)
-	gpioCfg, err := profile.Load[button.HardwareButtonGpio](gpioPath, profile.ActiveNames())
-	if err != nil {
-		logger.Warn(
-			"driver/button: loading GPIO hardware profile, falling back to default wiring config",
-			"config_root",
-			configRoot,
-			"error",
-			err,
-		)
-	} else {
+	profile.Apply(logger, gpioPath, profile.ActiveNames(), func(gpioCfg button.HardwareButtonGpio) {
 		cfg.Line = gpioCfg.ButtonGpioPin
 		cfg.PullUp = gpioCfg.Button.PullUp
 		cfg.Thresholds = Thresholds{
@@ -49,21 +40,14 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 			LongPressThreshold:     time.Duration(gpioCfg.Button.LongPressThresholdSec * float64(time.Second)),
 			ShutdownPressThreshold: time.Duration(gpioCfg.Button.ShutdownPressThresholdSec * float64(time.Second)),
 		}
-	}
+	})
 
 	nodePath := filepath.Join(configRoot, profile.DefaultButtonNodeTOMLPath)
-	nodeCfg, err := profile.Load[button.HardwareButtonButtonNode](nodePath, profile.ActiveNames())
-	if err != nil {
-		logger.Warn(
-			"driver/button: loading node hardware profile, falling back to default poll interval",
-			"config_root",
-			configRoot,
-			"error",
-			err,
-		)
-	} else if nodeCfg.PollHz > 0 {
-		cfg.PollInterval = time.Duration(float64(time.Second) / nodeCfg.PollHz)
-	}
+	profile.Apply(logger, nodePath, profile.ActiveNames(), func(nodeCfg button.HardwareButtonButtonNode) {
+		if nodeCfg.PollHz > 0 {
+			cfg.PollInterval = time.Duration(float64(time.Second) / nodeCfg.PollHz)
+		}
+	})
 
 	return cfg
 }

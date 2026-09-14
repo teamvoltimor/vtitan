@@ -19,15 +19,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		return cfg
 	}
 
-	path := filepath.Join(configRoot, profile.DefaultPursuitTOMLPath)
-	pursuit, err := profile.Load[motion.NavigationMotionPursuit](path, nil)
-	if err != nil {
-		logger.Warn("kinematics: loading pursuit.toml, falling back to defaults",
-			"config_root", configRoot, "error", err)
-		return cfg
-	}
-
-	cfg.MaxSteeringRateRadPerS = pursuit.MaxSteeringRate
+	profile.Apply(logger, filepath.Join(configRoot, profile.DefaultPursuitTOMLPath), nil,
+		func(pursuit motion.NavigationMotionPursuit) {
+			cfg.MaxSteeringRateRadPerS = pursuit.MaxSteeringRate
+		})
 	return cfg
 }
 
