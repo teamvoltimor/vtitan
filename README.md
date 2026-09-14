@@ -49,7 +49,8 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
     3. [Despliegue al robot](#despliegue-al-robot-desde-el-computador-por-ssh)
     4. [Operación en pista](#operación-en-pista-directamente-en-la-raspberry-pi-5-vía-ssh)
     5. [Provisionado desde cero](#provisionado-desde-cero-instalar-el-sistema-en-las-raspberry-pi)
-    6. [Versionado](#versionado)
+    6. [Pruebas](#pruebas)
+    7. [Versionado](#versionado)
 4. **[Historial del equipo](#historial-del-equipo)**
     1. [Klevor (WRO 2025)](#klevor-wro-2025)
         1. [Klevor v0.1](other/docs/development/previous-prototypes/klevor-v0.1.md)
@@ -112,14 +113,15 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
     5. [Grabación y análisis de carreras](#grabación-y-análisis-de-carreras)
     6. [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios)
 8. **[Pensamiento sistémico y decisiones de ingeniería](#pensamiento-sistémico-y-decisiones-de-ingeniería)**
-    1. [Diseño gobernado por configuración](#diseño-gobernado-por-configuración)
-    2. [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables)
-    3. [Compensaciones y alternativas descartadas](#compensaciones-y-alternativas-descartadas)
-    4. [Registro de decisiones de arquitectura (ADR)](#registro-de-decisiones-de-arquitectura-adr)
-    5. [Ciclo de trabajo: idea, simulación, pista](#ciclo-de-trabajo-idea--simulación--pista)
-    6. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
-    7. [Gestión de riesgos](#gestión-de-riesgos)
-    8. [Tecnologías utilizadas](#tecnologías-utilizadas)
+    1. [Interacciones entre subsistemas](#interacciones-entre-subsistemas)
+    2. [Diseño gobernado por configuración](#diseño-gobernado-por-configuración)
+    3. [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables)
+    4. [Compensaciones y alternativas descartadas](#compensaciones-y-alternativas-descartadas)
+    5. [Registro de decisiones de arquitectura (ADR)](#registro-de-decisiones-de-arquitectura-adr)
+    6. [Ciclo de trabajo: idea, simulación, pista](#ciclo-de-trabajo-idea--simulación--pista)
+    7. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
+    8. [Gestión de riesgos](#gestión-de-riesgos)
+    9. [Tecnologías utilizadas](#tecnologías-utilizadas)
 9. **[Videos de vTitan](#videos-de-vtitan)**
     1. [Open Challenge](#open-challenge)
     2. [Open Challenge Simulation](#open-challenge-simulation)
@@ -134,6 +136,8 @@ La raíz del repositorio sigue la estructura que pide la categoría Futuros Inge
 ```text
 vtitan/
 ├── README.md          # Este documento: la documentación completa de ingeniería
+├── tests.md           # Cómo probamos: los cuatro niveles y el protocolo A/B
+├── CHANGELOG.md       # Notas de versión de v1.0, v1.1 y v1.2
 ├── t-photos/          # Fotos del equipo
 ├── v-photos/          # Fotos de vTitan y de los prototipos anteriores
 ├── video/             # Enlaces a los videos de las rondas (video/video.md)
@@ -161,6 +165,8 @@ vtitan/
 | Carpeta | Contenido |
 |---------|-----------|
 | `README.md` | Este documento: la documentación completa de ingeniería de vTitan |
+| `tests.md` | El flujo de pruebas: los cuatro niveles, las métricas y el protocolo de comparación A/B |
+| `CHANGELOG.md` | Notas de versión: qué cambió en `v1.0`, `v1.1` y `v1.2`, y por qué |
 | `t-photos/` | Fotos del equipo |
 | `v-photos/` | Fotos de vTitan y de los prototipos anteriores |
 | `video/` | Enlaces a los videos de las rondas y del robot en funcionamiento ([`video/video.md`](video/video.md)) |
@@ -178,6 +184,7 @@ Según lo que quieras revisar, esta es la ruta más corta:
 - **Simulador y corpus de escenarios**: [`other/README.md`](other/README.md), sección del simulador; los resultados reproducibles están en [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios).
 - **Cómo se entrenó el detector**: `other/ml/hailo/` (entrenamiento y compilación), `other/ml/weights/` (pesos publicados), `other/apps/auto-annotator/` (anotación asistida).
 - **Cómo se instala el sistema en las placas**: [`other/docs/pi-setup.md`](other/docs/pi-setup.md) y `other/deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
+- **Cómo verificamos que algo funciona**: [`tests.md`](tests.md), que describe los cuatro niveles de prueba y el protocolo con el que aceptamos o descartamos un cambio.
 - **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora-ingenieria.md`](other/docs/bitacora-ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` post-regional) con mensajes de commit convencionales.
 
 Además de las carpetas obligatorias, el repositorio contiene:
@@ -254,9 +261,25 @@ task docs:diagrams                 # Re-renderizar todos los diagramas Mermaid a
 cd schemes/wiring/tscircuit && npm run artifacts   # Regenerar el esquemático del arnés
 ```
 
+### Pruebas
+
+```bash
+task test                      # Python + Go, todos los módulos
+task robot:test SCOPE=unit     # unit | fast | navigation | hardware | all
+task sim:test                  # pruebas de la simulación
+task config:check              # cada clave de configuración descrita y con su ADR
+task lint                      # ruff, golangci-lint, ESLint, buf lint
+```
+
+El **flujo de pruebas completo** está documentado en [`tests.md`](tests.md): los cuatro niveles (unitario, corpus de simulación, banco de hardware, pista), las métricas con las que decidimos, el protocolo de comparación A/B con las cinco trampas que nos costaron conclusiones falsas, y el estado real de la integración continua.
+
 ### Versionado
 
-Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para el evento regional de WRO 2026, y el historial entre tags es un registro continuo de commits con mensajes convencionales (`fix(robot):`, `docs(readme):`, `perf(nav):`, ...). Cualquier resultado medido en este documento (tasas del corpus, FPS del detector, consumo de potencia) puede rastrearse hasta el código exacto que lo produjo vía el historial.
+Marcamos hitos del proyecto con tags de git. `v1.0` es el estado con el que vTitan compitió en el evento regional de la WRO 2026; `v1.1` y `v1.2` son los estados posteriores que se desplegaron y corrieron rondas. Las notas de cada versión, con qué cambió y por qué, están en [`CHANGELOG.md`](CHANGELOG.md).
+
+Entre tags el historial es continuo, con mensajes de commit convencionales (`fix(robot):`, `docs(readme):`, `perf(nav):`) y firmados con GPG. Cualquier resultado medido en este documento (tasas del corpus, FPS del detector, consumo de potencia) puede rastrearse hasta el código exacto que lo produjo vía el historial.
+
+Un detalle de convención que usamos y no es estándar: el `!` en el tipo (`feat(sim)!:`) marca un cambio que **rompe la comparabilidad de resultados anteriores**, no solo la compatibilidad de una interfaz. Un número medido antes de uno de esos commits no se resta con uno medido después.
 
 # Historial del equipo
 
@@ -1540,12 +1563,88 @@ También cambia la forma de fallar. Cuando un cambio parece mejorar el resultado
 
 Esta sección no describe qué hace el robot, sino **cómo tomamos las decisiones** que lo llevaron a ser así. Es la parte del proyecto que más nos cambió la forma de trabajar.
 
-<!-- HUECO (rubro WRO 2026, criterio 4 "Interacciones entre subsistemas").
-Falta un diagrama de bloques único que muestre las cinco áreas (mecánica, energía,
-sensores, cómputo, software) y qué cruza entre ellas: quién alimenta a quién, qué
-señal viaja por cada enlace y dónde está el punto único de fallo de cada cadena.
-Hoy esa información existe repartida entre el arnés, la arquitectura ROS2 y la
-tabla de riesgos, pero nunca junta en una sola vista. -->
+## Interacciones entre subsistemas
+
+Las cinco áreas del robot no se diseñaron por separado y luego se juntaron. Cada una impone restricciones sobre las otras, y la mayoría de las decisiones de este documento se entienden mejor viendo qué cruza entre ellas.
+
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/subsistemas.mmd -->
+```mermaid
+flowchart TD
+    subgraph ENERGIA["ENERGIA"]
+        BAT["Bateria LiPo 3S 11.1V<br/>Ovonic Air"]
+        SW["Interruptor de encendido<br/>eslabon mas debil de la ruta"]
+        REG["Step Down Mini-560 Pro<br/>11.1V a 5V"]
+        USBC["Convertidor KL89576<br/>5V a USB-C"]
+    end
+
+    subgraph COMPUTO["COMPUTO"]
+        PI5["Raspberry Pi 5 16GB<br/>percepcion y planificacion<br/>~1.5 a 2.5 A"]
+        NPU["AI HAT+ 26 TOPS<br/>inferencia YOLO<br/>~1.0 a 1.5 A"]
+        ZERO["Raspberry Pi Zero 2 W<br/>control en tiempo real<br/>solo 2 PWM por hardware"]
+    end
+
+    subgraph SENSORES["SENSORES"]
+        LIDAR["RPLiDAR C1<br/>paredes, colision, rumbo de senal"]
+        CAM["Camera Module 3 Wide<br/>color y rumbo de senal"]
+        IMU["IMU BNO085<br/>UART-RVC 100 Hz, 6 ejes"]
+        ENC["Encoder del motor<br/>60 pulsos por vuelta"]
+    end
+
+    subgraph ACTUACION["ACTUACION"]
+        HB["Puente H BTS7960<br/>43 A, pico medido ~20 A"]
+        MOT["HD Hex Motor<br/>traccion 4x4"]
+        SRV["Servo HPS-3527SG 35kg<br/>direccion en contrafase"]
+    end
+
+    subgraph MECANICA["MECANICA"]
+        TRANS["Transmision por correa<br/>relacion total 3.29"]
+        DIR["Direccion 4 ruedas<br/>radio minimo 0.29 m"]
+    end
+
+    BAT --> SW
+    SW --> REG
+    SW --> HB
+    REG --> USBC
+    REG --> ZERO
+    REG --> LIDAR
+    USBC --> PI5
+    PI5 -->|VBUS| ZERO
+    PI5 --> NPU
+
+    LIDAR -.->|USB, barrido| PI5
+    CAM -.->|CSI, fotogramas| PI5
+    PI5 -.->|PCIe| NPU
+    NPU -.->|detecciones 15 Hz| PI5
+    PI5 -.->|ROS2 DDS, 29 topicos| ZERO
+    ZERO -.->|pose, odometria| PI5
+    IMU -.->|UART-RVC| ZERO
+    ENC -.->|pulsos| ZERO
+    ZERO -.->|RPWM adelante| HB
+    ZERO -.->|PWM absoluto| SRV
+
+    HB --> MOT
+    MOT --> TRANS
+    SRV --> DIR
+
+    classDef fallo fill:#ffe5e5,stroke:#c00,stroke-width:2px
+    classDef energia fill:#fff4e0,stroke:#b8860b
+    classDef datos fill:#e8f0ff,stroke:#36c
+
+    class SW,PI5,ZERO,HB fallo
+    class BAT,REG,USBC energia
+    class LIDAR,CAM,IMU,ENC datos
+```
+
+<p align="center"><i>Interacciones entre subsistemas: línea continua es energía, línea punteada es dato</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/subsistemas.mmd"><code>subsistemas.mmd</code></a> | <a href="schemes/flowcharts/common/webp/subsistemas.webp">render WebP</a></sub></p>
+
+**Lo que el diagrama hace visible y las secciones sueltas no:**
+
+- **Una sola batería alimenta dos mundos con exigencias opuestas.** La rama de tracción consume ~10 A con picos de ~20 A; la rama de lógica necesita 5 V estables. Van separadas desde el interruptor precisamente para que un pico de motor no arrastre la tensión de la Pi 5.
+- **Los cuatro puntos únicos de fallo están marcados en rojo**, y ninguno tiene redundancia: el interruptor de encendido (el eslabón más débil de la ruta de potencia desde que el puente pasó a 43 A), las dos placas, y el puente H. Si cae cualquiera, la ronda se pierde. Está asumido: añadir redundancia costaría peso, y el peso es la restricción que más aprieta.
+- **La Pi Zero se alimenta por VBUS desde la Pi 5.** Esto acopla las dos placas: un reinicio de la Pi 5 se lleva por delante el control en tiempo real. Verificado con `vcgencmd get_throttled` en carrera (0x0, sin caída de tensión), pero es un acoplamiento real y conviene declararlo.
+- **El reparto de cómputo es una decisión de tiempo, no de potencia.** La inferencia de visión es pesada y de latencia variable; el lazo de control del servo no tolera fluctuaciones. Por eso viven en placas distintas, y por eso el enlace entre ellas es ROS2 sobre DDS con 29 tópicos declarados en un único archivo.
+- **La restricción más dura del robot es un detalle de silicio.** El SoC de la Pi Zero tiene exactamente **dos generadores de PWM por hardware**. Uno lo toma el servo, que necesita posición absoluta. El otro va a la marcha adelante del motor. La marcha atrás se queda sin PWM de hardware, y de ahí sale el riesgo del `LPWM` sin pull-down que aparece en la tabla de riesgos. Una limitación de cómputo se convirtió en una limitación eléctrica y luego en una restricción de estrategia: el estacionamiento y la recuperación son las únicas maniobras que usan reversa.
+- **El LIDAR es la red de seguridad, no la cámara.** La visión decide **qué** es una señal y **por dónde** pasarla; la distancia a la que hay que frenar la decide siempre el LIDAR. Por eso un fallo de cámara degrada la estrategia pero no provoca una colisión.
 
 ## Diseño gobernado por configuración
 
@@ -1604,11 +1703,13 @@ Y tres compensaciones que no son de pieza sino de diseño:
 | **Lazo P sobre error angular** | **Pure pursuit** | El lazo P era estable solo por debajo de **~0.07 m/s**; a velocidad de carrera saturaba el servo entre −70.2° y +70.2° durante carreras enteras. La ganancia estaba ajustada contra un modelo de dirección delantera, y el chasis real es de 4 ruedas en contrafase. No era cuestión de reajustar, sino de cambiar la ley de control |
 | **Conmutación de anticipación** (0.16 m / 0.32 m) | **Rampa de mezcla continua** | La conmutación ocurría a **~2.5 Hz** y cada una multiplicaba la curvatura por cuatro, con un zigzag visible (pico medio de \|steer\| de 0.306 a 0.398) sin ganancia lateral real |
 
-<!-- HUECO (rubro WRO 2026, criterio 4, lo que sigue faltando aqui).
-Falta la comparacion ROS2/Python contra la pila en Go como compensacion
-explicita: que se gana en arranque y consumo, que se paga en paridad, y cual
-es el criterio objetivo para cortar a produccion. Hoy esa decision se explica
-en "La segunda pila en Go" pero no esta planteada como un trade-off medido. -->
+Y una compensación de arquitectura que sigue abierta a propósito:
+
+| Descartado | Elegido | Qué lo decidió |
+|---|---|---|
+| **Migrar ya a la pila en Go** (NATS en lugar de ROS2/DDS) | **Seguir compitiendo con Python + ROS2**, con Go en vía paralela | Go promete arranque más rápido y menos consumo de memoria en las placas, y el backend de telemetría en Go **ya corre en producción**. Pero el criterio para cortar no es "parece listo": es **paridad completa verificada**. Hoy lo portado se valida contra bags de carreras reales en un arnés de paridad, y el navegador de Go todavía no ha corrido dentro de un lazo de carrera completo en el robot. Mientras ese criterio no se cumpla, migrar cambiaría un sistema con temporada de ajustes encima por uno sin ella |
+
+La parte de esta decisión que consideramos la importante no es elegir Go o Python, sino **prohibirnos el híbrido**: migración en vía paralela y corte único, con la pila de Python documentada como camino de reversión. Un sistema medio migrado tiene el doble de superficie de fallo y ninguna de las dos ventajas, y en una temporada con fecha fija ese es el escenario que más cuesta.
 
 ## Registro de decisiones de arquitectura (ADR)
 

@@ -1,0 +1,76 @@
+%% Referencias (no se renderizan, solo para mantenimiento futuro)
+%% Fuente de las cifras de corriente: README.md, seccion "Consumo Energetico"
+%% Reparto de nodos: README.md, "Arquitectura ROS2 y reparto entre dos computadores"
+%% Arnes completo: schemes/wiring/harness.schematic.svg (proyecto tscircuit)
+%% Constantes de montaje: src/config/robot.toml
+%% Lineas continuas = energia. Lineas punteadas = datos.
+%% Los nodos marcados como punto unico de fallo no tienen redundancia:
+%% si caen, la ronda se pierde o el robot queda ciego a una clase de obstaculo.
+
+flowchart TD
+    subgraph ENERGIA["ENERGIA"]
+        BAT["Bateria LiPo 3S 11.1V<br/>Ovonic Air"]
+        SW["Interruptor de encendido<br/>eslabon mas debil de la ruta"]
+        REG["Step Down Mini-560 Pro<br/>11.1V a 5V"]
+        USBC["Convertidor KL89576<br/>5V a USB-C"]
+    end
+
+    subgraph COMPUTO["COMPUTO"]
+        PI5["Raspberry Pi 5 16GB<br/>percepcion y planificacion<br/>~1.5 a 2.5 A"]
+        NPU["AI HAT+ 26 TOPS<br/>inferencia YOLO<br/>~1.0 a 1.5 A"]
+        ZERO["Raspberry Pi Zero 2 W<br/>control en tiempo real<br/>solo 2 PWM por hardware"]
+    end
+
+    subgraph SENSORES["SENSORES"]
+        LIDAR["RPLiDAR C1<br/>paredes, colision, rumbo de senal"]
+        CAM["Camera Module 3 Wide<br/>color y rumbo de senal"]
+        IMU["IMU BNO085<br/>UART-RVC 100 Hz, 6 ejes"]
+        ENC["Encoder del motor<br/>60 pulsos por vuelta"]
+    end
+
+    subgraph ACTUACION["ACTUACION"]
+        HB["Puente H BTS7960<br/>43 A, pico medido ~20 A"]
+        MOT["HD Hex Motor<br/>traccion 4x4"]
+        SRV["Servo HPS-3527SG 35kg<br/>direccion en contrafase"]
+    end
+
+    subgraph MECANICA["MECANICA"]
+        TRANS["Transmision por correa<br/>relacion total 3.29"]
+        DIR["Direccion 4 ruedas<br/>radio minimo 0.29 m"]
+    end
+
+    %% --- energia ---
+    BAT --> SW
+    SW --> REG
+    SW --> HB
+    REG --> USBC
+    REG --> ZERO
+    REG --> LIDAR
+    USBC --> PI5
+    PI5 -->|VBUS| ZERO
+    PI5 --> NPU
+
+    %% --- datos ---
+    LIDAR -.->|USB, barrido| PI5
+    CAM -.->|CSI, fotogramas| PI5
+    PI5 -.->|PCIe| NPU
+    NPU -.->|detecciones 15 Hz| PI5
+    PI5 -.->|ROS2 DDS, 29 topicos| ZERO
+    ZERO -.->|pose, odometria| PI5
+    IMU -.->|UART-RVC| ZERO
+    ENC -.->|pulsos| ZERO
+    ZERO -.->|RPWM adelante| HB
+    ZERO -.->|PWM absoluto| SRV
+
+    %% --- mecanica ---
+    HB --> MOT
+    MOT --> TRANS
+    SRV --> DIR
+
+    classDef fallo fill:#ffe5e5,stroke:#c00,stroke-width:2px
+    classDef energia fill:#fff4e0,stroke:#b8860b
+    classDef datos fill:#e8f0ff,stroke:#36c
+
+    class SW,PI5,ZERO,HB fallo
+    class BAT,REG,USBC energia
+    class LIDAR,CAM,IMU,ENC datos
