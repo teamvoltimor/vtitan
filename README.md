@@ -38,6 +38,93 @@ Actualmente, este equipo está conformado por 3 miembros:
 
 Cada número es medido, no estimado, y puede rastrearse hasta el código y la medición que lo produjo vía el historial de git (ver [Versionado](#versionado)).
 
+## Índice
+
+1. **[V-Titan en números](#v-titan-en-números)**
+2. **[Estructura del repositorio](#estructura-del-repositorio)**
+    1. [Cómo explorar este repositorio](#cómo-explorar-este-repositorio)
+3. **[Arranque rápido y reproducibilidad](#arranque-rápido-y-reproducibilidad)**
+    1. [Requisitos previos](#requisitos-previos-una-sola-vez)
+    2. [Desarrollo y simulación](#desarrollo-y-simulación-en-el-computador-de-desarrollo)
+    3. [Despliegue al robot](#despliegue-al-robot-desde-el-computador-por-ssh)
+    4. [Operación en pista](#operación-en-pista-directamente-en-la-raspberry-pi-5-vía-ssh)
+    5. [Provisionado desde cero](#provisionado-desde-cero-instalar-el-sistema-en-las-raspberry-pi)
+    6. [Versionado](#versionado)
+4. **[Historial del equipo](#historial-del-equipo)**
+    1. [Klevor (WRO 2025)](#klevor-wro-2025)
+        1. [Klevor v0.1](other/docs/development/previous-prototypes/klevor-v0.1.md)
+        2. [Klevor v0.1.1](other/docs/development/previous-prototypes/klevor-v0.1.1.md)
+        3. [Klevor v0.2](other/docs/development/previous-prototypes/klevor-v0.2.md)
+        4. [Klevor v1.0](other/docs/development/previous-prototypes/klevor-v1.0.md)
+    2. [V-Titan (WRO 2026)](#v-titan-wro-2026)
+5. **[Movilidad y Diseño Mecánico](#movilidad-y-diseño-mecánico)**
+    1. [Restricciones iniciales](#restricciones-iniciales)
+    2. [Métodos de Prototipaje](#métodos-de-prototipaje)
+    3. [Evolución y Justificación Del Diseño](#evolución-y-justificación-del-diseño)
+        1. [Fase 1: Rin estático, corona interna y guayas flexibles](#fase-1-prototipo-de-rin-estático-corona-interna-y-guayas-flexibles)
+        2. [Fase 2: Pruebas de integración y detección de fallas](#fase-2-pruebas-de-integración-y-detección-de-fallas)
+        3. [Fase 3: Rediseño a engranajes perpendiculares](#fase-3-rediseño-a-engranajes-perpendiculares-coronas-y-correa-dentada)
+        4. [Fase 4: Optimización de peso y chasis final](#fase-4-optimización-de-peso-integración-y-chasis-final)
+        5. [Fase 5: Integración del HD Hex Motor](#fase-5-integración-del-hd-hex-motor)
+    4. [Sistema de Transmisión](#sistema-de-transmisión)
+    5. [Sistema de Dirección](#sistema-de-dirección)
+    6. [Estructura mecánica](#estructura-mecánica)
+        1. [Chasis Inferior](#chasis-inferior)
+        2. [Monochasis](#monochasis)
+    7. [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)
+        1. [Velocidad: teórica contra real](#velocidad-teórica-contra-real)
+6. **[Arquitectura de energía y sensores](#arquitectura-de-energía-y-sensores)**
+    1. [Lista de Componentes](#lista-de-componentes)
+        1. [Raspberry Pi 5 (16GB RAM)](#raspberry-pi-5-16gb-ram)
+        2. [Raspberry Pi Camera Module 3 Wide](#raspberry-pi-camera-module-3-wide)
+        3. [Raspberry Pi AI HAT+ (26 TOPS)](#raspberry-pi-ai-hat-26-tops)
+        4. [Raspberry Pi Zero 2 W](#raspberry-pi-zero-2-w)
+        5. [RPLiDAR C1](#rplidar-c1)
+        6. [Hi Wonder HPS-3527SG 35kg Servo](#hi-wonder-hps-3527sg-35kg-servo)
+        7. [HD Hex Motor](#hd-hex-motor)
+        8. [IMU GY-BNO085](#imu-gy-bno085)
+        9. [Ovonic Air 11.1V Li-Po Battery](#ovonic-air-111v-li-po-battery)
+        10. [Puente H BTS7960 / IBT-2](#puente-h-bts7960--ibt-2)
+        11. [Step Down Mini-560 Pro](#step-down-mini-560-pro)
+        12. [SSD1306 OLED Display](#ssd1306-oled-display)
+        13. [Convertidor KL89576 (DC a USB-C)](#convertidor-kl89576-dc-a-usb-c)
+    2. [Diagrama de Conexiones](#diagrama-de-conexiones)
+        1. [Consumo Energético](#consumo-energético)
+        2. [Calibración](#calibración)
+7. **[Arquitectura de software y estrategia para superar obstáculos](#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
+    1. [Arquitectura ROS2 y reparto entre dos computadores](#arquitectura-ros2-y-reparto-entre-dos-computadores)
+        1. [La segunda pila en Go, y por qué no corre en carrera](#la-segunda-pila-stack-en-go-y-por-qué-no-corre-en-carrera)
+    2. [Modelo de Detección YOLO](#modelo-de-detección-yolo)
+        1. [El modelo y su pipeline](#el-modelo-y-su-pipeline)
+        2. [Datos de entrenamiento](#datos-de-entrenamiento)
+        3. [Cómo lo medimos (y qué cambió por eso)](#cómo-lo-medimos-y-qué-cambió-por-eso)
+        4. [Qué pasa cuando la visión falla](#qué-pasa-cuando-la-visión-falla)
+    3. [Algoritmo PID](#algoritmo-pid)
+        1. [Control de velocidad: PI sobre RPM](#control-de-velocidad-pi-sobre-rpm)
+        2. [Dirección: de PID a pure pursuit](#dirección-de-pid-a-pure-pursuit)
+        3. [El modo ciego: P de centrado eliminada por medición](#el-modo-ciego-p-de-centrado-eliminada-por-medición)
+        4. [El rol del giroscopio](#el-rol-del-giroscopio)
+    4. [Estrategia en pista](#estrategia-en-pista)
+        1. [Inferencia del sentido de la vuelta](#inferencia-del-sentido-de-la-vuelta)
+        2. [Seguimiento de pasillo, vueltas y escapes](#seguimiento-de-pasillo-vueltas-y-escapes)
+        3. [Vista completa de cada desafío](#vista-completa-de-cada-desafío)
+    5. [Grabación y análisis de carreras](#grabación-y-análisis-de-carreras)
+    6. [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios)
+8. **[Pensamiento sistémico y decisiones de ingeniería](#pensamiento-sistémico-y-decisiones-de-ingeniería)**
+    1. [Diseño gobernado por configuración](#diseño-gobernado-por-configuración)
+    2. [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables)
+    3. [Registro de decisiones de arquitectura (ADR)](#registro-de-decisiones-de-arquitectura-adr)
+    4. [Ciclo de trabajo: idea, simulación, pista](#ciclo-de-trabajo-idea--simulación--pista)
+    5. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
+    6. [Gestión de riesgos](#gestión-de-riesgos)
+    7. [Tecnologías utilizadas](#tecnologías-utilizadas)
+9. **[Videos de V-Titan](#videos-de-v-titan)**
+    1. [Open Challenge](#open-challenge)
+    2. [Open Challenge Simulation](#open-challenge-simulation)
+    3. [Obstacles Challenge Simulation](#obstacles-challenge-simulation)
+    4. [Parking Challenge](#parking-challenge)
+    5. [Otros](#otros)
+
 ## Estructura del repositorio
 
 La raíz del repositorio sigue la estructura que pide la categoría Futuros Ingenieros de la WRO. Cada carpeta obligatoria está en su sitio, y las que apuntan a un monorepo más grande llevan su propio `README.md` con la ruta exacta:
@@ -168,66 +255,6 @@ cd schemes/wiring/tscircuit && npm run artifacts   # Regenerar el esquemático d
 ### Versionado
 
 Marcamos hitos del proyecto con tags de git: `v1.0` es el estado del robot para el evento regional de WRO 2026, y el historial entre tags es un registro continuo de commits con mensajes convencionales (`fix(robot):`, `docs(readme):`, `perf(nav):`, ...). Cualquier resultado medido en este documento (tasas del corpus, FPS del detector, consumo de potencia) puede rastrearse hasta el código exacto que lo produjo vía el historial.
-
-## Índice
-
-1. **[V-Titan en números](#v-titan-en-números)**
-2. **[Estructura del repositorio](#estructura-del-repositorio)**
-3. **[Arranque rápido y reproducibilidad](#arranque-rápido-y-reproducibilidad)**
-4. **[Historial del equipo](#historial-del-equipo)**
-    1. [Klevor (WRO 2025)](#klevor-wro-2025)
-        1. [Klevor v0.1](other/docs/development/previous-prototypes/klevor-v0.1.md)
-        2. [Klevor v0.1.1](other/docs/development/previous-prototypes/klevor-v0.1.1.md)
-        3. [Klevor v0.2](other/docs/development/previous-prototypes/klevor-v0.2.md)
-        4. [Klevor v1.0](other/docs/development/previous-prototypes/klevor-v1.0.md)
-    2. [V-Titan (WRO 2026)](#v-titan-wro-2026)
-5. **[Arquitectura de energía y sensores](#arquitectura-de-energía-y-sensores)**
-    1. [Lista de Componentes](#lista-de-componentes)
-        1. [Raspberry Pi 5 (16GB RAM)](#raspberry-pi-5-16gb-ram)
-        2. [Raspberry Pi Camera Module 3 Wide](#raspberry-pi-camera-module-3-wide)
-        3. [Raspberry Pi AI HAT+ (26 TOPS)](#raspberry-pi-ai-hat-26-tops)
-        4. [Raspberry Pi Zero 2 W](#raspberry-pi-zero-2-w)
-        5. [RPLiDAR C1](#rplidar-c1)
-        6. [Hi Wonder HPS-3527SG 35kg Servo](#hi-wonder-hps-3527sg-35kg-servo)
-        7. [HD Hex Motor](#hd-hex-motor)
-        8. [9-Axis IMU Gyroscope GY-BNO085](#9-axis-imu-gyroscope-gy-bno085)
-        9. [Ovonic Air 11.1V Li-Po Battery](#ovonic-air-111v-li-po-battery)
-        10. [Puente H BTS7960 / IBT-2](#puente-h-bts7960--ibt-2)
-        11. [Step Down Mini-560 Pro](#step-down-mini-560-pro)
-        12. [SSD1306 OLED Display](#ssd1306-oled-display)
-        13. [Convertidor KL89576 (DC a USB-C)](#convertidor-kl89576-dc-a-usb-c)
-    2. [Diagrama de Conexiones](#diagrama-de-conexiones)
-        1. [Consumo Energético](#consumo-energético)
-        2. [Calibración](#calibración)
-6. **[Movilidad y Diseño Mecánico](#movilidad-y-diseño-mecánico)**
-    1. [Métodos de Prototipaje](#métodos-de-prototipaje)
-    2. [Evolución y Justificación Del Diseño](#evolución-y-justificación-del-diseño)
-        1. [**Restricciones Iniciales**](#restricciones-iniciales)
-    3. [Sistema de Transmisión](#sistema-de-transmisión)
-    4. [Sistema de Dirección](#sistema-de-dirección)
-    5. [Chasis Inferior](#chasis-inferior)
-    6. [Monochasis](#monochasis)
-    7. [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)
-        1. [Velocidad: teórica contra real](#velocidad-teórica-contra-real)
-7. **[Arquitectura de software y estrategia para superar obstáculos](#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
-    1. [Arquitectura ROS2 y reparto entre dos computadores](#arquitectura-ros2-y-reparto-entre-dos-computadores)
-    2. [Modelo de Detección YOLO](#modelo-de-detección-yolo)
-        1. [Qué pasa cuando la visión falla](#qué-pasa-cuando-la-visión-falla)
-    3. [Algoritmo PID](#algoritmo-pid)
-    4. [Estrategia en pista](#estrategia-en-pista)
-        1. [Inferencia del sentido de la vuelta](#inferencia-del-sentido-de-la-vuelta)
-        2. [Seguimiento de pasillo, vueltas y escapes](#seguimiento-de-pasillo-vueltas-y-escapes)
-        3. [Vista completa de cada desafío](#vista-completa-de-cada-desafío)
-    5. [Grabación y análisis de carreras](#grabación-y-análisis-de-carreras)
-    6. [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios)
-8. **[Pensamiento sistémico y decisiones de ingeniería](#pensamiento-sistémico-y-decisiones-de-ingeniería)**
-    1. [Diseño gobernado por configuración](#diseño-gobernado-por-configuración)
-    2. [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables)
-    3. [Ciclo de trabajo: idea → simulación → pista](#ciclo-de-trabajo-idea--simulación--pista)
-    4. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
-    5. [Gestión de riesgos](#gestión-de-riesgos)
-    6. [Tecnologías utilizadas](#tecnologías-utilizadas)
-9. **[Videos de V-Titan](#videos-de-v-titan)**
 
 # Historial del equipo
 
@@ -377,7 +404,256 @@ V-Titan es el **sucesor** de Klevor, participando en la temporada 2026 de la Wor
 
 V-Titan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, V-Titan conserva muchos de los componentes electrónicos que utilizó Klevor, tales como la Raspberry Pi 5, y el RPLiDAR C1.
 
-# Arquitectura de energía y sensores 
+# Movilidad y Diseño Mecánico
+
+En este apartado se discuten todos los aspectos con lo que a movilidad y diseño se refiere, la evolución de éste, los prototipados realizados, etcétera.
+
+## Restricciones iniciales
+
+* **Dimensiones y peso límite:** Máximo 300 mm (largo) 200 mm (ancho) 300 mm (alto) y un peso no mayor a 1500 g.
+
+* **Reglamento de tracción y dirección:** Permitido tracción 4x4 impulsada por un **único motor** (o dos conectados en el mismo árbol de transmisión) y sistema de dirección para las 4 ruedas accionado por un **único servomotor**.
+
+## Métodos de Prototipaje
+
+Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas pre-fabricadas o impresas en 3D, ya que nos permite minimizar el peso de V-Titan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
+
+Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que tiene una gran cantidad de funciones útiles para el diseño de prototipos mecánicos, y, era el programa con el que teníamos mejor afinidad.
+
+## Evolución y Justificación Del Diseño
+
+Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#imu-gy-bno085) como componentes principales para la navegación de V-Titan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de V-Titan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-2-w) como microcontrolador para el manejo del [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
+
+Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita generar el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Desafío Cerrado sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación decidimos dividir el proceso en 4 fases:
+
+#### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
+
+<p align="center">
+	<img src="other/assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
+width="350">
+	<br>
+	<i>Primer Prototipo del Sistema de Dirección</i>
+</p>
+
+* **Mecanismo de Rueda:** Nuestro primer prototipo fue un rin estático que actúa como soporte/pivote en la tijera, mientras que el caucho exterior móvil incorpora una corona/cremallera interna accionada por piñones para transmitir tracción.
+
+* **Transmisión de Dirección/Potencia:** Se implementaron **guayas flexibles** (tipo mototool/rotamil) para llevar el movimiento de rotación a la rueda soportando el ángulo extremo de 90 grados.
+
+* **Caja de Engranajes Modular:** Diseñada para distribuir el movimiento de un solo motor hacia 4 guayas independientes.
+
+* **Resultado:** Las pruebas aisladas confirmaron la viabilidad de la rotación y el pivoteo a 90 grados.
+
+#### **Fase 2: Pruebas de Integración y Detección de Fallas**
+
+<p align="center">
+	<img src="other/assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
+width="350">
+	<br>
+	<i>Iteración de diseño en CAD entre prototipos impresos</i>
+</p>
+
+* **Sistema de Dirección:** Diseñamos una relación de palancas y piñones para la inversión de movimiento simultáneo. Se integraron **sensores Hall** para monitorear con precisión el ángulo de giro ante la necesidad de usar un servo de más de 360 grados.
+
+* **Problemas Detectados:**
+* Las barras de transmisión entre discos eran endebles, se doblaban e incluso una llegó a quebrarse.
+
+* Las guayas generaban una tensión excesiva sobre el servomotor al ejecutar el giro.
+
+* **Decisión:** Descartamos el sistema de guayas y palancas por ser complejo y pesado, buscando un mecanismo más ligero y directo.
+
+#### **Fase 3: Rediseño a Engranajes Perpendiculares, Coronas y Correa Dentada**
+
+<p align="center">
+	<img src="other/assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
+width="350">
+	<br>
+	<i>Sistema de dirección por engranajes, vista inferior: coronas integradas a los rines</i>
+</p>
+
+* **Nuevo Sistema de Tracción:** Eliminación de guayas. Se optó por **engranajes perpendiculares** ajustando el punto de pivote sobre el centro de la rueda, manteniendo los 90 grados de giro sin perder tracción.
+
+* **Optimización de Dirección:**
+* La primera prueba con líneas de piñones pequeños generó juego entre dientes (*backlash*) y movimiento errático.
+
+* Se reemplazaron por una **corona más grande integrada al rin**, logrando una conexión directa y precisa accionada por el servomotor único.
+
+* **Sincronización 4x4:** Se unificaron los árboles de transmisión delantero y trasero mediante una **correa dentada con poleas**, logrando accionar las 4 ruedas simultáneamente con un solo motor.
+
+#### **Fase 4: Optimización de Peso, Integración y Chasis Final**
+
+<p align="center">
+	<img src="other/assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
+width="350">
+	<br>
+	<i>Integración de la electrónica sobre el monochasis agujereado</i>
+</p>
+
+* **Distribución de Componentes:** Se diseñó una plataforma elevada para separar la electrónica de la mecánica. Esta posición permitió ubicar el RPLiDAR garantizando aproximadamente 270 grados de visión frontal y un espejo de visión trasera.
+
+* **Control de Peso (1500 g):** Al ensamblar el conjunto, se detectó un exceso de 150g.
+
+* **Acciones Correctivas:**
+
+* Uso de materiales de impresión más ligeros como el ASA (Acrilonitrilo Estireno Acrilato) para mayor optimización de peso.
+
+* Reducción de la densidad de relleno en la impresión 3D.
+
+* Disminución de espesores de pared y creación de vacíos estructurales en el chasis, rines y bancadas sin comprometer la rigidez.
+
+* **Resultado Final:** Se logró ingresar dentro del rango de peso reglamentario y consolidar un chasis rígido impreso en 3D con soportes dedicados para la electrónica.
+
+#### **Fase 5: Integración del HD Hex Motor**
+
+<p align="center">
+	<img src="other/assets/images/development/hd-hex-motor-integration.jpg" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
+width="350">
+	<br>
+	<i>Integración del REV HD Hex Motor al Sistema de Transmisión</i>
+</p>
+
+* **Nuevo Motor**: Tras realizar el montaje final, se detectó que el motor utilizado previamente, un motor genérico 540, contaba con un torque relativamente bajo, si bien era capaz de mover a vTitan, no podía alcanzar velocidades superiores a 15cm/s en pista, resultando en vTitan siendo incapaz de completar los desafíos en el tiempo límite, la solución más simple y más efectiva, fue cambiar el motor genérico 540 por un motor HD Hex por sus mejores especificaciones.
+
+* **Resultado Final**: Tras adaptar el chasis inferior para el encaje del HD Hex Motor, se detectó un incremento de velocidad de alrededor de 25 a 30cm/s, de esta manera, vTitan tiene la velocidad necesaria para completar los desafíos sin exceder el tiempo límite establecido de 3 minutos.
+
+## Sistema de Transmisión
+
+<p align="center">
+	<img src="other/assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
+width="350">
+	<br>
+	<i>Sistema de Transmisión, visto desde arriba</i>
+</p>
+
+Para poder diseñar nuestro sistema de transmisión, tuvimos que tener en cuenta nuestra meta inicial de nuestro alcance de dirección, para poder transmitir el movimiento del motor hacia las ruedas aún cuando éstas estén rotadas a un ángulo de 90 grados. 
+
+Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción en cada rueda, éste sistema es controlado por un único motor cuyo movimiento es transmitido mediante dos correas dentadas de movimiento (una para las ruedas delanteras, y otra para las ruedas traseras), este movimiento se va a su eje correspondiente (para el cual utilizamos unos pernos de transmisión de LEGO) y, a su vez cada eje transmite a dos sistemas de engranajes perpendiculares (uno por rueda) y este eje tiene un engranaje cónico perpendicular de 15 dientes, y este movimiento luego es transmitido directamente a la rueda (la cual en lugar de ser un caucho regular, recibe la tracción mediante sus dientes internos) de tal manera que cada rueda recibe la misma potencia, como último detalle, el rin cumple la función de ser un soporte para la rueda dentada y los engranajes cónicos perpendiculares.
+
+## Sistema de Dirección
+
+<p align="center">
+	<img src="other/assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
+width="350">
+	<br>
+	<i>Sistema de Dirección, visto desde arriba</i>
+</p>
+
+Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. 
+
+<p align="center">
+	<img src="schemes/counter-phase-steering-system.png" alt="Ejemplo de sistema de dirección en Contrafase" 
+width="350">
+	<br>
+	<i>Ejemplo de sistema de dirección en contrafase</i>
+</p>
+
+V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema se basa en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
+
+En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
+
+<p align="center">
+	<img src="models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
+width="350">
+	<br>
+	<i>Piñon de 33 dientes de dirección</i>
+</p>
+
+También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
+
+**Radio de giro: predicho contra medido.** El simulador originalmente permitía radios de giro virtualmente ilimitados (hasta ~8 mm), muy por debajo de lo que la geometría real puede cumplir. La medición en banco del chasis real fijó el radio mínimo en **0.29 m**, y ese valor vive ahora como límite duro (`MIN_TURN_RADIUS_M` en `src/config/`) tanto en la simulación como en el controlador: el simulador ya no aprueba curvas que el chasis no puede trazar. La consecuencia práctica se midió después sobre bags reales: entre 57 y 59% de los pasos del pure pursuit exigían un radio menor al que el chasis puede entregar, lo que disparaba el corte de velocidad por rumbo; el corrector que descarta puntos de mira inalcanzables (`MIN_TARGET_RADIUS_M`, medido y aceptado en A/B sobre 128 casos) nació de esa medición. Es la diferencia entre diseñar contra un chasis que existe y uno que no.
+
+<!-- HUECO (rubro WRO 2026, criterio 1 "Opciones del sistema de dirección").
+Falta la comparación explícita Ackermann contra contrafase: por qué se descartó
+Ackermann y qué se ganó con contrafase (giro de 90 grados para la salida del
+estacionamiento). El diagrama YA EXISTE y no está enlazado en ninguna parte:
+schemes/ackermann-steering-system.png -->
+
+## Estructura mecánica
+
+El chasis de V-Titan se reparte en dos piezas con responsabilidades distintas: el chasis inferior, que sostiene la transmisión y la dirección, y el monochasis, que cierra el conjunto y fija la electrónica.
+
+### Chasis Inferior
+
+<p align="center">
+	<img src="models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
+width="350">
+	<br>
+	<i>Chasis Inferior</i>
+</p>
+
+Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis se pueden apreciar dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernos de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
+
+### Monochasis
+
+**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `src/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
+
+<!-- HUECO (rubro WRO 2026, criterio 1 "Montaje").
+Hoy solo está documentado el montaje de la cámara (sección RPi Camera Module 3).
+Falta el ensamblaje del robot completo: orden de armado, tornillería, torque de
+apriete, y el manifiesto de las 21 piezas impresas con sus parámetros de impresión
+(material, altura de capa, relleno, soportes). Sin eso, models/ no es reproducible. -->
+
+## Relación de Torque y Velocidad
+
+Ahora bien, en el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a V-Titan?
+
+La fórmula general para calcular el torque necesario es:
+
+$$T = \frac{m \cdot \left( a + g \cdot \left( \mu \cos\theta + \sin\theta \right) \right) \cdot r}{N}$$
+
+Donde:
+
+- $m$ es la masa del vehículo (en kg; en V-Titan son **~1.51 kg con la batería de prácticas y ~1.46 kg con la de competencia**, medidos en el robot ensamblado). La simulación usa 1.5 kg fijos (`src/config/robot.toml`: chasis de 1.3 kg más 4 ruedas de 0.05 kg), un punto medio conservador entre ambas configuraciones: calcular con la masa mayor nunca subestima el torque necesario
+- $r$ es el radio de la rueda (en metros; en V-Titan mide $0.035\ \text{m}$)
+- $a$ es la aceleración deseada. La **medimos sobre bags MCAP de pista real**: la derivada de la velocidad del encoder (`/motor/drive_speed`) sobre 5 carreras recientes da una aceleración sostenida de **~1.0 m/s²** (muy consistente: 0.93-1.09 en los 5 bags) y una rampa de arranque desde reposo de **~0.4 m/s²**. Usamos $a = 1.0\ \text{m/s}^2$, el caso conservador
+- $g$ es la gravedad, $9.81\ \text{m/s}^2$
+- $\mu$ es el cociente de fricción (estimamos $0.3$ para ruedas de ASA sobre lona de PVC flexible)
+- $\theta$ es el ángulo de inclinación ($\theta = 0°$ en esta competición)
+- $N$ es el número de motores en tracción (en V-Titan solo hay uno)
+
+Al efectuar toda la operación obtenemos como resultado que se necesita un torque mínimo de $0.207\ \text{Nm}$ para que V-Titan sostenga la aceleración medida ($1.0\ \text{m/s}^2$). Para referencia: con solo fricción ($a = 0$) el requerimiento baja a $0.155\ \text{Nm}$, y con la rampa de arranque ($0.4\ \text{m/s}^2$) a $0.176\ \text{Nm}$.
+
+Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al torque mínimo ($0.207\ \text{Nm}$), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
+
+<p align="center">
+	<img src="other/assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
+width="350">
+	<br>
+	<i>Relación de Engranajes</i>
+</p>
+
+El torque final, o de salida será igual a la multiplicación del torque inicial por la misma relación de engranajes total, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se efectúa el producto de ese conjunto:
+
+| Etapa | Transmisión | Relación |
+|-------|-------------|----------|
+| 1 | Eje del motor (50 dientes) → correa hacia cada eje (33 dientes) | $i_1 = 33/50 = 0.66$ |
+| 2 | Pernos de transmisión de LEGO con engranaje cónico de 10 dientes → engranaje de 20 dientes | $i_2 = 20/10 = 2$ |
+| 3 | Engranaje de 20 dientes → engranaje de 15 dientes | $i_3 = 15/20 = 0.75$ |
+| 4 | Engranaje de 15 dientes → engranaje de 20 dientes | $i_4 = 20/15 \approx 1.33$ |
+| 5 | Engranaje de 20 dientes → rueda dentada de 50 dientes | $i_5 = 50/20 = 2.5$ |
+
+La relación de transmisión total es el producto de las cinco etapas:
+
+$$R_{total} = i_1 \cdot i_2 \cdot i_3 \cdot i_4 \cdot i_5 = 0.66 \cdot 2 \cdot 0.75 \cdot 1.33 \cdot 2.5 = 3.29$$
+
+Y el torque de bloqueo final:
+
+$$T_{final} = T_{stall} \cdot R_{total} = 0.105\ \text{Nm} \cdot 3.29 = 0.345\ \text{Nm}$$
+
+Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm}$, que queda por debajo del requerimiento con la aceleración sostenida medida ($0.207\ \text{Nm}$). Esto no invalida el diseño, y los bags lo confirman: la recomendación del 50% es para **funcionamiento continuo prolongado** (donde el calentamiento del devanado manda), mientras que la demanda real de una ronda es de tramos cortos de aceleración entre cruces; para eso están los picos de torque que los motores DC toleran por breves segundos. Contra el torque de bloqueo completo ($0.345\ \text{Nm}$), el margen es holgado incluso con $a = 1.0\ \text{m/s}^2$. La prueba final es empírica: los mismos bags de donde salió la aceleración muestran al robot sosteniendo esos $1.0\ \text{m/s}^2$ en pista, con este mismo motor y esta misma relación. Además, a medida que el vehículo gana velocidad, el cociente de fricción disminuye considerablemente (alrededor de un 15%), por lo que el torque necesario baja y es más fácil que el vehículo gane aceleración.
+
+### Velocidad: teórica contra real
+
+La mitad de velocidad de esta relación se verifica igual que el torque: predicción, medición, y explicación de la brecha.
+
+**Techo cinemático.** Con el motor a su velocidad sin carga de 6000 RPM y la relación total $R_{total} = 3.29$, las ruedas girarían a $6000 / 3.29 \approx 1824$ RPM; con ruedas de 0.07 m de diámetro:
+
+$$v_{teórico} = \frac{1824}{60} \cdot \pi \cdot 0.07 \approx 6.7\ \text{m/s}$$
+
+**Medición en banco, con carga.** El motor nunca ve 6000 RPM en pista. La ley medida en banco (cargado, cinta métrica contra lo que el encoder cree recorrer) es afín: $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$), con zona muerta en duty 0.200 y un techo físico de 348 RPM de rueda a duty 1.0, es decir **1.28 m/s**. El robot opera además con el ciclo de trabajo limitado al 50% por térmica, y los perfiles de velocidad de carrera (CREEP/SLOW/MEDIUM/FAST) viven dentro de ese presupuesto: la prealimentación afín `duty = 0.20 + 0.8 · rpm/max_rpm` (medida, con la misma zona muerta) les asigna duties de 0.295 a 0.419.
+
+**Resultado en pista.** El techo real medido es **~0.58 m/s**. No es un límite físico del motor: es el resultado combinado del tope del 50% de duty, de la zona muerta con carga (20% del duty se gasta en vencer la fricción) y de los perfiles de velocidad que el gobernador impone. La brecha contra el techo cinemático (~11x) queda así explicada: es la diferencia entre el motor sin carga del datasheet y el motor cargado del banco con su ciclo de trabajo limitado. La cadena completa de esta medición (y del error de cuantización que antes la limitaba a 0.45 m/s) está en `src/config/hardware/motors/profiles/rev-hd-hex-motor-6000rpm/encoder.toml` y en la sección del [lazo de velocidad](#algoritmo-pid).
+
+# Arquitectura de energía y sensores
 
 En el siguiente apartado, se discute toda la parte electrónica de V-Titan, tales como sus sensores, las razones detrás de su elección, cómo se implementan y el presupuesto energético.
 
@@ -592,7 +868,7 @@ La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal
 
 **Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia**, en formato compacto ("shorty") y con conector XT60: menos capacidad, pero 46 g menos en la balanza (140 g contra 186 g) y un C-rating doble, que es lo que importa en pista.
 
-**Por qué es suficiente.** El presupuesto de potencia del robot (ver la [sección de consumo energético](README.md#consumo-energ%C3%A9tico)) da un total nominal de ~14-16 A y picos de ~31 A, de los cuales la rama de tracción - el motor al 50% del ciclo de trabajo - aporta ~10 A nominales y ~20 A de pico, y el resto del sistema ~4-6 A. Con la batería de competencia:
+**Por qué es suficiente.** El presupuesto de potencia del robot (ver la [sección de consumo energético](README.md#consumo-energético)) da un total nominal de ~14-16 A y picos de ~31 A, de los cuales la rama de tracción - el motor al 50% del ciclo de trabajo - aporta ~10 A nominales y ~20 A de pico, y el resto del sistema ~4-6 A. Con la batería de competencia:
 
 - **Autonomía**: 2200 mAh contra ~14 A nominales sostenidos da ~9 minutos de operación continua a plena demanda. Una ronda completa dura pocos minutos y la tracción no exige su nominal el 100% del tiempo, así que el margen real es mayor; el límite práctico en un día de competencia no es la descarga de una ronda sino el ciclo de recargas entre rondas.
 - **Corriente de pico**: el C-rating de 120C anunciado representa 264 A, cifra de marketing en condiciones ideales; incluso descontando la mitad por realismo continuo, la batería puede entregar más de 100 A, más de 3 veces el pico de ~31 A del presupuesto completo. La entrega de corriente no es el cuello de botella en ninguna parte del sistema.
@@ -723,6 +999,12 @@ Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se comitean e
 >
 > Estas tres ramas (computador, servo y tracción) se alimentan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
 
+<!-- HUECO (rubro WRO 2026, criterio 2 "modos de fallo y fiabilidad").
+Falta la sección de protección eléctrica: fusible o limitador en la rama de
+tracción (picos medidos de ~20 A), corte por bajo voltaje de la LiPo 3S, y
+procedimiento de carga y almacenamiento. También queda abierta la discrepancia
+de la altura del plano del haz del LIDAR entre robot.toml, la TF estática y el URDF. -->
+
 ### Calibración
 
 Cada sensor del robot tiene una parte calibrada contra medición propia, no contra datasheet. Este es el inventario:
@@ -739,239 +1021,6 @@ Cada sensor del robot tiene una parte calibrada contra medición propia, no cont
 | Simulador | Ajustado contra grabaciones reales; conclusiones previas a la calibración descartadas | Ver [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios) |
 
 La consecuencia de método: ninguna constante del robot es un número "de fábrica" sin justificación; cada una de estas mediciones tiene una historia de hallazgo documentada en la [sección de hallazgos](#hallazgos-de-ingeniería).
-
-# Movilidad y Diseño Mecánico
-
-En este apartado se discuten todos los aspectos con lo que a movilidad y diseño se refiere, la evolución de éste, los prototipados realizados, etcétera.
-
-## Métodos de Prototipaje
-
-Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas pre-fabricadas o impresas en 3D, ya que nos permite minimizar el peso de V-Titan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
-
-Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que tiene una gran cantidad de funciones útiles para el diseño de prototipos mecánicos, y, era el programa con el que teníamos mejor afinidad.
-
-## Evolución y Justificación Del Diseño
-
-### **Restricciones Iniciales**
-
-* **Dimensiones y peso límite:** Máximo 300 mm (largo) 200 mm (ancho) 300 mm (alto) y un peso no mayor a 1500 g.
-
-* **Reglamento de tracción y dirección:** Permitido tracción 4x4 impulsada por un **único motor** (o dos conectados en el mismo árbol de transmisión) y sistema de dirección para las 4 ruedas accionado por un **único servomotor**.
-
-Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#9-axis-imu-gyroscope-gy-bno085) como componentes principales para la navegación de V-Titan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de V-Titan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-2-w) como microcontrolador para el manejo del [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
-
-Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita generar el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Desafío Cerrado sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación decidimos dividir el proceso en 4 fases:
-
-#### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
-
-<p align="center">
-	<img src="other/assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
-width="350">
-	<br>
-	<i>Primer Prototipo del Sistema de Dirección</i>
-</p>
-
-* **Mecanismo de Rueda:** Nuestro primer prototipo fue un rin estático que actúa como soporte/pivote en la tijera, mientras que el caucho exterior móvil incorpora una corona/cremallera interna accionada por piñones para transmitir tracción.
-
-* **Transmisión de Dirección/Potencia:** Se implementaron **guayas flexibles** (tipo mototool/rotamil) para llevar el movimiento de rotación a la rueda soportando el ángulo extremo de 90 grados.
-
-* **Caja de Engranajes Modular:** Diseñada para distribuir el movimiento de un solo motor hacia 4 guayas independientes.
-
-* **Resultado:** Las pruebas aisladas confirmaron la viabilidad de la rotación y el pivoteo a 90 grados.
-
-#### **Fase 2: Pruebas de Integración y Detección de Fallas**
-
-<p align="center">
-	<img src="other/assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
-width="350">
-	<br>
-	<i>Iteración de diseño en CAD entre prototipos impresos</i>
-</p>
-
-* **Sistema de Dirección:** Diseñamos una relación de palancas y piñones para la inversión de movimiento simultáneo. Se integraron **sensores Hall** para monitorear con precisión el ángulo de giro ante la necesidad de usar un servo de más de 360 grados.
-
-* **Problemas Detectados:**
-* Las barras de transmisión entre discos eran endebles, se doblaban e incluso una llegó a quebrarse.
-
-* Las guayas generaban una tensión excesiva sobre el servomotor al ejecutar el giro.
-
-* **Decisión:** Descartamos el sistema de guayas y palancas por ser complejo y pesado, buscando un mecanismo más ligero y directo.
-
-#### **Fase 3: Rediseño a Engranajes Perpendiculares, Coronas y Correa Dentada**
-
-<p align="center">
-	<img src="other/assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
-width="350">
-	<br>
-	<i>Sistema de dirección por engranajes, vista inferior: coronas integradas a los rines</i>
-</p>
-
-* **Nuevo Sistema de Tracción:** Eliminación de guayas. Se optó por **engranajes perpendiculares** ajustando el punto de pivote sobre el centro de la rueda, manteniendo los 90 grados de giro sin perder tracción.
-
-* **Optimización de Dirección:**
-* La primera prueba con líneas de piñones pequeños generó juego entre dientes (*backlash*) y movimiento errático.
-
-* Se reemplazaron por una **corona más grande integrada al rin**, logrando una conexión directa y precisa accionada por el servomotor único.
-
-* **Sincronización 4x4:** Se unificaron los árboles de transmisión delantero y trasero mediante una **correa dentada con poleas**, logrando accionar las 4 ruedas simultáneamente con un solo motor.
-
-#### **Fase 4: Optimización de Peso, Integración y Chasis Final**
-
-<p align="center">
-	<img src="other/assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
-width="350">
-	<br>
-	<i>Integración de la electrónica sobre el monochasis agujereado</i>
-</p>
-
-* **Distribución de Componentes:** Se diseñó una plataforma elevada para separar la electrónica de la mecánica. Esta posición permitió ubicar el RPLiDAR garantizando aproximadamente 270 grados de visión frontal y un espejo de visión trasera.
-
-* **Control de Peso (1500 g):** Al ensamblar el conjunto, se detectó un exceso de 150g.
-
-* **Acciones Correctivas:**
-
-* Uso de materiales de impresión más ligeros como el ASA (Acrilonitrilo Estireno Acrilato) para mayor optimización de peso.
-
-* Reducción de la densidad de relleno en la impresión 3D.
-
-* Disminución de espesores de pared y creación de vacíos estructurales en el chasis, rines y bancadas sin comprometer la rigidez.
-
-* **Resultado Final:** Se logró ingresar dentro del rango de peso reglamentario y consolidar un chasis rígido impreso en 3D con soportes dedicados para la electrónica.
-
-#### **Fase 5: Integración del HD Hex Motor**
-
-<p align="center">
-	<img src="other/assets/images/development/hd-hex-motor-integration.jpg" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
-width="350">
-	<br>
-	<i>Integración del REV HD Hex Motor al Sistema de Transmisión</i>
-</p>
-
-* **Nuevo Motor**: Tras realizar el montaje final, se detectó que el motor utilizado previamente, un motor genérico 540, contaba con un torque relativamente bajo, si bien era capaz de mover a vTitan, no podía alcanzar velocidades superiores a 15cm/s en pista, resultando en vTitan siendo incapaz de completar los desafíos en el tiempo límite, la solución más simple y más efectiva, fue cambiar el motor genérico 540 por un motor HD Hex por sus mejores especificaciones.
-
-* **Resultado Final**: Tras adaptar el chasis inferior para el encaje del HD Hex Motor, se detectó un incremento de velocidad de alrededor de 25 a 30cm/s, de esta manera, vTitan tiene la velocidad necesaria para completar los desafíos sin exceder el tiempo límite establecido de 3 minutos.
-
-## Sistema de Transmisión
-
-<p align="center">
-	<img src="other/assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
-width="350">
-	<br>
-	<i>Sistema de Transmisión, visto desde arriba</i>
-</p>
-
-Para poder diseñar nuestro sistema de transmisión, tuvimos que tener en cuenta nuestra meta inicial de nuestro alcance de dirección, para poder transmitir el movimiento del motor hacia las ruedas aún cuando éstas estén rotadas a un ángulo de 90 grados. 
-
-Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción en cada rueda, éste sistema es controlado por un único motor cuyo movimiento es transmitido mediante dos correas dentadas de movimiento (una para las ruedas delanteras, y otra para las ruedas traseras), este movimiento se va a su eje correspondiente (para el cual utilizamos unos pernos de transmisión de LEGO) y, a su vez cada eje transmite a dos sistemas de engranajes perpendiculares (uno por rueda) y este eje tiene un engranaje cónico perpendicular de 15 dientes, y este movimiento luego es transmitido directamente a la rueda (la cual en lugar de ser un caucho regular, recibe la tracción mediante sus dientes internos) de tal manera que cada rueda recibe la misma potencia, como último detalle, el rin cumple la función de ser un soporte para la rueda dentada y los engranajes cónicos perpendiculares.
-
-## Sistema de Dirección
-
-<p align="center">
-	<img src="other/assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
-width="350">
-	<br>
-	<i>Sistema de Dirección, visto desde arriba</i>
-</p>
-
-Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema de dirección es tener un giro de 90 grados para facilitar la ruta en pista, para lograr esto, tuvimos que replantear la solución mecánica de Klevor desde cero. 
-
-<p align="center">
-	<img src="schemes/counter-phase-steering-system.png" alt="Ejemplo de sistema de dirección en Contrafase" 
-width="350">
-	<br>
-	<i>Ejemplo de sistema de dirección en contrafase</i>
-</p>
-
-V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema se basa en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
-
-En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
-
-<p align="center">
-	<img src="models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
-width="350">
-	<br>
-	<i>Piñon de 33 dientes de dirección</i>
-</p>
-
-También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
-
-**Radio de giro: predicho contra medido.** El simulador originalmente permitía radios de giro virtualmente ilimitados (hasta ~8 mm), muy por debajo de lo que la geometría real puede cumplir. La medición en banco del chasis real fijó el radio mínimo en **0.29 m**, y ese valor vive ahora como límite duro (`MIN_TURN_RADIUS_M` en `src/config/`) tanto en la simulación como en el controlador: el simulador ya no aprueba curvas que el chasis no puede trazar. La consecuencia práctica se midió después sobre bags reales: entre 57 y 59% de los pasos del pure pursuit exigían un radio menor al que el chasis puede entregar, lo que disparaba el corte de velocidad por rumbo; el corrector que descarta puntos de mira inalcanzables (`MIN_TARGET_RADIUS_M`, medido y aceptado en A/B sobre 128 casos) nació de esa medición. Es la diferencia entre diseñar contra un chasis que existe y uno que no.
-
-## Chasis Inferior 
-
-<p align="center">
-	<img src="models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
-width="350">
-	<br>
-	<i>Chasis Inferior</i>
-</p>
-
-Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis se pueden apreciar dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernos de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
-
-## Monochasis 
-
-**Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `src/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
-
-## Relación de Torque y Velocidad 
-
-Ahora bien, en el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a V-Titan?
-
-La fórmula general para calcular el torque necesario es:
-
-$$T = \frac{m \cdot \left( a + g \cdot \left( \mu \cos\theta + \sin\theta \right) \right) \cdot r}{N}$$
-
-Donde:
-
-- $m$ es la masa del vehículo (en kg; en V-Titan son **~1.51 kg con la batería de prácticas y ~1.46 kg con la de competencia**, medidos en el robot ensamblado). La simulación usa 1.5 kg fijos (`src/config/robot.toml`: chasis de 1.3 kg más 4 ruedas de 0.05 kg), un punto medio conservador entre ambas configuraciones: calcular con la masa mayor nunca subestima el torque necesario
-- $r$ es el radio de la rueda (en metros; en V-Titan mide $0.035\ \text{m}$)
-- $a$ es la aceleración deseada. La **medimos sobre bags MCAP de pista real**: la derivada de la velocidad del encoder (`/motor/drive_speed`) sobre 5 carreras recientes da una aceleración sostenida de **~1.0 m/s²** (muy consistente: 0.93-1.09 en los 5 bags) y una rampa de arranque desde reposo de **~0.4 m/s²**. Usamos $a = 1.0\ \text{m/s}^2$, el caso conservador
-- $g$ es la gravedad, $9.81\ \text{m/s}^2$
-- $\mu$ es el cociente de fricción (estimamos $0.3$ para ruedas de ASA sobre lona de PVC flexible)
-- $\theta$ es el ángulo de inclinación ($\theta = 0°$ en esta competición)
-- $N$ es el número de motores en tracción (en V-Titan solo hay uno)
-
-Al efectuar toda la operación obtenemos como resultado que se necesita un torque mínimo de $0.207\ \text{Nm}$ para que V-Titan sostenga la aceleración medida ($1.0\ \text{m/s}^2$). Para referencia: con solo fricción ($a = 0$) el requerimiento baja a $0.155\ \text{Nm}$, y con la rampa de arranque ($0.4\ \text{m/s}^2$) a $0.176\ \text{Nm}$.
-
-Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al torque mínimo ($0.207\ \text{Nm}$), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
-
-<p align="center">
-	<img src="other/assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
-width="350">
-	<br>
-	<i>Relación de Engranajes</i>
-</p>
-
-El torque final, o de salida será igual a la multiplicación del torque inicial por la misma relación de engranajes total, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se efectúa el producto de ese conjunto:
-
-| Etapa | Transmisión | Relación |
-|-------|-------------|----------|
-| 1 | Eje del motor (50 dientes) → correa hacia cada eje (33 dientes) | $i_1 = 33/50 = 0.66$ |
-| 2 | Pernos de transmisión de LEGO con engranaje cónico de 10 dientes → engranaje de 20 dientes | $i_2 = 20/10 = 2$ |
-| 3 | Engranaje de 20 dientes → engranaje de 15 dientes | $i_3 = 15/20 = 0.75$ |
-| 4 | Engranaje de 15 dientes → engranaje de 20 dientes | $i_4 = 20/15 \approx 1.33$ |
-| 5 | Engranaje de 20 dientes → rueda dentada de 50 dientes | $i_5 = 50/20 = 2.5$ |
-
-La relación de transmisión total es el producto de las cinco etapas:
-
-$$R_{total} = i_1 \cdot i_2 \cdot i_3 \cdot i_4 \cdot i_5 = 0.66 \cdot 2 \cdot 0.75 \cdot 1.33 \cdot 2.5 = 3.29$$
-
-Y el torque de bloqueo final:
-
-$$T_{final} = T_{stall} \cdot R_{total} = 0.105\ \text{Nm} \cdot 3.29 = 0.345\ \text{Nm}$$
-
-Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm}$, que queda por debajo del requerimiento con la aceleración sostenida medida ($0.207\ \text{Nm}$). Esto no invalida el diseño, y los bags lo confirman: la recomendación del 50% es para **funcionamiento continuo prolongado** (donde el calentamiento del devanado manda), mientras que la demanda real de una ronda es de tramos cortos de aceleración entre cruces; para eso están los picos de torque que los motores DC toleran por breves segundos. Contra el torque de bloqueo completo ($0.345\ \text{Nm}$), el margen es holgado incluso con $a = 1.0\ \text{m/s}^2$. La prueba final es empírica: los mismos bags de donde salió la aceleración muestran al robot sosteniendo esos $1.0\ \text{m/s}^2$ en pista, con este mismo motor y esta misma relación. Además, a medida que el vehículo gana velocidad, el cociente de fricción disminuye considerablemente (alrededor de un 15%), por lo que el torque necesario baja y es más fácil que el vehículo gane aceleración.
-
-### Velocidad: teórica contra real
-
-La mitad de velocidad de esta relación se verifica igual que el torque: predicción, medición, y explicación de la brecha.
-
-**Techo cinemático.** Con el motor a su velocidad sin carga de 6000 RPM y la relación total $R_{total} = 3.29$, las ruedas girarían a $6000 / 3.29 \approx 1824$ RPM; con ruedas de 0.07 m de diámetro:
-
-$$v_{teórico} = \frac{1824}{60} \cdot \pi \cdot 0.07 \approx 6.7\ \text{m/s}$$
-
-**Medición en banco, con carga.** El motor nunca ve 6000 RPM en pista. La ley medida en banco (cargado, cinta métrica contra lo que el encoder cree recorrer) es afín: $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$), con zona muerta en duty 0.200 y un techo físico de 348 RPM de rueda a duty 1.0, es decir **1.28 m/s**. El robot opera además con el ciclo de trabajo limitado al 50% por térmica, y los perfiles de velocidad de carrera (CREEP/SLOW/MEDIUM/FAST) viven dentro de ese presupuesto: la prealimentación afín `duty = 0.20 + 0.8 · rpm/max_rpm` (medida, con la misma zona muerta) les asigna duties de 0.295 a 0.419.
-
-**Resultado en pista.** El techo real medido es **~0.58 m/s**. No es un límite físico del motor: es el resultado combinado del tope del 50% de duty, de la zona muerta con carga (20% del duty se gasta en vencer la fricción) y de los perfiles de velocidad que el gobernador impone. La brecha contra el techo cinemático (~11x) queda así explicada: es la diferencia entre el motor sin carga del datasheet y el motor cargado del banco con su ciclo de trabajo limitado. La cadena completa de esta medición (y del error de cuantización que antes la limitaba a 0.45 m/s) está en `src/config/hardware/motors/profiles/rev-hd-hex-motor-6000rpm/encoder.toml` y en la sección del [lazo de velocidad](#algoritmo-pid).
 
 # Arquitectura de software y estrategia para superar obstáculos
 
@@ -1133,7 +1182,6 @@ En el Desafío de Obstáculos se añade la regla de color: el robot debe pasar p
     <i>Regla de paso por señales de color (Desafío de Obstáculos)</i>
 </p>
 
-
 ### Vista completa de cada desafío
 
 Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los flujos completos y las máquinas de estado de cada desafío, renderizados desde las mismas fuentes Mermaid de [`schemes/flowcharts/`](schemes/flowcharts/).
@@ -1196,6 +1244,13 @@ También cambia la forma de fallar. Cuando un cambio parece mejorar el resultado
 
 Esta sección no describe qué hace el robot, sino **cómo tomamos las decisiones** que lo llevaron a ser así. Es la parte del proyecto que más nos cambió la forma de trabajar.
 
+<!-- HUECO (rubro WRO 2026, criterio 4 "Interacciones entre subsistemas").
+Falta un diagrama de bloques único que muestre las cinco áreas (mecánica, energía,
+sensores, cómputo, software) y qué cruza entre ellas: quién alimenta a quién, qué
+señal viaja por cada enlace y dónde está el punto único de fallo de cada cadena.
+Hoy esa información existe repartida entre el arnés, la arquitectura ROS2 y la
+tabla de riesgos, pero nunca junta en una sola vista. -->
+
 ## Diseño gobernado por configuración
 
 La regla que más impacto tuvo en la calidad del sistema es simple de enunciar: **ninguna constante de comportamiento vive dentro del código**. Todas están en archivos de configuración, y cada una tiene escrito al lado por qué vale lo que vale.
@@ -1233,6 +1288,33 @@ El robot cambió de servo y de motor durante el desarrollo. Para que eso no obli
 | `rev-hd-hex-motor-6000rpm` | Motor de tracción HD Hex de 6000 rpm (actual) |
 
 Se combinan al arrancar. Cambiar de servo es seleccionar otro perfil, no editar código, y, sobre todo, significa que **los dos servos siguen siendo probables** después del cambio: si el de 35 kg falla en competencia, volver al de 14 kg es una línea de configuración, no una tarde de reescritura.
+
+<!-- HUECO (rubro WRO 2026, criterio 4 "Compensaciones", nivel 6: "elegimos X en vez de Y porque").
+Falta una tabla única de alternativas descartadas. El material ya está escrito pero
+disperso por el documento: L298N contra BTS7960 (corriente), XLC4016 contra
+Mini-560 Pro (peso), IMU de 9 ejes contra 6 ejes en modo UART-RVC (magnetómetro
+descartado por interferencia), conmutación de anticipación contra rampa de mezcla,
+y ROS2/Python contra la pila en Go. Cada fila necesita: opción elegida, alternativa,
+criterio de decisión y el dato que la resolvió. -->
+
+## Registro de decisiones de arquitectura (ADR)
+
+Cada constante que gobierna al robot tiene un archivo que explica por qué vale lo que vale. Son **48 registros de decisión de arquitectura** en [`other/docs/adr/`](other/docs/adr/), uno por decisión, cada uno con su contexto, las opciones consideradas, la medición que la resolvió y el commit donde aterrizó. Varios documentan también premisas que **fueron refutadas después**, porque una decisión revertida enseña tanto como una que se sostuvo.
+
+No son notas sueltas al margen del código: los esquemas JSON de `src/model/` apuntan a su ADR mediante la clave `x-journal`, y **`task config:check` falla si alguna referencia no resuelve**. Una constante sin justificación rastreable no pasa la verificación del repositorio.
+
+Seis que ilustran el patrón:
+
+| Decisión | Qué resolvió |
+|----------|-------------|
+| [0013 - El radio de giro mínimo depende de la velocidad](other/docs/adr/0013-turn-radius-speed-curve.md) | El modelo de bicicleta predecía 1.5 cm de radio a tope de dirección, imposible para un chasis de 30 x 19.4 cm. Medir en banco sustituyó la fórmula por una curva dependiente de la velocidad |
+| [0015 - El LIDAR está montado invertido](other/docs/adr/0015-lidar-inverted-mount.md) | Las lecturas hay que espejarlas, no rotarlas 180 grados. Rotarlas produce una pista plausible pero equivocada, el fallo que más costó localizar |
+| [0020 - La configuración se lee en ejecución, no se genera](other/docs/adr/0020-config-loaded-at-runtime.md) | Por qué los TOML se leen al arrancar en vez de compilarse dentro de cada consumidor, y qué se paga por esa decisión |
+| [0026 - El seguidor de pasillo no centra](other/docs/adr/0026-corridor-follower-no-centering.md) | Centrarse en el pasillo parecía obvio y resultó contraproducente. La medición que eliminó la ganancia de centrado |
+| [0041 - El piso de rango válido queda bajo el mínimo nominal](other/docs/adr/0041-lidar-valid-range-floor.md) | Por qué aceptamos lecturas por debajo de lo que el fabricante garantiza, y qué ganó el robot con ello |
+| [0047 - El retroceso por contacto se publica desactivado](other/docs/adr/0047-contact-reverse-ships-disabled.md) | Una función terminada que **no se activa** porque la evidencia no la respaldó. Escribir por qué algo queda apagado es parte del registro |
+
+Los ADR están redactados en inglés, igual que los mensajes de commit; esta documentación y la bitácora de ingeniería están en español.
 
 ## Ciclo de trabajo: idea → simulación → pista
 
