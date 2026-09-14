@@ -47,9 +47,3 @@ type ClearanceConfig struct {
 	// controllers.Config.ForwardPathAheadOfBumper's doc comment.
 	ForwardPathAheadOfBumper bool `mapstructure:"forward_path_ahead_of_bumper"`
 }
-
-// DefaultClearanceTOMLPath is
-// src/config/navigation/motion/clearance.toml, relative to the
-// repo root. No per-component profile overlays -- pass nil profileNames to
-// Load.
-const DefaultClearanceTOMLPath = "src/config/navigation/motion/clearance.toml"

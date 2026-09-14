@@ -122,10 +122,6 @@ type RobotConfig struct {
 	Camera     RobotCamera     `mapstructure:"camera"`
 }
 
-// DefaultRobotTOMLPath is src/config/robot.toml, relative to the
-// repo root.
-const DefaultRobotTOMLPath = "src/config/robot.toml"
-
 // requiredRobotKeys are the fields robot.toml deliberately omits and which
 // must come from an active hardware profile, matching
 // RobotConstants._require_component_facts().

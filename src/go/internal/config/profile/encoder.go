@@ -27,11 +27,6 @@ type EncoderConfig struct {
 	CountsPerRev float64 `mapstructure:"counts_per_rev"`
 }
 
-// DefaultEncoderTOMLPath is
-// src/config/hardware/motors/encoder.toml, relative to the repo
-// root.
-const DefaultEncoderTOMLPath = "src/config/hardware/motors/encoder.toml"
-
 // LoadEncoderConfig loads EncoderConfig from basePath overlaid with
 // profileNames (see Load), then rejects a missing counts_per_rev the way
 // Python's required field does: an error naming the active profiles, not a

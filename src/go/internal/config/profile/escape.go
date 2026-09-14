@@ -7,13 +7,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
 
-// DefaultEscapeTOMLPath is
-// src/config/navigation/escape/escape.toml, relative to the
-// repo root. No per-component profile overlays -- pass nil profileNames to
-// Load. The file's shape is the generated escape.NavigationEscapeEscape DTO;
-// its one untagged fallback lives in the defaults.go registry.
-const DefaultEscapeTOMLPath = "src/config/navigation/escape/escape.toml"
-
 // RevSteerNorm converts cfg.RevSteerDeg to a normalised actuator command,
 // matching EscapeManeuverParams.rev_steer_norm(): the stored value is a
 // physical road-wheel angle, so this is where a wider servo produces a

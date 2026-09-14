@@ -14,6 +14,28 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/waypoint"
 )
 
+// DefaultRoundTimeLimitS matches generated.CompetitionSpecs.RoundTimeLimitS's
+// registry fallback (and TOML key) for callers that need the shipped budget
+// before a config root is known -- a tagged field cannot be read without
+// loading a file. TestCompetitionSpecs_DefaultsMatchTags keeps the two in
+// step.
+const DefaultRoundTimeLimitS = 180.0
+
+// DefaultBayWallClearanceM matches
+// NavigationBlindNavCorridorFollower.BayWallClearanceM's registry fallback.
+const DefaultBayWallClearanceM = 0.20
+
+// Default* match SignRouterParams' Pydantic defaults for the four fields
+// missing from the checked-in sign_router.toml.
+const (
+	DefaultDepthPin                = true
+	DefaultPinCornerGuard          = true
+	DefaultPinHeadingGuard         = true
+	DefaultPinHeadingGuardDeg      = 35.0
+	DefaultRelabelUnsatisfiable    = true
+	DefaultDepthConsistentCorridor = true
+)
+
 // configDefaultsByType maps a generated config DTO to the shipped fallbacks
 // its schema does not carry. The generated structs have no `default` struct
 // tags, so those fallbacks cannot live on the type the way they do for the
