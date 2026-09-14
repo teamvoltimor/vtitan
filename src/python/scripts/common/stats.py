@@ -16,47 +16,64 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
 
-def percentile(values: Sequence[float], q: float) -> float:
+def _as_array(values: Iterable[float]) -> np.ndarray:
+    """Coerce any iterable to a float array.
+
+    These replaced the ``statistics`` functions, which accepted ANY iterable,
+    so call sites legitimately pass views like ``dict.values()``. numpy rejects
+    those, and the failure surfaced as a ``TypeError`` raised deep inside
+    ``np.median`` rather than at the call. Materialising here also makes the
+    two-percentile helpers safe against generators, which they were not.
+    """
+    return np.asarray(list(values), dtype=float)
+
+
+def percentile(values: Iterable[float], q: float) -> float:
     """Linear-interpolated percentile ``q`` (0-1) of ``values``."""
-    if not values:
+    arr = _as_array(values)
+    if arr.size == 0:
         return math.nan
-    return float(np.percentile(values, q * 100))
+    return float(np.percentile(arr, q * 100))
 
 
-def fmt_p50_p90(values: Sequence[float], unit: str = "m") -> str:
+def fmt_p50_p90(values: Iterable[float], unit: str = "m") -> str:
     """`p50 / p90` for a sample, or a dash placeholder when it is empty."""
-    if not values:
+    arr = _as_array(values)
+    if arr.size == 0:
         return "  --  "
-    return f"{percentile(values, 0.5):.2f} / {percentile(values, 0.9):.2f} {unit}"
+    return f"{percentile(arr, 0.5):.2f} / {percentile(arr, 0.9):.2f} {unit}"
 
 
-def median(values: Sequence[float]) -> float:
+def median(values: Iterable[float]) -> float:
     """Median of ``values``."""
-    if not values:
+    arr = _as_array(values)
+    if arr.size == 0:
         return math.nan
-    return float(np.median(values))
+    return float(np.median(arr))
 
 
-def fmean(values: Sequence[float]) -> float:
+def fmean(values: Iterable[float]) -> float:
     """Arithmetic mean of ``values`` (``statistics.fmean``'s replacement)."""
-    if not values:
+    arr = _as_array(values)
+    if arr.size == 0:
         return math.nan
-    return float(np.mean(values))
+    return float(np.mean(arr))
 
 
-def mean(values: Sequence[float]) -> float:
+def mean(values: Iterable[float]) -> float:
     """Alias of :func:`fmean`, matching ``statistics.mean``'s spelling."""
     return fmean(values)
 
 
-def pstdev(values: Sequence[float]) -> float:
+def pstdev(values: Iterable[float]) -> float:
     """Population standard deviation of ``values`` (``statistics.pstdev``)."""
-    if not values:
+    arr = _as_array(values)
+    if arr.size == 0:
         return math.nan
-    return float(np.std(values))
+    return float(np.std(arr))
 
 
 def nearest_by_time[T](

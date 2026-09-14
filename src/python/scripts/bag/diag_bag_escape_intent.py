@@ -40,8 +40,11 @@ Usage::
 
 from __future__ import annotations
 
+import sys
 from collections import Counter
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, elapsed_seconds, open_reader
 from scripts.common.stats import mean
