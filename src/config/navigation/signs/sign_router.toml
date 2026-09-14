@@ -402,8 +402,23 @@ sign_deform_speed_threshold_m = 0.02
 explore_lap_speed_frac = 1.0
 
 # Refuted experiments, kept configurable and OFF
-# Retrace on escape: REFUTED (see steer_cap_from_commit_distance's note in
-# corridor_follower.toml -- same session, same 640-case sweep).
+# Retrace on escape: REFUTED, but this note cited the WRONG evidence until
+# 2026-09-14. It pointed at steer_cap_from_commit_distance's 640-case sweep in
+# corridor_follower.toml, which is the OPEN Challenge space -- Open has no
+# signs and retrace was gated on sign_router presence at the time, so it was
+# inert in that sweep and could not have been refuted by it.
+#
+# The real evidence is 6102224f: retrace halves wall strikes (13 -> 7) but
+# gives most of the sign gain back (41 -> 53), "because backing straight out
+# does not reposition the chassis and the forward re-approach repeats the line
+# that just failed". Caveat on THAT too: the arms (diag_sign_sweep.py's
+# `blind-retrace`) force blind=True AND escape_mask_radius=0.0, so retrace has
+# never been measured in the shipped configuration (mask on, sighted).
+#
+# What it IS, since two other files got this wrong: a steering substitution
+# inside an already-decided reverse leg (~21.6 cm), re-aimed at a breadcrumb
+# 0.25 m back. NOT a decline-the-pass or re-approach primitive -- it arranges
+# no second attempt and does not extend the manoeuvre.
 retrace_escape = false
 retrace_dist_m = 0.25
 retrace_steer_gain_deg = 55.0

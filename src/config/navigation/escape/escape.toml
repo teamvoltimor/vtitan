@@ -167,10 +167,24 @@ obstacles_escape_side_follows_committed_sign = true
 # OPEN QUESTION, and the operator's rule is what opens it. Below this floor the
 # code falls through and takes the OTHER side, on the reasoning that a
 # wrong-side pass is cheaper than driving into a wall. That reasoning is dead:
-# the wrong-side pass ends the round, so it is not cheaper than anything. The
-# answer that satisfies both "pass on the correct side" and "do not touch the
-# pillar" is a third one the fall-through does not have -- decline the pass and
-# re-approach, which is what `sign_router.retrace_escape` provides. Deliberately
-# NOT turned on in the same change as the flag above, so the first hardware
-# round can attribute what it sees to one behaviour.
+# the wrong-side pass ends the round, so it is not cheaper than anything.
+#
+# CORRECTED 2026-09-14, an earlier revision of this note was wrong: the third
+# option is NOT `sign_router.retrace_escape`. That flag only substitutes the
+# steering inside an already-decided 21.6 cm reverse leg (k_turn_max_s 1.08 at
+# rev_speed -0.20); it has no decline semantics, arranges no second attempt,
+# and does not extend the manoeuvre. It was MEASURED AND REJECTED in 6102224f:
+# wall strikes 13 -> 7 but sign collisions 41 -> 53, "because backing straight
+# out does not reposition the chassis and the forward re-approach repeats the
+# line that just failed". (That measurement ran blind with the mask OFF, a
+# configuration that does not ship, so it does not transfer cleanly here --
+# but it is the evidence, NOT the 640-case Open sweep this file's sibling note
+# in sign_router.toml cites, where retrace was inert for want of a sign.)
+#
+# The cheapest shape that is correct under the operator's rule is a straight
+# reverse (steering = 0.0) instead of the fall-through: it neither topples the
+# pillar nor displaces the chassis toward the wrong side, needs no new state,
+# and survives _maybe_escalate unchanged (`abs(steering) * side if steering`
+# keeps a zero-steer manoeuvre at zero). NOT done in the same round as the flag
+# above, so the first hardware round can attribute what it sees.
 escape_side_override_min_clearance_m = 0.12

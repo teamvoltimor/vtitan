@@ -788,11 +788,14 @@ class CollisionAvoidanceController:
                     # The fall-through then takes the OTHER side, which the
                     # operator's rule says ends the round (a wrong-side pass is
                     # not a deduction). So neither branch here is actually
-                    # right when the wanted side is shut -- the answer is to
-                    # decline the pass and re-approach, which lives in
-                    # `sign_router.retrace_escape` and ships off. Left as-is
-                    # deliberately; see escape.toml's note on
-                    # escape_side_override_min_clearance_m.
+                    # right when the wanted side is shut.
+                    #
+                    # `sign_router.retrace_escape` is NOT the missing third
+                    # option -- it only re-aims the steering inside a reverse
+                    # leg that is already 21.6 cm long, and it was measured and
+                    # rejected. The candidate is a straight reverse here
+                    # (steering 0.0). Left as-is deliberately; see escape.toml
+                    # on escape_side_override_min_clearance_m.
                 if left_clear != right_clear:
                     # Swing left (negative steering while reversing) when the left
                     # is clearer; swing right (positive) when the right is clearer.
