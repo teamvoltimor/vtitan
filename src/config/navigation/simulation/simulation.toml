@@ -44,7 +44,29 @@ obstacles_inner_wall_terminal = true
 # from a recorded bag rather than left at a guess. It matters more than it
 # looks: a dropout is substituted with MAX RANGE, which reads as "this side is
 # wide open" to the direction estimator.
-lidar_invalid_ray_rate = 0.01
+lidar_invalid_ray_rate = 0.095
+
+# Chassis occlusion of the LIDAR, MEASURED 2026-09-14 over 5,763,600 real rays
+# from /scan on three of the 2026-09-13/14 rounds. The sensor is blind in two
+# bands off the front corners, and the simulator modelled none of it.
+#
+# At 5 degree resolution, dropout + sub-floor sum to essentially 100% across
+# |bearing| 25-60 deg on BOTH sides: -35..-30 reads 56.3% + 43.7%, +30..+35
+# reads 54.6% + 45.4%, -50..-45 and +45..+50 both read 80.6% + 19.4%. Outside
+# those bands the sweep is clean: 9.5% dropout, 0.13% sub-floor.
+#
+# So this is GEOMETRY, not noise, and raising lidar_invalid_ray_rate alone
+# cannot reproduce it. The 20-25 and 60-65 deg edges are partial (53-77%
+# unusable) and are deliberately left out, making this the conservative core.
+#
+# Why it matters beyond fidelity: the side-clearance comparison that picks the
+# K-turn's side reads sectors 45..135 and -135..-45, whose inner edges sit
+# inside these bands, and takes a MIN over the sector.
+lidar_occlusion_min_deg = 25.0
+lidar_occlusion_max_deg = 60.0
+lidar_occlusion_dropout_rate = 0.689
+lidar_occlusion_self_return_m = 0.0207
+lidar_occlusion_self_return_std_m = 0.0052
 
 # Confidence stamped on emulated camera detections. Must stay above the sign
 # router's min_confidence or no emulated detection would ever be accepted.

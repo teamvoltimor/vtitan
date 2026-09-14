@@ -20,7 +20,27 @@
     },
     "lidar_invalid_ray_rate": {
       "type": "number",
-      "description": "Fraction of LIDAR rays returning no measurement, emitted as NaN/inf so the sanitising path the real driver uses is actually exercised.  A placeholder. Slamtec drivers emit these off dark or shallow-incidence surfaces and the true rate depends on the mat, so this is worth measuring from a recorded bag rather than left at a guess. It matters more than it looks: a dropout is substituted with MAX RANGE, which reads as \"this side is wide open\" to the direction estimator."
+      "description": "Fraction of LIDAR rays OUTSIDE the chassis-occlusion bands that return no measurement, emitted as NaN/inf so the sanitising path the real driver uses is actually exercised. MEASURED 2026-09-14, no longer a placeholder: 5,763,600 rays from /scan over three of the 2026-09-13/14 hardware rounds give 9.5% outside the bands (25.4% over the whole sweep, but that figure is dominated by the bands and must not be applied uniformly). Was 0.01, a guess that understated the real rate by ~10x. It matters more than it looks: a dropout is substituted with MAX RANGE, which reads as \"this side is wide open\" to the direction estimator."
+    },
+    "lidar_occlusion_min_deg": {
+      "type": "number",
+      "description": "Inner edge, in degrees off the nose, of the two bands where the chassis occludes the LIDAR. Applied symmetrically, so the bands are [min, max] and [-max, -min]. MEASURED 2026-09-14 at 5 degree resolution over 5.76M real rays: dropout and sub-floor returns sum to essentially 100% across |bearing| 25-60 deg, i.e. the sensor returns nothing usable there at all, against 9.5% dropout and 0.13% sub-floor everywhere else. The edges 20-25 and 60-65 deg are partial (53-77% unusable) and are deliberately NOT modelled, so this is the conservative core of the effect. Note the config already declared blind wedges at +-120-160 deg for the REAR mount occlusion; these front bands were undeclared and unmodelled until now."
+    },
+    "lidar_occlusion_max_deg": {
+      "type": "number",
+      "description": "Outer edge, in degrees off the nose, of the chassis-occlusion bands. See lidar_occlusion_min_deg."
+    },
+    "lidar_occlusion_dropout_rate": {
+      "type": "number",
+      "description": "Fraction of rays inside an occlusion band that return nothing at all. MEASURED: of 1,120,700 real rays in |bearing| 25-60 deg, 68.9% were non-finite. The remaining 31.1% are chassis reflections, modelled by lidar_occlusion_self_return_m."
+    },
+    "lidar_occlusion_self_return_m": {
+      "type": "number",
+      "description": "Mean range of the chassis reflection seen inside an occlusion band. MEASURED: of the 31.1% of band rays that DO return, 99.7% read below min_valid_range_m (0.044), with p5 0.0108, p50 0.0207, p95 0.0280, min 0.0047, max 0.0435. This is the p50. These returns exist to exercise the min_valid_range_m filter, which is the whole point: the simulator used to clip every short ray to LIDAR_MIN_RANGE (0.045), and since 0.045 > 0.044 that made them survive the filter as valid 4.5 cm obstacles, the exact opposite of what the hardware does with them."
+    },
+    "lidar_occlusion_self_return_std_m": {
+      "type": "number",
+      "description": "Standard deviation of the chassis reflection range. MEASURED: derived from the p5-p95 span (0.0108 to 0.0280) of the real distribution, which is 3.29 sigma for a normal."
     },
     "detection_confidence": {
       "type": "number",
@@ -68,6 +88,11 @@
     "start_collision_grace_s",
     "obstacles_inner_wall_terminal",
     "lidar_invalid_ray_rate",
+    "lidar_occlusion_min_deg",
+    "lidar_occlusion_max_deg",
+    "lidar_occlusion_dropout_rate",
+    "lidar_occlusion_self_return_m",
+    "lidar_occlusion_self_return_std_m",
     "detection_confidence",
     "collision_margin_m",
     "axis_align_tolerance",

@@ -53,15 +53,26 @@ class _SimulatorConstants:
     control_hz: float
     control_dt: float
     lidar_invalid_ray_rate: float
+    lidar_occlusion_min_rad: float
+    lidar_occlusion_max_rad: float
+    lidar_occlusion_dropout_rate: float
+    lidar_occlusion_self_return_m: float
+    lidar_occlusion_self_return_std_m: float
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
         tuning = get_tuning(tuning)
         control_hz = tuning.control.control_hz
+        sim = tuning.simulation
         return cls(
             control_hz=control_hz,
             control_dt=1.0 / control_hz,
-            lidar_invalid_ray_rate=tuning.simulation.lidar_invalid_ray_rate,
+            lidar_invalid_ray_rate=sim.lidar_invalid_ray_rate,
+            lidar_occlusion_min_rad=math.radians(sim.lidar_occlusion_min_deg),
+            lidar_occlusion_max_rad=math.radians(sim.lidar_occlusion_max_deg),
+            lidar_occlusion_dropout_rate=sim.lidar_occlusion_dropout_rate,
+            lidar_occlusion_self_return_m=sim.lidar_occlusion_self_return_m,
+            lidar_occlusion_self_return_std_m=sim.lidar_occlusion_self_return_std_m,
         )
 
 
@@ -160,6 +171,7 @@ class SimulatedHardwareGateway:
         # Full 360 sweep, robot frame, 0 = forward, +pi/2 = left, -pi/2 = right.
         self._angles = np.linspace(-math.pi, math.pi, lidar_rays)
         self._angles_list = self._angles.tolist()
+        self._init_lidar_occlusion()
         # The bearings never change, so the tuple every LidarScan carries is
         # built once here rather than per tick. Besides saving the rebuild, it
         # gives consumers a STABLE object to key a per-fan cache on -- which is
@@ -590,6 +602,98 @@ class SimulatedHardwareGateway:
         self._state = replace(s, x=nx, y=ny, yaw=s.yaw + heading_rad)
         self._refresh_sensors()
 
+    def _init_lidar_occlusion(self) -> None:
+        """Resolve which rays the chassis blocks, once per gateway.
+
+        Symmetric about the nose and fixed for the life of the gateway, so the
+        mask is built here rather than rebuilt every sweep. The values it reads
+        are documented in `simulation.toml`; what they DO is in
+        `_apply_lidar_sensor_model`.
+
+        Read from `self.tuning`, NOT from `context.constants`. The context is
+        built from the process-default tuning unless a caller threads one
+        through, so a sweep overriding these would have silently measured its
+        own control -- the inert-knob failure this repo keeps rediscovering.
+        """
+        occl = self.tuning.simulation
+        bearing = np.abs(self._angles)
+        self._lidar_occluded = (bearing >= math.radians(occl.lidar_occlusion_min_deg)) & (
+            bearing <= math.radians(occl.lidar_occlusion_max_deg)
+        )
+        self._lidar_occlusion_dropout_rate = occl.lidar_occlusion_dropout_rate
+        self._lidar_occlusion_self_return_m = occl.lidar_occlusion_self_return_m
+        self._lidar_occlusion_self_return_std_m = occl.lidar_occlusion_self_return_std_m
+
+    def _apply_lidar_sensor_model(self, ranges: np.ndarray) -> np.ndarray:
+        """Turn raycast truth into what the C1 actually reports.
+
+        Three effects, all MEASURED 2026-09-14 against 5,763,600 real rays from
+        ``/scan`` over three of the 2026-09-13/14 rounds. Before this the model
+        was Gaussian noise plus a uniform 1% dropout, far cleaner than the real
+        sensor in exactly the 0.04-0.10 m band where ``contact_dist`` and the
+        escape gates live -- which is why the corpus could not arbitrate them.
+
+        1. CHASSIS OCCLUSION. Two bands off the front corners, |bearing| 25-60
+           deg, where dropout and sub-floor returns sum to essentially 100% of
+           real rays: the sensor returns nothing usable there. 68.9% are
+           non-finite; the rest are reflections off the chassis itself, tightly
+           clustered (p50 0.0207 m, p5-p95 0.0108-0.0280). GEOMETRY, not noise,
+           so a uniform dropout rate cannot stand in for it.
+
+        2. NO LOWER CLIP AT ``LIDAR_MIN_RANGE``. The old code clamped to 0.045
+           while the sector filter keeps ``r > min_valid_range_m`` = 0.044.
+           Since 0.045 > 0.044, every ray that should have read "too close to
+           measure" survived as a valid 4.5 cm obstacle -- the OPPOSITE of the
+           hardware, which discards them. Clipping at 0 lets that filter be
+           exercised the way it is on the robot.
+
+        3. DROPOUT OUTSIDE THE BANDS at the measured 9.5% rather than a 1%
+           guess. The 25.4% whole-sweep figure is dominated by the bands and
+           must NOT be applied uniformly.
+
+        Occlusion is applied AFTER noise deliberately: the 30 mm sigma is a
+        wall-ranging figure and does not describe a surface 2 cm from the lens.
+        """
+        if self._lidar_noise_std > 0.0:
+            ranges = ranges + self._rng.normal(0.0, self._lidar_noise_std, ranges.shape)
+            # Lower bound 0.0, not LIDAR_MIN_RANGE -- see (2) above.
+            ranges = np.clip(ranges, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
+        if self._lidar_invalid_rate > 0.0:
+            # Slamtec drivers emit no-return rays as NaN/inf, most often off
+            # dark or shallow-incidence surfaces. ``_lidar_callback`` in the
+            # ROS2 node substitutes max range for them -- a filter that has
+            # never once seen a value it was written for, because this
+            # simulator produced only finite ranges.
+            #
+            # Excludes the occluded bands, which get their own rate below; a ray
+            # cannot be dropped twice and the band rate is not an increment.
+            invalid = (self._rng.random(ranges.shape) < self._lidar_invalid_rate) & ~self._lidar_occluded
+            ranges = np.where(invalid, np.inf, ranges)
+        if self._lidar_occlusion_dropout_rate > 0.0:
+            drop = self._rng.random(ranges.shape) < self._lidar_occlusion_dropout_rate
+            self_return = self._rng.normal(
+                self._lidar_occlusion_self_return_m,
+                self._lidar_occlusion_self_return_std_m,
+                ranges.shape,
+            )
+            # Bounded at +-3 sigma, which is 0.0051-0.0363 m at the measured
+            # mean and spread, against a real envelope of 0.0047-0.0435. Derived
+            # from the two configured values rather than restated as literals.
+            #
+            # NOT clipped to LIDAR_MIN_RANGE (0.045): that sits ABOVE the
+            # min_valid_range_m floor of 0.044, so it would hand the filter a
+            # valid 4.5 cm obstacle -- precisely the defect (2) removes. The
+            # bound has to stay below the floor, and the measured distribution
+            # already does.
+            span = 3.0 * self._lidar_occlusion_self_return_std_m
+            self_return = np.clip(
+                self_return,
+                max(0.0, self._lidar_occlusion_self_return_m - span),
+                self._lidar_occlusion_self_return_m + span,
+            )
+            ranges = np.where(self._lidar_occluded, np.where(drop, np.inf, self_return), ranges)
+        return ranges
+
     def _refresh_sensors(self) -> None:
         # Rays leave the SENSOR, not the chassis centre. `_state.x/y` is the
         # centre (kinematics: "(x, y) tracks the chassis centre") while the real
@@ -614,17 +718,7 @@ class SimulatedHardwareGateway:
             self._state.yaw,
             self._angles,
         )
-        if self._lidar_noise_std > 0.0:
-            ranges = ranges + self._rng.normal(0.0, self._lidar_noise_std, ranges.shape)
-            ranges = np.clip(ranges, RobotSpecs.LIDAR_MIN_RANGE, RobotSpecs.LIDAR_MAX_RANGE)
-        if self._lidar_invalid_rate > 0.0:
-            # Slamtec drivers emit no-return rays as NaN/inf, most often off
-            # dark or shallow-incidence surfaces. ``_lidar_callback`` in the
-            # ROS2 node substitutes max range for them -- a filter that has
-            # never once seen a value it was written for, because this
-            # simulator produced only finite ranges.
-            invalid = self._rng.random(ranges.shape) < self._lidar_invalid_rate
-            ranges = np.where(invalid, np.inf, ranges)
+        ranges = self._apply_lidar_sensor_model(ranges)
         self._scan_ranges = sanitize_lidar_ranges(ranges)
         self._last_min_range = min(self._scan_ranges)
 
