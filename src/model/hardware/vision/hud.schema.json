@@ -19,6 +19,8 @@
     },
     "text_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -26,6 +28,8 @@
     },
     "label_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -33,6 +37,8 @@
     },
     "accent_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -40,6 +46,8 @@
     },
     "border_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -47,6 +55,8 @@
     },
     "panel_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -74,6 +84,8 @@
     },
     "radar_bg_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -85,6 +97,8 @@
     },
     "radar_ring_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -92,6 +106,8 @@
     },
     "radar_crosshair_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -99,6 +115,8 @@
     },
     "radar_point_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },
@@ -106,6 +124,8 @@
     },
     "radar_robot_rgb": {
       "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "type": "integer"
       },

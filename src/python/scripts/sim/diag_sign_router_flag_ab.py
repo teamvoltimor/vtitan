@@ -83,6 +83,11 @@ def run_case(payload: tuple[str, int, str, bool, int, str, bool]) -> tuple[bool,
         result.collided,
         result.pass_side_violation,
         result.timed_out,
+        # Case identity, so the two arms can be PAIRED. Both arms run the same
+        # (scenario, seed) list, and an unpaired test throws that away: the
+        # between-scenario variance dwarfs the effect, and a flag worth a few
+        # points reads flat. See the McNemar block in main().
+        (Path(path).name, seed),
     )
 
 
@@ -102,11 +107,18 @@ def main() -> int:
     )
     parser.add_argument("--seeds", type=int, default=6)
     parser.add_argument("--limit", type=int, default=0, help="Scenarios to use; 0 means all.")
+    parser.add_argument(
+        "--scenarios",
+        default="",
+        help="Directory of scenarios; defaults to the 32 Obstacles fixtures. Point it at "
+        ".corpus/obstacles/scenarios for the generated corpus, which carries the scenario "
+        "diversity extra seeds on the same fixtures cannot buy.",
+    )
     parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
     parser.add_argument("--max-steps", type=int, default=OBSTACLES_MAX_STEPS)
     args = parser.parse_args()
 
-    paths = scenario_paths(_FIXTURES)
+    paths = scenario_paths(Path(args.scenarios) if args.scenarios else _FIXTURES)
     if args.limit:
         paths = paths[: args.limit]
     arms = (False, True)
@@ -134,6 +146,45 @@ def main() -> int:
             f"{str(value):>20} {len(rows):>4} {sum(r[1] for r in rows):>8} {sum(r[2] for r in rows):>6} "
             f"{sum(r[3] for r in rows):>9} {sum(r[4] for r in rows):>10} {sum(r[5] for r in rows):>6}"
         )
+
+    # PAIRED view. Both arms ran the same (scenario, seed) cases, so the only
+    # cases carrying information about the flag are the ones where the two arms
+    # DISAGREE -- that is McNemar's test. An unpaired chi-square on the same
+    # data spends its power on between-scenario variance that the pairing
+    # already cancels, which is how a real few-point effect reads flat.
+    by_case: dict[tuple[str, int], dict[bool, tuple]] = {}
+    for r in results:
+        by_case.setdefault(r[6], {})[r[0]] = r
+    both = {k: v for k, v in by_case.items() if len(v) == 2}
+    print()
+    print(f"PAIRED over {len(both)} cases run in both arms")
+    print(f"{'metric':>10} {'only ON':>8} {'only OFF':>9} {'both':>6} {'neither':>8} {'p (McNemar)':>12}")
+    for idx, name, good in ((1, "in_time", True), (2, "laps3", True), (3, "collided", False), (4, "pass_side", False)):
+        on_only = off_only = both_n = neither = 0
+        for v in both.values():
+            a, b = bool(v[True][idx]), bool(v[False][idx])
+            if not good:
+                a, b = not a, not b
+            if a and b:
+                both_n += 1
+            elif a:
+                on_only += 1
+            elif b:
+                off_only += 1
+            else:
+                neither += 1
+        n = on_only + off_only
+        # Exact binomial on the discordant pairs; scipy is not a hard dep here.
+        if n == 0:
+            p = float("nan")
+        else:
+            from math import comb
+
+            k = min(on_only, off_only)
+            p = min(1.0, 2.0 * sum(comb(n, i) for i in range(k + 1)) / (2.0**n))
+        print(f"{name:>10} {on_only:>8} {off_only:>9} {both_n:>6} {neither:>8} {p:>12.4f}")
+    print("  'only ON' = the flag turned this case good; 'only OFF' = it broke it.")
+    print("  Only those two columns carry information; both/neither are ties.")
     return 0
 
 

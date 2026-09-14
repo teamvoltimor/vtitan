@@ -25,22 +25,21 @@ from typing import TYPE_CHECKING, Self
 
 import cv2
 import numpy as np
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.camera.rpicam_schema import HardwareCameraRpicam
+from shared.domain.models import CameraSize, ImageRotation
 
 from src.hardware.camera.base import (
-    Config as CameraConfig,
     Driver as CameraDriver,
     Frame,
 )
-from src.hardware.settings_base import CONFIG_DIR
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY
 
 if TYPE_CHECKING:
     from types import TracebackType
-
-    from shared.domain.models import CameraSize
 
 configure_json_logging()
 log = logging.getLogger(__name__)
@@ -154,93 +153,79 @@ _DENOISE_VALUES = {
 }
 
 
-class Config(CameraConfig):
-    """Capture settings, sharing the CAMERA_* variables with the Picamera2 driver."""
+class Config(HardwareBaseSettings, HardwareCameraRpicam):
+    """Capture settings, sharing the CAMERA_* variables with the Picamera2 driver.
+
+    Subclasses the generated DTO for the file-backed keys; the four
+    never-committed tuning knobs (autofocus speed, manual shutter, fixed AWB
+    gains, flicker period) stay wrapper-only, and the generated string-valued
+    enum keys are re-cast to their typed enums for ``--flag`` construction.
+    """
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "camera" / "rpicam.toml")
 
-    timeout_sec: float = Field(
-        default=5.0, validation_alias=AliasChoices("CAMERA_READ_TIMEOUT_SEC", "camera_read_timeout_sec")
-    )
+    camera_af_speed: AfSpeed = AfSpeed.NORMAL
+    """Passed as ``--autofocus-speed``. Only applies when `camera_af_mode` is AUTO or CONTINUOUS."""
+
+    camera_exposure_time_us: int | None = None
     """
-    How long to wait for a complete frame before reporting the stream dead.
+    Manual shutter time in microseconds, passed as ``--shutter``. Set together with `camera_analogue_gain` to disable auto-exposure entirely; leave unset to keep AE (biased by `camera_exposure_mode`) enabled.
     """
 
-    af_mode: AfMode = Field(
-        default=AfMode.CONTINUOUS, validation_alias=AliasChoices("CAMERA_AF_MODE", "camera_af_mode")
-    )
+    camera_awb_gains: tuple[float, float] | None = None
     """
-    Passed as ``--autofocus-mode``. Defaults to CONTINUOUS to match rpicam-vid's own default; set MANUAL with `lens_position` to stop the lens hunting while the robot drives.
+    Fixed red and blue gains, passed as ``--awbgains R,B``. Pins colour exactly instead of picking a named preset that may not match how the detector's training images were captured; read the gains auto AWB settles on for the venue, then set them here. Setting this disables auto AWB, so `camera_awb_mode` no longer applies.
     """
 
-    lens_position: float | None = Field(
-        default=None, validation_alias=AliasChoices("CAMERA_LENS_POSITION", "camera_lens_position")
-    )
+    camera_flicker_period_us: int | None = None
     """
-    Dioptres (1/distance_m), passed as ``--lens-position``. Only sent when `af_mode` is MANUAL, because rpicam-vid ignores it in the AF modes.
+    Mains flicker period in microseconds, passed as ``--flicker-period``. Artificial venue lighting pulses at twice the mains frequency, so 50 Hz mains needs 10000 (10 ms) and 60 Hz needs 8333; leave unset outdoors. Short shutters are what make the banding visible, so this matters more as `camera_exposure_time_us` comes down.
     """
 
-    af_speed: AfSpeed = Field(
-        default=AfSpeed.NORMAL, validation_alias=AliasChoices("CAMERA_AF_SPEED", "camera_af_speed")
-    )
-    """Passed as ``--autofocus-speed``. Only applies when `af_mode` is AUTO or CONTINUOUS."""
+    @field_validator("camera_af_mode")
+    @classmethod
+    def _as_af_mode(cls, value: str) -> AfMode:
+        return AfMode(value)
 
-    exposure_mode: ExposureMode = Field(
-        default=ExposureMode.NORMAL, validation_alias=AliasChoices("CAMERA_EXPOSURE_MODE", "camera_exposure_mode")
-    )
-    """SHORT biases auto-exposure toward shorter exposure times (less motion blur, more noise)."""
+    @field_validator("camera_exposure_mode")
+    @classmethod
+    def _as_exposure_mode(cls, value: str) -> ExposureMode:
+        return ExposureMode(value)
 
-    exposure_time_us: int | None = Field(
-        default=None, validation_alias=AliasChoices("CAMERA_EXPOSURE_TIME_US", "camera_exposure_time_us")
-    )
-    """
-    Manual shutter time in microseconds, passed as ``--shutter``. Set together with `analogue_gain` to disable auto-exposure entirely; leave unset to keep AE (biased by `exposure_mode`) enabled.
-    """
+    @field_validator("camera_metering_mode")
+    @classmethod
+    def _as_metering_mode(cls, value: str) -> MeteringMode:
+        return MeteringMode(value)
 
-    analogue_gain: float = Field(
-        default=1.0, validation_alias=AliasChoices("CAMERA_ANALOGUE_GAIN", "camera_analogue_gain")
-    )
-    """Sensor gain, passed as ``--gain``. Only fixed when `exposure_time_us` is also set; otherwise AE is free to adjust it."""
+    @field_validator("camera_awb_mode")
+    @classmethod
+    def _as_awb_mode(cls, value: str) -> AwbMode:
+        return AwbMode(value)
 
-    awb_mode: AwbMode = Field(default=AwbMode.AUTO, validation_alias=AliasChoices("CAMERA_AWB_MODE", "camera_awb_mode"))
-    """
-    Passed as ``--awb``. Defaults to AUTO to match rpicam-vid's own default; pin it to the venue's lighting so the downstream red/green sign thresholds see a stable hue.
-    """
+    @field_validator("camera_noise_reduction_mode")
+    @classmethod
+    def _as_noise_reduction_mode(cls, value: str) -> NoiseReductionMode:
+        return NoiseReductionMode(value)
 
-    noise_reduction_mode: NoiseReductionMode = Field(
-        default=NoiseReductionMode.AUTO,
-        validation_alias=AliasChoices("CAMERA_NOISE_REDUCTION_MODE", "camera_noise_reduction_mode"),
-    )
-    """Passed as ``--denoise``. HIGH_QUALITY adds latency the control loop can't afford."""
+    def resolved_flips(self) -> tuple[bool, bool]:
+        """Effective (hflip, vflip) once ``camera_inverted`` is folded in.
 
-    sharpness: float = Field(default=1.0, validation_alias=AliasChoices("CAMERA_SHARPNESS", "camera_sharpness"))
-    """Passed as ``--sharpness``. 1.0 is rpicam-vid's neutral; above it sharpens, 0 disables."""
+        An upside-down mount is a 180 degree rotation, which is exactly both
+        mirrors at once. Expressing it that way rather than as an explicit
+        rotation keeps it composable with an extra rotation and works on
+        sensors whose driver exposes the flips but not arbitrary rotation.
+        """
+        return self.camera_hflip != self.camera_inverted, self.camera_vflip != self.camera_inverted
 
-    awb_gains: tuple[float, float] | None = Field(
-        default=None, validation_alias=AliasChoices("CAMERA_AWB_GAINS", "camera_awb_gains")
-    )
-    """
-    Fixed red and blue gains, passed as ``--awbgains R,B``. Pins colour exactly instead of picking a named preset that may not match how the detector's training images were captured; read the gains auto AWB settles on for the venue, then set them here. Setting this disables auto AWB, so `awb_mode` no longer applies.
-    """
-
-    metering_mode: MeteringMode = Field(
-        default=MeteringMode.CENTRE, validation_alias=AliasChoices("CAMERA_METERING_MODE", "camera_metering_mode")
-    )
-    """Passed as ``--metering``. Ignored once `exposure_time_us` turns auto-exposure off."""
-
-    exposure_value: float = Field(
-        default=0.0, validation_alias=AliasChoices("CAMERA_EXPOSURE_VALUE", "camera_exposure_value")
-    )
-    """
-    Exposure compensation in stops, passed as ``--ev``. Positive lifts a scene the meter is under-exposing (a frame dominated by white mat), at the cost of a longer shutter. Ignored once `exposure_time_us` turns auto-exposure off.
-    """
-
-    flicker_period_us: int | None = Field(
-        default=None, validation_alias=AliasChoices("CAMERA_FLICKER_PERIOD_US", "camera_flicker_period_us")
-    )
-    """
-    Mains flicker period in microseconds, passed as ``--flicker-period``. Artificial venue lighting pulses at twice the mains frequency, so 50 Hz mains needs 10000 (10 ms) and 60 Hz needs 8333; leave unset outdoors. Short shutters are what make the banding visible, so this matters more as `exposure_time_us` comes down.
-    """
+    def get_resolution(self) -> CameraSize:
+        """Get current resolution and orientation metadata."""
+        return CameraSize(
+            width_px=self.camera_width,
+            height_px=self.camera_height,
+            rotation_deg=ImageRotation.CW_180 if self.camera_inverted else ImageRotation.NONE,
+            hflip=self.camera_hflip,
+            vflip=self.camera_vflip,
+        )
 
     @model_validator(mode="after")
     def _manual_focus_needs_a_lens_position(self) -> Self:
@@ -250,7 +235,7 @@ class Config(CameraConfig):
         previous run parked it, giving a focus that silently varies run to
         run -- the exact failure this mode exists to remove.
         """
-        if self.af_mode is AfMode.MANUAL and self.lens_position is None:
+        if self.camera_af_mode is AfMode.MANUAL and self.camera_lens_position is None:
             msg = "camera_af_mode = 'manual' requires camera_lens_position (dioptres, 1/distance_m)."
             raise ValueError(msg)
         return self
@@ -263,10 +248,10 @@ class Config(CameraConfig):
         config would read as though a preset were in force while the gains
         actually decided the colour.
         """
-        if self.awb_gains is not None and self.awb_mode is not AwbMode.AUTO:
+        if self.camera_awb_gains is not None and self.camera_awb_mode is not AwbMode.AUTO:
             msg = (
                 f"camera_awb_gains overrides camera_awb_mode, so setting both is contradictory: "
-                f"drop one (awb_mode is currently '{self.awb_mode.value}')."
+                f"drop one (awb_mode is currently '{self.camera_awb_mode.value}')."
             )
             raise ValueError(msg)
         return self
@@ -299,13 +284,13 @@ class Driver(CameraDriver):
             "-o",
             "-",
             "--width",
-            str(self.config.width),
+            str(self.config.camera_width),
             "--height",
-            str(self.config.height),
+            str(self.config.camera_height),
             "--framerate",
-            str(self.config.fps),
+            str(self.config.camera_fps),
             "--exposure",
-            self.config.exposure_mode.rpicam_value,
+            self.config.camera_exposure_mode.rpicam_value,
         ]
         if hflip:
             cmd.append("--hflip")
@@ -313,32 +298,42 @@ class Driver(CameraDriver):
             cmd.append("--vflip")
         # Fixed gains and a named preset are alternatives, not layers:
         # rpicam-vid ignores --awb once --awbgains is given.
-        if self.config.awb_gains is not None:
-            red, blue = self.config.awb_gains
+        if self.config.camera_awb_gains is not None:
+            red, blue = self.config.camera_awb_gains
             cmd += ["--awbgains", f"{red},{blue}"]
         else:
-            cmd += ["--awb", self.config.awb_mode.value]
-        if self.config.exposure_time_us is None:
+            cmd += ["--awb", self.config.camera_awb_mode.value]
+        if self.config.camera_exposure_time_us is None:
             # Metering and exposure compensation only steer auto-exposure, so
             # emitting them alongside a fixed --shutter would just be noise.
-            cmd += ["--metering", self.config.metering_mode.value, "--ev", str(self.config.exposure_value)]
-        if self.config.flicker_period_us is not None:
-            cmd += ["--flicker-period", f"{self.config.flicker_period_us}us"]
+            cmd += [
+                "--metering",
+                self.config.camera_metering_mode.value,
+                "--ev",
+                str(self.config.camera_exposure_value),
+            ]
+        if self.config.camera_flicker_period_us is not None:
+            cmd += ["--flicker-period", f"{self.config.camera_flicker_period_us}us"]
         cmd += [
             "--denoise",
-            self.config.noise_reduction_mode.rpicam_value,
+            self.config.camera_noise_reduction_mode.rpicam_value,
             "--sharpness",
-            str(self.config.sharpness),
+            str(self.config.camera_sharpness),
             "--autofocus-mode",
-            self.config.af_mode.value,
+            self.config.camera_af_mode.value,
         ]
-        if self.config.af_mode is AfMode.MANUAL:
-            if self.config.lens_position is not None:
-                cmd += ["--lens-position", str(self.config.lens_position)]
+        if self.config.camera_af_mode is AfMode.MANUAL:
+            if self.config.camera_lens_position is not None:
+                cmd += ["--lens-position", str(self.config.camera_lens_position)]
         else:
-            cmd += ["--autofocus-speed", self.config.af_speed.value]
-        if self.config.exposure_time_us is not None:
-            cmd += ["--shutter", str(self.config.exposure_time_us), "--gain", str(self.config.analogue_gain)]
+            cmd += ["--autofocus-speed", self.config.camera_af_speed.value]
+        if self.config.camera_exposure_time_us is not None:
+            cmd += [
+                "--shutter",
+                str(self.config.camera_exposure_time_us),
+                "--gain",
+                str(self.config.camera_analogue_gain),
+            ]
         return cmd
 
     def connect(self) -> None:
@@ -366,7 +361,7 @@ class Driver(CameraDriver):
             msg = "Camera not connected; call connect() first."
             raise RuntimeError(msg)
 
-        deadline = time.monotonic() + self.config.timeout_sec
+        deadline = time.monotonic() + self.config.camera_read_timeout_sec
         while time.monotonic() < deadline:
             frame = self._take_frame()
             if frame is not None:
@@ -379,7 +374,7 @@ class Driver(CameraDriver):
                 raise RuntimeError(msg)
             self._buffer += chunk
 
-        msg = f"No frame within {self.config.timeout_sec}s."
+        msg = f"No frame within {self.config.camera_read_timeout_sec}s."
         raise RuntimeError(msg)
 
     def _take_frame(self) -> np.ndarray | None:

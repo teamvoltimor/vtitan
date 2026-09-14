@@ -42,7 +42,7 @@ class Driver(ABC_Driver):
                     "details": {
                         "width": self.config.width,
                         "height": self.config.height,
-                        "i2c_address": hex(self.config.i2c_address),
+                        "i2c_address": hex(self.config.i2c_address_int),
                         "i2c_bus": self.config.i2c_bus,
                     },
                 },
@@ -53,7 +53,9 @@ class Driver(ABC_Driver):
             self._i2c = busio.I2C(board.SCL, board.SDA)
 
             # Create display object
-            self._display = SSD1306_I2C(self.config.width, self.config.height, self._i2c, addr=self.config.i2c_address)
+            self._display = SSD1306_I2C(
+                self.config.width, self.config.height, self._i2c, addr=self.config.i2c_address_int
+            )
 
             # Clear display on startup
             self.clear()

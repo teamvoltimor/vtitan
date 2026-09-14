@@ -30,12 +30,13 @@ import rclpy
 from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray
 from PIL import Image, ImageDraw
-from pydantic import AliasChoices, Field, ValidationError
+from pydantic import ValidationError, field_validator
 from pydantic_settings import SettingsConfigDict
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from sensor_msgs.msg import Image as ImageMsg
 from shared.config.constants import TfFrames
+from shared.config.generated.hardware.display.oled_node_schema import HardwareDisplayOledNode
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32, String
 
@@ -62,28 +63,28 @@ NODE_NAME = "oled_display_node"
 """ROS2 node name for OLED display controller."""
 
 
-class NodeConfig(HardwareBaseSettings):
+class NodeConfig(HardwareBaseSettings, HardwareDisplayOledNode):
     """Node-level timing and backend selection, configurable via src/config/hardware/display/oled_node.toml.
 
     Matches every hardware driver's Config pattern. Timing fields were previously hardcoded
     as plain module constants, silently ignoring
     .env.example's documented UI_REFRESH_RATE_HZ entirely --
-    changing that value had zero effect.
+    changing that value had zero effect. Subclasses the generated DTO purely to attach the
+    TOML/env settings wiring; the field declarations (and their descriptions) are generated.
     """
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "display" / "oled_node.toml")
 
-    ui_refresh_rate_hz: float = Field(
-        default=10.0, validation_alias=AliasChoices("UI_REFRESH_RATE_HZ", "ui_refresh_rate_hz")
-    )
-    """Rate for updating display data (fast updates)."""
+    @field_validator("display_backend")
+    @classmethod
+    def _as_display_backend(cls, value: str) -> DisplayBackend:
+        """Keep the typed ``DisplayBackend`` the node selects its driver with.
 
-    display_backend: DisplayBackend = Field(
-        default=DisplayBackend.BLINKA, validation_alias=AliasChoices("DISPLAY_BACKEND", "display_backend")
-    )
-    """SSD1306 I2C backend -- blinka (Adafruit CircuitPython) or raw_i2c (direct /dev/i2c-N
-    ioctl, no Blinka/smbus2 dependency). See src/hardware/display/ssd1306/driver_raw_i2c.py
-    for why raw_i2c exists."""
+        The schema types the key as a plain string (it is a TOML value); the
+        node still wants the enum so the ``_DISPLAY_DRIVER_BY_BACKEND`` lookup
+        and ``.value`` logging stay typed.
+        """
+        return DisplayBackend(value)
 
 
 _node_config = NodeConfig()

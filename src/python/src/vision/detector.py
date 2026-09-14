@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING, Self
 
 import cv2
 import numpy as np
+from pydantic import field_validator
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.vision.detector_schema import HardwareVisionDetector
 from shared.domain.enums import GMR_CLASS_NAMES
 from shared.domain.models import BBox, Detection, SignColor
 
@@ -103,27 +105,32 @@ def _detection_from_bbox(color: SignColor, bbox: tuple[float, float, float, floa
     )
 
 
-class DetectorConfig(HardwareBaseSettings):
+class DetectorConfig(HardwareBaseSettings, HardwareVisionDetector):
     """Configuration for detector initialization.
 
     Injects model path and class-to-color mapping, decoupling the model from
-    hardcoded color names. ``class_to_color`` is always passed explicitly by
-    callers (it's derived from the model's class order). ``model_path`` is
-    normally passed explicitly too (real construction always names a
-    specific, backend-derived model), but its default is sourced from
-    src/config/hardware/vision/detector.toml rather than a bare literal, for the
-    test/debug callers that build a detector with no config at all (see
-    ``LocalYoloDetector.__init__`` and ``create_detector``) -- previously a
-    module constant (``DEFAULT_YOLO_MODEL_PATH = "yolov8n.pt"``) whose own
-    docstring already flagged it as a placeholder pending config sourcing.
+    hardcoded color names. Subclasses the generated DTO for the file-backed
+    keys; ``class_to_color`` stays wrapper-only because it is always passed
+    explicitly by callers (it's derived from the model's class order) and is
+    never a TOML key. ``model_path``'s TOML default is what the test/debug
+    callers that build a detector with no config at all fall back to (see
+    ``LocalYoloDetector.__init__`` and ``create_detector``).
     """
 
     model_config = SettingsConfigDict(env_prefix="detector_", toml_file=CONFIG_DIR / "vision" / "detector.toml")
 
-    model_path: str = "yolov8n.pt"
     class_to_color: dict[int, SignColor]
-    min_confidence: float = 0.45
-    output_format: BBoxFormat = BBoxFormat.NORMALIZED
+
+    @field_validator("output_format")
+    @classmethod
+    def _as_bbox_format(cls, value: str) -> BBoxFormat:
+        """Keep the typed ``BBoxFormat`` the Hailo path compares with ``is``.
+
+        The schema types the key as a plain string; ``HailoDetector.detect``
+        branches on ``output_format is BBoxFormat.NORMALIZED``, so the enum
+        identity must survive loading.
+        """
+        return BBoxFormat(value)
 
     def get_color(self, class_id: int) -> SignColor | None:
         """Get color for a class ID.

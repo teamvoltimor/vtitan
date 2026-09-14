@@ -3,19 +3,19 @@
 import logging
 import threading
 from threading import Thread
-from typing import override
+from typing import Self, override
 
 import serial
 import serial.tools.list_ports
 from adafruit_bno08x_rvc import BNO08x_RVC, RVCReadTimeoutError
-from pydantic import Field
+from pydantic import model_validator
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.imu.bno08x_uart_rvc_schema import HardwareImuBno08xUartRvc
 
 from src.hardware.imu.base import (
     RVCDriver as ABC_RVCDriver,
 )
 from src.hardware.imu.bno08x.utils import calculate_quaternion_from_euler
-from src.hardware.imu.config import QuaternionConfig
 from src.hardware.imu.readings import RVCReading
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
@@ -23,9 +23,16 @@ from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
+_VALID_EULER_SEQUENCES = frozenset({"xyz", "zyx", "xzy", "yzx", "zxy", "yxz"})
 
-class Config(HardwareBaseSettings):
-    """Configuration for BNO08x via UART RVC."""
+
+class Config(HardwareBaseSettings, HardwareImuBno08xUartRvc):
+    """Configuration for BNO08x via UART RVC.
+
+    Subclasses the generated DTO for the file-backed keys; ``port`` stays
+    wrapper-only because the device path is deliberately environment-only
+    (``BNO08X_UART_RVC_PORT``), not a committed TOML fact.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="bno08x_uart_rvc_",
@@ -35,31 +42,21 @@ class Config(HardwareBaseSettings):
         toml_file=CONFIG_DIR / "imu" / "bno08x_uart_rvc.toml",
     )
 
-    quaternion: QuaternionConfig = Field(default_factory=QuaternionConfig)
-
     port: str
     """Serial port for UART connection. If empty, the driver will attempt to auto-detect the port based on VID/PID."""
 
-    default_port: str = "/dev/ttyACM0"
-    """Fallback port when port is not configured."""
+    @model_validator(mode="after")
+    def _validate_euler_sequence(self) -> Self:
+        """Reject an unknown Euler order rather than silently mis-rotating.
 
-    baudrate: int = 115200
-    """Baud rate for UART communication. The BNO08x RVC library typically uses 115200 baud."""
-
-    poll_rate_hz: float = 100.0
-    """Polling rate in Hz for reading data from the IMU. Higher rates may increase CPU usage."""
-
-    serial_timeout: float = 1.0
-    """Timeout in seconds for serial communication.
-
-    Distinct from NavigationTuning.sensors.STALE_TIMEOUT_SEC: that gates how
-    old a cached reading may be before the navigator distrusts it, a
-    control-loop concern. This is a raw pyserial read/thread-join timeout, a
-    driver-internal implementation detail with no navigation meaning.
-    """
-
-    data_lock_timeout: float = 2.0
-    """Timeout in seconds for waiting on new data to be available."""
+        The shared generated ``Quaternion`` model carries no validator, so the
+        old hand-written ``QuaternionConfig`` check moves here.
+        """
+        sequence = self.quaternion.euler_sequence
+        if sequence not in _VALID_EULER_SEQUENCES:
+            msg = f"Invalid euler_sequence '{sequence}'. Valid options are: {_VALID_EULER_SEQUENCES}"
+            raise ValueError(msg)
+        return self
 
 
 class Driver(ABC_RVCDriver):

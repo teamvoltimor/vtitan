@@ -20,6 +20,7 @@ from rclpy.qos import qos_profile_sensor_data
 from rclpy.timer import Timer  # noqa: TC002
 from sensor_msgs.msg import Image, LaserScan
 from shared.config.constants import TfFrames
+from shared.config.generated.hardware.vision.node_schema import HardwareVisionNode
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import ScenarioType
 from std_msgs.msg import String
@@ -57,30 +58,21 @@ if TYPE_CHECKING:
     from src.hardware.hailo.base import Config as HailoConfig
 
 
-class Config(HardwareBaseSettings):
+class Config(HardwareBaseSettings, HardwareVisionNode):
     """Fallback defaults for VisionNode's ROS2 parameters.
 
     Sourced from src/config/hardware/vision/node.toml. ``rpi5_nodes.launch.py``
     still overrides these at launch time via ROS2 parameters (e.g. to select
     the hailo backend and direct camera capture) -- this only changes what a
-    node launched with no parameter overrides falls back to.
+    node launched with no parameter overrides falls back to. Subclasses the
+    generated DTO for the file-backed keys; the two debug-only toggles stay
+    wrapper-only because they are deliberately not committed TOML keys.
     """
 
     model_config = SettingsConfigDict(env_prefix="vision_node_", toml_file=CONFIG_DIR / "vision" / "node.toml")
 
-    camera_topic: str = "/camera/image_raw"
-    model_path: str = "yolov8n.pt"  # matches src/config/hardware/vision/node.toml
-    backend: str = "yolo"  # 'yolo' or 'hailo'
-    # 'direct' opens the camera in this process and feeds frames straight to
-    # the model -- no sensor_msgs/Image on the wire, which is what a race
-    # run wants. 'topic' keeps the subscription, for bag replay and sim.
-    camera_source: str = "topic"  # 'topic' or 'direct'
-    capture_fps: float = 15.0
     # Debug video, off by default: a race publishes detections and nothing
     # else. Both of these cost real bandwidth at speed.
-    publish_annotated: bool = False
-    annotated_topic: str = "/vision/image_annotated"
-    publish_raw: bool = False
     # Caps the annotated stream's publish rate independent of capture_fps, so a
     # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
     debug_stream_fps: float = 0.0
@@ -94,18 +86,6 @@ class Config(HardwareBaseSettings):
     # discovery, parking) than Open Challenge ever will, on the same
     # recording pipeline.
     record_video: bool = True
-    # Width of the recorded artifact; height is derived at runtime from the
-    # actual captured frame's aspect ratio, never hardcoded.
-    video_width: int = 640
-    # Periodic raw (un-annotated) frame capture for later dataset
-    # accumulation / fine-tuning -- see src/vision/dataset_capture.py. Saved
-    # next to the run's mcap bag/video, under capture_subdir. On Obstacles
-    # Challenge this only ever saves frames that actually contain a
-    # detection (see DatasetFrameCapture); Open Challenge saves every
-    # capture_interval_s unconditionally, since there's nothing to wait for.
-    capture_dataset_frames: bool = True
-    capture_interval_s: float = 10.0
-    capture_subdir: str = "captures"
 
 
 _MODEL_STATUS_REPUBLISH_S = 5.0

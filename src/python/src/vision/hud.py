@@ -39,23 +39,24 @@ import cv2
 import numpy as np
 from pydantic_settings import SettingsConfigDict
 from shared.config.constants import RobotSpecs
+from shared.config.generated.hardware.vision.hud_schema import HardwareVisionHud
 
 from src.hardware.settings_base import CONFIG_DIR, ROBOT_ROOT, HardwareBaseSettings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-_RGB = tuple[int, int, int]
 
-
-class HudConfig(HardwareBaseSettings):
+class HudConfig(HardwareBaseSettings, HardwareVisionHud):
     """Tuning constants for the navigation HUD overlay.
 
     Sourced from src/config/hardware/vision/hud.toml (env prefix VISION_HUD_,
     same override precedence as every other HardwareBaseSettings config in
     this repo -- init/env win, then the TOML file, then these field
     defaults). Colours are RGB (the recorder's own working order until the
-    final RGB->BGR conversion in VideoRecorder._run).
+    final RGB->BGR conversion in VideoRecorder._run). Subclasses the generated
+    DTO for the file-backed keys; ``font_face`` (a cv2 constant) and the two
+    LIDAR-mount facts (sourced from robot.toml) stay wrapper-only.
     """
 
     model_config = SettingsConfigDict(env_prefix="vision_hud_", toml_file=CONFIG_DIR / "vision" / "hud.toml")
@@ -66,47 +67,6 @@ class HudConfig(HardwareBaseSettings):
     "typewriter" look. cv2 can't load real TTF fonts without extra system
     libs, so this is the built-in ceiling for "professional" rather than a
     placeholder choice."""
-    font_scale: float = 0.55
-    text_thickness: int = 1
-    line_height_px: int = 22
-    text_rgb: _RGB = (248, 250, 252)
-    """Value-column colour -- near-white for maximum contrast against the
-    dim slate panel."""
-    label_rgb: _RGB = (168, 178, 190)
-    """Label-column colour -- still dimmer than text_rgb so the eye lands on
-    values (what the robot is doing) before labels (what they mean), the
-    same label/value convention a flight HUD or telemetry dashboard uses,
-    but light enough to stay legible on its own against the dark panel."""
-    accent_rgb: _RGB = (0, 194, 255)
-    """Single accent colour reused everywhere something should read as
-    "live"/"foreground": the panel's inner-edge bar and the radar points --
-    one accent, not a colour per element, is what keeps the overlay reading
-    as minimalist rather than a rainbow of debug colours."""
-    border_rgb: _RGB = (58, 64, 72)
-    panel_rgb: _RGB = (12, 14, 18)
-    panel_alpha: float = 0.55
-    margin_px: int = 10
-    column_gap_px: int = 14
-    """Gap between a panel's label column and its value column. cv2's font
-    isn't monospace, so this is real pixel spacing measured per-panel from
-    each label's actual rendered width (see _draw_panel), not padding baked
-    into the label strings -- string-padding assumes a fixed character
-    width, which produces a ragged, unaligned value column in a proportional
-    font."""
-
-    radar_radius_px: int = 90
-    radar_margin_px: int = 12
-    radar_bg_rgb: _RGB = (12, 14, 18)
-    radar_bg_alpha: float = 0.55
-    radar_ring_rgb: _RGB = (58, 64, 72)
-    radar_crosshair_rgb: _RGB = (36, 40, 46)
-    radar_point_rgb: _RGB = (30, 136, 229)
-    """Sampled from the team mark's body/circuit blue (src/assets/vision/
-    voltimor-mark.png), not the panel's cyan accent_rgb -- distinct from the
-    accent bars so the radar points read as "the logo's blue," not just
-    another use of the same UI accent colour."""
-    radar_robot_rgb: _RGB = (255, 255, 255)
-    max_radar_range_m: float = 3.0
 
     lidar_inverted: bool = RobotSpecs.LIDAR_INVERTED
     """Whether the mounted LIDAR is upside-down -- default sourced from
@@ -118,23 +78,6 @@ class HudConfig(HardwareBaseSettings):
     lidar_yaw_offset_deg: float = RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
     """Residual yaw miscalibration NOT explained by lidar_inverted, added on
     top of the inversion correction -- see RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG."""
-
-    logo_size_px: int = 128
-    logo_margin_px: int = 8
-    logo_alpha: float = 0.85
-    """Multiplies the mark PNG's own per-pixel alpha -- a light watermark, not
-    a solid sticker, so it doesn't compete with the radar for attention."""
-
-    join_timeout_sec: float = 30.0
-    """mp4 finalization (writer.release()) time scales with total frames written,
-    not per-frame write time -- a multi-minute recording can take well past 5s to
-    finalize on SD-card-class I/O, especially with ros2 bag record writing to the
-    same directory concurrently. Bounds VideoRecorder.stop()'s thread-join wait."""
-    run_path_poll_interval_sec: float = 0.1
-    """How often VisionNode polls for bag_recorder_node's run directory to appear."""
-    run_path_poll_timeout_sec: float = 3.0
-    """How long VisionNode polls for the bag run directory before giving up on
-    video for the run -- ros2 bag record creates its output dir asynchronously."""
 
 
 _LOGO_PATH = ROBOT_ROOT.parent / "assets" / "vision" / "voltimor-mark.png"

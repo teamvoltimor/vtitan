@@ -112,14 +112,14 @@ class RawI2CDriver(ABC_Driver):
                     "details": {
                         "width": self.config.width,
                         "height": self.config.height,
-                        "i2c_address": hex(self.config.i2c_address),
+                        "i2c_address": hex(self.config.i2c_address_int),
                         "i2c_bus": self.config.i2c_bus,
                     },
                 },
             )
 
             self._fd = os.open(f"/dev/i2c-{self.config.i2c_bus}", os.O_RDWR)
-            ioctl(self._fd, _I2C_SLAVE, self.config.i2c_address)
+            ioctl(self._fd, _I2C_SLAVE, self.config.i2c_address_int)
 
             multiplex = self.config.height - 1
             com_pins = 0x12 if self.config.height == _DISPLAY_HEIGHT_128X64 else 0x02

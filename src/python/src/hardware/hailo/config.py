@@ -2,9 +2,10 @@ from typing import Self
 
 from pydantic import Field, model_validator
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.hailo_schema import HardwareHailo
+from shared.config.generated.hardware.hailo_streaming_schema import HardwareHailoStreaming
 from shared.domain.enums import GMR_CLASS_NAMES
 
-from src.hardware.camera.config import Config as CameraConfig
 from src.hardware.hailo.utils import load_class_map_from_yaml
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
@@ -31,33 +32,23 @@ def _detection_confidence_floor() -> float:
     return DetectorConfig(model_path="", class_to_color={}).min_confidence
 
 
-class Config(HardwareBaseSettings):
-    """Hailo configuration."""
+class Config(HardwareBaseSettings, HardwareHailo):
+    """Hailo configuration.
+
+    Subclasses the generated DTO for the file-backed keys; ``min_confidence``
+    and ``class_map`` stay wrapper behavior (see their docstrings) because the
+    shared confidence floor deliberately lives once, in detector.toml, and the
+    class map is derived from ``data_yaml_path``.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="hailo_",
         toml_file=CONFIG_DIR / "hailo.toml",
+        # The generated DTO is frozen; this loader resolves class_map after
+        # validation (see _load_class_map), so it must stay mutable like the
+        # hand-written model it replaces.
+        frozen=False,
     )
-
-    model_path: str = "/usr/local/hailo/models/gmr.hef"
-    """
-    Path to the Hailo HEF model file. This should point to the compiled model that the Hailo driver will load for inference. If not provided, a default path will be used.
-    """
-
-    inference_timeout_ms: int = 10000
-    """
-    Milliseconds to wait for a single async inference job before giving up. Guards against a wedged pipeline blocking the control loop forever.
-    """
-
-    benchmark_iterations: int = 10
-    """
-    Number of iterations to run when benchmarking latency. If not provided, a default value will be used.
-    """
-
-    data_yaml_path: str = "/usr/local/hailo/models/data.yaml"
-    """
-    Path to YOLO data.yaml file containing class names. If not provided, a default class map will be used.
-    """
 
     min_confidence: float = Field(default_factory=_detection_confidence_floor)
     """
@@ -80,41 +71,21 @@ class Config(HardwareBaseSettings):
         return self
 
 
-class StreamingConfig(CameraConfig):
-    """Configuration for continuous Hailo inference with camera."""
+class StreamingConfig(HardwareBaseSettings, HardwareHailoStreaming):
+    """Configuration for continuous Hailo inference with camera.
+
+    Subclasses the generated DTO for the file-backed keys; ``min_confidence``
+    stays wrapper behavior for the same reason as :class:`Config` (the shared
+    detector.toml floor).
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="hailo_stream_",
         toml_file=CONFIG_DIR / "hailo_streaming.toml",
+        frozen=False,
     )
 
-    # Model input configuration
-    model_input_width: int = 640
-    """
-    Width to resize image before inference (should match model input).
-    """
-
-    model_input_height: int = 640
-    """
-    Height to resize image before inference (should match model input).
-    """
-
-    # Inference configuration
-    conf_threshold: float = Field(
-        default_factory=_detection_confidence_floor,
-        validation_alias="min_confidence",
-    )
+    min_confidence: float = Field(default_factory=_detection_confidence_floor)
     """
     Minimum confidence threshold for detections. Resolved from detector.toml's min_confidence like HailoConfig's -- one shipped number for all three backends.
-    """
-
-    # Processing configuration
-    queue_size: int = 1
-    """
-    Maximum number of frames to keep in the inference queue.
-    """
-
-    async_inference: bool = False
-    """
-    Use asynchronous inference (non-blocking).
     """

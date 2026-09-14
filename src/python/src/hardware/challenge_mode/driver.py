@@ -32,9 +32,9 @@ class Driver:
         """Initialize GPIO with the internal pull-up enabled."""
         self.logger.info(
             "Connecting to challenge-mode jumper",
-            extra={DETAILS_KEY: {"gpio_pin": self.config.gpio_pin}},
+            extra={DETAILS_KEY: {"gpio_pin": self.config.challenge_mode_gpio_pin}},
         )
-        self._input = InputDevice(self.config.gpio_pin, pull_up=True)
+        self._input = InputDevice(self.config.challenge_mode_gpio_pin, pull_up=True)
         self.logger.info("Challenge-mode jumper connected successfully")
 
     def is_jumper_inserted(self) -> bool:

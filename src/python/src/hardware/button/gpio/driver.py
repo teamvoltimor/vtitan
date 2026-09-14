@@ -6,11 +6,10 @@ import time
 from typing import override
 
 from gpiozero import Button
-from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.button.gpio_schema import HardwareButtonGpio
 
 from src.hardware.button.base import Driver as ABC_Driver
-from src.hardware.button.config import Config as ButtonConfig
 from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
@@ -20,8 +19,12 @@ from src.logger.constants import DETAILS_KEY
 configure_json_logging()
 
 
-class Config(HardwareBaseSettings):
-    """Configuration for GPIO button driver."""
+class Config(HardwareBaseSettings, HardwareButtonGpio):
+    """Configuration for GPIO button driver.
+
+    Subclasses the generated DTO purely to attach the TOML/env settings
+    wiring; the field declarations (and their descriptions) are generated.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="",
@@ -30,15 +33,6 @@ class Config(HardwareBaseSettings):
         env_nested_delimiter="__",
         toml_file=CONFIG_DIR / "button" / "gpio.toml",
     )
-
-    # No prefix on this class, so gpio_pin needs an explicit alias to reach
-    # BUTTON_GPIO_PIN -- it would otherwise only match a bare GPIO_PIN var.
-    # Accepts both the SHOUT_CASE env-var spelling and the lowercase TOML
-    # key (button_gpio_pin).
-    gpio_pin: int = Field(validation_alias=AliasChoices("BUTTON_GPIO_PIN", "button_gpio_pin"))
-    """GPIO pin number for the button."""
-
-    button: ButtonConfig = Field(default_factory=ButtonConfig)
 
 
 class Driver(ABC_Driver):
@@ -73,7 +67,7 @@ class Driver(ABC_Driver):
                 "Connecting to button",
                 extra={
                     "details": {
-                        "gpio_pin": self.config.gpio_pin,
+                        "gpio_pin": self.config.button_gpio_pin,
                         "pull_up": self.config.button.pull_up,
                         "debounce_ms": self.config.button.debounce_ms,
                     },
@@ -82,7 +76,7 @@ class Driver(ABC_Driver):
 
             # Create button with debouncing
             self._button = Button(
-                self.config.gpio_pin,
+                self.config.button_gpio_pin,
                 pull_up=self.config.button.pull_up,
                 bounce_time=self.config.button.debounce_ms / 1000.0,  # Convert to seconds
             )

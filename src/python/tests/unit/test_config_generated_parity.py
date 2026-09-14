@@ -15,6 +15,26 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest import mock
+
+# The display and IMU config modules live behind package __init__s that eagerly
+# import their hardware transports (board/busio/adafruit_ssd1306/fcntl and the
+# adafruit BNO08x bindings), none of which import off-hardware. Substitute only
+# where the real module cannot be imported, matching tests/ros2's pattern.
+for _optional in (
+    "board",
+    "busio",
+    "adafruit_ssd1306",
+    "adafruit_bno08x",
+    "adafruit_bno08x.i2c",
+    "adafruit_bno08x_rvc",
+    "fcntl",
+):
+    if _optional not in sys.modules:
+        try:
+            __import__(_optional)
+        except (ImportError, NotImplementedError):
+            sys.modules[_optional] = mock.MagicMock()
 
 import pytest
 from shared.config.constants.simulation import CompetitionSpecs
@@ -367,3 +387,236 @@ class TestHardwareConfigLoadedValues:
         state_machine = StateMachineNodeConfig()
         assert state_machine.challenge_mode_samples_required == 3
         assert state_machine.challenge_mode_timeout_sec == pytest.approx(180.0)
+
+
+class TestSecondWaveHardwareAnchoring:
+    """The second migration wave is anchored to its generated DTO."""
+
+    def test_challenge_mode_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.challenge_mode_schema import HardwareChallengeMode
+
+        from src.hardware.challenge_mode.config import Config as ChallengeModeConfig
+
+        assert issubclass(ChallengeModeConfig, HardwareChallengeMode)
+
+    def test_ssd1306_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.display.ssd1306_schema import HardwareDisplaySsd1306
+
+        from src.hardware.display.ssd1306.config import Config as Ssd1306Config
+
+        assert issubclass(Ssd1306Config, HardwareDisplaySsd1306)
+
+    def test_button_gpio_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.button.gpio_schema import HardwareButtonGpio
+
+        from src.hardware.button.gpio.driver import Config as ButtonGpioConfig
+
+        assert issubclass(ButtonGpioConfig, HardwareButtonGpio)
+
+    def test_oled_node_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.display.oled_node_schema import HardwareDisplayOledNode
+        from vtitan_drivers.oled_display_node import NodeConfig as OledNodeConfig
+
+        assert issubclass(OledNodeConfig, HardwareDisplayOledNode)
+
+    def test_hailo_configs_subclass_generated_dtos(self):
+        from shared.config.generated.hardware.hailo_schema import HardwareHailo
+        from shared.config.generated.hardware.hailo_streaming_schema import HardwareHailoStreaming
+
+        from src.hardware.hailo.config import (
+            Config as HailoConfig,
+            StreamingConfig,
+        )
+
+        assert issubclass(HailoConfig, HardwareHailo)
+        assert issubclass(StreamingConfig, HardwareHailoStreaming)
+
+    def test_detector_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.vision.detector_schema import HardwareVisionDetector
+
+        from src.vision.detector import DetectorConfig
+
+        assert issubclass(DetectorConfig, HardwareVisionDetector)
+
+    def test_hud_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.vision.hud_schema import HardwareVisionHud
+
+        from src.vision.hud import HudConfig
+
+        assert issubclass(HudConfig, HardwareVisionHud)
+
+    def test_bno08x_uart_rvc_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.imu.bno08x_uart_rvc_schema import HardwareImuBno08xUartRvc
+
+        from src.hardware.imu.bno08x.uart_rvc import Config as UartRvcConfig
+
+        assert issubclass(UartRvcConfig, HardwareImuBno08xUartRvc)
+
+    def test_vision_node_config_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.vision.node_schema import HardwareVisionNode
+
+        from src.ros2.vision.node import Config as VisionNodeConfig
+
+        assert issubclass(VisionNodeConfig, HardwareVisionNode)
+
+    def test_rpicam_subclasses_generated_dto(self):
+        from shared.config.generated.hardware.camera.rpicam_schema import HardwareCameraRpicam
+
+        from src.hardware.camera.rpicam.driver import Config as RpicamConfig
+
+        assert issubclass(RpicamConfig, HardwareCameraRpicam)
+
+
+class TestSecondWaveLoadedValues:
+    """The real shipped TOMLs, as the second-wave wrappers read them."""
+
+    def test_challenge_mode_values(self):
+        from src.hardware.challenge_mode.config import Config as ChallengeModeConfig
+
+        assert ChallengeModeConfig().challenge_mode_gpio_pin == 23
+
+    def test_ssd1306_values(self):
+        from src.hardware.display.ssd1306.config import Config as Ssd1306Config
+
+        ssd = Ssd1306Config()
+
+        assert ssd.width == 128
+        assert ssd.height == 64
+        assert ssd.i2c_address == "0x3C"
+        assert ssd.i2c_address_int == 0x3C
+        assert ssd.i2c_bus == 1
+
+    def test_button_gpio_values(self):
+        from src.hardware.button.gpio.driver import Config as ButtonGpioConfig
+
+        button = ButtonGpioConfig()
+
+        assert button.button_gpio_pin == 4
+        assert button.button.pull_up is True
+        assert button.button.debounce_ms == 50
+        assert button.button.long_press_threshold_sec == pytest.approx(3.0)
+        assert button.button.shutdown_press_threshold_sec == pytest.approx(10.0)
+
+    def test_oled_node_values(self):
+        from vtitan_drivers.oled_display_node import NodeConfig as OledNodeConfig
+
+        from src.hardware.display.enums import DisplayBackend
+
+        oled = OledNodeConfig()
+
+        assert oled.ui_refresh_rate_hz == pytest.approx(10.0)
+        assert oled.display_backend is DisplayBackend.BLINKA
+
+    def test_hailo_values(self):
+        from src.hardware.hailo.config import (
+            Config as HailoConfig,
+            StreamingConfig,
+        )
+
+        hailo = HailoConfig()
+
+        assert hailo.model_path == "/usr/local/hailo/models/gmr.hef"
+        assert hailo.inference_timeout_ms == 10000
+        assert hailo.benchmark_iterations == 10
+        assert hailo.data_yaml_path == "/usr/local/hailo/models/data.yaml"
+        assert hailo.min_confidence == pytest.approx(0.45)
+        assert hailo.class_map[0].value == "green"
+
+        streaming = StreamingConfig()
+        assert streaming.width == 640
+        assert streaming.height == 640
+        assert streaming.fps == 30
+        assert streaming.model_input_width == 640
+        assert streaming.queue_size == 1
+        assert streaming.async_inference is False
+        assert streaming.min_confidence == pytest.approx(0.45)
+
+    def test_detector_values(self):
+        from src.vision.detector import BBoxFormat, DetectorConfig
+
+        detector = DetectorConfig(model_path="", class_to_color={})
+
+        assert detector.min_confidence == pytest.approx(0.45)
+        assert detector.output_format is BBoxFormat.NORMALIZED
+
+    def test_hud_values(self):
+        import cv2
+        from shared.config.constants import RobotSpecs
+
+        from src.vision.hud import HudConfig
+
+        hud = HudConfig()
+
+        assert hud.font_face == cv2.FONT_HERSHEY_DUPLEX
+        assert hud.font_scale == pytest.approx(0.55)
+        assert hud.text_thickness == 1
+        assert hud.line_height_px == 22
+        assert hud.text_rgb == (248, 250, 252)
+        assert hud.panel_alpha == pytest.approx(0.55)
+        assert hud.radar_radius_px == 90
+        assert hud.join_timeout_sec == pytest.approx(30.0)
+        assert hud.lidar_inverted == RobotSpecs.LIDAR_INVERTED
+
+    def test_bno08x_uart_rvc_values(self, monkeypatch):
+        monkeypatch.setenv("BNO08X_UART_RVC_PORT", "/dev/ttyACM0")
+        from src.hardware.imu.bno08x.uart_rvc import Config as UartRvcConfig
+
+        imu = UartRvcConfig()
+
+        assert imu.port == "/dev/ttyACM0"
+        assert imu.default_port == "/dev/ttyACM0"
+        assert imu.baudrate == 115200
+        assert imu.poll_rate_hz == pytest.approx(100.0)
+        assert imu.serial_timeout == pytest.approx(1.0)
+        assert imu.data_lock_timeout == pytest.approx(2.0)
+        assert imu.quaternion.euler_sequence == "xyz"
+        assert imu.quaternion.negate_yaw is True
+        assert imu.quaternion.negate_pitch is False
+        assert imu.quaternion.negate_roll is True
+
+    def test_vision_node_values(self):
+        from src.ros2.vision.node import Config as VisionNodeConfig
+
+        config = VisionNodeConfig()
+
+        assert config.camera_topic == "/camera/image_raw"
+        assert config.model_path == "yolov8n.pt"
+        assert config.backend == "yolo"
+        assert config.camera_source == "topic"
+        assert config.capture_fps == pytest.approx(15.0)
+        assert config.video_width == 1536
+        assert config.capture_interval_s == pytest.approx(10.0)
+        assert config.capture_subdir == "captures"
+        assert config.debug_stream_fps == pytest.approx(0.0)
+        assert config.record_video is True
+
+    def test_rpicam_values(self):
+        from src.hardware.camera.rpicam.driver import (
+            AfMode,
+            AwbMode,
+            Config as RpicamConfig,
+            ExposureMode,
+        )
+
+        camera = RpicamConfig()
+
+        assert camera.camera_width == 1536
+        assert camera.camera_height == 864
+        assert camera.camera_fps == 30
+        assert camera.camera_inverted is True
+        assert camera.camera_hflip is False
+        assert camera.camera_vflip is False
+        assert camera.camera_read_timeout_sec == pytest.approx(5.0)
+        assert camera.camera_af_mode is AfMode.MANUAL
+        assert camera.camera_lens_position == pytest.approx(1.25)
+        assert camera.camera_awb_mode is AwbMode.AUTO
+        assert camera.camera_exposure_mode is ExposureMode.SHORT
+        assert camera.camera_sharpness == pytest.approx(1.0)
+        assert camera.camera_analogue_gain == pytest.approx(1.0)
+        assert camera.camera_awb_gains is None
+        assert camera.camera_exposure_time_us is None
+        assert camera.camera_flicker_period_us is None
+
+        # resolved_flips folds camera_inverted in: mounted upside-down, so an
+        # unflipped config still yields both mirrors.
+        assert camera.resolved_flips() == (True, True)

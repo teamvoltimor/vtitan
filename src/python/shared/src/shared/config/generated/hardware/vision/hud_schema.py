@@ -20,20 +20,20 @@ class HardwareVisionHud(StrictModel):
     line_height_px: int = Field(
         ..., description='Vertical spacing between HUD text lines, in pixels.'
     )
-    text_rgb: list[int] = Field(
+    text_rgb: tuple[int, int, int] = Field(
         ..., description='RGB colour (0-255) of the panel value column.'
     )
-    label_rgb: list[int] = Field(
+    label_rgb: tuple[int, int, int] = Field(
         ..., description='RGB colour (0-255) of the panel label column.'
     )
-    accent_rgb: list[int] = Field(
+    accent_rgb: tuple[int, int, int] = Field(
         ...,
         description='RGB colour (0-255) of the live/foreground accent (panel edge bar and radar points).',
     )
-    border_rgb: list[int] = Field(
+    border_rgb: tuple[int, int, int] = Field(
         ..., description='RGB colour (0-255) of panel borders.'
     )
-    panel_rgb: list[int] = Field(
+    panel_rgb: tuple[int, int, int] = Field(
         ..., description='RGB background colour (0-255) of the HUD panels.'
     )
     panel_alpha: float = Field(
@@ -52,22 +52,22 @@ class HardwareVisionHud(StrictModel):
     radar_margin_px: int = Field(
         ..., description='Margin in pixels between the radar and the frame edge.'
     )
-    radar_bg_rgb: list[int] = Field(
+    radar_bg_rgb: tuple[int, int, int] = Field(
         ..., description='RGB background colour (0-255) of the radar.'
     )
     radar_bg_alpha: float = Field(
         ..., description='Radar background opacity, 0.0 (transparent) to 1.0 (opaque).'
     )
-    radar_ring_rgb: list[int] = Field(
+    radar_ring_rgb: tuple[int, int, int] = Field(
         ..., description='RGB colour (0-255) of the radar range rings.'
     )
-    radar_crosshair_rgb: list[int] = Field(
+    radar_crosshair_rgb: tuple[int, int, int] = Field(
         ..., description='RGB colour (0-255) of the radar crosshair.'
     )
-    radar_point_rgb: list[int] = Field(
+    radar_point_rgb: tuple[int, int, int] = Field(
         ..., description='RGB colour (0-255) of the plotted LIDAR points.'
     )
-    radar_robot_rgb: list[int] = Field(
+    radar_robot_rgb: tuple[int, int, int] = Field(
         ..., description='RGB colour (0-255) of the robot marker at the radar centre.'
     )
     max_radar_range_m: float = Field(

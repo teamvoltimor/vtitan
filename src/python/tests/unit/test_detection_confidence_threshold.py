@@ -37,14 +37,14 @@ def _shipped(toml_path: Path) -> object:
 def test_all_three_backends_resolve_the_same_threshold():
     detector = DetectorConfig(model_path="", class_to_color={})
     assert detector.min_confidence == HailoConfig().min_confidence
-    assert detector.min_confidence == StreamingConfig().conf_threshold
+    assert detector.min_confidence == StreamingConfig().min_confidence
 
 
 def test_bare_defaults_agree_with_the_single_shipped_copy():
     expected = _shipped(_CONFIG / "vision" / "detector.toml")
     assert DetectorConfig(model_path="", class_to_color={}).min_confidence == pytest.approx(expected)
     assert HailoConfig().min_confidence == pytest.approx(expected)
-    assert StreamingConfig().conf_threshold == pytest.approx(expected)
+    assert StreamingConfig().min_confidence == pytest.approx(expected)
 
 
 def test_the_hailo_tomls_no_longer_declare_their_own_copy():
