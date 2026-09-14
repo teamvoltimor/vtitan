@@ -1,0 +1,65 @@
+# Esquemas y diagramas
+
+Diagramas de flujo, máquinas de estado y el esquemático del arnés. **La
+explicación vive en el [README principal](../README.md)**; aquí solo está el
+mapa de qué archivo es cada cosa y cómo se regenera.
+
+```text
+schemes/
+├── ackermann-steering-system.webp      geometría Ackermann (la alternativa que NO usamos)
+├── counter-phase-steering-system.webp  dirección en contrafase (la que sí usamos)
+├── flowcharts/
+│   ├── common/      lógica compartida por los dos desafíos
+│   ├── open/        Open Challenge
+│   ├── obstacles/   Obstacle Challenge
+│   └── _legacy/     diagramas de versiones anteriores, conservados
+└── wiring/
+    ├── harness.schematic.svg  esquemático del arnés (y su versión .png)
+    └── tscircuit/             el proyecto que lo genera
+```
+
+## Los diagramas de flujo
+
+Cada diagrama existe **tres veces**, y las tres salen del mismo `.mmd`:
+
+| Dónde | Para qué |
+|---|---|
+| `flowcharts/<grupo>/mermaid/*.mmd` | **La fuente única.** GitHub la renderiza al abrir el archivo |
+| `flowcharts/<grupo>/webp/*.webp` | Render estático, para PDF o para leer sin conexión |
+| Bloques ` ```mermaid ` en el README principal | Para que el diagrama se vea sin salir del documento |
+
+`common/` contiene lo que comparten los dos desafíos (inferencia del sentido de
+la vuelta, escape ante colisión y atasco, conteo de vueltas, esquiva genérica,
+interacciones entre subsistemas). `open/` y `obstacles/` lo **referencian en vez
+de redibujarlo**, que es la razón de que exista la separación.
+
+Las líneas que empiezan por `%%` dentro de un `.mmd` son notas de mantenimiento
+(referencias a código, cifras de barridos). No se renderizan nunca y se
+descartan al inlinear en el README.
+
+### Regenerar
+
+```bash
+task docs:diagrams     # .mmd -> WebP (requiere mermaid-cli vía npx, y cwebp)
+task docs:mermaid      # .mmd -> bloques inlineados del README principal
+task docs:mermaid -- --check   # falla si algún bloque quedó desincronizado
+```
+
+**Si editas un `.mmd`, corre las dos.** La primera actualiza el render, la
+segunda la copia del README. `--check` es lo que debería llamar CI para que la
+copia no derive nunca de su fuente.
+
+## El arnés
+
+El esquemático de conexiones no está dibujado a mano: se define en código con
+[tscircuit](https://tscircuit.com/) en `wiring/tscircuit/circuit.tsx`, así que
+un cambio de pin queda en el historial de git como cualquier otro cambio.
+
+```bash
+cd schemes/wiring/tscircuit && npm run artifacts
+```
+
+Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se commitean
+porque son lo que se lee en la documentación y reconstruirlos exige toda la
+cadena de herramientas. El `.png` se conserva como respaldo universal del `.svg`,
+que es la única razón por la que no se convirtió a WebP como el resto.
