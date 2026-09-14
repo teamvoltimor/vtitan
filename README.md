@@ -114,11 +114,12 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
 8. **[Pensamiento sistémico y decisiones de ingeniería](#pensamiento-sistémico-y-decisiones-de-ingeniería)**
     1. [Diseño gobernado por configuración](#diseño-gobernado-por-configuración)
     2. [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables)
-    3. [Registro de decisiones de arquitectura (ADR)](#registro-de-decisiones-de-arquitectura-adr)
-    4. [Ciclo de trabajo: idea, simulación, pista](#ciclo-de-trabajo-idea--simulación--pista)
-    5. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
-    6. [Gestión de riesgos](#gestión-de-riesgos)
-    7. [Tecnologías utilizadas](#tecnologías-utilizadas)
+    3. [Compensaciones y alternativas descartadas](#compensaciones-y-alternativas-descartadas)
+    4. [Registro de decisiones de arquitectura (ADR)](#registro-de-decisiones-de-arquitectura-adr)
+    5. [Ciclo de trabajo: idea, simulación, pista](#ciclo-de-trabajo-idea--simulación--pista)
+    6. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
+    7. [Gestión de riesgos](#gestión-de-riesgos)
+    8. [Tecnologías utilizadas](#tecnologías-utilizadas)
 9. **[Videos de vTitan](#videos-de-vtitan)**
     1. [Open Challenge](#open-challenge)
     2. [Open Challenge Simulation](#open-challenge-simulation)
@@ -552,7 +553,7 @@ vTitan cuenta con un sistema basado en un sistema de **dirección en contrafase*
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
 <p align="center">
-	<img src="models/current-models/blueprints/piñon-33-dientes-dirección.webp" alt="Piñon de 33 dientes de dirección" 
+	<img src="models/current-models/blueprints/pinon-33-dientes-direccion.webp" alt="Piñon de 33 dientes de dirección" 
 width="350">
 	<br>
 	<i>Piñon de 33 dientes de dirección</i>
@@ -1150,11 +1151,48 @@ El robot arranca **sin mapa y sin saber hacia qué lado se corre la pista**. Tod
 
 Es la primera decisión de cada ronda y condiciona todas las demás. El robot avanza despacio y centrado, y compara cuánto espacio libre mide el LIDAR a izquierda y derecha: el lado que **deja de ser pared** indica dónde está el bloque interior, y el bloque interior fija el sentido de giro.
 
-<p align="center">
-    <img src="schemes/flowcharts/common/webp/inferencia-direccion.webp" alt="Inferencia del sentido de la vuelta" width="700">
-    <br>
-    <i>Inferencia del sentido de la vuelta - fuente Mermaid: <a href="schemes/flowcharts/common/mermaid/inferencia-direccion.mmd"><code>inferencia-direccion.mmd</code></a></i>
-</p>
+```mermaid
+flowchart TD
+    A["El robot avanza despacio,<br/>centrado entre las paredes"] --> Block{"¿Hay un obstáculo<br/>físico muy cerca,<br/>justo adelante?"}
+
+    Block -- "No" --> G1
+    Block -- "Sí" --> Avoid[["Esquiva ante obstáculo"]]
+    Avoid --> A
+
+    G1{"FILTRO 1<br/>¿El chasis está alineado<br/>con el pasillo?<br/>(error &lt; 25 grados)"}
+    G1 -- "No: de lado los rayos<br/>cortan en diagonal<br/>y miden de más" --> A
+    G1 -- "Sí" --> M
+
+    M["El LIDAR mide el espacio libre<br/>a la izquierda y a la derecha"] --> G2
+
+    G2{"FILTRO 2<br/>¿Algún rayo mide<br/>más de 4.5 m?"}
+    G2 -- "Sí: en esta pista de 3 m<br/>eso no es una pared, es un<br/>fallo de lectura leído como<br/>'lado despejado'" --> A
+    G2 -- "No" --> G3
+
+    G3{"FILTRO 3<br/>izquierda + derecha<br/>¿supera 1.25 m?"}
+    G3 -- "No: la suma sigue siendo<br/>el ancho del pasillo,<br/>ambos lados son pared" --> A
+    G3 -- "Sí: un lado dejó<br/>de ser pared" --> G4
+
+    G4{"FILTRO 4<br/>¿La diferencia entre<br/>ambos lados supera<br/>0.20 m?"}
+    G4 -- "No: es ruido,<br/>no evidencia" --> A
+    G4 -- "Sí" --> C
+
+    C{"¿Qué lado<br/>se abrió?"}
+    C -- "La derecha" --> D["Anota un voto a favor<br/>del sentido HORARIO"]
+    C -- "La izquierda" --> E["Anota un voto a favor<br/>del sentido ANTIHORARIO"]
+
+    D --> F{"¿El mismo sentido<br/>ganó 5 lecturas?"}
+    E --> F
+
+    F -- "Todavía no" --> A
+    F -- "Sí" --> G["Dirección de la pista<br/>asentada (is_settled)"]
+
+    G --> H{"¿Cuál sentido<br/>ganó?"}
+    H -- "Horario" --> I(["Sentido de carrera:<br/>HORARIO (CW)"])
+    H -- "Antihorario" --> J(["Sentido de carrera:<br/>ANTIHORARIO (CCW)"])
+```
+
+<p align="center"><i>Inferencia del sentido de la vuelta</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/inferencia-direccion.mmd"><code>inferencia-direccion.mmd</code></a> | <a href="schemes/flowcharts/common/webp/inferencia-direccion.webp">render WebP</a></sub></p>
 
 Lo interesante no es la comparación, sino todo lo que hay que descartar antes de creerla. Una lectura solo cuenta como voto si supera cuatro filtros ([`inferencia-direccion.mmd`](schemes/flowcharts/common/mermaid/inferencia-direccion.mmd)):
 
@@ -1169,65 +1207,300 @@ Y aun así una sola lectura no decide: hacen falta **5 votos coincidentes**. Un 
 
 Con el sentido resuelto, el robot sigue el pasillo manteniéndose centrado, cuenta las vueltas por el paso acumulado alrededor del circuito, y vigila permanentemente dos condiciones de fallo: **colisión** y **atasco**. Ambas comparten una misma rutina de escape, documentada una sola vez en `common/` y referenciada desde los dos desafíos en vez de redibujarse.
 
-<p align="center">
-    <img src="schemes/flowcharts/common/webp/conteo-vueltas.webp" alt="Conteo de vueltas" width="700">
-    <br>
-    <i>Conteo de vueltas por paso acumulado alrededor del circuito</i>
-</p>
+```mermaid
+flowchart TD
+    LapCheck["Actualiza el avance<br/>sobre la ruta"] --> CrossCheck{"¿Cruzó de verdad<br/>la línea de meta?"}
+    CrossCheck -- "No" --> Continue(["Sigue conduciendo"])
+    CrossCheck -- "Sí" --> IncLap["Suma una<br/>vuelta completada"]
+```
 
-<p align="center">
-    <img src="schemes/flowcharts/common/webp/escape-colision.webp" alt="Escape de colision y atasco" width="700">
-    <br>
-    <i>Rutina de escape compartida ante colisión y atasco</i>
-</p>
+<p align="center"><i>Conteo de vueltas por paso acumulado alrededor del circuito</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/conteo-vueltas.mmd"><code>conteo-vueltas.mmd</code></a> | <a href="schemes/flowcharts/common/webp/conteo-vueltas.webp">render WebP</a></sub></p>
 
-<p align="center">
-    <img src="schemes/flowcharts/common/webp/esquiva-generica.webp" alt="Esquiva generica" width="700">
-    <br>
-    <i>Esquiva genérica de obstáculo</i>
-</p>
+```mermaid
+flowchart TD
+    Risk{"¿El LIDAR detecta<br/>un peligro adelante?"}
+
+    Risk -- "No" --> Stuck{"¿Lleva 2 s sin<br/>avanzar 3 cm?"}
+    Risk -- "Sí" --> Where{"¿Dónde está<br/>la amenaza?"}
+
+    Where -- "A un lado<br/>(amenaza lateral)" --> Side["Corrección lateral:<br/>0.2 s de volante suave<br/>sin dejar de avanzar"]
+    Where -- "De frente<br/>(81% llega a 45-90 grados,<br/>o sea por las esquinas<br/>delanteras del chasis)" --> KTurn["Giro en K: retrocede<br/>girando a medio volante<br/>durante 0.54-1.08 s"]
+
+    KTurn --> Fit>"PUNTO DÉBIL MEDIDO: la duración se<br/>elige por el riesgo DE FRENTE, sin mirar<br/>el hueco DE ATRÁS. El 24% de estos<br/>retrocesos no caben detrás"]
+
+    Side --> Resume
+    Fit --> Attempts{"¿Van 3 escapes<br/>seguidos?"}
+    Attempts -- "Sí" --> Escalate["Escala: alarga la maniobra<br/>y prueba el otro lado"]
+    Attempts -- "No" --> Resume
+    Escalate --> Resume
+
+    Stuck -- "Sí" --> StuckEscape["Retrocede para<br/>desatascarse"]
+    Stuck -- "No" --> Resume
+
+    StuckEscape --> Resume(["Sigue conduciendo<br/>con normalidad"])
+
+    Resume --> Back>"Y aquí está el problema real: el escape<br/>SÍ libera al robot (holgura mediana de<br/>0.545 m al soltar), pero la trayectoria a<br/>la que vuelve lo mete otra vez. Se vuelve<br/>a chocar tras 4-25 cm"]
+```
+
+<p align="center"><i>Rutina de escape compartida ante colisión y atasco</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/escape-colision.mmd"><code>escape-colision.mmd</code></a> | <a href="schemes/flowcharts/common/webp/escape-colision.webp">render WebP</a></sub></p>
+
+```mermaid
+flowchart TD
+    Obstacle["Obstáculo detectado<br/>muy cerca, adelante"] --> IsSign{"¿Es una señal de<br/>tránsito roja o verde?"}
+
+    IsSign -- "No, es pared<br/>u otro obstáculo" --> Choose
+    IsSign -- "Sí" --> Settled{"¿Ya está asentado el<br/>sentido de la vuelta?"}
+
+    Settled -- "No: la regla de paso<br/>NO es evaluable todavía,<br/>se trata como obstáculo<br/>cualquiera" --> Choose
+    Settled -- "Sí" --> Color{"¿De qué<br/>color es?"}
+
+    Choose{"¿Qué lado tiene<br/>más espacio libre?"}
+    Choose -- "Izquierda" --> TurnLeft["Retrocede y gira<br/>hacia la izquierda"]
+    Choose -- "Derecha" --> TurnRight["Retrocede y gira<br/>hacia la derecha"]
+
+    Color -- "ROJA" --> DodgeR["Pasa por la<br/>DERECHA del robot"]
+    Color -- "VERDE" --> DodgeG["Pasa por la<br/>IZQUIERDA del robot"]
+
+    DodgeR --> Frame>"'Derecha' e 'izquierda' son del ROBOT,<br/>no de la pista: en antihorario la derecha<br/>es la pared exterior y en horario es el<br/>cuadro interior. Por eso hace falta saber<br/>el sentido antes de aplicar la regla"]
+    DodgeG --> Frame
+
+    TurnLeft --> Resume(["Vuelve a avanzar"])
+    TurnRight --> Resume
+    Frame --> Resume
+```
+
+<p align="center"><i>Esquiva genérica de obstáculo</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/esquiva-generica.mmd"><code>esquiva-generica.mmd</code></a> | <a href="schemes/flowcharts/common/webp/esquiva-generica.webp">render WebP</a></sub></p>
 
 En el Desafío de Obstáculos se añade la regla de color: el robot debe pasar por un lado determinado de cada señal según sea roja o verde. La consecuencia de equivocarse no es perder puntos, es **terminar la ronda**, así que el criterio de paso es una de las partes más conservadoras del sistema.
 
-<p align="center">
-    <img src="schemes/flowcharts/obstacles/webp/regla-senales.webp" alt="Regla de paso por senales de color" width="700">
-    <br>
-    <i>Regla de paso por señales de color (Desafío de Obstáculos)</i>
-</p>
+```mermaid
+flowchart TD
+    Sign["La cámara detecta<br/>una señal de tránsito"] --> Active["Se elige la señal activa<br/>más cercana que el robot<br/>aún no ha pasado"]
+    Active --> Commit["Una vez elegida, se mantiene ESA<br/>señal hasta superarla, en vez de<br/>recalcular la más cercana cada tick"]
+    Commit --> Dir{"¿Está asentado el<br/>sentido de la vuelta?"}
+
+    Dir -- "No" --> NoRule(["La regla de paso NO es evaluable.<br/>Se esquiva como obstáculo genérico<br/>(ver esquiva-generica.mmd)"])
+    Dir -- "Sí" --> Lookup["Busca en la tabla de reglas<br/>el tramo de la pista y el<br/>sentido de la vuelta actuales"]
+
+    Lookup --> Color{"¿De qué<br/>color es?"}
+
+    Color -- "ROJA" --> Right["Pasar por la DERECHA<br/>del robot"]
+    Color -- "VERDE" --> Left["Pasar por la IZQUIERDA<br/>del robot"]
+
+    Right --> Note>"La regla se define respecto al ROBOT,<br/>no a la pista. Antihorario: su derecha<br/>es la pared exterior. Horario: su derecha<br/>es el cuadro central. Por eso la tabla<br/>tiene filas opuestas para cada sentido"]
+    Left --> Note
+
+    Note --> Lane["Traza un CARRIL lateral hacia ese lado:<br/>meseta plana de 0.25 m a la altura de la<br/>señal, con rampas de 0.9 m a cada lado<br/>que vuelven a la línea central"]
+    Lane --> Taper["El carril se activa de forma progresiva<br/>entre 1.40 m y 1.60 m de distancia,<br/>para evitar cambios bruscos de dirección"]
+    Taper --> Pin["Ancla el punto justo<br/>a la altura de la señal"]:::optional
+    Pin --> Steer["El carril se usa como<br/>objetivo de dirección"]
+
+    classDef optional stroke-dasharray: 5 5,fill:#f5f5f5,stroke:#888
+```
+
+<p align="center"><i>Regla de paso por señales de color (Desafío de Obstáculos)</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/regla-senales.mmd"><code>regla-senales.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/regla-senales.webp">render WebP</a></sub></p>
 
 ### Vista completa de cada desafío
 
 Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los flujos completos y las máquinas de estado de cada desafío, renderizados desde las mismas fuentes Mermaid de [`schemes/flowcharts/`](schemes/flowcharts/).
 
-<p align="center">
-    <img src="schemes/flowcharts/open/webp/flujo-completo.webp" alt="Flujo completo del Open Challenge" width="800">
-    <br>
-    <i>Open Challenge - flujo completo</i>
-</p>
+```mermaid
+flowchart TD
+    Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> Fase1
 
-<p align="center">
-    <img src="schemes/flowcharts/open/webp/maquina-estados.webp" alt="Maquina de estados del Open Challenge" width="800">
-    <br>
-    <i>Open Challenge - máquina de estados</i>
-</p>
+    Fase1[["Inferencia de dirección"]] --> Commit["Fija la dirección<br/>y ubica al robot en la pista"]
+    Commit --> StartPose["Mide con precisión<br/>la posición de arranque"]
+    StartPose --> PlanPath["Traza la ruta de<br/>puntos de paso a seguir"]
+    PlanPath --> BuildLap["Prepara el contador<br/>de vueltas para esa ruta"]
 
-<p align="center">
-    <img src="schemes/flowcharts/obstacles/webp/flujo-parte1-conduccion.webp" alt="Obstacle Challenge, parte 1: conduccion" width="800">
-    <br>
-    <i>Obstacle Challenge - parte 1: conducción y señales</i>
-</p>
+    BuildLap --> Drive
 
-<p align="center">
-    <img src="schemes/flowcharts/obstacles/webp/flujo-parte2-estacionamiento.webp" alt="Obstacle Challenge, parte 2: estacionamiento" width="800">
-    <br>
-    <i>Obstacle Challenge - parte 2: estacionamiento</i>
-</p>
+    subgraph FASE_2["Fase 2 - Conducción normal"]
+        Drive["Sigue la ruta trazada"] --> SpeedClear["Elige velocidad según el<br/>espacio libre adelante:<br/>cuanto menos hueco, más lento"]
+        SpeedClear --> HeadCheck{"¿El error de rumbo<br/>supera 57 grados?"}
+        HeadCheck -- "Sí" --> Crawl["Cae de golpe al suelo<br/>de arrastre (no es una<br/>rampa: es un escalón)"]
+        HeadCheck -- "No" --> Full["Mantiene la velocidad<br/>que pidió el espacio libre:<br/>por debajo de 57 grados<br/>no hay penalización"]
+        Crawl --> Watch
+        Full --> Watch[["Vigilancia de colisión y atasco"]]
+        Watch --> WPCheck
+    end
 
-<p align="center">
-    <img src="schemes/flowcharts/obstacles/webp/maquina-estados.webp" alt="Maquina de estados del Obstacle Challenge" width="800">
-    <br>
-    <i>Obstacle Challenge - máquina de estados</i>
-</p>
+    WPCheck{"¿Llegó al punto<br/>de paso objetivo?"}
+    WPCheck -- "No" --> Drive
+    WPCheck -- "Sí, y cerró<br/>la vuelta de la ruta" --> LapPhase
+
+    LapPhase[["Conteo de vueltas"]] --> LapsDone{"¿Ya completó<br/>las 3 vueltas?"}
+    LapsDone -- "No" --> Drive
+    LapsDone -- "Sí" --> Finish
+
+    subgraph FASE_4["Fase 4 - Fin (sin estacionamiento)"]
+        Finish["Se detiene por completo.<br/>El Open Challenge no tiene<br/>maniobra final"]
+    end
+
+    Finish --> End(["Carrera terminada"])
+```
+
+<p align="center"><i>Open Challenge - flujo completo</i><br><sub>Fuente: <a href="schemes/flowcharts/open/mermaid/flujo-completo.mmd"><code>flujo-completo.mmd</code></a> | <a href="schemes/flowcharts/open/webp/flujo-completo.webp">render WebP</a></sub></p>
+
+```mermaid
+stateDiagram-v2
+    [*] --> BOOT_CHECK
+
+    BOOT_CHECK --> READY: autodiagnóstico correcto
+    BOOT_CHECK --> FINISHED: falla el autodiagnóstico
+
+    READY --> RACING: se pulsa el botón de inicio
+    READY --> BOOT_CHECK: reinicio del sistema
+
+    RACING --> FINISHED: se completan las 3 vueltas
+    RACING --> FINISHED: parada de emergencia
+    RACING --> BOOT_CHECK: reinicio del sistema
+
+    FINISHED --> BOOT_CHECK: reinicio del sistema
+
+    FINISHED --> [*]
+
+    note right of BOOT_CHECK
+        Un autodiagnóstico fallido no deja
+        al robot en un estado intermedio:
+        pasa directo a FINISHED, para que
+        nunca pueda arrancar a medio verificar.
+    end note
+
+    note right of RACING
+        Único estado en el que el robot
+        se mueve. Se sale de él por las
+        3 vueltas o por parada de
+        emergencia; ambas van a FINISHED.
+    end note
+```
+
+<p align="center"><i>Open Challenge - máquina de estados</i><br><sub>Fuente: <a href="schemes/flowcharts/open/mermaid/maquina-estados.mmd"><code>maquina-estados.mmd</code></a> | <a href="schemes/flowcharts/open/webp/maquina-estados.webp">render WebP</a></sub></p>
+
+```mermaid
+flowchart TD
+    Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> InBay{"¿Está dentro del hueco<br/>de estacionamiento?<br/>(se asume que sí)"}
+
+    InBay -- "No: hay espacio<br/>libre adelante" --> Fase1
+    InBay -- "Sí" --> BayExit
+
+    subgraph FASE_0["Fase 0 - Salir de la bahía (solo Obstacle Challenge)"]
+        BayExit["Gira el volante a tope<br/>y avanza un tramo corto"] --> Guard{"¿La pierna dejaría al<br/>chasis demasiado cerca<br/>de una aleta?"}
+        Guard -- "Sí" --> Flip["Descarta esa pierna e<br/>invierte el sentido de marcha"]
+        Guard -- "No" --> Move["Ejecuta la pierna"]
+        Flip --> Mirror
+        Move --> Mirror["Al invertir, ESPEJA el volante:<br/>sin espejo el retroceso rehace<br/>el arco de ida y no se rota"]
+        Mirror --> YawCheck{"¿Ya rotó 70 grados<br/>desde la posición<br/>de arranque?"}
+        YawCheck -- "No" --> BayExit
+    end
+
+    YawCheck -- "Sí" --> Fase1
+
+    Fase1[["Inferencia de dirección"]] --> Commit["Fija la dirección<br/>y ubica al robot en la pista"]
+    Commit --> StartPose["Mide con precisión<br/>la posición de arranque"]
+    StartPose --> PlanPath["Traza la ruta de<br/>puntos de paso a seguir"]
+    PlanPath --> BuildRouter["Prepara el reconocimiento de señales.<br/>Como es modo ciego, empieza vacío<br/>y se llena con lo que ve la cámara"]
+    BuildRouter --> BuildLap["Prepara el contador<br/>de vueltas para esa ruta"]
+
+    BuildLap --> Drive
+
+    subgraph FASE_2["Fase 2 - Conducción y esquiva de señales"]
+        Drive["Sigue la ruta trazada"] --> Discover["La cámara detecta señales<br/>nuevas y las añade<br/>al mapa de señales"]
+        Discover --> Candidate["Elige la señal activa más<br/>cercana que aún no ha pasado"]
+        Candidate --> HasSign{"¿Hay una señal<br/>activa cerca?"}
+        HasSign -- "No" --> Watch
+        HasSign -- "Sí" --> Reroute[["Regla de paso por señal"]]
+        Reroute --> Watch[["Vigilancia de colisión y atasco"]]
+        Watch --> WPCheck
+    end
+
+    WPCheck{"¿Llegó al punto<br/>de paso objetivo?"}
+    WPCheck -- "No" --> Drive
+    WPCheck -- "Sí, y cerró<br/>la vuelta de la ruta" --> LapPhase
+
+    subgraph FASE_3["Fase 3 - Contar vueltas"]
+        LapPhase[["Conteo de vueltas"]] --> Rearm["Vuelve a habilitar todas<br/>las señales para<br/>la siguiente vuelta"]
+    end
+
+    Rearm --> LapsDone{"¿Ya completó<br/>las 3 vueltas?"}
+    LapsDone -- "No" --> Drive
+    LapsDone -- "Sí" --> Next(["Continúa en:<br/>Parte 2 - Final de carrera"])
+```
+
+<p align="center"><i>Obstacle Challenge - parte 1: conducción y señales</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/flujo-parte1-conduccion.mmd"><code>flujo-parte1-conduccion.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/flujo-parte1-conduccion.webp">render WebP</a></sub></p>
+
+```mermaid
+flowchart TD
+    Start(["Se completaron<br/>las 3 vueltas"]) --> Flag{"¿Está habilitada la<br/>persecución de la bahía?<br/>(attempt_after_final_lap)"}
+
+    Flag -- "NO - lo que embarca" --> FinishStop["Sigue conduciendo hasta la<br/>sección de meta y se detiene<br/>por completo dentro de ella"]
+    FinishStop --> End(["Carrera terminada"])
+
+    Flag -- "Sí - apagado, se conserva<br/>por si la geometría cambia" --> EngageCheck
+
+    subgraph DESHABILITADO["Maniobra de estacionamiento - CÓDIGO PRESENTE, NO SE EJECUTA"]
+        EngageCheck{"¿Está en el corredor del<br/>estacionamiento y ya cerca<br/>(a 0.45 m) del punto<br/>de espera?"}
+        EngageCheck -- "No" --> KeepDriving["Sigue conduciendo<br/>con normalidad (ver Parte 1)"]
+
+        EngageCheck -- "Sí" --> Stage["Acercamiento (STAGE): avanza<br/>en línea recta hacia el punto<br/>de espera, justo antes del hueco"]
+        Stage --> StageReach{"¿Llegó a menos<br/>de 4 cm del punto<br/>de espera?"}
+        StageReach -- "No: el volante se saturó<br/>o el objetivo quedó detrás" --> Reposition["Retrocede y<br/>se reacomoda"]
+        Reposition --> Stage
+
+        StageReach -- "Sí" --> Enter["Entrada (ENTER): avanza hacia<br/>el centro del hueco"]
+        Enter --> Breach{"¿Tocaría la pared<br/>o un poste de<br/>la señalización?"}
+        Breach -- "Sí" --> GiveUp["Se detiene donde está:<br/>prioriza no chocar sobre<br/>completar el estacionamiento"]
+        Breach -- "No" --> Inside{"¿Ya quedó completamente<br/>dentro del hueco y<br/>alineado con la pared?"}
+        Inside -- "No" --> Enter
+        Inside -- "Sí" --> Done["Estacionamiento<br/>completado"]
+    end
+
+    Geo>"Por qué está apagado: el chasis mide<br/>0.194 m y el hueco 0.20 m. Son 3 mm por<br/>lado, menos que el error de pose. Sobre<br/>256 escenarios, perseguirlo no ganó ni<br/>una vuelta y costó 96 rondas en tiempo"]
+
+    KeepDriving --> Geo
+    GiveUp --> Geo
+    Done --> Geo
+    Geo --> End
+```
+
+<p align="center"><i>Obstacle Challenge - parte 2: estacionamiento</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd"><code>flujo-parte2-estacionamiento.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/flujo-parte2-estacionamiento.webp">render WebP</a></sub></p>
+
+```mermaid
+stateDiagram-v2
+    [*] --> BOOT_CHECK
+
+    BOOT_CHECK --> READY: autodiagnóstico correcto
+    BOOT_CHECK --> FINISHED: falla el autodiagnóstico
+
+    READY --> RACING: se pulsa el botón de inicio
+    READY --> BOOT_CHECK: reinicio del sistema
+
+    RACING --> FINISHED: se completan las 3 vueltas
+    RACING --> FINISHED: parada de emergencia
+    RACING --> BOOT_CHECK: reinicio del sistema
+
+    FINISHED --> BOOT_CHECK: reinicio del sistema
+
+    FINISHED --> [*]
+
+    note right of RACING
+        Todo lo propio del Obstacle Challenge
+        ocurre DENTRO de este estado: salir de
+        la bahía al arrancar, esquivar señales
+        y contar vueltas. No hay un estado
+        PARKING -- nunca lo hubo en el código.
+    end note
+
+    note right of FINISHED
+        Tras la última vuelta el robot se detiene
+        en la sección de meta. La maniobra de
+        estacionamiento existe pero está apagada
+        (attempt_after_final_lap = false): la
+        bahía es más estrecha que el chasis.
+    end note
+```
+
+<p align="center"><i>Obstacle Challenge - máquina de estados</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/maquina-estados.mmd"><code>maquina-estados.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/maquina-estados.webp">render WebP</a></sub></p>
 ## Grabación y análisis de carreras
 
 Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale mal, observar el robot no revela la causa. Por eso todo lo que ocurre a bordo queda grabado.
@@ -1302,13 +1575,30 @@ El robot cambió de servo y de motor durante el desarrollo. Para que eso no obli
 
 Se combinan al arrancar. Cambiar de servo es seleccionar otro perfil, no editar código, y, sobre todo, significa que **los dos servos siguen siendo probables** después del cambio: si el de 35 kg falla en competencia, volver al de 14 kg es una línea de configuración, no una tarde de reescritura.
 
-<!-- HUECO (rubro WRO 2026, criterio 4 "Compensaciones", nivel 6: "elegimos X en vez de Y porque").
-Falta una tabla única de alternativas descartadas. El material ya está escrito pero
-disperso por el documento: L298N contra BTS7960 (corriente), XLC4016 contra
-Mini-560 Pro (peso), IMU de 9 ejes contra 6 ejes en modo UART-RVC (magnetómetro
-descartado por interferencia), conmutación de anticipación contra rampa de mezcla,
-y ROS2/Python contra la pila en Go. Cada fila necesita: opción elegida, alternativa,
-criterio de decisión y el dato que la resolvió. -->
+## Compensaciones y alternativas descartadas
+
+Ninguna de estas piezas se cambió por intuición. Cada fila responde a la misma pregunta: **qué dato hizo insostenible la primera opción**. Las cuatro piezas descartadas siguen en el repositorio, porque la que se fue explica por qué está la que se quedó.
+
+| Descartado | Elegido | Qué lo decidió | Qué se pagó |
+|---|---|---|---|
+| **Puente H L298N**<br><img src="other/assets/images/components/puente-h-l298n.webp" width="150"> | **BTS7960 / IBT-2** | Medimos el consumo real del tren motriz: **~10 A sostenidos al 50% de ciclo de trabajo, con picos cercanos a 20 A**, contra los **2 A por canal** del L298N. Un orden de magnitud de diferencia, y explicaba de golpe los cortes y el calentamiento | Mayor tamaño y peso. Y el cuello de botella no desapareció: se movió al interruptor de encendido |
+| **Step Down XLC4016**<br><img src="other/assets/images/components/step-down-xlc4016.webp" width="150"> | **Mini-560 Pro** | Peso. Con el robot **200 g por encima del límite de 1500 g** y ninguna pieza responsable del exceso, la única salida era dimensionar cada rama contra su carga medida en vez de contra el peor caso imaginable. Este cambio solo recuperó **19 g** | Margen de corriente más ajustado, que ahora vigilamos con `vcgencmd get_throttled` en vez de sobredimensionar |
+| **Motor genérico 540**<br><img src="other/assets/images/components/motor-540.webp" width="150"> | **REV HD Hex Motor** | Torque insuficiente. Con el 540, vTitan no pasaba de **15 cm/s en pista** y no completaba los desafíos dentro del límite de tiempo. El HD Hex da 0.105 Nm de bloqueo y 6000 rpm sin carga | Obligó a rehacer el ajuste del PID: el `counts_per_rev` correcto resultó ser 60 y no 676, y las ganancias viejas producían oscilación visible |
+| **Servo Injora 14 kg**<br><img src="other/assets/images/components/injora-14kg-injs014-micro-servo.webp" width="150"> | **Hi Wonder HPS-3527SG 35 kg** | Recorrido. El Injora abarca **180°**; la dirección en contrafase de vTitan necesita el recorrido ampliado del Hi Wonder (**270°**) para acercarse al giro de 90° por rueda que hace viable la salida del estacionamiento | Más peso y volumen. Ambos servos siguen siendo válidos: viven como [perfiles de hardware](#perfiles-de-hardware-intercambiables) y se eligen sin tocar código |
+
+Y tres compensaciones que no son de pieza sino de diseño:
+
+| Descartado | Elegido | Qué lo decidió |
+|---|---|---|
+| **IMU en 9 ejes** (con magnetómetro) | **6 ejes en modo UART-RVC** | Sobre la pista conviven tres motores, chasis metálico y electrónica de potencia. Un rumbo por campo magnético es vulnerable a todo eso. Aceptamos a cambio la deriva del datasheet (~0.5°/min) y la acotamos por otras vías |
+| **Lazo P sobre error angular** | **Pure pursuit** | El lazo P era estable solo por debajo de **~0.07 m/s**; a velocidad de carrera saturaba el servo entre −70.2° y +70.2° durante carreras enteras. La ganancia estaba ajustada contra un modelo de dirección delantera, y el chasis real es de 4 ruedas en contrafase. No era cuestión de reajustar, sino de cambiar la ley de control |
+| **Conmutación de anticipación** (0.16 m / 0.32 m) | **Rampa de mezcla continua** | La conmutación ocurría a **~2.5 Hz** y cada una multiplicaba la curvatura por cuatro, con un zigzag visible (pico medio de \|steer\| de 0.306 a 0.398) sin ganancia lateral real |
+
+<!-- HUECO (rubro WRO 2026, criterio 4, lo que sigue faltando aqui).
+Falta la comparacion ROS2/Python contra la pila en Go como compensacion
+explicita: que se gana en arranque y consumo, que se paga en paridad, y cual
+es el criterio objetivo para cortar a produccion. Hoy esa decision se explica
+en "La segunda pila en Go" pero no esta planteada como un trade-off medido. -->
 
 ## Registro de decisiones de arquitectura (ADR)
 
@@ -1347,20 +1637,45 @@ Dos disciplinas que aprendimos a costa de errores:
 
 Los errores más costosos del proyecto no fueron de programación, sino **suposiciones que nadie había verificado**. Estos son los que más nos enseñaron:
 
-| Hallazgo | Consecuencia |
-|----------|--------------|
-| El encoder daba **60 pulsos por vuelta, no 86** | Toda medición de distancia y velocidad estaba mal por ese factor. Se descubrió midiendo con cinta métrica una distancia conocida y comparándola con lo que el robot creía haber recorrido. |
-| El «techo de 0.45 m/s» **no era un límite físico** | Era un artefacto del error anterior. Con el valor correcto, el techo real resultó ser **~0.58 m/s**. Estuvimos limitando el robot por un error de cuentas, no por el motor. |
-| Un LIDAR montado invertido necesita **espejar las lecturas, no rotarlas 180°** | Rotar deja los ángulos invertidos en un sentido que parece plausible: el robot no falla de golpe, sino que interpreta mal la pista de forma sutil. Fue de los fallos que más costó localizar. |
-| Un fallo de lectura del LIDAR **se sustituye por el rango máximo** | Es decir, un sensor sin respuesta se lee como «lado completamente despejado», justo la señal que usamos para decidir el sentido de la vuelta. Sin filtrarlo, el robot podía salir a dar vueltas al revés con total confianza. |
-| El puente H **operaba diez veces por encima de su especificación** | Medir el consumo real del tren motriz (~10 A, con picos de ~20 A) contra los 2 A por canal del L298N explicó de golpe los cortes y el calentamiento. |
-| Sobredimensionar una pieza **no elimina el cuello de botella** | Al pasar a un puente de 43 A, el elemento más débil de la ruta de potencia pasó a ser el interruptor de encendido. El límite se movió de sitio; no desapareció. |
+> [!TIP]
+> El encoder daba **60 pulsos por vuelta, no 86**
+>
+> Toda medición de distancia y velocidad estaba mal por ese factor. Se descubrió midiendo con cinta métrica una distancia conocida y comparándola con lo que el robot creía haber recorrido.
 
-El patrón es siempre el mismo: **el sistema se comportaba de forma coherente con una suposición equivocada**, y por eso los síntomas nunca apuntaban a la causa. La conclusión que sacamos, y que ahora aplicamos por defecto, es medir antes de optimizar.
+> [!TIP]
+> El «techo de 0.45 m/s» **no era un límite físico**
+>
+> Era un artefacto del error anterior. Con el valor correcto, el techo real resultó ser **~0.58 m/s**. Estuvimos limitando el robot por un error de cuentas, no por el motor.
+
+> [!TIP]
+> Un LIDAR montado invertido necesita **espejar las lecturas, no rotarlas 180°**
+>
+> Rotar deja los ángulos invertidos en un sentido que parece plausible: el robot no falla de golpe, sino que interpreta mal la pista de forma sutil. Fue de los fallos que más costó localizar.
+
+> [!TIP]
+> Un fallo de lectura del LIDAR **se sustituye por el rango máximo**
+>
+> Es decir, un sensor sin respuesta se lee como «lado completamente despejado», justo la señal que usamos para decidir el sentido de la vuelta. Sin filtrarlo, el robot podía salir a dar vueltas al revés con total confianza.
+
+> [!TIP]
+> El puente H **operaba diez veces por encima de su especificación**
+>
+> Medir el consumo real del tren motriz (~10 A, con picos de ~20 A) contra los 2 A por canal del L298N explicó de golpe los cortes y el calentamiento.
+
+> [!TIP]
+> Sobredimensionar una pieza **no elimina el cuello de botella**
+>
+> Al pasar a un puente de 43 A, el elemento más débil de la ruta de potencia pasó a ser el interruptor de encendido. El límite se movió de sitio; no desapareció.
+
+> [!IMPORTANT]
+> El patrón es siempre el mismo: **el sistema se comportaba de forma coherente con una suposición equivocada**, y por eso los síntomas nunca apuntaban a la causa. La conclusión que sacamos, y que ahora aplicamos por defecto, es medir antes de optimizar.
 
 ## Gestión de riesgos
 
 Riesgos identificados del robot, con su mitigación o su estado. Incluimos también los abiertos sin solución completa: declararlos es parte de gestionarlos.
+
+> [!WARNING]
+> **Dos riesgos siguen abiertos y no los escondemos.** Las lecturas fantasma del LIDAR (rangos que alternan sin causa identificada) siguen sin causa raíz: los filtros de voto las absorben, pero absorber no es explicar. Y el `LPWM` del BTS7960 no tiene pull-down físico; lo evitamos por diseño usando `RPWM` en la ruta de carrera, pero la solución correcta es el resistor, que está en cola.
 
 | Riesgo | Impacto | Mitigación | Estado |
 |--------|---------|------------|--------|
