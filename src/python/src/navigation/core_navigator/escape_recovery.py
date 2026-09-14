@@ -341,6 +341,24 @@ class EscapeRecovery:
         if self._maneuver_frames_left <= 0:
             self._active_maneuver = None
             self._retracing = False
+            # Re-anchor the escape sequence to where this manoeuvre ENDED.
+            #
+            # The reset in navigator.py clears _escape_count once the robot is
+            # stuck_move_threshold (0.03 m) from the anchor. Anchored at the
+            # LATCH point, the manoeuvre satisfied that test with its own
+            # travel -- a K-turn reverses 0.117 m median -- so every escape
+            # certified itself as having worked, _escape_count never reached
+            # escalate_after_attempts, and _maybe_escalate could not fire.
+            # Measured: 59 of 149 K-turns were repeats within 0.40 m and 30 s,
+            # and run_20260914_000926 spent 179 s of a 292 s round in one limit
+            # cycle at a single spot with the waypoint index frozen.
+            #
+            # Measuring from the END instead asks the question the reset was
+            # written to ask: has the robot made progress SINCE the escape,
+            # rather than during it. Displacement the manoeuvre produced itself
+            # no longer counts as evidence that it worked.
+            if self._escape_sequence_start_xy is not None:
+                self._escape_sequence_start_xy = (robot_x, robot_y)
         # A retrace is re-aimed every tick, unlike a latched arc: the whole
         # point is to follow a path, and a single steering value fixed at
         # trigger time would describe an arc again after the first few

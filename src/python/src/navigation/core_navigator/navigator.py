@@ -1849,6 +1849,22 @@ class CoreNavigator(EscapeRecovery):
             if maneuver:
                 if self._escape_count == 0:
                     self._escape_sequence_start_xy = (robot_x, robot_y)
+                    # Seed the escalation base from the side this escape
+                    # actually chose. Both stuck paths already do this via
+                    # _stuck_escape_base_sign; the reactive path never did, so
+                    # _escape_steer_sign kept its constructor value of 1.0 and
+                    # _maybe_escalate's `start_sign=-self._escape_steer_sign`
+                    # resolved to -1.0 on EVERY reactive escalation regardless
+                    # of geometry. compute_escape_maneuver has already consulted
+                    # both the LIDAR and the router's committed side here, so
+                    # the sign of its steering is the best base available.
+                    #
+                    # steering == 0.0 is the deliberate straight reverse for a
+                    # shut wanted side (see _k_turn_steer_sign): it commits to
+                    # no side, so there is no base to learn and the previous
+                    # one is kept rather than overwritten with a fake.
+                    if maneuver.steering:
+                        self._escape_steer_sign = math.copysign(1.0, maneuver.steering)
                 self._escape_count += 1
                 # Fitted AFTER escalation, not before: escalation doubles the
                 # duration to walk a wedged chassis out, and a doubled reverse
