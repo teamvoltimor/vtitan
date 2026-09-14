@@ -81,6 +81,42 @@
     "vision_detect_falloff_m": {
       "type": "number",
       "description": "Width (m) of the logistic detection-probability falloff around vision_detect_r50_m; smaller is a sharper cliff."
+    },
+    "sensor_start_pos_error_m": {
+      "type": "number",
+      "description": "Residual error (m) between where the robot is placed and where it believes it starts. MEASURED: post-626a011 the start pose is derived from the scan rather than assumed, and landed within 3.6-4.8 cm on all three real bags, so this is what survives the measurement rather than the old 0.35-0.80 m assumption. Non-zero implies use_lidar_localization, since sensor error is only observable through the estimate."
+    },
+    "sensor_yaw_bias_rad": {
+      "type": "number",
+      "description": "Constant heading offset (rad) between true and believed yaw. MEASURED on hardware. Until 2026-09-14 the whole simulation corpus ran with every sensor error at 0.0, i.e. a PERFECT pose and a perfect start placement, which is the easy side of every question that depends on the pose estimate."
+    },
+    "sensor_imu_drift_rad_per_s": {
+      "type": "number",
+      "description": "Heading drift rate (rad/s). The BNO085's quoted 0.5 deg/min."
+    },
+    "sensor_gyro_scale_error": {
+      "type": "number",
+      "description": "Fractional scale error on integrated yaw rate (0.005 = 0.5% long)."
+    },
+    "sensor_imu_noise_rad": {
+      "type": "number",
+      "description": "Per-sample heading noise (rad, std dev)."
+    },
+    "vision_latency_s": {
+      "type": "number",
+      "description": "End-to-end delay (s) between a sign being visible and its detection reaching the navigator. MEASURED at 0.85 s on hardware -- the real gateway backs the pose up by exactly this before projecting a detection (sign_discovery.toml vision_latency_s). The simulator emitted from the CURRENT tick's true state until 2026-09-14, i.e. zero latency, which at 0.3 m/s hands the planner 0.26 m of anticipation it does not have on the mat."
+    },
+    "vision_frame_miss_rate": {
+      "type": "number",
+      "description": "Probability that an otherwise-visible sign produces NO detection on a given tick, on top of the range model. Hardware carries a detection on 11.6% of ticks (measured over 125 bags); the emulator with the range model alone carries one on ~54.5%. This closes that gap. It is a residual detector-miss term, not a camera frame-rate term: 15 fps against a 20 Hz control loop would only account for a quarter of it."
+    },
+    "vision_color_flip_rate": {
+      "type": "number",
+      "description": "Probability that a detection reports the OPPOSITE colour. UNMEASURED, so it ships at 0.0 rather than at a guess -- defaulting an invented error rate would make the simulator wrong in a new way rather than more realistic. The knob exists because colour confusion is the dominant real perception failure (the magenta parking barrier reaches the sign map as a RED pillar at p50 confidence 0.79) and the emulator copies ground-truth colour directly, so that entire failure mode is currently unscreenable. Needs a bag-derived confusion rate before it can ship non-zero."
+    },
+    "vision_false_positive_rate": {
+      "type": "number",
+      "description": "Probability per tick of emitting a detection for a sign that is not there. UNMEASURED, ships at 0.0 for the same reason as vision_color_flip_rate."
     }
   },
   "required": [
@@ -102,6 +138,15 @@
     "vision_range_model",
     "min_turn_radius_tracks_speed",
     "vision_detect_r50_m",
-    "vision_detect_falloff_m"
+    "vision_detect_falloff_m",
+    "sensor_start_pos_error_m",
+    "sensor_yaw_bias_rad",
+    "sensor_imu_drift_rad_per_s",
+    "sensor_gyro_scale_error",
+    "sensor_imu_noise_rad",
+    "vision_latency_s",
+    "vision_frame_miss_rate",
+    "vision_color_flip_rate",
+    "vision_false_positive_rate"
   ]
 }

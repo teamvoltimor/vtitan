@@ -101,6 +101,29 @@ type NavigationSimulationSimulation struct {
 	// compared is meaningless.
 	ObstaclesInnerWallTerminal bool `json:"obstacles_inner_wall_terminal" yaml:"obstacles_inner_wall_terminal" mapstructure:"obstacles_inner_wall_terminal"`
 
+	// Fractional scale error on integrated yaw rate (0.005 = 0.5% long).
+	SensorGyroScaleError float64 `json:"sensor_gyro_scale_error" yaml:"sensor_gyro_scale_error" mapstructure:"sensor_gyro_scale_error"`
+
+	// Heading drift rate (rad/s). The BNO085's quoted 0.5 deg/min.
+	SensorImuDriftRadPerS float64 `json:"sensor_imu_drift_rad_per_s" yaml:"sensor_imu_drift_rad_per_s" mapstructure:"sensor_imu_drift_rad_per_s"`
+
+	// Per-sample heading noise (rad, std dev).
+	SensorImuNoiseRad float64 `json:"sensor_imu_noise_rad" yaml:"sensor_imu_noise_rad" mapstructure:"sensor_imu_noise_rad"`
+
+	// Residual error (m) between where the robot is placed and where it believes it
+	// starts. MEASURED: post-626a011 the start pose is derived from the scan rather
+	// than assumed, and landed within 3.6-4.8 cm on all three real bags, so this is
+	// what survives the measurement rather than the old 0.35-0.80 m assumption.
+	// Non-zero implies use_lidar_localization, since sensor error is only observable
+	// through the estimate.
+	SensorStartPosErrorM float64 `json:"sensor_start_pos_error_m" yaml:"sensor_start_pos_error_m" mapstructure:"sensor_start_pos_error_m"`
+
+	// Constant heading offset (rad) between true and believed yaw. MEASURED on
+	// hardware. Until 2026-09-14 the whole simulation corpus ran with every sensor
+	// error at 0.0, i.e. a PERFECT pose and a perfect start placement, which is the
+	// easy side of every question that depends on the pose estimate.
+	SensorYawBiasRad float64 `json:"sensor_yaw_bias_rad" yaml:"sensor_yaw_bias_rad" mapstructure:"sensor_yaw_bias_rad"`
+
 	// How long such an opening contact may persist before it counts as a real failure
 	// rather than "still steering clear".
 	StartCollisionGraceS float64 `json:"start_collision_grace_s" yaml:"start_collision_grace_s" mapstructure:"start_collision_grace_s"`
@@ -113,12 +136,42 @@ type NavigationSimulationSimulation struct {
 	// fail a placement the rules allow.
 	StartCollisionWindowS float64 `json:"start_collision_window_s" yaml:"start_collision_window_s" mapstructure:"start_collision_window_s"`
 
+	// Probability that a detection reports the OPPOSITE colour. UNMEASURED, so it
+	// ships at 0.0 rather than at a guess -- defaulting an invented error rate would
+	// make the simulator wrong in a new way rather than more realistic. The knob
+	// exists because colour confusion is the dominant real perception failure (the
+	// magenta parking barrier reaches the sign map as a RED pillar at p50 confidence
+	// 0.79) and the emulator copies ground-truth colour directly, so that entire
+	// failure mode is currently unscreenable. Needs a bag-derived confusion rate
+	// before it can ship non-zero.
+	VisionColorFlipRate float64 `json:"vision_color_flip_rate" yaml:"vision_color_flip_rate" mapstructure:"vision_color_flip_rate"`
+
 	// Width (m) of the logistic detection-probability falloff around
 	// vision_detect_r50_m; smaller is a sharper cliff.
 	VisionDetectFalloffM float64 `json:"vision_detect_falloff_m" yaml:"vision_detect_falloff_m" mapstructure:"vision_detect_falloff_m"`
 
 	// Emulated camera range (m) at which a sign is detected on about half of frames.
 	VisionDetectR50M float64 `json:"vision_detect_r50_m" yaml:"vision_detect_r50_m" mapstructure:"vision_detect_r50_m"`
+
+	// Probability per tick of emitting a detection for a sign that is not there.
+	// UNMEASURED, ships at 0.0 for the same reason as vision_color_flip_rate.
+	VisionFalsePositiveRate float64 `json:"vision_false_positive_rate" yaml:"vision_false_positive_rate" mapstructure:"vision_false_positive_rate"`
+
+	// Probability that an otherwise-visible sign produces NO detection on a given
+	// tick, on top of the range model. Hardware carries a detection on 11.6% of ticks
+	// (measured over 125 bags); the emulator with the range model alone carries one
+	// on ~54.5%. This closes that gap. It is a residual detector-miss term, not a
+	// camera frame-rate term: 15 fps against a 20 Hz control loop would only account
+	// for a quarter of it.
+	VisionFrameMissRate float64 `json:"vision_frame_miss_rate" yaml:"vision_frame_miss_rate" mapstructure:"vision_frame_miss_rate"`
+
+	// End-to-end delay (s) between a sign being visible and its detection reaching
+	// the navigator. MEASURED at 0.85 s on hardware -- the real gateway backs the
+	// pose up by exactly this before projecting a detection (sign_discovery.toml
+	// vision_latency_s). The simulator emitted from the CURRENT tick's true state
+	// until 2026-09-14, i.e. zero latency, which at 0.3 m/s hands the planner 0.26 m
+	// of anticipation it does not have on the mat.
+	VisionLatencyS float64 `json:"vision_latency_s" yaml:"vision_latency_s" mapstructure:"vision_latency_s"`
 
 	// Emulate detection RANGE falloff (not just geometry) on the emulated camera: a
 	// probit-ish falloff around R50, in metres.

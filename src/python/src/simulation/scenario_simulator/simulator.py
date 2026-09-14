@@ -190,7 +190,25 @@ class ScenarioSimulator(PassSideScorer):
         # out where it is); False hands it ground truth and is the easier
         # control arm. Either of blind or sensor_errors forces it True, so
         # passing False alongside them is silently ignored rather than honoured.
-        self._errors = sensor_errors or SensorErrors()
+        # The DEFAULT is now the measured hardware error budget, not a perfect
+        # sensor. Until 2026-09-14 this read `SensorErrors()` -- every field
+        # 0.0 -- and nothing in the corpus ever passed an argument, so the whole
+        # suite ran on a PERFECT pose and a PERFECT start placement. That is the
+        # easy side of every question that depends on the pose estimate, and it
+        # systematically flatters any threshold whose job is to rescue a plan
+        # that has already gone wrong.
+        #
+        # Set the simulation.toml sensor_* keys to 0.0 to recover the old
+        # idealised behaviour. An explicit `sensor_errors` argument still wins,
+        # so the diagnostics that sweep specific error arms are unaffected.
+        _sim = get_tuning(tuning).simulation
+        self._errors = sensor_errors or SensorErrors(
+            start_pos_error_m=_sim.sensor_start_pos_error_m,
+            yaw_bias_rad=_sim.sensor_yaw_bias_rad,
+            imu_drift_rad_per_s=_sim.sensor_imu_drift_rad_per_s,
+            gyro_scale_error=_sim.sensor_gyro_scale_error,
+            imu_noise_rad=_sim.sensor_imu_noise_rad,
+        )
         use_lidar_localization = use_lidar_localization or blind or self._errors.any_error
 
         true_geometry = corridor_widths_from_metadata(metadata)

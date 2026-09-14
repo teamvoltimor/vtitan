@@ -126,3 +126,48 @@ min_turn_radius_tracks_speed = false
 vision_detect_r50_m = 1.1
 vision_detect_falloff_m = 0.15
 
+
+# ---------------------------------------------------------------------------
+# SENSOR ERROR BUDGET, on by default since 2026-09-14
+#
+# Until then every value here was effectively 0.0: `ScenarioSimulator` did
+# `sensor_errors or SensorErrors()` and nothing in the corpus ever passed one,
+# so the whole 256-scenario suite ran with a PERFECT pose and a PERFECT start
+# placement. That is the easy side of every question that depends on the pose
+# estimate, and it flatters any threshold whose job is to rescue a plan that
+# went wrong.
+#
+# These are the numbers from scripts/common/sensor_errors.py REAL_SENSOR_ERRORS,
+# which were sized from the real robot rather than invented. Set them all to 0.0
+# to recover the old idealised behaviour.
+#
+# Any non-zero value implies use_lidar_localization: sensor error is only
+# observable through the estimate, so on ground-truth pose a mis-seeded
+# estimator is never consulted and the run is unaffected.
+sensor_start_pos_error_m = 0.05
+sensor_yaw_bias_rad = 0.03
+sensor_imu_drift_rad_per_s = 0.000145
+sensor_gyro_scale_error = 0.005
+sensor_imu_noise_rad = 0.005
+
+# ---------------------------------------------------------------------------
+# CAMERA REALISM, on by default since 2026-09-14
+#
+# The emulator emitted from the CURRENT tick's true state, so the simulated
+# camera spoke on ~54.5% of ticks with ZERO lag. Hardware carries a detection on
+# 11.6% of ticks (measured over 125 bags) and the real gateway compensates a
+# MEASURED 0.85 s pipeline delay. That gap IS the anticipation budget: it
+# decides whether the planner or the reactive layer handles a pillar, so a sim
+# without it asks the reactive layer to rescue far fewer situations than the mat
+# does.
+vision_latency_s = 0.85
+vision_frame_miss_rate = 0.79
+
+# UNMEASURED, so they ship at 0.0 rather than at a guess. Defaulting an invented
+# error rate would make the simulator wrong in a new way rather than more
+# realistic. Both knobs exist because the emulator copies ground-truth colour
+# directly and never invents a sign, which makes the single biggest real
+# perception failure -- the magenta parking barrier arriving as a RED pillar --
+# impossible to screen in simulation at all.
+vision_color_flip_rate = 0.0
+vision_false_positive_rate = 0.0
