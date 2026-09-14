@@ -1151,6 +1151,7 @@ El robot arranca **sin mapa y sin saber hacia qué lado se corre la pista**. Tod
 
 Es la primera decisión de cada ronda y condiciona todas las demás. El robot avanza despacio y centrado, y compara cuánto espacio libre mide el LIDAR a izquierda y derecha: el lado que **deja de ser pared** indica dónde está el bloque interior, y el bloque interior fija el sentido de giro.
 
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/inferencia-direccion.mmd -->
 ```mermaid
 flowchart TD
     A["El robot avanza despacio,<br/>centrado entre las paredes"] --> Block{"¿Hay un obstáculo<br/>físico muy cerca,<br/>justo adelante?"}
@@ -1207,6 +1208,7 @@ Y aun así una sola lectura no decide: hacen falta **5 votos coincidentes**. Un 
 
 Con el sentido resuelto, el robot sigue el pasillo manteniéndose centrado, cuenta las vueltas por el paso acumulado alrededor del circuito, y vigila permanentemente dos condiciones de fallo: **colisión** y **atasco**. Ambas comparten una misma rutina de escape, documentada una sola vez en `common/` y referenciada desde los dos desafíos en vez de redibujarse.
 
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/conteo-vueltas.mmd -->
 ```mermaid
 flowchart TD
     LapCheck["Actualiza el avance<br/>sobre la ruta"] --> CrossCheck{"¿Cruzó de verdad<br/>la línea de meta?"}
@@ -1216,6 +1218,7 @@ flowchart TD
 
 <p align="center"><i>Conteo de vueltas por paso acumulado alrededor del circuito</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/conteo-vueltas.mmd"><code>conteo-vueltas.mmd</code></a> | <a href="schemes/flowcharts/common/webp/conteo-vueltas.webp">render WebP</a></sub></p>
 
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/escape-colision.mmd -->
 ```mermaid
 flowchart TD
     Risk{"¿El LIDAR detecta<br/>un peligro adelante?"}
@@ -1244,6 +1247,7 @@ flowchart TD
 
 <p align="center"><i>Rutina de escape compartida ante colisión y atasco</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/escape-colision.mmd"><code>escape-colision.mmd</code></a> | <a href="schemes/flowcharts/common/webp/escape-colision.webp">render WebP</a></sub></p>
 
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/esquiva-generica.mmd -->
 ```mermaid
 flowchart TD
     Obstacle["Obstáculo detectado<br/>muy cerca, adelante"] --> IsSign{"¿Es una señal de<br/>tránsito roja o verde?"}
@@ -1273,6 +1277,7 @@ flowchart TD
 
 En el Desafío de Obstáculos se añade la regla de color: el robot debe pasar por un lado determinado de cada señal según sea roja o verde. La consecuencia de equivocarse no es perder puntos, es **terminar la ronda**, así que el criterio de paso es una de las partes más conservadoras del sistema.
 
+<!-- mermaid-src: schemes/flowcharts/obstacles/mermaid/regla-senales.mmd -->
 ```mermaid
 flowchart TD
     Sign["La cámara detecta<br/>una señal de tránsito"] --> Active["Se elige la señal activa<br/>más cercana que el robot<br/>aún no ha pasado"]
@@ -1304,6 +1309,7 @@ flowchart TD
 
 Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los flujos completos y las máquinas de estado de cada desafío, renderizados desde las mismas fuentes Mermaid de [`schemes/flowcharts/`](schemes/flowcharts/).
 
+<!-- mermaid-src: schemes/flowcharts/open/mermaid/flujo-completo.mmd -->
 ```mermaid
 flowchart TD
     Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> Fase1
@@ -1342,6 +1348,7 @@ flowchart TD
 
 <p align="center"><i>Open Challenge - flujo completo</i><br><sub>Fuente: <a href="schemes/flowcharts/open/mermaid/flujo-completo.mmd"><code>flujo-completo.mmd</code></a> | <a href="schemes/flowcharts/open/webp/flujo-completo.webp">render WebP</a></sub></p>
 
+<!-- mermaid-src: schemes/flowcharts/open/mermaid/maquina-estados.mmd -->
 ```mermaid
 stateDiagram-v2
     [*] --> BOOT_CHECK
@@ -1377,6 +1384,7 @@ stateDiagram-v2
 
 <p align="center"><i>Open Challenge - máquina de estados</i><br><sub>Fuente: <a href="schemes/flowcharts/open/mermaid/maquina-estados.mmd"><code>maquina-estados.mmd</code></a> | <a href="schemes/flowcharts/open/webp/maquina-estados.webp">render WebP</a></sub></p>
 
+<!-- mermaid-src: schemes/flowcharts/obstacles/mermaid/flujo-parte1-conduccion.mmd -->
 ```mermaid
 flowchart TD
     Start(["Inicio de la carrera<br/>(modo ciego: sin mapa<br/>ni dirección conocidos)"]) --> InBay{"¿Está dentro del hueco<br/>de estacionamiento?<br/>(se asume que sí)"}
@@ -1429,6 +1437,7 @@ flowchart TD
 
 <p align="center"><i>Obstacle Challenge - parte 1: conducción y señales</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/flujo-parte1-conduccion.mmd"><code>flujo-parte1-conduccion.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/flujo-parte1-conduccion.webp">render WebP</a></sub></p>
 
+<!-- mermaid-src: schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd -->
 ```mermaid
 flowchart TD
     Start(["Se completaron<br/>las 3 vueltas"]) --> Flag{"¿Está habilitada la<br/>persecución de la bahía?<br/>(attempt_after_final_lap)"}
@@ -1465,6 +1474,7 @@ flowchart TD
 
 <p align="center"><i>Obstacle Challenge - parte 2: estacionamiento</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/flujo-parte2-estacionamiento.mmd"><code>flujo-parte2-estacionamiento.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/flujo-parte2-estacionamiento.webp">render WebP</a></sub></p>
 
+<!-- mermaid-src: schemes/flowcharts/obstacles/mermaid/maquina-estados.mmd -->
 ```mermaid
 stateDiagram-v2
     [*] --> BOOT_CHECK

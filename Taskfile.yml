@@ -109,6 +109,19 @@ tasks:
           done
         platforms: [linux, darwin]
 
+  docs:mermaid:
+    desc: >-
+      Refresh the Mermaid blocks inlined in README.md from their .mmd sources in
+      schemes/flowcharts/*/mermaid/ (usage: task docs:mermaid). The .mmd file is
+      the single source of truth: GitHub renders it when opened directly, `task
+      docs:diagrams` renders it to WebP, and the README carries an inlined copy
+      so the diagram shows without leaving the page. Each copy is anchored by an
+      HTML comment naming its source, and %% maintenance comments are dropped on
+      the way in. Run this after editing any .mmd. Add -- --check to report
+      stale blocks and fail instead of rewriting, which is what CI should call.
+    cmds:
+      - cmd: python other/scripts/sync-readme-mermaid.py {{.CLI_ARGS}}
+
   # GPG
 
   gpg:fix-tty:
