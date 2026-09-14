@@ -38,7 +38,8 @@ def main() -> int:
         print("nothing to measure")
         return 0
     section = CANONICAL_SECTION
-    nx, ny = TRAVEL_DIRS[(section, direction)]
+    travel = TRAVEL_DIRS[(section, direction)]
+    nx, ny = travel.nx, travel.ny
 
     if args.origin == "assumed":
         pos = assumed_start_conditions(direction)["position"]
