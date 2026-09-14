@@ -136,10 +136,41 @@ obstacles_contact_dist = 0.10
 # Both existed only as Python literals, so no edit to this file could reach
 # them. Shipped values, so naming them changed nothing.
 
-# Measure forward clearance from the BUMPER rather than the LIDAR. Off: the
-# gates above already subtract the mount offset where they need to, and
-# flipping this would double-apply it.
-forward_path_ahead_of_bumper = false
+# Select the forward lane from the BUMPER plane rather than from the LIDAR.
+#
+# ON since 2026-09-14. The old comment here claimed "the gates above already
+# subtract the mount offset where they need to, and flipping this would
+# double-apply it". That is wrong, and it kept a geometry bug alive: this flag
+# moves the ALONG-TRACK selection threshold in _forward_path_selection
+# (sectors.py), while bumper_gap_ahead subtracts the offset from the RADIAL
+# range. Different axes, different roles, nothing is applied twice.
+#
+# What was actually happening. CRITICAL fires on `gap < contact_dist`, and
+# gap = range - LIDAR_TO_FRONT_BUMPER, so only a return inside 0.128 m can ever
+# trigger it. The lateral gate is `|range*sin(theta)| < path_half_width`, and
+# path_half_width = WIDTH/2 + path_margin = 0.197 m. Since lateral <= range
+# <= 0.128 < 0.197 by construction, THE LATERAL GATE CANNOT REJECT ANYTHING in
+# the CRITICAL band. With this flag off, `ahead` was merely `along > 0`, so the
+# whole test reduced to "any valid return within 12.8 cm anywhere in the
+# forward half-plane" -- a bubble, not a lane.
+#
+# Measured on the nine 2026-09-13/14 rounds, 366 escape latches carrying a
+# trigger ray, by |escape_trigger_angle_rad| (wrapped to [-pi, pi]):
+#
+#    0-15 deg   42 (11.5%)      45-60 deg   64 (17.5%)
+#   15-30 deg   43 (11.7%)      60-75 deg   84 (23.0%)
+#   30-45 deg   45 (12.3%)      75-90 deg   88 (24.0%)
+#
+# 47% of escapes fired on something more than 60 deg off the nose, i.e. abeam:
+# the pillar the robot was in the middle of passing correctly. Only 11.5% were
+# dead ahead. 98 of 366 (27%) sat at or BEHIND the front-bumper plane, which
+# forward motion cannot reach at all -- those are the ones this flag removes.
+#
+# This does NOT fix the abeam 47%; a ray at 75 deg and 0.12 m still has
+# along = 0.031 > 0.0278 and survives. The full fix is a steering-aware swept
+# corridor in _forward_path_selection so the lateral bound stops being vacuous
+# below 0.197 m. That is code, and it needs the 256-scenario corpus first.
+forward_path_ahead_of_bumper = true
 
 # Treat a forward cone that returns NOTHING as degraded rather than clear. A
 # whole-cone no-return is the LIDAR failing to see, not open track -- reading
