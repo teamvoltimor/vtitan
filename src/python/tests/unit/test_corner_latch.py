@@ -9,7 +9,7 @@ import pytest
 from src.navigation.core_navigator.corner_latch import CornerLatch
 
 _THRESHOLD = 0.35
-"""Matches pursuit.CORNER_TURN_THRESHOLD_RAD; the caller supplies it."""
+"""Matches pursuit.corner_turn_threshold_rad; the caller supplies it."""
 
 
 class TestPassthrough:

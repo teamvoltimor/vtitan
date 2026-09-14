@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/blind_nav"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -42,7 +44,7 @@ func ConfigFor(
 	}
 
 	cfPath := filepath.Join(configRoot, profile.DefaultCorridorFollowerTOMLPath)
-	if cf, err := profile.Load[profile.CorridorFollowerConfig](cfPath, nil); err != nil {
+	if cf, err := profile.Load[blind_nav.NavigationBlindNavCorridorFollower](cfPath, nil); err != nil {
 		logger.Warn("corridorfollower: loading corridor_follower.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -84,7 +86,7 @@ func ConfigFor(
 		cfg.BayExitGuardOverlapRecovery = cf.BayExitGuardOverlapRecovery
 		cfg.BayExitOpenSideSectorDeg = cf.BayExitOpenSideSectorDeg
 		cfg.BayExitOpenSideVotes = cf.BayExitOpenSideVotes
-		cfg.BayExitSpeedMPS = cf.BayExitSpeedMPS
+		cfg.BayExitSpeedMPS = cf.BayExitSpeedMps
 		cfg.BayExitContactDistM = cf.BayExitContactDistM
 		cfg.BayExitContactRecoveryTicks = cf.BayExitContactRecoveryTicks
 		cfg.BayExitTargetYawDeg = cf.BayExitTargetYawDeg
@@ -96,7 +98,7 @@ func ConfigFor(
 	}
 
 	cePath := filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath)
-	if ce, err := profile.Load[profile.CorridorEstimatorConfig](cePath, nil); err != nil {
+	if ce, err := profile.Load[blind_nav.NavigationBlindNavCorridorEstimator](cePath, nil); err != nil {
 		logger.Warn("corridorfollower: loading corridor_estimator.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -104,7 +106,7 @@ func ConfigFor(
 	}
 
 	lsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	if ls, err := profile.Load[profile.LidarSectorsConfig](lsPath, nil); err != nil {
+	if ls, err := profile.Load[sensors.NavigationSensorsLidarSectors](lsPath, nil); err != nil {
 		logger.Warn("corridorfollower: loading lidar_sectors.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

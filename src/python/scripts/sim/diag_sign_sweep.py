@@ -234,13 +234,13 @@ class SweepConfig:
     lookahead_short: float | None = None
     lookahead_long: float | None = None
     fast_mps: float | None = None
-    """Override ``SpeedParams.FAST_MPS``, in ABSOLUTE m/s."""
+    """Override ``SpeedParams.fast_mps``, in ABSOLUTE m/s."""
 
     max_mps: float | None = None
-    """Override ``SpeedParams.MAX_MPS``, in ABSOLUTE m/s.
+    """Override ``SpeedParams.max_mps``, in ABSOLUTE m/s.
 
     Must move with ``fast_mps``. ``CoreNavigator`` clamps the selected tier to
-    ``speed.max_mps()`` before commanding it, so raising FAST alone above MAX
+    ``speed.max_mps`` before commanding it, so raising FAST alone above MAX
     produces an arm that is SILENTLY IDENTICAL to the one at MAX -- a clean
     no-change result that reads as evidence and is not. The shipped profile has
     MAX at 0.50, so every ``speed`` value above that was inert until this field
@@ -259,9 +259,9 @@ class SweepConfig:
     """
 
     creep_mps: float | None = None
-    """Override ``SpeedParams.CREEP_MPS``, in ABSOLUTE m/s.
+    """Override ``SpeedParams.creep_mps``, in ABSOLUTE m/s.
 
-    The tier the heading limiter drops to past ``HeadingErrorZones.CRAWL``,
+    The tier the heading limiter drops to past ``HeadingErrorZones.crawl``,
     which exists because the steering actuator's slew rate is fixed and cannot
     track a sharp demand at speed.
 
@@ -294,7 +294,7 @@ class SweepConfig:
     """
 
     corner_steer_deg: float | None = None
-    """Override ``CorridorFollowerParams.MAX_CORNER_STEER_DEG`` (shipped 21.25).
+    """Override ``CorridorFollowerParams.max_corner_steer_deg`` (shipped 21.25).
 
     The angle the blind creep's corner-turn and back-off branches command.
     Split from ``MAX_CENTERING_STEER_DEG`` on 2026-08-29 because the shared
@@ -311,7 +311,7 @@ class SweepConfig:
     """
 
     centering_steer_deg: float | None = None
-    """Override ``CorridorFollowerParams.MAX_CENTERING_STEER_DEG`` (shipped 13.75).
+    """Override ``CorridorFollowerParams.max_centering_steer_deg`` (shipped 13.75).
 
     The heading-damping clamp, deliberately left at the pre-split value: it is
     sized against the 2026-08-03 limit cycle, not against corner geometry.
@@ -320,7 +320,7 @@ class SweepConfig:
     """
 
     replan_blend_ticks: int | None = None
-    """Override ``WaypointParams.REPLAN_BLEND_TICKS`` (shipped 20; 0 = the old
+    """Override ``WaypointParams.replan_blend_ticks`` (shipped 20; 0 = the old
     instant swap).
 
     How many ticks a replanned centreline is faded in over. Added 2026-08-30
@@ -332,7 +332,7 @@ class SweepConfig:
     """
 
     contact_dist: float | None = None
-    """Override ``ClearanceZones.CONTACT_DIST`` (shipped 0.10 m).
+    """Override ``ClearanceZones.contact_dist`` (shipped 0.10 m).
 
     SHADOWED ON THIS HARNESS unless ``clear_obstacles_contact_dist`` is set.
     Since ``obstacles_contact_dist = 0.05`` began shipping in ``clearance.toml``,
@@ -354,7 +354,7 @@ class SweepConfig:
     """
 
     obstacles_contact_dist: float | None = None
-    """Override ``ClearanceZones.OBSTACLES_CONTACT_DIST`` (SHIPPED 0.04 m since
+    """Override ``ClearanceZones.obstacles_contact_dist`` (SHIPPED 0.04 m since
     ``adaf194``; it was 0.05 before, and 0.04 is only valid PAIRED with
     ``min_valid_range`` 0.044 -- see the ``clearance-floor`` mode).
 
@@ -386,7 +386,7 @@ class SweepConfig:
     """
 
     ahead_of_bumper: bool | None = None
-    """Override ``ClearanceZones.FORWARD_PATH_AHEAD_OF_BUMPER`` (shipped False).
+    """Override ``ClearanceZones.forward_path_ahead_of_bumper`` (shipped False).
 
     Requires a forward-path return to be ahead of the front BUMPER rather than
     the LIDAR, which sits 2.78 cm behind it. Only bites at contact range, and
@@ -396,7 +396,7 @@ class SweepConfig:
     """
 
     slow_dist: float | None = None
-    """Override ``ClearanceZones.SLOW_DIST`` (shipped 0.25 m). The OBSTACLE-risk
+    """Override ``ClearanceZones.slow_dist`` (shipped 0.25 m). The OBSTACLE-risk
     boundary one rung above ``contact_dist`` -- swept alongside it because
     ``diag_escape_mask.py``'s OBSTACLE-tick fraction (26-43% across outcomes)
     dwarfs the CRITICAL fraction (2-6%), so the speed-cap zone may matter more
@@ -404,7 +404,7 @@ class SweepConfig:
     """
 
     centering_gain: float | None = None
-    """Override ``CorridorFollowerParams.CENTERING_GAIN_DEG_PER_M`` (shipped 0.0).
+    """Override ``CorridorFollowerParams.centering_gain_deg_per_m`` (shipped 0.0).
 
     Zeroed 2026-08-22 because centring starved the direction-inference gate of
     the square-to-corridor scans it needs. That blocker was fixed on 2026-08-30
@@ -448,7 +448,7 @@ class SweepConfig:
     """
 
     deform_depth_buffer: float | None = None
-    """Override ``SignRouterParams.DEFORM_DEPTH_BUFFER_M`` (shipped 0.5 m).
+    """Override ``SignRouterParams.deform_depth_buffer_m`` (shipped 0.5 m).
 
     How far past the inner square's own [CORNER_MIN, CORNER_MAX] span the
     lookahead target may sit and still be deformed. Since the target leads the
@@ -509,7 +509,7 @@ class SweepConfig:
     """
 
     passed_dist: float | None = None
-    """Override ``SignRouterParams.PASSED_DIST_M`` (default 1.20 m).
+    """Override ``SignRouterParams.passed_dist_m`` (default 1.20 m).
 
     Must stay ABOVE ``activation_dist``. The two are coupled by
     ``_active_sign_candidates``, which engages a sign at ``activation_dist``
@@ -520,7 +520,7 @@ class SweepConfig:
     """
 
     activation_dist: float | None = None
-    """Override ``SignRouterParams.ACTIVATION_DIST_M`` (default 0.80 m).
+    """Override ``SignRouterParams.activation_dist_m`` (default 0.80 m).
 
     How far out a sign starts deforming the waypoint. The trace of scenario 5
     showed the deformed line being tracked correctly but converged to only
@@ -595,7 +595,7 @@ class SweepConfig:
     """
 
     commit_hysteresis: bool | None = None
-    """Override ``SignRouterParams.COMMIT_HYSTERESIS``.
+    """Override ``SignRouterParams.commit_hysteresis``.
 
     ``False`` restores the per-tick nearest-wins race, where the commanded
     lateral line can jump between two signs mid-approach. Both arms belong in
@@ -604,14 +604,14 @@ class SweepConfig:
     """
 
     depth_pin: bool | None = None
-    """Override ``SignRouterParams.DEPTH_PIN`` (default True).
+    """Override ``SignRouterParams.depth_pin`` (default True).
 
     ``False`` is the pre-pin arm every figure in the investigation doc older
     than 2026-08-01 was measured against.
     """
 
     pin_corner_guard: bool | None = None
-    """Override ``SignRouterParams.PIN_CORNER_GUARD`` (default True).
+    """Override ``SignRouterParams.pin_corner_guard`` (default True).
 
     ``False`` restores the depth pin exactly as it was measured on 2026-08-01,
     before the robot-position squareness re-check landed. Only meaningful with
@@ -619,7 +619,7 @@ class SweepConfig:
     """
 
     stale_target_rescue: bool | None = None
-    """Override ``SignRouterParams.STALE_TARGET_RESCUE`` (default False).
+    """Override ``SignRouterParams.stale_target_rescue`` (default False).
 
     Advances the waypoint index past a waypoint reading as behind the
     chassis in local frame, fixing the stale-target/wall-clip mechanism
@@ -628,7 +628,7 @@ class SweepConfig:
     """
 
     sign_aware_speed: bool | None = None
-    """Override ``SignRouterParams.SIGN_AWARE_SPEED`` (default False).
+    """Override ``SignRouterParams.sign_aware_speed`` (default False).
 
     Caps speed at the slow tier whenever the router actually deformed the
     target this tick by more than sign_deform_speed_threshold, giving the
@@ -636,13 +636,13 @@ class SweepConfig:
     """
 
     sign_deform_speed_threshold: float | None = None
-    """Override ``SignRouterParams.SIGN_DEFORM_SPEED_THRESHOLD_M`` (default 0.02).
+    """Override ``SignRouterParams.sign_deform_speed_threshold_m`` (default 0.02).
 
     Only meaningful with ``sign_aware_speed=True``.
     """
 
     sign_aware_lookahead: bool | None = None
-    """Override ``SignRouterParams.SIGN_AWARE_LOOKAHEAD`` (default False).
+    """Override ``SignRouterParams.sign_aware_lookahead`` (default False).
 
     Arms the short pursuit lookahead whenever a routed sign is within
     activation distance, since crosstrack (measured against the raw path)
@@ -652,7 +652,7 @@ class SweepConfig:
     """
 
     pin_heading_guard: bool | None = None
-    """Override ``SignRouterParams.PIN_HEADING_GUARD`` (default False).
+    """Override ``SignRouterParams.pin_heading_guard`` (default False).
 
     Releases the depth pin once the robot's heading has rotated more than
     ``pin_heading_guard_deg`` since the pin engaged on the current sign, even
@@ -664,13 +664,13 @@ class SweepConfig:
     """
 
     pin_heading_guard_deg: float | None = None
-    """Override ``SignRouterParams.PIN_HEADING_GUARD_DEG`` (default 35.0).
+    """Override ``SignRouterParams.pin_heading_guard_deg`` (default 35.0).
 
     Only meaningful with ``pin_heading_guard=True``.
     """
 
     sign_lane_planner: bool | None = None
-    """Override ``SignRouterParams.SIGN_LANE_PLANNER`` (default False).
+    """Override ``SignRouterParams.sign_lane_planner`` (default False).
 
     Shifts the PLANNED PATH onto a pass-side lane through each signed
     corridor, instead of only overriding the pursuit target within
@@ -681,7 +681,7 @@ class SweepConfig:
     """
 
     sign_lane_ramp: float | None = None
-    """Override ``SignRouterParams.SIGN_LANE_RAMP_M`` (default 0.70 m).
+    """Override ``SignRouterParams.sign_lane_ramp_m`` (default 0.70 m).
 
     Along-corridor distance the lane takes to transition on and off the
     centreline. Only meaningful with ``sign_lane_planner=True``.
@@ -697,21 +697,21 @@ class SweepConfig:
     """
 
     sign_lane_hold: float | None = None
-    """Override ``SignRouterParams.SIGN_LANE_HOLD_M`` (default 0.25 m).
+    """Override ``SignRouterParams.sign_lane_hold_m`` (default 0.25 m).
 
     Half-width of the full-offset plateau either side of a sign's own depth.
     Only meaningful with ``sign_lane_planner=True``.
     """
 
     sign_lane_split_overlap: bool | None = None
-    """Override ``SignRouterParams.SIGN_LANE_SPLIT_OVERLAP`` (default False).
+    """Override ``SignRouterParams.sign_lane_split_overlap`` (default False).
 
     Splits overlapping plateaux at their midpoint. A plan governed by another
     spec's plateau is wrong-side 58% of the time against a 13% base rate.
     """
 
     sign_lane_depth_consistent_corridor: bool | None = None
-    """Override ``SignRouterParams.SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR`` (default False).
+    """Override ``SignRouterParams.sign_lane_depth_consistent_corridor`` (default False).
 
     Decides a corner sign's face by which straight its DEPTH lies along instead
     of which face is nearest. Upstream of the relabel: measured 2026-08-26,
@@ -720,7 +720,7 @@ class SweepConfig:
     """
 
     sign_lane_relabel_unsatisfiable: bool | None = None
-    """Override ``SignRouterParams.SIGN_LANE_RELABEL_UNSATISFIABLE`` (default False).
+    """Override ``SignRouterParams.sign_lane_relabel_unsatisfiable`` (default False).
 
     Moves a sign to the other face of its corner when its clamped lane target
     lands on the forbidden side of it. 45/45 inverted specs are satisfiable
@@ -728,7 +728,7 @@ class SweepConfig:
     """
 
     sign_lane_skip_unsatisfiable: bool | None = None
-    """Override ``SignRouterParams.SIGN_LANE_SKIP_UNSATISFIABLE`` (default False).
+    """Override ``SignRouterParams.sign_lane_skip_unsatisfiable`` (default False).
 
     Drops a sign from the lane profile when its own clamped target lands on the
     forbidden side of it. Corner-diagonal specs plan wrong-side 29% of the time
@@ -737,7 +737,7 @@ class SweepConfig:
     """
 
     sign_lane_offset_frac: float | None = None
-    """Override ``SignRouterParams.SIGN_LANE_OFFSET_FRAC`` (default 1.0).
+    """Override ``SignRouterParams.sign_lane_offset_frac`` (default 1.0).
 
     Fraction of the avoidance offset the LANE carries; the carrot override
     still commands the full value at the pass. The lever against the wall
@@ -746,7 +746,7 @@ class SweepConfig:
     """
 
     retrace_escape: bool | None = None
-    """Override ``SignRouterParams.RETRACE_ESCAPE`` (default False).
+    """Override ``SignRouterParams.retrace_escape`` (default False).
 
     Reverse along ground the chassis just occupied instead of along an arc.
     Aimed at keeping mask-off's sign gain (57 -> 41) without its wall cost
@@ -755,10 +755,10 @@ class SweepConfig:
     """
 
     retrace_dist: float | None = None
-    """Override ``SignRouterParams.RETRACE_DIST_M`` (default 0.25 m)."""
+    """Override ``SignRouterParams.retrace_dist_m`` (default 0.25 m)."""
 
     sign_contact_evade: bool | None = None
-    """Override ``SignRouterParams.SIGN_CONTACT_EVADE`` (default False).
+    """Override ``SignRouterParams.sign_contact_evade`` (default False).
 
     Steer away and creep when the RAW scan reads CRITICAL but the MASKED one
     does not -- i.e. the imminent contact is a sign the router owns. The middle
@@ -769,14 +769,14 @@ class SweepConfig:
     """Override ``SignRouterParams.SIGN_CONTACT_STEER`` (default 0.35)."""
 
     sign_lane_commit_ahead: float | None = None
-    """Override ``SignRouterParams.SIGN_LANE_COMMIT_AHEAD_M`` (default 0.0, off).
+    """Override ``SignRouterParams.sign_lane_commit_ahead_m`` (default 0.0, off).
 
     How much of the path ahead of the chassis a lane rebuild may not move.
     Blind-only in effect: sighted runs build the path once and never rebuild.
     """
 
     explore_lap_speed_frac: float | None = None
-    """Override ``SignRouterParams.EXPLORE_LAP_SPEED_FRAC`` (default 1.0, off).
+    """Override ``SignRouterParams.explore_lap_speed_frac`` (default 1.0, off).
 
     Speed ceiling for the first lap of a BLIND Obstacles run, as a fraction of
     the normal ceiling. Targets the measured shape of blind failure: 78% of it
@@ -785,7 +785,7 @@ class SweepConfig:
     """
 
     ingest_range: float | None = None
-    """Override ``SignDiscoveryParams.MAX_INGEST_RANGE_M`` (default 2.0 m).
+    """Override ``SignDiscoveryParams.max_ingest_range_m`` (default 2.0 m).
 
     How far away a camera observation may be accepted into discovery at all.
     Measured as the binding constraint on blind runs: publish distance tops
@@ -796,7 +796,7 @@ class SweepConfig:
     """
 
     association_dist: float | None = None
-    """Override ``SignDiscoveryParams.ASSOCIATION_DIST_M`` (default 0.25 m).
+    """Override ``SignDiscoveryParams.association_dist_m`` (default 0.25 m).
 
     How far an observation may sit from an existing track and still be folded
     into it rather than starting a new one. Too tight and ONE physical sign
@@ -807,7 +807,7 @@ class SweepConfig:
     """
 
     min_hits: int | None = None
-    """Override ``SignDiscoveryParams.MIN_HITS`` (default 3).
+    """Override ``SignDiscoveryParams.min_hits`` (default 3).
 
     Confirming observations before a track is published. Lower publishes
     sooner (more runway) at the cost of acting on weaker evidence -- read the
@@ -816,7 +816,7 @@ class SweepConfig:
     """
 
     min_valid_range: float | None = None
-    """Override ``LidarSectors.MIN_VALID_RANGE_M`` (SHIPPED 0.044 since ``adaf194``).
+    """Override ``LidarSectors.min_valid_range_m`` (SHIPPED 0.044 since ``adaf194``).
 
     The sector filter is ``r > min_valid_range_m`` and the C1 REPORTS 0.045 for
     anything closer than it can measure, so at the old 0.05 every floor reading
@@ -828,7 +828,7 @@ class SweepConfig:
     """
 
     robot_corridor_flip_ticks: int | None = None
-    """Override ``SignDiscoveryParams.ROBOT_CORRIDOR_FLIP_TICKS`` (SHIPS 5).
+    """Override ``SignDiscoveryParams.robot_corridor_flip_ticks`` (SHIPS 5).
 
     Consecutive ticks the robot's own raw corridor must disagree before the
     settled value moves. Track association is gated on that settled corridor
@@ -847,7 +847,7 @@ class SweepConfig:
     """
 
     obstacles_center_bias: float | None = None
-    """Override ``WaypointParams.OBSTACLES_CENTER_BIAS_M`` (default 0.0, centred).
+    """Override ``WaypointParams.obstacles_center_bias_m`` (default 0.0, centred).
 
     How far the planned centreline sits toward the INNER block on Obstacles.
     Open keeps its own ``WIDE_CENTER_BIAS_M``/``NARROW_CENTER_BIAS_M``
@@ -860,7 +860,7 @@ class SweepConfig:
     """
 
     sign_lane_corner_entry: float | None = None
-    """Override ``SignRouterParams.SIGN_LANE_CORNER_ENTRY_M`` (default 0.0).
+    """Override ``SignRouterParams.sign_lane_corner_entry_m`` (default 0.0).
 
     Corner-arc runway the lane may borrow to transition over. The lever
     against the lane's inner-square collisions: 1211 of the corpus's 1282
@@ -869,7 +869,7 @@ class SweepConfig:
     """
 
     sign_lane_suppress_deform: bool | None = None
-    """Override ``SignRouterParams.SIGN_LANE_SUPPRESS_DEFORM`` (default True).
+    """Override ``SignRouterParams.sign_lane_suppress_deform`` (default True).
 
     ``False`` keeps the carrot-level deformation running on top of the laned
     path, which asks for the offset twice. Both arms belong in one harness
@@ -877,7 +877,7 @@ class SweepConfig:
     """
 
     escape_mask_radius: float | None = None
-    """Override ``SignRouterParams.ESCAPE_MASK_RADIUS_M`` (default 0.12 m).
+    """Override ``SignRouterParams.escape_mask_radius_m`` (default 0.12 m).
 
     How close a LIDAR return must land to a sign the router is routing around
     to be withheld from the CRITICAL escape trigger. ``0.0`` disables the
@@ -887,7 +887,7 @@ class SweepConfig:
     """
 
     corridor_flip_ticks: int | None = None
-    """Override ``SignRouterParams.CORRIDOR_FLIP_TICKS`` (default 5).
+    """Override ``SignRouterParams.corridor_flip_ticks`` (default 5).
 
     ``1`` is the pre-fix arm: a discovered sign's corridor — and therefore the
     world axis its deformation treats as lateral — was reassigned on every tick
@@ -912,76 +912,76 @@ class SweepConfig:
         base = NavigationTuning.load_default()
         pursuit = _with(
             base.pursuit,
-            LOOKAHEAD_SHORT=self.lookahead_short,
-            LOOKAHEAD_LONG=self.lookahead_long,
-            STEER_KP=self.steer_kp,
-            MAX_STEERING_RATE=self.max_steering_rate,
-            YAW_GAIN_COMPENSATION=self.yaw_gain_compensation,
-            OBSTACLES_YAW_GAIN_COMPENSATION=self.yaw_gain_compensation,
+            lookahead_short=self.lookahead_short,
+            lookahead_long=self.lookahead_long,
+            steer_kp=self.steer_kp,
+            max_steering_rate=self.max_steering_rate,
+            yaw_gain_compensation=self.yaw_gain_compensation,
+            obstacles_yaw_gain_compensation=self.yaw_gain_compensation,
         )
         corridor_follower = _with(
             base.corridor_follower,
-            MAX_CORNER_STEER_DEG=self.corner_steer_deg,
-            MAX_CENTERING_STEER_DEG=self.centering_steer_deg,
-            CENTERING_GAIN_DEG_PER_M=self.centering_gain,
+            max_corner_steer_deg=self.corner_steer_deg,
+            max_centering_steer_deg=self.centering_steer_deg,
+            centering_gain_deg_per_m=self.centering_gain,
         )
-        speed = _with(base.speed, FAST_MPS=self.fast_mps, MAX_MPS=self.max_mps, CREEP_MPS=self.creep_mps)
+        speed = _with(base.speed, fast_mps=self.fast_mps, max_mps=self.max_mps, creep_mps=self.creep_mps)
         clearance = _with(
             base.clearance,
-            CONTACT_DIST=self.contact_dist,
-            OBSTACLES_CONTACT_DIST=self.obstacles_contact_dist,
-            SLOW_DIST=self.slow_dist,
-            FORWARD_PATH_AHEAD_OF_BUMPER=self.ahead_of_bumper,
+            contact_dist=self.contact_dist,
+            obstacles_contact_dist=self.obstacles_contact_dist,
+            slow_dist=self.slow_dist,
+            forward_path_ahead_of_bumper=self.ahead_of_bumper,
         )
         if self.clear_obstacles_contact_dist:
             # Not expressible through `_with`, which drops None by design so
             # that "no override" and "override to None" cannot be confused.
             # Clearing is the one place they must be.
-            clearance = clearance.model_copy(update={"OBSTACLES_CONTACT_DIST": None})
+            clearance = clearance.model_copy(update={"obstacles_contact_dist": None})
         localization = _with(base.localization, MAX_SPEED_MPS=self.localization_max_speed)
         waypoints = _with(
             base.waypoints,
-            ARC_RADIUS=self.arc_radius,
-            OBSTACLES_CENTER_BIAS_M=self.obstacles_center_bias,
-            REPLAN_BLEND_TICKS=self.replan_blend_ticks,
+            arc_radius=self.arc_radius,
+            obstacles_center_bias_m=self.obstacles_center_bias,
+            replan_blend_ticks=self.replan_blend_ticks,
         )
         sign_router = _with(
             base.sign_router,
-            ESCAPE_MASK_RADIUS_M=self.escape_mask_radius,
-            COMMIT_HYSTERESIS=self.commit_hysteresis,
-            ACTIVATION_DIST_M=self.activation_dist,
-            PASSED_DIST_M=self.passed_dist,
-            DEPTH_PIN=self.depth_pin,
-            PIN_CORNER_GUARD=self.pin_corner_guard,
-            PIN_HEADING_GUARD=self.pin_heading_guard,
-            PIN_HEADING_GUARD_DEG=self.pin_heading_guard_deg,
-            SIGN_AWARE_LOOKAHEAD=self.sign_aware_lookahead,
-            SIGN_AWARE_SPEED=self.sign_aware_speed,
-            STALE_TARGET_RESCUE=self.stale_target_rescue,
-            SIGN_LANE_PLANNER=self.sign_lane_planner,
-            EXPLORE_LAP_SPEED_FRAC=self.explore_lap_speed_frac,
-            SIGN_LANE_COMMIT_AHEAD_M=self.sign_lane_commit_ahead,
-            RETRACE_ESCAPE=self.retrace_escape,
-            RETRACE_DIST_M=self.retrace_dist,
-            SIGN_CONTACT_EVADE=self.sign_contact_evade,
+            escape_mask_radius_m=self.escape_mask_radius,
+            commit_hysteresis=self.commit_hysteresis,
+            activation_dist_m=self.activation_dist,
+            passed_dist_m=self.passed_dist,
+            depth_pin=self.depth_pin,
+            pin_corner_guard=self.pin_corner_guard,
+            pin_heading_guard=self.pin_heading_guard,
+            pin_heading_guard_deg=self.pin_heading_guard_deg,
+            sign_aware_lookahead=self.sign_aware_lookahead,
+            sign_aware_speed=self.sign_aware_speed,
+            stale_target_rescue=self.stale_target_rescue,
+            sign_lane_planner=self.sign_lane_planner,
+            explore_lap_speed_frac=self.explore_lap_speed_frac,
+            sign_lane_commit_ahead_m=self.sign_lane_commit_ahead,
+            retrace_escape=self.retrace_escape,
+            retrace_dist_m=self.retrace_dist,
+            sign_contact_evade=self.sign_contact_evade,
             SIGN_CONTACT_STEER=self.sign_contact_steer,
-            SIGN_LANE_RAMP_M=self.sign_lane_ramp,
-            SIGN_LANE_HOLD_M=self.sign_lane_hold,
-            SIGN_LANE_SKIP_UNSATISFIABLE=self.sign_lane_skip_unsatisfiable,
-            SIGN_LANE_RELABEL_UNSATISFIABLE=self.sign_lane_relabel_unsatisfiable,
-            SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR=self.sign_lane_depth_consistent_corridor,
-            SIGN_LANE_SPLIT_OVERLAP=self.sign_lane_split_overlap,
-            SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
-            SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
-            SIGN_LANE_CORNER_ENTRY_M=self.sign_lane_corner_entry,
-            SIGN_LANE_GAP_CENTRE_FRAC=self.sign_lane_gap_centre_frac,
-            SIGN_DEFORM_SPEED_THRESHOLD_M=self.sign_deform_speed_threshold,
-            CORRIDOR_FLIP_TICKS=self.corridor_flip_ticks,
-            DEFORM_DEPTH_BUFFER_M=self.deform_depth_buffer,
+            sign_lane_ramp_m=self.sign_lane_ramp,
+            sign_lane_hold_m=self.sign_lane_hold,
+            sign_lane_skip_unsatisfiable=self.sign_lane_skip_unsatisfiable,
+            sign_lane_relabel_unsatisfiable=self.sign_lane_relabel_unsatisfiable,
+            sign_lane_depth_consistent_corridor=self.sign_lane_depth_consistent_corridor,
+            sign_lane_split_overlap=self.sign_lane_split_overlap,
+            sign_lane_suppress_deform=self.sign_lane_suppress_deform,
+            sign_lane_offset_frac=self.sign_lane_offset_frac,
+            sign_lane_corner_entry_m=self.sign_lane_corner_entry,
+            sign_lane_gap_centre_frac=self.sign_lane_gap_centre_frac,
+            sign_deform_speed_threshold_m=self.sign_deform_speed_threshold,
+            corridor_flip_ticks=self.corridor_flip_ticks,
+            deform_depth_buffer_m=self.deform_depth_buffer,
             # The field is the margin BEYOND the chassis half-diagonal; the knob
             # is the total. Converted here rather than at every call site so the
             # sweep values stay comparable with the doc's geometry tables.
-            WALL_CLEARANCE_MARGIN_M=(
+            wall_clearance_margin_m=(
                 None if self.wall_clearance is None else self.wall_clearance - chassis_half_diagonal_m()
             ),
         )
@@ -991,18 +991,18 @@ class SweepConfig:
         # pursuing the bay. Without this the flag silently wins and every
         # "with parking" arm measures the same round as its control -- which is
         # exactly what the first smoke run after the change reported.
-        parking = _with(base.parking, ATTEMPT_AFTER_FINAL_LAP=self.park)
+        parking = _with(base.parking, attempt_after_final_lap=self.park)
         sign_discovery = _with(
             base.sign_discovery,
-            MAX_INGEST_RANGE_M=self.ingest_range,
-            MIN_HITS=self.min_hits,
-            ASSOCIATION_DIST_M=self.association_dist,
-            ROBOT_CORRIDOR_FLIP_TICKS=self.robot_corridor_flip_ticks,
+            max_ingest_range_m=self.ingest_range,
+            min_hits=self.min_hits,
+            association_dist_m=self.association_dist,
+            robot_corridor_flip_ticks=self.robot_corridor_flip_ticks,
         )
-        lidar_sectors = _with(base.lidar_sectors, MIN_VALID_RANGE_M=self.min_valid_range)
+        lidar_sectors = _with(base.lidar_sectors, min_valid_range_m=self.min_valid_range)
         simulation = _with(
             base.simulation,
-            OBSTACLES_INNER_WALL_TERMINAL=self.obstacles_inner_wall_terminal,
+            obstacles_inner_wall_terminal=self.obstacles_inner_wall_terminal,
         )
         return replace(
             base,
@@ -1571,7 +1571,7 @@ the "half-delivered" reading under investigation falls well outside it.
 
 _SIGN_MATCH_DIST_M = 0.30
 """How close a routed position must land to the struck sign's true position
-to count as the same sign. Matches ``SignDiscoveryParams.DETECTION_MATCH_DIST_M``
+to count as the same sign. Matches ``SignDiscoveryParams.detection_match_dist_m``
 -- generous enough to cover discovery estimate error in blind mode, tight
 enough that it can't accidentally match a different, nearby sign."""
 
@@ -1722,7 +1722,7 @@ def _unclamped_lane_offset_m() -> float:
     return (
         chassis_half_diagonal_m()
         + TrafficSignSpecs.WIDTH / 2
-        + NavigationTuning.load_default().sign_router.SIGN_CLEARANCE_MARGIN_M
+        + NavigationTuning.load_default().sign_router.sign_clearance_margin_m
     )
 
 
@@ -3252,11 +3252,11 @@ def _lane_params(tuning: NavigationTuning) -> SignLaneParams:
     """
     sr = tuning.sign_router
     return SignLaneParams(
-        lateral_offset=(chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.SIGN_CLEARANCE_MARGIN_M)
-        * sr.SIGN_LANE_OFFSET_FRAC,
-        ramp_m=sr.SIGN_LANE_RAMP_M,
-        hold_m=sr.SIGN_LANE_HOLD_M,
-        corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+        lateral_offset=(chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.sign_clearance_margin_m)
+        * sr.sign_lane_offset_frac,
+        ramp_m=sr.sign_lane_ramp_m,
+        hold_m=sr.sign_lane_hold_m,
+        corner_entry_m=sr.sign_lane_corner_entry_m,
     )
 
 
@@ -4154,7 +4154,7 @@ def _report_approach_decomposition(columns: tuple[tuple[str, list[_Approach]], .
                 f"p90 {percentile(bend_gaps, 0.9) * 100:6.2f}cm",
                 flush=True,
             )
-    cap = NavigationTuning.load_default().waypoints.ARC_RADIUS
+    cap = NavigationTuning.load_default().waypoints.arc_radius
     buckets: dict[float, dict[str, list[float]]] = {}
     seam = 0
     for label, group in columns:
@@ -4298,10 +4298,10 @@ def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -
     tuning = NavigationTuning.load_default()
     sr = tuning.sign_router
     params = SignLaneParams(
-        lateral_offset=chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.SIGN_CLEARANCE_MARGIN_M,
-        ramp_m=sr.SIGN_LANE_RAMP_M,
-        hold_m=sr.SIGN_LANE_HOLD_M,
-        corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+        lateral_offset=chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.sign_clearance_margin_m,
+        ramp_m=sr.sign_lane_ramp_m,
+        hold_m=sr.sign_lane_hold_m,
+        corner_entry_m=sr.sign_lane_corner_entry_m,
     )
     for width_error in width_errors or [0.0]:
         gaps: list[float] = []
@@ -4347,7 +4347,7 @@ def _lane_geometry_for(
             plan_meta,
             num_laps=1,
             tuning=tuning,
-            center_bias_m=tuning.waypoints.OBSTACLES_CENTER_BIAS_M,
+            center_bias_m=tuning.waypoints.obstacles_center_bias_m,
         )
     except ValueError:
         return []
@@ -5107,7 +5107,7 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # Moves the whole ENVELOPE, not just the tier, because two other values
     # bind above the shipped 0.50 and would each silently swallow the arm:
     #
-    #   * speed.MAX_MPS -- CoreNavigator clamps the selected tier to it, so
+    #   * speed.max_mps -- CoreNavigator clamps the selected tier to it, so
     #     `speed 0.6` without this was byte-identical to `speed 0.5`.
     #   * localization.MAX_SPEED_MPS -- the implausible-jump guard, shipped at
     #     0.25 against the RETIRED motor's measured 0.156 m/s. Left alone, every
@@ -5520,7 +5520,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind, slow 0.13", blind=True, slow_dist=0.13),
     ],
     # The SHIPPABLE form of the escape-gate result. `escape-gate` above moves
-    # the shared ClearanceZones.CONTACT_DIST, which is also the Open Challenge's
+    # the shared ClearanceZones.contact_dist, which is also the Open Challenge's
     # contact zone, so its numbers cannot be adopted without re-measuring Open.
     # OBSTACLES_CONTACT_DIST moves this challenge only.
     #
@@ -5780,7 +5780,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
             "steer-rate 1.5x",
             blind=True,
             sign_lane_planner=True,
-            max_steering_rate=NavigationTuning.load_default().pursuit.MAX_STEERING_RATE * 1.5,
+            max_steering_rate=NavigationTuning.load_default().pursuit.max_steering_rate * 1.5,
         ),
         SweepConfig("sign-aware speed", blind=True, sign_lane_planner=True, sign_aware_speed=True),
     ],
@@ -5874,7 +5874,7 @@ _YAW_SCREEN_ARMS = [
         "steer-rate 1.5x",
         blind=True,
         sign_lane_planner=True,
-        max_steering_rate=NavigationTuning.load_default().pursuit.MAX_STEERING_RATE * 1.5,
+        max_steering_rate=NavigationTuning.load_default().pursuit.max_steering_rate * 1.5,
     ),
     # The classic cause of heading lag in pure pursuit, and the one absent
     # from the first screen: a long lookahead aims at a point beyond the turn,

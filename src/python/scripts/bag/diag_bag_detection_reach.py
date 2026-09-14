@@ -94,7 +94,7 @@ def main() -> int:
                 w = bbox.x_max - bbox.x_min
                 heights.append(h)
                 confidences.append(det.confidence)
-                rng = implied_range(h, tuning.RANGE_SCALE)
+                rng = implied_range(h, tuning.range_scale)
 
                 bucket = (
                     "0.0-0.5 m" if rng < 0.5
@@ -108,10 +108,10 @@ def main() -> int:
                 entry[1] += det.confidence
 
                 # The same order detection_to_observation applies them.
-                if h < tuning.MIN_RELIABLE_BBOX_HEIGHT_PX:
+                if h < tuning.min_reliable_bbox_height_px:
                     rejected_small.append(rng)
                     continue
-                edge = tuning.FRAME_EDGE_TOLERANCE_PX
+                edge = tuning.frame_edge_tolerance_px
                 clipped = (
                     bbox.x_min <= edge
                     or bbox.y_min <= edge
@@ -120,7 +120,7 @@ def main() -> int:
                 )
                 if clipped:
                     clipped_count += 1
-                if tuning.MAX_PILLAR_ASPECT > 0.0 and not clipped and h > 0 and w / h > tuning.MAX_PILLAR_ASPECT:
+                if tuning.max_pillar_aspect > 0.0 and not clipped and h > 0 and w / h > tuning.max_pillar_aspect:
                     rejected_aspect.append(rng)
                     continue
                 accepted.append(rng)
@@ -132,13 +132,13 @@ def main() -> int:
         return 0
 
     print(f"== {len(heights)} RED/GREEN boxes. Pinhole: d = {_CAMERA_FOCAL_PX:.1f} * "
-          f"{TrafficSignSpecs.HEIGHT} / h * {tuning.RANGE_SCALE}")
+          f"{TrafficSignSpecs.HEIGHT} / h * {tuning.range_scale}")
     print()
     print("== WHAT THE MODEL EMITS -- raw box height, and the range it implies")
     rows_h = []
     for q in (0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99):
         px = percentile(heights, q)
-        rows_h.append([f"p{int(q * 100)}", f"{px:7.1f} px", f"{implied_range(px, tuning.RANGE_SCALE):6.2f} m"])
+        rows_h.append([f"p{int(q * 100)}", f"{px:7.1f} px", f"{implied_range(px, tuning.range_scale):6.2f} m"])
     print_table(rows_h, ["quantile", "box height", "implied range"])
     print()
 
@@ -159,9 +159,9 @@ def main() -> int:
     total = len(heights)
     rows_g = [
         ["accepted as an observation", f"{len(accepted):7d}", f"{100 * len(accepted) / total:5.1f}%"],
-        [f"rejected: height < {tuning.MIN_RELIABLE_BBOX_HEIGHT_PX:g} px",
+        [f"rejected: height < {tuning.min_reliable_bbox_height_px:g} px",
          f"{len(rejected_small):7d}", f"{100 * len(rejected_small) / total:5.1f}%"],
-        [f"rejected: aspect > {tuning.MAX_PILLAR_ASPECT:g}",
+        [f"rejected: aspect > {tuning.max_pillar_aspect:g}",
          f"{len(rejected_aspect):7d}", f"{100 * len(rejected_aspect) / total:5.1f}%"],
         ["(of all boxes, frame-clipped)", f"{clipped_count:7d}", f"{100 * clipped_count / total:5.1f}%"],
     ]

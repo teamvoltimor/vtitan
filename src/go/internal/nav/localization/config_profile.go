@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/blind_nav"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -24,7 +25,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	locPath := filepath.Join(configRoot, profile.DefaultLocalizationTOMLPath)
-	if lc, err := profile.Load[profile.LocalizationConfig](locPath, nil); err != nil {
+	if lc, err := profile.Load[blind_nav.NavigationBlindNavLocalization](locPath, nil); err != nil {
 		logger.Warn("localization: loading localization.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -32,7 +33,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		cfg.Passes = lc.Passes
 		cfg.GridPoints = lc.GridPoints
 		cfg.ResidualClipM = lc.ResidualClipM
-		cfg.MaxSpeedMPS = lc.MaxSpeedMPS
+		cfg.MaxSpeedMPS = lc.MaxSpeedMps
 		cfg.JumpConfirmToleranceM = lc.JumpConfirmToleranceM
 		cfg.RelocalizeCostThreshold = lc.RelocalizeCostThreshold
 		cfg.RelocalizeAfterScans = lc.RelocalizeAfterScans

@@ -24,7 +24,7 @@ from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
 from scripts.common.tables import print_table
 
 _CORNER_WINDOW_S = 4.0
-_SHORT_LOOKAHEAD_M = NavigationTuning.load_default().pursuit.LOOKAHEAD_SHORT
+_SHORT_LOOKAHEAD_M = NavigationTuning.load_default().pursuit.lookahead_short
 _PEAK_XTRACK_WINDOW_S = 8.0
 
 

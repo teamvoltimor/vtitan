@@ -108,7 +108,7 @@ def analyse(bag_dir: Path, stride: int) -> None:
         off_beams = _off_track_beam_fraction(walls, x, y, yaw, ranges, angles)
         elapsed = (t - t0) / 1e9
 
-        bad = off_track or cost > params.RELOCALIZE_COST_THRESHOLD
+        bad = off_track or cost > params.relocalize_cost_threshold
         if bad:
             if streak == 0:
                 streak_start_s = elapsed
@@ -116,7 +116,7 @@ def analyse(bag_dir: Path, stride: int) -> None:
             if streak > max_streak:
                 max_streak = streak
                 max_streak_start_s = streak_start_s
-            if streak == params.RELOCALIZE_AFTER_SCANS:
+            if streak == params.relocalize_after_scans:
                 would_fire += 1
         else:
             streak = 0
@@ -127,8 +127,8 @@ def analyse(bag_dir: Path, stride: int) -> None:
     n = len(rows)
     print(f"\n== {bag_dir.name} ==  {n} ticks analysed (stride {stride}), {len(scans)} scans")
     print(
-        f"  ceiling per ray = RESIDUAL_CLIP_M^2 = {params.RESIDUAL_CLIP_M ** 2:.4f} m^2   "
-        f"threshold = {params.RELOCALIZE_COST_THRESHOLD}   after_scans = {params.RELOCALIZE_AFTER_SCANS}",
+        f"  ceiling per ray = RESIDUAL_CLIP_M^2 = {params.residual_clip_m ** 2:.4f} m^2   "
+        f"threshold = {params.relocalize_cost_threshold}   after_scans = {params.relocalize_after_scans}",
     )
     print(
         f"  fit_cost      p10={np.percentile(costs, 10):.4f}  p50={np.percentile(costs, 50):.4f}  "
@@ -138,17 +138,17 @@ def analyse(bag_dir: Path, stride: int) -> None:
         f"  off_beams     p10={np.percentile(beams, 10):.3f}  p50={np.percentile(beams, 50):.3f}  "
         f"p90={np.percentile(beams, 90):.3f}  max={beams.max():.3f}",
     )
-    over = int((costs > params.RELOCALIZE_COST_THRESHOLD).sum())
+    over = int((costs > params.relocalize_cost_threshold).sum())
     print(f"  ticks over threshold: {over}/{n} ({100 * over / n:.1f}%)")
     print(
         f"  longest bad-fit streak: {max_streak} "
-        f"(needs {params.RELOCALIZE_AFTER_SCANS}; starts at t={max_streak_start_s if max_streak_start_s is None else round(max_streak_start_s, 1)}s)  "
+        f"(needs {params.relocalize_after_scans}; starts at t={max_streak_start_s if max_streak_start_s is None else round(max_streak_start_s, 1)}s)  "
         f"-> rescue would fire {would_fire} time(s)",
     )
 
     print("   t(s)      pose            fit_cost  over?  off_beams  streak")
     for elapsed, x, y, cost, off_track, off_beams, streak in rows:
-        flag = "OVER" if cost > params.RELOCALIZE_COST_THRESHOLD else "    "
+        flag = "OVER" if cost > params.relocalize_cost_threshold else "    "
         mark = " OFFTRACK" if off_track else ""
         print(
             f"  {elapsed:6.1f}  ({x:6.2f},{y:6.2f})  {cost:8.4f}  {flag}  {off_beams:8.3f}  {streak:4d}{mark}",

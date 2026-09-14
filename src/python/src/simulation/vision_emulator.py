@@ -78,7 +78,7 @@ def emulate_sign_observations(
         localizer's cost show up in sim instead of being invisible.
     """
     tuning = get_tuning(tuning)
-    detection_confidence = tuning.simulation.DETECTION_CONFIDENCE
+    detection_confidence = tuning.simulation.detection_confidence
     report_pos = robot_pos if believed_pos is None else believed_pos
     report_yaw = robot_yaw if believed_yaw is None else believed_yaw
     observations: list[TrafficSignObservation] = []
@@ -141,7 +141,7 @@ def emulate_sign_detections(
     separate fidelity gaps and each wants its own measurement.
     """
     tuning = get_tuning(tuning)
-    confidence = tuning.simulation.DETECTION_CONFIDENCE
+    confidence = tuning.simulation.detection_confidence
     focal_px = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
     # Measured FROM THE SENSOR, which is 0.1222 m forward of the chassis centre.
     # `_detection_to_world` projects its ray from there, so a range taken at the

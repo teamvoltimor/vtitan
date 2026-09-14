@@ -103,8 +103,8 @@ def main() -> int:
     args = parser.parse_args()
 
     tuning = tuning_with_overrides({})
-    range_scale = tuning.sign_discovery.RANGE_SCALE
-    conf = args.conf if args.conf is not None else tuning.sign_router.MIN_CONFIDENCE
+    range_scale = tuning.sign_discovery.range_scale
+    conf = args.conf if args.conf is not None else tuning.sign_router.min_confidence
 
     # --- what the deployed HEF produced, from the bag ---
     hef_ranges: list[float] = []
@@ -155,7 +155,7 @@ def main() -> int:
             + "  ".join(f">{t}m {f:.1%}" for t, f in beyond.items())
         )
 
-    print(f"\n== {args.run_dir.name}   conf>={conf}  RANGE_SCALE={range_scale}  stride={args.stride}")
+    print(f"\n== {args.run_dir.name}   conf>={conf}  range_scale={range_scale}  stride={args.stride}")
     print(f"   video frames run through ONNX: {frames_run}   bag detection messages: {len(hef_per_frame)}")
     print("\n  decoded detection range (m)")
     describe("HEF", hef_ranges)

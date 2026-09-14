@@ -82,14 +82,14 @@ class _KinematicsConstants:
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
         tuning = get_tuning(tuning)
         return cls(
-            max_steer_rate=tuning.pursuit.MAX_STEERING_RATE,
+            max_steer_rate=tuning.pursuit.max_steering_rate,
             max_accel=RobotSpecs.MAX_ACCEL_MPS2,
             max_speed_mps=RobotSpecs.MAX_SPEED_MPS,
             rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
             speed_tau_s=RobotSpecs.SPEED_RESPONSE_TAU_S,
             yaw_gain=RobotSpecs.YAW_GAIN,
-            min_turn_radius_m=tuning.simulation.MIN_TURN_RADIUS_M,
-            radius_tracks_speed=tuning.simulation.MIN_TURN_RADIUS_TRACKS_SPEED,
+            min_turn_radius_m=RobotSpecs.MIN_TURN_RADIUS_M,
+            radius_tracks_speed=tuning.simulation.min_turn_radius_tracks_speed,
         )
 
 

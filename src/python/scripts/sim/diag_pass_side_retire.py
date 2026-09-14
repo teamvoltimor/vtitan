@@ -607,11 +607,11 @@ a full lane width -- a lane built the wrong way round rather than one that fell
 short of its offset."""
 
 
-_CORNER_ENTRY_M = NavigationTuning.load_default().sign_router.SIGN_LANE_CORNER_ENTRY_M
+_CORNER_ENTRY_M = NavigationTuning.load_default().sign_router.sign_lane_corner_entry_m
 """How far past the straight the lane may reach, from the shipped tuning."""
 
 
-_HOLD_M = NavigationTuning.load_default().sign_router.SIGN_LANE_HOLD_M
+_HOLD_M = NavigationTuning.load_default().sign_router.sign_lane_hold_m
 """Plateau half-width the lane holds full offset over, from the shipped tuning."""
 
 
@@ -795,7 +795,7 @@ def _run_one(args_tuple: tuple[str, bool, bool]) -> tuple[Counter[str], list[flo
         # which replaces the tree with Pydantic defaults.
         base = NavigationTuning.load_default()
         tuning = dataclasses.replace(
-            base, pursuit=base.pursuit.model_copy(update={"YAW_GAIN_COMPENSATION": yaw_gain_comp})
+            base, pursuit=base.pursuit.model_copy(update={"yaw_gain_compensation": yaw_gain_comp})
         )
     sim = ScenarioSimulator(
         metadata, num_laps=3, seed=0, blind=True, known_start=known_start, tuning=tuning
@@ -1227,7 +1227,7 @@ def main() -> int:
         "--yaw-gain-compensation",
         type=float,
         default=None,
-        help="Override pursuit.YAW_GAIN_COMPENSATION (0.55 = full understeer compensation).",
+        help="Override pursuit.yaw_gain_compensation (0.55 = full understeer compensation).",
     )
     parser.add_argument("--limit", type=int, default=64)
     parser.add_argument("--workers", type=int, default=14)

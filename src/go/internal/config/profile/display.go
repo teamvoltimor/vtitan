@@ -3,35 +3,25 @@ package profile
 import (
 	"fmt"
 	"strconv"
-)
 
-// SSD1306Config mirrors ssd1306.toml (src/hardware/display/ssd1306/config.py).
-// I2CAddressHex is a "0x.."-formatted string in TOML, not a plain int --
-// see I2CAddress for parsing it into internal/driver/display/ssd1306's
-// uint16 field.
-type SSD1306Config struct {
-	// Width matches internal/driver/display/ssd1306.Config.Width.
-	Width int `mapstructure:"width"`
-	// Height matches internal/driver/display/ssd1306.Config.Height.
-	Height int `mapstructure:"height"`
-	// I2CAddressHex matches internal/driver/display/ssd1306.Config.I2CAddress
-	// once parsed via I2CAddress.
-	I2CAddressHex string `mapstructure:"i2c_address"`
-	// I2CBus matches internal/driver/display/ssd1306.Config.I2CBus.
-	I2CBus int `mapstructure:"i2c_bus"`
-}
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware/display"
+)
 
 // DefaultSSD1306TOMLPath is
 // src/config/hardware/display/ssd1306.toml, relative to the
-// repo root.
+// repo root. The file's shape is the generated
+// display.HardwareDisplaySsd1306 DTO, whose field is I2CAddress (a
+// "0x.."-formatted string in TOML, not a plain int); see ParseI2CAddress for
+// parsing it into internal/driver/display/ssd1306's uint16 field.
 const DefaultSSD1306TOMLPath = "src/config/hardware/display/ssd1306.toml"
 
-// I2CAddress parses I2CAddressHex (e.g. "0x3C") into the uint16
-// internal/driver/display/ssd1306.Config.I2CAddress expects.
-func (c *SSD1306Config) I2CAddress() (uint16, error) {
-	addr, err := strconv.ParseUint(c.I2CAddressHex, 0, 16)
+// ParseI2CAddress parses cfg.I2CAddress (e.g. "0x3C") into the uint16
+// internal/driver/display/ssd1306.Config.I2CAddress expects. It is a free
+// function because the generated DTO it reads carries no methods.
+func ParseI2CAddress(cfg *display.HardwareDisplaySsd1306) (uint16, error) {
+	addr, err := strconv.ParseUint(cfg.I2CAddress, 0, 16)
 	if err != nil {
-		return 0, fmt.Errorf("profile: parsing i2c_address %q: %w", c.I2CAddressHex, err)
+		return 0, fmt.Errorf("profile: parsing i2c_address %q: %w", cfg.I2CAddress, err)
 	}
 	return uint16(addr), nil
 }

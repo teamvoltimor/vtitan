@@ -1,6 +1,6 @@
 r"""How long does the chassis actually take to turn after a steering step?
 
-The reactive escape commands `REV_STEER_DEG` 44 deg and lasts a median 0.49 s.
+The reactive escape commands `rev_steer_deg` 44 deg and lasts a median 0.49 s.
 At the shipped `MAX_STEERING_RATE` 1.2 rad/s, centre to 44 deg is 0.77 rad =
 **0.64 s** -- longer than the escape. If that constant is honest the escape can
 never reach the angle it asks for, which is why it extracts only 10.5 deg of

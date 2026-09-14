@@ -133,7 +133,7 @@ def _measure(widths_mm: dict[str, int], direction: Direction, tuning) -> list[di
         # corner the two corridors share. The arc is tangent to both
         # centrelines, so everything on it is nearer this corner than any
         # other, and the radius bounds how far that reaches.
-        near = [(x, y) for x, y in points if math.hypot(x - cx, y - cy) <= tuning.waypoints.ARC_RADIUS * 2.0]
+        near = [(x, y) for x, y in points if math.hypot(x - cx, y - cy) <= tuning.waypoints.arc_radius * 2.0]
         if not near:
             continue
         rows.append(
@@ -157,12 +157,12 @@ def main() -> int:
 
     half_width = RobotSpecs.WIDTH / 2.0
     print(
-        f"chassis half-width {half_width:.3f} m, ARC_RADIUS {tuning.waypoints.ARC_RADIUS}, "
-        f"WIDE_CENTER_BIAS_M {tuning.waypoints.WIDE_CENTER_BIAS_M} "
-        f"({tuning.waypoints.WIDE_CENTER_BIAS_SIDE}) / "
-        f"NARROW_CENTER_BIAS_M {tuning.waypoints.NARROW_CENTER_BIAS_M} "
-        f"({tuning.waypoints.NARROW_CENTER_BIAS_SIDE}) "
-        f"below {tuning.waypoints.NARROW_WIDTH_THRESHOLD_M} m\n",
+        f"chassis half-width {half_width:.3f} m, ARC_RADIUS {tuning.waypoints.arc_radius}, "
+        f"WIDE_CENTER_BIAS_M {tuning.waypoints.wide_center_bias_m} "
+        f"({tuning.waypoints.wide_center_bias_side}) / "
+        f"NARROW_CENTER_BIAS_M {tuning.waypoints.narrow_center_bias_m} "
+        f"({tuning.waypoints.narrow_center_bias_side}) "
+        f"below {tuning.waypoints.narrow_width_threshold_m} m\n",
         flush=True,
     )
 

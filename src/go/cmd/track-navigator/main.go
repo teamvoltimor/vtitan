@@ -46,6 +46,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsgw"
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsvision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
@@ -239,7 +240,7 @@ func loadTrackMaxCoordM(logger *slog.Logger, configRoot string) float64 {
 	if configRoot == "" {
 		return navigator.DefaultTrackMaxCoordM
 	}
-	loaded, err := profile.Load[profile.TrackConfig](
+	loaded, err := profile.Load[generated.TrackConfig](
 		filepath.Join(configRoot, profile.DefaultTrackTOMLPath), nil,
 	)
 	if err != nil {

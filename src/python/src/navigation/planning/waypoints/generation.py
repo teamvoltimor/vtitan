@@ -94,13 +94,13 @@ def center_bias_for_corridor(
     """
     params = tuning.waypoints
     if override_m is not None:
-        magnitude, side = override_m, params.WIDE_CENTER_BIAS_SIDE
-    elif width_m <= params.NARROW_WIDTH_THRESHOLD_M:
-        magnitude = params.NARROW_CENTER_BIAS_M if confirmed else params.UNCONFIRMED_WIDTH_INNER_BIAS_M
-        side = params.NARROW_CENTER_BIAS_SIDE if confirmed else CorridorSide.INNER
+        magnitude, side = override_m, params.wide_center_bias_side
+    elif width_m <= params.narrow_width_threshold_m:
+        magnitude = params.narrow_center_bias_m if confirmed else params.unconfirmed_width_inner_bias_m
+        side = params.narrow_center_bias_side if confirmed else CorridorSide.INNER
     else:
-        magnitude, side = params.WIDE_CENTER_BIAS_M, params.WIDE_CENTER_BIAS_SIDE
-    return magnitude * (1.0 if side is CorridorSide.INNER else -1.0)
+        magnitude, side = params.wide_center_bias_m, params.wide_center_bias_side
+    return magnitude * (1.0 if side == CorridorSide.INNER else -1.0)
 
 
 def validate_path_feasibility(min_corridor_width_m: float, center_bias_m: float) -> PathPlannability:
@@ -198,7 +198,7 @@ def calculate_waypoints(
         ValueError: If a generated or deformed waypoint would fall outside the
             track or inside the restricted inner square.
 
-    Uses tuning: waypoints.ARC_RADIUS, WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
+    Uses tuning: waypoints.arc_radius, WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
     NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE,
     UNCONFIRMED_WIDTH_INNER_BIAS_M
     """
@@ -206,7 +206,7 @@ def calculate_waypoints(
     tuning = get_tuning(tuning)
     if not isinstance(metadata, ScenarioMetadata):
         metadata = ScenarioMetadata.model_validate(metadata)
-    arc_radius = arc_radius if arc_radius is not None else tuning.waypoints.ARC_RADIUS
+    arc_radius = arc_radius if arc_radius is not None else tuning.waypoints.arc_radius
 
     corridor_widths = metadata.corridor_widths
     starting = metadata.starting_conditions
@@ -284,7 +284,7 @@ def calculate_waypoints(
     # Blind rounds begin believing every corridor NARROW, so a narrow->wide
     # corner plans a 0.300 m entry where the true geometry wants 0.450 m and the
     # robot commits 0.15 m late (0.38 s at the medium tier). Confirming wide
-    # needs MIN_SAMPLES=12 readings ~= 0.5 m of travel, so the correction
+    # needs min_samples=12 readings ~= 0.5 m of travel, so the correction
     # generally arrives AFTER the entry point has already passed: late is the
     # default on every corner touching a wide corridor, not an edge case.
     #
@@ -297,7 +297,7 @@ def calculate_waypoints(
     # exactly the four it wants.
     effective: Callable[[float, float], tuple[float, float]] = (
         (lambda _entry_w, _exit_w: (CorridorDimensions.WIDE, CorridorDimensions.WIDE))
-        if tuning.waypoints.CORNER_ARC_ASSUME_WIDE
+        if tuning.waypoints.corner_arc_assume_wide
         else (lambda entry_w, exit_w: (entry_w, exit_w))
     )
     corner_radii = {

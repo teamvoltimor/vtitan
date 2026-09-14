@@ -40,7 +40,7 @@ const (
 	// DefaultResidualClipM matches localization.toml's residual_clip_m.
 	DefaultResidualClipM = 0.25
 	// DefaultMaxSpeedMPS matches localization.toml's max_speed_mps. Raised
-	// from 0.25 on 2026-08-29 -- see profile.LocalizationConfig.MaxSpeedMPS
+	// from 0.25 on 2026-08-29 -- see blind_nav.NavigationBlindNavLocalization.MaxSpeedMps
 	// for why that value silently froze pose.
 	DefaultMaxSpeedMPS = 0.60
 	// DefaultJumpConfirmToleranceM matches jump_confirm_tolerance_m.

@@ -70,12 +70,12 @@ class _WallHeadingConstants:
     def from_tuning(cls, tuning: NavigationTuning) -> _WallHeadingConstants:
         wh = tuning.wall_heading
         return cls(
-            min_concentration=wh.MIN_CONCENTRATION,
-            baseline_rays=wh.BASELINE_RAYS,
-            max_segment_jump_m=wh.MAX_SEGMENT_JUMP_M,
-            min_segment_m=wh.MIN_SEGMENT_M,
-            near_max_range_m=wh.NEAR_MAX_RANGE_M,
-            min_returns=wh.MIN_RETURNS,
+            min_concentration=wh.min_concentration,
+            baseline_rays=wh.baseline_rays,
+            max_segment_jump_m=wh.max_segment_jump_m,
+            min_segment_m=wh.min_segment_m,
+            near_max_range_m=wh.near_max_range_m,
+            min_returns=wh.min_returns,
         )
 
 

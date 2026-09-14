@@ -1,7 +1,7 @@
 r"""Is ``angle_error_rad`` telling the truth, and if so what is it measuring?
 
 The heading term cuts speed to the creep floor whenever ``|angle_error_rad|``
-reaches ``HeadingErrorZones.CRAWL`` (1.0 rad, 57.3 deg), and that cut binds
+reaches ``HeadingErrorZones.crawl`` (1.0 rad, 57.3 deg), and that cut binds
 44-64% of an Open round. ``HeadingErrorZones`` justifies the threshold by
 asserting that normal cornering lives at 23-45 deg, so CRAWL only catches real
 saturation. The 2026-09-08 bags measure p50 = 65 deg, which is either
@@ -67,7 +67,7 @@ from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
 from scripts.common.stats import fmean, percentile
 
 CRAWL_RAD = 1.0
-"""``HeadingErrorZones.CRAWL``: at or above this the heading term commands creep."""
+"""``HeadingErrorZones.crawl``: at or above this the heading term commands creep."""
 
 NEAR_SATURATION = 0.9
 """``|commanded_steering_norm|`` at or above this counts as saturated."""

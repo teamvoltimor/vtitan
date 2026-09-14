@@ -39,7 +39,7 @@ def _navigator(waypoints: list[tuple[float, float]], tuning: NavigationTuning | 
 
 
 def _expected(offset_m: float, tuning: NavigationTuning) -> float:
-    return offset_m - RobotSpecs.WIDTH / 2 - tuning.pursuit.WALL_MARGIN_SAFETY_M
+    return offset_m - RobotSpecs.WIDTH / 2 - tuning.pursuit.wall_margin_safety_m
 
 
 def _straight_path_at(offset_m: float) -> list[tuple[float, float]]:
@@ -54,14 +54,14 @@ class TestBudgetFollowsThePath:
 
         expected = _expected(0.25, tuning)
         assert nav._waypoint_controller.effective_transition == pytest.approx(expected)
-        assert expected < tuning.pursuit.LOOKAHEAD_TRANSITION, "must be tighter than the fixed value"
+        assert expected < tuning.pursuit.lookahead_transition, "must be tighter than the fixed value"
 
     def test_centred_path_keeps_the_configured_threshold(self, tuning):
         """A confirmed-wide corridor must behave exactly as it did before."""
         nav = _navigator(_straight_path_at(0.50), tuning)
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(
-            tuning.pursuit.LOOKAHEAD_TRANSITION,
+            tuning.pursuit.lookahead_transition,
         )
 
     def test_budget_never_falls_below_the_floor(self, tuning):
@@ -70,7 +70,7 @@ class TestBudgetFollowsThePath:
         nav = _navigator(_straight_path_at(0.10), tuning)
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(
-            tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M,
+            tuning.pursuit.min_lookahead_transition_m,
         )
 
     def test_measures_the_nearest_edge_whichever_it_is(self, tuning):
@@ -88,10 +88,10 @@ class TestBudgetFollowsThePath:
         with it rather than stay at the tighter value.
         """
         nav = _navigator(_straight_path_at(0.25), tuning)
-        assert nav._waypoint_controller.effective_transition < tuning.pursuit.LOOKAHEAD_TRANSITION
+        assert nav._waypoint_controller.effective_transition < tuning.pursuit.lookahead_transition
 
         nav.replace_path([Waypoint(*wp) for wp in _straight_path_at(0.50)], (1.0, 0.30))
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(
-            tuning.pursuit.LOOKAHEAD_TRANSITION,
+            tuning.pursuit.lookahead_transition,
         )

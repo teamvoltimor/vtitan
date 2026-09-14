@@ -214,23 +214,23 @@ class _GateTracer:
         it by reading the same tuning fields and calling its own ``_way_through``.
         """
         follower = self.tuning.corridor_follower
-        turn_clearance = follower.TURN_CLEARANCE_M
+        turn_clearance = follower.turn_clearance_m
         if believed_width_m is not None and classify_width(believed_width_m) == CorridorDimensions.NARROW:
-            turn_clearance = follower.NARROW_TURN_CLEARANCE_M
+            turn_clearance = follower.narrow_turn_clearance_m
 
         forward = _forward_clearance(ranges_m, angles_rad, self.tuning)
         left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
         right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
 
-        if forward < follower.MIN_FORWARD_CLEARANCE_M:
+        if forward < follower.min_forward_clearance_m:
             rear = _rear_clearance(ranges_m, angles_rad, self.tuning)
-            if rear is not None and rear > follower.MIN_REVERSE_CLEARANCE_M:
+            if rear is not None and rear > follower.min_reverse_clearance_m:
                 return "reverse"
             return "pivot" if max(left, right) > turn_clearance else "hold"
         if forward < turn_clearance and not corridor_follower._way_through(ranges_m, angles_rad, self.tuning):
             return "corner"
-        if left > CorridorDimensions.WIDE + follower.CORNER_LEAK_MARGIN_M or right > (
-            CorridorDimensions.WIDE + follower.CORNER_LEAK_MARGIN_M
+        if left > CorridorDimensions.WIDE + follower.corner_leak_margin_m or right > (
+            CorridorDimensions.WIDE + follower.corner_leak_margin_m
         ):
             return "hold-line"
         return "centring"
@@ -238,13 +238,13 @@ class _GateTracer:
     def _verdict(self, axis_error: float, left: float, right: float, result: Direction | None) -> str:
         """Name the first gate that refuses this reading, in the order it applies."""
         estimator = self.tuning.direction_estimator
-        if left > estimator.MAX_IN_TRACK_RANGE_M or right > estimator.MAX_IN_TRACK_RANGE_M:
+        if left > estimator.max_in_track_range_m or right > estimator.max_in_track_range_m:
             return "dropout"
-        if axis_error > estimator.ALIGNMENT_TOLERANCE_RAD:
+        if axis_error > estimator.alignment_tolerance_rad:
             return "align-fail"
-        if left + right <= estimator.PLAUSIBLE_SPAN_THRESHOLD_M:
+        if left + right <= estimator.plausible_span_threshold_m:
             return "span-fail"
-        if abs(left - right) < estimator.MIN_ASYMMETRY_M:
+        if abs(left - right) < estimator.min_asymmetry_m:
             return "ASYM-FAIL"
         return f"VOTE {result.value if result else '-'}"
 
@@ -408,8 +408,8 @@ def _summary(
     """One row per fixture: did direction settle, and what was steering if not."""
     follower = NavigationTuning.load_default().corridor_follower
     gain = yaw_gain if yaw_gain is not None else RobotSpecs.YAW_GAIN
-    steer = steer_deg if steer_deg is not None else follower.MAX_CENTERING_STEER_DEG
-    corner = corner_deg if corner_deg is not None else follower.MAX_CORNER_STEER_DEG
+    steer = steer_deg if steer_deg is not None else follower.max_centering_steer_deg
+    corner = corner_deg if corner_deg is not None else follower.max_corner_steer_deg
     print(
         f"\nyaw_gain = {gain:.2f}  centering_steer = {steer:.2f} deg  corner_steer = {corner:.2f} deg   "
         f"({len(scenarios)} fixtures, max_steps={steps}, jobs={jobs})"
@@ -479,13 +479,13 @@ def main() -> int:
         "--centering-steer-deg",
         type=float,
         default=None,
-        help="override corridor_follower.MAX_CENTERING_STEER_DEG (the heading-damping clamp)",
+        help="override corridor_follower.max_centering_steer_deg (the heading-damping clamp)",
     )
     parser.add_argument(
         "--corner-steer-deg",
         type=float,
         default=None,
-        help="override corridor_follower.MAX_CORNER_STEER_DEG (the corner/back-off turn angle)",
+        help="override corridor_follower.max_corner_steer_deg (the corner/back-off turn angle)",
     )
     parser.add_argument(
         "--corpus",

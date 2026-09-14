@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/motion"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -52,7 +55,7 @@ type headingTOML struct {
 }
 
 // navWaypointsTOML mirrors the two waypoints.toml fields CoreNavigator
-// itself reads and profile.WaypointsConfig deliberately omits (they belong
+// itself reads and waypoint.NavigationWaypointWaypoints deliberately omits (they belong
 // to the navigator, not to waypoint generation).
 type navWaypointsTOML struct {
 	// FirstLapCornerCaution matches FIRST_LAP_CORNER_CAUTION.
@@ -67,7 +70,7 @@ type navWaypointsTOML struct {
 }
 
 // navEscapeTOML mirrors the escape.toml fields the core navigator's
-// pose-trail retrace and escalating-escape logic read. profile.EscapeConfig
+// pose-trail retrace and escalating-escape logic read. escape.NavigationEscapeEscape
 // deliberately covers only the subset StuckDetector/
 // CollisionAvoidanceController consume, so the overlap here is intentional
 // rather than a duplicate: these are the fields its doc comment names as
@@ -92,7 +95,7 @@ type navEscapeTOML struct {
 
 // navSignRouterTOML mirrors the sign_router.toml / SignRouterParams fields
 // the NAVIGATOR reads -- the lane planner, the escape mask, the retrace and
-// the sign-contact evade -- which profile.SignRouterConfig omits because
+// the sign-contact evade -- which signs.NavigationSignsSignRouter omits because
 // internal/nav/signrouter itself consumes none of them. Most are absent
 // from the checked-in TOML entirely and rely on the Pydantic model's own
 // defaults, applied via their `default` tags (see tagDefaults).
@@ -220,7 +223,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 
 	loadApplyTOML(
 		logger, filepath.Join(configRoot, profile.DefaultPursuitTOMLPath), "pursuit.toml",
-		func(loaded profile.PursuitConfig) {
+		func(loaded motion.NavigationMotionPursuit) {
 			cfg.WallMarginSafetyM = loaded.WallMarginSafetyM
 			cfg.MinLookaheadTransitionM = loaded.MinLookaheadTransitionM
 			cfg.CornerPreviewDistanceM = loaded.CornerPreviewDistanceM
@@ -243,7 +246,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, profile.DefaultControlTOMLPath),
 		"control.toml",
-		func(loaded profile.ControlConfig) {
+		func(loaded motion.NavigationMotionControl) {
 			cfg.ControlHz = loaded.ControlHz
 		},
 	)
@@ -252,7 +255,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath),
 		"lidar_sectors.toml",
-		func(loaded profile.LidarSectorsConfig) {
+		func(loaded sensors.NavigationSensorsLidarSectors) {
 			cfg.NoDataRangeM = loaded.NoDataRangeM
 		},
 	)
@@ -305,7 +308,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, profile.DefaultTrackTOMLPath),
 		"track.toml",
-		func(loaded profile.TrackConfig) {
+		func(loaded generated.TrackConfig) {
 			cfg.TrackMaxCoordM = loaded.Track.MaxCoord
 			cfg.CornerMinM = loaded.Track.CornerMin
 			cfg.CornerMaxM = loaded.Track.CornerMax

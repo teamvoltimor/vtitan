@@ -79,10 +79,10 @@ class SignRouter:
         # Prefer a corridor whose lane target is actually satisfiable; see
         # _corridor_for_spec. Read here rather than at each call site so the
         # per-tick path stays a plain attribute test.
-        self._relabel_unsatisfiable = get_tuning(tuning).sign_router.SIGN_LANE_RELABEL_UNSATISFIABLE
+        self._relabel_unsatisfiable = get_tuning(tuning).sign_router.sign_lane_relabel_unsatisfiable
         # Decide a corner sign's face on depth rather than proximity; see
         # _geometric_corridor. Same reason for reading it once here.
-        self._depth_consistent_corridor = get_tuning(tuning).sign_router.SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR
+        self._depth_consistent_corridor = get_tuning(tuning).sign_router.sign_lane_depth_consistent_corridor
         self._direction = direction
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
@@ -126,7 +126,7 @@ class SignRouter:
             # a named argument -- SNAP_TO_LATTICE_M among them, which was
             # unreachable from a caller's tuning until this fix.
             discovery_config = discovery_config or get_tuning(tuning).sign_discovery
-            if get_tuning(tuning).sign_router.SLOT_SIGN_MAP:
+            if get_tuning(tuning).sign_router.slot_sign_map:
                 # A constrained assignment over the 24 legal cells, capped at
                 # two per section, instead of free clustering. Same surface --
                 # observe/propose/newly_confirmed/published -- so this loop does
@@ -137,10 +137,10 @@ class SignRouter:
             else:
                 self._sign_map = ObservedSignMap(
                     self._config.min_confidence,
-                    max_ingest_range_m=discovery_config.MAX_INGEST_RANGE_M,
-                    association_dist_m=discovery_config.ASSOCIATION_DIST_M,
-                    min_hits=discovery_config.MIN_HITS,
-                    robot_corridor_flip_ticks=discovery_config.ROBOT_CORRIDOR_FLIP_TICKS,
+                    max_ingest_range_m=discovery_config.max_ingest_range_m,
+                    association_dist_m=discovery_config.association_dist_m,
+                    min_hits=discovery_config.min_hits,
+                    robot_corridor_flip_ticks=discovery_config.robot_corridor_flip_ticks,
                     tuning=tuning,
                 )
         else:

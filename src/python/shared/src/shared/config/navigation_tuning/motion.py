@@ -2,260 +2,83 @@
 
 Covers clearance zones, heading zones, pure pursuit, speed control, and the
 control loop rate they all run at.
+
+Fields are inherited from the generated DTOs under
+:mod:`shared.config.generated.navigation.motion`. These classes add only the
+tuning layer's shipped fallbacks plus the derived behaviour (challenge
+resolution, ceiling clamping, degrees-to-normalised steering) that belongs to
+tuning rather than the schema. The generated field descriptions carry the
+measurement history that used to live here.
 """
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import Any, ClassVar
+
+from pydantic import model_validator
 
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning._shared import _alias
+from shared.config.generated.navigation.motion.clearance_schema import (
+    NavigationMotionClearance,
+)
+from shared.config.generated.navigation.motion.control_schema import (
+    NavigationMotionControl,
+)
+from shared.config.generated.navigation.motion.heading_schema import (
+    NavigationMotionHeading,
+)
+from shared.config.generated.navigation.motion.pursuit_schema import (
+    NavigationMotionPursuit,
+)
+from shared.config.generated.navigation.motion.speed_schema import (
+    NavigationMotionSpeed,
+)
+from shared.config.navigation_tuning._shared import TuningModel
+
+__all__ = [
+    "ClearanceZones",
+    "ControlLoopParams",
+    "HeadingErrorZones",
+    "PurePursuitParams",
+    "SpeedControlParams",
+]
 
 
-class ClearanceZones(BaseModel):
-    """LIDAR clearance thresholds for speed control.
+class ClearanceZones(TuningModel, NavigationMotionClearance):
+    """LIDAR clearance thresholds for speed control, in metres."""
 
-    These distances define zones around the robot where speed is controlled
-    based on obstacle proximity. Values are in meters.
-
-    Attributes:
-        CONTACT_DIST: Robot creeps forward (< 0.10m) - immediate danger
-        RISK_RAY_WINDOW: How many ADJACENT rays in the forward lane must
-            corroborate a short return before ``assess_risk`` treats it as an
-            obstacle. The bare minimum over a noisy sweep is an extreme-value
-            statistic, not a clearance -- see ``sectors.robust_min_range``.
-            1 restores that bare minimum.
-        SLOW_DIST: Robot enters slow zone (0.10-0.25m)
-        MEDIUM_DIST: Robot enters medium speed zone (0.25-0.50m)
-        FAST_DIST: Robot can go full speed (> 0.50m)
-        PATH_MARGIN: Extra clearance beyond the chassis half-width still
-            counted as "in the robot's forward path" for risk assessment (m)
-        OBSTACLES_CONTACT_DIST: Obstacles-Challenge CONTACT_DIST. ``None`` ->
-            use CONTACT_DIST. See the field for why only this zone is
-            per-challenge, and why only Obstacles has an override.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    CONTACT_DIST: float = Field(default=0.10, validation_alias=_alias("CONTACT_DIST"))  # Creep forward zone
-    RISK_RAY_WINDOW: int = Field(default=5, ge=1, validation_alias=_alias("RISK_RAY_WINDOW"))
-    SLOW_DIST: float = Field(default=0.25, validation_alias=_alias("SLOW_DIST"))  # Reduced speed
-    MEDIUM_DIST: float = Field(default=0.50, validation_alias=_alias("MEDIUM_DIST"))  # Normal speed
-    FAST_DIST: float = Field(default=1.00, validation_alias=_alias("FAST_DIST"))  # Full speed capability
-    PATH_MARGIN: float = Field(default=0.10, validation_alias=_alias("PATH_MARGIN"))  # Forward-path margin
-
-    CONTACT_REVERSE_TICKS: int = Field(default=0, ge=0, validation_alias=_alias("CONTACT_REVERSE_TICKS"))
-    """Ticks of straight reverse commanded once forward clearance reaches CONTACT_DIST.
-
-    Creeping FORWARD at contact is how the chassis ends up leaning on what it
-    was avoiding. Measured on run_20260906_121254: 0.023-0.037 m of clearance,
-    risk CRITICAL, and +0.152 m/s commanded for ten seconds against a green
-    pillar. Nothing in the normal-drive path reversed.
-
-    SHIPS AT 0, i.e. disabled, matching ``clearance.toml``: the sim measured a
-    blind reverse as flat on the headline and +5 wall contacts, so the
-    behaviour is not earned. It was 8 here until 2026-09-09, which meant any
-    caller constructing the tuning bare -- a sweep arm, a unit test -- reversed
-    where a race does not.
-
-    8 ticks is ~0.4 s at 20 Hz, about 25 mm at creep -- enough to unstick a
-    chassis that has just closed on an obstacle, and far short of retracing the
-    corridor -- and remains the value to restore if rear sensing ever makes a
-    SEEING reverse possible. The hardware case it was written for is real and
-    still unaddressed.
-
-    Bounded rather than "reverse until clear" because at contact the forward arc
-    is the reading that has just gone unreliable: below MIN_VALID_RANGE_M it
-    returns nothing at all, and the clearance the caller sees is a substituted
-    constant rather than a measurement.
-    """
-
-    CONTACT_REVERSE_COOLDOWN_TICKS: int = Field(
-        default=20, ge=0, validation_alias=_alias("CONTACT_REVERSE_COOLDOWN_TICKS")
-    )
-    """Ticks after a back-off before another may arm, counted only while CLEAR.
-
-    Without it the pair oscillates: reverse to clear, drive forward into the
-    same pillar, reverse again. The cooldown decrements only on ticks where
-    clearance is at or above CONTACT_DIST, so a chassis still against the
-    obstacle cannot time its way to a second reverse without having actually
-    got clear in between -- the escape machinery owns that case.
-    """
-
-    FORWARD_PATH_AHEAD_OF_BUMPER: bool = Field(
-        default=False, validation_alias=_alias("FORWARD_PATH_AHEAD_OF_BUMPER")
-    )
-    """Require a forward-path return to be ahead of the FRONT BUMPER, not the LIDAR.
-
-    ``_forward_path_ranges`` admits a ray on ``cos(theta) > 0`` -- ahead of the
-    SENSOR. The sensor sits ``RobotSpecs.LIDAR_TO_FRONT_BUMPER`` (2.78 cm)
-    behind the bumper plane, so "ahead of the sensor" includes a band that is
-    physically ALONGSIDE the chassis.
-
-    It only matters at contact range, and there it decides the escape. A ray
-    trips the 0.05 m Obstacles gate at a range below 7.78 cm, and at that range
-    the lateral test (``|r*sin(theta)| < 0.197``) cannot exclude ANY bearing --
-    the largest lateral offset reachable is 7.78 cm. So the forward-path
-    corridor degenerates into the whole forward half-plane exactly where it
-    fires, and a return at 85 deg -- 0.6 cm along-track, i.e. 2.2 cm BEHIND the
-    bumper -- reads as an obstacle dead ahead and triggers a reversing escape
-    at something the robot is not driving into. The cutoff is
-    ``acos(2.78/7.78) = 69 deg``.
-
-    Measured on the 256 corpus 2026-09-02: 82.1% of escape engagements come
-    from this gate, and in every FAILING verdict bucket ~92% of them fire
-    outside +/-10 deg with a median |bearing| of 51-57 deg, while the front
-    cone reads 33-55 cm clear. ``laps-done`` is the only bucket that triggers
-    head-on (16% inside +/-10 deg).
-
-    REFUTED 2026-09-02 on the full 256 corpus, and kept OFF. Do not turn this
-    on. It does exactly what it was designed to -- escapes 19,276 -> 7,730,
-    timeouts 48 -> 20, and the target metric pass-side 122 -> 80 -- and it is
-    still a large net loss:
-
-        pass-side        122 -> 80     clean laps>=3   76 -> 62
-        SIGN collisions    4 -> 97     in-time         47 -> 40
-        wall collisions   17 -> 13     total          22 -> 111
-
-    All 97 sign collisions came back ``masked``, colour ``right``: the router
-    knew about every one of those signs and had its colour correct, and the
-    robot drove into it anyway. So the lateral trigger is LOAD-BEARING. The
-    escape firing at 70-90 deg is the last line of defence against clipping a
-    sign the planner is deliberately passing within ~0.175 m of; suppressing it
-    trades 42 disqualifications for 93 extra collisions.
-
-    The conclusion to carry forward is that this gate is not misfiring. Given
-    that the robot arrives 6.8 cm from a sign at 55-85 deg, reversing is the
-    correct response, and the defect is that it arrives there at all --
-    cross-track error is 4.63 cm median against 5.6 cm of plan margin
-    (2026-09-01). Pass-side is a TRACKING problem and cannot be reduced through
-    the reactive layer.
-
-    Kept rather than deleted so that refutation stays reproducible in-tree:
-    ``diag_sign_sweep.py ahead-of-bumper --corpus``.
-
-    Deliberately a bearing/geometry gate rather than a smaller PATH_MARGIN:
-    the margin is irrelevant at contact range (nothing can reach it), so
-    tightening it would read as a flat sweep.
-    """
-
-    FORWARD_NO_DATA_IS_DEGRADED: bool = Field(
-        default=True, validation_alias=_alias("FORWARD_NO_DATA_IS_DEGRADED")
-    )
-    """Treat an UNREADABLE forward cone as a degraded sensor, not as open road.
-
-    ``compute_forward_clearance`` reports ``NO_DATA_RANGE_M`` (10 m) when no ray
-    in the forward cone is valid, which is indistinguishable from clear road, so
-    every ``clearance < threshold`` gate downstream fails OPEN.
-
-    That is not a hypothetical. Measured on hardware 2026-08-31
-    (run_20260831_205208 / _205235): pressed against a wall and physically
-    immobile, every forward ray fell below ``min_valid_range_m`` -- a flat
-    surface centimetres away reflects too shallowly to return a signal -- so
-    forward clearance read **9.97 m for the rest of the run**. The navigator
-    held 0.24 m/s into the wall, and the ``stuck_forward`` escape fired for six
-    ticks and stood down, because by that number nothing was wrong. Neither run
-    recovered.
-
-    The no-LIDAR branch in ``CoreNavigator.step`` already argues the correct
-    policy -- "a degraded sensor is not open road", answered with ``SLOW_DIST``
-    and a non-SAFE risk. This applies the SAME policy to the case where a scan
-    arrives but its forward cone is unreadable, which is strictly more
-    dangerous: no scan at all is obvious, an all-invalid cone masquerades as
-    12 m of open track.
-
-    Deliberately reuses that branch's response rather than forcing clearance to
-    zero. Zero would assert an obstacle at the bumper, which is a different
-    claim from "I cannot see", and would fire contact handling on any transient
-    dropout burst.
-
-    The rear has had this distinction since the reverse guard was found failing
-    open (``rear_sector().measured``); this is the same fix for the front, which
-    never had it. See ``CollisionAvoidanceController.front_sector``.
-
-    **Defaults True, on a measured false-positive rate of zero.** Replayed over
-    the recorded bags, the forward cone is unmeasured in **0 of 847 scans** of
-    the clean 3-lap run (run_20260830_182505) and in **62.7% / 66.1%** of the
-    two failing runs. So it never fires on a healthy round and fires on two
-    thirds of a wedged one -- there is no crawl-the-whole-race cost to weigh
-    against it.
-
-    Covers BOTH consumers of forward clearance. ``CoreNavigator.step`` treats an
-    unmeasured cone as the degraded sensor it is; ``EscapeRecovery`` gates
-    ``forward_open`` on it, because without that the escape reads 10 m, passes
-    ``forward_clear >= CONTACT_DIST``, and chooses STUCK_FORWARD *into* the wall
-    it is already touching -- which is what both failing runs recorded. Fixing
-    only the navigator yields a slower crash, not a recovery.
-
-    The simulator cannot validate any of this: contact is absorbing, so a run
-    ends before the robot can be wedged, and the state is unreachable there. An
-    A/B returns identical arms -- the dead end that cost two 256-scenario runs
-    on MAX_CORNER_STEER_DEG. Evidence is the unit tests plus the bag replay
-    above. NOT track-validated.
-
-    Fixes RECOVERABILITY, not cause. The robot drives into the corner because
-    longitudinal pose is unobservable in a corridor (pose_x wanders 0.24-0.38 m
-    while the chassis is stationary, pose_y 0.01 m). This stops it grinding
-    there at 0.24 m/s afterwards believing the road is clear.
-    """
-
-    OBSTACLES_CONTACT_DIST: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_CONTACT_DIST")
-    )
-    """Obstacles-Challenge ``CONTACT_DIST``. ``None`` -> use ``CONTACT_DIST``.
-
-    Resolved by :meth:`for_obstacles_challenge`, which ``CoreNavigator`` calls
-    once at construction -- the same shape, and the same discriminator, as the
-    speed ladder's ``OBSTACLES_*`` tiers below.
-
-    Why the contact zone wants to differ by challenge: it is the threshold that
-    fires the reversing escape (``assess_risk`` returns CRITICAL below it), and
-    the two challenges present completely different things to escape FROM. Open
-    has walls only, and a wall at 0.10 m ahead is a genuine emergency. Obstacles
-    additionally has signs the router deliberately routes PAST at ~0.175 m from
-    their surface, so the same 0.10 m threshold fires on geometry the planner
-    chose on purpose. Measured 2026-08-31 on subset128: with signs physical the
-    robot logs ~180 escapes per run while colliding with a sign only 4-5 times
-    in 128 runs, and 66/128 runs time out -- it is escaping from clearances it
-    was aimed at, not from danger.
-
-    Asymmetric on purpose, unlike the speed tiers: there is no
-    ``OPEN_CONTACT_DIST``, because nothing has been measured that wants Open to
-    differ from the shared value, and an unset knob that nothing has ever moved
-    reads as tuning that exists. Add the Open half when a measurement asks for
-    it.
-
-    NOT track-validated. Lowering this shortens the distance in which the
-    chassis must actually halt, which is a hardware question the simulator
-    cannot answer -- see the stopping-distance bench check.
-    """
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "contact_dist": 0.10,
+        "risk_ray_window": 1,
+        "slow_dist": 0.25,
+        "medium_dist": 0.50,
+        "fast_dist": 1.00,
+        "path_margin": 0.10,
+        "contact_reverse_ticks": 0,
+        "contact_reverse_cooldown_ticks": 20,
+        "obstacles_contact_dist": 0.04,
+        "forward_path_ahead_of_bumper": False,
+        "forward_no_data_is_degraded": True,
+    }
 
     def for_obstacles_challenge(self) -> ClearanceZones:
-        """These zones as the Obstacles Challenge should run them.
-
-        Returns ``self`` unchanged when no Obstacles override is set, so the
-        Open path and the un-overridden Obstacles path stay byte-identical.
-        """
-        if self.OBSTACLES_CONTACT_DIST is None:
-            return self
-        return self.model_copy(update={"CONTACT_DIST": self.OBSTACLES_CONTACT_DIST})
+        """These zones as the Obstacles Challenge should run them."""
+        return self.model_copy(update={"contact_dist": self.obstacles_contact_dist})
 
     @model_validator(mode="after")
     def _contact_below_slow(self) -> ClearanceZones:
         """The contact zone must stay below the slow zone, override included.
 
         The ladder in ``core_navigator`` is an if/elif chain ordered
-        contact < slow < medium, so a contact threshold at or above SLOW_DIST
+        contact < slow < medium, so a contact threshold at or above ``slow_dist``
         does not widen the contact zone -- it makes the slow rung unreachable
-        and silently deletes a tier. That is the same class of failure the
-        speed ladder's ``_challenge_tiers_below_challenge_cap`` exists to
-        catch, and it reads as tuning while measuring nothing.
+        and silently deletes a tier.
         """
-        contact = self.OBSTACLES_CONTACT_DIST
-        if contact is not None and contact >= self.SLOW_DIST:
+        contact = self.obstacles_contact_dist
+        if contact >= self.slow_dist:
             msg = (
-                f"clearance.OBSTACLES_CONTACT_DIST ({contact}) must stay below "
-                f"clearance.SLOW_DIST ({self.SLOW_DIST}); the ladder is an ordered "
+                f"clearance.obstacles_contact_dist ({contact}) must stay below "
+                f"clearance.slow_dist ({self.slow_dist}); the ladder is an ordered "
                 "if/elif chain, so an equal or larger contact zone makes the slow "
                 "tier unreachable instead of widening the contact one."
             )
@@ -263,887 +86,135 @@ class ClearanceZones(BaseModel):
         return self
 
 
-class HeadingErrorZones(BaseModel):
-    """The heading error above which speed is cut. Radians.
+class HeadingErrorZones(TuningModel, NavigationMotionHeading):
+    """The heading error above which speed is cut, in radians.
 
-    One threshold, not a ladder. This held four (CRAWL/SLOW/MEDIUM/NORMAL) and
-    the speed ladder stepped down through them as heading error grew. Measured
-    on hardware 2026-08-09 that cost 33% of lap time -- CW 134.9 s -> 179.3 s,
-    CCW 161.7 s -> 200.9 s, both past the 180 s round limit -- because ordinary
-    cornering sits at 23-45 deg, so the middle rungs taxed every corner on the
-    track rather than catching a dangerous case. Corner speed was 0.117 m/s
-    against a 0.156 ceiling with 0.34-0.50 m of clearance and risk reading safe.
-
-    CRAWL is the one that describes something real: past ~57 deg the steering
-    servo's fixed slew rate cannot track the demand (2026-08-03), so speed has
-    to come down. Below it, it does not.
-
-    The other three were deleted rather than left in place. Config nothing reads
-    advertises control it does not have, and these would have been read as live
-    speed tuning. Re-adding them is a two-line change if a measurement ever
-    beats the times above.
-
-    Attributes:
-        CRAWL: Severe misalignment (> 1.0 rad, ~57 deg) - drop to the creep floor
+    One threshold, not a ladder. ``crawl`` is the one that describes something
+    real: past ~57 deg the steering servo's fixed slew rate cannot track the
+    demand, so speed has to come down. The middle rungs of the retired ladder
+    taxed every corner rather than catching a dangerous case.
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    CRAWL: float = Field(default=1.0, validation_alias=_alias("CRAWL"))  # ~57° - worst case
-
-    CRAWL_RAMP_START: float = Field(default=0.0, ge=0.0, validation_alias=_alias("CRAWL_RAMP_START"))
-    """Heading error where the speed cut BEGINS, ramping linearly to ``CRAWL``.
-
-    0 keeps the step: below ``CRAWL`` full speed, at or above it the creep
-    floor, which is what shipped. Any value in ``(0, CRAWL)`` replaces that
-    cliff with a linear interpolation from full speed at ``CRAWL_RAMP_START``
-    to creep at ``CRAWL``.
-
-    The cliff is a 0.348 m/s change across ONE degree of heading error, and
-    nothing in the physics is discontinuous: the servo's slew time grows
-    smoothly with the angle it has to cover. Measured over the 4572
-    normal_drive ticks of the 2026-09-08 finishers, whose heading error runs
-    p25 24 deg / p50 65 / p75 82, mean commanded speed under each law:
-
-    | law                  | mean m/s | vs shipped | at creep | cliff  |
-    |----------------------|----------|------------|----------|--------|
-    | step (shipped)       | 0.301    |      -     |    57%   | 0.348  |
-    | ramp 30->75 deg      | 0.300    |    -0.3%   |    35%   | 0.007  |
-    | ramp 40->90 deg      | 0.344    |   +14.1%   |     4%   | 0.007  |
-    | hyperbolic           | 0.423    |   +40.4%   |     0%   | 0.009  |
-
-    So smoothness is available at NO speed cost -- a ramp over 30-75 deg is
-    within 0.3% of the step's mean while removing the discontinuity. Faster
-    settings exist but they buy speed by being less conservative, which is a
-    different decision and wants a track measurement.
-
-    SHIPS AT 0 (the step) deliberately. The table above is an OPEN-LOOP replay:
-    it re-scores recorded heading errors under a different law, and cannot see
-    that driving faster through a corner CHANGES the heading error the law then
-    reads.
-
-    That caveat CASHED IN. Both bands A/B'd over 128 Open scenarios, closed
-    loop: 30->75 deg gives 128/128 verdicts, none changed, +0.02 s mean;
-    40->90 deg gives 128/128, none changed, -0.11 s mean. The replay promised
-    +14.1% mean speed for the second band and the lap time did not move at all.
-    Treat every open-loop re-scoring in this file the same way -- an upper
-    bound on a control change, never a forecast.
-
-    So the ramp is FREE, not fast. Its value is the one the simulator cannot
-    show: the creep floor is where the drivetrain stalls, 19.4% at full lock
-    against 0.2% straight (``diag_bag_creep_stall.py``), and the ramp cuts the
-    share of the round spent sitting on that floor from 57% to 35% (30->75) or
-    4% (40->90). That is a hardware argument, so the band is chosen on the
-    track.
-
-    Read this against ``MAX_STEERING_RATE`` before tuning it: that constant is
-    the whole justification for cutting speed here, it ships at 1.2 rad/s, and
-    it has never been measured (a 35 kg servo is plausibly ~5). The 2026-09-08
-    bags cannot settle it -- steering-rate p95 is 1.206 rad/s, landing exactly
-    on the configured limit, so what they measure is OUR limiter and not the
-    servo. If the servo is in fact faster, raising that constant is a larger
-    and simpler win than any shape chosen here.
-    """
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "crawl": 1.0,
+        "crawl_ramp_start": 0.0,
+    }
 
 
-class PurePursuitParams(BaseModel):
+class PurePursuitParams(TuningModel, NavigationMotionPursuit):
     """Pure pursuit controller parameters for waypoint following.
 
-    Implements lookahead-based steering to follow waypoints with
-    crosstrack error minimization.
-
-    Attributes:
-        YAW_GAIN_COMPENSATION: Fraction of the geometrically predicted yaw the
-            chassis actually delivers, divided out of the pure-pursuit steering
-            demand. Pure pursuit is a bicycle model and assumes the plant turns
-            exactly as predicted; ``RobotSpecs.YAW_GAIN`` says it delivers 0.55
-            of that, so every demanded curvature comes out ~1.8x too wide. That
-            is the leading candidate for the systematic OUTWARD displacement at
-            sign passes (+7.53 cm median, 84% outward, against 5.6 cm of plan
-            margin), which is concentrated on boundary signs near corners where
-            the curvature demand is largest.
-
-            ``bay_exit`` already applies ``YAW_GAIN`` in its dead reckoning and
-            ``corridor_follower`` sizes its corner arc with it; pure pursuit was
-            the one consumer ignoring it.
-
-            Defaults 1.0 = OFF, the uncompensated geometric answer, because
-            asking for 1.8x more steering everywhere is not a free change: it
-            saturates against the steering limit sooner. Measured 2026-09-05,
-            it helps one challenge and hurts the other, so it is applied PER
-            CHALLENGE -- see ``OBSTACLES_YAW_GAIN_COMPENSATION``. Score it on
-            SIGNED RADIAL at passes, not |error| and not pass-side counts,
-            which are too coarse to screen on.
-        OBSTACLES_YAW_GAIN_COMPENSATION: ``YAW_GAIN_COMPENSATION`` for the
-            Obstacles Challenge only. ``None`` keeps the base value.
-        LOOKAHEAD_SHORT: Lookahead distance for sharp corners (m)
-        LOOKAHEAD_LONG: Lookahead distance for straights (m)
-        LOOKAHEAD_TRANSITION: Crosstrack error threshold to switch modes (m).
-            A ceiling, not the operative value -- see WALL_MARGIN_SAFETY_M.
-        STEER_KP: Proportional gain for steering P-controller
-        MAX_STEERING_RATE: Maximum steering command rate (rad/s)
-        WALL_MARGIN_SAFETY_M: Clearance (m) to leave between the chassis and an
-            outer wall when deciding how much crosstrack error the robot can
-            afford before the short lookahead must engage.
-
-            LOOKAHEAD_TRANSITION alone is a fixed 0.30 m, which silently
-            assumes the path has at least that much room to drift into. Under
-            the blind narrow prior it does not: a corridor believed 0.60 puts
-            the path ~0.25-0.30 m from the outer wall, and the chassis
-            half-width takes 0.097 of that, leaving 0.15-0.20 m of real
-            budget. The correction was therefore armed to fire only after the
-            wall had already been reached -- measured on hardware 2026-08-06 as
-            crosstrack running 0.09 -> 0.15 through a corner while never
-            crossing 0.30, with the robot ending up 0.10 m from the wall.
-        MIN_LOOKAHEAD_TRANSITION_M: Floor (m) for that derived threshold.
-            Without it a path planned very close to a wall would pin the
-            controller to the short lookahead permanently, which is twitchy on
-            straights -- trading one failure for another.
-        LOOKAHEAD_BLEND_START: Fraction of either arming threshold at which the
-            lookahead begins sliding from LOOKAHEAD_LONG toward
-            LOOKAHEAD_SHORT, reaching short at the threshold itself. 1.0
-            restores the original hard switch.
-
-            The switch used to be a bare ``value > threshold`` step on both
-            signals. In normal driving both hover near their thresholds, so the
-            lookahead flipped long/short on consecutive ticks -- hardware
-            run_20260829_104641 shows ``0.320, 0.160, 0.320, 0.160`` at
-            ~2.5 Hz. Curvature is ``2y/L**2``, quadratic in the lookahead, so
-            every flip swung the commanded curvature by 4x and the chassis
-            drew a visible zigzag down the corridor. Steering effort rose with
-            it: mean peak |steer| through corners 0.306 -> 0.398 against the
-            pre-change baseline, while crosstrack did not improve.
-
-            Ramping instead of switching removes the discontinuity rather than
-            debouncing it -- there is no 4x jump left for hysteresis to
-            suppress, and the response becomes proportional to how far off the
-            robot actually is.
-
-            0.7 keeps a deadband: below 70% of the threshold the long lookahead
-            is untouched, so straights stay exactly as calm as before and only
-            the approach to the limit tightens. It is also the largest value
-            that leaves every pre-existing lookahead assertion true (the two
-            "must stay long" cases sit at 0.50 and 0.571 of their thresholds),
-            which is deliberate -- this refines the behaviour without
-            re-baselining the tests that pinned it.
-        CORNER_PREVIEW_DISTANCE_M: How far along the planned path to look for
-            an upcoming turn. Crosstrack error is a lagging signal -- it cannot
-            rise until the corner has already been missed -- so gating the
-            lookahead on it alone means the sharp correction always arrives
-            after the corner. Measured on hardware 2026-08-06: the robot held
-            0.9 rad of heading error for three seconds at 0.23 of full lock,
-            and only once crosstrack reached 0.13 did the short lookahead arm
-            and steering jump to 0.52 -- the right magnitude, ~1.5 s late.
-
-            Was 0.40, which gave the leading signal NO LEAD AT ALL. Computed
-            2026-08-29 by running the real planner and ``path_turn_ahead``
-            against the geometric arc entry, on the all-narrow blind prior:
-
-              preview  lead before the arc   armed over the lap (narrow/wide)
-                0.40      0.000 m  (0.00 s)          27% / 38%
-                0.60      0.000 m  (0.00 s)            -
-                0.80      0.257 m  (0.73 s)          38% / 64%
-                1.00      0.514 m  (1.47 s)          49% / 73%
-                1.20      0.772 m  (2.21 s)          61% / 100%
-
-            (seconds at 0.35 m/s.) The preview has to span the straight
-            remainder AND reach into the arc before any heading change
-            registers, and waypoint spacing is 0.117-0.258 m (mean 0.205), so
-            0.40 m simply never got there -- the short lookahead armed exactly
-            AT the arc, which is the "a corner late" failure this field exists
-            to prevent, still present with the field in place.
-
-            0.80 is the SMALLEST value that leads at all. Not larger, because
-            the cost is the fraction of the lap spent on the short lookahead,
-            and curvature is quadratic in it (2y/L**2): 1.20 arms it over an
-            entire wide lap, which is no longer "corner mode" but a permanently
-            higher gain, and hardware run_20260829_100947 already showed a
-            +-0.18 m weave in a corridor whose total margin is 0.203 m.
-            Geometry, not a track measurement -- the sim cannot show tracking.
-        CORNER_TURN_THRESHOLD_RAD: Heading change within the preview distance
-            above which the corner is treated as imminent and the short
-            lookahead engages. A straight reads ~0; a corner reads roughly
-            preview/arc_radius, and the arc radius is set per corner by the
-            corridors it joins (ARC_RADIUS is only a cap and does not bind on
-            this track), so 0.30-0.40 m radii put a corner well above this.
-
-            Insensitive over a wide band, so do not reach for it to change
-            WHEN the turn arms. The signal is quantised by waypoint spacing:
-            measured 2026-08-29 on the all-narrow prior, one corner reads
-            ``0.00 0.00 0.59 1.18 0.98 0.59 0.20 0.00``, jumping 0.00 -> 0.59
-            in a single step, so every threshold in 0.21-0.58 arms at the
-            identical waypoint (16/44 either way). Dropping to 0.15 only
-            catches the trailing 0.20, holding the short lookahead longer on
-            corner EXIT -- it does nothing at entry. Entry timing is set by
-            CORNER_PREVIEW_DISTANCE_M; see its note.
+    ``corner_preview_distance_m`` is read directly (the per-width-class
+    ``wide_corner_preview_distance_m`` override is no longer part of the schema,
+    so an unknown corridor and a wide one both keep the shipped value).
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    # 0.16/0.32, not the 0.20/0.40 these read until 2026-08-21: the shorter pair
-    # is what pursuit.toml ships and what was measured (corpus collisions
-    # 202 -> 196, laps>=3 -> 64). The bare defaults had been left behind, so any
-    # caller constructing NavigationTuning() without the TOML silently drove a
-    # configuration nobody chose -- which is what TestFieldDefaultsMatchShippedToml
-    # exists to catch, and had been failing on.
-    YAW_GAIN_COMPENSATION: float = Field(default=1.0, validation_alias=_alias("YAW_GAIN_COMPENSATION"))
-
-    OBSTACLES_YAW_GAIN_COMPENSATION: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_YAW_GAIN_COMPENSATION")
-    )
-    """Compensation for the Obstacles Challenge only. ``None`` keeps the base value.
-
-    The two challenges want OPPOSITE values, so one number costs whichever
-    challenge does not get it. Measured 2026-09-05, both arms paired against
-    the same seeded cases, full compensation (0.55) against the base 1.0:
-
-    * **Obstacles, 256 corpus, 64 scenarios:** real wrong-side passes
-      **46 -> 6** (of 301/311 signs actually passed), runs with a violation
-      **33 -> 6** of 64, rule 9.21 terminations **9 -> 0**, collisions flat
-      (14 vs 15), laps credited 131 -> 196. Pass-side is the dominant Obstacles
-      failure mode and this is by far the largest move anything has made on it.
-    * **Open, all 640 cases:** WORSE -- **638 -> 615**. Rule 9.21 goes 1 -> 15
-      and nine more runs time out at 200 s. The 128-case screen showed only
-      127 -> 124, understating the cost EIGHTFOLD; this is why Open decides on
-      640, not on the screen.
-
-    Rule 9.21 therefore moves in opposite directions by challenge, so
-    "compensation causes reverse-runs" is not supported in either direction --
-    something challenge-specific mediates it, and that is not yet understood.
-
-    On the OBSTACLES side, unlike ``OPEN_LOOKAHEAD_LONG``: Open is the arm that
-    must not regress (638/640), and leaving its resolution path on the base
-    value keeps it bit-identical. That does mean this CAN shadow the base
-    constant on an Obstacles sweep, the way ``OBSTACLES_CONTACT_DIST`` did --
-    ``diag_base.load_tuning`` sets both fields together for that reason.
-
-    HARDWARE TRANSFERABILITY IS UNSETTLED: in the sim the compensation is
-    exactly correct because the plant IS ``yaw_gain = 0.55``. On the real robot
-    the same 1.8x is unresolved between ``rear_steer_ratio`` and
-    ``linkage_ratio`` and needs the bench test.
-    """
-    LOOKAHEAD_SHORT: float = Field(default=0.16, validation_alias=_alias("LOOKAHEAD_SHORT"))  # Close to corner
-    LOOKAHEAD_LONG: float = Field(default=0.32, validation_alias=_alias("LOOKAHEAD_LONG"))  # Normal straight
-    LOOKAHEAD_TRANSITION: float = Field(
-        default=0.30, validation_alias=_alias("LOOKAHEAD_TRANSITION")
-    )  # Crosstrack threshold
-    STEER_KP: float = Field(default=1.2, validation_alias=_alias("STEER_KP"))  # Steering P-gain
-    # 1.2 to match motion/pursuit.toml, not the 2.0 this carried before: bare
-    # construction was running a rate 67% higher than anything the robot ships
-    # with, so a weave measured on bare tuning was not measuring the robot.
-    MAX_STEERING_RATE: float = Field(default=1.2, validation_alias=_alias("MAX_STEERING_RATE"))  # rad/s
-    TARGET_SEARCH_SPAN_M: float = Field(
-        default=1.0, ge=0.0, validation_alias=_alias("TARGET_SEARCH_SPAN_M")
-    )
-    """How far ALONG THE PATH ``select_target_point`` may walk. 0 = a whole lap.
-
-    Without a bound the search wraps the entire loop and returns the first
-    waypoint merely IN FRONT of the chassis -- which, once the chassis has turned
-    toward the way it came, is on the FAR SIDE OF THE RING.
-
-    That is what lost all three rounds of 2026-09-11, and it is the mechanism
-    behind the operator's report that the car turned around and drove back.
-    Measured inside those windows: the selected target sat p50 2.08-2.50 m away
-    at a bearing 97-140 deg BACKWARDS around the loop, on 60-91% of ticks, while
-    pure pursuit tracked it perfectly -- crosstrack 0.0-0.5 m, ``angle_error``
-    pinned at its clamp -- because driving toward the far side of a ring
-    corridor IS driving back the way you came.
-
-    | run | selected-target distance p50 | ticks beyond 1.0 m |
-    |---|---|---|
-    | run_20260911_152318 (clean, 3 laps) | 0.44 m | **0 / 2533 (0.0%)** |
-    | run_20260911_171915 | 2.09 m | 932 / 3179 (29.3%) |
-    | run_20260911_172334 | 2.50 m | 380 / 1267 (30.0%) |
-    | run_20260911_172543 | 2.08 m | 784 / 2851 (27.5%) |
-
-    1.0 m is chosen off that control: healthy driving never came near it -- the
-    clean round's farthest selected target in 2533 ticks was 0.91 m -- while it
-    removes every pathological pick. Against a lookahead of 0.16-0.32 m it is 3x
-    the largest value the search can legitimately need.
-
-    A SPAN, not a replacement for the wrap: the modulo stays, so the 2026-08-03
-    seam fix is untouched, and the search never writes ``waypoint_index``, so
-    ``REPLAN_MONOTONIC_INDEX``, ``FORWARD_ONLY_RESEEK``, the seam guard and the
-    lap odometer are byte-for-byte unaffected. Raised to at least
-    ``lookahead + spacing`` at runtime so it can never starve the search.
-
-    When nothing in the span qualifies, ``last_target_unreachable`` is set and
-    the existing fallback tiers run -- an outcome the tree already has a meaning
-    for, rather than a new silent failure.
-    """
-    TARGET_SENSE_GATE: bool = Field(default=False, validation_alias=_alias("TARGET_SENSE_GATE"))
-    """Reject a candidate the chassis would reach by going round the loop the
-    WRONG WAY. Ships False.
-
-    ``TARGET_SEARCH_SPAN_M`` above constrains how far the scan may WALK, and
-    that is a different quantity from SENSE: a closed loop has two tangent
-    directions at every point, and a point one metre along the path in the
-    wrong one is still one metre away and still inside the forward half-plane
-    of a chassis that has already rotated, which is all ``x_local > 0`` tests.
-
-    **The span bound CONVERTED the failure rather than closing it**, measured
-    2026-09-12 inside the known reversal windows against a clean 3-lap control
-    reading 0.7% wrong-sense:
-
-    | run | target wrong sense | target behind chassis |
-    |---|---|---|
-    | `152318` clean control | 0.7% | 0.0% |
-    | `171915` before the span bound | 90.9% | **0.0%** |
-    | `172543` before the span bound | 56.2% | **0.0%** |
-    | `172334` before the span bound | 71.1% | **0.0%** |
-    | `064539` AFTER the span bound | **2.8%** | **35.4%** |
-
-    The bound works -- the selected target's range fell from a p50 of 2.04-2.07
-    m (97.9-99.3% beyond 1.0 m) to 0.43-0.47 m (0.0-2.8% beyond it) -- and the
-    car still drove 0.23 of a lap backwards, because at 0.45 m the
-    correctly-chosen point sits BEHIND a chassis that is turned round, and
-    nothing in the tree turns a chassis round: every manoeuvre latch keys on
-    forward-lane LIDAR or on 3 cm of odometry over 2 s, and neither fires on a
-    robot moving fine while pointed the wrong way.
-
-    So this gate is PREVENTION, not recovery, and it is aimed at the precursor:
-    on the same run, BEFORE the reversal window, wrong-sense targets ran 23.0%
-    of ticks while the chassis was still correctly oriented (heading-wrong only
-    6.6%). Those ticks arrive in BURSTS -- 5 runs of 20+ ticks holding 83% of
-    them, the longest 117 ticks, against a longest of 14 and zero such runs on
-    the clean control.
-
-    **It does not cover the other origin, and must not be read as if it did.**
-    ``steer_target`` is reassigned to the sign-deformed point before it reaches
-    steering, and on that same run every wrong-sense target carried a
-    deformation (p50 0.554 m against 0.031 m on right-sense ticks) whose
-    magnitude was roughly TWICE the target's own range. That is the lane
-    shoving a correctly-chosen point across the tangent, and it is
-    ``SIGN_DEFORM_SENSE_GUARD``'s job, not this one's.
-
-    Cost, and it is why the gate is a filter rather than a hard reject: a
-    skipped candidate simply leaves the scan walking forward, and the existing
-    fallback tiers still answer when nothing in the span qualifies. Diagnostic:
-    ``scripts/bag/diag_bag_target_loop_sense.py``.
-    """
-    SERVO_SLEW_RATE_RAD_S: float = Field(
-        default=2.4, gt=0.0, validation_alias=_alias("SERVO_SLEW_RATE_RAD_S")
-    )
-    """How fast the servo ACTUALLY moves, as opposed to how fast we let the command move.
-
-    Split from ``MAX_STEERING_RATE`` on 2026-09-11 because one number was doing
-    two unrelated jobs, and they pull in opposite directions:
-
-    * as a POLICY, ``MAX_STEERING_RATE`` rate-limits the outgoing command
-      (``waypoint_controller``) so a large angle error cannot demand full
-      deflection in one tick. It was deliberately lowered 2.0 -> 1.2 on
-      2026-08-28 because cornering was "too drastic", and it still binds:
-      measured over four 2026-09-11 bags, per-tick ``/ackermann_cmd`` slew has
-      p90 1.13-1.23 rad/s with **8.2-13.1% of ticks at or above the cap**.
-    * as a MODEL, it is what ``bay_exit`` budgets its servo standstill from, and
-      there a value below the truth is pure wasted time: the exit commands ZERO
-      for ``ceil(swing / (rate / CONTROL_HZ))`` ticks after every leg change,
-      which at 1.2 rad/s is 50 ticks -- 2.50 s per reversal, confirmed on track
-      at p50 2.551/2.556/2.552 s -- and 8-14 reversals is most of the manoeuvre.
-
-    Raising the policy to fix the model silently re-heats cornering. Hence two
-    fields. Ships at 1.2, identical to what it replaced: this split removes the
-    coupling, it does not claim a new number.
-
-    **MEASURED 2026-09-11 on the bench, and it is at least twice the assumed
-    value.** Method: park the wheel at one lock, command the other, hold for
-    ``t``, then command back -- and ask whether the wheel REACHED the far stop or
-    turned back mid-sweep. The naked eye judges that reliably where it cannot
-    judge a duration, and above the boundary the wheel visibly DWELLS at the stop
-    before reversing. Wheel loaded against the mat, since unloaded is optimistic.
-    Tool: ``scripts/hardware/diag_servo_slew.py``.
-
-    Result: reached at 1.20 s; at 0.90 s it stopped about **20 deg short**. The
-    shortfall is the better datum, because it is a distance covered in a known
-    time rather than a yes/no: 150 deg in 0.90 s is **2.91 rad/s**, which implies
-    a full swing of 1.02 s -- consistent with not finishing at 0.90 and finishing
-    at 1.20, so the two observations corroborate each other rather than merely
-    bracketing.
-
-    | rate | ticks | budget | margin over the measured 1.02 s |
-    |---|---|---|---|
-    | 1.2 (assumed) | 50 | 2.50 s | +145% |
-    | **2.4 (shipped)** | **25** | **1.25 s** | **+23%** |
-    | 2.7 | 22 | 1.10 s | +8% |
-    | 2.91 (estimate) | 21 | 1.05 s | +3% |
-
-    Kept at 2.4 rather than moved to 2.9. The 20 deg is eyeballed, and 2.9 leaves
-    3% of margin on an estimate whose input carries maybe +/-10 deg; 2.4 leaves
-    23% and still halves the old budget. The remaining 1.35 s per round between
-    them is not worth spending the margin on an eyeball.
-
-    One caveat that would make the true rate LOWER than this: the wheel reaching
-    "its stop" may mean a MECHANICAL limit short of the commanded 85 deg, in
-    which case the swing is under 170 deg and the rate computed from it is
-    overstated. That is the same unverified ``MAX_WHEEL_ANGLE_DEG`` below, and it
-    is another reason to sit at the conservative end.
-
-    Shipped at **2.4**, the conservative end and slightly under the lower bound.
-    Too HIGH under-budgets the pause, and the bay's dead reckoning would then
-    assume a wheel angle the servo has not reached; too low only wastes time. So
-    the error is taken in the direction that costs seconds rather than geometry.
-
-    | rate | ticks | per reversal | 9 reversals |
-    |---|---|---|---|
-    | 1.2 (assumed) | 50 | 2.50 s | 22.5 s |
-    | **2.4 (measured)** | **25** | **1.25 s** | **11.2 s** |
-    | 3.30 (upper bound) | 18 | 0.90 s | 8.1 s |
-
-    Confirmed against the track before the change: commanded-zero runs in the bay
-    lasted p50 2.551 / 2.556 / 2.552 s, i.e. the 2.50 s the old value predicts, to
-    within a tick. So the budget is what the bay was spending, and halving it is
-    worth 11 s of a round that finishes at 213-295 s against a 180 s limit.
-
-    Worth tightening later: a finer ladder between 0.90 and 1.20 s, plus an
-    actual reading of the angle the wheel reaches, would justify 2.7-2.9. Not
-    worth a flat battery tonight.
-
-    WHAT THE BAGS STILL CANNOT DO.
-    ``/motor/steering_position`` is NOT feedback -- ``ServoDriver`` returns the
-    last commanded angle, and a fit against ``/ackermann_cmd`` gives slope
-    57.2958 (= 180/pi) at lag 0 with R^2 = 1.000000. The same fit on
-    ``/motor/drive_speed``, which IS an encoder, gives lag +6 and R^2 = 0.857,
-    so the method works and the topic is an echo.
-
-    What the bags DO give is a lower bound, through the gyro: on steering steps
-    >= 0.445 rad while driving, yaw rate reaches 90% of its new plateau in p50
-    0.041 s and p90 0.351 s, so the servo is at least ~1.27 rad/s even in the
-    pessimistic decile. **Every bound available says 1.2 is too low.** But a
-    bound is not a value, and setting this too HIGH under-budgets the pause, so
-    the guard's dead reckoning would assume a wheel angle the servo has not
-    reached yet.
-
-    Settle it on a bench, with the wheel LOADED against the mat (unloaded is
-    optimistic -- tyre scrub binds the linkage): a lock-to-lock step filmed at
-    >= 240 fps against a protractor, or an encoder taped to the steering
-    knuckle. The same rig settles ``MAX_WHEEL_ANGLE_DEG = 85.0``, which
-    ``robot.toml`` flags as NOT bench-verified and whose predecessor was wrong
-    by 1.28x -- and that angle multiplies straight into the swing this budget is
-    computed from, so measuring one without the other buys half an answer.
-    """
-    WALL_MARGIN_SAFETY_M: float = Field(
-        default=0.03, validation_alias=_alias("WALL_MARGIN_SAFETY_M")
-    )  # Kept clear of an outer wall
-    MIN_LOOKAHEAD_TRANSITION_M: float = Field(
-        default=0.10, validation_alias=_alias("MIN_LOOKAHEAD_TRANSITION_M")
-    )  # Floor for the derived threshold
-    LOOKAHEAD_BLEND_START: float = Field(
-        default=0.70, validation_alias=_alias("LOOKAHEAD_BLEND_START")
-    )
-    CORNER_PREVIEW_DISTANCE_M: float = Field(
-        default=0.80, validation_alias=_alias("CORNER_PREVIEW_DISTANCE_M")
-    )  # Path distance previewed for an upcoming turn
-    WIDE_CORNER_PREVIEW_DISTANCE_M: float | None = Field(
-        default=None, validation_alias=_alias("WIDE_CORNER_PREVIEW_DISTANCE_M")
-    )
-    """``CORNER_PREVIEW_DISTANCE_M`` for corridors planned WIDE. ``None`` -> shared.
-
-    The right preview distance is not the same for the two width classes, and a
-    single value is the wrong one for whichever class it was not chosen for.
-    SCREENED 2026-09-13 on ``diag_open_ab.py``, 0.80 -> 0.57, uniform buckets so
-    the two classes cannot mask each other:
-
-    | corpus | mean sim time | faster / slower |
-    |---|---|---|
-    | uniform WIDE, n=48 | **-2.04 s** | 48 / 0 |
-    | uniform NARROW, n=32 | **+3.63 s** | 3 / 29 |
-
-    Both unanimous and in opposite directions, and the narrow harm is LARGER
-    than the wide gain -- so changing the shared value is a net loss, and this
-    split is the only way to take the wide half. That is the same shape the
-    ``WIDE_``/``NARROW_CENTER_BIAS_M`` split exists for.
-
-    Why wide wants a shorter preview: the wide corridor receives the TIGHTER
-    corner arc (0.40 m against narrow's 0.45 -- see ``corner_arc_radius``), so
-    its straight between arcs is 0.86 m against 1.29 m. A 0.80 m preview
-    therefore arms the short lookahead over 82% of a wide straight, which is
-    the loop-gain term in the measured Open zigzag; on a narrow straight the
-    same number still leaves most of the run previewed as straight.
-
-    Resolved against ``TrackNavigator._in_narrow_corridor``, which reads an
-    unknown corridor as narrow. So an unplaced or unbelieved corridor keeps the
-    shipped value, and with this unset the whole tree is byte-identical.
-    """
-    CORNER_TURN_THRESHOLD_RAD: float = Field(
-        default=0.35, validation_alias=_alias("CORNER_TURN_THRESHOLD_RAD")
-    )  # Heading change over that preview that counts as a corner
-
-    OPEN_LOOKAHEAD_LONG: float | None = Field(
-        default=None, validation_alias=_alias("OPEN_LOOKAHEAD_LONG")
-    )
-    """``LOOKAHEAD_LONG`` for the Open Challenge only. ``None`` keeps the base value.
-
-    The two challenges want different values and the constant is otherwise
-    shared, so shipping one number costs the other challenge. Measured
-    2026-09-03 at 0.24 against the base 0.32:
-
-    * **Open, 640 cases, paired:** mean sim time **-5.39 s/case** (-3440 s
-      total; 530 faster, 94 slower, 14 identical) for **one** verdict, case 590
-      ``ok -> incomplete``. Case 300 fails in both arms -- it is the known
-      free-space creep deadlock, not this.
-    * **Obstacles, 256 corpus, paired:** WORSE -- clean 21 -> 19, timeouts
-      35 -> 40, laps-driven 321 -> 315, escapes/lap 59.6 -> 66.4. Sign-pass
-      cross-track was IDENTICAL at 10.32 cm median in both arms, so the Open
-      tracking gain does not reproduce here at all.
-
-    Hence the override sits on the OPEN side: Obstacles keeps the shipped 0.32
-    and its resolution path is untouched, so unlike ``OBSTACLES_CONTACT_DIST``
-    this cannot shadow the base constant on an Obstacles sweep -- the failure
-    that silently made ``diag_sign_sweep``'s ``escape-gate`` mode measure
-    nothing. Only Open sweeps need to clear it.
-    """
-
-    def corner_preview_distance_m(self, *, narrow: bool) -> float:
-        """Preview distance for the width class of the corridor being driven.
-
-        A method rather than a resolved copy because the class changes WITHIN a
-        round -- an Open layout mixes widths corridor by corridor -- so there is
-        no one value to bake in at construction the way ``for_open_challenge``
-        bakes in a challenge.
-
-        ``narrow=True`` always returns the shared value, which is what makes an
-        unset override byte-identical: ``_in_narrow_corridor`` reads an unknown
-        corridor as narrow, so anything unplaced keeps the shipped number.
-        """
-        if narrow or self.WIDE_CORNER_PREVIEW_DISTANCE_M is None:
-            return self.CORNER_PREVIEW_DISTANCE_M
-        return self.WIDE_CORNER_PREVIEW_DISTANCE_M
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "yaw_gain_compensation": 1.0,
+        "obstacles_yaw_gain_compensation": 0.55,
+        "lookahead_short": 0.16,
+        "lookahead_long": 0.32,
+        "open_lookahead_long": 0.24,
+        "lookahead_transition": 0.30,
+        "lookahead_blend_start": 0.70,
+        "steer_kp": 1.2,
+        "max_steering_rate": 1.2,
+        "target_search_span_m": 1.0,
+        "target_sense_gate": False,
+        "servo_slew_rate_rad_s": 2.4,
+        "wall_margin_safety_m": 0.03,
+        "min_lookahead_transition_m": 0.10,
+        "corner_preview_distance_m": 0.80,
+        "corner_turn_threshold_rad": 0.35,
+        "min_target_radius_m": 0.0,
+    }
 
     def for_open_challenge(self) -> PurePursuitParams:
-        """These parameters as the Open Challenge should run them.
-
-        Returns ``self`` unchanged when no Open override is set, so the
-        Obstacles path and the un-overridden Open path stay byte-identical.
-        """
-        if self.OPEN_LOOKAHEAD_LONG is None:
-            return self
-        return self.model_copy(update={"LOOKAHEAD_LONG": self.OPEN_LOOKAHEAD_LONG})
+        """These parameters as the Open Challenge should run them."""
+        return self.model_copy(update={"lookahead_long": self.open_lookahead_long})
 
     def for_obstacles_challenge(self) -> PurePursuitParams:
-        """These parameters as the Obstacles Challenge should run them.
-
-        Returns ``self`` unchanged when no Obstacles override is set, so the
-        Open path and the un-overridden Obstacles path stay byte-identical.
-        """
-        if self.OBSTACLES_YAW_GAIN_COMPENSATION is None:
-            return self
+        """These parameters as the Obstacles Challenge should run them."""
         return self.model_copy(
-            update={"YAW_GAIN_COMPENSATION": self.OBSTACLES_YAW_GAIN_COMPENSATION}
+            update={"yaw_gain_compensation": self.obstacles_yaw_gain_compensation}
         )
 
-    MIN_TARGET_RADIUS_M: float = Field(default=0.0, ge=0.0, validation_alias=_alias("MIN_TARGET_RADIUS_M"))
-    """Tightest pure-pursuit circle a steering target may demand, in metres.
 
-    ``select_target_point`` accepts any candidate with ``x_local > 0``, which
-    means "ahead" by a millimetre counts. A point 10 cm ahead and 27 cm to the
-    side passes that filter and yields an 80 deg bearing, and pure pursuit puts
-    such a target on a circle of radius ``d / (2 sin bearing)`` that the chassis
-    cannot drive.
-
-    MEASURED 2026-09-09 over both 2026-09-08 finishers (4589 ticks,
-    ``diag_bag_angle_error.py``): the demanded radius is p50 **0.226 m** and
-    **57-59% of ticks demand less than the 0.29 m the chassis can deliver**.
-    The bearing is real -- recomputing it from the published pose and target
-    reproduces ``angle_error_rad`` to 0.000 deg on 100% of ticks -- and it is
-    what fires the heading speed cut on 45-65% of the round. It cannot be
-    steered away, because no command curves onto a circle that does not exist.
-
-    Setting this to the chassis minimum (0.29, see
-    ``SimulationParams.MIN_TURN_RADIUS_M``, measured on hardware) makes the
-    search skip unreachable candidates and take the nearest REACHABLE one
-    instead. Moving forward along the path raises ``d`` and lowers the bearing,
-    so a reachable point generally exists further along.
-
-    **MEASURED AND REJECTED at 0.29.** A/B over 128 Open cases, same seeded
-    sample both arms: verdicts 128/128 -> 127/128 (one new collision), and sim
-    time +26.61 s mean with **0 cases faster and 127 slower**. Unanimous, so it
-    is the mechanism and not the value.
-
-    The reason is the failure ``select_target_point`` already documents from
-    2026-08-03: skipping the nearest qualifying candidate means taking a LATER
-    one, which is FARTHER, and pure pursuit's curvature divides by the target's
-    squared distance -- so satisfying the geometry weakens exactly the
-    correction the corner needed. The claim that this filter "only narrows the
-    candidate set" was wrong; narrowing it moves the target outward.
-
-    What survives is the diagnosis, not this remedy. A target demanding an
-    impossible circle is not itself harmful -- pure pursuit simply saturates,
-    which is the right command. What is harmful is the HEADING SPEED CUT
-    treating that bearing as a tracking error and creeping. So the defect is
-    more likely in what ``CRAWL`` reads than in where the aim point sits.
-
-    DEFAULTS TO 0, which disables the filter and is bit-identical to the
-    previous behaviour. The code and this measurement stay so the idea is not
-    re-proposed from the same reasoning a third time.
-    """
-
-
-class SpeedControlParams(BaseModel):
+class SpeedControlParams(TuningModel, NavigationMotionSpeed):
     """Speed control parameters for different zones, in ABSOLUTE m/s.
 
     Every tier is a real speed. The drivetrain ceiling
-    (``RobotSpecs.MAX_SPEED_MPS``) is applied as a CLAMP by the ``*_mps()``
-    accessors, never as a multiplier.
+    (``RobotSpecs.MAX_SPEED_MPS``) is applied as a CLAMP by the model's
+    after-validator, never as a multiplier -- so a tier the motor cannot reach
+    is inert rather than fiction, and ``mps_ceiling()`` reports the bound.
 
-    Why absolute (2026-08-21)
-    -------------------------
-    These were fractions of the ceiling from 2026-08-09 until a faster motor
-    made that representation actively wrong. A fraction ladder re-scales every
-    tier the moment the ceiling is recalibrated, so swapping the motor silently
-    edits the navigation policy instead of just the hardware description:
-
-    * ``MIN`` is the FRICTION FLOOR -- the least speed that overcomes stiction
-      and actually moves the robot. That is a property of the motor and tyres,
-      ~0.05 m/s, and it does not rise because the top speed did. As a fraction
-      it would have become 0.075 m/s on a 0.234 m/s drivetrain: the robot would
-      believe it cannot move slower than 7.5 cm/s when it demonstrably can.
-    * ``CREEP`` is argued in CENTIMETRES OF TRAVEL -- the servo slews at a fixed
-      2.0 rad/s, so full lock from centre takes 0.61 s, during which the chassis
-      covers 6.2 cm against 0.103 m of lateral margin. Re-scaling the speed
-      invalidates that budget without touching the sentence that justifies it.
-
-    Absolute values make a hardware change pure calibration: edit
-    ``robot.toml``'s ceiling and nothing here moves. Raising the tiers to
-    exploit a faster motor is then a separate, deliberate, reviewable edit
-    rather than a side effect.
-
-    History
-    -------
-    Before 2026-08-09 these were absolute m/s on a 0-0.50 scale the drivetrain
-    does not have. Mapped onto the real ceiling, the rungs 0.05 / 0.15 / 0.30 /
-    0.50 came out as 0.05 / 0.15 / 0.156 / 0.156 -- two distinguishable speeds
-    wearing four names, MEDIUM and FAST identical, and a sweep over MEDIUM
-    unable to move the robot at all. The fix then was fractions; the fix now is
-    absolute values that are CLAMPED rather than free, which keeps that failure
-    from returning: a tier above the ceiling is inert, and ``mps_ceiling()``
-    reports it.
-
-    The shipped ladder is 0.0499 / 0.1014 / 0.117 / 0.1326 / 0.156 m/s -- the
-    exact values the old fractions resolved to, so this conversion changed no
-    behaviour.
-
-    These are what a zone is WORTH, not which zone applies. Deployed 2026-08-09
-    the ladder cost 33% of lap time (CW 134.9 s -> 179.3 s, CCW 161.7 s ->
-    200.9 s, both past the 180 s limit) -- but the cause was the heading ladder
-    routing ordinary cornering through SLOW/MEDIUM, not these values. Fixed
-    where the zone is chosen, in CoreNavigator.
-
-    The FLOOR is measured good: at creep 0.101 m/s the heading limiter bound 0%
-    of ticks and CCW went from 1 escape and 4 stucks to none, against 16-21% of
-    ticks pinned at the old 0.05 m/s crawl.
-
-    Per-challenge tiers (2026-08-30)
-    --------------------------------
-    ``SLOW/MEDIUM/FAST/MAX`` are the SHARED base ladder. Either challenge may
-    override any of them via ``OPEN_*`` or ``OBSTACLES_*``, resolved by
-    :meth:`for_open_challenge` and :meth:`for_obstacles_challenge`. The two
-    prefixes are symmetric on purpose: neither challenge is privileged as "the
-    default", so a future motor can retune either one without the other's values
-    having to move into a prefix first.
-
-    They live here, beside the base ladder, rather than in the
-    ``navigation-challenges/`` overlay tree because the spread between tiers is
-    a property of THIS DRIVETRAIN'S HEADROOM -- the same reason the ladder lives
-    with the motor profile at all. A slower motor with no headroom to spare
-    omits both prefixes and the two challenges share one ladder; that fallback
-    is the point, not a degenerate case.
-
-    The two challenges want opposite things. Obstacles degrades monotonically
-    with speed (measured 2026-08-28: in-time 38/256 at 0.156 m/s, 16 at 0.50,
-    9 at 0.60), so it wants the conservative rungs. Open's binding constraint is
-    the 180 s round limit rather than sign clearance, so it can spend headroom.
-
-    A tier above its own cap is INERT -- ``core_navigator`` clamps the selected
-    zone to ``max_mps()``. Raising ``OPEN_FAST_MPS`` without raising
-    ``OPEN_MAX_MPS`` therefore buys nothing and reports nothing, which is
-    exactly how the removed ``for_obstacles()`` profile came to ship a
-    measured-inert speed half. ``_challenge_tiers_below_challenge_cap`` now
-    rejects that combination instead of letting it run.
-
-    Attributes:
-        MIN_MPS: Friction floor. A clamp on the others, not a tier itself.
-        MAX_MPS: Upper bound on any tier.
-        CREEP_MPS: Contact zone, and the heading limiter's floor.
-        SLOW_MPS: Near obstacles.
-        MEDIUM_MPS: Moderate clearance.
-        FAST_MPS: Open track.
-        OPEN_MAX_MPS: Open-Challenge cap. ``None`` -> use ``MAX_MPS``.
-        OPEN_CREEP_MPS: Open-Challenge creep tier. ``None`` -> use ``CREEP_MPS``.
-        OPEN_SLOW_MPS: Open-Challenge slow tier. ``None`` -> use ``SLOW_MPS``.
-        OPEN_MEDIUM_MPS: Open-Challenge medium tier. ``None`` -> ``MEDIUM_MPS``.
-        OPEN_FAST_MPS: Open-Challenge fast tier. ``None`` -> ``FAST_MPS``.
-        OBSTACLES_MAX_MPS: Obstacles cap. ``None`` -> use ``MAX_MPS``.
-        OBSTACLES_CREEP_MPS: Obstacles creep tier. ``None`` -> use ``CREEP_MPS``.
-        OBSTACLES_SLOW_MPS: Obstacles slow tier. ``None`` -> use ``SLOW_MPS``.
-        OBSTACLES_MEDIUM_MPS: Obstacles medium tier. ``None`` -> ``MEDIUM_MPS``.
-        OBSTACLES_FAST_MPS: Obstacles fast tier. ``None`` -> ``FAST_MPS``.
-
-    ``MIN_MPS`` deliberately has NO per-challenge form: the floor is stiction,
-    and stiction does not know which challenge is running.
-
-    ``CREEP_MPS`` DID have that argument made for it too, and it no longer
-    holds. Creep does two unrelated jobs -- it is the contact-zone speed, argued
-    in centimetres of lateral margin, AND it is the heading limiter's floor. In
-    Obstacles the first job dominates: there are signs to approach and the
-    travel budget is real. In Open there are only walls, the binding constraint
-    is the 180 s limit, and the heading cut spends 44-64% of the round sitting
-    on this tier. So Open pays a value chosen for a job it barely does.
-
-    What forced the split is a measurement rather than a preference. The
-    2026-09-08 bags (``diag_bag_creep_stall.py``) put EVERY momentary stop in
-    normal_drive on this tier -- commanded 0.152 at the p25, p50 and p95, with
-    107 of 109 stalled ticks carrying a command equal to ``heading_speed_mps``
-    -- and the stall rate at that command depends on STEERING LOAD: 0.2%
-    straight against **19.4% at full lock**, same command, all normal_drive.
-    Clearing that needs a higher creep; the contact-zone argument wants a lower
-    one. One number cannot serve both, and until now Open silently lost.
-
-    Unset ships unset: both default to ``None``, so a drivetrain that declares
-    neither keeps one shared creep tier exactly as before.
+    The old per-JOB split of the creep tier (``contact_mps`` and friends) is no
+    longer a schema field; each such accessor now tracks the shared ``creep_mps``
+    tier, which is what they resolved to whenever they were left unset.
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "min_mps": 0.0499,
+        "max_mps": 0.156,
+        "creep_mps": 0.1014,
+        "slow_mps": 0.117,
+        "medium_mps": 0.1326,
+        "fast_mps": 0.156,
+    }
 
-    MIN_MPS: float = Field(default=0.0499, gt=0.0, validation_alias=_alias("MIN_MPS"))
-    MAX_MPS: float = Field(default=0.156, gt=0.0, validation_alias=_alias("MAX_MPS"))
-    CREEP_MPS: float = Field(default=0.1014, gt=0.0, validation_alias=_alias("CREEP_MPS"))
-    SLOW_MPS: float = Field(default=0.117, gt=0.0, validation_alias=_alias("SLOW_MPS"))
-    MEDIUM_MPS: float = Field(default=0.1326, gt=0.0, validation_alias=_alias("MEDIUM_MPS"))
-    FAST_MPS: float = Field(default=0.156, gt=0.0, validation_alias=_alias("FAST_MPS"))
+    _CHALLENGE_PREFIXES: ClassVar[tuple[str, ...]] = ("open", "obstacles")
 
-    CORNER_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("CORNER_MPS"))
-    """Speed while a corner is PREVIEWED, independent of the clearance ladder.
+    @model_validator(mode="after")
+    def _clamp_tiers_to_ceiling(self) -> SpeedControlParams:
+        """Clamp every tier to the drivetrain ceiling, at load.
 
-    Corner speed is otherwise set reactively: forward clearance falls as a wall
-    comes into range and the ladder steps down. But ``path_turn_ahead`` knows a
-    corner is coming from the PLAN, metres before any wall is in LIDAR range, so
-    a preview-driven tier can slow the chassis before the geometry forces it to.
-
-    Evidence that the preview is the better signal: the first-lap corner cap is
-    the only thing currently using it, and disabling it costs 15 cases on
-    balanced128 (94 -> 79). It is gated to lap 1 purely because it was
-    introduced as first-lap caution, not because later laps were measured and
-    found not to want it.
-
-    ``None`` falls back to ``slow_mps()``, which is what the first-lap cap has
-    always used -- so leaving this unset preserves today's behaviour exactly.
-    Setting it allows a corner tier BETWEEN slow and medium, which forcing
-    ``slow`` cannot express.
-    """
-
-    CONTACT_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("CONTACT_MPS"))
-    """Forward speed inside the contact zone. ``None`` -> use ``creep_mps()``.
-
-    The job ``CREEP_MPS`` was named for, and the one whose budget is argued in
-    centimetres of lateral margin. Kept unset so it tracks the shared tier;
-    named so that raising the tier for a DIFFERENT job cannot move it by
-    accident.
-    """
-
-    CONTACT_REVERSE_MPS: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("CONTACT_REVERSE_MPS")
-    )
-    """Reverse speed out of the contact zone. ``None`` -> use ``creep_mps()``.
-
-    Read in TWO places that must agree: the commanded reverse speed, and the
-    distance ``CONTACT_REVERSE_TICKS`` is predicted to cover. Splitting them
-    would make the manoeuvre travel a different distance from the one it
-    reports, so both read this.
-    """
-
-    SIGN_EVADE_MPS: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("SIGN_EVADE_MPS")
-    )
-    """Speed cap while steering out of a sign contact. ``None`` -> ``creep_mps()``."""
-
-    ESCAPE_NUDGE_MPS: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("ESCAPE_NUDGE_MPS")
-    )
-    """Forward speed of the stuck-escape nudge. ``None`` -> use ``creep_mps()``.
-
-    Both ``STUCK_FORWARD`` sites read this: they are one manoeuvre reached by
-    two paths, not two jobs.
-    """
-
-    HEADING_FLOOR_MPS: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("HEADING_FLOOR_MPS")
-    )
-    """Speed the heading limiter drops to. ``None`` -> use ``creep_mps()``.
-
-    ``CREEP_MPS`` is read by five unrelated jobs: the contact zone's forward
-    creep and its reverse, the sign-contact evade cap, the stuck-escape nudge,
-    and this one. They are coupled by history, not by design, and they want
-    opposite things -- the contact jobs are emergencies whose cost is a
-    COLLISION, while this one is a corner and whose cost is TIME.
-
-    Measured over the 2026-09-08 session, of 6105 ticks commanded exactly at
-    the creep floor: **97.8% were the heading term alone**, 0.9% clearance
-    alone, 1.0% both, and 99.6% of them sat in ``normal_drive``. The escape
-    nudge contributed 2 ticks in the whole session. So raising the floor FOR
-    CORNERS is almost entirely a corner change already -- but "almost" is a
-    frequency argument, not a risk one: the contact jobs are rare BECAUSE they
-    are emergencies, and their failure mode is not a slow lap.
-
-    Separating them means the corner floor can clear the drivetrain's stall
-    band without moving the speed at which the chassis approaches something it
-    is trying not to hit. The stall band is why this matters: at the shipped
-    0.1521 the wheel fails 0.2% of ticks driving straight and **19.4% at full
-    lock** (``diag_bag_creep_stall.py``), and the heading cut fires precisely
-    when the steering is at lock -- the smallest command at the greatest load.
-
-    ``None`` ships, which resolves to ``creep_mps()`` and is bit-identical to
-    the coupled behaviour. Distinct from ``OPEN_CREEP_MPS``, which splits the
-    same tier by CHALLENGE: this splits it by JOB, and the two compose.
-    """
-
-    OPEN_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MAX_MPS"))
-    OPEN_CREEP_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_CREEP_MPS"))
-    OPEN_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_SLOW_MPS"))
-    OPEN_MEDIUM_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_MEDIUM_MPS"))
-    OPEN_FAST_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OPEN_FAST_MPS"))
-
-    OBSTACLES_MAX_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_MAX_MPS"))
-    OBSTACLES_CREEP_MPS: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_CREEP_MPS")
-    )
-    OBSTACLES_SLOW_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_SLOW_MPS"))
-    OBSTACLES_MEDIUM_MPS: float | None = Field(
-        default=None, gt=0.0, validation_alias=_alias("OBSTACLES_MEDIUM_MPS")
-    )
-    OBSTACLES_FAST_MPS: float | None = Field(default=None, gt=0.0, validation_alias=_alias("OBSTACLES_FAST_MPS"))
-
-    _CHALLENGE_PREFIXES = ("OPEN", "OBSTACLES")
-    """Every per-challenge override prefix, so the validator cannot fall behind
-    the fields it is meant to police."""
+        This replaces the per-accessor ``min(value, RobotSpecs.MAX_SPEED_MPS)``
+        clamp the old ``*_mps()`` methods applied at read time, so a consumer
+        reading the field directly gets exactly what the method used to return.
+        ``None`` means "no override" and is left alone.
+        """
+        ceiling = RobotSpecs.MAX_SPEED_MPS
+        clamped: dict[str, float] = {}
+        for name in (
+            "min_mps",
+            "max_mps",
+            "creep_mps",
+            "slow_mps",
+            "medium_mps",
+            "fast_mps",
+            "corner_mps",
+        ):
+            value = getattr(self, name)
+            if value is not None and value > ceiling:
+                clamped[name] = ceiling
+        for prefix in self._CHALLENGE_PREFIXES:
+            for tier in ("max", "slow", "medium", "fast"):
+                name = f"{prefix}_{tier}_mps"
+                value = getattr(self, name)
+                if value is not None and value > ceiling:
+                    clamped[name] = ceiling
+        return self.model_copy(update=clamped) if clamped else self
 
     @model_validator(mode="after")
     def _challenge_tiers_below_challenge_cap(self) -> SpeedControlParams:
-        """A per-challenge tier above that challenge's cap is inert -- reject it.
-
-        ``core_navigator`` clamps the selected zone to ``max_mps()``, so a fast
-        tier above the cap silently resolves to the cap. That failure mode has
-        already shipped twice: the pre-2026-08-09 ladder where MEDIUM and FAST
-        both resolved to the ceiling, and the removed ``for_obstacles()``
-        profile whose FAST_SPEED 0.30 sat above a 0.156 ceiling. Both looked
-        like tuning and were measuring nothing, and neither announced itself.
-        """
+        """A per-challenge tier above that challenge's cap is inert -- reject it."""
         for prefix in self._CHALLENGE_PREFIXES:
-            override_cap = getattr(self, f"{prefix}_MAX_MPS")
-            cap = override_cap if override_cap is not None else self.MAX_MPS
-            for tier in ("CREEP", "SLOW", "MEDIUM", "FAST"):
-                name = f"{prefix}_{tier}_MPS"
+            override_cap = getattr(self, f"{prefix}_max_mps")
+            cap = override_cap if override_cap is not None else self.max_mps
+            for tier in ("slow", "medium", "fast"):
+                name = f"{prefix}_{tier}_mps"
                 value = getattr(self, name)
                 if value is not None and value > cap:
                     msg = (
                         f"speed.{name} ({value}) exceeds the {prefix.title()}-Challenge cap "
                         f"({cap}); core_navigator clamps every tier to max_mps(), so this "
-                        f"tier would be silently inert. Raise {prefix}_MAX_MPS or lower the tier."
+                        f"tier would be silently inert. Raise {prefix}_max_mps or lower the tier."
                     )
                     raise ValueError(msg)
         return self
 
     def _for_challenge_prefix(self, prefix: str) -> SpeedControlParams:
-        """Apply one challenge's ``<PREFIX>_*`` overrides onto the base ladder.
+        """Apply one challenge's ``<prefix>_*`` overrides onto the base ladder.
 
         Returns ``self`` unchanged when that challenge defines no overrides, so
         a drivetrain with no headroom to spare shares one ladder across both
@@ -1151,14 +222,16 @@ class SpeedControlParams(BaseModel):
         """
         overrides = {
             tier: value
-            for tier in ("MAX_MPS", "CREEP_MPS", "SLOW_MPS", "MEDIUM_MPS", "FAST_MPS")
+            for tier in ("max_mps", "slow_mps", "medium_mps", "fast_mps")
             if (value := getattr(self, f"{prefix}_{tier}")) is not None
         }
-        return self.model_copy(update=overrides) if overrides else self
+        if not overrides:
+            return self
+        return type(self).model_validate(self.model_dump() | overrides)
 
     def for_open_challenge(self) -> SpeedControlParams:
         """This ladder as the Open Challenge should run it."""
-        return self._for_challenge_prefix("OPEN")
+        return self._for_challenge_prefix("open")
 
     def for_obstacles_challenge(self) -> SpeedControlParams:
         """This ladder as the Obstacles Challenge should run it.
@@ -1167,127 +240,43 @@ class SpeedControlParams(BaseModel):
         classmethod, which baked a whole tuning profile in code. This applies
         only the speed tiers a motor profile declares for itself.
         """
-        return self._for_challenge_prefix("OBSTACLES")
-
-    @model_validator(mode="after")
-    def _floor_below_creep(self) -> SpeedControlParams:
-        """The friction floor must not sit above the slowest commanded tier.
-
-        ``core_navigator`` clamps the selected zone speed up to ``min_mps()``.
-        When that floor equals or exceeds ``creep_mps()`` the clamp silently
-        swallows the creep tier, and any attempt to tune the floor downward
-        produces a clean no-change result that looks like evidence and is not.
-        The shipped config had exactly this: MIN_SPEED and CREEP_SPEED were
-        both 0.05.
-        """
-        creeps = {"CREEP_MPS": self.CREEP_MPS}
-        # The per-challenge creeps are clamped by the same floor, so a value
-        # below it is inert in exactly the same way and for the same reason.
-        for prefix in self._CHALLENGE_PREFIXES:
-            name = f"{prefix}_CREEP_MPS"
-            value = getattr(self, name)
-            if value is not None:
-                creeps[name] = value
-        for name, value in creeps.items():
-            if self.MIN_MPS > value:
-                msg = (
-                    f"speed.MIN_MPS ({self.MIN_MPS}) must not exceed speed.{name} "
-                    f"({value}); the envelope clamp would swallow the creep tier "
-                    "and mask any change made to it"
-                )
-                raise ValueError(msg)
-        return self
+        return self._for_challenge_prefix("obstacles")
 
     def mps_ceiling(self) -> float:
-        """The drivetrain ceiling every accessor clamps to.
-
-        Exposed so a caller can tell "this tier is inert because the drivetrain
-        cannot reach it" from "this tier was tuned to that value" -- the
-        distinction the pre-2026-08-09 ladder lost when MEDIUM and FAST both
-        silently resolved to the ceiling.
-        """
+        """The drivetrain ceiling every tier is clamped to."""
         return RobotSpecs.MAX_SPEED_MPS
-
-    def min_mps(self) -> float:
-        """Friction floor in m/s."""
-        return min(self.MIN_MPS, RobotSpecs.MAX_SPEED_MPS)
-
-    def max_mps(self) -> float:
-        """Upper speed bound in m/s."""
-        return min(self.MAX_MPS, RobotSpecs.MAX_SPEED_MPS)
-
-    def creep_mps(self) -> float:
-        """Contact-zone speed in m/s, and the heading floor's fallback."""
-        return min(self.CREEP_MPS, RobotSpecs.MAX_SPEED_MPS)
-
-    def _or_creep(self, value: float | None) -> float:
-        """Resolve one creep-derived job speed, falling back to the shared tier.
-
-        Every caller of ``creep_mps()`` now has its own optional field. Unset
-        means "track the shared tier", which is bit-identical to the coupled
-        behaviour they all had before, so a config that names none of them is
-        unaffected. The point of naming them is that moving ONE job cannot move
-        the others by accident -- the contact jobs fail as collisions and the
-        heading job fails as a slow lap, so they must be able to disagree.
-        """
-        if value is None:
-            return self.creep_mps()
-        return min(value, RobotSpecs.MAX_SPEED_MPS)
 
     def contact_mps(self) -> float:
         """Forward speed inside the contact zone, in m/s."""
-        return self._or_creep(self.CONTACT_MPS)
+        return self.creep_mps
 
     def contact_reverse_mps(self) -> float:
         """Reverse speed out of the contact zone, in m/s."""
-        return self._or_creep(self.CONTACT_REVERSE_MPS)
+        return self.creep_mps
 
     def sign_evade_mps(self) -> float:
         """Speed cap while steering out of a sign contact, in m/s."""
-        return self._or_creep(self.SIGN_EVADE_MPS)
+        return self.creep_mps
 
     def escape_nudge_mps(self) -> float:
         """Forward speed of the stuck-escape nudge, in m/s."""
-        return self._or_creep(self.ESCAPE_NUDGE_MPS)
+        return self.creep_mps
 
     def heading_floor_mps(self) -> float:
         """Speed the heading limiter drops to, in m/s."""
-        return self._or_creep(self.HEADING_FLOOR_MPS)
-
-    def slow_mps(self) -> float:
-        """Slow-zone speed in m/s."""
-        return min(self.SLOW_MPS, RobotSpecs.MAX_SPEED_MPS)
-
-    def medium_mps(self) -> float:
-        """Medium-zone speed in m/s."""
-        return min(self.MEDIUM_MPS, RobotSpecs.MAX_SPEED_MPS)
-
-    def fast_mps(self) -> float:
-        """Open-track speed in m/s."""
-        return min(self.FAST_MPS, RobotSpecs.MAX_SPEED_MPS)
-
-    def corner_mps(self) -> float:
-        """Speed while a corner is previewed. Falls back to the slow tier."""
-        if self.CORNER_MPS is None:
-            return self.slow_mps()
-        return min(self.CORNER_MPS, RobotSpecs.MAX_SPEED_MPS)
+        return self.creep_mps
 
 
-class ControlLoopParams(BaseModel):
+class ControlLoopParams(TuningModel, NavigationMotionControl):
     """The rate the navigation control loop runs at.
 
-    One number, previously written twice: ``waypoint_controller`` carried
-    ``_DEFAULT_CONTROL_DT_S = 0.05`` and the simulation gateway carried
-    ``CONTROL_HZ = 20.0``. They agreed only because someone kept them agreeing.
-    The controller uses ``dt`` to rate-limit steering, so a divergence would not
-    fail -- it would quietly tune the real robot against a cadence the simulator
-    never ran at.
-
-    Attributes:
-        CONTROL_HZ: Control loop frequency (Hz). Derive periods from
-            ``NavigationTuning.control_dt_s`` rather than restating 0.05.
+    One number, previously written twice: the waypoint controller carried a
+    0.05 s literal and the simulation gateway carried 20 Hz. They agreed only
+    because someone kept them agreeing. The controller uses ``dt`` to
+    rate-limit steering, so a divergence would silently tune the real robot
+    against a cadence the simulator never ran at.
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    CONTROL_HZ: float = Field(default=20.0, validation_alias=_alias("CONTROL_HZ"))
+    _DEFAULTS: ClassVar[dict[str, Any]] = {
+        "control_hz": 20.0,
+    }

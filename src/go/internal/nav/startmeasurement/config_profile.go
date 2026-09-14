@@ -4,13 +4,15 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,
-// overlaid with profile.StartMeasurementConfig (from
+// overlaid with sensors.NavigationSensorsStartMeasurement (from
 // <configRoot>/profile.DefaultStartMeasurementTOMLPath),
-// profile.TrackConfig's track geometry and profile.RobotConfig's LIDAR
+// generated.TrackConfig's track geometry and profile.RobotConfig's LIDAR
 // range, when configRoot is non-empty and each load succeeds; otherwise, or
 // on a load failure, that piece keeps its literal default, logged.
 func ConfigFor(logger *slog.Logger, configRoot string) Config {
@@ -20,7 +22,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	sensorPath := filepath.Join(configRoot, profile.DefaultStartMeasurementTOMLPath)
-	if loaded, err := profile.Load[profile.StartMeasurementConfig](sensorPath, nil); err != nil {
+	if loaded, err := profile.Load[sensors.NavigationSensorsStartMeasurement](sensorPath, nil); err != nil {
 		logger.Warn("startmeasurement: loading start_measurement.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -29,7 +31,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if loaded, err := profile.Load[profile.TrackConfig](trackPath, nil); err != nil {
+	if loaded, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
 		logger.Warn("startmeasurement: loading track.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

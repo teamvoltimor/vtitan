@@ -68,7 +68,7 @@ class TestStaleTargetRescue:
         tuning = replace(
             NavigationTuning.load_default(),
             sign_router=NavigationTuning.load_default().sign_router.model_copy(
-                update={"STALE_TARGET_RESCUE": True},
+                update={"stale_target_rescue": True},
             ),
         )
         nav, _ = _navigator(tuning, with_sign_router=True)
@@ -85,7 +85,7 @@ class TestStaleTargetRescue:
         assert nav._waypoint_index > 0, "must advance past a waypoint reading as behind the chassis"
 
     def test_rescue_off_leaves_the_index_frozen(self):
-        """Regression guard for the toggle itself: STALE_TARGET_RESCUE=False
+        """Regression guard for the toggle itself: stale_target_rescue=False
         must reproduce the original freeze, or the ON case above is not
         measuring what it claims to."""
         tuning = NavigationTuning.load_default()
@@ -104,7 +104,7 @@ class TestStaleTargetRescue:
         tuning = replace(
             NavigationTuning.load_default(),
             sign_router=NavigationTuning.load_default().sign_router.model_copy(
-                update={"STALE_TARGET_RESCUE": True},
+                update={"stale_target_rescue": True},
             ),
         )
         nav, _ = _navigator(tuning, with_sign_router=False)

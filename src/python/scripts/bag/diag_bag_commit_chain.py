@@ -204,7 +204,7 @@ def main() -> int:
     print()
 
     tuned = get_tuning(None)
-    activation = tuned.sign_router.ACTIVATION_DIST_M if hasattr(tuned, "sign_router") else None
+    activation = tuned.sign_router.activation_dist_m if hasattr(tuned, "sign_router") else None
     if activation:
         # The headroom question: could the router have engaged earlier at all?
         could = [c for c in chains if not math.isnan(c["published"]) and c["published"] > activation]

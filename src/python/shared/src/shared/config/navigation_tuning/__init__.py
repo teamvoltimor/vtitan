@@ -19,7 +19,7 @@ Example usage:
 
     # Use defaults
     tuning = NavigationTuning()
-    print(tuning.pursuit.LOOKAHEAD_SHORT)  # 0.20
+    print(tuning.pursuit.lookahead_short)  # 0.16
 
     # Load custom profile from YAML
     tuning = NavigationTuning.load_from_yaml("tuning_profiles/aggressive.yaml")
@@ -166,8 +166,8 @@ class NavigationTuning:
         tuning = NavigationTuning.load_from_yaml("aggressive.yaml")
 
         # Access parameters
-        print(tuning.pursuit.LOOKAHEAD_SHORT)
-        print(tuning.clearance.SLOW_DIST)
+        print(tuning.pursuit.lookahead_short)
+        print(tuning.clearance.slow_dist)
     """
 
     clearance: ClearanceZones = field(default_factory=ClearanceZones)
@@ -213,26 +213,26 @@ class NavigationTuning:
         which is exactly why this belongs here -- editing one file cannot see
         the other.
         """
-        turn = self.corridor_follower.TURN_CLEARANCE_M
-        corner = self.direction_estimator.CORNER_CLEARANCE_M
+        turn = self.corridor_follower.turn_clearance_m
+        corner = self.direction_estimator.corner_clearance_m
         if turn >= corner:
             msg = (
-                f"corridor_follower.TURN_CLEARANCE_M ({turn}) must be strictly below "
-                f"direction_estimator.CORNER_CLEARANCE_M ({corner}); the gap is the window "
+                f"corridor_follower.turn_clearance_m ({turn}) must be strictly below "
+                f"direction_estimator.corner_clearance_m ({corner}); the gap is the window "
                 "in which the robot is still square to the corridor and can read which side is open"
             )
             raise ValueError(msg)
 
-        # Same reasoning, narrow-corridor variant: NARROW_TURN_CLEARANCE_M only
+        # Same reasoning, narrow-corridor variant: narrow_turn_clearance_m only
         # helps if it actually moves the turn-commit point earlier than
-        # TURN_CLEARANCE_M would. Equal or later reproduces the zero-window bug
+        # turn_clearance_m would. Equal or later reproduces the zero-window bug
         # this field exists to fix -- see
         # open_challenge_narrow_corridor_root_cause_2026_08_15.
-        narrow_turn = self.corridor_follower.NARROW_TURN_CLEARANCE_M
+        narrow_turn = self.corridor_follower.narrow_turn_clearance_m
         if narrow_turn >= turn:
             msg = (
-                f"corridor_follower.NARROW_TURN_CLEARANCE_M ({narrow_turn}) must be strictly below "
-                f"corridor_follower.TURN_CLEARANCE_M ({turn}); otherwise a narrow corridor gets no more "
+                f"corridor_follower.narrow_turn_clearance_m ({narrow_turn}) must be strictly below "
+                f"corridor_follower.turn_clearance_m ({turn}); otherwise a narrow corridor gets no more "
                 "of a direction-settling window than a wide one does"
             )
             raise ValueError(msg)
@@ -315,13 +315,13 @@ class NavigationTuning:
 
         Example YAML structure:
             clearance:
-              CONTACT_DIST: 0.05
-              SLOW_DIST: 0.20
-              MEDIUM_DIST: 0.45
-              FAST_DIST: 0.90
+              contact_dist: 0.05
+              slow_dist: 0.20
+              medium_dist: 0.45
+              fast_dist: 0.90
             pursuit:
-              LOOKAHEAD_SHORT: 0.15
-              STEER_KP: 2.0
+              lookahead_short: 0.15
+              steer_kp: 2.0
             # ... etc
         """
         if yaml is None:

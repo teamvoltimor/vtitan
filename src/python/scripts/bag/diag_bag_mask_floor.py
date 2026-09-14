@@ -269,7 +269,7 @@ def main() -> int:
     for bag_dir in args.bag_dirs:
         try:
             per_bag, uncommitted, belief_ranges = analyse(
-                Path(bag_dir), floors, controller, tuning.sign_router.ESCAPE_MASK_RADIUS_M
+                Path(bag_dir), floors, controller, tuning.sign_router.escape_mask_radius_m
             )
         except Exception as exc:  # noqa: BLE001
             print(f"{Path(bag_dir).name:<26} unreadable: {ascii(exc)[:90]}")

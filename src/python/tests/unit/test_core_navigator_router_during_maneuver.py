@@ -1,4 +1,4 @@
-"""``TICK_ROUTER_DURING_MANEUVER``: keep the sign map fed while an escape runs.
+"""``tick_router_during_maneuver``: keep the sign map fed while an escape runs.
 
 ``CoreNavigator.step()`` returns early whenever an escape manoeuvre is latched,
 so the sign-router call is skipped for the manoeuvre's whole duration. That
@@ -59,7 +59,7 @@ def _navigator(*, flag: bool) -> tuple[CoreNavigator, FakeGateway, list[int]]:
     """
     tuning = NavigationTuning.load_default()
     if flag:
-        tuning = tuning_with_overrides({"TICK_ROUTER_DURING_MANEUVER": True}, group="escape", base=tuning)
+        tuning = tuning_with_overrides({"tick_router_during_maneuver": True}, group="escape", base=tuning)
 
     router = SignRouter(
         [SignSpec(x=2.0, y=0.5, color=SignColor.RED)],
@@ -105,7 +105,7 @@ class TestRouterTickDuringManeuver:
     def test_flag_does_not_move_the_wheel(self) -> None:
         """The safety property: feeding the router must not change the command.
 
-        This is what separates the flag from ``SIDE_CORRECTION_BLENDS``. The
+        This is what separates the flag from ``side_correction_blends``. The
         deformed waypoint is discarded, so the published command must be the
         manoeuvre's own, byte-for-byte identical to the flag-off arm.
         """

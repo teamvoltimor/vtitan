@@ -96,7 +96,7 @@ def main() -> int:
         action="append",
         default=[],
         metavar="FIELD=VALUE",
-        help="override one sign_discovery field for the replay, e.g. --set SNAP_TO_LATTICE_M=0.40",
+        help="override one sign_discovery field for the replay, e.g. --set snap_to_lattice_m=0.40",
     )
     args = parser.parse_args()
 

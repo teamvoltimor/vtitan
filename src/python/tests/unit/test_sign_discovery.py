@@ -42,9 +42,9 @@ from src.simulation.vision_emulator import emulate_sign_observations
 # now read per-call from NavigationTuning. Bound once here so the tests below
 # keep reading as statements about the shipped configuration.
 _SIGN_DISCOVERY = NavigationTuning.load_default().sign_discovery
-_ASSOCIATION_DIST = _SIGN_DISCOVERY.ASSOCIATION_DIST_M
-_MAX_INGEST_RANGE = _SIGN_DISCOVERY.MAX_INGEST_RANGE_M
-_MIN_HITS = _SIGN_DISCOVERY.MIN_HITS
+_ASSOCIATION_DIST = _SIGN_DISCOVERY.association_dist_m
+_MAX_INGEST_RANGE = _SIGN_DISCOVERY.max_ingest_range_m
+_MIN_HITS = _SIGN_DISCOVERY.min_hits
 
 _CONFIDENCE = 0.25
 """Matches ``SignRouterConfig.min_confidence``, the threshold the map inherits."""
@@ -349,7 +349,7 @@ class TestPillarAspectGate:
         tuning = NavigationTuning.load_default()
         disabled = replace(
             tuning,
-            sign_discovery=tuning.sign_discovery.model_copy(update={"MAX_PILLAR_ASPECT": 0.0}),
+            sign_discovery=tuning.sign_discovery.model_copy(update={"max_pillar_aspect": 0.0}),
         )
         det = self._detection(176.0, 100.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), tuning=disabled) is not None
@@ -429,10 +429,10 @@ def test_the_pinhole_range_carries_the_measured_scale() -> None:
     """
     detection = _box_at_column(RobotSpecs.CAMERA_WIDTH / 2)
     raw = _detection_to_world(
-        detection, (0.0, 0.0), 0.0, tuning=tuning_with_overrides({"RANGE_SCALE": 1.0}, group="sign_discovery")
+        detection, (0.0, 0.0), 0.0, tuning=tuning_with_overrides({"range_scale": 1.0}, group="sign_discovery")
     )
     scaled = _detection_to_world(
-        detection, (0.0, 0.0), 0.0, tuning=tuning_with_overrides({"RANGE_SCALE": 2.0}, group="sign_discovery")
+        detection, (0.0, 0.0), 0.0, tuning=tuning_with_overrides({"range_scale": 2.0}, group="sign_discovery")
     )
     assert raw is not None
     assert scaled is not None
@@ -580,7 +580,7 @@ class TestClusteredLidarRangeFusion:
         return ranges, angles
 
     def _tuning(self, **overrides):
-        base = {"LIDAR_RANGE_FUSION": True, "LIDAR_RANGE_FUSION_CLUSTER": True}
+        base = {"lidar_range_fusion": True, "lidar_range_fusion_cluster": True}
         return tuning_with_overrides({**base, **overrides}, group="sign_discovery")
 
     def _bearing_of(self, centre_x: float) -> float:
@@ -614,7 +614,7 @@ class TestClusteredLidarRangeFusion:
 
     def test_a_disagreeing_cluster_is_rejected(self):
         """A real pillar, but at a range the camera cannot be describing."""
-        tuning = self._tuning(LIDAR_RANGE_FUSION_AGREEMENT=0.2)
+        tuning = self._tuning(lidar_range_fusion_agreement=0.2)
         det = self._detection(self.CENTRE_X, self.HEIGHT_PX)
         pos, yaw = (1.0, 1.0), 0.0
         bearing = self._bearing_of(self.CENTRE_X)
@@ -635,8 +635,8 @@ class TestClusteredLidarRangeFusion:
         known regression.
         """
         shipped = NavigationTuning.load_default().sign_discovery
-        assert shipped.LIDAR_RANGE_FUSION is True
-        assert shipped.LIDAR_RANGE_FUSION_CLUSTER is True
+        assert shipped.lidar_range_fusion is True
+        assert shipped.lidar_range_fusion_cluster is True
 
 
 class TestPerSectionCap:
@@ -657,10 +657,10 @@ class TestPerSectionCap:
         against a 202 baseline) arriving by a different road. The corpus
         decides, not this test.
         """
-        assert NavigationTuning.load_default().sign_discovery.MAX_SIGNS_PER_SECTION == 0
+        assert NavigationTuning.load_default().sign_discovery.max_signs_per_section == 0
 
     def test_the_cap_withholds_the_third_sign_in_a_section(self):
-        tuning = tuning_with_overrides({"MAX_SIGNS_PER_SECTION": 2, "MIN_HITS": 1}, group="sign_discovery")
+        tuning = tuning_with_overrides({"max_signs_per_section": 2, "min_hits": 1}, group="sign_discovery")
         sign_map = ObservedSignMap(0.0, tuning=tuning)
         published = []
         for i in range(3):
@@ -682,7 +682,7 @@ class TestPerSectionCap:
         pass the test above and silently cost the other three quarters of the
         track its signs.
         """
-        tuning = tuning_with_overrides({"MAX_SIGNS_PER_SECTION": 1, "MIN_HITS": 1}, group="sign_discovery")
+        tuning = tuning_with_overrides({"max_signs_per_section": 1, "min_hits": 1}, group="sign_discovery")
         sign_map = ObservedSignMap(0.0, tuning=tuning)
         published = []
         # Real POSITIONS, not corridor labels: the cap keys on where the pillar
@@ -703,7 +703,7 @@ class TestPerSectionCap:
 
     def test_zero_is_an_exact_no_op(self):
         """The off-switch every earlier measurement is read against."""
-        tuning = tuning_with_overrides({"MAX_SIGNS_PER_SECTION": 0, "MIN_HITS": 1}, group="sign_discovery")
+        tuning = tuning_with_overrides({"max_signs_per_section": 0, "min_hits": 1}, group="sign_discovery")
         sign_map = ObservedSignMap(0.0, tuning=tuning)
         for i in range(4):
             sign_map._tracks.append(
@@ -750,7 +750,7 @@ class TestLatticeSnap:
         assert a == b == target
 
     def test_ships_disabled(self):
-        assert NavigationTuning.load_default().sign_discovery.SNAP_TO_LATTICE_M == 0.0
+        assert NavigationTuning.load_default().sign_discovery.snap_to_lattice_m == 0.0
 
 
 class TestLatticeConsistentAssociation:
@@ -767,7 +767,7 @@ class TestLatticeConsistentAssociation:
     def _map(snap_m: float) -> ObservedSignMap:
         return ObservedSignMap(
             min_confidence=0.3,
-            tuning=tuning_with_overrides({"SNAP_TO_LATTICE_M": snap_m}, group="sign_discovery"),
+            tuning=tuning_with_overrides({"snap_to_lattice_m": snap_m}, group="sign_discovery"),
         )
 
     @staticmethod
@@ -828,7 +828,7 @@ class TestColourVotePooling:
 
     @staticmethod
     def _map(radius: float) -> ObservedSignMap:
-        tuning = tuning_with_overrides({"COLOUR_POOL_RADIUS_M": radius}, group="sign_discovery")
+        tuning = tuning_with_overrides({"colour_pool_radius_m": radius}, group="sign_discovery")
         return ObservedSignMap(_CONFIDENCE, tuning=tuning)
 
     @staticmethod
@@ -896,7 +896,7 @@ class TestRobotCorridorDebounceRate:
     """The corridor debounce counts TICKS, which is what its knob promises.
 
     Measured 2026-09-11 over 125 bags: only 11.6% of ticks carry a detection.
-    Advancing the streak only on those made ROBOT_CORRIDOR_FLIP_TICKS=5 mean
+    Advancing the streak only on those made robot_corridor_flip_ticks=5 mean
     roughly 43 ticks of wall time, and left the settled label stale at the one
     moment it is read -- when a detection finally lands.
     """
@@ -906,7 +906,7 @@ class TestRobotCorridorDebounceRate:
 
     def test_an_empty_frame_still_advances_the_debounce(self) -> None:
         sign_map = self._map()
-        flip_ticks = NavigationTuning().sign_discovery.ROBOT_CORRIDOR_FLIP_TICKS
+        flip_ticks = NavigationTuning().sign_discovery.robot_corridor_flip_ticks
         # Somewhere unambiguous, and enough empty frames to settle there.
         here = Waypoint(0.5, 1.5)
         for _ in range(flip_ticks + 1):
@@ -920,7 +920,7 @@ class TestRobotCorridorDebounceRate:
         """The control: without the fix this is still None on that tick."""
         sign_map = self._map()
         here = Waypoint(0.5, 1.5)
-        for _ in range(NavigationTuning().sign_discovery.ROBOT_CORRIDOR_FLIP_TICKS + 1):
+        for _ in range(NavigationTuning().sign_discovery.robot_corridor_flip_ticks + 1):
             sign_map.observe([], here)
 
         assert sign_map._robot_corridor is not None, (

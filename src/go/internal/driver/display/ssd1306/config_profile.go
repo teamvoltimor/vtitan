@@ -4,11 +4,12 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware/display"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // ConfigFor resolves the Config to Connect with: if configRoot is
-// non-empty, it loads profile.SSD1306Config from
+// non-empty, it loads display.HardwareDisplaySsd1306 from
 // <configRoot>/profile.DefaultSSD1306TOMLPath (overlaid with the profiles
 // named in profile.ActiveNames()); otherwise, or if loading or parsing its
 // hex I2CAddressHex fails, it returns DefaultConfig unchanged, logging why.
@@ -19,7 +20,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultSSD1306TOMLPath)
-	loaded, err := profile.Load[profile.SSD1306Config](basePath, profile.ActiveNames())
+	loaded, err := profile.Load[display.HardwareDisplaySsd1306](basePath, profile.ActiveNames())
 	if err != nil {
 		logger.Warn(
 			"driver/display/ssd1306: loading hardware profile, falling back to default config",
@@ -31,7 +32,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		return cfg
 	}
 
-	addr, err := loaded.I2CAddress()
+	addr, err := profile.ParseI2CAddress(loaded)
 	if err != nil {
 		logger.Warn(
 			"driver/display/ssd1306: parsing hardware profile's i2c_address, falling back to default config",

@@ -2,8 +2,8 @@
 
 Both answer the same question -- is this aim point approached along the path's
 own direction of travel -- at two different places. See
-``PurePursuitParams.TARGET_SENSE_GATE`` and
-``SignRouterParams.SIGN_DEFORM_SENSE_GUARD``.
+``PurePursuitParams.target_sense_gate`` and
+``SignRouterParams.sign_deform_sense_guard``.
 
 **The deform guard is INERT on the shipped tree** and its predicate is tested
 here on its own terms only. ``SIGN_LANE_SUPPRESS_DEFORM`` ships true, so

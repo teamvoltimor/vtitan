@@ -6,7 +6,7 @@ import "github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 // currently in, matching classification.py's corridor_for_position.
 //
 // Uses the fixed inner-square boundaries (cornerMinM/cornerMaxM --
-// profile.TrackConfig.Track.CornerMin/CornerMax) to assign a cardinal
+// generated.TrackConfig.Track.CornerMin/CornerMax) to assign a cardinal
 // section. In corner zones (both x and y outside the inner square range
 // simultaneously), the nearest boundary face determines the section, with
 // ties resolving South, North, East, West in that order (matching the

@@ -2,7 +2,7 @@
 
 :func:`~src.navigation.track_geometry.path_turn_ahead` is a *preview*: it
 measures the heading change the path makes within
-``pursuit.CORNER_PREVIEW_DISTANCE_M`` ahead of the current waypoint. That makes
+``pursuit.corner_preview_distance_m`` ahead of the current waypoint. That makes
 it a leading signal on approach, which is exactly what
 :meth:`~src.navigation.control.controllers.waypoint_controller.WaypointController.select_lookahead`
 wants -- and it means the signal DECAYS to zero as the chassis enters the arc,
@@ -111,7 +111,7 @@ class CornerLatch:
         Args:
             turn_ahead_rad: Raw :func:`path_turn_ahead` reading.
             robot_yaw: Current chassis heading (world frame, radians).
-            arm_threshold_rad: ``pursuit.CORNER_TURN_THRESHOLD_RAD`` -- the same
+            arm_threshold_rad: ``pursuit.corner_turn_threshold_rad`` -- the same
                 value ``select_lookahead`` compares against, read from tuning by
                 the caller rather than duplicated here.
 

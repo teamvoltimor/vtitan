@@ -302,7 +302,7 @@ class TelemetryBridgeNode(Node):
         # consistency across the two sectors that both use a mean (this is a
         # display readout, not a threat gate like detect_threat_direction's
         # narrower, min-based +/-45 deg sectors).
-        self._oled_sector_half_fov_rad = math.radians(get_tuning(None).lidar_sectors.FRONT_HALF_FOV_DEG)
+        self._oled_sector_half_fov_rad = math.radians(get_tuning(None).lidar_sectors.front_half_fov_deg)
 
         self._setup_subscriptions()
 

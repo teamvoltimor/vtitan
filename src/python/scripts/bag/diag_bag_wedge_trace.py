@@ -14,7 +14,7 @@ identical from the outside and want completely different fixes:
    zero. Motor deadband, stall under steering load, or a speed below the floor.
    Nothing in the sign lane or the escape logic can help.
 2. **MOVING AND COMING BACK.** Wheel travelling, pose not. The pendulum: legs
-   that cancel. ``ESCAPE_MIRRORS_REVERSE`` shipped for Obstacles today, so this
+   that cancel. ``escape_mirrors_reverse`` shipped for Obstacles today, so this
    is also the check on whether that fix is reaching this case.
 3. **NEVER COMMITTED TO THE SIGN.** The router held no claim through the
    wedge, so the chassis was reacting to an obstacle nothing had planned

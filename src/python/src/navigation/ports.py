@@ -131,14 +131,14 @@ class LidarScan:
 
         tuning = get_tuning(tuning)
         sectors = tuning.lidar_sectors
-        blind_left = (math.radians(sectors.BLIND_WEDGE_LEFT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_LEFT_MAX_DEG))
-        blind_right = (math.radians(sectors.BLIND_WEDGE_RIGHT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_RIGHT_MAX_DEG))
+        blind_left = (math.radians(sectors.blind_wedge_left_min_deg), math.radians(sectors.blind_wedge_left_max_deg))
+        blind_right = (math.radians(sectors.blind_wedge_right_min_deg), math.radians(sectors.blind_wedge_right_max_deg))
         valid = self.sector_ranges(
             center_rad,
             half_fov_rad,
             filter_self_detection=True,
-            self_detection_threshold_m=sectors.SELF_DETECTION_THRESHOLD_M,
-            min_valid_range_m=sectors.MIN_VALID_RANGE_M,
+            self_detection_threshold_m=sectors.self_detection_threshold_m,
+            min_valid_range_m=sectors.min_valid_range_m,
             blind_wedge_left=blind_left,
             blind_wedge_right=blind_right,
         )

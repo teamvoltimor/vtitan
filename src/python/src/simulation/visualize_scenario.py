@@ -252,7 +252,7 @@ def _parse_args() -> argparse.Namespace:
         help="Override one corridor_follower tuning field, repeatable. Lets an arm be "
         "watched without editing a shipped default -- a modified default left in the "
         "working tree is how an unrelated run later gets measured under it. "
-        "e.g. --tune BAY_EXIT_HOLD_STEER=1",
+        "e.g. --tune bay_exit_hold_steer=1",
     )
     return parser.parse_args()
 

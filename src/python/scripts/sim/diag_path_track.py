@@ -512,7 +512,7 @@ def run_scenario(
     report_index_stalls(
         rows,
         min_ticks=stall_ticks,
-        reached_dist_m=tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M,
+        reached_dist_m=tuning.waypoints.main_loop_reached_distance_m,
     )
 
     csv_path = output_dir / f"diag_path_track_{scenario_index}.csv"

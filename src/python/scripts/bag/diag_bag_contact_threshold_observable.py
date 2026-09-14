@@ -51,9 +51,9 @@ def main() -> int:
         raise SystemExit(2)
 
     tuning = get_tuning(None)
-    contact = tuning.clearance.OBSTACLES_CONTACT_DIST
-    min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
-    half_fov = math.radians(tuning.lidar_sectors.THREAT_HALF_FOV_DEG)
+    contact = tuning.clearance.obstacles_contact_dist
+    min_valid = tuning.lidar_sectors.min_valid_range_m
+    half_fov = math.radians(tuning.lidar_sectors.threat_half_fov_deg)
 
     print(f"obstacles_contact_dist = {contact}   min_valid_range_m = {min_valid}")
     print(f"threat half-FOV = {math.degrees(half_fov):.0f} deg")

@@ -42,11 +42,11 @@ class SignRouterConstants:
         """Derive the sign-router constants from ``NavigationTuning``."""
         sr = tuning.sign_router
         return cls(
-            wall_clearance_margin_m=sr.WALL_CLEARANCE_MARGIN_M,
-            deform_depth_buffer_m=sr.DEFORM_DEPTH_BUFFER_M,
-            pin_corner_guard=sr.PIN_CORNER_GUARD,
-            pin_heading_guard=sr.PIN_HEADING_GUARD,
-            pin_heading_guard_rad=math.radians(sr.PIN_HEADING_GUARD_DEG),
+            wall_clearance_margin_m=sr.wall_clearance_margin_m,
+            deform_depth_buffer_m=sr.deform_depth_buffer_m,
+            pin_corner_guard=sr.pin_corner_guard,
+            pin_heading_guard=sr.pin_heading_guard,
+            pin_heading_guard_rad=math.radians(sr.pin_heading_guard_deg),
         )
 
 
@@ -153,7 +153,7 @@ class SignRouterConfig:
         if self.lateral_offset is None:
             tuning = get_tuning(None)
             default_offset = (
-                CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
+                CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.sign_clearance_margin_m
             )
             object.__setattr__(self, "lateral_offset", default_offset)
         if any(getattr(self, f.name) is None for f in fields(self)):
@@ -179,13 +179,13 @@ class SignRouterConfig:
         step; see that constant for why it is the diagonal.
         """
         return cls(
-            lateral_offset=CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
-            activation_dist=params.ACTIVATION_DIST_M,
-            passed_dist=params.PASSED_DIST_M,
-            depth_pin=params.DEPTH_PIN,
-            detection_match_dist=params.DETECTION_MATCH_DIST_M,
-            min_confidence=params.MIN_CONFIDENCE,
-            settle_ticks=params.SETTLE_TICKS,
-            commit_hysteresis=params.COMMIT_HYSTERESIS,
-            corridor_flip_ticks=params.CORRIDOR_FLIP_TICKS,
+            lateral_offset=CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + params.sign_clearance_margin_m,
+            activation_dist=params.activation_dist_m,
+            passed_dist=params.passed_dist_m,
+            depth_pin=params.depth_pin,
+            detection_match_dist=params.detection_match_dist_m,
+            min_confidence=params.min_confidence,
+            settle_ticks=params.settle_ticks,
+            commit_hysteresis=params.commit_hysteresis,
+            corridor_flip_ticks=params.corridor_flip_ticks,
         )

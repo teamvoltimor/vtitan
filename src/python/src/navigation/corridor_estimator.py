@@ -70,16 +70,16 @@ def measure_corridor_width(
         ``None`` when the chassis is too far off the corridor axis or the
         total is not physically plausible.
 
-    Uses tuning: corridor_estimator.PLAUSIBLE_WIDTH_MARGIN_M
+    Uses tuning: corridor_estimator.plausible_width_margin_m
     """
     tuning = get_tuning(tuning)
-    margin = tuning.corridor_estimator.PLAUSIBLE_WIDTH_MARGIN_M
+    margin = tuning.corridor_estimator.plausible_width_margin_m
     min_plausible_width = CorridorDimensions.NARROW - margin
     max_plausible_width = CorridorDimensions.WIDE + margin
 
     # Heading error against the nearest track axis; corridors always run along one.
     axis_error = axis_offset_rad(yaw)
-    is_aligned = abs(axis_error) <= tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
+    is_aligned = abs(axis_error) <= tuning.direction_estimator.alignment_tolerance_rad
 
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
@@ -101,9 +101,9 @@ def measure_corridor_width(
 def classify_width(width_m: float, tuning: NavigationTuning | None = None) -> float:
     """Snap a raw measurement to whichever of the two legal widths it is.
 
-    Uses tuning: corridor_estimator.DECISION_BOUNDARY_M
+    Uses tuning: corridor_estimator.decision_boundary_m
     """
-    boundary = get_tuning(tuning).corridor_estimator.DECISION_BOUNDARY_M
+    boundary = get_tuning(tuning).corridor_estimator.decision_boundary_m
     return CorridorDimensions.NARROW if width_m < boundary else CorridorDimensions.WIDE
 
 
@@ -180,9 +180,9 @@ class CorridorWidthEstimator:
     ) -> None:
         resolved_tuning = get_tuning(tuning)
         if min_samples is None:
-            min_samples = resolved_tuning.corridor_estimator.MIN_SAMPLES
+            min_samples = resolved_tuning.corridor_estimator.min_samples
         self._min_samples = min_samples
-        self._decision_boundary = resolved_tuning.corridor_estimator.DECISION_BOUNDARY_M
+        self._decision_boundary = resolved_tuning.corridor_estimator.decision_boundary_m
         self._fixed = fixed
         self._widths: dict[Section, float] = dict.fromkeys(Section, assumed_width)
         self._observed: set[Section] = set()

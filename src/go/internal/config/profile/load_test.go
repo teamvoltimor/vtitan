@@ -2,9 +2,11 @@ package profile_test
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware/motors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -70,7 +72,7 @@ func TestLoad_ProfileDirWithoutMatchingFileIsSkipped(t *testing.T) {
 func TestLoad_MotorsConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.MotorsConfig](filepath.Join("testdata", "motors.toml"), nil)
+	cfg, err := profile.Load[motors.HardwareMotorsMotors](filepath.Join("testdata", "motors.toml"), nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -114,22 +116,22 @@ func TestLoadRobotConfig_ProfileSuppliesRequiredFields(t *testing.T) {
 func TestLoad_TrackConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.TrackConfig](filepath.Join("testdata", "track.toml"), nil)
+	cfg, err := profile.Load[generated.TrackConfig](filepath.Join("testdata", "track.toml"), nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if cfg.Track.MatSize != 3.2 {
 		t.Errorf("Track.MatSize = %v, want 3.2", cfg.Track.MatSize)
 	}
-	if cfg.Corridor.DivisionLines != [2]float64{0.40, 0.60} {
+	if !slices.Equal(cfg.Corridor.DivisionLines, []float64{0.40, 0.60}) {
 		t.Errorf("Corridor.DivisionLines = %v, want [0.40, 0.60]", cfg.Corridor.DivisionLines)
 	}
-	wantAlignment := [3]generated.SpawnAlignment{
+	wantAlignment := []generated.SpawnAlignment{
 		generated.SpawnAlignmentInner,
 		generated.SpawnAlignmentOuter,
 		generated.SpawnAlignmentOuter,
 	}
-	if cfg.StartingZone.SpawnAlignment != wantAlignment {
+	if !slices.Equal(cfg.StartingZone.SpawnAlignment, wantAlignment) {
 		t.Errorf(
 			"StartingZone.SpawnAlignment = %v, want [inner outer outer]",
 			cfg.StartingZone.SpawnAlignment,

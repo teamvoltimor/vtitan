@@ -91,7 +91,7 @@ def start_pose(
             in passing, since changing a separately swept value is its own
             measurement.
 
-    Uses tuning: waypoints.WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
+    Uses tuning: waypoints.wide_center_bias_m, NARROW_CENTER_BIAS_M,
     NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE
     """
     tuning = get_tuning(tuning)
@@ -146,7 +146,7 @@ def assumed_start_conditions(
     Returns:
         A ``starting_conditions`` mapping in scenario-metadata shape.
 
-    Uses tuning: waypoints.WIDE_CENTER_BIAS_M, NARROW_CENTER_BIAS_M,
+    Uses tuning: waypoints.wide_center_bias_m, NARROW_CENTER_BIAS_M,
     NARROW_WIDTH_THRESHOLD_M, WIDE_CENTER_BIAS_SIDE, NARROW_CENTER_BIAS_SIDE
     """
     believed = widths_m or dict.fromkeys(Section, CorridorDimensions.NARROW)

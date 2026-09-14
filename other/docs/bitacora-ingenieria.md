@@ -233,7 +233,8 @@ que requiere reverificación en hardware, no solo confiar en la corrección de c
 
 **Resultado medido:** corrección de nombre de carpeta aplicada; además se corrigieron
 referencias obsoletas a "servo270" en docs, Taskfile y texto de ayuda del generador Go, y un
-error en `docs/servo-comparison-180-vs-270.md` que indicaba reiniciar el servicio equivocado
+error en `src/python/docs/servo-comparison-180-vs-270.md` que indicaba reiniciar el servicio
+equivocado
 (`vtitan-pi5.service` en vez de que `ackermann_motor_node` corre en el Pi Zero).
 
 **Referencia:** commit `3a7d7cbe fix(robot): rename servo270 profile folder to match active
@@ -873,9 +874,15 @@ ese no era el objetivo: la convención de commits se adoptó porque el historial
 primera fuente para reconstruir cuándo y por qué cambió algo, y varias entradas de esta
 bitácora se escribieron leyendo `git log`.
 
-La estructura separa `src/python` (el sistema de navegación en Python/ROS2), `src/go`
-(la migración en curso), `src/python/shared` (la configuración y el ajuste que ambos comparten) y
-`docs/`, con sus subcarpetas `internal`, `development`, `proposals`, `reference` y `schemes`.
+La estructura separa el material de competencia en `src/`: `src/python` (el sistema de navegación
+en Python/ROS2), `src/go` (la migración en curso), `src/python/shared` (la configuración y el ajuste
+que ambos comparten), `src/config` (los TOML que ambos leen) y `src/model` (los JSON Schemas que
+describen cada clave y enlazan su justificación con `other/docs/adr/`). A partir de esos esquemas,
+`task config:gen` genera los DTOs tipados de Go (`src/go/internal/config/generated/`) y de Python
+(`src/python/shared/src/shared/config/generated/`), de modo que la descripción de una constante
+tiene un solo lugar y las dos implementaciones no pueden divergir en silencio. Todo lo que no es
+material de competencia se movió bajo `other/`, incluida la documentación en `other/docs/` con sus
+subcarpetas `adr`, `development`, `internal` y `reference`.
 Las dependencias se gestionan con `uv` en Python y con Pixi/RoboStack para ROS2, y las
 operaciones habituales están encapsuladas en el `Taskfile` (`task sim:navigate...`,
 `task rpi:stack`) para que nadie tenga que reconstruir de memoria un comando largo.

@@ -151,12 +151,12 @@ def main() -> int:
     tuning = NavigationTuning.load_default()
     estimator = tuning.direction_estimator
     shipped = dict(
-        max_range=estimator.MAX_IN_TRACK_RANGE_M,
-        max_span=estimator.PLAUSIBLE_SPAN_THRESHOLD_M,
-        min_asym=estimator.MIN_ASYMMETRY_M,
-        align_tol=estimator.ALIGNMENT_TOLERANCE_RAD,
+        max_range=estimator.max_in_track_range_m,
+        max_span=estimator.plausible_span_threshold_m,
+        min_asym=estimator.min_asymmetry_m,
+        align_tol=estimator.alignment_tolerance_rad,
     )
-    wide_tol = _ALIGNMENT_TOL_MULTIPLIER * estimator.ALIGNMENT_TOLERANCE_RAD
+    wide_tol = _ALIGNMENT_TOL_MULTIPLIER * estimator.alignment_tolerance_rad
     variants = [
         ("shipped", shipped),
         ("max_range=12.5 (accept max-range as open)",

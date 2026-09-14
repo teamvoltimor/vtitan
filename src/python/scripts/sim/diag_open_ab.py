@@ -20,9 +20,9 @@ both directions even when the change is neutral overall.
 
 Usage (from ``src``)::
 
-    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.NARROW_CENTER_BIAS_SIDE=outer
-    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.ARC_RADIUS=0.35 --sample 12
-    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.ARC_RADIUS=0.35 --tuning custom.yaml
+    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.narrow_center_bias_side=outer
+    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.arc_radius=0.35 --sample 12
+    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.arc_radius=0.35 --tuning custom.yaml
 """
 
 from __future__ import annotations

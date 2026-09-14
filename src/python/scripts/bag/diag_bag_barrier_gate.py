@@ -61,10 +61,10 @@ from scripts.common.bag_io import (
 from scripts.common.tables import print_table
 
 MAX_PILLAR_ASPECT = 1.0
-"""``SignDiscoveryParams.MAX_PILLAR_ASPECT`` as shipped."""
+"""``SignDiscoveryParams.max_pillar_aspect`` as shipped."""
 
 FRAME_EDGE_TOLERANCE_PX = 2.0
-"""``SignDiscoveryParams.FRAME_EDGE_TOLERANCE_PX`` as shipped."""
+"""``SignDiscoveryParams.frame_edge_tolerance_px`` as shipped."""
 
 MIN_MAGENTA_FOR_A_VERDICT = 20
 """Below this the parking corridor cannot be derived from the runs themselves,

@@ -92,13 +92,13 @@ def _min_radius(points: list[tuple[float, float]]) -> float:
 def _lane_params(tuning: NavigationTuning) -> SignLaneParams:
     """The lane geometry the navigator would build, from the shipped tuning."""
     sr = tuning.sign_router
-    offset = chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.SIGN_CLEARANCE_MARGIN_M
+    offset = chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.sign_clearance_margin_m
     return SignLaneParams(
-        lateral_offset=offset * sr.SIGN_LANE_OFFSET_FRAC,
-        ramp_m=sr.SIGN_LANE_RAMP_M,
-        hold_m=sr.SIGN_LANE_HOLD_M,
-        corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
-        gap_centre_frac=sr.SIGN_LANE_GAP_CENTRE_FRAC,
+        lateral_offset=offset * sr.sign_lane_offset_frac,
+        ramp_m=sr.sign_lane_ramp_m,
+        hold_m=sr.sign_lane_hold_m,
+        corner_entry_m=sr.sign_lane_corner_entry_m,
+        gap_centre_frac=sr.sign_lane_gap_centre_frac,
     )
 
 

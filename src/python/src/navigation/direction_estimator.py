@@ -75,10 +75,10 @@ def infer_direction(
     """
     tuning = get_tuning(tuning)
 
-    alignment_tol = tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
-    max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M
-    plausible_span = tuning.direction_estimator.PLAUSIBLE_SPAN_THRESHOLD_M
-    min_asymmetry = tuning.direction_estimator.MIN_ASYMMETRY_M
+    alignment_tol = tuning.direction_estimator.alignment_tolerance_rad
+    max_in_track = tuning.direction_estimator.max_in_track_range_m
+    plausible_span = tuning.direction_estimator.plausible_span_threshold_m
+    min_asymmetry = tuning.direction_estimator.min_asymmetry_m
 
     # Off-axis the side rays cut a diagonal and can read long for no good reason.
     if axis_error_rad(yaw) > alignment_tol:
@@ -125,8 +125,8 @@ class DirectionEstimator:
     """
 
     def __init__(self, min_votes: int | None = None, tuning: NavigationTuning | None = None) -> None:
-        """Uses tuning: direction_estimator.MIN_VOTES (when min_votes is not given explicitly)."""
-        self._min_votes = min_votes if min_votes is not None else get_tuning(tuning).direction_estimator.MIN_VOTES
+        """Uses tuning: direction_estimator.min_votes (when min_votes is not given explicitly)."""
+        self._min_votes = min_votes if min_votes is not None else get_tuning(tuning).direction_estimator.min_votes
         self._votes: dict[Direction, int] = dict.fromkeys(Direction, 0)
         self._settled: Direction | None = None
 
@@ -217,10 +217,10 @@ def direction_from_parking_bay(
     to do its normal job.
     """
     follower = get_tuning(tuning).corridor_follower
-    if _forward_clearance(ranges_m, angles_rad, tuning) >= follower.MIN_FORWARD_CLEARANCE_M:
+    if _forward_clearance(ranges_m, angles_rad, tuning) >= follower.min_forward_clearance_m:
         return None
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
-    if min(left, right) > follower.BAY_WALL_CLEARANCE_M or max(left, right) <= follower.TURN_CLEARANCE_M:
+    if min(left, right) > follower.bay_wall_clearance_m or max(left, right) <= follower.turn_clearance_m:
         return None
     return Direction.COUNTERCLOCKWISE if left > right else Direction.CLOCKWISE

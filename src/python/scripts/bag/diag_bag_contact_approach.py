@@ -11,7 +11,7 @@ which ``committed_sign_x_m``/``_y_m`` name the same pillar (jumps beyond
 
 * **CONTACT** -- at least one tick inside it latched a SIDE_CORRECTION with a
   NEGATIVE ``maneuver_speed_mps``. That negative speed is the discriminator:
-  the creeping (non-touching) side correction runs at ``SIDE_CORRECTION_SPEED``
+  the creeping (non-touching) side correction runs at ``side_correction_speed``
   forward, the ``already_touching`` branch swaps in ``ESCAPE_REV_SPEED``.
 * **CLEAN** -- it did not. This is the WITHIN-RUN CONTROL. A profile that
   looks the same on both explains nothing.

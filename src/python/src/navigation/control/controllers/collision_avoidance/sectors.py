@@ -283,7 +283,7 @@ def _forward_path_selection(
     lateral = np.abs(ranges * np.sin(angles))
     # "Ahead" of WHAT. The sensor is the historical answer and is wrong by the
     # mount offset: it counts a band alongside the chassis as forward path.
-    # See ClearanceZones.FORWARD_PATH_AHEAD_OF_BUMPER.
+    # See ClearanceZones.forward_path_ahead_of_bumper.
     along_track = ranges * np.cos(angles)
     ahead = along_track > (RobotSpecs.LIDAR_TO_FRONT_BUMPER if ahead_of_bumper else 0.0)
     mask = (
@@ -508,14 +508,14 @@ def sector_ranges(
     if self_detection_threshold_m is None or min_valid_range_m is None or blind_wedge_left_min_rad is None:
         tuning = get_tuning(None)
         if self_detection_threshold_m is None:
-            self_detection_threshold_m = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M
+            self_detection_threshold_m = tuning.lidar_sectors.self_detection_threshold_m
         if min_valid_range_m is None:
-            min_valid_range_m = tuning.lidar_sectors.MIN_VALID_RANGE_M
+            min_valid_range_m = tuning.lidar_sectors.min_valid_range_m
         if blind_wedge_left_min_rad is None:
-            blind_wedge_left_min_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_LEFT_MIN_DEG)
-            blind_wedge_left_max_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_LEFT_MAX_DEG)
-            blind_wedge_right_min_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MIN_DEG)
-            blind_wedge_right_max_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MAX_DEG)
+            blind_wedge_left_min_rad = math.radians(tuning.lidar_sectors.blind_wedge_left_min_deg)
+            blind_wedge_left_max_rad = math.radians(tuning.lidar_sectors.blind_wedge_left_max_deg)
+            blind_wedge_right_min_rad = math.radians(tuning.lidar_sectors.blind_wedge_right_min_deg)
+            blind_wedge_right_max_rad = math.radians(tuning.lidar_sectors.blind_wedge_right_max_deg)
 
     if lidar_angles is None:
         angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
@@ -584,7 +584,7 @@ def _sector_to_model(
         blind_wedge_right_max_rad,
     )
     if no_data_range_m is None:
-        no_data_range_m = get_tuning(None).lidar_sectors.NO_DATA_RANGE_M
+        no_data_range_m = get_tuning(None).lidar_sectors.no_data_range_m
     wedge_masked = False
     if ranges.size == 0:
         # Distinguish "this bearing is a known permanent blind spot" from

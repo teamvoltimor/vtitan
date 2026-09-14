@@ -75,7 +75,7 @@ def main() -> int:
     args = parser.parse_args()
 
     tuning = NavigationTuning.load_default()
-    turn_clearance_m = tuning.corridor_follower.TURN_CLEARANCE_M
+    turn_clearance_m = tuning.corridor_follower.turn_clearance_m
 
     reader = open_reader(args.bag_dir)
     scans, nav_rows = read_bag(reader, _LIDAR_YAW_OFFSET_RAD)

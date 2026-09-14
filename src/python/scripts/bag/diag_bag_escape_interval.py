@@ -127,7 +127,7 @@ def analyse(bag_dir: Path) -> list[tuple]:
 def main() -> int:
     parser = create_bags_parser(__doc__)
     args = parser.parse_args()
-    deadband = NavigationTuning.load_default().escape.STUCK_MOVE_THRESHOLD
+    deadband = NavigationTuning.load_default().escape.stuck_move_threshold
     all_rows = []
     for bag in args.bag_dirs:
         try:

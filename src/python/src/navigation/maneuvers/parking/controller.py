@@ -97,7 +97,7 @@ class ParkController:
         self._tuning = get_tuning(tuning)
         self._context = ParkingContext(self._tuning)
         if speed is None:
-            speed = self._tuning.parking.SPEED
+            speed = self._tuning.parking.speed
         if max_frames is None:
             max_frames = self._context.constants.default_max_frames
         self._section = start_section
@@ -152,8 +152,8 @@ class ParkController:
             parking_config=parking_config,
             start_section=start_section,
             direction=direction,
-            speed=tuning.parking.SPEED,
-            max_frames=tuning.parking.DEFAULT_MAX_FRAMES,
+            speed=tuning.parking.speed,
+            max_frames=tuning.parking.default_max_frames,
         )
 
     @property
@@ -485,6 +485,6 @@ def park_controller_from_metadata(
         ),
         start_section=start_section,
         direction=direction,
-        speed=tuning.parking.SPEED,
-        max_frames=tuning.parking.DEFAULT_MAX_FRAMES,
+        speed=tuning.parking.speed,
+        max_frames=tuning.parking.default_max_frames,
     )

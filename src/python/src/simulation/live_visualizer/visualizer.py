@@ -389,7 +389,7 @@ class LiveScenarioVisualizer(Node):
         msg.range_max = RobotSpecs.LIDAR_MAX_RANGE
         sectors = self._lidar_sectors
         msg.ranges = [
-            math.nan if _is_masked_bearing(angle, sectors) or range_m <= sectors.SELF_DETECTION_THRESHOLD_M else range_m
+            math.nan if _is_masked_bearing(angle, sectors) or range_m <= sectors.self_detection_threshold_m else range_m
             for angle, range_m in zip(angles, scan.ranges_m, strict=True)
         ]
         return msg

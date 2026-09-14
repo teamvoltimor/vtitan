@@ -52,7 +52,7 @@ def path() -> list[Waypoint]:
 
 class TestShippedDefaultIsUnchanged:
     def test_the_flag_ships_false(self) -> None:
-        assert tuning_with_overrides({}).waypoints.FORWARD_ONLY_RESEEK is False
+        assert tuning_with_overrides({}).waypoints.forward_only_reseek is False
 
     def test_default_still_seeks_backward(self, path) -> None:
         """Without the flag the re-seek takes the nearest point, behind or not.
@@ -72,7 +72,7 @@ class TestShippedDefaultIsUnchanged:
 class TestForwardOnly:
     def test_a_backward_seek_is_refused(self, path) -> None:
         """The hardware case: index 19, nearest is 16, keep 19."""
-        tuning = tuning_with_overrides({"FORWARD_ONLY_RESEEK": True}, group="waypoints")
+        tuning = tuning_with_overrides({"forward_only_reseek": True}, group="waypoints")
         nav = _navigator(tuning, path)
         nav._waypoint_index = 19
 
@@ -82,7 +82,7 @@ class TestForwardOnly:
 
     def test_a_forward_seek_is_still_allowed(self, path) -> None:
         """Progress is progress; the guard is one-directional by design."""
-        tuning = tuning_with_overrides({"FORWARD_ONLY_RESEEK": True}, group="waypoints")
+        tuning = tuning_with_overrides({"forward_only_reseek": True}, group="waypoints")
         nav = _navigator(tuning, path)
         nav._waypoint_index = 4
 
@@ -95,7 +95,7 @@ class TestForwardOnly:
 
         Clamping it here would fight that guard rather than complement it.
         """
-        tuning = tuning_with_overrides({"FORWARD_ONLY_RESEEK": True}, group="waypoints")
+        tuning = tuning_with_overrides({"forward_only_reseek": True}, group="waypoints")
         nav = _navigator(tuning, path)
         nav._waypoint_index = _PATH_LEN - 1
 
@@ -109,7 +109,7 @@ class TestForwardOnly:
         "Backward" compares two numbers that no longer describe the same points,
         so the guard must not fire on them.
         """
-        tuning = tuning_with_overrides({"FORWARD_ONLY_RESEEK": True}, group="waypoints")
+        tuning = tuning_with_overrides({"forward_only_reseek": True}, group="waypoints")
         nav = _navigator(tuning, path)
         nav._waypoint_index = 19
 

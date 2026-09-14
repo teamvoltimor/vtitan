@@ -79,7 +79,7 @@ identical to the navigator's -- a deadline mismatch would silently drop commands
 which is the failure this whole measurement was chasing."""
 
 _COMMAND_HZ = 20.0
-"""Republish rate, matching ``ControlParams.CONTROL_HZ``. The topic is a STREAM
+"""Republish rate, matching ``ControlParams.control_hz``. The topic is a STREAM
 on this robot, not a latched setpoint."""
 
 _SETTLE_S = 1.5

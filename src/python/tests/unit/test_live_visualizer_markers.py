@@ -226,8 +226,8 @@ def test_scan_masks_the_bearings_the_mount_cannot_see():
             "straight back is the measured rear slot and must NOT be blanked"
         )
         # Inside each wedge is still masked -- read from config, not restated.
-        assert math.isnan(by_degree[round(sectors.BLIND_WEDGE_RIGHT_MIN_DEG) + 5])
-        assert math.isnan(by_degree[round(sectors.BLIND_WEDGE_LEFT_MAX_DEG) - 5])
+        assert math.isnan(by_degree[round(sectors.blind_wedge_right_min_deg) + 5])
+        assert math.isnan(by_degree[round(sectors.blind_wedge_left_max_deg) - 5])
         # Forward is untouched -- masking must not eat the useful sweep.
         for degree in (0, 45, -45, 90, -90):
             assert by_degree[degree] == pytest.approx(2.0), f"{degree} deg should survive"
@@ -250,7 +250,7 @@ def test_scan_mask_follows_the_config_not_a_literal():
 
         # Same shape the real config uses, just reaching further forward.
         visualizer._lidar_sectors = visualizer._lidar_sectors.model_copy(
-            update={"BLIND_WEDGE_LEFT_MAX_DEG": -90.0, "BLIND_WEDGE_RIGHT_MIN_DEG": 90.0},
+            update={"blind_wedge_left_max_deg": -90.0, "blind_wedge_right_min_deg": 90.0},
         )
         after = sum(math.isnan(r) for r in visualizer._build_laserscan(scan, stamp).ranges)
 

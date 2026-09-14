@@ -1,6 +1,6 @@
 """The heading limiter's shape: a step by default, a ramp when asked.
 
-``heading_speed`` was two-valued -- ``fast_mps()`` below ``heading.CRAWL`` and
+``heading_speed`` was two-valued -- ``fast_mps()`` below ``heading.crawl`` and
 ``creep_mps()`` at or above it -- a 0.348 m/s change across ONE degree of
 heading error. Nothing in the physics it models is discontinuous: the servo's
 slew time grows smoothly with the angle it has to cover.
@@ -23,9 +23,9 @@ from src.config.tuning_helpers import tuning_with_overrides
 
 def _heading_speed(abs_error: float, tuning) -> float:
     """The limiter, as ``CoreNavigator._select_speed`` computes it."""
-    crawl = tuning.heading.CRAWL
-    start = tuning.heading.CRAWL_RAMP_START
-    fast, creep = tuning.speed.fast_mps(), tuning.speed.creep_mps()
+    crawl = tuning.heading.crawl
+    start = tuning.heading.crawl_ramp_start
+    fast, creep = tuning.speed.fast_mps, tuning.speed.creep_mps
     if abs_error >= crawl:
         return creep
     if 0.0 < start < crawl and abs_error > start:
@@ -36,9 +36,9 @@ def _heading_speed(abs_error: float, tuning) -> float:
 def test_the_shipped_default_is_still_a_step() -> None:
     """0 must be bit-identical to the two-valued cut, or this is a silent change."""
     tuning = tuning_with_overrides({})
-    assert tuning.heading.CRAWL_RAMP_START == 0.0
-    fast, creep = tuning.speed.fast_mps(), tuning.speed.creep_mps()
-    crawl = tuning.heading.CRAWL
+    assert tuning.heading.crawl_ramp_start == 0.0
+    fast, creep = tuning.speed.fast_mps, tuning.speed.creep_mps
+    crawl = tuning.heading.crawl
     for err in (0.0, crawl * 0.5, crawl - 1e-9):
         assert _heading_speed(err, tuning) == fast
     for err in (crawl, crawl + 0.5, math.pi):
@@ -47,8 +47,8 @@ def test_the_shipped_default_is_still_a_step() -> None:
 
 def test_a_ramp_removes_the_cliff_without_moving_its_endpoints() -> None:
     """The ramp must be continuous, monotone, and agree with the step at both ends."""
-    tuning = tuning_with_overrides({"CRAWL": 1.0, "CRAWL_RAMP_START": 0.5}, group="heading")
-    fast, creep = tuning.speed.fast_mps(), tuning.speed.creep_mps()
+    tuning = tuning_with_overrides({"crawl": 1.0, "crawl_ramp_start": 0.5}, group="heading")
+    fast, creep = tuning.speed.fast_mps, tuning.speed.creep_mps
 
     assert _heading_speed(0.4, tuning) == fast, "below the ramp start nothing is taxed"
     assert _heading_speed(1.0, tuning) == creep, "at CRAWL the floor is unchanged"
@@ -62,13 +62,13 @@ def test_a_ramp_removes_the_cliff_without_moving_its_endpoints() -> None:
 
 def test_the_midpoint_of_the_ramp_is_the_midpoint_of_the_speeds() -> None:
     """Linear, not eased -- so a band chosen from the replay table means what it says."""
-    tuning = tuning_with_overrides({"CRAWL": 1.0, "CRAWL_RAMP_START": 0.4}, group="heading")
-    fast, creep = tuning.speed.fast_mps(), tuning.speed.creep_mps()
+    tuning = tuning_with_overrides({"crawl": 1.0, "crawl_ramp_start": 0.4}, group="heading")
+    fast, creep = tuning.speed.fast_mps, tuning.speed.creep_mps
     assert _heading_speed(0.7, tuning) == pytest.approx((fast + creep) / 2.0)
 
 
 def test_a_ramp_start_at_or_above_crawl_falls_back_to_the_step() -> None:
     """A misconfigured band must degrade to the shipped behaviour, not divide by zero."""
-    tuning = tuning_with_overrides({"CRAWL": 1.0, "CRAWL_RAMP_START": 1.0}, group="heading")
-    assert _heading_speed(0.99, tuning) == tuning.speed.fast_mps()
-    assert _heading_speed(1.0, tuning) == tuning.speed.creep_mps()
+    tuning = tuning_with_overrides({"crawl": 1.0, "crawl_ramp_start": 1.0}, group="heading")
+    assert _heading_speed(0.99, tuning) == tuning.speed.fast_mps
+    assert _heading_speed(1.0, tuning) == tuning.speed.creep_mps

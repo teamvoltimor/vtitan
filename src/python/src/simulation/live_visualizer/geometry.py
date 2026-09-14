@@ -47,8 +47,8 @@ def _is_masked_bearing(angle_rad: float, sectors: LidarSectorParams) -> bool:
     """
     degrees = math.degrees(wrap_angle(angle_rad))
     return (
-        sectors.BLIND_WEDGE_LEFT_MIN_DEG <= degrees <= sectors.BLIND_WEDGE_LEFT_MAX_DEG
-        or sectors.BLIND_WEDGE_RIGHT_MIN_DEG <= degrees <= sectors.BLIND_WEDGE_RIGHT_MAX_DEG
+        sectors.blind_wedge_left_min_deg <= degrees <= sectors.blind_wedge_left_max_deg
+        or sectors.blind_wedge_right_min_deg <= degrees <= sectors.blind_wedge_right_max_deg
     )
 
 

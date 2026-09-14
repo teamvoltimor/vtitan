@@ -102,7 +102,7 @@ def _base_path(direction: Direction, tuning) -> list[Waypoint]:  # noqa: ANN001
         metadata,
         num_laps=1,
         tuning=tuning,
-        center_bias_m=tuning.waypoints.OBSTACLES_CENTER_BIAS_M,
+        center_bias_m=tuning.waypoints.obstacles_center_bias_m,
     )
 
 
@@ -316,22 +316,22 @@ def main() -> int:
     args = parser.parse_args()
     tuning = get_tuning(None)
     sr = tuning.sign_router
-    offset = (_HALF_DIAG + 0.05 / 2 + sr.SIGN_CLEARANCE_MARGIN_M) * sr.SIGN_LANE_OFFSET_FRAC
+    offset = (_HALF_DIAG + 0.05 / 2 + sr.sign_clearance_margin_m) * sr.sign_lane_offset_frac
     params = SignLaneParams(
         lateral_offset=offset,
-        ramp_m=sr.SIGN_LANE_RAMP_M,
-        hold_m=sr.SIGN_LANE_HOLD_M,
-        skip_unsatisfiable=sr.SIGN_LANE_SKIP_UNSATISFIABLE,
-        split_overlap=sr.SIGN_LANE_SPLIT_OVERLAP,
-        corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+        ramp_m=sr.sign_lane_ramp_m,
+        hold_m=sr.sign_lane_hold_m,
+        skip_unsatisfiable=sr.sign_lane_skip_unsatisfiable,
+        split_overlap=sr.sign_lane_split_overlap,
+        corner_entry_m=sr.sign_lane_corner_entry_m,
     )
-    wall_clear = _HALF_DIAG + sr.WALL_CLEARANCE_MARGIN_M
+    wall_clear = _HALF_DIAG + sr.wall_clearance_margin_m
     print(
         f"== shipped: offset={offset:.4f} ramp={params.ramp_m} hold={params.hold_m} "
         f"corner_entry={params.corner_entry_m} skip_unsat={params.skip_unsatisfiable}"
     )
     print(
-        f"== clamp: half_diag={_HALF_DIAG:.4f} wall_margin={sr.WALL_CLEARANCE_MARGIN_M} "
+        f"== clamp: half_diag={_HALF_DIAG:.4f} wall_margin={sr.wall_clearance_margin_m} "
         f"-> lane band [{TrackDimensions.MIN_COORD + wall_clear:.4f}, {TrackDimensions.CORNER_MIN - wall_clear:.4f}] "
         f"(low-side corridors); headroom from a 0.5 centreline = {TrackDimensions.CORNER_MIN - wall_clear - 0.5:+.4f} m"
     )

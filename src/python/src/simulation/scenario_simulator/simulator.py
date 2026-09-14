@@ -226,10 +226,10 @@ class ScenarioSimulator(PassSideScorer):
         is_open_challenge = challenge == ScenarioType.OPEN
         # Obstacles carries its own centreline bias, tuned separately from
         # Open's -- and measured HIGHER, not lower, than the geometry argues
-        # for. See WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and
+        # for. See WaypointParams.obstacles_center_bias_m for the sweep and
         # why it is compensating for the tracker's outward drift.
         #
-        self._center_bias_m = None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
+        self._center_bias_m = None if is_open_challenge else self._tuning.waypoints.obstacles_center_bias_m
         # Hoisted above the blind branch below, which reads the challenge too.
         #
         # The ASSUMED START uses a different bias from the PLAN, and only on
@@ -243,7 +243,7 @@ class ScenarioSimulator(PassSideScorer):
         # therefore does not sit on its own planned line -- a pre-existing
         # inconsistency, left alone rather than fixed in passing, since
         # OBSTACLES_CENTER_BIAS_M is a separately swept value.
-        assumed_bias_m = None if is_open_challenge else self._tuning.waypoints.WIDE_CENTER_BIAS_M
+        assumed_bias_m = None if is_open_challenge else self._tuning.waypoints.wide_center_bias_m
         believed_start = start
         if blind and not known_start:
             # No widths passed, so it falls back to the all-narrow prior --
@@ -258,7 +258,7 @@ class ScenarioSimulator(PassSideScorer):
                 yaw=float(assumed[DictKeys.YAW]),
             )
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
-        if not is_open_challenge and not self._tuning.simulation.OBSTACLES_INNER_WALL_TERMINAL:
+        if not is_open_challenge and not self._tuning.simulation.obstacles_inner_wall_terminal:
             # Score rule 9.18 as written: a wall the vehicle touches without
             # MOVING it costs nothing, and only the Open challenge's outer
             # boundary is named untouchable. The parking lot and a displaced
@@ -294,7 +294,7 @@ class ScenarioSimulator(PassSideScorer):
         # prior knowledge, not a guess -- confirmed across the fixture set,
         # where all 64 corridors are wide. The Open Challenge's are
         # independently 60 or 100 cm, so it keeps the narrow (fail-safe) prior.
-        self._arc_radius = self._tuning.waypoints.ARC_RADIUS
+        self._arc_radius = self._tuning.waypoints.arc_radius
         self._width_estimator = (
             CorridorWidthEstimator(
                 assumed_width=CorridorDimensions.NARROW if is_open_challenge else CorridorDimensions.OBSTACLES_WIDTH,
@@ -316,7 +316,7 @@ class ScenarioSimulator(PassSideScorer):
         # trigger would rebuild a byte-identical path and re-seek the waypoint
         # index for nothing. See DeferredWidthBelief.
         self._width_gate = (
-            DeferredWidthBelief(enabled=self._tuning.waypoints.DEFER_CURRENT_CORRIDOR_REPLAN)
+            DeferredWidthBelief(enabled=self._tuning.waypoints.defer_current_corridor_replan)
             if is_open_challenge
             else None
         )
@@ -344,7 +344,7 @@ class ScenarioSimulator(PassSideScorer):
         # it read the slow tier. The medium tier is the closest match to the
         # 0.150 m/s this phase actually ran at, so keeping it here avoids
         # slowing every race start as a side effect of grading the ladder.
-        self._blind_follow_speed = self._tuning.speed.medium_mps()
+        self._blind_follow_speed = self._tuning.speed.medium_mps
         self._creep_widths: list[CreepWidthSample] = []
         """(yaw, measured width) taken before the direction was known."""
         self._start = start
@@ -508,7 +508,7 @@ class ScenarioSimulator(PassSideScorer):
             # DeferredWidthBelief on why gating one without the other leaks a
             # 0.05 m step. Empty when sighted: no estimator means the widths
             # were told rather than discovered, and a told width is confirmed by
-            # definition. See WaypointParams.UNCONFIRMED_WIDTH_INNER_BIAS_M.
+            # definition. See WaypointParams.unconfirmed_width_inner_bias_m.
             unconfirmed_sections=(
                 unconfirmed
                 if unconfirmed is not None
@@ -596,7 +596,7 @@ class ScenarioSimulator(PassSideScorer):
         # clearance the pocket cannot provide -- measured: 600/600 ticks held,
         # `CoreNavigator` never stepped once, so no escape behaviour was ever
         # reachable from an in-bay start.
-        budget = self._tuning.corridor_follower.BAY_EXIT_MAX_FRAMES
+        budget = self._tuning.corridor_follower.bay_exit_max_frames
         if self._exiting_bay:
             self._bay_exit_ticks += 1
         bay_exit_spent = bool(budget) and self._bay_exit_ticks > budget
@@ -942,11 +942,11 @@ class ScenarioSimulator(PassSideScorer):
                 a wall, and the robot needs a moment to react. A streak that
                 begins later (a real driving mistake, not a starting
                 position) still fails immediately, same as before.
-                Defaults to tuning.simulation.START_COLLISION_WINDOW_S.
+                Defaults to tuning.simulation.start_collision_window_s.
             start_collision_grace_s: How long a start-window collision streak
                 may continue before it's judged a real, terminal failure
                 rather than "still working on steering clear."
-                Defaults to tuning.simulation.START_COLLISION_GRACE_S.
+                Defaults to tuning.simulation.start_collision_grace_s.
             contact_grace_s: Opt in to treating wall contact as *recoverable*
                 anywhere in the run, not only at the start. A streak then ends
                 the run only if the robot fails to free itself within this many
@@ -967,9 +967,9 @@ class ScenarioSimulator(PassSideScorer):
 
         # Load defaults from tuning
         if start_collision_window_s is None:
-            start_collision_window_s = self._tuning.simulation.START_COLLISION_WINDOW_S
+            start_collision_window_s = self._tuning.simulation.start_collision_window_s
         if start_collision_grace_s is None:
-            start_collision_grace_s = self._tuning.simulation.START_COLLISION_GRACE_S
+            start_collision_grace_s = self._tuning.simulation.start_collision_grace_s
 
         prev_xy = Waypoint(gw.state.x, gw.state.y)
         metrics = RunMetrics()
@@ -996,8 +996,8 @@ class ScenarioSimulator(PassSideScorer):
         # maneuver is never mistaken for a permanently wedged chassis.
         progress_anchor_xy = prev_xy
         progress_anchor_step = 0
-        no_progress_window_steps = round(self._tuning.simulation.NO_PROGRESS_WINDOW_S / dt)
-        no_progress_displacement_m = self._tuning.simulation.NO_PROGRESS_DISPLACEMENT_M
+        no_progress_window_steps = round(self._tuning.simulation.no_progress_window_s / dt)
+        no_progress_displacement_m = self._tuning.simulation.no_progress_displacement_m
 
         def _no_progress(current_step: int, x: float, y: float) -> bool:
             nonlocal progress_anchor_xy, progress_anchor_step
@@ -1086,7 +1086,7 @@ class ScenarioSimulator(PassSideScorer):
             # against.
             if nav.laps_completed >= self._num_laps and (
                 self._park_controller is None
-                or not self._tuning.parking.ATTEMPT_AFTER_FINAL_LAP
+                or not self._tuning.parking.attempt_after_final_lap
                 or self._park_controller.is_done
             ):
                 break
@@ -1134,7 +1134,7 @@ class ScenarioSimulator(PassSideScorer):
         # wired but never engaged, so `not pc.is_done` is its resting state
         # rather than an unmet objective. Unreachable today -- the loop breaks
         # on the final lap in that mode -- but wrong the moment it isn't.
-        pursuing_park = pc is not None and self._tuning.parking.ATTEMPT_AFTER_FINAL_LAP
+        pursuing_park = pc is not None and self._tuning.parking.attempt_after_final_lap
         timed_out = step >= max_steps and (
             nav.laps_completed < self._num_laps or (pursuing_park and not pc.is_done)
         )

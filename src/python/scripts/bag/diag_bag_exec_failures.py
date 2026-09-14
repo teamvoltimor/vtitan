@@ -142,7 +142,7 @@ def main() -> int:
         action="append",
         default=[],
         metavar="FIELD=VALUE",
-        help="override one sign_discovery field for the replay, e.g. --set LIDAR_RANGE_FUSION=false",
+        help="override one sign_discovery field for the replay, e.g. --set lidar_range_fusion=false",
     )
     args = parser.parse_args()
 

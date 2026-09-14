@@ -232,7 +232,7 @@ def _in_lane_span(wp: Waypoint, corridor: Section, axis: Axis, corner_entry_m: f
     collisions vs the 202/256 baseline, laps>=3 6 vs 70) and was reverted: the
     shipped ``corner_entry_m`` default is 0.50 (not 0.90 -- an earlier version
     of this note cited the wrong value, never having checked the shipped
-    ``SignRouterParams.SIGN_LANE_CORNER_ENTRY_M``/TOML directly), which still
+    ``SignRouterParams.sign_lane_corner_entry_m``/TOML directly), which still
     doubles the depth window (0.5 m either side of the straight, `_lane_span`
     spanning 2.0 m against the corridor's own 1.0 m). A widened lateral bound
     at that depth pulls in swaths of the NEIGHBOURING corridor's own arc

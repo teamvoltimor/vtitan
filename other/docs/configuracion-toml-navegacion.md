@@ -51,6 +51,34 @@ ausente, se aplica el valor base:
 - `obstacles_yaw_gain_compensation` y `open_lookahead_long` en `motion/pursuit.toml`
 - `open_*_mps` y `obstacles_*_mps` en `motion/speed.toml` (habitualmente en el perfil del motor)
 
+### Esquemas JSON y DTOs generados
+
+Cada TOML de `src/config` abre con una directiva `#:schema` que apunta a un JSON Schema en
+`src/model` (ruta relativa al propio TOML, por ejemplo
+`#:schema ../../../model/navigation/motion/clearance.schema.json`). El esquema es la **fuente
+única de las descripciones**: cada hoja del TOML tiene su `description`, y la justificación de un
+valor se enlaza mediante `x-journal` con una entrada de `other/docs/adr/` (por ejemplo
+`"adr:0020-config-loaded-at-runtime"`) o, para referencias que no son ADR, con una ruta resuelta
+relativa a `other/`. La razón de que el árbol `other/` aparezca aquí es la reorganización del
+repositorio: el material de competencia vive en `src/` y todo lo que no lo es (documentación,
+aplicaciones, ML, despliegue) se movió bajo `other/`.
+
+`src/tools/configgen.py` mantiene la coherencia entre TOML, esquema y bitácora, y produce los
+artefactos tipados:
+
+- `task config:check` (`python src/tools/configgen.py check`) verifica que cada clave del TOML
+  tenga una entrada descrita en su esquema y que toda referencia `x-journal` resuelva. Su salida
+  esperada es `config docs OK (52 schemas)`.
+- `task config:gen-go-dto` genera un fichero `.gen.go` por esquema en
+  `src/go/internal/config/generated/`, replicando el árbol de `src/model`.
+- `task config:gen-py` ejecuta `datamodel-codegen` sobre `src/model` para producir los modelos
+  Pydantic v2 en `src/python/shared/src/shared/config/generated/`.
+- `task config:gen` encadena ambas generaciones y `task config:verify` falla si los artefactos
+  generados están desactualizados.
+
+Las descripciones y los DTOs **no se editan a mano**: se modifica el esquema en `src/model` y se
+regenera. Los TOML, en cambio, siguen siendo la fuente de los valores numéricos.
+
 ---
 
 ## 2. Ficheros y variables clave
@@ -294,9 +322,12 @@ Divergencias reales que conviene tener presentes:
    base.
 3. Si el cambio solo es aplicable a un reto, emplear la clave con prefijo (`open_*` / `obstacles_*`)
    o la capa `navigation-challenges/<reto>/`. Conviene recordar que Go ignora dicha capa.
-4. Medir mediante A/B contra el **commit padre**, con idéntico conjunto de casos en ambas ramas: los
+4. Si se añade o renombra una clave, actualizar su `description` y su `x-journal` en el esquema de
+   `src/model`, regenerar con `task config:gen` y comprobar con `task config:check`. La descripción
+   no se escribe en el TOML: vive en el esquema.
+5. Medir mediante A/B contra el **commit padre**, con idéntico conjunto de casos en ambas ramas: los
    resultados de los barridos no son comparables entre fechas distintas.
-5. Antes de interpretar un resultado, comprobar que ambas ramas difieren efectivamente. Un cableado
+6. Antes de interpretar un resultado, comprobar que ambas ramas difieren efectivamente. Un cableado
    inactivo devuelve ramas idénticas byte a byte, lo que se interpreta erróneamente como ausencia de
    efecto.
 

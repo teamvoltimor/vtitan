@@ -1,6 +1,6 @@
 r"""Does the rear sector actually MEASURE anything on hardware?
 
-``K_TURN_FIT_REAR_GAP`` (shipped d2599906, ON for Obstacles) caps a reversing
+``k_turn_fit_rear_gap`` (shipped d2599906, ON for Obstacles) caps a reversing
 escape at the rear room the LIDAR reports. It is deliberately conservative
 about blindness: a sector that measured NOTHING is left alone rather than
 capped to zero, so the manoeuvre is never silently deleted on a mount with no
@@ -21,7 +21,7 @@ TWO POPULATIONS, and only the second one decides anything:
 
 * EVERY scan, which says how blind the mount is in general;
 * the scans at the moment a REVERSE was launched, which is the only moment
-  ``K_TURN_FIT_REAR_GAP`` can act. A cap that is blind 90% of the time overall
+  ``k_turn_fit_rear_gap`` can act. A cap that is blind 90% of the time overall
   but sighted whenever it matters is a working cap.
 
 The reverse moments are found from ``/nav_debug``: the tick where
@@ -152,7 +152,7 @@ def main() -> int:
     print()
     if rev_total:
         blind = rev_total - rev_measured
-        print(f"== VERDICT: K_TURN_FIT_REAR_GAP can act on {rev_measured} of {rev_total} reverse launches.")
+        print(f"== VERDICT: k_turn_fit_rear_gap can act on {rev_measured} of {rev_total} reverse launches.")
         print(f"   It is INERT on the other {blind} ({pct(blind, rev_total).strip()}), by design -- an")
         print("   unmeasured sector is left alone rather than capped to zero.")
     else:

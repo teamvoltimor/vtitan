@@ -5,6 +5,8 @@ import (
 	"math"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/signs"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 )
@@ -32,7 +34,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 
 	signWidthM := DefaultSignWidthM
 	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if tc, err := profile.Load[profile.TrackConfig](trackPath, nil); err != nil {
+	if tc, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
 		logger.Warn("signrouter: loading track.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -66,7 +68,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 
 	signClearanceMarginM := DefaultSignClearanceMarginM
 	srPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
-	if sr, err := profile.Load[profile.SignRouterConfig](srPath, nil); err != nil {
+	if sr, err := profile.Load[signs.NavigationSignsSignRouter](srPath, nil); err != nil {
 		logger.Warn("signrouter: loading sign_router.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -79,8 +81,8 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		cfg.CommitHysteresis = sr.CommitHysteresis
 		cfg.CorridorFlipTicks = sr.CorridorFlipTicks
 		cfg.SettleTicks = sr.SettleTicks
-		cfg.RelabelUnsatisfiable = sr.RelabelUnsatisfiable
-		cfg.DepthConsistentCorridor = sr.DepthConsistentCorridor
+		cfg.RelabelUnsatisfiable = sr.SignLaneRelabelUnsatisfiable
+		cfg.DepthConsistentCorridor = sr.SignLaneDepthConsistentCorridor
 		cfg.WallClearanceMarginM = sr.WallClearanceMarginM
 		cfg.DeformDepthBufferM = sr.DeformDepthBufferM
 		cfg.PinCornerGuard = sr.PinCornerGuard
@@ -112,7 +114,7 @@ func DiscoveryConfigFor(logger *slog.Logger, configRoot string) DiscoveryConfig 
 	}
 
 	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if tc, err := profile.Load[profile.TrackConfig](trackPath, nil); err != nil {
+	if tc, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
 		logger.Warn("signrouter: loading track.toml for discovery, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -121,11 +123,11 @@ func DiscoveryConfigFor(logger *slog.Logger, configRoot string) DiscoveryConfig 
 	}
 
 	sdPath := filepath.Join(configRoot, profile.DefaultSignDiscoveryTOMLPath)
-	if sd, err := profile.Load[profile.SignDiscoveryConfig](sdPath, nil); err != nil {
+	if sd, err := profile.Load[signs.NavigationSignsSignDiscovery](sdPath, nil); err != nil {
 		logger.Warn("signrouter: loading sign_discovery.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
-		cfg.MinReliableBBoxHeightPX = sd.MinReliableBBoxHeightPX
+		cfg.MinReliableBBoxHeightPX = float64(sd.MinReliableBboxHeightPx)
 		cfg.MaxIngestRangeM = sd.MaxIngestRangeM
 		cfg.AssociationDistM = sd.AssociationDistM
 		cfg.MinHits = sd.MinHits
@@ -133,7 +135,7 @@ func DiscoveryConfigFor(logger *slog.Logger, configRoot string) DiscoveryConfig 
 	}
 
 	srPath := filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath)
-	if sr, err := profile.Load[profile.SignRouterConfig](srPath, nil); err != nil {
+	if sr, err := profile.Load[signs.NavigationSignsSignRouter](srPath, nil); err != nil {
 		logger.Warn("signrouter: loading sign_router.toml for discovery, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

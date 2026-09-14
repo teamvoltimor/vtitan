@@ -4,6 +4,10 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/escape"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/motion"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/waypoint"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -39,14 +43,14 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	controlPath := filepath.Join(configRoot, profile.DefaultControlTOMLPath)
-	if loaded, err := profile.Load[profile.ControlConfig](controlPath, nil); err != nil {
+	if loaded, err := profile.Load[motion.NavigationMotionControl](controlPath, nil); err != nil {
 		logger.Warn("controllers: loading control.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.ControlHz = loaded.ControlHz
 	}
 
 	pursuitPath := filepath.Join(configRoot, profile.DefaultPursuitTOMLPath)
-	if loaded, err := profile.Load[profile.PursuitConfig](pursuitPath, nil); err != nil {
+	if loaded, err := profile.Load[motion.NavigationMotionPursuit](pursuitPath, nil); err != nil {
 		logger.Warn("controllers: loading pursuit.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.LookaheadShort = loaded.LookaheadShort
@@ -69,7 +73,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	// rear_self_detection_from_chassis still reads true when the TOML omits
 	// it rather than reverting SILENTLY to the zero value -- the same class
 	// of trap as waypoints.toml's corner_arc_assume_wide.
-	if loaded, err := profile.Load[profile.LidarSectorsConfig](lidarSectorsPath, nil); err != nil {
+	if loaded, err := profile.Load[sensors.NavigationSensorsLidarSectors](lidarSectorsPath, nil); err != nil {
 		logger.Warn(
 			"controllers: loading lidar_sectors.toml, falling back to defaults",
 			"error",
@@ -90,7 +94,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	escapePath := filepath.Join(configRoot, profile.DefaultEscapeTOMLPath)
-	if loaded, err := profile.Load[profile.EscapeConfig](escapePath, nil); err != nil {
+	if loaded, err := profile.Load[escape.NavigationEscapeEscape](escapePath, nil); err != nil {
 		logger.Warn("controllers: loading escape.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.RevSpeed = loaded.RevSpeed
@@ -108,7 +112,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	waypointsPath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	if loaded, err := profile.Load[profile.WaypointsConfig](waypointsPath, nil); err != nil {
+	if loaded, err := profile.Load[waypoint.NavigationWaypointWaypoints](waypointsPath, nil); err != nil {
 		logger.Warn("controllers: loading waypoints.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.ControllerReachedDistanceM = loaded.ControllerReachedDistanceM

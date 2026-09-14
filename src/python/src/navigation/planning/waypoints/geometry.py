@@ -81,7 +81,7 @@ def arc_with_endpoints(
     """Generate arc points including entry and exit, with intermediate samples.
 
     ``num_intermediate`` has no default: the production caller already sources
-    it from the tuning file (``waypoints.NUM_INTERMEDIATE_ARC_POINTS``), and a
+    it from the tuning file (``waypoints.num_intermediate_arc_points``), and a
     local default here duplicated that shipped value, so a caller forgetting
     the argument would silently plan past a corner with a different sample
     count than the profile said without anything failing.

@@ -30,10 +30,10 @@ class TuningDerivedConstants:
   def from_tuning(cls, tuning: NavigationTuning) -> TuningDerivedConstants:
     """Create from a NavigationTuning instance."""
     return cls(
-        sign_activation_dist=tuning.sign_router.ACTIVATION_DIST_M,
-        sign_passed_dist=tuning.sign_router.PASSED_DIST_M,
-        contact_distance=tuning.clearance.CONTACT_DIST,
-        slow_zone_distance=tuning.clearance.SLOW_DIST,
+        sign_activation_dist=tuning.sign_router.activation_dist_m,
+        sign_passed_dist=tuning.sign_router.passed_dist_m,
+        contact_distance=tuning.clearance.contact_dist,
+        slow_zone_distance=tuning.clearance.slow_dist,
     )
 
 # LIDAR Geometry

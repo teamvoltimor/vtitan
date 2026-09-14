@@ -84,8 +84,8 @@ _STARTS = list(product(Section, Direction))
 # raises the ceiling -- i.e. the sweep would have silently mislabelled which car
 # it measured.
 _SHIPPED = NavigationTuning.load_default()
-_SHIPPED_STEER_KP = _SHIPPED.pursuit.STEER_KP
-_SHIPPED_MAX_STEER_RATE = _SHIPPED.pursuit.MAX_STEERING_RATE
+_SHIPPED_STEER_KP = _SHIPPED.pursuit.steer_kp
+_SHIPPED_MAX_STEER_RATE = _SHIPPED.pursuit.max_steering_rate
 _SPEED_SWEEP_MPS = (RobotSpecs.MAX_SPEED_MPS, 0.25, 0.35, 0.50)
 
 
@@ -129,7 +129,7 @@ def _run(args: tuple[Case | None, int]) -> tuple[bool, int, float]:
         tuning = replace(
             base,
             pursuit=base.pursuit.model_copy(
-                update={"STEER_KP": case.steer_kp, "MAX_STEERING_RATE": case.max_steer_rate}
+                update={"steer_kp": case.steer_kp, "max_steering_rate": case.max_steer_rate}
             ),
         )
         kinematics = AckermannKinematics(max_speed_mps=case.max_speed, max_steer_rate=case.max_steer_rate)

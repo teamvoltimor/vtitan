@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/spf13/viper"
 )
@@ -56,17 +57,31 @@ func merge(basePath string, profileNames []string, defaults map[string]any) (*vi
 	return v, nil
 }
 
+// configDefaults returns the shipped fallbacks that apply to T, from the
+// configDefaultsByType registry when T is a generated DTO with entries there
+// (see defaults.go), or from reflection over T's own `default` struct tags
+// otherwise (see tagDefaults). T carrying no tags and no registry entry
+// resolves to no defaults.
+func configDefaults[T any]() (map[string]any, error) {
+	if defaults, ok := configDefaultsByType[reflect.TypeFor[T]()]; ok {
+		return defaults, nil
+	}
+	return tagDefaults[T]()
+}
+
 // Load reads basePath as TOML, merges profileNames' overlays on top (see
 // merge), and unmarshals the result into a new T. Struct fields need a
 // `mapstructure:"..."` tag wherever the TOML key isn't just the field name
 // lowercased (viper matches case-insensitively but does not
 // snake_case-convert).
 //
-// T's `default:"..."` struct tags are applied automatically (see
-// tagDefaults): a key absent from every source file falls back to the tagged
-// shipped value instead of the Go zero value.
+// T's shipped fallbacks are applied automatically (see configDefaults): a
+// generated DTO's untagged values come from the configDefaultsByType
+// registry, a hand-written struct's from its own `default:"..."` tags (see
+// tagDefaults). Either way a key absent from every source file falls back to
+// the shipped value instead of the Go zero value.
 func Load[T any](basePath string, profileNames []string) (*T, error) {
-	defaults, err := tagDefaults[T]()
+	defaults, err := configDefaults[T]()
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +99,7 @@ func LoadWithDefaults[T any](
 	profileNames []string,
 	defaults map[string]any,
 ) (*T, error) {
-	tagged, err := tagDefaults[T]()
+	tagged, err := configDefaults[T]()
 	if err != nil {
 		return nil, err
 	}

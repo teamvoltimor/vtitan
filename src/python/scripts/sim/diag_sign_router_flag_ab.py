@@ -92,7 +92,7 @@ def main() -> int:
     parser.add_argument(
         "--group",
         default="sign_router",
-        help="tuning group the field lives in, e.g. escape for SIDE_CORRECTION_BLENDS",
+        help="tuning group the field lives in, e.g. escape for side_correction_blends",
     )
     parser.add_argument(
         "--sighted",

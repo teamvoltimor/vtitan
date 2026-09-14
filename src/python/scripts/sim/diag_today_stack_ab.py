@@ -7,7 +7,7 @@ across a warm worker pool, which is how a previous measurement fooled itself.
 
     arm "before"   MIN_TURN_RADIUS_M 0.0   VISION_RANGE_MODEL off  COMMIT_HYSTERESIS off
     arm "after"    MIN_TURN_RADIUS_M 0.29  VISION_RANGE_MODEL on   COMMIT_HYSTERESIS on
-                   MAX_ESCAPE_S 1.0 / 1.8 with the K-turn bounds scaled to match
+                   max_escape_s 1.0 / 1.8 with the K-turn bounds scaled to match
 
 MEASURED 2026-09-07, 16 fixtures x 6 seeds x 2 arms, blind, park off:
 
@@ -63,23 +63,25 @@ _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenar
 def _tuning(after: bool):  # noqa: ANN202  (NavigationTuning, avoided at import time)
     """Build the whole arm's tuning: simulation, escape and sign-router together."""
     escape_s = 1.8 if after else 1.0
+    # min_turn_radius_m lives in robot.toml and is read straight from RobotSpecs
+    # by the simulator kinematics, so the arm patches the constant.
+    RobotSpecs.MIN_TURN_RADIUS_M = RobotSpecs.MIN_TURN_RADIUS_M if after else 0.0
     tuning = tuning_with_overrides(
         {
-            "MIN_TURN_RADIUS_M": RobotSpecs.MIN_TURN_RADIUS_M if after else 0.0,
-            "VISION_RANGE_MODEL": after,
+            "vision_range_model": after,
         },
         group="simulation",
     )
     tuning = tuning_with_overrides(
         {
-            "MAX_ESCAPE_S": escape_s,
-            "K_TURN_MIN_S": round(escape_s * 0.3, 2),
-            "K_TURN_MAX_S": round(escape_s * 0.6, 2),
+            "max_escape_s": escape_s,
+            "k_turn_min_s": round(escape_s * 0.3, 2),
+            "k_turn_max_s": round(escape_s * 0.6, 2),
         },
         group="escape",
         base=tuning,
     )
-    return tuning_with_overrides({"COMMIT_HYSTERESIS": after}, group="sign_router", base=tuning)
+    return tuning_with_overrides({"commit_hysteresis": after}, group="sign_router", base=tuning)
 
 
 def run_case(payload: tuple[str, int, bool, int]) -> tuple[bool, bool, bool, bool, bool, bool]:

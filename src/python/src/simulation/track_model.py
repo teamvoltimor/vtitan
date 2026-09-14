@@ -142,10 +142,10 @@ class ObstacleBox:
     ) -> ObstacleBox:
         """Build a box from a centre pose, swapping extents for a quarter-turn ``yaw``.
 
-        Uses tuning: simulation.AXIS_ALIGN_TOLERANCE
+        Uses tuning: simulation.axis_align_tolerance
         """
         tuning = get_tuning(tuning)
-        quarter_turned = abs(math.cos(yaw)) < tuning.simulation.AXIS_ALIGN_TOLERANCE
+        quarter_turned = abs(math.cos(yaw)) < tuning.simulation.axis_align_tolerance
         size_x, size_y = (width, length) if quarter_turned else (length, width)
         return cls(cx=cx, cy=cy, size_x=size_x, size_y=size_y, is_parking_lot=is_parking_lot)
 
@@ -162,7 +162,7 @@ def obstacles_from_metadata(metadata: dict, tuning: NavigationTuning | None = No
     Open Challenge metadata has neither, so this returns an empty list and the
     resulting :class:`TrackModel` behaves exactly as before.
 
-    Uses tuning: simulation.AXIS_ALIGN_TOLERANCE (via ObstacleBox.from_pose)
+    Uses tuning: simulation.axis_align_tolerance (via ObstacleBox.from_pose)
     """
     tuning = get_tuning(tuning)
     boxes = [
@@ -219,10 +219,10 @@ class TrackModel:
                 only sensor that perceives them.
             tuning: Navigation tuning instance. Defaults to loaded defaults.
 
-        Uses tuning: simulation.COLLISION_MARGIN_M
+        Uses tuning: simulation.collision_margin_m
         """
         tuning = get_tuning(tuning)
-        collision_margin = tuning.simulation.COLLISION_MARGIN_M
+        collision_margin = tuning.simulation.collision_margin_m
         self._walls = TrackWalls(geometry)
         self._obstacles = list(obstacles or [])
         self._lidar_sees_obstacles = lidar_sees_obstacles

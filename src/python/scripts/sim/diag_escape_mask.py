@@ -206,7 +206,7 @@ def census(args: tuple[int, str | None]) -> _Census:
     # actually used -- the shadowing failure OBSTACLES_CONTACT_DIST has caused
     # twice before, and it reads as a real result rather than as an error.
     clearance = tuning.clearance.for_obstacles_challenge()
-    contact, slow = clearance.CONTACT_DIST, clearance.SLOW_DIST
+    contact, slow = clearance.contact_dist, clearance.slow_dist
     offset = RobotSpecs.LIDAR_MOUNT_X_OFFSET
 
     controller = nav._collision_controller  # noqa: SLF001
@@ -310,8 +310,8 @@ def report_census(workers: int, scenarios_dir: str | None) -> None:
     tuning = NavigationTuning.load_default()
     clearance = tuning.clearance.for_obstacles_challenge()
     print(
-        f"GATE contact_dist={clearance.CONTACT_DIST:.2f}m  "
-        f"slow_dist={clearance.SLOW_DIST:.2f}m  "
+        f"GATE contact_dist={clearance.contact_dist:.2f}m  "
+        f"slow_dist={clearance.slow_dist:.2f}m  "
         f"lidar mount offset={RobotSpecs.LIDAR_MOUNT_X_OFFSET:.4f}m  n={len(rows)}",
         flush=True,
     )

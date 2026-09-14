@@ -48,7 +48,7 @@ Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_sign_track_birth.py \
         data/live/runs/run_2026090[6-9]_* data/live/runs/run_2026091[01]_*
-    ... --set ROBOT_CORRIDOR_FLIP_TICKS=20
+    ... --set robot_corridor_flip_ticks=20
 """
 
 from __future__ import annotations
@@ -501,7 +501,7 @@ def main() -> int:  # noqa: C901
         if not frames:
             skipped["no_detections"] += 1
             continue
-        latency, source = _frame_lag(frames, tuning.sign_discovery.VISION_LATENCY_S)
+        latency, source = _frame_lag(frames, tuning.sign_discovery.vision_latency_s)
         lag_source[source] += 1
         try:
             stats.append(

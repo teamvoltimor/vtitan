@@ -4,11 +4,12 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/motion"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literal,
-// overlaid with profile.PursuitConfig loaded from
+// overlaid with motion.NavigationMotionPursuit loaded from
 // <configRoot>/profile.DefaultPursuitTOMLPath if configRoot is non-empty
 // and loading succeeds; otherwise, or on any load failure, the literal
 // default, logging why.
@@ -19,7 +20,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	path := filepath.Join(configRoot, profile.DefaultPursuitTOMLPath)
-	pursuit, err := profile.Load[profile.PursuitConfig](path, nil)
+	pursuit, err := profile.Load[motion.NavigationMotionPursuit](path, nil)
 	if err != nil {
 		logger.Warn("kinematics: loading pursuit.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)

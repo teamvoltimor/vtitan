@@ -1,4 +1,4 @@
-"""Would ``SIDE_CORRECTION_BLENDS`` fire on HARDWARE, or is it inert there too?
+"""Would ``side_correction_blends`` fire on HARDWARE, or is it inert there too?
 
 The sim corpus cannot answer it: over 23,290 sighted ticks side_correction ran
 1.09% of the time and the blend gate was satisfied on ZERO of them, because

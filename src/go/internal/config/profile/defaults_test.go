@@ -4,6 +4,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/blind_nav"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/escape"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/signs"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/waypoint"
 )
 
 func TestTagDefaults_ParsesEachKind(t *testing.T) {
@@ -48,12 +55,12 @@ func TestTagDefaults_RejectsUnparsableTag(t *testing.T) {
 	}
 }
 
-func TestCompetitionConfig_DefaultsMatchTags(t *testing.T) {
+func TestCompetitionSpecs_DefaultsMatchTags(t *testing.T) {
 	t.Parallel()
 
-	got, err := tagDefaults[CompetitionConfig]()
+	got, err := configDefaults[generated.CompetitionSpecs]()
 	if err != nil {
-		t.Fatalf("tagDefaults: %v", err)
+		t.Fatalf("configDefaults: %v", err)
 	}
 
 	want := map[string]any{
@@ -62,7 +69,7 @@ func TestCompetitionConfig_DefaultsMatchTags(t *testing.T) {
 		"obstacle_challenge_laps": 3,
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("tagDefaults = %#v, want %#v", got, want)
+		t.Errorf("configDefaults = %#v, want %#v", got, want)
 	}
 	if got["round_time_limit_s"] != DefaultRoundTimeLimitS {
 		t.Errorf("round_time_limit_s tag = %v, want DefaultRoundTimeLimitS %v",
@@ -73,7 +80,7 @@ func TestCompetitionConfig_DefaultsMatchTags(t *testing.T) {
 func TestLoad_AppliesTagDefaultsForOmittedKeys(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := Load[CompetitionConfig](
+	cfg, err := Load[generated.CompetitionSpecs](
 		filepath.Join("testdata", "competition_partial.toml"), nil,
 	)
 	if err != nil {
@@ -96,19 +103,19 @@ func TestLoad_AppliesTagDefaultsForOmittedKeys(t *testing.T) {
 func checkTagDefaults[T any](t *testing.T, want map[string]any) {
 	t.Helper()
 
-	got, err := tagDefaults[T]()
+	got, err := configDefaults[T]()
 	if err != nil {
-		t.Fatalf("tagDefaults: %v", err)
+		t.Fatalf("configDefaults: %v", err)
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("tagDefaults = %#v, want %#v", got, want)
+		t.Errorf("configDefaults = %#v, want %#v", got, want)
 	}
 }
 
-func TestSignRouterConfig_DefaultsMatchTags(t *testing.T) {
+func TestSignRouter_DefaultsMatchTags(t *testing.T) {
 	t.Parallel()
 
-	checkTagDefaults[SignRouterConfig](t, map[string]any{
+	checkTagDefaults[signs.NavigationSignsSignRouter](t, map[string]any{
 		"depth_pin":                           DefaultDepthPin,
 		"pin_corner_guard":                    DefaultPinCornerGuard,
 		"pin_heading_guard":                   DefaultPinHeadingGuard,
@@ -122,11 +129,11 @@ func TestSignRouterConfig_DefaultsMatchTags(t *testing.T) {
 	})
 }
 
-func TestSignDiscoveryConfig_DefaultsMatchTags(t *testing.T) {
+func TestSignDiscovery_DefaultsMatchTags(t *testing.T) {
 	t.Parallel()
 
-	checkTagDefaults[SignDiscoveryConfig](t, map[string]any{
-		"min_reliable_bbox_height_px": 5.0,
+	checkTagDefaults[signs.NavigationSignsSignDiscovery](t, map[string]any{
+		"min_reliable_bbox_height_px": 5,
 		"max_ingest_range_m":          2.0,
 		"association_dist_m":          0.25,
 		"min_hits":                    3,
@@ -134,20 +141,20 @@ func TestSignDiscoveryConfig_DefaultsMatchTags(t *testing.T) {
 	})
 }
 
-func TestWaypointsConfig_DefaultsMatchTags(t *testing.T) {
+func TestWaypoints_DefaultsMatchTags(t *testing.T) {
 	t.Parallel()
 
-	checkTagDefaults[WaypointsConfig](t, map[string]any{
+	checkTagDefaults[waypoint.NavigationWaypointWaypoints](t, map[string]any{
 		"corner_arc_assume_wide":         true,
 		"unconfirmed_width_inner_bias_m": 0.05,
 		"defer_current_corridor_replan":  true,
 	})
 }
 
-func TestCorridorFollowerConfig_DefaultsMatchTags(t *testing.T) {
+func TestCorridorFollower_DefaultsMatchTags(t *testing.T) {
 	t.Parallel()
 
-	checkTagDefaults[CorridorFollowerConfig](t, map[string]any{
+	checkTagDefaults[blind_nav.NavigationBlindNavCorridorFollower](t, map[string]any{
 		"bay_wall_clearance_m":            DefaultBayWallClearanceM,
 		"assume_bay_start":                true,
 		"bay_exit_clearance_guard":        true,
@@ -180,18 +187,18 @@ func TestClearanceConfig_DefaultsMatchTags(t *testing.T) {
 	})
 }
 
-func TestLidarSectorsConfig_DefaultsMatchTags(t *testing.T) {
+func TestLidarSectors_DefaultsMatchTags(t *testing.T) {
 	t.Parallel()
 
-	checkTagDefaults[LidarSectorsConfig](t, map[string]any{
+	checkTagDefaults[sensors.NavigationSensorsLidarSectors](t, map[string]any{
 		"rear_self_detection_from_chassis": true,
 	})
 }
 
-func TestEscapeConfig_DefaultsMatchTags(t *testing.T) {
+func TestEscape_DefaultsMatchTags(t *testing.T) {
 	t.Parallel()
 
-	checkTagDefaults[EscapeConfig](t, map[string]any{
+	checkTagDefaults[escape.NavigationEscapeEscape](t, map[string]any{
 		"min_history_for_distance": 2,
 	})
 }

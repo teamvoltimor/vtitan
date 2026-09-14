@@ -255,7 +255,7 @@ def _centre_offset(bag_dir: Path, window_deg: float) -> None:
 
     half_width = math.radians(window_deg)
     tuning = NavigationTuning.load_default()
-    intended = tuning.waypoints.WIDE_CENTER_BIAS_M
+    intended = tuning.waypoints.wide_center_bias_m
     row_times = [t for t, _ in rows]
     samples: dict[tuple[str, str], list[CorridorOffsetSample]] = {}
     rejected: Counter[str] = Counter()
@@ -472,8 +472,8 @@ def _rear_occlusion(bag_dir: Path, bin_deg: float) -> None:
             # no-returns, sub-spec readings, and the chassis seeing itself.
             if (
                 math.isfinite(r)
-                and r > sectors.MIN_VALID_RANGE_M
-                and r > sectors.SELF_DETECTION_THRESHOLD_M
+                and r > sectors.min_valid_range_m
+                and r > sectors.self_detection_threshold_m
                 and r < _MAX_RANGE_M
             ):
                 valid[b] += 1
@@ -513,8 +513,8 @@ def _rear_occlusion(bag_dir: Path, bin_deg: float) -> None:
     rear_bins = sorted(b for b in tot if abs(b) >= 90)  # noqa: PLR2004
     slot = [b for b in rear_bins if readable(b)]
     print("\nCURRENT config (lidar_sectors.toml):")
-    print(f"  left  {sectors.BLIND_WEDGE_LEFT_MIN_DEG:.1f}..{sectors.BLIND_WEDGE_LEFT_MAX_DEG:.1f}")
-    print(f"  right {sectors.BLIND_WEDGE_RIGHT_MIN_DEG:.1f}..{sectors.BLIND_WEDGE_RIGHT_MAX_DEG:.1f}")
+    print(f"  left  {sectors.blind_wedge_left_min_deg:.1f}..{sectors.blind_wedge_left_max_deg:.1f}")
+    print(f"  right {sectors.blind_wedge_right_min_deg:.1f}..{sectors.blind_wedge_right_max_deg:.1f}")
     if not slot:
         print("\nNo readable rear bearing in this bag -- the rear is genuinely blind. Leave the wedges closed.")
         return
@@ -616,7 +616,7 @@ def main() -> int:
                     recovered["  window also empty (real dropout)"] += 1
                 else:
                     recovered["  window recovers a reading"] += 1
-                    if win > estimator.PLAUSIBLE_SPAN_THRESHOLD_M:
+                    if win > estimator.plausible_span_threshold_m:
                         recovered["    ...and it is an OPEN side (>1.25m)"] += 1
         rows.append((t, yaw, s_l, s_r, w_l, w_r))
 
@@ -643,14 +643,14 @@ def main() -> int:
             left, right = (w_l, w_r) if use_window else (s_l, s_r)
             if left is None or right is None:
                 continue
-            if left > estimator.MAX_IN_TRACK_RANGE_M or right > estimator.MAX_IN_TRACK_RANGE_M:
+            if left > estimator.max_in_track_range_m or right > estimator.max_in_track_range_m:
                 continue
             axis_error = abs(wrap_angle(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
-            if axis_error > estimator.ALIGNMENT_TOLERANCE_RAD:
+            if axis_error > estimator.alignment_tolerance_rad:
                 continue
-            if left + right <= estimator.PLAUSIBLE_SPAN_THRESHOLD_M:
+            if left + right <= estimator.plausible_span_threshold_m:
                 continue
-            if abs(left - right) < estimator.MIN_ASYMMETRY_M:
+            if abs(left - right) < estimator.min_asymmetry_m:
                 continue
             inferred = "clockwise" if right > left else "counterclockwise"
             votes[inferred] += 1

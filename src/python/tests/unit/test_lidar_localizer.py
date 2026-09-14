@@ -298,10 +298,10 @@ class TestGlobalRelocalization:
         seed = Waypoint(0.3, 1.5)
 
         params = LocalizationParams()
-        estimate = self._drive(localizer, walls, truth, seed, params.RELOCALIZE_AFTER_SCANS + 1)
+        estimate = self._drive(localizer, walls, truth, seed, params.relocalize_after_scans + 1)
 
         assert localizer.relocalization_count == 1
-        assert math.hypot(estimate.x - truth[0], estimate.y - truth[1]) <= params.RELOCALIZE_GRID_STEP_M
+        assert math.hypot(estimate.x - truth[0], estimate.y - truth[1]) <= params.relocalize_grid_step_m
 
     def test_does_not_fire_while_the_estimate_is_tracking(self) -> None:
         localizer, walls = _localizer_for(_MIXED_WIDTHS)
@@ -310,11 +310,11 @@ class TestGlobalRelocalization:
         # exists to absorb. Firing here would throw away a good estimate.
         seed = Waypoint(truth[0] - 0.02, truth[1] - 0.02)
 
-        self._drive(localizer, walls, truth, seed, LocalizationParams().RELOCALIZE_AFTER_SCANS * 3)
+        self._drive(localizer, walls, truth, seed, LocalizationParams().relocalize_after_scans * 3)
 
         assert localizer.relocalization_count == 0
         assert localizer.last_fit_cost is not None
-        assert localizer.last_fit_cost < LocalizationParams().RELOCALIZE_COST_THRESHOLD
+        assert localizer.last_fit_cost < LocalizationParams().relocalize_cost_threshold
 
     def test_the_streak_has_to_be_consecutive(self) -> None:
         """One explained scan resets the count, so scattered bad ticks cannot accumulate."""
@@ -324,7 +324,7 @@ class TestGlobalRelocalization:
         bad = _sensor_scan(walls, 0.3, 1.5, math.pi / 2, _ANGLES)
 
         estimate = Waypoint(truth[0], truth[1])
-        for i in range(LocalizationParams().RELOCALIZE_AFTER_SCANS * 4):
+        for i in range(LocalizationParams().relocalize_after_scans * 4):
             estimate = localizer.estimate_position(
                 estimate, truth[2], good if i % 3 == 0 else bad, _ANGLES, now_s=i * 0.05
             )
@@ -337,10 +337,10 @@ class TestGlobalRelocalization:
         truth = (2.5, 1.5, math.pi / 2)
         params = LocalizationParams()
 
-        self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
+        self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.relocalize_after_scans - 1)
         assert localizer.relocalization_count == 0
         localizer.reset_tracking()
-        self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.RELOCALIZE_AFTER_SCANS - 1)
+        self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.relocalize_after_scans - 1)
 
         assert localizer.relocalization_count == 0
 
@@ -358,11 +358,11 @@ class TestGlobalRelocalization:
         localizer, walls = _localizer_for(_UNIFORM_1000)
         truth = (2.5, 1.5, math.pi / 2)
 
-        self._drive(localizer, walls, truth, Waypoint(0.5, 1.5), LocalizationParams().RELOCALIZE_AFTER_SCANS * 2)
+        self._drive(localizer, walls, truth, Waypoint(0.5, 1.5), LocalizationParams().relocalize_after_scans * 2)
 
         assert localizer.relocalization_count == 0
         assert localizer.last_fit_cost is not None
-        assert localizer.last_fit_cost < LocalizationParams().RELOCALIZE_COST_THRESHOLD
+        assert localizer.last_fit_cost < LocalizationParams().relocalize_cost_threshold
 
     def test_no_jump_when_the_global_winner_is_no_better(self) -> None:
         """A high cost does not always mean the POSE is wrong.
@@ -383,11 +383,11 @@ class TestGlobalRelocalization:
         unexplainable = np.full(len(_ANGLES), 1.0)
 
         estimate = Waypoint(truth[0], truth[1])
-        for i in range(LocalizationParams().RELOCALIZE_AFTER_SCANS * 3):
+        for i in range(LocalizationParams().relocalize_after_scans * 3):
             estimate = localizer.estimate_position(estimate, truth[2], unexplainable, _ANGLES, now_s=i * 0.05)
 
         assert localizer.last_fit_cost is not None
-        assert localizer.last_fit_cost > LocalizationParams().RELOCALIZE_COST_THRESHOLD, (
+        assert localizer.last_fit_cost > LocalizationParams().relocalize_cost_threshold, (
             "test is void unless the scan really does score badly everywhere"
         )
         assert localizer.relocalization_count == 0

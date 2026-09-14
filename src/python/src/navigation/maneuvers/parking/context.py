@@ -41,20 +41,20 @@ class ParkingConstants:
         """Create from a NavigationTuning instance."""
         parking_tuning = tuning.parking
         escape_tuning = tuning.escape
-        parallel_tolerance = parking_tuning.PARALLEL_TOLERANCE_M
+        parallel_tolerance = parking_tuning.parallel_tolerance_m
         return cls(
             parallel_tolerance_m=parallel_tolerance,
             yaw_tolerance=math.atan2(parallel_tolerance, RobotSpecs.WHEELBASE),
-            approach_clearance=tuning.waypoints.ARC_RADIUS,
-            pos_reach_dist_m=parking_tuning.POS_REACH_DIST_M,
-            default_max_frames=parking_tuning.DEFAULT_MAX_FRAMES,
-            saturated_steer_threshold=parking_tuning.SATURATED_STEER_THRESHOLD,
-            saturation_stuck_ticks=parking_tuning.SATURATION_STUCK_TICKS,
-            reposition_speed=escape_tuning.REV_SPEED,
+            approach_clearance=tuning.waypoints.arc_radius,
+            pos_reach_dist_m=parking_tuning.pos_reach_dist_m,
+            default_max_frames=parking_tuning.default_max_frames,
+            saturated_steer_threshold=parking_tuning.saturated_steer_threshold,
+            saturation_stuck_ticks=parking_tuning.saturation_stuck_ticks,
+            reposition_speed=escape_tuning.rev_speed,
             reposition_steer_mag=escape_tuning.rev_steer_norm(),
-            min_lookahead_dist_m=parking_tuning.MIN_LOOKAHEAD_DIST_M,
-            wall_standoff_m=parking_tuning.WALL_STANDOFF_M,
-            marker_standoff_m=parking_tuning.MARKER_STANDOFF_M,
+            min_lookahead_dist_m=parking_tuning.min_lookahead_dist_m,
+            wall_standoff_m=parking_tuning.wall_standoff_m,
+            marker_standoff_m=parking_tuning.marker_standoff_m,
         )
 
 

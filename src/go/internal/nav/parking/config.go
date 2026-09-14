@@ -5,6 +5,9 @@ import (
 	"math"
 	"path/filepath"
 
+	escapecfg "github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/escape"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/parking"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/waypoint"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -232,7 +235,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	parkingPath := filepath.Join(configRoot, profile.DefaultParkingTOMLPath)
-	if loaded, err := profile.Load[profile.ParkingConfig](parkingPath, nil); err != nil {
+	if loaded, err := profile.Load[parking.NavigationParkingParking](parkingPath, nil); err != nil {
 		logger.Warn("parking: loading parking.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.ParallelToleranceM = loaded.ParallelToleranceM
@@ -251,8 +254,8 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	escapePath := filepath.Join(configRoot, profile.DefaultEscapeTOMLPath)
-	var escape *profile.EscapeConfig
-	if loaded, err := profile.Load[profile.EscapeConfig](escapePath, nil); err != nil {
+	var escape *escapecfg.NavigationEscapeEscape
+	if loaded, err := profile.Load[escapecfg.NavigationEscapeEscape](escapePath, nil); err != nil {
 		logger.Warn("parking: loading escape.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.RepositionSpeedMPS = loaded.RevSpeed
@@ -260,7 +263,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	waypointsPath := filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath)
-	if loaded, err := profile.Load[profile.WaypointsConfig](waypointsPath, nil); err != nil {
+	if loaded, err := profile.Load[waypoint.NavigationWaypointWaypoints](waypointsPath, nil); err != nil {
 		logger.Warn("parking: loading waypoints.toml, falling back to defaults", "error", err)
 	} else {
 		cfg.ApproachClearanceM = loaded.ArcRadius
@@ -276,7 +279,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		cfg.MaxSteeringAngleRad = loaded.MaxSteeringAngle()
 		maxSteer := loaded.MaxSteeringAngle()
 		if maxSteer > 0 && escape != nil {
-			cfg.RepositionSteerMag = escape.RevSteerNorm(maxSteer)
+			cfg.RepositionSteerMag = profile.RevSteerNorm(*escape, maxSteer)
 		}
 		// Yaw tolerance follows the now-known wheelbase.
 		cfg.YawTolerance = math.Atan2(cfg.ParallelToleranceM, cfg.WheelbaseM)

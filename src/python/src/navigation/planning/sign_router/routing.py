@@ -197,7 +197,7 @@ def pass_lateral(
     for 229/256 against a 202/256 baseline. It was refuted and reverted in
     ``640dd86b``. That measurement scored the Obstacles INNER WALL as
     round-ending, which the rules do not: see
-    ``SimulationParams.OBSTACLES_INNER_WALL_TERMINAL``. The refutation is
+    ``SimulationParams.obstacles_inner_wall_terminal``. The refutation is
     therefore measured under a criterion stricter than the event, on the
     exact column that decided it, and is being re-measured under both
     scorings. Until that re-measurement lands, ``frac`` ships at 0.0 and this

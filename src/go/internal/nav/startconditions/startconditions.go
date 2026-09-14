@@ -40,7 +40,7 @@ import (
 // the planner's own centerline.
 type Config struct {
 	// TrackMaxCoordM is the track's outer boundary
-	// (profile.TrackConfig.Track.MaxCoord).
+	// (generated.TrackConfig.Track.MaxCoord).
 	TrackMaxCoordM float64
 	// NarrowWidthM is the corridor width AssumedStartConditions believes
 	// every side is, when the caller supplies no widths of its own -- the

@@ -4,7 +4,7 @@ package collision
 // tuning group (SimulationParams) owns: the collision-check keep-out
 // margin and the axis-alignment tolerance for a quarter-turned obstacle
 // pose. Robot/track physical constants (chassis length/width, the track's
-// outer boundary) come from profile.RobotConfig/profile.TrackConfig
+// outer boundary) come from profile.RobotConfig/generated.TrackConfig
 // instead -- see NewTrackModelParams, which takes those directly.
 type Config struct {
 	// CollisionMarginM matches SimulationParams.COLLISION_MARGIN_M: how

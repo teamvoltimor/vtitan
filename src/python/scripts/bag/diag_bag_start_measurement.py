@@ -127,8 +127,8 @@ def main() -> int:
     args = parser.parse_args()
 
     tuning = get_tuning(None)
-    half_width_rad = math.radians(tuning.start_measurement.RAY_HALF_WIDTH_DEG)
-    closing_tolerance_m = tuning.start_measurement.CLOSING_TOLERANCE_M
+    half_width_rad = math.radians(tuning.start_measurement.ray_half_width_deg)
+    closing_tolerance_m = tuning.start_measurement.closing_tolerance_m
 
     scans, rows = _read(args.bag_dir)
     if not scans:
@@ -142,7 +142,7 @@ def main() -> int:
     section = Section(args.section)
 
     print(f"== {args.bag_dir.name}  direction={direction}  section={section}  scans={len(scans)}")
-    print(f"   ray half-width {tuning.start_measurement.RAY_HALF_WIDTH_DEG}deg, "
+    print(f"   ray half-width {tuning.start_measurement.ray_half_width_deg}deg, "
           f"closing tolerance {closing_tolerance_m} m, LIDAR min {RobotSpecs.LIDAR_MIN_RANGE} m")
 
     # What the round actually did: the phase timeline says when the commit that

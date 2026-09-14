@@ -8,13 +8,13 @@ import (
 )
 
 // NewTrackModelParams bundles NewTrackModel's inputs. Geometry and the
-// track's outer-boundary coordinates come from profile.TrackConfig; the
+// track's outer-boundary coordinates come from generated.TrackConfig; the
 // collision margin comes from collision.Config (simulation.toml) rather
 // than a NavigationTuning field this package re-derives.
 type NewTrackModelParams struct {
 	Geometry trackmodel.CorridorGeometry
 	// MinCoordM/MaxCoordM are the track's outer boundary, matching
-	// TrackDimensions.MIN_COORD/MAX_COORD (profile.TrackConfig.Track).
+	// TrackDimensions.MIN_COORD/MAX_COORD (generated.TrackConfig.Track).
 	MinCoordM, MaxCoordM float64
 	// Obstacles are the traffic signs and parking blocks standing on the
 	// mat -- empty for the Open Challenge, which has neither.

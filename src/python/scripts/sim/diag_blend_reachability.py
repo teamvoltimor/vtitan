@@ -1,4 +1,4 @@
-"""Is ``SIDE_CORRECTION_BLENDS`` even REACHABLE in the sim corpus?
+"""Is ``side_correction_blends`` even REACHABLE in the sim corpus?
 
 A 256-run A/B of the flag came back flat (in_time 98 vs 98, laps>=3 99 vs 99,
 collisions 16 vs 15) with ``pass_side`` violations at 0 in BOTH arms. A flat
@@ -61,7 +61,7 @@ def main() -> int:
     args = parser.parse_args()
 
     paths = scenario_paths(_FIXTURES)[: args.scenarios]
-    tuning = tuning_with_overrides({"SIDE_CORRECTION_BLENDS": True}, group="escape")
+    tuning = tuning_with_overrides({"side_correction_blends": True}, group="escape")
 
     totals = Counter()
     for path in paths:

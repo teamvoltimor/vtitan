@@ -3,7 +3,7 @@
 > [!NOTE]
 > Este repositorio corresponde a nuestra participación en la World Robot Olympiad 2026 con V-Titan. Si buscas información sobre nuestra participación en la World Robot Olympiad 2025 con Klevor, el robot del Team Steel Bot, visita el repositorio [**klevor**](https://github.com/teamsteelbot/klevor).
 
-> 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](MEMORIAL.md) vive en [`MEMORIAL.md`](MEMORIAL.md).
+> 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](memorial.md) vive en [`memorial.md`](memorial.md).
 
 <p align="center">
     <img src="other/assets/voltimor-logo-square.png" alt="" width="400">
@@ -89,13 +89,13 @@ Según lo que quieras revisar, esta es la ruta más corta:
 - **Simulador y corpus de escenarios**: [`other/README.md`](other/README.md), sección del simulador; los resultados reproducibles están en [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios).
 - **Cómo se entrenó el detector**: `other/ml/hailo/` (entrenamiento y compilación), `other/ml/weights/` (pesos publicados), `other/apps/auto-annotator/` (anotación asistida).
 - **Cómo se instala el sistema en las placas**: [`other/docs/pi-setup.md`](other/docs/pi-setup.md) y `other/deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
-- **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora_ingenieria.md`](other/docs/bitacora_ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` post-regional) con mensajes de commit convencionales.
+- **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora-ingenieria.md`](other/docs/bitacora-ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` post-regional) con mensajes de commit convencionales.
 
 Además de las carpetas obligatorias, el repositorio contiene:
 
 - `src/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `src/config/` (la configuración TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD de navegación).
 - `other/contracts/` con los contratos de interfaz que generan código para los tres consumidores (robot, backend y frontend): `other/contracts/proto/` (buf, esquemas gRPC/NATS) y `other/contracts/openapi/` (spec-first REST).
-- `other/docs/` con la documentación de apoyo: la [bitácora de ingeniería](other/docs/bitacora_ingenieria.md), la [referencia de configuración TOML de navegación](other/docs/configuracion_toml_navegacion.md), la [guía de instalación de las Raspberry Pi](other/docs/pi-setup.md), las hojas de datos en `other/docs/reference/datasheets/` y el historial de prototipos en `other/docs/development/previous-prototypes/`.
+- `other/docs/` con la documentación de apoyo: la [bitácora de ingeniería](other/docs/bitacora-ingenieria.md), la [referencia de configuración TOML de navegación](other/docs/configuracion-toml-navegacion.md), la [guía de instalación de las Raspberry Pi](other/docs/pi-setup.md), las hojas de datos en `other/docs/reference/datasheets/` y el historial de prototipos en `other/docs/development/previous-prototypes/`.
 - `other/apps/` con procesos independientes: `other/apps/backend/` y `other/apps/frontend/` (telemetría), `other/apps/auto-annotator/` (anotación asistida), `other/apps/hugo-docs/` (sitio de documentación navegable) y `other/apps/gazebo/` (runtime del simulador).
 - `other/ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `other/ml/weights/` con los pesos publicados.
 - `other/deploy/ansible/` con el provisionamiento de las placas; las tareas que lo ejecutan (`task rpi:*`, `task windows:provision:*`) están definidas en `other/tasks/fleet.yml`.

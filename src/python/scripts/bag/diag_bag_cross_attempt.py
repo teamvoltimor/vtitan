@@ -161,10 +161,10 @@ def main() -> int:
     tuning = get_tuning(None)
     sr = tuning.sign_router
     print(
-        f"== shipped: SIGN_LANE_PLANNER={sr.SIGN_LANE_PLANNER} "
-        f"SUPPRESS_DEFORM={sr.SIGN_LANE_SUPPRESS_DEFORM} "
-        f"RAMP_M={sr.SIGN_LANE_RAMP_M} CORNER_ENTRY_M={sr.SIGN_LANE_CORNER_ENTRY_M} "
-        f"SKIP_UNSAT={sr.SIGN_LANE_SKIP_UNSATISFIABLE} RELABEL_UNSAT={sr.SIGN_LANE_RELABEL_UNSATISFIABLE}"
+        f"== shipped: sign_lane_planner={sr.sign_lane_planner} "
+        f"SUPPRESS_DEFORM={sr.sign_lane_suppress_deform} "
+        f"RAMP_M={sr.sign_lane_ramp_m} CORNER_ENTRY_M={sr.sign_lane_corner_entry_m} "
+        f"SKIP_UNSAT={sr.sign_lane_skip_unsatisfiable} RELABEL_UNSAT={sr.sign_lane_relabel_unsatisfiable}"
     )
     print()
 

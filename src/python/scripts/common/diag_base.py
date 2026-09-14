@@ -126,7 +126,7 @@ def add_yaw_gain_compensation_arg(parser: argparse.ArgumentParser) -> None:
         "--yaw-gain-compensation",
         type=float,
         default=None,
-        help="Override pursuit.YAW_GAIN_COMPENSATION (1.0 = shipped/off, 0.55 = full understeer compensation).",
+        help="Override pursuit.yaw_gain_compensation (1.0 = shipped/off, 0.55 = full understeer compensation).",
     )
 
 
@@ -152,8 +152,8 @@ def load_tuning(path: str | None, yaw_gain_compensation: float | None = None) ->
         tuning,
         pursuit=tuning.pursuit.model_copy(
             update={
-                "YAW_GAIN_COMPENSATION": yaw_gain_compensation,
-                "OBSTACLES_YAW_GAIN_COMPENSATION": yaw_gain_compensation,
+                "yaw_gain_compensation": yaw_gain_compensation,
+                "obstacles_yaw_gain_compensation": yaw_gain_compensation,
             }
         ),
     )

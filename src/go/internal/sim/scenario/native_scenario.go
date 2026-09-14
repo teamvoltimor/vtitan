@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
@@ -247,7 +248,7 @@ func roundTimeLimitSFor(logger *slog.Logger, configRoot string) float64 {
 		return profile.DefaultRoundTimeLimitS
 	}
 	path := filepath.Join(configRoot, profile.DefaultCompetitionTOMLPath)
-	cc, err := profile.Load[profile.CompetitionConfig](path, nil)
+	cc, err := profile.Load[generated.CompetitionSpecs](path, nil)
 	if err != nil {
 		logger.Warn("native runner: loading competition_specs.toml, falling back to default",
 			"config_root", configRoot, "error", err)

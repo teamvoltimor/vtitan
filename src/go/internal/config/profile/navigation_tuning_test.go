@@ -5,13 +5,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/blind_nav"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/waypoint"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 func TestLoad_DirectionEstimatorConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.DirectionEstimatorConfig](
+	cfg, err := profile.Load[blind_nav.NavigationBlindNavDirectionEstimator](
 		filepath.Join("testdata", "direction_estimator.toml"), nil,
 	)
 	if err != nil {
@@ -32,7 +35,7 @@ func TestLoad_DirectionEstimatorConfig(t *testing.T) {
 func TestLoad_CorridorFollowerConfig_UsesDefaultForOmittedField(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.CorridorFollowerConfig](
+	cfg, err := profile.Load[blind_nav.NavigationBlindNavCorridorFollower](
 		filepath.Join(
 			"testdata",
 			"corridor_follower.toml",
@@ -54,7 +57,7 @@ func TestLoad_CorridorFollowerConfig_UsesDefaultForOmittedField(t *testing.T) {
 func TestLoad_LidarSectorsConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.LidarSectorsConfig](
+	cfg, err := profile.Load[sensors.NavigationSensorsLidarSectors](
 		filepath.Join("testdata", "lidar_sectors.toml"),
 		nil,
 	)
@@ -69,7 +72,7 @@ func TestLoad_LidarSectorsConfig(t *testing.T) {
 func TestLoad_WaypointsConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := profile.Load[profile.WaypointsConfig](
+	cfg, err := profile.Load[waypoint.NavigationWaypointWaypoints](
 		filepath.Join("testdata", "waypoints.toml"),
 		nil,
 	)

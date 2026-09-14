@@ -37,10 +37,10 @@ def main() -> int:
     args = parser.parse_args()
 
     tuning = NavigationTuning.load_default()
-    alignment_tol = tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
-    corner_clearance_m = tuning.direction_estimator.CORNER_CLEARANCE_M
-    turn_clearance_m = tuning.corridor_follower.TURN_CLEARANCE_M
-    plausible_span = tuning.direction_estimator.PLAUSIBLE_SPAN_THRESHOLD_M
+    alignment_tol = tuning.direction_estimator.alignment_tolerance_rad
+    corner_clearance_m = tuning.direction_estimator.corner_clearance_m
+    turn_clearance_m = tuning.corridor_follower.turn_clearance_m
+    plausible_span = tuning.direction_estimator.plausible_span_threshold_m
 
     reader = open_reader(args.bag_dir)
     scans, nav_rows = read_bag(reader, _LIDAR_YAW_OFFSET_RAD)

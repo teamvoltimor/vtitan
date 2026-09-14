@@ -6,7 +6,7 @@ changed is the one the robot is standing in, that rebuild moves the line the
 robot is *actively tracking* -- measured on hardware 2026-08-30 across six runs
 as a ~0.30 m crosstrack step in a single 50 ms tick, ten times what the chassis
 can physically travel in that time, which threw heading error past
-``heading.CRAWL`` and pinned the limiter for 82-100% of the ticks that followed.
+``heading.crawl`` and pinned the limiter for 82-100% of the ticks that followed.
 
 The same update applied to a corridor the robot is NOT in costs nothing: the
 robot arrives on the new line instead of being displaced onto it.

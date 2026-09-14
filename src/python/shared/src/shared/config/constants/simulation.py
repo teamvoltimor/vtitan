@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from pydantic import BaseModel, ConfigDict
-
+from shared.config.generated.competition_specs_schema import (
+    CompetitionSpecs as _CompetitionSpecsDTO,
+)
 from shared.config.paths import SHARED_CONFIG_ROOT, load_toml_model
 
 if TYPE_CHECKING:
@@ -21,14 +22,12 @@ if TYPE_CHECKING:
 DEFAULT_CONFIG_PATH: Path = SHARED_CONFIG_ROOT / "competition_specs.toml"
 
 
-class _CompetitionSpecsModel(BaseModel):
-    """Match rules loaded from competition_specs.toml."""
+class _CompetitionSpecsModel(_CompetitionSpecsDTO):
+    """Match rules loaded from competition_specs.toml.
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    round_time_limit_s: float
-    open_challenge_laps: int
-    obstacle_challenge_laps: int
+    Subclasses the generated DTO purely to attach the loader; the field
+    declarations (and their bounds) are generated.
+    """
 
 
 def _load() -> _CompetitionSpecsModel:

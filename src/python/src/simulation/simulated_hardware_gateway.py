@@ -57,11 +57,11 @@ class _SimulatorConstants:
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
         tuning = get_tuning(tuning)
-        control_hz = tuning.control.CONTROL_HZ
+        control_hz = tuning.control.control_hz
         return cls(
             control_hz=control_hz,
             control_dt=1.0 / control_hz,
-            lidar_invalid_ray_rate=tuning.simulation.LIDAR_INVALID_RAY_RATE,
+            lidar_invalid_ray_rate=tuning.simulation.lidar_invalid_ray_rate,
         )
 
 
@@ -399,13 +399,13 @@ class SimulatedHardwareGateway:
         silently change every scan in the run, which is the same trap the IMU
         error model is spawned apart to avoid.
         """
-        if not self.tuning.simulation.VISION_RANGE_MODEL:
+        if not self.tuning.simulation.vision_range_model:
             return list(self._signs or [])
         sim = self.tuning.simulation
         kept: list[SignSpec] = []
         for sign in self._signs or []:
             distance = math.hypot(sign.x - self._state.x, sign.y - self._state.y)
-            p_detect = 1.0 / (1.0 + math.exp((distance - sim.VISION_DETECT_R50_M) / sim.VISION_DETECT_FALLOFF_M))
+            p_detect = 1.0 / (1.0 + math.exp((distance - sim.vision_detect_r50_m) / sim.vision_detect_falloff_m))
             if self._vision_rng.random() < p_detect:
                 kept.append(sign)
         return kept
@@ -429,11 +429,11 @@ class SimulatedHardwareGateway:
         if not signs:
             return []
         believed = self.get_current_pose()
-        if self.tuning.simulation.VISION_THROUGH_PINHOLE:
+        if self.tuning.simulation.vision_through_pinhole:
             # Boxes decoded by the SHIPPED perception code, so the corpus
             # exercises the pinhole, the bearing formula and the discovery gates
             # instead of being handed the answer. See
-            # SimulationParams.VISION_THROUGH_PINHOLE.
+            # SimulationParams.vision_through_pinhole.
             pose = believed if believed is not None else Pose(x=self._state.x, y=self._state.y, yaw=self._state.yaw)
             observations = [
                 detection_to_observation(det, pose, tuning=self.tuning)

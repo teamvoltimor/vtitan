@@ -347,7 +347,7 @@ class TestCenterBiasOverride:
         flat = replace(
             tuning,
             waypoints=tuning.waypoints.model_copy(
-                update={"NARROW_CENTER_BIAS_M": tuning.waypoints.WIDE_CENTER_BIAS_M}
+                update={"narrow_center_bias_m": tuning.waypoints.wide_center_bias_m}
             ),
         )
         implicit = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=flat)
@@ -355,7 +355,7 @@ class TestCenterBiasOverride:
             sample_metadata_open,
             num_laps=1,
             tuning=flat,
-            center_bias_m=flat.waypoints.WIDE_CENTER_BIAS_M,
+            center_bias_m=flat.waypoints.wide_center_bias_m,
         )
         assert explicit == implicit
 
@@ -369,7 +369,7 @@ class TestCenterBiasOverride:
         shifted_narrow = replace(
             tuning,
             waypoints=tuning.waypoints.model_copy(
-                update={"NARROW_CENTER_BIAS_M": tuning.waypoints.NARROW_CENTER_BIAS_M + 0.05}
+                update={"narrow_center_bias_m": tuning.waypoints.narrow_center_bias_m + 0.05}
             ),
         )
         assert calculate_waypoints(
@@ -389,9 +389,9 @@ class TestCenterBiasOverride:
         """
         narrow_w, wide_w = CorridorDimensions.NARROW, CorridorDimensions.WIDE
         base = tuning.waypoints.model_copy(
-            update={"NARROW_CENTER_BIAS_M": 0.05, "WIDE_CENTER_BIAS_M": 0.05}
+            update={"narrow_center_bias_m": 0.05, "wide_center_bias_m": 0.05}
         )
-        flipped = base.model_copy(update={"NARROW_CENTER_BIAS_SIDE": CorridorSide.OUTER})
+        flipped = base.model_copy(update={"narrow_center_bias_side": CorridorSide.OUTER})
         base_tuning = replace(tuning, waypoints=base)
         flipped_tuning = replace(tuning, waypoints=flipped)
 
@@ -409,7 +409,7 @@ class TestCenterBiasOverride:
             sample_metadata_open,
             num_laps=1,
             tuning=tuning,
-            center_bias_m=tuning.waypoints.WIDE_CENTER_BIAS_M + 0.05,
+            center_bias_m=tuning.waypoints.wide_center_bias_m + 0.05,
         )
         assert shifted != implicit
 
@@ -427,7 +427,7 @@ class TestUnconfirmedWidthInnerBias:
     def _armed(tuning, magnitude: float):
         return replace(
             tuning,
-            waypoints=tuning.waypoints.model_copy(update={"UNCONFIRMED_WIDTH_INNER_BIAS_M": magnitude}),
+            waypoints=tuning.waypoints.model_copy(update={"unconfirmed_width_inner_bias_m": magnitude}),
         )
 
     def test_zero_is_inert(self, sample_metadata_open, tuning) -> None:
@@ -453,7 +453,7 @@ class TestUnconfirmedWidthInnerBias:
         and every other test here would still pass on that no-op because they
         construct their own armed tuning.
         """
-        assert tuning.waypoints.UNCONFIRMED_WIDTH_INNER_BIAS_M > 0.0
+        assert tuning.waypoints.unconfirmed_width_inner_bias_m > 0.0
         assert calculate_waypoints(
             sample_metadata_open, num_laps=1, tuning=tuning, unconfirmed_sections=frozenset(Section)
         ) != calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
@@ -492,7 +492,7 @@ class TestUnconfirmedWidthInnerBias:
         assert center_bias_for_corridor(CorridorDimensions.NARROW, armed, confirmed=False) == pytest.approx(0.15)
         assert center_bias_for_corridor(
             CorridorDimensions.NARROW, armed, confirmed=True
-        ) == pytest.approx(armed.waypoints.NARROW_CENTER_BIAS_M)
+        ) == pytest.approx(armed.waypoints.narrow_center_bias_m)
 
     def test_wide_corridors_are_untouched(self, tuning) -> None:
         """The field describes the NARROW prior only.

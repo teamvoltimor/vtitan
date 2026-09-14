@@ -81,7 +81,7 @@ def run_case(payload: tuple[str, int, bool, int]) -> tuple[bool, bool, bool, boo
     """
     path, seed, range_model, max_steps = payload
     metadata = load_scenario(Path(path))
-    tuning = tuning_with_overrides({"VISION_RANGE_MODEL": range_model}, group="simulation")
+    tuning = tuning_with_overrides({"vision_range_model": range_model}, group="simulation")
     result = ScenarioSimulator(
         metadata, num_laps=3, seed=seed, blind=True, park=False, tuning=tuning
     ).run(max_steps=max_steps)

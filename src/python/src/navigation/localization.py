@@ -57,16 +57,16 @@ class LidarLocalizer:
         params: LocalizationParams,
     ) -> None:
         self._walls = walls
-        self._search_radius = params.SEARCH_RADIUS_M
-        self._passes = params.PASSES
-        self._grid_points = params.GRID_POINTS
-        self._residual_clip = params.RESIDUAL_CLIP_M
-        self._max_speed_mps = params.MAX_SPEED_MPS
-        self._jump_confirm_tolerance = params.JUMP_CONFIRM_TOLERANCE_M
-        self._relocalize_cost_threshold = params.RELOCALIZE_COST_THRESHOLD
-        self._relocalize_after_scans = params.RELOCALIZE_AFTER_SCANS
-        self._relocalize_grid_step_m = params.RELOCALIZE_GRID_STEP_M
-        self._relocalize_accept_ratio = params.RELOCALIZE_ACCEPT_RATIO
+        self._search_radius = params.search_radius_m
+        self._passes = params.passes
+        self._grid_points = params.grid_points
+        self._residual_clip = params.residual_clip_m
+        self._max_speed_mps = params.max_speed_mps
+        self._jump_confirm_tolerance = params.jump_confirm_tolerance_m
+        self._relocalize_cost_threshold = params.relocalize_cost_threshold
+        self._relocalize_after_scans = params.relocalize_after_scans
+        self._relocalize_grid_step_m = params.relocalize_grid_step_m
+        self._relocalize_accept_ratio = params.relocalize_accept_ratio
         self._last_estimate_time_s: float | None = None
         self._pending_jump_xy: Waypoint | None = None
         self._bad_fit_streak = 0

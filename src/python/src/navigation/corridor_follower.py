@@ -88,10 +88,10 @@ def steer_cap_norm(commit_distance_m: float, follower: CorridorFollowerParams) -
     Returns:
         Normalised steering magnitude, clamped to the servo's reach.
     """
-    anchor_rad = math.radians(follower.MAX_CORNER_STEER_DEG)
-    if not follower.STEER_CAP_FROM_COMMIT_DISTANCE or commit_distance_m <= 0.0:
+    anchor_rad = math.radians(follower.max_corner_steer_deg)
+    if not follower.steer_cap_from_commit_distance or commit_distance_m <= 0.0:
         return angle_rad_to_steering_norm(anchor_rad, RobotSpecs.MAX_STEERING_ANGLE)
-    scaled = math.atan(math.tan(anchor_rad) * follower.TURN_CLEARANCE_M / commit_distance_m)
+    scaled = math.atan(math.tan(anchor_rad) * follower.turn_clearance_m / commit_distance_m)
     return angle_rad_to_steering_norm(min(scaled, RobotSpecs.MAX_STEERING_ANGLE), RobotSpecs.MAX_STEERING_ANGLE)
 
 
@@ -101,7 +101,7 @@ def _way_through(
     """Is any bearing in the forward arc still open enough to drive down?
 
     The maximum, over an arc wide enough to contain the corridor's own axis
-    when the chassis is oblique -- uses tuning.corridor_follower.TURN_OPEN_RANGE_M
+    when the chassis is oblique -- uses tuning.corridor_follower.turn_open_range_m
     and related fields.
 
     Dropouts are excluded on the same reasoning, and against the same bound, as
@@ -110,15 +110,15 @@ def _way_through(
     its diagonal. Left in, a single dropped beam would read as wide-open track
     and veto every corner turn on the round.
 
-    Uses tuning: corridor_follower.TURN_ARC_HALF_FOV_DEG, TURN_OPEN_RANGE_M;
-        lidar_sectors.MIN_VALID_RANGE_M;
-        direction_estimator.MAX_IN_TRACK_RANGE_M
+    Uses tuning: corridor_follower.turn_arc_half_fov_deg, TURN_OPEN_RANGE_M;
+        lidar_sectors.min_valid_range_m;
+        direction_estimator.max_in_track_range_m
     """
     tuning = get_tuning(tuning)
     follower = tuning.corridor_follower
-    turn_arc_rad = math.radians(follower.TURN_ARC_HALF_FOV_DEG)
-    min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
-    max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M
+    turn_arc_rad = math.radians(follower.turn_arc_half_fov_deg)
+    min_valid = tuning.lidar_sectors.min_valid_range_m
+    max_in_track = tuning.direction_estimator.max_in_track_range_m
     open_ranges = [
         r
         for r, a in zip(ranges_m, angles_rad, strict=False)
@@ -126,7 +126,7 @@ def _way_through(
     ]
     if not open_ranges:
         return False
-    return max(open_ranges) >= follower.TURN_OPEN_RANGE_M
+    return max(open_ranges) >= follower.turn_open_range_m
 
 
 def follow_corridor(
@@ -166,7 +166,7 @@ def follow_corridor(
             readings taken this same creep phase (no direction or section
             attribution needed -- see that module). When this classifies as
             NARROW, the corner turn commits at
-            ``tuning.corridor_follower.NARROW_TURN_CLEARANCE_M`` instead of
+            ``tuning.corridor_follower.narrow_turn_clearance_m`` instead of
             ``TURN_CLEARANCE_M`` -- see that field's docstring for why the
             wide-corridor threshold leaves no direction-settling window in a
             narrow one. ``None`` (no readings yet) keeps the plain
@@ -179,16 +179,16 @@ def follow_corridor(
     tuning = get_tuning(tuning)
 
     follower = tuning.corridor_follower
-    reverse_scale = follower.REVERSE_SPEED_SCALE
-    corner_scale = follower.CORNER_SPEED_SCALE
+    reverse_scale = follower.reverse_speed_scale
+    corner_scale = follower.corner_speed_scale
     # Steering is reasoned about here as a physical road-wheel angle and
     # normalised exactly once, on the way out. Holding it in normalised units
     # instead made every constant below a fraction of whatever full lock
     # happened to be, so recalibrating the servo silently retuned the loop --
     # see CorridorFollowerParams for the 55 -> 85 deg case that prompted this.
-    max_centering_rad = math.radians(follower.MAX_CENTERING_STEER_DEG)
-    centering_gain_rad_per_m = math.radians(follower.CENTERING_GAIN_DEG_PER_M)
-    heading_gain = follower.HEADING_GAIN
+    max_centering_rad = math.radians(follower.max_centering_steer_deg)
+    centering_gain_rad_per_m = math.radians(follower.centering_gain_deg_per_m)
+    heading_gain = follower.heading_gain
     # The corner and back-off branches steer AT their own angle rather than
     # sharing the centring clamp: one is sized by the arc having to fit inside
     # TURN_CLEARANCE_M, the other by the 2026-08-07 limit cycle, and after the
@@ -201,12 +201,12 @@ def follow_corridor(
     # back-off branch, which commits at 0.30 m and is where the colliding runs
     # spend 59% of their creep ticks. Each branch now derives its own cap from
     # its own commit distance; see steer_cap_norm.
-    turn_clearance = follower.TURN_CLEARANCE_M
+    turn_clearance = follower.turn_clearance_m
     if believed_width_m is not None and classify_width(believed_width_m) == CorridorDimensions.NARROW:
-        turn_clearance = follower.NARROW_TURN_CLEARANCE_M
+        turn_clearance = follower.narrow_turn_clearance_m
     max_corner = steer_cap_norm(turn_clearance, follower)
-    min_forward_clearance = follower.MIN_FORWARD_CLEARANCE_M
-    min_reverse_clearance = follower.MIN_REVERSE_CLEARANCE_M
+    min_forward_clearance = follower.min_forward_clearance_m
+    min_reverse_clearance = follower.min_reverse_clearance_m
 
     forward = _forward_clearance(ranges_m, angles_rad, tuning)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
@@ -290,7 +290,7 @@ def follow_corridor(
     # corridor wall, and centring against it would steer into the other one.
     # Hold the line instead; the direction estimator is about to settle on the
     # very reading that disqualified it.
-    limit = CorridorDimensions.WIDE + follower.CORNER_LEAK_MARGIN_M
+    limit = CorridorDimensions.WIDE + follower.corner_leak_margin_m
     if left > limit or right > limit:
         return DriveCommand(speed_mps=speed_mps, steering_norm=0.0)
 

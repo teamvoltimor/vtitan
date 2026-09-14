@@ -104,7 +104,7 @@ def test_waypoints_arc_radius_documented() -> None:
     """Verify that waypoint ARC_RADIUS tuning parameter exists and is reasonable."""
     tuning = NavigationTuning.load_default()
 
-    arc_radius = tuning.waypoints.ARC_RADIUS
+    arc_radius = tuning.waypoints.arc_radius
 
     # Should match the theoretical minimum derived from steering limits
     theoretical_min = RobotSpecs.WHEELBASE / math.tan(RobotSpecs.MAX_STEERING_ANGLE)

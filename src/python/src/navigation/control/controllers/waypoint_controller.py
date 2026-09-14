@@ -126,7 +126,7 @@ class WaypointController:
             lookahead_long: Lookahead for straights (m)
             lookahead_transition: Crosstrack threshold for mode switch (m)
             steer_kp: Accepted for backward compatibility with
-                ``NavigationTuning.pursuit.STEER_KP`` and callers that still
+                ``NavigationTuning.pursuit.steer_kp`` and callers that still
                 pass it, but no longer read by ``compute_steering`` -- see
                 that method's docstring and the class docstring above.
             max_steering_rate: Max steering rate (rad/s)
@@ -141,18 +141,18 @@ class WaypointController:
             target_sense_gate: Reject a candidate the chassis would have to
                 approach against the path's own direction of travel. False
                 (the default) is bit-identical to not having the gate -- see
-                ``PurePursuitParams.TARGET_SENSE_GATE``.
+                ``PurePursuitParams.target_sense_gate``.
             min_target_radius_m: Tightest pure-pursuit circle a target may
                 demand. Candidates needing a tighter one are skipped by
                 :meth:`select_target_point`. 0.0 (the default) disables the
                 filter and is bit-identical to not having it -- see
-                ``PurePursuitParams.MIN_TARGET_RADIUS_M``.
+                ``PurePursuitParams.min_target_radius_m``.
             yaw_gain_compensation: Fraction of the geometrically predicted yaw
                 the chassis actually delivers, divided out of the pure-pursuit
                 demand. 1.0 (the default) is the uncompensated bicycle-model
                 answer and is bit-identical to not applying it at all. Resolved
                 per challenge by :meth:`from_tuning` -- see
-                ``PurePursuitParams.OBSTACLES_YAW_GAIN_COMPENSATION``.
+                ``PurePursuitParams.obstacles_yaw_gain_compensation``.
         """
         self.max_steering_angle = max_steering_angle
         self.yaw_gain_compensation = yaw_gain_compensation
@@ -204,18 +204,18 @@ class WaypointController:
         pursuit = tuning.pursuit.for_open_challenge() if for_open else tuning.pursuit.for_obstacles_challenge()
         return cls(
             max_steering_angle=RobotSpecs.MAX_STEERING_ANGLE,
-            lookahead_short=pursuit.LOOKAHEAD_SHORT,
-            lookahead_long=pursuit.LOOKAHEAD_LONG,
-            lookahead_transition=pursuit.LOOKAHEAD_TRANSITION,
-            steer_kp=pursuit.STEER_KP,
-            max_steering_rate=pursuit.MAX_STEERING_RATE,
-            waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
-            corner_turn_threshold_rad=pursuit.CORNER_TURN_THRESHOLD_RAD,
-            lookahead_blend_start=pursuit.LOOKAHEAD_BLEND_START,
-            yaw_gain_compensation=pursuit.YAW_GAIN_COMPENSATION,
-            min_target_radius_m=pursuit.MIN_TARGET_RADIUS_M,
-            target_search_span_m=pursuit.TARGET_SEARCH_SPAN_M,
-            target_sense_gate=pursuit.TARGET_SENSE_GATE,
+            lookahead_short=pursuit.lookahead_short,
+            lookahead_long=pursuit.lookahead_long,
+            lookahead_transition=pursuit.lookahead_transition,
+            steer_kp=pursuit.steer_kp,
+            max_steering_rate=pursuit.max_steering_rate,
+            waypoint_reached_distance_m=tuning.waypoints.controller_reached_distance_m,
+            corner_turn_threshold_rad=pursuit.corner_turn_threshold_rad,
+            lookahead_blend_start=pursuit.lookahead_blend_start,
+            yaw_gain_compensation=pursuit.yaw_gain_compensation,
+            min_target_radius_m=pursuit.min_target_radius_m,
+            target_search_span_m=pursuit.target_search_span_m,
+            target_sense_gate=pursuit.target_sense_gate,
         )
 
     def select_lookahead(
@@ -432,7 +432,7 @@ class WaypointController:
         # later candidate takes a FARTHER one, and curvature divides by the
         # target's squared distance, so the filter trades an impossible bearing
         # for a weaker correction. Measured NEGATIVE at 0.29 -- see
-        # PurePursuitParams.MIN_TARGET_RADIUS_M -- which is why it ships off.
+        # PurePursuitParams.min_target_radius_m -- which is why it ships off.
         nearest_unreachable: tuple[float, float] | None = None
         # How far ALONG THE PATH the scan may walk. Without a bound this loop
         # wraps a whole lap and returns the first waypoint that is merely
@@ -589,11 +589,11 @@ class WaypointController:
                 limiting -- lets the caller slow down for a sharp turn instead
                 of taking it at whatever speed forward clearance alone selects.
 
-        Uses tuning: control.CONTROL_HZ
+        Uses tuning: control.control_hz
         """
         tuning = get_tuning(tuning)
         if dt is None:
-            dt = 1.0 / tuning.control.CONTROL_HZ
+            dt = 1.0 / tuning.control.control_hz
 
         lookahead = self.select_lookahead(crosstrack_error)
 

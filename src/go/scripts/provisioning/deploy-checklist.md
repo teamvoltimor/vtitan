@@ -1,4 +1,4 @@
-# DEPLOY-CHECKLIST.md - vTitan Go robot-go → Pi
+# deploy-checklist.md - vTitan Go robot-go → Pi
 
 Generated: 2026-08-30 (agent J, §5c). No Pi is reachable from this environment;
 these are the **manual on-device steps** an operator runs. Do NOT push from CI.

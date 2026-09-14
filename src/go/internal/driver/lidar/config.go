@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -12,7 +13,7 @@ import (
 const DefaultPort = "/dev/ttyUSB0"
 
 // ConfigFor resolves the Config to Connect with: DefaultPort and
-// DefaultBaudRate, overlaid with profile.LidarLaunchConfig from
+// DefaultBaudRate, overlaid with hardware.HardwareLidar from
 // <configRoot>/profile.DefaultLidarLaunchTOMLPath (overlaid with the
 // profiles named in profile.ActiveNames()) if configRoot is non-empty and
 // loading succeeds; otherwise the literal defaults, logging why on
@@ -33,7 +34,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	basePath := filepath.Join(configRoot, profile.DefaultLidarLaunchTOMLPath)
-	loaded, err := profile.Load[profile.LidarLaunchConfig](basePath, profile.ActiveNames())
+	loaded, err := profile.Load[hardware.HardwareLidar](basePath, profile.ActiveNames())
 	if err != nil {
 		logger.Warn("driver/lidar: loading hardware profile, falling back to default serial config",
 			"config_root", configRoot, "error", err)

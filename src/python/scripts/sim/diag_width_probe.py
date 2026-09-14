@@ -44,7 +44,7 @@ _CORNER_MISS_MARGIN_M = 0.25
 _MAX_PLAUSIBLE_WIDTH = CorridorDimensions.WIDE + _CORNER_MISS_MARGIN_M
 """Beyond this the inward ray has missed the inner block (robot is at a corner)."""
 
-_ALIGNMENT_TOLERANCE_RAD = NavigationTuning.load_default().direction_estimator.ALIGNMENT_TOLERANCE_RAD
+_ALIGNMENT_TOLERANCE_RAD = NavigationTuning.load_default().direction_estimator.alignment_tolerance_rad
 """How far off the corridor axis the chassis may be for the side rays to still
 span the corridor rather than a diagonal. Same gate the production direction
 estimator and width estimator read, so this probe measures what they'd accept."""

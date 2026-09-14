@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CompetitionSpecs  # noqa: E402
+from shared.config.constants import CompetitionSpecs, RobotSpecs  # noqa: E402
 
 from scripts.common.scenarios import scenario_from_mapping, scenario_paths  # noqa: E402
 from scripts.common.sim_defaults import CORPUS_DIR  # noqa: E402
@@ -177,10 +177,13 @@ def _run_one(
         # are carried apart rather than merged into one override dict.
         tuning = tuning_with_overrides(sim_changes, group="simulation", base=tuning)
     if args.min_turn_radius is not None:
-        tuning = tuning_with_overrides({"MIN_TURN_RADIUS_M": args.min_turn_radius}, group="simulation", base=tuning)
+        # min_turn_radius_m lives in robot.toml and is read straight from
+        # RobotSpecs by the simulator kinematics, so this A/B arm patches the
+        # constant rather than a simulation tuning field.
+        RobotSpecs.MIN_TURN_RADIUS_M = args.min_turn_radius
     if args.no_progress_window > 0.0:
         tuning = tuning_with_overrides(
-            {"NO_PROGRESS_WINDOW_S": args.no_progress_window}, group="simulation", base=tuning
+            {"no_progress_window_s": args.no_progress_window}, group="simulation", base=tuning
         )
     sim = ScenarioSimulator(
         scenario_from_mapping(raw),
@@ -191,7 +194,7 @@ def _run_one(
         solid_walls=args.solid_walls,
         slide_on_contact=args.slide,
     )
-    margin = tuning.corridor_follower.BAY_EXIT_CLEARANCE_MARGIN_M
+    margin = tuning.corridor_follower.bay_exit_clearance_margin_m
     legs = _instrument(sim.bay_exit, margin)
 
     outward = bay_outward_axis(centre, parallel_xy, start["yaw"])
@@ -237,7 +240,7 @@ def _run_one(
     # BAY_EXIT_TARGET_YAW_DEG is what says that plumbing is inert or not.
     print(
         f"  rotation reached {sim.bay_exit.rotation_deg:.2f} deg of "
-        f"{tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG:.0f} target",
+        f"{tuning.corridor_follower.bay_exit_target_yaw_deg:.0f} target",
         flush=True,
     )
     believed = max((t.dr_out for leg in legs for t in leg.ticks), default=0.0)
@@ -348,7 +351,7 @@ def main() -> int:
     parser.add_argument(
         "--tracks-speed",
         action="store_true",
-        help="add an arm with simulation.MIN_TURN_RADIUS_TRACKS_SPEED on. The bay creeps at "
+        help="add an arm with simulation.min_turn_radius_tracks_speed on. The bay creeps at "
         "<= 0.10 m/s, inside the range the curve was measured over, so this is the one arm the "
         "curve legitimately answers -- the corridor at 0.26-0.50 m/s is extrapolation.",
     )
@@ -391,11 +394,11 @@ def main() -> int:
     )
 
     arms: list[tuple[str, dict[str, float | bool], dict[str, float | bool]]] = [("shipped", {}, {})]
-    arms += [(f"leg_max {v:g}s", {"BAY_EXIT_LEG_MAX_S": v}, {}) for v in (args.leg_max or [])]
+    arms += [(f"leg_max {v:g}s", {"bay_exit_leg_max_s": v}, {}) for v in (args.leg_max or [])]
     if args.mirror:
-        arms.append(("mirror reverse", {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True}, {}))
+        arms.append(("mirror reverse", {"bay_exit_guard_mirrors_reverse": True}, {}))
     if args.measured_yaw:
-        arms.append(("measured yaw", {"BAY_EXIT_DR_USES_MEASURED_YAW": True}, {}))
+        arms.append(("measured yaw", {"bay_exit_dr_uses_measured_yaw": True}, {}))
     if args.mirror and args.measured_yaw:
         # The pair is the point: mirroring is what produces rotation, the
         # measured yaw is what lets the guard see it. Each alone is a term of a
@@ -403,7 +406,7 @@ def main() -> int:
         arms.append(
             (
                 "mirror+measured",
-                {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True, "BAY_EXIT_DR_USES_MEASURED_YAW": True},
+                {"bay_exit_guard_mirrors_reverse": True, "bay_exit_dr_uses_measured_yaw": True},
                 {},
             )
         )
@@ -412,13 +415,13 @@ def main() -> int:
         # measured over, so this is the one arm the curve legitimately answers.
         # Paired with the levers because the question is whether the manoeuvre
         # works on the corrected physics, not whether either alone helps.
-        arms.append(("tracks speed", {}, {"MIN_TURN_RADIUS_TRACKS_SPEED": True}))
+        arms.append(("tracks speed", {}, {"min_turn_radius_tracks_speed": True}))
         if args.mirror:
             arms.append(
                 (
                     "tracks+mirror",
-                    {"BAY_EXIT_GUARD_MIRRORS_REVERSE": True},
-                    {"MIN_TURN_RADIUS_TRACKS_SPEED": True},
+                    {"bay_exit_guard_mirrors_reverse": True},
+                    {"min_turn_radius_tracks_speed": True},
                 )
             )
 

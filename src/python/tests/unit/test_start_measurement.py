@@ -127,7 +127,7 @@ class TestRefusesToGuess:
         before any noise, so a measurement must survive several centimetres of
         error in the mat itself.
         """
-        closing_tolerance_m = NavigationTuning.load_default().start_measurement.CLOSING_TOLERANCE_M
+        closing_tolerance_m = NavigationTuning.load_default().start_measurement.closing_tolerance_m
         ranges, angles = _scan(1.25, 0.497, 0.0)
         shrunk = np.asarray(ranges, dtype=float) * (1.0 - 0.9 * closing_tolerance_m / TrackDimensions.MAX_COORD)
 

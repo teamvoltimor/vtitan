@@ -69,10 +69,10 @@ def main() -> int:
         raise SystemExit(2)
 
     tuning = get_tuning(None)
-    min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
-    half_fov = math.radians(tuning.lidar_sectors.THREAT_HALF_FOV_DEG)
+    min_valid = tuning.lidar_sectors.min_valid_range_m
+    half_fov = math.radians(tuning.lidar_sectors.threat_half_fov_deg)
     print(f"min_valid_range_m = {min_valid}   threat half-FOV = {math.degrees(half_fov):.0f} deg")
-    print(f"shipped obstacles_contact_dist = {tuning.clearance.OBSTACLES_CONTACT_DIST} (inert)\n")
+    print(f"shipped obstacles_contact_dist = {tuning.clearance.obstacles_contact_dist} (inert)\n")
 
     band_counts = [0] * (len(BANDS) - 1)
     fire_committed = dict.fromkeys(CANDIDATES, 0)

@@ -63,13 +63,13 @@ def test_corridor_follower_respects_tuning_override(override_tuning) -> None:
         ranges_m=ranges_m,
         angles_rad=_ANGLES_RAD,
         speed_mps=0.1,
-        tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": base_gain}),
+        tuning=override_tuning(default_tuning, corridor_follower={"centering_gain_deg_per_m": base_gain}),
     )
     doubled_cmd = follow_corridor(
         ranges_m=ranges_m,
         angles_rad=_ANGLES_RAD,
         speed_mps=0.1,
-        tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": base_gain * 2.0}),
+        tuning=override_tuning(default_tuning, corridor_follower={"centering_gain_deg_per_m": base_gain * 2.0}),
     )
 
     assert base_cmd.steering_norm != 0.0, "off-centre scan should steer back to the middle"
@@ -81,12 +81,12 @@ def test_centred_corridor_steers_straight_at_any_gain(override_tuning) -> None:
     default_tuning = NavigationTuning.load_default()
     ranges_m = _corridor_scan(left_m=0.5, right_m=0.5)
 
-    for gain in (default_tuning.corridor_follower.CENTERING_GAIN_DEG_PER_M, 10.0):
+    for gain in (default_tuning.corridor_follower.centering_gain_deg_per_m, 10.0):
         cmd = follow_corridor(
             ranges_m=ranges_m,
             angles_rad=_ANGLES_RAD,
             speed_mps=0.1,
-            tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": gain}),
+            tuning=override_tuning(default_tuning, corridor_follower={"centering_gain_deg_per_m": gain}),
         )
         assert cmd.steering_norm == pytest.approx(0.0)
 
@@ -94,13 +94,13 @@ def test_centred_corridor_steers_straight_at_any_gain(override_tuning) -> None:
 def test_corridor_estimator_respects_tuning_override(override_tuning) -> None:
     """CorridorWidthEstimator reads MIN_SAMPLES from the tuning it's given, not a frozen default."""
     default_tuning = NavigationTuning.load_default()
-    lower_min_samples = max(1, default_tuning.corridor_estimator.MIN_SAMPLES - 2)
-    aggressive = override_tuning(default_tuning, corridor_estimator={"MIN_SAMPLES": lower_min_samples})
+    lower_min_samples = max(1, default_tuning.corridor_estimator.min_samples - 2)
+    aggressive = override_tuning(default_tuning, corridor_estimator={"min_samples": lower_min_samples})
 
     estimator_default = CorridorWidthEstimator(tuning=default_tuning)
     estimator_aggressive = CorridorWidthEstimator(tuning=aggressive)
 
-    assert estimator_default._min_samples == default_tuning.corridor_estimator.MIN_SAMPLES
+    assert estimator_default._min_samples == default_tuning.corridor_estimator.min_samples
     assert estimator_aggressive._min_samples == lower_min_samples
 
 
@@ -123,7 +123,7 @@ def test_direction_estimator_respects_tuning_override(override_tuning) -> None:
         tuning=default_tuning,
     )
 
-    strict = override_tuning(default_tuning, direction_estimator={"MIN_ASYMMETRY_M": 100.0})
+    strict = override_tuning(default_tuning, direction_estimator={"min_asymmetry_m": 100.0})
     direction_strict = infer_direction(
         ranges_m=ranges_m,
         angles_rad=angles_rad,

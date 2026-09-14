@@ -53,9 +53,9 @@ def _guard_tuning(**changes: object):
     """
     return tuning_with_overrides(
         {
-            "BAY_EXIT_CLEARANCE_GUARD": True,
-            "BAY_EXIT_GUARD_MEASURED_COAST": False,
-            "BAY_EXIT_CLEARANCE_TOLERANCE_M": 0.0,
+            "bay_exit_clearance_guard": True,
+            "bay_exit_guard_measured_coast": False,
+            "bay_exit_clearance_tolerance_m": 0.0,
             # PINNED OFF, and these tests are the reason the default moved.
             # They describe the HELD-lock ratchet -- one of them asserts the
             # held lock outright -- and hardware measured that shape to be a
@@ -66,7 +66,7 @@ def _guard_tuning(**changes: object):
             # keeps, and silently re-pointing them at the mirrored one would
             # discard the properties they were written to protect. See
             # `test_the_mirrored_reverse_flips_the_lock` for the shipped shape.
-            "BAY_EXIT_GUARD_MIRRORS_REVERSE": False,
+            "bay_exit_guard_mirrors_reverse": False,
             **changes,
         }
     )
@@ -95,8 +95,8 @@ class _Pocket:
         self.travelled_m = 0.0
 
     def step(self, speed_mps: float, steering_norm: float, tuning) -> None:
-        dt = 1.0 / tuning.control.CONTROL_HZ
-        slew = tuning.pursuit.MAX_STEERING_RATE * dt
+        dt = 1.0 / tuning.control.control_hz
+        slew = tuning.pursuit.max_steering_rate * dt
         target = steering_norm * math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
         self.wheel_rad += max(-slew, min(slew, target - self.wheel_rad))
         step_m = speed_mps * dt
@@ -131,7 +131,7 @@ def _drive(ticks: int, tuning) -> tuple[_Pocket, list[float]]:
             _RANGES_M,
             _ANGLES_RAD,
             pocket.travelled_m,
-            tuning.speed.medium_mps(),
+            tuning.speed.medium_mps,
             tuning,
         )
         steering.append(command.steering_norm)
@@ -164,7 +164,7 @@ def test_guarded_exit_holds_one_steering_angle_across_leg_changes() -> None:
     change. Both were true until 2026-09-04, and the manoeuvre measured 0.06 m of
     travel for no net gain.
     """
-    _, steering = _drive(400, _guard_tuning(BAY_EXIT_SPEED_SCALE=0.35))
+    _, steering = _drive(400, _guard_tuning(bay_exit_speed_scale=0.35))
     assert steering, "the manoeuvre issued no commands"
     assert len({math.copysign(1.0, s) for s in steering if s != 0.0}) == 1
     assert len(set(steering)) == 1, "the guarded exit should command one angle throughout"
@@ -187,7 +187,7 @@ def test_the_mirrored_reverse_flips_the_lock() -> None:
     other constants own, and this is the one property that distinguishes a
     ratchet from a pendulum.
     """
-    _, steering = _drive(400, _guard_tuning(BAY_EXIT_GUARD_MIRRORS_REVERSE=True))
+    _, steering = _drive(400, _guard_tuning(bay_exit_guard_mirrors_reverse=True))
     assert steering, "the manoeuvre issued no commands"
     signs = {math.copysign(1.0, s) for s in steering if s != 0.0}
     assert signs == {-1.0, 1.0}, "the mirrored reverse must command BOTH locks, not one"
@@ -201,7 +201,7 @@ def test_guarded_exit_ratchets_outward_against_the_wall() -> None:
     clip is what breaks that, and this is the test that says so: remove the clip
     from ``_Pocket.step`` and the assertion below fails.
     """
-    pocket, _ = _drive(600, _guard_tuning(BAY_EXIT_SPEED_SCALE=0.35))
+    pocket, _ = _drive(600, _guard_tuning(bay_exit_speed_scale=0.35))
     assert pocket.out > 0.002
     assert abs(pocket.along) < ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
 
@@ -213,7 +213,7 @@ def test_guarded_exit_never_steers_the_modelled_pose_into_a_fin() -> None:
     legs ON a stall, which is contact, and a final-pose test cannot see a touch
     the chassis has since backed away from.
     """
-    tuning = _guard_tuning(BAY_EXIT_SPEED_SCALE=0.35)
+    tuning = _guard_tuning(bay_exit_speed_scale=0.35)
     exit_maneuver = BayExit()
     pocket = _Pocket()
     worst = math.inf
@@ -222,7 +222,7 @@ def test_guarded_exit_never_steers_the_modelled_pose_into_a_fin() -> None:
             _RANGES_M,
             _ANGLES_RAD,
             pocket.travelled_m,
-            tuning.speed.medium_mps(),
+            tuning.speed.medium_mps,
             tuning,
         )
         pocket.step(command.speed_mps, command.steering_norm, tuning)
@@ -253,8 +253,8 @@ def test_the_margin_band_that_froze_the_ratchet_is_closed() -> None:
     where it starts, and the shipped 0.001 now sits 20x clear of it rather
     than 5x.
     """
-    frozen, _ = _drive(900, _guard_tuning(BAY_EXIT_CLEARANCE_MARGIN_M=0.020))
-    settled, _ = _drive(200, _guard_tuning(BAY_EXIT_CLEARANCE_MARGIN_M=0.020))
+    frozen, _ = _drive(900, _guard_tuning(bay_exit_clearance_margin_m=0.020))
+    settled, _ = _drive(200, _guard_tuning(bay_exit_clearance_margin_m=0.020))
     # Stalled: four and a half times the ticks buy nothing at all.
     assert frozen.out == pytest.approx(settled.out, abs=1e-6)
 
@@ -284,14 +284,14 @@ def test_a_forward_arc_with_no_returns_is_blocked_not_clear() -> None:
 def test_a_genuinely_open_arc_still_releases_the_maneuver() -> None:
     """The no-return rule must not swallow the real exit condition."""
     tuning = tuning_with_overrides({})
-    open_ahead = (1.0, 1.0, tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M + 0.5)
+    open_ahead = (1.0, 1.0, tuning.corridor_follower.min_forward_clearance_m + 0.5)
     assert BayExit.is_clear(open_ahead, _ANGLES_RAD, tuning)
 
 
 def test_a_blocked_arc_inside_the_threshold_is_not_clear() -> None:
     """Unchanged behaviour: a real return below the threshold still holds."""
     tuning = tuning_with_overrides({})
-    boxed = (1.0, 1.0, tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M - 0.05)
+    boxed = (1.0, 1.0, tuning.corridor_follower.min_forward_clearance_m - 0.05)
     assert not BayExit.is_clear(boxed, _ANGLES_RAD, tuning)
 
 
@@ -306,9 +306,9 @@ def test_a_silent_forward_arc_backs_off_instead_of_steering() -> None:
     This is the state that ended run_20260906_112613 with the nose buried and
     normal driving then accelerating into the wall.
     """
-    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
+    tuning = tuning_with_overrides({"bay_exit_contact_recovery_ticks": 12})
     exit_maneuver = BayExit()
-    command = exit_maneuver.command((float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    command = exit_maneuver.command((float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning)
     assert command.speed_mps < 0.0
     assert command.steering_norm == pytest.approx(0.0)
     assert exit_maneuver.contact_recoveries == 1
@@ -316,10 +316,10 @@ def test_a_silent_forward_arc_backs_off_instead_of_steering() -> None:
 
 def test_contact_range_backs_off_straight() -> None:
     """A reading below BAY_EXIT_CONTACT_DIST_M is contact, and reverses STRAIGHT."""
-    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
-    contact = tuning.corridor_follower.BAY_EXIT_CONTACT_DIST_M - 0.01
+    tuning = tuning_with_overrides({"bay_exit_contact_recovery_ticks": 12})
+    contact = tuning.corridor_follower.bay_exit_contact_dist_m - 0.01
     exit_maneuver = BayExit()
-    command = exit_maneuver.command(_contact_ranges(contact), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    command = exit_maneuver.command(_contact_ranges(contact), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning)
     assert command.speed_mps < 0.0
     assert command.steering_norm == pytest.approx(0.0)
 
@@ -327,13 +327,13 @@ def test_contact_range_backs_off_straight() -> None:
 def test_the_recovery_is_held_for_its_full_count() -> None:
     """Held for a fixed count, because the arc is SILENT while in contact --
     'reverse until it reads clear' waits on the sensor that just went blind."""
-    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
-    ticks = tuning.corridor_follower.BAY_EXIT_CONTACT_RECOVERY_TICKS
+    tuning = tuning_with_overrides({"bay_exit_contact_recovery_ticks": 12})
+    ticks = tuning.corridor_follower.bay_exit_contact_recovery_ticks
     exit_maneuver = BayExit()
-    exit_maneuver.command((float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    exit_maneuver.command((float("inf"),) * 3, _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning)
     # Clear ahead from here on; the recovery must still run out its count.
     for _ in range(ticks - 1):
-        command = exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+        command = exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning)
         assert command.speed_mps < 0.0
         assert command.steering_norm == pytest.approx(0.0)
     assert exit_maneuver.contact_recoveries == 1
@@ -341,9 +341,9 @@ def test_the_recovery_is_held_for_its_full_count() -> None:
 
 def test_a_clear_arc_does_not_trigger_recovery() -> None:
     """The normal manoeuvre is untouched when nothing is against the nose."""
-    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
+    tuning = tuning_with_overrides({"bay_exit_contact_recovery_ticks": 12})
     exit_maneuver = BayExit()
-    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning)
     assert exit_maneuver.contact_recoveries == 0
 
 
@@ -352,7 +352,7 @@ def test_rotation_is_measured_from_placement_and_unwraps() -> None:
     tuning = tuning_with_overrides({})
     exit_maneuver = BayExit()
     for yaw in (3.0, 3.1, -3.1, -3.0):  # crosses +pi going one way
-        exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=yaw)
+        exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning, yaw_rad=yaw)
     # 3.0->3.1 is +0.1, 3.1->-3.1 CROSSES +pi and is +(2pi - 6.2), -3.1->-3.0 is +0.1.
     # Differencing the endpoints instead would read -6.0 rad: the bug being guarded.
     expected = 0.1 + (2.0 * math.pi - 6.2) + 0.1
@@ -362,15 +362,15 @@ def test_rotation_is_measured_from_placement_and_unwraps() -> None:
 def test_turning_far_enough_drives_straight_out_instead_of_steering() -> None:
     """Past the target the nose comes back around toward the outer wall."""
     tuning = tuning_with_overrides({})
-    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    target = math.radians(tuning.corridor_follower.bay_exit_target_yaw_deg)
     exit_maneuver = BayExit()
-    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0)
+    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning, yaw_rad=0.0)
     assert not exit_maneuver.rotation_complete(tuning)
     command = exit_maneuver.command(
         _contact_ranges(2.0),
         _ANGLES_RAD,
         0.0,
-        tuning.speed.medium_mps(),
+        tuning.speed.medium_mps,
         tuning,
         yaw_rad=-(target + 0.05),
     )
@@ -383,22 +383,22 @@ def test_rotation_release_needs_a_measurement() -> None:
     """No yaw supplied means no claim: the manoeuvre keeps its old behaviour."""
     tuning = tuning_with_overrides({})
     exit_maneuver = BayExit()
-    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning)
     assert not exit_maneuver.rotation_complete(tuning)
     assert exit_maneuver.rotation_deg == pytest.approx(0.0)
 
 
 def test_contact_recovery_still_wins_over_a_completed_rotation() -> None:
     """Backing off the wall comes first -- driving out of it forward does not work."""
-    tuning = tuning_with_overrides({"BAY_EXIT_CONTACT_RECOVERY_TICKS": 12})
-    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
+    tuning = tuning_with_overrides({"bay_exit_contact_recovery_ticks": 12})
+    target = math.radians(tuning.corridor_follower.bay_exit_target_yaw_deg)
     exit_maneuver = BayExit()
-    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0)
+    exit_maneuver.command(_contact_ranges(2.0), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning, yaw_rad=0.0)
     command = exit_maneuver.command(
         (float("inf"),) * 3,
         _ANGLES_RAD,
         0.0,
-        tuning.speed.medium_mps(),
+        tuning.speed.medium_mps,
         tuning,
         yaw_rad=-(target + 0.05),
     )
@@ -414,15 +414,15 @@ def test_turning_far_enough_is_not_enough_if_the_way_out_is_blocked() -> None:
     wall. Keep ratcheting instead -- the next reverse buys more angle.
     """
     tuning = tuning_with_overrides({})
-    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
-    blocked = tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M - 0.05
+    target = math.radians(tuning.corridor_follower.bay_exit_target_yaw_deg)
+    blocked = tuning.corridor_follower.min_forward_clearance_m - 0.05
     exit_maneuver = BayExit()
-    exit_maneuver.command(_contact_ranges(blocked), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0)
+    exit_maneuver.command(_contact_ranges(blocked), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning, yaw_rad=0.0)
     command = exit_maneuver.command(
         _contact_ranges(blocked),
         _ANGLES_RAD,
         0.0,
-        tuning.speed.medium_mps(),
+        tuning.speed.medium_mps,
         tuning,
         yaw_rad=-(target + 0.05),
     )
@@ -434,15 +434,15 @@ def test_turning_far_enough_is_not_enough_if_the_way_out_is_blocked() -> None:
 def test_turned_and_clear_drives_straight_out() -> None:
     """Both conditions together are what release means."""
     tuning = tuning_with_overrides({})
-    target = math.radians(tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG)
-    clear = tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M + 0.5
+    target = math.radians(tuning.corridor_follower.bay_exit_target_yaw_deg)
+    clear = tuning.corridor_follower.min_forward_clearance_m + 0.5
     exit_maneuver = BayExit()
-    exit_maneuver.command(_contact_ranges(clear), _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning, yaw_rad=0.0)
+    exit_maneuver.command(_contact_ranges(clear), _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning, yaw_rad=0.0)
     command = exit_maneuver.command(
         _contact_ranges(clear),
         _ANGLES_RAD,
         0.0,
-        tuning.speed.medium_mps(),
+        tuning.speed.medium_mps,
         tuning,
         yaw_rad=-(target + 0.05),
     )
@@ -508,7 +508,7 @@ def test_the_open_side_latch_survives_one_corrupt_frame() -> None:
     exit_maneuver = BayExit()
     # One wholly corrupt opening frame, then the truth.
     exit_maneuver._resolve_open_side(_drop(ranges, angles, side_sign=1.0), angles, tuning)
-    for _ in range(tuning.corridor_follower.BAY_EXIT_OPEN_SIDE_VOTES):
+    for _ in range(tuning.corridor_follower.bay_exit_open_side_votes):
         exit_maneuver._resolve_open_side(ranges, angles, tuning)
     assert exit_maneuver._open_is_left is False
 
@@ -544,7 +544,7 @@ def test_the_guard_releases_a_leg_that_improves_an_overlapping_pose() -> None:
     tuning = _guard_tuning()
     ranges, angles = _fan(left_m=1.0, right_m=ParkingLotSpecs.WALL_OFFSET)
     exit_maneuver = BayExit()
-    exit_maneuver.command(ranges, angles, 0.0, tuning.speed.medium_mps(), tuning)
+    exit_maneuver.command(ranges, angles, 0.0, tuning.speed.medium_mps, tuning)
     # Drop the modelled pose inside a fin, which is the state the hardware
     # reached and which no admissible leg exists from under the margin test.
     exit_maneuver._dr_along = _along_slack_m()
@@ -555,7 +555,7 @@ def test_the_guard_releases_a_leg_that_improves_an_overlapping_pose() -> None:
     moved = False
     travelled = 0.0
     for _ in range(40):
-        command = exit_maneuver.command(ranges, angles, travelled, tuning.speed.medium_mps(), tuning)
+        command = exit_maneuver.command(ranges, angles, travelled, tuning.speed.medium_mps, tuning)
         if command.speed_mps != 0.0:
             moved = True
             break
@@ -574,20 +574,20 @@ def test_overlap_recovery_still_refuses_a_leg_that_makes_the_gap_worse() -> None
     tuning = _guard_tuning()
     ranges, angles = _fan(left_m=1.0, right_m=ParkingLotSpecs.WALL_OFFSET)
     exit_maneuver = BayExit()
-    exit_maneuver.command(ranges, angles, 0.0, tuning.speed.medium_mps(), tuning)
+    exit_maneuver.command(ranges, angles, 0.0, tuning.speed.medium_mps, tuning)
     exit_maneuver._dr_along = _along_slack_m()
     exit_maneuver._dr_yaw = math.radians(12.0)
     exit_maneuver._dr_out = 0.05
-    margin = tuning.corridor_follower.BAY_EXIT_CLEARANCE_MARGIN_M
+    margin = tuning.corridor_follower.bay_exit_clearance_margin_m
 
     admitted = 0
     for _ in range(40):
         held = exit_maneuver._predicted_gap(0.0, 1.0, tuning)
-        command = exit_maneuver.command(ranges, angles, 0.0, tuning.speed.medium_mps(), tuning)
+        command = exit_maneuver.command(ranges, angles, 0.0, tuning.speed.medium_mps, tuning)
         if command.speed_mps == 0.0:
             continue
         admitted += 1
-        step = command.speed_mps / tuning.control.CONTROL_HZ
+        step = command.speed_mps / tuning.control.control_hz
         reach = step + math.copysign(abs(command.speed_mps) * RobotSpecs.SPEED_RESPONSE_TAU_S, step)
         gap = exit_maneuver._predicted_gap(reach, 1.0, tuning)
         assert gap > margin or gap > held, "admitted a leg that did not improve an overlapping gap"
@@ -621,10 +621,10 @@ def test_the_guard_hands_over_once_it_has_refused_every_leg_for_long_enough() ->
     handover buys motion by spending fin contact"; testing ``out`` was testing a
     proxy that has stopped following the thing it stood for.
     """
-    trapped = {"BAY_EXIT_CLEARANCE_MARGIN_M": 0.020}
-    shut_early, _ = _drive(200, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=0))
-    shut, _ = _drive(900, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=0))
-    opened, _ = _drive(900, _guard_tuning(**trapped, BAY_EXIT_GUARD_BLOCK_TICKS=40))
+    trapped = {"bay_exit_clearance_margin_m": 0.020}
+    shut_early, _ = _drive(200, _guard_tuning(**trapped, bay_exit_guard_block_ticks=0))
+    shut, _ = _drive(900, _guard_tuning(**trapped, bay_exit_guard_block_ticks=0))
+    opened, _ = _drive(900, _guard_tuning(**trapped, bay_exit_guard_block_ticks=40))
     # The trap is real: 4.5x the ticks buy the shut arm nothing at all.
     assert shut.along == pytest.approx(shut_early.along, abs=1e-6)
     assert shut.out == pytest.approx(shut_early.out, abs=1e-6)
@@ -650,7 +650,7 @@ def _drive_stalled(ticks: int, tuning) -> list[bool]:
     exit_maneuver = BayExit()
     legs: list[bool] = []
     for _ in range(ticks):
-        exit_maneuver.command(_RANGES_M, _ANGLES_RAD, 0.0, tuning.speed.medium_mps(), tuning)
+        exit_maneuver.command(_RANGES_M, _ANGLES_RAD, 0.0, tuning.speed.medium_mps, tuning)
         legs.append(bool(exit_maneuver._leg_is_reverse))  # noqa: SLF001 - the flag under test
     return legs
 
@@ -662,12 +662,12 @@ def test_a_stalled_leg_still_reverses_within_the_time_bound() -> None:
     wheel -- legs reached 15.25 s on hardware and 68% of all bay-exit ticks sat
     in legs older than 2 s, where the wheel is stalled 91-99.7% of the time.
     """
-    tuning = _guard_tuning(BAY_EXIT_LEG_MAX_S=0.5)
+    tuning = _guard_tuning(bay_exit_leg_max_s=0.5)
     legs = _drive_stalled(200, tuning)
     assert any(legs) and not all(legs), "the ratchet never reversed against a stalled wheel"
 
     flips = sum(1 for a, b in zip(legs, legs[1:]) if a != b)
-    bound_ticks = math.ceil(0.5 * tuning.control.CONTROL_HZ)
+    bound_ticks = math.ceil(0.5 * tuning.control.control_hz)
     # 200 ticks of 10-tick legs, each paying a computed servo settle, so the
     # count is bounded above by the bound alone and below by half of it.
     assert flips >= len(legs) // (2 * bound_ticks), f"only {flips} reversals in 200 stalled ticks"
@@ -675,7 +675,7 @@ def test_a_stalled_leg_still_reverses_within_the_time_bound() -> None:
 
 def test_without_the_time_bound_a_stalled_leg_never_ends() -> None:
     """The defect itself, pinned so the bound cannot be quietly removed."""
-    legs = _drive_stalled(200, _guard_tuning(BAY_EXIT_LEG_MAX_S=1000.0))
+    legs = _drive_stalled(200, _guard_tuning(bay_exit_leg_max_s=1000.0))
     flips = sum(1 for a, b in zip(legs, legs[1:]) if a != b)
     assert flips == 0, "the stalled-leg deadlock is gone; this test no longer pins anything"
 
@@ -700,13 +700,13 @@ def _drive_with_coast(ticks: int, tuning, coast_per_tick_m: float) -> list[float
     seen: list[float] = []
     for _ in range(ticks):
         command = exit_maneuver.command(
-            _RANGES_M, _ANGLES_RAD, travelled, tuning.speed.medium_mps(), tuning
+            _RANGES_M, _ANGLES_RAD, travelled, tuning.speed.medium_mps, tuning
         )
         window = exit_maneuver._guard_recent_speeds  # noqa: SLF001 - the estimate under test
         if window:
             seen.append(window[-1])
         # The leg's own travel when it commands one, and the coast either way.
-        travelled += abs(command.speed_mps) / tuning.control.CONTROL_HZ + coast_per_tick_m
+        travelled += abs(command.speed_mps) / tuning.control.control_hz + coast_per_tick_m
     return seen
 
 
@@ -725,19 +725,19 @@ def test_the_coast_estimate_does_not_sample_across_a_standstill() -> None:
     checked, residual 0.000000 -- exactly step plus the COMMAND-based coast,
     against a delivered leg speed of 0.004-0.015 m/s.
     """
-    tuning = _guard_tuning(BAY_EXIT_GUARD_MEASURED_COAST=True, BAY_EXIT_GUARD_MIRRORS_REVERSE=True)
-    leg_speed = tuning.corridor_follower.BAY_EXIT_SPEED_MPS
+    tuning = _guard_tuning(bay_exit_guard_measured_coast=True, bay_exit_guard_mirrors_reverse=True)
+    leg_speed = tuning.corridor_follower.bay_exit_speed_mps
     samples = _drive_with_coast(400, tuning, coast_per_tick_m=0.0005)
 
     assert samples, "the guard collected no speed samples at all"
     # No sample may exceed ONE TICK of travel -- the leg's own step plus the
     # coast that tick. Anything larger can only have come from differencing
     # across ticks the sampler never saw.
-    one_tick = leg_speed + 0.0005 * tuning.control.CONTROL_HZ
+    one_tick = leg_speed + 0.0005 * tuning.control.control_hz
     assert max(samples) <= one_tick + 1e-9, (
         f"a coast sample of {max(samples):.4f} m/s exceeds one tick of travel "
         f"({one_tick:.4f} m/s), so ticks the sampler skipped were differenced into it"
     )
     # And the magnitude the bug had, so this test says what it is protecting:
     # the settle is ~50 ticks, which differenced in one go reads ~50x the coast.
-    assert max(samples) < 0.5 * (0.0005 * 50 * tuning.control.CONTROL_HZ)
+    assert max(samples) < 0.5 * (0.0005 * 50 * tuning.control.control_hz)

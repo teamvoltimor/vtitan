@@ -171,10 +171,10 @@ class SlotSignMap:
         tuning = get_tuning(tuning)
         sr = tuning.sign_router
         self._min_confidence = min_confidence
-        self._accept_r = sr.SLOT_ACCEPT_RADIUS_M
-        self._min_evidence = sr.SLOT_MIN_EVIDENCE
-        self._repoint_margin = sr.SLOT_REPOINT_MARGIN
-        self._max_ingest_range_m = tuning.sign_discovery.MAX_INGEST_RANGE_M
+        self._accept_r = sr.slot_accept_radius_m
+        self._min_evidence = sr.slot_min_evidence
+        self._repoint_margin = sr.slot_repoint_margin
+        self._max_ingest_range_m = tuning.sign_discovery.max_ingest_range_m
 
         self._cells: dict[Cell, _CellEvidence] = {}
         self._cell_section: dict[Cell, Section] = {

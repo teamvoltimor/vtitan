@@ -2,7 +2,7 @@ r"""What state does an escape leave the robot in, and why does it re-trigger?
 
 Rotation and duration transfer from the simulator almost exactly (sim 22.2 deg /
 1.05 s against hardware 19.0 deg / 0.97 s), yet the OUTCOME does not: raising
-``MAX_ESCAPE_S`` 1.0 -> 1.8 makes the sim need FEWER escapes at flat total cost,
+``max_escape_s`` 1.0 -> 1.8 makes the sim need FEWER escapes at flat total cost,
 and makes the robot need MORE, doubling time spent reversing to 31% of the round.
 So the difference is not the manoeuvre -- it is the state the manoeuvre leaves
 behind. Two causes want opposite fixes:

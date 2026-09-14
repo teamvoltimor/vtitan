@@ -73,7 +73,7 @@ type Config struct {
 	// corridor narrow, so a narrow->wide corner would otherwise plan a late
 	// entry; turning early into a wider corridor is the safe failure.
 	CornerArcAssumeWide bool
-	// MaxCoordM is the track's outer boundary (profile.TrackConfig.Track.
+	// MaxCoordM is the track's outer boundary (generated.TrackConfig.Track.
 	// MaxCoord), used for validate_bounds' track-extent check.
 	MaxCoordM float64
 	// ChassisWidthM is RobotSpecs.WIDTH, used by ValidatePathFeasibility to

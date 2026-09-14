@@ -113,7 +113,7 @@ type Config struct {
 	MinHistoryForDistance   int
 
 	// Waypoints (waypoint/waypoints.toml -- the one field this package
-	// consumes; see profile.WaypointsConfig.ControllerReachedDistanceM).
+	// consumes; see waypoint.NavigationWaypointWaypoints.ControllerReachedDistanceM).
 	ControllerReachedDistanceM float64
 
 	// RobotSpecs-derived physical constants (robot.toml + active hardware

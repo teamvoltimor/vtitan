@@ -192,22 +192,22 @@ def _rear_clearance(
     by angle), readings below the sensor's rated minimum (not measurements),
     and self-detection returns (the chassis and its own cabling).
 
-    Uses tuning: lidar_sectors.THREAT_HALF_FOV_DEG, MIN_VALID_RANGE_M,
+    Uses tuning: lidar_sectors.threat_half_fov_deg, MIN_VALID_RANGE_M,
         SELF_DETECTION_THRESHOLD_M, BLIND_WEDGE_{LEFT,RIGHT}_{MIN,MAX}_DEG
     """
     tuning = get_tuning(tuning)
     sectors = tuning.lidar_sectors
-    arc_rad = math.radians(sectors.THREAT_HALF_FOV_DEG)
+    arc_rad = math.radians(sectors.threat_half_fov_deg)
     wedges = (
-        (math.radians(sectors.BLIND_WEDGE_LEFT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_LEFT_MAX_DEG)),
-        (math.radians(sectors.BLIND_WEDGE_RIGHT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_RIGHT_MAX_DEG)),
+        (math.radians(sectors.blind_wedge_left_min_deg), math.radians(sectors.blind_wedge_left_max_deg)),
+        (math.radians(sectors.blind_wedge_right_min_deg), math.radians(sectors.blind_wedge_right_max_deg)),
     )
     rear = [
         r
         for r, a in zip(ranges_m, angles_rad, strict=False)
         if abs(wrap_angle(a - math.pi)) <= arc_rad
-        and r > sectors.MIN_VALID_RANGE_M
-        and r > sectors.SELF_DETECTION_THRESHOLD_M
+        and r > sectors.min_valid_range_m
+        and r > sectors.self_detection_threshold_m
         and not any(low <= wrap_angle(a) <= high for low, high in wedges)
     ]
     return min(rear) if rear else None
@@ -218,11 +218,11 @@ def _forward_clearance(
 ) -> float:
     """Min clearance in forward direction.
 
-    Uses tuning: lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG, MIN_VALID_RANGE_M
+    Uses tuning: lidar_sectors.direction_arc_half_fov_deg, MIN_VALID_RANGE_M
     """
     tuning = get_tuning(tuning)
-    arc_rad = math.radians(tuning.lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG)
-    min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
+    arc_rad = math.radians(tuning.lidar_sectors.direction_arc_half_fov_deg)
+    min_valid = tuning.lidar_sectors.min_valid_range_m
     forward = [r for r, a in zip(ranges_m, angles_rad, strict=False) if abs(wrap_angle(a)) <= arc_rad and r > min_valid]
     return min(forward) if forward else math.inf
 

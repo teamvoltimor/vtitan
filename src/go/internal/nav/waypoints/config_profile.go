@@ -4,12 +4,13 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/waypoint"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,
-// overlaid with profile.WaypointsConfig (loaded from
+// overlaid with waypoint.NavigationWaypointWaypoints (loaded from
 // <configRoot>/profile.DefaultWaypointsTOMLPath) if configRoot is
 // non-empty and loading succeeds; otherwise, or on load failure, the
 // literal defaults, logging why.
@@ -29,7 +30,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	// 596 -> 638/640 Open result would look like a clean load. Same pattern
 	// as controllers' min_history_for_distance (see EscapeConfig) and
 	// CorridorFollowerConfig's bay_wall_clearance_m.
-	loaded, err := profile.Load[profile.WaypointsConfig](basePath, nil)
+	loaded, err := profile.Load[waypoint.NavigationWaypointWaypoints](basePath, nil)
 	if err != nil {
 		logger.Warn("waypoints: loading waypoints.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)

@@ -1,8 +1,8 @@
 r"""Did the longer escape reverse actually fit on the mat?
 
-``MAX_ESCAPE_S`` went 1.0 -> 1.8 on 2026-09-07 (``72e7172b``), which takes the
+``max_escape_s`` went 1.0 -> 1.8 on 2026-09-07 (``72e7172b``), which takes the
 simulated escape timeouts 9 -> 0 but roughly doubles the reverse: at
-``REV_SPEED`` 0.2 m/s, 0.20 m becomes 0.36 m. The corpus CANNOT price that risk
+``rev_speed`` 0.2 m/s, 0.20 m becomes 0.36 m. The corpus CANNOT price that risk
 -- its contact model never slides along a wall, so it cannot show what a longer
 reverse does against one -- and reverse has never been live-verified on this
 chassis at all. Predicted from the pre-change bags: room for 0.20 m on 94% of

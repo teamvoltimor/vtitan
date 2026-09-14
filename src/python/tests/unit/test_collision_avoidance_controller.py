@@ -761,7 +761,7 @@ class TestClearancesFromScan:
 
     def test_empty_scan_yields_zeroed_clearances(self, controller):
         scan = LidarScan(ranges_m=(), angles_rad=())
-        fov = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
+        fov = math.radians(NavigationTuning.load_default().lidar_sectors.front_half_fov_deg)
         c = clearances_from_scan(scan, controller, fov)
         assert (c.front_m, c.left_m, c.right_m, c.back_m) == (0.0, 0.0, 0.0, 0.0)
 
@@ -770,7 +770,7 @@ class TestClearancesFromScan:
         i = angle_to_index(0.0)
         ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES_FULL_ROTATION))
-        fov = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
+        fov = math.radians(NavigationTuning.load_default().lidar_sectors.front_half_fov_deg)
         c = clearances_from_scan(scan, controller, fov)
         # Front is the most constrained side; the others stay open.
         assert c.most_constrained_side is ThreatDirection.FRONT
@@ -915,8 +915,8 @@ class TestEscapeSideFollowsCommittedSign:
         tuning = NavigationTuning.load_default()
         escape = tuning.escape.model_copy(
             update={
-                "ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN": follows,
-                "ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M": floor,
+                "escape_side_follows_committed_sign": follows,
+                "escape_side_override_min_clearance_m": floor,
             },
         )
         return CollisionAvoidanceController.from_tuning(tuning, escape=escape)

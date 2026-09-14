@@ -4,12 +4,13 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/blind_nav"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,
-// overlaid with profile.CorridorEstimatorConfig and (for the alignment gate)
-// profile.DirectionEstimatorConfig, each loaded from
+// overlaid with blind_nav.NavigationBlindNavCorridorEstimator and (for the alignment gate)
+// blind_nav.NavigationBlindNavDirectionEstimator, each loaded from
 // <configRoot>/profile.DefaultXxxTOMLPath if configRoot is non-empty and
 // loading succeeds; otherwise, or on any load failure, the literal defaults,
 // logging why.
@@ -27,7 +28,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	cePath := filepath.Join(configRoot, profile.DefaultCorridorEstimatorTOMLPath)
-	if ce, err := profile.Load[profile.CorridorEstimatorConfig](cePath, nil); err != nil {
+	if ce, err := profile.Load[blind_nav.NavigationBlindNavCorridorEstimator](cePath, nil); err != nil {
 		logger.Warn("corridorestimator: loading corridor_estimator.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -38,7 +39,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	dePath := filepath.Join(configRoot, profile.DefaultDirectionEstimatorTOMLPath)
-	if de, err := profile.Load[profile.DirectionEstimatorConfig](dePath, nil); err != nil {
+	if de, err := profile.Load[blind_nav.NavigationBlindNavDirectionEstimator](dePath, nil); err != nil {
 		logger.Warn("corridorestimator: loading direction_estimator.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

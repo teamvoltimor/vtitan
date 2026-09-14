@@ -35,12 +35,12 @@ def rear_visible(tuning, override_tuning):
     """
     return override_tuning(
         tuning,
-        lidar_sectors={"BLIND_WEDGE_LEFT_MIN_DEG": -160.0, "BLIND_WEDGE_RIGHT_MAX_DEG": 175.0},
+        lidar_sectors={"blind_wedge_left_min_deg": -160.0, "blind_wedge_right_max_deg": 175.0},
     )
 
 
 def _just_inside_turn_m(tuning: NavigationTuning) -> float:
-    return tuning.corridor_follower.TURN_CLEARANCE_M - TURN_ENTRY_MARGIN_M
+    return tuning.corridor_follower.turn_clearance_m - TURN_ENTRY_MARGIN_M
 
 
 def _max_centering_norm(tuning: NavigationTuning) -> float:
@@ -52,7 +52,7 @@ def _max_centering_norm(tuning: NavigationTuning) -> float:
     keeps these tests true on any steering geometry, where comparing to a bare
     0.25 only held on the 55 degree chassis.
     """
-    return math.radians(tuning.corridor_follower.MAX_CENTERING_STEER_DEG) / RobotSpecs.MAX_STEERING_ANGLE
+    return math.radians(tuning.corridor_follower.max_centering_steer_deg) / RobotSpecs.MAX_STEERING_ANGLE
 
 
 def _max_corner_norm(tuning: NavigationTuning) -> float:
@@ -63,7 +63,7 @@ def _max_corner_norm(tuning: NavigationTuning) -> float:
     inside TURN_CLEARANCE_M. Converted for the same reason as its sibling
     above, so these stay true on any steering geometry.
     """
-    return math.radians(tuning.corridor_follower.MAX_CORNER_STEER_DEG) / RobotSpecs.MAX_STEERING_ANGLE
+    return math.radians(tuning.corridor_follower.max_corner_steer_deg) / RobotSpecs.MAX_STEERING_ANGLE
 
 
 class TestCornerTurn:
@@ -161,12 +161,12 @@ class TestSafety:
         """
         close = RobotSpecs.LENGTH - 0.05
         sectors = tuning.lidar_sectors
-        occluded = sectors.SELF_DETECTION_THRESHOLD_M / 2.0
+        occluded = sectors.self_detection_threshold_m / 2.0
 
         def masked(deg: float) -> bool:
             return (
-                sectors.BLIND_WEDGE_LEFT_MIN_DEG <= deg <= sectors.BLIND_WEDGE_LEFT_MAX_DEG
-                or sectors.BLIND_WEDGE_RIGHT_MIN_DEG <= deg <= sectors.BLIND_WEDGE_RIGHT_MAX_DEG
+                sectors.blind_wedge_left_min_deg <= deg <= sectors.blind_wedge_left_max_deg
+                or sectors.blind_wedge_right_min_deg <= deg <= sectors.blind_wedge_right_max_deg
             )
 
         def rng(a: float) -> float:
@@ -178,7 +178,7 @@ class TestSafety:
             # arc: a ray just outside it still counts as rear evidence, and
             # covering only part of the sector leaves valid rays behind that
             # authorise the reverse this test exists to forbid.
-            if abs(_wrap_pi(a - math.pi)) <= math.radians(sectors.THREAT_HALF_FOV_DEG):
+            if abs(_wrap_pi(a - math.pi)) <= math.radians(sectors.threat_half_fov_deg):
                 # Masked bearings carry the substituted max-range lie; the rest
                 # of the sector is genuinely blocked by the mount.
                 return 2.0 if masked(math.degrees(_wrap_pi(a))) else occluded
@@ -265,7 +265,7 @@ class TestCentring:
 
     def test_steers_toward_the_roomier_side_when_the_gain_is_restored(self, tuning, override_tuning) -> None:
         # Dormant, not dead: 44.0 is the value shipped until 2026-08-22.
-        centring = override_tuning(tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": 44.0})
+        centring = override_tuning(tuning, corridor_follower={"centering_gain_deg_per_m": 44.0})
         scan = LidarScanBuilder().corridor(left_m=0.8, right_m=0.2, ahead_m=2.5).build()
         assert follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=centring).steering_norm > 0
 

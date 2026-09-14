@@ -613,7 +613,7 @@ def _approach(
     engaged = [tick.committed == committed for tick in history]
     dropouts = sum(1 for prev, cur in itertools.pairwise(engaged) if prev and not cur)
     first_pos = history[engaged.index(True)].pos
-    activation = NavigationTuning.load_default().sign_router.ACTIVATION_DIST_M
+    activation = NavigationTuning.load_default().sign_router.activation_dist_m
     in_range = sum(1 for t in history if math.hypot(t.pos[0] - sign_xy[0], t.pos[1] - sign_xy[1]) <= activation)
 
     frames = [_tick_offsets(tick, sign_xy) for tick in run]
@@ -822,7 +822,7 @@ def _report_approach(tracked: list[Verdict]) -> None:
 
     runs = [v.approach for v in tracked if v.approach]
     engage = median([a.engage_distance_m for a in runs])
-    activation = NavigationTuning.load_default().sign_router.ACTIVATION_DIST_M
+    activation = NavigationTuning.load_default().sign_router.activation_dist_m
     print(f"  first committed at:                median {engage:.2f} m  (activation radius {activation:.2f} m)")
     print(f"  ticks IN RANGE of the sign:        median {median([float(a.ticks_in_range) for a in runs]):.0f}")
     print(f"  ticks committed IN TOTAL:          median {median([float(a.committed_ticks_total) for a in runs]):.0f}")

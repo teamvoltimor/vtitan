@@ -70,7 +70,7 @@ func (g CorridorGeometry) ToWidthsDict() map[Section]float64 {
 // CorridorGeometryFromWidths builds a CorridorGeometry from a per-section
 // width map, matching CorridorGeometry.from_width_dict / track_geometry.py's
 // corridor_geometry_from_widths. maxCoord is the track's outer boundary
-// (profile.TrackConfig.Track.MaxCoord) -- only the max, not the min, feeds
+// (generated.TrackConfig.Track.MaxCoord) -- only the max, not the min, feeds
 // the inner-block corners, matching the Python original exactly.
 func CorridorGeometryFromWidths(widths map[Section]float64, maxCoord float64) CorridorGeometry {
 	north, south, east, west := widths[North], widths[South], widths[East], widths[West]

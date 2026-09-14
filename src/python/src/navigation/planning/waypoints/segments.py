@@ -49,11 +49,11 @@ def build_all_segments(
     Returns:
         Per-section waypoint lists, each a straight followed by its exit arc.
 
-    Uses tuning: waypoints.NUM_INTERMEDIATE_ARC_POINTS, STRAIGHT_WAYPOINT_COUNT
+    Uses tuning: waypoints.num_intermediate_arc_points, STRAIGHT_WAYPOINT_COUNT
     """
     tuning = get_tuning(tuning)
-    num_intermediate = tuning.waypoints.NUM_INTERMEDIATE_ARC_POINTS
-    straight_count = tuning.waypoints.STRAIGHT_WAYPOINT_COUNT
+    num_intermediate = tuning.waypoints.num_intermediate_arc_points
+    straight_count = tuning.waypoints.straight_waypoint_count
 
     r_se, r_sw, r_nw, r_ne = (corner_radii[k] for k in ("se", "sw", "nw", "ne"))
 
@@ -137,7 +137,7 @@ def build_waypoint_sequence(
 ) -> list[Waypoint]:
     """Build multi-lap waypoints starting from the closest point in the first segment.
 
-    Uses tuning: waypoints.DEDUPE_DISTANCE_M
+    Uses tuning: waypoints.dedupe_distance_m
     """
     tuning = get_tuning(tuning)
     first_seg = segments[order[0]]
@@ -196,12 +196,12 @@ def deduplicate_consecutive(
 ) -> list[Waypoint]:
     """Remove consecutive duplicate waypoints (within dedupe distance).
 
-    Uses tuning: waypoints.DEDUPE_DISTANCE_M
+    Uses tuning: waypoints.dedupe_distance_m
     """
     tuning = get_tuning(tuning)
     if not waypoints:
         return []
-    dedupe_distance_m = tuning.waypoints.DEDUPE_DISTANCE_M
+    dedupe_distance_m = tuning.waypoints.dedupe_distance_m
     deduped = [waypoints[0]]
     for point in waypoints[1:]:
         prev = deduped[-1]

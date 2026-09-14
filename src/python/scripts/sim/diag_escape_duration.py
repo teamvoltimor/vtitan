@@ -1,7 +1,7 @@
 r"""How long must an escape run to actually rotate the chassis out of a corner?
 
 An escape is terminated by ELAPSED TIME, and the shipped durations cannot deliver
-the rotation the manoeuvre exists to produce. `MAX_ESCAPE_S` 1.0 at `REV_SPEED`
+the rotation the manoeuvre exists to produce. `max_escape_s` 1.0 at `rev_speed`
 0.2 m/s buys 0.20 m of path, which at the chassis's MEASURED 0.29 m minimum turn
 radius is 40 deg -- against the 90 deg+ that clearing a corner needs. Hardware
 agrees: an escape episode achieves a median 27.4 deg, 39% under 20 deg, and
@@ -14,8 +14,8 @@ can never confirm one. The floor is forced on here for exactly that reason.
 
 Known result at the endpoints (16 scenarios x 3 seeds, floor 0.29):
 
-    MAX_ESCAPE_S 1.0   in-time 26   collided  8   stuck 1   timed 9
-    MAX_ESCAPE_S 2.3   in-time 31   collided 11   stuck 0   timed 0
+    max_escape_s 1.0   in-time 26   collided  8   stuck 1   timed 9
+    max_escape_s 2.3   in-time 31   collided 11   stuck 0   timed 0
 
 Timeouts go to ZERO, at a cost of 3 collisions. This sweep looks for a knee in
 between. Terminating on achieved YAW instead was implemented, measured and
@@ -54,6 +54,10 @@ logging.disable(logging.CRITICAL)
 TURN_RADIUS_FLOOR_M = RobotSpecs.MIN_TURN_RADIUS_M
 """The MEASURED chassis floor. Forced on -- see the module docstring."""
 
+# min_turn_radius_m lives in robot.toml and is read straight from RobotSpecs by
+# the simulator kinematics. Set it at module level so spawned workers inherit it.
+RobotSpecs.MIN_TURN_RADIUS_M = TURN_RADIUS_FLOOR_M
+
 _FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios" / "obstacles"
 
 
@@ -66,14 +70,13 @@ def run_case(payload: tuple[str, int, float, int]) -> tuple[float, bool, bool, b
     """
     path, seed, max_escape_s, max_steps = payload
     metadata = load_scenario(Path(path))
-    tuning = tuning_with_overrides({"MIN_TURN_RADIUS_M": TURN_RADIUS_FLOOR_M}, group="simulation")
     tuning = tuning_with_overrides(
         {
             # The K-turn bounds are scaled with the cap rather than pinned, so a
             # longer budget is actually reachable by the manoeuvre that uses it.
-            "K_TURN_MIN_S": round(max_escape_s * 0.3, 2),
-            "K_TURN_MAX_S": round(max_escape_s * 0.6, 2),
-            "MAX_ESCAPE_S": max_escape_s,
+            "k_turn_min_s": round(max_escape_s * 0.3, 2),
+            "k_turn_max_s": round(max_escape_s * 0.6, 2),
+            "max_escape_s": max_escape_s,
         },
         group="escape",
         base=tuning,
@@ -121,7 +124,7 @@ def main() -> int:
     results = run_pool(run_case, payloads, jobs, on_result=print_pool_progress("escape-duration"))
 
     print()
-    print(f"{'MAX_ESCAPE_S':>13} {'n':>4} {'in_time':>8} {'laps3':>6} {'collided':>9} {'stuck':>6} {'timed':>6}")
+    print(f"{'max_escape_s':>13} {'n':>4} {'in_time':>8} {'laps3':>6} {'collided':>9} {'stuck':>6} {'timed':>6}")
     for duration in args.durations:
         rows = [r for r in results if r[0] == duration]
         if not rows:

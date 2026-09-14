@@ -39,13 +39,13 @@ if TYPE_CHECKING:
 # telemetry_bridge_node.TelemetryBridgeNode.__init__). Read from the checked-in
 # default rather than hardcoding 30.0 a second time, so a tuning change can't
 # silently desync this test from what the node actually passes.
-_HALF_FOV_RAD = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
+_HALF_FOV_RAD = math.radians(NavigationTuning.load_default().lidar_sectors.front_half_fov_deg)
 
 # Same reasoning: read the real thresholds _lidar_clearances applies via
 # CollisionAvoidanceController.from_tuning(get_tuning(None)), rather than
 # hardcoding 0.05/0.08 a second time and risking the test outliving a retune.
-_MIN_VALID_RANGE_M = NavigationTuning.load_default().lidar_sectors.MIN_VALID_RANGE_M
-_SELF_DETECTION_THRESHOLD_M = NavigationTuning.load_default().lidar_sectors.SELF_DETECTION_THRESHOLD_M
+_MIN_VALID_RANGE_M = NavigationTuning.load_default().lidar_sectors.min_valid_range_m
+_SELF_DETECTION_THRESHOLD_M = NavigationTuning.load_default().lidar_sectors.self_detection_threshold_m
 
 
 @pytest.fixture()

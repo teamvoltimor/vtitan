@@ -53,7 +53,7 @@ type Config struct {
 	ClosingToleranceM float64
 
 	// TrackMaxCoordM is the track's outer boundary
-	// (profile.TrackConfig.Track.MaxCoord).
+	// (generated.TrackConfig.Track.MaxCoord).
 	TrackMaxCoordM float64
 	LidarMinRangeM float64
 	LidarMaxRangeM float64

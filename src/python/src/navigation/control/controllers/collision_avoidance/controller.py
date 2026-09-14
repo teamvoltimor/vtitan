@@ -169,7 +169,7 @@ class CollisionAvoidanceController:
                 self-detection by chassis geometry at each bearing instead of by
                 the single ``self_detection_threshold_m`` scalar, which sits far
                 inside the body. See
-                ``LidarSectorParams.REAR_SELF_DETECTION_FROM_CHASSIS``.
+                ``LidarSectorParams.rear_self_detection_from_chassis``.
         """
         self.contact_dist = contact_dist
         self.risk_ray_window = risk_ray_window
@@ -234,35 +234,35 @@ class CollisionAvoidanceController:
         escape = escape if escape is not None else tuning.escape
         # Escape durations are stored in seconds and converted here: a frame
         # count would mean a different duration if CONTROL_HZ ever moved.
-        hz = tuning.control.CONTROL_HZ
+        hz = tuning.control.control_hz
         return cls(
-            contact_dist=clearance.CONTACT_DIST,
-            risk_ray_window=clearance.RISK_RAY_WINDOW,
-            slow_dist=clearance.SLOW_DIST,
-            fast_dist=clearance.FAST_DIST,
-            escape_rev_speed=escape.REV_SPEED,
+            contact_dist=clearance.contact_dist,
+            risk_ray_window=clearance.risk_ray_window,
+            slow_dist=clearance.slow_dist,
+            fast_dist=clearance.fast_dist,
+            escape_rev_speed=escape.rev_speed,
             escape_steer_scale=escape.rev_steer_norm(),
-            escape_side_follows_committed_sign=escape.ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN,
-            escape_side_override_min_clearance_m=escape.ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M,
-            stuck_threshold=escape.STUCK_MOVE_THRESHOLD,
-            path_margin=clearance.PATH_MARGIN,
+            escape_side_follows_committed_sign=escape.escape_side_follows_committed_sign,
+            escape_side_override_min_clearance_m=escape.escape_side_override_min_clearance_m,
+            stuck_threshold=escape.stuck_move_threshold,
+            path_margin=clearance.path_margin,
             k_turn_min_frames=escape.k_turn_min_frames(hz),
             k_turn_max_frames=escape.k_turn_max_frames(hz),
             side_correction_steer=escape.side_correction_steer_norm(),
-            side_correction_speed=escape.SIDE_CORRECTION_SPEED,
+            side_correction_speed=escape.side_correction_speed,
             side_correction_frames=escape.side_correction_frames(hz),
-            front_half_fov_deg=tuning.lidar_sectors.FRONT_HALF_FOV_DEG,
-            threat_half_fov_deg=tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
-            self_detection_threshold_m=tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,
-            rear_self_detection_from_chassis=tuning.lidar_sectors.REAR_SELF_DETECTION_FROM_CHASSIS,
-            min_valid_range_m=tuning.lidar_sectors.MIN_VALID_RANGE_M,
-            threat_no_detection_range_m=tuning.lidar_sectors.THREAT_NO_DETECTION_RANGE_M,
-            no_data_range_m=tuning.lidar_sectors.NO_DATA_RANGE_M,
-            blind_wedge_left_min_deg=tuning.lidar_sectors.BLIND_WEDGE_LEFT_MIN_DEG,
-            blind_wedge_left_max_deg=tuning.lidar_sectors.BLIND_WEDGE_LEFT_MAX_DEG,
-            blind_wedge_right_min_deg=tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MIN_DEG,
-            blind_wedge_right_max_deg=tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MAX_DEG,
-            ahead_of_bumper=clearance.FORWARD_PATH_AHEAD_OF_BUMPER,
+            front_half_fov_deg=tuning.lidar_sectors.front_half_fov_deg,
+            threat_half_fov_deg=tuning.lidar_sectors.threat_half_fov_deg,
+            self_detection_threshold_m=tuning.lidar_sectors.self_detection_threshold_m,
+            rear_self_detection_from_chassis=tuning.lidar_sectors.rear_self_detection_from_chassis,
+            min_valid_range_m=tuning.lidar_sectors.min_valid_range_m,
+            threat_no_detection_range_m=tuning.lidar_sectors.threat_no_detection_range_m,
+            no_data_range_m=tuning.lidar_sectors.no_data_range_m,
+            blind_wedge_left_min_deg=tuning.lidar_sectors.blind_wedge_left_min_deg,
+            blind_wedge_left_max_deg=tuning.lidar_sectors.blind_wedge_left_max_deg,
+            blind_wedge_right_min_deg=tuning.lidar_sectors.blind_wedge_right_min_deg,
+            blind_wedge_right_max_deg=tuning.lidar_sectors.blind_wedge_right_max_deg,
+            ahead_of_bumper=clearance.forward_path_ahead_of_bumper,
         )
 
     def _forward_path_ranges(
@@ -815,8 +815,8 @@ class CollisionAvoidanceController:
                 side when LIDAR alone cannot tell (see ``_k_turn_steer_sign``).
             preferred_sign: Steering sign the sign router wants, negative for
                 left, derived from the side its committed pillar must be passed
-                on. Honoured only when ``ESCAPE_SIDE_FOLLOWS_COMMITTED_SIGN`` is
-                set AND that side has ``ESCAPE_SIDE_OVERRIDE_MIN_CLEARANCE_M``
+                on. Honoured only when ``escape_side_follows_committed_sign`` is
+                set AND that side has ``escape_side_override_min_clearance_m``
                 of room. ``None`` whenever the rule is unavailable, which is
                 every tick of the Open Challenge.
 
@@ -902,7 +902,7 @@ class CollisionAvoidanceController:
             # Matches _k_turn_steer_sign's fallback: no lidar data means no basis
             # to claim the chassis is already touching a wall, so treat it as
             # clear rather than crashing _sector_to_model on None. Use the
-            # configured no-data sentinel (lidar_sectors.NO_DATA_RANGE_M), not a
+            # configured no-data sentinel (lidar_sectors.no_data_range_m), not a
             # second hardcoded 10.0.
             return self.no_data_range_m
         sr = _sector_to_model(

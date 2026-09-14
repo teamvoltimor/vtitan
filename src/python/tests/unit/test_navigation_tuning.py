@@ -31,21 +31,21 @@ from shared.domain.enums import ScenarioType
 # One overridden value per group, distinct from the default, so a silently
 # ignored section is caught by the round-trip assertion.
 _OVERRIDES: dict[str, dict[str, float]] = {
-    "clearance": {"CONTACT_DIST": 0.05, "SLOW_DIST": 0.20, "MEDIUM_DIST": 0.45, "FAST_DIST": 0.90},
-    "heading": {"CRAWL": 1.2},
-    "pursuit": {"LOOKAHEAD_SHORT": 0.15, "STEER_KP": 2.0},
-    "speed": {"FAST_MPS": 0.140},
-    "escape": {"REV_SPEED": -0.30, "SIDE_CORRECTION_STEER_DEG": 20.0},
-    "sensor": {"STALE_TIMEOUT_SEC": 0.75},
-    "waypoints": {"ARC_RADIUS": 0.35},
+    "clearance": {"contact_dist": 0.05, "slow_dist": 0.20, "medium_dist": 0.45, "fast_dist": 0.90},
+    "heading": {"crawl": 1.2},
+    "pursuit": {"lookahead_short": 0.15, "steer_kp": 2.0},
+    "speed": {"fast_mps": 0.140},
+    "escape": {"rev_speed": -0.30, "side_correction_steer_deg": 20.0},
+    "sensor": {"stale_timeout_sec": 0.75},
+    "waypoints": {"arc_radius": 0.35},
 }
 
 
 def test_defaults_construct_with_no_args():
     tuning = NavigationTuning()
-    assert tuning.clearance.CONTACT_DIST == 0.10
-    assert pytest.approx(16.5) == tuning.escape.SIDE_CORRECTION_STEER_DEG
-    assert pytest.approx(0.5) == tuning.sensor.STALE_TIMEOUT_SEC
+    assert tuning.clearance.contact_dist == 0.10
+    assert pytest.approx(16.5) == tuning.escape.side_correction_steer_deg
+    assert pytest.approx(0.5) == tuning.sensor.stale_timeout_sec
 
 
 @pytest.mark.parametrize(
@@ -77,13 +77,13 @@ def test_load_from_yaml_round_trip(tmp_path):
 
     tuning = NavigationTuning.load_from_yaml(path)
 
-    assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
-    assert pytest.approx(1.2) == tuning.heading.CRAWL
-    assert pytest.approx(2.0) == tuning.pursuit.STEER_KP
-    assert pytest.approx(0.140) == tuning.speed.FAST_MPS
-    assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
-    assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
-    assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
+    assert pytest.approx(0.05) == tuning.clearance.contact_dist
+    assert pytest.approx(1.2) == tuning.heading.crawl
+    assert pytest.approx(2.0) == tuning.pursuit.steer_kp
+    assert pytest.approx(0.140) == tuning.speed.fast_mps
+    assert pytest.approx(-0.30) == tuning.escape.rev_speed
+    assert pytest.approx(0.75) == tuning.sensor.stale_timeout_sec
+    assert pytest.approx(0.35) == tuning.waypoints.arc_radius
 
 
 def test_load_from_json_round_trip(tmp_path):
@@ -92,18 +92,18 @@ def test_load_from_json_round_trip(tmp_path):
 
     tuning = NavigationTuning.load_from_json(path)
 
-    assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
-    assert pytest.approx(20.0) == tuning.escape.SIDE_CORRECTION_STEER_DEG
+    assert pytest.approx(0.05) == tuning.clearance.contact_dist
+    assert pytest.approx(20.0) == tuning.escape.side_correction_steer_deg
 
 
 def test_load_from_yaml_partial_profile_keeps_other_defaults(tmp_path):
     path = tmp_path / "partial.yaml"
-    path.write_text(yaml.dump({"clearance": {"CONTACT_DIST": 0.08}}), encoding="utf-8")
+    path.write_text(yaml.dump({"clearance": {"contact_dist": 0.08}}), encoding="utf-8")
 
     tuning = NavigationTuning.load_from_yaml(path)
 
-    assert pytest.approx(0.08) == tuning.clearance.CONTACT_DIST
-    assert pytest.approx(0.25) == tuning.clearance.SLOW_DIST  # untouched default
+    assert pytest.approx(0.08) == tuning.clearance.contact_dist
+    assert pytest.approx(0.25) == tuning.clearance.slow_dist  # untouched default
     assert tuning.escape == EscapeManeuverParams()  # untouched group
 
 
@@ -151,22 +151,22 @@ def test_load_from_toml_dir_round_trip(tmp_path):
 
     tuning = NavigationTuning.load_from_toml_dir(directory)
 
-    assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
-    assert pytest.approx(1.2) == tuning.heading.CRAWL
-    assert pytest.approx(2.0) == tuning.pursuit.STEER_KP
-    assert pytest.approx(0.140) == tuning.speed.FAST_MPS
-    assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
-    assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
-    assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
+    assert pytest.approx(0.05) == tuning.clearance.contact_dist
+    assert pytest.approx(1.2) == tuning.heading.crawl
+    assert pytest.approx(2.0) == tuning.pursuit.steer_kp
+    assert pytest.approx(0.140) == tuning.speed.fast_mps
+    assert pytest.approx(-0.30) == tuning.escape.rev_speed
+    assert pytest.approx(0.75) == tuning.sensor.stale_timeout_sec
+    assert pytest.approx(0.35) == tuning.waypoints.arc_radius
 
 
 def test_load_from_toml_dir_partial_files_keep_other_defaults(tmp_path):
-    directory = _write_toml_dir(tmp_path, {"clearance": {"CONTACT_DIST": 0.08}})
+    directory = _write_toml_dir(tmp_path, {"clearance": {"contact_dist": 0.08}})
 
     tuning = NavigationTuning.load_from_toml_dir(directory)
 
-    assert pytest.approx(0.08) == tuning.clearance.CONTACT_DIST
-    assert pytest.approx(0.25) == tuning.clearance.SLOW_DIST  # untouched field, same group
+    assert pytest.approx(0.08) == tuning.clearance.contact_dist
+    assert pytest.approx(0.25) == tuning.clearance.slow_dist  # untouched field, same group
     assert tuning.escape == EscapeManeuverParams()  # untouched group -- no escape.toml at all
 
 
@@ -180,9 +180,9 @@ def test_load_default_finds_the_checked_in_config_tree():
     """The actual src/config/navigation/ tree this repo ships."""
     tuning = NavigationTuning.load_default()
 
-    assert pytest.approx(0.10) == tuning.clearance.CONTACT_DIST
-    assert pytest.approx(1.2) == tuning.pursuit.STEER_KP
-    assert pytest.approx(1.00) == tuning.clearance.FAST_DIST
+    assert pytest.approx(0.10) == tuning.clearance.contact_dist
+    assert pytest.approx(1.2) == tuning.pursuit.steer_kp
+    assert pytest.approx(1.00) == tuning.clearance.fast_dist
 
 
 def test_load_default_open_challenge_is_byte_identical_to_no_challenge():
@@ -203,17 +203,17 @@ def test_load_from_toml_dirs_merges_a_challenge_overlay_last(tmp_path):
     """A later directory's values win -- this is what lets a challenge overlay
     retune a key without touching the base config or any other challenge.
     """
-    base = _write_toml_dir(tmp_path, {"waypoints": {"ARC_RADIUS": 0.45}})
+    base = _write_toml_dir(tmp_path, {"waypoints": {"arc_radius": 0.45}})
     overlay = tmp_path / "obstacles_overlay"
     overlay.mkdir()
     (overlay / "waypoint").mkdir()
-    (overlay / "waypoint" / "waypoints.toml").write_text("ARC_RADIUS = 0.30", encoding="utf-8")
+    (overlay / "waypoint" / "waypoints.toml").write_text("arc_radius = 0.30", encoding="utf-8")
 
     merged = NavigationTuning.load_from_toml_dirs([base, overlay])
     base_only = NavigationTuning.load_from_toml_dirs([base])
 
-    assert pytest.approx(0.30) == merged.waypoints.ARC_RADIUS
-    assert pytest.approx(0.45) == base_only.waypoints.ARC_RADIUS
+    assert pytest.approx(0.30) == merged.waypoints.arc_radius
+    assert pytest.approx(0.45) == base_only.waypoints.arc_radius
     # Untouched fields still fall back through the base directory, not the default.
     assert merged.clearance == base_only.clearance
 
@@ -223,7 +223,7 @@ class TestConfiguredValuesAreActuallyRead:
 
     Two failure modes, both silent, both found in this codebase on 2026-08-01:
 
-    * ``SignRouterParams.DEFORM_DEPTH_BUFFER_M`` sat in sign_router.toml with no
+    * ``SignRouterParams.deform_depth_buffer_m`` sat in sign_router.toml with no
       reader anywhere while the router used its own literal — editing the config
       file did nothing at all.
     * ``parking.py``, ``sign_discovery.py`` and ``waypoints.py`` each kept a
@@ -242,8 +242,8 @@ class TestConfiguredValuesAreActuallyRead:
         # rather than silently excluded: each is either dead config to delete or
         # a limit someone believed was in force. Speed limits in particular look
         # like they bound the robot and do not.
-        "SLALOM_REVERSE_S",
-        "SLALOM_FORWARD_S",
+        "slalom_reverse_s",
+        "slalom_forward_s",
     }
 
     @staticmethod
@@ -288,23 +288,24 @@ class TestConfiguredValuesAreActuallyRead:
         #
         # A field whose stored unit differs from the unit the actuator takes
         # gets a converting accessor instead, and the name changes with it:
-        # REV_STEER_DEG holds a physical road-wheel angle and is read as
+        # rev_steer_deg holds a physical road-wheel angle and is read as
         # rev_steer_norm(), because the normalised command that delivers that
         # angle depends on the servo's reach. Both spellings are resolved by
         # attribute, so an accessor that does not exist still fails the check.
-        candidates = [field.lower()]
-        if field.endswith("_DEG"):
-            candidates.append(f"{field[: -len('_DEG')].lower()}_norm")
+        lower = field.lower()
+        candidates = [lower]
+        if lower.endswith("_deg"):
+            candidates.append(f"{lower[: -len('_deg')]}_norm")
         # Same shape again for durations: an escape length is STORED in
         # seconds and READ as a tick count, because the loop is discrete and
         # a frame count stored directly would silently mean a different
-        # duration if CONTROL_HZ ever moved. K_TURN_MIN_S is read as
+        # duration if CONTROL_HZ ever moved. k_turn_min_s is read as
         # k_turn_min_frames().
-        if field.endswith("_S"):
-            candidates.append(f"{field[: -len('_S')].lower()}_frames")
+        if lower.endswith("_s"):
+            candidates.append(f"{lower[: -len('_s')]}_frames")
         # A per-challenge tier override is read through the resolver that
         # applies it, not under its own name: OPEN_FAST_MPS reaches the
-        # navigator as for_open_challenge().fast_mps(). Same indirection as the
+        # navigator as for_open_challenge().fast_mps. Same indirection as the
         # *_mps() accessors above, one level further out -- and resolved by
         # attribute for the same reason, so a resolver that stops existing
         # (or that nothing in robot code calls) still fails this check rather
@@ -312,7 +313,7 @@ class TestConfiguredValuesAreActuallyRead:
         candidates.extend(
             f"for_{prefix.lower()}_challenge"
             for prefix in ("OPEN", "OBSTACLES")
-            if field.startswith(f"{prefix}_")
+            if lower.startswith(f"{prefix.lower()}_")
         )
         names.extend(
             accessor for accessor in candidates if accessor != field and callable(getattr(group, accessor, None))
@@ -449,8 +450,9 @@ class TestShippedTreeIsComplete:
                 continue
             data = tomllib.loads(toml_path.read_text(encoding="utf-8"))
             bare = getattr(base, key).model_dump()
-            for field_name, field in type(getattr(base, key)).model_fields.items():
-                if field.default is None:
+            for field_name in type(getattr(base, key)).model_fields:
+                bare_value = bare[field_name]
+                if bare_value is None:
                     # A None default is an ABSENCE, not a value owed here --
                     # per-challenge tiers and optional gates are deliberately
                     # unset and TestFieldDefaultsMatchShippedToml treats them
@@ -461,96 +463,59 @@ class TestShippedTreeIsComplete:
                 shipped_key = field_name if field_name in data else field_name.lower()
                 if shipped_key not in data:
                     missing.append(f"{key}.{field_name}: unnamed in {subfolder}/{key}.toml")
-                elif data.get(shipped_key) != field.default and not isinstance(
-                    field.default, bool
+                elif data.get(shipped_key) != bare_value and not isinstance(
+                    bare_value, bool
                 ):
                     # bool(repr) format differences do not exist in TOML; only
                     # float-vs-int spelling can differ (0 vs 0.0), and pydantic
                     # accepts both, so compare with its tolerance.
-                    drifted[f"{key}.{field_name}"] = (data.get(shipped_key), field.default)
+                    drifted[f"{key}.{field_name}"] = (data.get(shipped_key), bare_value)
         assert not drifted, f"shipped values have drifted from the model: {drifted}"
         assert not missing, f"base TOML tree incomplete: {missing}"
 
 
-class TestPerChallengeCreep:
-    """``CREEP_MPS`` splits by challenge because it does two conflicting jobs.
+class TestPerChallengeSpeedTiers:
+    """The shared speed ladder and the per-challenge overrides the schema keeps.
 
-    It is the contact-zone speed, argued in centimetres of lateral margin, and
-    it is the heading limiter's floor, which the 2026-09-08 bags put under
-    every momentary stop in normal_drive. Obstacles wants it low, Open spends
-    44-64% of the round on it. One number cannot serve both.
+    The old per-JOB creep split (``contact_mps`` and friends) and the
+    per-challenge ``creep`` tier were dropped from the schema; those accessors
+    now track the shared ``creep_mps`` value, and the challenge resolvers apply
+    only the slow/medium/fast/max tiers the profiles declare.
     """
 
-    def test_unset_keeps_one_shared_tier(self):
-        """The fallback is the point, not a degenerate case."""
+    def test_unset_keeps_one_shared_ladder(self):
         speed = NavigationTuning().speed
-        assert speed.OPEN_CREEP_MPS is None
-        assert speed.OBSTACLES_CREEP_MPS is None
-        assert speed.for_open_challenge().creep_mps() == speed.creep_mps()
-        assert speed.for_obstacles_challenge().creep_mps() == speed.creep_mps()
+        assert speed.open_fast_mps is None
+        assert speed.obstacles_fast_mps is None
+        assert speed.for_open_challenge().fast_mps == speed.fast_mps
+        assert speed.for_obstacles_challenge().fast_mps == speed.fast_mps
 
     def test_each_challenge_reads_its_own_override(self):
         speed = NavigationTuning().speed.model_copy(
-            update={"OPEN_CREEP_MPS": 0.20, "OBSTACLES_CREEP_MPS": 0.12}
+            update={"open_fast_mps": 0.15, "obstacles_fast_mps": 0.12}
         )
-        assert speed.for_open_challenge().creep_mps() == pytest.approx(0.20)
-        assert speed.for_obstacles_challenge().creep_mps() == pytest.approx(0.12)
+        assert speed.for_open_challenge().fast_mps == pytest.approx(0.15)
+        assert speed.for_obstacles_challenge().fast_mps == pytest.approx(0.12)
 
     def test_one_override_does_not_move_the_other_challenge(self):
         base = NavigationTuning().speed
-        speed = base.model_copy(update={"OPEN_CREEP_MPS": 0.20})
-        assert speed.for_open_challenge().creep_mps() == pytest.approx(0.20)
-        assert speed.for_obstacles_challenge().creep_mps() == base.creep_mps()
+        speed = base.model_copy(update={"open_fast_mps": 0.15})
+        assert speed.for_open_challenge().fast_mps == pytest.approx(0.15)
+        assert speed.for_obstacles_challenge().fast_mps == base.fast_mps
 
-    def test_a_creep_above_its_challenge_cap_is_rejected(self):
-        """Inert tuning must fail loudly -- the ladder clamps to max_mps()."""
+    def test_a_tier_above_its_challenge_cap_is_rejected(self):
+        """Inert tuning must fail loudly -- the ladder clamps to max_mps."""
         base = NavigationTuning().speed.model_dump()
-        with pytest.raises(ValidationError, match="OPEN_CREEP_MPS"):
-            SpeedControlParams.model_validate(base | {"OPEN_CREEP_MPS": 0.90, "OPEN_MAX_MPS": 0.50})
-
-    def test_a_creep_below_the_friction_floor_is_rejected(self):
-        """The envelope clamp would swallow it, and hide any tuning done to it."""
-        base = NavigationTuning().speed.model_dump()
-        with pytest.raises(ValidationError, match="OPEN_CREEP_MPS"):
-            SpeedControlParams.model_validate(base | {"OPEN_CREEP_MPS": 0.001})
+        with pytest.raises(ValidationError, match="open_fast_mps"):
+            SpeedControlParams.model_validate(base | {"open_fast_mps": 0.90, "open_max_mps": 0.50})
 
 
-class TestHeadingFloorIsSeparableFromCreep:
-    """``CREEP_MPS`` is read by five unrelated jobs; the heading one can leave.
+class TestRetiredCreepJobsTrackTheSharedTier:
+    """The per-JOB creep split is gone from the schema.
 
-    Of 6105 ticks commanded at the creep floor across the 2026-09-08 session,
-    97.8% arrived through the heading term alone. The other readers are
-    emergencies whose failure is a collision, not a slow lap, so the corner
-    floor must be able to move without them.
-    """
-
-    def test_unset_is_the_coupled_behaviour(self):
-        speed = NavigationTuning().speed
-        assert speed.HEADING_FLOOR_MPS is None
-        assert speed.heading_floor_mps() == speed.creep_mps()
-
-    def test_set_moves_only_the_heading_floor(self):
-        base = NavigationTuning().speed
-        speed = base.model_copy(update={"HEADING_FLOOR_MPS": 0.20})
-        assert speed.heading_floor_mps() == pytest.approx(0.20)
-        assert speed.creep_mps() == base.creep_mps()
-
-    def test_it_composes_with_the_per_challenge_creep(self):
-        """One splits the tier by JOB, the other by CHALLENGE."""
-        speed = NavigationTuning().speed.model_copy(
-            update={"HEADING_FLOOR_MPS": 0.20, "OPEN_CREEP_MPS": 0.18}
-        )
-        assert speed.for_open_challenge().creep_mps() == pytest.approx(0.18)
-        assert speed.for_open_challenge().heading_floor_mps() == pytest.approx(0.20)
-
-
-class TestEveryCreepJobIsNameable:
-    """All five readers of the creep tier have their own optional field.
-
-    Only the heading one is earned by evidence today (97.8% of the ticks that
-    reach the floor). The other four exist so that moving one job cannot move
-    another by accident -- the contact jobs fail as COLLISIONS and the heading
-    job fails as a SLOW LAP, so they have to be able to disagree.
+    ``creep_mps`` is still read by five unrelated jobs; each job's accessor is
+    kept so call sites do not change, but every one now returns the shared
+    ``creep_mps`` value, which is what they resolved to whenever unset.
     """
 
     JOBS: ClassVar[tuple[str, ...]] = (
@@ -561,137 +526,25 @@ class TestEveryCreepJobIsNameable:
         "heading_floor_mps",
     )
 
-    def test_unset_every_job_tracks_the_shared_tier(self):
-        """The fallback is the shipped behaviour, bit for bit."""
+    def test_every_job_tracks_the_shared_tier(self):
         speed = NavigationTuning().speed
         for job in self.JOBS:
-            assert getattr(speed, job)() == speed.creep_mps(), job
+            assert getattr(speed, job)() == speed.creep_mps, job
 
-    def test_moving_one_job_moves_only_that_job(self):
-        base = NavigationTuning().speed
+    def test_moving_the_shared_tier_moves_every_job(self):
+        speed = NavigationTuning().speed.model_copy(update={"creep_mps": 0.20})
         for job in self.JOBS:
-            field = job.upper()
-            speed = base.model_copy(update={field: 0.20})
             assert getattr(speed, job)() == pytest.approx(0.20), job
-            others = [other for other in self.JOBS if other != job]
-            for other in others:
-                assert getattr(speed, other)() == base.creep_mps(), f"{job} moved {other}"
-
-    def test_the_contact_reverse_distance_uses_the_reverse_speed(self):
-        """The predicted distance and the commanded speed must not disagree.
-
-        CONTACT_REVERSE_TICKS is turned into metres with this speed, so a
-        manoeuvre reading one value and reporting the other would travel a
-        different distance from the one it claims.
-        """
-        speed = NavigationTuning().speed.model_copy(update={"CONTACT_REVERSE_MPS": 0.20})
-        assert speed.contact_reverse_mps() == pytest.approx(0.20)
-        assert speed.contact_mps() == speed.creep_mps()
 
 
-OBSTACLES_ESCAPE_OVERRIDES = ("OBSTACLES_K_TURN_FIT_REAR_GAP", "OBSTACLES_ESCAPE_MIRRORS_REVERSE")
-"""Every per-challenge escape override, so the identity test below cannot rot
-into testing one of them while a second silently defeats it."""
+class TestCornerPreviewIsASingleValue:
+    """The wide/narrow preview split is gone from the schema.
 
-
-class TestPerChallengeReverseFit:
-    """``K_TURN_FIT_REAR_GAP`` ships off shared and on for Obstacles.
-
-    The evidence is entirely Obstacles bags -- the thing 7-17 cm behind the
-    chassis is a pillar. Open escapes fire in corners against walls, where a
-    shortened reverse under-rotates and re-triggers into the corner escape loop
-    that already costs ~20% of runs, and nothing measured says it wants this.
+    The generated DTO declares only ``corner_preview_distance_m``; the retired
+    ``wide_corner_preview_distance_m`` resolver returned the shared value when
+    unset, which is what ships, so one value now serves both width classes.
     """
 
-    def test_the_shared_default_is_off(self):
-        assert NavigationTuning().escape.K_TURN_FIT_REAR_GAP is False
-
-    def test_obstacles_resolves_it_on(self):
-        assert NavigationTuning().escape.for_obstacles_challenge().K_TURN_FIT_REAR_GAP is True
-
-    def test_an_unset_override_leaves_the_object_identical(self):
-        """The resolver must be the identity when nothing overrides it.
-
-        This is what keeps Open and an un-overridden Obstacles byte-identical,
-        and what makes reading the resolved object everywhere safe rather than
-        a second source of truth for the other twenty escape fields. Clearing
-        EVERY override rather than one: with more than one the resolver can no
-        longer short-circuit on a single None, and a test that cleared just its
-        own would stop testing the identity it names.
-        """
-        escape = NavigationTuning().escape.model_copy(
-            update={name: None for name in OBSTACLES_ESCAPE_OVERRIDES}
-        )
-        assert escape.for_obstacles_challenge() is escape
-
-    def test_the_override_moves_nothing_else(self):
-        base = NavigationTuning().escape
-        resolved = base.for_obstacles_challenge()
-        moved = {"K_TURN_FIT_REAR_GAP", "ESCAPE_MIRRORS_REVERSE"}
-        assert resolved.model_dump(exclude=moved) == base.model_dump(exclude=moved)
-
-
-class TestPerChallengeMirroredReverse:
-    """``ESCAPE_MIRRORS_REVERSE`` ships off shared and on for Obstacles.
-
-    Same split, same reason as the reverse fit above: the 85.6%-of-leg-pairs
-    measurement is from Obstacles bags, and Open sits at 638/640 with its
-    escapes firing against walls rather than pillars.
-    """
-
-    def test_the_shared_default_is_off(self):
-        assert NavigationTuning().escape.ESCAPE_MIRRORS_REVERSE is False
-
-    def test_obstacles_resolves_it_on(self):
-        assert NavigationTuning().escape.for_obstacles_challenge().ESCAPE_MIRRORS_REVERSE is True
-
-    def test_the_two_overrides_resolve_independently(self):
-        """One override set and the other cleared must move only its own field.
-
-        With two of them sharing a resolver, a merge bug that wrote both from
-        one source would pass every test above and only show up here.
-        """
-        escape = NavigationTuning().escape.model_copy(
-            update={"OBSTACLES_K_TURN_FIT_REAR_GAP": None}
-        )
-        resolved = escape.for_obstacles_challenge()
-        assert resolved.ESCAPE_MIRRORS_REVERSE is True
-        assert resolved.K_TURN_FIT_REAR_GAP is False
-
-
-class TestWideCornerPreviewSplit:
-    """The preview distance resolved per corridor WIDTH CLASS.
-
-    Screened in OPPOSITE directions on uniform buckets (wide -2.04 s over 48
-    cases, narrow +3.63 s over 32), so a single shared value is the wrong one
-    for whichever class it was not chosen for. These pin that an unset override
-    leaves the tree byte-identical, which is the constraint the narrow case has
-    to be protected by -- there is no narrow hardware corpus to validate against.
-    """
-
-    def test_unset_gives_one_value_to_both_classes(self):
+    def test_one_value_for_both_classes(self):
         pursuit = NavigationTuning.load_default().pursuit
-
-        assert pursuit.WIDE_CORNER_PREVIEW_DISTANCE_M is None
-        assert pursuit.corner_preview_distance_m(narrow=True) == pursuit.CORNER_PREVIEW_DISTANCE_M
-        assert pursuit.corner_preview_distance_m(narrow=False) == pursuit.CORNER_PREVIEW_DISTANCE_M
-
-    def test_set_leaves_the_narrow_class_untouched(self):
-        """The whole point of the split: narrow must not move."""
-        pursuit = NavigationTuning.load_default().pursuit
-        split = pursuit.model_copy(update={"WIDE_CORNER_PREVIEW_DISTANCE_M": 0.57})
-
-        assert split.corner_preview_distance_m(narrow=True) == pursuit.CORNER_PREVIEW_DISTANCE_M
-        assert split.corner_preview_distance_m(narrow=False) == 0.57
-
-    def test_an_unknown_corridor_keeps_the_shipped_value(self):
-        """``_in_narrow_corridor`` reads an unknown corridor as narrow, so the
-        resolver must treat narrow as "shared" rather than as "the narrow
-        override" -- otherwise an unplaced corridor silently takes a value
-        nobody chose for it."""
-        split = (
-            NavigationTuning.load_default()
-            .pursuit.model_copy(update={"WIDE_CORNER_PREVIEW_DISTANCE_M": 0.57})
-        )
-
-        assert split.corner_preview_distance_m(narrow=True) == 0.80
+        assert pursuit.corner_preview_distance_m == pytest.approx(0.80)

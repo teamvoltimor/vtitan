@@ -1,10 +1,10 @@
-"""Price the declared RISK of ``SIDE_CORRECTION_BLENDS``, not its benefit.
+"""Price the declared RISK of ``side_correction_blends``, not its benefit.
 
 The flag lets a forward side correction BIAS the planned steering instead of
 replacing it. Its docstring says it ships off because "adding two steering
 signals can saturate the wheel or produce a curvature neither layer asked for
 -- exactly the kind of thing a corpus has to rule out". The outcome sweep
-(``diag_sign_router_flag_ab.py --field SIDE_CORRECTION_BLENDS --group escape``)
+(``diag_sign_router_flag_ab.py --field side_correction_blends --group escape``)
 counts laps and collisions; neither can see a saturated wheel, because a run
 that saturates and still finishes scores as a win.
 
@@ -59,7 +59,7 @@ def run_case(payload: tuple[str, int, bool, int]) -> tuple[bool, int, int, float
     """Run one (scenario, seed, flag) case and return wheel statistics."""
     path, seed, value, max_steps = payload
     metadata = load_scenario(Path(path))
-    tuning = tuning_with_overrides({"SIDE_CORRECTION_BLENDS": value}, group="escape")
+    tuning = tuning_with_overrides({"side_correction_blends": value}, group="escape")
 
     limit = RobotSpecs.MAX_STEERING_ANGLE * SAT_FRAC
     steers: list[float] = []
@@ -108,7 +108,7 @@ def main() -> int:
 
     jobs = resolve_jobs(args.jobs)
     print(
-        f"{len(payloads)} runs over {jobs} workers, SIDE_CORRECTION_BLENDS, "
+        f"{len(payloads)} runs over {jobs} workers, side_correction_blends, "
         f"{len(paths)} scenarios x {args.seeds} seeds, SIGHTED"
     )
     print(f"full lock = {RobotSpecs.MAX_STEERING_ANGLE:.3f} rad; saturated at >= {SAT_FRAC:.2f} of it")

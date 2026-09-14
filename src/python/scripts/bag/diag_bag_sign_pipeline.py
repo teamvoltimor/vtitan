@@ -82,13 +82,13 @@ def main() -> int:
                 x0, _y0, x1, _y1 = det["bbox"]
                 height_px = det["bbox"][3] - det["bbox"][1]
                 total += 1
-                if x0 <= disc.FRAME_EDGE_TOLERANCE_PX or x1 >= FRAME_W_PX - disc.FRAME_EDGE_TOLERANCE_PX:
+                if x0 <= disc.frame_edge_tolerance_px or x1 >= FRAME_W_PX - disc.frame_edge_tolerance_px:
                     clipped += 1
-                if height_px < disc.MIN_RELIABLE_BBOX_HEIGHT_PX:
+                if height_px < disc.min_reliable_bbox_height_px:
                     short += 1
                     continue
-                rng = _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / height_px * disc.RANGE_SCALE
-                if rng > disc.MAX_INGEST_RANGE_M:
+                rng = _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / height_px * disc.range_scale
+                if rng > disc.max_ingest_range_m:
                     beyond += 1
                 ranges.append(rng)
 
@@ -99,7 +99,7 @@ def main() -> int:
     ranges.sort()
     print(f"  frame-clipped: {clipped} ({100 * clipped / total:.1f}%)")
     print(f"  below MIN_RELIABLE_BBOX_HEIGHT_PX: {short}")
-    print(f"  beyond MAX_INGEST_RANGE_M ({disc.MAX_INGEST_RANGE_M}), dropped: {beyond}")
+    print(f"  beyond MAX_INGEST_RANGE_M ({disc.max_ingest_range_m}), dropped: {beyond}")
     print(
         f"  implied range m: p10={_q(ranges, 0.10):.2f} p50={_q(ranges, 0.50):.2f} "
         f"p90={_q(ranges, 0.90):.2f} max={ranges[-1]:.2f}"

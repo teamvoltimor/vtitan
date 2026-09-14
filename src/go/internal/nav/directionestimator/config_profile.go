@@ -4,12 +4,14 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/blind_nav"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,
-// overlaid with profile.DirectionEstimatorConfig, profile.LidarSectorsConfig,
-// and profile.CorridorFollowerConfig (each loaded from
+// overlaid with blind_nav.NavigationBlindNavDirectionEstimator, sensors.NavigationSensorsLidarSectors,
+// and blind_nav.NavigationBlindNavCorridorFollower (each loaded from
 // <configRoot>/profile.DefaultXxxTOMLPath) if configRoot is non-empty and
 // loading succeeds; otherwise, or on any load failure, the literal
 // defaults, logging why. The three files load and fall back
@@ -23,7 +25,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	dePath := filepath.Join(configRoot, profile.DefaultDirectionEstimatorTOMLPath)
-	if de, err := profile.Load[profile.DirectionEstimatorConfig](dePath, nil); err != nil {
+	if de, err := profile.Load[blind_nav.NavigationBlindNavDirectionEstimator](dePath, nil); err != nil {
 		logger.Warn(
 			"directionestimator: loading direction_estimator.toml, falling back to defaults",
 			"config_root",
@@ -40,7 +42,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	lsPath := filepath.Join(configRoot, profile.DefaultLidarSectorsTOMLPath)
-	if ls, err := profile.Load[profile.LidarSectorsConfig](lsPath, nil); err != nil {
+	if ls, err := profile.Load[sensors.NavigationSensorsLidarSectors](lsPath, nil); err != nil {
 		logger.Warn("directionestimator: loading lidar_sectors.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -49,7 +51,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	}
 
 	cfPath := filepath.Join(configRoot, profile.DefaultCorridorFollowerTOMLPath)
-	if cf, err := profile.Load[profile.CorridorFollowerConfig](cfPath, nil); err != nil {
+	if cf, err := profile.Load[blind_nav.NavigationBlindNavCorridorFollower](cfPath, nil); err != nil {
 		logger.Warn("directionestimator: loading corridor_follower.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

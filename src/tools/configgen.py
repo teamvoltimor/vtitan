@@ -351,7 +351,7 @@ class ConfigTool:
                 if ref.startswith("adr:"):
                     target = self.repo_root / "other" / "docs" / "adr" / f"{ref[4:]}.md"
                 else:
-                    # Non-adr refs are docs-relative (e.g. docs/bitacora_ingenieria.md);
+                    # Non-adr refs are docs-relative (e.g. docs/bitacora-ingenieria.md);
                     # the docs tree lives under other/ after the repo re-layout.
                     target = self.repo_root / "other" / ref.split("#", 1)[0]
                 if not target.exists():

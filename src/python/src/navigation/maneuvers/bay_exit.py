@@ -266,17 +266,17 @@ def _leg_speed(creep_speed_mps: float, follower: object, *, reverse: bool, exit_
     already collides in 32/32 scenarios. The working window may be narrow, and
     only the robot can say where it is.
     """
-    absolute = follower.BAY_EXIT_SPEED_MPS
+    absolute = follower.bay_exit_speed_mps
     if absolute > 0.0:
         # Absolute means absolute: the point is to ask for a speed the
         # drivetrain delivers, and re-scaling it would put it back under the
         # deadband this exists to clear.
         return absolute
-    scale = follower.REVERSE_SPEED_SCALE if reverse else follower.CORNER_SPEED_SCALE
+    scale = follower.reverse_speed_scale if reverse else follower.corner_speed_scale
     # `exit_scale` is False on the legacy pre-guard paths, which never applied
     # BAY_EXIT_SPEED_SCALE; keeping that lets the override reach them without
     # changing what they do when it is unset.
-    return creep_speed_mps * scale * (follower.BAY_EXIT_SPEED_SCALE if exit_scale else 1.0)
+    return creep_speed_mps * scale * (follower.bay_exit_speed_scale if exit_scale else 1.0)
 
 
 class BayExit:
@@ -380,7 +380,7 @@ class BayExit:
         if self._start_yaw_rad is None:
             return False
         tuning = get_tuning(tuning)
-        return self.rotation_deg >= tuning.corridor_follower.BAY_EXIT_TARGET_YAW_DEG
+        return self.rotation_deg >= tuning.corridor_follower.bay_exit_target_yaw_deg
 
     def _track_rotation(self, yaw_rad: float | None) -> None:
         """Accumulate rotation since placement, unwrapping at +/-pi."""
@@ -457,7 +457,7 @@ class BayExit:
         step = travelled_m - previous
         max_rad = math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
         target = clamp(wheel_norm, -1.0, 1.0) * max_rad
-        slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
+        slew = tuning.pursuit.max_steering_rate / tuning.control.control_hz
         self._dr_wheel_rad += clamp(target - self._dr_wheel_rad, -slew, slew)
         if measured_yaw_rad is not None:
             self._dr_yaw = measured_yaw_rad
@@ -496,7 +496,7 @@ class BayExit:
         """Fin clearance the chassis WOULD have after one more step like this one."""
         max_rad = math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
         target = clamp(wheel_norm, -1.0, 1.0) * max_rad
-        slew = tuning.pursuit.MAX_STEERING_RATE / tuning.control.CONTROL_HZ
+        slew = tuning.pursuit.max_steering_rate / tuning.control.control_hz
         wheel = self._dr_wheel_rad + clamp(target - self._dr_wheel_rad, -slew, slew)
         yaw = self._dr_yaw + _bicycle_yaw_step(step_m, wheel)
         # Same wall clip as `_dead_reckon`, for the same reason: a predicted
@@ -577,7 +577,7 @@ class BayExit:
         # until 2026-09-11 and pull opposite ways: the limiter is a cornering
         # policy deliberately held low, while this budget wastes 2.5 s per
         # reversal whenever it sits below the truth. See SERVO_SLEW_RATE_RAD_S.
-        per_tick_rad = tuning.pursuit.SERVO_SLEW_RATE_RAD_S / tuning.control.CONTROL_HZ
+        per_tick_rad = tuning.pursuit.servo_slew_rate_rad_s / tuning.control.control_hz
         self._settle_ticks = math.ceil(swing_rad / per_tick_rad) if per_tick_rad > 0 else 0
         self._leg_is_reverse = is_reverse
         self._leg_start_m = travelled_m
@@ -673,9 +673,9 @@ class BayExit:
         # wall is what stops the chassis, and the operator reports the real
         # exit is made by LEANING on it, which is exactly what a 1 mm margin on
         # a 29 mm model forbids.
-        margin = follower.BAY_EXIT_CLEARANCE_MARGIN_M - follower.BAY_EXIT_CLEARANCE_TOLERANCE_M
+        margin = follower.bay_exit_clearance_margin_m - follower.bay_exit_clearance_tolerance_m
         sign = 1.0 if open_is_left else -1.0
-        arc = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
+        arc = clamp(follower.bay_exit_arc_steer_norm, 0.0, 1.0)
         # ONE angle for both legs -- see the docstring; the reverse holds it
         # rather than mirroring it. Signed in the dead-reckoned frame, where
         # +yaw is toward the open side, so the guard's geometry needs no
@@ -701,7 +701,7 @@ class BayExit:
         # computed rather than tuned.
         def leg_norm(is_reverse: bool) -> float:
             """Lock for a leg, mirrored on the reverse when asked."""
-            return -arc if (follower.BAY_EXIT_GUARD_MIRRORS_REVERSE and is_reverse) else arc
+            return -arc if (follower.bay_exit_guard_mirrors_reverse and is_reverse) else arc
 
         wheel_norm = leg_norm(self._leg_is_reverse)
         next_norm = leg_norm(not self._leg_is_reverse)
@@ -719,7 +719,7 @@ class BayExit:
         # geometry avoid a left/right case split. `sign` converts between them,
         # and is the same factor the outgoing command is re-signed by.
         measured_yaw = (
-            sign * self._rotation_rad if follower.BAY_EXIT_DR_USES_MEASURED_YAW else None
+            sign * self._rotation_rad if follower.bay_exit_dr_uses_measured_yaw else None
         )
         if self._settle_ticks > 0:
             self._settle_ticks -= 1
@@ -752,7 +752,7 @@ class BayExit:
         # the coast estimate wants is SPEED, which has no sign.
         if self._guard_prev_travelled_m is not None:
             moved = abs(travelled_m - self._guard_prev_travelled_m)
-            self._guard_recent_speeds.append(moved * tuning.control.CONTROL_HZ)
+            self._guard_recent_speeds.append(moved * tuning.control.control_hz)
             del self._guard_recent_speeds[:-_GUARD_SPEED_WINDOW_TICKS]
         self._guard_prev_travelled_m = travelled_m
 
@@ -769,7 +769,7 @@ class BayExit:
         # makes unreachable. Counted only on ticks past the settle, so the
         # budget is the moving part of the leg rather than the servo swing.
         self._leg_ticks += 1
-        leg_max_ticks = max(1, math.ceil(follower.BAY_EXIT_LEG_MAX_S * tuning.control.CONTROL_HZ))
+        leg_max_ticks = max(1, math.ceil(follower.bay_exit_leg_max_s * tuning.control.control_hz))
         if self._leg_ticks >= leg_max_ticks:
             self._begin_leg(
                 is_reverse=not self._leg_is_reverse,
@@ -782,7 +782,7 @@ class BayExit:
             return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
 
         speed = _leg_speed(creep_speed_mps, follower, reverse=self._leg_is_reverse)
-        step = (-speed if self._leg_is_reverse else speed) / tuning.control.CONTROL_HZ
+        step = (-speed if self._leg_is_reverse else speed) / tuning.control.control_hz
         # Look a STOPPING DISTANCE ahead, not a single tick. Commanding zero
         # does not stop the chassis -- the drivetrain decays with
         # ``SPEED_RESPONSE_TAU_S``, so it coasts a further ``v * tau``, 40 mm at
@@ -806,7 +806,7 @@ class BayExit:
         # command-based guard would have refused on speed the chassis actually
         # has. `step` stays command-based and so stays conservative.
         coast_speed = speed
-        if follower.BAY_EXIT_GUARD_MEASURED_COAST and self._guard_recent_speeds:
+        if follower.bay_exit_guard_measured_coast and self._guard_recent_speeds:
             coast_speed = min(speed, max(self._guard_recent_speeds))
         coast_m = coast_speed * RobotSpecs.SPEED_RESPONSE_TAU_S
         reach = step + math.copysign(coast_m, step)
@@ -837,7 +837,7 @@ class BayExit:
         # has already failed to describe the situation; it still never approves
         # a step deeper into a fin, which is the property the guard exists for.
         held = self._predicted_gap(0.0, wheel_norm, tuning)
-        recovering = follower.BAY_EXIT_GUARD_OVERLAP_RECOVERY and held <= margin and gap > held
+        recovering = follower.bay_exit_guard_overlap_recovery and held <= margin and gap > held
         if gap <= margin and not recovering:
             # End the leg on the PREDICTION -- nothing has been touched -- and
             # pay the servo swing before the next one moves. Flipping the flag
@@ -904,8 +904,8 @@ class BayExit:
         way ahead closes, reverse a bounded distance, repeat.
         """
         follower = tuning.corridor_follower
-        arc = clamp(follower.BAY_EXIT_ARC_STEER_NORM, 0.0, 1.0)
-        back = clamp(follower.BAY_EXIT_CYCLE_REVERSE_STEER_NORM, 0.0, 1.0)
+        arc = clamp(follower.bay_exit_arc_steer_norm, 0.0, 1.0)
+        back = clamp(follower.bay_exit_cycle_reverse_steer_norm, 0.0, 1.0)
         sign = 1.0 if open_is_left else -1.0
         target = -back * sign if self._leg_is_reverse else arc * sign
 
@@ -951,13 +951,13 @@ class BayExit:
         else:
             self._leg_stall_ticks = 0
         self._last_travelled_m = travelled_m
-        stalled = self._leg_stall_ticks >= follower.BAY_EXIT_LEG_STALL_TICKS
+        stalled = self._leg_stall_ticks >= follower.bay_exit_leg_stall_ticks
 
         if self._leg_is_reverse:
             self._reverse_ticks += 1
             leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
             self._reverse_progress_m = leg_start - travelled_m
-            if stalled or self._reverse_progress_m >= follower.BAY_EXIT_CYCLE_REVERSE_M:
+            if stalled or self._reverse_progress_m >= follower.bay_exit_cycle_reverse_m:
                 self._begin_leg(
                     is_reverse=False,
                     travelled_m=travelled_m,
@@ -993,7 +993,7 @@ class BayExit:
         # turned 0.1 deg in 57 ticks. This is the same reason the reverse leg
         # above is bounded by the lot's own dimensions rather than measured.
         leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
-        if stalled or travelled_m - leg_start >= follower.BAY_EXIT_FORWARD_M:
+        if stalled or travelled_m - leg_start >= follower.bay_exit_forward_m:
             self._begin_leg(
                 is_reverse=True,
                 travelled_m=travelled_m,
@@ -1037,7 +1037,7 @@ class BayExit:
         clearance = _forward_clearance(ranges_m, angles_rad, tuning)
         if math.isinf(clearance):
             return False
-        return clearance >= tuning.corridor_follower.MIN_FORWARD_CLEARANCE_M
+        return clearance >= tuning.corridor_follower.min_forward_clearance_m
 
     @staticmethod
     def _nose_in_contact(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning) -> bool:
@@ -1054,7 +1054,7 @@ class BayExit:
         clearance = _forward_clearance(ranges_m, angles_rad, tuning)
         if math.isinf(clearance):
             return True
-        return clearance < tuning.corridor_follower.BAY_EXIT_CONTACT_DIST_M
+        return clearance < tuning.corridor_follower.bay_exit_contact_dist_m
 
     def _resolve_open_side(
         self,
@@ -1072,7 +1072,7 @@ class BayExit:
         the flips rather than assuming stability.
         """
         follower = tuning.corridor_follower
-        half_width = math.radians(follower.BAY_EXIT_OPEN_SIDE_SECTOR_DEG)
+        half_width = math.radians(follower.bay_exit_open_side_sector_deg)
         left = _open_side_score(ranges_m, angles_rad, math.pi / 2, half_width)
         right = _open_side_score(ranges_m, angles_rad, -math.pi / 2, half_width)
         open_is_left = left > right
@@ -1086,10 +1086,10 @@ class BayExit:
             self._open_votes_left += 1 if open_is_left else 0
             self._open_votes_right += 0 if open_is_left else 1
             votes = self._open_votes_left + self._open_votes_right
-            if follower.BAY_EXIT_LATCH_DIRECTION and votes < follower.BAY_EXIT_OPEN_SIDE_VOTES:
+            if follower.bay_exit_latch_direction and votes < follower.bay_exit_open_side_votes:
                 return open_is_left
             open_is_left = self._open_votes_left > self._open_votes_right
-        elif follower.BAY_EXIT_LATCH_DIRECTION:
+        elif follower.bay_exit_latch_direction:
             open_is_left = self._open_is_left
         if self._open_is_left is not None and open_is_left != self._open_is_left:
             self._open_flips += 1
@@ -1177,11 +1177,11 @@ class BayExit:
         # pocket, and the point of this leg is to buy room, not heading. The
         # turn that follows is the manoeuvre's own, toward the open side it
         # already identifies correctly.
-        if follower.BAY_EXIT_CONTACT_RECOVERY_TICKS > 0 and (
+        if follower.bay_exit_contact_recovery_ticks > 0 and (
             self._recovery_ticks_left > 0 or self._nose_in_contact(ranges_m, angles_rad, tuning)
         ):
             if self._recovery_ticks_left <= 0:
-                self._recovery_ticks_left = follower.BAY_EXIT_CONTACT_RECOVERY_TICKS
+                self._recovery_ticks_left = follower.bay_exit_contact_recovery_ticks
                 self._contact_recoveries += 1
             self._recovery_ticks_left -= 1
             return DriveCommand(
@@ -1233,17 +1233,17 @@ class BayExit:
         # never leaves the pocket has already lost the round and the 7 points
         # the in-bay start was worth.
         guard_trapped = (
-            follower.BAY_EXIT_GUARD_BLOCK_TICKS > 0 and self._guard_block_ticks >= follower.BAY_EXIT_GUARD_BLOCK_TICKS
+            follower.bay_exit_guard_block_ticks > 0 and self._guard_block_ticks >= follower.bay_exit_guard_block_ticks
         )
-        if follower.BAY_EXIT_CLEARANCE_GUARD and not guard_trapped:
+        if follower.bay_exit_clearance_guard and not guard_trapped:
             return self._guarded_command(travelled_m, creep_speed_mps, tuning, open_is_left)
 
         # Which exit is driving. After BAY_EXIT_FALLBACK_FRAMES the OTHER one
         # takes over, once: the two are complementary (each 254/256 under the
         # contact model where the other is 0/256) and which one the real robot
         # needs is unknown, so covering both beats betting on one.
-        use_cycle = follower.BAY_EXIT_CYCLE
-        if follower.BAY_EXIT_FALLBACK_FRAMES and self._ticks > follower.BAY_EXIT_FALLBACK_FRAMES:
+        use_cycle = follower.bay_exit_cycle
+        if follower.bay_exit_fallback_frames and self._ticks > follower.bay_exit_fallback_frames:
             use_cycle = not use_cycle
             if not self._switched:
                 self._switched = True
@@ -1258,14 +1258,14 @@ class BayExit:
         # 0.001 to 0.20 produced byte-identical runs, because the turn was
         # unreachable in all of them.
         self._reverse_progress_m = self._reverse_start_m - travelled_m
-        if follower.BAY_EXIT_LATCH_REVERSE and self._reverse_progress_m >= follower.BAY_EXIT_REVERSE_M:
+        if follower.bay_exit_latch_reverse and self._reverse_progress_m >= follower.bay_exit_reverse_m:
             # One-shot once latching is on. The forward leg drives this same
             # quantity back DOWN -- it is start-minus-travelled, and travelling
             # forward raises travelled -- so without the latch the gate returns
             # to reverse on the very next tick and the manoeuvre chatters
             # between two opposed commands instead of holding the turn.
             self._reverse_done = True
-        if not self._reverse_done and self._reverse_progress_m < follower.BAY_EXIT_REVERSE_M:
+        if not self._reverse_done and self._reverse_progress_m < follower.bay_exit_reverse_m:
             self._reverse_ticks += 1
             # Steering is INVERTED on the reverse, the same way
             # follow_corridor's reverse branch inverts it: backing up swings the
@@ -1273,9 +1273,9 @@ class BayExit:
             # walks the nose out toward the open corridor. That buys lateral
             # offset with no forward travel, which is the only thing the pocket
             # has no room for.
-            reverse_steer = clamp(follower.BAY_EXIT_REVERSE_STEER_NORM, 0.0, 1.0)
+            reverse_steer = clamp(follower.bay_exit_reverse_steer_norm, 0.0, 1.0)
             reverse_norm = -reverse_steer if open_is_left else reverse_steer
-            if follower.BAY_EXIT_HOLD_STEER:
+            if follower.bay_exit_hold_steer:
                 # Hold the FORWARD leg's angle instead of returning to centre.
                 #
                 # The servo slews at MAX_STEERING_RATE = 1.2 rad/s, so reaching
@@ -1296,7 +1296,7 @@ class BayExit:
                 # NOT the same as BAY_EXIT_REVERSE_STEER_NORM, which applies the
                 # INVERTED sign and so slews even further, to opposite lock --
                 # refuted 2026-08-29, every non-zero value collapsing to 0.02 m.
-                reverse_norm = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0) * (1.0 if open_is_left else -1.0)
+                reverse_norm = clamp(follower.bay_exit_steer_norm, 0.0, 1.0) * (1.0 if open_is_left else -1.0)
             return DriveCommand(
                 speed_mps=-_leg_speed(creep_speed_mps, follower, reverse=True, exit_scale=False),
                 steering_norm=reverse_norm,
@@ -1307,7 +1307,7 @@ class BayExit:
         # shipped 85 deg wheel angle) and the pocket has no room to rotate in;
         # what gets the robot out is translation.
         self._forward_ticks += 1
-        magnitude = clamp(follower.BAY_EXIT_STEER_NORM, 0.0, 1.0)
+        magnitude = clamp(follower.bay_exit_steer_norm, 0.0, 1.0)
         return DriveCommand(
             speed_mps=_leg_speed(creep_speed_mps, follower, reverse=False, exit_scale=False),
             steering_norm=magnitude if open_is_left else -magnitude,

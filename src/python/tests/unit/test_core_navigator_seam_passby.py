@@ -84,7 +84,7 @@ class TestFinalWaypointPassBy:
 
         last = len(path) - 1
         nav._waypoint_index = last
-        threshold = nav._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
+        threshold = nav._tuning.waypoints.main_loop_reached_distance_m
 
         # Stand nearer to waypoint 0 than to the final waypoint, but far enough
         # from both that neither reached-radius test can fire -- which is the

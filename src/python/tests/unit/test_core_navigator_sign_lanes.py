@@ -33,7 +33,7 @@ _SIGN = SignSpec(x=1.5, y=0.5, color=SignColor.RED)
 
 def _tuning(*, planner: bool) -> NavigationTuning:
     base = NavigationTuning.load_default()
-    return replace(base, sign_router=base.sign_router.model_copy(update={"SIGN_LANE_PLANNER": planner}))
+    return replace(base, sign_router=base.sign_router.model_copy(update={"sign_lane_planner": planner}))
 
 
 def _navigator(tuning: NavigationTuning, *, with_sign_router: bool) -> CoreNavigator:

@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/motion"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
@@ -52,7 +54,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	trackPath := filepath.Join(configRoot, profile.DefaultTrackTOMLPath)
-	if t, err := profile.Load[profile.TrackConfig](trackPath, nil); err != nil {
+	if t, err := profile.Load[generated.TrackConfig](trackPath, nil); err != nil {
 		logger.Warn("bayexit: loading track.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -65,7 +67,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	controlPath := filepath.Join(configRoot, profile.DefaultControlTOMLPath)
-	if c, err := profile.Load[profile.ControlConfig](controlPath, nil); err != nil {
+	if c, err := profile.Load[motion.NavigationMotionControl](controlPath, nil); err != nil {
 		logger.Warn("bayexit: loading control.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {
@@ -73,7 +75,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	}
 
 	pursuitPath := filepath.Join(configRoot, profile.DefaultPursuitTOMLPath)
-	if p, err := profile.Load[profile.PursuitConfig](pursuitPath, nil); err != nil {
+	if p, err := profile.Load[motion.NavigationMotionPursuit](pursuitPath, nil); err != nil {
 		logger.Warn("bayexit: loading pursuit.toml, falling back to defaults",
 			"config_root", configRoot, "error", err)
 	} else {

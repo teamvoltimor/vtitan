@@ -110,7 +110,7 @@ def detection_to_observation(
     # magenta parking-lot barrier -- which reads as RED under motion blur -- from
     # seeding a sign every frame it is in view. Colour and confidence cannot do
     # it: those boxes carry the RED label at p50 confidence 0.79. See
-    # SignDiscoveryParams.MAX_PILLAR_ASPECT for the measurement.
+    # SignDiscoveryParams.max_pillar_aspect for the measurement.
     #
     # The test is SKIPPED for a box clipped by the frame, because the aspect
     # ratio of a clipped box is not a measurement of the object's shape. A
@@ -125,10 +125,10 @@ def detection_to_observation(
     bbox_for_shape = det.as_bbox()
     height_px = bbox_for_shape.y_max - bbox_for_shape.y_min
     width_px = bbox_for_shape.x_max - bbox_for_shape.x_min
-    max_aspect = tuning.sign_discovery.MAX_PILLAR_ASPECT
+    max_aspect = tuning.sign_discovery.max_pillar_aspect
     frame_w = float(RobotSpecs.CAMERA_WIDTH)
     frame_h = float(RobotSpecs.CAMERA_HEIGHT)
-    edge = tuning.sign_discovery.FRAME_EDGE_TOLERANCE_PX
+    edge = tuning.sign_discovery.frame_edge_tolerance_px
     clipped = (
         bbox_for_shape.x_min <= edge
         or bbox_for_shape.y_min <= edge
@@ -282,7 +282,7 @@ def _clustered_range(
     if not clusters:
         return None
     best = min(clusters, key=lambda c: abs(wrap_angle(c.bearing_rad - bearing_rad)))
-    if abs(best.range_m - pinhole_m) > tuning.sign_discovery.LIDAR_RANGE_FUSION_AGREEMENT * pinhole_m:
+    if abs(best.range_m - pinhole_m) > tuning.sign_discovery.lidar_range_fusion_agreement * pinhole_m:
         return None
     return best.range_m
 
@@ -327,7 +327,7 @@ def _detection_to_world(
     tuning = get_tuning(tuning)
     bbox = det.as_bbox()
     pixel_height = bbox.height
-    if pixel_height < tuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX:
+    if pixel_height < tuning.sign_discovery.min_reliable_bbox_height_px:
         return None
 
     # Estimate distance using pinhole model: d = (f * real_h) / pixel_h.
@@ -338,7 +338,7 @@ def _detection_to_world(
     # angular and a longer ray lengthens the lateral miss in proportion. Lateral
     # is what the router acts on. See RANGE_SCALE's docstring; fix the bearing
     # error first.
-    distance = _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / pixel_height * tuning.sign_discovery.RANGE_SCALE
+    distance = _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / pixel_height * tuning.sign_discovery.range_scale
 
     # Horizontal angle from image centre, POSITIVE TO THE LEFT to match the
     # robot frame (`LidarScan`: 0 = forward, +pi/2 = left, CCW positive).
@@ -381,7 +381,7 @@ def _detection_to_world(
     # rather than testing emptiness, so a caller handing over the sweep it
     # already has as an array (every bag replay) crashes here.
     if (
-        tuning.sign_discovery.LIDAR_RANGE_FUSION
+        tuning.sign_discovery.lidar_range_fusion
         and lidar_ranges_m is not None
         and lidar_angles_rad is not None
         and len(lidar_ranges_m) > 0
@@ -389,12 +389,12 @@ def _detection_to_world(
     ):
         lidar_range = (
             _clustered_range(lidar_ranges_m, lidar_angles_rad, theta_h, distance, tuning)
-            if tuning.sign_discovery.LIDAR_RANGE_FUSION_CLUSTER
+            if tuning.sign_discovery.lidar_range_fusion_cluster
             else _nearest_ray(lidar_ranges_m, lidar_angles_rad, theta_h)
         )
         if (
             lidar_range is not None
-            and tuning.lidar_sectors.MIN_VALID_RANGE_M < lidar_range < RobotSpecs.CAMERA_FAR_CLIP
+            and tuning.lidar_sectors.min_valid_range_m < lidar_range < RobotSpecs.CAMERA_FAR_CLIP
         ):
             distance = lidar_range
 
@@ -549,29 +549,29 @@ class ObservedSignMap:
                 map inherits the router's own detection threshold rather than
                 introducing a second, independently-tuned one.
             max_ingest_range_m: Ignore observations further than this (m).
-                Defaults to NavigationTuning.sign_discovery.MAX_INGEST_RANGE_M.
+                Defaults to NavigationTuning.sign_discovery.max_ingest_range_m.
             association_dist_m: Two observations within this distance (m)
                 are treated as the same sign.
-                Defaults to NavigationTuning.sign_discovery.ASSOCIATION_DIST_M.
+                Defaults to NavigationTuning.sign_discovery.association_dist_m.
             min_hits: Observations required before a track is published as
-                a real sign. Defaults to NavigationTuning.sign_discovery.MIN_HITS.
+                a real sign. Defaults to NavigationTuning.sign_discovery.min_hits.
             robot_corridor_flip_ticks: Consecutive ticks the robot's own
                 corridor must disagree with the settled value before the
                 association gate accepts the change. Defaults to
-                NavigationTuning.sign_discovery.ROBOT_CORRIDOR_FLIP_TICKS.
+                NavigationTuning.sign_discovery.robot_corridor_flip_ticks.
             tuning: Navigation tuning instance. Defaults to the default tuning profile.
         """
         tuning = get_tuning(tuning)
         sd = tuning.sign_discovery
         self._min_confidence = min_confidence
-        self._max_ingest_range_m = max_ingest_range_m if max_ingest_range_m is not None else sd.MAX_INGEST_RANGE_M
-        self._association_dist_m = association_dist_m if association_dist_m is not None else sd.ASSOCIATION_DIST_M
-        self._min_hits = min_hits if min_hits is not None else sd.MIN_HITS
-        self._snap_m = sd.SNAP_TO_LATTICE_M
-        self._colour_pool_m = sd.COLOUR_POOL_RADIUS_M
-        self._max_per_section = sd.MAX_SIGNS_PER_SECTION
+        self._max_ingest_range_m = max_ingest_range_m if max_ingest_range_m is not None else sd.max_ingest_range_m
+        self._association_dist_m = association_dist_m if association_dist_m is not None else sd.association_dist_m
+        self._min_hits = min_hits if min_hits is not None else sd.min_hits
+        self._snap_m = sd.snap_to_lattice_m
+        self._colour_pool_m = sd.colour_pool_radius_m
+        self._max_per_section = sd.max_signs_per_section
         self._robot_corridor_flip_ticks = (
-            robot_corridor_flip_ticks if robot_corridor_flip_ticks is not None else sd.ROBOT_CORRIDOR_FLIP_TICKS
+            robot_corridor_flip_ticks if robot_corridor_flip_ticks is not None else sd.robot_corridor_flip_ticks
         )
         self._tracks: list[_SignTrack] = []
         self._robot_corridor: Section | None = None

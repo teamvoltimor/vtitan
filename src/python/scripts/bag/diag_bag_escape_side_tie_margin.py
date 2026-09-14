@@ -187,7 +187,7 @@ def main() -> int:  # noqa: C901, PLR0912, PLR0915
     controller = CollisionAvoidanceController.from_tuning(
         tuning, clearance=tuning.clearance.for_obstacles_challenge()
     )
-    mask_r = tuning.sign_router.ESCAPE_MASK_RADIUS_M
+    mask_r = tuning.sign_router.escape_mask_radius_m
 
     tag = f"  [{args.label}]" if args.label else ""
     print(f"== K-TURN SIDE: READING OR NEAR-TIE?{tag}")

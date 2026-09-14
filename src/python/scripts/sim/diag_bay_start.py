@@ -364,9 +364,11 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
     # with every previously measured one.
     tuning = tuning_with_overrides(changes)
     if no_progress_s > 0.0:
-        tuning = tuning_with_overrides({"NO_PROGRESS_WINDOW_S": no_progress_s}, group="simulation", base=tuning)
+        tuning = tuning_with_overrides({"no_progress_window_s": no_progress_s}, group="simulation", base=tuning)
     if min_turn_radius > 0.0:
-        tuning = tuning_with_overrides({"MIN_TURN_RADIUS_M": min_turn_radius}, group="simulation", base=tuning)
+        # min_turn_radius_m lives in robot.toml and is read straight from
+        # RobotSpecs by the simulator kinematics.
+        RobotSpecs.MIN_TURN_RADIUS_M = min_turn_radius
     sim = ScenarioSimulator(
         meta,
         num_laps=laps,

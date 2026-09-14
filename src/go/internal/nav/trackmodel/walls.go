@@ -35,7 +35,7 @@ type RayFan struct {
 }
 
 // NewTrackWalls builds the wall layout from geometry. minCoord/maxCoord are
-// the track's outer boundary (profile.TrackConfig.Track.MinCoord/MaxCoord).
+// the track's outer boundary (generated.TrackConfig.Track.MinCoord/MaxCoord).
 func NewTrackWalls(geometry CorridorGeometry, minCoord, maxCoord float64) *TrackWalls {
 	inner := geometry.InnerBlock
 	return &TrackWalls{

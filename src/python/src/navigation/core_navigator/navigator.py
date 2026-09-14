@@ -80,8 +80,8 @@ def _bearing_agrees_with_path(
     is a different question once the sign lane has moved that point: the
     search can choose correctly and the deformation can still push the result
     across the path's direction. Both origins were measured, and they are not
-    the same runs -- see ``PurePursuitParams.TARGET_SENSE_GATE`` and
-    ``SignRouterParams.SIGN_DEFORM_SENSE_GUARD``.
+    the same runs -- see ``PurePursuitParams.target_sense_gate`` and
+    ``SignRouterParams.sign_deform_sense_guard``.
     """
     dx, dy = target[0] - robot_x, target[1] - robot_y
     dist = math.hypot(dx, dy)
@@ -193,19 +193,8 @@ class CoreNavigator(EscapeRecovery):
             if sign_router is not None
             else self._tuning.escape
         )
-        self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
+        self._waypoint_threshold = self._tuning.waypoints.main_loop_reached_distance_m
         self._current_corridor: Section | None = None
-        # Forward waypoints DRIVEN, accumulated independently of _waypoint_index.
-        # The index is the steering target and is re-seeked by replace_path; it
-        # therefore cannot also be the lap odometer. Measured 2026-08-31: width
-        # belief replans knock the index BACK 1-9 places 4-5 times a round, so it
-        # never reaches the end of the list, never wraps, and 21 of 640 Open runs
-        # drove 20-26 m of a ~9 m loop and scored ZERO laps. Separating the two
-        # jobs fixes the credit without constraining where the controller aims --
-        # constraining the index instead (REPLAN_MONOTONIC_INDEX) fixed 17 of the
-        # 21 and cost 43 other runs, because sometimes the nearest waypoint is
-        # genuinely behind.
-        self._path_progress = 0
         self._park_controller = park_controller
         self._parking_engaged = False
         # Must clear the chassis's minimum turning radius with real margin: engaging any
@@ -221,7 +210,7 @@ class CoreNavigator(EscapeRecovery):
         # length is WHEELBASE/2. True R_min is ~0.034 m -- an order of magnitude smaller,
         # meaning ARC_RADIUS (0.45 m) is no longer near this constraint and the engage
         # distance could be tightened on its own merits rather than on this one.
-        self._park_engage_dist = self._tuning.waypoints.ARC_RADIUS
+        self._park_engage_dist = self._tuning.waypoints.arc_radius
 
         # Escape-maneuver latching: an escape runs for its full duration_frames
         # instead of a single 50 ms tick, and repeated escapes escalate (reverse
@@ -236,7 +225,7 @@ class CoreNavigator(EscapeRecovery):
         # Where the chassis has physically been, newest last. The basis for a
         # retrace-reverse: ground the robot occupied a moment ago is known
         # free without any rear-facing sensor. See _retrace_steer.
-        self._pose_trail: deque[Pose] = deque(maxlen=self._escape.POSE_TRAIL_LEN)
+        self._pose_trail: deque[Pose] = deque(maxlen=self._escape.pose_trail_len)
         self._retracing = False
 
         # Controllers. Keyed on the same sign_router discriminator as the speed
@@ -348,29 +337,10 @@ class CoreNavigator(EscapeRecovery):
             for wp in self._waypoints
         )
         self._cache_corridor_widths()
-        budget = clearance - RobotSpecs.WIDTH / 2 - self._tuning.pursuit.WALL_MARGIN_SAFETY_M
+        budget = clearance - RobotSpecs.WIDTH / 2 - self._tuning.pursuit.wall_margin_safety_m
         self._waypoint_controller.set_crosstrack_budget(
-            max(budget, self._tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M),
+            max(budget, self._tuning.pursuit.min_lookahead_transition_m),
         )
-
-    def _credit_path_progress(self) -> None:
-        """Count one waypoint of DRIVEN progress, and a lap once a full path is covered.
-
-        Called only where the index advances by driving, never from
-        ``replace_path``, so a re-seek moves the steering target without either
-        granting or destroying lap credit.
-        """
-        if not self._tuning.waypoints.LAP_CREDIT_FROM_PROGRESS or not self._waypoints:
-            return
-        self._path_progress += 1
-        if self._path_progress < len(self._waypoints):
-            return
-        self._path_progress -= len(self._waypoints)
-        if self._suppress_next_wrap:
-            # Seeded past the seam by replace_path, not driven -- see there.
-            self._suppress_next_wrap = False
-        elif self._lap_detector is not None:
-            self._lap_detector.notify_waypoint_wrapped()
 
     def replace_path(
         self,
@@ -404,7 +374,7 @@ class CoreNavigator(EscapeRecovery):
         the corner needs — measured on real hardware as a ~193 deg swing
         where ~90 deg would do. Passing ``robot_yaw`` re-ranks the
         near-tied-by-distance candidates (see
-        ``NavigationTuning.waypoints.REPLAN_HEADING_TIE_MARGIN_M``) by
+        ``NavigationTuning.waypoints.replan_heading_tie_margin_m``) by
         heading agreement instead.
 
         Args:
@@ -431,7 +401,7 @@ class CoreNavigator(EscapeRecovery):
         # index-wise, guarded on equal waypoint counts so a geometry that ever
         # breaks that assumption falls back to the original instant swap instead
         # of interpolating between indices that do not correspond.
-        blend_ticks = self._tuning.waypoints.REPLAN_BLEND_TICKS
+        blend_ticks = self._tuning.waypoints.replan_blend_ticks
         if blend_ticks > 0 and self._waypoints and len(self._waypoints) == len(waypoints):
             self._blend_from = list(self._waypoints)
             self._blend_to = list(waypoints)
@@ -456,7 +426,7 @@ class CoreNavigator(EscapeRecovery):
         nearest_index = min(range(len(waypoints)), key=lambda i: distances[i])
 
         if robot_yaw is not None:
-            margin = distances[nearest_index] + self._tuning.waypoints.REPLAN_HEADING_TIE_MARGIN_M
+            margin = distances[nearest_index] + self._tuning.waypoints.replan_heading_tie_margin_m
             candidates = [i for i, d in enumerate(distances) if d <= margin]
             nearest_index = min(
                 candidates,
@@ -479,9 +449,6 @@ class CoreNavigator(EscapeRecovery):
         # keeps aiming at a waypoint slightly ahead of the nearest rather than
         # re-driving ground it has covered. The seam guard below is untouched --
         # it fires on a large FORWARD jump, which this never creates.
-        if self._tuning.waypoints.REPLAN_MONOTONIC_INDEX and nearest_index < previous_index:
-            nearest_index = previous_index
-
         self._waypoint_index = nearest_index
 
         # A SMALL backward step is never earned either, and unlike the forward
@@ -507,7 +474,7 @@ class CoreNavigator(EscapeRecovery):
         # positions and "backward" has no meaning.
         backward = previous_index - self._waypoint_index
         if (
-            self._tuning.waypoints.FORWARD_ONLY_RESEEK
+            self._tuning.waypoints.forward_only_reseek
             and previous_count == len(waypoints)
             and 0 < backward <= len(waypoints) // 2
         ):
@@ -589,7 +556,7 @@ class CoreNavigator(EscapeRecovery):
         the same point on the same lap, and re-seeking could only move it.
         """
         router = self._sign_router
-        if router is None or not self._tuning.sign_router.SIGN_LANE_PLANNER:
+        if router is None or not self._tuning.sign_router.sign_lane_planner:
             return
         fingerprint = router.lane_fingerprint
         if fingerprint == self._lane_fingerprint:
@@ -602,23 +569,23 @@ class CoreNavigator(EscapeRecovery):
             self._lane_base_waypoints,
             router.lane_specs,
             SignLaneParams(
-                lateral_offset=(chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.SIGN_CLEARANCE_MARGIN_M)
-                * sr.SIGN_LANE_OFFSET_FRAC,
-                ramp_m=sr.SIGN_LANE_RAMP_M,
-                hold_m=sr.SIGN_LANE_HOLD_M,
-                skip_unsatisfiable=sr.SIGN_LANE_SKIP_UNSATISFIABLE,
-                split_overlap=sr.SIGN_LANE_SPLIT_OVERLAP,
-                corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+                lateral_offset=(chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.sign_clearance_margin_m)
+                * sr.sign_lane_offset_frac,
+                ramp_m=sr.sign_lane_ramp_m,
+                hold_m=sr.sign_lane_hold_m,
+                skip_unsatisfiable=sr.sign_lane_skip_unsatisfiable,
+                split_overlap=sr.sign_lane_split_overlap,
+                corner_entry_m=sr.sign_lane_corner_entry_m,
                 # Read from the PASSED group, not resolved in __post_init__:
                 # that helper loads the shipped tree, which would make a
                 # sweep arm overriding this knob silently inert.
-                gap_centre_frac=sr.SIGN_LANE_GAP_CENTRE_FRAC,
+                gap_centre_frac=sr.sign_lane_gap_centre_frac,
             ),
             # The ROUTER's direction, not the navigator's: the lane must be
             # built on the same one the pass-side decision was made under.
             router.direction,
         )
-        self._hold_committed_path(previous, sr.SIGN_LANE_COMMIT_AHEAD_M)
+        self._hold_committed_path(previous, sr.sign_lane_commit_ahead_m)
         self._apply_path_wall_budget()
         logger.info("Sign lanes replanned for %d sign(s)", len(fingerprint))
 
@@ -635,7 +602,7 @@ class CoreNavigator(EscapeRecovery):
         Bringing it toward the centre of frame is worth doing because the
         classifier is worst at the edge: a box clipped by the frame border is
         exactly where detection was being lost -- see
-        ``SignDiscoveryParams.FRAME_EDGE_TOLERANCE_PX``.
+        ``SignDiscoveryParams.frame_edge_tolerance_px``.
 
         Deliberately does NOTHING once the router has committed to a sign. Then
         the pass-side lane owns the lateral decision, and turning toward a pillar
@@ -647,33 +614,33 @@ class CoreNavigator(EscapeRecovery):
         Returns the steering nudge, or ``None`` when there is nothing to align to.
         """
         signs = self._tuning.sign_router
-        if scan is None or not signs.SIGN_LIDAR_ALIGN:
+        if scan is None or not signs.sign_lidar_align:
             return None
         if self._sign_router is not None and self._sign_router.committed_sign_position is not None:
             return None
-        half_fov = math.radians(signs.SIGN_LIDAR_ALIGN_FOV_DEG)
+        half_fov = math.radians(signs.sign_lidar_align_fov_deg)
         near = [
             (r, a)
             for r, a in zip(scan.ranges_m, scan.angles_rad, strict=False)
             if abs(wrap_angle(a)) <= half_fov
-            and signs.SIGN_LIDAR_ALIGN_MIN_M <= r <= signs.SIGN_LIDAR_ALIGN_MAX_M
+            and signs.sign_lidar_align_min_m <= r <= signs.sign_lidar_align_max_m
         ]
         if not near:
             return None
         closest = min(r for r, _ in near)
         # Rays on the nearest surface. A pillar is a short arc, a wall a long
         # one, and the arc WIDTH is what separates them.
-        cluster = [a for r, a in near if r - closest < signs.SIGN_LIDAR_ALIGN_DEPTH_M]
+        cluster = [a for r, a in near if r - closest < signs.sign_lidar_align_depth_m]
         if len(cluster) < 2:
             return None
         span = max(cluster) - min(cluster)
-        if closest * span > signs.SIGN_LIDAR_ALIGN_MAX_WIDTH_M:
+        if closest * span > signs.sign_lidar_align_max_width_m:
             return None
         bearing = (max(cluster) + min(cluster)) / 2.0
-        if abs(bearing) < math.radians(signs.SIGN_LIDAR_ALIGN_DEADBAND_DEG):
+        if abs(bearing) < math.radians(signs.sign_lidar_align_deadband_deg):
             return None
-        cap = signs.SIGN_LIDAR_ALIGN_MAX_STEER
-        return max(-cap, min(cap, signs.SIGN_LIDAR_ALIGN_GAIN * bearing))
+        cap = signs.sign_lidar_align_max_steer
+        return max(-cap, min(cap, signs.sign_lidar_align_gain * bearing))
 
     def _committed_sign_steer_sign(self, robot_yaw: float) -> float | None:
         """Which way a K-turn should steer to serve the committed sign's pass side.
@@ -737,7 +704,7 @@ class CoreNavigator(EscapeRecovery):
         if router is None:
             return None
         cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
-        trigger = self._tuning.sign_router.SIGN_CONTACT_DIST_M
+        trigger = self._tuning.sign_router.sign_contact_dist_m
         # Half-widths, plus the chassis's own: how close the centres may pass.
         needed = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2
         worst: tuple[float, float] | None = None
@@ -930,11 +897,11 @@ class CoreNavigator(EscapeRecovery):
         so the maneuver keeps the chassis to itself and this cannot move the
         wheel -- the flag buys a fresh map on the far side of the maneuver, not
         a second steering signal. That distinction is deliberate:
-        ``SIDE_CORRECTION_BLENDS`` already covers "let the planner steer too",
+        ``side_correction_blends`` already covers "let the planner steer too",
         and is separately dead (99.4% of hardware side_correction is reverse,
         which its gate excludes).
 
-        Ships OFF behind ``TICK_ROUTER_DURING_MANEUVER``. Untested on the
+        Ships OFF behind ``tick_router_during_maneuver``. Untested on the
         track: the operator lost track access before it could be validated, and
         the sim cannot stand in -- it exercises side_correction on 1.09% of
         ticks against hardware's 19-25%, and its own blend gate opened on 0 of
@@ -947,7 +914,7 @@ class CoreNavigator(EscapeRecovery):
         scan = self._gateway.get_lidar_scan()
         lidar_proposals = (
             propose_sign_positions(scan, (robot_x, robot_y, robot_yaw))
-            if scan is not None and self._tuning.sign_router.SIGN_LIDAR_PROPOSE
+            if scan is not None and self._tuning.sign_router.sign_lidar_propose
             else None
         )
         # The router deforms a target it is GIVEN; with no planning this tick
@@ -999,7 +966,7 @@ class CoreNavigator(EscapeRecovery):
         if (
             not self._pose_trail
             or self._pose_trail[-1].to_waypoint().distance_to(Waypoint(robot_x, robot_y))
-            >= self._escape.POSE_TRAIL_MIN_STEP_M
+            >= self._escape.pose_trail_min_step_m
         ):
             self._pose_trail.append(Pose(robot_x, robot_y, robot_yaw))
 
@@ -1007,7 +974,7 @@ class CoreNavigator(EscapeRecovery):
         # elapses, so escapes are real motions rather than single-tick pulses that
         # never clear the wall.
         if self._active_maneuver is not None and not self._side_correction_blends():
-            if self._escape.TICK_ROUTER_DURING_MANEUVER:
+            if self._escape.tick_router_during_maneuver:
                 self._ingest_sign_observations(robot_x, robot_y, robot_yaw)
             self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ACTIVE_MANEUVER)
             return
@@ -1048,12 +1015,8 @@ class CoreNavigator(EscapeRecovery):
         if self._waypoint_index >= len(self._waypoints):
             self._waypoint_index = 0
             self._stuck_detector.reset()
-            if self._tuning.waypoints.LAP_CREDIT_FROM_PROGRESS:
-                # _credit_path_progress owns the credit; the index only wraps
-                # the steering target here.
-                pass
-            elif self._suppress_next_wrap:
-                # Seeded past the seam by replace_path, not driven — see there.
+            if self._suppress_next_wrap:
+                # Seeded past the seam by replace_path, not driven -- see there.
                 self._suppress_next_wrap = False
             elif self._lap_detector is not None:
                 self._lap_detector.notify_waypoint_wrapped()
@@ -1159,8 +1122,8 @@ class CoreNavigator(EscapeRecovery):
         # refuted there), and carries the sign_router presence check that makes
         # it structurally unavailable to Open. Same geometry, different
         # challenge, different evidence -- so a different switch.
-        rescue_behind = (self._sign_router is not None and self._tuning.sign_router.STALE_TARGET_RESCUE) or (
-            self._tuning.waypoints.ADVANCE_PAST_PASSED_WAYPOINT
+        rescue_behind = (self._sign_router is not None and self._tuning.sign_router.stale_target_rescue) or (
+            self._tuning.waypoints.advance_past_passed_waypoint
         )
         cos_yaw, sin_yaw = (math.cos(robot_yaw), math.sin(robot_yaw)) if rescue_behind else (0.0, 0.0)
         count = len(self._waypoints)
@@ -1174,7 +1137,6 @@ class CoreNavigator(EscapeRecovery):
             if not next_closer and not raw_behind:
                 break
             self._waypoint_index = next_index
-            self._credit_path_progress()
             if next_index >= count:
                 # Seam crossed. Leave raw_wp on the final waypoint and let the
                 # wrap branch count the lap next tick — walking on into the new
@@ -1186,7 +1148,7 @@ class CoreNavigator(EscapeRecovery):
         scan = self._gateway.get_lidar_scan()
         front = (
             self._collision_controller.front_sector(scan.ranges_m, scan.angles_rad)
-            if scan and self._tuning.clearance.FORWARD_NO_DATA_IS_DEGRADED
+            if scan and self._tuning.clearance.forward_no_data_is_degraded
             else None
         )
         if scan and front is not None and not front.measured:
@@ -1198,7 +1160,7 @@ class CoreNavigator(EscapeRecovery):
             # wall, this held 9.97 m and the robot drove into it at 0.24 m/s for
             # the rest of the round. Same answer as the no-LIDAR branch, because
             # it is the same statement about the sensor.
-            forward_clearance = self._tuning.clearance.SLOW_DIST
+            forward_clearance = self._tuning.clearance.slow_dist
             risk = RiskLevel.OBSTACLE
         elif scan:
             # Converted to a BUMPER gap once, here, rather than at each of the
@@ -1216,7 +1178,7 @@ class CoreNavigator(EscapeRecovery):
         else:
             # No LIDAR: a degraded sensor is not open road. Drive cautiously
             # (slow zone + non-SAFE risk) instead of blasting forward blind.
-            forward_clearance = self._tuning.clearance.SLOW_DIST
+            forward_clearance = self._tuning.clearance.slow_dist
             risk = RiskLevel.OBSTACLE
 
         # Two risk readings, deliberately: the RAW scan governs how fast the
@@ -1242,7 +1204,7 @@ class CoreNavigator(EscapeRecovery):
             # 0-19% of the ticks it exists for and the rounds were lost to the
             # limit cycle it exists to prevent. See ESCAPE_MASK_CLUSTER_ASSOC_M.
             cluster_xy: list[Waypoint] = []
-            assoc = self._tuning.sign_router.ESCAPE_MASK_CLUSTER_ASSOC_M
+            assoc = self._tuning.sign_router.escape_mask_cluster_assoc_m
             if assoc > 0.0:
                 # No range floor, and the chassis rejected per bearing instead:
                 # the contact recoveries this mask exists to prevent engage at a
@@ -1254,7 +1216,7 @@ class CoreNavigator(EscapeRecovery):
                         ranges_beyond_chassis(
                             scan.ranges_m,
                             scan.angles_rad,
-                            self._tuning.sign_router.ESCAPE_MASK_CHASSIS_MARGIN_M,
+                            self._tuning.sign_router.escape_mask_chassis_margin_m,
                         ).tolist()
                     ),
                     angles_rad=scan.angles_rad,
@@ -1272,7 +1234,7 @@ class CoreNavigator(EscapeRecovery):
                 scan.angles_rad,
                 pose,
                 self._sign_router.routed_sign_positions_by_corridor,
-                self._tuning.sign_router.ESCAPE_MASK_RADIUS_M,
+                self._tuning.sign_router.escape_mask_radius_m,
                 cluster_xy=cluster_xy,
                 assoc_m=assoc,
             )
@@ -1298,7 +1260,6 @@ class CoreNavigator(EscapeRecovery):
         dist_to_wp = raw_wp.distance_to_xy(robot_x, robot_y)
         if dist_to_wp < self._waypoint_threshold:
             self._waypoint_index += 1
-            self._credit_path_progress()
             self._debug = self._base_debug(robot_x, robot_y, robot_yaw)
             self._debug.phase = NavigatorPhase.WAYPOINT_REACHED
             self._debug.forward_clearance_m = forward_clearance
@@ -1323,12 +1284,11 @@ class CoreNavigator(EscapeRecovery):
         turn_ahead = path_turn_ahead(
             self._waypoints,
             self._waypoint_index,
-            # Per width CLASS, not one number: the wide corridor gets the
-            # tighter corner arc and so the shorter straight between arcs, and
-            # a preview sized for narrow arms the short lookahead over 82% of a
-            # wide straight. Screened in opposite directions on uniform buckets
-            # -- see WIDE_CORNER_PREVIEW_DISTANCE_M. Unset keeps one value.
-            self._tuning.pursuit.corner_preview_distance_m(narrow=self._in_narrow_corridor()),
+            # One preview distance for both width classes: the per-width-class
+            # override was dropped from the schema, so an unknown or wide
+            # corridor keeps the shipped value (the old resolver returned the
+            # shared value for both when unset, which is what ships).
+            self._tuning.pursuit.corner_preview_distance_m,
         )
         # The preview decays to zero once the chassis is INSIDE the arc, which
         # un-arms the short lookahead mid-corner -- and crosstrack cannot cover
@@ -1336,7 +1296,7 @@ class CoreNavigator(EscapeRecovery):
         # the wrong way. Hold the preview open until the turn it promised has
         # actually been driven. See CornerLatch for the hardware trace.
         turn_ahead = self._corner_latch.update(
-            turn_ahead, robot_yaw, self._tuning.pursuit.CORNER_TURN_THRESHOLD_RAD
+            turn_ahead, robot_yaw, self._tuning.pursuit.corner_turn_threshold_rad
         )
         # A third preview signal alongside crosstrack/turn_ahead: crosstrack
         # is measured against the raw path, so it never rises during a sign
@@ -1353,10 +1313,10 @@ class CoreNavigator(EscapeRecovery):
         # disturbing tracking well past the sign pass this exists to fix.
         # Mirrors SignRouter._active_sign_candidates' own along-track check.
         sign_ahead = False
-        if self._tuning.sign_router.SIGN_AWARE_LOOKAHEAD and self._sign_router is not None:
+        if self._tuning.sign_router.sign_aware_lookahead and self._sign_router is not None:
             cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
             sign_ahead = any(
-                math.hypot(wp.x - robot_x, wp.y - robot_y) < self._tuning.sign_router.ACTIVATION_DIST_M
+                math.hypot(wp.x - robot_x, wp.y - robot_y) < self._tuning.sign_router.activation_dist_m
                 and (wp.x - robot_x) * cos_yaw + (wp.y - robot_y) * sin_yaw > 0
                 for wp in self._sign_router.routed_sign_positions
             )
@@ -1403,7 +1363,7 @@ class CoreNavigator(EscapeRecovery):
         committed_sign: Waypoint | None = None
         sign_target: tuple[float, float] | None = None
         suppress_deform = (
-            self._tuning.sign_router.SIGN_LANE_PLANNER and self._tuning.sign_router.SIGN_LANE_SUPPRESS_DEFORM
+            self._tuning.sign_router.sign_lane_planner and self._tuning.sign_router.sign_lane_suppress_deform
         )
         if self._sign_router is not None and self._current_corridor is not None:
             observations = self._gateway.get_vision_detections(self._current_corridor)
@@ -1413,7 +1373,7 @@ class CoreNavigator(EscapeRecovery):
             # the time a colour arrives. See SIGN_LIDAR_PROPOSE.
             lidar_proposals = (
                 propose_sign_positions(scan, (robot_x, robot_y, robot_yaw))
-                if scan is not None and self._tuning.sign_router.SIGN_LIDAR_PROPOSE
+                if scan is not None and self._tuning.sign_router.sign_lidar_propose
                 else None
             )
             raw_target = steer_target
@@ -1427,7 +1387,7 @@ class CoreNavigator(EscapeRecovery):
             )
             if not suppress_deform:
                 steer_target = deformed
-            elif self._tuning.sign_router.SIGN_LANE_DEFORM_FALLBACK_M > 0.0:
+            elif self._tuning.sign_router.sign_lane_deform_fallback_m > 0.0:
                 # The lane and the deform are two answers to the same question,
                 # and suppressing the deform globally assumes the lane always
                 # gives one. Measured 2026-09-11 over 129 bags: on failed
@@ -1444,7 +1404,7 @@ class CoreNavigator(EscapeRecovery):
                 legal_offset = self._sign_router.committed_pass_side_offset(raw_target)
                 if (
                     legal_offset is not None
-                    and legal_offset < self._tuning.sign_router.SIGN_LANE_DEFORM_FALLBACK_M
+                    and legal_offset < self._tuning.sign_router.sign_lane_deform_fallback_m
                 ):
                     steer_target = deformed
             sign_deform_magnitude = math.hypot(deformed[0] - raw_target[0], deformed[1] - raw_target[1])
@@ -1459,7 +1419,7 @@ class CoreNavigator(EscapeRecovery):
             committed_sign = self._sign_router.committed_sign_position
             sign_target = deformed
             if (
-                self._tuning.sign_router.SIGN_DEFORM_SENSE_GUARD
+                self._tuning.sign_router.sign_deform_sense_guard
                 and steer_target is not raw_target
                 and not _bearing_agrees_with_path(
                     steer_target, robot_x, robot_y, self._waypoints, self._waypoint_index
@@ -1490,7 +1450,7 @@ class CoreNavigator(EscapeRecovery):
         )
 
         # Determine speed
-        if forward_clearance < self._clearance.CONTACT_DIST:
+        if forward_clearance < self._clearance.contact_dist:
             # Creeping FORWARD at contact is how the chassis ends up leaning on
             # what it was avoiding. Measured on run_20260906_121254: forward
             # clearance 0.023-0.037 m, risk CRITICAL, and the commanded speed
@@ -1513,27 +1473,27 @@ class CoreNavigator(EscapeRecovery):
             # stuck-escape reverse already uses, and an empty trail refuses.
             reverse_m = (
                 self._speed.contact_reverse_mps()
-                * self._clearance.CONTACT_REVERSE_TICKS
-                / self._tuning.control.CONTROL_HZ
+                * self._clearance.contact_reverse_ticks
+                / self._tuning.control.control_hz
             )
             if (
                 self._contact_reverse_left <= 0
                 and self._contact_reverse_cooldown <= 0
                 and self._trail_confirms_reverse(reverse_m)
             ):
-                self._contact_reverse_left = self._clearance.CONTACT_REVERSE_TICKS
+                self._contact_reverse_left = self._clearance.contact_reverse_ticks
             speed = self._speed.contact_mps()
-        elif forward_clearance < self._clearance.SLOW_DIST:
-            speed = self._speed.slow_mps()
-        elif forward_clearance < self._clearance.MEDIUM_DIST:
-            speed = self._speed.medium_mps()
+        elif forward_clearance < self._clearance.slow_dist:
+            speed = self._speed.slow_mps
+        elif forward_clearance < self._clearance.medium_dist:
+            speed = self._speed.medium_mps
         else:
-            speed = self._speed.fast_mps()
+            speed = self._speed.fast_mps
 
         # Clear of contact: the cooldown only counts down out here, so a chassis
         # still against the obstacle cannot time its way back to a second
         # reverse without having been clear in between.
-        if forward_clearance >= self._clearance.CONTACT_DIST:
+        if forward_clearance >= self._clearance.contact_dist:
             self._contact_reverse_cooldown = max(0, self._contact_reverse_cooldown - 1)
 
         # Spend the backing-off run. Steering is centred: the point of the leg
@@ -1542,7 +1502,7 @@ class CoreNavigator(EscapeRecovery):
         if self._contact_reverse_left > 0:
             self._contact_reverse_left -= 1
             if self._contact_reverse_left == 0:
-                self._contact_reverse_cooldown = self._clearance.CONTACT_REVERSE_COOLDOWN_TICKS
+                self._contact_reverse_cooldown = self._clearance.contact_reverse_cooldown_ticks
             speed = -self._speed.contact_reverse_mps()
 
         # Captured before the heading limiter, the envelope clamp and the risk
@@ -1589,8 +1549,8 @@ class CoreNavigator(EscapeRecovery):
         # time grows smoothly with the angle it must cover -- and the step is a
         # 0.348 m/s change across one degree of heading error.
         abs_error = abs(angle_error)
-        crawl = self._tuning.heading.CRAWL
-        ramp_start = self._tuning.heading.CRAWL_RAMP_START
+        crawl = self._tuning.heading.crawl
+        ramp_start = self._tuning.heading.crawl_ramp_start
         # heading_floor_mps(), not creep_mps(): the floor this term drops to is
         # separable from the contact zone's speed, and defaults to it. See
         # SpeedControlParams.HEADING_FLOOR_MPS -- 97.8% of the ticks that reach
@@ -1601,9 +1561,9 @@ class CoreNavigator(EscapeRecovery):
             heading_speed = floor
         elif 0.0 < ramp_start < crawl and abs_error > ramp_start:
             span = (abs_error - ramp_start) / (crawl - ramp_start)
-            heading_speed = self._speed.fast_mps() + span * (floor - self._speed.fast_mps())
+            heading_speed = self._speed.fast_mps + span * (floor - self._speed.fast_mps)
         else:
-            heading_speed = self._speed.fast_mps()
+            heading_speed = self._speed.fast_mps
         speed = min(speed, heading_speed)
 
         # Bound the selected cruise speed by the configured envelope. MIN_MPS
@@ -1620,12 +1580,12 @@ class CoreNavigator(EscapeRecovery):
         # and not to the final command: clamping that up to the floor would turn
         # every legitimate stop (escape hand-off, park complete, blocked at both
         # ends) into a 0.05 m/s crawl the robot cannot be commanded out of.
-        speed = min(max(speed, self._speed.min_mps()), self._speed.max_mps())
+        speed = min(max(speed, self._speed.min_mps), self._speed.max_mps)
 
         # Never blast past a non-forward obstacle (e.g. a sign alongside the
         # robot) just because the path ahead is clear.
         if risk != RiskLevel.SAFE:
-            speed = min(speed, self._speed.slow_mps())
+            speed = min(speed, self._speed.slow_mps)
 
         # Come to rest INSIDE the finish section, which rule 1.3 pays 3 points
         # for. The robot cannot brake; commanding zero starts an exponential
@@ -1640,7 +1600,7 @@ class CoreNavigator(EscapeRecovery):
         # crossing registers. The section test inside approaching_finish is what
         # keeps the opposite straight -- which projects onto the same distance
         # window -- from triggering it a straight early, every lap.
-        finish_approach_m = self._tuning.waypoints.FINISH_APPROACH_M
+        finish_approach_m = self._tuning.waypoints.finish_approach_m
         if (
             finish_approach_m > 0.0
             and self._lap_detector is not None
@@ -1650,7 +1610,7 @@ class CoreNavigator(EscapeRecovery):
                 Waypoint(robot_x, robot_y), self._current_corridor, finish_approach_m
             )
         ):
-            speed = min(speed, self._speed.slow_mps())
+            speed = min(speed, self._speed.slow_mps)
 
         # Give the pursuit controller more time to close a sign-avoidance
         # offset. Neither clearance nor heading-error speed reacts to one:
@@ -1664,11 +1624,11 @@ class CoreNavigator(EscapeRecovery):
         # router actually applied THIS tick, not proximity to a sign, so it
         # only fires while a correction is genuinely in flight.
         if (
-            self._tuning.sign_router.SIGN_AWARE_SPEED
+            self._tuning.sign_router.sign_aware_speed
             and sign_deform_magnitude is not None
-            and sign_deform_magnitude > self._tuning.sign_router.SIGN_DEFORM_SPEED_THRESHOLD_M
+            and sign_deform_magnitude > self._tuning.sign_router.sign_deform_speed_threshold_m
         ):
-            speed = min(speed, self._speed.slow_mps())
+            speed = min(speed, self._speed.slow_mps)
 
         # Treat a discovering run's first lap as reconnaissance. The robot
         # cannot see a corridor's signs until it is inside that corridor (they
@@ -1682,14 +1642,14 @@ class CoreNavigator(EscapeRecovery):
         #
         # Gated on is_discovering (never a sighted run) and on no lap having
         # been completed, so this costs nothing once the map exists.
-        explore_frac = self._tuning.sign_router.EXPLORE_LAP_SPEED_FRAC
+        explore_frac = self._tuning.sign_router.explore_lap_speed_frac
         if (
             explore_frac < 1.0
             and self._sign_router is not None
             and self._sign_router.is_discovering
             and self._laps_completed == 0
         ):
-            speed = min(speed, self._speed.max_mps() * explore_frac)
+            speed = min(speed, self._speed.max_mps * explore_frac)
 
         # First-lap corner caution, Open-Challenge-applicable (unlike the
         # sign-router explore-lap cap above, not gated on is_discovering --
@@ -1721,13 +1681,14 @@ class CoreNavigator(EscapeRecovery):
         # restricting it to lap 1 leaves the predictive signal unused for
         # two-thirds of the race while the reactive clearance ladder does the
         # work alone.
-        corner_previewed = self._tuning.waypoints.FIRST_LAP_CORNER_CAUTION and turn_ahead
-        lap_applies = self._laps_completed == 0 or self._tuning.waypoints.CORNER_CAUTION_ALL_LAPS
+        corner_previewed = self._tuning.waypoints.first_lap_corner_caution and turn_ahead
+        lap_applies = self._laps_completed == 0 or self._tuning.waypoints.corner_caution_all_laps
         width_applies = (
-            not self._tuning.waypoints.FIRST_LAP_CORNER_CAUTION_NARROW_ONLY or self._in_narrow_corridor()
+            not self._tuning.waypoints.first_lap_corner_caution_narrow_only or self._in_narrow_corridor()
         )
         if corner_previewed and lap_applies and width_applies:
-            speed = min(speed, self._speed.corner_mps())
+            corner_speed = self._speed.corner_mps if self._speed.corner_mps is not None else self._speed.slow_mps
+            speed = min(speed, corner_speed)
 
         # Snapshot everything decided so far -- both the escape-trigger branch
         # below and the normal publish at the end of this method share it, only
@@ -1776,7 +1737,7 @@ class CoreNavigator(EscapeRecovery):
         if align is not None:
             steering_normalized = max(-1.0, min(1.0, steering_normalized + align))
 
-        if self._tuning.sign_router.SIGN_CONTACT_EVADE and self._sign_router is not None:
+        if self._tuning.sign_router.sign_contact_evade and self._sign_router is not None:
             evade = self._sign_evade_steer(robot_x, robot_y, robot_yaw)
             if evade is not None:
                 steering_normalized = max(-1.0, min(1.0, steering_normalized + evade))
@@ -1829,7 +1790,7 @@ class CoreNavigator(EscapeRecovery):
             self._retracing = bool(
                 maneuver is not None
                 and maneuver.speed < 0
-                and self._tuning.sign_router.RETRACE_ESCAPE
+                and self._tuning.sign_router.retrace_escape
                 and self._retrace_steer(robot_x, robot_y, robot_yaw) is not None
             )
             if maneuver and self._reversing_into_unseen_wall(maneuver, scan):
@@ -1864,7 +1825,7 @@ class CoreNavigator(EscapeRecovery):
         # normal_drive -> escape_triggered alternated for 34+ seconds with the
         # robot pinned in place, and this unconditional reset zeroed
         # escape_count every single cycle, so it never reached
-        # ESCALATE_AFTER_ATTEMPTS and _maybe_escalate never fired. Requiring
+        # escalate_after_attempts and _maybe_escalate never fired. Requiring
         # real displacement first means a genuinely stuck sequence keeps
         # accumulating toward escalation instead of resetting on every tick
         # that merely classifies as "not critical" for one frame.
@@ -1874,7 +1835,7 @@ class CoreNavigator(EscapeRecovery):
                 robot_x - self._escape_sequence_start_xy[0],
                 robot_y - self._escape_sequence_start_xy[1],
             )
-            >= self._escape.STUCK_MOVE_THRESHOLD
+            >= self._escape.stuck_move_threshold
         ):
             self._escape_count = 0
             self._escape_sequence_start_xy = None
@@ -1921,7 +1882,7 @@ class CoreNavigator(EscapeRecovery):
         False if the robot should keep navigating toward the parking corridor.
         """
         pc = self._park_controller
-        if pc is None or not self._tuning.parking.ATTEMPT_AFTER_FINAL_LAP:
+        if pc is None or not self._tuning.parking.attempt_after_final_lap:
             # Nothing left to drive for: hold where the final lap left us.
             #
             # Two ways to get here. The Open challenge never has a controller.
@@ -1992,8 +1953,8 @@ class CoreNavigator(EscapeRecovery):
             # a clean park (see ParkController's own max_frames give-up) rather than thread
             # the gap in every case -- a known, documented limitation, not a silent one.
             # Not colliding takes priority over completing the maneuver.
-            side_margin = self._clearance.CONTACT_DIST + RobotSpecs.WIDTH / 2
-            if fwd < self._clearance.CONTACT_DIST or side < side_margin:
+            side_margin = self._clearance.contact_dist + RobotSpecs.WIDTH / 2
+            if fwd < self._clearance.contact_dist or side < side_margin:
                 linear = 0.0
         self._gateway.publish_drive(DriveCommand(speed_mps=linear, steering_norm=cmd.steering))
         debug = self._base_debug(robot_x, robot_y, robot_yaw)

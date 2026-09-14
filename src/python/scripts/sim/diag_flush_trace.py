@@ -81,7 +81,7 @@ def main() -> int:
         right = _nearest_ray(ranges, angles, -math.pi / 2)
         cmd_v, cmd_s = commands[-1] if commands else (float("nan"), float("nan"))
         rows.append(
-            f"{i:4d} {i / tuning.control.CONTROL_HZ:6.2f}s  pos=({state.x:5.3f},{state.y:5.3f}) yaw={math.degrees(state.yaw):7.2f} "
+            f"{i:4d} {i / tuning.control.control_hz:6.2f}s  pos=({state.x:5.3f},{state.y:5.3f}) yaw={math.degrees(state.yaw):7.2f} "
             f"v={state.v:6.3f} steer={math.degrees(state.steer):6.2f}  "
             f"cmd_v={cmd_v:6.3f} cmd_s={cmd_s:6.3f}  "
             f"fwd={fwd:5.2f} L={left:5.2f} R={right:5.2f}",

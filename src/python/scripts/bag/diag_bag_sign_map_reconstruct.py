@@ -277,14 +277,14 @@ def main() -> int:  # noqa: C901, PLR0912, PLR0915
     args = parser.parse_args()
 
     tuning = get_tuning(None)
-    pinned_slot = tuning.sign_router.SLOT_SIGN_MAP
+    pinned_slot = tuning.sign_router.slot_sign_map
     tag = f"  [{args.label}]" if args.label else ""
 
     print(f"== TUNING IN FORCE{tag}")
-    print(f"   sign_router.SLOT_SIGN_MAP            = {pinned_slot}   (pydantic default False; TOML pin decides)")
-    print(f"   sign_router.SLOT_ACCEPT_RADIUS_M     = {tuning.sign_router.SLOT_ACCEPT_RADIUS_M}")
-    print(f"   sign_router.SLOT_MIN_EVIDENCE        = {tuning.sign_router.SLOT_MIN_EVIDENCE}")
-    print(f"   sign_router.SLOT_REPOINT_MARGIN      = {tuning.sign_router.SLOT_REPOINT_MARGIN}")
+    print(f"   sign_router.slot_sign_map            = {pinned_slot}   (pydantic default False; TOML pin decides)")
+    print(f"   sign_router.slot_accept_radius_m     = {tuning.sign_router.slot_accept_radius_m}")
+    print(f"   sign_router.slot_min_evidence        = {tuning.sign_router.slot_min_evidence}")
+    print(f"   sign_router.slot_repoint_margin      = {tuning.sign_router.slot_repoint_margin}")
     print(f"   legal cells: {len(_LEGAL)}, physical max pillars: {PHYSICAL_MAX_SIGNS}")
 
     recorded: list[RecordedStats] = []
@@ -414,7 +414,7 @@ def main() -> int:  # noqa: C901, PLR0912, PLR0915
     arms = {
         f"slot={pinned_slot} (SHIPPED)": tuning,
         f"slot={not pinned_slot} (control)": tuning_with_overrides(
-            {"SLOT_SIGN_MAP": not pinned_slot}, group="sign_router", base=tuning
+            {"slot_sign_map": not pinned_slot}, group="sign_router", base=tuning
         ),
     }
     results: dict[str, list[ReplayStats]] = {k: [] for k in arms}

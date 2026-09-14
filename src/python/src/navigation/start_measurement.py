@@ -150,12 +150,12 @@ def measure_start_pose(
         to guess, and callers should treat it as "do not race", not as "use the
         old assumption".
 
-    Uses tuning: start_measurement.RAY_HALF_WIDTH_DEG, CLOSING_TOLERANCE_M
+    Uses tuning: start_measurement.ray_half_width_deg, CLOSING_TOLERANCE_M
     """
     tuning = get_tuning(tuning)
-    ray_half_width_rad = math.radians(tuning.start_measurement.RAY_HALF_WIDTH_DEG)
+    ray_half_width_rad = math.radians(tuning.start_measurement.ray_half_width_deg)
     closing_tolerance_m = (
-        closing_tolerance_m if closing_tolerance_m is not None else tuning.start_measurement.CLOSING_TOLERANCE_M
+        closing_tolerance_m if closing_tolerance_m is not None else tuning.start_measurement.closing_tolerance_m
     )
 
     ranges = np.asarray(ranges_m, dtype=float)

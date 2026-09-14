@@ -6,6 +6,7 @@ shaft this encoder reads -- env-overridable via ``ENCODER_*`` and the
 """
 
 from pydantic_settings import SettingsConfigDict
+from shared.config.generated.hardware.motors.encoder_schema import HardwareMotorsEncoder
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
@@ -16,19 +17,18 @@ from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 # directly, or pass an explicit override in code.
 
 
-class EncoderConfig(HardwareBaseSettings):
-    """Quadrature-encoder configuration (env-overridable, ``ENCODER_`` prefix)."""
+class EncoderConfig(HardwareBaseSettings, HardwareMotorsEncoder):
+    """Quadrature-encoder configuration (env-overridable, ``ENCODER_`` prefix).
+
+    Subclasses the generated DTO for ``pin_a``/``pin_b``/``max_duty``; the
+    per-motor bench calibration fields the base ``encoder.toml`` deliberately
+    omits (they live in the active profile's overlay) are declared here.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="encoder_",
         toml_file=CONFIG_DIR / "motors" / "encoder.toml",
     )
-
-    pin_a: int = 16
-    """BCM pin for the encoder's A channel."""
-
-    pin_b: int = 20
-    """BCM pin for the encoder's B channel."""
 
     counts_per_rev: float
     """Quadrature counts per wheel revolution -- bench-calibrated odometry
@@ -74,12 +74,3 @@ class EncoderConfig(HardwareBaseSettings):
 
     pid_kd: float = 0.0
     """Closed-loop speed PID derivative gain (unused)."""
-
-    max_duty: float = 1.0
-    """Ceiling on the closed-loop PID's output magnitude (fraction, 0-1), fed
-    into ``PIDController(output_min=-max_duty, output_max=max_duty)``. Default
-    1.0 is full duty (no extra cap beyond the PID's own [-1, 1] range).
-    Lowering this caps the actual PWM duty the drive can ever be commanded to,
-    independent of ``counts_per_rev``/``max_rpm``/the drivetrain's
-    ``max_speed_mps`` -- useful as an immediate hardware safety cap after a
-    motor swap, before the encoder is recalibrated for the new motor."""

@@ -50,12 +50,12 @@ def _gates(scan, yaw: float, tuning: NavigationTuning) -> GateResult:
     estimator = tuning.direction_estimator
     left = _nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2)
     right = _nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2)
-    max_in_track = estimator.MAX_IN_TRACK_RANGE_M
+    max_in_track = estimator.max_in_track_range_m
     return GateResult(
-        aligned=axis_error_rad(yaw) <= estimator.ALIGNMENT_TOLERANCE_RAD,
+        aligned=axis_error_rad(yaw) <= estimator.alignment_tolerance_rad,
         no_dropout=left <= max_in_track and right <= max_in_track,
-        span_open=left + right > estimator.PLAUSIBLE_SPAN_THRESHOLD_M,
-        asymmetric=abs(left - right) >= estimator.MIN_ASYMMETRY_M,
+        span_open=left + right > estimator.plausible_span_threshold_m,
+        asymmetric=abs(left - right) >= estimator.min_asymmetry_m,
     )
 
 

@@ -525,8 +525,8 @@ def _replay(run, rows, frames, scans, tuning, latency, stamped, accept_r, min_ev
         for label, margin, pool_r, flip, freeze, fresh in arm_specs
     ]
     smap = SlotMap(accept_r=accept_r, min_evidence=min_evidence, max_per_section=max_per_section)
-    max_range = tuning.sign_discovery.MAX_INGEST_RANGE_M
-    min_conf = tuning.sign_router.MIN_CONFIDENCE
+    max_range = tuning.sign_discovery.max_ingest_range_m
+    min_conf = tuning.sign_router.min_confidence
 
     poses: dict[float, Pose] = {}
     for rel, d in rows:
@@ -732,7 +732,7 @@ def main() -> int:  # noqa: C901, PLR0915
         if not frames:
             skipped["no_detections"] += 1
             continue
-        latency, source = _frame_lag(frames, tuning.sign_discovery.VISION_LATENCY_S)
+        latency, source = _frame_lag(frames, tuning.sign_discovery.vision_latency_s)
         try:
             stats.append(_replay(Path(bag).name.replace("run_", ""), rows, frames, scans, tuning,
                                  latency, source == "captured_at",

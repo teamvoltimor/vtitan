@@ -116,14 +116,14 @@ class EscapeRecovery:
         along = dx * cos_yaw + dy * sin_yaw
         lateral = -dx * sin_yaw + dy * cos_yaw
         distance = target.to_waypoint().distance_to(Waypoint(robot_x, robot_y))
-        if distance < self._escape.POSE_TRAIL_MIN_STEP_M or along > 0.0:
+        if distance < self._escape.pose_trail_min_step_m or along > 0.0:
             # Target is not actually behind the chassis -- nothing to retrace.
             return None
         return self._tuning.sign_router.retrace_steer_gain_norm(-lateral / distance)
 
     def _trail_point_behind(self, robot_x: float, robot_y: float) -> Pose | None:
         """The breadcrumb roughly ``RETRACE_DIST_M`` back along the trail."""
-        want = self._tuning.sign_router.RETRACE_DIST_M
+        want = self._tuning.sign_router.retrace_dist_m
         travelled = 0.0
         previous = (robot_x, robot_y)
         for point in reversed(self._pose_trail):
@@ -162,7 +162,7 @@ class EscapeRecovery:
             # no rear slot, and a scenario needing one escape-reverse hits the
             # wall instead (measured on go_open #85, 2026-08-22).
             if self._trail_confirms_reverse(
-                reverse_distance=abs(maneuver.speed) * maneuver.duration_frames / self._tuning.control.CONTROL_HZ
+                reverse_distance=abs(maneuver.speed) * maneuver.duration_frames / self._tuning.control.control_hz
             ):
                 return False
             logger.warning("Reverse escape refused: rear sector measured nothing")
@@ -171,7 +171,7 @@ class EscapeRecovery:
         # made this gate unreachable: the sensor is at the front, so an obstacle
         # touching the rear bumper reports ~0.272 m against a 0.10 m threshold
         # and the reverse was authorised right up to the moment of impact.
-        return bumper_gap_behind(rear.min_range_m) < self._clearance.CONTACT_DIST
+        return bumper_gap_behind(rear.min_range_m) < self._clearance.contact_dist
 
     def _fit_reverse_to_rear_gap(self, maneuver: EscapeManeuver, scan: LidarScan) -> EscapeManeuver:
         """Shorten a reversing escape to the rear room actually measured.
@@ -180,8 +180,8 @@ class EscapeRecovery:
         and nothing else: it compares the gap at the FIRST frame against
         ``CONTACT_DIST`` and then the manoeuvre runs its full latched duration
         regardless. That duration comes from the severity of what is in FRONT
-        (``K_TURN_MAX_S`` at CRITICAL, ``K_TURN_MIN_S`` otherwise), so at
-        ``REV_SPEED`` the critical escape asks for 21.6 cm of reverse against a
+        (``k_turn_max_s`` at CRITICAL, ``k_turn_min_s`` otherwise), so at
+        ``rev_speed`` the critical escape asks for 21.6 cm of reverse against a
         rear gap measured at p50 17 cm and p10 7 cm -- the gate waves it through
         at 17 cm and the chassis is driven into the pillar it is escaping.
         Measured over 46 escape episodes on the 09-10 bags: 35% did not fit.
@@ -202,12 +202,12 @@ class EscapeRecovery:
           above already makes it. Returning a one-frame stub here would convert
           a clean refusal into a twitch.
 
-        Obstacles-only by configuration (``OBSTACLES_K_TURN_FIT_REAR_GAP``), not
+        Obstacles-only by configuration (``obstacles_k_turn_fit_rear_gap``), not
         by construction: Open escapes fire in corners against walls, where a
         shortened reverse under-rotates and re-triggers, and nothing has been
         measured that says Open wants this.
         """
-        if not self._escape.K_TURN_FIT_REAR_GAP or maneuver.speed >= 0 or self._retracing:
+        if not self._escape.k_turn_fit_rear_gap or maneuver.speed >= 0 or self._retracing:
             # Retracing backs along ground the chassis physically occupied, so
             # its room is vouched for by the trail rather than by the rear
             # sector -- the same exemption ``_reversing_into_unseen_wall`` makes.
@@ -215,10 +215,10 @@ class EscapeRecovery:
         rear = self._collision_controller.rear_sector(scan.ranges_m, scan.angles_rad)
         if not rear.measured:
             return maneuver
-        room = bumper_gap_behind(rear.min_range_m) - self._clearance.CONTACT_DIST
+        room = bumper_gap_behind(rear.min_range_m) - self._clearance.contact_dist
         if room <= 0.0:
             return maneuver
-        per_frame = abs(maneuver.speed) / self._tuning.control.CONTROL_HZ
+        per_frame = abs(maneuver.speed) / self._tuning.control.control_hz
         if per_frame <= 0.0:
             return maneuver
         fits = max(1, int(room / per_frame))
@@ -248,7 +248,7 @@ class EscapeRecovery:
             return False
         trail_x, trail_y, trail_yaw = self._pose_trail[-1]
         covered = trail_clearance_behind(self._pose_trail, trail_x, trail_y, trail_yaw)
-        return covered is not None and covered >= reverse_distance + self._clearance.CONTACT_DIST
+        return covered is not None and covered >= reverse_distance + self._clearance.contact_dist
 
     def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
         """Latch an escape maneuver so it executes for its full duration."""
@@ -284,7 +284,7 @@ class EscapeRecovery:
         maneuver = self._active_maneuver
         return (
             maneuver is not None
-            and self._escape.SIDE_CORRECTION_BLENDS
+            and self._escape.side_correction_blends
             and maneuver.maneuver_type is ManeuverType.SIDE_CORRECTION
             and maneuver.speed >= 0.0
         )
@@ -368,7 +368,7 @@ class EscapeRecovery:
         """Which side this escape attempt swings toward.
 
         Derived from ``_escape_count`` rather than flipped in place, so a side
-        is held for ``ESCAPE_SIDE_COMMIT_ATTEMPTS`` consecutive attempts before
+        is held for ``escape_side_commit_attempts`` consecutive attempts before
         the other is tried. Flipping on every attempt (which all three escape
         paths used to do independently) means consecutive attempts rotate the
         chassis in opposite directions and undo each other: measured on real
@@ -392,7 +392,7 @@ class EscapeRecovery:
                 the point of escalating.
         """
         base = self._escape_steer_sign if start_sign is None else start_sign
-        commit = max(1, self._escape.ESCAPE_SIDE_COMMIT_ATTEMPTS)
+        commit = max(1, self._escape.escape_side_commit_attempts)
         block = max(0, self._escape_count - first_attempt) // commit
         return base if block % 2 == 0 else -base
 
@@ -420,7 +420,7 @@ class EscapeRecovery:
         right = self._collision_controller.compute_min_clearance(
             scan.ranges_m, scan.angles_rad, center_rad=-math.pi / 2, half_fov_rad=math.pi / 4
         )
-        no_data = self._tuning.lidar_sectors.NO_DATA_RANGE_M
+        no_data = self._tuning.lidar_sectors.no_data_range_m
         if left >= no_data and right >= no_data:
             return self._escape_steer_sign_for_attempt()
         # More open side wins; forward positive steer = nose right.
@@ -468,7 +468,7 @@ class EscapeRecovery:
         right = self._collision_controller.compute_min_clearance(
             scan.ranges_m, scan.angles_rad, center_rad=-math.pi / 2, half_fov_rad=math.pi / 4
         )
-        no_data = self._tuning.lidar_sectors.NO_DATA_RANGE_M
+        no_data = self._tuning.lidar_sectors.no_data_range_m
         if (left >= no_data and right >= no_data) or left == right:
             return self._escape_steer_sign
         return -1.0 if left > right else 1.0
@@ -480,17 +480,17 @@ class EscapeRecovery:
         longer and swing toward the opposite side, so the robot stops slamming
         the same failing maneuver into the same wall.
         """
-        if self._escape_count <= self._escape.ESCALATE_AFTER_ATTEMPTS:
+        if self._escape_count <= self._escape.escalate_after_attempts:
             return maneuver
         side = self._escape_steer_sign_for_attempt(
-            first_attempt=self._escape.ESCALATE_AFTER_ATTEMPTS + 1,
+            first_attempt=self._escape.escalate_after_attempts + 1,
             start_sign=-self._escape_steer_sign,
         )
         steering = abs(maneuver.steering) * side if maneuver.steering else 0.0
         return replace(
             maneuver,
             steering=steering,
-            duration_frames=min(maneuver.duration_frames * 2, self._escape.max_escape_frames(self._tuning.control.CONTROL_HZ)),
+            duration_frames=min(maneuver.duration_frames * 2, self._escape.max_escape_frames(self._tuning.control.control_hz)),
         )
 
     def _handle_stuck_escape(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:
@@ -520,11 +520,11 @@ class EscapeRecovery:
         logger.warning("Robot stuck - triggering escape")
         stuck_diag = self._stuck_detector.get_diagnostics()
         # "Not blocked" sentinel for the no-scan-yet case below, reusing
-        # lidar_sectors.NO_DATA_RANGE_M rather than a second independent
+        # lidar_sectors.no_data_range_m rather than a second independent
         # magic 10.0 -- both mean the same thing: no valid reading, so
         # assume clear rather than blocked.
-        rear_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
-        forward_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
+        rear_clear = self._tuning.lidar_sectors.no_data_range_m
+        forward_clear = self._tuning.lidar_sectors.no_data_range_m
         rear_blind = False
         forward_blind = False
         scan = self._gateway.get_lidar_scan()
@@ -574,7 +574,7 @@ class EscapeRecovery:
         # what runs when the rear IS occluded, which is still every bearing
         # inside the wedges.
         stuck_reverse_distance = (
-            abs(self._escape.REV_SPEED) * self._escape.max_escape_frames(self._tuning.control.CONTROL_HZ) / self._tuning.control.CONTROL_HZ
+            abs(self._escape.rev_speed) * self._escape.max_escape_frames(self._tuning.control.control_hz) / self._tuning.control.control_hz
         )
         blind_rear_unconfirmed = rear_blind and not self._trail_confirms_reverse(
             reverse_distance=stuck_reverse_distance
@@ -583,11 +583,11 @@ class EscapeRecovery:
         # Without the second term a blind forward cone reads 10 m and every test
         # below passes, which is how the robot came to escape forward into a wall
         # it was touching. Gated so the flag alone decides whether this is live.
-        forward_open = forward_clear >= self._clearance.CONTACT_DIST and not (
-            self._tuning.clearance.FORWARD_NO_DATA_IS_DEGRADED and forward_blind
+        forward_open = forward_clear >= self._clearance.contact_dist and not (
+            self._tuning.clearance.forward_no_data_is_degraded and forward_blind
         )
         if (
-            rear_clear < self._clearance.CONTACT_DIST
+            rear_clear < self._clearance.contact_dist
             or (rear_blind and forward_open)
             or blind_rear_unconfirmed
         ):
@@ -603,9 +603,9 @@ class EscapeRecovery:
                     self._escape_steer_sign = self._stuck_escape_base_sign(scan)
                 self._escape_count += 1
                 frames = min(
-                    self._escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
-                    + self._escape.stuck_escalation_per_attempt_frames(self._tuning.control.CONTROL_HZ) * (self._escape_count - 1),
-                    self._escape.max_escape_frames(self._tuning.control.CONTROL_HZ),
+                    self._escape.k_turn_min_frames(self._tuning.control.control_hz)
+                    + self._escape.stuck_escalation_per_attempt_frames(self._tuning.control.control_hz) * (self._escape_count - 1),
+                    self._escape.max_escape_frames(self._tuning.control.control_hz),
                 )
                 steering = self._escape.rev_steer_norm() * self._escape_steer_sign_for_attempt()
                 self._begin_maneuver(
@@ -641,9 +641,9 @@ class EscapeRecovery:
                 self._escape_sequence_start_xy = (robot_x, robot_y)
             self._escape_count += 1
             frames = min(
-                self._escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
-                + self._escape.stuck_escalation_per_attempt_frames(self._tuning.control.CONTROL_HZ) * (self._escape_count - 1),
-                self._escape.max_escape_frames(self._tuning.control.CONTROL_HZ),
+                self._escape.k_turn_min_frames(self._tuning.control.control_hz)
+                + self._escape.stuck_escalation_per_attempt_frames(self._tuning.control.control_hz) * (self._escape_count - 1),
+                self._escape.max_escape_frames(self._tuning.control.control_hz),
             )
             logger.warning(
                 "Stuck escape both-blocked: rear %.2f m, forward %.2f m - stop-and-steer pivot (sign %.1f)",
@@ -673,23 +673,23 @@ class EscapeRecovery:
             self._escape_steer_sign = self._stuck_escape_base_sign(scan)
         self._escape_count += 1
         frames = min(
-            self._escape.k_turn_min_frames(self._tuning.control.CONTROL_HZ)
-            + self._escape.stuck_escalation_per_attempt_frames(self._tuning.control.CONTROL_HZ) * (self._escape_count - 1),
-            self._escape.max_escape_frames(self._tuning.control.CONTROL_HZ),
+            self._escape.k_turn_min_frames(self._tuning.control.control_hz)
+            + self._escape.stuck_escalation_per_attempt_frames(self._tuning.control.control_hz) * (self._escape_count - 1),
+            self._escape.max_escape_frames(self._tuning.control.control_hz),
         )
         steering = self._escape.rev_steer_norm() * self._escape_steer_sign_for_attempt()
         # The reverse leg curves the OPPOSITE way, so its rotation adds to the
         # forward leg's instead of undoing it. Without this the two legs of a
         # k-turn hold the same lock and retrace one another -- the bay's
         # pendulum, measured at 85.6% of leg pairs on the open track. See
-        # ESCAPE_MIRRORS_REVERSE; ships off.
-        if self._escape.ESCAPE_MIRRORS_REVERSE:
+        # escape_mirrors_reverse; ships off.
+        if self._escape.escape_mirrors_reverse:
             steering = -steering
         self._begin_maneuver(
             EscapeManeuver(
                 maneuver_type=ManeuverType.STUCK_REVERSE,
                 steering=steering,
-                speed=self._escape.REV_SPEED,
+                speed=self._escape.rev_speed,
                 duration_frames=frames,
             ),
         )

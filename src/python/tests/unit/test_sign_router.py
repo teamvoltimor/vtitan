@@ -63,10 +63,10 @@ from tests.test_constants import (
 # now derived per-call from NavigationTuning. Bound once here so the assertions
 # below keep reading as statements about the shipped configuration.
 _TUNING = NavigationTuning.load_default()
-_MIN_RELIABLE_BBOX_HEIGHT_PX = _TUNING.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX
-_SIGN_CLEARANCE_MARGIN = _TUNING.sign_router.SIGN_CLEARANCE_MARGIN_M
+_MIN_RELIABLE_BBOX_HEIGHT_PX = _TUNING.sign_discovery.min_reliable_bbox_height_px
+_SIGN_CLEARANCE_MARGIN = _TUNING.sign_router.sign_clearance_margin_m
 _SIGN_LATERAL_OFFSET = SignRouterConfig.from_tuning(_TUNING.sign_router).lateral_offset
-_WALL_CLEARANCE = CHASSIS_HALF_DIAGONAL + _TUNING.sign_router.WALL_CLEARANCE_MARGIN_M
+_WALL_CLEARANCE = CHASSIS_HALF_DIAGONAL + _TUNING.sign_router.wall_clearance_margin_m
 
 # Robot-to-sign gaps expressed against the configured thresholds instead of as
 # literals. They used to be hardcoded (0.2 to engage, 1.5 to pass) against an
@@ -127,7 +127,7 @@ def _shipped_corridor(x: float, y: float) -> Section:
     describing the configuration that actually ships.
     """
     fallback = corridor_for_position(x, y)
-    if not _TUNING.sign_router.SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR:
+    if not _TUNING.sign_router.sign_lane_depth_consistent_corridor:
         return fallback
     return depth_consistent_corridor(x, y, fallback)
 
@@ -764,7 +764,7 @@ class TestDepthPinCornerGuard:
     """
 
     def test_pin_does_not_fire_once_the_robot_is_past_the_corner_buffer(self, router_config):
-        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
         waypoint_depth = depth_max - 0.15
         sign_depth = depth_max - 0.05
@@ -788,7 +788,7 @@ class TestDepthPinCornerGuard:
         """Regression guard for the fix itself: the guard must not also kill
         legitimate pinning when the robot genuinely is square to the corridor.
         """
-        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
         robot_depth = depth_max - 0.20  # inside the buffered corner window
         sign_depth = depth_max - 0.10  # between robot_depth and waypoint_depth
@@ -809,21 +809,21 @@ class TestDepthPinCornerGuard:
         assert result.x == pytest.approx(sign_depth)
 
     def test_guard_off_restores_the_pin_that_cost_11_wall_collisions(self, router_config):
-        """``PIN_CORNER_GUARD=False`` must actually reach ``pin_depth``.
+        """``pin_corner_guard=False`` must actually reach ``pin_depth``.
 
         The pre-guard arm is what the 2026-08-01 attribution was measured
         against, so a sweep that toggles this knob is only worth reading if the
         knob moves the geometry. Same setup as the first case in this class,
         which the guard suppresses: with the guard off the pin fires again.
         """
-        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
         waypoint_depth = depth_max - 0.15
         sign_depth = depth_max - 0.05
         robot_depth = depth_max + 0.05  # past the buffered corner window
         lateral_y = TrackDimensions.CORNER_MIN - 0.05
         sign = _sign_at(sign_depth, lateral_y, "red")
-        tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_CORNER_GUARD": False}))
+        tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"pin_corner_guard": False}))
 
         result = apply_deformation(
             Waypoint(waypoint_depth, lateral_y),
@@ -853,12 +853,12 @@ class TestDepthPinHeadingGuard:
         return replace(
             _TUNING,
             sign_router=_TUNING.sign_router.model_copy(
-                update={"PIN_HEADING_GUARD": True, "PIN_HEADING_GUARD_DEG": degrees}
+                update={"pin_heading_guard": True, "pin_heading_guard_deg": degrees}
             ),
         )
 
     def test_pin_releases_once_yaw_has_drifted_past_the_threshold(self, router_config):
-        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
         robot_depth = depth_max - 0.20  # inside the buffered corner window
         sign_depth = depth_max - 0.10  # between robot_depth and waypoint_depth
@@ -884,7 +884,7 @@ class TestDepthPinHeadingGuard:
     def test_pin_still_fires_under_the_yaw_drift_threshold(self, router_config):
         """Regression guard for the fix itself: small heading drift must not
         also kill legitimate pinning."""
-        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
         robot_depth = depth_max - 0.20
         sign_depth = depth_max - 0.10
@@ -908,7 +908,7 @@ class TestDepthPinHeadingGuard:
         assert result.x == pytest.approx(sign_depth)
 
     def test_guard_off_ignores_yaw_drift(self, router_config):
-        """``PIN_HEADING_GUARD=False`` must actually reach ``pin_depth`` --
+        """``pin_heading_guard=False`` must actually reach ``pin_depth`` --
         a large yaw_drift must not suppress the pin unless the guard is on.
 
         Explicitly disables the guard rather than relying on the module
@@ -916,14 +916,14 @@ class TestDepthPinHeadingGuard:
         256-scenario corpus, see ``SignRouterParams``), so the default arm no
         longer exercises the off path.
         """
-        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
         robot_depth = depth_max - 0.20
         sign_depth = depth_max - 0.10
         waypoint_depth = depth_max - 0.05
         lateral_y = TrackDimensions.CORNER_MIN - 0.05
         sign = _sign_at(sign_depth, lateral_y, "red")
-        tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_HEADING_GUARD": False}))
+        tuning = replace(_TUNING, sign_router=_TUNING.sign_router.model_copy(update={"pin_heading_guard": False}))
 
         result = apply_deformation(
             Waypoint(waypoint_depth, lateral_y),
@@ -965,7 +965,7 @@ def _detection_at_distance_bearing(
     `test_a_box_left_of_centre_is_a_sign_on_the_robots_left`, which states the
     convention from geometry instead of inheriting it.
     """
-    scale = get_tuning(None).sign_discovery.RANGE_SCALE
+    scale = get_tuning(None).sign_discovery.range_scale
     pixel_height = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT * scale) / distance
     cx = (0.5 - theta_h / RobotSpecs.CAMERA_HFOV) * RobotSpecs.CAMERA_WIDTH
     cy = RobotSpecs.CAMERA_HEIGHT / 2
@@ -1084,7 +1084,7 @@ class TestDetectionToWorldLidarFusion:
     run_20260906_192424 the return there is wall-shaped 51% of the time and
     pillar-shaped 27%, and the override fired on 92.5% of detections while
     costing 28 cm of median position error. See
-    ``SignDiscoveryParams.LIDAR_RANGE_FUSION``.
+    ``SignDiscoveryParams.lidar_range_fusion``.
 
     This class tests the UNGATED ray, which is still the fallback path when
     ``LIDAR_RANGE_FUSION_CLUSTER`` is off, so every test here now disables that
@@ -1093,7 +1093,7 @@ class TestDetectionToWorldLidarFusion:
     each of these into a test of the pinhole instead.
     """
 
-    UNGATED: ClassVar[dict[str, bool]] = {"LIDAR_RANGE_FUSION": True, "LIDAR_RANGE_FUSION_CLUSTER": False}
+    UNGATED: ClassVar[dict[str, bool]] = {"lidar_range_fusion": True, "lidar_range_fusion_cluster": False}
 
     def test_the_shipped_default_does_not_override_the_pinhole(self, router_config):
         """The default must be measurable from the test, not assumed.
@@ -1156,7 +1156,7 @@ class TestDetectionToWorldLidarFusion:
     def test_falls_back_to_pinhole_when_lidar_ray_is_self_detection(self, router_config):
         distance, theta_h = 0.6, 0.15
         det = _detection_at_distance_bearing(distance, theta_h)
-        tiny = NavigationTuning.load_default().lidar_sectors.MIN_VALID_RANGE_M / 2
+        tiny = NavigationTuning.load_default().lidar_sectors.min_valid_range_m / 2
         ranges, angles = _single_ray_scan(theta_h, tiny)
 
         world = _detection_to_world(

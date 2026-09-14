@@ -30,7 +30,7 @@ from scripts.common.tables import print_table
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 
-_DT = 1.0 / NavigationTuning.load_default().control.CONTROL_HZ
+_DT = 1.0 / NavigationTuning.load_default().control.control_hz
 _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.OBSTACLES_WIDTH)
 
 # Fixture 0000 (NORTH): fins at x = 1.50 and 1.95, y = 2.90, outer wall at y = 3.0.

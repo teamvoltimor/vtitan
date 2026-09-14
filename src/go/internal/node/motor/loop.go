@@ -37,7 +37,7 @@ const FrameID = "base_link"
 // [m/s] into a motor duty percentage, matching motors.toml's
 // `drive.speed_scale` (motor_speed = velocity_m_s * scale) — see
 // src/config/hardware/motors/motors.toml. A caller with real
-// hardware-profile data should load profile.MotorsConfig instead
+// hardware-profile data should load motors.HardwareMotorsMotors instead
 // (internal/config/profile) and pass its Drive.SpeedScale to NewLoop; this
 // is the fallback for callers that don't.
 const DefaultSpeedScalePercentPerMPS = 30.0

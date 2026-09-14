@@ -32,7 +32,7 @@ class _EstimatorConstants:
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _EstimatorConstants:
         tuning = get_tuning(tuning)
         return cls(
-            yaw_correction_gain=tuning.state_estimator.YAW_CORRECTION_GAIN,
+            yaw_correction_gain=tuning.state_estimator.yaw_correction_gain,
         )
 
 

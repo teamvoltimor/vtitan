@@ -87,10 +87,10 @@ def _direction_gate_verdict(
     """
     tuning = get_tuning(tuning)
 
-    alignment_tol = tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
-    max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M
-    min_asymmetry = tuning.direction_estimator.MIN_ASYMMETRY_M
-    plausible_span = tuning.direction_estimator.PLAUSIBLE_SPAN_THRESHOLD_M
+    alignment_tol = tuning.direction_estimator.alignment_tolerance_rad
+    max_in_track = tuning.direction_estimator.max_in_track_range_m
+    min_asymmetry = tuning.direction_estimator.min_asymmetry_m
+    plausible_span = tuning.direction_estimator.plausible_span_threshold_m
 
     axis_error = axis_error_rad(yaw)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
@@ -264,7 +264,7 @@ class TrackNavigator(Node, ResettableNode):
         # mid-turn. That argument only applies where the width is genuinely
         # unknown -- see the estimator's construction below for why the
         # Obstacles Challenge is a different case.
-        self._arc_radius = tuning.waypoints.ARC_RADIUS
+        self._arc_radius = tuning.waypoints.arc_radius
         self._tuning = tuning
         self._direction = start_direction
         # Kept separately from self._direction, which _commit_direction
@@ -301,7 +301,7 @@ class TrackNavigator(Node, ResettableNode):
         # trigger would rebuild a byte-identical path and re-seek the waypoint
         # index for nothing. See DeferredWidthBelief.
         self._width_gate = (
-            DeferredWidthBelief(enabled=self._tuning.waypoints.DEFER_CURRENT_CORRIDOR_REPLAN)
+            DeferredWidthBelief(enabled=self._tuning.waypoints.defer_current_corridor_replan)
             if self._is_open_challenge
             else None
         )
@@ -341,7 +341,7 @@ class TrackNavigator(Node, ResettableNode):
         # it read the slow tier. The medium tier is the closest match to the
         # 0.150 m/s this phase actually ran at, so keeping it here avoids
         # slowing every race start as a side effect of grading the ladder.
-        self._blind_follow_speed = tuning.speed.medium_mps()
+        self._blind_follow_speed = tuning.speed.medium_mps
         # In-bay start. Checked once (see _resolve_direction) and driven by the
         # same nav-layer manoeuvre the simulator uses.
         self._bay_start_checked = False
@@ -376,7 +376,7 @@ class TrackNavigator(Node, ResettableNode):
             start_y,
             start_yaw,
             geometry,
-            stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
+            stale_timeout_sec=tuning.sensor.stale_timeout_sec,
             localization=tuning.localization,
         )
         # The parking lot sits in the corridor the robot started in, and that is
@@ -469,7 +469,7 @@ class TrackNavigator(Node, ResettableNode):
         self._latest_debug = NavigatorDebugSnapshot()
 
         # Control Loop
-        control_period = 1.0 / self._tuning.control.CONTROL_HZ
+        control_period = 1.0 / self._tuning.control.control_hz
         self.create_timer(control_period, self._control_loop)
 
         self.get_logger().info(
@@ -555,7 +555,7 @@ class TrackNavigator(Node, ResettableNode):
         threaded through; this one was not.
         """
         metadata = self._metadata
-        if DictKeys.PARKING_LOT in metadata or not tuning.parking.DERIVE_LOT_FROM_IN_BAY_START:
+        if DictKeys.PARKING_LOT in metadata or not tuning.parking.derive_lot_from_in_bay_start:
             return metadata
         metadata = dict(metadata)
         metadata[DictKeys.PARKING_LOT] = parking_lot_from_in_bay_start(
@@ -671,12 +671,12 @@ class TrackNavigator(Node, ResettableNode):
         for obs in self._gateway.get_vision_detections():
             if obs.color not in (SignColor.RED, SignColor.GREEN):
                 continue
-            if obs.confidence < sign_cfg.MIN_CONFIDENCE:
+            if obs.confidence < sign_cfg.min_confidence:
                 continue
             dist = pose.to_waypoint().distance_to(Waypoint(obs.world_x_m, obs.world_y_m))
             if dist < nearest_dist:
                 nearest, nearest_dist = obs, dist
-        if nearest is None or nearest_dist > sign_cfg.ACTIVATION_DIST_M:
+        if nearest is None or nearest_dist > sign_cfg.activation_dist_m:
             return None
         return TurnSide.RIGHT if nearest.color == SignColor.RED else TurnSide.LEFT
 
@@ -782,7 +782,7 @@ class TrackNavigator(Node, ResettableNode):
                 if estimator is not None:
                     estimator.settle(boxed)
                 self._exiting_bay = True
-            elif not self._is_open_challenge and self._tuning.corridor_follower.ASSUME_BAY_START:
+            elif not self._is_open_challenge and self._tuning.corridor_follower.assume_bay_start:
                 # The in-bay start is the one we intend to use on Obstacles, so
                 # believe it rather than requiring the scan to prove it. Only
                 # the DIRECTION half of the test failed here -- a dropped side
@@ -818,7 +818,7 @@ class TrackNavigator(Node, ResettableNode):
         # alone would have released this run cleanly at 45 s.
         if self._exiting_bay:
             self._bay_exit_ticks += 1
-        budget = self._tuning.corridor_follower.BAY_EXIT_MAX_FRAMES
+        budget = self._tuning.corridor_follower.bay_exit_max_frames
         bay_exit_spent = bool(budget) and self._bay_exit_ticks > budget
         # Rotation is the release this manoeuvre actually needs. `is_clear` asks
         # whether the way ahead is open, which the pocket cannot answer -- the
@@ -945,7 +945,7 @@ class TrackNavigator(Node, ResettableNode):
 
         verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning)
         self._direction_gate_log_counter += 1
-        if self._direction_gate_log_counter % self._tuning.direction_estimator.GATE_LOG_PERIOD_TICKS == 0:
+        if self._direction_gate_log_counter % self._tuning.direction_estimator.gate_log_period_ticks == 0:
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
         corridor_width_belief_m = statistics.fmean(s.width_m for s in self._creep_widths) if self._creep_widths else None
@@ -1020,7 +1020,7 @@ class TrackNavigator(Node, ResettableNode):
         # afterwards could displace them. What matters is the last second
         # before the operator presses start, so old readings age out.
         self._creep_widths.append(CreepWidthSample(yaw=pose.yaw, width_m=m.width_m))
-        if len(self._creep_widths) > self._tuning.corridor_estimator.MAX_START_SAMPLES:
+        if len(self._creep_widths) > self._tuning.corridor_estimator.max_start_samples:
             del self._creep_widths[0]
 
         widths = [s.width_m for s in self._creep_widths]
@@ -1135,12 +1135,12 @@ class TrackNavigator(Node, ResettableNode):
             # the operator, so holding still would preserve the very
             # obstruction being waited out.
             self._start_measurement_ticks_left = round(
-                self._tuning.start_measurement.RETRY_WINDOW_S * self._tuning.control.CONTROL_HZ,
+                self._tuning.start_measurement.retry_window_s * self._tuning.control.control_hz,
             )
             self.get_logger().warning(
                 "Start pose could not be measured from the scan (blocked ray, or not on the track) - "
                 "driving on the assumed start, which is only ever approximately right, and retrying "
-                f"the measurement for {self._tuning.start_measurement.RETRY_WINDOW_S:.0f} s",
+                f"the measurement for {self._tuning.start_measurement.retry_window_s:.0f} s",
             )
         else:
             self.get_logger().info(
@@ -1278,7 +1278,7 @@ class TrackNavigator(Node, ResettableNode):
         # tells the two apart.
         travel = TRAVEL_DIRS[(self._start_section, self._direction)]
         misalignment = abs(wrap_angle(pose.yaw - math.atan2(travel.ny, travel.nx)))
-        if misalignment > math.radians(self._tuning.start_measurement.RETRY_ALIGN_TOLERANCE_DEG):
+        if misalignment > math.radians(self._tuning.start_measurement.retry_align_tolerance_deg):
             return
 
         measured = measure_start_pose(
@@ -1352,9 +1352,9 @@ class TrackNavigator(Node, ResettableNode):
             tuning=self._tuning,
             # Obstacles carries its own centreline bias, tuned separately from
             # Open's and measured HIGHER than the geometry argues for. See
-            # WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and why it
+            # WaypointParams.obstacles_center_bias_m for the sweep and why it
             # is compensating for the tracker's outward drift.
-            center_bias_m=(None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M),
+            center_bias_m=(None if self._is_open_challenge else self._tuning.waypoints.obstacles_center_bias_m),
             unconfirmed_sections=(unconfirmed if unconfirmed is not None else self._unconfirmed_sections()),
         )
 
@@ -1370,7 +1370,7 @@ class TrackNavigator(Node, ResettableNode):
 
         Empty when sighted: ``_width_estimator`` is None exactly when the widths
         were told rather than discovered, and a told width is confirmed by
-        definition. See WaypointParams.UNCONFIRMED_WIDTH_INNER_BIAS_M.
+        definition. See WaypointParams.unconfirmed_width_inner_bias_m.
         """
         if self._width_estimator is None:
             return frozenset()
@@ -1556,7 +1556,7 @@ class TrackNavigator(Node, ResettableNode):
             active = self._active_challenge or ScenarioType.OPEN
             self._is_open_challenge = active == ScenarioType.OPEN
             self._tuning = self._tuning_by_challenge[active]
-            self._arc_radius = self._tuning.waypoints.ARC_RADIUS
+            self._arc_radius = self._tuning.waypoints.arc_radius
 
         self._direction = self._initial_direction
         if self._blind:

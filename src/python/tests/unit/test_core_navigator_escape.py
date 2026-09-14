@@ -108,10 +108,10 @@ class TestCriticalEscapeRearGate:
         # Built by bearing rather than via create_scan_with_sectors(back=...),
         # whose named sectors do not reach the rear arc this gate reads.
         sectors = tuning.lidar_sectors
-        occluded = sectors.SELF_DETECTION_THRESHOLD_M / 2.0
+        occluded = sectors.self_detection_threshold_m / 2.0
         base = create_scan_with_sectors(front=0.06)
         ranges = [
-            occluded if abs(wrap_angle(a - math.pi)) <= math.radians(sectors.THREAT_HALF_FOV_DEG) else r
+            occluded if abs(wrap_angle(a - math.pi)) <= math.radians(sectors.threat_half_fov_deg) else r
             for r, a in zip(base, ANGLES, strict=False)
         ]
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
@@ -122,7 +122,7 @@ class TestCriticalEscapeRearGate:
 
         assert gateway.commands, "expected a published command"
         assert gateway.commands[-1].speed_mps >= 0, "must not reverse blind into an unseen rear wall"
-        assert gateway.commands[-1].speed_mps <= tuning.speed.slow_mps(), (
+        assert gateway.commands[-1].speed_mps <= tuning.speed.slow_mps, (
             "degraded path is a capped creep, not full speed"
         )
 
@@ -169,7 +169,7 @@ class TestMappedObstacleEscapeSplit:
             LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
         )
         if mask_radius is not None:
-            tuning = override_tuning(tuning, sign_router={"ESCAPE_MASK_RADIUS_M": mask_radius})
+            tuning = override_tuning(tuning, sign_router={"escape_mask_radius_m": mask_radius})
         router = SignRouter(
             [SignSpec(x=base_x + sign_xy[0], y=base_y + sign_xy[1], color=SignColor.RED)],
             config=SignRouterConfig.from_tuning(tuning.sign_router),
@@ -233,7 +233,7 @@ class TestMappedObstacleEscapeSplit:
         nav.step()
 
         assert gateway.commands
-        assert gateway.commands[-1].speed_mps <= nav._tuning.speed.slow_mps()
+        assert gateway.commands[-1].speed_mps <= nav._tuning.speed.slow_mps
 
     def test_passed_sign_gets_its_guard_back(self, waypoints, tuning):
         """Once the router retires a sign it stops owning it, so the reactive
@@ -265,7 +265,7 @@ class TestStuckDetectionDuringParking:
         nav._park_controller = _StubParkController()
         nav._parking_engaged = True
 
-        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 15):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.control_hz) + 15):
             nav.step()
 
         assert any(cmd.speed_mps < 0 for cmd in gateway.commands), (
@@ -281,7 +281,7 @@ class TestStuckDetectionDuringParking:
         nav._park_controller = _StubParkController(done=True)
         nav._parking_engaged = True
 
-        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 10):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.control_hz) + 10):
             nav.step()
 
         assert all(cmd.speed_mps == 0.0 for cmd in gateway.commands)
@@ -316,7 +316,7 @@ class TestStuckEscapeRearBlocked:
         )
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
-        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 5):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.control_hz) + 5):
             nav.step()
 
         escape_cmds = [c for c in gateway.commands if c.speed_mps > 0 and abs(c.steering_norm) > 0.5]
@@ -332,7 +332,7 @@ class TestStuckEscapeRearBlocked:
         )
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
-        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.CONTROL_HZ) + 5):
+        for _ in range(tuning.escape.stuck_timeout_frames(tuning.control.control_hz) + 5):
             nav.step()
 
         assert all(c.speed_mps >= 0 for c in gateway.commands), "must not reverse into an unseen rear wall"
@@ -384,11 +384,11 @@ class TestMissingSensorsDegradeSafely:
         # the base ladder this reads as a violation whenever a motor profile
         # gives Open a faster slow tier (0.275 vs 0.22 on the REV HD Hex), which
         # is the profile working as intended rather than a degraded-sensor bug.
-        assert gateway.commands[-1].speed_mps <= tuning.speed.for_open_challenge().slow_mps()
+        assert gateway.commands[-1].speed_mps <= tuning.speed.for_open_challenge().slow_mps
 
 
 class TestEscapeEscalation:
-    """_maybe_escalate: after ESCALATE_AFTER_ATTEMPTS consecutive failed escapes,
+    """_maybe_escalate: after escalate_after_attempts consecutive failed escapes,
     the next escape should reverse longer and swing to the opposite side instead
     of repeating an identical pulse into the same wall (open recommendation from
     the 2026-07-03 navigation review, docs/internal/2026-07-03-navigation-review-findings.md).
@@ -412,20 +412,20 @@ class TestEscapeEscalation:
         nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver()
 
-        for count in range(1, nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1):
+        for count in range(1, nav._tuning.escape.escalate_after_attempts + 1):
             nav._escape_count = count
             assert nav._maybe_escalate(maneuver) is maneuver
 
     def test_beyond_threshold_flips_side_and_extends_duration(self, waypoints, tuning):
         nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.4, duration=6)
-        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+        nav._escape_count = nav._tuning.escape.escalate_after_attempts + 1
         starting_sign = nav._escape_steer_sign
 
         result = nav._maybe_escalate(maneuver)
 
         assert result.duration_frames == min(
-            6 * 2, nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ)
+            6 * 2, nav._tuning.escape.max_escape_frames(nav._tuning.control.control_hz)
         )
         assert math.copysign(1.0, result.steering) == -starting_sign
         assert abs(result.steering) == pytest.approx(abs(maneuver.steering))
@@ -443,13 +443,13 @@ class TestEscapeEscalation:
         """
         nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.4, duration=6)
-        commit = nav._tuning.escape.ESCAPE_SIDE_COMMIT_ATTEMPTS
+        commit = nav._tuning.escape.escape_side_commit_attempts
         assert commit > 1, "a commit of 1 is the alternate-every-attempt behaviour this pins against"
 
         signs = []
         for count in range(
-            nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1,
-            nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1 + 2 * commit,
+            nav._tuning.escape.escalate_after_attempts + 1,
+            nav._tuning.escape.escalate_after_attempts + 1 + 2 * commit,
         ):
             nav._escape_count = count
             signs.append(math.copysign(1.0, nav._maybe_escalate(maneuver).steering))
@@ -464,13 +464,13 @@ class TestEscapeEscalation:
     def test_duration_caps_at_max_escape_frames(self, waypoints, tuning):
         nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(
-            steering=0.4, duration=nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ)
+            steering=0.4, duration=nav._tuning.escape.max_escape_frames(nav._tuning.control.control_hz)
         )
-        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+        nav._escape_count = nav._tuning.escape.escalate_after_attempts + 1
 
         result = nav._maybe_escalate(maneuver)
 
-        assert result.duration_frames == nav._tuning.escape.max_escape_frames(nav._tuning.control.CONTROL_HZ)
+        assert result.duration_frames == nav._tuning.escape.max_escape_frames(nav._tuning.control.control_hz)
 
     def test_straight_reverse_has_no_side_to_flip(self, waypoints, tuning):
         """A zero-steering escape (e.g. a straight stuck-reverse) stays at zero
@@ -478,7 +478,7 @@ class TestEscapeEscalation:
         """
         nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.0, duration=6)
-        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+        nav._escape_count = nav._tuning.escape.escalate_after_attempts + 1
 
         result = nav._maybe_escalate(maneuver)
 
@@ -500,7 +500,7 @@ class TestEscapeEscalationIntegration:
 
         maneuvers_begun: list[EscapeManeuver] = []
         was_active = False
-        target = tuning.escape.ESCALATE_AFTER_ATTEMPTS + 2
+        target = tuning.escape.escalate_after_attempts + 2
         for _ in range(500):
             nav.step()
             now_active = nav._active_maneuver is not None
@@ -512,8 +512,8 @@ class TestEscapeEscalationIntegration:
 
         assert len(maneuvers_begun) == target, "threat never cleared, so every maneuver should re-trigger a new escape"
 
-        pre_escalation = maneuvers_begun[: tuning.escape.ESCALATE_AFTER_ATTEMPTS]
-        escalated = maneuvers_begun[tuning.escape.ESCALATE_AFTER_ATTEMPTS]
+        pre_escalation = maneuvers_begun[: tuning.escape.escalate_after_attempts]
+        escalated = maneuvers_begun[tuning.escape.escalate_after_attempts]
         last_pre_escalation = pre_escalation[-1]
 
         assert escalated.duration_frames > last_pre_escalation.duration_frames
@@ -528,7 +528,7 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
     Confirmed on real hardware 2026-08-04 (run_20260804_213147): with the
     robot genuinely pinned in place, SIDE_CORRECTION's brief creep read as
     "not critical" for one tick between escapes, which reset escape_count to
-    0 every single cycle -- so it never reached ESCALATE_AFTER_ATTEMPTS and
+    0 every single cycle -- so it never reached escalate_after_attempts and
     never escalated, for 34+ seconds. The threat toggling on/off each
     decision tick (rather than staying permanently critical, as in
     TestEscapeEscalationIntegration above) is what reproduces the gap that
@@ -555,7 +555,7 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
 
         maneuvers_begun: list[EscapeManeuver] = []
         was_active = False
-        target = tuning.escape.ESCALATE_AFTER_ATTEMPTS + 2
+        target = tuning.escape.escalate_after_attempts + 2
         for _ in range(1000):
             nav.step()
             now_active = nav._active_maneuver is not None
@@ -567,8 +567,8 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
 
         assert len(maneuvers_begun) == target, "expected escapes to keep re-triggering with the threat oscillating"
 
-        pre_escalation = maneuvers_begun[: tuning.escape.ESCALATE_AFTER_ATTEMPTS]
-        escalated = maneuvers_begun[tuning.escape.ESCALATE_AFTER_ATTEMPTS]
+        pre_escalation = maneuvers_begun[: tuning.escape.escalate_after_attempts]
+        escalated = maneuvers_begun[tuning.escape.escalate_after_attempts]
         assert escalated.duration_frames > pre_escalation[-1].duration_frames, (
             "escape_count must survive the intervening normal_drive tick since the robot never moved"
         )
@@ -577,8 +577,8 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
 class TestReverseFitsTheRearGap:
     """The K-turn's reverse DISTANCE must not exceed the rear room measured.
 
-    ``K_TURN_MIN_S``/``K_TURN_MAX_S`` are chosen from the severity of what is in
-    FRONT: at ``REV_SPEED`` the critical escape commits 21.6 cm of reverse
+    ``k_turn_min_s``/``k_turn_max_s`` are chosen from the severity of what is in
+    FRONT: at ``rev_speed`` the critical escape commits 21.6 cm of reverse
     without reading a single number about what is BEHIND. ``_reversing_into_
     unseen_wall`` cannot catch it -- it only checks the gap at the FIRST frame
     against ``CONTACT_DIST``, so a 17 cm gap authorises the whole 21.6 cm and
@@ -601,7 +601,7 @@ class TestReverseFitsTheRearGap:
         sectors = tuning.lidar_sectors
         base = create_scan_with_sectors(front=0.06)
         ranges = [
-            rear_range_m if abs(wrap_angle(a - math.pi)) <= math.radians(sectors.THREAT_HALF_FOV_DEG) else r
+            rear_range_m if abs(wrap_angle(a - math.pi)) <= math.radians(sectors.threat_half_fov_deg) else r
             for r, a in zip(base, ANGLES, strict=False)
         ]
         return LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES))
@@ -636,14 +636,14 @@ class TestReverseFitsTheRearGap:
         room these tests are pinning.
         """
         zones = tuning.clearance.for_obstacles_challenge() if obstacles else tuning.clearance
-        return RobotSpecs.LIDAR_TO_REAR_BUMPER + zones.CONTACT_DIST + room_m
+        return RobotSpecs.LIDAR_TO_REAR_BUMPER + zones.contact_dist + room_m
 
     def _critical_k_turn(self, tuning) -> EscapeManeuver:
         return EscapeManeuver(
             maneuver_type=ManeuverType.K_TURN,
             steering=tuning.escape.rev_steer_norm(),
-            speed=tuning.escape.REV_SPEED,
-            duration_frames=tuning.escape.k_turn_max_frames(tuning.control.CONTROL_HZ),
+            speed=tuning.escape.rev_speed,
+            duration_frames=tuning.escape.k_turn_max_frames(tuning.control.control_hz),
         )
 
     def test_obstacles_shortens_a_reverse_that_does_not_fit(self, waypoints, tuning):
@@ -653,7 +653,7 @@ class TestReverseFitsTheRearGap:
 
         fitted = nav._fit_reverse_to_rear_gap(maneuver, scan)
 
-        per_frame = abs(maneuver.speed) / tuning.control.CONTROL_HZ
+        per_frame = abs(maneuver.speed) / tuning.control.control_hz
         assert fitted.duration_frames < maneuver.duration_frames, "21.6 cm of reverse into 5 cm of room"
         assert fitted.duration_frames * per_frame <= self._ROOM_M
         # A ceiling, not a rewrite: nothing else about the manoeuvre moves.
@@ -675,7 +675,7 @@ class TestReverseFitsTheRearGap:
     def test_a_reverse_that_already_fits_is_untouched(self, waypoints, tuning):
         """65% of them, and shortening those would be the regression."""
         maneuver = self._critical_k_turn(tuning)
-        needed = abs(maneuver.speed) * maneuver.duration_frames / tuning.control.CONTROL_HZ
+        needed = abs(maneuver.speed) * maneuver.duration_frames / tuning.control.control_hz
         scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, needed + 0.10))
         nav = self._navigator(waypoints, tuning, scan, obstacles=True)
 
@@ -688,7 +688,7 @@ class TestReverseFitsTheRearGap:
         which refuses it unless the pose trail vouches for the ground; this must
         not pre-empt that with a one-frame stub.
         """
-        occluded = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M / 2.0
+        occluded = tuning.lidar_sectors.self_detection_threshold_m / 2.0
         scan = self._scan_with_rear_at(tuning, occluded)
         nav = self._navigator(waypoints, tuning, scan, obstacles=True)
         maneuver = self._critical_k_turn(tuning)
@@ -712,7 +712,7 @@ class TestReverseFitsTheRearGap:
     def test_a_forward_maneuver_is_never_shortened(self, waypoints, tuning):
         scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, self._ROOM_M))
         nav = self._navigator(waypoints, tuning, scan, obstacles=True)
-        forward = replace(self._critical_k_turn(tuning), speed=abs(tuning.escape.REV_SPEED))
+        forward = replace(self._critical_k_turn(tuning), speed=abs(tuning.escape.rev_speed))
 
         assert nav._fit_reverse_to_rear_gap(forward, scan) == forward
 
@@ -731,7 +731,7 @@ class TestReverseFitsTheRearGap:
 
 
 class TestEscapeMirrorsReverse:
-    """``ESCAPE_MIRRORS_REVERSE``: the reverse leg curves the OTHER way.
+    """``escape_mirrors_reverse``: the reverse leg curves the OTHER way.
 
     Every escape manoeuvre is built from the same
     ``rev_steer_norm() * _escape_steer_sign_for_attempt()``, so a reverse holds
@@ -742,7 +742,7 @@ class TestEscapeMirrorsReverse:
 
     @staticmethod
     def _nav_with(_tuning, waypoints, mirrors: bool):
-        overridden = tuning_with_overrides({"ESCAPE_MIRRORS_REVERSE": mirrors}, group="escape")
+        overridden = tuning_with_overrides({"escape_mirrors_reverse": mirrors}, group="escape")
         ranges = create_scan_with_sectors(front=0.06)
         scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES))
         gateway = FakeGateway(Pose(x=1.5, y=0.5, yaw=0.0), scan)
@@ -751,7 +751,7 @@ class TestEscapeMirrorsReverse:
         )
 
     def test_ships_off(self, tuning) -> None:
-        assert tuning.escape.ESCAPE_MIRRORS_REVERSE is False
+        assert tuning.escape.escape_mirrors_reverse is False
 
     def test_the_reverse_steers_opposite_to_the_unmirrored_one(self, waypoints, tuning) -> None:
         """Same attempt, same side commitment; only the reverse leg's sign moves."""

@@ -26,8 +26,8 @@ This script prices exactly that, on bags only, and reports four things:
 2. REAR CLEARANCE. A reverse is only legal if the ground behind is. The shipped
    gate is ``escape_recovery._trail_confirms_reverse``, which asks
    ``trail_clearance_behind(...) >= d + CONTACT_DIST`` over the pose trail. This
-   script rebuilds that exact trail from the bag (same ``POSE_TRAIL_MIN_STEP_M``
-   decimation, same ``POSE_TRAIL_LEN`` cap) and evaluates the same predicate at
+   script rebuilds that exact trail from the bag (same ``pose_trail_min_step_m``
+   decimation, same ``pose_trail_len`` cap) and evaluates the same predicate at
    the same instants, beside the measured rear LIDAR sector. If the trail does
    not vouch for the required distance on most firings, the manoeuvre is NOT
    AVAILABLE and that is the answer.
@@ -109,8 +109,8 @@ def _trail_points(rows, min_step: float):  # noqa: ANN001,ANN201
     """Rebuild the navigator's own decimated pose trail from the bag.
 
     Mirrors ``CoreNavigator._update_state``: a breadcrumb is appended only when
-    it is at least ``POSE_TRAIL_MIN_STEP_M`` from the last one. Returns
-    ``[(rel, x, y, yaw)]``; the ``POSE_TRAIL_LEN`` cap is applied at read time.
+    it is at least ``pose_trail_min_step_m`` from the last one. Returns
+    ``[(rel, x, y, yaw)]``; the ``pose_trail_len`` cap is applied at read time.
     """
     out: list[tuple[float, float, float, float]] = []
     for rel, d in rows:
@@ -177,7 +177,7 @@ def _price(p, direction, rows_trail, scans, scan_times, tuning, margin, trail_le
     # Obstacles-resolved, exactly as CoreNavigator resolves them (the bags are
     # all Obstacles rounds, where OBSTACLES_* overrides are live).
     clearance = tuning.clearance.for_obstacles_challenge()
-    contact = clearance.CONTACT_DIST
+    contact = clearance.contact_dist
     trail_ok = trail_m is not None and trail_m >= need_rev + contact
 
     return Budget(
@@ -268,10 +268,10 @@ def main() -> int:  # noqa: PLR0915
     # Obstacles-resolved, exactly as CoreNavigator resolves them (the bags are
     # all Obstacles rounds, where OBSTACLES_* overrides are live).
     clearance = tuning.clearance.for_obstacles_challenge()
-    contact = clearance.CONTACT_DIST
+    contact = clearance.contact_dist
     print(
-        f"== shipped gate: POSE_TRAIL_LEN={esc.POSE_TRAIL_LEN} "
-        f"MIN_STEP={esc.POSE_TRAIL_MIN_STEP_M} CONTACT_DIST={contact} "
+        f"== shipped gate: pose_trail_len={esc.pose_trail_len} "
+        f"MIN_STEP={esc.pose_trail_min_step_m} contact_dist={contact} "
         f"| R(v)={R0}+{RK}v  margin={args.margin}  reverse speed={REVERSE_SPEED}"
     )
     print()
@@ -289,11 +289,11 @@ def main() -> int:  # noqa: PLR0915
         read += 1
         run = Path(bag).name.replace("run_", "")
         pillars, direction = replay(run, data, frames, scans, tuning, args.per_lap)
-        trail = _trail_points(data, esc.POSE_TRAIL_MIN_STEP_M)
+        trail = _trail_points(data, esc.pose_trail_min_step_m)
         scan_times = [t for t, _ in scans]
         run_span[run] = (data[-1][0] - data[0][0]) if data else 0.0
         for p in pillars:
-            b = _price(p, direction, trail, scans, scan_times, tuning, args.margin, esc.POSE_TRAIL_LEN)
+            b = _price(p, direction, trail, scans, scan_times, tuning, args.margin, esc.pose_trail_len)
             if b is not None:
                 budgets.append(b)
                 per_run.setdefault(run, []).append(b)

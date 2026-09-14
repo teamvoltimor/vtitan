@@ -45,8 +45,8 @@ DELIBERATELY_ZERO = {
     # centreline, because the lateral correction swings the chassis past
     # ALIGNMENT_TOLERANCE_RAD and starves the direction gate. Kept as a zeroed
     # gain rather than deleted so the branch survives for a chassis that wants
-    # it -- see CorridorFollowerParams.CENTERING_GAIN_DEG_PER_M.
-    "corridor_follower.CENTERING_GAIN_DEG_PER_M",
+    # it -- see CorridorFollowerParams.centering_gain_deg_per_m.
+    "corridor_follower.centering_gain_deg_per_m",
 }
 
 
@@ -56,12 +56,12 @@ def test_tuning_fields_not_none() -> None:
 
     # Spot-check critical fields that would break if config is incomplete
     critical_fields = {
-        "lidar_sectors.MIN_VALID_RANGE_M": tuning.lidar_sectors.MIN_VALID_RANGE_M,
-        "heading.CRAWL": tuning.heading.CRAWL,
-        "direction_estimator.MAX_IN_TRACK_RANGE_M": tuning.direction_estimator.MAX_IN_TRACK_RANGE_M,
-        "corridor_follower.CENTERING_GAIN_DEG_PER_M": tuning.corridor_follower.CENTERING_GAIN_DEG_PER_M,
-        "corridor_follower.HEADING_GAIN": tuning.corridor_follower.HEADING_GAIN,
-        "sign_router.ACTIVATION_DIST_M": tuning.sign_router.ACTIVATION_DIST_M,
+        "lidar_sectors.min_valid_range_m": tuning.lidar_sectors.min_valid_range_m,
+        "heading.crawl": tuning.heading.crawl,
+        "direction_estimator.max_in_track_range_m": tuning.direction_estimator.max_in_track_range_m,
+        "corridor_follower.centering_gain_deg_per_m": tuning.corridor_follower.centering_gain_deg_per_m,
+        "corridor_follower.heading_gain": tuning.corridor_follower.heading_gain,
+        "sign_router.activation_dist_m": tuning.sign_router.activation_dist_m,
     }
 
     for field_name, value in critical_fields.items():
@@ -81,4 +81,4 @@ def test_tuning_can_override_from_yaml() -> None:
 
     # Verify the default instance has expected structure
     assert hasattr(default, "sign_router")
-    assert hasattr(default.sign_router, "ACTIVATION_DIST_M")
+    assert hasattr(default.sign_router, "activation_dist_m")

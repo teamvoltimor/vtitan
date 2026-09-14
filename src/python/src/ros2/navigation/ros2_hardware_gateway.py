@@ -116,7 +116,7 @@ class ROS2HardwareGateway(HardwareGateway):
         start_y: float,
         start_yaw: float,
         geometry: CorridorGeometry | dict[Section, float],
-        stale_timeout_sec: float = SensorHealthParams().STALE_TIMEOUT_SEC,
+        stale_timeout_sec: float = SensorHealthParams().stale_timeout_sec,
         localization: LocalizationParams | None = None,
     ) -> None:
         self._node = node
@@ -426,7 +426,7 @@ class ROS2HardwareGateway(HardwareGateway):
             return current
         target = self._detections_captured_at
         if target is None:
-            target = self._now() - get_tuning(None).sign_discovery.VISION_LATENCY_S
+            target = self._now() - get_tuning(None).sign_discovery.vision_latency_s
         return pose_at_time(self._pose_history, target, current)
 
     def get_vision_detections(self, current_corridor: Section | None = None) -> list[TrafficSignObservation]:

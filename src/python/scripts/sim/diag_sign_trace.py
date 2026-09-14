@@ -54,7 +54,7 @@ def _parse_args() -> argparse.Namespace:
         "--activation",
         type=float,
         default=None,
-        help="override SignRouterParams.ACTIVATION_DIST_M (default 1.40)",
+        help="override SignRouterParams.activation_dist_m (default 1.40)",
     )
     parser.add_argument("--corpus", action="store_true", help="trace a corpus scenario instead of the committed 16")
     parser.add_argument(
@@ -71,7 +71,7 @@ def _parse_args() -> argparse.Namespace:
         "--buffer",
         type=float,
         default=None,
-        help="override SignRouterParams.DEFORM_DEPTH_BUFFER_M (default 0.5)",
+        help="override SignRouterParams.deform_depth_buffer_m (default 0.5)",
     )
     parser.add_argument(
         "--pin-heading-guard-deg",

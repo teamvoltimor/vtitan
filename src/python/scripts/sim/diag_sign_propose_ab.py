@@ -79,7 +79,7 @@ def run_case(payload: tuple[str, int, bool, int]) -> tuple[bool, bool, bool, boo
     """
     path, seed, propose, max_steps = payload
     metadata = load_scenario(Path(path))
-    tuning = tuning_with_overrides({"SIGN_LIDAR_PROPOSE": propose}, group="sign_router")
+    tuning = tuning_with_overrides({"sign_lidar_propose": propose}, group="sign_router")
     result = ScenarioSimulator(
         metadata, num_laps=3, seed=seed, blind=True, park=False, tuning=tuning
     ).run(max_steps=max_steps)
