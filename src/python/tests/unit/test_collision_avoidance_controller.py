@@ -942,12 +942,39 @@ class TestEscapeSideFollowsCommittedSign:
 
         assert controller._k_turn_steer_sign(ranges, angles, None, -1.0) == -1.0
 
-    def test_on_refuses_when_the_wanted_side_is_physically_shut(self):
-        """The guard that makes this safe in a 1.00 m corridor."""
+    def test_a_shut_wanted_side_reverses_straight_instead_of_taking_the_other(self):
+        """The guard that makes this safe in a 1.00 m corridor.
+
+        This used to assert 1.0 -- the OTHER side -- on the reasoning that
+        refusing to force a shut side is the safe outcome. Half right: forcing
+        it would push the pillar over, but taking the other side is a
+        WRONG-SIDE PASS, which ends the round outright rather than costing
+        points. Both branches lose.
+
+        0.0 is the third option: reverse straight, commit to no side, and let
+        the planner choose the side on re-approach. Pinned here because the
+        value is load-bearing -- compute_escape_maneuver multiplies it by
+        escape_steer_scale, so only exactly 0.0 produces a straight reverse.
+        """
         ranges, angles = self._lopsided_scan()
         controller = self._controller(follows=True, floor=0.50)  # 0.30 m left is now below it
 
-        assert controller._k_turn_steer_sign(ranges, angles, None, -1.0) == 1.0
+        assert controller._k_turn_steer_sign(ranges, angles, None, -1.0) == 0.0
+
+    def test_the_straight_reverse_reaches_the_maneuver_not_just_the_helper(self):
+        """A 0.0 from the helper has to survive into the published command."""
+        ranges, angles = self._lopsided_scan()
+        forward = angle_to_index(0.0)
+        ranges[forward - 10 : forward + 10] = 0.05  # a FRONT threat, so a K-turn
+        controller = self._controller(follows=True, floor=0.50)
+
+        maneuver = controller.compute_escape_maneuver(
+            RiskLevel.CRITICAL, ThreatDirection.FRONT, ranges, angles, None, -1.0,
+        )
+
+        assert maneuver is not None
+        assert maneuver.steering == 0.0
+        assert maneuver.speed < 0  # still a reverse, just an unsteered one
 
     def test_on_without_a_committed_sign_leaves_the_comparison_alone(self):
         """Every tick of the Open Challenge, and most ticks of Obstacles."""

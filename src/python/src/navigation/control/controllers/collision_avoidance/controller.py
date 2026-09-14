@@ -781,21 +781,23 @@ class CollisionAvoidanceController:
                     wanted_clear = left_clear if preferred_sign < 0 else right_clear
                     if wanted_clear >= self.escape_side_override_min_clearance_m:
                         return preferred_sign
-                    # Otherwise fall through: the LIDAR is right that this
-                    # side is physically shut, and forcing it would push the
-                    # pillar over.
+                    # The wanted side is physically shut. Neither committing to
+                    # it (which would push the pillar over) nor taking the
+                    # OTHER side (a wrong-side pass, which ENDS THE ROUND
+                    # rather than costing points) is right, so do neither:
+                    # reverse straight and commit to no side at all.
                     #
-                    # The fall-through then takes the OTHER side, which the
-                    # operator's rule says ends the round (a wrong-side pass is
-                    # not a deduction). So neither branch here is actually
-                    # right when the wanted side is shut.
+                    # 0.0 is not a sentinel. compute_escape_maneuver multiplies
+                    # it by escape_steer_scale, so it lands as steering=0.0 --
+                    # the same straight reverse the non-CRITICAL branch there
+                    # already emits. It buys the room the manoeuvre exists for
+                    # and leaves the pass side to the planner on re-approach,
+                    # which is the only actor that knows which side is correct.
                     #
-                    # `sign_router.retrace_escape` is NOT the missing third
-                    # option -- it only re-aims the steering inside a reverse
-                    # leg that is already 21.6 cm long, and it was measured and
-                    # rejected. The candidate is a straight reverse here
-                    # (steering 0.0). Left as-is deliberately; see escape.toml
-                    # on escape_side_override_min_clearance_m.
+                    # `sign_router.retrace_escape` is NOT this. It only re-aims
+                    # steering inside a reverse leg that is already 21.6 cm
+                    # long, and it was measured and rejected.
+                    return 0.0
                 if left_clear != right_clear:
                     # Swing left (negative steering while reversing) when the left
                     # is clearer; swing right (positive) when the right is clearer.
