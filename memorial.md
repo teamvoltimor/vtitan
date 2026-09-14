@@ -11,7 +11,7 @@
 > - *Ramón Álvarez*
 
 <p align="center">
-    <img src="assets/kaucrow-banner.webp" alt="Javier Pérez (@kaucrow)" width="600">
+    <img src="other/assets/kaucrow-banner.webp" alt="Javier Pérez (@kaucrow)" width="600">
     <br>
     <i>Javier Pérez - <a href="https://github.com/kaucrow">@kaucrow</a> - 2 de enero de 2005 - 31 de agosto de 2026</i>
 </p>
@@ -29,14 +29,14 @@
         <tr>
             <td>
                 <p align="center">
-                    <img src="assets/luna-baby.webp" alt="Luna Margarita de cachorra" height="500">
+                    <img src="other/assets/luna-baby.webp" alt="Luna Margarita de cachorra" height="500">
                     <br>
                     <i>Luna Margarita, de cachorra</i>
                 </p>
             </td>
             <td>
                 <p align="center">
-                    <img src="assets/luna-senior.webp" alt="Luna Margarita en sus últimos años" height="500">
+                    <img src="other/assets/luna-senior.webp" alt="Luna Margarita en sus últimos años" height="500">
                     <br>
                     <i>Luna Margarita en sus últimos años</i>
                 </p>

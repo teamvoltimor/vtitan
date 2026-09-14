@@ -1,11 +1,11 @@
-# `video/` - Videos de V-Titan
+# `video/` - Videos de vTitan
 
 Los videos están alojados en nuestro canal de YouTube y no dentro del repositorio, para no
 inflar el clon con archivos binarios grandes. Cada miniatura enlaza al video.
 
-Esta lista es la misma que aparece en la [sección de videos del README principal](../README.md#videos-de-v-titan).
+Esta lista es la misma que aparece en la [sección de videos del README principal](../README.md#videos-de-vtitan).
 
-Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a V-Titan y los desafíos de la WRO.
+Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a vTitan y los desafíos de la WRO.
 
 ## Open Challenge
 

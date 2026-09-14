@@ -25,7 +25,7 @@ Measured on device:
 below. Everything above was verified by injecting frames onto that topic.
 
 Compile-side background lives in
-[`ml/hailo/docs/hef-compile-runbook.md`](../../../ml/hailo/docs/hef-compile-runbook.md).
+[`ml/hailo/docs/hef-compile-runbook.md`](../../../other/ml/hailo/docs/hef-compile-runbook.md).
 
 ## What already exists
 

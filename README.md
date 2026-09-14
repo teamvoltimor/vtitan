@@ -1,7 +1,7 @@
 # Team Voltimor
 
 > [!NOTE]
-> Este repositorio corresponde a nuestra participación en la World Robot Olympiad 2026 con V-Titan. Si buscas información sobre nuestra participación en la World Robot Olympiad 2025 con Klevor, el robot del Team Steel Bot, visita el repositorio [**klevor**](https://github.com/teamsteelbot/klevor).
+> Este repositorio corresponde a nuestra participación en la World Robot Olympiad 2026 con vTitan. Si buscas información sobre nuestra participación en la World Robot Olympiad 2025 con Klevor, el robot del Team Steel Bot, visita el repositorio [**klevor**](https://github.com/teamsteelbot/klevor).
 
 > 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](memorial.md) vive en [`memorial.md`](memorial.md).
 
@@ -11,7 +11,7 @@
     <i>Logo del Equipo</i>
 </p>
 
-Bienvenidos al repositorio de V-Titan, el robot del Team Voltimor, que compite en la World Robot Olympiad 2026 en la categoría Futuros Ingenieros. Aquí encontrarás toda la información sobre el robot, incluyendo su código, modelos 3D, esquemas y documentación.
+Bienvenidos al repositorio de vTitan, el robot del Team Voltimor, que compite en la World Robot Olympiad 2026 en la categoría Futuros Ingenieros. Aquí encontrarás toda la información sobre el robot, incluyendo su código, modelos 3D, esquemas y documentación.
 
 <p align="center">
     <img src="t-photos/team-photo.jpeg" alt="" width="400">
@@ -25,7 +25,7 @@ Actualmente, este equipo está conformado por 3 miembros:
 - **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado tanto de la programación, como de la documentación y la toma de decisiones con respecto a la lógica del robot. Actualmente, cursa el 1er trimestre de Ingeniería en Computación en URU.
 - **Jesús Pérez**, 16 años. [JesusPerez15](https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
 
-## V-Titan en números
+## vTitan en números
 
 | Métrica | Valor | Contexto |
 |---------|-------|----------|
@@ -40,7 +40,7 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
 
 ## Índice
 
-1. **[V-Titan en números](#v-titan-en-números)**
+1. **[vTitan en números](#vtitan-en-números)**
 2. **[Estructura del repositorio](#estructura-del-repositorio)**
     1. [Cómo explorar este repositorio](#cómo-explorar-este-repositorio)
 3. **[Arranque rápido y reproducibilidad](#arranque-rápido-y-reproducibilidad)**
@@ -56,7 +56,7 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
         2. [Klevor v0.1.1](other/docs/development/previous-prototypes/klevor-v0.1.1.md)
         3. [Klevor v0.2](other/docs/development/previous-prototypes/klevor-v0.2.md)
         4. [Klevor v1.0](other/docs/development/previous-prototypes/klevor-v1.0.md)
-    2. [V-Titan (WRO 2026)](#v-titan-wro-2026)
+    2. [vTitan (WRO 2026)](#vtitan-wro-2026)
 5. **[Movilidad y Diseño Mecánico](#movilidad-y-diseño-mecánico)**
     1. [Restricciones iniciales](#restricciones-iniciales)
     2. [Métodos de Prototipaje](#métodos-de-prototipaje)
@@ -71,7 +71,8 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
     6. [Estructura mecánica](#estructura-mecánica)
         1. [Chasis Inferior](#chasis-inferior)
         2. [Monochasis](#monochasis)
-    7. [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)
+    7. [Montaje](#montaje)
+    8. [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)
         1. [Velocidad: teórica contra real](#velocidad-teórica-contra-real)
 6. **[Arquitectura de energía y sensores](#arquitectura-de-energía-y-sensores)**
     1. [Lista de Componentes](#lista-de-componentes)
@@ -118,7 +119,7 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
     5. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
     6. [Gestión de riesgos](#gestión-de-riesgos)
     7. [Tecnologías utilizadas](#tecnologías-utilizadas)
-9. **[Videos de V-Titan](#videos-de-v-titan)**
+9. **[Videos de vTitan](#videos-de-vtitan)**
     1. [Open Challenge](#open-challenge)
     2. [Open Challenge Simulation](#open-challenge-simulation)
     3. [Obstacles Challenge Simulation](#obstacles-challenge-simulation)
@@ -133,13 +134,13 @@ La raíz del repositorio sigue la estructura que pide la categoría Futuros Inge
 vtitan/
 ├── README.md          # Este documento: la documentación completa de ingeniería
 ├── t-photos/          # Fotos del equipo
-├── v-photos/          # Fotos de V-Titan y de los prototipos anteriores
+├── v-photos/          # Fotos de vTitan y de los prototipos anteriores
 ├── video/             # Enlaces a los videos de las rondas (video/video.md)
 ├── schemes/           # Diagramas de flujo y esquemático de conexiones
 │   ├── flowcharts/    #   Fuentes Mermaid + renders WebP: common/, open/, obstacles/
 │   └── wiring/        #   Esquemático del arnés + proyecto tscircuit que lo genera
 ├── models/            # Modelos 3D de las piezas impresas
-│   ├── current-models/  #   V-Titan: blueprints/ (planos) + step-files/ (CAD)
+│   ├── current-models/  #   vTitan: blueprints/ (planos) + step-files/ (CAD)
 │   └── old-models/      #   Prototipos previos (Klevor)
 ├── src/               # python/ (pila ROS2), go/ (reimplementación Go), config/ (TOML
 │                      #   compartido, leído por ambos), assets/ (imágenes compartidas)
@@ -158,12 +159,12 @@ vtitan/
 
 | Carpeta | Contenido |
 |---------|-----------|
-| `README.md` | Este documento: la documentación completa de ingeniería de V-Titan |
+| `README.md` | Este documento: la documentación completa de ingeniería de vTitan |
 | `t-photos/` | Fotos del equipo |
-| `v-photos/` | Fotos de V-Titan y de los prototipos anteriores |
+| `v-photos/` | Fotos de vTitan y de los prototipos anteriores |
 | `video/` | Enlaces a los videos de las rondas y del robot en funcionamiento ([`video/video.md`](video/video.md)) |
 | `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
-| `models/` | Modelos 3D de las piezas impresas: `current-models/` (V-Titan) y `old-models/` (prototipos previos), cada uno con `blueprints/` (planos) y `step-files/` (CAD para imprimir) |
+| `models/` | Modelos 3D de las piezas impresas: `current-models/` (vTitan) y `old-models/` (prototipos previos), cada uno con `blueprints/` (planos) y `step-files/` (CAD para imprimir) |
 | `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
 | `other/` | Todo lo que no es material de competencia: `other/apps/` (telemetría, simulador, auto-anotador, docs), `other/contracts/` (proto + OpenAPI compartidos), `other/ml/` (entrenamiento y pesos), `other/deploy/ansible/`, `other/docs/`, `other/data/`, `other/scripts/`, `other/tasks/` y `other/assets/`. Ver [`other/README.md`](other/README.md) |
 
@@ -321,9 +322,9 @@ alt="Vista inferior de Klevor" width="600">
         </tbody>
 </table>
 
-Klevor es el **predecesor** de V-Titan, participando en la temporada 2025 de la World Robot Olympiad en la categoría de Futuros Ingenieros, con el Team Steel Bot (quienes ahora participan bajo el nombre de Team Voltimor) y como todo proyecto fue evolucionando hasta culminar con la versión que tenemos hoy en día. 
+Klevor es el **predecesor** de vTitan, participando en la temporada 2025 de la World Robot Olympiad en la categoría de Futuros Ingenieros, con el Team Steel Bot (quienes ahora participan bajo el nombre de Team Voltimor) y como todo proyecto fue evolucionando hasta culminar con la versión que tenemos hoy en día. 
 
-Para conocer a nuestro prototipo actual, V-Titan, mejor, es importante recalcar que muchas de sus características, más específicamente en la electrónica y programación, son **directamente heredadas** de Klevor, con cambios nulos o mínimos entre un prototipo o el otro. Algunas de las **herencias** más importantes son:
+Para conocer a nuestro prototipo actual, vTitan, mejor, es importante recalcar que muchas de sus características, más específicamente en la electrónica y programación, son **directamente heredadas** de Klevor, con cambios nulos o mínimos entre un prototipo o el otro. Algunas de las **herencias** más importantes son:
 
 - El manejo de la Raspberry Pi 5 como computadora principal
 
@@ -339,70 +340,70 @@ Además, optamos por un modelo más robusto y pesado en comparación con los dem
 
 Debido a la gran cantidad de cambios que necesitamos, por diferentes motivos, teníamos que reestructurar el prototipo múltiples veces, por lo que terminamos confiando ciegamente en algunas características que no pudimos probar completamente.
 
-## V-Titan (WRO 2026)
+## vTitan (WRO 2026)
 
 <table>
         <tbody>
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-front-view.webp"
-alt="Vista delantera de V-Titan" width="600">
+                                        <img src="v-photos/vtitan/vtitan-front-view.webp"
+alt="Vista delantera de vTitan" width="600">
                                         <br>
-                                        <i>Vista delantera de V-Titan</i>
+                                        <i>Vista delantera de vTitan</i>
                                 </p>
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-rear-view.webp"
-alt="Vista trasera de V-Titan" width="600">
+                                        <img src="v-photos/vtitan/vtitan-rear-view.webp"
+alt="Vista trasera de vTitan" width="600">
                                         <br>
-                                        <i>Vista trasera de V-Titan</i>
-                                </p>
-                        </td>
-                </tr>
-                <tr>
-                        <td>
-                                <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-right-view.webp"
-alt="Vista derecha de V-Titan" width="600">
-                                        <br>
-                                        <i>Vista derecha de V-Titan</i>
-                                </p>
-                        </td>
-                        <td>
-                                <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-left-view.webp"
-alt="Vista izquierda de V-Titan" width="600">
-                                        <br>
-                                        <i>Vista izquierda de V-Titan</i>
+                                        <i>Vista trasera de vTitan</i>
                                 </p>
                         </td>
                 </tr>
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-top-view.webp"
-alt="Vista superior de V-Titan" width="600">
+                                        <img src="v-photos/vtitan/vtitan-right-view.webp"
+alt="Vista derecha de vTitan" width="600">
                                         <br>
-                                        <i>Vista superior de V-Titan</i>
+                                        <i>Vista derecha de vTitan</i>
                                 </p>
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/v-titan/v-titan-bottom-view.webp"
-alt="Vista inferior de V-Titan" width="600">
+                                        <img src="v-photos/vtitan/vtitan-left-view.webp"
+alt="Vista izquierda de vTitan" width="600">
                                         <br>
-                                        <i>Vista inferior de V-Titan</i>
+                                        <i>Vista izquierda de vTitan</i>
+                                </p>
+                        </td>
+                </tr>
+                <tr>
+                        <td>
+                                <p align="center">
+                                        <img src="v-photos/vtitan/vtitan-top-view.webp"
+alt="Vista superior de vTitan" width="600">
+                                        <br>
+                                        <i>Vista superior de vTitan</i>
+                                </p>
+                        </td>
+                        <td>
+                                <p align="center">
+                                        <img src="v-photos/vtitan/vtitan-bottom-view.webp"
+alt="Vista inferior de vTitan" width="600">
+                                        <br>
+                                        <i>Vista inferior de vTitan</i>
                                 </p>
                         </td>
                 </tr>
         </tbody>
 </table>
 
-V-Titan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Voltimor (anteriormente Team Steel Bot), y es un proyecto que se encuentra evolucionando hasta el día de hoy.
+vTitan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Voltimor (anteriormente Team Steel Bot), y es un proyecto que se encuentra evolucionando hasta el día de hoy.
 
-V-Titan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, V-Titan conserva muchos de los componentes electrónicos que utilizó Klevor, tales como la Raspberry Pi 5, y el RPLiDAR C1.
+vTitan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, vTitan conserva muchos de los componentes electrónicos que utilizó Klevor, tales como la Raspberry Pi 5, y el RPLiDAR C1.
 
 # Movilidad y Diseño Mecánico
 
@@ -416,13 +417,13 @@ En este apartado se discuten todos los aspectos con lo que a movilidad y diseño
 
 ## Métodos de Prototipaje
 
-Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas pre-fabricadas o impresas en 3D, ya que nos permite minimizar el peso de V-Titan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
+Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas pre-fabricadas o impresas en 3D, ya que nos permite minimizar el peso de vTitan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
 
 Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que tiene una gran cantidad de funciones útiles para el diseño de prototipos mecánicos, y, era el programa con el que teníamos mejor afinidad.
 
 ## Evolución y Justificación Del Diseño
 
-Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#imu-gy-bno085) como componentes principales para la navegación de V-Titan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de V-Titan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-2-w) como microcontrolador para el manejo del [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
+Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#imu-gy-bno085) como componentes principales para la navegación de vTitan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de vTitan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-2-w) como microcontrolador para el manejo del [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
 
 Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita generar el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Desafío Cerrado sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación decidimos dividir el proceso en 4 fases:
 
@@ -546,7 +547,7 @@ width="350">
 	<i>Ejemplo de sistema de dirección en contrafase</i>
 </p>
 
-V-Titan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema se basa en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
+vTitan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema se basa en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
 
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
@@ -557,7 +558,7 @@ width="350">
 	<i>Piñon de 33 dientes de dirección</i>
 </p>
 
-También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de V-Titan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
+También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de vTitan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
 
 **Radio de giro: predicho contra medido.** El simulador originalmente permitía radios de giro virtualmente ilimitados (hasta ~8 mm), muy por debajo de lo que la geometría real puede cumplir. La medición en banco del chasis real fijó el radio mínimo en **0.29 m**, y ese valor vive ahora como límite duro (`MIN_TURN_RADIUS_M` en `src/config/`) tanto en la simulación como en el controlador: el simulador ya no aprueba curvas que el chasis no puede trazar. La consecuencia práctica se midió después sobre bags reales: entre 57 y 59% de los pasos del pure pursuit exigían un radio menor al que el chasis puede entregar, lo que disparaba el corte de velocidad por rumbo; el corrector que descarta puntos de mira inalcanzables (`MIN_TARGET_RADIUS_M`, medido y aceptado en A/B sobre 128 casos) nació de esa medición. Es la diferencia entre diseñar contra un chasis que existe y uno que no.
 
@@ -569,7 +570,7 @@ schemes/ackermann-steering-system.png -->
 
 ## Estructura mecánica
 
-El chasis de V-Titan se reparte en dos piezas con responsabilidades distintas: el chasis inferior, que sostiene la transmisión y la dirección, y el monochasis, que cierra el conjunto y fija la electrónica.
+El chasis de vTitan se reparte en dos piezas con responsabilidades distintas: el chasis inferior, que sostiene la transmisión y la dirección, y el monochasis, que cierra el conjunto y fija la electrónica.
 
 ### Chasis Inferior
 
@@ -580,21 +581,33 @@ width="350">
 	<i>Chasis Inferior</i>
 </p>
 
-Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en V-Titan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis se pueden apreciar dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernos de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
+Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en vTitan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis se pueden apreciar dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernos de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
 
 ### Monochasis
 
 **Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `src/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
 
-<!-- HUECO (rubro WRO 2026, criterio 1 "Montaje").
-Hoy solo está documentado el montaje de la cámara (sección RPi Camera Module 3).
-Falta el ensamblaje del robot completo: orden de armado, tornillería, torque de
-apriete, y el manifiesto de las 21 piezas impresas con sus parámetros de impresión
-(material, altura de capa, relleno, soportes). Sin eso, models/ no es reproducible. -->
+## Montaje
+
+Esta es la vista despiezada del conjunto completo, generada desde el mismo modelo de SolidWorks del que salen los archivos STEP de [`models/current-models/step-files/`](models/current-models/step-files/):
+
+<p align="center">
+	<img src="v-photos/vtitan/vtitan-breakdown.webp" alt="Vista despiezada de vTitan" width="800">
+	<br>
+	<i>Vista despiezada de vTitan: chasis inferior, tren de transmisión, sistema de dirección y electrónica</i>
+</p>
+
+El conjunto se ordena en tres capas: el **chasis inferior** perforado sostiene el motor y el servomotor en sus encajes centrales; sobre él se monta el **tren de transmisión** (correas dentadas hacia los dos ejes, y de cada eje a los engranajes cónicos de cada rueda); y el **monochasis** cierra el conjunto y fija la electrónica. Los ejes usan pernos de transmisión de LEGO, elegidos por su ajuste rígido y porque evitan mecanizar un eje a medida.
+
+<!-- HUECO (rubro WRO 2026, criterio 1 "Montaje", lo que sigue faltando).
+La vista despiezada ya está arriba, pero falta lo que hace el montaje REPRODUCIBLE:
+orden de armado paso a paso, tornillería (métrica y longitud por posición), torque
+de apriete, y el manifiesto de las 21 piezas impresas con sus parámetros
+(material, altura de capa, relleno, soportes). Sin eso, models/ no se puede rehacer. -->
 
 ## Relación de Torque y Velocidad
 
-Ahora bien, en el caso de V-Titan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a V-Titan?
+Ahora bien, en el caso de vTitan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a vTitan?
 
 La fórmula general para calcular el torque necesario es:
 
@@ -602,17 +615,17 @@ $$T = \frac{m \cdot \left( a + g \cdot \left( \mu \cos\theta + \sin\theta \right
 
 Donde:
 
-- $m$ es la masa del vehículo (en kg; en V-Titan son **~1.51 kg con la batería de prácticas y ~1.46 kg con la de competencia**, medidos en el robot ensamblado). La simulación usa 1.5 kg fijos (`src/config/robot.toml`: chasis de 1.3 kg más 4 ruedas de 0.05 kg), un punto medio conservador entre ambas configuraciones: calcular con la masa mayor nunca subestima el torque necesario
-- $r$ es el radio de la rueda (en metros; en V-Titan mide $0.035\ \text{m}$)
+- $m$ es la masa del vehículo (en kg; en vTitan son **~1.51 kg con la batería de prácticas y ~1.46 kg con la de competencia**, medidos en el robot ensamblado). La simulación usa 1.5 kg fijos (`src/config/robot.toml`: chasis de 1.3 kg más 4 ruedas de 0.05 kg), un punto medio conservador entre ambas configuraciones: calcular con la masa mayor nunca subestima el torque necesario
+- $r$ es el radio de la rueda (en metros; en vTitan mide $0.035\ \text{m}$)
 - $a$ es la aceleración deseada. La **medimos sobre bags MCAP de pista real**: la derivada de la velocidad del encoder (`/motor/drive_speed`) sobre 5 carreras recientes da una aceleración sostenida de **~1.0 m/s²** (muy consistente: 0.93-1.09 en los 5 bags) y una rampa de arranque desde reposo de **~0.4 m/s²**. Usamos $a = 1.0\ \text{m/s}^2$, el caso conservador
 - $g$ es la gravedad, $9.81\ \text{m/s}^2$
 - $\mu$ es el cociente de fricción (estimamos $0.3$ para ruedas de ASA sobre lona de PVC flexible)
 - $\theta$ es el ángulo de inclinación ($\theta = 0°$ en esta competición)
-- $N$ es el número de motores en tracción (en V-Titan solo hay uno)
+- $N$ es el número de motores en tracción (en vTitan solo hay uno)
 
-Al efectuar toda la operación obtenemos como resultado que se necesita un torque mínimo de $0.207\ \text{Nm}$ para que V-Titan sostenga la aceleración medida ($1.0\ \text{m/s}^2$). Para referencia: con solo fricción ($a = 0$) el requerimiento baja a $0.155\ \text{Nm}$, y con la rampa de arranque ($0.4\ \text{m/s}^2$) a $0.176\ \text{Nm}$.
+Al efectuar toda la operación obtenemos como resultado que se necesita un torque mínimo de $0.207\ \text{Nm}$ para que vTitan sostenga la aceleración medida ($1.0\ \text{m/s}^2$). Para referencia: con solo fricción ($a = 0$) el requerimiento baja a $0.155\ \text{Nm}$, y con la rampa de arranque ($0.4\ \text{m/s}^2$) a $0.176\ \text{Nm}$.
 
-Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al torque mínimo ($0.207\ \text{Nm}$), es evidente que el motor por sí solo no podría mover a V-Titan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
+Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al torque mínimo ($0.207\ \text{Nm}$), es evidente que el motor por sí solo no podría mover a vTitan sin utilizar algún método para aumentar el torque del motor de forma mecánica, la manera en la que resolvimos este problema es mediante las relaciones de engranajes, las cuales operan mediante la siguiente formula:
 
 <p align="center">
 	<img src="other/assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
@@ -655,10 +668,10 @@ $$v_{teórico} = \frac{1824}{60} \cdot \pi \cdot 0.07 \approx 6.7\ \text{m/s}$$
 
 # Arquitectura de energía y sensores
 
-En el siguiente apartado, se discute toda la parte electrónica de V-Titan, tales como sus sensores, las razones detrás de su elección, cómo se implementan y el presupuesto energético.
+En el siguiente apartado, se discute toda la parte electrónica de vTitan, tales como sus sensores, las razones detrás de su elección, cómo se implementan y el presupuesto energético.
 
 ## Lista de Componentes
-A continuación, está la descripción de todos los componentes principales de V-Titan.
+A continuación, está la descripción de todos los componentes principales de vTitan.
 
 ### Raspberry Pi 5 (16GB RAM)
 
@@ -671,11 +684,11 @@ width="350">
 
 Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 5 es nuestro controlador principal de elección, decidimos usar a la Raspberry Pi 5 debido a múltiples factores, entre ellos:
 
-- **Compatibilidad**: Existen muchos componentes de V-Titan (como la Camera Module 3 Wide) que a su vez pertenecen al ecosistema Raspberry, lo que hace que implementarlos a la Raspberry Pi 5 no requiera tanto esfuerzo.
+- **Compatibilidad**: Existen muchos componentes de vTitan (como la Camera Module 3 Wide) que a su vez pertenecen al ecosistema Raspberry, lo que hace que implementarlos a la Raspberry Pi 5 no requiera tanto esfuerzo.
 
 - **Potencia**: La Raspberry Pi 5 es uno de los computadores portátiles más potentes actualmente, gracias a esto, funciones demandantes como lo es el procesamiento de imágenes en tiempo real, son fácilmente realizables por una Raspberry Pi 5.
 
-- **Portabilidad**: La Raspberry Pi 5 destaca entre los controladores, ya que no es una computadora bastante pesada, apenas llegando a los 60 g, hace que incorporarlo a V-Titan sea una opción prácticamente segura.
+- **Portabilidad**: La Raspberry Pi 5 destaca entre los controladores, ya que no es una computadora bastante pesada, apenas llegando a los 60 g, hace que incorporarlo a vTitan sea una opción prácticamente segura.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -717,7 +730,7 @@ width="350">
 
 Si bien la Raspberry Pi 5 es capaz de procesar imágenes en tiempo real, tras algunas pruebas, descubrimos que su tasa de procesamiento era bastante baja (alrededor de 1 a 2 fotos por segundo, con varias optimizaciones implementadas) por ende, tuvimos en cuenta que necesitaba más capacidad de cómputo, por lo cual decidimos incorporar la AI HAT+ a la Raspberry Pi 5 para poder alcanzar el nivel de procesamiento necesario.
 
-El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones por Segundo (TOPS) y otra de 26 TOPS. Como se menciona en el índice, V-Titan posee un Raspberry Pi AI HAT+ de 26 TOPS, gracias a este procesador de imágenes, V-Titan puede analizar imágenes de 640 px × 640 px a 15 Hz de punta a punta (captura, inferencia y publicación), con el modelo rindiendo 101 FPS en inferencia pura. La medición completa está en la [sección del modelo de detección](README.md#modelo-de-detección-yolo).
+El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones por Segundo (TOPS) y otra de 26 TOPS. Como se menciona en el índice, vTitan posee un Raspberry Pi AI HAT+ de 26 TOPS, gracias a este procesador de imágenes, vTitan puede analizar imágenes de 640 px × 640 px a 15 Hz de punta a punta (captura, inferencia y publicación), con el modelo rindiendo 101 FPS en inferencia pura. La medición completa está en la [sección del modelo de detección](README.md#modelo-de-detección-yolo).
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -735,11 +748,11 @@ width="350">
 	<i>Raspberry Pi Zero W</i>
 </p>
 
-Construida sobre el chip Broadcom BCM2710A1 de cuatro núcleos, la Raspberry Pi Zero 2 W es un ordenador de placa única ligero y ultra compacto para V-Titan. Al ejecutar un entorno Linux completo, este chip permite una fácil integración con el resto de los componentes Raspberry, haciendo que establecer comunicación de red o serial con una Raspberry Pi 5 sea nativo y sencillo dentro del mismo ecosistema.
+Construida sobre el chip Broadcom BCM2710A1 de cuatro núcleos, la Raspberry Pi Zero 2 W es un ordenador de placa única ligero y ultra compacto para vTitan. Al ejecutar un entorno Linux completo, este chip permite una fácil integración con el resto de los componentes Raspberry, haciendo que establecer comunicación de red o serial con una Raspberry Pi 5 sea nativo y sencillo dentro del mismo ecosistema.
 
 Además de ofrecer cuatro núcleos a 1 GHz, supera drásticamente la capacidad de procesamiento de microcontroladores de tamaño similar, como el Arduino Nano que cuenta con una frecuencia de 16 MHz a 20 MHz.
 
-Incorpora conectividad Wi-Fi/Bluetooth y cabezales de pines GPIO soldados. Esto ofrece una gran ventaja a la hora de desarrollar y practicar, ya que permite monitorear exactamente qué está procesando V-Titan en tiempo real a través de la red, sin necesidad de utilizar LED de distintos colores para señalizar decisiones y logrando un acabado final mucho más limpio.
+Incorpora conectividad Wi-Fi/Bluetooth y cabezales de pines GPIO soldados. Esto ofrece una gran ventaja a la hora de desarrollar y practicar, ya que permite monitorear exactamente qué está procesando vTitan en tiempo real a través de la red, sin necesidad de utilizar LED de distintos colores para señalizar decisiones y logrando un acabado final mucho más limpio.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -757,9 +770,9 @@ width="350">
 	<i>RPLiDAR C1</i>
 </p>
 
-El RPLiDAR C1 es un escáner de rango láser de 360 grados, el cual puede detectar superficies que están hasta 12 metros de distancia, su punto ciego es de tan solo 5 centímetros alrededor del mismo, todos estos factores hacen que el RPLiDAR C1 sea una gran opción para poder guíar a V-Titan por la pista.
+El RPLiDAR C1 es un escáner de rango láser de 360 grados, el cual puede detectar superficies que están hasta 12 metros de distancia, su punto ciego es de tan solo 5 centímetros alrededor del mismo, todos estos factores hacen que el RPLiDAR C1 sea una gran opción para poder guíar a vTitan por la pista.
 
-Este RPLiDAR C1 permite a V-Titan poder identificar exactamente dónde está ubicado en la pista, gracias a que nos ofrece una visión de al menos 180 grados para poder manejar la navegación por la pista con una mayor autonomía, la prioridad para el uso apropiado de este sensor, en el caso de la categoría Futuros Ingenieros es colocarlo de tal manera que su láser esté por debajo de los 10 cm sobre el suelo, de tal manera que sea capaz de realizar mediciones a las paredes y los bloques, además de colocarlo lo más hacia el frente posible, y priorizar que nada lo esté tapando para que su visión sea despejada.
+Este RPLiDAR C1 permite a vTitan poder identificar exactamente dónde está ubicado en la pista, gracias a que nos ofrece una visión de al menos 180 grados para poder manejar la navegación por la pista con una mayor autonomía, la prioridad para el uso apropiado de este sensor, en el caso de la categoría Futuros Ingenieros es colocarlo de tal manera que su láser esté por debajo de los 10 cm sobre el suelo, de tal manera que sea capaz de realizar mediciones a las paredes y los bloques, además de colocarlo lo más hacia el frente posible, y priorizar que nada lo esté tapando para que su visión sea despejada.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -787,7 +800,7 @@ width="350">
 	<i>Hiwonder HPS-3527SG 35kg Servo</i>
 </p>
 
-El Hiwonder HPS-3527SG 35kg Servo es el servomotor encargado de controlar la dirección de V-Titan, decidimos utilizar este modelo debido a su reducido tamaño y peso, además de una precisión más que suficiente para poder manejar a V-Titan.
+El Hiwonder HPS-3527SG 35kg Servo es el servomotor encargado de controlar la dirección de vTitan, decidimos utilizar este modelo debido a su reducido tamaño y peso, además de una precisión más que suficiente para poder manejar a vTitan.
 
 No solo estos aspectos definieron la elección, el Hiwonder HPS-3527SG 35kg ofrece también una gran precisión a pesar de su reducido tamaño, algo esencial en esta competencia.
 
@@ -889,7 +902,7 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 <p align="center">
 	<img src="other/assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
 	<br>
-	<i>Puente H BTS7960 / IBT-2 (el que monta V-Titan actualmente)</i>
+	<i>Puente H BTS7960 / IBT-2 (el que monta vTitan actualmente)</i>
 </p>
 
 El BTS7960 es el puente H que controla el motor de tracción. **No fue nuestra primera opción: reemplazó al L298N, y el motivo fue puramente de corriente.**
@@ -918,7 +931,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 <p align="center">
 	<img src="other/assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
 	<br>
-	<i>Step Down Mini-560 Pro (el que monta V-Titan actualmente)</i>
+	<i>Step Down Mini-560 Pro (el que monta vTitan actualmente)</i>
 </p>
 
 El Mini-560 Pro es el regulador que alimenta el riel propio del servo de dirección, separándolo del riel de 5V de la Raspberry Pi para que los picos de corriente del servo no lleguen al computador.
@@ -961,12 +974,12 @@ Ese margen es deliberadamente fino y lo monitoreamos en vez de sobredimensionarl
 
 ## Diagrama de Conexiones
 
-El arnés completo de V-Titan está trazado como un esquemático generado por código, no dibujado a mano: la fuente reside en [`schemes/wiring/tscircuit/circuit.tsx`](schemes/wiring/tscircuit/circuit.tsx) y se exporta con [tscircuit](https://tscircuit.com/). Esto nos permite versionar el cableado igual que el resto del código: cualquier cambio de pin queda en el historial de git y el render se regenera desde la misma fuente.
+El arnés completo de vTitan está trazado como un esquemático generado por código, no dibujado a mano: la fuente reside en [`schemes/wiring/tscircuit/circuit.tsx`](schemes/wiring/tscircuit/circuit.tsx) y se exporta con [tscircuit](https://tscircuit.com/). Esto nos permite versionar el cableado igual que el resto del código: cualquier cambio de pin queda en el historial de git y el render se regenera desde la misma fuente.
 
 <p align="center">
-    <img src="schemes/wiring/harness.schematic.svg" alt="Diagrama de conexiones de V-Titan" width="1000">
+    <img src="schemes/wiring/harness.schematic.svg" alt="Diagrama de conexiones de vTitan" width="1000">
     <br>
-    <i>Arnés de conexiones de V-Titan - <a href="schemes/wiring/harness.schematic.png">versión PNG</a></i>
+    <i>Arnés de conexiones de vTitan - <a href="schemes/wiring/harness.schematic.png">versión PNG</a></i>
 </p>
 
 Para regenerar los artefactos tras editar `circuit.tsx`:
@@ -1028,7 +1041,7 @@ En este apartado, describimos las estrategias que empleamos en pista para poder 
 
 ## Arquitectura ROS2 y reparto entre dos computadores
 
-V-Titan no corre sobre un solo computador, sino sobre dos, y el reparto no es por comodidad: es la decisión de arquitectura que sostiene todo lo demás.
+vTitan no corre sobre un solo computador, sino sobre dos, y el reparto no es por comodidad: es la decisión de arquitectura que sostiene todo lo demás.
 
 La **Raspberry Pi 5** se encarga de percepción y planificación (LIDAR, cámara, inferencia en el AI HAT+, decidir hacia dónde ir), y la **Raspberry Pi Zero 2 W** se encarga exclusivamente del control en tiempo real del motor y del servo. El motivo es que esas dos cargas tienen exigencias temporales incompatibles. La inferencia de visión es pesada y su tiempo de respuesta varía; el lazo de control del motor tiene que ejecutarse a ritmo constante o el robot se vuelve inestable. Si ambas cosas compiten por el mismo procesador, un fotograma lento se traduce en una corrección de dirección tardía. Separándolas, **ningún retraso de visión puede detener el lazo de control**.
 
@@ -1100,7 +1113,7 @@ La visión no es la red de seguridad contra colisiones y la diseñamos como tal.
 
 ## Algoritmo PID
 
-El control de V-Titan tiene dos lazos con exigencias distintas, y solo uno de ellos es propiamente un PID. El de **velocidad** sí es un PI clásico sobre las RPM medidas por el encoder; el de **dirección** dejó de serlo: la ganancia proporcional pura resultó ser un lazo inestable a velocidad de carrera y fue reemplazada por *pure pursuit* basado en curvatura. Contar esa sustitución es, de hecho, la parte más instructiva de esta sección.
+El control de vTitan tiene dos lazos con exigencias distintas, y solo uno de ellos es propiamente un PID. El de **velocidad** sí es un PI clásico sobre las RPM medidas por el encoder; el de **dirección** dejó de serlo: la ganancia proporcional pura resultó ser un lazo inestable a velocidad de carrera y fue reemplazada por *pure pursuit* basado en curvatura. Contar esa sustitución es, de hecho, la parte más instructiva de esta sección.
 
 ### Control de velocidad: PI sobre RPM
 
@@ -1112,7 +1125,7 @@ Las ganancias son perfiles por motor y su historia ilustra por qué las constant
 
 ### Dirección: de PID a pure pursuit
 
-La dirección de V-Titan no es un lazo P sobre error angular, aunque lo fue. Con `steering = kp · angle_error`, el sistema era estable solo por debajo de ~0.07 m/s: a velocidad de carrera, el lazo se volvía un oscilador no amortiguado que saturaba el servo entre −70.2° y +70.2° durante carreras completas. La causa tenía un detalle fino: la ganancia se había ajustado contra un modelo de simulación con dirección delantera, mientras el chasis real es de 4 ruedas direccionales en contrafase, que gira aproximadamente al doble de rápido para el mismo ángulo de servo.
+La dirección de vTitan no es un lazo P sobre error angular, aunque lo fue. Con `steering = kp · angle_error`, el sistema era estable solo por debajo de ~0.07 m/s: a velocidad de carrera, el lazo se volvía un oscilador no amortiguado que saturaba el servo entre −70.2° y +70.2° durante carreras completas. La causa tenía un detalle fino: la ganancia se había ajustado contra un modelo de simulación con dirección delantera, mientras el chasis real es de 4 ruedas direccionales en contrafase, que gira aproximadamente al doble de rápido para el mismo ángulo de servo.
 
 La solución no fue ajustar la ganancia, sino cambiar la ley de control: **pure pursuit** sobre el punto de mira del camino planificado, con la distancia efectiva `L = wheelbase/2` para compensar el doble de tasa de guiñada del chasis en contrafase. La curvatura se convierte en ángulo de servo con saturación en ±70.2° y un limitador de tasa de 1.2 rad/s (bajado de 2.0 tras ver en un bag real que el controlador alcanzaba el límite de tasa en cada esquina, lo que en pista se percibía como una conducción demasiado brusca).
 
@@ -1378,9 +1391,9 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 | **Task** | Automatización | Un único punto de entrada para compilar, probar, desplegar y simular |
 | **tscircuit** | Esquemático de conexiones | El arnés se define en código y se versiona igual que el software |
 
-# Videos de V-Titan
+# Videos de vTitan
 
-Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a V-Titan y los desafíos de la WRO.
+Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a vTitan y los desafíos de la WRO.
 
 Esta misma lista está disponible como [`video/video.md`](video/video.md), la carpeta que pide la categoría.
 

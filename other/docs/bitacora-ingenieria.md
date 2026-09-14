@@ -1,6 +1,6 @@
-# Bitácora de Ingeniería - V-Titan, WRO Future Engineers 2026
+# Bitácora de Ingeniería - vTitan, WRO Future Engineers 2026
 
-Esta bitácora recoge las decisiones de ingeniería de V-Titan tal como se tomaron: qué nos
+Esta bitácora recoge las decisiones de ingeniería de vTitan tal como se tomaron: qué nos
 obligó a decidir, qué alternativas teníamos, qué elegimos y qué midió el cambio. Está
 construida sobre el historial real del proyecto, los commits y las notas que fuimos dejando
 mientras desarrollábamos, en vez de reconstruida de memoria al final.

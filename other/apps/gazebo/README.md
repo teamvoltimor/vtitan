@@ -51,10 +51,6 @@ cd runtime
 ros2 launch wro_simulation wro_simulation.launch.py
 ```
 
-**Documentation:** See [runtime/GENERATOR.md](./runtime/GENERATOR.md)
-
----
-
 ## Workflow
 
 1. **Generate scenarios** using the generator:
@@ -122,7 +118,6 @@ See `src/` for the complete training pipeline integration.
 - Verify Go 1.26+
 
 **Simulation issues:**
-- Check `gazebo/runtime/GENERATOR.md`
 - Verify ROS2 Humble installation
 - Check Gazebo 11+ compatibility
 
