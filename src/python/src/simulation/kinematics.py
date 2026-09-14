@@ -5,7 +5,23 @@ Integrates the same motion a real vTitan chassis produces from a
 hardware imposes:
 
 * **Steering slew** — the servo cannot snap to an angle instantly; it ramps at
-  ``MAX_STEERING_RATE`` (rad/s).
+  ``pursuit.servo_slew_rate_rad_s`` (rad/s).
+
+  This reads the MODEL of the hardware, not the cornering POLICY. The two were
+  deliberately split in ``pursuit.toml`` on 2026-09-11 and this integrator was
+  left on the wrong one until 2026-09-14: it used ``max_steering_rate``, which
+  is a policy cap lowered 2.0 -> 1.2 on 2026-08-28 because cornering was too
+  drastic, while the servo was bench-measured LOADED at ~2.91 rad/s and ships
+  conservatively at 2.4. So the simulated actuator slewed at half the real
+  one's rate.
+  Normal driving mostly hid it, because the controller already rate-limits its
+  command to the same 1.2 and the physical limit then never binds. It bites on
+  STEP commands -- escapes, K-turns, the bay exit -- where a latched steering
+  value is applied at once and the wheel took twice as long to get there as the
+  hardware's does. Those are exactly the manoeuvres the escape work is tuned
+  against. ``pursuit.toml`` warns against the inverse error ("raising the POLICY
+  to fix the MODEL re-heats cornering"); this is the same conflation, read the
+  other way round.
 * **Drive acceleration** — the drive motor cannot change speed instantly; it is
   clamped to ``max_accel`` (m/s²), the physical acceleration limit of the drive motor.
 * **Drive lag** — and it does not track the command even within that clamp: it
@@ -82,7 +98,10 @@ class _KinematicsConstants:
     def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
         tuning = get_tuning(tuning)
         return cls(
-            max_steer_rate=tuning.pursuit.max_steering_rate,
+            # The MODEL of the servo, not the cornering POLICY -- see module
+            # docstring. bay_exit.py budgets its servo pause from this same
+            # field, so the two agree on what the hardware actually does.
+            max_steer_rate=tuning.pursuit.servo_slew_rate_rad_s,
             max_accel=RobotSpecs.MAX_ACCEL_MPS2,
             max_speed_mps=RobotSpecs.MAX_SPEED_MPS,
             rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
