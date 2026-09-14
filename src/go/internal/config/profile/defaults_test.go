@@ -126,6 +126,26 @@ func TestSignRouter_DefaultsMatchTags(t *testing.T) {
 		"slot_accept_radius_m":                0.30,
 		"slot_min_evidence":                   0.75,
 		"slot_repoint_margin":                 1.5,
+		"sign_lane_planner":                   true,
+		"sign_lane_suppress_deform":           true,
+		"sign_lane_ramp_m":                    0.90,
+		"sign_lane_hold_m":                    0.25,
+		"sign_lane_split_overlap":             false,
+		"sign_lane_skip_unsatisfiable":        false,
+		"sign_lane_offset_frac":               1.0,
+		"sign_lane_gap_centre_frac":           1.0,
+		"sign_lane_corner_entry_m":            0.50,
+		"sign_lane_commit_ahead_m":            0.0,
+		"sign_aware_lookahead":                true,
+		"sign_aware_speed":                    true,
+		"sign_deform_speed_threshold_m":       0.02,
+		"stale_target_rescue":                 false,
+		"retrace_escape":                      false,
+		"retrace_dist_m":                      0.25,
+		"retrace_steer_gain_deg":              55.0,
+		"sign_contact_evade":                  false,
+		"sign_contact_dist_m":                 0.60,
+		"sign_contact_steer_deg":              19.25,
 	})
 }
 
@@ -148,6 +168,8 @@ func TestWaypoints_DefaultsMatchTags(t *testing.T) {
 		"corner_arc_assume_wide":         true,
 		"unconfirmed_width_inner_bias_m": 0.05,
 		"defer_current_corridor_replan":  true,
+		"first_lap_corner_caution":       true,
+		"finish_approach_m":              0.40,
 	})
 }
 

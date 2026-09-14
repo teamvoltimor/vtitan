@@ -6,8 +6,11 @@ import (
 	"path/filepath"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/escape"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/motion"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/signs"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/waypoint"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 )
 
@@ -20,110 +23,10 @@ import (
 // profile.Load's own merge understands (that shape is what robot.toml
 // uses). loadSpeedConfig below does the overlay walk itself for that
 // reason.
-
-// speedTOML mirrors src/config/navigation/motion/speed.toml
-// (shared.config.navigation_tuning.motion.SpeedControlParams' raw fields,
-// before the drivetrain clamp its *_mps() accessors apply).
-type speedTOML struct {
-	// Per-challenge overrides are POINTERS because absent and zero mean
-	// different things: nil falls back to the shared base tier, while 0 is
-	// a tier a Pydantic gt=0.0 constraint rejects outright. A drivetrain
-	// with no headroom to spare declares neither prefix and both challenges
-	// share one ladder -- that fallback is the design, not a degenerate
-	// case. Mirrors SpeedControlParams' OPEN_*/OBSTACLES_* fields.
-	OpenMaxMPS         *float64 `mapstructure:"open_max_mps"`
-	OpenSlowMPS        *float64 `mapstructure:"open_slow_mps"`
-	OpenMediumMPS      *float64 `mapstructure:"open_medium_mps"`
-	OpenFastMPS        *float64 `mapstructure:"open_fast_mps"`
-	ObstaclesMaxMPS    *float64 `mapstructure:"obstacles_max_mps"`
-	ObstaclesSlowMPS   *float64 `mapstructure:"obstacles_slow_mps"`
-	ObstaclesMediumMPS *float64 `mapstructure:"obstacles_medium_mps"`
-	ObstaclesFastMPS   *float64 `mapstructure:"obstacles_fast_mps"`
-	MinMPS             float64  `mapstructure:"min_mps"`
-	MaxMPS             float64  `mapstructure:"max_mps"`
-	CreepMPS           float64  `mapstructure:"creep_mps"`
-	SlowMPS            float64  `mapstructure:"slow_mps"`
-	MediumMPS          float64  `mapstructure:"medium_mps"`
-	FastMPS            float64  `mapstructure:"fast_mps"`
-}
-
-// headingTOML mirrors src/config/navigation/motion/heading.toml
-// (HeadingErrorZones). One threshold, not a ladder -- see the TOML's own
-// comment for the 33%-of-lap-time measurement that deleted the other rungs.
-type headingTOML struct {
-	Crawl float64 `mapstructure:"crawl"`
-}
-
-// navWaypointsTOML mirrors the two waypoints.toml fields CoreNavigator
-// itself reads and waypoint.NavigationWaypointWaypoints deliberately omits (they belong
-// to the navigator, not to waypoint generation).
-type navWaypointsTOML struct {
-	// FirstLapCornerCaution matches FIRST_LAP_CORNER_CAUTION.
-	FirstLapCornerCaution    bool    `mapstructure:"first_lap_corner_caution"     default:"true"`
-	MainLoopReachedDistanceM float64 `mapstructure:"main_loop_reached_distance_m"`
-	ReplanHeadingTieMarginM  float64 `mapstructure:"replan_heading_tie_margin_m"`
-	// ArcRadius doubles as ParkEngageDistM, matching Python's
-	// _park_engage_dist = tuning.waypoints.ARC_RADIUS.
-	ArcRadius float64 `mapstructure:"arc_radius"`
-	// FinishApproachM matches WaypointParams.FINISH_APPROACH_M.
-	FinishApproachM float64 `mapstructure:"finish_approach_m" default:"0.40"`
-}
-
-// navEscapeTOML mirrors the escape.toml fields the core navigator's
-// pose-trail retrace and escalating-escape logic read. escape.NavigationEscapeEscape
-// deliberately covers only the subset StuckDetector/
-// CollisionAvoidanceController consume, so the overlap here is intentional
-// rather than a duplicate: these are the fields its doc comment names as
-// belonging to this package.
-type navEscapeTOML struct {
-	PoseTrailMinStepM          float64 `mapstructure:"pose_trail_min_step_m"`
-	PoseTrailLen               int     `mapstructure:"pose_trail_len"`
-	RevSpeed                   float64 `mapstructure:"rev_speed"`
-	RevSteerDeg                float64 `mapstructure:"rev_steer_deg"`
-	KTurnMinS                  float64 `mapstructure:"k_turn_min_s"`
-	EscalateAfterAttempts      int     `mapstructure:"escalate_after_attempts"`
-	EscapeSideCommitAttempts   int     `mapstructure:"escape_side_commit_attempts"`
-	MaxEscapeS                 float64 `mapstructure:"max_escape_s"`
-	StuckEscalationPerAttemptS float64 `mapstructure:"stuck_escalation_per_attempt_s"`
-	StuckMoveThreshold         float64 `mapstructure:"stuck_move_threshold"`
-	KTurnFitRearGap            bool    `mapstructure:"k_turn_fit_rear_gap"`
-	// ObstaclesKTurnFitRearGap matches OBSTACLES_K_TURN_FIT_REAR_GAP -- a
-	// pointer for the same reason profile.ClearanceConfig.ObstaclesContactDist
-	// is one: absent must mean "leave KTurnFitRearGap alone", not "false".
-	ObstaclesKTurnFitRearGap *bool `mapstructure:"obstacles_k_turn_fit_rear_gap"`
-}
-
-// navSignRouterTOML mirrors the sign_router.toml / SignRouterParams fields
-// the NAVIGATOR reads -- the lane planner, the escape mask, the retrace and
-// the sign-contact evade -- which signs.NavigationSignsSignRouter omits because
-// internal/nav/signrouter itself consumes none of them. Most are absent
-// from the checked-in TOML entirely and rely on the Pydantic model's own
-// defaults, applied via their `default` tags (see tagDefaults).
-type navSignRouterTOML struct {
-	SignClearanceMarginM      float64 `mapstructure:"sign_clearance_margin_m"`
-	ActivationDistM           float64 `mapstructure:"activation_dist_m"`
-	EscapeMaskRadiusM         float64 `mapstructure:"escape_mask_radius_m"`
-	SignLanePlanner           bool    `mapstructure:"sign_lane_planner"             default:"true"`
-	SignLaneSuppressDeform    bool    `mapstructure:"sign_lane_suppress_deform"     default:"true"`
-	SignLaneRampM             float64 `mapstructure:"sign_lane_ramp_m"              default:"0.90"`
-	SignLaneHoldM             float64 `mapstructure:"sign_lane_hold_m"              default:"0.25"`
-	SignLaneSplitOverlap      bool    `mapstructure:"sign_lane_split_overlap"       default:"false"`
-	SignLaneSkipUnsatisfiable bool    `mapstructure:"sign_lane_skip_unsatisfiable"  default:"false"`
-	SignLaneOffsetFrac        float64 `mapstructure:"sign_lane_offset_frac"         default:"1.0"`
-	SignLaneGapCentreFrac     float64 `mapstructure:"sign_lane_gap_centre_frac"     default:"1.0"`
-	SignLaneCornerEntryM      float64 `mapstructure:"sign_lane_corner_entry_m"      default:"0.50"`
-	SignLaneCommitAheadM      float64 `mapstructure:"sign_lane_commit_ahead_m"      default:"0.0"`
-	SignAwareLookahead        bool    `mapstructure:"sign_aware_lookahead"          default:"true"`
-	SignAwareSpeed            bool    `mapstructure:"sign_aware_speed"              default:"true"`
-	SignDeformSpeedThresholdM float64 `mapstructure:"sign_deform_speed_threshold_m" default:"0.02"`
-	StaleTargetRescue         bool    `mapstructure:"stale_target_rescue"           default:"false"`
-	RetraceEscape             bool    `mapstructure:"retrace_escape"                default:"false"`
-	RetraceDistM              float64 `mapstructure:"retrace_dist_m"                default:"0.25"`
-	RetraceSteerGainDeg       float64 `mapstructure:"retrace_steer_gain_deg"        default:"55.0"`
-	SignContactEvade          bool    `mapstructure:"sign_contact_evade"            default:"false"`
-	SignContactDistM          float64 `mapstructure:"sign_contact_dist_m"           default:"0.60"`
-	SignContactSteerDeg       float64 `mapstructure:"sign_contact_steer_deg"        default:"19.25"`
-}
+//
+// Every source below decodes into the generated DTO for its TOML: the
+// navigator reads the same fields the other consumers do, so a separate
+// hand-written mirror only risked drifting from the schema.
 
 const (
 	speedTOMLPath   = "src/config/navigation/motion/speed.toml"
@@ -142,9 +45,9 @@ const (
 // unrelated failure domains -- the same contract controllers.ConfigFor and
 // signrouter.ConfigFor state.
 //
-// profile.Load applies each struct's own `default` tags, so a source whose
-// checked-in TOML omits keys still reads their Pydantic defaults rather than
-// zero.
+// profile.Load applies each DTO's shipped fallbacks (the defaults.go registry
+// for a generated type, `default` tags for a hand-written one), so a source
+// whose checked-in TOML omits keys still reads those values rather than zero.
 func loadApplyTOML[T any](logger *slog.Logger, path, what string, apply func(T)) {
 	loaded, err := profile.Load[T](path, nil)
 	if err != nil {
@@ -188,23 +91,23 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	if speed, err := loadSpeedConfig(configRoot, hardwareProfileNames); err != nil {
 		logger.Warn("navigator: loading speed.toml, falling back to defaults", "error", err)
 	} else {
-		cfg.MinMPS = speed.MinMPS
-		cfg.MaxMPS = speed.MaxMPS
-		cfg.CreepMPS = speed.CreepMPS
-		cfg.SlowMPS = speed.SlowMPS
-		cfg.MediumMPS = speed.MediumMPS
-		cfg.FastMPS = speed.FastMPS
+		cfg.MinMPS = speed.MinMps
+		cfg.MaxMPS = speed.MaxMps
+		cfg.CreepMPS = speed.CreepMps
+		cfg.SlowMPS = speed.SlowMps
+		cfg.MediumMPS = speed.MediumMps
+		cfg.FastMPS = speed.FastMps
 		cfg.Open = ChallengeTiers{
-			MaxMPS:    speed.OpenMaxMPS,
-			SlowMPS:   speed.OpenSlowMPS,
-			MediumMPS: speed.OpenMediumMPS,
-			FastMPS:   speed.OpenFastMPS,
+			MaxMPS:    speed.OpenMaxMps,
+			SlowMPS:   speed.OpenSlowMps,
+			MediumMPS: speed.OpenMediumMps,
+			FastMPS:   speed.OpenFastMps,
 		}
 		cfg.Obstacles = ChallengeTiers{
-			MaxMPS:    speed.ObstaclesMaxMPS,
-			SlowMPS:   speed.ObstaclesSlowMPS,
-			MediumMPS: speed.ObstaclesMediumMPS,
-			FastMPS:   speed.ObstaclesFastMPS,
+			MaxMPS:    speed.ObstaclesMaxMps,
+			SlowMPS:   speed.ObstaclesSlowMps,
+			MediumMPS: speed.ObstaclesMediumMps,
+			FastMPS:   speed.ObstaclesFastMps,
 		}
 		if tierErr := cfg.validateChallengeTiers(); tierErr != nil {
 			logger.Warn("navigator: per-challenge speed tiers rejected, dropping them", "error", tierErr)
@@ -216,7 +119,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, headingTOMLPath),
 		"heading.toml",
-		func(loaded headingTOML) {
+		func(loaded motion.NavigationMotionHeading) {
 			cfg.CrawlRad = loaded.Crawl
 		},
 	)
@@ -233,7 +136,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, profile.DefaultWaypointsTOMLPath),
 		"waypoints.toml",
-		func(loaded navWaypointsTOML) {
+		func(loaded waypoint.NavigationWaypointWaypoints) {
 			cfg.FirstLapCornerCaution = loaded.FirstLapCornerCaution
 			cfg.MainLoopReachedDistanceM = loaded.MainLoopReachedDistanceM
 			cfg.ReplanHeadingTieMarginM = loaded.ReplanHeadingTieMarginM
@@ -264,7 +167,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, profile.DefaultEscapeTOMLPath),
 		"escape.toml",
-		func(loaded navEscapeTOML) {
+		func(loaded escape.NavigationEscapeEscape) {
 			applyEscapeTOML(&cfg, loaded)
 		},
 	)
@@ -273,7 +176,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 		logger,
 		filepath.Join(configRoot, profile.DefaultSignRouterTOMLPath),
 		"sign_router.toml",
-		func(loaded navSignRouterTOML) {
+		func(loaded signs.NavigationSignsSignRouter) {
 			applySignRouterTOML(&cfg, loaded)
 		},
 	)
@@ -322,7 +225,7 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 // applyEscapeTOML copies loaded escape.toml values onto cfg. Split out so
 // ConfigFor stays a readable sequence of independent load-or-fall-back
 // blocks rather than one function dominated by field assignments.
-func applyEscapeTOML(cfg *Config, loaded navEscapeTOML) {
+func applyEscapeTOML(cfg *Config, loaded escape.NavigationEscapeEscape) {
 	cfg.PoseTrailMinStepM = loaded.PoseTrailMinStepM
 	cfg.PoseTrailLen = loaded.PoseTrailLen
 	cfg.RevSpeed = loaded.RevSpeed
@@ -334,12 +237,17 @@ func applyEscapeTOML(cfg *Config, loaded navEscapeTOML) {
 	cfg.StuckEscalationFramesPerAttempt = profile.Frames(loaded.StuckEscalationPerAttemptS, cfg.ControlHz)
 	cfg.StuckMoveThreshold = loaded.StuckMoveThreshold
 	cfg.KTurnFitRearGap = loaded.KTurnFitRearGap
-	cfg.ObstaclesKTurnFitRearGap = loaded.ObstaclesKTurnFitRearGap
+	// The generated DTO carries this as a plain bool, so a successful
+	// escape.toml load always yields a concrete override. The shipped file
+	// sets it, and DefaultConfig's KTurnFitRearGap is false, so an omitted
+	// key resolving to false lands on the same resolved value the old
+	// nil-means-leave-alone pointer produced.
+	cfg.ObstaclesKTurnFitRearGap = &loaded.ObstaclesKTurnFitRearGap
 }
 
 // applySignRouterTOML copies loaded sign_router.toml values onto cfg, for
 // the same reason applyEscapeTOML exists.
-func applySignRouterTOML(cfg *Config, loaded navSignRouterTOML) {
+func applySignRouterTOML(cfg *Config, loaded signs.NavigationSignsSignRouter) {
 	cfg.SignClearanceMarginM = loaded.SignClearanceMarginM
 	cfg.ActivationDistM = loaded.ActivationDistM
 	cfg.EscapeMaskRadiusM = loaded.EscapeMaskRadiusM
@@ -370,15 +278,15 @@ func applySignRouterTOML(cfg *Config, loaded navSignRouterTOML) {
 //
 // The overlay walk is done here instead of through profile.Load's
 // profileNames parameter because speed.toml's overlays do not follow that
-// function's <dir-of-base>/profiles/<name>/<base-name> layout (see
-// speedTOMLPath's comment). Each overlay is merged by handing the
+// function's <dir-of-base>/profiles/<name>/<base-name> layout (see the
+// comment above speedTOMLPath). Each overlay is merged by handing the
 // already-resolved ladder in as viper defaults, so a profile that sets only
 // some tiers -- which every shipped profile does -- leaves the rest at the
 // base file's values rather than zeroing them.
-func loadSpeedConfig(configRoot string, hardwareProfileNames []string) (speedTOML, error) {
-	base, err := profile.Load[speedTOML](filepath.Join(configRoot, speedTOMLPath), nil)
+func loadSpeedConfig(configRoot string, hardwareProfileNames []string) (motion.NavigationMotionSpeed, error) {
+	base, err := profile.Load[motion.NavigationMotionSpeed](filepath.Join(configRoot, speedTOMLPath), nil)
 	if err != nil {
-		return speedTOML{}, err
+		return motion.NavigationMotionSpeed{}, err
 	}
 
 	resolved := *base
@@ -387,13 +295,13 @@ func loadSpeedConfig(configRoot string, hardwareProfileNames []string) (speedTOM
 		if _, statErr := os.Stat(overlayPath); statErr != nil {
 			continue
 		}
-		overlaid, overlayErr := profile.LoadWithDefaults[speedTOML](
+		overlaid, overlayErr := profile.LoadWithDefaults[motion.NavigationMotionSpeed](
 			overlayPath,
 			nil,
 			speedDefaults(resolved),
 		)
 		if overlayErr != nil {
-			return speedTOML{}, overlayErr
+			return motion.NavigationMotionSpeed{}, overlayErr
 		}
 		resolved = *overlaid
 	}
@@ -408,24 +316,24 @@ func loadSpeedConfig(configRoot string, hardwareProfileNames []string) (speedTOM
 // Open ladder" into an explicit zero, and a zero tier is not a slower robot
 // -- it is a stopped one. Omitting the key instead leaves it nil, which is
 // what the fallback-to-base-tier path reads.
-func speedDefaults(s speedTOML) map[string]any {
+func speedDefaults(s motion.NavigationMotionSpeed) map[string]any {
 	defaults := map[string]any{
-		"min_mps":    s.MinMPS,
-		"max_mps":    s.MaxMPS,
-		"creep_mps":  s.CreepMPS,
-		"slow_mps":   s.SlowMPS,
-		"medium_mps": s.MediumMPS,
-		"fast_mps":   s.FastMPS,
+		"min_mps":    s.MinMps,
+		"max_mps":    s.MaxMps,
+		"creep_mps":  s.CreepMps,
+		"slow_mps":   s.SlowMps,
+		"medium_mps": s.MediumMps,
+		"fast_mps":   s.FastMps,
 	}
 	for key, value := range map[string]*float64{
-		"open_max_mps":         s.OpenMaxMPS,
-		"open_slow_mps":        s.OpenSlowMPS,
-		"open_medium_mps":      s.OpenMediumMPS,
-		"open_fast_mps":        s.OpenFastMPS,
-		"obstacles_max_mps":    s.ObstaclesMaxMPS,
-		"obstacles_slow_mps":   s.ObstaclesSlowMPS,
-		"obstacles_medium_mps": s.ObstaclesMediumMPS,
-		"obstacles_fast_mps":   s.ObstaclesFastMPS,
+		"open_max_mps":         s.OpenMaxMps,
+		"open_slow_mps":        s.OpenSlowMps,
+		"open_medium_mps":      s.OpenMediumMps,
+		"open_fast_mps":        s.OpenFastMps,
+		"obstacles_max_mps":    s.ObstaclesMaxMps,
+		"obstacles_slow_mps":   s.ObstaclesSlowMps,
+		"obstacles_medium_mps": s.ObstaclesMediumMps,
+		"obstacles_fast_mps":   s.ObstaclesFastMps,
 	} {
 		if value != nil {
 			defaults[key] = *value

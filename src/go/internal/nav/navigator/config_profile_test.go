@@ -2,9 +2,11 @@ package navigator_test
 
 import (
 	"log/slog"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
 )
 
@@ -72,6 +74,60 @@ func TestConfigFor_FirstLapCornerCautionLoadsTrue(t *testing.T) {
 	cfg := navigator.ConfigFor(logger, repoRoot(t), hardwareProfileNames)
 	if !cfg.FirstLapCornerCaution {
 		t.Error("ConfigFor(...).FirstLapCornerCaution = false, want true (the shipped value)")
+	}
+}
+
+// TestConfigFor_OmittedKeysResolveShippedDefaults guards the defaults
+// registry the generated DTOs rely on.
+//
+// The navigator decodes into the same generated structs every other consumer
+// uses, and none of them carry `default` tags, so a key absent from the TOML
+// resolves through configDefaultsByType. These are the values the removed
+// hand-written navigator structs used to tag; a silent regression would show
+// up as a zero (false / 0.0) that still loads cleanly and overwrites
+// DefaultConfig.
+func TestConfigFor_OmittedKeysResolveShippedDefaults(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTOML(t, root, profile.DefaultWaypointsTOMLPath, "arc_radius = 0.45\n")
+	writeTOML(t, root, profile.DefaultSignRouterTOMLPath, "activation_dist_m = 1.40\n")
+
+	logger := slog.New(slog.DiscardHandler)
+	cfg := navigator.ConfigFor(logger, root, nil)
+
+	if !cfg.FirstLapCornerCaution {
+		t.Error("FirstLapCornerCaution = false, want true (registry default)")
+	}
+	if cfg.FinishApproachM != 0.40 {
+		t.Errorf("FinishApproachM = %v, want 0.40 (registry default)", cfg.FinishApproachM)
+	}
+	if !cfg.SignLanePlanner {
+		t.Error("SignLanePlanner = false, want true (registry default)")
+	}
+	if cfg.SignLaneRampM != 0.90 {
+		t.Errorf("SignLaneRampM = %v, want 0.90 (registry default)", cfg.SignLaneRampM)
+	}
+	if cfg.SignLaneHoldM != 0.25 {
+		t.Errorf("SignLaneHoldM = %v, want 0.25 (registry default)", cfg.SignLaneHoldM)
+	}
+	if !cfg.SignAwareSpeed {
+		t.Error("SignAwareSpeed = false, want true (registry default)")
+	}
+}
+
+// writeTOML creates relPath under root, making parent directories, so a
+// ConfigFor test can present a config root holding only the files it cares
+// about and exercise the omitted-key fallbacks.
+func writeTOML(t *testing.T, root, relPath, contents string) {
+	t.Helper()
+
+	full := filepath.Join(root, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(full), err)
+	}
+	if err := os.WriteFile(full, []byte(contents), 0o600); err != nil {
+		t.Fatalf("write %s: %v", full, err)
 	}
 }
 
