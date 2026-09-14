@@ -10,6 +10,7 @@ without Gazebo, ROS2, or a physics engine.
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
@@ -21,6 +22,7 @@ from shared.domain.models import (
     LocalizerHealth,
     LocalizerInputs,
     Pose,
+    SignColor,
     TrafficSignObservation,
     Waypoint,
 )
@@ -87,6 +89,17 @@ _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
 # Backward-compatible exports for existing imports.
 CONTROL_DT = _DEFAULT_SIMULATOR_CONTEXT.constants.control_dt
 LIDAR_INVALID_RAY_RATE = _DEFAULT_SIMULATOR_CONTEXT.constants.lidar_invalid_ray_rate
+
+_OPPOSITE_SIGN_COLOR: dict[SignColor, SignColor] = {
+    SignColor.RED: SignColor.GREEN,
+    SignColor.GREEN: SignColor.RED,
+}
+"""The colour a confused detection reports instead of the true one.
+
+Only the two routing colours swap. Anything else (a magenta barrier that got
+this far, say) is left alone rather than mapped into a routing colour, because
+inventing a route from a non-routing detection is a different failure from
+confusing the two that do route."""
 
 _SCRUB_STANDSTILL_MPS = 1e-3
 """Commanded speed below which the chassis counts as stationary for scrub.
@@ -201,6 +214,14 @@ class SimulatedHardwareGateway:
         # Its own stream too, for the same reason -- see _detectable_signs.
         self._vision_rng = np.random.default_rng(seed_seq.spawn(1)[0])
         self._elapsed_s = 0.0
+        # Detections that have been "captured" but have not yet finished the
+        # perception pipeline. The real one takes a MEASURED 0.85 s end to end
+        # (sign_discovery.toml vision_latency_s, which the hardware gateway
+        # compensates by backing the pose up before projecting). This emulator
+        # reported from the CURRENT tick's true state until 2026-09-14, i.e.
+        # with zero lag, handing the planner ~0.26 m of anticipation at
+        # 0.3 m/s that it does not have on the mat.
+        self._vision_pipeline: deque[tuple[float, list[TrafficSignObservation]]] = deque()
         # Signed rotation the body has actually turned through, unwrapped, so
         # three laps of one-way cornering accumulate rather than cancel.
         self._rotation_rad = 0.0
@@ -411,16 +432,27 @@ class SimulatedHardwareGateway:
         silently change every scan in the run, which is the same trap the IMU
         error model is spawned apart to avoid.
         """
-        if not self.tuning.simulation.vision_range_model:
-            return list(self._signs or [])
         sim = self.tuning.simulation
-        kept: list[SignSpec] = []
-        for sign in self._signs or []:
-            distance = math.hypot(sign.x - self._state.x, sign.y - self._state.y)
-            p_detect = 1.0 / (1.0 + math.exp((distance - sim.vision_detect_r50_m) / sim.vision_detect_falloff_m))
-            if self._vision_rng.random() < p_detect:
-                kept.append(sign)
-        return kept
+        # A residual detector miss, applied on TOP of the range model and
+        # independently of it. The range model alone leaves the emulated camera
+        # carrying a detection on ~54.5% of ticks; hardware carries one on
+        # 11.6% (measured over 125 bags). That remaining gap is not explained by
+        # capture rate -- 15 fps against a 20 Hz control loop would account for
+        # about a quarter of it -- so it is modelled here as the detector simply
+        # failing to fire, which is what the bags show.
+        miss = sim.vision_frame_miss_rate
+        candidates = list(self._signs or [])
+        if sim.vision_range_model:
+            ranged: list[SignSpec] = []
+            for sign in candidates:
+                distance = math.hypot(sign.x - self._state.x, sign.y - self._state.y)
+                p_detect = 1.0 / (1.0 + math.exp((distance - sim.vision_detect_r50_m) / sim.vision_detect_falloff_m))
+                if self._vision_rng.random() < p_detect:
+                    ranged.append(sign)
+            candidates = ranged
+        if miss <= 0.0:
+            return candidates
+        return [sign for sign in candidates if self._vision_rng.random() >= miss]
 
     def get_vision_detections(self, current_corridor: Section | None = None) -> list[TrafficSignObservation]:
         """Return synthetic sign observations, or ``[]`` if none were provided.
@@ -437,6 +469,54 @@ class SimulatedHardwareGateway:
         """
         if not self._signs:
             return []
+        fresh = self._capture_vision_detections()
+        return self._through_vision_pipeline(fresh)
+
+    def _corrupt_detections(
+        self, observations: list[TrafficSignObservation]
+    ) -> list[TrafficSignObservation]:
+        """Apply the camera's colour errors, which the emulator otherwise has none of.
+
+        Both rates ship at 0.0. They are UNMEASURED, and defaulting an invented
+        error rate would make the simulator wrong in a new way rather than more
+        realistic -- so the knobs exist, are wired, and wait for a bag-derived
+        number. What they are for: the emulator copies ground-truth colour
+        directly and never invents a sign, so the single biggest real perception
+        failure (the magenta parking barrier arriving as a RED pillar at p50
+        confidence 0.79) cannot be screened in simulation at all, and the whole
+        aspect-gate defence built against it is dead code here.
+        """
+        sim = self.tuning.simulation
+        flip = sim.vision_color_flip_rate
+        if flip > 0.0:
+            observations = [
+                replace(obs, color=_OPPOSITE_SIGN_COLOR[obs.color])
+                if obs.color in _OPPOSITE_SIGN_COLOR and self._vision_rng.random() < flip
+                else obs
+                for obs in observations
+            ]
+        return observations
+
+    def _through_vision_pipeline(
+        self, fresh: list[TrafficSignObservation]
+    ) -> list[TrafficSignObservation]:
+        """Delay a capture by the measured end-to-end perception latency.
+
+        Returns the most recent capture that has finished the pipeline, and
+        ``[]`` while none has -- which is the honest answer for the opening
+        0.85 s of a run, during which a real robot has seen nothing yet.
+        """
+        latency = self.tuning.simulation.vision_latency_s
+        if latency <= 0.0:
+            return fresh
+        self._vision_pipeline.append((self._elapsed_s, fresh))
+        matured: list[TrafficSignObservation] = []
+        while self._vision_pipeline and self._elapsed_s - self._vision_pipeline[0][0] >= latency:
+            matured = self._vision_pipeline.popleft()[1]
+        return matured
+
+    def _capture_vision_detections(self) -> list[TrafficSignObservation]:
+        """What the camera resolves THIS instant, before pipeline delay."""
         signs = self._detectable_signs()
         if not signs:
             return []
@@ -456,14 +536,16 @@ class SimulatedHardwareGateway:
                     tuning=self.tuning,
                 )
             ]
-            return [obs for obs in observations if obs is not None]
-        return emulate_sign_observations(
-            signs,
-            Waypoint(self._state.x, self._state.y),
-            self._state.yaw,
-            tuning=self.tuning,
-            believed_pos=Waypoint(believed.x, believed.y) if believed is not None else None,
-            believed_yaw=believed.yaw if believed is not None else None,
+            return self._corrupt_detections([obs for obs in observations if obs is not None])
+        return self._corrupt_detections(
+            emulate_sign_observations(
+                signs,
+                Waypoint(self._state.x, self._state.y),
+                self._state.yaw,
+                tuning=self.tuning,
+                believed_pos=Waypoint(believed.x, believed.y) if believed is not None else None,
+                believed_yaw=believed.yaw if believed is not None else None,
+            )
         )
 
     # Simulation stepping

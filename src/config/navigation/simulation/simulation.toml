@@ -161,6 +161,10 @@ sensor_imu_noise_rad = 0.005
 # without it asks the reactive layer to rescue far fewer situations than the mat
 # does.
 vision_latency_s = 0.85
+# VALIDATED 2026-09-14 after wiring, not just derived: pooled over the first
+# five official Obstacles scenarios driven end to end, the emulated camera now
+# carries a detection on 11.0% of ticks against hardware's 11.6%. Per-scenario
+# spread 7.9-14.4%, which is ordinary variance. Before this it was ~54.5%.
 vision_frame_miss_rate = 0.79
 
 # UNMEASURED, so they ship at 0.0 rather than at a guess. Defaulting an invented
