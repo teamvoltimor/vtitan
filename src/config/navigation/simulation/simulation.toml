@@ -121,7 +121,24 @@ vision_range_model = true
 # in robot.toml beside min_turn_radius_m; this only decides whether the
 # simulator uses them. FALSE pending a corpus A/B -- it moves every contact-
 # and corner-dependent number, exactly as shipping the constant floor did.
-min_turn_radius_tracks_speed = false
+#
+# TURNED ON 2026-09-14. The corpus A/B it was waiting for is the re-baselining
+# that landed with the sensor-error and camera-realism commits, and the bag
+# evidence for it is now direct rather than inferred. Replaying recorded command
+# streams through AckermannKinematics (diag_bag_sim_fidelity.py --replay):
+#
+#   run_20260913_182253    0 escapes   sim/real yaw 1.02x   <- model is CORRECT
+#   run_20260913_191740   21 escapes            0.63x
+#   run_20260914_000926   91 escapes            0.62x
+#   run_20260914_004547  121 escapes            0.52x
+#
+# Monotonic in escape load, and the zero-escape run validates yaw_gain = 0.55
+# exactly. So the deficit is not the cornering model, it is the MANOEUVRE
+# regime -- escapes creep at 0.152 m/s where this constant is ~2x too large, and
+# they are the one place the radius floor rather than tan(steer) decides the
+# curvature. Leaving it false makes the simulator physically unable to rotate as
+# fast as the car during precisely the manoeuvre the escape work is tuned on.
+min_turn_radius_tracks_speed = true
 
 vision_detect_r50_m = 1.1
 vision_detect_falloff_m = 0.15
