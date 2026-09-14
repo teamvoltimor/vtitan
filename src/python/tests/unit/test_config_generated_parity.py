@@ -272,7 +272,14 @@ class TestNavigationTuningAnchoring:
         assert tuning.sign_router.escape_mask_cluster_assoc_m == pytest.approx(0.35)
 
         # Spot checks across the newly generated-backed groups.
-        assert tuning.clearance.obstacles_contact_dist == pytest.approx(0.04)
+        #
+        # These pin the SHIPPED value, so each one has to be updated when the
+        # value legitimately moves -- that is the point, since the test exists
+        # to catch a wrapper silently falling back to a generated default. This
+        # line was left at 0.04 when obstacles_contact_dist was set to 0.10 in
+        # 4dce7f17, so the whole test had been failing unnoticed for the rest of
+        # that day. Moved to 0.07 with the value.
+        assert tuning.clearance.obstacles_contact_dist == pytest.approx(0.07)
         assert tuning.pursuit.open_lookahead_long == pytest.approx(0.24)
         assert tuning.speed.creep_mps == pytest.approx(0.1014)
         assert tuning.waypoints.arc_radius == pytest.approx(0.45)
