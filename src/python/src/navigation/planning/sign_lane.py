@@ -1,89 +1,28 @@
 """Obstacles-only lane planning: shift the PATH past a sign, not just the carrot.
 
-``SignRouter.deform_waypoint`` avoids a sign by overriding the lateral
-coordinate of whatever point the pure-pursuit search picked, within
-``ACTIVATION_DIST_M`` of the sign. The planned waypoint polyline itself never
-moves. Two consequences follow from that, and both are measured:
+``SignRouter.deform_waypoint`` nudges only the pure-pursuit carrot, so
+``cross_track_error`` (the controller's own error signal and the input
+``select_lookahead`` gates on) stays near zero and the offset closes only
+asymptotically. Seven levers on that chase measured flat or worse. This module
+changes the maneuver instead of its tuning: it rewrites the corridor's
+straight-segment waypoints onto a pass-side LANE, so crosstrack, the lookahead
+gate and the target search all agree the lane is the path, and the lateral
+travel is spread over the whole straight instead of the last 1.4 m.
 
-* ``cross_track_error`` -- the controller's own error signal, and the input
-  ``select_lookahead`` gates on -- is computed against the undeformed path, so
-  it stays near zero for the whole pass. The tracker never learns it is
-  supposed to be somewhere else; it only ever sees a carrot that has been
-  nudged sideways.
-* The correction therefore has to be produced entirely by pure pursuit chasing
-  an off-path point over ~1.4 m of runway, which closes the offset only
-  asymptotically: a consistent ~6.3-6.6 cm shortfall between the commanded
-  line and the chassis at the moment it draws level with the sign, across four
-  independently traced scenarios (subset64 go_obstacles_0009/0011/0020/0046).
+Measured rationale, tables and refutations live in
+``adr:0051-sign-lane-planner`` and ``adr:0064-corridor-by-depth-and-clearance-budget``;
+the WRO layout invariants this planner leans on (depth values, signs per
+section, two signs 1.00 m apart, no sign in a corner, the clamp binding on most
+signs) are in ``adr:0064-corridor-by-depth-and-clearance-budget``.
 
-Seven levers that change WHEN or HOW HARD that carrot-chase happens have all
-been measured flat or worse (activation distance, offset magnitude, lookahead,
-steering gain, sign-aware lookahead x2, sign-aware speed x3) -- see
-``signs.py``'s ``SIGN_AWARE_LOOKAHEAD``/``SIGN_AWARE_SPEED`` docstrings and
-``adr:0051-sign-lane-planner``.
+Obstacles-only by construction: the transform is driven by the routed sign list,
+and the Open Challenge has no ``SignRouter``, so with no signs the returned path
+is the input path, byte for byte.
 
-This module changes the maneuver instead of its tuning. It rewrites the
-corridor's straight-segment waypoints onto a pass-side LANE: the robot
-transitions onto the lane over ``SIGN_LANE_RAMP_M`` of approach, holds it
-across the sign, and transitions back. Because the polyline moves, crosstrack,
-the lookahead gate and the target search all agree the lane is the path, and
-the lateral travel is spread over the whole corridor straight instead of being
-demanded in the last 1.4 m.
-
-Obstacles-only by construction: the transform is driven by the routed sign
-list, and the Open Challenge has no ``SignRouter``, so with no signs the
-returned path is the input path -- byte for byte, not merely equivalent.
-
-The transform is 1:1 -- same waypoint count, same order, only lateral
-coordinates change. Every index-keyed invariant in ``CoreNavigator``
+The transform is 1:1 (same waypoint count, same order, only lateral coordinates
+change), so every index-keyed invariant in ``CoreNavigator``
 (``_waypoint_index`` advance, the lap-seam wrap, ``replace_path``'s re-seek)
-therefore survives it unchanged.
-
-WRO layout invariants this planner leans on
-Measured over all 256 corpus scenarios (1282 signs), not assumed:
-
-* Along-corridor sign depths take exactly three values: 1.00, 1.50, 2.00 --
-  the section's start, middle and end. A section is a 1 m x 1 m square.
-* A section holds 0, 1 or 2 signs, never 3. The only depth combinations that
-  occur are ``(1.0,)``, ``(1.5,)``, ``(2.0,)`` and ``(1.0, 2.0)``.
-* A MIDDLE sign is always the only sign in its section (0 counter-examples).
-  Two signs therefore always sit at the section boundaries, exactly 1.00 m
-  apart, which is what gives the S-bend above its runway.
-* No sign ever occupies a corner. Corner arcs are guaranteed free space --
-  which is what makes ``corner_entry_m`` below safe to use as ramp room.
-* Signs sit only 0.10 m off the corridor centreline (lateral 0.4/0.6 against
-  a 0.5 centre). Since the pass offset is 0.28 m, ``clamp_lateral`` binds on
-  essentially every sign -- the lane runs at its clearance limit by
-  construction, not by mis-tuning. Counted exactly: 646 of the 1282 signs,
-  in 248 of the 256 scenarios.
-
-  Do not read that as an available lever; it has been measured and it is
-  not. The simulator collides via exact SAT on the ORIENTED chassis, so a
-  squeezed lane's clearance is yaw-dependent: the clamped placement clears
-  its sign only within +/-28.2 deg of the corridor axis, while the midpoint
-  of the free gap clears at any yaw. Moving the plateau from one to the
-  other (``SIGN_LANE_GAP_CENTRE_FRAC``, since reverted -- see ``66fa5f2e``
-  for the implementation) does exactly what that geometry predicts to the
-  SIGN column, 199 collisions down to 168, and loses far more to the wall,
-  3 up to 61: 229/256 against a 202/256 baseline. Swept at 0.25/0.40/0.55/
-  0.70 it is worse at every value (213/211/217/220), the sign column is not
-  even monotonic (WORSE than baseline at 0.25 and 0.40), and laps>=3 falls
-  monotonically 56 -> 32.
-
-  The reason is the number in the second bullet at the top of this
-  docstring: every one of those arms is geometrically wall-immune at any
-  yaw, so the wall strikes are not the plan reaching the wall -- they are
-  the chassis failing to be on the plan. The entire adjustable range is
-  3.1 cm (0.2186 -> 0.1875) against a 6.3-6.6 cm crosstrack shortfall. The
-  lever is half the size of the error it is fighting, so no placement can
-  win. Reduce the tracking error before revisiting the geometry.
-
-The third and fourth points together drive ``corner_entry_m``: 1211 of the
-1282 signs sit at a section BOUNDARY, where the straight offers no runway on
-the near side at all (a plateau centred on depth 1.00 already starts at 0.75,
-outside the straight). Confining the lane to the straight therefore put the
-first straight waypoint at full offset hard against an untouched corner arc --
-an abrupt lateral step exactly at the corner exit, beside the inner block.
+survives it unchanged.
 """
 
 from __future__ import annotations
@@ -146,34 +85,22 @@ class SignLaneParams:
     corner arcs either side (m). A bare construction resolves it from the
     shipped ``SIGN_LANE_CORNER_ENTRY_M``; an explicit value overrides.
 
-    Non-zero because 1211 of the corpus's 1282 signs sit at a section
-    BOUNDARY, where the straight offers no near-side runway whatsoever: the
-    lane reaches full offset on its very first waypoint, against a corner arc
-    still exactly on the centreline. The step that creates lands at the corner
-    exit, beside the inner square, which is where the lane's wall collisions
-    were traced.
-
-    Safe to spend corner arc as runway specifically because no sign ever
-    occupies a corner (0 of 1282), so nothing is being routed around there --
-    the arc is free space whose only job is to deliver the chassis into the
-    next corridor, and delivering it already on the lane is strictly closer to
-    what the robot must end up doing. ``clamp_lateral`` still bounds every
-    point it moves.
+    Non-zero because most signs sit at a section BOUNDARY, where the straight
+    offers no near-side runway: the lane would reach full offset on its first
+    waypoint, against a corner arc still on the centreline, and the step lands
+    at the corner exit beside the inner square. Safe to spend corner arc as
+    runway because no sign ever occupies a corner, so ``clamp_lateral`` still
+    bounds every point it moves. See ``adr:0051-sign-lane-planner`` and
+    ``adr:0064-corridor-by-depth-and-clearance-budget``.
     """
 
     gap_centre_frac: float | None = None
     """How far a squeezed plateau moves off the boundary-clearance limit
     toward the midpoint of its free gap. ``0.0`` is the clamped placement.
 
-    Only affects signs where the full ``lateral_offset`` does not fit -- 646
-    of the corpus's 1282, in 248 of its 256 scenarios. Full centring (1.0)
-    trades 31 sign collisions for 58 wall collisions under STRICT scoring;
-    see ``sign_router.pass_lateral`` for the geometry, the measured yaw
-    margins, and why that refutation is being re-measured against the real
-    inner-wall rule.
-
-    Ships at 0.0, so the lane planner is byte-identical to the clamped
-    placement until a measurement says otherwise.
+    See ``adr:0064-corridor-by-depth-and-clearance-budget`` for the geometry,
+    the yaw margins and the shipped value (1.0, reversing an obsolete
+    refutation).
     """
 
     def __post_init__(self) -> None:
@@ -223,24 +150,11 @@ def _in_lane_span(wp: Waypoint, corridor: Section, axis: Axis, corner_entry_m: f
     the whole turn.
 
     A variant that widened the lateral test too (out to the far edge of the
-    corner square, gated to only apply at a sign's own plateau depth) was
-    tried, to rescue a waypoint the corner arc's own curvature had already
-    swept past the near edge before its depth exited the borrowed window
-    (traced as the mechanism behind go_obstacles_0004's collision). It
-    measured catastrophically WORSE on the full 256-scenario corpus (249/256
-    collisions vs the 202/256 baseline, laps>=3 6 vs 70) and was reverted: the
-    shipped ``corner_entry_m`` default is 0.50 (not 0.90 -- an earlier version
-    of this note cited the wrong value, never having checked the shipped
-    ``SignRouterParams.sign_lane_corner_entry_m``/TOML directly), which still
-    doubles the depth window (0.5 m either side of the straight, `_lane_span`
-    spanning 2.0 m against the corridor's own 1.0 m). A widened lateral bound
-    at that depth pulls in swaths of the NEIGHBOURING corridor's own arc
-    points too, corrupting geometry across corridors with a boundary sign
-    rather than rescuing the one intended waypoint. Do not re-try without
-    bounding the widened window far more tightly than "the far edge of the
-    corner square" -- and verify any cited default against the actual shipped
-    Field/TOML value before writing it down, not from memory of an earlier
-    investigation.
+    corner square, gated to only apply at a sign's own plateau depth) was tried
+    and measured catastrophically WORSE on the full 256-scenario corpus, then
+    reverted; a widened lateral bound at that depth pulls in swaths of the
+    NEIGHBOURING corridor's own arc points too. Do not re-try without bounding
+    the widened window far more tightly. See ``adr:0051-sign-lane-planner``.
     """
     lateral, depth = _axis_coords(wp, axis)
     low, high = _lane_span(corner_entry_m)
@@ -267,17 +181,10 @@ def _control_points(
 
     Two signs in the same corridor requiring OPPOSITE sides simply produce two
     plateaux at opposite laterals with a straight interpolation between them:
-    an S-bend, which is the maneuver a driver actually makes. Averaging their
-    influence instead would command the centreline between two obstacles the
-    robot must pass on opposite sides, i.e. straight into both. This is the
-    common case, not an edge one -- 342 of the 514 two-sign sections in the
-    256-scenario corpus are opposite-coloured.
-
-    The S-bend is comfortable rather than tight, and that is a property of the
-    WRO layout rather than luck: a section holding two signs ALWAYS has them
-    exactly 1.00 m apart (see the layout invariants in the module docstring),
-    so the lane has a full metre to cross the corridor rather than the 0.50 m
-    an earlier version of this comment wrongly assumed.
+    an S-bend. Averaging their influence instead would command the centreline
+    between two obstacles the robot must pass on opposite sides. This is the
+    common case, and the S-bend is comfortable because two signs in a section
+    always sit exactly 1.00 m apart (see ``adr:0064-corridor-by-depth-and-clearance-budget``).
     """
     plateaux: list[tuple[float, float]] = []
     for spec, sign_corridor in signs:
@@ -424,28 +331,23 @@ def _assign_owners(plans: list[_LanePlan], waypoints: list[Waypoint]) -> dict[in
     """One owning lane per waypoint, so no point is shifted twice.
 
     Corner runway is BORROWED, and two corridors either side of a corner borrow
-    the SAME arc: with ``corner_entry_m`` 0.50 that is 1413 waypoints over the
-    256-scenario corpus, six per scenario, in every single one of them. The
-    shifts used to compound -- the second corridor read a lateral the first had
-    already moved and added its own offset on top -- so 931 of those 1413 (66%)
-    ended up somewhere NEITHER lane had asked for, diverging from the nearer
-    lane's own answer by up to 215 mm. That is more than the chassis half-width,
-    which is the difference between clearing a pillar and hitting it. None of
-    them left the track, so this never produced an illegal plan, only a wrong
-    one, and nothing flagged it.
+    the SAME arc, so the shifts used to compound: the second corridor read a
+    lateral the first had already moved and added its own offset on top, and
+    most contested points ended up somewhere NEITHER lane asked for. See
+    ``adr:0051-sign-lane-planner`` for the measured count.
 
     A contested point goes to the lane whose own sign is nearest to it, which is
     the lane whose pass that point actually serves. Exact ties keep the earlier
     plan, making the result independent of how discovery happened to order its
-    specs -- the previous behaviour depended on exactly that.
+    specs.
 
-    This is deliberately NOT the same thing as one continuous lane through the
-    corner. A lane is a one-dimensional profile over a corridor's lateral axis,
-    and that axis rotates 90 degrees at a corner, so a single profile cannot
-    span one. Expressing the offset along the path NORMAL instead would make a
-    continuous lane fall out by construction; it would also change every shift
-    on the track rather than only the contested ones, so it is a separate change
-    with its own measurement.
+    This is deliberately NOT one continuous lane through the corner. A lane is a
+    one-dimensional profile over a corridor's lateral axis, and that axis
+    rotates 90 degrees at a corner, so a single profile cannot span one.
+    Expressing the offset along the path NORMAL instead would make a continuous
+    lane fall out by construction, but it would change every shift on the track
+    rather than only the contested ones, so it is a separate change with its own
+    measurement.
     """
     owner: dict[int, int] = {}
     best: dict[int, float] = {}
