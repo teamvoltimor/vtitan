@@ -360,7 +360,13 @@ Para conocer a nuestro prototipo actual, vTitan, mejor, es importante recalcar q
 
 Ahora bien, también hay que recalcar que tuvimos algunos fallos en el desarrollo de Klevor, por ejemplo: 
 
-El uso de un ESC para controlar el motor, si bien parecía una idea muy buena en papel, utilizar el "combo" de un carro controlado por radio para nuestro prototipo, ofreciendo una velocidad bastante alta para completar los desafíos, terminó siendo un problema grave debido a la falta de precisión que éste nos ofrecía, acelerando muy rápido, sin ninguna solución en la programación para compensarlo.
+El uso de un ESC para controlar el motor parecía una idea muy buena en papel: aprovechar el «combo» de motor 540 y variador de un carro de radiocontrol nos daba velocidad de sobra para completar los desafíos. Terminó siendo un problema grave por su falta de precisión: aceleraba demasiado rápido y no había forma de compensarlo desde la programación.
+
+<p align="center">
+	<img src="other/assets/images/components/motor-540.webp" alt="Motor 540 de Klevor" width="300">
+	<br>
+	<i>El motor 540 de Klevor, heredado de un carro de radiocontrol junto a su variador</i>
+</p>
 
 Además, optamos por un modelo más robusto y pesado en comparación con los demás prototipos habituales de esta competición, si bien, gracias a esto pudimos incorporar muchos elementos de gran utilidad (como la Raspberry Pi 5), debido a ésto, no podíamos optar por cambios significativos, siendo obligados a reestructurar el prototipo desde cero en caso de necesitar algún cambio.
 
@@ -538,9 +544,9 @@ width="350">
 	<i>Integración del REV HD Hex Motor al Sistema de Transmisión</i>
 </p>
 
-* **Nuevo Motor**: Tras realizar el montaje final, se detectó que el motor utilizado previamente, un motor genérico 540, contaba con un torque relativamente bajo, si bien era capaz de mover a vTitan, no podía alcanzar velocidades superiores a 15cm/s en pista, resultando en vTitan siendo incapaz de completar los desafíos en el tiempo límite, la solución más simple y más efectiva, fue cambiar el motor genérico 540 por un motor HD Hex por sus mejores especificaciones.
+* **Nuevo Motor**: tras el montaje final se detectó que el motor previo, un motor reductor genérico de 1500 rpm con encoder, no daba el torque necesario. Movía a vTitan, pero su techo de velocidad medido en pista era de **0.156 m/s** (unos 15 cm/s), con el que el robot no completaba los desafíos dentro del límite de tiempo. La solución más simple y efectiva fue sustituirlo por un **REV HD Hex Motor**, con 6000 rpm sin carga y 0.105 Nm de torque de bloqueo.
 
-* **Resultado Final**: Tras adaptar el chasis inferior para el encaje del HD Hex Motor, se detectó un incremento de velocidad de alrededor de 25 a 30cm/s, de esta manera, vTitan tiene la velocidad necesaria para completar los desafíos sin exceder el tiempo límite establecido de 3 minutos.
+* **Resultado Final**: Tras adaptar el chasis inferior para el encaje del HD Hex Motor, la velocidad en pista subió de los 15 cm/s del motor anterior a 25-30 cm/s, y más tarde, al corregir el encoder, se descubrió que el techo real era de ~58 cm/s (ver [Velocidad: teórica contra real](#velocidad-teórica-contra-real)). De esta manera, vTitan tiene la velocidad necesaria para completar los desafíos sin exceder el tiempo límite establecido de 3 minutos.
 
 ## Sistema de Transmisión
 
@@ -638,7 +644,7 @@ Publicamos cada pieza en **dos formatos**, porque sirven para cosas distintas:
 | Formato | Archivos | Para qué |
 |---|---|---|
 | [`step-files/`](models/current-models/step-files/) | 29 `.step` | **Fabricar y editar.** Conserva la geometría exacta, así que se puede reabrir y modificar en cualquier CAD |
-| [`stl-files/`](models/current-models/stl-files/) | 48 `.stl` | **Imprimir y mirar.** GitHub renderiza los `.stl` en un **visor 3D interactivo**: pincha cualquiera y podrás girarlo, desplazarlo y acercarlo en el navegador, sin instalar nada |
+| [`stl-files/`](models/current-models/stl-files/) | 47 `.stl` | **Imprimir y mirar.** GitHub renderiza los `.stl` en un **visor 3D interactivo**: pincha cualquiera y podrás girarlo, desplazarlo y acercarlo en el navegador, sin instalar nada |
 
 Una pieza que existe en los dos formatos **lleva el mismo nombre** en ambos, que es lo que permite emparejarlas de un vistazo. 17 de las 29 piezas en `.step` tienen su `.stl`; las 12 restantes son componentes comerciales (Raspberry Pi 5, cámara, RPLiDAR, batería, rodamientos) que modelamos para el ensamblaje virtual y nunca se imprimen.
 
@@ -646,11 +652,11 @@ Algunas piezas para empezar, cada enlace abre el visor 3D de GitHub:
 
 | Pieza | Subsistema |
 |---|---|
-| [`monochasis-ultimate.stl`](models/current-models/stl-files/monochasis-ultimate.stl) | La estructura que cierra el conjunto |
+| [`monochasis-v3.stl`](models/current-models/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
 | [`rueda-vtitan.stl`](models/current-models/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
 | [`pinon-90-cruceta-10-dientes.stl`](models/current-models/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
 | [`pinon-40-dientes-servo-cajera.stl`](models/current-models/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
-| [`brazo-de-tensor-2.stl`](models/current-models/stl-files/brazo-de-tensor-2.stl) | El tensor que mantiene la correa dentada |
+| [`brazo-de-tensor-v2.stl`](models/current-models/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
 
 El inventario completo, subsistema por subsistema, está en [`models/README.md`](models/README.md).
 
@@ -878,7 +884,7 @@ width="350">
 	<i>HD Hex Motor</i>
 </p>
 
-Después de probar distintos modelos de motor, al final optamos por utilizar el motor HD Hex Motor, ya que éste cuenta con todos los requisitos que teníamos en mente para un motor (principalmente que cuente con un encoder y tenga una alta cantidad de RPM) ya que debido a nuestro sistema de transmisición, no era necesario que el motor cuente con un torque alto, ya que éste se puede compensar en nuestro sistema de transmisión con alguna relación de transmisión, además de ser un motor que ya se podía implementar con facilidad en el monochasis que habíamos diseñado, sólamente teniendo que cambiar su encaje.
+Después de probar distintos modelos de motor optamos por el REV HD Hex Motor, porque cumple los dos requisitos que buscábamos: encoder integrado y un régimen de giro alto (6000 rpm sin carga). El torque de bloqueo no fue el criterio decisivo, porque la reducción total de 3.29 de nuestra transmisión lo multiplica (ver [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)); lo que descartó al motor anterior fue no dar torque suficiente ni siquiera montado en esa misma transmisión. A esto se sumó que encajaba con facilidad en el chasis que ya teníamos diseñado: solo hubo que rehacer su encaje.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -1079,7 +1085,7 @@ Cada sensor del robot tiene una parte calibrada contra medición propia, no cont
 
 | Qué | Método | Valor |
 |-----|--------|-------|
-| Pulsos por vuelta del encoder | Cinta métrica: distancia conocida recorrida contra la que el robot cree haber recorrido (`task robot:calibrate-encoder`) | 60 pulsos/vuelta (el valor previo, 676, estaba mal por ~11x) |
+| Pulsos por vuelta del encoder | Cinta métrica: distancia conocida recorrida contra la que el robot cree haber recorrido (`task robot:calibrate-encoder`) | 60 pulsos/vuelta en el HD Hex. Se heredó el 676 del motor retirado, se midió 86 y se corrigió a 60 |
 | Ley motor-duty en banco | Motor cargado, duty barrido, rpm medidas contra cinta | $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$); zona muerta en duty 0.200 |
 | Referencia de yaw del IMU | Reset del offset al presionar el botón de inicio: ese rumbo pasa a ser 0° (`reset_heading_reference`) | Todo el yaw de la ronda es relativo a esa referencia |
 | Calibración gyro/acelerómetro | Rutina del chip (modo RVC) en su arranque; no intervenimos | De fábrica |
@@ -1176,7 +1182,7 @@ El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `P
 
 Sobre el PI va una **prealimentación (feedforward) afín** medida en banco, `duty = 0.20 + 0.8 · rpm/max_rpm`, con la zona muerta (deadband) medida con carga (`rpm = 434.6·duty − 86.7`). El lazo integral solo corrige lo que la prealimentación no modela; una consigna de cero devuelve ciclo de trabajo cero, así que el robot no sufre avance residual al detenerse.
 
-Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex motor, el `counts_per_rev` correcto resultó ser 60 y no 676, lo que multiplicó la sensibilidad de la medición de RPM por ~8 y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el ciclo de trabajo oscilando de 0.15 a 0.31. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un registro por paso del PID (consigna, medida, ciclo de trabajo) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
+Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex, el `counts_per_rev` heredado del motor retirado (676) dejó de valer: la primera medición del motor nuevo dio 86, lo que multiplicó por ~8 la sensibilidad de la medición de RPM, y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el ciclo de trabajo oscilando de 0.15 a 0.31. Ese 86 se refinó después a los 60 definitivos, medidos con retenciones más largas. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un registro por paso del PID (consigna, medida, ciclo de trabajo) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
 
 ### Dirección: de PID a pure pursuit
 
@@ -1717,13 +1723,13 @@ Se combinan al arrancar. Cambiar de servo es seleccionar otro perfil, no editar 
 
 ## Compensaciones y alternativas descartadas
 
-Ninguna de estas piezas se cambió por intuición. Cada fila responde a la misma pregunta: **qué dato hizo insostenible la primera opción**. Las cuatro piezas descartadas siguen en el repositorio, porque la que se fue explica por qué está la que se quedó.
+Ninguna de estas piezas se cambió por intuición. Cada fila responde a la misma pregunta: **qué dato hizo insostenible la primera opción**. Tres de las cuatro piezas descartadas conservan su foto en el repositorio, porque la que se fue explica por qué está la que se quedó.
 
 | Descartado | Elegido | Qué lo decidió | Qué se pagó |
 |---|---|---|---|
 | **Puente H L298N**<br><img src="other/assets/images/components/puente-h-l298n.webp" width="150"> | **BTS7960 / IBT-2** | Medimos el consumo real del tren motriz: **~10 A sostenidos al 50% de ciclo de trabajo, con picos cercanos a 20 A**, contra los **2 A por canal** del L298N. Un orden de magnitud de diferencia, y explicaba de golpe los cortes y el calentamiento | Mayor tamaño y peso. Y el cuello de botella no desapareció: se movió al interruptor de encendido |
 | **Step Down XLC4016**<br><img src="other/assets/images/components/step-down-xlc4016.webp" width="150"> | **Mini-560 Pro** | Peso. Con el robot **200 g por encima del límite de 1500 g** y ninguna pieza responsable del exceso, la única salida era dimensionar cada rama contra su carga medida en vez de contra el peor caso imaginable. Este cambio solo recuperó **19 g** | Margen de corriente más ajustado, que ahora vigilamos con `vcgencmd get_throttled` en vez de sobredimensionar |
-| **Motor genérico 540**<br><img src="other/assets/images/components/motor-540.webp" width="150"> | **REV HD Hex Motor** | Torque insuficiente. Con el 540, vTitan no pasaba de **15 cm/s en pista** y no completaba los desafíos dentro del límite de tiempo. El HD Hex da 0.105 Nm de bloqueo y 6000 rpm sin carga | Obligó a rehacer el ajuste del PID: el `counts_per_rev` correcto resultó ser 60 y no 676, y las ganancias viejas producían oscilación visible |
+| **Motor reductor genérico de 1500 rpm**<br><sub>Sin foto en el repositorio</sub> | **REV HD Hex Motor** | Torque insuficiente. Su techo medido en pista era de **0.156 m/s**, con el que vTitan no completaba los desafíos dentro del límite de tiempo. El HD Hex da 0.105 Nm de bloqueo y 6000 rpm sin carga | Obligó a rehacer el ajuste del PID: el `counts_per_rev` no se hereda entre motores, y el del HD Hex tardó dos mediciones en quedar fijado (676 → 86 → 60). Las ganancias viejas producían oscilación visible |
 | **Servo Injora 14 kg**<br><img src="other/assets/images/components/injora-14kg-injs014-micro-servo.webp" width="150"> | **Hi Wonder HPS-3527SG 35 kg** | Recorrido. El Injora abarca **180°**; la dirección en contrafase de vTitan necesita el recorrido ampliado del Hi Wonder (**270°**) para acercarse al giro de 90° por rueda que hace viable la salida del estacionamiento | Más peso y volumen. Ambos servos siguen siendo válidos: viven como [perfiles de hardware](#perfiles-de-hardware-intercambiables) y se eligen sin tocar código |
 
 Y tres compensaciones que no son de pieza sino de diseño:
