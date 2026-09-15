@@ -1404,19 +1404,40 @@ _MIN_SIGN_EDGE_CLEARANCE_M = 0.05
 
 
 class TestWrongSidePassDetection:
-    """A sign retired on the forbidden side must register as a violation.
+    """A sign COMPLETELY crossed on the forbidden side must register a violation.
 
-    The simulator stops the run on ``wrong_side_violations`` exactly as it does
-    on a forbidden wall contact, so this pins that the router reports the miss
-    in the first place: red is passed on the vehicle's RIGHT and green on its
-    LEFT, and the side is judged from the robot's lateral coordinate relative
-    to the sign's at the instant it is passed. A pass on the permitted side is
-    NOT a violation.
+    Red is passed on the vehicle's RIGHT and green on its LEFT (rules 9.19), and
+    the permitted side is read out of ``ROUTING_TABLE`` for the case's own
+    direction, with the router BUILT for that direction -- both halves matter
+    since the two directions are negations of each other.
 
-    The permitted side is read out of ``ROUTING_TABLE`` for the case's own
-    direction, and the router is BUILT for that direction -- both halves matter
-    now that the two directions are negations of each other.
+    These cases DRIVE the chassis: from the approach side of the sign's depth
+    line, through it, and out the far side. That is the rule. Until 2026-09-15
+    they instead called the recorder once with the robot sitting ABEAM the sign,
+    offset only laterally, and asserted a violation -- a pose that has not
+    passed anything. Production matched, firing on "the centre point is now more
+    than ``passed_dist`` away", and it over-reported on hardware: 3, 3 and 5
+    violations on the three 2026-09-15 rounds whose layout could be
+    reconstructed, against 0, 2 and 2 from a true-pose judge.
+
+    ``wrong_side_violations`` is a measure of discovery quality. It is NOT what
+    ends a round -- the simulator scores the rule in ``scoring.py`` from the true
+    layout and the true pose.
     """
+
+    @staticmethod
+    def _drive(router, sign_xy, section, direction, lateral_offset, *, stop_short=False):
+        """Walk the chassis along the corridor axis past ``sign_xy``, scoring each tick."""
+        sx, sy = sign_xy
+        heading = TRAVEL_DIRS[(section, direction)]
+        yaw = math.atan2(heading.ny, heading.nx)
+        # Half a chassis length is 0.15 m, so -0.6 starts every corner short of
+        # the line and +0.6 puts every corner past it.
+        offsets = [-0.6, -0.4, -0.2] if stop_short else [-0.6, -0.3, 0.0, 0.3, 0.6]
+        for along in offsets:
+            x = sx + heading.nx * along + (lateral_offset if heading.nx == 0 else 0.0)
+            y = sy + heading.ny * along + (lateral_offset if heading.ny == 0 else 0.0)
+            router._score_pass_sides(Waypoint(x, y), yaw)
 
     @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
     @pytest.mark.parametrize("color", ["red", "green"])
@@ -1424,16 +1445,9 @@ class TestWrongSidePassDetection:
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
         entry = ROUTING_TABLE[(section, direction)]
         permitted = entry.red_mult if color == "red" else entry.green_mult
-        # Place the robot on the permitted side: the corridor's lateral axis
-        # value offset by the permitted direction.
-        if section in (Section.SOUTH, Section.NORTH):
-            robot = (sx, sy + permitted * 0.3)
-        else:
-            robot = (sx + permitted * 0.3, sy)
         router = _router([_sign_at(sx, sy, color)], router_config, direction)
         router._sign_corridors = [corridor_for_position(sx, sy)]
-        router._engaged = {0}
-        router._record_pass_side(0, Waypoint(*robot))
+        self._drive(router, (sx, sy), router._sign_corridors[0], direction, permitted * 0.3)
         assert router.wrong_side_violations == set(), "permitted side must not violate"
 
     @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
@@ -1442,24 +1456,68 @@ class TestWrongSidePassDetection:
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
         entry = ROUTING_TABLE[(section, direction)]
         permitted = entry.red_mult if color == "red" else entry.green_mult
-        forbidden = -permitted
-        if section in (Section.SOUTH, Section.NORTH):
-            robot = (sx, sy + forbidden * 0.3)
-        else:
-            robot = (sx + forbidden * 0.3, sy)
         router = _router([_sign_at(sx, sy, color)], router_config, direction)
         router._sign_corridors = [corridor_for_position(sx, sy)]
-        router._engaged = {0}
-        router._record_pass_side(0, Waypoint(*robot))
+        self._drive(router, (sx, sy), router._sign_corridors[0], direction, -permitted * 0.3)
         assert router.wrong_side_violations == {0}, "forbidden side must violate"
 
+    def test_straying_then_recovering_before_the_line_is_not_a_violation(self, router_config):
+        """Rule 9.19 asks the vehicle to COMPLETELY cross on the permitted side.
+
+        A chassis that drifts to the forbidden side on the approach and corrects
+        before the line has not offended, and the rules go out of their way to
+        permit that. A test that fires at one instant forbids it by construction.
+        """
+        section, direction = Section.SOUTH, Direction.COUNTERCLOCKWISE
+        _, (sx, sy), _ = _SECTION_GEOMETRY[section]
+        permitted = ROUTING_TABLE[(section, direction)].red_mult
+        router = _router([_sign_at(sx, sy, "red")], router_config, direction)
+        router._sign_corridors = [corridor_for_position(sx, sy)]
+        heading = TRAVEL_DIRS[(router._sign_corridors[0], direction)]
+        yaw = math.atan2(heading.ny, heading.nx)
+        legs = ((-0.6, -permitted * 0.3), (-0.4, -permitted * 0.3), (-0.2, 0.0), (0.6, permitted * 0.3))
+        for along, lat in legs:
+            router._score_pass_sides(Waypoint(sx + heading.nx * along, sy + lat), yaw)
+        assert router.wrong_side_violations == set(), "a recovery before the line is not a violation"
+
+    def test_retreating_without_crossing_is_not_a_violation(self, router_config):
+        """The escape case: separation without a crossing is not a pass.
+
+        This is what the distance-triggered rule got wrong. An escape reversing
+        out of a pocket, a K-turn, or a corner taken wide all carry the centre
+        point past ``passed_dist`` while the chassis never goes by the sign, and
+        the old rule booked whichever side it happened to be on.
+        """
+        section, direction = Section.SOUTH, Direction.COUNTERCLOCKWISE
+        _, (sx, sy), _ = _SECTION_GEOMETRY[section]
+        permitted = ROUTING_TABLE[(section, direction)].red_mult
+        router = _router([_sign_at(sx, sy, "red")], router_config, direction)
+        router._sign_corridors = [corridor_for_position(sx, sy)]
+        self._drive(router, (sx, sy), router._sign_corridors[0], direction, -permitted * 0.3, stop_short=True)
+        assert router.wrong_side_violations == set(), "never crossed the line, so nothing was passed"
+        # CONTROL: the same approach, now actually crossing, MUST still be caught.
+        self._drive(router, (sx, sy), router._sign_corridors[0], direction, -permitted * 0.3)
+        assert router.wrong_side_violations == {0}, "control: the crossing itself must still be caught"
+
+    def test_a_sign_is_scored_at_most_once_per_lap(self, router_config):
+        """A chassis pendulumming past the line must not book the sign repeatedly."""
+        section, direction = Section.SOUTH, Direction.COUNTERCLOCKWISE
+        _, (sx, sy), _ = _SECTION_GEOMETRY[section]
+        permitted = ROUTING_TABLE[(section, direction)].red_mult
+        router = _router([_sign_at(sx, sy, "red")], router_config, direction)
+        router._sign_corridors = [corridor_for_position(sx, sy)]
+        self._drive(router, (sx, sy), router._sign_corridors[0], direction, -permitted * 0.3)
+        assert router.wrong_side_violations == {0}
+        self._drive(router, (sx, sy), router._sign_corridors[0], direction, permitted * 0.3)
+        assert router.wrong_side_violations == {0}, "one verdict per sign per lap"
+
     def test_reset_for_new_lap_clears_violations(self, router_config):
-        _, (sx, sy), _ = _SECTION_GEOMETRY[Section.SOUTH]
-        # Red in SOUTH is permitted outward (-Y); pass it on the inner (+Y) side.
-        router = _router([_sign_at(sx, sy, "red")], router_config)
-        router._sign_corridors = [Section.SOUTH]
-        router._engaged = {0}
-        router._record_pass_side(0, Waypoint(sx, sy + 0.3))
+        section, direction = Section.SOUTH, Direction.COUNTERCLOCKWISE
+        _, (sx, sy), _ = _SECTION_GEOMETRY[section]
+        permitted = ROUTING_TABLE[(section, direction)].red_mult
+        router = _router([_sign_at(sx, sy, "red")], router_config, direction)
+        router._sign_corridors = [corridor_for_position(sx, sy)]
+        self._drive(router, (sx, sy), router._sign_corridors[0], direction, -permitted * 0.3)
         assert router.wrong_side_violations == {0}
         router.reset_for_new_lap()
         assert router.wrong_side_violations == set()

@@ -31,12 +31,28 @@ from src.navigation.planning.sign_router.routing import (
     satisfiable_corridor,
 )
 from src.navigation.planning.waypoints import corridor_for_position
+from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.utils import _dist2d, wrap_angle
 
 if TYPE_CHECKING:
     from shared.domain.models import TrafficSignObservation
 
 logger = logging.getLogger(__name__)
+
+
+# The simulator's own pass-side scorer uses this radius; matching it keeps the
+# believed-frame record comparable with the ground-truth one.
+_PASS_SIDE_APPROACH_M = 1.20
+
+
+def _chassis_corners(x: float, y: float, yaw: float) -> list[tuple[float, float]]:
+    """The four corners of the oriented chassis rectangle, world frame."""
+    c, s = math.cos(yaw), math.sin(yaw)
+    hl, hw = RobotSpecs.LENGTH / 2.0, RobotSpecs.WIDTH / 2.0
+    return [
+        (x + c * dx - s * dy, y + s * dx + c * dy)
+        for dx, dy in ((hl, hw), (hl, -hw), (-hl, -hw), (-hl, hw))
+    ]
 
 
 class SignRouter:
@@ -90,12 +106,22 @@ class SignRouter:
         self._lap_tick = 0
         # Sign indices passed on the WRONG side of the corridor. The official
         # Obstacles rule is absolute: a RED obstacle must be cleared on its
-        # OUTWARD side, a GREEN on its INWARD side. ``_active_sign_candidates``
-        # records here, at the instant a sign is retired as passed, whether the
-        # robot was on the permitted side — see ``_record_pass_side``. The
-        # simulator reads ``wrong_side_violations`` and stops the run, the same
-        # way it stops on a forbidden wall contact.
+        # OUTWARD side, a GREEN on its INWARD side. ``_score_pass_sides`` records
+        # here, once per tick, whether the chassis has COMPLETELY crossed each
+        # sign and on which side — see that method for the rule.
+        #
+        # This is a measure of discovery quality and NOT what ends a round. The
+        # simulator scores the rule itself in ``scoring.py`` from the TRUE layout
+        # and the TRUE pose; this set is computed in the BELIEVED frame from
+        # discovered colours, so it conflates where the chassis drove with what
+        # the robot thinks it saw. (Until 2026-09-15 the docstring here claimed
+        # the simulator stopped on this set. It does not, and has not for some
+        # time.)
         self._wrong_side: set[int] = set()
+        # Mirrors ``scoring.py``: a sign is only judged once, and only after the
+        # chassis has been seen on the APPROACH side of its line first.
+        self._pass_side_engaged: set[int] = set()
+        self._pass_side_scored: set[int] = set()
         # The sign currently being routed around, kept across ticks so the
         # commanded line does not jump between two legal ones mid-pass. See
         # _prefer_committed.
@@ -187,6 +213,8 @@ class SignRouter:
         self._sign_corridors = [self._corridor_for_spec(spec) for spec in self._signs]
         self._corridor_flip_streak.clear()
         self._wrong_side.clear()
+        self._pass_side_engaged.clear()
+        self._pass_side_scored.clear()
         self._commit_yaw.clear()
         self._engaged.clear()
         self._committed = None
@@ -454,15 +482,26 @@ class SignRouter:
         self._committed = None
         self._commit_yaw.clear()
         self._wrong_side.clear()
+        self._pass_side_engaged.clear()
+        self._pass_side_scored.clear()
 
     @property
     def wrong_side_violations(self) -> set[int]:
-        """Sign indices retired as passed on the WRONG side of the corridor.
+        """Sign indices the chassis COMPLETELY crossed on the WRONG side.
 
         Emptied by ``reset_for_new_lap`` so each lap is judged independently
         (a sign avoided correctly on lap 2 after a lap-1 violation is a fresh
-        pass, not a reversal of the earlier miss). The simulator stops the run
-        the moment this is non-empty.
+        pass, not a reversal of the earlier miss).
+
+        DOES NOT END A ROUND, and the claim that it does was stale here for some
+        time. The simulator scores the pass-side rule in
+        ``scenario_simulator/scoring.py``, from the TRUE layout against the TRUE
+        pose, deliberately not from this set -- which is computed in the
+        BELIEVED frame from discovered colours and so conflates where the
+        chassis drove with what the robot thinks it saw. Measured over the
+        2026-09-15 hardware rounds it reads 3, 3 and 5 where a true-pose judge
+        reads 0, 2 and 2. Read it as DISCOVERY QUALITY, and never re-derive a
+        round's fate from it.
         """
         return set(self._wrong_side)
 
@@ -543,48 +582,88 @@ class SignRouter:
         delta = point[0] - spec.x if axis is Axis.X else point[1] - spec.y
         return delta * multiplier
 
-    def _record_pass_side(self, index: int, robot_pos: Waypoint) -> None:
-        """Decide whether ``index`` was cleared on its permitted side.
+    def _score_pass_sides(self, robot_pos: Waypoint, robot_yaw: float) -> None:
+        """Record which signs the chassis has COMPLETELY crossed, and on which side.
 
         The permitted side is TRAVEL-RELATIVE -- red is passed on the vehicle's
         right, green on its left (rules 9.19) -- and is exactly the lateral
         direction ``ROUTING_TABLE`` deforms toward for that colour under the
-        direction this round is driven. The robot's lateral coordinate relative
-        to the sign's is compared against it: same sign ⇒ correct side,
-        opposite sign ⇒ wrong-side pass, recorded in ``_wrong_side``.
+        direction this round is driven.
 
-        The lookup was keyed on a hardcoded ``Direction.CLOCKWISE`` until
-        2026-09-03, which was harmless only while both rows of the table were
-        identical. It is now ``self._direction``: keying a travel-relative rule
-        on a constant direction judges half the rounds against the mirror of
-        the rule they are actually driving.
+        THE RULE IS A FOOTPRINT CROSSING, NOT A DISTANCE. This used to fire at
+        the instant a sign was retired as passed, which is simply "the centre
+        point is now more than ``passed_dist`` from the sign". Two things are
+        wrong with that and both inflate the count:
 
-        The comparison uses the robot's position at the instant the sign is
-        retired (distance > ``passed_dist``). By then the chassis is ~1.6 m
-        down the corridor axis from the sign, but it is travelling *along* that
-        axis, so its lateral coordinate is the same one it held abeam the sign
-        — which is precisely the choice of side that the pass represents.
+        * It scores a sign the chassis never actually went past. Any motion that
+          carries the centre 1.6 m away -- an escape reversing out of a pocket, a
+          K-turn, a corner taken wide -- retires the sign and books whichever
+          side the robot happened to be on.
+        * It forbids the recovery the rules explicitly allow. 9.19 asks that the
+          vehicle COMPLETELY cross the obstacle on the permitted side; a chassis
+          that strays and corrects before the line has not offended, and a
+          centre-point-at-one-instant test cannot express that.
+
+        Measured against ground truth over the 2026-09-15 hardware rounds, the
+        old rule read 3, 3 and 5 violations on the three rounds whose layout
+        could be reconstructed, where a LIDAR-and-true-pose judge reads 0, 2 and
+        2. On run_20260915_140852 it claimed three where the chassis committed
+        none.
+
+        So this now mirrors ``scenario_simulator/scoring.py`` exactly: engage
+        while any corner is still short of the sign's depth line, score once the
+        LAST corner is beyond it, and never score a sign that was never seen on
+        the approach side (the in-bay start sits beyond some signs' lines).
+
+        Still the BELIEVED frame -- believed colours and believed positions --
+        so it measures discovery quality, not the round's fate.
         """
-        sign = self._signs[index]
-        entry = ROUTING_TABLE.get((self._sign_corridors[index], self._direction))
-        if entry is None:
+        if self._direction is None:
             return
-        axis = entry.axis
-        # An UNKNOWN sign cannot violate a colour-keyed rule: with no colour
-        # there is no permitted side to be on the wrong side OF. Scoring it
-        # against GREEN's side (what `else green_mult` did) would invent
-        # round-ending violations for objects the camera never confirmed.
-        if sign.color == SignColor.RED:
-            permitted = entry.red_mult
-        elif sign.color == SignColor.GREEN:
-            permitted = entry.green_mult
-        else:
-            return
-        robot_lat = robot_pos.x if axis == Axis.X else robot_pos.y
-        sign_lat = sign.x if axis == Axis.X else sign.y
-        side = 0 if robot_lat == sign_lat else (1 if robot_lat > sign_lat else -1)
-        if side != 0 and side not in (0, permitted):
-            self._wrong_side.add(index)
+        corners = _chassis_corners(robot_pos.x, robot_pos.y, robot_yaw)
+        for index, sign in enumerate(self._signs):
+            if index in self._pass_side_scored:
+                continue
+            if _dist2d(robot_pos, Waypoint(sign.x, sign.y)) > _PASS_SIDE_APPROACH_M:
+                continue
+            entry = ROUTING_TABLE.get((self._sign_corridors[index], self._direction))
+            if entry is None:
+                continue
+            # An UNKNOWN sign cannot violate a colour-keyed rule: with no colour
+            # there is no permitted side to be on the wrong side OF. Scoring it
+            # against GREEN's side would invent round-ending violations for
+            # objects the camera never confirmed.
+            if sign.color == SignColor.RED:
+                permitted = entry.red_mult
+            elif sign.color == SignColor.GREEN:
+                permitted = entry.green_mult
+            else:
+                continue
+            lateral_axis = entry.axis
+            heading = TRAVEL_DIRS[(self._sign_corridors[index], self._direction)]
+            if lateral_axis is Axis.Y:
+                depth_axis, ahead = Axis.X, (1.0 if heading.nx > 0 else -1.0)
+            else:
+                depth_axis, ahead = Axis.Y, (1.0 if heading.ny > 0 else -1.0)
+            sign_depth = sign.x if depth_axis is Axis.X else sign.y
+            behind = [(cx if depth_axis is Axis.X else cy) - sign_depth for cx, cy in corners]
+            if min(d * ahead for d in behind) <= 0.0:
+                # Straddling the line or not there yet -- the rules let the
+                # vehicle fix its side from here, so nothing is decided.
+                self._pass_side_engaged.add(index)
+                continue
+            if index not in self._pass_side_engaged:
+                # Beyond the line without ever having been seen approaching it,
+                # so no crossing HAPPENED here: the in-bay start sits past some
+                # signs, and a lap boundary clears this state. Deliberately NOT
+                # marked scored -- the genuine crossing later in the same lap
+                # would then go unjudged.
+                continue
+            self._pass_side_scored.add(index)
+            robot_lat = robot_pos.x if lateral_axis is Axis.X else robot_pos.y
+            sign_lat = sign.x if lateral_axis is Axis.X else sign.y
+            if robot_lat != sign_lat and (1 if robot_lat > sign_lat else -1) != permitted:
+                self._wrong_side.add(index)
 
     def deform_waypoint(
         self,
@@ -947,6 +1026,9 @@ class SignRouter:
         """
         self._lap_tick += 1
         settled = self._lap_tick > self._config.settle_ticks
+        # Pass-side scoring is a per-tick footprint test, not a retirement event;
+        # it has to see the chassis on BOTH sides of the line to judge a crossing.
+        self._score_pass_sides(robot_pos, robot_yaw)
         candidates: list[tuple[int, float]] = []
 
         for i, sign in enumerate(self._signs):
@@ -958,7 +1040,6 @@ class SignRouter:
             if d > self._config.passed_dist:
                 if settled and i in self._engaged:
                     self._passed.add(i)
-                    self._record_pass_side(i, robot_pos)
                     logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
                 continue
             # A sign the robot has already driven past needs no avoidance, and
