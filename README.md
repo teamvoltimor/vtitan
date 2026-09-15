@@ -587,14 +587,10 @@ Todo el movimiento se transmite por engranajes, y los rines actúan a la vez com
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
 <p align="center">
-	<img src="models/vtitan/blueprints/pinon-33-dientes-direccion.webp" alt="Piñón de 33 dientes de dirección" 
+	<img src="models/vtitan/blueprints/ring-33-dientes.webp" alt="Ring de 33 dientes" 
 width="350">
 	<br>
-	<i>Piñón de 33 dientes</i>
-	<!-- PENDIENTE: el archivo se llama pinon-33-dientes-direccion.webp, pero en
-	     models/README.md los piñones de 33 dientes figuran en TRANSMISIÓN (etapa 1
-	     de la tabla de relaciones) y los de dirección son de 8, 20 y 40. Resolver
-	     si el plano está mal nombrado o si esta imagen no corresponde aquí. -->
+	<i>Ring de 33 dientes</i>
 </p>
 
 También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñón de dirección de la misma, debido a que el sistema de transmisión de vTitan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
@@ -661,7 +657,7 @@ Algunas piezas para empezar, cada enlace abre el visor 3D de GitHub:
 |:---:|---|---|
 | [<img src="models/vtitan/blueprints/rueda-vtitan.webp" width="110">](models/vtitan/stl-files/rueda-vtitan.stl) | [`rueda-vtitan.stl`](models/vtitan/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
 | [<img src="models/vtitan/blueprints/pinon-90-cruceta-10-dientes.webp" width="110">](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | [`pinon-90-cruceta-10-dientes.stl`](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
-| [<img src="models/vtitan/blueprints/pinon-40-dientes-eje-servo.webp" width="110">](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
+| [<img src="models/vtitan/blueprints/pinon-40-dientes-servo.webp" width="110">](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
 | [<img src="models/vtitan/blueprints/brazo-de-tensor-v2.webp" width="110">](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | [`brazo-de-tensor-v2.stl`](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
 | (sin plano) | [`monochasis-v3.stl`](models/vtitan/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
 
