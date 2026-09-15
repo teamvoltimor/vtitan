@@ -262,7 +262,31 @@ vision_color_flip_rate = 0.051
 # contain it: sign_discovery.association_dist_m is 0.25 and the router's
 # detection_match_dist_m is 0.30. Every gate sized against that scatter --
 # the slot map, the colour vote, the barrier belief -- is untested without it.
-vision_bearing_scatter_rad = 0.232
+# CORRECTED 2026-09-15, same day: 0.232 rad (13.30 deg) DOUBLE-COUNTS.
+#
+# That figure came from every detection within 0.45 m of a pillar -- a generous
+# radius, chosen so as not to gate on the quantity being measured. The side
+# effect is that a detection of pillar A matched to pillar B enters as a huge
+# "bearing error", which is MIS-ATTRIBUTION and not sensor scatter. Restricting
+# to detections whose nearest pillar is clearly nearest:
+#
+#   nearest/second <= 1.00 (all)   sigma 13.30 deg   <- what shipped first
+#   nearest/second <= 0.70         sigma 11.28 deg
+#   nearest/second <= 0.50         sigma  9.22 deg
+#   nearest/second <= 0.35         sigma  6.66 deg   <- unambiguous
+#
+# Feeding a scatter that already contains mis-attribution into a model that then
+# PRODUCES mis-attribution counts the same error twice, and the corpus response
+# is the signature of exactly that: 22 failures with the knob off, 26 at 6.66
+# deg, 42 at 13.30 deg. Five times the effect for twice the parameter is a
+# cliff, not a sensor.
+#
+# HONEST BRACKET: 6.66 is a LOWER bound, because filtering on "close to its own
+# pillar" preferentially drops the large errors. 13.30 is an UPPER bound. The
+# truth is between and these bags cannot pin it. 0.116 is chosen for the
+# structural reason above, not because it fails less -- the double-count is a
+# defect in the measurement, while the selection bias is a limit of it.
+vision_bearing_scatter_rad = 0.116
 
 # ---------------------------------------------------------------------------
 # CONTACT PHYSICS
