@@ -92,6 +92,18 @@ detection_confidence = 0.9
 # it would start discarding genuine detections.
 vision_confidence_quantiles = [0.451, 0.515, 0.76, 0.917, 0.958]
 
+# The probability levels those quantiles were measured AT. Half of a PAIR:
+# a quantile array without its levels cannot be interpolated, and the two must
+# stay the same length. Not evenly spaced on purpose -- the tails are what a
+# confidence-weighted vote turns on, so the resolution is spent at p10 and p90
+# rather than at the quartiles.
+#
+# This was a Python constant until 2026-09-15, which made the pair separable and
+# the failure silent: assuming even spacing still returns the median EXACTLY
+# while reading p10 as 0.477 against a measured 0.515 and p90 as 0.942 against
+# 0.917 -- calibrated at the one point anybody checks.
+vision_confidence_levels = [0.0, 0.1, 0.5, 0.9, 1.0]
+
 # How far past the visual wall face TrackModel's chassis keep-out extends.
 # Zero: the chassis may drive right up to the wall it can see, matching the
 # real robot -- NOT the Go generator's fatter Gazebo collision mesh. See

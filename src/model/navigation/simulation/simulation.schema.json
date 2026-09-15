@@ -53,6 +53,13 @@
       },
       "description": "Empirical detection-confidence distribution, as five quantiles at levels [0.00, 0.10, 0.50, 0.90, 1.00]; the emulator samples it by piecewise-linear inverse-CDF interpolation. EMPTY keeps the old behaviour, a constant simulation.detection_confidence on every detection. MEASURED 2026-09-15 over 3,315 red/green detections on the three rounds whose pillar map reconstructs to the operator's layout: min 0.451, p10 0.515, p50 0.760, p90 0.917, max 0.958. Two things a constant breaks. First, sign_router.min_confidence (0.25) is never exercised -- though note it is inert on hardware too, since the real minimum is 0.451, so the gate rejects nothing either way and raising it would start discarding genuine detections. Second and more important, `_SignTrack` weights its COLOUR VOTE by confidence. With a constant every vote weighs the same, while on the robot a 0.45 detection counts half of a 0.95 one -- so the vote's tie-breaking behaviour, which decides a round-ending rule, is untested in simulation. The shipped constant 0.9 sits at the real p90, i.e. the emulator believes every frame is one of its best."
     },
+    "vision_confidence_levels": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "description": "Probability levels that `vision_confidence_quantiles` is measured AT, same length and same order. Deliberately NOT evenly spaced: the tails are what a confidence-weighted vote turns on, so the measurement spends its resolution at p10 and p90 rather than at the quartiles. It lives here rather than as a Python constant because it is half of a PAIR -- a quantile array without the levels it was measured at cannot be interpolated, and changing one without the other is silently wrong rather than loudly wrong: assuming even spacing still returns the median exactly while reading p10 as 0.477 against a measured 0.515. The emulator falls back to the constant `detection_confidence` if the two lengths disagree."
+    },
     "collision_margin_m": {
       "type": "number",
       "description": "How far past the visual wall face TrackModel's chassis keep-out extends. Zero: the chassis may drive right up to the wall it can see, matching the real robot -- NOT the Go generator's fatter Gazebo collision mesh. See TrackModel's module docstring for the full reasoning."
@@ -165,6 +172,7 @@
     "vision_bearing_scatter_rad",
     "contact_slides_along_surfaces",
     "obstacles_are_pushed",
-    "vision_confidence_quantiles"
+    "vision_confidence_quantiles",
+    "vision_confidence_levels"
   ]
 }

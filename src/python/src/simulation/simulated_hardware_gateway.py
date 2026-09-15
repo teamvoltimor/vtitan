@@ -49,12 +49,6 @@ if TYPE_CHECKING:
     from src.navigation.track_geometry import TrackWalls
 
 
-# Probability levels `vision_confidence_quantiles` is measured AT. Not evenly
-# spaced: the tails are what a confidence-weighted vote turns on, so the
-# measurement spends its resolution at p10 and p90 rather than at the quartiles.
-_CONFIDENCE_LEVELS = (0.0, 0.10, 0.50, 0.90, 1.0)
-
-
 @dataclass(frozen=True, slots=True)
 
 class _SimulatorConstants:
@@ -514,7 +508,10 @@ class SimulatedHardwareGateway:
         sim = self.tuning.simulation
         quantiles = sim.vision_confidence_quantiles
         if quantiles:
-            observations = [replace(obs, confidence=self._sample_confidence(quantiles)) for obs in observations]
+            observations = [
+                replace(obs, confidence=self._sample_confidence(quantiles, sim.vision_confidence_levels))
+                for obs in observations
+            ]
         scatter = sim.vision_bearing_scatter_rad
         if scatter > 0.0 and origin is not None:
             observations = [self._scatter_bearing(obs, origin, scatter) for obs in observations]
@@ -528,10 +525,10 @@ class SimulatedHardwareGateway:
             ]
         return observations
 
-    def _sample_confidence(self, quantiles: Sequence[float]) -> float:
+    def _sample_confidence(self, quantiles: Sequence[float], levels: Sequence[float]) -> float:
         """Draw a detection confidence from the MEASURED distribution.
 
-        Piecewise-linear inverse-CDF interpolation at ``_CONFIDENCE_LEVELS``, so
+        Piecewise-linear inverse-CDF interpolation at ``levels``, so
         five numbers in a TOML reproduce the shape of 3,315 real detections
         without fitting a parametric family the data does not obviously have
         (it is skewed and bounded near 0.96).
@@ -549,8 +546,7 @@ class SimulatedHardwareGateway:
         constant makes every vote equal where the robot makes a 0.45 detection
         count half of a 0.95 one.
         """
-        levels = _CONFIDENCE_LEVELS
-        if len(quantiles) != len(levels):
+        if len(quantiles) != len(levels) or len(levels) < 2:
             # A length the levels do not describe cannot be interpolated
             # honestly; fall back to the constant rather than invent a shape.
             return float(self.tuning.simulation.detection_confidence)

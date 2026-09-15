@@ -197,6 +197,18 @@ type NavigationSimulationSimulation struct {
 	// before it can ship non-zero.
 	VisionColorFlipRate float64 `json:"vision_color_flip_rate" yaml:"vision_color_flip_rate" mapstructure:"vision_color_flip_rate"`
 
+	// Probability levels that `vision_confidence_quantiles` is measured AT, same
+	// length and same order. Deliberately NOT evenly spaced: the tails are what a
+	// confidence-weighted vote turns on, so the measurement spends its resolution at
+	// p10 and p90 rather than at the quartiles. It lives here rather than as a Python
+	// constant because it is half of a PAIR -- a quantile array without the levels it
+	// was measured at cannot be interpolated, and changing one without the other is
+	// silently wrong rather than loudly wrong: assuming even spacing still returns
+	// the median exactly while reading p10 as 0.477 against a measured 0.515. The
+	// emulator falls back to the constant `detection_confidence` if the two lengths
+	// disagree.
+	VisionConfidenceLevels []float64 `json:"vision_confidence_levels" yaml:"vision_confidence_levels" mapstructure:"vision_confidence_levels"`
+
 	// Empirical detection-confidence distribution, as five quantiles at levels [0.00,
 	// 0.10, 0.50, 0.90, 1.00]; the emulator samples it by piecewise-linear
 	// inverse-CDF interpolation. EMPTY keeps the old behaviour, a constant
