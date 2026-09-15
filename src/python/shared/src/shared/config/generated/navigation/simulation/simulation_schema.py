@@ -51,6 +51,10 @@ class NavigationSimulationSimulation(StrictModel):
         ...,
         description="Confidence stamped on emulated camera detections. Must stay above the sign router's min_confidence or no emulated detection would ever be accepted.",
     )
+    vision_confidence_quantiles: list[float] = Field(
+        ...,
+        description="Empirical detection-confidence distribution, as five quantiles at levels [0.00, 0.10, 0.50, 0.90, 1.00]; the emulator samples it by piecewise-linear inverse-CDF interpolation. EMPTY keeps the old behaviour, a constant simulation.detection_confidence on every detection. MEASURED 2026-09-15 over 3,315 red/green detections on the three rounds whose pillar map reconstructs to the operator's layout: min 0.451, p10 0.515, p50 0.760, p90 0.917, max 0.958. Two things a constant breaks. First, sign_router.min_confidence (0.25) is never exercised -- though note it is inert on hardware too, since the real minimum is 0.451, so the gate rejects nothing either way and raising it would start discarding genuine detections. Second and more important, `_SignTrack` weights its COLOUR VOTE by confidence. With a constant every vote weighs the same, while on the robot a 0.45 detection counts half of a 0.95 one -- so the vote's tie-breaking behaviour, which decides a round-ending rule, is untested in simulation. The shipped constant 0.9 sits at the real p90, i.e. the emulator believes every frame is one of its best.",
+    )
     collision_margin_m: float = Field(
         ...,
         description="How far past the visual wall face TrackModel's chassis keep-out extends. Zero: the chassis may drive right up to the wall it can see, matching the real robot -- NOT the Go generator's fatter Gazebo collision mesh. See TrackModel's module docstring for the full reasoning.",

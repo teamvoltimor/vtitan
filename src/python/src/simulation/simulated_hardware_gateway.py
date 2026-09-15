@@ -10,6 +10,7 @@ without Gazebo, ROS2, or a physics engine.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from collections import deque
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
@@ -48,7 +49,14 @@ if TYPE_CHECKING:
     from src.navigation.track_geometry import TrackWalls
 
 
+# Probability levels `vision_confidence_quantiles` is measured AT. Not evenly
+# spaced: the tails are what a confidence-weighted vote turns on, so the
+# measurement spends its resolution at p10 and p90 rather than at the quartiles.
+_CONFIDENCE_LEVELS = (0.0, 0.10, 0.50, 0.90, 1.0)
+
+
 @dataclass(frozen=True, slots=True)
+
 class _SimulatorConstants:
     """Tuning-derived simulator constants, computed on-demand instead of frozen at module level."""
 
@@ -504,6 +512,9 @@ class SimulatedHardwareGateway:
         which is not an error any camera can make.
         """
         sim = self.tuning.simulation
+        quantiles = sim.vision_confidence_quantiles
+        if quantiles:
+            observations = [replace(obs, confidence=self._sample_confidence(quantiles)) for obs in observations]
         scatter = sim.vision_bearing_scatter_rad
         if scatter > 0.0 and origin is not None:
             observations = [self._scatter_bearing(obs, origin, scatter) for obs in observations]
@@ -516,6 +527,40 @@ class SimulatedHardwareGateway:
                 for obs in observations
             ]
         return observations
+
+    def _sample_confidence(self, quantiles: Sequence[float]) -> float:
+        """Draw a detection confidence from the MEASURED distribution.
+
+        Piecewise-linear inverse-CDF interpolation at ``_CONFIDENCE_LEVELS``, so
+        five numbers in a TOML reproduce the shape of 3,315 real detections
+        without fitting a parametric family the data does not obviously have
+        (it is skewed and bounded near 0.96).
+
+        The levels are NOT evenly spaced, and assuming they were is a silent
+        error rather than a loud one: with [0, .25, .5, .75, 1] the sampler
+        still returns the median exactly while reading p10 as 0.477 against a
+        measured 0.515 and p90 as 0.942 against 0.917. It looks calibrated at
+        the one point anybody checks.
+
+        The emulator otherwise stamps a CONSTANT, which sits at the real p90 --
+        every frame one of its best. That matters less for
+        `sign_router.min_confidence`, which rejects nothing at either value,
+        than for `_SignTrack`: it weights its colour vote by confidence, so a
+        constant makes every vote equal where the robot makes a 0.45 detection
+        count half of a 0.95 one.
+        """
+        levels = _CONFIDENCE_LEVELS
+        if len(quantiles) != len(levels):
+            # A length the levels do not describe cannot be interpolated
+            # honestly; fall back to the constant rather than invent a shape.
+            return float(self.tuning.simulation.detection_confidence)
+        u = float(self._vision_rng.random())
+        for i in range(1, len(levels)):
+            if u <= levels[i]:
+                span = levels[i] - levels[i - 1]
+                frac = 0.0 if span <= 0.0 else (u - levels[i - 1]) / span
+                return float(quantiles[i - 1] + frac * (quantiles[i] - quantiles[i - 1]))
+        return float(quantiles[-1])
 
     def _scatter_bearing(
         self, obs: TrafficSignObservation, origin: Pose, sigma: float

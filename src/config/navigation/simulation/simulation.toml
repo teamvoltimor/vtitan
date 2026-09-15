@@ -72,6 +72,26 @@ lidar_occlusion_self_return_std_m = 0.0052
 # router's min_confidence or no emulated detection would ever be accepted.
 detection_confidence = 0.9
 
+# The measured confidence DISTRIBUTION, five quantiles at levels
+# [0.00, 0.10, 0.50, 0.90, 1.00], sampled by inverse-CDF interpolation.
+# An empty list falls back to the constant above.
+#
+# MEASURED 2026-09-15 over 3,315 red/green detections on the three rounds whose
+# pillar map reconstructs to the operator's layout: min 0.451, p10 0.515,
+# p50 0.760, p90 0.917, max 0.958. The shipped constant 0.9 sits at the real
+# p90 -- the emulator believes every frame is one of its best.
+#
+# Why a constant is not harmless: `_SignTrack` weights its COLOUR VOTE by
+# confidence, so with a constant every vote weighs the same, while on the robot
+# a 0.45 detection counts half of a 0.95 one. The vote's tie-breaking -- which
+# decides a rule that ENDS a round, and which was measured at 68-to-61 on one
+# real pillar -- is untested in simulation without this.
+#
+# It does NOT make sign_router.min_confidence meaningful: that gate is 0.25 and
+# the real minimum is 0.451, so it rejects nothing on hardware either. Raising
+# it would start discarding genuine detections.
+vision_confidence_quantiles = [0.451, 0.515, 0.76, 0.917, 0.958]
+
 # How far past the visual wall face TrackModel's chassis keep-out extends.
 # Zero: the chassis may drive right up to the wall it can see, matching the
 # real robot -- NOT the Go generator's fatter Gazebo collision mesh. See
