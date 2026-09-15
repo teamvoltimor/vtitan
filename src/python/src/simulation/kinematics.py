@@ -307,8 +307,14 @@ class AckermannKinematics:
             # too large. `v` is the SUBSTEP's speed, so the floor tracks the
             # chassis through an acceleration rather than being fixed per call.
             # Off by default; see `MIN_TURN_RADIUS_TRACKS_SPEED`.
+            # A floor of 0.0 means the caller asked for NO clamp, and the speed
+            # curve must not resurrect one: it replaces the constant, it does not
+            # outrank the decision to switch the floor off. Tests that assert the
+            # ideal geometry pin the floor to 0.0 for exactly this reason, and
+            # while the curve overwrote it unconditionally they asserted the
+            # clamp (a flat 0.239 m) instead of the model they name.
             floor = self._min_turn_radius_m
-            if self._radius_tracks_speed:
+            if self._radius_tracks_speed and floor > 0.0:
                 floor = min(
                     RobotSpecs.MIN_TURN_RADIUS_CAP_M,
                     RobotSpecs.MIN_TURN_RADIUS_INTERCEPT_M + RobotSpecs.MIN_TURN_RADIUS_SLOPE_S * abs(v),
