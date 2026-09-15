@@ -300,6 +300,7 @@ class ScenarioSimulator(PassSideScorer):
         # against them needs the same rule.
         self._max_sign_push: float | None = TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
         self._sign_push: dict[int, float] = {}
+        self._obstacles_move: bool = self._tuning.simulation.obstacles_are_pushed
         self._prev_contact_xy: Waypoint = Waypoint(start.x, start.y)
         self._true_geometry = true_geometry
 

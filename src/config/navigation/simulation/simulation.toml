@@ -72,6 +72,38 @@ lidar_occlusion_self_return_std_m = 0.0052
 # router's min_confidence or no emulated detection would ever be accepted.
 detection_confidence = 0.9
 
+# The measured confidence DISTRIBUTION, five quantiles at levels
+# [0.00, 0.10, 0.50, 0.90, 1.00], sampled by inverse-CDF interpolation.
+# An empty list falls back to the constant above.
+#
+# MEASURED 2026-09-15 over 3,315 red/green detections on the three rounds whose
+# pillar map reconstructs to the operator's layout: min 0.451, p10 0.515,
+# p50 0.760, p90 0.917, max 0.958. The shipped constant 0.9 sits at the real
+# p90 -- the emulator believes every frame is one of its best.
+#
+# Why a constant is not harmless: `_SignTrack` weights its COLOUR VOTE by
+# confidence, so with a constant every vote weighs the same, while on the robot
+# a 0.45 detection counts half of a 0.95 one. The vote's tie-breaking -- which
+# decides a rule that ENDS a round, and which was measured at 68-to-61 on one
+# real pillar -- is untested in simulation without this.
+#
+# It does NOT make sign_router.min_confidence meaningful: that gate is 0.25 and
+# the real minimum is 0.451, so it rejects nothing on hardware either. Raising
+# it would start discarding genuine detections.
+vision_confidence_quantiles = [0.451, 0.515, 0.76, 0.917, 0.958]
+
+# The probability levels those quantiles were measured AT. Half of a PAIR:
+# a quantile array without its levels cannot be interpolated, and the two must
+# stay the same length. Not evenly spaced on purpose -- the tails are what a
+# confidence-weighted vote turns on, so the resolution is spent at p10 and p90
+# rather than at the quartiles.
+#
+# This was a Python constant until 2026-09-15, which made the pair separable and
+# the failure silent: assuming even spacing still returns the median EXACTLY
+# while reading p10 as 0.477 against a measured 0.515 and p90 as 0.942 against
+# 0.917 -- calibrated at the one point anybody checks.
+vision_confidence_levels = [0.0, 0.1, 0.5, 0.9, 1.0]
+
 # How far past the visual wall face TrackModel's chassis keep-out extends.
 # Zero: the chassis may drive right up to the wall it can see, matching the
 # real robot -- NOT the Go generator's fatter Gazebo collision mesh. See
@@ -184,19 +216,53 @@ vision_latency_s = 0.85
 # spread 7.9-14.4%, which is ordinary variance. Before this it was ~54.5%.
 vision_frame_miss_rate = 0.79
 
-# UNMEASURED, so it ships at 0.0 rather than at a guess. Defaulting an invented
-# error rate would make the simulator wrong in a new way rather than more
-# realistic. The knob exists because the emulator copies ground-truth colour
-# directly, which makes the single biggest real perception failure -- the
-# magenta parking barrier arriving as a RED pillar -- impossible to screen in
-# simulation at all.
+# MEASURED 2026-09-15, which is what this knob was explicitly waiting for.
 #
-# A companion vision_false_positive_rate shipped here on 2026-09-14 and was
-# REMOVED the same day: nothing read it, so it advertised control it did not
-# have. Emitting a sign that is not there needs an invented GEOMETRY (bearing,
-# range, colour) on top of an invented rate, and there is no bag evidence for
-# either yet. It comes back when both are measured.
-vision_color_flip_rate = 0.0
+# 111 of 2,162 camera detections carry the WRONG colour -- 5.1% -- scored
+# against the operator's stated layout over the three rounds of that day whose
+# pillar map reconstructs to it (140852, 141413, 141832). See
+# scripts/bag/diag_bag_colour_attribution.py, which refuses to score a round
+# that misses the 5 GREEN / 3 RED control.
+#
+# TWO THINGS THIS NUMBER IS NOT, both of which matter before reading a result:
+#
+# 1. It is a MARGINAL rate and the real errors are CONCENTRATED, while the flip
+#    here is i.i.d. per observation. Per pillar the measured rate runs from ~0%
+#    on most of them to 47% on one -- the east green at (2.58,1.18) in 141413,
+#    decided 68 green to 61 red, which is a coin flip deciding a round-ending
+#    rule. The hard geometry carries nearly all of the error. Reproducing that
+#    needs a model keyed on bearing or range, and there is not enough bag
+#    evidence to fit one yet, so this ships the honest marginal rate and says so.
+# 2. It EXCLUDES the magenta parking barrier. Detections that match no pillar
+#    within 0.35 m are not scored, so the barrier-arriving-as-RED failure is not
+#    in this figure and is still unscreenable here.
+#
+# At the per-pillar level the shipped colour vote is right 24 of 24 on those
+# rounds, so 5.1% of frames being wrong is survivable TODAY. That is exactly why
+# it belongs in the simulator: the margin that absorbs it is invisible until
+# something spends it.
+vision_color_flip_rate = 0.051
+
+# Per-detection camera BEARING scatter, standard deviation in radians.
+#
+# MEASURED 2026-09-15 over 2,588 detections on the three rounds whose pillar
+# map reconstructs to the operator's stated layout. Median +1.27 deg, so this
+# is SCATTER and NOT an offset -- there is no mounting yaw or HFOV scale that
+# fixes it. IQR runs -9.36 to +8.59 deg, giving a robust sigma of 13.30 deg =
+# 0.232 rad. The raw stdev is 18.19 deg, inflated by outliers and by detections
+# attributed to the wrong pillar, so the IQR-derived figure is the honest one.
+#
+# The emulator projects every sign from its TRUE bearing, so without this the
+# only angular error in a simulated run is the pose estimate's -- about 1.7 deg
+# from sensor_yaw_bias_rad plus sensor_imu_noise_rad, an order of magnitude too
+# small. (Those 1.7 deg are inside the measurement, so this double-counts by
+# under 2%.)
+#
+# 0.232 rad at 1.5 m is 0.35 m of lateral miss, WIDER than the radii meant to
+# contain it: sign_discovery.association_dist_m is 0.25 and the router's
+# detection_match_dist_m is 0.30. Every gate sized against that scatter --
+# the slot map, the colour vote, the barrier belief -- is untested without it.
+vision_bearing_scatter_rad = 0.232
 
 # ---------------------------------------------------------------------------
 # CONTACT PHYSICS
@@ -208,3 +274,27 @@ vision_color_flip_rate = 0.0
 # sequence of shallow-angle contacts, so that model voided every in-bay A/B
 # taken before this.
 contact_slides_along_surfaces = true
+
+# Does a shoved pillar actually MOVE, or only move on the scoreboard?
+#
+# The scorer already works out how far each pillar was pushed and by which
+# component of travel. That number stayed a scalar: the pillar's collision box --
+# the same one the LIDAR raycasts against -- never moved, so the sensor kept
+# reporting it from its original cell while the robot was physically shifting it,
+# and the map stayed consistent with a track that no longer existed.
+#
+# MEASURED 2026-09-15: accumulating LIDAR returns PER LAP rather than over the
+# whole bag shows pillars marching monotonically, up to 0.15 m over one round,
+# with a stationary neighbour moving 0.4 cm as the control.
+#
+# SHIPS FALSE, pending its own corpus A/B. It only bites inside the window before
+# the displacement rule ends the run anyway (0.0594 m, where a corner leaves the
+# 85 mm placement circle), so it buys at most six centimetres of movement -- but
+# inside that window it changes what the planner sees, and therefore which runs
+# finish.
+#
+# NOT modelled: a TOPPLED pillar, which on hardware leaves the LIDAR plane and
+# never returns (three objects did in run_20260915_140014). It cannot matter
+# here: 0.15 m of drift is 2.5x the legal limit, so a judge ends the round long
+# before the object goes over. Toppling is a post-failure phenomenon.
+obstacles_are_pushed = false
