@@ -97,6 +97,21 @@ side_correction_blends = false
 # 1.09% of ticks against hardware's 19-25%. Validate by re-running
 # scripts/bag/diag_bag_planner_silence.py and scripts/bag/diag_bag_pass_side.py
 # with the three 2026-09-12 rounds as the control arm.
+#
+# NEW CORROBORATION, 2026-09-15, independent of the rounds above: over 105 escape
+# episodes on five rounds the escape GAINS a median 9.8 cm of forward clearance
+# and only 15% gain nothing -- and 62% are followed by another escape within two
+# seconds, because 97% are handed back the SAME target (median movement 0 cm).
+# The escape works and the frozen plan undoes it, which is this flag's mechanism
+# reached from the other end.
+#
+# SHARPER OUTCOME METRIC than the two scripts above: the `target UNCHANGED` and
+# `another within 2 s` columns of scripts/bag/diag_bag_escape_convergence.py.
+# Those measure whether the loop actually breaks, where planner_silence only
+# measures that the router was fed. NOTE this flag's own contract says it
+# DISCARDS the deformed waypoint, so it cannot move the target directly -- if it
+# helps, it is because the bookkeeping retires the sign that triggered the
+# escape. That is a prediction, and the metric above is how to falsify it.
 tick_router_during_maneuver = false
 
 escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
