@@ -1,11 +1,5 @@
 #:schema ../../../model/navigation/sensors/sensor.schema.json
 # Sensor dropout / staleness detection for the hardware gateway.
-#
-# See shared.config.navigation_tuning.SensorHealthParams.
+# Rationale: adr:0084-localizer-divergence-and-relocalization
 
-# A cached sensor reading older than this is treated as a dropout -- the
-# gateway reports it as unavailable so the navigator degrades safely
-# instead of acting on frozen data. Derived as 5x the LIDAR scan period
-# (RobotSpecs.LIDAR_UPDATE_RATE), the slowest sensor feed the control loop
-# depends on.
 stale_timeout_sec = 0.5

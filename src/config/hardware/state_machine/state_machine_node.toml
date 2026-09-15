@@ -1,9 +1,6 @@
 #:schema ../../../model/hardware/state_machine/state_machine_node.schema.json
-# state_machine_node's challenge-mode jumper debounce/timeout --
-# vtitan_state_machine/vtitan_state_machine/state_machine_node.py.
-# publisher_rate_hz/target_laps are NOT here: those already go through
-# declare_and_get_float_param/declare_and_get_int_param (ROS2 parameters),
-# not this file.
+# state_machine_node's challenge-mode jumper debounce/timeout.
+# Rationale: adr:0073-challenge-mode-jumper-and-runtime
 
 challenge_mode_samples_required = 3
 challenge_mode_timeout_sec = 180.0

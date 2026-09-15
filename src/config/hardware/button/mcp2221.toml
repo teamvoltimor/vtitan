@@ -1,8 +1,5 @@
 #:schema ../../../model/hardware/button/mcp2221.schema.json
-# MCP2221A button driver -- src/hardware/button/mcp2221/config.py
-# gpio_pin (validation_alias MCP2221_BUTTON_GPIO_PIN) has no known real
-# value documented in .env.example -- left out here, same as before this
-# migration it was required straight from that env var with no default.
+# MCP2221A button driver. Rationale: adr:0083-oled-backend-and-button-thresholds
 
 [mcp2221]
 vid = "0x04D8"
@@ -12,6 +9,4 @@ pid = "0x00DD"
 pull_up = true
 debounce_ms = 50
 long_press_threshold_sec = 3.0
-# Kept in step with gpio.toml, which is the driver actually wired into
-# button_node -- see its comments for why these two values are what they are.
 shutdown_press_threshold_sec = 10.0

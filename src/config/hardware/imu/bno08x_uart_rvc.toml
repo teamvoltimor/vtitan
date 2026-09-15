@@ -1,14 +1,9 @@
 #:schema ../../../model/hardware/imu/bno08x_uart_rvc.schema.json
-# BNO08x IMU over plain UART RVC -- src/hardware/imu/bno08x/uart_rvc.py
-# port: device path stays in .env (BNO08X_UART_RVC_PORT) by preference, but
-# falls back to default_port if unset. Override per-unit with env var if needed.
+# BNO08x IMU over plain UART RVC. Rationale: adr:0079-imu-6axis-and-yaw-reference
 
 default_port = "/dev/ttyACM0"
 baudrate = 115200
 poll_rate_hz = 100.0
-
-# Driver-internal timing (see src/hardware/imu/bno08x/uart_rvc.py): a raw
-# pyserial read/thread-join timeout, and how long to wait for new data.
 serial_timeout = 1.0
 data_lock_timeout = 2.0
 
