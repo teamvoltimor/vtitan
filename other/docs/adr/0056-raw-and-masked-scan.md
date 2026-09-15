@@ -153,3 +153,10 @@ that removes reverse authorization rather than fixing it.
   is 127/128 with one collision.
 - The navigator saw every pillar and never escaped: it is structurally blind at
   -64 to -86 deg.
+- The rear blind wedges were re-measured 2026-08-31 on the current mount: about a
+  40 deg slot straight back (asymmetric, 35 deg blind left and 40 right), against
+  the 2026-08-04 ~25 deg, reproduced across three bags. The 640-case result is 612
+  to 617 ok, collisions 3 to 1, but it INTRODUCES one new collision (case 64) and
+  3 new failures and churns 126 of 604 cases. This is the first time since
+  2026-08-22 the reverse gates can fire at all, so the back-off branch now
+  reverses where it used to creep forward under lock.
