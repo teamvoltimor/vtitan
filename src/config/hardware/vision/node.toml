@@ -1,8 +1,6 @@
 #:schema ../../../model/hardware/vision/node.schema.json
-# VisionNode ROS2 parameter fallback defaults -- src/ros2/vision/node.py
-# rpi5_nodes.launch.py overrides backend/model_path/camera_source/
-# publish_annotated/publish_raw at launch time via ROS2 parameters; these are
-# only the defaults used when a node is launched with no overrides.
+# VisionNode ROS2 parameter fallback defaults (rpi5_nodes.launch.py overrides at launch).
+# Rationale: adr:0072-vision-data-path, adr:0071-round-recording-mcap
 
 camera_topic = "/camera/image_raw"
 model_path = "yolov8n.pt"
@@ -12,21 +10,7 @@ capture_fps = 15.0
 publish_annotated = false
 annotated_topic = "/vision/image_annotated"
 publish_raw = false
-
-# Recorded debug video's width; height is derived from the captured frame's
-# own aspect ratio. Set to the camera's native width (camera_width in
-# rpi_camera_module_3.toml/rpicam.toml) rather than downscaled -- SD card
-# has 460GB free, so a ~6x larger per-run video (~20MB -> ~120MB for 3min)
-# costs nothing. Detection boxes need no extra handling: annotate() already
-# draws them on the full-resolution frame before this resize, so they scale
-# with the image instead of needing separate coordinate transforms.
 video_width = 1536
-
-# Periodic raw (un-annotated) frame capture for later dataset accumulation /
-# fine-tuning -- see src/vision/dataset_capture.py. Saved to
-# <run_dir>/<capture_subdir>/, next to that run's mcap bag and debug video.
-# Obstacles Challenge only ever saves a frame once it actually contains a
-# detection; Open Challenge saves every capture_interval_s unconditionally.
 capture_dataset_frames = true
 capture_interval_s = 10.0
 capture_subdir = "captures"

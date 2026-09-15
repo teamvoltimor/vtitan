@@ -322,3 +322,22 @@ contact_slides_along_surfaces = true
 # here: 0.15 m of drift is 2.5x the legal limit, so a judge ends the round long
 # before the object goes over. Toppling is a post-failure phenomenon.
 obstacles_are_pushed = false
+
+# CONTROL-LOOP JITTER. Per-tick period, sampled from the measured distribution;
+# an empty list keeps the fixed dt the simulator has always stepped at.
+#
+# MEASURED 2026-09-15 over 9,552 nav ticks on five rounds: p50 0.0500 (the
+# nominal 20 Hz), p90 0.0633, p99 0.0795. The lowest knot sits BELOW p50 because
+# the loop also runs early, not only late.
+#
+# dt is not free: it feeds the elapsed-time total the round's time limit is
+# judged on, so a jittered run must ACCUMULATE time rather than multiply steps
+# by a constant. That is the whole of the change -- dt reaches gw.advance, the
+# no-progress window and the time total, and nothing else.
+#
+# EXCLUDES THE STALL. One round carried a 1,977 ms gap -- 45 cm at 0.229 m/s with
+# no control update at all, far more significant than the jitter here. It is out
+# because it appeared in ONE round of five (stdev 72.7 ms against 10-12 ms) and
+# promoting a one-off to a 1%-of-ticks event would be inventing physics.
+sim_tick_period_quantiles = [0.044, 0.05, 0.0633, 0.0795]
+sim_tick_period_levels = [0.0, 0.5, 0.9, 0.99]
