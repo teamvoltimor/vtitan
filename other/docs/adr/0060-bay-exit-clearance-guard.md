@@ -138,3 +138,7 @@ infraction. The exit must be evaluated against the default contact model.
 - Width is not the lever: 15 cm of along-wall travel needs theta >= 42 deg, at
   which the length term alone is 0.201 m, the entire pocket depth. The binding
   dimension is chassis LENGTH against pocket DEPTH, so narrowing cannot fix it.
+- `max_steering_rate` was lowered 2.0 to 1.2 on 2026-08-28 after
+  run_20260828_220533 showed the controller saturating at hard corners (steering
+  swinging exactly 0.6 rad); past sweeps only tested RAISING it, both of which
+  scored worse (107 against 114).

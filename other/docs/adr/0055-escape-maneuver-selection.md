@@ -148,3 +148,9 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   ships unset pending a stopping-distance bench check.
 - Open shares this escape ladder, its rear sector is gone too, and its 128/128 was
   partly a phantom rear sensor.
+- `tick_router_during_maneuver` (off) addresses the same loop from the other end:
+  over 105 escape episodes on five rounds the escape gains a median 9.8 cm of
+  forward clearance and only 15 percent gain nothing, yet 62 percent are followed
+  by another escape within two seconds because 97 percent are handed back the
+  SAME target (median movement 0 cm). The escape works and the frozen plan undoes
+  it.

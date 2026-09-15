@@ -162,3 +162,9 @@ narrow prior could not fire before the wall arrived.
 - Method rule: never classify corner vs straight with `path_turn_ahead_rad`; it
   looks ahead, peaks on approach and reads about 0 inside a corner (median |turn|
   during corners is 0.000).
+- The per-width-class `wide_corner_preview_distance_m` split was screened at 0.57
+  (uniform wide n=48 mean -2.04 s, 48 faster / 0 slower; uniform narrow n=32 mean
+  +3.63 s, 3 faster / 29 slower), both unanimous and opposite, so the narrow harm
+  is bigger than the wide gain; the key was later retired and the shipped tree
+  keeps one preview value. The wide corridor receives the tighter arc (0.40
+  against narrow's 0.45), so its straight is 0.86 m against 1.29 m.
