@@ -11,7 +11,7 @@
       "description": "Official round duration (seconds): 3 minutes.",
       "type": "number",
       "x-unit": "s",
-      "x-journal": "adr:0018-competition-specs-single-source"
+      "x-journal": "adr:0069-config-governance"
     },
     "open_challenge_laps": {
       "description": "Laps required per Open Challenge run.",

@@ -1,6 +1,7 @@
 # 0038. The bay exit mirrors its reverse-leg steering
 
-- Status: accepted
+- Status: superseded by 0060
+- Superseded by: 0060
 - Date: 2026-09-10
 - Commit: ec649f98
 

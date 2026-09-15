@@ -1,6 +1,7 @@
 # 0012. Yaw gain is a measured fraction of the kinematic model
 
-- Status: accepted
+- Status: superseded by 0086
+- Superseded by: 0086
 - Date: 2026-08-29
 - Commit: bfd644d4
 

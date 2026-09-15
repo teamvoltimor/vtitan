@@ -1,6 +1,7 @@
 # 0029. The Open Challenge uses its own lookahead
 
-- Status: accepted
+- Status: superseded by 0052
+- Superseded by: 0052
 - Date: 2026-09-03
 
 ## Context

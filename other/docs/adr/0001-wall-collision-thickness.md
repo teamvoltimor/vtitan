@@ -1,6 +1,7 @@
 # 0001. Wall collision thickness matches the visual wall
 
-- Status: accepted
+- Status: superseded by 0062
+- Superseded by: 0062
 - Date: 2026-08-21
 - Commit: matching LIDAR fix landed separately as 6c727c87
 

@@ -1,6 +1,7 @@
 # 0039. The Obstacles contact zone is per-challenge
 
-- Status: accepted
+- Status: superseded by 0061
+- Superseded by: 0061
 - Date: 2026-08-31
 
 ## Context

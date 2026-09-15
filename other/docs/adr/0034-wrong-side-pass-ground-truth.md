@@ -1,6 +1,7 @@
 # 0034. Wrong-side passes are scored from ground truth
 
-- Status: accepted
+- Status: superseded by 0059
+- Superseded by: 0059
 - Date: 2026-09-13
 
 ## Context

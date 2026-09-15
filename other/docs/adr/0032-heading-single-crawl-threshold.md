@@ -1,6 +1,7 @@
 # 0032. Heading correction is a single crawl threshold
 
-- Status: accepted
+- Status: superseded by 0085
+- Superseded by: 0085
 - Date: 2026-08-09
 
 ## Context

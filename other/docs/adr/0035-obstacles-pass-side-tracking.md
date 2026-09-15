@@ -1,6 +1,7 @@
 # 0035. The Obstacles pass-side deficit is tracking, not routing
 
-- Status: accepted
+- Status: superseded by 0059
+- Superseded by: 0059
 - Date: 2026-09-01
 
 ## Context

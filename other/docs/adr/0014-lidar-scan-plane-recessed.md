@@ -1,6 +1,7 @@
 # 0014. The LIDAR scan plane is recessed, 0.08 m off the floor
 
-- Status: accepted
+- Status: superseded by 0080
+- Superseded by: 0080
 - Date: 2026-09-07
 - Commit: 63640a1e
 

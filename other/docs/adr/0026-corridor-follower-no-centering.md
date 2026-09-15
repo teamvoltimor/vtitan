@@ -1,6 +1,7 @@
 # 0026. The corridor follower does not centre
 
-- Status: accepted
+- Status: superseded by 0057
+- Superseded by: 0057
 - Date: 2026-08-22
 
 ## Context

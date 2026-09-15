@@ -24,12 +24,12 @@
     "k_turn_min_s": {
       "type": "number",
       "description": "Escape durations are in SECONDS, converted to control ticks at load by EscapeManeuverParams.frames(). They used to be frame counts, which silently mean a different duration at a different loop rate: 40 frames is 2 s at the shipped 20 Hz and 0.8 s at 50 Hz, so raising control_hz would have made the robot declare itself stuck 2.5x sooner and truncate every escape, with nothing raising and no value here edited. Each value below is the old frame count divided by 20, so behaviour at the shipped rate is unchanged. Minimum K-turn duration (OBSTACLE risk)",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "k_turn_max_s": {
       "type": "number",
       "description": "Maximum K-turn duration (CRITICAL risk)",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "k_turn_fit_rear_gap": {
       "type": "boolean",
@@ -42,12 +42,12 @@
     "slalom_reverse_s": {
       "type": "number",
       "description": "Time spent reversing during slalom",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "slalom_forward_s": {
       "type": "number",
       "description": "Time spent forward-turning during slalom",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "stuck_move_threshold": {
       "type": "number",
@@ -56,7 +56,7 @@
     "stuck_timeout_s": {
       "type": "number",
       "description": "Time without movement before \"stuck\"",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "side_correction_steer_deg": {
       "type": "number",
@@ -69,7 +69,7 @@
     "side_correction_s": {
       "type": "number",
       "description": "Duration of a side-threat correction",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "side_correction_blends": {
       "type": "boolean",
@@ -90,7 +90,7 @@
     "max_escape_s": {
       "type": "number",
       "description": "Hard cap on any single escalated escape duration",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "stuck_confirmation_checks": {
       "type": "integer",
@@ -99,12 +99,12 @@
     "stuck_escalation_per_attempt_s": {
       "type": "number",
       "description": "Time added to a stuck-reverse duration per repeated attempt",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "stuck_history_floor_s": {
       "type": "number",
       "description": "Minimum position history kept, even when timeout*2 is smaller",
-      "x-journal": "adr:0023-escape-durations-in-seconds"
+      "x-journal": "adr:0055-escape-maneuver-selection"
     },
     "min_history_for_distance": {
       "type": "integer",

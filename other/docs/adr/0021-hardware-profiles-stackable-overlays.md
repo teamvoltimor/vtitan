@@ -1,6 +1,7 @@
 # 0021. Hardware profiles are stackable partial overlays
 
-- Status: accepted
+- Status: superseded by 0070
+- Superseded by: 0070
 - Date: 2026-08-11
 
 ## Context

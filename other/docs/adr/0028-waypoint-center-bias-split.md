@@ -1,6 +1,7 @@
 # 0028. Waypoint centre bias is split by corridor class
 
-- Status: accepted
+- Status: superseded by 0057
+- Superseded by: 0057
 - Date: 2026-08-29
 
 ## Context

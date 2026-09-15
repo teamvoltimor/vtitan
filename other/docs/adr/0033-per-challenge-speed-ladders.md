@@ -1,6 +1,7 @@
 # 0033. The per-challenge speed ladders are a deliberate split
 
-- Status: accepted
+- Status: superseded by 0085
+- Superseded by: 0085
 - Date: 2026-09-03
 
 ## Context

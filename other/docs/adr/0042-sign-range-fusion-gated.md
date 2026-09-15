@@ -1,6 +1,7 @@
 # 0042. Sign range fusion is gated and paired with cluster detection
 
-- Status: accepted
+- Status: superseded by 0058
+- Superseded by: 0058
 - Date: 2026-09-11
 
 ## Context

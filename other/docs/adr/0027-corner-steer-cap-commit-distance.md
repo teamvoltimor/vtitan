@@ -1,6 +1,7 @@
 # 0027. The corner-turn steering cap scales with commit distance
 
-- Status: accepted
+- Status: superseded by 0049
+- Superseded by: 0049
 - Date: 2026-08-31
 
 ## Context

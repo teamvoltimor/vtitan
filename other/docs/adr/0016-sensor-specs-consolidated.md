@@ -1,6 +1,7 @@
 # 0016. Sensor specs are consolidated into robot.toml
 
-- Status: accepted
+- Status: superseded by 0069
+- Superseded by: 0069
 - Date: 2026-07-30
 - Commit: f6d53ac9
 

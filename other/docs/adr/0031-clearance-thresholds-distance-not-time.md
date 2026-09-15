@@ -1,6 +1,7 @@
 # 0031. Clearance thresholds are distance, not time
 
-- Status: proposed
+- Status: superseded by 0085
+- Superseded by: 0085
 - Date: 2026-08-28
 
 ## Context

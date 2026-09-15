@@ -1,6 +1,7 @@
 # 0022. Steering physics and steering policy are separate fields
 
-- Status: accepted
+- Status: superseded by 0050
+- Superseded by: 0050
 - Date: 2026-08-21
 
 ## Context

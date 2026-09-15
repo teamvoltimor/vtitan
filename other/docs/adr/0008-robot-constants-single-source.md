@@ -1,6 +1,7 @@
 # 0008. Robot constants live in one source and are read at runtime
 
-- Status: accepted
+- Status: superseded by 0089
+- Superseded by: 0089
 - Date: 2026-09-03
 - Commit: 24cb052f
 

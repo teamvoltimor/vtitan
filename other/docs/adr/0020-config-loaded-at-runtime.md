@@ -1,6 +1,7 @@
 # 0020. Config is read at runtime from TOML, not generated into consumers
 
-- Status: accepted
+- Status: superseded by 0069
+- Superseded by: 0069
 - Date: 2026-09-13
 - Commit: 3b6456d5
 

@@ -1,6 +1,7 @@
 # 0013. The turn-radius floor is speed-dependent
 
-- Status: accepted
+- Status: superseded by 0086
+- Superseded by: 0086
 - Date: 2026-09-10
 - Commit: 35d0429d
 

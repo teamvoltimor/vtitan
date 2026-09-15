@@ -1,6 +1,7 @@
 # 0047. The contact reverse ships disabled
 
-- Status: accepted
+- Status: superseded by 0088
+- Superseded by: 0088
 - Date: 2026-09-13
 
 ## Context

@@ -1,6 +1,7 @@
 # 0023. Escape durations are stored in seconds, not frames
 
-- Status: accepted
+- Status: superseded by 0055
+- Superseded by: 0055
 - Date: 2026-09-13
 
 ## Context

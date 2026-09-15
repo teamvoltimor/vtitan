@@ -1,6 +1,7 @@
 # 0036. Parking is not pursued after the final lap
 
-- Status: accepted
+- Status: superseded by 0062
+- Superseded by: 0062
 - Date: 2026-09-05
 - Commit: 4e061f6f
 

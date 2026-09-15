@@ -1,6 +1,7 @@
 # 0041. The LIDAR valid-range floor sits below the rated minimum
 
-- Status: accepted
+- Status: superseded by 0056
+- Superseded by: 0056
 - Date: 2026-09-10
 
 ## Context

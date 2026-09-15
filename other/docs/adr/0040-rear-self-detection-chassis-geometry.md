@@ -1,6 +1,7 @@
 # 0040. The rear self-detection filter follows chassis geometry
 
-- Status: accepted
+- Status: superseded by 0056
+- Superseded by: 0056
 - Date: 2026-09-06
 
 ## Context

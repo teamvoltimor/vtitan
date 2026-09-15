@@ -1,6 +1,7 @@
 # 0011. Swappable servo and motor limits live in the hardware profile
 
-- Status: accepted
+- Status: superseded by 0070
+- Superseded by: 0070
 - Date: 2026-08-11
 - Commit: d2f821ce
 

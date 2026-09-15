@@ -1,6 +1,7 @@
 # 0002. LIDAR collision geometry sits at the real mount
 
-- Status: accepted
+- Status: superseded by 0080
+- Superseded by: 0080
 - Date: 2026-08-21
 - Commit: 6c727c87
 

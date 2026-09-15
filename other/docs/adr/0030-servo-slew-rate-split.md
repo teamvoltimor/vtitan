@@ -1,6 +1,7 @@
 # 0030. The servo slew rate is split from the steering-rate policy
 
-- Status: accepted
+- Status: superseded by 0076
+- Superseded by: 0076
 - Date: 2026-09-11
 - Commit: 0fecf09a
 

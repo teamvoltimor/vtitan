@@ -1,6 +1,7 @@
 # 0045. The sign router holds its committed sign
 
-- Status: accepted
+- Status: superseded by 0051
+- Superseded by: 0051
 - Date: 2026-09-07
 
 ## Context

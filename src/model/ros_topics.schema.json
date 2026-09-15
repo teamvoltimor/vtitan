@@ -24,7 +24,7 @@
       "additionalProperties": false,
       "required": ["state", "race_metrics", "system_status"],
       "properties": {
-        "state": { "description": "Robot state.", "type": "string", "x-journal": "adr:0017-ros-topics-centralized" },
+        "state": { "description": "Robot state.", "type": "string", "x-journal": "adr:0069-config-governance" },
         "race_metrics": { "description": "Race metrics, as JSON.", "type": "string" },
         "system_status": { "description": "System diagnostics, also used by telemetry_bridge_node.", "type": "string" }
       }

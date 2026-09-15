@@ -1,6 +1,7 @@
 # 0018. Competition round rules live in config, not Python literals
 
-- Status: accepted
+- Status: superseded by 0069
+- Superseded by: 0069
 - Date: 2026-09-10
 - Commit: 00047e4c
 

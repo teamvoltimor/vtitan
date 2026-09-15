@@ -1,6 +1,7 @@
 # 0009. Chassis mass is the middle of the battery configurations
 
-- Status: accepted
+- Status: superseded by 0077
+- Superseded by: 0077
 - Date: 2026-09-07
 - Commit: a23d725a
 

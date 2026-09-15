@@ -1,6 +1,7 @@
 # 0005. Pillars are displaced, not scored as first contact
 
-- Status: accepted
+- Status: superseded by 0062
+- Superseded by: 0062
 - Date: 2026-09-13
 - Commit: d7a31bf3
 

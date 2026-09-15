@@ -16,7 +16,7 @@
           "type": "number",
           "x-unit": "m",
           "x-go": "TrackMatSize",
-          "x-journal": "adr:0003-track-constants-single-source"
+          "x-journal": "adr:0069-config-governance"
         },
         "size": {
           "description": "Driveable track side length (m).",
@@ -81,8 +81,8 @@
           "x-unit": "m",
           "x-go": "WallCollisionThickness",
           "x-journal": [
-            "adr:0001-wall-collision-thickness",
-            "adr:0002-lidar-mount-forward-shift"
+            "adr:0062-sim-contact-model-and-parking",
+            "adr:0080-lidar-mount-and-scan-plane"
           ]
         },
         "exterior_offset": {
@@ -155,7 +155,7 @@
           },
           "minItems": 2,
           "x-unit": "m",
-          "x-journal": "adr:0004-corridor-division-lines-single-definition"
+          "x-journal": "adr:0069-config-governance"
         }
       },
       "required": [
@@ -219,7 +219,7 @@
           "type": "number",
           "x-unit": "m",
           "x-go": "SignPlacementCircleDiameter",
-          "x-journal": "adr:0005-pillar-displacement-tolerance"
+          "x-journal": "adr:0062-sim-contact-model-and-parking"
         },
         "min_count": {
           "description": "Minimum number of pillars per round.",
@@ -310,7 +310,7 @@
           "description": "Bay length as a multiple of the robot's length, the dimension that has to fit inside the bay.",
           "type": "number",
           "x-go": "ParkingSpacingFactor",
-          "x-journal": "adr:0006-parking-bay-scales-by-robot-length"
+          "x-journal": "adr:0062-sim-contact-model-and-parking"
         },
         "color": {
           "$ref": "#/definitions/RGB",

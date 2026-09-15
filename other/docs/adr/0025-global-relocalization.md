@@ -1,6 +1,7 @@
 # 0025. A lost pose is recovered by global relocalization
 
-- Status: accepted
+- Status: superseded by 0084
+- Superseded by: 0084
 - Date: 2026-09-07
 
 ## Context

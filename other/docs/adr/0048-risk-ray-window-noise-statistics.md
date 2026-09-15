@@ -1,6 +1,7 @@
 # 0048. The forward lane corroborates a short return across adjacent rays
 
-- Status: accepted
+- Status: superseded by 0056
+- Superseded by: 0056
 - Date: 2026-09-13
 
 ## Context

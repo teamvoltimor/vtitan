@@ -1,6 +1,7 @@
 # 0043. Obstacles inner-wall contact scoring is configurable
 
-- Status: accepted
+- Status: superseded by 0059
+- Superseded by: 0059
 - Date: 2026-09-11
 
 ## Context

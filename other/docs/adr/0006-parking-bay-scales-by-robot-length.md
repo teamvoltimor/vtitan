@@ -1,6 +1,7 @@
 # 0006. Parking bay length scales by the robot's length
 
-- Status: accepted
+- Status: superseded by 0062
+- Superseded by: 0062
 - Date: 2026-09-13
 - Commit: 3b6456d5
 

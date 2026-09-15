@@ -1,6 +1,7 @@
 # 0044. The camera autofocus is set to 1.25 dioptres
 
-- Status: accepted
+- Status: superseded by 0078
+- Superseded by: 0078
 - Date: 2026-09-11
 
 ## Context

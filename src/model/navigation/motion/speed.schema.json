@@ -33,49 +33,49 @@
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional open slow mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "open_medium_mps": {
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional open medium mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "open_fast_mps": {
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional open fast mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "open_max_mps": {
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional open max mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "obstacles_slow_mps": {
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional obstacles slow mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "obstacles_medium_mps": {
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional obstacles medium mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "obstacles_fast_mps": {
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional obstacles fast mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "obstacles_max_mps": {
       "type": "number",
       "x-unit": "m/s",
       "description": "Optional obstacles max mps override in m/s; absent means the base tier applies.",
-      "x-journal": "adr:0033-per-challenge-speed-ladders"
+      "x-journal": "adr:0085-speed-envelope"
     },
     "corner_mps": {
       "type": "number",

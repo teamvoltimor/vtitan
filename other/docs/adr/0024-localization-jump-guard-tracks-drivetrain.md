@@ -1,6 +1,7 @@
 # 0024. The localization jump guard tracks the drivetrain ceiling
 
-- Status: accepted
+- Status: superseded by 0084
+- Superseded by: 0084
 - Date: 2026-08-29
 
 ## Context

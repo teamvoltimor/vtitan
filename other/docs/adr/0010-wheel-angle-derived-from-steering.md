@@ -1,6 +1,7 @@
 # 0010. Road-wheel angle is derived from the steering hardware
 
-- Status: accepted
+- Status: superseded by 0076
+- Superseded by: 0076
 - Date: 2026-09-13
 - Commit: aac9c358
 

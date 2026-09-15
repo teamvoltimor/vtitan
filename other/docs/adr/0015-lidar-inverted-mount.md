@@ -1,6 +1,7 @@
 # 0015. The LIDAR is mounted upside-down
 
-- Status: accepted
+- Status: superseded by 0080
+- Superseded by: 0080
 - Date: 2026-08-02
 - Commit: 41815bcc
 

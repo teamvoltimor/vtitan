@@ -1,6 +1,7 @@
 # 0037. The parking lot is derived from the in-bay start
 
-- Status: accepted
+- Status: superseded by 0062
+- Superseded by: 0062
 - Date: 2026-09-11
 - Commit: 996c7415
 

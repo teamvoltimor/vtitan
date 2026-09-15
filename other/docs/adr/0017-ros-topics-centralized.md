@@ -1,6 +1,7 @@
 # 0017. ROS2 topic names are centralized
 
-- Status: accepted
+- Status: superseded by 0069
+- Superseded by: 0069
 - Date: 2026-08-08
 - Commit: cdb4ca15
 

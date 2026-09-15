@@ -15,7 +15,7 @@
           "description": "Chassis length (m).",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0008-robot-constants-single-source"
+          "x-journal": "adr:0089-robot-constants-runtime-and-xacro"
         },
         "width": { "description": "Chassis width (m).", "type": "number", "x-unit": "m" },
         "height": { "description": "Chassis height (m).", "type": "number", "x-unit": "m" },
@@ -23,7 +23,7 @@
           "description": "Chassis body mass (kg), excluding the four wheels. The URDF and the Gazebo model sum it with the wheel masses to get the total: 1.3 + 4 x 0.05 = 1.5, a middle value between both battery configurations.",
           "type": "number",
           "x-unit": "kg",
-          "x-journal": "adr:0009-chassis-mass-battery-middle-value"
+          "x-journal": "adr:0077-power-rails-and-chassis-mass"
         }
       }
     },
@@ -45,19 +45,19 @@
           "description": "Half of full servo travel, from centre to full lock (deg). A geometric fact from the servo's spec.",
           "type": "number",
           "x-unit": "deg",
-          "x-journal": "adr:0011-hardware-profile-fields-required"
+          "x-journal": "adr:0070-hardware-profiles-and-challenge-overlays"
         },
         "max_wheel_angle_deg": {
           "description": "Road-wheel angle the linkage produces at full servo lock (deg). Measured with a protractor, not a ratio; the ackermann angle is derived from it.",
           "type": "number",
           "x-unit": "deg",
-          "x-journal": ["adr:0010-wheel-angle-derived-from-steering", "adr:0022-steering-physics-vs-policy"]
+          "x-journal": ["adr:0076-drivetrain-and-steering-hardware", "adr:0050-escape-steering-degrees-and-committed-side"]
         },
         "steering_limit_deg": {
           "description": "Road-wheel angle the navigator may actually command (deg). Absent means use the linkage's full travel.",
           "type": "number",
           "x-unit": "deg",
-          "x-journal": ["adr:0011-hardware-profile-fields-required", "adr:0022-steering-physics-vs-policy"]
+          "x-journal": ["adr:0070-hardware-profiles-and-challenge-overlays", "adr:0050-escape-steering-degrees-and-committed-side"]
         }
       }
     },
@@ -80,13 +80,13 @@
           "description": "Closed-loop speed ceiling at the shipped duty (m/s). A hard clamp the kinematics obey, not a tuning knob.",
           "type": "number",
           "x-unit": "m/s",
-          "x-journal": "adr:0011-hardware-profile-fields-required"
+          "x-journal": "adr:0070-hardware-profiles-and-challenge-overlays"
         },
         "max_accel_mps2": {
           "description": "Physical acceleration ceiling (m/s^2). A rarely-binding clamp; speed_response_tau_s is what the drivetrain actually obeys.",
           "type": "number",
           "x-unit": "m/s^2",
-          "x-journal": "adr:0011-hardware-profile-fields-required"
+          "x-journal": "adr:0070-hardware-profiles-and-challenge-overlays"
         },
         "rear_steer_ratio": {
           "description": "Rear-axle steer fraction. 1.0 is counter-phase, 0.0 would be front-steer only.",
@@ -96,36 +96,36 @@
           "description": "First-order lag (s) between a commanded speed and the achieved one.",
           "type": "number",
           "x-unit": "s",
-          "x-journal": "adr:0011-hardware-profile-fields-required"
+          "x-journal": "adr:0070-hardware-profiles-and-challenge-overlays"
         },
         "yaw_gain": {
           "description": "Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is tyre slip and linkage compliance, which the zero-slip model has no term for. Measured 2026-08-29 as 0.55.",
           "type": "number",
-          "x-journal": "adr:0012-yaw-gain-measured"
+          "x-journal": "adr:0086-simulator-realism"
         },
         "min_turn_radius_m": {
           "description": "Tightest turn radius the chassis can make (m), the value of the speed curve at one speed (~0.127 m/s). 0 disables the floor.",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0013-turn-radius-speed-curve"
+          "x-journal": "adr:0086-simulator-realism"
         },
         "min_turn_radius_intercept_m": {
           "description": "Turn-radius floor extrapolated to zero speed (m).",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0013-turn-radius-speed-curve"
+          "x-journal": "adr:0086-simulator-realism"
         },
         "min_turn_radius_slope_s": {
           "description": "How fast the turn-radius floor grows with speed (s), i.e. R = intercept + slope * v.",
           "type": "number",
           "x-unit": "s",
-          "x-journal": "adr:0013-turn-radius-speed-curve"
+          "x-journal": "adr:0086-simulator-realism"
         },
         "min_turn_radius_cap_m": {
           "description": "Bound on the speed curve (m). Not measured: the largest value the measured range supports, so the linear term cannot run away.",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0013-turn-radius-speed-curve"
+          "x-journal": "adr:0086-simulator-realism"
         }
       }
     },
@@ -138,13 +138,13 @@
           "description": "Closest range the unit can report (m). Anything nearer is unmeasurable rather than clear.",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0016-sensor-specs-consolidated"
+          "x-journal": "adr:0069-config-governance"
         },
         "max_range": {
           "description": "Farthest range the unit reports (m).",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0016-sensor-specs-consolidated"
+          "x-journal": "adr:0069-config-governance"
         },
         "samples": { "description": "Horizontal sample count of one 360 degree sweep.", "type": "integer" },
         "update_rate": { "description": "Sweep refresh rate (Hz).", "type": "number", "x-unit": "Hz" },
@@ -163,24 +163,24 @@
           "description": "Forward mount offset (m), derived as chassis.length/2 - mesh radius: the unit mounted flush with the front edge.",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0002-lidar-mount-forward-shift"
+          "x-journal": "adr:0080-lidar-mount-and-scan-plane"
         },
         "mount_z_offset": {
           "description": "Height relative to chassis.height (m). Negative because the unit is recessed, so the scan plane sits 0.08 m off the floor.",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0014-lidar-scan-plane-recessed"
+          "x-journal": "adr:0080-lidar-mount-and-scan-plane"
         },
         "inverted": {
           "description": "Whether the unit is mounted upside-down. Drives both the driver's own inverted parameter and a 180 degree yaw correction; the two must never be set independently.",
           "type": "boolean",
-          "x-journal": "adr:0015-lidar-inverted-mount"
+          "x-journal": "adr:0080-lidar-mount-and-scan-plane"
         },
         "mount_yaw_offset_deg": {
           "description": "Additional yaw miscalibration (deg) not explained by the upside-down mount, added on top of the 180 degrees.",
           "type": "number",
           "x-unit": "deg",
-          "x-journal": "adr:0015-lidar-inverted-mount"
+          "x-journal": "adr:0080-lidar-mount-and-scan-plane"
         }
       }
     },
@@ -193,7 +193,7 @@
           "description": "Height above the chassis floor (m), 0.01 m.",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0016-sensor-specs-consolidated"
+          "x-journal": "adr:0069-config-governance"
         },
         "update_rate": { "description": "Measurement refresh rate (Hz).", "type": "number", "x-unit": "Hz" },
         "gyro_noise": { "description": "Gyroscope angular-rate noise stddev (rad/s).", "type": "number", "x-unit": "rad/s" },
