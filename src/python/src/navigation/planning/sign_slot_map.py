@@ -71,6 +71,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from shared.domain.enums import Section
 from shared.domain.models import SignColor
 
 from src.config.tuning_helpers import get_tuning
@@ -79,7 +80,6 @@ from src.navigation.planning.waypoints import corridor_for_position
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
-    from shared.domain.enums import Section
     from shared.domain.models import TrafficSignObservation, Waypoint
 
 logger = logging.getLogger(__name__)
@@ -252,7 +252,46 @@ class SlotSignMap:
 
         for section, scored in by_section.items():
             scored.sort(reverse=True)
-            self._apply_section(section, [cell for _, cell in scored[:_SIGNS_PER_SECTION]])
+            self._apply_section(section, self._one_per_depth(section, [cell for _, cell in scored]))
+
+    @staticmethod
+    def _depth(cell: Cell, section: Section) -> float:
+        """The cell's coordinate ALONG its section: x on north/south, y on east/west."""
+        return cell[0] if section in (Section.NORTH, Section.SOUTH) else cell[1]
+
+    def _one_per_depth(self, section: Section, ranked: list[Cell]) -> list[Cell]:
+        """The section's top cells, at most one per depth line, up to the cap.
+
+        The rulebook's 36-scenario table never puts two pillars on the same
+        depth line: every double is depth 1.0 plus depth 2.0, and 1.5 only ever
+        appears alone (verified over all 24 doubles and all 514 same-section
+        pairs in the 256 corpus). So a section that believes BOTH laterals of
+        one depth is not believing two pillars, it is believing one pillar
+        twice -- which is exactly what a 0.1 m pose bias does to a pillar
+        standing between the 0.4 m and 0.6 m lanes.
+
+        MEASURED on run_20260915_002408 (counter-clockwise, 3/3 laps): the east
+        section's two slots were held by (2.4, 1.0) AND (2.6, 1.0), one green
+        pillar the LIDAR places at x = 2.49-2.55, and the red pillar the LIDAR
+        places at (2.40, 1.88) was refused for the whole round -- 55 fused
+        observations landed on its cell and never displaced either twin. The
+        chassis then escaped 30 times in one 0.5 m cell against a pillar its
+        map did not contain. The same twin pair shows on run_20260914_215248.
+
+        Choosing the heavier lateral per depth frees the second slot for a real
+        pillar at another depth and drops nothing the rules could have placed.
+        """
+        wanted: list[Cell] = []
+        taken: set[float] = set()
+        for cell in ranked:
+            depth = self._depth(cell, section)
+            if depth in taken:
+                continue
+            wanted.append(cell)
+            taken.add(depth)
+            if len(wanted) == _SIGNS_PER_SECTION:
+                break
+        return wanted
 
     def _apply_section(self, section: Section, wanted: list[Cell]) -> None:
         """Point this section's LIVE slots at ``wanted``, never opening a third.
@@ -267,6 +306,12 @@ class SlotSignMap:
         Slots at a RETIRED index do not count: the router excludes ``_passed``
         from ``active_sign_count``, so they are not live pillars and refusing to
         replace them would strand a real one for the rest of the lap.
+
+        An incumbent that shares a depth line with a wanted cell is the other
+        lateral of the same pillar (see ``_one_per_depth``), so it is re-pointed
+        without the hysteresis margin: the margin exists to stop two CANDIDATE
+        pillars churning on noise, and a twin is not a candidate the rulebook
+        allows at all.
         """
         for cell in wanted:
             slots = [s for s in self._slots + self._unpublished if s.section == section]
@@ -274,10 +319,21 @@ class SlotSignMap:
             if any(s.cell == cell for s in slots):
                 self._refresh_colour(next(s for s in slots if s.cell == cell))
                 continue
+            free = [s for s in live if s.cell not in wanted and not s.frozen]
+            # THIS cell's depth, not the set of all wanted depths: an incumbent
+            # at another wanted depth is a different pillar, and hijacking its
+            # slot would hand the router's index for the depth-2.0 pillar to the
+            # depth-1.0 one.
+            twins = [s for s in free if self._depth(s.cell, section) == self._depth(cell, section)]
+            if twins:
+                # Checked BEFORE the cap: a twin below the cap would otherwise
+                # be joined by its own other lateral, and the section would
+                # hold one pillar twice with a slot to spare.
+                self._repoint(min(twins, key=lambda s: self._weight(s.cell)), cell)
+                continue
             if len(live) < _SIGNS_PER_SECTION:
                 self._open_slot(cell, section)
                 continue
-            free = [s for s in live if s.cell not in wanted and not s.frozen]
             if not free:
                 # At the cap with nothing displaceable. Wait: the evidence does
                 # not expire, so this cell takes a slot as soon as one frees,
