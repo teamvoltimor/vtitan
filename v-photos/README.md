@@ -38,5 +38,7 @@ separado. Cada iteración tiene su documento con qué cambió y por qué:
 > vTitan; las fases de diseño de esta temporada están contadas en texto en
 > [Evolución y justificación del diseño](../README.md#evolución-y-justificación-del-diseño).
 
-Todas las imágenes están en WebP sin pérdida: mismo píxel que el PNG original,
-aproximadamente la mitad de peso.
+Todas las imágenes están en WebP. `vtitan-full.webp` es la única sin pérdida,
+porque es un render del CAD con zonas planas que comprimen bien así; las 45
+fotografías usan WebP con pérdida a calidad alta, que en fotos pesa una fracción
+de lo que costaría conservarlas sin pérdida.
