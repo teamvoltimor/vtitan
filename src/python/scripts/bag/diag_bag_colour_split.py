@@ -69,6 +69,8 @@ from pathlib import Path
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from scripts.common.bag_io import create_bags_parser, elapsed_seconds, open_reader
 from scripts.common.stats import median
 

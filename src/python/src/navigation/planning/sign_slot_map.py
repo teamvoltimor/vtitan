@@ -431,35 +431,49 @@ class SlotSignMap:
     def retire(self, index: int) -> None:
         """Record that the router has marked ``index`` as passed.
 
-        NOT WIRED, found 2026-09-13. Nothing in ``src/`` calls this; the only
-        callers are ``tests/unit/test_sign_slot_map.py``. ``SignRouter`` fills
-        its own ``_passed`` set at ``router.py:803`` and never tells the map, so
-        ``_retired`` is empty on every production tick and both branches written
-        against it are dead:
+        WIRED. ``router.py`` calls this on every published-map refresh::
 
-        * ``_apply_section`` counts passed slots as LIVE, so a section holding
-          two pillars the robot has already driven past will not open a slot for
-          a third it can see. Conservative, and it is what keeps the published
-          index count at or under the physical maximum of 8.
-        * ``_repoint``'s retired branch never fires, so a passed slot IS
-          re-pointed and the new pillar inherits the "already behind us" flag --
-          invisible until the lap resets. This module's own docstring measures
-          that at 168 of 708 re-points, 24%.
+            retire = getattr(self._sign_map, "retire", None)
+            if retire is not None:
+                for passed_index in self._passed:
+                    retire(passed_index)
 
-        Wiring it is a real behaviour change, not a repair: the design was
-        measured as a package (23 recovered passes over 125 runs at +1.0 point
-        of routing error) and it trades index growth for recovered pillars. It
-        needs its own A/B before shipping, which is why this is a note and not a
-        one-line call.
+        A note here claimed the opposite from 2026-09-13 to 2026-09-15 and cost
+        a session: the call is duck-typed through a local, so ``grep for a dotted .retire(``
+        and ``grep '_sign_map.retire'`` both miss it and only ``grep 'retire('``
+        finds it. ``ObservedSignMap`` really has no ``retire``, so the NON-slot
+        arm is unwired, which is what made the wrong reading look plausible. The
+        wiring landed 2026-09-11 in ``dabd57c7``; the NOT-WIRED note landed two
+        days after it.
+
+        WHAT IS ACTUALLY BROKEN is the other half, and it is an asymmetry.
+        ``SignRouter.reset_for_new_lap`` clears ``_passed`` and never forwards
+        to this map, so at a lap line ``_passed`` empties while ``_retired``
+        keeps every lap-1 index. ``_apply_section`` caps LIVE (non-retired)
+        slots, so each section is then free to open two more, and a 3-lap round
+        ratchets toward 6 published indices per section against a physical 2.
+
+        Measured 2026-09-15 over five rounds spanning two builds: **zero ticks
+        reading over 8 on lap 1** -- the cap holds exactly while
+        ``_passed == _retired`` -- against 20-53% of ticks on laps 2 and 3, peak
+        14. Longstanding rather than a regression; the 2026-09-14 rounds show it
+        identically.
+
+        Forwarding the lap reset is therefore NO LONGER a no-op. It is a real
+        behaviour change and needs its own A/B: the design was measured as a
+        package (23 recovered passes over 125 runs at +1.0 point of routing
+        error) and it trades index growth for recovered pillars.
         """
         self._retired.add(index)
 
     def reset_for_new_lap(self) -> None:
         """Passed indices come back next lap; the evidence deliberately does not.
 
-        NO-OP TODAY, and forwarding a call to it from
-        ``SignRouter.reset_for_new_lap`` would stay a no-op: ``_retired`` is
-        never populated because ``retire`` above has no production caller. Wire
-        ``retire`` first or this changes nothing.
+        NO PRODUCTION CALLER, which is the live defect rather than a dead
+        branch: ``retire`` above IS wired, so ``_retired`` is populated, and
+        ``SignRouter.reset_for_new_lap`` clearing ``_passed`` without clearing
+        this leaves the two sets disagreeing for the rest of the round. See
+        ``retire``'s docstring for the measurement (0% of lap-1 ticks over the
+        physical max, 20-53% afterwards).
         """
         self._retired.clear()

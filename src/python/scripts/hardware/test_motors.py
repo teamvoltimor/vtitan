@@ -41,6 +41,11 @@ load_dotenv()
 import rclpy  # noqa: E402 - see load_dotenv() note above
 from ackermann_msgs.msg import AckermannDriveStamped  # noqa: E402
 from rclpy.node import Node  # noqa: E402
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from shared.config.ros_topics import RosTopicConfig  # noqa: E402
 from std_msgs.msg import Float32  # noqa: E402
 

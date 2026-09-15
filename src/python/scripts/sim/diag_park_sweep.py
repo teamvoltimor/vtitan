@@ -17,11 +17,14 @@ from __future__ import annotations
 import math
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Section
 from shared.domain.models import Pose
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.tables import print_table
 from src.navigation.maneuvers.parking import park_controller_from_metadata
