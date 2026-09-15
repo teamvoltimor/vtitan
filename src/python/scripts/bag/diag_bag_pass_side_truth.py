@@ -12,6 +12,14 @@ camera vote then AGREES with the layout on all eight signs. Two independent
 methods concur, which is why the control passes at all. The vote is still
 printed per pillar, as the strength of the camera's own call.
 
+One leaked parking fin used to CASCADE into phantom violations: on 140358 the
+fin at (0.68,0.33) cleared the wall-distance band by 3 cm, was judged a red
+sign, displaced a real pillar into the wrong section under the two-per-section
+rule, and produced **two wrong-side passes out of eight** that never happened.
+A lattice-residual gate drops it and that round now reads 0 of 7, which is what
+the operator describes -- it wedged, it did not pass anything badly. The gate is
+inert on the three validated rounds.
+
 Fixing the vote itself still needs detection TRACKS associated to pillars over
 time rather than per-frame proximity: detections are attributed to the nearest
 pillar within 0.35 m while the camera bearing carries +/-12 deg of zero-mean
@@ -147,6 +155,24 @@ _FIN_BAND_M = 0.30
 # attributed by proximity while the camera bearing carries +/-12 deg of
 # zero-mean scatter, so they land on the neighbour.
 _SOUTH_SPLIT_X = 1.22  # the in-bay start; the red lies west of it, the green east
+
+
+# A sign stands on a legal lattice cell; parking furniture does not. Measured
+# over the 2026-09-15 rounds, every genuine pillar lands 0.035-0.190 m from its
+# nearest legal cell while the fin that leaked past `_FIN_BAND_M` sat at 0.334.
+# 0.25 drops it with margin on both sides.
+#
+# This gate exists because ONE leaked fin CASCADES: `_assign_sections` forces
+# two objects per section, so an intruder displaces a real pillar into the wrong
+# section, which then reads the wrong colour off the layout. On 140358 that one
+# object was the whole reason the round failed its 5G/3R control.
+_LATTICE_RESIDUAL_M = 0.25
+
+
+def _on_lattice(x: float, y: float) -> bool:
+    """Is this cluster close enough to a legal sign cell to BE a sign?"""
+    sx, sy = snap_to_lattice(x, y, 0.35)
+    return math.hypot(x - sx, y - sy) <= _LATTICE_RESIDUAL_M
 
 
 def _assign_sections(
@@ -341,7 +367,7 @@ def _judge(
 
     engaged = False
     scored_lap: set[int] = set()
-    verdicts: list[str] = []
+    verdicts: list[tuple[int, str]] = []
     for p, lap in track:
         if math.hypot(x - p.x, y - p.y) > _APPROACH_M:
             continue
@@ -364,10 +390,16 @@ def _judge(
         robot_lat = p.x if lateral_axis == Axis.X else p.y
         if robot_lat == sign_lat:
             continue
-        verdicts.append("CORRECT" if (1 if robot_lat > sign_lat else -1) == permitted else "WRONG")
+        verdicts.append((lap, "CORRECT" if (1 if robot_lat > sign_lat else -1) == permitted else "WRONG"))
     if not verdicts:
         return "never crossed"
-    return f"{verdicts.count('WRONG')} WRONG / {len(verdicts)}"
+    # The PER-LAP sequence, not just the count. That is what let an operator's
+    # eyewitness account check this instrument: they reported "wrong on lap one,
+    # wrong on lap two, correct on lap three" and both clockwise rounds of
+    # 2026-09-15 read W W C on the same pillar. A bare "2 WRONG / 3" would have
+    # matched the count while hiding whether it was the same two laps.
+    seq = " ".join(f"L{lap}:{'X' if v == 'WRONG' else 'ok'}" for lap, v in verdicts)
+    return f"{sum(1 for _l, v in verdicts if v == 'WRONG')} WRONG / {len(verdicts)}  [{seq}]"
 
 
 def _score_bag(
@@ -380,7 +412,7 @@ def _score_bag(
     """Classify every object and judge the ones that are signs."""
     rows, wrong, passes, unknown = [], 0, 0, 0
     fins = greens = reds = 0
-    signs = [(x, y, n) for x, y, n in pillars if _near_wall(x, y) >= _FIN_BAND_M]
+    signs = [(x, y, n) for x, y, n in pillars if _near_wall(x, y) >= _FIN_BAND_M and _on_lattice(x, y)]
     fins = len(pillars) - len(signs)
     for (x, y, n), sec in zip(signs, _assign_sections(signs).values(), strict=False):
         # Colour from the LAYOUT, not from a vote. The vote is still computed
@@ -396,9 +428,9 @@ def _score_bag(
         reds += int(colour is SignColor.RED)
         verdict = _judge(track, (x, y), colour, direction)
         if "WRONG" in verdict:
-            w, total = verdict.split(" WRONG / ")
+            w, rest = verdict.split(" WRONG / ")
             wrong += int(w)
-            passes += int(total)
+            passes += int(rest.split()[0])
         agree = "" if _voted is colour else "  <- vote said " + (_voted.value if _voted else "nothing")
         rows.append([f"({x:.2f},{y:.2f})", n, colour.value + agree, f"{red}R/{green}G", verdict])
     return rows, wrong, passes, unknown, fins, greens, reds
