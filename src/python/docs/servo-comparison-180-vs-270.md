@@ -5,7 +5,7 @@ originally-built hardware (`src/config/hardware/motors/servo.toml`);
 the 270° unit (Hiwonder HPS-3527SG) is the current build, backed by the
 `270deg-hiwonder-35kg` hardware profile at
 `src/config/hardware/motors/profiles/270deg-hiwonder-35kg/servo.toml`
-(see `docs/internal/plans/2026-08-11-servo-hardware-profiles.md`). That
+(see ADR 0070). That
 folder was named `servo270` until 2026-08-27, which didn't match the active
 profile name and meant its `range_deg=270` override silently never applied
 on hardware -- see `src/config/hardware/motors/profiles/

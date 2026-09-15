@@ -53,7 +53,7 @@ real hardware -- three more on-track runs the same day (2 CCW, 1 CW) all reprodu
 oscillation after direction had already settled correctly.
 
 Full root cause, with file:line citations and real-hardware numbers, is now written up in
-`docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md`: the pursuit
+ADR 0052 and ADR 0063: the pursuit
 controller (`WaypointController.compute_steering`) is an undamped proportional loop tuned
 ~3x too aggressive for the real chassis's turn geometry, feeding a steering actuator an
 order of magnitude slower than the yaw rate it produces at commanded speed -- a rate-limited
@@ -111,8 +111,7 @@ live on hardware 2026-08-09: the OLED's real front/left/right clearance display 
 docstring said it was written to prevent.
 
 Two diagnostic scripts had the identical bug (same missing `LIDAR_INVERTED` term, same
-formula shape) -- both fixed 2026-08-06 alongside the tests/scripts refactor pass, see
-`docs/internal/audits/2026-08-06-robot-tests-scripts-refactor.md`:
+formula shape) -- both fixed 2026-08-06 alongside the tests/scripts refactor pass:
 `scripts/hardware/diag_corridor_measure.py:30` and `scripts/hardware/diag_track_run.py`'s `_on_scan` sector
 helper.
 
