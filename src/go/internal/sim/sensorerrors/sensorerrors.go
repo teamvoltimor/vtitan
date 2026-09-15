@@ -1,7 +1,7 @@
 // Package sensorerrors models what the simulated robot can be wrong about
 // regarding ITSELF, as opposed to what blind mode withholds about the track.
 //
-// Ports platform/robot/src/simulation/imu_error_model.py.
+// Ports src/python/src/simulation/imu_error_model.py.
 //
 // Blind mode already withholds the layout. This withholds the two things the
 // simulator otherwise hands over for free about the robot:

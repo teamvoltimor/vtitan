@@ -155,6 +155,29 @@ type NavigationSimulationSimulation struct {
 	// easy side of every question that depends on the pose estimate.
 	SensorYawBiasRad float64 `json:"sensor_yaw_bias_rad" yaml:"sensor_yaw_bias_rad" mapstructure:"sensor_yaw_bias_rad"`
 
+	// Probability levels `sim_tick_period_quantiles` is measured at, same length and
+	// order. Half of a PAIR: quantiles without their levels cannot be interpolated.
+	// Not evenly spaced -- the resolution is spent in the upper tail, where a late
+	// tick actually costs distance.
+	SimTickPeriodLevels []float64 `json:"sim_tick_period_levels" yaml:"sim_tick_period_levels" mapstructure:"sim_tick_period_levels"`
+
+	// Control-loop PERIOD quantiles in seconds, sampled per tick by inverse-CDF
+	// interpolation at `sim_tick_period_levels`. EMPTY keeps the fixed `dt` the
+	// simulator has always stepped at. MEASURED 2026-09-15 over 9,552 nav ticks
+	// across five rounds: p50 0.0500 (the nominal 20 Hz), p90 0.0633, p99 0.0795. The
+	// minimum knot 0.0440 is below p50 because the loop also runs EARLY, not only
+	// late. Why it is not free: `dt` feeds the time accounting that the round's time
+	// limit is judged on, so a jittered simulator must ACCUMULATE elapsed time rather
+	// than multiply steps by a constant. That is the whole of the change; the claim
+	// that jitter touches the entire physics chain was overstated -- dt reaches
+	// `gw.advance`, the no-progress window and the elapsed-time total, and nothing
+	// else. DELIBERATELY EXCLUDES THE STALL. One round carried a 1,977 ms gap, which
+	// at 0.229 m/s is 45 cm driven with no control update at all -- far more
+	// significant than the jitter modelled here. It is left out because it appeared
+	// in ONE round of five (stdev 72.7 ms against 10-12 ms in the others) and a
+	// one-off promoted to a 1%-of-ticks event would be inventing physics.
+	SimTickPeriodQuantiles []float64 `json:"sim_tick_period_quantiles" yaml:"sim_tick_period_quantiles" mapstructure:"sim_tick_period_quantiles"`
+
 	// How long such an opening contact may persist before it counts as a real failure
 	// rather than "still steering clear".
 	StartCollisionGraceS float64 `json:"start_collision_grace_s" yaml:"start_collision_grace_s" mapstructure:"start_collision_grace_s"`

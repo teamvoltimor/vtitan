@@ -846,7 +846,7 @@ class SignRouter:
         # without the depth pin (182 collisions at every value), and slightly
         # WORSE with it (137 -> 135 in-time). The lateral clamp saturates before
         # the taper ever binds, so the ramp has nothing to give. Do not re-try
-        # it without new information; see docs/sign-avoidance-investigation.md.
+        # it without new information; see adr:0051-sign-lane-planner.
         taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
         effective_offset = self._lateral_offset * taper
 
@@ -898,7 +898,7 @@ class SignRouter:
         ``pair_handoff_span`` metres of travel past it. It deliberately does
         not touch selection, the pass-side rule, or the deformation maths -- the
         two earlier clearance-bound attempts changed those and made things
-        worse (see docs/sign-avoidance-investigation.md).
+        worse (see adr:0051-sign-lane-planner).
 
         Inert unless ``pair_handoff_span`` is positive, and inert while the
         committed sign is still ahead: a pass is never compromised to set up

@@ -1,13 +1,13 @@
 // Package core implements the 4-stage competition state machine for the
-// WRO robot -- the Go port of platform/robot/src/state_machine/types.py
-// and platform/robot/src/state_machine/core.py. Like
+// WRO robot -- the Go port of src/python/src/state_machine/types.py
+// and src/python/src/state_machine/core.py. Like
 // internal/driver/button's Evaluator, this is pure logic with zero
 // hardware/transport dependency: StateMachine only knows about states,
 // reasons, and the transition rules between them, driven entirely by
 // TransitionTo calls from whatever owns the real BOOT_CHECK/READY/
 // RACING/FINISHED orchestration loop (state_machine_node.py today; a
 // future cmd/state-machine node once NATS wiring lands, per
-// docs/internal/plans/go-migration-plan.md step 5).
+// adr:0068-go-parallel-track-single-cutover step 5).
 //
 // The four states are:
 //

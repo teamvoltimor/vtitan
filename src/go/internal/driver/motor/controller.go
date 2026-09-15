@@ -26,7 +26,7 @@ type enableWriter interface {
 }
 
 // Actuator is the actuator-shaped counterpart to driver.Driver[T]
-// (platform/robot-go/internal/driver): commanded via SetSpeed rather than
+// (src/go/internal/driver): commanded via SetSpeed rather than
 // sampled via Read. Driver (driver.go) is its only implementation today.
 type Actuator interface {
 	Connect(ctx context.Context) error

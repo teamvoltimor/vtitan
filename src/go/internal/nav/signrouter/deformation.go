@@ -1,5 +1,5 @@
 // deformation.go ports
-// platform/robot/src/navigation/planning/sign_router/deformation.py: the
+// src/python/src/navigation/planning/sign_router/deformation.py: the
 // pass-side offset, the depth pin, and the camera-color match.
 
 package signrouter

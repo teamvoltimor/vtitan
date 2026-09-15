@@ -22,7 +22,7 @@ import (
 type Config struct {
 	// Command is the executable to run, e.g. "python3", or "pixi" when
 	// BaseArgs supplies the "run -e dev python" wrapping the project's
-	// pixi-managed environment requires (see platform/robot/CLAUDE.md's
+	// pixi-managed environment requires (see CLAUDE.md's
 	// Tooling section).
 	Command string `validate:"required"`
 
@@ -36,7 +36,7 @@ type Config struct {
 	ScriptPath string `validate:"required"`
 
 	// WorkDir is the directory the process is run from — must be
-	// platform/robot, since run_scenario.py's relative imports
+	// src/python, since run_scenario.py's relative imports
 	// (shared.*, src.*, scripts.*) and its own sys.path bootstrap assume
 	// that working directory.
 	WorkDir string `validate:"required"`
@@ -68,7 +68,7 @@ type SubprocessRunner struct {
 // defaultTimeout bounds one scenario run when Config.Timeout is left at its
 // zero value. Sized well above the harness's own worst-case budget (300s,
 // OBSTACLES_MAX_STEPS * CONTROL_DT — see
-// platform/robot/scripts/common/sim_defaults.py) rather than matching it
+// src/python/scripts/common/sim_defaults.py) rather than matching it
 // exactly, so an ordinary slow-but-finishing run is never killed by this
 // timeout instead of by the simulator's own step budget.
 const defaultTimeout = 10 * time.Minute

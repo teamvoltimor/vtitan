@@ -4,7 +4,7 @@ import "time"
 
 // Thresholds configures the evaluator's debounce and hold-threshold
 // timings -- the direct analog of
-// platform/robot/src/hardware/button/config.py's Config, minus PullUp
+// src/python/src/hardware/button/config.py's Config, minus PullUp
 // (that's a GPIO wiring fact, part of Driver's Config in driver.go, not a
 // timing tunable). Every field here is a real Config-worthy tunable: the
 // debounce window depends on the specific physical switch, and the two
@@ -42,7 +42,7 @@ type pressState struct {
 
 // Evaluator is the pure, hardware-independent debounce and hold-threshold
 // state machine -- the Go analog of
-// platform/robot/src/hardware/button/gpio/driver.py's
+// src/python/src/hardware/button/gpio/driver.py's
 // _on_pressed/_on_hold_threshold/_on_released callbacks, collapsed into a
 // single pull-based function so it can be driven by a poll loop
 // (Driver.Read, driver.go) instead of gpiozero's own callback threads.

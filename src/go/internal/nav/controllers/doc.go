@@ -1,7 +1,7 @@
 // Package controllers is the Go port of
-// platform/robot/src/navigation/control/controllers/ plus
-// platform/robot/src/navigation/clearances.py and the portable parts of
-// platform/robot/src/navigation/ports.py.
+// src/python/src/navigation/control/controllers/ plus
+// src/python/src/navigation/clearances.py and the portable parts of
+// src/python/src/navigation/ports.py.
 //
 // It provides the reactive layer of the navigation stack: pure-pursuit
 // waypoint following (WaypointController), LIDAR-based collision detection

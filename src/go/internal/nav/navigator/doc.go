@@ -1,5 +1,5 @@
 // Package navigator is the composition root of the navigation stack: the Go
-// port of platform/robot/src/navigation/core_navigator/navigator.py
+// port of src/python/src/navigation/core_navigator/navigator.py
 // (CoreNavigator) and escape_recovery.py (the EscapeRecovery mixin, flattened
 // onto Navigator here as it is onto CoreNavigator at runtime).
 //

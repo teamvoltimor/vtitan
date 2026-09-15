@@ -1,7 +1,7 @@
 // Package collision implements the track wall/obstacle geometry and the
 // chassis raycast/collision model the headless simulator uses, ported from
-// platform/robot/src/simulation/track_model.py and
-// platform/robot/src/simulation/collision_stepping.py.
+// src/python/src/simulation/track_model.py and
+// src/python/src/simulation/collision_stepping.py.
 //
 // TrackModel wraps internal/nav/trackmodel.TrackWalls (the wall geometry
 // shared with the real navigation stack) and adds what the simulator alone

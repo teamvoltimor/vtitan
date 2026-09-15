@@ -169,7 +169,7 @@ class CoreNavigator(EscapeRecovery):
         # Must clear the chassis's minimum turning radius with real margin: engaging any
         # closer than that hands ParkController a staging target already inside its own
         # turning circle, which no forward-only steering law can reach (see
-        # docs/internal/2026-07-11-navigation-logic-review.md §2.3). Reuses ARC_RADIUS, same
+        # adr:0049-corner-arcs-per-corridor-and-commit-distance §2.3). Reuses ARC_RADIUS, same
         # as ParkController's own staging stand-off, rather than a disconnected literal.
         #
         # That margin is now much larger than it needs to be. This was sized against a
@@ -1567,7 +1567,7 @@ class CoreNavigator(EscapeRecovery):
         # heading correction taken at full speed demands a yaw rate the
         # actuator cannot track -- it saturates, overshoots, and oscillates
         # instead of settling (measured on real hardware 2026-08-03, see
-        # docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md).
+        # adr:0052-pursuit-target-selection).
         # Clearance alone never catches this: a corner can have 0.50m+ of open
         # space ahead while still demanding a 90-180 deg correction.
         #
@@ -1704,7 +1704,7 @@ class CoreNavigator(EscapeRecovery):
         # Open Challenge has no sign router at all). A mixed-width corner's
         # PLANNED arc is safe by construction (verified 2026-08-28: clearance
         # to both outer walls never drops below what the straights already
-        # have, see docs/internal/algorithms/open-challenge.md hardware cause
+        # have, see adr:0049-corner-arcs-per-corridor-and-commit-distance hardware cause
         # #6/§6 -- the arc-radius formula is not the bug), but real hardware
         # wedged at exactly this kind of corner anyway, which points at
         # CONTROL tracking error (understeer/trim, already independently

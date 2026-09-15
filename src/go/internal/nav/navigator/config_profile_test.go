@@ -17,7 +17,7 @@ import (
 var hardwareProfileNames = []string{"270deg-hiwonder-35kg", "rev-hd-hex-motor-6000rpm"}
 
 // repoRoot walks up from this test file's package directory
-// (platform/robot-go/internal/nav/navigator) to the repo root, so ConfigFor
+// (src/go/internal/nav/navigator) to the repo root, so ConfigFor
 // runs against the real checked-in TOML tree.
 func repoRoot(t *testing.T) string {
 	t.Helper()

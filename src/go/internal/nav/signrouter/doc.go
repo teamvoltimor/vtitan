@@ -1,5 +1,5 @@
 // Package signrouter ports
-// platform/robot/src/navigation/planning/sign_router/{router,routing,
+// src/python/src/navigation/planning/sign_router/{router,routing,
 // deformation,config}.py and sign_lane.py: WRO 2026 traffic-sign avoidance
 // for the Obstacles Challenge.
 //

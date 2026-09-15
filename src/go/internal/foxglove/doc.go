@@ -1,7 +1,7 @@
 // Package foxglove implements enough of the Foxglove WebSocket Protocol
 // (subprotocol "foxglove.websocket.v1") for Foxglove Studio to connect live
 // and render published channels -- the rviz2 replacement's server side,
-// per platform/robot/docs/internal/plans/go-migration-plan.md's
+// per adr:0068-go-parallel-track-single-cutover's
 // "Visualization" row.
 //
 // Scope: channel advertisement (server -> client, one per registered

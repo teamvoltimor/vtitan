@@ -8,7 +8,7 @@ import (
 
 // sectorQuery names one angular sector to aggregate a scan over, matching
 // the (center_rad, half_fov_rad, filter_self_detection) triple
-// clearances_from_scan (platform/robot/src/navigation/clearances.py) passes
+// clearances_from_scan (src/python/src/navigation/clearances.py) passes
 // to CollisionAvoidanceController.sector_ranges for each of front/left/right.
 type sectorQuery struct {
 	CenterRad           float64
@@ -46,7 +46,7 @@ const (
 // qualifies — matching clearances_from_scan's own
 // `front_m = float(reducer(front)) if front.size else 0.0` fallback.
 // Mirrors sector_ranges + np.mean from
-// platform/robot/src/navigation/control/controllers/collision_avoidance/sectors.py,
+// src/python/src/navigation/control/controllers/collision_avoidance/sectors.py,
 // scoped to what the OLED summary path actually exercises (mean aggregate,
 // no rear-sector logic — the back reading is never part of TelemetrySummaryWire).
 func sectorMeanM(ranges []float32, angleMinRad float64, cfg Config, query sectorQuery) float64 {

@@ -333,7 +333,7 @@ def _detection_to_world(
     detection is required regardless). Distance from bbox height alone grows
     less accurate with range -- ~3.6 cm error at 1.5 m, ~14 cm by 3 m, enough
     to misjudge which WRO sign lane a sign sits in (see
-    docs/sign-avoidance-investigation.md). The LIDAR sees the same signs
+    adr:0058-sign-discovery-range-and-barrier-belief). The LIDAR sees the same signs
     (confirmed on hardware) and measures range far more precisely at any
     distance, so when a scan is available this looks up the ray nearest the
     camera's own bearing and trusts ITS range instead of the pinhole

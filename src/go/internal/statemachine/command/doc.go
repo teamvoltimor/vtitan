@@ -1,7 +1,7 @@
 // Package command implements the backend->robot command-dispatch
 // decision logic: given a decoded Command, decide what local action it
 // maps to and what ack status/message to report. This is the pure half of
-// platform/robot/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
+// src/python/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
 // command_channel.py's CommandChannel -- specifically `_dispatch_command`
 // and its per-kind `_dispatch_*` helpers.
 //
@@ -19,7 +19,7 @@
 // client-stream connection, threading.Event synchronization with a ROS2
 // service call -- is backend-transport plumbing with no equivalent in
 // this Go tree yet (no NATS wiring, no generated commands.proto/
-// ingest.proto client, per docs/internal/plans/go-migration-plan.md's
+// ingest.proto client, per adr:0068-go-parallel-track-single-cutover's
 // "nothing gets wired to real hardware/transport yet" framing for this
 // stage). This package therefore ports only the transport-independent
 // decision logic -- what a Command maps to, and what ack status/message

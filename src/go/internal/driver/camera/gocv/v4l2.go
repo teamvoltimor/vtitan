@@ -3,7 +3,7 @@
 // Package gocv implements the "v4l2" camera backend via gocv (OpenCV), for real
 // CSI capture on the Pi 5 (camera module 3 exposes a /dev/videoN V4L2 node under
 // libcamera). It is built ONLY under the `cgo` build tag with a Linux/arm64 C
-// cross-toolchain + OpenCV sysroot (see platform/robot-go/Taskfile.yml
+// cross-toolchain + OpenCV sysroot (see src/go/Taskfile.yml
 // build:capture). Every other binary in the module stays CGO_ENABLED=0 static.
 package gocv
 

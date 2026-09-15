@@ -1,5 +1,5 @@
 // sign_lane.go ports
-// platform/robot/src/navigation/planning/sign_lane.py: the Obstacles-only
+// src/python/src/navigation/planning/sign_lane.py: the Obstacles-only
 // lane planner that rewrites a corridor's straight-segment waypoints onto
 // a pass-side lane, instead of only overriding the pursuit target near a
 // sign (see the Python module's docstring for the full "why a lane, not

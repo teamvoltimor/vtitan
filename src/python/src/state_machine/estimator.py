@@ -113,7 +113,7 @@ class StateEstimator:
         following a CCW one started at pose_yaw ~0 deg (CCW's convention)
         instead of ~180 deg (CW's), because the CCW race's -pi correction
         was still sitting in ``_yaw_correction`` (see
-        docs/known-issues-backlog.md).
+        adr:0079-imu-6axis-and-yaw-reference).
 
         Call this at the moment the robot is known to be in its starting pose,
         which is the start-button press. Everything before then is transport.
@@ -144,7 +144,7 @@ class StateEstimator:
         clean. Confirmed on real hardware 2026-08-04: two consecutive races
         the same day showed pose_x/pose_y in the hundreds of metres,
         continuous across the race boundary, on a track no larger than 3m
-        square (see docs/known-issues-backlog.md).
+        square (see adr:0084-localizer-divergence-and-relocalization).
 
         Args:
             x: The new race's starting X coordinate (world frame).

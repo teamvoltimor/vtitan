@@ -1,7 +1,7 @@
 // Package opencorpus enumerates the Open Challenge scenario space and
 // materializes it as scenario metadata files.
 //
-// Ports platform/robot/src/simulation/scenario_builder.py's
+// Ports src/python/src/simulation/scenario_builder.py's
 // build_open_metadata/start_cells together with the enumeration order in
 // scenario_catalog.py's OpenChallengeScenarioSpace.
 //

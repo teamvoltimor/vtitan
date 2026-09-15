@@ -77,9 +77,7 @@ class Config(HardwareBaseSettings, HardwareVisionNode):
     # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
     debug_stream_fps: float = 0.0
     # Per-run annotated video (detection boxes + navigation HUD), written next
-    # to that run's mcap bag -- see docs/internal/plans/2026-08-11-run-video-
-    # recording-colocated-with-mcap.md and docs/internal/plans/2026-08-11-
-    # navigation-hud-overlay-and-open-challenge-recording.md. Only ever active
+    # to that run's mcap bag -- see adr:0071-round-recording-mcap. Only ever active
     # in camera_source='direct' mode, gated on RACING (see
     # _maybe_start_recording) -- runs on both challenges, since Obstacles
     # Challenge already carries strictly more load (SignRouter, sign

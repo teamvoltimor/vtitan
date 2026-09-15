@@ -65,7 +65,7 @@ def mask_mapped_obstacles(
     the planner aimed for on purpose. Measured over the 16 obstacles fixtures,
     that decides the run before the router's aim can matter at all: every
     planning-side knob reads flat because the reactive layer overrides it (see
-    ``docs/sign-avoidance-investigation.md``, "The escape layer is the gate").
+    ``adr:0056-raw-and-masked-scan``, "The escape layer is the gate").
 
     So the split is by *provenance*, not by distance: a return attributable to a
     mapped, actively-routed sign is withheld from the escape trigger, while walls

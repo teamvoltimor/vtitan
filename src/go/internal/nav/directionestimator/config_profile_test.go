@@ -9,7 +9,7 @@ import (
 )
 
 // repoRoot walks up from this test file's package directory
-// (platform/robot-go/internal/nav/directionestimator) to the repo root,
+// (src/go/internal/nav/directionestimator) to the repo root,
 // so ConfigFor can be exercised against the real checked-in TOML files --
 // catching a path/field-name mismatch a testdata-fixture-only test
 // wouldn't.

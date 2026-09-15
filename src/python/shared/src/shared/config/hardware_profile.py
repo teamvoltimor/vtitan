@@ -8,7 +8,7 @@ keys that differ from the checked-in base -- e.g. a different servo's
 ordered comma-separated list; later profiles win on any key they both set.
 Empty/unset means base config only, i.e. the current hardware, unchanged.
 
-See docs/internal/plans/2026-08-11-servo-hardware-profiles.md.
+See adr:0070-hardware-profiles-and-challenge-overlays.
 """
 
 from __future__ import annotations

@@ -527,7 +527,7 @@ class EscapeRecovery:
         confirmed on real hardware 2026-08-04 as a robot frozen at the same
         position for 27s straight, is_stuck firing repeatedly and each time
         just re-arming the same forward command that had already failed for
-        the previous window (see docs/known-issues-backlog.md). Holding is
+        the previous window (see adr:0055-escape-maneuver-selection). Holding is
         only actually the safe choice when forward is *also* blocked; when
         it isn't, a forward creep at full steering lock (same side-commit and
         escalation pattern as the reverse case) gives the

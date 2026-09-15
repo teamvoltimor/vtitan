@@ -319,7 +319,7 @@ func obstaclesPythonRunner(t *testing.T) *scenario.SubprocessRunner {
 // loadObstaclesCorpus resolves and loads the Obstacles scenario corpus,
 // skipping the test when it is absent.
 //
-// The corpus lives under platform/robot/.corpus/, which is GITIGNORED: a
+// The corpus lives under src/python/.corpus/, which is GITIGNORED: a
 // fresh checkout does not have it, so a missing corpus is a skip rather than
 // a failure. VTITAN_OBSTACLES_CORPUS overrides the location.
 func loadObstaclesCorpus(t *testing.T) []corpus.Scenario {

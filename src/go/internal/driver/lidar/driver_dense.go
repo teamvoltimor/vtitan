@@ -18,7 +18,7 @@ import (
 // UART interface using the Express Scan "Dense Mode" command (see doc.go
 // for scope, and frame_dense.go's package comment for why this is the
 // preferred mode over ClassicSerialDriver). It implements
-// driver.Driver[Scan] (platform/robot-go/internal/driver). Shares Config,
+// driver.Driver[Scan] (src/go/internal/driver). Shares Config,
 // DefaultBaudRate, MinRangeM/MaxRangeM, and the settle-delay/timeout
 // constants with ClassicSerialDriver (driver_classic.go) — those are
 // protocol- and hardware-generic, not scan-mode-specific.

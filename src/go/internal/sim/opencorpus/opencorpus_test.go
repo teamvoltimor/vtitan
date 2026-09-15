@@ -48,7 +48,7 @@ const poseToleranceM = 1e-6
 // scenario_catalog._OPEN_CHALLENGE_SPACE.all_params(), one line per case,
 // regenerated with:
 //
-//	cd platform/robot && PYTHONPATH=. \
+//	cd src/python && PYTHONPATH=. \
 //	  VTITAN_HARDWARE_PROFILE=270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm \
 //	  pixi run -e dev python <dump script>
 //

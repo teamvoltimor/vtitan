@@ -1,5 +1,5 @@
 // Package trackmodel models the WRO track's wall geometry and waypoint-path
-// frame -- the Go port of platform/robot/src/navigation/track_geometry.py.
+// frame -- the Go port of src/python/src/navigation/track_geometry.py.
 //
 // TrackWalls.Raycast is the single source of truth for where the track's
 // walls sit, given each corridor's width, so a simulator generating a

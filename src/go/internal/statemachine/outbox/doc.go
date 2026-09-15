@@ -1,7 +1,7 @@
 // Package outbox implements the keep-latest, non-blocking handoff
 // TelemetryIngestChannel uses to move outbound telemetry from a fast
 // producer to a slower/reconnecting backend stream
-// (platform/robot/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
+// (src/python/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
 // telemetry_ingest_channel.py's `push_snapshot`/`push_topics`/
 // `_push_latest`, backed by a `queue.Queue(maxsize=1)`). Slot is a
 // concrete generic type, not an interface, because there is nothing here

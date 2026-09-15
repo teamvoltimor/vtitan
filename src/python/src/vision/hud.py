@@ -1,7 +1,7 @@
 """Draw a navigation stats HUD and a mini LIDAR radar onto a frame.
 
 Composited onto the per-run recorded video (see
-docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md)
+adr:0071-round-recording-mcap)
 so the video shows not just what the camera saw but what the robot decided --
 a "visual mcap." Kept as pure numpy/cv2 functions with no ROS2 dependency, so
 the design can be iterated on and previewed (scripts/vision/preview_hud.py)

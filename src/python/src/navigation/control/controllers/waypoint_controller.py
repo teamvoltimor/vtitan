@@ -235,7 +235,7 @@ class WaypointController:
         to a target that is only modestly off-axis commands a much smaller
         curvature than the corner needs, producing a wide, slow arc instead of
         a decisive turn -- measured on real hardware 2026-08-03 (see
-        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+        ``adr:0052-pursuit-target-selection``).
 
         Gating on crosstrack error instead closes the loop correctly: falling
         behind on a turn grows the crosstrack error, which shortens the
@@ -377,7 +377,7 @@ class WaypointController:
         that should have already been left behind -- measured on real
         hardware 2026-08-03 as steering pinned near zero for tens of seconds
         while heading drifted 85+ degrees (see
-        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+        ``adr:0052-pursuit-target-selection``).
 
         Also skips any candidate that is behind the chassis in its current
         local frame -- accepting one there previously handed ``compute_steering``
@@ -415,7 +415,7 @@ class WaypointController:
             re-selecting a similarly distant point forever -- measured on real
             hardware 2026-08-03/04 as a self-reinforcing deadlock: creep speed +
             weak curvature never closes the heading error that caused both (see
-            ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+            ``adr:0052-pursuit-target-selection``).
             Nearest keeps the fallback target's distance close to a sane
             pure-pursuit lookahead instead.
         """
@@ -567,7 +567,7 @@ class WaypointController:
         actually steers both axles in counter-phase (double the yaw rate for the
         same angle), and that mismatch produced full-lock steering oscillation on
         real hardware (2026-08-03, see
-        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+        ``adr:0052-pursuit-target-selection``).
         The lookahead still only selects *which* waypoint to aim at; it is the
         steering law itself that changed.
 

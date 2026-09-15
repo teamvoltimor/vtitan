@@ -53,7 +53,7 @@ type Config struct {
 // TTL UART interface using the classic SCAN command (see doc.go for scope,
 // and frame_classic.go's package comment for why this is kept alongside
 // the Dense/Express mode implementation rather than as the sole driver).
-// It implements driver.Driver[Scan] (platform/robot-go/internal/driver).
+// It implements driver.Driver[Scan] (src/go/internal/driver).
 type ClassicSerialDriver struct {
 	port   serial.Port
 	reader *bufio.Reader

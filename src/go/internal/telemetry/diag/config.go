@@ -9,7 +9,7 @@ import (
 
 // AngleWedge is a bearing range (radians, 0 = forward, +pi/2 = left) that a
 // sector query excludes outright, matching sector_ranges' blind-wedge mask
-// in platform/robot/src/navigation/control/controllers/collision_avoidance/
+// in src/python/src/navigation/control/controllers/collision_avoidance/
 // sectors.py — the two rear-corner mount-occlusion wedges where LIDAR
 // self-collision reads as a real close range at every distance, so they
 // must be filtered by angle rather than distance. Disabled by default

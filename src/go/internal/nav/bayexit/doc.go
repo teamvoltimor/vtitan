@@ -1,5 +1,5 @@
 // Package bayexit ports
-// platform/robot/src/navigation/maneuvers/bay_exit.py: backing the chassis
+// src/python/src/navigation/maneuvers/bay_exit.py: backing the chassis
 // out of the parking pocket at the start of a round.
 //
 // The WRO rules allow two legal starts: inside the parking lot, or parallel

@@ -1,7 +1,7 @@
 // Command pi5 is the production combined board binary for the Pi 5: IMU +
 // LIDAR + vision + telemetry + state-machine + track-navigator + capture, run as
 // supervised goroutines in a single process. See
-// platform/robot/docs/internal/plans/go-migration-plan.md ("Process model").
+// adr:0068-go-parallel-track-single-cutover ("Process model").
 //
 // This revision wires the camera capture loop (internal/node/capture) as a
 // supervised target so the Pi 5 records video + photos from boot, mirroring the

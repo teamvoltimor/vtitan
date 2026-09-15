@@ -2,7 +2,7 @@
 // half: a Foxglove WebSocket protocol server (internal/foxglove) that
 // republishes every known NATS/protobuf subject so Foxglove Studio can
 // connect and render them, matching
-// docs/internal/plans/go-migration-plan.md's "Visualization" row. The
+// adr:0068-go-parallel-track-single-cutover's "Visualization" row. The
 // offline half -- recorded .mcap bags Foxglove Studio opens directly, no
 // bridge needed -- already works via internal/recording.
 package main

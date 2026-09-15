@@ -1184,7 +1184,7 @@ class TrackNavigator(Node, ResettableNode):
             # (both real captures committed by t=1.2s), so the true
             # displacement being discarded is at most ~0.2m -- far smaller
             # than the corruption it replaces. See
-            # docs/known-issues-backlog.md.
+            # adr:0084-localizer-divergence-and-relocalization.
             self._gateway.reset_position(seed_xy.x, seed_xy.y)
             # ``pose`` was read from the gateway before the corrections above
             # landed, so it still carries the old, now-stale yaw and position
@@ -1493,7 +1493,7 @@ class TrackNavigator(Node, ResettableNode):
         *previous* race's LIDAR localizer last drifted to, not from the new
         race's actual starting pose -- confirmed on real hardware 2026-08-04,
         pose_x/pose_y in the hundreds of metres on a 3m track, continuous
-        across a race boundary (see docs/known-issues-backlog.md). The
+        across a race boundary (see adr:0084-localizer-divergence-and-relocalization). The
         localizer's own drift during a single race is a separate, still-open
         question; this only stops it from compounding across races.
 

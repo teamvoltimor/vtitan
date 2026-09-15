@@ -1,5 +1,5 @@
 // Package visionsim ports
-// platform/robot/src/simulation/vision_emulator.py: a synthetic
+// src/python/src/simulation/vision_emulator.py: a synthetic
 // camera-detection emulator for closed-loop sign-routing sim runs.
 //
 // Inverts the exact pinhole projection signrouter's discovery.go decodes,

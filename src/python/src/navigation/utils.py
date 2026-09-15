@@ -272,7 +272,7 @@ def pure_pursuit_steer(
     their own copy of this, and ``WaypointController``'s copy was a bare
     ``steer_kp * angle_error`` P-term instead, which is what produced the
     2026-08-03 real-hardware full-lock steering oscillation (see
-    ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+    ``adr:0052-pursuit-target-selection``).
 
     ``L_eff`` is the wheelbase HALVED, not the wheelbase: this chassis steers both
     axles in opposite directions by the same amount (confirmed on hardware

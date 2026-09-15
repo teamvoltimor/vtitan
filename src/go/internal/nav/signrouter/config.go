@@ -132,7 +132,7 @@ type Config struct {
 
 // Default* mirror the shipped literal defaults this package's Python
 // counterpart is built from: SignRouterParams' Pydantic field defaults for
-// the tuning knobs, and the CURRENT platform/config/robot.toml
+// the tuning knobs, and the CURRENT src/config/robot.toml
 // [chassis] / track.toml [track]/[sign] values for geometry. Like
 // internal/nav/waypoints.DefaultConfig, these are a fallback for when no
 // config root is available -- ConfigFor prefers the live TOML values, which

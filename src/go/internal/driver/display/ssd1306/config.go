@@ -1,7 +1,7 @@
 package ssd1306
 
 // Config configures a Driver's panel geometry and I2C wiring. Field names
-// and defaults mirror platform/robot/src/hardware/display/ssd1306/config.py's
+// and defaults mirror src/python/src/hardware/display/ssd1306/config.py's
 // Config: Width/Height are real panel-geometry facts (which SSD1306 variant
 // is wired up), I2CAddress/I2CBus are real per-board wiring facts — all four
 // genuinely vary by hardware, unlike the protocol command bytes in
@@ -15,7 +15,7 @@ type Config struct {
 }
 
 // Default panel geometry and wiring, matching Config's Python defaults
-// (platform/robot/src/hardware/display/ssd1306/config.py): a 128x64 SSD1306
+// (src/python/src/hardware/display/ssd1306/config.py): a 128x64 SSD1306
 // at I2C address 0x3C on bus 1 (/dev/i2c-1 on Raspberry Pi).
 const (
 	DefaultWidth      = 128

@@ -300,7 +300,7 @@ class NavigationTuning:
     # regardless of the configured cap, and the lookahead change genuinely
     # improved path-tracking accuracy (p90 cross-track 12.9->5.1 cm) without
     # moving the sign-collision rate at all (16/16 at every value 0.10-0.40).
-    # See ``src/docs/sign-avoidance-investigation.md``. That
+    # See ``adr:0051-sign-lane-planner``. That
     # history still applies to whatever gets written under CHALLENGES_ROOT:
     # populate an overlay file only with a measurement that survives the
     # current model, not a guess.

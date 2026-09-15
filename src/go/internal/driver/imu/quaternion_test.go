@@ -17,7 +17,7 @@ const quaternionTolerance = 1e-9
 // call — scipy.spatial.transform.Rotation.from_euler("xyz", [roll, pitch,
 // yaw], degrees=True).as_quat() — not hand-derived, so a passing test here
 // means byte-for-byte behavioral parity with
-// platform/robot/src/hardware/imu/bno08x/utils.py, which is the actual bar
+// src/python/src/hardware/imu/bno08x/utils.py, which is the actual bar
 // for this migration (see go-migration-plan.md's parity-gate testing
 // strategy).
 func TestQuaternionFromEuler_MatchesScipyGoldenVectors(t *testing.T) {

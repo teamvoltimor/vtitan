@@ -1,7 +1,7 @@
 // Package motor provides a BTS7960/IBT-2 H-bridge drive-motor driver.
 //
 // Unlike a sensor, a motor driver has nothing to "Read" in the sense
-// driver.Driver[T] (platform/robot-go/internal/driver) models — it is
+// driver.Driver[T] (src/go/internal/driver) models — it is
 // commanded, not sampled. This package therefore does not implement
 // driver.Driver[T]; it exposes its own narrow Actuator interface instead
 // (Connect/SetSpeed/Close), defined in controller.go next to its only
@@ -9,8 +9,8 @@
 // sensor-shaped default, not a mandate — forcing Read onto an actuator
 // would just mean a Read method nobody calls.
 //
-// Ported from platform/robot/src/hardware/motors/bts7960/driver.py — see
-// platform/robot/docs/bts7960-ibt2-wiring.md for the wiring rationale
+// Ported from src/python/src/hardware/motors/bts7960/driver.py — see
+// src/python/docs/bts7960-ibt2-wiring.md for the wiring rationale
 // (independent RPWM/LPWM, R_EN/L_EN held permanently HIGH, why
 // RPWM=LPWM=HIGH — "Fast Brake" — must never happen) and commit f0fc617b
 // ("assert BTS7960 R_EN/L_EN only after PWM channels confirm 0 duty") for

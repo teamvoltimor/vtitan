@@ -10,7 +10,7 @@ import (
 
 // TestController_Init_SendsSSD1306InitSequence is the actual point of this
 // package: it asserts the exact I2C byte sequence Controller.Init sends
-// matches platform/robot/src/hardware/display/ssd1306/driver_raw_i2c.py's
+// matches src/python/src/hardware/display/ssd1306/driver_raw_i2c.py's
 // connect() body byte-for-byte -- not a generic SSD1306 datasheet
 // assumption, the real bytes that file sends (including its
 // _write_command-per-byte and single-transaction _write_data framing).

@@ -1,7 +1,7 @@
 package diag
 
 // initialBestScore mirrors _best_detection's own sentinel
-// (platform/robot/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
+// (src/python/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
 // telemetry_bridge_node.py): any real detection's confidence*area is >= 0,
 // so a strictly-negative sentinel guarantees the first candidate always
 // replaces it.

@@ -20,7 +20,7 @@ Seven levers that change WHEN or HOW HARD that carrot-chase happens have all
 been measured flat or worse (activation distance, offset magnitude, lookahead,
 steering gain, sign-aware lookahead x2, sign-aware speed x3) -- see
 ``signs.py``'s ``SIGN_AWARE_LOOKAHEAD``/``SIGN_AWARE_SPEED`` docstrings and
-``docs/sign-avoidance-investigation.md``.
+``adr:0051-sign-lane-planner``.
 
 This module changes the maneuver instead of its tuning. It rewrites the
 corridor's straight-segment waypoints onto a pass-side LANE: the robot

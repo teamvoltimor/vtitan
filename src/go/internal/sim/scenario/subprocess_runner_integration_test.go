@@ -68,15 +68,15 @@ func TestSubprocessRunner_Integration_RealPythonSimulator(t *testing.T) {
 	}
 }
 
-// robotRepoDir finds platform/robot, sibling to this module's platform/robot-go.
+// robotRepoDir finds src/python, sibling to this module's src/go.
 func robotRepoDir(t *testing.T) string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller(0) failed")
 	}
-	// this file: platform/robot-go/internal/sim/scenario/subprocess_runner_integration_test.go
-	// dir(thisFile) = .../platform/robot-go/internal/sim/scenario ; four levels up is .../platform
+	// this file: src/go/internal/sim/scenario/subprocess_runner_integration_test.go
+	// dir(thisFile) = .../src/go/internal/sim/scenario ; four levels up is .../platform
 	platformDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
 	return filepath.Join(platformDir, "robot")
 }
