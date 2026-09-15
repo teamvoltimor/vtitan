@@ -1523,6 +1523,51 @@ class TestWrongSidePassDetection:
         assert router.wrong_side_violations == set()
 
 
+class TestRetireCommittedOnEscape:
+    """An escape must be able to drop the sign the router was aiming at.
+
+    Measured 2026-09-15 over 105 escape episodes: the escape GAINS a median
+    9.8 cm of forward clearance, and 62% are followed by another escape within
+    two seconds because 97% are handed back the same target and 79% still hold
+    the SAME committed sign. The plan the chassis returns to is the one that
+    drove it into the object, so the router has to be able to let go.
+    """
+
+    @staticmethod
+    def _committed(router_config):
+        _, (sx, sy), _ = _SECTION_GEOMETRY[Section.SOUTH]
+        router = _router([_sign_at(sx, sy, "red")], router_config)
+        router._sign_corridors = [Section.SOUTH]
+        router._engaged = {0}
+        router._committed = 0
+        return router
+
+    def test_retire_drops_the_commitment_and_marks_it_passed(self, router_config):
+        router = self._committed(router_config)
+        router.retire_committed()
+        assert router.committed_sign_position is None, "the commitment must be released"
+        assert 0 in router._passed, "retired through the same set a normal pass uses"
+        assert 0 not in router._engaged
+
+    def test_retire_does_NOT_forge_a_pass_side_verdict(self, router_config):
+        """Whether the pass was legal is a separate question from letting go.
+
+        `wrong_side_violations` is the discovery-quality record. Writing a
+        verdict here would corrupt it with passes that never happened -- the
+        same defect the distance-triggered recorder had.
+        """
+        router = self._committed(router_config)
+        router.retire_committed()
+        assert router.wrong_side_violations == set()
+
+    def test_retire_with_nothing_committed_is_a_no_op(self, router_config):
+        _, (sx, sy), _ = _SECTION_GEOMETRY[Section.SOUTH]
+        router = _router([_sign_at(sx, sy, "red")], router_config)
+        router._sign_corridors = [Section.SOUTH]
+        router.retire_committed()
+        assert router._passed == set(), "nothing committed, nothing to retire"
+
+
 class TestSignCorridorHysteresis:
     """A discovered sign's corridor picks which world axis its deformation
     treats as lateral, and it is re-derived every tick from an estimate that

@@ -8,6 +8,7 @@ orchestration.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 from typing import TYPE_CHECKING
@@ -484,6 +485,32 @@ class SignRouter:
         self._wrong_side.clear()
         self._pass_side_engaged.clear()
         self._pass_side_scored.clear()
+
+    def retire_committed(self) -> None:
+        """Mark the committed sign as passed and drop the commitment.
+
+        Called when an escape latches: the chassis is inside contact range of
+        the object it was supposed to route around, so the plan that aimed it
+        there must not be handed straight back. Measured over 105 escape
+        episodes, 79% still hold this same sign after the maneuver ends.
+
+        Retires through the same ``_passed`` set a normal pass uses, so the slot
+        map's own ``retire`` hook runs and the sign stops deforming waypoints --
+        and deliberately does NOT touch ``_wrong_side``: whether the pass was
+        legal is a separate question from whether the router should keep aiming
+        at it, and forging a verdict here would corrupt the discovery-quality
+        record.
+        """
+        index = self._committed
+        if index is None:
+            return
+        self._passed.add(index)
+        self._engaged.discard(index)
+        self._committed = None
+        retire = getattr(self._sign_map, "retire", None)
+        if retire is not None:
+            with contextlib.suppress(Exception):
+                retire(index)
 
     @property
     def wrong_side_violations(self) -> set[int]:

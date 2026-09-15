@@ -17,6 +17,24 @@ type NavigationEscapeEscape struct {
 	// A/B.
 	EscapeMirrorsReverse bool `json:"escape_mirrors_reverse" yaml:"escape_mirrors_reverse" mapstructure:"escape_mirrors_reverse"`
 
+	// When an escape maneuver latches, RETIRE the sign the router is committed to, so
+	// the plan it returns to is not the one that drove into it. MEASURED 2026-09-15
+	// over 105 escape episodes on five rounds: the escape WORKS -- a median 9.8 cm of
+	// forward clearance gained, only 15% gain nothing, efficiency 0.63 -- and 62% are
+	// followed by another escape within two seconds, because 97% are handed back the
+	// same target and 79% still hold the SAME committed sign. The router is still
+	// routing around the object the chassis just escaped. That measurement is also
+	// what rules out the alternatives: re-planning after the maneuver reproduces the
+	// same target, because the map still holds the sign; and only 9% of escapes fire
+	// with NO committed sign, so this is not a case of the escape reacting to
+	// something the router never saw. THE RISK, which is why it ships off: retiring a
+	// sign the chassis has not actually passed forfeits its pass side, and a
+	// wrong-side pass ENDS an Obstacles round. The defence is that by the time an
+	// escape fires the pass is already compromised -- the chassis is inside contact
+	// range of the thing it was supposed to go around. That is an argument, not a
+	// measurement, and the corpus scores both collisions and pass sides.
+	EscapeRetiresCommittedSign bool `json:"escape_retires_committed_sign" yaml:"escape_retires_committed_sign" mapstructure:"escape_retires_committed_sign"`
+
 	// Attempts spent on one side before trying the other (1 = alternate every
 	// attempt, which cancels itself out)
 	EscapeSideCommitAttempts int `json:"escape_side_commit_attempts" yaml:"escape_side_commit_attempts" mapstructure:"escape_side_commit_attempts"`

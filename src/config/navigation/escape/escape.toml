@@ -33,3 +33,15 @@ obstacles_escape_side_follows_committed_sign = true
 escape_side_override_min_clearance_m = 0.12
 side_correction_follows_committed_sign = false
 obstacles_side_correction_follows_committed_sign = false
+
+# An escape RETIRES the sign the router was committed to, so the plan it
+# returns to is not the one that drove into it. See ADR notes; measured
+# 2026-09-15 over 105 escape episodes with
+# scripts/bag/diag_bag_escape_convergence.py.
+#
+# SHIPS OFF. Retiring a sign the chassis has not actually passed forfeits its
+# pass side, and a wrong-side pass ENDS the round. The defence is that once an
+# escape fires the pass is already compromised -- the chassis is inside contact
+# range of the thing it was meant to go around -- but that is an argument, not
+# a measurement.
+escape_retires_committed_sign = false

@@ -185,6 +185,9 @@ class CoreNavigator(EscapeRecovery):
         # instead of a single 50 ms tick, and repeated escapes escalate (reverse
         # longer, switch side) rather than repeating an identical failed pulse.
         self._active_maneuver: EscapeManeuver | None = None
+        # Which maneuver already had its committed sign retired, so the
+        # retire fires once per escape and not once per tick of one.
+        self._retired_for_maneuver: object | None = None
         self._maneuver_frames_left = 0
         self._escape_count = 0  # escapes begun since the last normal drive tick with real progress
         # Base side for escapes, not a running toggle: which side a given
@@ -924,6 +927,28 @@ class CoreNavigator(EscapeRecovery):
             parking_engaged=self._parking_engaged if self._park_controller is not None else None,
         )
 
+    def _retire_escaped_sign(self) -> None:
+        """Retire the sign the router is committed to, once per escape.
+
+        Measured 2026-09-15 over 105 escape episodes: 97% of escapes are handed
+        back the same target and 79% still hold the SAME committed sign, so the
+        plan the chassis returns to is the one that drove it into the object.
+        Re-planning alone cannot fix that -- the map still contains the sign --
+        which is why this retires rather than replans.
+
+        Guarded by ``escape.escape_retires_committed_sign`` and applied ONCE per
+        latched maneuver, not every tick: the branch this sits in runs for the
+        maneuver's whole duration.
+        """
+        if not self._escape.escape_retires_committed_sign or self._sign_router is None:
+            return
+        if self._retired_for_maneuver is self._active_maneuver:
+            return
+        self._retired_for_maneuver = self._active_maneuver
+        retire = getattr(self._sign_router, "retire_committed", None)
+        if retire is not None:
+            retire()
+
     def _ingest_sign_observations(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:
         """Fold this tick's sign evidence into the router WITHOUT steering by it.
 
@@ -1024,6 +1049,7 @@ class CoreNavigator(EscapeRecovery):
         if self._active_maneuver is not None and not self._side_correction_blends():
             if self._escape.tick_router_during_maneuver:
                 self._ingest_sign_observations(robot_x, robot_y, robot_yaw)
+            self._retire_escaped_sign()
             self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ACTIVE_MANEUVER)
             return
 
