@@ -18,8 +18,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.common.bag_io import NO_TIME_LIMIT_S, create_bag_parser, load_nav_debug_rows
 
 
+def _pose(snap: object) -> str:
+    """The pose triple, or ``unposed`` for a tick recorded before the navigator had a fix.
+
+    Those ticks are the point of this script rather than noise to drop: the
+    stuck detector is fed them too, so formatting them as None is what shows a
+    wedge that began before localisation settled.
+    """
+    x, y, yaw = snap.pose_x, snap.pose_y, snap.pose_yaw
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return "unposed"
+    yaw_s = f"{yaw:.2f}" if isinstance(yaw, (int, float)) else "none"
+    return f"({x:.3f},{y:.3f},{yaw_s})"
+
+
 def main() -> int:
-    parser = create_bag_parser("TODO: add description")
+    parser = create_bag_parser("Print every escape/maneuver tick with the pose the stuck detector is fed.")
     parser.add_argument("--until", type=float, default=NO_TIME_LIMIT_S)
     args = parser.parse_args()
 
@@ -44,7 +58,7 @@ def main() -> int:
             f"{ts:7.2f}s phase={snap.phase!s:22} man={snap.active_maneuver_type!s:16} "
             f"steer={snap.maneuver_steering!s:7} spd={snap.maneuver_speed_mps!s:7} "
             f"frames={snap.maneuver_frames_left!s:4} esc={snap.escape_count!s:3} "
-            f"dir={snap.direction!s:18} pose=({snap.pose_x:.3f},{snap.pose_y:.3f},{snap.pose_yaw:.2f}) "
+            f"dir={snap.direction!s:18} pose={_pose(snap):26} "
             f"min_r={snap.min_lidar_range_m!s:8} stuck={snap.stuck_count}",
         )
     return 0
