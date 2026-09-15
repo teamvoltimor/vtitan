@@ -1113,6 +1113,44 @@ class TestSideCorrectionFollowsTheCommittedPassSide:
         assert maneuver.speed < 0, "reversing"
         assert maneuver.steering == 0.0
 
+    def test_a_refusal_reverses_rather_than_creeping_forward(self):
+        """The hole the 12 -> 15 measurement fell through.
+
+        A refusal that only zeroes the steering keeps ``side_correction_speed``
+        (+0.1 m/s, FORWARD) whenever the flank is not already touching, so it
+        deletes the steer-away reflex and creeps straight at the threat. The
+        sibling reverse test forces ``already_touching`` first and therefore
+        takes the reverse branch for a different reason, which is why nothing
+        caught this. Here the flanks are CLEAR, so only the refusal can pick
+        the speed.
+        """
+        ranges, angles = self._scan_with_room_on_both_sides()
+        maneuver = self._controller(follows=True).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+
+        assert maneuver.steering == 0.0
+        assert maneuver.speed < 0, "a refusal must reverse, not creep forward at the threat"
+
+    def test_a_refusal_lasts_long_enough_to_change_the_geometry(self):
+        """``side_correction_s`` is 0.20 s; reversing for that long moves 2 cm.
+
+        The pendulum this rule targets moved the range to the committed pillar
+        0.497 -> 0.526 m across a whole episode. A refusal that retreats less
+        than the planner needs to re-approach just feeds the limit cycle, so it
+        takes the K-turn's duration rather than the side correction's.
+        """
+        ranges, angles = self._scan_with_room_on_both_sides()
+        controller = self._controller(follows=True)
+        refused = controller.compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+        untouched = controller.compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=1.0
+        )
+
+        assert refused.duration_frames > untouched.duration_frames
+
     def test_no_committed_side_leaves_the_manoeuvre_untouched(self):
         """Every tick of the Open Challenge takes this path."""
         ranges, angles = self._scan_with_room_on_both_sides()

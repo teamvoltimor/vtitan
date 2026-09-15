@@ -870,7 +870,7 @@ class CollisionAvoidanceController:
             already_touching = self._side_clearance(
                 math.pi / 2, lidar_ranges, lidar_angles
             ) < self.contact_dist or self._forward_touching(lidar_ranges, lidar_angles)
-            steer_sign = self._side_correction_steer_sign(
+            steer_sign, refused = self._side_correction_steer_sign(
                 1.0 if already_touching else -1.0,
                 threat_is_left=True,
                 preferred_sign=preferred_sign,
@@ -878,8 +878,10 @@ class CollisionAvoidanceController:
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
                 steering=steer_sign * self.side_correction_steer,
-                speed=self.escape_rev_speed if already_touching else self.side_correction_speed,
-                duration_frames=self.k_turn_min_frames if already_touching else self.side_correction_frames,
+                speed=self.escape_rev_speed if already_touching or refused else self.side_correction_speed,
+                duration_frames=(
+                    self.k_turn_min_frames if already_touching or refused else self.side_correction_frames
+                ),
                 priority=1,
             )
 
@@ -890,7 +892,7 @@ class CollisionAvoidanceController:
             already_touching = self._side_clearance(
                 -math.pi / 2, lidar_ranges, lidar_angles
             ) < self.contact_dist or self._forward_touching(lidar_ranges, lidar_angles)
-            steer_sign = self._side_correction_steer_sign(
+            steer_sign, refused = self._side_correction_steer_sign(
                 -1.0 if already_touching else 1.0,
                 threat_is_left=False,
                 preferred_sign=preferred_sign,
@@ -898,8 +900,10 @@ class CollisionAvoidanceController:
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
                 steering=steer_sign * self.side_correction_steer,
-                speed=self.escape_rev_speed if already_touching else self.side_correction_speed,
-                duration_frames=self.k_turn_min_frames if already_touching else self.side_correction_frames,
+                speed=self.escape_rev_speed if already_touching or refused else self.side_correction_speed,
+                duration_frames=(
+                    self.k_turn_min_frames if already_touching or refused else self.side_correction_frames
+                ),
                 priority=1,
             )
 
@@ -910,7 +914,7 @@ class CollisionAvoidanceController:
         away_sign: float,
         threat_is_left: bool,
         preferred_sign: float | None,
-    ) -> float:
+    ) -> tuple[float, bool]:
         """Let the router's committed pass side outrank "steer away from the threat".
 
         The FRONT branch has consulted ``preferred_sign`` since
@@ -930,6 +934,18 @@ class CollisionAvoidanceController:
         When they are on the SAME flank, this reverses straight instead of
         shoving the chassis to the wrong side of the pillar.
 
+        The second return value is that refusal, and the caller needs it. Until
+        2026-09-15 this returned the sign alone, so a refusal zeroed the
+        steering while the branch kept ``side_correction_speed`` -- +0.1 m/s,
+        FORWARD -- whenever the flank was not already touching. That is not
+        "reverse straight": it deletes the steer-away reflex and creeps the
+        chassis at the threat for 0.2 s with no steering at all. The corpus
+        measured that arm at 12 -> 15, losing go_obstacles_0004 by collision,
+        and the conclusion drawn was that refusal fails. It was never the
+        documented manoeuvre that was measured. Nothing in the suite caught it
+        because the only test asserting a reversing speed forced
+        ``already_touching`` first, which takes the reverse branch anyway.
+
         It does not steer toward the wanted side, and that restraint is
         measured. Taking the router's side whenever it held
         ``escape_side_override_min_clearance_m`` cost 12 -> 15 on the obstacles
@@ -948,7 +964,7 @@ class CollisionAvoidanceController:
         deriving it here got that backwards once already.
         """
         if preferred_sign is None or not self.side_correction_follows_committed_sign:
-            return away_sign
+            return away_sign, False
         # NEVER steer toward the side the threat is on. Taking the router's side
         # on clearance alone measured 12 -> 15, losing go_obstacles_0004 on all
         # three assertions including complete_without_collision: with a 0.12 m
@@ -963,8 +979,8 @@ class CollisionAvoidanceController:
         if (preferred_sign < 0) is not threat_is_left:
             # Steering away from the threat already goes where the router
             # wants, so there is nothing to arbitrate.
-            return away_sign
-        return 0.0
+            return away_sign, False
+        return 0.0, True
 
     def _side_clearance(
         self,

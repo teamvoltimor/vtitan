@@ -193,24 +193,44 @@ escape_side_override_min_clearance_m = 0.12
 # a SIDE_CORRECTION, as escape_side_follows_committed_sign already does for the
 # K-turn. See the schema for the hardware measurement that motivates it.
 #
-# SHIPS OFF, and the A/B is the reason rather than caution. BOTH formulations
-# cost the same scenario on the obstacles corpus, 12 -> 15, fixing nothing:
+# SHIPS OFF, and the A/B is the reason rather than caution. THREE formulations
+# now cost the same scenario on the obstacles corpus, 12 -> 15, fixing nothing:
 #
 #   steer TOWARD the wanted side when it holds 0.12 m   -> 12 -> 15
-#   REFUSE (reverse straight) on a conflict instead     -> 12 -> 15
+#   refuse, zero the steering, keep creeping FORWARD    -> 12 -> 15
+#   refuse and actually REVERSE, for a K-turn duration  -> 12 -> 15
 #
-# Identical failure set both times -- go_obstacles_0004[South/counterclockwise]
-# on all three assertions, colliding at (2.05, 2.27), the north-east corner
-# beside the green sign at (2.00, 2.40). So it is not the steering-into-the-
-# threat that costs the scenario, it is losing the steer-AWAY: in 0004 that
-# reflex is what clears the corner, and neither taking the router's side nor
-# reversing straight replaces it.
+# The second was a bug rather than a formulation: it zeroed the steering while
+# the branch kept side_correction_speed (+0.1 m/s, forward) unless the flank was
+# already touching, so it deleted the steer-away and crept at the threat. That
+# is fixed, and the third row is the manoeuvre this comment always described.
+# It fails the same way, which is what makes "the steer-away is load-bearing"
+# worth believing: two arms that behave very differently fail identically.
+#
+# Identical failure set all three times -- go_obstacles_0004[South/
+# counterclockwise] on all three assertions, colliding at (2.05, 2.27), the
+# north-east corner beside the green sign at (2.00, 2.40). Measured exactly:
+# the arms differ on 0004 AND NOTHING ELSE, nothing is recovered anywhere.
+#
+# HOW MUCH EVIDENCE THAT IS, because it decides what to do next.
+# scripts/sim/diag_side_correction_refusal_weight.py counts the ticks the rule
+# actually changed:
+#
+#   0004  flag off -> 10 side corrections,  0 refusals, ok,       3/3, 144.3 s
+#   0004  flag on  ->  6 side corrections,  6 REFUSALS, COLLIDED, 1/3,  71.0 s
+#
+# The whole 12 -> 15 rests on SIX manoeuvres in ONE scenario, in a simulator
+# that runs side_correction on 1.09% of ticks against hardware's 19-25% and
+# under-rotates 40-50% during escapes -- the exact regime. So "the mechanism
+# fails" and "the corpus cannot adjudicate it" both fit this number, and the
+# corpus cannot separate them.
 #
 # Kept wired, tested and off because the FAILURE IT TARGETS IS REAL and this
 # corpus cannot see it: there is no pass-side assertion, so an arm can only
 # ever measure this change's cost. On run_20260915_002408 the escape agreed
 # with the router's side on 3 of 12 episodes, the alignment delta was negative
 # in every category, and 10 of those 12 were SIDE_CORRECTION -- the branch that
-# ignored the rule entirely until now.
+# ignored the rule entirely until now. Settle it on a counter-clockwise
+# hardware round, not here.
 side_correction_follows_committed_sign = false
 obstacles_side_correction_follows_committed_sign = false
