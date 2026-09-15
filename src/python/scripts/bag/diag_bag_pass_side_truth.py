@@ -93,7 +93,7 @@ from scripts.common.tables import print_table  # noqa: E402
 from shared.config.constants import RobotSpecs  # noqa: E402
 from shared.domain.enums import Axis, Direction  # noqa: E402
 from shared.domain.models import Pose, SignColor  # noqa: E402
-from src.navigation.planning.sign_discovery import detection_to_world_point  # noqa: E402
+from src.navigation.planning.sign_discovery import detection_to_world_point, snap_to_lattice  # noqa: E402
 from src.navigation.planning.sign_router.routing import pass_side_lateral_axis  # noqa: E402
 from src.navigation.planning.waypoints.classification import corridor_for_position  # noqa: E402
 from src.navigation.race_tracker import TRAVEL_DIRS  # noqa: E402
@@ -311,6 +311,14 @@ def _judge(
 ) -> str:
     """CORRECT, WRONG or never-crossed, by the simulator's own footprint rule."""
     x, y = pillar
+    # SNAP FIRST. Production never asks the corridor of a raw estimate: the slot
+    # map publishes legal cells and measured 0.0% off-lattice over 6,971
+    # committed positions. Asking `corridor_for_position` with a LIDAR position
+    # instead reads (0.53, 0.83) as SOUTH when its cell (0.6, 1.0) is WEST, and
+    # the rule then judges the wrong AXIS entirely. That was a bug in THIS
+    # SCRIPT, briefly mistaken for one in production -- all 24 legal cells label
+    # correctly.
+    x, y = snap_to_lattice(x, y, 0.35)
     corridor = corridor_for_position(x, y)
     rule = pass_side_lateral_axis(corridor, colour, direction)
     if rule is None:
