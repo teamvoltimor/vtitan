@@ -29,7 +29,7 @@ GitHub. Si quieres rehacerla, usa el `.step`.
 De las 29 piezas en `.step`, **17 tienen su `.stl` con el mismo nombre**. Las 12
 restantes son componentes comerciales que modelamos solo para el ensamblaje
 virtual y nunca se imprimen: Raspberry Pi 5, cámara, RPLiDAR C1, batería
-Ovonic, rodamientos y rolineras.
+Ovonic, rodamientos y rolineras (rodamientos pequeños).
 
 ## Convención de nombres
 

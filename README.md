@@ -474,9 +474,9 @@ width="350">
 	<i>Primer Prototipo del Sistema de Dirección</i>
 </p>
 
-* **Mecanismo de Rueda:** Nuestro primer prototipo fue un rin estático que actúa como soporte/pivote en la tijera, mientras que el caucho exterior móvil incorpora una corona/cremallera interna accionada por piñones para transmitir tracción.
+* **Mecanismo de Rueda:** Nuestro primer prototipo fue un rin estático (es decir, la rueda sin el caucho exterior) que actúa como soporte/pivote en la tijera, mientras que el caucho exterior móvil incorpora una corona/cremallera interna accionada por piñones para transmitir tracción.
 
-* **Transmisión de Dirección/Potencia:** Se implementaron **guayas flexibles** (tipo mototool/rotamil) para llevar el movimiento de rotación a la rueda soportando el ángulo extremo de 90 grados.
+* **Transmisión de Dirección/Potencia:** Se implementaron **guayas flexibles** (cables de transmisión, tipo mototool/rotamil) para llevar el movimiento de rotación a la rueda soportando el ángulo extremo de 90 grados.
 
 * **Caja de Engranajes Modular:** Diseñada para distribuir el movimiento de un solo motor hacia 4 guayas independientes.
 
