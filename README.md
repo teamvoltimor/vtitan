@@ -1363,7 +1363,7 @@ flowchart TD
     Taper --> Pin["Ancla el punto justo<br/>a la altura de la señal"]:::optional
     Pin --> Steer["El carril se usa como<br/>objetivo de dirección"]
 
-    classDef optional stroke-dasharray: 5 5,fill:#f5f5f5,stroke:#888
+    classDef optional stroke-dasharray: 5 5
 ```
 
 <p align="center"><i>Regla de paso por señales de color (Obstacle Challenge)</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/regla-senales.mmd"><code>regla-senales.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/regla-senales.webp">render WebP</a></sub></p>
@@ -1666,14 +1666,6 @@ flowchart TD
     HB --> MOT
     MOT --> TRANS
     SRV --> DIR
-
-    classDef fallo fill:#ffe5e5,stroke:#c00,stroke-width:2px
-    classDef energia fill:#fff4e0,stroke:#b8860b
-    classDef datos fill:#e8f0ff,stroke:#36c
-
-    class SW,PI5,ZERO,HB fallo
-    class BAT,REG,USBC energia
-    class LIDAR,CAM,IMU,ENC datos
 ```
 
 <p align="center"><i>Interacciones entre subsistemas: línea continua es energía, línea punteada es dato</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/subsistemas.mmd"><code>subsistemas.mmd</code></a> | <a href="schemes/flowcharts/common/webp/subsistemas.webp">render WebP</a></sub></p>
@@ -1681,7 +1673,7 @@ flowchart TD
 **Lo que el diagrama hace visible y las secciones sueltas no:**
 
 - **Una sola batería alimenta dos mundos con exigencias opuestas.** La rama de tracción consume ~10 A con picos de ~20 A; la rama de lógica necesita 5 V estables. Van separadas desde el interruptor precisamente para que un pico de motor no arrastre la tensión de la Pi 5.
-- **Los cuatro puntos únicos de fallo están marcados en rojo**, y ninguno tiene redundancia: el interruptor de encendido (el eslabón más débil de la ruta de potencia desde que el puente pasó a 43 A), las dos placas, y el puente H. Si cae cualquiera, la ronda se pierde. Está asumido: añadir redundancia costaría peso, y el peso es la restricción que más aprieta.
+- **Los cuatro puntos únicos de fallo** no tienen redundancia: el interruptor de encendido (el eslabón más débil de la ruta de potencia desde que el puente pasó a 43 A), las dos placas (Pi 5 y Zero 2 W) y el puente H. Si cae cualquiera, la ronda se pierde. Está asumido: añadir redundancia costaría peso, y el peso es la restricción que más aprieta.
 - **La Pi Zero se alimenta por VBUS desde la Pi 5.** Esto acopla las dos placas: un reinicio de la Pi 5 se lleva por delante el control en tiempo real. Verificado con `vcgencmd get_throttled` en carrera (0x0, sin caída de tensión), pero es un acoplamiento real y conviene declararlo.
 - **El reparto de cómputo es una decisión de tiempo, no de potencia.** La inferencia de visión es pesada y de latencia variable; el lazo de control del servo no tolera fluctuaciones. Por eso viven en placas distintas, y por eso el enlace entre ellas es ROS2 sobre DDS con 29 tópicos declarados en un único archivo.
 - **La restricción más dura del robot es un detalle de silicio.** El SoC de la Pi Zero tiene exactamente **dos generadores de PWM por hardware**. Uno lo toma el servo, que necesita posición absoluta. El otro va a la marcha adelante del motor. La marcha atrás se queda sin PWM de hardware, y de ahí sale el riesgo del `LPWM` sin pull-down que aparece en la tabla de riesgos. Una limitación de cómputo se convirtió en una limitación eléctrica y luego en una restricción de estrategia: el estacionamiento y la recuperación son las únicas maniobras que usan reversa.

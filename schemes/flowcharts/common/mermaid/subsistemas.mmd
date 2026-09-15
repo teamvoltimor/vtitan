@@ -4,8 +4,9 @@
 %% Arnes completo: schemes/wiring/harness.schematic.svg (proyecto tscircuit)
 %% Constantes de montaje: src/config/robot.toml
 %% Lineas continuas = energia. Lineas punteadas = datos.
-%% Los nodos marcados como punto unico de fallo no tienen redundancia:
-%% si caen, la ronda se pierde o el robot queda ciego a una clase de obstaculo.
+%% Los cuatro puntos unicos de fallo (interruptor, Pi 5, Zero y puente H) no
+%% tienen redundancia: si caen, la ronda se pierde o el robot queda ciego a una
+%% clase de obstaculo. Los nombra la prosa del README, no el diagrama.
 
 flowchart TD
     subgraph ENERGÍA["ENERGÍA"]
@@ -31,7 +32,7 @@ flowchart TD
     subgraph ACTUACIÓN["ACTUACIÓN"]
         HB["Puente H BTS7960<br/>43 A, pico medido ~20 A"]
         MOT["HD Hex Motor<br/>tracción 4x4"]
-        SRV["Servo HPS-3527SG 35kg<br/>dirección en contrafase"]
+        SRV["Servo HPS-3527SG 35 kg<br/>dirección en contrafase"]
     end
 
     subgraph MECÁNICA["MECÁNICA"]
@@ -66,11 +67,3 @@ flowchart TD
     HB --> MOT
     MOT --> TRANS
     SRV --> DIR
-
-    classDef fallo fill:#ffe5e5,stroke:#c00,stroke-width:2px
-    classDef energia fill:#fff4e0,stroke:#b8860b
-    classDef datos fill:#e8f0ff,stroke:#36c
-
-    class SW,PI5,ZERO,HB fallo
-    class BAT,REG,USBC energia
-    class LIDAR,CAM,IMU,ENC datos
