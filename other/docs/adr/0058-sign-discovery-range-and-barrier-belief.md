@@ -146,3 +146,30 @@ cannot score it because it never emits a magenta detection.
   the 41-collision gap.
 - Four downstream dedup and fold fixes are already refuted on 256 (the fold
   variant worst at 231 against a 202 baseline); do not write a fifth.
+- `range_scale = 1.95` corrects the pinhole range: the detector's boxes are about
+  2x taller than a 0.10 m pillar projects to (implied height p50 19.8 cm against
+  the assumed 10.0), so the raw pinhole under-reads by half. Median |range error|
+  6.3 cm against 8 LIDAR-located pillars (run_20260906_232408 / _232748). It is
+  not a true scale (log-log slope -0.40, not -1) and only works paired with the
+  camera time alignment: 2D position error p50 and share inside association is
+  47.1 cm / 19 percent with neither, no better with the scale or the alignment
+  alone, and 15.3 cm / 61 percent with both.
+- The ungated `lidar_range_fusion` was measured harmful: at the camera's bearing
+  the return is wall-shaped 51 percent of the time and pillar-shaped 27 percent
+  (median chord 34 cm against a 5 cm sign), it fired on 92.5 percent of
+  detections, and it cost 28 cm of median position error with the corrected
+  bearing. The 78-bag replay is the validation: both off 194/654 (29.7 percent),
+  ungated 227/605 (37.5 percent, reproducing the refutation), gated 180/712
+  (25.3 percent, fewer errors and more passes).
+- `vision_latency_s = 0.85` was measured on run_20260906_232408 / _232748 (0.78
+  and 0.95 independently). The unfitted check: the recovered cx-vs-bearing slope
+  reads -309 px/rad at zero lag, which no real lens can produce (floor about
+  620), and -679 at 0.85 s.
+- `max_signs_per_section` ships off (0): the rulebook allows two per section and
+  the map believed 8, 7, 12 and 5 on the 2026-09-11 rounds, but a cap lets an
+  early phantom hold a slot the real pillar then cannot have, which is the
+  failure mode of an earlier dedup attempt. The rulebook value is 2.
+- The barrier span trade is not free: barrier share suppressed rises 60.8 to
+  66.8, 23.5 to 27.9 and 68.3 to 75.7 percent, but real pillars refused rise 25.5
+  to 26.4, 2.7 to 4.9 and 8.8 to 12.7 percent, and the benefit/cost ratio is
+  slightly worse on two of three rounds. `colour_pool_radius_m` remains refuted.

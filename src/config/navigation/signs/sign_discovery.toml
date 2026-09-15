@@ -1,170 +1,22 @@
 #:schema ../../../model/navigation/signs/sign_discovery.schema.json
-# Blind sign-discovery (ObservedSignMap) parameters.
-#
-# See shared.config.navigation_tuning.SignDiscoveryParams.
+# Blind sign discovery (ObservedSignMap). Rationale: adr:0058-sign-discovery-range-and-barrier-belief
 
-min_reliable_bbox_height_px = 5   # minimum bbox height for a reliable distance estimate
-# Max distance at which a sign observation is accepted. 2.0 until 2026-09-07,
-# lowered because the pinhole range correction above stops holding past ~1.5 m:
-# binned error is -7 cm at 1.1-1.5 m but -77 cm beyond, so a far detection seeds
-# a track most of a metre out and the router then routes around a phantom.
-# 1.5 rather than the 1.2 where the correction is tightest, because
-# sign_router.toml's activation_dist_m is 1.40 -- ingesting only inside 1.2 m
-# would discover a sign AFTER the point it must already be routed around.
+min_reliable_bbox_height_px = 5
 max_ingest_range_m = 1.5
-association_dist_m = 0.25         # max distance between two observations of the same sign
-min_hits = 3                      # confirming observations before a sign is published
-robot_corridor_flip_ticks = 5     # ticks the robot's own corridor must settle before discovery accepts the change
-
-# Widest box (width/height) still accepted as a pillar. A pillar is taller than
-# it is wide; the magenta parking-lot barrier read as RED for 52% of that
-# class's detections on run_20260905_214920, all of them wider than tall, while
-# genuine green pillars sit at w/h p90 = 0.85. Neither area nor confidence
-# separates the two -- only aspect does. 0.0 disables.
+association_dist_m = 0.25
+min_hits = 3
+robot_corridor_flip_ticks = 5
 max_pillar_aspect = 1.0
-# A CLIPPED box is exempt from the aspect test: its ratio is not a measurement
-# of the object's shape. A pillar being approached runs out of frame, its height
-# stops growing while its width does not, and w/h crosses 1.0 with nothing about
-# the pillar having changed. 61% of the red detections the gate was rejecting
-# were clipped (run_20260906_145546 / _145909).
 frame_edge_tolerance_px = 2.0
-
-
-# Empirical correction on the PINHOLE RANGE, applied to the result. The
-# detector's boxes are ~2x taller than a 0.10 m pillar projects to -- implied
-# sign height is p50 19.8 cm against the assumed 10.0 -- so the raw pinhole
-# UNDER-reads by about half. 1.95 is the best scalar, median |range error|
-# 6.3 cm, measured against 8 LIDAR-located pillars on run_20260906_232408 and
-# _232748.
-#
-# THIS ONLY WORKS PAIRED WITH THE CAMERA TIME ALIGNMENT, and shipping it alone
-# is worse than shipping nothing. Measured 2D position error p50 / share inside
-# ASSOCIATION_DIST_M:
-#     shipped (neither)      47.1 cm / 19%
-#     range scale alone      47.6 cm / 19%     <- no better
-#     time alignment alone   47.1 cm / 19%     <- no better
-#     BOTH                   15.3 cm / 61%
-# A longer ray magnifies any angular error, so before the 0.85 s lag was
-# corrected this scale doubled LATERAL error (9.8 -> 18.6 cm) and was rejected
-# for it. With the pose aligned, lateral is 3.6 cm and goes only to 6.8 cm.
-#
-# Not a true scale: log(bbox_h) vs log(range) has slope -0.40, not -1. Binned
-# error is +/-5 cm out to 1.1 m, -7 cm at 1.1-1.5 m and -77 cm beyond 1.5 m,
-# which is what max_ingest_range_m below is for. Prefer fixing the detector's
-# box convention and returning this to 1.0.
 range_scale = 1.95
-# Take the sign's range from the LIDAR ray at the camera's bearing. ONLY VALID
-# PAIRED WITH lidar_range_fusion_cluster BELOW -- the two are one mechanism.
-#
-# Shipped TRUE until 2026-09-06 and measured to make the estimate WORSE: at the
-# camera's bearing the return is wall-shaped 51% of the time and pillar-shaped
-# 27%, median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of
-# detections (the gate is 0.05 < r < 10.0, i.e. no gate) and a wall behind a
-# sign is always FURTHER, so it was half the outward bias that pinned believed
-# signs to the walls. Costs 28 cm of median position error with the corrected
-# bearing.
-#
-# Back ON 2026-09-11, gated. Replayed over 78 hardware bags (09-06 to 09-10),
-# pass-side routing errors / passes judged:
-#     both off (baseline)     194 / 654   29.7%
-#     fusion UNGATED          227 / 605   37.5%   <- reproduces the refutation
-#     fusion + cluster gate   180 / 712   25.3%   <- fewer errors, MORE passes
-# The ungated arm reproducing its own refutation is what validates the harness.
-# The gated arm is the only one that improves without shrinking the denominator.
 lidar_range_fusion = true
-
-# Camera capture-to-consumption lag, used ONLY when a detection payload carries
-# no capture stamp (an older vision_node). /vision/detections is a headerless
-# std_msgs/String, so until 2026-09-07 every detection was decoded against the
-# pose at RECEIPT. Measured 0.85 s on run_20260906_232408/_232748 (0.78 and 0.95
-# found independently in the two runs); at 0.3 m/s through a corner that is most
-# of a sign's lateral offset, and it was the ENTIRE bearing residual left after
-# the mirror fix -- 20.2 deg -> 5.4 deg once aligned. The check that was not
-# fitted to it: the recovered cx-vs-bearing slope reads -309 px/rad at zero lag,
-# which no real lens can produce (floor ~620), and -679 at 0.85 s.
 vision_latency_s = 0.85
-
-# Written out 2026-09-10: all three existed only as Python literals (the
-# shipped-tree completeness test now requires every concrete default to
-# appear in this file). Shipped values, so naming them changed nothing.
-
-# Snap a fixed observation to the corridor lattice; 0.0 disables.
 snap_to_lattice_m = 0.0
-# The two knobs below parameterise lidar_range_fusion above. The gate requires
-# a free-standing cluster of pillar width at the camera's bearing whose range
-# AGREES with the pinhole within lidar_range_fusion_agreement; failing either
-# test, the pinhole stands. NOT optional: with this false the fusion above is
-# the version measured harmful.
 lidar_range_fusion_cluster = true
 lidar_range_fusion_agreement = 0.5
-
-# Refuse to publish a sign into a section already holding this many. The
-# rulebook allows TWO per section and eight on the track; the map believed 8,
-# 7, 12 and 5 per section on the 2026-09-11 hardware rounds. Unlike
-# snap_to_lattice_m above, which quantised the POSITION and left the COUNT
-# alone, a cap needs no opinion about which tracks are duplicates. SHIPS OFF
-# (0): the risk is that an early phantom holds a slot the real pillar then
-# cannot have, which is the failure mode of an earlier dedup attempt. The
-# rulebook value is 2.
 max_signs_per_section = 0
-
-colour_pool_radius_m = 0.0   # pool colour votes across fragments of one pillar within this radius (0 = off)
-
-# BARRIER BELIEF, added 2026-09-14 off the post-deploy rounds.
-#
-# The camera identifies the parking barrier as MAGENTA far more reliably than
-# it mislabels it RED: 1,921 magenta detections against 748 wall-shaped reds
-# admitted to the sign map, over the four rounds of 2026-09-14. Every one of
-# those magenta detections was thrown away -- detection_to_observation returns
-# None for any colour that is not RED or GREEN -- while the same physical
-# object, seen red, was seeded as a pillar and routed around.
-#
-# The shape gate cannot close that hole and three separate attempts to make it
-# do so were refuted the same day: the corridor exemption is working as
-# designed (every exempt admission came from the corridor OPPOSITE the lot), a
-# height test cannot discriminate at all (the sign and the barrier are both
-# exactly 0.10 m tall, track.toml), and restricting the clipped exemption to
-# the vertical axis reaches 10 of 458 leaked boxes (2%), with the data actively
-# confirming the existing rule -- wall-shaped share runs 20.5% unclipped
-# against 56.8% vertically clipped, the height-truncation signature.
-#
-# So this uses evidence the robot already has rather than trying harder to
-# reject it. Set barrier_belief_min_sightings = 0 to disable.
+colour_pool_radius_m = 0.0
 barrier_belief_min_sightings = 4
 barrier_merge_radius_m = 0.35
 barrier_suppression_radius_m = 0.30
-# Treat the believed lot as the 0.45 m SPAN the rulebook gives it rather than a
-# point, extending the test ALONG the wall only. The lot is two fins
-# BLOCK_SPACING_FACTOR chassis lengths apart -- parking_lot_from_in_bay_start
-# already builds them as BLOCK1 and BLOCK2 -- so a centroid with a 0.30 m radius
-# has to cover a 0.45 m object and reaches each fin with 7 cm to spare, against
-# a believed position measured wandering 0.57 m between rounds.
-#
-# THE FAILURE IT FIXES, two hardware wedges hours apart at the same place: the
-# true fins sit at x = 0.94 (14,403 LIDAR returns) and 1.42, a 0.48 m span
-# centred on 1.18, while the belief put its centroid at 1.30 -- so the WEST fin
-# landed 0.36 m out, beyond the bubble. Wall-shaped reds on that fin were
-# suppressed 1/14 and 2/19 by the point model against 10/14 and 13/19 by the
-# span. The chassis spent 70 s and 172 s (46% of each round) fighting a fin at
-# (0.93, 0.16) while the planner routed around a phantom at (1.0, 0.6).
-#
-# THE TRADE IS NOT FREE. Barrier share suppressed rises 60.8->66.8, 23.5->27.9
-# and 68.3->75.7%, but real pillars refused rise 25.5->26.4, 2.7->4.9 and
-# 8.8->12.7%, and the benefit/cost RATIO is slightly worse on two of three
-# rounds. Narrowing the radius to 0.22 or 0.18 alongside it moves back down the
-# same curve rather than off it. The aggregate cannot see the west fin, and the
-# west fin is what ends rounds.
-#
-# THE SIMULATOR CANNOT SCORE THIS: it never emits a magenta detection, so there
-# is no corpus guard and the only instrument is a ccw hardware round.
-#
-# ON since 2026-09-15 for exactly that round, and UNVALIDATED until it runs.
-# What to read in the bag, in order:
-#   1. wall-shaped reds on the WEST fin (x 0.85-1.05, y < 0.45) suppressed --
-#      1/14 and 2/19 with the point model, ~70% expected with the span;
-#   2. the wedge at (0.74-0.75, 0.23) gone, or not;
-#   3. THE COST -- real pillars refused near the lot rose 25.5->26.4, 2.7->4.9
-#      and 8.8->12.7% on bags. If the robot starts ignoring legitimate pillars
-#      by the parking, that is this, and it is the reason to set it back to
-#      false.
 barrier_span_along_wall = true

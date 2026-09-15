@@ -212,7 +212,6 @@ corridor_flip_ticks = 1
 # and Open never deforms, so this cannot touch the Open ladder.
 sign_aware_speed = true
 
-# =====================================================================
 # Written out 2026-09-05
 #
 # Every key below existed ONLY as a Python literal: SignRouterParams carried
@@ -224,7 +223,6 @@ sign_aware_speed = true
 # (src/shared/src/config/navigation_tuning/signs.py). Several are
 # REFUTED experiments kept configurable so the refutation stays reproducible;
 # those are marked. Do not read a `false` here as "unfinished".
-# =====================================================================
 
 # Lane planner (the shipped sign-avoidance path)
 sign_lane_planner = true

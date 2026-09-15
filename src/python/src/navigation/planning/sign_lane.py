@@ -40,7 +40,6 @@ coordinates change. Every index-keyed invariant in ``CoreNavigator``
 therefore survives it unchanged.
 
 WRO layout invariants this planner leans on
--------------------------------------------
 Measured over all 256 corpus scenarios (1282 signs), not assumed:
 
 * Along-corridor sign depths take exactly three values: 1.00, 1.50, 2.00 --
