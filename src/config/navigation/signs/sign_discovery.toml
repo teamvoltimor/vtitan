@@ -157,5 +157,14 @@ barrier_suppression_radius_m = 0.30
 #
 # THE SIMULATOR CANNOT SCORE THIS: it never emits a magenta detection, so there
 # is no corpus guard and the only instrument is a ccw hardware round.
-# SHIPS OFF AND UNVALIDATED ON TRACK.
-barrier_span_along_wall = false
+#
+# ON since 2026-09-15 for exactly that round, and UNVALIDATED until it runs.
+# What to read in the bag, in order:
+#   1. wall-shaped reds on the WEST fin (x 0.85-1.05, y < 0.45) suppressed --
+#      1/14 and 2/19 with the point model, ~70% expected with the span;
+#   2. the wedge at (0.74-0.75, 0.23) gone, or not;
+#   3. THE COST -- real pillars refused near the lot rose 25.5->26.4, 2.7->4.9
+#      and 8.8->12.7% on bags. If the robot starts ignoring legitimate pillars
+#      by the parking, that is this, and it is the reason to set it back to
+#      false.
+barrier_span_along_wall = true
