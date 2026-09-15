@@ -297,6 +297,49 @@ class TestStuckDetectionDuringParking:
 REAR_BLOCKED_M = 0.30
 
 
+class TestTheEscapePublishesItsDecisionInputs:
+    """A bag recorded what the escape COMMANDED but never what it was ASKED for.
+
+    Three 2026-09-15 analyses stalled on that gap: whether the K-turn's 10%
+    corner agreement is a wrong choice or a correct refusal of a shut side; how
+    many ticks the pass-side refusal decides (it needed the controller
+    monkey-patched in the simulator to answer at all); and which actor cancels
+    the escape pendulum, where the chassis was measured obeying its own command
+    on 245 of 246 reverse legs -- so the defect is purely which SIDE each actor
+    picks, and the side the router asked for was not on the wire.
+
+    REACHABILITY IS NOT PROVEN HERE and deliberately so. The fields are written
+    on the COLLISION escape path (K_TURN / SIDE_CORRECTION), and no unit test in
+    this file reaches it: a front-blocked scan takes the `escape_recovery`
+    STUCK_* path instead, and every existing K_TURN test constructs the
+    manoeuvre by hand rather than driving the navigator into one. Reachability
+    is proven end-to-end against the obstacles simulator instead; see the commit
+    that added these fields. What IS pinned here is the control below, because
+    a field that only ever reads None is indistinguishable from dead
+    instrumentation.
+    """
+
+    def test_the_open_challenge_publishes_no_preferred_sign(self, waypoints, tuning):
+        """The control. With no sign router there is no committed side to ask for.
+
+        Without it a None reading could not be told from the field never being
+        written, and every Open Challenge tick takes this path.
+        """
+        ranges = create_scan_with_sectors(front=0.06)
+        gateway = FakeGateway(
+            Pose(x=0.0, y=0.0, yaw=0.0),
+            LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
+        )
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+
+        seen = []
+        for _ in range(10):
+            nav.step()
+            seen.append(nav.debug_snapshot.escape_preferred_sign)
+
+        assert all(v is None for v in seen)
+
+
 class TestStuckEscapeRearBlocked:
     """2026-08-04: a robot wedged with reverse blocked used to just hold and
     reset the stuck detector forever, re-arming the same forward command that

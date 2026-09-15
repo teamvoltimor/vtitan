@@ -1804,13 +1804,27 @@ class CoreNavigator(EscapeRecovery):
             threat_dir = threat_direction(
                 escape_clearances, self._collision_controller.threat_no_detection_range_m,
             )
+            # Published, not just passed: a bag records what the escape
+            # COMMANDED but had no way to say what it was asked for, so three
+            # separate analyses could not tell a wrong choice from a correct
+            # refusal. See NavigatorDebugSnapshot.escape_preferred_sign.
+            #
+            # Written on `debug`, NOT on `self._debug`: the escape branch below
+            # hands `debug` over wholesale (`self._debug = debug`) precisely
+            # because it carries the risk verdict and trigger ray for this tick,
+            # so anything set on `self._debug` here is discarded. Measured:
+            # setting it on `self._debug` published on 0 of 2,867 ticks of a
+            # full obstacles scenario.
+            preferred_sign = self._committed_sign_steer_sign(robot_yaw)
+            debug.escape_preferred_sign = preferred_sign
+            debug.escape_threat_dir = threat_dir
             maneuver = self._collision_controller.compute_escape_maneuver(
                 escape_risk,
                 threat_dir,
                 escape_ranges,
                 scan.angles_rad,
                 self._direction,
-                self._committed_sign_steer_sign(robot_yaw),
+                preferred_sign,
             )
             # Rear clearance is checked against the RAW scan: a sign behind the
             # robot is still something to not reverse into, whoever owns it.

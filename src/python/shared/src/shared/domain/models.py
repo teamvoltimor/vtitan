@@ -1042,6 +1042,26 @@ class NavigatorDebugSnapshot(BaseModel):
     maneuver_frames_left: int | None = None
     escape_count: int | None = None
 
+    # The escape's DECISION INPUTS, not just its output. `maneuver_steering`
+    # records what the escape commanded; neither of these was on the wire, and
+    # without them a bag cannot say WHY it commanded that.
+    #
+    # Three separate 2026-09-15 questions stalled on exactly this gap: whether
+    # the K-turn's 10% corner agreement means it chose the wrong side or was
+    # refusing a shut one; how many ticks the pass-side refusal actually decides
+    # (it needed the controller monkey-patched in the simulator to answer at
+    # all); and which actor cancels the escape pendulum, where the chassis was
+    # measured obeying its own command on 245 of 246 reverse legs, so the defect
+    # is purely which SIDE each actor picks.
+    #
+    # `escape_preferred_sign` is what the router asked for (negative for left,
+    # None whenever the rule is unavailable -- every tick of the Open
+    # Challenge). `escape_threat_dir` separates a LEFT threat from a RIGHT one,
+    # which `active_maneuver_type` cannot: it collapses both to
+    # SIDE_CORRECTION.
+    escape_preferred_sign: float | None = None
+    escape_threat_dir: ThreatDirection | None = None
+
     # In-bay start -- set only on the "bay_exit" phase. The manoeuvre reasons
     # entirely in a DEAD-RECKONED bay frame that no other topic can reconstruct:
     # /joint_states carries its input, but not the pocket pose it integrates to,
