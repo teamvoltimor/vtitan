@@ -143,3 +143,11 @@ mistake and it wrongly excluded the 0.10 arm.
   the corner needed 90. `narrow_width_threshold_m = 0.8` is the midpoint between
   the two rule widths, a threshold not an interpolation. `first_lap_corner_caution`
   is on; `corner_caution_all_laps` and `first_lap_corner_caution_narrow_only` off.
+- The corner-end second opinion (`turn_arc_half_fov_deg = 15`,
+  `turn_open_range_m = 1.00`) asks the complementary question as a MAXIMUM over a
+  wider arc, because `turn_clearance_m` alone reads a MINIMUM over the +/-8 deg
+  cone and cannot separate an ended corridor from an oblique chassis
+  (run_20260806_162008 fired the corner branch 53 percent of a round at 47 percent
+  precision against a 45 percent base). `corner_leak_margin_m = 0.35` is added to
+  WIDE for the side that has leaked past the inner block; `corner_speed_scale` and
+  `reverse_speed_scale` are 0.6.
