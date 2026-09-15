@@ -25,9 +25,13 @@ Per adjacent leg PAIR (one reversal of commanded speed) it reports:
   rotate the same way; 0.0 is a pendulum that gives back every degree. This is
   the better of the two axes: a pair can translate a little and still have
   wasted all its rotation.
-* **closed on the threat** -- did ``min_lidar_range_m`` END the pair lower than
-  it started? That is "reversing back TOWARD the obstacle", stated as a
-  measurement rather than an impression.
+RETRACTED 2026-09-15: this reported a "closed on the threat" column built on
+``min_lidar_range_m``, which is ``min(scan.ranges_m)`` -- the RAW, unmasked
+sweep minimum, i.e. the chassis. Measured over two rounds it spans 0.006-0.018 m
+and sits below ``min_valid_range_m`` (0.044) on 100% of ticks, so it never
+carries obstacle range at all. Comparing it across a pair was a coin flip, and
+it duly read 41-53%. The column is gone. Use the pose-based axes below; they
+measure what they claim.
 
 CONTROLS, because a crashed diagnostic in this repo exits 0:
 
@@ -102,7 +106,6 @@ def _legs(rows, min_leg: int) -> list[dict]:
 def _leg(samples, sign: int) -> dict:
     """Summarise one constant-direction leg."""
     steers = [s.commanded_steering_norm for _, s in samples if isinstance(s.commanded_steering_norm, (int, float))]
-    ranges = [s.min_lidar_range_m for _, s in samples if isinstance(s.min_lidar_range_m, (int, float))]
     xs = [s.pose_x for _, s in samples]
     ys = [s.pose_y for _, s in samples]
     path = sum(math.hypot(xs[i + 1] - xs[i], ys[i + 1] - ys[i]) for i in range(len(xs) - 1))
@@ -118,8 +121,6 @@ def _leg(samples, sign: int) -> dict:
         "x1": xs[-1],
         "y1": ys[-1],
         "path": path,
-        "r0": ranges[0] if ranges else float("nan"),
-        "r1": ranges[-1] if ranges else float("nan"),
         "yaws": [s.pose_yaw for _, s in samples if isinstance(s.pose_yaw, (int, float))],
     }
 
@@ -144,7 +145,7 @@ def _score(bag_dir: Path, min_leg: int, all_pairs: bool) -> list:
     """One row: how many reversals mirrored, and how much they cancelled."""
     rows, _ = load_nav_debug_rows(bag_dir)
     legs = _legs(posed_rows(rows), min_leg)
-    mirrored = closed = 0
+    mirrored = 0
     cancels: list[float] = []
     kept: list[float] = []
     pairs = 0
@@ -178,10 +179,8 @@ def _score(bag_dir: Path, min_leg: int, all_pairs: bool) -> list:
         k = _yaw_kept(a, b)
         if not math.isnan(k):
             kept.append(k)
-        if not math.isnan(a["r0"]) and not math.isnan(b["r1"]) and b["r1"] < a["r0"]:
-            closed += 1
     if pairs == 0:
-        return [bag_dir.name.replace("run_", ""), 0, "-", "-", "-", "-", "-", "-", "-", "-", "-"]
+        return [bag_dir.name.replace("run_", ""), 0, "-", "-", "-", "-", "-", "-", "-", "-"]
     c = np.array(cancels) if cancels else np.array([float("nan")])
     k = np.array(kept) if kept else np.array([float("nan")])
     return [
@@ -193,7 +192,6 @@ def _score(bag_dir: Path, min_leg: int, all_pairs: bool) -> list:
         f"{100 * float(np.nanmean(c < _GAVE_BACK)):.0f}%",
         f"{np.nanpercentile(k, 50):.2f}",
         f"{100 * float(np.nanmean(k < _GAVE_BACK)):.0f}%",
-        f"{closed} ({100 * closed / pairs:.0f}%)",
         f"{inside_mirrored}/{inside}" + (f" ({100 * inside_mirrored / inside:.0f}%)" if inside else ""),
         f"{crossing_mirrored}/{crossing}" + (f" ({100 * crossing_mirrored / crossing:.0f}%)" if crossing else ""),
     ]
@@ -218,7 +216,6 @@ def main() -> int:
             "cancel < 0.25",
             "YAW KEPT p50",
             "kept < 25%",
-            "closed on threat",
             "inside escape",
             "CROSSING out",
         ],
