@@ -26,8 +26,8 @@ task windows:ssh:setup-config SSH_USER=... SSH_KEY_PATH=... [SSH_DOMAIN=...] [SS
 ```
 
 Writes host aliases for the dev Pi 5 (over the direct Ethernet link and over
-the LAN), the Pi Zero, and the public remote host, then you can reach them as
-`ssh rpi-5-local`, `ssh rpi-zero`, and so on. Every value is a parameter with a
+the LAN), the Pi Zero, and the public remote host. You can then reach them as
+`ssh rpi-5-local`, `ssh rpi-5-direct`, `ssh rpi-zero-local`, and so on. Every value is a parameter with a
 placeholder default (`YOUR_USERNAME`, `YOUR_KEY_FILE`, ...), so the script is
 safe to read as a template: it refuses nothing, but an unset placeholder
 produces an unusable host block. Re-running appends a fresh block; it does not

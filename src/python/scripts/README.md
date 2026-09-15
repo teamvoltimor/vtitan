@@ -88,11 +88,11 @@ full of them.
 
 ## Running one
 
-Every script is run from `src/` with the repo root on `PYTHONPATH`,
+Every script is run from `src/python/` with the repo root on `PYTHONPATH`,
 which the `dev` pixi env provides:
 
 ```
-pixi run -e dev python scripts/bag/diag_bag_lap_replay.py data/live/runs/run_20260806_180154
+pixi run -e dev python scripts/bag/diag_bag_lap_replay.py ../../other/data/live/runs/run_20260806_180154
 pixi run -e dev python scripts/sim/diag_open_laps.py
 pixi run -e vision python scripts/hardware/diag_hailo_detector.py IMAGE...
 ```

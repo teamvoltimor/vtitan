@@ -1,4 +1,4 @@
-# robot/libs - vendored wheels
+# src/python/libs - vendored wheels
 
 Pre-built HailoRT Python wheels vendored here because they are not published to PyPI and require a Hailo Developer Zone account to download.
 

@@ -4,7 +4,7 @@ Python/ROS2 code that runs on the robot itself: hardware drivers, navigation, th
 competition state machine, vision, and a headless simulation harness for testing navigation
 logic without hardware or Gazebo.
 
-## Two source trees, one relationship
+## Three source trees, one relationship
 
 - **`src/`** (this directory's own `src/`, i.e. `src/python/src/`) - the actual
   implementation. Plain Python, importable and testable without ROS2 running

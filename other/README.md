@@ -22,6 +22,7 @@ WRO y con `src/` (el robot); todo lo demás vive aquí dentro.
 | Logos e imágenes de la documentación | [`assets/`](assets/) |
 | Tareas del Taskfile raíz (fleet, platform, infra) | [`tasks/`](tasks/) y [`../Taskfile.yml`](../Taskfile.yml) |
 | Sitio de documentación | [`apps/hugo-docs/`](apps/hugo-docs/) |
+| Página de presentación del proyecto | `apps/landing/` (sin contenido versionado todavía) |
 
 El código del robot no está bajo `other/`: vive en [`../src/`](../src/), porque
 es material de competencia. Los contratos compartidos, en cambio, se movieron

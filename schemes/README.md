@@ -56,10 +56,12 @@ El esquemático de conexiones no está dibujado a mano: se define en código con
 un cambio de pin queda en el historial de git como cualquier otro cambio.
 
 ```bash
-cd schemes/wiring/tscircuit && npm run artifacts
+cd schemes/wiring/tscircuit
+npm install          # solo la primera vez
+npm run artifacts
 ```
 
-Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se commitean
+Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se versionan
 porque son lo que se lee en la documentación y reconstruirlos exige toda la
-cadena de herramientas. El `.png` se conserva como respaldo universal del `.svg`,
-que es la única razón por la que no se convirtió a WebP como el resto.
+cadena de herramientas. El `.png` se conserva como respaldo universal del `.svg`;
+esa es la única razón por la que no se convirtió a WebP como el resto.

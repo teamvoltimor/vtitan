@@ -19,11 +19,11 @@ Bienvenidos al repositorio de vTitan, el robot del Team Voltimor, que compite en
     <i>Foto del Equipo, de izquierda a derecha: Ramón Álvarez, Sebastián Álvarez, Jesús Pérez (Padre, Mentor), Jesús Pérez</i>
 </p>
 
-Actualmente, este equipo está conformado por 3 miembros:
+El equipo lo forman tres miembros:
 
-- **Ramón Álvarez**, 20 años. [ralvarezdev](https://github.com/ralvarezdev). Ejerce como líder del equipo y es el encargado de la programación. Actualmente, trabaja en Automation Labs, y finalizó sus estudios en Ingeniería en Computación en URU.
-- **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado tanto de la programación, como de la documentación y la toma de decisiones con respecto a la lógica del robot. Actualmente, cursa el 1er trimestre de Ingeniería en Computación en URU.
-- **Jesús Pérez**, 16 años. [JesusPerez15](https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Actualmente, cursa el 5to año de bachillerato en el Colegio Salto Ángel.
+- **Ramón Álvarez**, 20 años. [ralvarezdev](https://github.com/ralvarezdev). Líder del equipo y encargado de la programación. Trabaja en Automation Labs y finalizó sus estudios de Ingeniería en Computación en URU.
+- **Sebastián Álvarez**, 16 años. [salvarezdev](https://github.com/salvarezdev). Encargado de la programación, la documentación y las decisiones sobre la lógica del robot. Cursa el primer trimestre de Ingeniería en Computación en URU.
+- **Jesús Pérez**, 16 años. [JesusPerez15](https://github.com/JesusPerez15). Encargado del diseño, la mecánica y la fabricación del robot. Cursa quinto año de bachillerato en el Colegio Salto Ángel.
 
 ## vTitan en números
 
@@ -49,8 +49,9 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
     3. [Despliegue al robot](#despliegue-al-robot-desde-el-computador-por-ssh)
     4. [Operación en pista](#operación-en-pista-directamente-en-la-raspberry-pi-5-vía-ssh)
     5. [Provisionado desde cero](#provisionado-desde-cero-instalar-el-sistema-en-las-raspberry-pi)
-    6. [Pruebas](#pruebas)
-    7. [Versionado](#versionado)
+    6. [Documentación](#documentación)
+    7. [Pruebas](#pruebas)
+    8. [Versionado](#versionado)
 4. **[Historial del equipo](#historial-del-equipo)**
     1. [Klevor (WRO 2025)](#klevor-wro-2025)
         1. [Klevor v0.1](other/docs/development/previous-prototypes/klevor-v0.1.md)
@@ -58,46 +59,46 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
         3. [Klevor v0.2](other/docs/development/previous-prototypes/klevor-v0.2.md)
         4. [Klevor v1.0](other/docs/development/previous-prototypes/klevor-v1.0.md)
     2. [vTitan (WRO 2026)](#vtitan-wro-2026)
-5. **[Movilidad y Diseño Mecánico](#movilidad-y-diseño-mecánico)**
+5. **[Movilidad y diseño mecánico](#movilidad-y-diseño-mecánico)**
     1. [Restricciones iniciales](#restricciones-iniciales)
-    2. [Métodos de Prototipaje](#métodos-de-prototipaje)
-    3. [Evolución y Justificación Del Diseño](#evolución-y-justificación-del-diseño)
-        1. [Fase 1: Rin estático, corona interna y guayas flexibles](#fase-1-prototipo-de-rin-estático-corona-interna-y-guayas-flexibles)
-        2. [Fase 2: Pruebas de integración y detección de fallas](#fase-2-pruebas-de-integración-y-detección-de-fallas)
-        3. [Fase 3: Rediseño a engranajes perpendiculares](#fase-3-rediseño-a-engranajes-perpendiculares-coronas-y-correa-dentada)
-        4. [Fase 4: Optimización de peso y chasis final](#fase-4-optimización-de-peso-integración-y-chasis-final)
-        5. [Fase 5: Integración del HD Hex Motor](#fase-5-integración-del-hd-hex-motor)
-    4. [Sistema de Transmisión](#sistema-de-transmisión)
-    5. [Sistema de Dirección](#sistema-de-dirección)
+    2. [Métodos de prototipaje](#métodos-de-prototipaje)
+    3. [Evolución y justificación del diseño](#evolución-y-justificación-del-diseño)
+        1. [Fase 1: prototipo de rin estático, corona interna y guayas flexibles](#fase-1-prototipo-de-rin-estático-corona-interna-y-guayas-flexibles)
+        2. [Fase 2: pruebas de integración y detección de fallas](#fase-2-pruebas-de-integración-y-detección-de-fallas)
+        3. [Fase 3: rediseño a engranajes perpendiculares, coronas y correa dentada](#fase-3-rediseño-a-engranajes-perpendiculares-coronas-y-correa-dentada)
+        4. [Fase 4: optimización de peso, integración y chasis final](#fase-4-optimización-de-peso-integración-y-chasis-final)
+        5. [Fase 5: integración del REV HD Hex Motor](#fase-5-integración-del-rev-hd-hex-motor)
+    4. [Sistema de transmisión](#sistema-de-transmisión)
+    5. [Sistema de dirección](#sistema-de-dirección)
     6. [Estructura mecánica](#estructura-mecánica)
-        1. [Chasis Inferior](#chasis-inferior)
+        1. [Chasis inferior](#chasis-inferior)
         2. [Monochasis](#monochasis)
     7. [Montaje](#montaje)
         1. [Las piezas, y cómo mirarlas](#las-piezas-y-cómo-mirarlas)
-    8. [Relación de Torque y Velocidad](#relación-de-torque-y-velocidad)
+    8. [Relación de torque y velocidad](#relación-de-torque-y-velocidad)
         1. [Velocidad: teórica contra real](#velocidad-teórica-contra-real)
 6. **[Arquitectura de energía y sensores](#arquitectura-de-energía-y-sensores)**
-    1. [Lista de Componentes](#lista-de-componentes)
-        1. [Raspberry Pi 5 (16GB RAM)](#raspberry-pi-5-16gb-ram)
+    1. [Lista de componentes](#lista-de-componentes)
+        1. [Raspberry Pi 5 (16 GB de RAM)](#raspberry-pi-5-16-gb-de-ram)
         2. [Raspberry Pi Camera Module 3 Wide](#raspberry-pi-camera-module-3-wide)
         3. [Raspberry Pi AI HAT+ (26 TOPS)](#raspberry-pi-ai-hat-26-tops)
         4. [Raspberry Pi Zero 2 W](#raspberry-pi-zero-2-w)
         5. [RPLiDAR C1](#rplidar-c1)
-        6. [Hi Wonder HPS-3527SG 35kg Servo](#hi-wonder-hps-3527sg-35kg-servo)
-        7. [HD Hex Motor](#hd-hex-motor)
+        6. [Servomotor Hiwonder HPS-3527SG (35 kg·cm)](#servomotor-hiwonder-hps-3527sg-35-kgcm)
+        7. [REV HD Hex Motor](#rev-hd-hex-motor)
         8. [IMU GY-BNO085](#imu-gy-bno085)
-        9. [Ovonic Air 11.1V Li-Po Battery](#ovonic-air-111v-li-po-battery)
+        9. [Batería Li-Po Ovonic Air de 11.1 V](#batería-li-po-ovonic-air-de-111-v)
         10. [Puente H BTS7960 / IBT-2](#puente-h-bts7960--ibt-2)
         11. [Step Down Mini-560 Pro](#step-down-mini-560-pro)
-        12. [SSD1306 OLED Display](#ssd1306-oled-display)
+        12. [Pantalla OLED SSD1306](#pantalla-oled-ssd1306)
         13. [Convertidor KL89576 (DC a USB-C)](#convertidor-kl89576-dc-a-usb-c)
-    2. [Diagrama de Conexiones](#diagrama-de-conexiones)
-        1. [Consumo Energético](#consumo-energético)
+    2. [Diagrama de conexiones](#diagrama-de-conexiones)
+        1. [Consumo energético](#consumo-energético)
         2. [Calibración](#calibración)
 7. **[Arquitectura de software y estrategia para superar obstáculos](#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
     1. [Arquitectura ROS2 y reparto entre dos computadores](#arquitectura-ros2-y-reparto-entre-dos-computadores)
-        1. [La segunda pila en Go, y por qué no corre en carrera](#la-segunda-pila-stack-en-go-y-por-qué-no-corre-en-carrera)
-    2. [Modelo de Detección YOLO](#modelo-de-detección-yolo)
+        1. [La segunda pila (stack) en Go, y por qué no corre en carrera](#la-segunda-pila-stack-en-go-y-por-qué-no-corre-en-carrera)
+    2. [Modelo de detección YOLO](#modelo-de-detección-yolo)
         1. [El modelo y su pipeline](#el-modelo-y-su-pipeline)
         2. [Datos de entrenamiento](#datos-de-entrenamiento)
         3. [Cómo lo medimos (y qué cambió por eso)](#cómo-lo-medimos-y-qué-cambió-por-eso)
@@ -119,14 +120,14 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
     3. [Perfiles de hardware intercambiables](#perfiles-de-hardware-intercambiables)
     4. [Compensaciones y alternativas descartadas](#compensaciones-y-alternativas-descartadas)
     5. [Registro de decisiones de arquitectura (ADR)](#registro-de-decisiones-de-arquitectura-adr)
-    6. [Ciclo de trabajo: idea, simulación, pista](#ciclo-de-trabajo-idea--simulación--pista)
+    6. [Ciclo de trabajo: idea → simulación → pista](#ciclo-de-trabajo-idea--simulación--pista)
     7. [Hallazgos de ingeniería](#hallazgos-de-ingeniería)
     8. [Gestión de riesgos](#gestión-de-riesgos)
     9. [Tecnologías utilizadas](#tecnologías-utilizadas)
 9. **[Videos de vTitan](#videos-de-vtitan)**
     1. [Open Challenge](#open-challenge)
     2. [Open Challenge Simulation](#open-challenge-simulation)
-    3. [Obstacles Challenge Simulation](#obstacles-challenge-simulation)
+    3. [Obstacle Challenge Simulation](#obstacle-challenge-simulation)
     4. [Parking Challenge](#parking-challenge)
     5. [Otros](#otros)
 
@@ -149,7 +150,8 @@ vtitan/
 │   ├── current-models/  #   vTitan: blueprints/, step-files/ (CAD), stl-files/ (visor 3D)
 │   └── old-models/      #   Prototipos previos (Klevor)
 ├── src/               # python/ (pila ROS2), go/ (reimplementación Go), config/ (TOML
-│                      #   compartido, leído por ambos), assets/ (imágenes compartidas)
+│                      #   compartido, leído por ambos), model/ (esquemas JSON que
+│                      #   validan ese TOML), tools/ y assets/ (imágenes compartidas)
 ├── other/             # Todo lo que no es material de competencia
 │   ├── apps/          #   backend/, frontend/, gazebo/, auto-annotator/, hugo-docs/, landing/
 │   ├── assets/        #   Logos e imágenes de esta documentación
@@ -173,7 +175,7 @@ vtitan/
 | `video/` | Enlaces a los videos de las rondas y del robot en funcionamiento ([`video/video.md`](video/video.md)) |
 | `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
 | `models/` | Modelos 3D de las piezas: `current-models/` (vTitan) y `old-models/` (Klevor), cada uno con `blueprints/` (planos), `step-files/` (CAD para fabricar y editar) y `stl-files/` (para imprimir, y que **GitHub renderiza en un visor 3D interactivo**). Inventario completo en [`models/README.md`](models/README.md) |
-| `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
+| `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen), `src/model/` (los esquemas JSON que validan ese TOML y apuntan a su ADR), `src/tools/` y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
 | `other/` | Todo lo que no es material de competencia: `other/apps/` (telemetría, simulador, auto-anotador, docs), `other/contracts/` (proto + OpenAPI compartidos), `other/ml/` (entrenamiento y pesos), `other/deploy/ansible/`, `other/docs/`, `other/data/`, `other/scripts/`, `other/tasks/` y `other/assets/`. Ver [`other/README.md`](other/README.md) |
 
 ### Cómo explorar este repositorio
@@ -187,14 +189,14 @@ Según lo que quieras revisar, esta es la ruta más corta:
 - **Cómo se instala el sistema en las placas**: [`other/docs/pi-setup.md`](other/docs/pi-setup.md) y `other/deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
 - **Las piezas del robot en 3D**: [`models/README.md`](models/README.md). Los `.stl` se abren directamente en el visor 3D de GitHub, sin instalar nada. Los diagramas y el arnés, en [`schemes/README.md`](schemes/README.md); las vistas del robot, en [`v-photos/README.md`](v-photos/README.md).
 - **Cómo verificamos que algo funciona**: [`tests.md`](tests.md), que describe los cuatro niveles de prueba y el protocolo con el que aceptamos o descartamos un cambio.
-- **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora-ingenieria.md`](other/docs/bitacora-ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` post-regional) con mensajes de commit convencionales.
+- **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora-ingenieria.md`](other/docs/bitacora-ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` y `v1.2` posteriores) con mensajes de commit convencionales.
 
 Además de las carpetas obligatorias, el repositorio contiene:
 
-- `src/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `src/config/` (la configuración TOML que ambos leen) y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD de navegación).
+- `src/` con el código: `src/python/` (la pila ROS2 de competencia), `src/go/` (la segunda implementación en Go), `src/config/` (la configuración TOML que ambos leen), `src/model/` (los esquemas JSON que la validan y la enlazan con su ADR), `src/tools/` y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD de navegación).
 - `other/contracts/` con los contratos de interfaz que generan código para los tres consumidores (robot, backend y frontend): `other/contracts/proto/` (buf, esquemas gRPC/NATS) y `other/contracts/openapi/` (spec-first REST).
 - `other/docs/` con la documentación de apoyo: la [bitácora de ingeniería](other/docs/bitacora-ingenieria.md), la [referencia de configuración TOML de navegación](other/docs/configuracion-toml-navegacion.md), la [guía de instalación de las Raspberry Pi](other/docs/pi-setup.md), las hojas de datos en `other/docs/reference/datasheets/` y el historial de prototipos en `other/docs/development/previous-prototypes/`.
-- `other/apps/` con procesos independientes: `other/apps/backend/` y `other/apps/frontend/` (telemetría), `other/apps/auto-annotator/` (anotación asistida), `other/apps/hugo-docs/` (sitio de documentación navegable) y `other/apps/gazebo/` (runtime del simulador).
+- `other/apps/` con procesos independientes: `other/apps/backend/` y `other/apps/frontend/` (telemetría), `other/apps/auto-annotator/` (anotación asistida), `other/apps/hugo-docs/` (sitio de documentación navegable), `other/apps/gazebo/` (entorno de ejecución del simulador) y `other/apps/landing/` (página de presentación).
 - `other/ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `other/ml/weights/` con los pesos publicados.
 - `other/deploy/ansible/` con el provisionamiento de las placas; las tareas que lo ejecutan (`task rpi:*`, `task windows:provision:*`) están definidas en `other/tasks/fleet.yml`.
 - `other/scripts/` con utilidades de desarrollo (configuración de SSH para el robot) y `.github/` con los workflows de CI.
@@ -202,11 +204,12 @@ Además de las carpetas obligatorias, el repositorio contiene:
 
 ## Arranque rápido y reproducibilidad
 
-Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el despliegue al robot y la operación en pista, está automatizado con [Task](https://taskfile.dev) (Taskfile) y [Pixi](https://pixi.sh) / [uv](https://docs.astral.sh/uv/). Los comandos principales son `task`, y cada uno admite `task --list` para descubrirlos. Nada de lo que hacemos depende de pasos manuales no documentados: otra persona puede clonar el repositorio y llegar del código al robot con estos comandos.
+Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el despliegue al robot y la operación en pista, está automatizado con [Task](https://taskfile.dev) (Taskfile) y [Pixi](https://pixi.sh) / [uv](https://docs.astral.sh/uv/). Todo se invoca con `task`, y `task --list` enumera los comandos disponibles. Nada de lo que hacemos depende de pasos manuales no documentados: otra persona puede clonar el repositorio y llegar del código al robot con estos comandos.
 
 ### Requisitos previos (una sola vez)
 
 - [Task](https://taskfile.dev) (`go install github.com/go-task/task/v3/cmd/task@latest` o el instalador de la página)
+- [uv](https://docs.astral.sh/uv/) (entornos de Python fuera de ROS2: herramientas y scripts de apoyo)
 - [Pixi](https://pixi.sh) (gestiona los entornos de Python + ROS2 en el robot y la simulación)
 - [Go](https://go.dev) 1.26+ (backend de telemetría, generador de escenarios y binarios del robot)
 - Node.js 22+ (dashboard, el panel de telemetría)
@@ -215,24 +218,22 @@ Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el 
 
 ```bash
 task install          # Dependencias de simulación, robot y backend Go
-task init:dev         # Setup completo: install + lint
+task init:dev         # Configuración completa: install + lint
 
 # Generar la pista y el corpus de escenarios (semilla fija → resultados repetibles)
-task gen:corpus:all   # 640 escenarios Open + 256 Obstacles, seed 2026
+task gen:corpus:all   # 640 escenarios Open + 256 Obstacle, semilla 2026
 
-# Visualizar una carrera cerrada en RViz (simulador del navegador)
+# Visualizar en RViz una carrera a lazo cerrado (simulador de navegación)
 task sim:navigate:visualize:all -- --challenge open --interactive
 
 # Pruebas: todas, o por subsistema
-task test             # Python + Go, todos los módulos
-task robot:test SCOPE=navigation
-task robot:test SCOPE=unit
+task test             # Python + Go, todos los módulos (ver Pruebas, más abajo)
 ```
 
 ### Despliegue al robot (desde el computador, por SSH)
 
 ```bash
-task robot:deploy         # Código + detector HEF → rebuild colcon → restart del servicio
+task robot:deploy         # Código + detector HEF → recompilar colcon → reiniciar servicios
 task robot:watch-vision   # Detecciones en vivo, una línea por frame
 task robot:pull-runs      # Descargar los bags MCAP de las carreras
 ```
@@ -240,10 +241,10 @@ task robot:pull-runs      # Descargar los bags MCAP de las carreras
 ### Operación en pista (directamente en la Raspberry Pi 5, vía SSH)
 
 ```bash
-task rpi:stack ACTION=up           # Levantar la pila de servicios en orden correcto
+task rpi:stack ACTION=up           # Levantar la pila de servicios en el orden correcto
 task rpi:stack ACTION=status       # Estado de la pila
-task rpi:stack ACTION=logs         # Últimos logs de todos los servicios
-task rpi:health                    # Captura de salud: temperatura, throttle, disco, RAM
+task rpi:stack ACTION=logs         # Últimos registros de todos los servicios
+task rpi:health                    # Captura de salud: temperatura, throttling, disco, RAM
 task robot:calibrate-encoder       # Calibración de pulsos/vuelta contra distancia medida
 task robot:test-motors             # Prueba de humo de hardware: rango de servo + pulso de motor
 ```
@@ -252,8 +253,8 @@ task robot:test-motors             # Prueba de humo de hardware: rango de servo 
 
 ```bash
 task windows:provision:pi5         # Provisionar la Pi 5 con Ansible (tags opcionales)
-task rpi:provision:all             # Ambas placas, en tmux, tras reflashear la SD
-task rpi:ansible:check BOARD=pi5   # Dry-run + diff del provisionador
+task rpi:provision:all             # Ambas placas, en tmux, tras regrabar la SD
+task rpi:ansible:check BOARD=pi5   # Ensayo en seco y diferencias del provisionador
 ```
 
 ### Documentación
@@ -267,7 +268,7 @@ cd schemes/wiring/tscircuit && npm run artifacts   # Regenerar el esquemático d
 
 ```bash
 task test                      # Python + Go, todos los módulos
-task robot:test SCOPE=unit     # unit | fast | navigation | hardware | all
+task robot:test SCOPE=unit     # unit | navigation | hardware | all
 task sim:test                  # pruebas de la simulación
 task config:check              # cada clave de configuración descrita y con su ADR
 task lint                      # ruff, golangci-lint, ESLint, buf lint
@@ -283,11 +284,11 @@ Entre tags el historial es continuo, con mensajes de commit convencionales (`fix
 
 Un detalle de convención que usamos y no es estándar: el `!` en el tipo (`feat(sim)!:`) marca un cambio que **rompe la comparabilidad de resultados anteriores**, no solo la compatibilidad de una interfaz. Un número medido antes de uno de esos commits no se resta con uno medido después.
 
-# Historial del equipo
+## Historial del equipo
 
-En este apartado, discutimos brevemente nuestras experiencias pasadas con la categoría de Futuros Ingenieros y nuestro aprendizaje gracias a prototipos previos a la presente temporada.
+Aquí repasamos nuestras temporadas anteriores en Futuros Ingenieros y lo que aprendimos de los prototipos que precedieron a vTitan.
 
-## Klevor (WRO 2025)
+### Klevor (WRO 2025)
 
 <table>
         <tbody>
@@ -368,11 +369,11 @@ El uso de un ESC para controlar el motor parecía una idea muy buena en papel: a
 	<i>El motor 540 de Klevor, heredado de un carro de radiocontrol junto a su variador</i>
 </p>
 
-Además, optamos por un modelo más robusto y pesado en comparación con los demás prototipos habituales de esta competición, si bien, gracias a esto pudimos incorporar muchos elementos de gran utilidad (como la Raspberry Pi 5), debido a ésto, no podíamos optar por cambios significativos, siendo obligados a reestructurar el prototipo desde cero en caso de necesitar algún cambio.
+Además, optamos por un modelo más robusto y pesado en comparación con los demás prototipos habituales de esta competición, si bien, gracias a esto pudimos incorporar muchos elementos de gran utilidad (como la Raspberry Pi 5), debido a esto, no podíamos optar por cambios significativos, siendo obligados a reestructurar el prototipo desde cero en caso de necesitar algún cambio.
 
 Debido a la gran cantidad de cambios que necesitamos, por diferentes motivos, teníamos que reestructurar el prototipo múltiples veces, por lo que terminamos confiando ciegamente en algunas características que no pudimos probar completamente.
 
-## vTitan (WRO 2026)
+### vTitan (WRO 2026)
 
 <table>
         <tbody>
@@ -435,31 +436,36 @@ alt="Vista inferior de vTitan" width="600">
 
 vTitan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Voltimor (anteriormente Team Steel Bot), y es un proyecto que se encuentra evolucionando hasta el día de hoy.
 
-vTitan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Desafío Cerrado, además de esto, vTitan conserva muchos de los componentes electrónicos que utilizó Klevor, tales como la Raspberry Pi 5, y el RPLiDAR C1.
+vTitan mejora en muchos aspectos con respecto a su predecesor, Klevor, con la mayoría de cambios siendo en el aspecto mecánico, ya que, una de nuestras metas principales era implementar un sistema de giro que permita el giro en 90 grados (o lo más cercano posible) para facilitar la estrategia para completar el Obstacle Challenge, además de esto, vTitan conserva muchos de los componentes electrónicos que utilizó Klevor, tales como la Raspberry Pi 5, y el RPLiDAR C1.
 
-# Movilidad y Diseño Mecánico
+## Movilidad y diseño mecánico
 
-En este apartado se discuten todos los aspectos con lo que a movilidad y diseño se refiere, la evolución de éste, los prototipados realizados, etcétera.
+Esta sección cubre la movilidad y el diseño mecánico: las restricciones de partida, cómo prototipamos, y la evolución del chasis, la transmisión y la dirección hasta su forma actual.
 
-## Restricciones iniciales
+### Restricciones iniciales
 
 * **Dimensiones y peso límite:** Máximo 300 mm (largo) 200 mm (ancho) 300 mm (alto) y un peso no mayor a 1500 g.
 
 * **Reglamento de tracción y dirección:** Permitido tracción 4x4 impulsada por un **único motor** (o dos conectados en el mismo árbol de transmisión) y sistema de dirección para las 4 ruedas accionado por un **único servomotor**.
 
-## Métodos de Prototipaje
+### Métodos de prototipaje
 
 Para realizar nuestros prototipos, decidimos utilizar la impresión 3D como método principal, ya que ya éramos bastante familiares con todo el proceso, si bien el uso de máquinas CNC puede ser beneficioso para prototipos de esta categoría, decidimos optar por piezas pre-fabricadas o impresas en 3D, ya que nos permite minimizar el peso de vTitan, ya que el peso fue un problema recurrente en nuestros primeros prototipos, llegando a estar 200 gramos por encima del límite establecido.
 
 Para poder diseñar e imprimir dichas piezas, utilizamos el programa de diseño 3D SolidWorks, ya que tiene una gran cantidad de funciones útiles para el diseño de prototipos mecánicos, y, era el programa con el que teníamos mejor afinidad.
 
-## Evolución y Justificación Del Diseño
+### Evolución y justificación del diseño
 
-Con las reglas aclaradas, nuestras idea principal para la elección de componentes era que queríamos crear un prototipo lo más sencillo posible, es decir, tener la mayor cantidad de herramientas y funcionalidades en pista en la menor cantidad de componentes posibles, con esta idea en mente nos decidimos por implementar el [RPLiDAR C1](README.md#rplidar-c1) y el [Giroscopio BNO085](README.md#imu-gy-bno085) como componentes principales para la navegación de vTitan con el RPLiDAR delimitamos las paredes de la pista, y con el giroscopio obtenemos la orientación de vTitan para una mejor autonomía a la hora de cruzar, además, optamos por usar la cámara [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide) por su amplio rango de visión para detectar los obstáculos, para manejar este componente, utilizamos la [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops) para manejar el modelo de detección de obstáculo. Con todo esto en mente, optamos por la [Raspberry Pi Zero 2W](README.md#raspberry-pi-zero-2-w) como microcontrolador para el manejo del [Motor](README.md#hd-hex-motor) y el [Servomotor](README.md#hi-wonder-hps-3527sg-35kg-servo) y, finalmente agregamos tanto la [Batería](README.md#ovonic-air-111v-li-po-battery) como el Adaptador a 5V DC para poder alimentar a la Raspberry Pi 5.
+Con las reglas claras, la idea rectora para elegir componentes fue la simplicidad: cubrir la mayor cantidad de funciones en pista con la menor cantidad de piezas. De ahí salió esta lista:
 
-Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita generar el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Desafío Cerrado sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación decidimos dividir el proceso en 4 fases:
+- **Navegación**: el [RPLiDAR C1](#rplidar-c1) delimita las paredes de la pista, y el [giroscopio BNO085](#imu-gy-bno085) aporta la orientación, que es lo que da autonomía en los cruces.
+- **Percepción de obstáculos**: la [Raspberry Pi Camera Module 3 Wide](#raspberry-pi-camera-module-3-wide) por su campo de visión amplio, con la [Raspberry Pi 5](#raspberry-pi-5-16-gb-de-ram) y el [Raspberry Pi AI HAT+ (26 TOPS)](#raspberry-pi-ai-hat-26-tops) ejecutando el modelo de detección.
+- **Actuación**: la [Raspberry Pi Zero 2 W](#raspberry-pi-zero-2-w) como controlador dedicado del [motor](#rev-hd-hex-motor) y el [servomotor](#servomotor-hiwonder-hps-3527sg-35-kgcm).
+- **Energía**: la [batería](#batería-li-po-ovonic-air-de-111-v) y el convertidor a 5 V DC que alimenta la Raspberry Pi 5.
 
-#### **Fase 1: Prototipo de Rin Estático, Corona Interna y Guayas Flexibles**
+Con todos estos componentes en mente, queríamos implementar esta idea en un sistema de transmisión 4x4 con un sistema de dirección que permita generar el giro de 90 grados (o lo más cercano posible) hacia cualquier lado (izquierda o derecha) para permitir que la salida del estacionamiento en el Obstacle Challenge sea lo más fácil posible de programar, además de, cumplir con todas las reglas que tiene esta categoría, a través de pruebas y diseños, para efectos de esta documentación dividimos el proceso en cinco fases:
+
+#### Fase 1: prototipo de rin estático, corona interna y guayas flexibles
 
 <p align="center">
 	<img src="other/assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
@@ -476,7 +482,7 @@ width="350">
 
 * **Resultado:** Las pruebas aisladas confirmaron la viabilidad de la rotación y el pivoteo a 90 grados.
 
-#### **Fase 2: Pruebas de Integración y Detección de Fallas**
+#### Fase 2: pruebas de integración y detección de fallas
 
 <p align="center">
 	<img src="other/assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
@@ -487,14 +493,13 @@ width="350">
 
 * **Sistema de Dirección:** Diseñamos una relación de palancas y piñones para la inversión de movimiento simultáneo. Se integraron **sensores Hall** para monitorear con precisión el ángulo de giro ante la necesidad de usar un servo de más de 360 grados.
 
-* **Problemas Detectados:**
-* Las barras de transmisión entre discos eran endebles, se doblaban e incluso una llegó a quebrarse.
-
-* Las guayas generaban una tensión excesiva sobre el servomotor al ejecutar el giro.
+* **Problemas detectados:**
+  * Las barras de transmisión entre discos eran débiles: se doblaban, e incluso una llegó a quebrarse.
+  * Las guayas generaban una tensión excesiva sobre el servomotor al ejecutar el giro.
 
 * **Decisión:** Descartamos el sistema de guayas y palancas por ser complejo y pesado, buscando un mecanismo más ligero y directo.
 
-#### **Fase 3: Rediseño a Engranajes Perpendiculares, Coronas y Correa Dentada**
+#### Fase 3: rediseño a engranajes perpendiculares, coronas y correa dentada
 
 <p align="center">
 	<img src="other/assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
@@ -505,37 +510,33 @@ width="350">
 
 * **Nuevo Sistema de Tracción:** Eliminación de guayas. Se optó por **engranajes perpendiculares** ajustando el punto de pivote sobre el centro de la rueda, manteniendo los 90 grados de giro sin perder tracción.
 
-* **Optimización de Dirección:**
-* La primera prueba con líneas de piñones pequeños generó juego entre dientes (*backlash*) y movimiento errático.
-
-* Se reemplazaron por una **corona más grande integrada al rin**, logrando una conexión directa y precisa accionada por el servomotor único.
+* **Optimización de la dirección:**
+  * La primera prueba con líneas de piñones pequeños generó juego entre dientes (*backlash*) y movimiento errático.
+  * Se reemplazaron por una **corona más grande integrada al rin**, que da una conexión directa y precisa accionada por el servomotor único.
 
 * **Sincronización 4x4:** Se unificaron los árboles de transmisión delantero y trasero mediante una **correa dentada con poleas**, logrando accionar las 4 ruedas simultáneamente con un solo motor.
 
-#### **Fase 4: Optimización de Peso, Integración y Chasis Final**
+#### Fase 4: optimización de peso, integración y chasis final
 
 <p align="center">
-	<img src="other/assets/images/development/IMG-20260825-WA0082.webp" alt="Integración de electrónica sobre el monochasis" 
+	<img src="other/assets/images/development/electronic-assembly.webp" alt="Integración de electrónica sobre el monochasis" 
 width="350">
 	<br>
 	<i>Integración de la electrónica sobre el monochasis agujereado</i>
 </p>
 
-* **Distribución de Componentes:** Se diseñó una plataforma elevada para separar la electrónica de la mecánica. Esta posición permitió ubicar el RPLiDAR garantizando aproximadamente 270 grados de visión frontal y un espejo de visión trasera.
+* **Distribución de Componentes:** Se diseñó una plataforma elevada para separar la electrónica de la mecánica. Esta posición permitió ubicar el RPLiDAR con unos 270° de arco útil: 230° continuos hacia el frente y los costados, más una ventana de unos 40° justo hacia atrás. Las cuñas que el propio chasis ocluye están medidas y declaradas en `src/config/navigation/sensors/lidar_sectors.toml`.
 
-* **Control de Peso (1500 g):** Al ensamblar el conjunto, se detectó un exceso de 150g.
+* **Control de Peso (1500 g):** al ensamblar el conjunto se detectó un exceso de 150 g, ya por debajo de los 200 g con los que arrancó el primer prototipo.
 
-* **Acciones Correctivas:**
-
-* Uso de materiales de impresión más ligeros como el ASA (Acrilonitrilo Estireno Acrilato) para mayor optimización de peso.
-
-* Reducción de la densidad de relleno en la impresión 3D.
-
-* Disminución de espesores de pared y creación de vacíos estructurales en el chasis, rines y bancadas sin comprometer la rigidez.
+* **Acciones correctivas:**
+  * Materiales de impresión más ligeros, como el ASA (acrilonitrilo estireno acrilato).
+  * Reducción de la densidad de relleno en la impresión 3D.
+  * Menor espesor de pared y vacíos estructurales en chasis, rines y bancadas, sin comprometer la rigidez.
 
 * **Resultado Final:** Se logró ingresar dentro del rango de peso reglamentario y consolidar un chasis rígido impreso en 3D con soportes dedicados para la electrónica.
 
-#### **Fase 5: Integración del HD Hex Motor**
+#### Fase 5: integración del REV HD Hex Motor
 
 <p align="center">
 	<img src="other/assets/images/development/hd-hex-motor-integration.jpg" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
@@ -548,7 +549,7 @@ width="350">
 
 * **Resultado Final**: Tras adaptar el chasis inferior para el encaje del HD Hex Motor, la velocidad en pista subió de los 15 cm/s del motor anterior a 25-30 cm/s, y más tarde, al corregir el encoder, se descubrió que el techo real era de ~58 cm/s (ver [Velocidad: teórica contra real](#velocidad-teórica-contra-real)). De esta manera, vTitan tiene la velocidad necesaria para completar los desafíos sin exceder el tiempo límite establecido de 3 minutos.
 
-## Sistema de Transmisión
+### Sistema de transmisión
 
 <p align="center">
 	<img src="other/assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
@@ -557,11 +558,11 @@ width="350">
 	<i>Sistema de Transmisión, visto desde arriba</i>
 </p>
 
-Para poder diseñar nuestro sistema de transmisión, tuvimos que tener en cuenta nuestra meta inicial de nuestro alcance de dirección, para poder transmitir el movimiento del motor hacia las ruedas aún cuando éstas estén rotadas a un ángulo de 90 grados. 
+Para poder diseñar nuestro sistema de transmisión, tuvimos que tener en cuenta nuestra meta inicial de nuestro alcance de dirección, para poder transmitir el movimiento del motor hacia las ruedas aun cuando estén rotadas a un ángulo de 90 grados. 
 
-Nuestro sistema de transmisión es un sistema 4x4, para maximizar la tracción en cada rueda, éste sistema es controlado por un único motor cuyo movimiento es transmitido mediante dos correas dentadas de movimiento (una para las ruedas delanteras, y otra para las ruedas traseras), este movimiento se va a su eje correspondiente (para el cual utilizamos unos pernos de transmisión de LEGO) y, a su vez cada eje transmite a dos sistemas de engranajes perpendiculares (uno por rueda) y este eje tiene un engranaje cónico perpendicular de 15 dientes, y este movimiento luego es transmitido directamente a la rueda (la cual en lugar de ser un caucho regular, recibe la tracción mediante sus dientes internos) de tal manera que cada rueda recibe la misma potencia, como último detalle, el rin cumple la función de ser un soporte para la rueda dentada y los engranajes cónicos perpendiculares.
+Nuestro sistema de transmisión es 4x4 para maximizar la tracción en cada rueda, y lo gobierna un único motor. Del motor salen dos correas dentadas, una hacia el eje delantero y otra hacia el trasero, montados sobre pernos de transmisión de LEGO. Cada eje reparte el giro a un tren de engranajes cónicos por rueda, y el último de ellos engrana directamente con la corona interna de la rueda: en lugar de un caucho liso, la rueda recibe la tracción por sus propios dientes. Así las cuatro reciben la misma potencia. El rin no transmite nada; su función es sostener la corona y los engranajes cónicos. Los dientes de cada etapa están en la [tabla de relaciones](#relación-de-torque-y-velocidad).
 
-## Sistema de Dirección
+### Sistema de dirección
 
 <p align="center">
 	<img src="other/assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
@@ -579,32 +580,38 @@ width="350">
 	<i>Ejemplo de sistema de dirección en contrafase</i>
 </p>
 
-vTitan cuenta con un sistema basado en un sistema de **dirección en contrafase**, el objetivo principal es que debido a que las ruedas traseras giran en el sentido opuesto a las delanteras se reduzca considerablemente el radio de giro, facilitando maniobras como el estacionamiento o giros cerrados (los cuales son bastante importantes en el Desafío Cerrado), ahora bien, este sistema se basa en que todo el movimiento es transmitido a través de engranajes, y los rines de las ruedas actúan tanto como soportes como actuadores en el movimiento al contar con una base dentada, aunque, al ser un sistema en que la tracción es transmitida a las 4 ruedas, es necesario contar con un servomotor con mucha capacidad de torque para poder ejercer la fuerza necesaria, razón por la cual, tuvimos que cambiar nuestro servo anterior, el cual tenía una capacidad de fuerza de 14kg·cm por uno de 35kg·cm. 
+vTitan usa **dirección en contrafase**: las ruedas traseras giran en sentido opuesto a las delanteras, lo que reduce mucho el radio de giro y facilita maniobras como el estacionamiento y los giros cerrados, importantes en el Obstacle Challenge.
+
+Todo el movimiento se transmite por engranajes, y los rines actúan a la vez como soporte y como actuador, porque llevan una base dentada. El precio es el par: al dirigir cuatro ruedas motrices, el servomotor tiene que vencer mucha más resistencia, y por eso sustituimos el servo anterior de 14 kg·cm por uno de 35 kg·cm.
 
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
 <p align="center">
-	<img src="models/current-models/blueprints/pinon-33-dientes-direccion.webp" alt="Piñon de 33 dientes de dirección" 
+	<img src="models/current-models/blueprints/pinon-33-dientes-direccion.webp" alt="Piñón de 33 dientes de dirección" 
 width="350">
 	<br>
-	<i>Piñon de 33 dientes de dirección</i>
+	<i>Piñón de 33 dientes</i>
+	<!-- PENDIENTE: el archivo se llama pinon-33-dientes-direccion.webp, pero en
+	     models/README.md los piñones de 33 dientes figuran en TRANSMISION (etapa 1
+	     de la tabla de relaciones) y los de direccion son de 8, 20 y 40. Resolver
+	     si el plano esta mal nombrado o si esta imagen no corresponde aqui. -->
 </p>
 
-También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñon de dirección de la misma, debido a que el sistema de transmisión de vTitan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
+También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñón de dirección de la misma, debido a que el sistema de transmisión de vTitan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
 
 **Radio de giro: predicho contra medido.** El simulador originalmente permitía radios de giro virtualmente ilimitados (hasta ~8 mm), muy por debajo de lo que la geometría real puede cumplir. La medición en banco del chasis real fijó el radio mínimo en **0.29 m**, y ese valor vive ahora como límite duro (`MIN_TURN_RADIUS_M` en `src/config/`) tanto en la simulación como en el controlador: el simulador ya no aprueba curvas que el chasis no puede trazar. La consecuencia práctica se midió después sobre bags reales: entre 57 y 59% de los pasos del pure pursuit exigían un radio menor al que el chasis puede entregar, lo que disparaba el corte de velocidad por rumbo; el corrector que descarta puntos de mira inalcanzables (`MIN_TARGET_RADIUS_M`, medido y aceptado en A/B sobre 128 casos) nació de esa medición. Es la diferencia entre diseñar contra un chasis que existe y uno que no.
 
 <!-- HUECO (rubro WRO 2026, criterio 1 "Opciones del sistema de dirección").
 Falta la comparación explícita Ackermann contra contrafase: por qué se descartó
 Ackermann y qué se ganó con contrafase (giro de 90 grados para la salida del
-estacionamiento). El diagrama YA EXISTE y no está enlazado en ninguna parte:
-schemes/ackermann-steering-system.webp -->
+estacionamiento). El diagrama schemes/ackermann-steering-system.webp existe y
+schemes/README.md lo cataloga, pero esta sección todavía no lo usa. -->
 
-## Estructura mecánica
+### Estructura mecánica
 
 El chasis de vTitan se reparte en dos piezas con responsabilidades distintas: el chasis inferior, que sostiene la transmisión y la dirección, y el monochasis, que cierra el conjunto y fija la electrónica.
 
-### Chasis Inferior
+#### Chasis inferior
 
 <p align="center">
 	<img src="models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
@@ -613,13 +620,13 @@ width="350">
 	<i>Chasis Inferior</i>
 </p>
 
-Ahora bien, es hora de hablar del chasis inferior y de cómo los sistemas de transmisión y dirección son implementados en vTitan, el aspecto más resaltante de este chasis es su forma agujereada, la cual, se fabricó de tal manera por las limitaciones de peso que nuestro primer prototipo tenía, además de esto, en el centro del chasis se pueden apreciar dos encajes, uno para el motor y otro para el servomotor, en los extremos del chasis también se pueden apreciar los encajes para los ejes de transmisión (para los cuales utilizamos pernos de LEGO) para asegurar una conexión rígida y estable entre los componentes y el chasis.
+El chasis inferior es donde se implementan la transmisión y la dirección. Su rasgo más visible es la forma agujereada, que responde a las limitaciones de peso que arrastraba el primer prototipo. En el centro lleva dos encajes, uno para el motor y otro para el servomotor; en los extremos, los encajes de los ejes de transmisión, que usan pernos de LEGO para garantizar una unión rígida entre componentes y chasis.
 
-### Monochasis
+#### Monochasis
 
 **Dimensiones.** El conjunto ensamblado mide **300 × 194 × 100 mm** (largo × ancho × alto, medidos), con margen sobre los límites reglamentarios de 300 × 200 × 300 mm. El peso final dependió de la batería: con la de prácticas y sus conectores Deans el conjunto quedó en **~1510 g**, apenas por encima del límite de 1500 g, y el paso a la batería de competencia (shorty XT60, 46 g menos) junto con el cambio de conectores lo bajó a **~1460 g**, dentro del límite con ~40 g de margen. La geometría que consume el control (distancia entre ejes (wheelbase) de 0.19 m, vía de 0.1675 m entre ruedas, ruedas de 0.07 m de diámetro) reside en `src/config/robot.toml` como fuente única, y es la misma que usan la simulación, la TF estática y el generador de Gazebo.
 
-## Montaje
+### Montaje
 
 <p align="center">
 	<img src="v-photos/vtitan/vtitan-full.webp" alt="Conjunto ensamblado de vTitan" width="700">
@@ -637,7 +644,7 @@ Y el mismo conjunto despiezado, del mismo modelo de SolidWorks del que se export
 
 El conjunto se ordena en tres capas: el **chasis inferior** perforado sostiene el motor y el servomotor en sus encajes centrales; sobre él se monta el **tren de transmisión** (correas dentadas hacia los dos ejes, y de cada eje a los engranajes cónicos de cada rueda); y el **monochasis** cierra el conjunto y fija la electrónica. Los ejes usan pernos de transmisión de LEGO, elegidos por su ajuste rígido y porque evitan mecanizar un eje a medida.
 
-### Las piezas, y cómo mirarlas
+#### Las piezas, y cómo mirarlas
 
 Publicamos cada pieza en **dos formatos**, porque sirven para cosas distintas:
 
@@ -666,9 +673,9 @@ hace el montaje REPRODUCIBLE: orden de armado paso a paso, tornilleria (metrica 
 longitud por posicion), torque de apriete, y los parametros de impresion por pieza
 (material, altura de capa, relleno, soportes, orientacion de cama). -->
 
-## Relación de Torque y Velocidad
+### Relación de torque y velocidad
 
-Ahora bien, en el caso de vTitan, éste utiliza un [REV HD Hex Motor](README.md#hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a vTitan?
+Ahora bien, en el caso de vTitan, este utiliza un [REV HD Hex Motor](#rev-hd-hex-motor), el cual tiene un torque de bloqueo (es decir, su torque máximo) de 0.105 Nm, y una velocidad sin carga de 6000 RPM, ahora bien, ¿cómo podemos saber si este torque es necesario para mover a vTitan?
 
 La fórmula general para calcular el torque necesario es:
 
@@ -680,7 +687,7 @@ Donde:
 - $r$ es el radio de la rueda (en metros; en vTitan mide $0.035\ \text{m}$)
 - $a$ es la aceleración deseada. La **medimos sobre bags MCAP de pista real**: la derivada de la velocidad del encoder (`/motor/drive_speed`) sobre 5 carreras recientes da una aceleración sostenida de **~1.0 m/s²** (muy consistente: 0.93-1.09 en los 5 bags) y una rampa de arranque desde reposo de **~0.4 m/s²**. Usamos $a = 1.0\ \text{m/s}^2$, el caso conservador
 - $g$ es la gravedad, $9.81\ \text{m/s}^2$
-- $\mu$ es el cociente de fricción (estimamos $0.3$ para ruedas de ASA sobre lona de PVC flexible)
+- $\mu$ es el coeficiente de fricción (estimamos $0.3$ para ruedas de ASA sobre lona de PVC flexible)
 - $\theta$ es el ángulo de inclinación ($\theta = 0°$ en esta competición)
 - $N$ es el número de motores en tracción (en vTitan solo hay uno)
 
@@ -695,7 +702,7 @@ width="350">
 	<i>Relación de Engranajes</i>
 </p>
 
-El torque final, o de salida será igual a la multiplicación del torque inicial por la misma relación de engranajes total, ahora, simplemente hay que calcular la relación de engranajes total de engranajes, para la cual simplemente calculamos cada relación individual y se efectúa el producto de ese conjunto:
+El torque final, o de salida será igual a la multiplicación del torque inicial por la misma relación de engranajes total, ahora, simplemente hay que calcular la relación de transmisión total, para la cual simplemente calculamos cada relación individual y se efectúa el producto de ese conjunto:
 
 | Etapa | Transmisión | Relación |
 |-------|-------------|----------|
@@ -713,28 +720,28 @@ Y el torque de bloqueo final:
 
 $$T_{final} = T_{stall} \cdot R_{total} = 0.105\ \text{Nm} \cdot 3.29 = 0.345\ \text{Nm}$$
 
-Un éstandar, o mejor dicho, recomendación para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm}$, que queda por debajo del requerimiento con la aceleración sostenida medida ($0.207\ \text{Nm}$). Esto no invalida el diseño, y los bags lo confirman: la recomendación del 50% es para **funcionamiento continuo prolongado** (donde el calentamiento del devanado manda), mientras que la demanda real de una ronda es de tramos cortos de aceleración entre cruces; para eso están los picos de torque que los motores DC toleran por breves segundos. Contra el torque de bloqueo completo ($0.345\ \text{Nm}$), el margen es holgado incluso con $a = 1.0\ \text{m/s}^2$. La prueba final es empírica: los mismos bags de donde salió la aceleración muestran al robot sosteniendo esos $1.0\ \text{m/s}^2$ en pista, con este mismo motor y esta misma relación. Además, a medida que el vehículo gana velocidad, el cociente de fricción disminuye considerablemente (alrededor de un 15%), por lo que el torque necesario baja y es más fácil que el vehículo gane aceleración.
+Una recomendación habitual para los motores DC es utilizar el 50% de su torque de bloqueo para aceleraciones y tramos cortos, ahora bien, $0.345 \cdot 0.5 = 0.173\ \text{Nm}$, que queda por debajo del requerimiento con la aceleración sostenida medida ($0.207\ \text{Nm}$). Esto no invalida el diseño, y los bags lo confirman: la recomendación del 50% es para **funcionamiento continuo prolongado** (donde el calentamiento del devanado manda), mientras que la demanda real de una ronda es de tramos cortos de aceleración entre cruces; para eso están los picos de torque que los motores DC toleran por breves segundos. Contra el torque de bloqueo completo ($0.345\ \text{Nm}$), el margen es holgado incluso con $a = 1.0\ \text{m/s}^2$. La prueba final es empírica: los mismos bags de donde salió la aceleración muestran al robot sosteniendo esos $1.0\ \text{m/s}^2$ en pista, con este mismo motor y esta misma relación. Además, a medida que el vehículo gana velocidad, el coeficiente de fricción disminuye considerablemente (alrededor de un 15%), por lo que el torque necesario baja y es más fácil que el vehículo gane aceleración.
 
-### Velocidad: teórica contra real
+#### Velocidad: teórica contra real
 
-La mitad de velocidad de esta relación se verifica igual que el torque: predicción, medición, y explicación de la brecha.
+El lado de la velocidad se verifica igual que el del torque: predicción, medición y explicación de la brecha.
 
 **Techo cinemático.** Con el motor a su velocidad sin carga de 6000 RPM y la relación total $R_{total} = 3.29$, las ruedas girarían a $6000 / 3.29 \approx 1824$ RPM; con ruedas de 0.07 m de diámetro:
 
 $$v_{teórico} = \frac{1824}{60} \cdot \pi \cdot 0.07 \approx 6.7\ \text{m/s}$$
 
-**Medición en banco, con carga.** El motor nunca ve 6000 RPM en pista. La ley medida en banco (cargado, cinta métrica contra lo que el encoder cree recorrer) es afín: $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$), con zona muerta en duty 0.200 y un techo físico de 348 RPM de rueda a duty 1.0, es decir **1.28 m/s**. El robot opera además con el ciclo de trabajo limitado al 50% por térmica, y los perfiles de velocidad de carrera (CREEP/SLOW/MEDIUM/FAST) viven dentro de ese presupuesto: la prealimentación afín `duty = 0.20 + 0.8 · rpm/max_rpm` (medida, con la misma zona muerta) les asigna duties de 0.295 a 0.419.
+**Medición en banco, con carga.** El motor nunca ve 6000 RPM en pista. La ley medida en banco (cargado, cinta métrica contra lo que el encoder cree recorrer) es afín: $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$), con zona muerta en duty 0.200 y un techo físico de 348 RPM de rueda a duty 1.0, es decir **1.28 m/s**. El robot opera además con el ciclo de trabajo limitado al 50% por térmica, y los perfiles de velocidad de carrera (CREEP/SLOW/MEDIUM/FAST) viven dentro de ese presupuesto: la prealimentación afín `duty = 0.20 + 0.8 · rpm/max_rpm` (medida, con la misma zona muerta) les asigna ciclos de trabajo de 0.295 a 0.419.
 
 **Resultado en pista.** El techo real medido es **~0.58 m/s**. No es un límite físico del motor: es el resultado combinado del tope del 50% de duty, de la zona muerta con carga (20% del duty se gasta en vencer la fricción) y de los perfiles de velocidad que el gobernador impone. La brecha contra el techo cinemático (~11x) queda así explicada: es la diferencia entre el motor sin carga del datasheet y el motor cargado del banco con su ciclo de trabajo limitado. La cadena completa de esta medición (y del error de cuantización que antes la limitaba a 0.45 m/s) está en `src/config/hardware/motors/profiles/rev-hd-hex-motor-6000rpm/encoder.toml` y en la sección del [lazo de velocidad](#algoritmo-pid).
 
-# Arquitectura de energía y sensores
+## Arquitectura de energía y sensores
 
-En el siguiente apartado, se discute toda la parte electrónica de vTitan, tales como sus sensores, las razones detrás de su elección, cómo se implementan y el presupuesto energético.
+Esta sección cubre la electrónica de vTitan: qué sensores lleva, por qué elegimos cada uno, cómo se integran y cuánta energía consumen.
 
-## Lista de Componentes
+### Lista de componentes
 A continuación, está la descripción de todos los componentes principales de vTitan.
 
-### Raspberry Pi 5 (16GB RAM)
+#### Raspberry Pi 5 (16 GB de RAM)
 
 <p align="center">
 	<img src="other/assets/images/components/raspberry-pi-5.webp" alt="Raspberry Pi 5" 
@@ -743,13 +750,13 @@ width="350">
 	<i>Raspberry Pi 5</i>
 </p>
 
-Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 5 es nuestro controlador principal de elección, decidimos usar a la Raspberry Pi 5 debido a múltiples factores, entre ellos:
+Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 5 es nuestro controlador principal. La elegimos por tres motivos:
 
 - **Compatibilidad**: Existen muchos componentes de vTitan (como la Camera Module 3 Wide) que a su vez pertenecen al ecosistema Raspberry, lo que hace que implementarlos a la Raspberry Pi 5 no requiera tanto esfuerzo.
 
-- **Potencia**: La Raspberry Pi 5 es uno de los computadores portátiles más potentes actualmente, gracias a esto, funciones demandantes como lo es el procesamiento de imágenes en tiempo real, son fácilmente realizables por una Raspberry Pi 5.
+- **Potencia**: La Raspberry Pi 5 es uno de los computadores de placa única más potentes que se pueden comprar hoy, y eso pone el procesamiento de imágenes en tiempo real dentro de su alcance.
 
-- **Portabilidad**: La Raspberry Pi 5 destaca entre los controladores, ya que no es una computadora bastante pesada, apenas llegando a los 60 g, hace que incorporarlo a vTitan sea una opción prácticamente segura.
+- **Portabilidad**: La Raspberry Pi 5 destaca entre los controladores, porque pesa apenas 46 g, lo que hace que montarla en vTitan no comprometa el presupuesto de peso.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -758,7 +765,7 @@ Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 
 | Ancho      | 56 mm     |
 | Peso       | 46 g      |
 
-### Raspberry Pi Camera Module 3 Wide
+#### Raspberry Pi Camera Module 3 Wide
 
 <p align="center">
 	<img src="other/assets/images/components/raspberry-pi-camera-module-3.webp" alt="Raspberry Pi Camera Module 3" 
@@ -767,7 +774,7 @@ width="350">
 	<i>Raspberry Pi Camera Module 3</i>
 </p>
 
-La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como los demás componentes Raspberry, esta se destaca por ser bastante ligera y portátil, ya que es una cámara bastante pequeña, midiendo apenas 25 mm × 24 mm × 12.4 mm y pesando 4 gramos, sin perder absolutamente ni una pizca de eficiencia, porque puede grabar a 1536 x 864p120, ahora bien, decidimos utilizar la versión Wide por su campo de visión horizontal de 102 grados, porque nos permite tener un rango de visión óptimo para poder detectar todos los obstáculos de la pista y lograr una mayor autonomía.
+Como el resto de los componentes Raspberry, destaca por lo ligera y compacta: 25 × 24 × 12.4 mm y 4 gramos, sin sacrificar resolución, porque alcanza 1536 × 864 a 120 fps. Elegimos la versión Wide por su campo de visión horizontal de 102 grados, que es lo que nos permite ver todos los obstáculos de la pista y ganar autonomía.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -780,7 +787,7 @@ La Raspberry Pi Camera Module 3 Wide es nuestra elección de preferencia, como l
 
 **Calibración.** No hacemos calibración intrínseca de fábrica: el detector no necesita proyectar píxeles con precisión métrica, porque la decisión de la distancia al obstáculo la toma el LIDAR (la visión **no** es la red de seguridad de colisiones). Para las señales, la cámara aporta rumbo (preciso: la posición horizontal en el cuadro no depende de la profundidad) y color, mientras que la distancia por altura del cuadro delimitador (bounding box) es un modelo pinhole (proyección estenopeica) cuyo error crece con el rango (~3.6 cm a 1.5 m, ~14 cm a 3 m). Por eso el sistema fusiona ambas fuentes: cuando hay barrido LIDAR en el ciclo de muestreo, se confía en el rango del rayo más cercano al rumbo de la cámara, y el pinhole queda como respaldo. Su limitación conocida (asume cámara nivelada) está documentada honestamente en `src/python/docs/robot-physical-constants.md`.
 
-### Raspberry Pi AI HAT+ (26 TOPS)
+#### Raspberry Pi AI HAT+ (26 TOPS)
 
 <p align="center">
 	<img src="other/assets/images/components/raspberry-pi-ai-hat-plus.webp" alt="Raspberry Pi AI HAT+ 26 TOPS" 
@@ -791,7 +798,7 @@ width="350">
 
 Si bien la Raspberry Pi 5 es capaz de procesar imágenes en tiempo real, tras algunas pruebas, descubrimos que su tasa de procesamiento era bastante baja (alrededor de 1 a 2 fotos por segundo, con varias optimizaciones implementadas) por ende, tuvimos en cuenta que necesitaba más capacidad de cómputo, por lo cual decidimos incorporar la AI HAT+ a la Raspberry Pi 5 para poder alcanzar el nivel de procesamiento necesario.
 
-El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones por Segundo (TOPS) y otra de 26 TOPS. Como se menciona en el índice, vTitan posee un Raspberry Pi AI HAT+ de 26 TOPS, gracias a este procesador de imágenes, vTitan puede analizar imágenes de 640 px × 640 px a 15 Hz de punta a punta (captura, inferencia y publicación), con el modelo rindiendo 101 FPS en inferencia pura. La medición completa está en la [sección del modelo de detección](README.md#modelo-de-detección-yolo).
+El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 billones de operaciones por segundo (TOPS) y otra de 26 TOPS. Como se menciona en el índice, vTitan posee un Raspberry Pi AI HAT+ de 26 TOPS, gracias a este procesador de imágenes, vTitan puede analizar imágenes de 640 px × 640 px a 15 Hz de punta a punta (captura, inferencia y publicación), con el modelo rindiendo 101.5 FPS en inferencia pura. La medición completa está en la [sección del modelo de detección](#modelo-de-detección-yolo).
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -800,20 +807,20 @@ El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 Trillones de Operaciones 
 | Ancho      | 56 mm     |
 | Peso       | 9.07 g    |
 
-### Raspberry Pi Zero 2 W
+#### Raspberry Pi Zero 2 W
 
 <p align="center">
-	<img src="other/assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero W" 
+	<img src="other/assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero 2 W" 
 width="350">
 	<br>
-	<i>Raspberry Pi Zero W</i>
+	<i>Raspberry Pi Zero 2 W</i>
 </p>
 
 Construida sobre el chip Broadcom BCM2710A1 de cuatro núcleos, la Raspberry Pi Zero 2 W es un ordenador de placa única ligero y ultra compacto para vTitan. Al ejecutar un entorno Linux completo, este chip permite una fácil integración con el resto de los componentes Raspberry, haciendo que establecer comunicación de red o serial con una Raspberry Pi 5 sea nativo y sencillo dentro del mismo ecosistema.
 
 Además de ofrecer cuatro núcleos a 1 GHz, supera drásticamente la capacidad de procesamiento de microcontroladores de tamaño similar, como el Arduino Nano que cuenta con una frecuencia de 16 MHz a 20 MHz.
 
-Incorpora conectividad Wi-Fi/Bluetooth y cabezales de pines GPIO soldados. Esto ofrece una gran ventaja a la hora de desarrollar y practicar, ya que permite monitorear exactamente qué está procesando vTitan en tiempo real a través de la red, sin necesidad de utilizar LED de distintos colores para señalizar decisiones y logrando un acabado final mucho más limpio.
+Incorpora conectividad Wi-Fi/Bluetooth y regletas de pines GPIO soldadas. Esto ofrece una gran ventaja a la hora de desarrollar y practicar, ya que permite monitorear exactamente qué está procesando vTitan en tiempo real a través de la red, sin necesidad de utilizar LED de distintos colores para señalizar decisiones y logrando un acabado final mucho más limpio.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -822,7 +829,7 @@ Incorpora conectividad Wi-Fi/Bluetooth y cabezales de pines GPIO soldados. Esto 
 | Ancho      | 30 mm     |
 | Peso       | 12 g      |
 
-### RPLiDAR C1
+#### RPLiDAR C1
 
 <p align="center">
 	<img src="other/assets/images/components/rplidar-c1.webp" alt="RPLiDAR C1" 
@@ -831,9 +838,9 @@ width="350">
 	<i>RPLiDAR C1</i>
 </p>
 
-El RPLiDAR C1 es un escáner de rango láser de 360 grados, el cual puede detectar superficies que están hasta 12 metros de distancia, su punto ciego es de tan solo 5 centímetros alrededor del mismo, todos estos factores hacen que el RPLiDAR C1 sea una gran opción para poder guíar a vTitan por la pista.
+El RPLiDAR C1 es un escáner de rango láser de 360 grados, el cual puede detectar superficies que están hasta 12 metros de distancia, su punto ciego es de tan solo 5 centímetros alrededor del mismo, todos estos factores hacen que el RPLiDAR C1 sea una gran opción para poder guiar a vTitan por la pista.
 
-Este RPLiDAR C1 permite a vTitan poder identificar exactamente dónde está ubicado en la pista, gracias a que nos ofrece una visión de al menos 180 grados para poder manejar la navegación por la pista con una mayor autonomía, la prioridad para el uso apropiado de este sensor, en el caso de la categoría Futuros Ingenieros es colocarlo de tal manera que su láser esté por debajo de los 10 cm sobre el suelo, de tal manera que sea capaz de realizar mediciones a las paredes y los bloques, además de colocarlo lo más hacia el frente posible, y priorizar que nada lo esté tapando para que su visión sea despejada.
+Este RPLiDAR C1 permite a vTitan poder identificar exactamente dónde está ubicado en la pista, gracias a que nos ofrece 230° continuos de visión hacia el frente y los costados, suficientes para navegar la pista con autonomía, la prioridad para el uso apropiado de este sensor, en el caso de la categoría Futuros Ingenieros es montarlo con su plano de barrido por debajo de los 10 cm sobre el suelo, para que alcance tanto las paredes como los bloques; lo más adelantado posible; y sin nada que lo tape.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -846,27 +853,23 @@ Especificaciones técnicas:
 
 | **Especificación**     | **Valor**                                                                          |
 |------------------------|------------------------------------------------------------------------------------|
-| Rango de distancia     | Blanco: 0,05-12 m (70 % de reflectividad); Negro: 0,05-6 m (10 % de reflectividad) |
+| Rango de distancia     | Blanco: 0.05-12 m (70% de reflectividad); Negro: 0.05-6 m (10% de reflectividad) |
 | Frecuencia de muestreo | 5 kHz                                                                              |
-| Resolución angular     | 0,72°                                                                              |
-| Ángulo de inclinación  | 0°-1,5°                                                                            |
+| Resolución angular     | 0.72°                                                                              |
+| Ángulo de inclinación  | 0°-1.5°                                                                            |
 
-### Hi Wonder HPS-3527SG 35kg Servo
+#### Servomotor Hiwonder HPS-3527SG (35 kg·cm)
 
-<!-- github-only-start -->
 <p align="center">
-	<img src="other/assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Hiwonder HPS-3527SG 35kg Servo" 
+	<img src="other/assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Servomotor Hiwonder HPS-3527SG" 
 width="350">
 	<br>
-	<i>Hiwonder HPS-3527SG 35kg Servo</i>
+	<i>Servomotor Hiwonder HPS-3527SG</i>
 </p>
 
-El Hiwonder HPS-3527SG 35kg Servo es el servomotor encargado de controlar la dirección de vTitan, decidimos utilizar este modelo debido a su reducido tamaño y peso, además de una precisión más que suficiente para poder manejar a vTitan.
+El Hiwonder HPS-3527SG es el servomotor que controla la dirección de vTitan. Lo elegimos por combinar tres cosas en un encapsulado pequeño y ligero: los 35 kg·cm de par que exige mover cuatro ruedas motrices en contrafase, un recorrido de 270° y una precisión de posicionamiento más que suficiente para la pista.
 
-No solo estos aspectos definieron la elección, el Hiwonder HPS-3527SG 35kg ofrece también una gran precisión a pesar de su reducido tamaño, algo esencial en esta competencia.
-
-Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
-`servo`, nos permiten configurar el servo a nuestra elección, convirtiendo el uso de funciones para controlar el servo previamente establecido mucho más fácil de leer sin arriesgar el rendimiento del programa.
+Lo gobernamos con la biblioteca `adafruit_motor` y su módulo `servo`, que traduce el ángulo que pedimos al ancho de pulso correspondiente. Eso deja el código de dirección legible sin coste de rendimiento.
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -875,7 +878,7 @@ Gracias a la librería antes mencionada, la `adafruit_motor` con el módulo
 | Ancho      | 20 mm     |
 | Peso       | 50 g      |
 
-### HD Hex Motor
+#### REV HD Hex Motor
 
 <p align="center">
 	<img src="other/assets/images/components/hd-hex-motor.webp" alt="HD Hex Motor" 
@@ -892,7 +895,7 @@ Después de probar distintos modelos de motor optamos por el REV HD Hex Motor, p
 | Diámetro   | 37 mm     |
 | Peso       | 234 g     |  
 
-### IMU GY-BNO085
+#### IMU GY-BNO085
 
 <p align="center">
 	<img src="other/assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
@@ -901,7 +904,7 @@ width="350">
 	<i>Giroscopio BNO085</i>
 </p>
 
-El GY-BNO085 es nuestro sensor de orientación inercial (IMU). Lo usamos para que el robot mantenga rumbo en los cruces y cuente las vueltas dadas tanto en el Desafío sin Obstáculos como en el Desafío Cerrado, aunque exista algún problema mecánico que lo desvíe de su trayectoria.
+El GY-BNO085 es nuestro sensor de orientación inercial (IMU). Lo usamos para que el robot mantenga rumbo en los cruces y cuente las vueltas dadas tanto en el Open Challenge como en el Obstacle Challenge, aunque exista algún problema mecánico que lo desvíe de su trayectoria.
 
 **Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un rumbo por campo magnético sería vulnerable a todo eso. La contrapartida es la deriva del datasheet (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `src/python/docs/blind-navigation-evaluation.md`.
 
@@ -909,9 +912,9 @@ El GY-BNO085 es nuestro sensor de orientación inercial (IMU). Lo usamos para qu
 
 1. El robot se enciende y se coloca en la pose de salida (puede quedar girado 90° o 180° respecto al pasillo; es irrelevante).
 2. Al presionar el botón de inicio, el estimador fija un desplazamiento (offset): ese rumbo pasa a ser 0°. Todo el yaw del robot es relativo a esa referencia (`reset_heading_reference` en `src/python/src/state_machine/estimator.py`).
-3. Durante la ronda, el drift se acota con un filtro complementario contra el mundo "Manhattan" de la pista: cada pared es paralela o perpendicular al pasillo, así que el promedio circular de los ángulos medidos por el LIDAR recupera el heading absoluto y corrige la deriva del IMU.
+3. Durante la ronda, el drift se acota con un filtro complementario contra el mundo «Manhattan» de la pista: cada pared es paralela o perpendicular al pasillo, así que el promedio circular de los ángulos medidos por el LIDAR recupera el heading absoluto y corrige la deriva del IMU.
 
-La implementación maneja dos variables: `yaw_deg` (orientación relativa desde el inicio de la ronda) y `relative_yaw`, que acumula las vueltas sin saltar en ±180°. Dividiendo `relative_yaw` entre 90 y redondeando hacia abajo sabemos cuántos tramos rectos recorrió; cuando el cociente llega a ±12, el robot sabe que está en su zona de estacionamiento y avanza un poco más hasta detenerse (en el Desafío sin Obstáculos).
+La implementación maneja dos variables: `yaw_deg` (orientación relativa desde el inicio de la ronda) y `relative_yaw`, que acumula las vueltas sin saltar en ±180°. Dividiendo `relative_yaw` entre 90 y redondeando hacia abajo sabemos cuántos tramos rectos recorrió; cuando el cociente llega a ±12, el robot sabe que está en su zona de estacionamiento y avanza un poco más hasta detenerse (en el Open Challenge).
 
 | **Medida** | **Valor** |
 |------------|-----------|
@@ -920,7 +923,7 @@ La implementación maneja dos variables: `yaw_deg` (orientación relativa desde 
 | Ancho      | 4.6 mm    |
 | Peso       | 3 g       |
 
-### Ovonic Air 11.1V Li-Po Battery
+#### Batería Li-Po Ovonic Air de 11.1 V
 
 <p align="center">
 	<img src="other/assets/images/components/ovonic-air-11.1v-lipo-battery.webp" alt="Ovonic Air 11.1V Li-Po Battery" 
@@ -940,9 +943,9 @@ La batería de 11.1 V de la marca Ovonic es la fuente de alimentación principal
 | Dimensiones        | 77.17 × 34.06 × 25.12 mm                       | 107 × 24 × 33 mm                       |
 | Peso               | 140 g                                          | 186 g                                  |
 
-**Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia**, en formato compacto ("shorty") y con conector XT60: menos capacidad, pero 46 g menos en la balanza (140 g contra 186 g) y un C-rating doble, que es lo que importa en pista.
+**Por qué dos.** La de 3000 mAh/50C es la batería de **prácticas**: más capacidad para sesiones largas de calibración y depuración sin recargas, a cambio de más peso y volumen. La de 2200 mAh/120C es la de **competencia**, en formato compacto («shorty») y con conector XT60: menos capacidad, pero 46 g menos en la balanza (140 g contra 186 g) y un C-rating doble, que es lo que importa en pista.
 
-**Por qué es suficiente.** El presupuesto de potencia del robot (ver la [sección de consumo energético](README.md#consumo-energético)) da un total nominal de ~14-16 A y picos de ~31 A, de los cuales la rama de tracción - el motor al 50% del ciclo de trabajo - aporta ~10 A nominales y ~20 A de pico, y el resto del sistema ~4-6 A. Con la batería de competencia:
+**Por qué es suficiente.** El presupuesto de potencia del robot (ver la [sección de consumo energético](#consumo-energético)) da un total nominal de ~14-16 A y picos de ~31 A, de los cuales la rama de tracción - el motor al 50% del ciclo de trabajo - aporta ~10 A nominales y ~20 A de pico, y el resto del sistema ~4-6 A. Con la batería de competencia:
 
 - **Autonomía**: 2200 mAh contra ~14 A nominales sostenidos da ~9 minutos de operación continua a plena demanda. Una ronda completa dura pocos minutos y la tracción no exige su nominal el 100% del tiempo, así que el margen real es mayor; el límite práctico en un día de competencia no es la descarga de una ronda sino el ciclo de recargas entre rondas.
 - **Corriente de pico**: el C-rating de 120C anunciado representa 264 A, cifra de marketing en condiciones ideales; incluso descontando la mitad por realismo continuo, la batería puede entregar más de 100 A, más de 3 veces el pico de ~31 A del presupuesto completo. La entrega de corriente no es el cuello de botella en ninguna parte del sistema.
@@ -958,7 +961,7 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 
 > Las medidas son de la batería de prácticas; el peso medido con conectores (190 g) sobre el listado de 186 g explica la diferencia entre ambas cifras.
 
-### Puente H BTS7960 / IBT-2
+#### Puente H BTS7960 / IBT-2
 
 <p align="center">
 	<img src="other/assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
@@ -980,6 +983,8 @@ El BTS7960 está clasificado a **43 A**, lo que deja un margen amplio incluso so
 
 Este cambio también reordenó el análisis del resto de la ruta de potencia. Con el puente sobredimensionado, **el elemento más débil pasó a ser el interruptor de encendido**, cuya capacidad de conducción continua está muy por debajo del BTS7960 y de lo que puede entregar la batería. Lo dejamos documentado en el esquemático como el punto a vigilar, porque un componente sobredimensionado no elimina un cuello de botella: solo lo mueve de sitio.
 
+> **Pendiente declarado.** No hemos medido la capacidad de conducción continua del interruptor, así que el margen de esa rama es el único del presupuesto eléctrico que damos por cualitativo.
+
 | **Característica** | **L298N (anterior)** | **BTS7960 (actual)** |
 |--------------------|----------------------|----------------------|
 | Corriente máxima   | 2 A por canal        | 43 A                 |
@@ -987,7 +992,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 | Caída en el puente | ~2 V                 | Muy baja             |
 | Control            | ENA + IN1/IN2        | RPWM / LPWM independientes |
 
-### Step Down Mini-560 Pro
+#### Step Down Mini-560 Pro
 
 <p align="center">
 	<img src="other/assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
@@ -1015,7 +1020,7 @@ El Mini-560 Pro cubre la demanda real del servo en un encapsulado mucho más com
 
 Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el punto: **el peso no se recupera de un solo golpe, sino sumando decisiones pequeñas**. Llegamos a estar 200 g por encima del límite, y ninguna pieza individual explicaba esos 200 g. Resolver eso consistió en repetir este mismo ejercicio pieza por pieza (¿cuánta capacidad usa realmente esta rama, y cuánto peso estamos pagando por la que sobra?). Es el mismo razonamiento que aplicamos en la transmisión y en el chasis: **dimensionar cada pieza contra la carga medida, no contra el peor caso imaginable.**
 
-### SSD1306 OLED Display
+#### Pantalla OLED SSD1306
 
 <p align="center">
 	<img src="other/assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="350">
@@ -1025,15 +1030,15 @@ Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el pun
 
 Pantalla monocroma de 128x64 píxeles conectada por I2C. Cumple una función de diagnóstico en pista: muestra el estado de la máquina de estados, el desafío seleccionado por el puente físico (jumper) y el resultado del autodiagnóstico de arranque, sin necesidad de conectar un computador ni depender de la red. En una mesa de competencia, poder leer en qué estado está el robot antes de pulsar el botón de inicio evita arrancar una ronda con un sensor caído.
 
-### Convertidor KL89576 (DC a USB-C)
+#### Convertidor KL89576 (DC a USB-C)
 
 Convertidor reductor que toma la tensión de la batería y entrega **5 V a 5 A por salida USB-C**, dedicado exclusivamente a la Raspberry Pi 5. Es una rama independiente de la del servo y la del motor: las tres cuelgan de la batería por separado, de modo que el consumo del tren motriz no puede provocar una caída de tensión en el computador y reiniciarlo a mitad de una ronda.
 
-El dimensionamiento merece una aclaración, porque el pico de la tabla anterior suma por componente y aquí sería una suma engañosa. El AI HAT+, la cámara, el LIDAR y el puente IMU no se alimentan del KL89576 directamente: se alimentan del riel de 5 V de la propia Pi 5, y la Pi Zero entera (motor, nivel-shifter, OLED, encoder) recibe su alimentación por el VBUS del puerto USB de la Pi 5. Es decir, los 5 A de la especificación de la Pi 5 **ya incluyen** a todo lo conectado a la placa, y el pico del AI HAT+ (2.5 A) no se suma dos veces. El presupuesto real de la rama es: pico de la placa con sus periféricos (5 A, valor de especificación oficial que cubre el AI HAT+) más LIDAR (0.6 A) e IMU (0.03 A), ambos casi constantes, contra los 5 A del convertidor.
+El dimensionamiento merece una aclaración, porque la tabla de consumo suma por componente y aquí esa suma sería engañosa. El AI HAT+, la cámara, el LIDAR y el puente IMU no se alimentan del KL89576 directamente: se alimentan del riel de 5 V de la propia Pi 5, y la Pi Zero entera (motor, nivel-shifter, OLED, encoder) recibe su alimentación por el VBUS del puerto USB de la Pi 5. Es decir, los 5 A de la especificación de la Pi 5 **ya incluyen** a todo lo conectado a la placa, y el pico del AI HAT+ (2.5 A) no se suma dos veces. El presupuesto real de la rama es: pico de la placa con sus periféricos (5 A, valor de especificación oficial que cubre el AI HAT+) más LIDAR (0.6 A) e IMU (0.03 A), ambos casi constantes, contra los 5 A del convertidor.
 
 Ese margen es deliberadamente fino y lo monitoreamos en vez de sobredimensionarlo sin medir: el indicador `vcgencmd get_throttled` de la Pi 5 reporta cualquier caída de tensión, y es la misma señal con la que verificamos (0x0, sin eventos) que la Pi Zero alimentada por VBUS funciona sin caída de tensión (undervoltage) en carrera. Si el margen algún día se cerrara, el punto de vigilancia es el consumo conjunto placa+NPU, no el convertidor.
 
-## Diagrama de Conexiones
+### Diagrama de conexiones
 
 El arnés completo de vTitan está trazado como un esquemático generado por código, no dibujado a mano: la fuente reside en [`schemes/wiring/tscircuit/circuit.tsx`](schemes/wiring/tscircuit/circuit.tsx) y se exporta con [tscircuit](https://tscircuit.com/). Esto nos permite versionar el cableado igual que el resto del código: cualquier cambio de pin queda en el historial de git y el render se regenera desde la misma fuente.
 
@@ -1051,25 +1056,25 @@ npm install
 npm run artifacts   # netlist legible + SVG (fondo blanco) + PNG a 2400 px
 ```
 
-Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se comitean en `schemes/wiring/`, ya que son lo que se lee en esta documentación y reconstruirlos exige toda la cadena de herramientas de tscircuit.
+Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se versionan en `schemes/wiring/`, ya que son lo que se lee en esta documentación y reconstruirlos exige toda la cadena de herramientas de tscircuit.
 
-### Consumo Energético
+#### Consumo energético
 
-| **Componente**                    | **Cantidad** | **Voltaje** | **Corrente sin Carga** | **Corriente Nominal** | **Corriente Pico** |
+| **Componente**                    | **Cantidad** | **Voltaje** | **Corriente sin carga** | **Corriente Nominal** | **Corriente Pico** |
 |-----------------------------------|--------------|-------------|------------------------|-----------------------|--------------------|
 | Raspberry Pi 5                    |      1       | 5.0V        | ~0.50A                 | ~1.50A - 2.50A        | 5.00A              |
-| Raspberry Pi Zero 2W              |      1       | 5.0V        | ~0.10A                 | ~0.35A - 0.50A        | 0.70A              |
+| Raspberry Pi Zero 2 W              |      1       | 5.0V        | ~0.10A                 | ~0.35A - 0.50A        | 0.70A              |
 | Raspberry Pi Camera Module 3 Wide |      1       | 3.3V        | ~0.05A                 | ~0.25A                | 0.30A              |
 | Raspberry Pi AI HAT+ (26 TOPS)    |      1       | 5.0V        | ~0.10A                 | ~1.00A - 1.50A        | 2.50A              |
 | RPLiDAR C1                        |      1       | 5.0V        | ~0.20A                 | ~0.40A                | 0.60A              |
-| Hi Wonder HPS-3527SG 35kg Servo   |      1       | 4.8V - 8.4V | ~0.02A                 | ~0.30A - 0.50A        | 1.80A (Stall)      |
-| 9-Axis IMU Gyroscope GY-BNO085    |      1       | 3.3V - 5.0V | ~0.003A                | ~0.015A               | 0.03A              |
+| Hiwonder HPS-3527SG 35 kg Servo  |      1       | 4.8V - 8.4V | ~0.02A                 | ~0.30A - 0.50A        | 1.80A (Stall)      |
+| IMU GY-BNO085 (6 ejes en modo RVC)    |      1       | 3.3V - 5.0V | ~0.003A                | ~0.015A               | 0.03A              |
 | Puente H BTS7960 / IBT-2          |      1       | 5V / 6-27V  | ~0.007A (Lógica)       | ~10.00A (tracción)    | ~20.00A (picos)    |
 | **TOTAL**                         |    **8**     | **3.3V-5V** | **~0.980A**            | **~13.82A - 15.67A**  | **~30.93A**        |
 
-> **Nota sobre la rama de tracción.** El salto respecto de la tabla anterior no es un cambio de consumo del robot, sino una corrección: el puente anterior figuraba con «según motor» en la columna nominal, de modo que la corriente de tracción, que es la mayor del sistema con diferencia, nunca entraba en el total. Los ~10 A nominales y ~20 A de pico son la rama del motor medida al 50% del ciclo de trabajo, y son exactamente el motivo por el que el L298N de 2 A por canal tuvo que ser reemplazado. El valor de 43 A del BTS7960 es la clasificación de la pieza, no un consumo: no se suma aquí.
+> **Nota sobre la rama de tracción.** El salto respecto de versiones anteriores de esta tabla no es un cambio de consumo del robot, sino una corrección: el puente anterior figuraba con «según motor» en la columna nominal, de modo que la corriente de tracción, que es la mayor del sistema con diferencia, nunca entraba en el total. Los ~10 A nominales y ~20 A de pico son la rama del motor medida al 50% del ciclo de trabajo, y son exactamente el motivo por el que el L298N de 2 A por canal tuvo que ser reemplazado. El valor de 43 A del BTS7960 es la clasificación de la pieza, no un consumo: no se suma aquí.
 >
-> **Nota sobre la rama del computador.** Los picos de la Raspberry Pi 5 (5.00 A) y del AI HAT+ (2.50 A) **no se suman**: el AI HAT+ se alimenta del riel de 5 V de la propia Pi 5, y el pico de 5 A de la placa ya cubre por especificación a todo lo conectado a ella, incluida la Pi Zero, que recibe su alimentación por el VBUS de un puerto USB de la Pi 5. Los 5 A del KL89576 dimensionan esta rama completa; ver la [sección del convertidor](README.md#convertidor-kl89576-dc-a-usb-c).
+> **Nota sobre la rama del computador.** Los picos de la Raspberry Pi 5 (5.00 A) y del AI HAT+ (2.50 A) **no se suman**: el AI HAT+ se alimenta del riel de 5 V de la propia Pi 5, y el pico de 5 A de la placa ya cubre por especificación a todo lo conectado a ella, incluida la Pi Zero, que recibe su alimentación por el VBUS de un puerto USB de la Pi 5. Los 5 A del KL89576 dimensionan esta rama completa; ver la [sección del convertidor](#convertidor-kl89576-dc-a-usb-c).
 >
 > Estas tres ramas (computador, servo y tracción) se alimentan de la batería por separado a propósito. El total sirve para dimensionar la batería y el interruptor, no para dimensionar un único regulador.
 
@@ -1079,7 +1084,7 @@ tracción (picos medidos de ~20 A), corte por bajo voltaje de la LiPo 3S, y
 procedimiento de carga y almacenamiento. También queda abierta la discrepancia
 de la altura del plano del haz del LIDAR entre robot.toml, la TF estática y el URDF. -->
 
-### Calibración
+#### Calibración
 
 Cada sensor del robot tiene una parte calibrada contra medición propia, no contra datasheet. Este es el inventario:
 
@@ -1089,18 +1094,18 @@ Cada sensor del robot tiene una parte calibrada contra medición propia, no cont
 | Ley motor-duty en banco | Motor cargado, duty barrido, rpm medidas contra cinta | $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$); zona muerta en duty 0.200 |
 | Referencia de yaw del IMU | Reset del offset al presionar el botón de inicio: ese rumbo pasa a ser 0° (`reset_heading_reference`) | Todo el yaw de la ronda es relativo a esa referencia |
 | Calibración gyro/acelerómetro | Rutina del chip (modo RVC) en su arranque; no intervenimos | De fábrica |
-| Latencia cámara→detección | Medida end-to-end sobre bags reales | **0.85 s** (runs 2026-09-06); el rango LIDAR del ciclo actual cubre el hueco |
+| Latencia cámara→detección | Medida end-to-end sobre bags reales | **0.85 s** (ejecuciones del 2026-09-06); el rango LIDAR del ciclo actual cubre el hueco |
 | Rango de la visión | Modelo pinhole contra barrido LIDAR: cuando hay medición LIDAR al rumbo de la cámara, manda el LIDAR; el pinhole queda de respaldo | Error del pinhole: ~3.6 cm a 1.5 m, ~14 cm a 3 m |
 | Radio de giro del chasis | Medido en banco | 0.29 m, usado como límite duro en simulación y control |
 | Simulador | Ajustado contra grabaciones reales; conclusiones previas a la calibración descartadas | Ver [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios) |
 
-La consecuencia de método: ninguna constante del robot es un número "de fábrica" sin justificación; cada una de estas mediciones tiene una historia de hallazgo documentada en la [sección de hallazgos](#hallazgos-de-ingeniería).
+La consecuencia de método: ninguna constante del robot es un número «de fábrica» sin justificación; cada una de estas mediciones tiene una historia de hallazgo documentada en la [sección de hallazgos](#hallazgos-de-ingeniería).
 
-# Arquitectura de software y estrategia para superar obstáculos
+## Arquitectura de software y estrategia para superar obstáculos
 
-En este apartado, describimos las estrategias que empleamos en pista para poder resolver los desafíos de una manera autónoma y eficiente.
+Esta sección describe cómo el robot resuelve los desafíos en pista de forma autónoma: la arquitectura del software, el detector de señales, los lazos de control y la estrategia de carrera.
 
-## Arquitectura ROS2 y reparto entre dos computadores
+### Arquitectura ROS2 y reparto entre dos computadores
 
 vTitan no corre sobre un solo computador, sino sobre dos, y el reparto no es por comodidad: es la decisión de arquitectura que sostiene todo lo demás.
 
@@ -1116,23 +1121,23 @@ El software está organizado en cinco paquetes ROS2:
 | `vtitan_state_machine` | Máquina de estados de carrera y grabación de bags |
 | `vtitan_vision` | Cámara e inferencia de detección |
 
-Los nodos se comunican por **29 tópicos declarados en un único archivo de configuración** (`ros_topics.toml`) en lugar de estar escritos a mano en cada nodo. Esto evita una clase de error entera: un nodo que publica en `/lidar/scan` mientras otro escucha `/scan` compila, arranca y no funciona, sin ningún mensaje de error. Con los nombres centralizados, esa discrepancia no puede existir.
+Los nodos se comunican por **29 tópicos (topics) declarados en un único archivo de configuración** (`ros_topics.toml`) en lugar de estar escritos a mano en cada nodo. Esto evita una clase de error entera: un nodo que publica en `/lidar/scan` mientras otro escucha `/scan` compila, arranca y no funciona, sin ningún mensaje de error. Con los nombres centralizados, esa discrepancia no puede existir.
 
 Un detalle que ilustra el nivel de restricción real: el SoC de la Pi Zero 2 W tiene **exactamente dos generadores de PWM por hardware**. Uno está tomado por el servo de dirección, que necesita mantener una posición absoluta y no tolera fluctuaciones. El otro se asigna a la marcha adelante del motor. La marcha atrás, que solo se usa en maniobras de estacionamiento y recuperación a baja velocidad, funciona con PWM por software y sí tolera esa fluctuación. Es un reparto deliberado de un recurso escaso, no una casualidad.
 
-### La segunda pila (stack) en Go, y por qué no corre en carrera
+#### La segunda pila (stack) en Go, y por qué no corre en carrera
 
-Existe una segunda implementación de la pila en Go (con NATS como transporte en lugar de ROS2/DDS), y conviene ser explícitos sobre su estado: **no es la que compite**. La pila en carrera es la de Python + ROS2 descrita arriba, en todos los componentes: visión, navegación, máquina de estados y drivers en ambas placas.
+Existe una segunda implementación de la pila en Go (con NATS como transporte en lugar de ROS2/DDS), y conviene ser explícitos sobre su estado: **no es la que compite**. La pila en carrera es la de Python + ROS2 descrita arriba, en todos los componentes: visión, navegación, máquina de estados y controladores en ambas placas.
 
 La única pieza de Go que corre en producción es el **backend de telemetría** (`vtitan-backend.service`), un binario compilado que la Pi 5 sirve al panel de telemetría (dashboard).
 
-La migración a Go se tomó como un reemplazo a largo plazo de ROS2 (arranque más rápido, menor consumo de recursos y de memoria en las placas), pero con una política deliberada: **migración en vía paralela con corte único, sin híbridos**. La pila de Python sigue siendo el de competencia y ahí continúan los ajustes de temporada; el de Go solo cortará a producción cuando alcance paridad completa, y entonces se conmutará de una vez con `vtitan-robot@go`, con la pila de Python documentada como camino de reversión. Al día de hoy, lo portado (incluida la navegación) está verificado contra bags de carreras reales en un arnés de paridad, pero el navegador de Go todavía no ha corrido dentro de un lazo completo de carrera en el robot, y ese es justamente el criterio de paridad que falta para el corte.
+La migración a Go se tomó como un reemplazo a largo plazo de ROS2 (arranque más rápido, menor consumo de recursos y de memoria en las placas), pero con una política deliberada: **migración en vía paralela con corte único, sin híbridos**. La pila de Python sigue siendo la de competencia y ahí continúan los ajustes de temporada; la de Go solo cortará a producción cuando alcance paridad completa, y entonces se conmutará de una vez con `vtitan-robot@go`, con la pila de Python documentada como camino de reversión. Al día de hoy, lo portado (incluida la navegación) está verificado contra bags de carreras reales en un arnés de paridad, pero el navegador de Go todavía no ha corrido dentro de un lazo completo de carrera en el robot, y ese es justamente el criterio de paridad que falta para el corte.
 
-## Modelo de Detección YOLO
+### Modelo de detección YOLO
 
-Para detectar los obstáculos del Desafío Cerrado de manera confiable usamos un detector YOLO entrenado por nosotros y compilado para el AI HAT+. Esta sección documenta el modelo completo: qué es, con qué datos se entrenó, cómo lo medimos y qué decisiones tomamos a partir de esas mediciones.
+Para detectar los obstáculos del Obstacle Challenge de manera confiable usamos un detector YOLO entrenado por nosotros y compilado para el AI HAT+. Esta sección documenta el modelo completo: qué es, con qué datos se entrenó, cómo lo medimos y qué decisiones tomamos a partir de esas mediciones.
 
-### El modelo y su pipeline
+#### El modelo y su pipeline
 
 | Aspecto | Valor |
 |---------|-------|
@@ -1143,15 +1148,15 @@ Para detectar los obstáculos del Desafío Cerrado de manera confiable usamos un
 | Umbral de despliegue | 0.45 en el detector (las detecciones por debajo no llegan al navegador); 0.25 en el enrutador de señales, para confirmación tardía |
 | Rendimiento (throughput) | 101.5 FPS el HEF solo (`hailortcli run`); la cadena completa (captura → escala tipo letterbox → NPU → decodificación → publicación) corre a **15 Hz**, limitada por el temporizador de captura, no por el modelo |
 
-Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), demasiado lento para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos el pipeline: el nodo de visión abre la cámara directamente y alimenta los fotogramas al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
+Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), demasiado lento para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos la cadena de procesamiento: el nodo de visión abre la cámara directamente y alimenta los fotogramas al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
 
-### Datos de entrenamiento
+#### Datos de entrenamiento
 
-El modelo actual se entrenó sobre **1,340 imágenes propias** de los prismas de la pista (verde, magenta y rojo), anotadas **manualmente con Label Studio** en formato YOLO. Es un conjunto de datos heredado de Klevor, que sigue siendo la base del detector actual.
+El modelo actual se entrenó sobre **1340 imágenes propias** de los prismas de la pista (verde, magenta y rojo), anotadas **manualmente con Label Studio** en formato YOLO. Es un conjunto de datos heredado de Klevor, que sigue siendo la base del detector actual.
 
-En paralelo construimos el **apps/auto-annotator**, una herramienta de anotación asistida con SAM2 (orquestación en Go, servicio de ML en Python, frontend (interfaz) propio). No la usamos para el modelo actual: las anotaciones de este fueron a mano. La construimos pensando en la siguiente iteración del conjunto de datos, porque anotar 1,340 imágenes a mano fue la parte más lenta del entrenamiento y un modelo nuevo empieza por ahí. Las imágenes del conjunto de datos viven en el repositorio del apps/auto-annotator y sirven también como datos de calibración para la cuantización del HEF.
+En paralelo construimos el **auto-anotador** ([`other/apps/auto-annotator/`](other/apps/auto-annotator/)), una herramienta de anotación asistida con SAM2: orquestación en Go, servicio de aprendizaje automático en Python e interfaz propia. No la usamos para el modelo actual: las anotaciones de este fueron a mano. La construimos pensando en la siguiente iteración del conjunto de datos, porque anotar 1340 imágenes a mano fue la parte más lenta del entrenamiento y un modelo nuevo empieza por ahí. Las imágenes del conjunto de datos viven junto al auto-anotador y sirven también como datos de calibración para la cuantización del HEF.
 
-### Cómo lo medimos (y qué cambió por eso)
+#### Cómo lo medimos (y qué cambió por eso)
 
 Evaluamos el modelo sobre 600 imágenes con IoU ≥ 0.5, comparando el resultado en punto flotante, tomado como referencia, contra dos variantes cuantizadas del compilador de Hailo:
 
@@ -1159,24 +1164,24 @@ Evaluamos el modelo sobre 600 imágenes con IoU ≥ 0.5, comparando el resultado
 |---|---|---|---|---|
 | Punto flotante (referencia) | 0.9955 | 0.8885 | 0 | - |
 | Nivel 0, la desplegada | 0.9954 | 0.8808 | 0 | 2 |
-| Nivel 2 + QAT | 0.9689 | 0.8096 | 2 (magenta↔rojo) | 23 |
+| Nivel 2 + QAT (cuantización durante el entrenamiento) | 0.9689 | 0.8096 | 2 (magenta↔rojo) | 23 |
 
-La decisión de desplegar la variante de nivel 0 salió directamente de esta tabla: la heurística "más optimización del compilador es mejor" era falsa para nuestro caso, y la variante de nivel 2, pese a llevar QAT, perdía mAP y, lo peor, introducía las únicas 2 confusiones entre clases del estudio.
+La decisión de desplegar la variante de nivel 0 salió directamente de esta tabla: la heurística «más optimización del compilador es mejor» era falsa para nuestro caso, y la variante de nivel 2, pese a llevar QAT, perdía mAP y, lo peor, introducía las únicas 2 confusiones entre clases del estudio.
 
 Dos hallazgos de esta evaluación nos parecieron los más valiosos:
 
-- **El orden de canales RGB/BGR casi pasa inadvertido.** Con el orden de canales equivocado, el mAP de la clase roja caía de 0.99 a **0.17**, y el sistema no falla de forma evidente: detecta "algo" con confianza razonable, solo que peor. Lo detectamos comparando mAP por clase entre variantes, no mirando imágenes.
-- **Errar el color es peor que omitir la señal.** Clasificar un prisma rojo como verde invierte el lado de paso reglamentario; omitir la detección no lo hace, porque la red de seguridad en colisiones es el LIDAR, no la visión. Sobre 600 imágenes, el modelo desplegado jamás confundió rojo con verde y omitió 2 señales; los falsos positivos a umbral 0.25 fueron 119 (muchos atribuibles a etiquetado incompleto del conjunto de prueba), y el umbral de despliegue de 0.45 los suprime antes de que lleguen al navegador.
+- **El orden de canales RGB/BGR casi pasa inadvertido.** Con el orden de canales equivocado, el mAP de la clase roja caía de 0.99 a **0.17**, y el sistema no falla de forma evidente: detecta «algo» con confianza razonable, solo que peor. Lo detectamos comparando mAP por clase entre variantes, no mirando imágenes.
+- **Errar el color es peor que omitir la señal.** Clasificar un prisma rojo como verde invierte el lado de paso reglamentario; omitir la detección no lo hace, porque la red de seguridad en colisiones es el LIDAR, no la visión. Sobre 600 imágenes, el modelo desplegado jamás confundió rojo con verde y omitió 2 señales; los falsos positivos a umbral 0.25 fueron 119 (muchos atribuibles a etiquetado incompleto del conjunto de prueba), y el umbral de 0.45 del detector los suprime antes de que lleguen al navegador. El 0.25 no los readmite: solo sirve para confirmar tarde una señal ya descubierta, nunca para dar de alta una nueva.
 
-### Qué pasa cuando la visión falla
+#### Qué pasa cuando la visión falla
 
-La visión no es la red de seguridad contra colisiones y la diseñamos como tal. Una detección falsa dentro del radio de activación (1.40 m) fuerza el lado de esquiva según su color, con el riesgo de una esquiva innecesaria; una detección omitida deja la esquiva sin invocar, pero el controlador de colisión por LIDAR sigue activo y los escapes escalan (retroceso y reintento) si el contacto ocurre igualmente. La máquina de estados, además, marca la visión como caída si deja de recibir detecciones dentro de su ventana de tiempo, de modo que una cámara o NPU averiada no pasa inadvertido en el autodiagnóstico de arranque.
+La visión no es la red de seguridad contra colisiones y la diseñamos como tal. Una detección falsa dentro del radio de activación (1.40 m) fuerza el lado de esquiva según su color, con el riesgo de una esquiva innecesaria; una detección omitida deja la esquiva sin invocar, pero el controlador de colisión por LIDAR sigue activo y los escapes escalan (retroceso y reintento) si el contacto ocurre igualmente. La máquina de estados, además, marca la visión como caída si deja de recibir detecciones dentro de su ventana de tiempo, de modo que una cámara o una NPU averiada no pase inadvertida en el autodiagnóstico de arranque.
 
-## Algoritmo PID
+### Algoritmo PID
 
-El control de vTitan tiene dos lazos con exigencias distintas, y solo uno de ellos es propiamente un PID. El de **velocidad** sí es un PI clásico sobre las RPM medidas por el encoder; el de **dirección** dejó de serlo: la ganancia proporcional pura resultó ser un lazo inestable a velocidad de carrera y fue reemplazada por *pure pursuit* basado en curvatura. Contar esa sustitución es, de hecho, la parte más instructiva de esta sección.
+El control de vTitan tiene dos lazos con exigencias distintas, y a pesar del título de esta sección ninguno de los dos es un PID completo. El de **velocidad** sí es un PI clásico sobre las RPM medidas por el encoder; el de **dirección** dejó de serlo: la ganancia proporcional pura resultó ser un lazo inestable a velocidad de carrera y fue reemplazada por *pure pursuit* basado en curvatura. Contar esa sustitución es, de hecho, la parte más instructiva de esta sección.
 
-### Control de velocidad: PI sobre RPM
+#### Control de velocidad: PI sobre RPM
 
 El lazo corre en la Raspberry Pi Zero 2 W con la señal del encoder. La clase `PIDController` implementa un PI con saturación de salida (límite de ciclo de trabajo en 50%) y anti-windup por integración condicional: el término integral solo acumula cuando la salida no está saturada, de modo que el windup no puede crecer contra el límite.
 
@@ -1184,7 +1189,7 @@ Sobre el PI va una **prealimentación (feedforward) afín** medida en banco, `du
 
 Las ganancias son perfiles por motor y su historia ilustra por qué las constantes sin justificación dentro del código eran un problema. Al cambiar al HD Hex, el `counts_per_rev` heredado del motor retirado (676) dejó de valer: la primera medición del motor nuevo dio 86, lo que multiplicó por ~8 la sensibilidad de la medición de RPM, y las ganancias viejas produjeron una oscilación visible: la velocidad oscilaba entre 2 y 21.5 RPM alrededor de una consigna de 13.6, con el ciclo de trabajo oscilando de 0.15 a 0.31. Ese 86 se refinó después a los 60 definitivos, medidos con retenciones más largas. Se reescalaron las ganancias en el mismo factor inverso (0.010→0.00125, 0.020→0.0025) para mantener constante la ganancia de lazo abierto, y se añadió un registro por paso del PID (consigna, medida, ciclo de trabajo) para poder *ver* la oscilación en vez de inferirla de síntomas. Tras corregir además el feedforward (el `max_rpm` viejo dejaba el lazo apoyado contra su límite: la respuesta se estabilizaba a 1.33× la consigna con desviación estándar cero, la firma inequívoca de una saturación), el lazo sigue la consigna a ~2% en pista: tres vueltas limpias con 132.5 s frente a los 142.3 s previos al ajuste.
 
-### Dirección: de PID a pure pursuit
+#### Dirección: de PID a pure pursuit
 
 La dirección de vTitan no es un lazo P sobre error angular, aunque lo fue. Con `steering = kp · angle_error`, el sistema era estable solo por debajo de ~0.07 m/s: a velocidad de carrera, el lazo se volvía un oscilador no amortiguado que saturaba el servo entre −70.2° y +70.2° durante carreras completas. La causa tenía un detalle fino: la ganancia se había ajustado contra un modelo de simulación con dirección delantera, mientras el chasis real es de 4 ruedas direccionales en contrafase, que gira aproximadamente al doble de rápido para el mismo ángulo de servo.
 
@@ -1195,19 +1200,19 @@ Dos refinamientos más, ambos dictados por evidencia de hardware:
 - **Mezcla de la anticipación (lookahead) en vez de conmutación.** Los dos valores de anticipación (0.16 m corto, 0.32 m largo) conmutaban a ~2.5 Hz, y cada conmutación multiplicaba la curvatura por cuatro, produciendo un zigzag visible (pico medio de |steer| de 0.306 a 0.398 sin ganancia lateral real). Se reemplazó la conmutación por una rampa de mezcla continua.
 - **Vista previa de esquina.** Con la señal de error lateral (una señal rezagada), el robot sostenía 0.9 rad de error de rumbo durante 3 s antes de reaccionar en las esquinas. Se añadió una vista previa geométrica de la pista a 0.80 m adelante para activar la anticipación corta antes, sin alargarla más porque otra prueba midió un tejido lateral de ±0.18 m con vista previa excesiva.
 
-### El modo ciego: P de centrado eliminada por medición
+#### El modo ciego: P de centrado eliminada por medición
 
-En la fase inicial, antes de que la inferencia de dirección se estabilice, el robot sigue el pasillo solo con LIDAR. Ahí probamos un controlador P de dos términos (centrado + amortiguación de rumbo) y la ganancia de centrado resultó ser el peor error de ajuste del proyecto: con el centrado en 2.0, una barra de 128 escenarios perdió 12 casos su dirección y provocó 9 choques contra una pared; en hardware se midieron **112 inversiones de signo del steering en 177 s, con el 45% de los ciclos saturados en el límite**. La corrección fue eliminar el término de centrado (ganancia en 0) y quedarse solo con la amortiguación de rumbo: la misma barra pasó a 0 fallos y el avance lento inicial bajó de 6.7 s a 3.4 s. La lección registrada: corregir posición sin tener en cuenta el rumbo siempre sobrecorrige y el error reaparece, porque el steering fija la tasa de guiñada, no la posición.
+En la fase inicial, antes de que la inferencia de dirección se estabilice, el robot sigue el pasillo solo con LIDAR. Ahí probamos un controlador P de dos términos (centrado + amortiguación de rumbo) y la ganancia de centrado resultó ser el peor error de ajuste del proyecto: con el centrado en 2.0, una barra de 128 escenarios perdió la dirección en 12 casos y provocó 9 choques contra una pared; en hardware se midieron **112 inversiones de signo del steering en 177 s, con el 45% de los ciclos saturados en el límite**. La corrección fue eliminar el término de centrado (ganancia en 0) y quedarse solo con la amortiguación de rumbo: la misma barra pasó a 0 fallos y el avance lento inicial bajó de 6.7 s a 3.4 s. La lección registrada: corregir posición sin tener en cuenta el rumbo siempre sobrecorrige y el error reaparece, porque el steering fija la tasa de guiñada, no la posición.
 
-### El rol del giroscopio
+#### El rol del giroscopio
 
-El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Su yaw relativo (ajustado por el desplazamiento de referencia al inicio de la ronda) se fusiona con odometría del encoder y con el LIDAR para producir la posición y rumbo que consume el pure pursuit; en el modo ciego entra solo por el término de amortiguación. En los cruces, el alineamiento con el eje del pasillo (medido contra el yaw del IMU) es lo que autoriza la velocidad normal, y un desalineamiento mayor a ~57° obliga a avance lento, que es donde vive la protección contra el sobrepaso que antes se le atribuía al PID.
+El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Su yaw relativo (ajustado por el desplazamiento de referencia al inicio de la ronda) se fusiona con odometría del encoder y con el LIDAR para producir la posición y rumbo que consume el pure pursuit; en el modo ciego entra solo por el término de amortiguación. En los cruces, el alineamiento con el eje del pasillo (medido contra el yaw del IMU) es lo que autoriza la velocidad normal, y un desalineamiento mayor que ~57° obliga a avance lento, que es donde vive la protección contra el sobrepaso que antes se le atribuía al PID.
 
-## Estrategia en pista
+### Estrategia en pista
 
 El robot arranca **sin mapa y sin saber hacia qué lado se corre la pista**. Todo lo que sigue lo deduce de sus propios sensores durante los primeros metros. Los diagramas de flujo completos de esta lógica están en [`schemes/flowcharts/`](schemes/flowcharts/), separados en `common/` (lo compartido por ambos desafíos), `open/` y `obstacles/`.
 
-### Inferencia del sentido de la vuelta
+#### Inferencia del sentido de la vuelta
 
 Es la primera decisión de cada ronda y condiciona todas las demás. El robot avanza despacio y centrado, y compara cuánto espacio libre mide el LIDAR a izquierda y derecha: el lado que **deja de ser pared** indica dónde está el bloque interior, y el bloque interior fija el sentido de giro.
 
@@ -1264,7 +1269,7 @@ Lo interesante no es la comparación, sino todo lo que hay que descartar antes d
 
 Y aun así una sola lectura no decide: hacen falta **5 votos coincidentes**. Un rayo que entra por la esquina de un bloque produce errores breves y agrupados, y uno de esos llegando primero no puede decidir la ronda.
 
-### Seguimiento de pasillo, vueltas y escapes
+#### Seguimiento de pasillo, vueltas y escapes
 
 Con el sentido resuelto, el robot sigue el pasillo manteniéndose centrado, cuenta las vueltas por el paso acumulado alrededor del circuito, y vigila permanentemente dos condiciones de fallo: **colisión** y **atasco**. Ambas comparten una misma rutina de escape, documentada una sola vez en `common/` y referenciada desde los dos desafíos en vez de redibujarse.
 
@@ -1335,7 +1340,7 @@ flowchart TD
 
 <p align="center"><i>Esquiva genérica de obstáculo</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/esquiva-generica.mmd"><code>esquiva-generica.mmd</code></a> | <a href="schemes/flowcharts/common/webp/esquiva-generica.webp">render WebP</a></sub></p>
 
-En el Desafío de Obstáculos se añade la regla de color: el robot debe pasar por un lado determinado de cada señal según sea roja o verde. La consecuencia de equivocarse no es perder puntos, es **terminar la ronda**, así que el criterio de paso es una de las partes más conservadoras del sistema.
+En el Obstacle Challenge se añade la regla de color: el robot debe pasar por un lado determinado de cada señal según sea roja o verde. La consecuencia de equivocarse no es perder puntos, es **terminar la ronda**, así que el criterio de paso es una de las partes más conservadoras del sistema.
 
 <!-- mermaid-src: schemes/flowcharts/obstacles/mermaid/regla-senales.mmd -->
 ```mermaid
@@ -1363,9 +1368,9 @@ flowchart TD
     classDef optional stroke-dasharray: 5 5,fill:#f5f5f5,stroke:#888
 ```
 
-<p align="center"><i>Regla de paso por señales de color (Desafío de Obstáculos)</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/regla-senales.mmd"><code>regla-senales.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/regla-senales.webp">render WebP</a></sub></p>
+<p align="center"><i>Regla de paso por señales de color (Obstacle Challenge)</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/regla-senales.mmd"><code>regla-senales.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/regla-senales.webp">render WebP</a></sub></p>
 
-### Vista completa de cada desafío
+#### Vista completa de cada desafío
 
 Los diagramas anteriores describen piezas sueltas de la lógica. Estos son los flujos completos y las máquinas de estado de cada desafío, renderizados desde las mismas fuentes Mermaid de [`schemes/flowcharts/`](schemes/flowcharts/).
 
@@ -1558,7 +1563,7 @@ stateDiagram-v2
         ocurre DENTRO de este estado: salir de
         la bahía al arrancar, esquivar señales
         y contar vueltas. No hay un estado
-        PARKING -- nunca lo hubo en el código.
+        PARKING; nunca lo hubo en el código.
     end note
 
     note right of FINISHED
@@ -1571,7 +1576,8 @@ stateDiagram-v2
 ```
 
 <p align="center"><i>Obstacle Challenge - máquina de estados</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/maquina-estados.mmd"><code>maquina-estados.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/maquina-estados.webp">render WebP</a></sub></p>
-## Grabación y análisis de carreras
+
+### Grabación y análisis de carreras
 
 Una ronda dura como máximo **180 segundos** y no se puede pausar. Si algo sale mal, observar el robot no revela la causa. Por eso todo lo que ocurre a bordo queda grabado.
 
@@ -1581,7 +1587,7 @@ Sobre esos bags corren decenas de scripts de diagnóstico especializados: uno re
 
 La diferencia práctica es grande: un fallo no se resuelve repitiendo la ronda y esperando que se manifieste de nuevo, sino **reproduciendo el instante exacto tantas veces como haga falta**, con los mismos datos, hasta encontrar la causa. Varios de los hallazgos listados más abajo salieron de un bag, no de la pista.
 
-## Simulador y corpus de escenarios
+### Simulador y corpus de escenarios
 
 Probar solo en la pista física tiene un límite duro: cada intento cuesta minutos, cada montaje es ligeramente distinto y no se puede repetir una situación difícil a voluntad. Por eso construimos un simulador y, sobre él, un **corpus de escenarios**.
 
@@ -1596,11 +1602,11 @@ Esto cambia el significado de «funciona». Una mejora ya no se juzga por una ca
 
 También cambia la forma de fallar. Cuando un cambio parece mejorar el resultado, el corpus permite comprobar *cuáles* casos concretos cambiaron de estado. Más de una vez, una mejora aparente resultó ser un caso que empezó a pasar y otro distinto que empezó a fallar, con el total sin moverse.
 
-# Pensamiento sistémico y decisiones de ingeniería
+## Pensamiento sistémico y decisiones de ingeniería
 
 Esta sección no describe qué hace el robot, sino **cómo tomamos las decisiones** que lo llevaron a ser así. Es la parte del proyecto que más nos cambió la forma de trabajar.
 
-## Interacciones entre subsistemas
+### Interacciones entre subsistemas
 
 Las cinco áreas del robot no se diseñaron por separado y luego se juntaron. Cada una impone restricciones sobre las otras, y la mayoría de las decisiones de este documento se entienden mejor viendo qué cruza entre ellas.
 
@@ -1630,7 +1636,7 @@ flowchart TD
     subgraph ACTUACION["ACTUACION"]
         HB["Puente H BTS7960<br/>43 A, pico medido ~20 A"]
         MOT["HD Hex Motor<br/>traccion 4x4"]
-        SRV["Servo HPS-3527SG 35kg<br/>direccion en contrafase"]
+        SRV["Servo HPS-3527SG 35 kg<br/>direccion en contrafase"]
     end
 
     subgraph MECANICA["MECANICA"]
@@ -1683,13 +1689,11 @@ flowchart TD
 - **La restricción más dura del robot es un detalle de silicio.** El SoC de la Pi Zero tiene exactamente **dos generadores de PWM por hardware**. Uno lo toma el servo, que necesita posición absoluta. El otro va a la marcha adelante del motor. La marcha atrás se queda sin PWM de hardware, y de ahí sale el riesgo del `LPWM` sin pull-down que aparece en la tabla de riesgos. Una limitación de cómputo se convirtió en una limitación eléctrica y luego en una restricción de estrategia: el estacionamiento y la recuperación son las únicas maniobras que usan reversa.
 - **El LIDAR es la red de seguridad, no la cámara.** La visión decide **qué** es una señal y **por dónde** pasarla; la distancia a la que hay que frenar la decide siempre el LIDAR. Por eso un fallo de cámara degrada la estrategia pero no provoca una colisión.
 
-## Diseño gobernado por configuración
+### Diseño gobernado por configuración
 
-La regla que más impacto tuvo en la calidad del sistema es simple de enunciar: **ninguna constante de comportamiento vive dentro del código**. Todas están en archivos de configuración, y cada una tiene escrito al lado por qué vale lo que vale.
+La regla que más impacto tuvo en la calidad del sistema es simple de enunciar: **ninguna constante de comportamiento vive dentro del código**. Hoy son decenas, repartidas en archivos TOML, y cada una lleva al lado varias líneas de comentario que justifican su valor.
 
-Hoy son decenas de constantes repartidas en varios archivos TOML, cada una acompañada de varias líneas de comentario explicando por qué vale lo que vale.
-
-No es documentación decorativa. Un número suelto en el código es imposible de auditar: nadie recuerda, tres meses después, si `0.20` se midió, se calculó o simplemente se estimó sin medir. Al obligarnos a escribir la justificación junto al valor, cada constante lleva su propia historia (qué se midió, con qué método, qué pasó cuando valía otra cosa). Un ejemplo real, del archivo que gobierna la inferencia de dirección:
+No es documentación decorativa. Un número suelto en el código es imposible de auditar: nadie recuerda, tres meses después, si `0.20` se midió, se calculó o simplemente se estimó sin medir. Al obligarnos a escribir la justificación junto al valor, cada constante lleva su propia historia: qué se midió, con qué método, y qué pasó cuando valía otra cosa. Un ejemplo real, del archivo que gobierna la inferencia de dirección:
 
 ```toml
 # Diferencia mínima entre izquierda y derecha para que un barrido cuente como
@@ -1708,7 +1712,7 @@ Y otro, del perfil del motor actual, que muestra el caso contrario, una constant
 
 Escribir «esto todavía no está medido» dentro del propio sistema evita que una estimación se convierta silenciosamente en un hecho.
 
-## Perfiles de hardware intercambiables
+### Perfiles de hardware intercambiables
 
 El robot cambió de servo y de motor durante el desarrollo. Para que eso no obligara a tocar el código, el hardware está descrito en **perfiles componibles**: uno por pieza física.
 
@@ -1719,9 +1723,9 @@ El robot cambió de servo y de motor durante el desarrollo. Para que eso no obli
 | `generic-motor-1500rpm` | Motor de tracción de 1500 rpm |
 | `rev-hd-hex-motor-6000rpm` | Motor de tracción HD Hex de 6000 rpm (actual) |
 
-Se combinan al arrancar. Cambiar de servo es seleccionar otro perfil, no editar código, y, sobre todo, significa que **los dos servos siguen siendo probables** después del cambio: si el de 35 kg falla en competencia, volver al de 14 kg es una línea de configuración, no una tarde de reescritura.
+Se combinan al arrancar. Cambiar de servo es seleccionar otro perfil, no editar código, y, sobre todo, significa que **los dos servos siguen siendo utilizables** después del cambio: si el de 35 kg falla en competencia, volver al de 14 kg es una línea de configuración, no una tarde de reescritura.
 
-## Compensaciones y alternativas descartadas
+### Compensaciones y alternativas descartadas
 
 Ninguna de estas piezas se cambió por intuición. Cada fila responde a la misma pregunta: **qué dato hizo insostenible la primera opción**. Tres de las cuatro piezas descartadas conservan su foto en el repositorio, porque la que se fue explica por qué está la que se quedó.
 
@@ -1730,7 +1734,7 @@ Ninguna de estas piezas se cambió por intuición. Cada fila responde a la misma
 | **Puente H L298N**<br><img src="other/assets/images/components/puente-h-l298n.webp" width="150"> | **BTS7960 / IBT-2** | Medimos el consumo real del tren motriz: **~10 A sostenidos al 50% de ciclo de trabajo, con picos cercanos a 20 A**, contra los **2 A por canal** del L298N. Un orden de magnitud de diferencia, y explicaba de golpe los cortes y el calentamiento | Mayor tamaño y peso. Y el cuello de botella no desapareció: se movió al interruptor de encendido |
 | **Step Down XLC4016**<br><img src="other/assets/images/components/step-down-xlc4016.webp" width="150"> | **Mini-560 Pro** | Peso. Con el robot **200 g por encima del límite de 1500 g** y ninguna pieza responsable del exceso, la única salida era dimensionar cada rama contra su carga medida en vez de contra el peor caso imaginable. Este cambio solo recuperó **19 g** | Margen de corriente más ajustado, que ahora vigilamos con `vcgencmd get_throttled` en vez de sobredimensionar |
 | **Motor reductor genérico de 1500 rpm**<br><sub>Sin foto en el repositorio</sub> | **REV HD Hex Motor** | Torque insuficiente. Su techo medido en pista era de **0.156 m/s**, con el que vTitan no completaba los desafíos dentro del límite de tiempo. El HD Hex da 0.105 Nm de bloqueo y 6000 rpm sin carga | Obligó a rehacer el ajuste del PID: el `counts_per_rev` no se hereda entre motores, y el del HD Hex tardó dos mediciones en quedar fijado (676 → 86 → 60). Las ganancias viejas producían oscilación visible |
-| **Servo Injora 14 kg**<br><img src="other/assets/images/components/injora-14kg-injs014-micro-servo.webp" width="150"> | **Hi Wonder HPS-3527SG 35 kg** | Recorrido. El Injora abarca **180°**; la dirección en contrafase de vTitan necesita el recorrido ampliado del Hi Wonder (**270°**) para acercarse al giro de 90° por rueda que hace viable la salida del estacionamiento | Más peso y volumen. Ambos servos siguen siendo válidos: viven como [perfiles de hardware](#perfiles-de-hardware-intercambiables) y se eligen sin tocar código |
+| **Servo Injora 14 kg**<br><img src="other/assets/images/components/injora-14kg-injs014-micro-servo.webp" width="150"> | **Hiwonder HPS-3527SG 35 kg** | Recorrido. El Injora abarca **180°**; la dirección en contrafase de vTitan necesita el recorrido ampliado del Hi Wonder (**270°**) para acercarse al giro de 90° por rueda que hace viable la salida del estacionamiento | Más peso y volumen. Ambos servos siguen siendo válidos: viven como [perfiles de hardware](#perfiles-de-hardware-intercambiables) y se eligen sin tocar código |
 
 Y tres compensaciones que no son de pieza sino de diseño:
 
@@ -1744,13 +1748,13 @@ Y una compensación de arquitectura que sigue abierta a propósito:
 
 | Descartado | Elegido | Qué lo decidió |
 |---|---|---|
-| **Migrar ya a la pila en Go** (NATS en lugar de ROS2/DDS) | **Seguir compitiendo con Python + ROS2**, con Go en vía paralela | Go promete arranque más rápido y menos consumo de memoria en las placas, y el backend de telemetría en Go **ya corre en producción**. Pero el criterio para cortar no es "parece listo": es **paridad completa verificada**. Hoy lo portado se valida contra bags de carreras reales en un arnés de paridad, y el navegador de Go todavía no ha corrido dentro de un lazo de carrera completo en el robot. Mientras ese criterio no se cumpla, migrar cambiaría un sistema con temporada de ajustes encima por uno sin ella |
+| **Migrar ya a la pila en Go** (NATS en lugar de ROS2/DDS) | **Seguir compitiendo con Python + ROS2**, con Go en vía paralela | Go promete arranque más rápido y menos consumo de memoria en las placas, y el backend de telemetría en Go **ya corre en producción**. Pero el criterio para cortar no es «parece listo»: es **paridad completa verificada**. Hoy lo portado se valida contra bags de carreras reales en un arnés de paridad, y el navegador de Go todavía no ha corrido dentro de un lazo de carrera completo en el robot. Mientras ese criterio no se cumpla, migrar cambiaría un sistema con temporada de ajustes encima por uno sin ella |
 
 La parte de esta decisión que consideramos la importante no es elegir Go o Python, sino **prohibirnos el híbrido**: migración en vía paralela y corte único, con la pila de Python documentada como camino de reversión. Un sistema medio migrado tiene el doble de superficie de fallo y ninguna de las dos ventajas, y en una temporada con fecha fija ese es el escenario que más cuesta.
 
-## Registro de decisiones de arquitectura (ADR)
+### Registro de decisiones de arquitectura (ADR)
 
-Cada constante que gobierna al robot tiene un archivo que explica por qué vale lo que vale. Son **48 registros de decisión de arquitectura** en [`other/docs/adr/`](other/docs/adr/), uno por decisión, cada uno con su contexto, las opciones consideradas, la medición que la resolvió y el commit donde aterrizó. Varios documentan también premisas que **fueron refutadas después**, porque una decisión revertida enseña tanto como una que se sostuvo.
+Cada constante que gobierna al robot tiene un archivo que explica su origen. Son **48 registros de decisión de arquitectura** en [`other/docs/adr/`](other/docs/adr/), uno por decisión, cada uno con su contexto, las opciones consideradas, la medición que la resolvió y el commit donde aterrizó. Varios documentan también premisas que **fueron refutadas después**, porque una decisión revertida enseña tanto como una que se sostuvo.
 
 No son notas sueltas al margen del código: los esquemas JSON de `src/model/` apuntan a su ADR mediante la clave `x-journal`, y **`task config:check` falla si alguna referencia no resuelve**. Una constante sin justificación rastreable no pasa la verificación del repositorio.
 
@@ -1767,7 +1771,7 @@ Seis que ilustran el patrón:
 
 Los ADR están redactados en inglés, igual que los mensajes de commit; esta documentación y la bitácora de ingeniería están en español.
 
-## Ciclo de trabajo: idea → simulación → pista
+### Ciclo de trabajo: idea → simulación → pista
 
 Nuestro método de trabajo se estabilizó en tres pasos, y el orden importa:
 
@@ -1781,7 +1785,7 @@ Dos disciplinas que aprendimos a costa de errores:
 
 **Un resultado solo es comparable dentro de sus propias condiciones.** Una misma configuración medida en dos momentos distintos puede dar resultados diferentes si algo del entorno cambió. Por eso las comparaciones se hacen en una sola ejecución y contra la versión inmediatamente anterior.
 
-## Hallazgos de ingeniería
+### Hallazgos de ingeniería
 
 Los errores más costosos del proyecto no fueron de programación, sino **suposiciones que nadie había verificado**. Estos son los que más nos enseñaron:
 
@@ -1818,12 +1822,12 @@ Los errores más costosos del proyecto no fueron de programación, sino **suposi
 > [!IMPORTANT]
 > El patrón es siempre el mismo: **el sistema se comportaba de forma coherente con una suposición equivocada**, y por eso los síntomas nunca apuntaban a la causa. La conclusión que sacamos, y que ahora aplicamos por defecto, es medir antes de optimizar.
 
-## Gestión de riesgos
+### Gestión de riesgos
 
 Riesgos identificados del robot, con su mitigación o su estado. Incluimos también los abiertos sin solución completa: declararlos es parte de gestionarlos.
 
 > [!WARNING]
-> **Dos riesgos siguen abiertos y no los escondemos.** Las lecturas fantasma del LIDAR (rangos que alternan sin causa identificada) siguen sin causa raíz: los filtros de voto las absorben, pero absorber no es explicar. Y el `LPWM` del BTS7960 no tiene pull-down físico; lo evitamos por diseño usando `RPWM` en la ruta de carrera, pero la solución correcta es el resistor, que está en cola.
+> **Dos riesgos siguen abiertos y no los escondemos**, y están marcados como tales en la tabla: las lecturas fantasma del LIDAR y el `LPWM` sin resistencia de pull-down. En ambos casos lo que tenemos es una mitigación que funciona, no una causa raíz ni una solución definitiva, y absorber un síntoma no es explicarlo.
 
 | Riesgo | Impacto | Mitigación | Estado |
 |--------|---------|------------|--------|
@@ -1831,16 +1835,16 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 | Fallo de la cámara o la NPU durante la ronda | Ciegas ante señales y obstáculos visuales | La visión está marcada como caída si no hay detecciones en su ventana; la colisión la cubre el LIDAR, no la visión | Mitigado |
 | Lectura fallida del LIDAR que se reporta como rango máximo | El robot interpreta un lado despejado que no lo está | Cuatro filtros de voto + 5 votos coincidentes antes de inferir dirección | Mitigado |
 | Lecturas fantasma del LIDAR (rangos alternando sin causa clara) | Navegación con datos esporádicamente erróneos | Los mismos filtros de voto absorben lecturas aisladas | **Abierto** - causa raíz sin identificar |
-| Watchdog DDS: nodo vivo pero silencioso (matcheados sin datos) | Robot sin comandos con todo "conectado" | Watchdog de BOOT_CHECK (3 fallos antes de actuar) y reinicio coordinado; watchdog de motores auto-frena a 1 s sin comandos | Mitigado |
+| Watchdog DDS: nodo vivo pero silencioso (emparejados sin datos) | Robot sin comandos con todo "conectado" | Watchdog de BOOT_CHECK (3 fallos antes de actuar) y reinicio coordinado; watchdog de motores auto-frena a 1 s sin comandos | Mitigado |
 | Fallo del puente H o de la ruta de potencia | Pérdida de tracción | BTS7960 sobredimensionado (43 A); el eslabón débil actual es el interruptor de encendido | Mitigado - punto débil documentado |
-| Pull-down físico ausente en `LPWM` del BTS7960 | Pulso de motor espurio al arrancar la Pi | `LPWM` solo se usa en reversa (estacionamiento/recuperación, jitter tolerado por diseño); la ruta de carrera usa `RPWM` por PWM de hardware | **Mitigado parcialmente** - pull-down físico en cola |
+| Pull-down físico ausente en `LPWM` del BTS7960 | Pulso de motor espurio al arrancar la Pi | `LPWM` solo se usa en reversa (estacionamiento/recuperación, fluctuación tolerada por diseño); la ruta de carrera usa `RPWM` por PWM de hardware | **Mitigado parcialmente** - pull-down físico en cola |
 | Sobrepeso cerca del límite de 1.5 kg | Descalificación | Pieza por pieza contra carga medida | Vigilado |
 | El simulador es optimista respecto a la pista real | Fallos en pista que la simulación no muestra | Calibración del simulador contra mediciones reales; ninguna conclusión se da por válida solo en sim | Mitigado parcialmente |
-| Modo ciego con FOV limitado (~2.3 m) | 78 % de los fallos blind ocurren en la primera vuelta | Velocidad reducida, prioridad de paso estrecho por seguridad | Conocido - aceptado |
+| Modo ciego con FOV limitado (~2.3 m) | 78% de los fallos en modo ciego ocurren en la primera vuelta | Velocidad reducida, prioridad de paso estrecho por seguridad | Conocido - aceptado |
 | Contingencia de ronda equivocada (la ronda se ejecutó como el desafío incorrecto, 2026-09-06) | Puntaje nulo en la ronda real | Remuestreo del puente en SYSTEM_RESET; tiempo de espera de 180 s | Mitigado tras el fallo |
-| Peso del sistema: arranque lento y servicios caídos en el arranque | Robot no listo al llamar a pista | Unidades systemd con `Restart`/`on-failure`; boot reducido de ~3 min | Mitigado |
+| Peso del sistema: arranque lento y servicios caídos en el arranque | Robot no listo al llamar a pista | Unidades systemd con `Restart`/`on-failure`; arranque reducido desde ~3 min | Mitigado |
 
-## Tecnologías utilizadas
+### Tecnologías utilizadas
 
 | Tecnología | Uso | Por qué |
 |------------|-----|---------|
@@ -1849,18 +1853,18 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 | **Go** | Backend de telemetría (en producción) y segunda implementación de la pila de navegación (en migración) | Reemplazo a largo plazo de ROS2: arranque más rápido y menor consumo de recursos en el robot; el corte a producción se hace cuando la pila de Go alcance paridad completa |
 | **Pixi / RoboStack** | Entorno de desarrollo | Permite trabajar el mismo proyecto en Windows, Linux y en la Raspberry sin divergencias |
 | **Gazebo** | Simulación física | Ejecutar el corpus de escenarios sin pista |
-| **Hailo + YOLO** | Detección de señales | Inferencia en NPU: de ~700 ms por imagen en CPU a un pipeline de 15 Hz de punta a punta |
+| **Hailo + YOLO** | Detección de señales | Inferencia en NPU: de ~700 ms por imagen en CPU a una cadena de 15 Hz de punta a punta |
 | **MCAP + Foxglove** | Grabación y análisis | Formato de bags y visualización posterior de cada ronda |
 | **Task** | Automatización | Un único punto de entrada para compilar, probar, desplegar y simular |
 | **tscircuit** | Esquemático de conexiones | El arnés se define en código y se versiona igual que el software |
 
-# Videos de vTitan
+## Videos de vTitan
 
-Finalmente, quisieramos invitarlos a revisar nuestro canal de Youtube, en el que subiremos contenido relacionado a vTitan y los desafíos de la WRO.
+Finalmente, quisiéramos invitarlos a revisar nuestro canal de YouTube, en el que subiremos contenido relacionado a vTitan y los desafíos de la WRO.
 
-Esta misma lista está disponible como [`video/video.md`](video/video.md), la carpeta que pide la categoría.
+Esta misma lista está disponible en [`video/video.md`](video/video.md), dentro de la carpeta `video/` que pide la categoría.
 
-## Open Challenge
+### Open Challenge
 
 | [![Open Challenge #1](https://img.youtube.com/vi/xrTShkQfnUk/0.jpg)](https://youtube.com/shorts/xrTShkQfnUk) | [![Open Challenge #2](https://img.youtube.com/vi/28cxIb5Uug4/0.jpg)](https://youtu.be/28cxIb5Uug4) |
 |:---:|:---:|
@@ -1870,28 +1874,28 @@ Esta misma lista está disponible como [`video/video.md`](video/video.md), la ca
 | [![Open Challenge #5](https://img.youtube.com/vi/0JTcstQ5lVM/0.jpg)](https://youtube.com/shorts/0JTcstQ5lVM) | [![Open Challenge #6](https://img.youtube.com/vi/tpZ2MUb4gyc/0.jpg)](https://youtu.be/tpZ2MUb4gyc) |
 | **Open Challenge #5** | **Open Challenge #6** |
 
-## Open Challenge Simulation
+### Open Challenge Simulation
 
-| [![Open Challenge Simulation Nº1](https://img.youtube.com/vi/S0tjWiyK1bM/0.jpg)](https://youtu.be/S0tjWiyK1bM) | |
+| [![Open Challenge Simulation #1](https://img.youtube.com/vi/S0tjWiyK1bM/0.jpg)](https://youtu.be/S0tjWiyK1bM) | |
 |:---:|:---:|
-| **Open Challenge Simulation Nº1** | |
+| **Open Challenge Simulation #1** | |
 
-## Obstacles Challenge Simulation
+### Obstacle Challenge Simulation
 
-| [![Obstacles Challenge Simulation Nº1](https://img.youtube.com/vi/fb5zcayUf0A/0.jpg)](https://youtu.be/fb5zcayUf0A) | |
+| [![Obstacle Challenge Simulation #1](https://img.youtube.com/vi/fb5zcayUf0A/0.jpg)](https://youtu.be/fb5zcayUf0A) | |
 |:---:|:---:|
-| **Obstacles Challenge Simulation Nº1** | |
+| **Obstacle Challenge Simulation #1** | |
 
-## Parking Challenge
+### Parking Challenge
 
 | [![Parking Challenge #1](https://img.youtube.com/vi/dpk2NokeFFs/0.jpg)](https://youtube.com/shorts/dpk2NokeFFs) | |
 |:---:|:---:|
 | **Parking Challenge #1** | |
 
-## Otros
+### Otros
 
 | [![Counter Phase Steering](https://img.youtube.com/vi/K51M7iB6rWM/0.jpg)](https://youtube.com/shorts/K51M7iB6rWM) | [![Previous Prototypes #1](https://img.youtube.com/vi/MQwCzlizyTI/0.jpg)](https://youtube.com/shorts/MQwCzlizyTI) |
 |:---:|:---:|
 | **Counter Phase Steering** | **Previous Prototypes #1** |
-| [![Robot POV Nº1](https://img.youtube.com/vi/u9PNsfgKNgM/0.jpg)](https://youtu.be/u9PNsfgKNgM) | [![Foxglove Studio Replay](https://img.youtube.com/vi/c7y4DL4ijQ8/0.jpg)](https://youtu.be/c7y4DL4ijQ8) |
-| **Robot POV Nº1** | **Foxglove Studio Replay** |
+| [![Robot POV #1](https://img.youtube.com/vi/u9PNsfgKNgM/0.jpg)](https://youtu.be/u9PNsfgKNgM) | [![Foxglove Studio Replay](https://img.youtube.com/vi/c7y4DL4ijQ8/0.jpg)](https://youtu.be/c7y4DL4ijQ8) |
+| **Robot POV #1** | **Foxglove Studio Replay** |
