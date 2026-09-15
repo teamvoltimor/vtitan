@@ -12,6 +12,7 @@ import logging
 import math
 from typing import TYPE_CHECKING
 
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams
 from shared.domain.enums import Axis, Direction, Section
 from shared.domain.models import SignColor, Waypoint
@@ -668,8 +669,60 @@ class SignRouter:
         if self._committed != nearest_idx:
             self._commit_yaw[nearest_idx] = robot_yaw
         self._committed = nearest_idx
-        yaw_drift = abs(wrap_angle(robot_yaw - self._commit_yaw[nearest_idx]))
-        sign = self._signs[nearest_idx]
+
+        deformed = self._deform_for(
+            nearest_idx,
+            waypoint_wp=Waypoint(*waypoint),
+            robot_wp=robot_wp,
+            robot_yaw=robot_yaw,
+            observations=observations,
+        )
+
+        # HANDOFF BLEND toward the NEXT sign. Off unless pair_handoff_span is
+        # set; see _handoff_blend for the measurement that motivates it.
+        deformed = self._handoff_blend(
+            deformed,
+            committed_idx=nearest_idx,
+            candidates=candidates,
+            waypoint_wp=Waypoint(*waypoint),
+            robot_wp=robot_wp,
+            robot_yaw=robot_yaw,
+            corridor=corridor,
+            observations=observations,
+        )
+
+        if deformed != waypoint:
+            logger.debug(
+                "Sign %d deformation: wp (%.3f,%.3f) -> (%.3f,%.3f) [dist=%.2f m]",
+                nearest_idx,
+                waypoint[0],
+                waypoint[1],
+                deformed[0],
+                deformed[1],
+                nearest_dist,
+            )
+
+        return deformed
+
+    def _deform_for(
+        self,
+        index: int,
+        *,
+        waypoint_wp: Waypoint,
+        robot_wp: Waypoint,
+        robot_yaw: float,
+        observations: list[TrafficSignObservation] | None,
+    ) -> tuple[float, float]:
+        """The deformed waypoint this ONE sign asks for, taper and all.
+
+        Split out of :meth:`deform_waypoint` so the same maths can be asked of
+        the NEXT sign as well as the committed one -- see :meth:`_handoff_blend`.
+        Pure with respect to routing state apart from the commit-yaw lookup it
+        reads, so calling it for a non-committed sign changes no bookkeeping.
+        """
+        sign_corridor = self._sign_corridors[index]
+        yaw_drift = abs(wrap_angle(robot_yaw - self._commit_yaw.get(index, robot_yaw)))
+        sign = self._signs[index]
         color = sign.color
 
         # Optionally override color with camera observation.
@@ -701,7 +754,6 @@ class SignRouter:
         # decays only once both are clear, which preserves the smoothing this
         # taper exists for. Waypoint-at-sign callers still see taper == 1.0, so
         # single-point behaviour is unchanged.
-        waypoint_wp = Waypoint(*waypoint)
         influence_dist = min(
             _dist2d(waypoint_wp, Waypoint(sign.x, sign.y)),
             _dist2d(robot_wp, Waypoint(sign.x, sign.y)),
@@ -730,20 +782,85 @@ class SignRouter:
             self._context,
             yaw_drift,
         )
-        deformed = (deformed_wp.x, deformed_wp.y)
+        return (deformed_wp.x, deformed_wp.y)
 
-        if deformed != waypoint:
-            logger.debug(
-                "Sign %d (%s) deformation: wp (%.3f,%.3f) → (%.3f,%.3f) [dist=%.2f m]",
-                nearest_idx,
-                color,
-                waypoint[0],
-                waypoint[1],
-                deformed[0],
-                deformed[1],
-                nearest_dist,
+    def _handoff_blend(
+        self,
+        deformed: tuple[float, float],
+        *,
+        committed_idx: int,
+        candidates: list[tuple[int, float]],
+        waypoint_wp: Waypoint,
+        robot_wp: Waypoint,
+        robot_yaw: float,
+        corridor: Section,
+        observations: list[TrafficSignObservation] | None,
+    ) -> tuple[float, float]:
+        """Start crossing toward the NEXT sign's lane before this one is released.
+
+        The router claims ONE sign at a time, so the commanded lateral line
+        jumps from this sign's value to the next sign's in the single tick the
+        claim moves. When the two want opposite sides -- the WRO grid puts
+        pillars 0.50 m apart in a 1.0 m corridor, so a red-then-green pair is
+        routine -- that jump IS the crossing, and it is issued with whatever
+        runway happens to be left.
+
+        MEASURED on the four 2026-09-14 rounds, 41 passes: starting a pass on
+        the WRONG side of the sign makes a graze 4.8x more likely (23.8%
+        against 5.0%) and a wrong-side finish 2.9x more likely (14.3% against
+        5.0%). Five of the six sub-30 mm grazes were crossings. And the runway
+        is not there to spend: commitment lands at p50 0.498 m where the
+        crossing needs about 0.614 m, because publication costs 0.317 m and the
+        commit criteria another 0.266 m out of the 1.081 m the camera gives.
+
+        So this moves the lateral target CONTINUOUSLY across the handoff
+        instead of stepping it: once the committed sign is behind the chassis,
+        its line is interpolated toward the next applicable sign's over
+        ``pair_handoff_span`` metres of travel past it. It deliberately does
+        not touch selection, the pass-side rule, or the deformation maths -- the
+        two earlier clearance-bound attempts changed those and made things
+        worse (see docs/sign-avoidance-investigation.md).
+
+        Inert unless ``pair_handoff_span`` is positive, and inert while the
+        committed sign is still ahead: a pass is never compromised to set up
+        the one after it.
+        """
+        span = self._config.pair_handoff_span
+        if not span or span <= 0.0:
+            return deformed
+
+        # Only once the committed sign is genuinely behind the chassis. While
+        # it is ahead, its own pass is the only thing that matters.
+        # ... and not merely behind the ORIGIN. The pose is the centre of a
+        # 30 cm chassis, so a sign level with the origin is still alongside the
+        # body, and pulling toward the next sign's line there drags the TAIL
+        # into the pillar being passed. Measured: blending from `along < 0`
+        # cost 12 -> 16 on the obstacles corpus, four scenarios introduced and
+        # none fixed, every one of them a collision. So the blend may not start
+        # until the rear of the chassis is clear.
+        committed = self._signs[committed_idx]
+        along = (committed.x - robot_wp.x) * math.cos(robot_yaw) + (committed.y - robot_wp.y) * math.sin(robot_yaw)
+        clear_by = -along - RobotSpecs.LENGTH / 2.0
+        if clear_by <= 0.0:
+            return deformed
+        weight = min(1.0, clear_by / span)
+
+        for idx, dist in candidates:
+            if idx == committed_idx or dist > self._config.activation_dist:
+                continue
+            if not is_squarely_in_corridor(waypoint_wp.x, waypoint_wp.y, self._sign_corridors[idx], self._context):
+                continue
+            nxt = self._deform_for(
+                idx,
+                waypoint_wp=waypoint_wp,
+                robot_wp=robot_wp,
+                robot_yaw=robot_yaw,
+                observations=observations,
             )
-
+            return (
+                deformed[0] + (nxt[0] - deformed[0]) * weight,
+                deformed[1] + (nxt[1] - deformed[1]) * weight,
+            )
         return deformed
 
     def _prefer_committed(self, candidates: list[tuple[int, float]]) -> list[tuple[int, float]]:

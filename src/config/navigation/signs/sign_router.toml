@@ -508,3 +508,25 @@ sign_lidar_align_max_steer = 0.15
 # camera's boxes. Ships off while discovery's own camera pipeline is trusted.
 sign_lidar_propose = false
 
+
+# Interpolate the lateral target toward the NEXT sign's line over this many
+# metres of travel past the committed one, instead of stepping to it in a
+# single tick when the claim moves. See the schema for the full measurement.
+#
+# ON at 0.30, measured 2026-09-14 on the obstacles corpus: 12 failed against a
+# baseline of 12, failure set BYTE-IDENTICAL -- nothing introduced, nothing
+# fixed. It costs nothing the corpus can see.
+#
+# The GATE is what makes that true, and it is not optional. Blending from the
+# moment the sign passes the pose ORIGIN cost 12 -> 16, four scenarios
+# introduced and none fixed, every one a collision: the pose is the centre of a
+# 30 cm chassis, so a sign level with the origin is still alongside the body and
+# pulling toward the next line there drags the TAIL into the pillar being
+# passed. The blend now waits for the REAR to clear.
+#
+# BENEFIT UNPROVEN AND UNPROVABLE HERE. The corpus has no pass-side assertion,
+# so it cannot score the thing this exists for. The evidence is correlational,
+# from the four 2026-09-14 rounds: a pass begun on the wrong side grazes 4.8x
+# more often and finishes wrong-side 2.9x more often, and five of six sub-30 mm
+# grazes were crossings. Set to 0.0 to disable.
+pair_handoff_span_m = 0.30

@@ -105,6 +105,29 @@ class SignRouterConfig:
     resolved from the TOML-backed group instead of restated here.
     """
 
+    pair_handoff_span: float | None = None
+    """Metres of travel past the committed sign over which the lateral target is
+    interpolated toward the NEXT sign's line, instead of stepping to it in one
+    tick when the claim moves.
+
+    The router claims one sign at a time, so at handoff the commanded line
+    JUMPS -- and when a pair wants opposite sides, that jump is the crossing.
+    Measured on the 2026-09-14 rounds: a pass begun on the wrong side grazes
+    4.8x more often (23.8% against 5.0%) and finishes on the wrong side 2.9x
+    more often, and five of six sub-30 mm grazes were crossings. There is no
+    runway to spend either -- commitment lands at p50 0.498 m where the geometry
+    wants about 0.614 m.
+
+    ON at 0.30 (signs/sign_router.toml): measured over the obstacles corpus at
+    12 failed against a baseline of 12, with a BYTE-IDENTICAL failure set. The
+    benefit cannot be measured there -- the corpus has no pass-side assertion --
+    so this ships on the mechanism and the bag correlation, not on a corpus win.
+
+    Applies only once the REAR of the chassis has cleared the committed sign,
+    never merely once the sign is behind the pose origin: that gate is worth
+    12 -> 16 (four collisions introduced), because the origin sits mid-body on a
+    30 cm chassis. No pass is compromised to set up the one after it."""
+
     corridor_flip_ticks: int | None = None
     """Consecutive ticks a refined sign estimate must agree on a NEW corridor
     before its label moves there. A sign's corridor picks which world axis its
@@ -188,4 +211,5 @@ class SignRouterConfig:
             settle_ticks=params.settle_ticks,
             commit_hysteresis=params.commit_hysteresis,
             corridor_flip_ticks=params.corridor_flip_ticks,
+            pair_handoff_span=params.pair_handoff_span_m,
         )

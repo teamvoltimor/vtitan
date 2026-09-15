@@ -120,6 +120,23 @@ type NavigationSignsSignRouter struct {
 	// minimum confidence to accept a camera color update
 	MinConfidence float64 `json:"min_confidence" yaml:"min_confidence" mapstructure:"min_confidence"`
 
+	// Metres of travel past the committed sign over which the lateral target is
+	// interpolated toward the NEXT sign's line, instead of stepping to it in one tick
+	// when the claim moves. The router claims one sign at a time, so at handoff the
+	// commanded line JUMPS -- and when a pair wants opposite sides (the WRO grid puts
+	// pillars 0.50 m apart in a 1.0 m corridor, so a red-then-green pair is routine)
+	// that jump IS the crossing, issued with whatever runway is left. MEASURED over
+	// the four 2026-09-14 rounds, 41 passes: a pass begun on the WRONG side grazes
+	// 4.8x more often (23.8% against 5.0%) and finishes on the wrong side 2.9x more
+	// often (14.3% against 5.0%), and five of the six sub-30 mm grazes were
+	// crossings. The runway is not there either: commitment lands at p50 0.498 m
+	// where the crossing needs about 0.614 m, publication costing 0.317 m and the
+	// commit criteria 0.266 m of the 1.081 m the camera gives. SHIPS AT 0.0, inert,
+	// pending a corpus A/B -- it moves the commanded lateral line, the same surface
+	// two earlier clearance-bound attempts got wrong. Applies only once the committed
+	// sign is BEHIND the chassis, so no pass is compromised to set up the next.
+	PairHandoffSpanM float64 `json:"pair_handoff_span_m" yaml:"pair_handoff_span_m" mapstructure:"pair_handoff_span_m"`
+
 	// distance beyond which a sign is "passed"
 	PassedDistM float64 `json:"passed_dist_m" yaml:"passed_dist_m" mapstructure:"passed_dist_m"`
 
