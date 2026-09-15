@@ -1,0 +1,376 @@
+r"""Did the chassis pass each pillar on the legal side, judged from GROUND TRUTH?
+
+STATUS: THE INSTRUMENT FAILS ITS OWN CONTROL. Do not quote its percentages.
+The operator states every 2026-09-15 round used the SAME layout -- 2 parking
+walls, 5 GREEN pillars, 3 RED -- and this script reproduces that on NONE of the
+six runs: 3G/6R/1fin, 3G/3R/2fin, 5G/4R/1fin, 3G/1R/1fin, 6G/4R/0fin,
+5G/2R/0fin. On an aborted round under-coverage explains it, but 140014 is a
+full three-lap round and still reads SIX reds where there are three.
+
+The weak link is the COLOUR VOTE, and it fails for a reason already measured
+today: detections are attributed to the nearest pillar within 0.35 m, while the
+camera bearing carries +/-12 deg of zero-mean scatter, which at 1.5 m is 0.31 m
+of lateral miss. Detections land on the neighbour. Fixing this needs detection
+TRACKS associated to pillars over time, not per-frame proximity -- the same
+conclusion camera-bearing work reached separately.
+
+Everything below is the design, which is sound; only the object identification
+is not.
+
+A wrong-side pass ENDS the round. Every hardware round of 2026-09-15 shows one
+to five of them by the robot's own count, with and without
+``barrier_span_along_wall``, and the lap counter hides all of it -- four rounds
+read 3/3 while the operator had mentally stopped them on lap 1.
+
+Neither existing instrument can settle that:
+
+* ``wrong_side_pass_count`` on the wire is ``SignRouter.wrong_side_violations``,
+  computed in the BELIEVED frame from discovered colours. It conflates where the
+  chassis drove with what the robot thinks it saw.
+* ``diag_bag_pass_side.py`` judges with the ROBOT's corridor while the router
+  uses another (recorded 2026-09-12).
+
+So this rebuilds the simulator's own judge -- ``scenario_simulator/scoring.py``
+-- against hardware truth:
+
+* **Positions from the LIDAR**, not from the sign map. Every return more than
+  ``--wall-margin`` from a wall is accumulated in world coordinates over the
+  whole bag; a pillar is a physical object and piles up. The sign map is built
+  from camera bearings and would agree with any error they carry.
+* **Colour by VOTE** over every detection projected near each pillar. Colour is
+  genuinely camera-only, so belief cannot be eliminated here -- but a majority
+  over hundreds of frames is a different thing from one frame, and the vote
+  margin is printed so a weak call is visible rather than silent.
+* **The rule from production**: ``pass_side_lateral_axis`` with the round's
+  settled direction, the same function the router uses.
+* **A FOOTPRINT crossing test**, like the simulator's: the pass is decided when
+  the chassis has COMPLETELY crossed the pillar's radius, so a chassis that
+  strays wide and corrects before the line is not scored as offending. The rules
+  permit that recovery and a closest-approach proxy forbids it by construction.
+
+CONTROLS, because a crashed diagnostic here exits 0:
+
+* The pillar map is printed first with its return counts. If it is empty or its
+  clusters sit on walls, nothing below it means anything.
+* The colour vote margin is printed per pillar. A pillar with no detections is
+  reported as UNKNOWN and judged on nothing rather than guessed.
+* Signs the chassis never fully crossed are counted separately from signs it
+  crossed correctly. Those are not passes and must not dilute the rate.
+
+Usage::
+
+    VTITAN_HARDWARE_PROFILE=... python scripts/bag/diag_bag_pass_side_truth.py RUN_DIR...
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import math
+import sys
+from collections import Counter
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import numpy as np  # noqa: E402
+from rclpy.serialization import deserialize_message  # noqa: E402
+from sensor_msgs.msg import LaserScan  # noqa: E402
+from std_msgs.msg import String  # noqa: E402
+
+# isort: off
+# scripts.common.bag_io FIRST: importing shared.domain.models ahead of it trips
+# a partially-initialised cycle between models and enums (GMR_CLASS_NAMES).
+from scripts.common.bag_io import (  # noqa: E402
+    Topics,
+    create_bags_parser,
+    decode_detections,
+    decode_nav_debug,
+    open_reader,
+    scan_to_ranges_angles,
+)
+from scripts.common.tables import print_table  # noqa: E402
+from shared.config.constants import RobotSpecs  # noqa: E402
+from shared.domain.enums import Axis, Direction  # noqa: E402
+from shared.domain.models import Pose, SignColor  # noqa: E402
+from src.navigation.planning.sign_discovery import detection_to_world_point  # noqa: E402
+from src.navigation.planning.sign_router.routing import pass_side_lateral_axis  # noqa: E402
+from src.navigation.planning.waypoints.classification import corridor_for_position  # noqa: E402
+from src.navigation.race_tracker import TRAVEL_DIRS  # noqa: E402
+
+# isort: on
+
+_TRACK_MIN, _TRACK_MAX = 0.0, 3.0
+_INNER_MIN, _INNER_MAX = 1.0, 2.0
+_SELF_RETURN_M = 0.15
+_PEAK_CLAIM_M = 0.20
+_APPROACH_M = 1.20  # the simulator's own engage radius
+_COLOUR_MATCH_M = 0.35  # a detection this close to a pillar votes for it
+
+# OPERATOR GROUND TRUTH, every round of 2026-09-15: the mat carried 2 parking
+# walls, 5 GREEN pillars and 3 RED. Ten off-wall objects, of which only EIGHT
+# are signs. That is both a constraint and a control: the pass-side rule does
+# not apply to a parking fin, and a colour vote that does not come out 5 green
+# and 3 red is a vote to distrust rather than a finding.
+_EXPECTED_GREEN, _EXPECTED_RED, _EXPECTED_FINS = 5, 3, 2
+# A fin stands at ParkingLotSpecs wall_offset, ~0.10-0.20 m from the wall face,
+# while the nearest legal sign cell is a division line at 0.40. Anything inside
+# this of a wall is the lot, not a pillar.
+_FIN_BAND_M = 0.30
+
+
+def _off_wall(px: np.ndarray, py: np.ndarray, margin: float) -> np.ndarray:
+    """True for returns clear of every wall face, outer ring and inner block alike."""
+    near_outer = (
+        (np.abs(px - _TRACK_MIN) < margin)
+        | (np.abs(px - _TRACK_MAX) < margin)
+        | (np.abs(py - _TRACK_MIN) < margin)
+        | (np.abs(py - _TRACK_MAX) < margin)
+    )
+    dx = np.maximum(_INNER_MIN - px, px - _INNER_MAX)
+    dy = np.maximum(_INNER_MIN - py, py - _INNER_MAX)
+    near_inner = np.abs(np.maximum(dx, dy)) < margin
+    on_mat = (px > -margin) & (px < _TRACK_MAX + margin) & (py > -margin) & (py < _TRACK_MAX + margin)
+    return on_mat & ~near_outer & ~near_inner
+
+
+def _near_wall(x: float, y: float) -> float:
+    """Distance to the nearest OUTER wall face."""
+    return min(abs(x - _TRACK_MIN), abs(x - _TRACK_MAX), abs(y - _TRACK_MIN), abs(y - _TRACK_MAX))
+
+
+def _corners(x: float, y: float, yaw: float) -> list[tuple[float, float]]:
+    """The oriented chassis rectangle, for the COMPLETELY-crossed test."""
+    hl, hw = RobotSpecs.LENGTH / 2.0, RobotSpecs.WIDTH / 2.0
+    c, s = math.cos(yaw), math.sin(yaw)
+    return [(x + dx * c - dy * s, y + dx * s + dy * c) for dx, dy in ((hl, hw), (hl, -hw), (-hl, hw), (-hl, -hw))]
+
+
+def _read(  # noqa: PLR0912  one pass over the bag, branching per topic; splitting it would mean reading the bag twice
+    bag_dir: Path, wall_margin: float, cell: float, min_returns: int, max_pillars: int
+) -> tuple[
+    list[tuple[Pose, int]], Direction | None, list[tuple[float, float, int]], list[tuple[float, float, SignColor]]
+]:
+    """One pass over the bag: pose track, LIDAR pillar map, and colour votes."""
+    reader = open_reader(bag_dir)
+    pose: Pose | None = None
+    track: list[tuple[Pose, int]] = []
+    direction = None
+    counts: dict[tuple[int, int], int] = {}
+    dets: list[tuple[float, float, SignColor]] = []
+    ranges = angles = None
+    while reader.has_next():
+        topic, data, _t = reader.read_next()
+        if topic == Topics.NAV_DEBUG:
+            try:
+                snap = decode_nav_debug(data)
+            except Exception:  # noqa: BLE001
+                continue
+            if isinstance(snap.pose_x, (int, float)) and isinstance(snap.pose_y, (int, float)):
+                pose = Pose(x=float(snap.pose_x), y=float(snap.pose_y), yaw=float(snap.pose_yaw or 0.0))
+                track.append((pose, int(snap.laps_completed or 0)))
+            if snap.direction is not None:
+                direction = snap.direction
+            continue
+        if topic == Topics.SCAN:
+            with contextlib.suppress(Exception):
+                ranges, angles = scan_to_ranges_angles(deserialize_message(data, LaserScan))
+            if pose is None or ranges is None:
+                continue
+            keep = (ranges > _SELF_RETURN_M) & (ranges < RobotSpecs.LIDAR_MAX_RANGE * 0.99)
+            r, a = ranges[keep], angles[keep]
+            if r.size == 0:
+                continue
+            w = pose.yaw + a
+            px, py = pose.x + r * np.cos(w), pose.y + r * np.sin(w)
+            sel = _off_wall(px, py, wall_margin)
+            for gx, gy in zip(np.floor(px[sel] / cell).astype(int), np.floor(py[sel] / cell).astype(int), strict=True):
+                counts[(gx, gy)] = counts.get((gx, gy), 0) + 1
+            continue
+        if topic != Topics.VISION_DETECTIONS or pose is None:
+            continue
+        try:
+            payload = json.loads(deserialize_message(data, String).data)
+        except Exception:  # noqa: BLE001
+            continue
+        for det in decode_detections(payload):
+            if det.color not in (SignColor.RED, SignColor.GREEN):
+                continue
+            pt = detection_to_world_point(det, pose, lidar_ranges_m=ranges, lidar_angles_rad=angles)
+            if pt is not None:
+                dets.append((pt[0], pt[1], det.color))
+
+    return track, direction, _peaks(counts, cell, min_returns, max_pillars), dets
+
+
+def _peaks(
+    counts: dict[tuple[int, int], int], cell: float, min_returns: int, max_pillars: int
+) -> list[tuple[float, float, int]]:
+    """Greedy peak picking: each peak claims a neighbourhood before the next is taken."""
+    pillars: list[tuple[float, float, int]] = []
+    for (gx, gy), n in sorted(counts.items(), key=lambda kv: -kv[1]):
+        if n < min_returns:
+            break
+        x, y = (gx + 0.5) * cell, (gy + 0.5) * cell
+        if any(math.hypot(x - a, y - b) < _PEAK_CLAIM_M for a, b, _ in pillars):
+            continue
+        pillars.append((x, y, n))
+        if len(pillars) >= max_pillars:
+            break
+    return pillars
+
+
+def _colour(x: float, y: float, dets: list[tuple[float, float, SignColor]]) -> tuple[SignColor | None, int, int]:
+    """Majority colour for a pillar, with the two vote counts so a weak call shows."""
+    votes = Counter(c for dx, dy, c in dets if math.hypot(dx - x, dy - y) < _COLOUR_MATCH_M)
+    red, green = votes.get(SignColor.RED, 0), votes.get(SignColor.GREEN, 0)
+    if red == 0 and green == 0:
+        return None, 0, 0
+    return (SignColor.RED if red >= green else SignColor.GREEN), red, green
+
+
+def _judge(
+    track: list[tuple[Pose, int]],
+    pillar: tuple[float, float],
+    colour: SignColor,
+    direction: Direction,
+) -> str:
+    """CORRECT, WRONG or never-crossed, by the simulator's own footprint rule."""
+    x, y = pillar
+    corridor = corridor_for_position(x, y)
+    rule = pass_side_lateral_axis(corridor, colour, direction)
+    if rule is None:
+        return "no rule"
+    lateral_axis, permitted = rule
+    heading = TRAVEL_DIRS[(corridor, direction)]
+    if lateral_axis == Axis.Y:
+        depth_axis, ahead = Axis.X, (1 if heading.nx > 0 else -1)
+    else:
+        depth_axis, ahead = Axis.Y, (1 if heading.ny > 0 else -1)
+    sign_depth = x if depth_axis == Axis.X else y
+    sign_lat = x if lateral_axis == Axis.X else y
+
+    engaged = False
+    scored_lap: set[int] = set()
+    verdicts: list[str] = []
+    for p, lap in track:
+        if math.hypot(x - p.x, y - p.y) > _APPROACH_M:
+            continue
+        # ONCE PER LAP, mirroring the simulator's _pass_side_scored. Without
+        # this a chassis pendulumming beside a pillar re-crosses the radius
+        # every few ticks and each crossing counts: the first version of this
+        # script reported 45 and 53 passes over 10 pillars and 3 laps, where 30
+        # is the ceiling, and it inflated exactly the wedged rounds.
+        if lap in scored_lap:
+            continue
+        cs = _corners(p.x, p.y, p.yaw)
+        behind = [(cx if depth_axis == Axis.X else cy) - sign_depth for cx, cy in cs]
+        if min(d * ahead for d in behind) <= 0.0:
+            engaged = True
+            continue
+        if not engaged:
+            continue
+        engaged = False
+        scored_lap.add(lap)
+        robot_lat = p.x if lateral_axis == Axis.X else p.y
+        if robot_lat == sign_lat:
+            continue
+        verdicts.append("CORRECT" if (1 if robot_lat > sign_lat else -1) == permitted else "WRONG")
+    if not verdicts:
+        return "never crossed"
+    return f"{verdicts.count('WRONG')} WRONG / {len(verdicts)}"
+
+
+def _score_bag(
+    pillars: list[tuple[float, float, int]],
+    dets: list[tuple[float, float, SignColor]],
+    track: list[tuple[Pose, int]],
+    direction: Direction,
+    min_votes: int,
+) -> tuple[list, int, int, int, int, int, int]:
+    """Classify every object and judge the ones that are signs."""
+    rows, wrong, passes, unknown = [], 0, 0, 0
+    fins = greens = reds = 0
+    for x, y, n in pillars:
+        # A parking fin is not a sign and the pass-side rule says nothing
+        # about it. Judging one produces a verdict out of thin air.
+        if _near_wall(x, y) < _FIN_BAND_M:
+            fins += 1
+            rows.append([f"({x:.2f},{y:.2f})", n, "PARKING FIN", "-", "not a sign"])
+            continue
+        colour, red, green = _colour(x, y, dets)
+        # A colour decided by one or two detections is not evidence, and it
+        # would drive a three-lap verdict. Excluded rather than guessed:
+        # the first run of this script had a pillar call 3 passes WRONG off
+        # a single red vote.
+        if colour is None or red + green < min_votes:
+            unknown += 1
+            rows.append([f"({x:.2f},{y:.2f})", n, f"{red}R/{green}G", "-", "too few votes"])
+            continue
+        greens += int(colour is SignColor.GREEN)
+        reds += int(colour is SignColor.RED)
+        verdict = _judge(track, (x, y), colour, direction)
+        if "WRONG" in verdict:
+            w, total = verdict.split(" WRONG / ")
+            wrong += int(w)
+            passes += int(total)
+        rows.append([f"({x:.2f},{y:.2f})", n, colour.value, f"{red}R/{green}G", verdict])
+    return rows, wrong, passes, unknown, fins, greens, reds
+
+
+def main() -> int:
+    """Judge every pillar pass in each bag against LIDAR-located truth."""
+    parser = create_bags_parser(__doc__ or "")
+    parser.add_argument("--wall-margin", type=float, default=0.25)
+    parser.add_argument("--cell", type=float, default=0.05)
+    parser.add_argument("--min-returns", type=int, default=250)
+    parser.add_argument("--max-pillars", type=int, default=10)
+    parser.add_argument(
+        "--min-votes",
+        type=int,
+        default=20,
+        help="colour votes a pillar needs before its passes are judged at all",
+    )
+    parser.add_argument("--detail", action="store_true", help="per-pillar table as well as the summary")
+    args = parser.parse_args()
+
+    summary = []
+    for bag_dir in args.bag_dirs:
+        track, direction, pillars, dets = _read(
+            bag_dir, args.wall_margin, args.cell, args.min_returns, args.max_pillars
+        )
+        if direction is None or not pillars:
+            summary.append([bag_dir.name.replace("run_", ""), "-", len(pillars), "no direction or no pillars", "", ""])
+            continue
+        rows, wrong, passes, unknown, fins, greens, reds = _score_bag(pillars, dets, track, direction, args.min_votes)
+        if args.detail:
+            print()
+            print(f"=== {bag_dir.name}  direction={direction}")
+            print_table(rows, ["object (LIDAR)", "returns", "colour vote", "R/G", "verdict"])
+        ok = (greens, reds, fins) == (_EXPECTED_GREEN, _EXPECTED_RED, _EXPECTED_FINS)
+        summary.append(
+            [
+                bag_dir.name.replace("run_", ""),
+                str(direction).split(".")[-1][:4],
+                len(pillars),
+                f"{greens}G/{reds}R/{fins}fin" + ("" if ok else "  <- MISMATCH"),
+                unknown,
+                passes,
+                f"{wrong} ({100 * wrong / passes:.0f}%)" if passes else "-",
+            ]
+        )
+
+    print()
+    print_table(summary, ["run", "dir", "pillars found", "colour UNKNOWN", "passes judged", "WRONG-SIDE"])
+    print()
+    print(
+        "Judged from LIDAR-located pillars and the recorded pose, with the production\n"
+        "pass-side rule and the simulator's footprint crossing test. Colour is the one\n"
+        "quantity that must come from the camera; the R/G split shows how strong each\n"
+        "call was. A wrong-side pass ENDS the round."
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
