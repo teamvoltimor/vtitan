@@ -80,6 +80,26 @@ class _StartConditions:
     yaw: float
 
 
+
+def _sample_period(rng, quantiles, levels, fallback: float) -> float:
+    """One control period, drawn from the measured distribution by inverse CDF.
+
+    Falls back to the fixed ``dt`` when the pair is empty or mismatched, so a
+    half-edited config steps uniformly rather than interpolating a shape nobody
+    meant.
+    """
+    if not quantiles or len(quantiles) != len(levels) or len(levels) < 2:
+        return fallback
+    u = float(rng.random())
+    for i in range(1, len(levels)):
+        if u <= levels[i]:
+            span = levels[i] - levels[i - 1]
+            frac = 0.0 if span <= 0.0 else (u - levels[i - 1]) / span
+            return float(quantiles[i - 1] + frac * (quantiles[i] - quantiles[i - 1]))
+    return float(quantiles[-1])
+
+
+
 class ScenarioSimulator(PassSideScorer):
     """Builds and runs a closed-loop Open or Obstacles Challenge simulation from metadata.
 
@@ -240,6 +260,10 @@ class ScenarioSimulator(PassSideScorer):
         #
         # Assigned before the blind branch below, which reads it.
         self._tuning = get_tuning(tuning)
+        # Kept for the tick-jitter stream. A SEPARATE generator from the
+        # gateway's: drawing jitter from the vision rng would shift every
+        # subsequent vision draw and silently change what the camera sees.
+        self._sim_seed = int(seed)
         challenge = metadata.challenge_type
         is_open_challenge = challenge == ScenarioType.OPEN
         # Obstacles carries its own centreline bias, tuned separately from
@@ -999,6 +1023,9 @@ class ScenarioSimulator(PassSideScorer):
         prev_xy = Waypoint(gw.state.x, gw.state.y)
         metrics = RunMetrics()
         prev_laps = 0
+        # Declared before any early return: `_build_result` reads it, and the
+        # no-plan path returns before the stepping loop ever runs.
+        elapsed_s = 0.0
         lap_steps: list[int] = []
         terminal_collision = False
         stuck = False
@@ -1022,6 +1049,12 @@ class ScenarioSimulator(PassSideScorer):
         progress_anchor_xy = prev_xy
         progress_anchor_step = 0
         no_progress_window_steps = round(self._tuning.simulation.no_progress_window_s / dt)
+        # Jittered period, drawn per tick. `elapsed_s` accumulates rather than
+        # being `step * dt`, because with a varying period that product is not
+        # the time the round actually took -- and the time limit is judged on it.
+        _jit_q = list(self._tuning.simulation.sim_tick_period_quantiles)
+        _jit_l = list(self._tuning.simulation.sim_tick_period_levels)
+        _jit_rng = np.random.default_rng(self._sim_seed ^ 0x5F17)
         no_progress_displacement_m = self._tuning.simulation.no_progress_displacement_m
 
         def _no_progress(current_step: int, x: float, y: float) -> bool:
@@ -1041,7 +1074,9 @@ class ScenarioSimulator(PassSideScorer):
                 # tick is otherwise accounted for exactly like a driving one --
                 # telemetry, distance and contact all still apply, and skipping
                 # them hides the creep from the visualizer and every diagnostic.
-                gw.advance(dt)
+                _tick_dt = _sample_period(_jit_rng, _jit_q, _jit_l, dt)
+                gw.advance(_tick_dt)
+                elapsed_s += _tick_dt
                 step += 1
                 metrics.observe(gw, self._creep_telemetry(prev_xy, on_step))
                 prev_xy = Waypoint(gw.state.x, gw.state.y)
@@ -1055,7 +1090,9 @@ class ScenarioSimulator(PassSideScorer):
             if self._blind:
                 self._update_layout_belief()
             nav.step()
-            gw.advance(dt)
+            _tick_dt = _sample_period(_jit_rng, _jit_q, _jit_l, dt)
+            gw.advance(_tick_dt)
+            elapsed_s += _tick_dt
             step += 1
 
             if disturbance is not None and step == disturb_at_step:
@@ -1123,6 +1160,7 @@ class ScenarioSimulator(PassSideScorer):
         return self._build_result(
             step=step,
             dt=dt,
+            elapsed_s=elapsed_s,
             max_steps=max_steps,
             collided=terminal_collision,
             stuck=stuck,
@@ -1139,6 +1177,7 @@ class ScenarioSimulator(PassSideScorer):
         *,
         step: int,
         dt: float,
+        elapsed_s: float | None = None,
         max_steps: int,
         collided: bool,
         stuck: bool,
@@ -1169,7 +1208,9 @@ class ScenarioSimulator(PassSideScorer):
             collided=collided,
             timed_out=timed_out,
             steps=step,
-            sim_time_s=step * dt,
+            # ACCUMULATED, not step * dt: with a jittered period that product is
+            # not the time the round took, and the time limit is judged on it.
+            sim_time_s=elapsed_s if elapsed_s is not None else step * dt,
             distance_m=metrics.distance,
             max_speed_mps=metrics.max_speed,
             avg_speed_mps=metrics.avg_speed(step),

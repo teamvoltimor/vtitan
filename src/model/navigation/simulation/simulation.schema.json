@@ -139,6 +139,20 @@
     "obstacles_are_pushed": {
       "type": "boolean",
       "description": "Does a shoved pillar actually MOVE in the simulated world, or only on the scoreboard? The scorer already works out how far each pillar was pushed and by which component of travel, but that number stayed a scalar: the pillar's collision box -- the same box the LIDAR raycasts against -- never moved, so the sensor kept reporting it from its original cell while the robot was physically shifting it, and the robot's map stayed consistent with a track that no longer existed. MEASURED on hardware 2026-09-15: accumulating LIDAR returns PER LAP rather than over the whole bag shows pillars marching monotonically, up to 0.15 m over a single round, with a stationary neighbour moving 0.4 cm as the control. SHIPS FALSE. It only bites inside the window before the displacement rule ends the run anyway -- 0.0594 m, the point at which a corner leaves the 85 mm placement circle -- so the realism it buys is at most six centimetres of pillar movement, but within that window it can change what the planner sees and therefore which runs finish. Needs its own corpus A/B before it ships on. Note what this does NOT model: a TOPPLED pillar. On hardware three objects left the LIDAR plane entirely in run_20260915_140014 and never came back. That cannot matter here, because 0.15 m of drift is 2.5x the legal limit -- a judge would have ended the round long before the object went over. Toppling is a post-failure phenomenon and modelling it would add fidelity that no score can read."
+    },
+    "sim_tick_period_quantiles": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "description": "Control-loop PERIOD quantiles in seconds, sampled per tick by inverse-CDF interpolation at `sim_tick_period_levels`. EMPTY keeps the fixed `dt` the simulator has always stepped at. MEASURED 2026-09-15 over 9,552 nav ticks across five rounds: p50 0.0500 (the nominal 20 Hz), p90 0.0633, p99 0.0795. The minimum knot 0.0440 is below p50 because the loop also runs EARLY, not only late. Why it is not free: `dt` feeds the time accounting that the round's time limit is judged on, so a jittered simulator must ACCUMULATE elapsed time rather than multiply steps by a constant. That is the whole of the change; the claim that jitter touches the entire physics chain was overstated -- dt reaches `gw.advance`, the no-progress window and the elapsed-time total, and nothing else. DELIBERATELY EXCLUDES THE STALL. One round carried a 1,977 ms gap, which at 0.229 m/s is 45 cm driven with no control update at all -- far more significant than the jitter modelled here. It is left out because it appeared in ONE round of five (stdev 72.7 ms against 10-12 ms in the others) and a one-off promoted to a 1%-of-ticks event would be inventing physics."
+    },
+    "sim_tick_period_levels": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "description": "Probability levels `sim_tick_period_quantiles` is measured at, same length and order. Half of a PAIR: quantiles without their levels cannot be interpolated. Not evenly spaced -- the resolution is spent in the upper tail, where a late tick actually costs distance."
     }
   },
   "required": [
@@ -173,6 +187,8 @@
     "contact_slides_along_surfaces",
     "obstacles_are_pushed",
     "vision_confidence_quantiles",
-    "vision_confidence_levels"
+    "vision_confidence_levels",
+    "sim_tick_period_quantiles",
+    "sim_tick_period_levels"
   ]
 }
