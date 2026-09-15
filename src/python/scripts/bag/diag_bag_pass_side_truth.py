@@ -103,7 +103,7 @@ from src.navigation.race_tracker import TRAVEL_DIRS  # noqa: E402
 _TRACK_MIN, _TRACK_MAX = 0.0, 3.0
 _INNER_MIN, _INNER_MAX = 1.0, 2.0
 _SELF_RETURN_M = 0.15
-_PEAK_CLAIM_M = 0.20
+_PEAK_CLAIM_M = 0.30  # a sign is 0.05 m wide; two peaks closer than this are one object split
 _APPROACH_M = 1.20  # the simulator's own engage radius
 _COLOUR_MATCH_M = 0.35  # a detection this close to a pillar votes for it
 
@@ -112,11 +112,85 @@ _COLOUR_MATCH_M = 0.35  # a detection this close to a pillar votes for it
 # are signs. That is both a constraint and a control: the pass-side rule does
 # not apply to a parking fin, and a colour vote that does not come out 5 green
 # and 3 red is a vote to distrust rather than a finding.
-_EXPECTED_GREEN, _EXPECTED_RED, _EXPECTED_FINS = 5, 3, 2
+_EXPECTED_GREEN, _EXPECTED_RED = 5, 3
+# The two parking fins are NOT expected in the cluster map and their absence is
+# not a fault: they stand 0.10-0.20 m from the wall and `_off_wall` drops every
+# return within `--wall-margin` (0.25 m) of one. They are excluded from the
+# pass-side rule anyway, which says nothing about a fin.
 # A fin stands at ParkingLotSpecs wall_offset, ~0.10-0.20 m from the wall face,
 # while the nearest legal sign cell is a division line at 0.40. Anything inside
 # this of a wall is the lot, not a pillar.
 _FIN_BAND_M = 0.30
+
+
+# OPERATOR LAYOUT, 2026-09-15, given per section in TRAVEL order for both
+# directions and self-consistent between them -- which is what makes it
+# trustworthy rather than a single assertion:
+#
+#   clockwise         south: rojo ... verde | west: verde,verde | north: verde,rojo | east: rojo,verde
+#   counterclockwise  south: verde ... rojo | east: verde,rojo  | north: rojo,verde | west: verde,verde
+#
+# The two readings are the SAME arrangement traversed in opposite senses: every
+# mixed section reverses and the west pair is symmetric, and both total 5 green
+# and 3 red. Section order was verified against the bags -- CW drives S,W,N,E
+# and CCW drives S,E,N,W, with the start in SOUTH near x=1.22.
+#
+# Resolving that into world coordinates gives a rule per section, which replaces
+# the colour VOTE entirely. The vote was the part that failed: detections are
+# attributed by proximity while the camera bearing carries +/-12 deg of
+# zero-mean scatter, so they land on the neighbour.
+_SOUTH_SPLIT_X = 1.22  # the in-bay start; the red lies west of it, the green east
+
+
+def _assign_sections(
+    pillars: list[tuple[float, float, int]],
+) -> dict[int, str]:
+    """Give each pillar a section, forcing the TWO-PER-SECTION the layout states.
+
+    ``corridor_for_position`` answers for a CHASSIS, and at a corner a pillar
+    sits in the ambiguous wedge: measured, (0.53, 0.83) is called south while
+    113 detections against 0 say green, which only the west pair can be. The
+    operator's layout fixes the cardinality at two per section, so the
+    assignment is a constraint rather than a lookup: each pillar goes to the
+    section whose BAND it sits deepest inside, and a section already holding two
+    passes the pillar on to its next-best.
+    """
+    bands = {
+        "south": lambda x, y: 1.0 - y,
+        "north": lambda x, y: y - 2.0,
+        "west": lambda x, y: 1.0 - x,
+        "east": lambda x, y: x - 2.0,
+    }
+    ranked = []
+    for i, (x, y, _n) in enumerate(pillars):
+        order = sorted(bands, key=lambda k: -bands[k](x, y))
+        ranked.append((i, order))
+    out: dict[int, str] = {}
+    held: dict[str, int] = dict.fromkeys(bands, 0)
+    for depth in range(len(bands)):
+        for i, order in ranked:
+            if i in out:
+                continue
+            sec = order[depth]
+            if held[sec] < 2:
+                out[i] = sec
+                held[sec] += 1
+    return out
+
+
+def _layout_colour(x: float, y: float, name: str) -> SignColor | None:
+    """The pillar's colour from the operator's layout, by section and position."""
+    if "west" in name:
+        return SignColor.GREEN  # both of them
+    if "north" in name:
+        # CW drives north EAST-bound and sees green then red.
+        return SignColor.GREEN if x < 1.5 else SignColor.RED
+    if "east" in name:
+        # CW drives east SOUTH-bound and sees red then green.
+        return SignColor.RED if y > 1.5 else SignColor.GREEN
+    if "south" in name:
+        return SignColor.GREEN if x > _SOUTH_SPLIT_X else SignColor.RED
+    return None
 
 
 def _off_wall(px: np.ndarray, py: np.ndarray, margin: float) -> np.ndarray:
@@ -291,21 +365,17 @@ def _score_bag(
     """Classify every object and judge the ones that are signs."""
     rows, wrong, passes, unknown = [], 0, 0, 0
     fins = greens = reds = 0
-    for x, y, n in pillars:
-        # A parking fin is not a sign and the pass-side rule says nothing
-        # about it. Judging one produces a verdict out of thin air.
-        if _near_wall(x, y) < _FIN_BAND_M:
-            fins += 1
-            rows.append([f"({x:.2f},{y:.2f})", n, "PARKING FIN", "-", "not a sign"])
-            continue
-        colour, red, green = _colour(x, y, dets)
-        # A colour decided by one or two detections is not evidence, and it
-        # would drive a three-lap verdict. Excluded rather than guessed:
-        # the first run of this script had a pillar call 3 passes WRONG off
-        # a single red vote.
-        if colour is None or red + green < min_votes:
+    signs = [(x, y, n) for x, y, n in pillars if _near_wall(x, y) >= _FIN_BAND_M]
+    fins = len(pillars) - len(signs)
+    for (x, y, n), sec in zip(signs, _assign_sections(signs).values(), strict=False):
+        # Colour from the LAYOUT, not from a vote. The vote is still computed
+        # and shown so a disagreement is visible: where it differs, the camera
+        # attributed that detection to the wrong pillar.
+        colour = _layout_colour(x, y, sec)
+        _voted, red, green = _colour(x, y, dets)
+        if colour is None:
             unknown += 1
-            rows.append([f"({x:.2f},{y:.2f})", n, f"{red}R/{green}G", "-", "too few votes"])
+            rows.append([f"({x:.2f},{y:.2f})", n, "off layout", f"{red}R/{green}G", "not judged"])
             continue
         greens += int(colour is SignColor.GREEN)
         reds += int(colour is SignColor.RED)
@@ -314,7 +384,8 @@ def _score_bag(
             w, total = verdict.split(" WRONG / ")
             wrong += int(w)
             passes += int(total)
-        rows.append([f"({x:.2f},{y:.2f})", n, colour.value, f"{red}R/{green}G", verdict])
+        agree = "" if _voted is colour else "  <- vote said " + (_voted.value if _voted else "nothing")
+        rows.append([f"({x:.2f},{y:.2f})", n, colour.value + agree, f"{red}R/{green}G", verdict])
     return rows, wrong, passes, unknown, fins, greens, reds
 
 
@@ -342,18 +413,18 @@ def main() -> int:
         if direction is None or not pillars:
             summary.append([bag_dir.name.replace("run_", ""), "-", len(pillars), "no direction or no pillars", "", ""])
             continue
-        rows, wrong, passes, unknown, fins, greens, reds = _score_bag(pillars, dets, track, direction, args.min_votes)
+        rows, wrong, passes, unknown, _fins, greens, reds = _score_bag(pillars, dets, track, direction, args.min_votes)
         if args.detail:
             print()
             print(f"=== {bag_dir.name}  direction={direction}")
             print_table(rows, ["object (LIDAR)", "returns", "colour vote", "R/G", "verdict"])
-        ok = (greens, reds, fins) == (_EXPECTED_GREEN, _EXPECTED_RED, _EXPECTED_FINS)
+        ok = (greens, reds) == (_EXPECTED_GREEN, _EXPECTED_RED)
         summary.append(
             [
                 bag_dir.name.replace("run_", ""),
                 str(direction).split(".")[-1][:4],
                 len(pillars),
-                f"{greens}G/{reds}R/{fins}fin" + ("" if ok else "  <- MISMATCH"),
+                f"{greens}G/{reds}R" + ("" if ok else "  <- MISMATCH"),
                 unknown,
                 passes,
                 f"{wrong} ({100 * wrong / passes:.0f}%)" if passes else "-",
