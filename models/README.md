@@ -60,7 +60,7 @@ variante larga de la `v2`). Una pieza sin sufijo alguno no tuvo iteraciones.
 `pinon-15-dientes-correa-dentada`, `pinon-20-dientes-correa-dentada`,
 `pinon-22-dientes-correa-dentada`, `pinon-33-dientes-correa-dentada`,
 `pinon-33-dientes-correa-dentada-eje-motor-pequeno`,
-`pinon-n-dientes-correa-dentada-eje-motor-pequeno`,
+`pinon-50-dientes-correa-dentada-eje-motor-pequeno`,
 `pinon-40-dientes-transmision`, `pinon-conico-15x8-dientes`,
 `pinon-conico-20-dientes`, `pinon-90-cruceta-10-dientes`,
 `pinon-90-cruceta-10-dientes-con-eje`, `rueda-dentada`, `rueda-vtitan`,
@@ -119,5 +119,4 @@ recoge la numeración actual es el que confirmó el diseñador.
 > **Pendiente declarado.** Falta el manifiesto de impresión: material, altura de
 > capa, relleno, soportes y orientación de cama por pieza. Sin esos parámetros,
 > otra persona puede abrir los `.stl` pero no reproducir exactamente nuestras
-> piezas. También falta `pinon-n-dientes-correa-dentada-eje-motor-pequeno`, cuyo
-> número de dientes nunca quedó en el nombre.
+> piezas.
