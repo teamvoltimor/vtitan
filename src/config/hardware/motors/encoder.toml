@@ -1,36 +1,7 @@
 #:schema ../../../model/hardware/motors/encoder.schema.json
-# Quadrature encoder + closed-loop PID -- src/hardware/motors/encoder/config.py
-# Independent of which H-bridge (l298n/bts7960/...) is turning the shaft this
-# encoder reads.
+# Quadrature encoder + closed-loop PID. Per-motor calibration lives in the profile overlays.
+# Rationale: adr:0076-drivetrain-and-steering-hardware
 
 pin_a = 16
 pin_b = 20
-
-# counts_per_rev, max_rpm, feedforward_deadband_duty, and pid_kp/pid_ki/pid_kd
-# are deliberately NOT set here. They are per-motor bench calibration and
-# used to all live in this one flat file, which meant switching
-# VTITAN_HARDWARE_PROFILE between drive motors silently kept whichever
-# motor's numbers happened to be here last -- the REV HD Hex 6000rpm figures
-# would have applied unchanged to the retired 1500rpm motor if it were ever
-# reconnected without anyone noticing.
-#
-# Split 2026-08-29 into per-motor profile overlays instead:
-#   profiles/generic-motor-1500rpm/encoder.toml   (retired motor, pre-2026-08-27)
-#   profiles/rev-hd-hex-motor-6000rpm/encoder.toml (current motor)
-# See settings_base.py's docstring for how profile overlays are resolved.
-# counts_per_rev/max_rpm have no Python default specifically so a missing
-# overlay (no motor profile active, or a new motor with no profile yet)
-# fails loudly at startup instead of silently reusing a stale value.
-
-# wheel_diameter_m is not set here -- it derives from RobotSpecs.WHEEL_RADIUS
-# (src/hardware/motors/encoder/calibration.py), not restated as a literal.
-
 max_duty = 0.5
-# Blanket safety cap on the closed-loop PID's output magnitude, shared across
-# motor profiles rather than duplicated in each -- both the retired and
-# current motor profiles are within it. Originally added after the
-# 2026-08-27 motor swap (the new motor felt roughly 1 m/s by hand, well
-# above what was calibrated at the time); still in effect because true
-# 100%-duty behaviour for the current motor and its PID gain rescale are
-# not yet both verified live -- see the rev-hd-hex-motor-6000rpm profile's
-# own notes. Raise/remove once they are.
