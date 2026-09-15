@@ -133,3 +133,4 @@ story in its `## History` section rather than spawning a micro-ADR per attempt.
 | [0087](0087-test-methodology.md) | Testing uses a four-level ladder and a fixed A/B protocol | accepted |
 | [0088](0088-refuted-config-knobs.md) | Refuted config knobs ship off and stay documented | accepted |
 | [0089](0089-robot-constants-runtime-and-xacro.md) | Robot constants are read at runtime and the xacro is the one hand-synced copy | accepted |
+| [0090](0090-commit-and-constant-conventions.md) | Commit messages and constant access follow fixed conventions | accepted |
