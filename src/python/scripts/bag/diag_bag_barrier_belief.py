@@ -134,7 +134,10 @@ class _Tally:
             self.pillar_supp += suppressed
 
 
-def replay(bag_dir: Path, *, fuse_lidar: bool = True, lot_source: str = "magenta") -> dict[str, float | int | str]:
+def replay(
+    bag_dir: Path, *, fuse_lidar: bool = True, lot_source: str = "magenta", span: bool = False,
+    radius: float | None = None
+) -> dict[str, float | int | str]:
     """Rebuild the belief from one bag and score it against that bag's reds.
 
     ``fuse_lidar`` selects which projection is replayed. True mirrors
@@ -154,7 +157,8 @@ def replay(bag_dir: Path, *, fuse_lidar: bool = True, lot_source: str = "magenta
     belief = BarrierBelief(
         min_sightings=sd.barrier_belief_min_sightings,
         merge_radius_m=sd.barrier_merge_radius_m,
-        suppression_radius_m=sd.barrier_suppression_radius_m,
+        suppression_radius_m=radius if radius is not None else sd.barrier_suppression_radius_m,
+        span_along_wall=span,
     )
 
     reader = open_reader(bag_dir)
@@ -201,6 +205,7 @@ def replay(bag_dir: Path, *, fuse_lidar: bool = True, lot_source: str = "magenta
     return {
         "run": bag_dir.name.replace("run_", ""),
         "lot from": lot_source,
+        "shape": ("SPAN" if span else "point") + (f" r={radius}" if radius is not None else ""),
         "proj": "lidar" if fuse_lidar else "pinhole",
         "magenta": tally.magenta,
         "reds": tally.reds,
@@ -219,7 +224,15 @@ def replay(bag_dir: Path, *, fuse_lidar: bool = True, lot_source: str = "magenta
 
 
 def main() -> int:
+    """Score the belief on real bags: benefit, cost, and where it put the lot."""
     parser = create_bags_parser(__doc__ or "", formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--radius", type=float, default=None, help="override barrier_suppression_radius_m")
+    parser.add_argument(
+        "--shape",
+        choices=("point", "span", "both"),
+        default="point",
+        help="treat the believed lot as a point or as the rulebook's 0.45 m span",
+    )
     parser.add_argument(
         "--lot",
         choices=("magenta", "start-pose", "both"),
@@ -241,8 +254,13 @@ def main() -> int:
     )
     arms = (True, False) if args.projection == "both" else (args.projection == "lidar",)
     lots = ("magenta", "start-pose") if args.lot == "both" else (args.lot,)
+    shapes = (False, True) if args.shape == "both" else (args.shape == "span",)
     rows = [
-        replay(bag_dir, fuse_lidar=arm, lot_source=lot) for bag_dir in args.bag_dirs for lot in lots for arm in arms
+        replay(bag_dir, fuse_lidar=arm, lot_source=lot, span=shape, radius=args.radius)
+        for bag_dir in args.bag_dirs
+        for lot in lots
+        for arm in arms
+        for shape in shapes
     ]
     headers = list(rows[0].keys())
     print_table([[r[h] for h in headers] for r in rows], headers)

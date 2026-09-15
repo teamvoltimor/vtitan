@@ -20,6 +20,34 @@ type NavigationSignsSignDiscovery struct {
 	// than to resolve the object.
 	BarrierMergeRadiusM float64 `json:"barrier_merge_radius_m" yaml:"barrier_merge_radius_m" mapstructure:"barrier_merge_radius_m"`
 
+	// Treat the believed parking lot as the 0.45 m SPAN the rulebook gives it rather
+	// than a point, extending the suppression test ALONG the wall only. The lot is
+	// two fins BLOCK_SPACING_FACTOR chassis lengths apart, which
+	// parking_lot_from_in_bay_start already builds as BLOCK1 and BLOCK2; the belief
+	// kept a single centroid, so a 0.30 m radius had to cover a 0.45 m object and
+	// reached each fin with 7 cm to spare against a believed position measured
+	// wandering 0.57 m between rounds. THE FAILURE IT FIXES, measured on two hardware
+	// wedges hours apart at the same place: the true fins sit at x = 0.94 (14,403
+	// LIDAR returns) and 1.42, a 0.48 m span centred on 1.18, while the belief placed
+	// its centroid at 1.30 -- so the WEST fin landed 0.36 m out, beyond the 0.30 m
+	// bubble. Wall-shaped reds on that fin were suppressed on 1 of 14 and 2 of 19
+	// with the point model, against 10 of 14 and 13 of 19 with the span. The chassis
+	// spent 70 s and 172 s (46% of each round) fighting a fin at (0.93, 0.16) while
+	// the planner routed around a phantom at (1.0, 0.6), 0.45 m away.
+	// barrier_belief.py's own docstring records the SAME wedge at (0.75, 0.25) on
+	// 2026-09-14, which is what that belief was built to fix. THE TRADE IS NOT FREE
+	// and the aggregate does not improve: over three rounds the barrier share
+	// suppressed rises 60.8->66.8%, 23.5->27.9% and 68.3->75.7%, while real pillar
+	// detections refused rise 25.5->26.4%, 2.7->4.9% and 8.8->12.7%. The benefit/cost
+	// RATIO is slightly worse on two of three. Narrowing the radius to 0.22 or 0.18
+	// alongside the span moves back down the same curve rather than off it. What the
+	// aggregate cannot see is the west fin, which is the thing that ends rounds. THE
+	// SIMULATOR CANNOT SCORE THIS AT ALL -- it never emits a magenta detection -- so
+	// there is no corpus regression guard and the only instrument is a
+	// counter-clockwise hardware round. SHIPS OFF AND UNVALIDATED ON TRACK.
+	// Diagnostic: scripts/bag/diag_bag_barrier_belief.py --shape both
+	BarrierSpanAlongWall *bool `json:"barrier_span_along_wall,omitempty,omitzero" yaml:"barrier_span_along_wall,omitempty" mapstructure:"barrier_span_along_wall,omitempty"`
+
 	// A RED detection landing within this distance of a believed barrier is dropped
 	// instead of seeded as a pillar. This is the whole point of the belief: the
 	// magenta barrier reaching the sign map as a red pillar is what makes the router

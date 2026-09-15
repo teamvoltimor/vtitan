@@ -28,7 +28,29 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
+
 __all__ = ["BarrierBelief", "BarrierSighting"]
+
+
+_LOT_HALF_SPAN_M = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
+"""Half the rulebook distance between the lot's two fins, 0.225 m.
+
+The same expression ``parking_lot_from_in_bay_start`` uses to place BLOCK1 and
+BLOCK2: the factor multiplies the CHASSIS length, not the fin's.
+"""
+
+
+def _lot_runs_along_x(x_m: float, y_m: float) -> bool:
+    """Does the lot's span lie along X, i.e. is it on the north or south wall?
+
+    The lot stands against an OUTER wall, so the nearest one names the axis.
+    Mirrors ``parking_lot_from_in_bay_start``'s ``section in (SOUTH, NORTH)``
+    without needing the section, which the belief does not carry.
+    """
+    to_x_wall = min(abs(x_m - TrackDimensions.MIN_COORD), abs(x_m - TrackDimensions.MAX_COORD))
+    to_y_wall = min(abs(y_m - TrackDimensions.MIN_COORD), abs(y_m - TrackDimensions.MAX_COORD))
+    return to_y_wall <= to_x_wall
 
 
 @dataclass(slots=True)
@@ -55,6 +77,9 @@ class BarrierBelief:
         min_sightings: Sightings that must agree before a location is believed.
             ``0`` disables the belief: nothing is ever suppressed.
         merge_radius_m: Sightings closer than this are the same barrier.
+        span_along_wall: Treat the believed lot as the 0.45 m SPAN the rulebook
+            gives it rather than a point, extending the test along the wall
+            only. False reproduces the point behaviour exactly.
         suppression_radius_m: A red detection within this distance of a
             BELIEVED barrier is not a pillar.
     """
@@ -62,6 +87,7 @@ class BarrierBelief:
     min_sightings: int
     merge_radius_m: float
     suppression_radius_m: float
+    span_along_wall: bool = False
     _sightings: list[BarrierSighting] = field(default_factory=list)
 
     @property
@@ -87,12 +113,42 @@ class BarrierBelief:
         the cost of wrongly suppressing a pillar is a missed route, while the
         cost of wrongly believing one is the wall-pass that ends a round, so
         the threshold is the place to trade the two.
+
+        ``span_along_wall`` changes the SHAPE, not the size, of that test. The
+        lot is not a point: the rulebook puts two fins
+        ``ParkingLotSpecs.BLOCK_SPACING_FACTOR`` chassis lengths apart along the
+        wall, which ``parking_lot_from_in_bay_start`` already builds as BLOCK1
+        and BLOCK2. A centroid with a round bubble therefore has to cover a
+        0.45 m object with a 0.30 m radius, and it reaches each fin with 7 cm to
+        spare against a believed position measured wandering 0.57 m between
+        rounds.
+
+        Measured on run_20260915_114008, the second hardware wedge at this spot:
+        the true fins sit at x = 0.94 (14,403 LIDAR returns) and x = 1.42, a
+        0.48 m span centred on 1.18, while the belief placed its centroid at
+        1.30. The WEST fin then lands 0.36 m from that centroid -- outside the
+        0.30 m bubble -- so reds on it were never suppressed, and the chassis
+        spent 70 s (46% of the round) fighting a fin at (0.93, 0.16) while the
+        planner routed around a phantom at (1.0, 0.6), 0.45 m away. This
+        module's own docstring records the SAME wedge at (0.75, 0.25) on
+        2026-09-14, which is what it was built to fix.
+
+        Extending ALONG the wall and not across it is the point: widening the
+        radius uniformly is what costs real pillars, and the extra coverage is
+        only wanted where the lot physically extends.
         """
         if not self.enabled:
             return False
-        return any(
-            math.hypot(lot.x_m - x_m, lot.y_m - y_m) <= self.suppression_radius_m for lot in self.believed()
-        )
+        for lot in self.believed():
+            dx, dy = abs(lot.x_m - x_m), abs(lot.y_m - y_m)
+            if self.span_along_wall:
+                if _lot_runs_along_x(lot.x_m, lot.y_m):
+                    dx = max(0.0, dx - _LOT_HALF_SPAN_M)
+                else:
+                    dy = max(0.0, dy - _LOT_HALF_SPAN_M)
+            if math.hypot(dx, dy) <= self.suppression_radius_m:
+                return True
+        return False
 
     def believed(self) -> list[BarrierSighting]:
         """The single best-supported location, if any has cleared the threshold.

@@ -153,6 +153,7 @@ class ROS2HardwareGateway(HardwareGateway):
             min_sightings=_sd.barrier_belief_min_sightings,
             merge_radius_m=_sd.barrier_merge_radius_m,
             suppression_radius_m=_sd.barrier_suppression_radius_m,
+            span_along_wall=_sd.barrier_span_along_wall,
         )
         self._latest_imu: IMUReading | None = None
         self._latest_wheel: WheelOdometry | None = None

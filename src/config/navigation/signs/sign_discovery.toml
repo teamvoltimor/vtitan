@@ -133,3 +133,29 @@ colour_pool_radius_m = 0.0   # pool colour votes across fragments of one pillar 
 barrier_belief_min_sightings = 4
 barrier_merge_radius_m = 0.35
 barrier_suppression_radius_m = 0.30
+# Treat the believed lot as the 0.45 m SPAN the rulebook gives it rather than a
+# point, extending the test ALONG the wall only. The lot is two fins
+# BLOCK_SPACING_FACTOR chassis lengths apart -- parking_lot_from_in_bay_start
+# already builds them as BLOCK1 and BLOCK2 -- so a centroid with a 0.30 m radius
+# has to cover a 0.45 m object and reaches each fin with 7 cm to spare, against
+# a believed position measured wandering 0.57 m between rounds.
+#
+# THE FAILURE IT FIXES, two hardware wedges hours apart at the same place: the
+# true fins sit at x = 0.94 (14,403 LIDAR returns) and 1.42, a 0.48 m span
+# centred on 1.18, while the belief put its centroid at 1.30 -- so the WEST fin
+# landed 0.36 m out, beyond the bubble. Wall-shaped reds on that fin were
+# suppressed 1/14 and 2/19 by the point model against 10/14 and 13/19 by the
+# span. The chassis spent 70 s and 172 s (46% of each round) fighting a fin at
+# (0.93, 0.16) while the planner routed around a phantom at (1.0, 0.6).
+#
+# THE TRADE IS NOT FREE. Barrier share suppressed rises 60.8->66.8, 23.5->27.9
+# and 68.3->75.7%, but real pillars refused rise 25.5->26.4, 2.7->4.9 and
+# 8.8->12.7%, and the benefit/cost RATIO is slightly worse on two of three
+# rounds. Narrowing the radius to 0.22 or 0.18 alongside it moves back down the
+# same curve rather than off it. The aggregate cannot see the west fin, and the
+# west fin is what ends rounds.
+#
+# THE SIMULATOR CANNOT SCORE THIS: it never emits a magenta detection, so there
+# is no corpus guard and the only instrument is a ccw hardware round.
+# SHIPS OFF AND UNVALIDATED ON TRACK.
+barrier_span_along_wall = false
