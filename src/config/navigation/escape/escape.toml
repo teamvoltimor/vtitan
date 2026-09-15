@@ -188,3 +188,29 @@ obstacles_escape_side_follows_committed_sign = true
 # keeps a zero-steer manoeuvre at zero). NOT done in the same round as the flag
 # above, so the first hardware round can attribute what it sees.
 escape_side_override_min_clearance_m = 0.12
+
+# Let the router's committed pass side outrank "steer away from the threat" in
+# a SIDE_CORRECTION, as escape_side_follows_committed_sign already does for the
+# K-turn. See the schema for the hardware measurement that motivates it.
+#
+# SHIPS OFF, and the A/B is the reason rather than caution. BOTH formulations
+# cost the same scenario on the obstacles corpus, 12 -> 15, fixing nothing:
+#
+#   steer TOWARD the wanted side when it holds 0.12 m   -> 12 -> 15
+#   REFUSE (reverse straight) on a conflict instead     -> 12 -> 15
+#
+# Identical failure set both times -- go_obstacles_0004[South/counterclockwise]
+# on all three assertions, colliding at (2.05, 2.27), the north-east corner
+# beside the green sign at (2.00, 2.40). So it is not the steering-into-the-
+# threat that costs the scenario, it is losing the steer-AWAY: in 0004 that
+# reflex is what clears the corner, and neither taking the router's side nor
+# reversing straight replaces it.
+#
+# Kept wired, tested and off because the FAILURE IT TARGETS IS REAL and this
+# corpus cannot see it: there is no pass-side assertion, so an arm can only
+# ever measure this change's cost. On run_20260915_002408 the escape agreed
+# with the router's side on 3 of 12 episodes, the alignment delta was negative
+# in every category, and 10 of those 12 were SIDE_CORRECTION -- the branch that
+# ignored the rule entirely until now.
+side_correction_follows_committed_sign = false
+obstacles_side_correction_follows_committed_sign = false

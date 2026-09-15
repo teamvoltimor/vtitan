@@ -120,6 +120,7 @@ class CollisionAvoidanceController:
         ahead_of_bumper: bool = False,
         rear_self_detection_from_chassis: bool = True,
         escape_side_follows_committed_sign: bool = False,
+        side_correction_follows_committed_sign: bool = False,
         escape_side_override_min_clearance_m: float = 0.12,
     ):
         """Initialize collision avoidance controller.
@@ -178,6 +179,7 @@ class CollisionAvoidanceController:
         self.escape_rev_speed = escape_rev_speed
         self.escape_steer_scale = escape_steer_scale
         self.escape_side_follows_committed_sign = escape_side_follows_committed_sign
+        self.side_correction_follows_committed_sign = side_correction_follows_committed_sign
         self.escape_side_override_min_clearance_m = escape_side_override_min_clearance_m
         self.stuck_threshold = stuck_threshold
         self.path_half_width = RobotSpecs.WIDTH / 2.0 + path_margin
@@ -243,6 +245,7 @@ class CollisionAvoidanceController:
             escape_rev_speed=escape.rev_speed,
             escape_steer_scale=escape.rev_steer_norm(),
             escape_side_follows_committed_sign=escape.escape_side_follows_committed_sign,
+            side_correction_follows_committed_sign=escape.side_correction_follows_committed_sign,
             escape_side_override_min_clearance_m=escape.escape_side_override_min_clearance_m,
             stuck_threshold=escape.stuck_move_threshold,
             path_margin=clearance.path_margin,
@@ -867,7 +870,11 @@ class CollisionAvoidanceController:
             already_touching = self._side_clearance(
                 math.pi / 2, lidar_ranges, lidar_angles
             ) < self.contact_dist or self._forward_touching(lidar_ranges, lidar_angles)
-            steer_sign = 1.0 if already_touching else -1.0
+            steer_sign = self._side_correction_steer_sign(
+                1.0 if already_touching else -1.0,
+                threat_is_left=True,
+                preferred_sign=preferred_sign,
+            )
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
                 steering=steer_sign * self.side_correction_steer,
@@ -883,7 +890,11 @@ class CollisionAvoidanceController:
             already_touching = self._side_clearance(
                 -math.pi / 2, lidar_ranges, lidar_angles
             ) < self.contact_dist or self._forward_touching(lidar_ranges, lidar_angles)
-            steer_sign = -1.0 if already_touching else 1.0
+            steer_sign = self._side_correction_steer_sign(
+                -1.0 if already_touching else 1.0,
+                threat_is_left=False,
+                preferred_sign=preferred_sign,
+            )
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
                 steering=steer_sign * self.side_correction_steer,
@@ -893,6 +904,67 @@ class CollisionAvoidanceController:
             )
 
         return None
+
+    def _side_correction_steer_sign(
+        self,
+        away_sign: float,
+        threat_is_left: bool,
+        preferred_sign: float | None,
+    ) -> float:
+        """Let the router's committed pass side outrank "steer away from the threat".
+
+        The FRONT branch has consulted ``preferred_sign`` since
+        ``escape_side_follows_committed_sign`` shipped, and the two SIDE
+        branches never did -- they pick from the threat side and
+        ``already_touching`` alone. MEASURED on run_20260915_002408 (ccw, 3/3
+        laps, 42 escapes), that is the wrong 83%: 10 of the 12 usable episodes
+        were SIDE_CORRECTION, and the escape agreed with the side the router
+        needed on 3 of 12 overall (k_turn 1/2, side_correction 2/10), with the
+        alignment delta NEGATIVE in every category. Range to the committed
+        pillar moved 0.497 -> 0.526 m, which is the operator-reported pendulum:
+        back off three centimetres, steer the wrong way, come back.
+
+        REFUSES, never redirects. When the router's side and the threat are on
+        OPPOSITE flanks there is no conflict -- steering away from the threat
+        already goes where the router wants -- so the manoeuvre is untouched.
+        When they are on the SAME flank, this reverses straight instead of
+        shoving the chassis to the wrong side of the pillar.
+
+        It does not steer toward the wanted side, and that restraint is
+        measured. Taking the router's side whenever it held
+        ``escape_side_override_min_clearance_m`` cost 12 -> 15 on the obstacles
+        corpus, losing go_obstacles_0004 on all three assertions including
+        complete_without_collision: 0.12 m is not room to rotate a 30 cm
+        chassis through, so the override drove into the flank it had just
+        measured as barely clear. Refusing keeps the benefit that matters --
+        the escape stops pushing to the wrong side -- and leaves the pass to
+        the planner on re-approach, the only actor that knows which side is
+        correct. That is the K-turn's own answer to the same conflict.
+
+        ``preferred_sign`` is negative for LEFT (see
+        ``compute_escape_maneuver``'s docstring). ``threat_is_left`` is passed
+        by the branch rather than re-derived from ``away_sign``, whose meaning
+        inverts between the creeping (forward) and touching (reverse) cases --
+        deriving it here got that backwards once already.
+        """
+        if preferred_sign is None or not self.side_correction_follows_committed_sign:
+            return away_sign
+        # NEVER steer toward the side the threat is on. Taking the router's side
+        # on clearance alone measured 12 -> 15, losing go_obstacles_0004 on all
+        # three assertions including complete_without_collision: with a 0.12 m
+        # floor the override happily steered INTO a flank that had 0.12 m left,
+        # and 0.12 m is not room to rotate a 30 cm chassis through.
+        #
+        # So the override never pushes toward a threat; it only refuses to push
+        # AWAY from the side the router needs. That is the K-turn's own answer
+        # to the same conflict -- commit to neither side, reverse straight, and
+        # leave the pass to the planner on re-approach, which is the only actor
+        # that knows which side is correct.
+        if (preferred_sign < 0) is not threat_is_left:
+            # Steering away from the threat already goes where the router
+            # wants, so there is nothing to arbitrate.
+            return away_sign
+        return 0.0
 
     def _side_clearance(
         self,

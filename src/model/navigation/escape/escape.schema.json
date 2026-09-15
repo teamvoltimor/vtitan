@@ -129,6 +129,14 @@
     "escape_side_override_min_clearance_m": {
       "type": "number",
       "description": "Clearance the router's side must ALREADY have before it may be forced. Not optional alongside the flag above: forcing a side in a 1.00 m corridor with no floor drives the chassis into the wall the LIDAR was right about.  ABSOLUTE, not a margin between sides. A relative band wide enough to catch the problem (0.20 m) also overrules 22 of the 49 episodes that choose correctly today; the sensitivity table sits at a ratio of 1.00 or worse from 0.05 m upward. An absolute floor only engages when the wanted side is physically shut. 0.12 is a shade over half the 0.194 m chassis width."
+    },
+    "side_correction_follows_committed_sign": {
+      "type": "boolean",
+      "description": "Let the sign router's committed pass side outrank \"steer away from the threat\" in a SIDE_CORRECTION, the way escape_side_follows_committed_sign already does for the K-turn. MEASURED on run_20260915_002408 (ccw, 3/3 laps, 42 escapes): SIDE_CORRECTION is 10 of the 12 usable escape episodes, and the escape agreed with the side the router needed on only 3 of 12 overall, with the alignment delta NEGATIVE in every category and the range to the committed pillar moving just 0.497 -> 0.526 m. That is the operator-reported pendulum: back off three centimetres, steer the wrong way, come back. Uses the SAME arbitration as the K-turn including its refusal -- the wanted side must have escape_side_override_min_clearance_m of room, and when it is shut the manoeuvre reverses STRAIGHT rather than take the other side, because a wrong-side pass ENDS the round where a slower recovery only costs time."
+    },
+    "obstacles_side_correction_follows_committed_sign": {
+      "type": "boolean",
+      "description": "Obstacles-challenge value for side_correction_follows_committed_sign. Only the Obstacles challenge has a committed pass side at all, so this is the one that matters; the shared field exists so the Open path stays byte-identical."
     }
   },
   "required": [
@@ -160,6 +168,8 @@
     "obstacles_escape_mirrors_reverse",
     "escape_side_follows_committed_sign",
     "obstacles_escape_side_follows_committed_sign",
-    "escape_side_override_min_clearance_m"
+    "escape_side_override_min_clearance_m",
+    "side_correction_follows_committed_sign",
+    "obstacles_side_correction_follows_committed_sign"
   ]
 }
