@@ -144,3 +144,21 @@ narrow prior could not fire before the wall arrived.
 - 0032 (heading single crawl threshold) stays separate; the unreachable-target
   harm routes through it.
 - 0027/0049 own the corner arc; 0051 owns the path the pursuit tracks.
+
+## Evidence
+
+- `path_turn_ahead` measures heading change ahead of the current waypoint, so the
+  corner preview decays to zero once the chassis is inside the arc, un-arming the
+  short lookahead mid-turn.
+- `CornerLatch` is live-verified on hardware (3 runs per side): forward-clearance
+  p05 rose 0.11 to 0.14 m to 0.23 to 0.24 m, and heading-error p90 fell 0.82 to
+  1.22 rad to 0.56 to 0.66 rad.
+- `CornerLatch` does not help narrow corridors: the preview peaks at 0.197 rad and
+  never reaches the 0.35 arm threshold, left open as a `corner_turn_threshold_rad`
+  question.
+- Refuted: short-lookahead occupancy as the cause of the steering weave. A
+  four-point latch-release sweep over a 21-point occupancy range was flat, and the
+  S-paths predate the latch.
+- Method rule: never classify corner vs straight with `path_turn_ahead_rad`; it
+  looks ahead, peaks on approach and reads about 0 inside a corner (median |turn|
+  during corners is 0.000).

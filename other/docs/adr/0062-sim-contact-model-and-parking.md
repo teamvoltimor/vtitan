@@ -103,3 +103,19 @@ state.)
 - 0001, 0005, 0006, 0036 and 0037 are superseded; their decisions are carried above.
 - 0059 owns the rulebook scoring rules and the inner-wall terminal flag.
 - 0060 owns the bay exit; 0058 owns the barrier belief.
+
+## Evidence
+
+- The simulator has no motor deadband and moves at any commanded speed, so it
+  cannot choose the 0.10 to 0.15 speed; it reported 0.10 as colliding 32/32 and
+  its objection was overruled from the hardware side.
+- Rule asymmetry: touching a fin ends the round (9.24.7) but touching the outer
+  wall behind the bay is LEGAL (9.18), and both shipped exits leaned on the
+  forbidden surface while treating the permitted one as an obstacle.
+- `ParkController.ENTER` is a placeholder by its own docstring, a nose-first pure
+  pursuit at the bay centre and not a parallel park, which alone explains done =
+  0/240 without invoking containment.
+- Entry and exit are the same problem by time reversal (Ackermann kinematics are
+  reversible and collision is pose-based), so the parked pose is reachable iff
+  escapable; a 48,672-trajectory two-arc search gave best protrusion 10.2 cm and
+  none contained, retracting the 23 mm-trim claim.

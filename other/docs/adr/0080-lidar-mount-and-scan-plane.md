@@ -77,3 +77,18 @@ decode was never validated on this hardware and read 2 to 4 times too large.
 - 0002, 0014 and 0015 are superseded; their decisions are carried above.
 - 0062 owns the wall collision thickness and parking model; 0078 owns the camera
   that sits on this mount.
+
+## Evidence
+
+- `robot.toml`, `static_tfs`, the URDF and the Go `simconfig` all said the beam
+  was 12 cm and all four were wrong: four independent copies of one wrong number.
+  The config-completeness test now exists to prevent that.
+- The mount fix (`6c727c87`) moving the sensor 12.2 cm silently redefined every
+  threshold, took the front gate from unreachable to live, and pushed the rear
+  gate further out of reach.
+- A threshold compared against a raw LIDAR range must first be converted to a
+  bumper-referenced gap from `LIDAR_MOUNT_X_OFFSET` and the chassis half-length;
+  do NOT retune thresholds to absorb a mount offset.
+- `nav_debug.min_lidar_range_m` bottoms near 0.006 m on every run because the
+  gateway leaves invalid near-zero returns in the scan; read `/scan` directly with
+  the gateway's own mount correction.

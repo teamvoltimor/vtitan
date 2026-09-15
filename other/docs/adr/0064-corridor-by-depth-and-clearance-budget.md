@@ -91,3 +91,12 @@ narrower chassis.
 - 0004 and 0005 stay separate; their division lines and pillar tolerance are the
   geometry the invariants rest on.
 - 0035 is superseded into 0059.
+
+## Evidence
+
+- `clamp_lateral` binds on 646 of 1282 signs across 248 of 256 scenarios, because
+  the pass offset is about 0.28 m against signs only 0.10 m off centre, so the lane
+  runs at its clearance limit by construction, not by mis-tuning.
+- The depth-corridor fix is net, not universal: 28 scenarios regressed and 12 lost
+  laps>=3 because the misfiled corridor was load-bearing for them; a documented
+  reshuffle, not a new defect.

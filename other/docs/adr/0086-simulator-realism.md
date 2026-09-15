@@ -89,3 +89,18 @@ deg approach.
 - 0012 and 0013 are superseded; their decisions are carried above.
 - 0084 owns the localizer; 0087 owns the test methodology and the `!` convention;
   0078 owns the camera lens; 0080 owns the LIDAR mount.
+
+## Evidence
+
+- Dead reckoning had no turn-radius floor and over-read outward travel by 31x, so
+  the guard's model of the chassis pose had almost no relation to reality.
+- Do NOT revert the radius fix: `72e7172b` took the sim exit 16/16 to 0/16, which
+  looks like a regression and is not, because the sim exit was passing on a wrong
+  radius.
+- In the pocket the true turn radius is about 0.075 m, not the 0.29 m the chassis
+  saturates at during Open-speed driving; the 0.29 m figure is an extrapolation to
+  Open speeds and does not describe the bay.
+- The escape path is a shared confound: every run emits "Reverse escape refused:
+  rear sector measured nothing" because `compute_rear_clearance` fails open, then
+  falls through to a full-lock pivot at an 8 mm radius, which is correct geometry
+  (`0.095 / tan(85 deg)` from counter-phase 4WS, `L_eff = wheelbase/2`).

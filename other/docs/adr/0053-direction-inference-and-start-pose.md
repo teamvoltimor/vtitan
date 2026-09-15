@@ -126,3 +126,23 @@ wrong answer.
   reintroduce a centred or assumed start.
 - 0012 (yaw gain measured) is the model scale, not the absolute heading
   correction; 0054 owns the latter.
+
+## Evidence
+
+- The navigator never runs until direction settles (no path following, no
+  `LapDetector`, no waypoint advancement), and inference has no timeout or
+  fallback, so an unsettled estimator costs the whole round (case 300: 1 of 640, a
+  free-space creep deadlock where the escape code is unreachable).
+- `corner_clearance_m` is validator-only and read by nothing at runtime, so the
+  documented ordering is aspirational. The narrow-corridor settle failure had zero
+  window because `turn_clearance_m` (0.60) numerically coincided with `NARROW`
+  (0.60), fixed by `narrow_turn_clearance_m = 0.40`.
+- Refuted: opening the gates yields a confident wrong answer. `max_range` 12.5
+  settles CCW at 19.8 s and `align_tol` doubled settles CCW at 6.6 s against a
+  clockwise truth, with 272 of 360 side readings implying CCW (noise).
+- Refuted: raising the corridor-follower gain or cap. At gain 2.0, 12 of 28
+  fixtures lost their direction and 9 went into a wall; authority was never the
+  limit, damping was.
+- A CW round planned as CCW came from `model_copy(update={"direction": str(...)})`
+  not validating, leaving the field a plain `str` so identity tests read False;
+  invisible on CCW.

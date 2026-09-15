@@ -82,3 +82,21 @@ collisions sighted but inverts blind.
 - 0045 and 0051 own the sign router and lane; this story owns the corridor label
   and the sense guards.
 - 0064 owns the depth-based corridor decision that complements the temporal flip.
+
+## Evidence
+
+- `current_corridor` flaps 39 times per run (still open).
+- `follow_corridor` steered on lateral offset alone (P-on-position): 112 steering
+  flips in 177 s, a 3.2 s limit cycle. The fix `6cba165e` (heading damping 0.8)
+  was not validated in sim or on hardware.
+- Do NOT raise the corridor-follower gain or cap; that experiment lost 12 of 28
+  fixtures into walls. The missing piece was damping, not authority.
+- Centre bias is tracking, not a sign error: the planner aims inner on all eight
+  corridor and direction combos, while the robot drifts outward always (about
+  0.06 m CW, 0.22 m CCW). Do NOT flip `center_bias_side` or raise `center_bias_m`.
+- The margin budget is `0.203 - center_bias_m` (0.10 leaves 0.103 m; past about
+  0.20 it is negative), and a static offset cannot cancel a direction-dependent
+  dynamic error.
+- The width-belief hypothesis is dead: the per-corridor belief fields are correct,
+  and only the scalar `corridor_width_belief_m` misleads (published only during
+  blind creep).

@@ -72,3 +72,19 @@ does not merge. Changes that break comparability carry `!` in the commit type.
 
 - 0086 owns the fidelity changes the `!` convention marks; 0069 owns the config
   `config:check` that closes the documentation loop.
+
+## Evidence
+
+- Go tests: fuzz the serial frame decoders, use `testing/synctest` for the
+  watchdog, and run an in-process NATS (no Docker) behind `//go:build integration`;
+  bag-replay and sim-corpus parity are the go/no-go gates.
+- `contact_dist = 0.05` can only be settled end-to-end (scan to tick to PID to
+  decel) and has no env override; sweep arms are set by editing `clearance.toml`.
+- Pytest runs via `pixi run -e dev test` plain, never bare `pytest` (which loses
+  the RMW pin and causes false failures). `-n 6 --dist loadscope` is the confirmed
+  cap; `-n 12` re-dispatches a dead worker and is slower.
+- Parallelise all test and sim sweeps by default (5.6x on 24 cases) and never pipe
+  a long run through `tail`.
+- Windows is a first-class constraint: pin `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`
+  on win-64 pytest tasks, cap xdist at 6, and do not assume dependency, Docker or
+  subprocess parity.

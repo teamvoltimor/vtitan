@@ -127,3 +127,21 @@ zero at the shipped placement.
 - 0049 and 0064 own the corridor geometry the pass-side rule keys on; 0051 owns
   the lane.
 - 0062 owns the inner-wall scoring flag's place in the sim contact model.
+
+## Evidence
+
+- `known_start = true` is refuted: pose error collapses 1.477 m to 0.011 m, yet
+  every wrong-side bucket moves by at most one count, so the believed frame is
+  innocent.
+- The reproducible wrong-side split is 91 routing / 95 tracking of n=188; the
+  2026-08-24 122/68 headline is an unrecoverable environment artifact.
+- `plan-wrong` is a 5x risk factor, not a cause: plan-wrong violates 51 percent,
+  but 89 clean passes are also plan-wrong.
+- Hardware pass-side is a runway and distance problem, not authority: crossings
+  fail 67.8 percent against 6.9 percent for already-legal passes, and crossings
+  under 0.25 m fail 89.5 percent while holding 52 percent of all crossings.
+- Escapes HELP crossings (any manoeuvre 58.0 percent fail against 89.3 percent
+  with none), so suppressing them must not be proposed.
+- `obstacles_inner_wall_terminal = false` scores the real rule (9.18 permits
+  touching an unmoved wall) and the 82-test battery is insensitive to it, so
+  pricing needs the 256 corpus under both scorings.

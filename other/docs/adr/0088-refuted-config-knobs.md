@@ -72,3 +72,29 @@ less of hardware ticks, so it cannot move the alternation it was written for);
 - 0047 is superseded; its decision is carried above.
 - 0055 and 0050 own the escape family the contact reverse belongs to; 0057 owns
   the corridor follow the replan blend belongs to; 0051 owns the sign lane.
+
+## Evidence
+
+- `collision_thickness` never affected the headless sim: `track_model.py` defines
+  `_WALL_COLLISION_HALF` and never uses it; only the Go Gazebo SDF generator reads
+  it.
+- All three `bay_exit_*` constants are refuted and `--known-start` changes nothing,
+  so the in-bay trap is not a localization or tuning problem.
+- The nine-arm yaw screen is refuted (boundary yaw spanned 0.6 deg against a
+  28.2 deg threshold; the 0.12/0.24 lookahead's 5-to-2 sign-collision change is
+  Poisson noise; a 1.5x steer-rate worsened collisions).
+- Maximin placement and routing is refuted in-tree (sign 199 to 168 but wall 3 to
+  61); do not re-try a placement change before reducing tracking error.
+- `sign_clearance_margin_m` is inert on this path, while the binding
+  `wall_clearance_margin_m` is unreachable because `clamp_lateral` ignores runtime
+  context.
+- Four inert knobs were found in `diag_sign_sweep.py` (most recently `arc`,
+  byte-identical at 0.35 and 0.45); count invocations before trusting any constant
+  A/B.
+- `slow_dist` was ruled out as the timeout cause; at about 266 escape starts per
+  run the manoeuvres dominate the clock, so a ladder retune is secondary.
+- Navigation tuning has no environment override (`NAV_TUNING__*` is silently
+  ignored); set arms in TOML or via `model_copy`.
+- Sweep method: `--corpus` inside a git worktree reports a clean 0/0 (pass
+  `--scenarios-dir`), and an equivalence check passed at 16 and 128 scenarios but
+  failed at 256.

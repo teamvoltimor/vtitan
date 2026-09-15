@@ -131,3 +131,10 @@ mistake and it wrongly excluded the 0.10 arm.
   follower's heading term feeds.
 - 0049 owns the corner arc and the steering cap; 0051 owns the sign lane and
   inherits the planned centreline this story biases.
+
+## Evidence
+
+- The blind corridor-width prior must start NARROW and only widen on confirmation;
+  never start wide and narrow later.
+- On wide corridors bias the path toward the INNER wall, not the outer (the outer
+  is what gets hit); fix the anchoring and keep the narrow prior.

@@ -126,3 +126,23 @@ cannot score it because it never emits a magenta detection.
 - 0051 owns the lane the discovered signs feed; 0064 owns the corridor a corner
   sign is filed under.
 - 0062 owns the parking model the barrier belief protects.
+
+## Evidence
+
+- The lane is designed for 1.40 m of anticipation, but the camera sees 0.66 m and
+  the router commits at 0.38 m, so the manoeuvre executes on a quarter of its
+  shaped distance: a perception-range and commitment-latency problem, not a
+  planner one.
+- Duplicate tracks SPLIT the colour vote and the pass side is often decided at
+  0.57 m, too late to act on. The duplication rate matches sim and hardware (2.0x
+  against 2.2x) but the nearest-neighbour separation differs 17x (0.012 m sim
+  against 0.21 m hardware).
+- Duplication is a localization-drift artifact, not a lever: specs form metres
+  apart under about 1.5 m of early-window pose error, then converge to about 12 mm
+  and stay unmerged, and no safe association radius catches them because real
+  signs are 1.00 m apart.
+- Blind gap attribution is about 71 percent believed pose and layout and only 29
+  percent sign discovery, so fixing discovery is bounded at about 12 collisions of
+  the 41-collision gap.
+- Four downstream dedup and fold fixes are already refuted on 256 (the fold
+  variant worst at 231 against a 202 baseline); do not write a fifth.

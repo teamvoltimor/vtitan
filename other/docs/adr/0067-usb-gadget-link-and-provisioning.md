@@ -69,3 +69,9 @@ conda or mamba resolution happens on the Zero. Provisioning is Ansible (roles
 ## Cross-references
 
 - 0065 owns the UDP-only transport that crosses this link.
+
+## Evidence
+
+- Never run `pixi shell`, `install` or `run` on the Pi Zero: it rebuilds the
+  shipped environment, crashes mid-install, and can leave the card in fsck. The
+  Zero workspace is built on the Pi 5 and shipped.

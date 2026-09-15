@@ -86,3 +86,12 @@ default reaches the robot is if the key is absent from the TOML.
 - 0019 (simulation robot-model topic split) and 0046 (repo layout) stay separate.
 - 0070 owns the profile overlay mechanism this precedence order names.
 - 0074 owns `control_hz`, the loop rate these consumers read.
+
+## Evidence
+
+- All environment-variable config goes through pydantic-settings (Python) or
+  Viper (Go); never `os.getenv` or the legacy `EnvVar` helper.
+- Silent config loaders are a class bug: a loader can return success while never
+  reading a key it needs. Print the production loader's resolved value before any
+  A/B, and use `profile.Load` rather than `LoadRobotConfig` for robot.toml-only
+  reads.

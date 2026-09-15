@@ -91,3 +91,21 @@ hardware observation.
 - 0031, 0032 and 0033 are superseded; their decisions are carried above.
 - 0052 owns the pursuit lookahead and target radius; 0070 owns the per-challenge
   overlays and the profile mechanism.
+
+## Evidence
+
+- The noise floor is +/-4 cases from genuine chaotic sensitivity at scenario
+  boundaries; any difference of 4 cases or fewer is not evidence, and only three
+  results in the whole study clear it.
+- `speed 0.6` was inert: `navigator.py:922` clamps the selected tier to
+  `speed.max_mps()` and the sweep set only `fast_mps`, so every arm above
+  `max_mps` was byte-identical to `max_mps`.
+- `localization.max_speed_mps` is an implausible-jump guard shipped at 0.25, sized
+  0.156 x 1.6 in `9e91981f` and never raised when the profile went to 1.0; above
+  about 0.25 m/s it defers scan-match corrections, so any speed arm must raise it
+  in step or measure the guard.
+- `steer_kp` is dead config: `compute_steering` no longer consumes it, so sweeping
+  it is a silent no-op, and it still ships.
+- Braking distance is not the issue: `max_accel_mps2 = 2.0`, so stopping from
+  0.60 m/s takes 0.09 m; the distance thresholds buy STEERING runway, not braking
+  runway.

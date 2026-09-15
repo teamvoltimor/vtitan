@@ -71,3 +71,32 @@ real maintenance cost.
 
 - 0069 owns the shared config tree and governance; 0046 (repo layout) stays
   separate and is the reason `src/python` and `src/go` are siblings.
+
+## Evidence
+
+- The entire Obstacles gap was ONE 2.0 s no-progress timeout against Python's
+  30.0, not a control-law difference; the shared corner-escape loop (about 20
+  percent) is the timeout cause on both stacks.
+- The Go pass-side deficit was a scorer artefact: 0/256 by the truth scorer, and
+  the bootstrap and green-bias decomposition is VOID.
+- Every Go Obstacles baseline measured before 2026-09-05 is VOID: it ran the old
+  contact-bounded bay exit at arc 0.3.
+- The bay-exit drift cause was `ClearanceGuard=false`, `ArcSteerNorm=0.3` and a
+  missing `SpeedScale` in Go, with no `bay_exit` key in any TOML; fixed by making
+  the family config-driven.
+- Loaders returned SUCCESS while never reading keys they needed (a class bug); the
+  structural fix is a shipped-tree completeness test requiring every concrete
+  default to appear in the TOML.
+- `risk_ray_window` is settled (ship 1) but the key is absent from master, so the
+  shipped tree does not express it.
+- Go corpus validity is still open: `--blind` withholds no signs,
+  `attempt_after_final_lap` is never read, the sim casts from body centre not the
+  sensor, and the yaw gain drives sign collisions.
+- NATS was chosen over Zenoh: `zenoh-go` is confirmed CGo on an unstable C API (a
+  cross-compile blocker) and `go-zeromq/zmq4` is withdrawn (WIP); latency is a
+  wash, not a factor.
+- The process model is one binary per board, not one per node; `lidar-node` stays
+  separate, and fault isolation is via `internal/supervise` recover().
+- Protobuf uniformly (no two-tier JSON split), no gRPC or Connect (NATS
+  request-reply), cobra/pflag/viper CLIs, and go-playground validator for config
+  against protovalidate for the wire.

@@ -104,3 +104,15 @@ the slowest feed's scan period (LIDAR at 10 Hz).
 - 0024 and 0025 are superseded; their decisions are carried above.
 - 0076 owns the encoder calibration that the odometry comparison depends on;
   0053 owns the start pose and direction commit; 0086 owns the sim error budget.
+
+## Evidence
+
+- Never measure yaw rate from `pose_yaw`: it is localizer-damped and understates
+  by 4 to 6x. Derive it from the orientation quaternion (about 166 Hz), since
+  `/imu/data.angular_velocity` is all zeros (the BNO08x UART-RVC has no gyro).
+- Blind mode seeds the believed start as the canonical section; on a
+  four-fold-symmetric 1.0 m track the localizer locks to a clean 90/180/270 deg
+  rotation of truth for the whole run.
+- The rotational lock breaks two absolute-XY subsystems (the escape mask and
+  sign-discovery association), not raw driving; `8fc832a0` and `f6f1278c` gate
+  both on the ROBOT's own corridor (collisions 231 to 202, in-time 13 to 27).

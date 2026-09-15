@@ -80,3 +80,11 @@ of the K-turn reduction while keeping 7 cm of stopping room rather than 4 cm.
 - 0056 owns the raw/masked scan and the related `min_valid_range_m` and
   `forward_path_ahead_of_bumper`.
 - 0055 owns the escape manoeuvre that consumes `contact_dist`.
+
+## Evidence
+
+- The escape gate is tuned for a frame that no longer exists: all 28,664 CRITICAL
+  corpus ticks fire only because of the 12.2 cm LIDAR-mount offset fix, and
+  episode re-triggering, not the CRITICAL-tick rate, is the statistic that matters.
+- `slow_dist` is inert (0.25 against 0.35 moves nothing), which isolates the
+  escape gate rather than the speed-cap zone as the mechanism.

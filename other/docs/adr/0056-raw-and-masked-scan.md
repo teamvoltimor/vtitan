@@ -138,3 +138,18 @@ that removes reverse authorization rather than fixing it.
   time-to-collision derivation, not implemented.
 - 0047 (contact reverse ships disabled) stays separate.
 - 0050 owns the escape side; 0055 owns the manoeuvre selection.
+
+## Evidence
+
+- `compute_rear_clearance` returns `no_data_range_m` (10 m) when it saw nothing,
+  which reads like open road, so a reverse gate on the number alone always
+  authorises reversing; branch on `rear_sector(...).measured`.
+- Do NOT delete the rear logic: restoring a hardware rear measurement should
+  re-enable it without a rewrite.
+- With no rear sector and an empty pose trail, no reverse at all is the safe
+  state; `_retrace_steer`'s pose-trail retrace is the only legitimate sensor-free
+  reverse.
+- The 128/128 Open figure was built on a phantom rear sensor; masked correctly it
+  is 127/128 with one collision.
+- The navigator saw every pillar and never escaped: it is structurally blind at
+  -64 to -86 deg.

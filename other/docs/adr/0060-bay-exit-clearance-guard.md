@@ -117,3 +117,24 @@ infraction. The exit must be evaluated against the default contact model.
 - 0038 is superseded; its mirror decision is carried above.
 - 0037 (lot from in-bay start) stays separate and is carried in 0062.
 - 0030 (servo slew rate) is the measured rate the exit rides on.
+
+## Evidence
+
+- `MAX_STEERING_RATE` had never been measured: 1.2 rad/s matched an unmeasured
+  TOML and doubles as both the software command limiter and the sim's physical
+  slew. The loaded bench datum is 150 deg in 0.90 s = 2.91 rad/s; 2.4 ships as the
+  conservative end.
+- `servo_slew_rate_rad_s` was split out (`0fecf09a`) precisely so the bay could be
+  fixed without re-heating cornering; `MAX_STEERING_RATE` stays 1.2 as cornering
+  policy (lowered 2.0 to 1.2 on 2026-08-28, still binding 8.2 to 13.1 percent of
+  driving ticks).
+- Re-measuring slew needs only `diag_servo_slew.py`: park at one lock, command the
+  other, hold, ask if the wheel REACHED the far stop, bisect. Above the boundary
+  the wheel visibly DWELLS, and reading `Publisher count: 0` once is not a check.
+- Before the direction latch the reverse-gate chatter WAS the escape (about 300
+  reverse ticks against 290 forward, progress pinned at 0.045 to 0.054 m, 187/256
+  out); latching the reverse scored 0/64, so "chatter is a bug destroying the
+  escape" is backwards.
+- Width is not the lever: 15 cm of along-wall travel needs theta >= 42 deg, at
+  which the length term alone is 0.201 m, the entire pocket depth. The binding
+  dimension is chassis LENGTH against pocket DEPTH, so narrowing cannot fix it.

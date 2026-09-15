@@ -127,3 +127,24 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
 - 0050 owns the escape steering units and the committed side; this story owns the
   manoeuvre choice and the durations.
 - 0047 (contact reverse disabled) stays separate.
+
+## Evidence
+
+- `contact_dist` was compared to a raw LIDAR range although the sensor sits
+  0.1222 m ahead of chassis centre, so front gaps are `range - 0.0278` and rear
+  gaps `range - 0.2722`. In the old body-centred frame 0 of 30,811 CRITICAL ticks
+  fired, and the rear reverse-guard (0.2722 against 0.10) could never fire.
+- Keep the rear logic branching on `rear_sector(...).measured`; do not re-tune
+  `min_reverse_clearance_m`, because tuning a threshold on a sector that does not
+  exist is pointless.
+- The frame fix alone regressed (57 to 146 collisions with both ends converted),
+  because the broken rear gate was load-bearing; restore correctness first, tune
+  second.
+- Use an early-window control (first 20 s, before runs diverge) as the only honest
+  causality test for escape-to-timeout; escape rate predicts failure from the
+  start, it is not a symptom.
+- `obstacles_contact_dist = 0.05` would give laps>=3 11 to 82 and timeouts 126 to
+  48 with wall collisions flat at 17, but pass-side violations rise 82 to 122; it
+  ships unset pending a stopping-distance bench check.
+- Open shares this escape ladder, its rear sector is gone too, and its 128/128 was
+  partly a phantom rear sensor.

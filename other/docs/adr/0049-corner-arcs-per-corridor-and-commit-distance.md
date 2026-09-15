@@ -120,3 +120,21 @@ verdict.
   story, not here; only the `corner_preview_distance_m` interaction is noted.
 - 0028 (waypoint centre bias split by corridor class) is the bias this arc
   consumes; it stays separate for now.
+
+## Evidence
+
+- The commit-fit rule in closed form: `radius = wheelbase / ((1 + rear_steer_ratio)
+  * yaw_gain * tan(angle)) = 0.19 / (2 * 0.55 * tan(angle))`; the arc a branch
+  drives must fit the clearance it commits at.
+- At 13.75 deg the turn was geometrically impossible (0.706 m arc against the
+  0.60 m commit), and over the 128 corpus all 31 collisions were runs that never
+  settled direction, while no settled run ever collided.
+- Two constants, two constraints: the corner steer is sized by the commit geometry
+  while the centring steer (13.75 deg) is sized by the 2026-08-07 limit cycle;
+  raising both to 24 deg scored 115 against 125.
+- Refuted: raising `center_bias_m` to cancel the outward drift. The planner already
+  aims inner on all eight combos; the residual is direction-dependent tracking
+  error, and a static offset would drive the well-tracking CW north and west legs
+  into the inner block.
+- 13.75 deg was frozen by the 2026-08-21 units refactor to preserve behaviour on
+  the old 55 deg servo; on the 270 deg servo, 0.25 of full lock is 21.25 deg.

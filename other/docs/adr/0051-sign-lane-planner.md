@@ -133,3 +133,24 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   judged against.
 - Stale code docstrings in `sign_lane.py` and `routing.py` still say
   `gap_centre_frac` ships at 0.0; the TOML/schema (1.0) is authoritative.
+
+## Evidence
+
+- Sign collisions are 154 in both sighted and blind: handing the robot the full
+  layout changes them by zero, and the real mechanism is tracking error
+  (crosstrack p90 20.28 cm against a 17.55 cm planned gap; 79 percent of
+  collisions in `normal_drive`).
+- `sign_lane_hold_m` is capped near 0.25 m because two signs are 1.00 m apart; at
+  0.50 m adjacent plateaux meet and one sign's plan governs another's pass
+  (wrong-side 58 percent against a 13 percent base), and a 0.55 sweep collapses
+  laps>=3 to 2.
+- The sign lane and the clearance guard are mutually over-constrained: there are
+  geometries where no lane satisfies both.
+- `sign_lane_relabel_unsatisfiable` is INERT on the corpus (bit-identical on and
+  off), so its 140 to 121 gain is no longer live evidence; kept True only as a
+  backstop for geometry the corpus lacks.
+- `_hold_committed_path`, `_apply_path_wall_budget` and `deform_waypoint` are all
+  INERT at shipped config, and `_in_corner_zone` is a coordinate box, not a turn
+  test.
+- All 256 corpus scenarios start dead centre (lateral 0.50) in a 1.0 m corridor,
+  so narrow and off-centre starts are never exercised.
