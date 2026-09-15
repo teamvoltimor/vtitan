@@ -68,6 +68,33 @@ steer_kp = 1.2                # Proportional gain for the steering P-controller
 # exact value is untested; re-check lap completion if this regresses hardware
 # cornering.
 max_steering_rate = 1.2       # Maximum steering command rate (rad/s)
+#
+# TWO 2026-09-15 attempts at the operator's report that "the servo moved the
+# angle gradually while turning at full lock; it should sustain it until the
+# rotation finishes, otherwise the turn needs more radius". BOTH REFUTED on the
+# obstacles corpus against a baseline of 12 failed of 82:
+#
+#   raise this 1.2 -> 1.8                         12 failed, a WASH that TRADES
+#                                                 scenarios: fixes go_obstacles
+#                                                 _0008 on all three assertions,
+#                                                 breaks _0004 on all three
+#   hold the angle while CornerLatch says the     51 failed
+#     turn is owed
+#   same, but only SLOWING the give-back to       33 failed
+#     25% of this rate
+#
+# The bleed is REAL and measured -- over four hardware rounds 14-29% of turns
+# give back more than a quarter of their peak while the chassis is still
+# rotating over 10 deg, and 82-88% of those release with a median 1.19-1.39 rad
+# still owed by the latched path_turn_ahead_rad. What is WRONG is the inference.
+# On a constant-radius arc the correct steering is CONSTANT AND MODERATE, not
+# maximum, so a peak on entry followed by a settle to the arc's steady value is
+# right. "The path still turns" does not imply "the chassis is mis-aligned",
+# and holding the angle on that reasoning oversteers straight through the
+# corner.
+#
+# The simulator IS a fair judge here, unlike for escapes: it under-rotates
+# 40-50% during MANOEUVRES, but clean driving was measured correct at 1.02x.
 # How far ALONG THE PATH select_target_point may walk before giving up. 0 = a
 # whole lap, which is what shipped and what lost all three rounds of
 # 2026-09-11: unbounded, the search wraps the ring and returns the first
