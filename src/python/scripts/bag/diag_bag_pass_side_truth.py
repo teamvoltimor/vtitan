@@ -1,26 +1,33 @@
 r"""Did the chassis pass each pillar on the legal side, judged from GROUND TRUTH?
 
-STATUS: THE INSTRUMENT FAILS ITS OWN CONTROL. Do not quote its percentages.
-The operator states every 2026-09-15 round used the SAME layout -- 2 parking
-walls, 5 GREEN pillars, 3 RED -- and this script reproduces that on NONE of the
-six runs: 3G/6R/1fin, 3G/3R/2fin, 5G/4R/1fin, 3G/1R/1fin, 6G/4R/0fin,
-5G/2R/0fin. On an aborted round under-coverage explains it, but 140014 is a
-full three-lap round and still reads SIX reds where there are three.
+STATUS: the instrument PASSES its control on THREE of the six 2026-09-15 runs
+-- 140852, 141413 and 141832 all reconstruct the operator-stated layout of 5
+GREEN and 3 RED. Quote only those three. It still misreads 140014 (4G/3R, a
+full round) and the two rounds the operator aborted early, 140358 and 141230,
+where coverage is too short to pile up every pillar.
 
-The weak link is the COLOUR VOTE, and it fails for a reason already measured
-today: detections are attributed to the nearest pillar within 0.35 m, while the
-camera bearing carries +/-12 deg of zero-mean scatter, which at 1.5 m is 0.31 m
-of lateral miss. Detections land on the neighbour. Fixing this needs detection
-TRACKS associated to pillars over time, not per-frame proximity -- the same
-conclusion camera-bearing work reached separately.
+The COLOUR VOTE was the broken part and is no longer what decides colour: the
+operator's layout plus the pillar's SECTION does, and on a validated run the
+camera vote then AGREES with the layout on all eight signs. Two independent
+methods concur, which is why the control passes at all. The vote is still
+printed per pillar, as the strength of the camera's own call.
 
-Everything below is the design, which is sound; only the object identification
-is not.
+Fixing the vote itself still needs detection TRACKS associated to pillars over
+time rather than per-frame proximity: detections are attributed to the nearest
+pillar within 0.35 m while the camera bearing carries +/-12 deg of zero-mean
+scatter, which at 1.5 m is 0.31 m of lateral miss, so they land on the
+neighbour. Camera-bearing work reached the same conclusion separately.
 
 A wrong-side pass ENDS the round. Every hardware round of 2026-09-15 shows one
 to five of them by the robot's own count, with and without
 ``barrier_span_along_wall``, and the lap counter hides all of it -- four rounds
 read 3/3 while the operator had mentally stopped them on lap 1.
+
+GROUND TRUTH DISAGREES WITH THAT COUNT. On the three validated runs this judge
+reads 0, 2 and 2 wrong-side passes where the robot's own counter read 3, 3 and
+5. The counter is computed in the BELIEVED frame and over-reports; on 140852 it
+claimed three where the chassis committed none. Prefer this judge, and do not
+re-derive a round's fate from ``wrong_side_pass_count``.
 
 Neither existing instrument can settle that:
 
