@@ -109,3 +109,27 @@ lidar_range_fusion_agreement = 0.5
 max_signs_per_section = 0
 
 colour_pool_radius_m = 0.0   # pool colour votes across fragments of one pillar within this radius (0 = off)
+
+# BARRIER BELIEF, added 2026-09-14 off the post-deploy rounds.
+#
+# The camera identifies the parking barrier as MAGENTA far more reliably than
+# it mislabels it RED: 1,921 magenta detections against 748 wall-shaped reds
+# admitted to the sign map, over the four rounds of 2026-09-14. Every one of
+# those magenta detections was thrown away -- detection_to_observation returns
+# None for any colour that is not RED or GREEN -- while the same physical
+# object, seen red, was seeded as a pillar and routed around.
+#
+# The shape gate cannot close that hole and three separate attempts to make it
+# do so were refuted the same day: the corridor exemption is working as
+# designed (every exempt admission came from the corridor OPPOSITE the lot), a
+# height test cannot discriminate at all (the sign and the barrier are both
+# exactly 0.10 m tall, track.toml), and restricting the clipped exemption to
+# the vertical axis reaches 10 of 458 leaked boxes (2%), with the data actively
+# confirming the existing rule -- wall-shaped share runs 20.5% unclipped
+# against 56.8% vertically clipped, the height-truncation signature.
+#
+# So this uses evidence the robot already has rather than trying harder to
+# reject it. Set barrier_belief_min_sightings = 0 to disable.
+barrier_belief_min_sightings = 4
+barrier_merge_radius_m = 0.35
+barrier_suppression_radius_m = 0.30

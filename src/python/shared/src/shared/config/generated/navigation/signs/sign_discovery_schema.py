@@ -68,3 +68,15 @@ class NavigationSignsSignDiscovery(StrictModel):
         ...,
         description='pool colour votes across fragments of one pillar within this radius (0 = off)',
     )
+    barrier_belief_min_sightings: int = Field(
+        ...,
+        description='Magenta sightings that must agree on a location before it is believed to be the parking barrier. The camera labels the barrier MAGENTA correctly far more often than it mislabels it RED -- measured over the four 2026-09-14 rounds, 1,921 magenta detections against 748 wall-shaped reds admitted to the sign map -- and every one of those magenta detections was DISCARDED by detection_to_observation, which returns None for any non-routing colour. This is the threshold for using them instead. 0 disables the belief entirely.',
+    )
+    barrier_merge_radius_m: float = Field(
+        ...,
+        description='Two magenta sightings within this distance are treated as the same barrier. The lot is 0.20 m long, so this is sized to absorb the pinhole range error rather than to resolve the object.',
+    )
+    barrier_suppression_radius_m: float = Field(
+        ...,
+        description='A RED detection landing within this distance of a believed barrier is dropped instead of seeded as a pillar. This is the whole point of the belief: the magenta barrier reaching the sign map as a red pillar is what makes the router plan a pass around a WALL, and on run_20260914_214824 that pendulumed the chassis for 66.4 s at (0.75, 0.25) beside the west parking corridor. Sized from the pinhole position error, not from the lot.',
+    )

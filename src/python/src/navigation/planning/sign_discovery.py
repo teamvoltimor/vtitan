@@ -287,6 +287,37 @@ def _clustered_range(
     return best.range_m
 
 
+def detection_to_world_point(
+    det: Detection,
+    robot_pose: Pose,
+    tuning: NavigationTuning | None = None,
+    lidar_ranges_m: Sequence[float] | None = None,
+    lidar_angles_rad: Sequence[float] | None = None,
+) -> tuple[float, float] | None:
+    """Project ANY detection to world coordinates, whatever its colour.
+
+    :func:`detection_to_observation` drops everything that is not RED or GREEN,
+    which is correct for the sign map but throws away the MAGENTA parking
+    barrier -- the one object whose position the robot most needs to remember
+    (see :mod:`src.navigation.planning.barrier_belief`).
+
+    The pinhole range holds for the barrier without adjustment: ``track.toml``
+    gives the sign and the parking lot the SAME 0.10 m height, which is the
+    only dimension that estimate depends on.
+
+    Returns:
+        World (x, y), or None when the box is too small to place.
+    """
+    return _detection_to_world(
+        det,
+        (robot_pose.x, robot_pose.y),
+        robot_pose.yaw,
+        tuning,
+        lidar_ranges_m,
+        lidar_angles_rad,
+    )
+
+
 def _detection_to_world(
     det: Detection,
     robot_pos: tuple[float, float],

@@ -30,6 +30,7 @@ from shared.domain.models import (
     LocalizerHealth,
     LocalizerInputs,
     Pose,
+    SignColor,
     TrafficSignObservation,
     Waypoint,
 )
@@ -39,7 +40,8 @@ from std_msgs.msg import String
 from src.config.tuning_helpers import get_tuning
 from src.hardware.motors.enums import DRIVE_JOINT
 from src.navigation.localization import make_localizer
-from src.navigation.planning.sign_discovery import detection_to_observation
+from src.navigation.planning.barrier_belief import BarrierBelief
+from src.navigation.planning.sign_discovery import detection_to_observation, detection_to_world_point
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry, sanitize_lidar_ranges
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 from src.navigation.utils import clamp
@@ -143,6 +145,15 @@ class ROS2HardwareGateway(HardwareGateway):
         # section. None means "unknown", which keeps the shape gate strict
         # everywhere rather than relaxing it on an unproven belief.
         self._parking_corridor: Section | None = None
+        # Where MAGENTA has repeatedly been seen. Built from detections that
+        # were previously discarded outright, and used to refuse a RED pillar
+        # standing on the parking lot -- see barrier_belief for the measurement.
+        _sd = get_tuning(None).sign_discovery
+        self._barrier_belief = BarrierBelief(
+            min_sightings=_sd.barrier_belief_min_sightings,
+            merge_radius_m=_sd.barrier_merge_radius_m,
+            suppression_radius_m=_sd.barrier_suppression_radius_m,
+        )
         self._latest_imu: IMUReading | None = None
         self._latest_wheel: WheelOdometry | None = None
         self._localizer_inputs: LocalizerInputs | None = None
@@ -468,6 +479,20 @@ class ROS2HardwareGateway(HardwareGateway):
                 or current_corridor == self._parking_corridor
                 or current_corridor in self._parking_corridor.neighbours
             )
+            # A MAGENTA box is the barrier seen correctly. It is not a sign and
+            # never enters the map, but WHERE it was seen is the only evidence
+            # that separates the lot from a pillar once shape has failed, so it
+            # is recorded rather than dropped on the floor as it was before.
+            if det.color is SignColor.MAGENTA:
+                point = detection_to_world_point(
+                    det,
+                    pose,
+                    lidar_ranges_m=lidar_ranges,
+                    lidar_angles_rad=lidar_angles,
+                )
+                if point is not None:
+                    self._barrier_belief.observe(*point)
+                continue
             obs = detection_to_observation(
                 det,
                 pose,
@@ -475,6 +500,11 @@ class ROS2HardwareGateway(HardwareGateway):
                 lidar_angles_rad=lidar_angles,
                 barrier_possible=barrier_possible,
             )
-            if obs is not None:
-                result.append(obs)
+            if obs is None:
+                continue
+            # Believed barrier wins over a red pillar standing on it. Checked
+            # AFTER projection because the belief is about a place, not a box.
+            if det.color is SignColor.RED and self._barrier_belief.suppresses(obs.world_x_m, obs.world_y_m):
+                continue
+            result.append(obs)
         return result
