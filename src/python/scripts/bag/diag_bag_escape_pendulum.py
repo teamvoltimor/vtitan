@@ -20,6 +20,11 @@ Per adjacent leg PAIR (one reversal of commanded speed) it reports:
 * **cancellation** -- net displacement across the pair over the path length
   travelled. 0.0 is a perfect pendulum (came back exactly); 1.0 is a straight
   line. This is the number the operator is describing.
+* **yaw kept** -- net heading change over absolute heading turned, which is
+  ``diag_bag_bay_ratchet``'s own metric. 1.0 is a true k-turn where both legs
+  rotate the same way; 0.0 is a pendulum that gives back every degree. This is
+  the better of the two axes: a pair can translate a little and still have
+  wasted all its rotation.
 * **closed on the threat** -- did ``min_lidar_range_m`` END the pair lower than
   it started? That is "reversing back TOWARD the obstacle", stated as a
   measurement rather than an impression.
@@ -66,6 +71,7 @@ _MOVING = 0.01  # below this the chassis is not travelling, so it has no leg
 _STEERING = 0.05  # below this the wheel is effectively centred, so it has no side
 _MIN_PATH_M = 1e-3  # a pair that travelled less than this has no meaningful ratio
 _GAVE_BACK = 0.25  # cancellation at or below this gave back three quarters
+_MIN_TURN_RAD = math.radians(2.0)  # below this the pair barely rotated, so a ratio is noise
 
 
 def _legs(rows, min_leg: int) -> list[dict]:
@@ -114,7 +120,24 @@ def _leg(samples, sign: int) -> dict:
         "path": path,
         "r0": ranges[0] if ranges else float("nan"),
         "r1": ranges[-1] if ranges else float("nan"),
+        "yaws": [s.pose_yaw for _, s in samples if isinstance(s.pose_yaw, (int, float))],
     }
+
+
+def _wrap(a: float) -> float:
+    """``a`` folded into (-pi, pi], so a heading difference never reads as a full turn."""
+    return math.atan2(math.sin(a), math.cos(a))
+
+
+def _yaw_kept(a: dict, b: dict) -> float:
+    """Net heading change over absolute heading turned across the pair."""
+    yaws = a["yaws"] + b["yaws"]
+    if len(yaws) < 2:
+        return float("nan")
+    turned = sum(abs(_wrap(yaws[i + 1] - yaws[i])) for i in range(len(yaws) - 1))
+    if turned < _MIN_TURN_RAD:
+        return float("nan")
+    return abs(_wrap(yaws[-1] - yaws[0])) / turned
 
 
 def _score(bag_dir: Path, min_leg: int, all_pairs: bool) -> list:
@@ -123,6 +146,7 @@ def _score(bag_dir: Path, min_leg: int, all_pairs: bool) -> list:
     legs = _legs(posed_rows(rows), min_leg)
     mirrored = closed = 0
     cancels: list[float] = []
+    kept: list[float] = []
     pairs = 0
     # Split by whether the pair stays INSIDE the escape or crosses back out to
     # the planner. The mirror is the escape's own command; the planner's
@@ -151,11 +175,15 @@ def _score(bag_dir: Path, min_leg: int, all_pairs: bool) -> list:
         path = a["path"] + b["path"]
         if path > _MIN_PATH_M:
             cancels.append(math.hypot(b["x1"] - a["x0"], b["y1"] - a["y0"]) / path)
+        k = _yaw_kept(a, b)
+        if not math.isnan(k):
+            kept.append(k)
         if not math.isnan(a["r0"]) and not math.isnan(b["r1"]) and b["r1"] < a["r0"]:
             closed += 1
     if pairs == 0:
-        return [bag_dir.name.replace("run_", ""), 0, "-", "-", "-", "-", "-", "-", "-"]
+        return [bag_dir.name.replace("run_", ""), 0, "-", "-", "-", "-", "-", "-", "-", "-", "-"]
     c = np.array(cancels) if cancels else np.array([float("nan")])
+    k = np.array(kept) if kept else np.array([float("nan")])
     return [
         bag_dir.name.replace("run_", ""),
         pairs,
@@ -163,6 +191,8 @@ def _score(bag_dir: Path, min_leg: int, all_pairs: bool) -> list:
         f"{np.nanpercentile(c, 50):.2f}",
         f"{np.nanpercentile(c, 90):.2f}",
         f"{100 * float(np.nanmean(c < _GAVE_BACK)):.0f}%",
+        f"{np.nanpercentile(k, 50):.2f}",
+        f"{100 * float(np.nanmean(k < _GAVE_BACK)):.0f}%",
         f"{closed} ({100 * closed / pairs:.0f}%)",
         f"{inside_mirrored}/{inside}" + (f" ({100 * inside_mirrored / inside:.0f}%)" if inside else ""),
         f"{crossing_mirrored}/{crossing}" + (f" ({100 * crossing_mirrored / crossing:.0f}%)" if crossing else ""),
@@ -186,6 +216,8 @@ def main() -> int:
             "cancel p50",
             "cancel p90",
             "cancel < 0.25",
+            "YAW KEPT p50",
+            "kept < 25%",
             "closed on threat",
             "inside escape",
             "CROSSING out",
