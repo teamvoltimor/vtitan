@@ -117,10 +117,6 @@ class NavigationSimulationSimulation(StrictModel):
         ...,
         description='Probability that a detection reports the OPPOSITE colour. UNMEASURED, so it ships at 0.0 rather than at a guess -- defaulting an invented error rate would make the simulator wrong in a new way rather than more realistic. The knob exists because colour confusion is the dominant real perception failure (the magenta parking barrier reaches the sign map as a RED pillar at p50 confidence 0.79) and the emulator copies ground-truth colour directly, so that entire failure mode is currently unscreenable. Needs a bag-derived confusion rate before it can ship non-zero.',
     )
-    vision_false_positive_rate: float = Field(
-        ...,
-        description='Probability per tick of emitting a detection for a sign that is not there. UNMEASURED, ships at 0.0 for the same reason as vision_color_flip_rate.',
-    )
     contact_slides_along_surfaces: bool = Field(
         ...,
         description='Does a blocked translation SLIDE along the surface it hit, or is it scaled to nothing? The simulator scaled it to nothing until 2026-09-14, so a chassis meeting a wall at a shallow angle simply stopped dead instead of running along it: MEASURED 56x less progress at a 20 degree approach than a sliding model gives. That is not how a real chassis behaves against a smooth track wall, and because the bay exit is a sequence of shallow-angle contacts it voided every in-bay A/B taken before this. Set false to recover the old stop-dead behaviour.',

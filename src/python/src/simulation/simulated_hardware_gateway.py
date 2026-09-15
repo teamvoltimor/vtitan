@@ -477,10 +477,10 @@ class SimulatedHardwareGateway:
     ) -> list[TrafficSignObservation]:
         """Apply the camera's colour errors, which the emulator otherwise has none of.
 
-        Both rates ship at 0.0. They are UNMEASURED, and defaulting an invented
+        The rate ships at 0.0. It is UNMEASURED, and defaulting an invented
         error rate would make the simulator wrong in a new way rather than more
-        realistic -- so the knobs exist, are wired, and wait for a bag-derived
-        number. What they are for: the emulator copies ground-truth colour
+        realistic -- so the knob exists, is wired, and waits for a bag-derived
+        number. What it is for: the emulator copies ground-truth colour
         directly and never invents a sign, so the single biggest real perception
         failure (the magenta parking barrier arriving as a RED pillar at p50
         confidence 0.79) cannot be screened in simulation at all, and the whole

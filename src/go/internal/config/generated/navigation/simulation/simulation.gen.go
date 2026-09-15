@@ -162,10 +162,6 @@ type NavigationSimulationSimulation struct {
 	// Emulated camera range (m) at which a sign is detected on about half of frames.
 	VisionDetectR50M float64 `json:"vision_detect_r50_m" yaml:"vision_detect_r50_m" mapstructure:"vision_detect_r50_m"`
 
-	// Probability per tick of emitting a detection for a sign that is not there.
-	// UNMEASURED, ships at 0.0 for the same reason as vision_color_flip_rate.
-	VisionFalsePositiveRate float64 `json:"vision_false_positive_rate" yaml:"vision_false_positive_rate" mapstructure:"vision_false_positive_rate"`
-
 	// Probability that an otherwise-visible sign produces NO detection on a given
 	// tick, on top of the range model. Hardware carries a detection on 11.6% of ticks
 	// (measured over 125 bags); the emulator with the range model alone carries one
