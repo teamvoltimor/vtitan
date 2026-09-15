@@ -7,11 +7,11 @@ documento es el manifiesto: qué hay, en qué formato y para qué sirve cada uno
 
 ```text
 models/
-├── current-models/     vTitan (WRO 2026)
+├── vtitan/            vTitan (WRO 2026)
 │   ├── blueprints/     planos acotados (PNG y WebP)
 │   ├── step-files/     29 archivos .step  -> para fabricar y editar
 │   └── stl-files/      47 archivos .stl   -> para imprimir y para ver en GitHub
-└── old-models/         Klevor (WRO 2025)
+└── klevor/            Klevor (WRO 2025)
     ├── blueprints/     27 planos
     └── stl-files/      43 archivos .stl
 ```

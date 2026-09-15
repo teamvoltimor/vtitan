@@ -18,7 +18,7 @@ v-photos/
 | `vtitan-breakdown.webp` | Vista despiezada, usada en [Montaje](../README.md#montaje) |
 
 Los dos últimos salen del mismo modelo de SolidWorks del que se exportan
-[`models/current-models/`](../models/README.md), así que lo que se ve en el
+[`models/vtitan/`](../models/README.md), así que lo que se ve en el
 render es exactamente lo que hay en los `.step` y los `.stl`.
 
 ## Prototipos anteriores

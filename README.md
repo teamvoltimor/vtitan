@@ -147,8 +147,8 @@ vtitan/
 │   ├── flowcharts/    #   Fuentes Mermaid + renders WebP: common/, open/, obstacles/
 │   └── wiring/        #   Esquemático del arnés + proyecto tscircuit que lo genera
 ├── models/            # Modelos 3D (ver models/README.md)
-│   ├── current-models/  #   vTitan: blueprints/, step-files/ (CAD), stl-files/ (visor 3D)
-│   └── old-models/      #   Prototipos previos (Klevor)
+│   ├── vtitan/      #   WRO 2026: blueprints/, step-files/ (CAD), stl-files/ (visor 3D)
+│   └── klevor/      #   WRO 2025: el prototipo de la temporada anterior
 ├── src/               # python/ (pila ROS2), go/ (reimplementación Go), config/ (TOML
 │                      #   compartido, leído por ambos), model/ (esquemas JSON que
 │                      #   validan ese TOML), tools/ y assets/ (imágenes compartidas)
@@ -174,7 +174,7 @@ vtitan/
 | `v-photos/` | Fotos de vTitan y de los prototipos anteriores |
 | `video/` | Enlaces a los videos de las rondas y del robot en funcionamiento ([`video/video.md`](video/video.md)) |
 | `schemes/` | Diagramas de flujo y esquemático de conexiones. En `schemes/flowcharts/` están las fuentes Mermaid y sus renders WebP, separados en `common/` (lógica compartida por ambos desafíos), `open/` y `obstacles/`; `schemes/flowcharts/_legacy/` conserva los diagramas de versiones anteriores. En `schemes/wiring/` está el esquemático del arnés junto al proyecto tscircuit que lo genera |
-| `models/` | Modelos 3D de las piezas: `current-models/` (vTitan) y `old-models/` (Klevor), cada uno con `blueprints/` (planos), `step-files/` (CAD para fabricar y editar) y `stl-files/` (para imprimir, y que **GitHub renderiza en un visor 3D interactivo**). Inventario completo en [`models/README.md`](models/README.md) |
+| `models/` | Modelos 3D de las piezas, una carpeta por robot: `vtitan/` (WRO 2026) y `klevor/` (WRO 2025), cada una con `blueprints/` (planos), `step-files/` (CAD para fabricar y editar) y `stl-files/` (para imprimir, y que **GitHub renderiza en un visor 3D interactivo**). Inventario completo en [`models/README.md`](models/README.md) |
 | `src/` | El código de competencia y lo que comparte con la segunda implementación en Go: `src/python/` (pila ROS2, ver [`src/python/README.md`](src/python/README.md)), `src/go/` (reimplementación Go), `src/config/` (TOML que ambos leen), `src/model/` (los esquemas JSON que validan ese TOML y apuntan a su ADR), `src/tools/` y `src/assets/` (imágenes compartidas, p. ej. el logo del HUD). |
 | `other/` | Todo lo que no es material de competencia: `other/apps/` (telemetría, simulador, auto-anotador, docs), `other/contracts/` (proto + OpenAPI compartidos), `other/ml/` (entrenamiento y pesos), `other/deploy/ansible/`, `other/docs/`, `other/data/`, `other/scripts/`, `other/tasks/` y `other/assets/`. Ver [`other/README.md`](other/README.md) |
 
@@ -587,7 +587,7 @@ Todo el movimiento se transmite por engranajes, y los rines actúan a la vez com
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
 <p align="center">
-	<img src="models/current-models/blueprints/pinon-33-dientes-direccion.webp" alt="Piñón de 33 dientes de dirección" 
+	<img src="models/vtitan/blueprints/pinon-33-dientes-direccion.webp" alt="Piñón de 33 dientes de dirección" 
 width="350">
 	<br>
 	<i>Piñón de 33 dientes</i>
@@ -614,7 +614,7 @@ El chasis de vTitan se reparte en dos piezas con responsabilidades distintas: el
 #### Chasis inferior
 
 <p align="center">
-	<img src="models/current-models/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
+	<img src="models/vtitan/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
 width="350">
 	<br>
 	<i>Chasis Inferior</i>
@@ -634,7 +634,7 @@ El chasis inferior es donde se implementan la transmisión y la dirección. Su r
 	<i>Conjunto ensamblado, renderizado desde el CAD</i>
 </p>
 
-Y el mismo conjunto despiezado, del mismo modelo de SolidWorks del que se exportan los archivos de [`models/current-models/`](models/README.md):
+Y el mismo conjunto despiezado, del mismo modelo de SolidWorks del que se exportan los archivos de [`models/vtitan/`](models/README.md):
 
 <p align="center">
 	<img src="v-photos/vtitan/vtitan-breakdown.webp" alt="Vista despiezada de vTitan" width="800">
@@ -650,8 +650,8 @@ Publicamos cada pieza en **dos formatos**, porque sirven para cosas distintas:
 
 | Formato | Archivos | Para qué |
 |---|---|---|
-| [`step-files/`](models/current-models/step-files/) | 29 `.step` | **Fabricar y editar.** Conserva la geometría exacta, así que se puede reabrir y modificar en cualquier CAD |
-| [`stl-files/`](models/current-models/stl-files/) | 47 `.stl` | **Imprimir y mirar.** GitHub renderiza los `.stl` en un **visor 3D interactivo**: pincha cualquiera y podrás girarlo, desplazarlo y acercarlo en el navegador, sin instalar nada |
+| [`step-files/`](models/vtitan/step-files/) | 29 `.step` | **Fabricar y editar.** Conserva la geometría exacta, así que se puede reabrir y modificar en cualquier CAD |
+| [`stl-files/`](models/vtitan/stl-files/) | 47 `.stl` | **Imprimir y mirar.** GitHub renderiza los `.stl` en un **visor 3D interactivo**: pincha cualquiera y podrás girarlo, desplazarlo y acercarlo en el navegador, sin instalar nada |
 
 Una pieza que existe en los dos formatos **lleva el mismo nombre** en ambos, que es lo que permite emparejarlas de un vistazo. 17 de las 29 piezas en `.step` tienen su `.stl`; las 12 restantes son componentes comerciales (Raspberry Pi 5, cámara, RPLiDAR, batería, rodamientos) que modelamos para el ensamblaje virtual y nunca se imprimen.
 
@@ -659,11 +659,11 @@ Algunas piezas para empezar, cada enlace abre el visor 3D de GitHub:
 
 | Pieza | Subsistema |
 |---|---|
-| [`monochasis-v3.stl`](models/current-models/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
-| [`rueda-vtitan.stl`](models/current-models/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
-| [`pinon-90-cruceta-10-dientes.stl`](models/current-models/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
-| [`pinon-40-dientes-servo-cajera.stl`](models/current-models/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
-| [`brazo-de-tensor-v2.stl`](models/current-models/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
+| [`monochasis-v3.stl`](models/vtitan/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
+| [`rueda-vtitan.stl`](models/vtitan/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
+| [`pinon-90-cruceta-10-dientes.stl`](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
+| [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
+| [`brazo-de-tensor-v2.stl`](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
 
 El inventario completo, subsistema por subsistema, está en [`models/README.md`](models/README.md).
 
