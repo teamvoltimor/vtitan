@@ -233,7 +233,7 @@ que requiere reverificación en hardware, no solo confiar en la corrección de c
 
 **Resultado medido:** corrección de nombre de carpeta aplicada; además se corrigieron
 referencias obsoletas a "servo270" en docs, Taskfile y texto de ayuda del generador Go, y un
-error en `src/python/docs/servo-comparison-180-vs-270.md` que indicaba reiniciar el servicio
+error en la comparacion de servos que indicaba reiniciar el servicio
 equivocado
 (`vtitan-pi5.service` en vez de que `ackermann_motor_node` corre en el Pi Zero).
 
