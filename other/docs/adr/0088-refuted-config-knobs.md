@@ -98,3 +98,10 @@ less of hardware ticks, so it cannot move the alternation it was written for);
 - Sweep method: `--corpus` inside a git worktree reports a clean 0/0 (pass
   `--scenarios-dir`), and an equivalence check passed at 16 and 128 scenarios but
   failed at 256.
+- The sign-router refuted or unvalidated knobs stay off or inert:
+  `retrace_escape`, `sign_contact_evade`, `sign_lidar_align` (steering at a
+  LIDAR-resolved pillar turned the robot round: U-turns 19x, rev-runs 7x),
+  `sign_lidar_propose`, `stale_target_rescue`, `sign_lane_split_overlap`,
+  `sign_lane_skip_unsatisfiable`, `sign_lane_deform_fallback_m`. `slot_sign_map`
+  is on; its comment still says "SHIPS OFF", a stale note. `escape_mask_radius_m`
+  and its cluster association are in 0056.

@@ -154,3 +154,18 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   test.
 - All 256 corpus scenarios start dead centre (lateral 0.50) in a 1.0 m corridor,
   so narrow and off-centre starts are never exercised.
+- `sign_clearance_margin_m` was raised 0.075 to 0.10 on 2026-09-06 from hardware
+  (run_20260906_184717): the lateral shortfall is gone (0.247 m achieved against
+  0.239 commanded) and what remains is a scatter tail (p10 0.033 m, 21 percent
+  within 10 cm of the pillar). The 256 corpus moved together (laps>=3 149 to 151,
+  sign collisions 5 to 4). `activation_dist_m = 1.40` and `passed_dist_m = 1.60`
+  (stock 0.80/1.20 gave 47 finishes against 27); `deform_depth_buffer_m = 0.5`;
+  `settle_ticks = 150`; `detection_match_dist_m = 0.30`; `min_confidence = 0.25`.
+- `sign_aware_speed`, `sign_aware_lookahead`, `depth_pin` (`pin_corner_guard`,
+  `pin_heading_guard` at 35 deg), `pair_handoff_span_m = 0.30`,
+  `sign_deform_speed_threshold_m = 0.02` and `explore_lap_speed_frac = 1.0` are
+  the shipped coupling knobs. `sign_aware_lookahead` ships ON against a flat
+  headline because a pass-side violation ends the round (7 round-enders to 1).
+  `pair_handoff_span_m` blends to the next sign's line only after the REAR clears
+  (blending from the pose ORIGIN cost 12 to 16); its benefit is unprovable on this
+  corpus, which has no pass-side assertion.
