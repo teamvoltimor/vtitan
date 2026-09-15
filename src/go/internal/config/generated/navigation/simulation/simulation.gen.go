@@ -96,6 +96,28 @@ type NavigationSimulationSimulation struct {
 	// as Python literals, at these same shipped values.
 	NoProgressWindowS float64 `json:"no_progress_window_s" yaml:"no_progress_window_s" mapstructure:"no_progress_window_s"`
 
+	// Does a shoved pillar actually MOVE in the simulated world, or only on the
+	// scoreboard? The scorer already works out how far each pillar was pushed and by
+	// which component of travel, but that number stayed a scalar: the pillar's
+	// collision box -- the same box the LIDAR raycasts against -- never moved, so the
+	// sensor kept reporting it from its original cell while the robot was physically
+	// shifting it, and the robot's map stayed consistent with a track that no longer
+	// existed. MEASURED on hardware 2026-09-15: accumulating LIDAR returns PER LAP
+	// rather than over the whole bag shows pillars marching monotonically, up to 0.15
+	// m over a single round, with a stationary neighbour moving 0.4 cm as the
+	// control. SHIPS FALSE. It only bites inside the window before the displacement
+	// rule ends the run anyway -- 0.0594 m, the point at which a corner leaves the 85
+	// mm placement circle -- so the realism it buys is at most six centimetres of
+	// pillar movement, but within that window it can change what the planner sees and
+	// therefore which runs finish. Needs its own corpus A/B before it ships on. Note
+	// what this does NOT model: a TOPPLED pillar. On hardware three objects left the
+	// LIDAR plane entirely in run_20260915_140014 and never came back. That cannot
+	// matter here, because 0.15 m of drift is 2.5x the legal limit -- a judge would
+	// have ended the round long before the object went over. Toppling is a
+	// post-failure phenomenon and modelling it would add fidelity that no score can
+	// read.
+	ObstaclesArePushed bool `json:"obstacles_are_pushed" yaml:"obstacles_are_pushed" mapstructure:"obstacles_are_pushed"`
+
 	// Does inner-wall contact END an Obstacles run? In the RULES it does not. The
 	// rule set, operator-confirmed 2026-09-11: OPEN      -- the OUTER wall may not be
 	// touched (unchanged by this flag). BOTH      -- a wall may not be MOVED if it is
@@ -144,6 +166,26 @@ type NavigationSimulationSimulation struct {
 	// clearance to the inner block, and scoring that as a collision on tick one would
 	// fail a placement the rules allow.
 	StartCollisionWindowS float64 `json:"start_collision_window_s" yaml:"start_collision_window_s" mapstructure:"start_collision_window_s"`
+
+	// Standard deviation of the per-detection camera BEARING error, in radians. The
+	// emulator projects every sign from its TRUE bearing, so the only angular error a
+	// simulated run carries is the pose estimate's -- and the camera's own scatter is
+	// an order of magnitude larger than that. MEASURED 2026-09-15 over 2,588
+	// detections on the three rounds of that day whose pillar map reconstructs to the
+	// operator's stated layout: median +1.27 deg (so it is SCATTER, not a mountable
+	// offset), interquartile range -9.36 to +8.59 deg, giving a robust sigma of 13.30
+	// deg = 0.232 rad. The raw standard deviation is 18.19 deg, inflated by outliers
+	// and by detections attributed to the wrong pillar, so the IQR-derived figure is
+	// the one to use. Why it matters: 0.232 rad at 1.5 m is 0.35 m of lateral miss,
+	// which is WIDER than sign_discovery.association_dist_m (0.25) and the router's
+	// detection_match_dist_m (0.30) -- the radii meant to contain it. A simulator
+	// without this cannot exercise the slot map, the colour vote's neighbour
+	// confusion, or any gate sized against that scatter. The measurement includes the
+	// localiser's yaw error, which the simulator already injects separately as
+	// sensor_yaw_bias_rad (0.03) and sensor_imu_noise_rad (0.005); together those are
+	// about 1.7 deg, so the double-count is under 2% of the figure. 0.0 reproduces
+	// the old idealised behaviour.
+	VisionBearingScatterRad float64 `json:"vision_bearing_scatter_rad" yaml:"vision_bearing_scatter_rad" mapstructure:"vision_bearing_scatter_rad"`
 
 	// Probability that a detection reports the OPPOSITE colour. UNMEASURED, so it
 	// ships at 0.0 rather than at a guess -- defaulting an invented error rate would
