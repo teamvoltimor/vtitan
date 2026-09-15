@@ -242,3 +242,27 @@ vision_bearing_scatter_rad = 0.232
 # sequence of shallow-angle contacts, so that model voided every in-bay A/B
 # taken before this.
 contact_slides_along_surfaces = true
+
+# Does a shoved pillar actually MOVE, or only move on the scoreboard?
+#
+# The scorer already works out how far each pillar was pushed and by which
+# component of travel. That number stayed a scalar: the pillar's collision box --
+# the same one the LIDAR raycasts against -- never moved, so the sensor kept
+# reporting it from its original cell while the robot was physically shifting it,
+# and the map stayed consistent with a track that no longer existed.
+#
+# MEASURED 2026-09-15: accumulating LIDAR returns PER LAP rather than over the
+# whole bag shows pillars marching monotonically, up to 0.15 m over one round,
+# with a stationary neighbour moving 0.4 cm as the control.
+#
+# SHIPS FALSE, pending its own corpus A/B. It only bites inside the window before
+# the displacement rule ends the run anyway (0.0594 m, where a corner leaves the
+# 85 mm placement circle), so it buys at most six centimetres of movement -- but
+# inside that window it changes what the planner sees, and therefore which runs
+# finish.
+#
+# NOT modelled: a TOPPLED pillar, which on hardware leaves the LIDAR plane and
+# never returns (three objects did in run_20260915_140014). It cannot matter
+# here: 0.15 m of drift is 2.5x the legal limit, so a judge ends the round long
+# before the object goes over. Toppling is a post-failure phenomenon.
+obstacles_are_pushed = false
