@@ -109,6 +109,51 @@ tasks:
           done
         platforms: [linux, darwin]
 
+  docs:blueprints:
+    desc: >-
+      Re-encode every dimensioned drawing under models/*/blueprints/ to
+      high-quality lossy WebP (usage: task docs:blueprints). Run it after
+      exporting a new drawing from SolidWorks, so the folder keeps one encoding
+      policy instead of whatever each export happened to produce. Idempotent by
+      construction: only LOSSLESS inputs are candidates, so a drawing already at
+      q90 is skipped and re-running never stacks a second generation of loss.
+      A .png dropped in the folder is converted and the .png removed. Requires
+      cwebp (libwebp) on PATH.
+
+      WHY q90 AND NOT LOSSLESS, measured 2026-09-14 over the 47 drawings:
+      lossless 3308 KB, q95 2908 KB (-9%), q90 2496 KB (-25%), q85 2077 KB
+      (-35%). Fidelity against the lossless original on the most
+      dimension-dense drawing: q95 53 dB PSNR, q90 49 dB, q85 46 dB. Above
+      ~40 dB is the usual visually-lossless threshold, so q90 is the knee:
+      a quarter of the bytes for fidelity nobody can see, while q85 starts
+      eating into the margin that keeps dimension text crisp.
+
+      DO NOT copy this setting to schemes/flowcharts/. That was measured too,
+      and lossy makes flowcharts BIGGER, not smaller: q90 +86%, q95 +131%.
+      Flat-colour line art with text is exactly what lossless WebP is good at,
+      which is why docs:diagrams uses `-lossless -z 9` and should keep doing so.
+    vars:
+      BLUEPRINT_DIRS: models/vtitan/blueprints models/klevor/blueprints
+    cmds:
+      - cmd: |
+          for d in {{.BLUEPRINT_DIRS}}; do
+            for f in "$d"/*.png "$d"/*.webp; do
+              [ -e "$f" ] || continue
+              case "$f" in
+                *.webp)
+                  # Only LOSSLESS files are candidates. A file already at q90 is
+                  # skipped, so re-running never stacks a second generation of
+                  # loss on the drawings. VP8L in the header means lossless.
+                  head -c 64 "$f" | grep -q VP8L || { echo "skip (ya con perdida) $f"; continue; }
+                  out="$f" ;;
+                *.png)
+                  out="${f%.png}.webp" ;;
+              esac
+              cwebp -quiet -mt -q 90 "$f" -o "$out.tmp" && rm "$f" && mv "$out.tmp" "$out"
+              echo "q90 $out"
+            done
+          done
+
   docs:mermaid:
     desc: >-
       Refresh the Mermaid blocks inlined in README.md from their .mmd sources in

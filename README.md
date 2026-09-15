@@ -592,9 +592,9 @@ width="350">
 	<br>
 	<i>Piñón de 33 dientes</i>
 	<!-- PENDIENTE: el archivo se llama pinon-33-dientes-direccion.webp, pero en
-	     models/README.md los piñones de 33 dientes figuran en TRANSMISION (etapa 1
-	     de la tabla de relaciones) y los de direccion son de 8, 20 y 40. Resolver
-	     si el plano esta mal nombrado o si esta imagen no corresponde aqui. -->
+	     models/README.md los piñones de 33 dientes figuran en TRANSMISIÓN (etapa 1
+	     de la tabla de relaciones) y los de dirección son de 8, 20 y 40. Resolver
+	     si el plano está mal nombrado o si esta imagen no corresponde aquí. -->
 </p>
 
 También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñón de dirección de la misma, debido a que el sistema de transmisión de vTitan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
@@ -657,21 +657,23 @@ Una pieza que existe en los dos formatos **lleva el mismo nombre** en ambos, que
 
 Algunas piezas para empezar, cada enlace abre el visor 3D de GitHub:
 
-| Pieza | Subsistema |
-|---|---|
-| [`monochasis-v3.stl`](models/vtitan/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
-| [`rueda-vtitan.stl`](models/vtitan/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
-| [`pinon-90-cruceta-10-dientes.stl`](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
-| [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
-| [`brazo-de-tensor-v2.stl`](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
+| Vista | Pieza | Subsistema |
+|:---:|---|---|
+| [<img src="models/vtitan/blueprints/rueda-vtitan.webp" width="110">](models/vtitan/stl-files/rueda-vtitan.stl) | [`rueda-vtitan.stl`](models/vtitan/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
+| [<img src="models/vtitan/blueprints/pinon-90-cruceta-10-dientes.webp" width="110">](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | [`pinon-90-cruceta-10-dientes.stl`](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
+| [<img src="models/vtitan/blueprints/pinon-40-dientes-eje-servo.webp" width="110">](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
+| [<img src="models/vtitan/blueprints/brazo-de-tensor-v2.webp" width="110">](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | [`brazo-de-tensor-v2.stl`](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
+| (sin plano) | [`monochasis-v3.stl`](models/vtitan/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
+
+La miniatura es el plano acotado de la pieza, y **tanto la miniatura como el nombre abren el visor 3D de GitHub**. Un `.stl` no se puede incrustar en Markdown: GitHub solo lo renderiza en la página del propio archivo, así que el enlace es la única forma de llegar al visor.
 
 El inventario completo, subsistema por subsistema, está en [`models/README.md`](models/README.md).
 
 <!-- HUECO (rubro WRO 2026, criterio 1 "Montaje", lo que sigue faltando).
-La vista despiezada y el inventario de piezas ya estan arriba, pero falta lo que
-hace el montaje REPRODUCIBLE: orden de armado paso a paso, tornilleria (metrica y
-longitud por posicion), torque de apriete, y los parametros de impresion por pieza
-(material, altura de capa, relleno, soportes, orientacion de cama). -->
+La vista despiezada y el inventario de piezas ya están arriba, pero falta lo que
+hace el montaje REPRODUCIBLE: orden de armado paso a paso, tornillería (métrica y
+longitud por posición), par de apriete, y los parámetros de impresión por pieza
+(material, altura de capa, relleno, soportes, orientación de cama). -->
 
 ### Relación de torque y velocidad
 
@@ -1613,35 +1615,35 @@ Las cinco áreas del robot no se diseñaron por separado y luego se juntaron. Ca
 <!-- mermaid-src: schemes/flowcharts/common/mermaid/subsistemas.mmd -->
 ```mermaid
 flowchart TD
-    subgraph ENERGIA["ENERGIA"]
-        BAT["Bateria LiPo 3S 11.1V<br/>Ovonic Air"]
-        SW["Interruptor de encendido<br/>eslabon mas debil de la ruta"]
+    subgraph ENERGÍA["ENERGÍA"]
+        BAT["Batería LiPo 3S 11.1V<br/>Ovonic Air"]
+        SW["Interruptor de encendido<br/>eslabón más débil de la ruta"]
         REG["Step Down Mini-560 Pro<br/>11.1V a 5V"]
         USBC["Convertidor KL89576<br/>5V a USB-C"]
     end
 
-    subgraph COMPUTO["COMPUTO"]
-        PI5["Raspberry Pi 5 16GB<br/>percepcion y planificacion<br/>~1.5 a 2.5 A"]
+    subgraph CÓMPUTO["CÓMPUTO"]
+        PI5["Raspberry Pi 5 16GB<br/>percepción y planificación<br/>~1.5 a 2.5 A"]
         NPU["AI HAT+ 26 TOPS<br/>inferencia YOLO<br/>~1.0 a 1.5 A"]
         ZERO["Raspberry Pi Zero 2 W<br/>control en tiempo real<br/>solo 2 PWM por hardware"]
     end
 
     subgraph SENSORES["SENSORES"]
-        LIDAR["RPLiDAR C1<br/>paredes, colision, rumbo de senal"]
-        CAM["Camera Module 3 Wide<br/>color y rumbo de senal"]
+        LIDAR["RPLiDAR C1<br/>paredes, colisión, rumbo de señal"]
+        CAM["Camera Module 3 Wide<br/>color y rumbo de señal"]
         IMU["IMU BNO085<br/>UART-RVC 100 Hz, 6 ejes"]
         ENC["Encoder del motor<br/>60 pulsos por vuelta"]
     end
 
-    subgraph ACTUACION["ACTUACION"]
+    subgraph ACTUACIÓN["ACTUACIÓN"]
         HB["Puente H BTS7960<br/>43 A, pico medido ~20 A"]
-        MOT["HD Hex Motor<br/>traccion 4x4"]
-        SRV["Servo HPS-3527SG 35 kg<br/>direccion en contrafase"]
+        MOT["HD Hex Motor<br/>tracción 4x4"]
+        SRV["Servo HPS-3527SG 35 kg<br/>dirección en contrafase"]
     end
 
-    subgraph MECANICA["MECANICA"]
-        TRANS["Transmision por correa<br/>relacion total 3.29"]
-        DIR["Direccion 4 ruedas<br/>radio minimo 0.29 m"]
+    subgraph MECÁNICA["MECÁNICA"]
+        TRANS["Transmisión por correa<br/>relación total 3.29"]
+        DIR["Dirección 4 ruedas<br/>radio mínimo 0.29 m"]
     end
 
     BAT --> SW
@@ -1658,7 +1660,7 @@ flowchart TD
     CAM -.->|CSI, fotogramas| PI5
     PI5 -.->|PCIe| NPU
     NPU -.->|detecciones 15 Hz| PI5
-    PI5 -.->|ROS2 DDS, 29 topicos| ZERO
+    PI5 -.->|ROS2 DDS, 29 tópicos| ZERO
     ZERO -.->|pose, odometria| PI5
     IMU -.->|UART-RVC| ZERO
     ENC -.->|pulsos| ZERO
@@ -1705,9 +1707,9 @@ min_asymmetry_m = 0.20
 Y otro, del perfil del motor actual, que muestra el caso contrario, una constante marcada explícitamente como *todavía no medida*:
 
 ```toml
-# TODAVÍA NO MEDIDA EN BANCO. 0.234 es la velocidad medida del motor anterior
-# (0.156 m/s) escalada por el "~50% más rápido" con que se describió este motor,
-# y es la suposición que más peso carga en este archivo.
+# Techo físico de aceleración (m/s^2). NO MEDIDO para este motor: viene del 2.0
+# único y compartido que vivía en el robot.toml base hasta el 2026-08-29.
+max_accel_mps2 = 2.0
 ```
 
 Escribir «esto todavía no está medido» dentro del propio sistema evita que una estimación se convierta silenciosamente en un hecho.

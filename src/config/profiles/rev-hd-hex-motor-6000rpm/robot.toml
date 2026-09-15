@@ -7,22 +7,6 @@
 # than as a part.
 
 [drivetrain]
-# NOT YET BENCH-MEASURED. 0.234 is the previous motor's measured 0.156 m/s
-# scaled by the "~50% faster" this motor was described as, and it is the single
-# most load-bearing assumption in this file -- the Open Challenge time limit is
-# a distance/speed problem before it is a control problem, and every tier in
-# motion/speed.toml is chosen against this number.
-#
-# Measure it the same way 0.156 was (under load, on the mat, timed over a known
-# distance) before flying anything that depends on the margin. Two specific
-# reasons this matters more than usual:
-#   * the minimum sustainable speed is unknown, and the ladder's floor is now
-#     0.1521 m/s -- within 3% of the ENTIRE top speed of the previous motor.
-#   * localization.MAX_SPEED_MPS (0.25) is the localizer's "physically
-#     impossible" plausibility bound. Against 0.234 it has 6.8% headroom, down
-#     from 60% against 0.156. That guard is what rejects the scan-match snap
-#     that root-caused the CCW corner failures; it needs raising with this.
-max_speed_mps = 0.58
 # BENCH-MEASURED 2026-08-30, robot loaded on the floor, closed loop at the
 # shipped max_duty of 0.5: achieved = 1.042 * commanded + 0.034 m/s, which
 # rails at ~0.58 (commanded 0.56 -> the PID saturates at max_duty and stops
@@ -47,6 +31,14 @@ max_speed_mps = 0.58
 # did at 1.0. The 2026-09-01 Open A/B (639/640) therefore still stands. If a
 # future tier is raised past 0.58 that stops being true, and the clamp will
 # start silently eating the difference.
+#
+# SUPERSEDES the 0.234 estimate that stood above this key until 2026-09-14:
+# the previous motor's 0.156 m/s scaled by the "~50% faster" this one was
+# described as. It was never measured, and the bench above replaced it. Its two
+# standing warnings are both discharged: the speed ladder is absolute m/s (see
+# motion/speed.toml) and localization.max_speed_mps was raised 0.25 -> 0.60, so
+# the plausibility bound no longer sits under the speeds the robot reaches.
+max_speed_mps = 0.58
 
 # Physical acceleration ceiling (m/s^2). NOT MEASURED for this motor -- carried
 # over from the single shared 2.0 that lived in the base robot.toml until
