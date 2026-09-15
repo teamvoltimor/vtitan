@@ -65,7 +65,8 @@
 
   <!-- ────────────────────── lidar_link (laser_frame) ─────────────────── -->
   <!-- Front of chassis, centred left/right (measured 2026-07-11):
-       x = LENGTH/2 - lidar mesh radius = 0.1222, z = HEIGHT + 0.02 = 0.12 -->
+       x = LENGTH/2 - lidar mesh radius = 0.1222,
+       z = HEIGHT + lidar_mount_z = 0.10 - 0.02 = 0.08 (recessed; ADR 0014) -->
   <link name="lidar_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -86,7 +87,7 @@
   <joint name="lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="lidar_link"/>
-    <origin xyz="0.1222 0 0.12" rpy="0 0 0"/>
+    <origin xyz="0.1222 0 0.08" rpy="0 0 0"/>
   </joint>
 
   <!-- ─────────────────────── imu_link ─────────────────────────────────── -->

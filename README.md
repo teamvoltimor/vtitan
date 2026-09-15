@@ -1079,8 +1079,8 @@ Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se versionan 
 <!-- HUECO (rubro WRO 2026, criterio 2 "modos de fallo y fiabilidad").
 Falta la sección de protección eléctrica: fusible o limitador en la rama de
 tracción (picos medidos de ~20 A), corte por bajo voltaje de la LiPo 3S, y
-procedimiento de carga y almacenamiento. También queda abierta la discrepancia
-de la altura del plano del haz del LIDAR entre robot.toml, la TF estática y el URDF. -->
+procedimiento de carga y almacenamiento. (La discrepancia de la altura del haz
+del LIDAR quedó resuelta: 0.08 m, ver ADR 0014.) -->
 
 #### Calibración
 

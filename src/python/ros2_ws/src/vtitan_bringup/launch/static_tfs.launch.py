@@ -6,8 +6,8 @@ sensor-frame coordinates can resolve them from TF without a running URDF publish
 Poses match the Go Gazebo SDF generator (src/go/internal/simgen/sdf/robot.go)
 and the URDF in robot_description/wro_robot.urdf (measured 2026-07-11, see
 ../../../../docs/robot-physical-constants.md):
-  camera_link : over the LIDAR, angled down  x=+0.1222  y=0   z=+0.16  pitch=+30deg
-  lidar_link  : front of chassis, centered   x=+0.1222  y=0   z=+0.12
+  camera_link : over the LIDAR, angled down  x=+0.1222  y=0   z=+0.20  pitch=+10deg
+  lidar_link  : front of chassis, centered   x=+0.1222  y=0   z=+0.08
   imu_link    : near chassis bottom          x=0        y=0   z=+0.01
 
 lidar_link's yaw comes from RobotSpecs.lidar_yaw_offset_rad() -- the mandatory
