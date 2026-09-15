@@ -138,3 +138,8 @@ mistake and it wrongly excluded the 0.10 arm.
   never start wide and narrow later.
 - On wide corridors bias the path toward the INNER wall, not the outer (the outer
   is what gets hit); fix the anchoring and keep the narrow prior.
+- `replan_heading_tie_margin_m = 0.15` re-ranks near-tied waypoints by heading
+  agreement; picking purely by position handed pursuit a 193 deg correction where
+  the corner needed 90. `narrow_width_threshold_m = 0.8` is the midpoint between
+  the two rule widths, a threshold not an interpolation. `first_lap_corner_caution`
+  is on; `corner_caution_all_laps` and `first_lap_corner_caution_narrow_only` off.
