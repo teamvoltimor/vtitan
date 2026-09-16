@@ -54,8 +54,17 @@ deg approach.
   Commits that break comparability carry `!` in the type (see 0087).
 - `vision_through_pinhole = false` means the corpus still does not exercise the
   real bbox decode path, pending an Obstacles re-baseline.
-- `scrub_yaw_gain` (code default 0.0) is the suspected home of the remaining escape
-  yaw gap; free-space replay cannot generate it.
+- The escape yaw gap was NOT `scrub_yaw_gain` (which only acts at standstill) and
+  not contact: it was the turn-radius cap read in reverse. Split by the encoder's
+  sign over three 2026-09-15 rounds, the chassis at 30-45 deg holds R 0.27-0.33 m
+  forward (the 0.35 cap is right) and 0.19-0.20 m in REVERSE, where the simulator
+  held 0.32-0.34. But binned by speed the reverse yaw is ~1.0 rad/s at EVERY
+  speed (R 0.08 m at 0.08 m/s, 0.24 at 0.25): a pivot, not a radius, and whether
+  it is scrub or contact the bags cannot say (every reverse tick is within 0.30 m
+  of something). `min_turn_radius_reverse_cap_m = 0.20` is the fit at escape speed:
+  simulated escape yaw rate p50 24-26 -> 35-41 deg/s against 26-53 on hardware,
+  and corpus 13 -> 25, all four new failures a collision in the reverse leg of the
+  first k_turn -- the manoeuvre in which the hardware pushes pillars and carries on.
 - `min_turn_radius_cap_m` is not measured, and terminal-surface contact still ends
   the run on the first tick.
 

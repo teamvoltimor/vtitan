@@ -25,6 +25,7 @@ min_turn_radius_m = 0.29
 min_turn_radius_intercept_m = 0.053
 min_turn_radius_slope_s = 1.86
 min_turn_radius_cap_m = 0.35
+min_turn_radius_reverse_cap_m = 0.20
 
 [lidar]
 min_range = 0.045

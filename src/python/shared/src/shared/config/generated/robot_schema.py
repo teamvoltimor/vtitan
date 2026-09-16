@@ -100,6 +100,10 @@ class Drivetrain(StrictModel):
         None,
         description='Bound on the speed curve (m). Not measured: the largest value the measured range supports, so the linear term cannot run away.',
     )
+    min_turn_radius_reverse_cap_m: float | None = Field(
+        None,
+        description="Bound on the speed curve while REVERSING (m). A first-order fit, not the physics: reversing at lock the chassis yaws ~1.0 rad/s at EVERY encoder speed (R 0.08 m at 0.08 m/s, 0.19 at 0.18, 0.24 at 0.25), a pivot rather than a radius. 0.20 matches it at the escape's 0.18-0.20 m/s; the forward cap gave 0.35 and half the rotation.",
+    )
 
 
 class Lidar(StrictModel):

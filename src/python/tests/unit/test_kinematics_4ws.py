@@ -170,6 +170,51 @@ class TestMeasuredDeparturesFromTheIdealModel:
         assert state.v == pytest.approx(0.5 * _DT, rel=1e-6)
 
 
+def _steady_radius_at(kin: AckermannKinematics, speed: float) -> float:
+    """Steady-state |radius| at full lock and a SIGNED speed, integrated like above."""
+    state = AckermannState(x=0.0, y=0.0, yaw=0.0)
+    for _ in range(200):
+        state = kin.step(state, target_speed=speed, target_steer_norm=1.0, dt=_DT)
+    yaw_before, v = state.yaw, state.v
+    state = kin.step(state, target_speed=speed, target_steer_norm=1.0, dt=_DT)
+    return abs(v / ((state.yaw - yaw_before) / _DT))
+
+
+class TestTheTurnRadiusFloorIsDirectional:
+    """The speed curve's cap differs by direction, and the difference is measured.
+
+    Split by the encoder's sign over run_20260915_140852/141413/140358, the
+    chassis at 30-45 deg holds R 0.27-0.33 m forward at 0.15-0.21 m/s, which
+    the 0.35 m forward cap reproduces. In REVERSE it yaws ~1.0 rad/s at every
+    speed, so R grows with v (0.08 m at 0.08 m/s, 0.19 at 0.18, 0.24 at 0.25):
+    a pivot the radius model cannot express. 0.20 m is the fit at the escape's
+    own 0.18-0.20 m/s, where the forward cap made the simulator hold 0.32-0.34
+    and rotate half of what the IMU records.
+    """
+
+    def test_reverse_holds_a_tighter_radius_than_forward_at_the_same_speed(self):
+        kin = AckermannKinematics(min_turn_radius_m=RobotSpecs.MIN_TURN_RADIUS_M, radius_tracks_speed=True, max_speed_mps=1e6)
+        forward = _steady_radius_at(kin, 0.2)
+        reverse = _steady_radius_at(kin, -0.2)
+
+        # At 0.2 m/s the linear term is 0.053 + 1.86 * 0.2 = 0.42 m, above both
+        # caps, so each direction reads its own cap and nothing else.
+        assert forward == pytest.approx(RobotSpecs.MIN_TURN_RADIUS_CAP_M, rel=1e-2)
+        assert reverse == pytest.approx(RobotSpecs.MIN_TURN_RADIUS_REVERSE_CAP_M, rel=1e-2)
+        assert reverse < forward
+
+    def test_the_shipped_reverse_cap_is_the_measured_one(self):
+        """0.20 m is the measured fit at escape speed (three rounds, n=125..2422), not a tunable."""
+        assert RobotSpecs.MIN_TURN_RADIUS_REVERSE_CAP_M == pytest.approx(0.20)
+        assert RobotSpecs.MIN_TURN_RADIUS_REVERSE_CAP_M < RobotSpecs.MIN_TURN_RADIUS_CAP_M
+
+    def test_a_disabled_floor_stays_disabled_in_reverse(self):
+        """``min_turn_radius_m = 0`` asked for no clamp; the direction switch must not resurrect one."""
+        kin = AckermannKinematics(min_turn_radius_m=0.0, radius_tracks_speed=True, yaw_gain=1.0, max_speed_mps=1e6)
+        ideal = (RobotSpecs.WHEELBASE / (1.0 + RobotSpecs.REAR_STEER_RATIO)) / math.tan(RobotSpecs.MAX_STEERING_ANGLE)
+        assert _steady_radius_at(kin, -0.2) == pytest.approx(ideal, rel=1e-2)
+
+
 class TestWheelPosesShowTheCounterPhase:
     """``wheel_poses`` exists so RViz can draw what this file asserts.
 

@@ -300,8 +300,14 @@ class AckermannKinematics:
             # clamp instead of the model they name.
             floor = self._min_turn_radius_m
             if self._radius_tracks_speed and floor > 0.0:
+                # The cap is directional. Reversing at lock the real chassis yaws
+                # ~1 rad/s regardless of speed (a pivot, not a radius), and the
+                # forward cap read in reverse gave every simulated escape about
+                # half the rotation the IMU records. The reverse cap is the
+                # first-order fit at the escape's speed; see RobotSpecs.
+                cap = RobotSpecs.MIN_TURN_RADIUS_REVERSE_CAP_M if v < 0.0 else RobotSpecs.MIN_TURN_RADIUS_CAP_M
                 floor = min(
-                    RobotSpecs.MIN_TURN_RADIUS_CAP_M,
+                    cap,
                     RobotSpecs.MIN_TURN_RADIUS_INTERCEPT_M + RobotSpecs.MIN_TURN_RADIUS_SLOPE_S * abs(v),
                 )
             curvature = math.tan(steer) * self._yaw_gain / self._turn_reference_len

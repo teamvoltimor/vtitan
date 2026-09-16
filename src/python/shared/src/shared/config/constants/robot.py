@@ -80,7 +80,24 @@ class RobotSpecs:
     MIN_TURN_RADIUS_INTERCEPT_M: Final[float] = _robot.drivetrain.min_turn_radius_intercept_m
     MIN_TURN_RADIUS_SLOPE_S: Final[float] = _robot.drivetrain.min_turn_radius_slope_s
     MIN_TURN_RADIUS_CAP_M: Final[float] = _robot.drivetrain.min_turn_radius_cap_m
+    MIN_TURN_RADIUS_REVERSE_CAP_M: Final[float] = _robot.drivetrain.min_turn_radius_reverse_cap_m
     """The floor as a FUNCTION OF SPEED: ``min(cap, intercept + slope * |v|)``.
+
+    The cap is DIRECTIONAL, and the reverse value is a FIT, not the physics.
+    Measured 2026-09-16 on run_20260915_140852/141413/140358 with
+    ``scripts/bag/diag_bag_sim_fidelity.py``'s samples split by the encoder's
+    sign: forward at 30-45 deg the chassis holds R 0.27-0.33 m, which the 0.35
+    cap reproduces. In REVERSE at the same angle the yaw rate is ~1.0 rad/s at
+    EVERY speed (R 0.07-0.08 m at 0.08 m/s, 0.19 at 0.18, 0.23-0.25 at 0.25),
+    i.e. a speed-independent pivot -- the 0.075 m "pocket radius" is this
+    pivot read at creep. A radius cap cannot express that; 0.20 matches the
+    escape's own 0.18-0.20 m/s and still under-rotates at creep. Whether the
+    pivot is tyre scrub or contact cannot be separated in the bags: every
+    reverse tick sits within 0.30 m of something and ``rear_clearance_m`` is
+    unset inside manoeuvres. It is NOT ``scrub_yaw_gain``, which only acts at
+    standstill. Corpus 13 -> 25 with it: 0005/0006/0010/0012 now collide in
+    the reverse leg of their first k_turn, which is where the hardware pushes
+    pillars 8-19 cm and carries on -- see ``obstacles_are_pushed``.
 
     Measured 2026-09-10 over 33 bags; the constant below is this curve's value
     at 0.118 m/s. Only ``AckermannKinematics`` consumes these, and only when

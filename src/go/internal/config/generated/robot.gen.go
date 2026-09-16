@@ -109,6 +109,13 @@ type RobotConfigDrivetrain struct {
 	// one speed (~0.127 m/s). 0 disables the floor.
 	MinTurnRadiusM *float64 `json:"min_turn_radius_m,omitempty,omitzero" yaml:"min_turn_radius_m,omitempty" mapstructure:"min_turn_radius_m,omitempty"`
 
+	// Bound on the speed curve while REVERSING (m). A first-order fit, not the
+	// physics: reversing at lock the chassis yaws ~1.0 rad/s at EVERY encoder speed
+	// (R 0.08 m at 0.08 m/s, 0.19 at 0.18, 0.24 at 0.25), a pivot rather than a
+	// radius. 0.20 matches it at the escape's 0.18-0.20 m/s; the forward cap gave
+	// 0.35 and half the rotation.
+	MinTurnRadiusReverseCapM *float64 `json:"min_turn_radius_reverse_cap_m,omitempty,omitzero" yaml:"min_turn_radius_reverse_cap_m,omitempty" mapstructure:"min_turn_radius_reverse_cap_m,omitempty"`
+
 	// How fast the turn-radius floor grows with speed (s), i.e. R = intercept + slope
 	// * v.
 	MinTurnRadiusSlopeS *float64 `json:"min_turn_radius_slope_s,omitempty,omitzero" yaml:"min_turn_radius_slope_s,omitempty" mapstructure:"min_turn_radius_slope_s,omitempty"`
