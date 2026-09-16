@@ -19,10 +19,14 @@ AXES, in the order they were worth modelling:
    This is the axis that was measured in the wrong frame once; see
    ``diag_bag_lidar_frame_census.py``, which prints both frames precisely so
    this one can print a single honest table.
-2. **Vision freshness** -- the share of NAV ticks that had a red/green detection
-   arrive since the previous tick. Not camera fps and not detections per second:
-   what the navigator sees is what it can act on, and the two differ by the
-   nav/camera rate ratio.
+2. **Vision freshness** -- the share of NAV ticks that had a fresh colour
+   OBSERVATION arrive since the previous tick, where "observation" means what
+   ``detection_to_observation`` keeps, not what the detector emitted. Not camera
+   fps and not detections per second: what the navigator can act on is the
+   subject. The definition lives in ``scripts/common/fidelity_axes.py`` because
+   this script and the simulator one computed it differently until 2026-09-16 --
+   see that module for the two measured biases, both of which flattered the
+   hardware side.
 3. **Escape episodes** -- count, duration, and the yaw the chassis actually
    turned through. The yaw is taken from the IMU, not from the pose, because the
    pose is the localizer's opinion and escapes are exactly when it is worst.
@@ -47,39 +51,118 @@ from __future__ import annotations
 
 import argparse
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
+import shared.domain.enums  # noqa: F401  (imported first: the models <-> enums cycle needs a seed)
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
+from shared.domain.models import Pose, SignColor
 
 from scripts.common.bag_io import (
     LIDAR_YAW_OFFSET_RAD,
     create_bags_parser,
+    decode_detections,
     read_motion_streams,
     read_vision_rows_and_scans,
 )
 from scripts.common.fidelity_axes import (
     SectorCensus,
+    VisionFreshness,
     contiguous_episodes,
     format_committed,
     format_escapes,
     format_steering,
+    format_vision_freshness,
+    frame_carries_observation,
 )
 from scripts.common.stats import percentile
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _SCAN_STRIDE = 5
 _ESCAPE_STEER_FLOOR = 0.3
 """Below this the escape is not really steering, and its yaw says nothing about turn authority."""
 
 
-def _has_colour(payload: list[dict]) -> bool:
-    """Does this vision frame carry a red or green detection?
+def _raw_colour_mention(payload: list[dict]) -> bool:
+    """Is the string ``red`` or ``green`` anywhere in this frame's payload?
 
-    String-matched against the whole payload rather than a parsed class enum,
-    because the recorded payload schema has changed twice and a diagnostic that
-    silently reads zero detections after a schema change is worse than useless.
+    KEPT ONLY AS A CONTROL, and deliberately no longer the axis. This loose match
+    is what this script used to report as vision freshness, and it counts records
+    production discards -- a dict with no usable bbox never survives
+    ``decode_detections``, and a box whose aspect ratio is not a pillar's never
+    survives ``detection_to_observation``. Printing all three shares side by side
+    is how the funnel stays visible: 50.2% raw, 39.7% typed, 32.2% kept on
+    ``run_20260915_140358``. The schema-drift argument for the loose match still
+    holds, which is exactly why it stays on as the control that would go to zero.
     """
     return any("red" in str(d).lower() or "green" in str(d).lower() for d in payload)
+
+
+def _pose_interpolator(rows: list[tuple[float, object]]) -> Callable[[float], Pose]:
+    """Believed pose at an arbitrary time, interpolated from the /nav_debug rows.
+
+    Yaw is unwrapped before interpolation: halfway between +179 and -179 degrees
+    is 180, not 0, and the naive average points the camera backwards for exactly
+    the frames taken while cornering.
+    """
+    pose_t = np.array([t for t, s in rows if s.pose_y is not None])
+    pose_xyz = np.array([(s.pose_x, s.pose_y, s.pose_yaw) for _t, s in rows if s.pose_y is not None])
+    yaw = np.unwrap(pose_xyz[:, 2]) if pose_t.size else np.array([])
+
+    def at(t: float) -> Pose:
+        if not pose_t.size:
+            return Pose(x=0.0, y=0.0, yaw=0.0)
+        return Pose(
+            x=float(np.interp(t, pose_t, pose_xyz[:, 0])),
+            y=float(np.interp(t, pose_t, pose_xyz[:, 1])),
+            yaw=float(np.interp(t, pose_t, yaw)),
+        )
+
+    return at
+
+
+def _vision_lines(
+    rows: list[tuple[float, object]],
+    frames: list[tuple[float, list[dict]]],
+    times: np.ndarray,
+    duration: float,
+) -> list[str]:
+    """The shared vision-freshness block, plus this source's own funnel.
+
+    The FUNNEL is printed because the axis moved: raw is any mention of a colour
+    in the payload, typed is what ``decode_detections`` rebuilds, and kept is
+    what ``detection_to_observation`` lets through. Only the last is the axis.
+    Seeing all three means the next person can tell a detector that went quiet
+    from a payload schema that changed under the parser -- which is the failure
+    the old loose match was defending against, kept without letting it be the
+    headline number again.
+    """
+    if not frames:
+        return []
+    frame_t = np.array([t for t, _ in frames])
+    pose_at = _pose_interpolator(rows)
+    decoded = [(t, decode_detections(payload)) for t, payload in frames]
+    previous = np.concatenate([[times[0] - 0.05], times[:-1]])
+
+    def fresh_ticks(frame_hits: list[bool]) -> np.ndarray:
+        """Nav ticks that had at least one hit land since the previous tick."""
+        cumulative = np.concatenate([[0], np.cumsum(np.array(frame_hits, dtype=int))])
+        return (cumulative[np.searchsorted(frame_t, times)] - cumulative[np.searchsorted(frame_t, previous)]) > 0
+
+    raw = fresh_ticks([_raw_colour_mention(payload) for _t, payload in frames])
+    typed = fresh_ticks([any(d.color in (SignColor.RED, SignColor.GREEN) for d in dets) for _t, dets in decoded])
+    kept = fresh_ticks([frame_carries_observation(dets, pose_at(t)) for t, dets in decoded])
+    return format_vision_freshness(
+        VisionFreshness(hits=int(kept.sum()), opportunities=len(times), denominator="nav ticks"),
+        extra=(
+            f"camera {len(frames) / duration:.1f} fps, nav {len(rows) / duration:.1f} Hz; "
+            f"funnel over the SAME nav ticks: raw={100 * raw.mean():.1f}% -> "
+            f"typed={100 * typed.mean():.1f}% -> kept={100 * kept.mean():.1f}%"
+        ),
+    )
 
 
 def main() -> int:
@@ -150,16 +233,8 @@ def main() -> int:
         for line in format_steering(steer, duration):
             print(line)
 
-        if frames:
-            frame_t = np.array([t for t, _ in frames])
-            hits = np.array([_has_colour(payload) for _t, payload in frames])
-            cumulative = np.concatenate([[0], np.cumsum(hits)])
-            previous = np.concatenate([[times[0] - 0.05], times[:-1]])
-            fresh = (cumulative[np.searchsorted(frame_t, times)] - cumulative[np.searchsorted(frame_t, previous)]) > 0
-            print(
-                f"vision: camera {len(frames) / duration:.1f} fps, frames with red/green={100 * hits.mean():.1f}%  "
-                f"NAV ticks with a fresh detection={100 * fresh.mean():.1f}%  nav {len(rows) / duration:.1f} Hz"
-            )
+        for line in _vision_lines(rows, frames, times, duration):
+            print(line)
 
         census = SectorCensus()
         for _t, data in scans[::_SCAN_STRIDE]:
@@ -193,7 +268,9 @@ def main() -> int:
     print(
         "\nRun scripts/sim/diag_fidelity_axes.py and diff the blocks. Do NOT assume the sign of a\n"
         "divergence: measured 2026-09-15, vision freshness and the push rule were PESSIMISTIC in sim\n"
-        "while occlusion, escape rotation, creep and detection range were optimistic."
+        "while occlusion, escape rotation, creep and detection range were optimistic.\n"
+        "The vision share above is the PRODUCTION-OBSERVATION one over NAV TICKS. The simulator's\n"
+        "is over GATEWAY POLLS, which is not the same denominator -- both halves now name theirs."
     )
     return 0
 

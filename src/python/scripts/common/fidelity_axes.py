@@ -15,6 +15,9 @@ sides must agree on:
 * :data:`SECTOR_BANDS` -- the LIDAR bearing bands, in the ROBOT frame.
 * :func:`contiguous_episodes` -- how a run of manoeuvre ticks becomes one episode.
 * :class:`SectorCensus` -- streaming accumulation of finite/sub-floor ray shares.
+* :class:`VisionFreshness` and :func:`frame_carries_observation` -- the VISION
+  axis, which this module did not own until 2026-09-16 and which the two halves
+  had therefore drifted apart on twice over. See below.
 * the ``format_*`` helpers -- identical line shapes, so a diff of the two
   outputs is a diff of the ROBOT, not of two authors' f-strings.
 
@@ -26,19 +29,48 @@ mount because ``robot.toml`` sets ``lidar.inverted = true``. Feed raw
 car. Use ``bag_io.scan_to_ranges_angles``, which applies the offset, or add
 ``bag_io.LIDAR_YAW_OFFSET_RAD`` yourself. See
 ``diag_bag_lidar_frame_census.py``, which exists to make that error visible.
+
+SECOND TRAP, and the reason the vision axis moved in here: an axis this module
+does not OWN is an axis the two halves will define differently, and they did.
+Both biases were measured on ``run_20260915_140358`` and both inflated the
+hardware side:
+
+1. The bag half counted a frame as vision if ``"red"`` or ``"green"`` appeared
+   anywhere in ``str(payload)``. That counts detections production THROWS AWAY:
+   ``bag_io.decode_detections`` skips a record with no usable bbox, and
+   ``sign_discovery.detection_to_observation`` then drops anything whose aspect
+   ratio is not a pillar's. The three numbers on that round are 50.2% raw,
+   39.7% typed, and 32.2% surviving to an observation -- so the loose match
+   overstated the real axis by more than half again.
+2. The bag half divided by ALL nav ticks and the simulator half by GATEWAY
+   POLLS, which on hardware are 81.3% of ticks. Two shares with different
+   denominators printed in the same line shape read as one comparison and are
+   not one.
+
+So the hardware number is the PRODUCTION-OBSERVATION share -- what the navigator
+could actually act on -- and every printed share now names its own denominator.
+Measured under those definitions: hardware 32.2% / 31.7% / 24.9% on
+``run_20260915_140358`` / ``140852`` / ``141413``, mean 29.6%, against a
+simulator that returns a detection on 29.6% of polls at
+``simulation.vision_frame_miss_rate = 0.30``. That agreement is what calibrated
+the knob, and it only exists because both sides finally mean the same thing.
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from scripts.common.stats import percentile
+from src.navigation.planning.sign_discovery import detection_to_observation
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+
+    from shared.domain.models import Detection, Pose
 
 SECTOR_BANDS: tuple[tuple[str, float, float], ...] = (
     ("front<25", 0.0, 25.0),
@@ -65,6 +97,82 @@ return overstates what the robot had to work with. Tracked separately rather
 than subtracted, because on hardware it is a share of all rays large enough to
 be a finding in itself; see ``adr:0086-simulator-realism``.
 """
+
+
+HARDWARE_POLLS_PER_NAV_TICK = 0.813
+"""Camera polls per navigation tick on hardware, measured 2026-09-15.
+
+The bag half's natural denominator is NAV TICKS, because a tick is the unit the
+navigator acts on. The simulator half's is GATEWAY POLLS, because that is what
+it can instrument. Those are not the same denominator and this is the measured
+ratio between them.
+
+Stated here rather than corrected FOR. Scaling one share into the other assumes
+the ticks that carry no poll are a uniform sample of the rest, and nothing has
+established that -- they are concentrated wherever the loop ran long, which is
+exactly where the camera matters. So declare which denominator a number used,
+which is what :func:`format_vision_freshness` prints on every line.
+"""
+
+
+@dataclass(frozen=True)
+class VisionFreshness:
+    """One side's answer to "how often did the navigator have fresh colour to act on?".
+
+    ``opportunities`` and ``denominator`` travel TOGETHER on purpose. The whole
+    defect this type exists to prevent is a share whose denominator is implicit:
+    the bag half counted nav ticks and the simulator half counted gateway polls,
+    and printed both in the same line shape as if they were one axis.
+    """
+
+    hits: int
+    opportunities: int
+    denominator: str
+
+    @property
+    def share_pct(self) -> float:
+        """``hits`` as a percentage of ``opportunities``; 0.0 when nothing was counted."""
+        return 100.0 * self.hits / self.opportunities if self.opportunities else 0.0
+
+
+def frame_carries_observation(detections: Iterable[Detection], pose: Pose) -> bool:
+    """Does this camera frame yield a colour observation PRODUCTION would keep?
+
+    The gate is the shipped one, called directly rather than approximated:
+    ``detection_to_observation`` rejects a non-red/green class, a bbox too short
+    to range from, and -- the one that actually bites -- a box whose aspect ratio
+    is not a pillar's, which is what keeps the parking barrier out of the sign
+    map. A probe that counts raw detector output instead is measuring a quantity
+    no navigator ever saw: on ``run_20260915_140358`` that is 50.2% of ticks
+    against the 32.2% production kept.
+
+    ``pose`` only places the observation in the world; it cannot change whether
+    one survives, so an interpolated pose is good enough here even though it
+    would not be for a position measurement.
+    """
+    return any(detection_to_observation(det, pose) is not None for det in detections)
+
+
+def format_vision_freshness(freshness: VisionFreshness, *, extra: str = "") -> list[str]:
+    """The vision block, identical on both sides, with the denominator NAMED.
+
+    ``extra`` carries whatever is true of one source only -- camera fps and the
+    raw/typed/kept funnel on a bag, poll count in the simulator -- and is
+    printed BELOW the shared line so the shared line stays diffable.
+    """
+    lines = [
+        f"vision: fresh usable colour observation on {freshness.share_pct:.1f}% of "
+        f"{freshness.opportunities} {freshness.denominator} "
+        f"(n={freshness.hits}; production gate: decode + pillar aspect)"
+    ]
+    if extra:
+        lines.append(f"  {extra}")
+    lines.append(
+        f"  denominator: {freshness.denominator}. The bag half counts NAV TICKS and the simulator half "
+        f"GATEWAY POLLS, which on hardware are {100 * HARDWARE_POLLS_PER_NAV_TICK:.1f}% of ticks -- read the "
+        f"two shares as near-comparable, not as identical"
+    )
+    return lines
 
 
 def contiguous_episodes(flags: Sequence[bool]) -> list[tuple[int, int]]:

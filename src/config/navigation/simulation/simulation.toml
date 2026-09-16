@@ -223,19 +223,50 @@ sensor_imu_noise_rad = 0.005
 # ---------------------------------------------------------------------------
 # CAMERA REALISM, on by default since 2026-09-14
 #
-# The emulator emitted from the CURRENT tick's true state, so the simulated
-# camera spoke on ~54.5% of ticks with ZERO lag. Hardware carries a detection on
-# 11.6% of ticks (measured over 125 bags) and the real gateway compensates a
-# MEASURED 0.85 s pipeline delay. That gap IS the anticipation budget: it
-# decides whether the planner or the reactive layer handles a pillar, so a sim
-# without it asks the reactive layer to rescue far fewer situations than the mat
-# does.
+# The emulator emitted from the CURRENT tick's true state, i.e. with ZERO lag,
+# while the real gateway compensates a MEASURED 0.85 s pipeline delay. That gap
+# IS the anticipation budget: it decides whether the planner or the reactive
+# layer handles a pillar, so a sim without it asks the reactive layer to rescue
+# far fewer situations than the mat does.
+#
+# The "~54.5% of ticks" this block used to quote as the un-lagged detection rate
+# is WITHDRAWN 2026-09-16: it is not reproducible. Swept directly, the emulator
+# tops out at 41.0% of polls with vision_frame_miss_rate at 0.0, and that ceiling
+# is vision_detect_r50_m's, not this block's. See vision_frame_miss_rate below
+# for the measurement that replaced it.
 vision_latency_s = 0.85
-# VALIDATED 2026-09-14 after wiring, not just derived: pooled over the first
-# five official Obstacles scenarios driven end to end, the emulated camera now
-# carries a detection on 11.0% of ticks against hardware's 11.6%. Per-scenario
-# spread 7.9-14.4%, which is ordinary variance. Before this it was ~54.5%.
-vision_frame_miss_rate = 0.79
+# CALIBRATED 2026-09-16 against hardware. Was 0.79, which the measurement now
+# excludes by a wide margin. This is REALISM, not an improvement -- read the last
+# paragraph before comparing any corpus count taken across the change.
+#
+# HARDWARE, share of nav ticks carrying a fresh USABLE COLOUR OBSERVATION -- what
+# survives decode_detections AND the pillar aspect gate, i.e. what production
+# actually keeps rather than what the detector emitted:
+#
+#   run_20260915_140358   32.2%
+#   run_20260915_140852   31.7%
+#   run_20260915_141413   24.9%
+#   mean                  29.6%
+#
+# SIMULATOR, share of gateway polls returning a detection, 8 fixtures x 8 values:
+#
+#   0.79 ->  9.3%    0.60 -> 16.8%    0.50 -> 22.2%    0.40 -> 27.9%
+#   0.30 -> 29.6%    0.20 -> 34.0%    0.10 -> 36.5%    0.00 -> 41.0%
+#
+# 0.30 lands on the hardware mean. The defensible band is 0.24-0.45 and, under a
+# stricter pairing of the two denominators, reaches as low as 0.10. 0.79 is
+# outside every reading of it.
+#
+# WHAT THIS KNOB CANNOT REACH. At miss = 0.0 the emulated camera still carries a
+# detection on only 41% of polls. That ceiling is set by vision_detect_r50_m
+# (1.1 m), NOT by this knob, so the old "~54.5% with the range model alone"
+# claim is not reproducible at any value here; the docstring in
+# simulated_hardware_gateway.py that asserted it has been corrected.
+#
+# REALISM, NOT AN IMPROVEMENT: laps>=3 moves NON-MONOTONICALLY across that
+# ladder, so this re-bases the Obstacles corpus. A failure count taken at 0.79
+# and one taken here are not comparable, and neither is evidence about the other.
+vision_frame_miss_rate = 0.3
 
 # MEASURED 2026-09-15, which is what this knob was explicitly waiting for.
 #

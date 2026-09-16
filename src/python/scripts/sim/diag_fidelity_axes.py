@@ -12,8 +12,10 @@ worst first (see ``adr:0086-simulator-realism``):
 * the LIDAR occlusion band sat on the WRONG SIDE of the car, blinding the
   forward diagonals instead of the rear wedge (correcting it is a new baseline,
   not a fix);
-* ``vision_frame_miss_rate = 0.79`` is pessimistic against the share of nav
-  ticks that really carry a fresh detection;
+* ``vision_frame_miss_rate`` shipped at 0.79, which is pessimistic against the
+  share of ticks that really carry a fresh USABLE observation -- recalibrated to
+  0.30 on 2026-09-16, where the simulator returns a detection on 29.6% of polls
+  against a hardware mean of 29.6% of nav ticks;
 * the sim rotates less per escape, because ``allowed_step`` scales yaw but never
   INDUCES it from contact, while the real chassis reverses as if on a tight
   radius;
@@ -23,6 +25,15 @@ worst first (see ``adr:0086-simulator-realism``):
 Two of those are pessimistic and the rest optimistic. That mix is the whole
 reason to measure rather than assume: an idealisation you assume is in your
 favour can be costing laps.
+
+THE VISION AXIS IS NOT DEFINED HERE, on purpose. It lives in
+``scripts/common/fidelity_axes.py`` alongside the LIDAR bands, because until
+2026-09-16 this half and the bag half computed it two different ways at once:
+the bag half string-matched the raw payload (counting detections production
+discards) and divided by nav ticks, while this half counted gateway polls. Both
+shares printed in the same line shape and neither said which denominator it
+used. They now share :class:`VisionFreshness`, which carries its denominator
+with it, and both print it.
 
 ONE DELIBERATE DIFFERENCE FROM THE CORPUS. ``test_obstacles_challenge_sim.py``
 constructs the simulator with ``emit_vision_detections`` at its default False,
@@ -60,10 +71,12 @@ from shared.config.constants.robot import RobotSpecs
 from scripts.common.fidelity_axes import (
     SUB_FLOOR_M,
     SectorCensus,
+    VisionFreshness,
     contiguous_episodes,
     format_committed,
     format_escapes,
     format_steering,
+    format_vision_freshness,
 )
 from scripts.common.stats import percentile
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -190,8 +203,18 @@ def _run(scenario: NamedScenario, *, emit_vision: bool) -> None:
     for line in format_steering(steer, duration):
         print(line)
 
-    share = 100 * vision["with_detection"] / max(vision["calls"], 1)
-    print(f"vision: gateway polls={vision['calls']}  polls returning a detection={share:.1f}%  nav {1 / _CONTROL_DT:.0f} Hz")
+    for line in format_vision_freshness(
+        VisionFreshness(
+            hits=vision["with_detection"],
+            opportunities=vision["calls"],
+            denominator="gateway polls",
+        ),
+        extra=(
+            f"nav {1 / _CONTROL_DT:.0f} Hz over {ticks} ticks; no funnel to print, because the emulator's "
+            f"detections are BUILT to pass the production gate -- a poll returning anything is a kept observation"
+        ),
+    ):
+        print(line)
     print(f"{trace.census.format()}   (robot frame, {trace.census.scans} scans; 'finite' = nearer than max range)")
     print(f"  sub-floor share is rays under {SUB_FLOOR_M} m, which the sector filter drops on both sides")
 
@@ -227,7 +250,9 @@ def main() -> int:
     print(
         "\nDiff these blocks against scripts/bag/diag_bag_fidelity_axes.py on a real round. 'finite'\n"
         "means 'nearer than max range' here and 'the driver returned a number' there -- the shares\n"
-        "compare, the definitions do not. Do not assume which side an idealisation favours."
+        "compare, the definitions do not. Do not assume which side an idealisation favours.\n"
+        "The vision share is over GATEWAY POLLS here and over NAV TICKS on the bag, which on hardware\n"
+        "are 81.3% of ticks; both halves name their denominator rather than silently sharing a line."
     )
     return 0
 

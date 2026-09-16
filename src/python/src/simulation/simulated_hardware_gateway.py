@@ -442,11 +442,20 @@ class SimulatedHardwareGateway:
         sim = self.tuning.simulation
         # A residual detector miss, applied on TOP of the range model and
         # independently of it. The range model alone leaves the emulated camera
-        # carrying a detection far more often than hardware does. That remaining
-        # gap is not explained by capture rate -- the camera runs slower than the
+        # carrying a detection more often than hardware does. That remaining gap
+        # is not explained by capture rate -- the camera runs slower than the
         # control loop, which accounts for only part of it -- so it is modelled
         # here as the detector simply failing to fire, which is what the bags
         # show. See ``adr:0072-vision-data-path``.
+        #
+        # THE TWO TERMS ARE NOT INTERCHANGEABLE, measured 2026-09-16 over 8
+        # fixtures. With ``miss`` at 0.0 the camera still returns a detection on
+        # only 41.0% of polls: that FLOOR is the range model's, set by
+        # ``vision_detect_r50_m`` (1.1 m), and no value of ``miss`` can raise it.
+        # ``miss`` only walks the share down from there -- 0.30 -> 29.6%,
+        # 0.50 -> 22.2%, 0.79 -> 9.3% -- so an older "~54.5% with the range model
+        # alone" figure is unreachable here and has been withdrawn from the
+        # config comments rather than carried forward.
         miss = sim.vision_frame_miss_rate
         candidates = list(self._signs or [])
         if sim.vision_range_model:
