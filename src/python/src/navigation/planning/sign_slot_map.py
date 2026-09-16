@@ -12,14 +12,16 @@ geometric measurement this project makes.
 FOUR attempts to repair it at PUBLICATION time are on file and all failed,
 because each one still had to answer "is this the same object" from position:
 
-* position-keyed merging, two variants: collisions 209 and 231 against a 202
-  baseline;
+* position-keyed merging, two variants: measured worse than baseline;
 * ``SNAP_TO_LATTICE_M`` quantisation at 0.40: routing errors appeared to halve
   while 264 passes vanished from the denominator and the PEAK believed count
   ROSE from 26 to 40;
 * a per-section cardinality cap: it retains REAL signs, because a phantom that
   published first holds the slot. Being monotone is what made it safe and is
   exactly what stops the real pillar entering later.
+
+The measurements behind these are in
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 This module asks a different question. The rulebook says a pillar stands on one
 of 24 legal cells -- six per section, at 0.4 m from the outer wall or 0.4 m from
@@ -33,13 +35,12 @@ MEASURED over 125 bags against the shipped map on identical observations:
 
 | | shipped | slots |
 |---|---|---|
-| routing error | 23.3% | **15.0%** |
 | worst peak believed | 24 | **7** |
 | runs over the physical max | 32/125 | **0/125** |
-| position changes per run | 44.9 | **3.1** |
 | re-points / colour flips while COMMITTED | 1062 / 66 | **0 / 0** |
 
-Two results worth carrying, because both are counter-intuitive:
+The headline routing error and per-run position changes are in
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 **The win is CARDINALITY, not lane accuracy.** Which of the two lanes a pillar
 lands in is close to a coin flip (the lane partner has zero evidence 21% of the
@@ -52,10 +53,10 @@ committing to phantoms that contradict each other. Lane error is not free, it
 lands on EXECUTION instead (+7 points).
 
 **Colour pooling is REFUTED.** Pooling a cell's colour vote with its neighbours
-does not remove flips, it relocates them: at radius 0.00/0.25/0.55 the totals are
-157/159/166, buying down re-point flips and paying the same back in same-cell
-vote flips. What removes the flips that matter is freezing the slot the router is
-committed to -- flips-while-committed 66 to 0, and routing IMPROVES.
+does not remove flips, it relocates them (at radius 0.00/0.25/0.55 the totals
+are 157/159/166). What removes the flips that matter is freezing the slot the
+router is committed to. See
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 NEVER screen any of this in the simulator. Its sign map is exact (0.0% of ticks
 above the physical maximum, against 86% on hardware), so every number above
@@ -117,9 +118,8 @@ class _CellEvidence:
         """The cell's colour: argmax over its OWN votes, pooled over the round.
 
         Not pooled with neighbouring cells. That was measured and refuted -- it
-        relocates flips rather than removing them (157/159/166 at pooling radius
-        0.00/0.25/0.55), because what it buys in re-point flips it pays back in
-        same-cell vote flips.
+        relocates flips rather than removing them. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         if not self.votes:
             return SignColor.UNKNOWN

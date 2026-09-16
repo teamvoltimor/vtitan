@@ -105,19 +105,19 @@ class SignRouter:
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
         self._lap_tick = 0
-        # Sign indices passed on the WRONG side of the corridor. The official
-        # Obstacles rule is absolute: a RED obstacle must be cleared on its
-        # OUTWARD side, a GREEN on its INWARD side. ``_score_pass_sides`` records
-        # here, once per tick, whether the chassis has COMPLETELY crossed each
-        # sign and on which side — see that method for the rule.
+        # Sign indices passed on the WRONG side of the corridor. The pass-side
+        # rule is TRAVEL-RELATIVE: red is cleared on the vehicle's right and
+        # green on its left, which names different world sides by direction.
+        # ``_score_pass_sides`` records here, once per tick, whether the chassis
+        # has COMPLETELY crossed each sign and on which side - see that method
+        # for the rule.
         #
         # This is a measure of discovery quality and NOT what ends a round. The
         # simulator scores the rule itself in ``scoring.py`` from the TRUE layout
         # and the TRUE pose; this set is computed in the BELIEVED frame from
         # discovered colours, so it conflates where the chassis drove with what
-        # the robot thinks it saw. (Until 2026-09-15 the docstring here claimed
-        # the simulator stopped on this set. It does not, and has not for some
-        # time.)
+        # the robot thinks it saw. See
+        # ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
         self._wrong_side: set[int] = set()
         # Mirrors ``scoring.py``: a sign is only judged once, and only after the
         # chassis has been seen on the APPROACH side of its line first.
@@ -132,7 +132,7 @@ class SignRouter:
         # even when the position-only PIN_CORNER_GUARD still reads squarely in
         # the corridor -- see PIN_HEADING_GUARD.
         self._commit_yaw: dict[int, float] = {}
-        # Each sign's own corridor, kept in step with _signs — deform_waypoint()
+        # Each sign's own corridor, kept in step with _signs - deform_waypoint()
         # must never apply a sign's (x, y) through a different corridor's axis
         # convention (see _nearest_active_sign). Recomputed per sign rather than
         # once up front, since discovery can both append signs and move an
@@ -187,14 +187,9 @@ class SignRouter:
         The pass-side rule is travel-relative: ``ROUTING_TABLE`` is keyed on
         ``(corridor, direction)`` and every clockwise row is the negation of its
         counterclockwise partner. A stale direction therefore does not degrade
-        the lane, it MIRRORS it -- red and green swap sides for every sign.
-
-        Measured on four hardware bags: on the two rounds that inferred
-        counterclockwise, the commanded lane matched the clockwise row on 24 of
-        28 sign passes, and 22 of the 28 illegal passes are that mirrored
-        command -- against 2 caused by phantom signs and 0 by colour errors. The
-        one round that inferred CLOCKWISE, and so agreed with the placeholder by
-        luck, passed 19 of 26 legally.
+        the lane, it MIRRORS it -- red and green swap sides for every sign. The
+        measured mirroring is in
+        ``adr:0053-direction-inference-and-start-pose``.
 
         In place rather than by rebuilding through
         ``CoreNavigator.replace_sign_router``, which explicitly drops discovered
@@ -234,7 +229,7 @@ class SignRouter:
 
     @property
     def signs(self) -> list[SignSpec]:
-        """Signs currently being routed around — discovered ones included."""
+        """Signs currently being routed around - discovered ones included."""
         return list(self._signs)
 
     @property
@@ -328,14 +323,14 @@ class SignRouter:
 
         A sign's corridor is what selects the world axis its deformation treats
         as lateral, and ``corridor_for_position`` is a hard partition with no
-        dead zone. On a corner boundary — where two-thirds of legal WRO grid
-        positions sit — a discovery estimate wobbling by millimetres therefore
+        dead zone. On a corner boundary - where two-thirds of legal WRO grid
+        positions sit - a discovery estimate wobbling by millimetres therefore
         alternates between two corridors whose lateral axes are ORTHOGONAL, and
         the commanded waypoint jumps between two unrelated targets on every
         tick. The chassis converges on neither.
 
         A genuine corridor change (the estimate really was in the wrong place
-        early on) still lands, just ``corridor_flip_ticks`` later — 0.25 s at
+        early on) still lands, just ``corridor_flip_ticks`` later - 0.25 s at
         20 Hz, against a 1.40 m activation distance.
 
         Temporal rather than a geometric dead-band deliberately: the corner
@@ -448,8 +443,8 @@ class SignRouter:
         marked passed are excluded: the router has stopped steering around them,
         so nothing owns them any more and they get the full reactive guard back.
 
-        Discovered signs are included on the same footing as metadata ones —
-        both live in ``_signs`` — but only once ``ObservedSignMap`` has actually
+        Discovered signs are included on the same footing as metadata ones -
+        both live in ``_signs`` - but only once ``ObservedSignMap`` has actually
         published them, so an unconfirmed track never suppresses the guard.
         """
         return [Waypoint(s.x, s.y) for i, s in enumerate(self._signs) if i not in self._passed]
@@ -473,7 +468,7 @@ class SignRouter:
         """Re-arm every sign so it's routed again on the next lap.
 
         Without this, a sign marked ``_passed`` on lap 1 (once the robot moves
-        beyond ``passed_dist``) stays passed for the rest of the run — the
+        beyond ``passed_dist``) stays passed for the rest of the run - the
         Obstacles Challenge requires clearing every sign on all 3 laps, not
         just the first time each one is encountered.
         """
@@ -491,8 +486,8 @@ class SignRouter:
 
         Called when an escape latches: the chassis is inside contact range of
         the object it was supposed to route around, so the plan that aimed it
-        there must not be handed straight back. Measured over 105 escape
-        episodes, 79% still hold this same sign after the maneuver ends.
+        there must not be handed straight back. See
+        ``adr:0055-escape-maneuver-selection`` for the measurement.
 
         Retires through the same ``_passed`` set a normal pass uses, so the slot
         map's own ``retire`` hook runs and the sign stops deforming waypoints --
@@ -525,10 +520,9 @@ class SignRouter:
         ``scenario_simulator/scoring.py``, from the TRUE layout against the TRUE
         pose, deliberately not from this set -- which is computed in the
         BELIEVED frame from discovered colours and so conflates where the
-        chassis drove with what the robot thinks it saw. Measured over the
-        2026-09-15 hardware rounds it reads 3, 3 and 5 where a true-pose judge
-        reads 0, 2 and 2. Read it as DISCOVERY QUALITY, and never re-derive a
-        round's fate from it.
+        chassis drove with what the robot thinks it saw. Read it as DISCOVERY
+        QUALITY, and never re-derive a round's fate from it. See
+        ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
         """
         return set(self._wrong_side)
 
@@ -631,11 +625,9 @@ class SignRouter:
           that strays and corrects before the line has not offended, and a
           centre-point-at-one-instant test cannot express that.
 
-        Measured against ground truth over the 2026-09-15 hardware rounds, the
-        old rule read 3, 3 and 5 violations on the three rounds whose layout
-        could be reconstructed, where a LIDAR-and-true-pose judge reads 0, 2 and
-        2. On run_20260915_140852 it claimed three where the chassis committed
-        none.
+        Measured against ground truth, the old rule over-counted violations
+        where a LIDAR-and-true-pose judge reads fewer; the figures are in
+        ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
 
         So this now mirrors ``scenario_simulator/scoring.py`` exactly: engage
         while any corner is still short of the sign's depth line, score once the
@@ -735,19 +727,19 @@ class SignRouter:
         # own deformation no longer applies to a target point that has already
         # moved into the next corridor. Returning the waypoint untouched in that
         # case blanks out avoidance for exactly the stretch approaching the NEXT
-        # sign — which, if that sign sits near the corner exit, is the entire
+        # sign - which, if that sign sits near the corner exit, is the entire
         # runway available to steer around it.
         for nearest_idx, nearest_dist in candidates:
             # Sorted nearest-first, so once one is out of range every later one
-            # is too — nothing further can apply.
+            # is too - nothing further can apply.
             if nearest_dist > self._config.activation_dist:
                 return waypoint
 
             # Key the corner check and the deformation math off the CANDIDATE
             # SIGN's own corridor, not the robot's current corridor label. The
-            # two can legitimately disagree right at a corner — see
+            # two can legitimately disagree right at a corner - see
             # _active_sign_candidates' same-corridor-OR-within-activation_dist
-            # comment — and the sign's own corridor is what actually determines
+            # comment - and the sign's own corridor is what actually determines
             # which world axis is "lateral" for it; using the robot's (possibly
             # stale, pre-corner) label here would deform the wrong axis.
             sign_corridor = self._sign_corridors[nearest_idx]
@@ -756,7 +748,7 @@ class SignRouter:
             # the depth axis, override the lateral axis with a value derived
             # from the sign's fixed position). Once the *target* waypoint itself
             # has curved into a corner, that override is stale and increasingly
-            # wrong — skip it rather than fight the path's own curve.
+            # wrong - skip it rather than fight the path's own curve.
             # Deliberately stricter than corridor_for_position()'s corner
             # tie-break (which exists to always assign the ROBOT some corridor,
             # even ambiguously): a corner waypoint like (2.42, 2.42) ties NORTH
@@ -845,14 +837,14 @@ class SignRouter:
 
         # Taper the offset so it fades in and out over `passed_dist` instead of
         # snapping between full magnitude and zero in a single waypoint step at
-        # a corridor boundary — a kink arriving at exactly the same place the
+        # a corridor boundary - a kink arriving at exactly the same place the
         # car is also turning through.
         #
         # Taper on whichever of the ROBOT or the TARGET POINT is nearer the
         # sign, not the target point alone. The lookahead target runs 0.2-0.4m
         # ahead of the robot, so keying on it alone means that at the instant
-        # the robot draws level with the sign — the one moment full offset is
-        # actually needed — the target is already that far PAST the sign and
+        # the robot draws level with the sign - the one moment full offset is
+        # actually needed - the target is already that far PAST the sign and
         # the taper has quietly cut the offset by a third or more. The robot
         # then chases a half-hearted target and grazes the sign it was supposed
         # to clear. Taking the minimum holds full strength across the whole real
@@ -940,10 +932,9 @@ class SignRouter:
         # ... and not merely behind the ORIGIN. The pose is the centre of a
         # 30 cm chassis, so a sign level with the origin is still alongside the
         # body, and pulling toward the next sign's line there drags the TAIL
-        # into the pillar being passed. Measured: blending from `along < 0`
-        # cost 12 -> 16 on the obstacles corpus, four scenarios introduced and
-        # none fixed, every one of them a collision. So the blend may not start
-        # until the rear of the chassis is clear.
+        # into the pillar being passed. See ``adr:0051-sign-lane-planner`` for
+        # the measurement. So the blend may not start until the rear of the
+        # chassis is clear.
         committed = self._signs[committed_idx]
         along = (committed.x - robot_wp.x) * math.cos(robot_yaw) + (committed.y - robot_wp.y) * math.sin(robot_yaw)
         clear_by = -along - RobotSpecs.LENGTH / 2.0
@@ -973,9 +964,9 @@ class SignRouter:
         """Keep routing around the sign already being routed around.
 
         ``_active_sign_candidates`` re-runs a pure nearest-wins race every tick
-        with no memory of the previous one. Where two signs are both in play —
+        with no memory of the previous one. Where two signs are both in play -
         common, since the WRO grid puts them 0.50 m apart along a corridor and
-        the corridor is only 1.0 m wide — the winner can flip while the chassis
+        the corridor is only 1.0 m wide - the winner can flip while the chassis
         is already committed, and the commanded lateral line jumps from one
         sign's required value to the other's in a single tick. Both lines are
         legal; the damage is switching between them with no runway left to
@@ -983,15 +974,15 @@ class SignRouter:
         collisions had the winner change during the fatal approach.
 
         So a sign that is still an applicable candidate holds its claim. This
-        is deliberately hysteresis on SELECTION only — the deformation math and
+        is deliberately hysteresis on SELECTION only - the deformation math and
         the pass-side rule are untouched, which is what the two clearance-bound
-        attempts got wrong (see the investigation doc).
+        attempts got wrong (see ``adr:0051-sign-lane-planner``).
 
         The claim is dropped as soon as it stops being reachable: when the sign
         retires (``_passed``), falls behind the chassis, leaves
         ``activation_dist``, or yields no applicable deformation. Without the
         distance test a receding sign could hold the claim from beyond its own
-        activation range and mask the one coming up — the same masking bug
+        activation range and mask the one coming up - the same masking bug
         already fixed once in the nearest-wins ordering.
         """
         if not self._config.commit_hysteresis or self._committed is None:
@@ -1014,7 +1005,7 @@ class SignRouter:
 
         Also maintains engagement/passed bookkeeping: a sign is engaged once the
         robot comes within activation distance, and retired only after it has
-        been engaged and then left beyond ``passed_dist`` — never discarded from
+        been engaged and then left beyond ``passed_dist`` - never discarded from
         afar (which would silently disable routing at spawn). Bookkeeping runs
         for every sign regardless of corridor.
 
@@ -1030,7 +1021,7 @@ class SignRouter:
         applicable to the current target point.
 
         Candidates are restricted to signs that either belong to
-        ``corridor`` or are within ``activation_dist`` of the robot — not
+        ``corridor`` or are within ``activation_dist`` of the robot - not
         strict same-corridor equality. A sign one corridor over can sit right
         at a corner (e.g. at that corridor's own "near" grid depth, exactly on
         CORNER_MIN/MAX); the robot's corridor label only flips once its
@@ -1039,8 +1030,8 @@ class SignRouter:
         within-activation_dist lets a genuinely close cross-corridor sign start
         bending the path before the label flips, while still keeping distant
         cross-corridor signs from being engaged prematurely. The caller
-        (``deform_waypoint``) uses the CANDIDATE's own corridor — not this
-        method's ``corridor`` argument — for the actual axis/clamp math, so a
+        (``deform_waypoint``) uses the CANDIDATE's own corridor - not this
+        method's ``corridor`` argument - for the actual axis/clamp math, so a
         cross-corridor candidate is never run through the wrong convention.
         Engage/pass bookkeeping itself is suppressed for the first
         ``settle_ticks`` of a lap (see ``SignRouterConfig.settle_ticks``);
@@ -1083,12 +1074,12 @@ class SignRouter:
                 continue
             same_corridor = self._sign_corridors[i] == corridor
             # A sign in a DIFFERENT corridor than the robot's current label only
-            # qualifies once the robot is within activation_dist of it — i.e.
+            # qualifies once the robot is within activation_dist of it - i.e.
             # close enough that the sign's own geometry is what actually
             # matters, not the robot's corridor bookkeeping. Without this, a
             # sign sitting right at a corner (e.g. at the corridor's own "near"
             # depth, exactly on CORNER_MIN/MAX) never becomes a deformation
-            # candidate until the robot's corridor label flips — which happens
+            # candidate until the robot's corridor label flips - which happens
             # only once the robot's cornering arc has already carried it
             # straight past the sign, too late for any deformation to matter.
             # Requiring same-corridor OR within-activation_dist keeps distant

@@ -21,7 +21,8 @@ estimate stops explaining the scan (see
 is that the robot cannot leave the track: the walls are known and the car is
 always inside them, so a pose whose predicted sweep does not match the real one
 is not merely imprecise, it is wrong, and position can be re-solved over the
-whole free space without any prior at all.
+whole free space without any prior at all. See
+``adr:0084-localizer-divergence-and-relocalization``.
 """
 
 from __future__ import annotations
@@ -118,8 +119,8 @@ class LidarLocalizer:
 
         Diagnostic only. Non-zero means the local search lost the pose and was
         recovered; the value belongs in the debug snapshot because the failure
-        it reports (run_20260907_205830) was invisible in every field the
-        navigator already published.
+        it reports was invisible in every field the navigator already published.
+        See ``adr:0084-localizer-divergence-and-relocalization``.
         """
         return self._relocalization_count
 

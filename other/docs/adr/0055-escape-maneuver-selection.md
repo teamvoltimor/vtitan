@@ -113,6 +113,11 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   46 episodes, p50 17 cm / p10 7 cm; reverse fits 30/46 against an expected 46/46.
 - 33be7da7 2026-09-11: seed the stuck K-turn's steering side from measured
   clearance. 30/30 escape tests.
+- 6c727c87 2026-08-21 / 2026-08-22: read bumper gaps from the bumper frame, not
+  the sensor mount. Forward readings moved 12.2 cm closer and the CRITICAL gate
+  fired 30811 times with zero reachable in the previous frame; once the rear
+  frame was fixed the rear contact distance could fire, wall collisions rose 1 to
+  36 as escapes went 4 to 54 per lap.
 - 328d514a 2026-09-14: stop the escape manoeuvre certifying its own success.
   Re-anchor at the end; sim 28 failed to 21.
 - 63c042bb / c1945efd: turning-escape re-seek reverted as inert and wrongly

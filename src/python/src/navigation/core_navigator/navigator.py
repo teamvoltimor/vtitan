@@ -151,11 +151,11 @@ class CoreNavigator(EscapeRecovery):
         # each of the nine sites that read a tier.
         #
         # Open tolerates far more speed than Obstacles -- its binding constraint
-        # is the 180 s round limit, not sign clearance, and Obstacles was
-        # measured degrading monotonically with speed (in-time 38/256 at 0.156
-        # m/s down to 9/256 at 0.60). `for_open_challenge` returns the base
-        # ladder unchanged when the motor profile defines no OPEN_* tiers, so a
-        # drivetrain without headroom to spare needs no special case.
+        # is the 180 s round limit, not sign clearance, while Obstacles keeps
+        # the base ladder. `for_open_challenge` returns the base ladder
+        # unchanged when the motor profile defines no OPEN_* tiers, so a
+        # drivetrain without headroom to spare needs no special case. See
+        # ``adr:0085-speed-envelope``.
         #
         # Keyed on sign_router presence, the same Open/Obstacles discriminator
         # STALE_TARGET_RESCUE and RETRACE_ESCAPE already use (it is None for the
@@ -322,16 +322,14 @@ class CoreNavigator(EscapeRecovery):
         direction inference commits: near a corner, several waypoints sit at
         almost the same distance while pointing in very different directions,
         and the robot's heading at that instant does not always match the
-        path's local direction there yet (it has been steering, within the
-        blind corridor-follower's own limits, during the creep leading up to
-        the commit). Picking purely by position can then hand
-        :class:`~src.navigation.control.controllers.WaypointController` a
+        path's local direction there yet. Picking purely by position can then
+        hand :class:`~src.navigation.control.controllers.WaypointController` a
         point past the turn, demanding a correction far larger than finishing
-        the corner needs — measured on real hardware as a ~193 deg swing
-        where ~90 deg would do. Passing ``robot_yaw`` re-ranks the
+        the corner needs. Passing ``robot_yaw`` re-ranks the
         near-tied-by-distance candidates (see
         ``NavigationTuning.waypoints.replan_heading_tie_margin_m``) by
-        heading agreement instead.
+        heading agreement instead. See
+        ``adr:0057-blind-corridor-follower-and-width``.
 
         Args:
             waypoints: The replacement path (single canonical lap).
@@ -347,11 +345,10 @@ class CoreNavigator(EscapeRecovery):
         previous_count = len(self._waypoints)
         # Fade the new geometry in rather than teleporting the steering target
         # onto it. The path is what crosstrack and the steer target are measured
-        # against, so an instant swap steps both -- measured on hardware
-        # 2026-08-30 as ~0.30 m of crosstrack in one 50 ms tick, against the
-        # ~0.03 m the chassis can actually travel in that time, which threw
-        # heading error past CRAWL and pinned the robot at creep speed while it
-        # recovered onto a line that had moved under it. See REPLAN_BLEND_TICKS.
+        # against, so an instant swap steps both, which can throw heading error
+        # past CRAWL and pin the robot at creep speed while it recovers onto a
+        # line that moved under it. See REPLAN_BLEND_TICKS and
+        # ``adr:0057-blind-corridor-follower-and-width``.
         #
         # Only the RATE changes here; the destination is identical. The blend is
         # index-wise, guarded on equal waypoint counts so a geometry that ever
@@ -392,14 +389,10 @@ class CoreNavigator(EscapeRecovery):
         # Nearest-by-position can land BEHIND the progress already made: the
         # rebuilt path shifts laterally under a new width belief, so the closest
         # point on it may be one the robot has already driven past. A single
-        # replan hides that, repeated ones ratchet. Measured 2026-08-31 over the
-        # 640-case Open space -- every one of the 21 `incomplete` runs drove
-        # 20-26 m of a ~9 m loop and scored ZERO laps, because width-belief
-        # replans knocked the index back 1-9 places 4-5 times per round
-        # (#80: 9->7, 11->6, 8->5) so it never reached the end of the list, never
-        # wrapped, and the lap gate's waypoint half never armed. The same stall
-        # parks the steer target -- 1176 ticks on one waypoint -- which is what
-        # produced the corner dithering and the sub-creep average speed.
+        # replan hides that, repeated ones ratchet: the index is knocked back so
+        # it never reaches the end of the list, never wraps, and the lap gate's
+        # waypoint half never arms, while the steer target stalls on one
+        # waypoint. See ``adr:0057-blind-corridor-follower-and-width``.
         #
         # Holding the index is the conservative half of the trade: the robot
         # keeps aiming at a waypoint slightly ahead of the nearest rather than
@@ -733,23 +726,18 @@ class CoreNavigator(EscapeRecovery):
         a fresh process starts with ``sign_router=None``; the jumper then
         resolves to Obstacles and ``replace_sign_router`` attaches a router,
         but these three stayed on their Open values for the rest of the process.
-        Measured on the nine Obstacles rounds of 2026-09-13/14: 13,852 driving
-        ticks commanded an OPEN tier (0.26/0.38/0.50 m/s) and none commanded an
-        Obstacles one (0.22/0.32/0.42), in 9 of 9 rounds, with a sign router
-        active throughout. Beyond the ladder that also silently dropped
-        ``obstacles_k_turn_fit_rear_gap`` and ``obstacles_escape_mirrors_reverse``,
-        so the escape the rounds actually ran was the Open one.
+        See ``adr:0050-escape-steering-degrees-and-committed-side``.
 
         Speed matters most here because the chassis radius is a speed curve
         (R = 0.053 + 1.86v): 0.26 m/s buys R = 0.537 m, while the sign lane's
         band changes demand 0.335-0.371 m over the 256-scenario corpus.
         """
         # Open tolerates far more speed than Obstacles -- its binding constraint
-        # is the 180 s round limit, not sign clearance, and Obstacles was
-        # measured degrading monotonically with speed (in-time 38/256 at 0.156
-        # m/s down to 9/256 at 0.60). `for_open_challenge` returns the base
-        # ladder unchanged when the motor profile defines no OPEN_* tiers, so a
-        # drivetrain without headroom to spare needs no special case.
+        # is the 180 s round limit, not sign clearance, while Obstacles keeps
+        # the base ladder. `for_open_challenge` returns the base ladder
+        # unchanged when the motor profile defines no OPEN_* tiers, so a
+        # drivetrain without headroom to spare needs no special case. See
+        # ``adr:0085-speed-envelope``.
         self._speed = (
             self._tuning.speed.for_obstacles_challenge()
             if sign_router is not None
@@ -765,10 +753,11 @@ class CoreNavigator(EscapeRecovery):
             else self._tuning.clearance
         )
         # Everything downstream reads `self._escape`, NEVER `_tuning.escape`.
-        # Resolving only the gates that "obviously" needed it is what made
-        # OBSTACLES_CONTACT_DIST diverge from its shared field on the 256 corpus
-        # (see EscapeRecovery._clearance); one object, read everywhere, is the
-        # fix that does not have to be remembered.
+        # Resolving only the gates that "obviously" needed it is what let
+        # OBSTACLES_CONTACT_DIST diverge from its shared field (see
+        # EscapeRecovery._clearance); one object, read everywhere, is the fix
+        # that does not have to be remembered. See
+        # ``adr:0061-contact-zone-per-challenge``.
         self._escape = (
             self._tuning.escape.for_obstacles_challenge()
             if sign_router is not None
@@ -930,11 +919,11 @@ class CoreNavigator(EscapeRecovery):
     def _retire_escaped_sign(self) -> None:
         """Retire the sign the router is committed to, once per escape.
 
-        Measured 2026-09-15 over 105 escape episodes: 97% of escapes are handed
-        back the same target and 79% still hold the SAME committed sign, so the
-        plan the chassis returns to is the one that drove it into the object.
-        Re-planning alone cannot fix that -- the map still contains the sign --
-        which is why this retires rather than replans.
+        Most escapes are handed back the same target and still hold the SAME
+        committed sign, so the plan the chassis returns to is the one that
+        drove it into the object. Re-planning alone cannot fix that -- the map
+        still contains the sign -- which is why this retires rather than
+        replans. See ``adr:0055-escape-maneuver-selection`` for the measurements.
 
         Guarded by ``escape.escape_retires_committed_sign`` and applied ONCE per
         latched maneuver, not every tick: the branch this sits in runs for the
@@ -958,27 +947,21 @@ class CoreNavigator(EscapeRecovery):
         That call is not only a steering computation: its own site comments
         note the router "owns engage/pass bookkeeping, the blind discovery
         ingest and routed_sign_positions (which the escape mask reads)". None
-        of that runs during a maneuver.
-
-        MEASURED 2026-09-12 on three hardware rounds: 183 maneuver episodes,
-        22.3% of all ticks, 97.8% of them holding a CONSTANT steering value --
-        an open-loop arc up to 44 ticks (2.2 s) long. Throughout it the sign
-        map takes in nothing, and the escape mask reads a sign list that stops
-        being updated exactly when the chassis is moving most unpredictably.
+        of that runs during a maneuver, so the sign map takes in nothing exactly
+        when the chassis is moving most unpredictably.
 
         This replays the ingest half only. The deformed waypoint is discarded,
         so the maneuver keeps the chassis to itself and this cannot move the
         wheel -- the flag buys a fresh map on the far side of the maneuver, not
         a second steering signal. That distinction is deliberate:
         ``side_correction_blends`` already covers "let the planner steer too",
-        and is separately dead (99.4% of hardware side_correction is reverse,
-        which its gate excludes).
+        and is separately dead (its gate excludes the reverse that dominates
+        hardware side correction).
 
         Ships OFF behind ``tick_router_during_maneuver``. Untested on the
         track: the operator lost track access before it could be validated, and
-        the sim cannot stand in -- it exercises side_correction on 1.09% of
-        ticks against hardware's 19-25%, and its own blend gate opened on 0 of
-        254 such ticks.
+        the sim cannot stand in. See ``adr:0055-escape-maneuver-selection`` and
+        ``adr:0050-escape-steering-degrees-and-committed-side``.
         """
         router = self._sign_router
         if router is None or self._current_corridor is None:
@@ -1230,10 +1213,9 @@ class CoreNavigator(EscapeRecovery):
             # That is the degraded-sensor case below, not open road -- and it is
             # the more dangerous of the two, because no scan at all is obvious
             # while an all-invalid cone reports NO_DATA_RANGE_M and reads as 10 m
-            # of clear track. Measured on hardware 2026-08-31: wedged against a
-            # wall, this held 9.97 m and the robot drove into it at 0.24 m/s for
-            # the rest of the round. Same answer as the no-LIDAR branch, because
-            # it is the same statement about the sensor.
+            # of clear track. Same answer as the no-LIDAR branch, because it is
+            # the same statement about the sensor. See
+            # ``adr:0056-raw-and-masked-scan``.
             forward_clearance = self._tuning.clearance.slow_dist
             risk = RiskLevel.OBSTACLE
         elif scan:
@@ -1273,10 +1255,9 @@ class CoreNavigator(EscapeRecovery):
         if scan and self._sign_router is not None:
             # The mask is anchored on the LIDAR cluster nearest each believed
             # sign rather than on the belief itself, because the belief is the
-            # inaccurate half: measured 2026-09-11, the nearest return sat p50
-            # 0.15-0.25 m from it against a 0.12 m radius, so the mask caught
-            # 0-19% of the ticks it exists for and the rounds were lost to the
-            # limit cycle it exists to prevent. See ESCAPE_MASK_CLUSTER_ASSOC_M.
+            # inaccurate half and the mask would miss the ticks it exists for,
+            # losing the rounds to the limit cycle it exists to prevent. See
+            # ESCAPE_MASK_CLUSTER_ASSOC_M and ``adr:0056-raw-and-masked-scan``.
             cluster_xy: list[Waypoint] = []
             assoc = self._tuning.sign_router.escape_mask_cluster_assoc_m
             if assoc > 0.0:
@@ -1350,7 +1331,8 @@ class CoreNavigator(EscapeRecovery):
         # the planned path the robot actually is), not forward LIDAR clearance
         # -- see WaypointController.select_lookahead's docstring for why that
         # mismatch produced slow, lazy cornering and weak centering on real
-        # hardware once the steering law became curvature-based (2026-08-03).
+        # hardware once the steering law became curvature-based. See
+        # ``adr:0052-pursuit-target-selection``.
         crosstrack = cross_track_error(self._waypoints, robot_x, robot_y)
         # Crosstrack alone arms the short lookahead only after a corner has
         # been missed; the path's own upcoming turn arms it on entry. See
@@ -1503,14 +1485,12 @@ class CoreNavigator(EscapeRecovery):
                 )
             ):
                 # The lane shoved a correctly-chosen point across the path's own
-                # direction of travel, so the bias is worse than none. Measured
-                # 2026-09-12 on run_20260912_064539: every wrong-sense target
-                # carried a deformation, p50 0.554 m against 0.031 m on the
-                # right-sense ticks, and that shove was roughly TWICE the
-                # target's own 0.281 m range -- it moved the aim point further
-                # sideways than it was forward. Only the deform is dropped; the
-                # router has already been called, so engage/pass bookkeeping,
-                # the discovery ingest and routed_sign_positions are untouched.
+                # direction of travel, so the bias is worse than none. Only the
+                # deform is dropped; the router has already been called, so
+                # engage/pass bookkeeping, the discovery ingest and
+                # routed_sign_positions are untouched. The evidence for this
+                # guard is a counterfactual and it ships inert; see
+                # ``adr:0063-corridor-flip-and-sense-guards``.
                 steer_target = raw_target
                 self._deform_sense_rejects += 1
 
@@ -1526,10 +1506,7 @@ class CoreNavigator(EscapeRecovery):
         # Determine speed
         if forward_clearance < self._clearance.contact_dist:
             # Creeping FORWARD at contact is how the chassis ends up leaning on
-            # what it was avoiding. Measured on run_20260906_121254: forward
-            # clearance 0.023-0.037 m, risk CRITICAL, and the commanded speed
-            # stayed +0.152 m/s for ten seconds against a green pillar until the
-            # operator intervened. Nothing in this path ever reverses.
+            # what it was avoiding; nothing in this path ever reverses.
             #
             # So contact backs OFF, for a bounded run of ticks, then hands the
             # tick back to normal driving. Bounded rather than "reverse until
@@ -1539,12 +1516,10 @@ class CoreNavigator(EscapeRecovery):
             # against the same pillar -- back off once, then drive, and only
             # re-arm after the chassis has actually been clear again.
             # Gated on the TRAIL, not on a rear sensor this mount does not
-            # have. Ungated, the leg is centred and blind and backs into
-            # whatever is behind: measured on the 256 corpus, it took stalls
-            # 26 -> 15 and wall collisions 4 -> 10, for a flat headline. The
-            # trail is a record of where the footprint has actually BEEN, so
+            # have: the trail records where the footprint has actually BEEN, so
             # reversing over it needs no rear vision -- the same gate the
             # stuck-escape reverse already uses, and an empty trail refuses.
+            # Ships disabled; see ``adr:0088-refuted-config-knobs``.
             reverse_m = (
                 self._speed.contact_reverse_mps()
                 * self._clearance.contact_reverse_ticks
@@ -1592,31 +1567,17 @@ class CoreNavigator(EscapeRecovery):
         # independent of how fast the chassis is moving, so a big required
         # heading correction taken at full speed demands a yaw rate the
         # actuator cannot track -- it saturates, overshoots, and oscillates
-        # instead of settling (measured on real hardware 2026-08-03, see
-        # adr:0052-pursuit-target-selection).
+        # instead of settling. See ``adr:0052-pursuit-target-selection``.
         # Clearance alone never catches this: a corner can have 0.50m+ of open
         # space ahead while still demanding a 90-180 deg correction.
         #
         # Only the CRAWL threshold reduces speed. Everything below it runs at
-        # the ceiling, cornering included.
-        #
-        # This ladder briefly mirrored the clearance one, dropping through
-        # medium and slow as heading error grew. Measured on hardware
-        # 2026-08-09 that cost 33% of lap time (CW 134.9 s -> 179.3 s, CCW
-        # 161.7 s -> 200.9 s, both past the 180 s round limit) for nothing:
-        # ordinary cornering sits at 23-45 deg of heading error, so the two
-        # middle rungs were not catching a dangerous case, they were taxing
-        # every corner on the track. Corner speed was 0.117 m/s against a
-        # 0.156 ceiling while forward clearance was 0.34-0.50 m and risk read
-        # safe.
-        #
-        # The rung that earns its place is CRAWL. Below 57 deg the steering has
+        # the ceiling, cornering included. Below the threshold the steering has
         # time to track the demand; past it the servo's fixed slew rate cannot
-        # keep up (2026-08-03), and that is a real limit rather than a tax.
+        # keep up, and that is a real limit rather than a tax. A graduated
+        # ladder briefly replaced this and was measured to cost lap time for
+        # nothing; see ``adr:0085-speed-envelope``.
         #
-        # The three intermediate thresholds this used to read were deleted with
-        # it -- see HeadingErrorZones. Re-graduating means adding them back,
-        # which should take a measurement that beats the times above.
         # CRAWL_RAMP_START replaces the step with a linear interpolation when
         # set; at 0 (the shipped value) this is exactly the two-valued cut
         # above. Nothing in the physics is discontinuous -- the servo's slew
@@ -1666,8 +1627,8 @@ class CoreNavigator(EscapeRecovery):
         # decay with speed_response_tau_s = 0.35 s, so the resting place is set
         # by the speed carried across the line, not by anything done after it.
         # The line sits at the along-track centre of a 1 m straight, leaving
-        # 0.50 m: a 0.50 m/s Open ladder coasts ~0.175 m and fits, but the
-        # 2026-09-01 bags measured ~0.6 m of real drift, which does not.
+        # 0.50 m, which the measured real drift overruns. See
+        # ``adr:0085-speed-envelope``.
         #
         # Applied only on the LAST lap and only while short of the line, so it
         # costs nothing on laps 1..n-1 and stops applying the moment the
@@ -1691,12 +1652,10 @@ class CoreNavigator(EscapeRecovery):
         # a sign deformation biases the STEERING TARGET sideways without
         # necessarily shrinking forward LIDAR clearance or growing heading
         # error, so the ordinary ladders can leave the chassis at full speed
-        # while it's still asymptotically closing a lateral offset -- traced
-        # as a consistent ~6.5cm shortfall between the commanded line and the
-        # chassis at the moment it draws level with the sign (subset64,
-        # go_obstacles_0009/0011/0020/0046). Gated on the deformation the
-        # router actually applied THIS tick, not proximity to a sign, so it
-        # only fires while a correction is genuinely in flight.
+        # while it's still asymptotically closing a lateral offset. Gated on
+        # the deformation the router actually applied THIS tick, not proximity
+        # to a sign, so it only fires while a correction is genuinely in
+        # flight. See ``adr:0051-sign-lane-planner``.
         if (
             self._tuning.sign_router.sign_aware_speed
             and sign_deform_magnitude is not None
@@ -1922,17 +1881,15 @@ class CoreNavigator(EscapeRecovery):
                 )
                 return
 
-        # Normal publish — clear the escape escalation, but only once the
+        # Normal publish - clear the escape escalation, but only once the
         # robot has actually moved since the sequence started. A single
         # normal_drive tick between escape attempts doesn't mean the escape
-        # worked -- confirmed on real hardware 2026-08-04 (run_20260804_213147):
-        # normal_drive -> escape_triggered alternated for 34+ seconds with the
-        # robot pinned in place, and this unconditional reset zeroed
-        # escape_count every single cycle, so it never reached
-        # escalate_after_attempts and _maybe_escalate never fired. Requiring
-        # real displacement first means a genuinely stuck sequence keeps
-        # accumulating toward escalation instead of resetting on every tick
-        # that merely classifies as "not critical" for one frame.
+        # worked: an unconditional reset zeroed escape_count every cycle, so
+        # it never reached escalate_after_attempts and _maybe_escalate never
+        # fired. Requiring real displacement first means a genuinely stuck
+        # sequence keeps accumulating toward escalation instead of resetting
+        # on every tick that merely classifies as "not critical" for one
+        # frame. See ``adr:0055-escape-maneuver-selection``.
         if (
             self._escape_sequence_start_xy is None
             or math.hypot(
@@ -1993,9 +1950,8 @@ class CoreNavigator(EscapeRecovery):
             # The Obstacles challenge has one but ships with the pursuit
             # DEFERRED (ParkingParams.ATTEMPT_AFTER_FINAL_LAP), because the bay
             # is geometrically unreachable and chasing it burns the clock and
-            # the chassis after the laps are already banked -- blind on the 256
-            # corpus, in-time 158 vs 62 and collisions 4 vs 51 against an
-            # IDENTICAL laps>=3 of 159.
+            # the chassis after the laps are already banked. See
+            # ``adr:0062-sim-contact-model-and-parking``.
             #
             # Holding HERE is what rule 1.3 pays 3 points for, and the position
             # is already right: the lap counter increments at the along-track

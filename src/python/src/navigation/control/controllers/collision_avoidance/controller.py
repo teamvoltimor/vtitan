@@ -332,17 +332,14 @@ class CollisionAvoidanceController:
         path = self._forward_path_ranges(lidar_ranges, lidar_angles)
         if path.size == 0:
             # Two different causes read the same here: no scan rays fell inside
-            # the forward lane at all (a near-empty scan -- nothing to judge,
-            # safe by construction), or the lane DID have rays but every one of
-            # them was a no-return -- the hardware gateway's fabricated
-            # LIDAR_MAX_RANGE substitute for a real grazing-incidence echo,
-            # which is the signature of something very close spanning the
-            # WHOLE cone, not of open road (see _forward_path_ranges's
-            # no-return exclusion). Only the first case is actually safe; the
-            # second must not default to SAFE, or a corner an obstacle sits
-            # flush against becomes invisible to the very check meant to catch
-            # it -- measured on hardware 2026-08-28, a 60cm-corridor run with
-            # an enlarged centre wall that never turned.
+            # the forward lane at all (a near-empty scan, safe by construction),
+            # or the lane DID have rays but every one was a no-return, the
+            # hardware gateway's fabricated LIDAR_MAX_RANGE substitute for a
+            # real grazing-incidence echo. That is the signature of something
+            # very close spanning the WHOLE cone, not of open road (see
+            # _forward_path_ranges's no-return exclusion). Only the first case
+            # is actually safe; the second must not default to SAFE.
+            # adr:0056-raw-and-masked-scan
             if _forward_path_has_rays(lidar_ranges, lidar_angles, self.path_half_width):
                 return RiskLevel.CRITICAL
             return RiskLevel.SAFE
@@ -441,10 +438,10 @@ class CollisionAvoidanceController:
         for the rest of the run.
 
         Callers gating a reverse want this rather than ``compute_rear_clearance``:
-        on this mount the occlusion wedges leave only a ~25 deg slot straight
+        on this mount the occlusion wedges leave only a narrow slot straight
         back, and if that slot goes (a different mount, a cable, a smaller scan)
         the distance alone still reads as open road. ``measured`` is what tells
-        them apart.
+        them apart. See ``adr:0056-raw-and-masked-scan`` for the wedge geometry.
         """
         # Self-detection gated by CHASSIS GEOMETRY rather than the global scalar,
         # and kept in the SENSOR frame like every other sector so
@@ -452,14 +449,8 @@ class CollisionAvoidanceController:
         #
         # The scalar (0.08 m) sits far inside the body: the chassis rear face is
         # 0.2722 m behind the sensor and this sector's boundary runs to 0.137 m
-        # at its edges, so the robot's own structure survived the filter.
-        # Measured on run_20260906_192424 the rear minimum was the CHASSIS on
-        # 100% of scans (-157 deg / 0.125 m on 76% of them, -172 deg / 0.187 m on
-        # 18%), so `back_m` read ~0.127 m all run, `most_constrained_side` was
-        # BACK on 59% of driving ticks and on ALL FIVE contact episodes -- and
-        # `compute_escape_maneuver` has no BACK branch, so it returned None every
-        # time. 212 ticks of `escape_risk = critical`, across exactly the five
-        # moments the robot hit a pillar, produced ZERO manoeuvres.
+        # at its edges, so the robot's own structure survives the filter.
+        # See ``adr:0056-raw-and-masked-scan``.
         #
         # Still the SENSOR frame, so callers judging a reverse keep converting
         # with `bumper_gap_behind` -- an obstacle touching the rear bumper reads
@@ -492,13 +483,11 @@ class CollisionAvoidanceController:
         distinction since the reverse guard was found failing open; the front
         did not, and drove into the wall it could no longer see.
 
-        Measured on hardware 2026-08-31 (run_20260831_205208): pressed against a
-        wall and physically immobile, every ray in the forward cone fell below
-        ``min_valid_range_m`` -- a flat surface centimetres away reflects too
-        shallowly to return a signal -- so the sector reported ~10 m. The
-        navigator resumed 0.24 m/s into the wall, and the ``stuck_forward``
-        escape fired once and immediately stood down, because by this number
-        the road ahead was clear. It never recovered.
+        A flat surface centimetres away reflects too shallowly to return a
+        signal, so every ray in the forward cone can fall below
+        ``min_valid_range_m`` at once; the sector then reports a range that reads
+        as open road while the chassis is in fact immobile against a wall. See
+        ``adr:0056-raw-and-masked-scan``.
 
         Callers deciding whether it is safe to DRIVE FORWARD want this and must
         check ``measured``; ``compute_forward_clearance`` remains the shorthand
@@ -521,21 +510,16 @@ class CollisionAvoidanceController:
     ) -> float:
         """Minimum clearance in the forward +/-30 deg sector (0 rad = forward).
 
-        Was the sector's MEAN, not its minimum -- a real near-contact dead ahead
-        widens the cone's grazing-incidence edges into no-returns (physically
-        expected: a flat surface a few cm away reflects rays near its own edge too
-        shallowly to return a signal at all), and the LIDAR callback substitutes
-        those no-returns with ``LIDAR_MAX_RANGE`` before this ever sees them (see
-        ``ros2_hardware_gateway._lidar_callback``). Averaging genuine ~0.08m
-        readings together with several fabricated 12m ones reports several metres
-        of open road during the single most blocked moment of a run -- confirmed
-        against a real 2026-08-04 bag (``run_20260804_114500``, t=26.02s): the
-        sector's true minimum was 0.078m dead ahead (matching flat-wall-at-close-
-        range raycast geometry, ``d/cos(theta)`` across the cone) while the old
-        mean reported 5.15m. Minimum matches the pattern
-        ``compute_rear_clearance``/``compute_min_clearance`` already use, and is
-        what a clearance number meant to gate speed should be: the worst case in
-        the cone, not an average that a single no-return can swamp.
+        Minimum, not the sector's mean. A real near-contact dead ahead widens
+        the cone's grazing-incidence edges into no-returns (a flat surface a few
+        cm away reflects rays near its own edge too shallowly to return a signal),
+        and the LIDAR callback substitutes those no-returns with
+        ``LIDAR_MAX_RANGE`` before this ever sees them (see
+        ``ros2_hardware_gateway._lidar_callback``). The mean is therefore swamped
+        by fabricated max-range readings during the single most blocked moment of
+        a run, while the minimum is the worst case in the cone. Minimum matches
+        the pattern ``compute_rear_clearance``/``compute_min_clearance`` already
+        use. See ``adr:0056-raw-and-masked-scan``.
 
         Args:
             lidar_ranges: Array of LIDAR measurements.
@@ -711,36 +695,21 @@ class CollisionAvoidanceController:
 
         A side with no valid ray is not the same as a tie: it means nothing
         registered within sensor range on that side at all, which is itself the
-        clearest possible "open" reading -- most sharply so pinned against a wall,
+        clearest possible "open" reading, most sharply so pinned against a wall,
         where the jammed side reads a real, close, valid return and the free side
-        legitimately has nothing to reflect off within range. Requiring both
-        sides to have a valid ray before trusting the comparison (an earlier
-        version of this method did) throws away exactly that reading and falls
-        through to the direction-based guess instead, which reasons about the
-        island and has nothing to say about a chassis pinned against the *outer*
-        wall -- measured pinning the right side at 4.5 cm for the remainder of a
-        run that never recovered. Substituting ``no_data_range_m`` for a missing
-        side keeps that signal instead of discarding it; the direction fallback
-        below now only fires when neither side has anything to say.
+        legitimately has nothing to reflect off within range. Substituting
+        ``no_data_range_m`` for a missing side keeps that signal instead of
+        discarding it; the direction fallback below now only fires when neither
+        side has anything to say.
 
-        MEASURED 2026-09-13, and it changes how to read the three paragraphs
-        above: **the direction fallback never executes.** Its two gates were
-        counted over 228 hardware escape episodes from the 2026-09-12 rounds --
-        exact float equality of ``left_clear`` and ``right_clear`` fired 0 times,
-        and "no valid ray on either side" fired 0 times. ``no_data_range_m``
-        substitution (the paragraph directly above) is what closed it: once a
-        missing side gets a number, two floats tie only by accident.
-
-        So the island reasoning is correct design intent and DEAD CODE, and the
-        standing bias it was written to remove cannot be the explanation for any
-        observed behaviour. What the comparison actually does at a corner is
-        resolve on whichever side reads a few millimetres further -- and it is
-        the wrong question there: the router asks which side of the PILLAR to
-        pass, this asks which wall is nearer. They agree 56% of the time overall
-        and 48-49% in corners, which is what an unrelated variable looks like.
-        Do not "fix the biased fallback"; that hypothesis was tested and refuted
-        (18 of 37 opposing escapes were decided on a margin of 0.20 m or more,
-        so they are not near-ties either).
+        That substitution also leaves the direction fallback effectively dead:
+        once a missing side gets a number, exact float equality of
+        ``left_clear`` and ``right_clear`` rarely fires, so the fallback runs
+        almost only when neither side has a valid ray. The island reasoning is
+        correct design intent but cannot explain observed behaviour -- the
+        comparison at a corner answers a different question from the router's
+        pass-side choice. See
+        ``adr:0050-escape-steering-degrees-and-committed-side``.
         """
         if lidar_ranges is not None:
             left = _sector_to_model(
@@ -776,10 +745,11 @@ class CollisionAvoidanceController:
                 right_clear = right.min_range_m if right.valid_count > 0 else self.no_data_range_m
                 # The router's side outranks the clearance comparison when the
                 # side it wants is not physically shut, because the comparison
-                # is answering a different question (see this method's measured
-                # note). The floor is ABSOLUTE rather than a margin between the
-                # two sides: a relative band wide enough to catch the failures
-                # also overrules 22 of the 49 episodes that choose correctly.
+                # is answering a different question. The floor is ABSOLUTE
+                # rather than a margin between the two sides, because a relative
+                # band wide enough to catch the failures also overrules episodes
+                # that choose correctly. See
+                # ``adr:0050-escape-steering-degrees-and-committed-side``.
                 if preferred_sign is not None and self.escape_side_follows_committed_sign:
                     wanted_clear = left_clear if preferred_sign < 0 else right_clear
                     if wanted_clear >= self.escape_side_override_min_clearance_m:
@@ -797,9 +767,9 @@ class CollisionAvoidanceController:
                     # and leaves the pass side to the planner on re-approach,
                     # which is the only actor that knows which side is correct.
                     #
-                    # `sign_router.retrace_escape` is NOT this. It only re-aims
-                    # steering inside a reverse leg that is already 21.6 cm
-                    # long, and it was measured and rejected.
+                    # `sign_router.retrace_escape` is NOT this: it only re-aims
+                    # steering inside an already-decided reverse leg. See
+                    # ``adr:0055-escape-maneuver-selection``.
                     return 0.0
                 if left_clear != right_clear:
                     # Swing left (negative steering while reversing) when the left
@@ -856,17 +826,16 @@ class CollisionAvoidanceController:
             )
 
         if threat_dir == ThreatDirection.LEFT:
-            # Threat on the left — steer right (away). Positive steering is left
+            # Threat on the left - steer right (away). Positive steering is left
             # (CCW) throughout the stack for FORWARD travel, so the creeping
             # (non-touching) correction is negative.
             #
             # Already touching switches speed to reverse, and Ackermann reverse
             # flips the yaw response relative to forward (see _k_turn_steer_sign's
             # docstring for the physics), so the sign has to flip with it. A fixed
-            # negative sign here drove the nose further into the wall it was
+            # negative sign here would drive the nose further into the wall it is
             # already touching instead of away from it whenever this branch
-            # reversed -- measured pinning a side at 4.5cm clearance for the rest
-            # of a run that never recovered.
+            # reverses.
             already_touching = self._side_clearance(
                 math.pi / 2, lidar_ranges, lidar_angles
             ) < self.contact_dist or self._forward_touching(lidar_ranges, lidar_angles)
@@ -886,7 +855,7 @@ class CollisionAvoidanceController:
             )
 
         if threat_dir == ThreatDirection.RIGHT:
-            # Threat on the right — steer left (away): positive steering while
+            # Threat on the right - steer left (away): positive steering while
             # creeping forward, negative once already touching and reversing, for
             # the same reverse-flips-yaw reason as the LEFT branch above.
             already_touching = self._side_clearance(
@@ -917,16 +886,11 @@ class CollisionAvoidanceController:
     ) -> tuple[float, bool]:
         """Let the router's committed pass side outrank "steer away from the threat".
 
-        The FRONT branch has consulted ``preferred_sign`` since
-        ``escape_side_follows_committed_sign`` shipped, and the two SIDE
-        branches never did -- they pick from the threat side and
-        ``already_touching`` alone. MEASURED on run_20260915_002408 (ccw, 3/3
-        laps, 42 escapes), that is the wrong 83%: 10 of the 12 usable episodes
-        were SIDE_CORRECTION, and the escape agreed with the side the router
-        needed on 3 of 12 overall (k_turn 1/2, side_correction 2/10), with the
-        alignment delta NEGATIVE in every category. Range to the committed
-        pillar moved 0.497 -> 0.526 m, which is the operator-reported pendulum:
-        back off three centimetres, steer the wrong way, come back.
+        The FRONT branch consults ``preferred_sign`` when
+        ``escape_side_follows_committed_sign`` is set, and the two SIDE branches
+        must as well: picking from the threat side and ``already_touching`` alone
+        can steer against the side the router needs, and a wrong-side pass ends
+        the round. See ``adr:0050-escape-steering-degrees-and-committed-side``.
 
         REFUSES, never redirects. When the router's side and the threat are on
         OPPOSITE flanks there is no conflict -- steering away from the threat
@@ -934,28 +898,18 @@ class CollisionAvoidanceController:
         When they are on the SAME flank, this reverses straight instead of
         shoving the chassis to the wrong side of the pillar.
 
-        The second return value is that refusal, and the caller needs it. Until
-        2026-09-15 this returned the sign alone, so a refusal zeroed the
-        steering while the branch kept ``side_correction_speed`` -- +0.1 m/s,
-        FORWARD -- whenever the flank was not already touching. That is not
-        "reverse straight": it deletes the steer-away reflex and creeps the
-        chassis at the threat for 0.2 s with no steering at all. The corpus
-        measured that arm at 12 -> 15, losing go_obstacles_0004 by collision,
-        and the conclusion drawn was that refusal fails. It was never the
-        documented manoeuvre that was measured. Nothing in the suite caught it
-        because the only test asserting a reversing speed forced
-        ``already_touching`` first, which takes the reverse branch anyway.
+        The second return value is that refusal, and the caller needs it: a
+        refusal must also switch the tick to the reverse speed, not merely zero
+        the steering. The caller applies this; zeroing steering alone would
+        creep the chassis forward at the threat with no steer-away reflex.
 
-        It does not steer toward the wanted side, and that restraint is
-        measured. Taking the router's side whenever it held
-        ``escape_side_override_min_clearance_m`` cost 12 -> 15 on the obstacles
-        corpus, losing go_obstacles_0004 on all three assertions including
-        complete_without_collision: 0.12 m is not room to rotate a 30 cm
-        chassis through, so the override drove into the flank it had just
-        measured as barely clear. Refusing keeps the benefit that matters --
-        the escape stops pushing to the wrong side -- and leaves the pass to
-        the planner on re-approach, the only actor that knows which side is
-        correct. That is the K-turn's own answer to the same conflict.
+        It does not steer toward the wanted side: the override only refuses to
+        push AWAY from the side the router needs. Steering toward it would drive
+        into a flank that merely clears ``escape_side_override_min_clearance_m``,
+        which is not room to rotate the chassis. Refusing keeps the benefit that
+        matters -- the escape stops pushing to the wrong side -- and leaves the
+        pass to the planner on re-approach, the only actor that knows which side
+        is correct. That is the K-turn's own answer to the same conflict.
 
         ``preferred_sign`` is negative for LEFT (see
         ``compute_escape_maneuver``'s docstring). ``threat_is_left`` is passed
@@ -965,17 +919,14 @@ class CollisionAvoidanceController:
         """
         if preferred_sign is None or not self.side_correction_follows_committed_sign:
             return away_sign, False
-        # NEVER steer toward the side the threat is on. Taking the router's side
-        # on clearance alone measured 12 -> 15, losing go_obstacles_0004 on all
-        # three assertions including complete_without_collision: with a 0.12 m
-        # floor the override happily steered INTO a flank that had 0.12 m left,
-        # and 0.12 m is not room to rotate a 30 cm chassis through.
-        #
-        # So the override never pushes toward a threat; it only refuses to push
-        # AWAY from the side the router needs. That is the K-turn's own answer
-        # to the same conflict -- commit to neither side, reverse straight, and
-        # leave the pass to the planner on re-approach, which is the only actor
-        # that knows which side is correct.
+        # NEVER steer toward the side the threat is on. The override never
+        # pushes toward a threat; it only refuses to push AWAY from the side the
+        # router needs, because ``escape_side_override_min_clearance_m`` is not
+        # room to rotate the chassis through. That is the K-turn's own answer to
+        # the same conflict: commit to neither side, reverse straight, and leave
+        # the pass to the planner on re-approach, which is the only actor that
+        # knows which side is correct. See
+        # ``adr:0050-escape-steering-degrees-and-committed-side``.
         if (preferred_sign < 0) is not threat_is_left:
             # Steering away from the threat already goes where the router
             # wants, so there is nothing to arbitrate.
