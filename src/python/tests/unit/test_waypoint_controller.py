@@ -109,8 +109,7 @@ class TestSelectTargetPointWrapsAndStaysAhead:
     seconds while heading drifted 85+ degrees. And picking by distance alone
     could return a point behind the chassis, which the curvature steering law
     is not valid for -- measured as a wrong-direction turn. Neither is
-    reproducible in sim (see
-    docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md),
+    reproducible in sim (adr:0052-pursuit-target-selection),
     so these construct the failure geometry directly instead of relying on a
     sim run to happen to hit it.
     """

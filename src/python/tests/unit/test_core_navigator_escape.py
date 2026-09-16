@@ -433,8 +433,8 @@ class TestMissingSensorsDegradeSafely:
 class TestEscapeEscalation:
     """_maybe_escalate: after escalate_after_attempts consecutive failed escapes,
     the next escape should reverse longer and swing to the opposite side instead
-    of repeating an identical pulse into the same wall (open recommendation from
-    the 2026-07-03 navigation review, docs/internal/2026-07-03-navigation-review-findings.md).
+    of repeating an identical pulse into the same wall
+    (adr:0055-escape-maneuver-selection).
     """
 
     @staticmethod

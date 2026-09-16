@@ -1,6 +1,6 @@
 #:schema ../../../model/hardware/vision/hud.schema.json
 # Navigation HUD overlay (per-run recorded video) -- src/vision/hud.py
-# See docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md
+# Rationale: adr:0071-round-recording-mcap
 
 font_scale = 0.55
 text_thickness = 1

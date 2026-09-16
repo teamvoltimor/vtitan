@@ -1,8 +1,7 @@
 """Render the navigation HUD onto a synthetic frame.
 
 Lets its layout/legibility be judged and iterated on without a running node,
-real hardware, or even a real video -- see
-docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
+real hardware, or even a real video (adr:0071-round-recording-mcap).
 
 The synthetic frame is sized to match what VideoRecorder actually writes
 (video_width from src/config/hardware/vision/node.toml, height derived from

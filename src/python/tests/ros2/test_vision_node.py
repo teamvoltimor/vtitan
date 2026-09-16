@@ -395,11 +395,9 @@ def direct_node_class(mock_detector, monkeypatch):
 
 class TestVideoRecordingGating:
     """Per-run annotated video: RACING + a known run path from bag_recorder_node,
-    arriving in any order -- see
-    docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md.
-    Runs on both challenges (Obstacles already carries strictly more load on
-    the same pipeline than Open Challenge ever will) -- see
-    docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
+    arriving in any order (adr:0071-round-recording-mcap). Runs on both
+    challenges; Obstacles already carries strictly more load on the same
+    pipeline than Open Challenge ever will.
     """
 
     def test_direct_mode_subscribes_to_every_gating_and_hud_topic(self, ros_context, direct_node_class):
@@ -574,8 +572,8 @@ class TestVideoRecordingGating:
 
 
 class TestHudTelemetryCaching:
-    """/nav_debug and /scan feed the recorded video's HUD (src/vision/hud.py) --
-    see docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
+    """/nav_debug and /scan feed the recorded video's HUD (src/vision/hud.py)
+    (adr:0071-round-recording-mcap).
     Neither is a recording gate; both may still be None when a snapshot is built.
     """
 

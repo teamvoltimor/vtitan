@@ -6,8 +6,8 @@ Verifies:
 - Controller from 4 approach poses terminates done with robot inside zone.
 - The maneuver never enters the inner keep-out square at any tick, including from
   degenerate approach poses (target behind the robot / inside its turning radius) that
-  previously drove a non-convergent orbit into the inner block — see
-  docs/internal/2026-07-11-navigation-logic-review.md §2.3.
+  previously drove a non-convergent orbit into the inner block
+  (adr:0062-sim-contact-model-and-parking).
 - done controller always returns zero speed.
 """
 
@@ -312,8 +312,7 @@ def _simulate_park(
 # position, which a real Ackermann chassis cannot). It's safely bounded either way
 # (ParkController's own max_frames give-up holds position, never runs forever or
 # collides), but chasing full convergence for every possible approach angle is a separate,
-# larger tuning effort than this fix's scope -- see
-# docs/internal/2026-07-11-navigation-logic-review.md §2.3.
+# larger tuning effort than this fix's scope (adr:0062-sim-contact-model-and-parking).
 _SOUTH_APPROACHES = [
     ((1.15, 0.75), -math.pi / 2),  # centred, facing south
     ((1.10, 0.75), -math.pi / 2 + 0.05),  # left of gap, slight yaw error
@@ -331,7 +330,7 @@ _SOUTH_APPROACHES = [
         "perpendicular and mostly out in the corridor (measured: 0/240 swept approaches "
         "actually contained, 176 of them reported done). Now that the stop condition is "
         "honest, the missing entry maneuver is what fails. See "
-        "platform/docs/internal/2026-07-25-parking-review.md."
+        "adr:0062-sim-contact-model-and-parking."
     ),
 )
 @pytest.mark.parametrize("start_pos,start_yaw", _SOUTH_APPROACHES)

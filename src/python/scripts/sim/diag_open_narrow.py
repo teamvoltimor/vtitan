@@ -44,8 +44,7 @@ the original suspicion was a speed-dependent steering law, since
 further per metre and carves a tighter arc. That was root-caused and fixed
 structurally in ``2026-08-03`` -- ``WaypointController.compute_steering`` no
 longer reads ``steer_kp`` at all, having moved to curvature-based pure pursuit
-off the real chassis geometry (see
-``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+off the real chassis geometry (``adr:0052-pursuit-target-selection``).
 Any ``steer_kp`` value passed here is therefore inert.
 
 That per-second rate limit is still live in the other direction, and is the

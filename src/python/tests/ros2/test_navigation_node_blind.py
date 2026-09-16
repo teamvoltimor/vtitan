@@ -277,7 +277,7 @@ class TestBlindImpliesDirectionInference:
         (test above) without correcting the heading estimate to match, leaving
         it anchored to the old, wrong half of the pair for the rest of the
         run -- a fixed, non-decaying bias, confirmed on real hardware
-        (2026-08-04, see docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md).
+        (2026-08-04, adr:0053-direction-inference-and-start-pose).
         """
         from shared.domain.models import Pose
 

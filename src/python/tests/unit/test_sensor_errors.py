@@ -245,7 +245,7 @@ class TestWallHeadingCorrectsThem:
         each refreshing its LIDAR-localizer grid search (~100 raycasts) every
         scan -- ~30s combined, not a hang (2026-08-04: was mistaken for one
         after several 20-40s timeouts cut it off mid-run; see
-        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``
+        ``adr:0054-absolute-heading-from-walls``
         for how that got tracked down). Marked slow rather than sped up: the
         cost is the real localizer doing real work, not test-only overhead.
         """
