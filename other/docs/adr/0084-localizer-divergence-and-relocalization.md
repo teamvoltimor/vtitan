@@ -109,9 +109,16 @@ the slowest feed's scan period (LIDAR at 10 Hz).
 
 ## Evidence
 
-- Never measure yaw rate from `pose_yaw`: it is localizer-damped and understates
-  by 4 to 6x. Derive it from the orientation quaternion (about 166 Hz), since
-  `/imu/data.angular_velocity` is all zeros (the BNO08x UART-RVC has no gyro).
+- Never measure yaw rate from `pose_yaw`: it is the localizer's fused pose,
+  published at about 5 Hz against the IMU's about 166 Hz, too coarse and too
+  lagged to carry the achieved rate. Derive the rate from the orientation
+  quaternion instead, since `/imu/data.angular_velocity` is all zeros (the BNO08x
+  UART-RVC has no gyro). A re-measurement on one recorded run
+  (`run_20260829_140424`, 13085 IMU samples against 2604 `pose_yaw` samples) did
+  not reproduce the "understates by 4 to 6x" figure this ADR used to quote: over
+  a 0.15 s finite difference the differentiated `pose_yaw` tracked the quaternion
+  rate (mean 0.287 against 0.255 rad/s) and its total heading variation was
+  slightly higher, so no single damping factor should be quoted.
 - Blind mode seeds the believed start as the canonical section; on a
   four-fold-symmetric 1.0 m track the localizer locks to a clean 90/180/270 deg
   rotation of truth for the whole run.
