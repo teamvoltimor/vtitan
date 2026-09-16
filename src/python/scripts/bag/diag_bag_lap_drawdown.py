@@ -1,10 +1,10 @@
 r"""Did the car ever drive the loop BACKWARDS, and for how far?
 
-The mechanism that lost all three 2026-09-11 evening rounds: a burst of k_turns
-accumulates a 180-300 deg heading change, the lookahead search re-acquires the
-path happily in the OTHER direction, and the car drives up to 0.63 of a lap the
-wrong way at POSITIVE commanded speed. See
-``kturn_flips_heading_and_waypoint_index_freezes_2026_09_11``.
+The mechanism that lost the 2026-09-11 evening rounds: a burst of k_turns
+accumulates a large heading change, the lookahead search re-acquires the path
+happily in the OTHER direction, and the car drives a fraction of a lap the wrong
+way at POSITIVE commanded speed. See
+``adr:0052-pursuit-target-selection`` for the measured verdict.
 
 TRAP, and it produced a wrong "no reversal" verdict once already: instantaneous
 wrong-way arcs read ZERO in every affected run. Per-tick angular velocity is
@@ -17,9 +17,9 @@ only as corroboration: it FREEZES rather than stepping backward, which is why
 every backward-jump guard in the tree reads clean through a reversal.
 
 A positive control belongs in the same invocation. Pass a run that is known to
-have finished 3 clean laps -- it should report drawdown at noise level (~18 deg)
-against 86-227 deg on an affected run. Without it a low number cannot be told
-apart from a broken reader.
+have finished 3 clean laps -- it should report drawdown at noise level, against
+a large figure on an affected run. Without it a low number cannot be told apart
+from a broken reader.
 
 Usage::
 
@@ -57,12 +57,12 @@ model and whose angle about the mat centre swings wildly for millimetres of
 travel. Every run including the clean controls looks bad there."""
 
 ON_LOOP_DEG = 45.0
-"""A wall-clock floor is not enough, and the control proved it: at 25 s the
-clean 3-lap run of 2026-09-11 still scored 106 deg of drawdown in a 25.1-31.4 s
-window, against the 18 deg it is known to deserve. The bay exit does not finish
-on a schedule. So the scan starts only once the car has actually made this much
-angular progress about the mat centre, which is direction-agnostic and needs no
-clock. Values under a quarter-corner would still admit the pocket."""
+"""A wall-clock floor is not enough, and the control proved it: a clean 3-lap
+run still scored drawdown in the early window, against the noise level it is
+known to deserve. The bay exit does not finish on a schedule. So the scan starts
+only once the car has actually made this much angular progress about the mat
+centre, which is direction-agnostic and needs no clock. Values under a
+quarter-corner would still admit the pocket."""
 
 MIN_TICKS = 50
 """Fewer post-bay ticks than this is a run that never left the pocket."""
@@ -72,8 +72,8 @@ MANEUVER_KINDS = ("k_turn", "side_correction")
 re-orientation, side_correction is the reactive layer taking the wheel."""
 
 NOISE_DEG = 25.0
-"""Drawdown at or below this is weaving, not a reversal: the clean 3-lap control
-of 2026-09-11 measured 18 deg over 1080 deg of progress."""
+"""Drawdown at or below this is weaving, not a reversal, on the clean control's
+own measured noise level."""
 
 
 def _progress_deg(rows: Sequence[tuple[float, object]], centre: tuple[float, float], sign: float) -> list[tuple[float, float]]:

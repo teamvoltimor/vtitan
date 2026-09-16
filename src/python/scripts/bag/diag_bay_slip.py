@@ -1,10 +1,8 @@
 r"""What turn radius does the chassis ACHIEVE while ratcheting out of the pocket?
 
-Every bay-exit A/B run in the simulator is currently scoring the simulator. The
-mirrored-reverse arm looked like an 11x win until the same run with
-``--no-slide`` collapsed it to below the held lock, which put ~95% of the
-result in the slide-on-contact resolver rather than in the manoeuvre. So the
-next number has to come from hardware, and this is it.
+The mirrored-reverse bay-exit arm in the simulator turned out to be mostly the
+slide-on-contact resolver rather than the manoeuvre, so the next number has to
+come from hardware, and this is it.
 
 The quantity is the EFFECTIVE TURN RADIUS, ``|ds| / |dpsi|``: how much wheel
 travel the chassis spent per radian it actually turned. Against it stands the
@@ -13,41 +11,34 @@ model's radius, the plain bicycle term floored by
 A ratio below 1 means the chassis rotated TIGHTER than free-space kinematics
 permits.
 
-That was first read as the wall, and it is mostly NOT. THE FLOOR IS NOT A
-CONSTANT: measured in free space at full lock, the achieved radius rises with
-SPEED and then saturates --
+The floor is NOT a constant: measured in free space at full lock, the achieved
+radius rises with SPEED and then saturates, so the shipped constant is simply
+the value at ONE speed. The pocket adds a further factor on top of that, and
+only that part is the wall. See adr:0086-simulator-realism for the
+speed-dependent turn-radius curve.
 
-    mean speed m/s   0.025  0.079  0.132  0.168  0.227  0.270  0.324
-    R achieved m     0.105  0.202  0.298  0.391  0.412  0.445  0.429
-
--- so ``min(0.43, 0.055 + 2.0 * v)`` describes it and the shipped constant
-0.29 m is simply the value at ONE speed, 0.118 m/s. The pocket adds a further
-1.3-1.7x on top of that, and only THAT part is the wall.
-
-Three corrections are baked into those numbers, each of which moved them by
-more than the effect being measured. Every one was found by testing the
-INSTRUMENT, not the chassis.
+Three corrections are baked into the numbers, each of which moved them by more
+than the effect being measured. Every one was found by testing the INSTRUMENT,
+not the chassis.
 
 1. MATCH THE OPERATING POINT. The pocket is also where the wheel sits at full
    lock and crawls, so an unmatched pooled ratio cannot tell the surroundings
    from the speed. Hence ``--control-phase`` and the paired table.
-2. TAKE A NET DELTA OVER A WINDOW. ``|yaw|`` summed at the IMU's ~166 Hz
-   ACCUMULATES noise where a signed sum cancels it, and reported the corridor
-   at creep as 0.088 m against the converged 0.16-0.20. The result is stable
-   from ``--window-s`` 0.02 to 0.20 and only the raw rate disagrees; a reading
-   that moves with its own window is not converged.
+2. TAKE A NET DELTA OVER A WINDOW. ``|yaw|`` summed at the IMU rate ACCUMULATES
+   noise where a signed sum cancels it. The result is stable across the window
+   settings and only the raw rate disagrees; a reading that moves with its own
+   window is not converged.
 3. INTEGRATE THE SPEED SERIES. Holding one sample across the window credits a
    stop-start creep with the speed it happened to open on, which is exactly the
    low-speed end of the curve. See ``_travel_between``.
 
 Why the IMU and not the pose: ``quaternion_yaw``'s docstring says ``pose_yaw``
-is localizer-fused and damped, and MEASURED here on one time base it sees 0.66x
-the rotation the IMU does -- so a radius taken against it is ~1.5x overstated.
-The shipped 0.29 m was taken against it (see ``kinematics.py``).
+is localizer-fused and damped, and measured here on one time base it sees less
+than the full rotation the IMU does -- so a radius taken against it is
+overstated. The shipped constant was taken against it (see ``kinematics.py``).
 
 Why speed and not odometry distance: ``travelled_m`` is SIGNED and a ratchet
-alternates, so it cancels -- the recorded reason a previous bay measurement read
-1 cm of progress across 539 legs.
+alternates, so it cancels.
 
 Usage (from ``src``)::
 
@@ -82,8 +73,8 @@ _MIN_TRAVEL_M = 2e-4
 """Wheel travel below which a sample carries no radius at all.
 
 0.2 mm. Dividing a stalled tick's travel by its yaw noise manufactures radii of
-millimetres, and 68% of bay ticks are stalled -- measured, the wheel moves only
-for ~0.5 s after each reversal. Those ticks are not evidence about geometry."""
+millimetres, and most bay ticks are stalled -- the wheel moves only briefly after
+each reversal. Those ticks are not evidence about geometry."""
 
 _MIN_YAW_RAD = math.radians(0.05)
 """Yaw below which the ratio is noise over noise, so the sample is dropped."""
@@ -110,8 +101,8 @@ def _sample_at(series: list[tuple[float, float]], t: float) -> float | None:
 def _model_radius_m(wheel_rad: float) -> float:
     """Turn radius free-space kinematics allows at this wheel angle.
 
-    Floored by ``MIN_TURN_RADIUS_M``, which is the measured chassis saturation
-    (`72e7172b`) and the thing the achieved radius is being tested against.
+    Floored by ``MIN_TURN_RADIUS_M``, the measured chassis saturation and the
+    thing the achieved radius is being tested against.
     """
     if abs(wheel_rad) < 1e-6:
         return math.inf
@@ -248,9 +239,9 @@ def _run_samples(
             continue
         travel = _travel_between(speeds, t0, t1)
         # NET delta across the window, not the sum of the sub-steps inside it.
-        # |yaw| summed at the IMU's ~166 Hz accumulates noise instead of
-        # cancelling it, which understates the radius by ~19% measured against
-        # the same windows scored net. The window is what makes the two differ.
+        # |yaw| summed at the raw IMU rate accumulates noise instead of
+        # cancelling it and understates the radius. The window is what makes the
+        # two differ.
         step = (y1 - y0 + math.pi) % (2.0 * math.pi) - math.pi
         if travel < _MIN_TRAVEL_M:
             stalled_yaw += abs(step)
@@ -292,9 +283,9 @@ _SPEED_EDGES_MPS = (0.10, 0.20, 0.30, 0.40)
 """Wheel-speed buckets. Bay creep is commanded at 0.10 m/s.
 
 Resolved this finely because the achieved radius turned out to depend on SPEED
-and not only on the surroundings: at full lock the corridor itself reaches
-0.108 m at creep, well inside the 0.29 m floor, so the floor is a statement
-about the speed it was measured at rather than about the chassis."""
+and not only on the surroundings: at full lock the corridor itself comes in well
+inside the shipped floor, so the floor is a statement about the speed it was
+measured at rather than about the chassis."""
 
 
 def _bucket(value: float, edges: tuple[float, ...]) -> int:

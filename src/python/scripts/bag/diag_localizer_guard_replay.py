@@ -1,9 +1,8 @@
 """Replay real hardware bags through LidarLocalizer's exact grid search.
 
 Built to stress-test the ambiguous-match guard's thresholds
-(``min_distinctiveness=0.02``, ``distinctiveness_cost_floor=3.0``,
-``localization.py``) against runs beyond the 2 originally used to derive
-them. For each pulled run:
+(``min_distinctiveness``, ``distinctiveness_cost_floor``, ``localization.py``)
+against runs beyond the ones used to derive them. For each pulled run:
 
 1. Reconstruct per-tick pose (``/nav_debug``) and implied speed between
    consecutive ticks. Flag ticks whose implied speed exceeds what the real
@@ -20,6 +19,9 @@ them. For each pulled run:
    performs, seeded from the previous (non-jump) tick's pose, and report the
    winning cost and its margin over the runner-up -- the two numbers the
    ambiguous-match guard thresholds against.
+
+See adr:0084-localizer-divergence-and-relocalization for the guard and the
+divergence detector.
 
 Usage (from ``src``, with PYTHONPATH=.)::
 

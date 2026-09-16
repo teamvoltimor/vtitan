@@ -1,8 +1,7 @@
 r"""What obstacle map did the robot actually build, and is it plannable?
 
-Operator question 2026-09-12: *"how many signs does it believe in, where does it
-put them, how stable are they, and could better manoeuvres be planned off that
-map?"*
+Operator question: *"how many signs does it believe in, where does it put them,
+how stable are they, and could better manoeuvres be planned off that map?"*
 
 Two halves, and they are deliberately separate because one of them cannot lie.
 
@@ -21,10 +20,9 @@ replay in the loop. Everything here is measured against two rulebook facts:
 **REPLAYED (comparative).** The same recorded detections and poses are pushed
 through a freshly built ``SignRouter`` twice: once with ``SLOT_SIGN_MAP`` as the
 TOML pins it, and once with it forced the other way. That is the only way to say
-how far this corpus sits from the 125-bag prediction in
-``src.navigation.planning.sign_slot_map`` (routing error 23.3% -> 15.0%, worst
-peak believed 24 -> 7, runs over the physical max 32/125 -> 0/125, position
-changes 44.9 -> 3.1 per run).
+how far this corpus sits from the recorded prediction in
+``src.navigation.planning.sign_slot_map`` and
+adr:0058-sign-discovery-range-and-barrier-belief.
 
 CONTROLS:
 

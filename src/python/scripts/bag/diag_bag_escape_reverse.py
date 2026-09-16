@@ -1,29 +1,26 @@
 r"""Did the longer escape reverse actually fit on the mat?
 
-``max_escape_s`` went 1.0 -> 1.8 on 2026-09-07 (``72e7172b``), which takes the
-simulated escape timeouts 9 -> 0 but roughly doubles the reverse: at
-``rev_speed`` 0.2 m/s, 0.20 m becomes 0.36 m. The corpus CANNOT price that risk
--- its contact model never slides along a wall, so it cannot show what a longer
-reverse does against one -- and reverse has never been live-verified on this
-chassis at all. Predicted from the pre-change bags: room for 0.20 m on 94% of
-escape triggers, for 0.36 m on only 73%.
-
-This checks the prediction against runs recorded on each side of the change.
+``max_escape_s`` was raised, which clears the simulated escape timeouts but
+roughly doubles the reverse distance. The corpus CANNOT price that risk -- its
+contact model never slides along a wall, so it cannot show what a longer reverse
+does against one -- and reverse has never been live-verified on this chassis at
+all. This checks the prediction against runs recorded on each side of the change.
+See ``adr:0055-escape-maneuver-selection`` for the measured verdict.
 
 Per escape episode (a contiguous run of ticks with a reversing maneuver):
 
 * **duration** -- how long the episode actually ran, against the cap.
 * **rotation** -- yaw turned over the episode, the thing the escape exists to
-  produce. The pre-change complaint was 27.4 deg median against the 90 deg+ a
-  corner needs.
+  produce. The pre-change complaint was a median well under the 90 deg+ a corner
+  needs.
 * **rear room at trigger** -- rear-arc clearance the tick the episode began.
 
 TRAP, and the reason this script measures the arc rather than
 ``rear_clearance_m``: the chassis rear face sits 0.272 m BEHIND the LIDAR, so
 returns closer than that are the robot's own body. Taking a plain minimum over
-the rear arc reports ~0.02 m -- physically inside the chassis -- and reads as
-"no room anywhere" on every single trigger. Self-returns must be excluded
-before the number means anything.
+the rear arc reports a distance physically inside the chassis and reads as "no
+room anywhere" on every single trigger. Self-returns must be excluded before the
+number means anything.
 
 Usage::
 

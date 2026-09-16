@@ -8,12 +8,11 @@ where no pillar was supposed to be. This renders it instead: accumulate the real
 ``/scan`` returns over a time window, project them into world coordinates with
 the pose the robot BELIEVED at the time, and print the occupancy grid as text.
 
-It is how the 2026-09-15 wedges were identified as the parking lot's west fin
-rather than a mis-seen pillar, and how a pillar was found sitting 0.38 m from
-the wall in one round and 0.53 m in its two sibling rounds -- 15 cm of
-disagreement between rounds of the same layout, which is either an object that
-moved or a pose with a 15 cm bias, and which no scalar clearance metric would
-ever have surfaced.
+It is how a wedge was identified as the parking lot's west fin rather than a
+mis-seen pillar, and how a pillar's position disagreed between sibling rounds of
+the same layout -- either an object that moved or a pose with a bias, which no
+scalar clearance metric would ever have surfaced
+(adr:0084-localizer-divergence-and-relocalization).
 
 METHOD
 

@@ -8,7 +8,8 @@ instrument that can score
 
 It replays each bag's recorded detections in order against the recorded pose,
 builds the belief out of the magenta boxes exactly as the gateway now does, and
-asks of every RED box: would it have been refused?
+asks of every RED box: would it have been refused? See
+``adr:0058-sign-discovery-range-and-barrier-belief`` for the measured verdict.
 
 Two numbers decide whether this is worth shipping, and they pull opposite ways:
 
@@ -142,8 +143,8 @@ def replay(
 
     ``fuse_lidar`` selects which projection is replayed. True mirrors
     production (`sign_discovery.lidar_range_fusion` ships true, so the gateway
-    hands the latest sweep to every projection); False is the raw pinhole this
-    script replayed until 2026-09-15, kept only so the two can be compared.
+    hands the latest sweep to every projection); False is the raw pinhole,
+    kept only so the two can be compared.
 
     ``lot_source`` selects where the lot comes from. ``magenta`` is the shipped
     belief, built from detections. ``start-pose`` ignores every detection and
@@ -165,10 +166,7 @@ def replay(
     pose: Pose | None = None
     start_pose: Pose | None = None
     # The gateway fuses the LATEST scan into every projection
-    # (`get_vision_detections` -> `get_lidar_scan`). Replaying without it
-    # measured the raw pinhole, which production has not run since
-    # `lidar_range_fusion` shipped -- and the pinhole under-reads far enough to
-    # put the believed lot off the mat, so the tool invented its own verdict.
+    # (`get_vision_detections` -> `get_lidar_scan`), so the replay must too.
     ranges = angles = None
     tally = _Tally()
 

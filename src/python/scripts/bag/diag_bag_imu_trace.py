@@ -1,11 +1,11 @@
 """Raw-topic trace for bags lacking /nav_debug and /scan.
 
 Every other diag_bag_*.py script leans on /nav_debug and/or /scan. Some
-bags predate one or both -- the one this was written for (2026-08-08's
-145948 run) has neither, but does have /imu/data, /ackermann_cmd,
-/robot_state and /motor/*. This answers the fallback question those bags
-still need answered: did the robot actually turn, and what did it command
-vs. feed back while doing it. Consolidates a one-off tmp_imu.py.
+bags predate one or both -- the one this was written for has neither, but does
+have /imu/data, /ackermann_cmd, /robot_state and /motor/*. This answers the
+fallback question those bags still need answered: did the robot actually turn,
+and what did it command vs. feed back while doing it. Consolidates a one-off
+tmp_imu.py. See ``adr:0071-round-recording-mcap`` for the bag-analysis setting.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_imu_trace.py RUN_DIR

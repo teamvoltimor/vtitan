@@ -3,7 +3,8 @@ r"""Does an escape ACHIEVE anything? Gap gained, ground kept, and how soon the n
 An escape exists to buy room. Nothing in this repo has ever asked whether it
 does. The escape work to date has counted episodes, tuned their trigger and
 argued about their side; all of that is upstream of the only question that
-decides whether the manoeuvre is worth running at all.
+decides whether the manoeuvre is worth running at all. See
+``adr:0092-escape-does-not-retire-committed-sign`` for the measured verdict.
 
 Four things are measured per episode, and they fail in different ways:
 
@@ -11,10 +12,10 @@ Four things are measured per episode, and they fail in different ways:
   the escape's entire purpose. Negative means it finished closer to the thing it
   was escaping.
 * **EFFICIENCY** -- net displacement divided by path length. 1.0 is a straight
-  move; near 0 is a pendulum that drove a long way and ended where it began.
-  Measured 2026-09-11, the escape's reverse/forward pair already gives back
-  80-86% of what it covers, so this is expected to be low -- the question is how
-  low, and whether the low ones are the ones that fail.
+  move; near 0 is a pendulum that drove a long way and ended where it began. The
+  escape's reverse/forward pair already gives back most of what it covers, so
+  this is expected to be low -- the question is how low, and whether the low
+  ones are the ones that fail.
 * **YAW TURNED** -- how far the chassis actually rotated. An escape that buys no
   room may still have bought a heading.
 * **TICKS TO THE NEXT ESCAPE** -- the outcome measure. An escape followed
@@ -126,8 +127,8 @@ def main() -> int:
         soon = 0
         for k, (a, b) in enumerate(episodes):
             # Sampled OUTSIDE the episode, because the robot stops computing
-            # forward clearance while a manoeuvre is latched: measured, only 25
-            # of 321 manoeuvre ticks carry the field, against 90% of ticks
+            # forward clearance while a manoeuvre is latched: only a small
+            # fraction of manoeuvre ticks carry the field, against most ticks
             # overall. The escape drives blind with respect to the very quantity
             # it exists to improve, so the boundary ticks are usually empty and
             # the last reading BEFORE and first reading AFTER are what exist.

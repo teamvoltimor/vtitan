@@ -1,9 +1,9 @@
 r"""Does the bay-exit wheel break away just after a leg reversal, then stall?
 
-`diag_bag_drive_response` shows the bay exit stalling 74% of its ticks while
-ordinary driving stalls under 2%, but the bay is the ONLY place that commands
-0.10 m/s and it is also the only place holding full lock, so between-run
-comparisons cannot say whether speed or load binds.
+`diag_bag_drive_response` shows the bay exit stalling far more than ordinary
+driving, but the bay is the ONLY place that commands the low bay speed and it is
+also the only place holding full lock, so between-run comparisons cannot say
+whether speed or load binds.
 
 This is a WITHIN-leg measurement, which does not care about that confound: it
 bins encoder speed by time since the current leg started. Static friction
@@ -12,12 +12,11 @@ motor is applying torque against a stopped wheel and wins briefly) and stalls
 as the leg continues. Pure load predicts a flat, uniformly stalled profile.
 
 If the breakaway is real, the fix is to make the ratchet reverse MORE often
-(shorter legs), not merely faster -- which is testable against the observed
-split: the runs with 0.33-0.50 s legs got out, the ones with 2-14 s legs
-never did.
+(shorter legs), not merely faster. See ``adr:0060-bay-exit-clearance-guard``
+for the measured verdict.
 
 Usage::
-    pixi run -e dev python scripts/bag/diag_bag_bay_breakaway.py data/live/runs/run_20260908_*
+    pixi run -e dev python scripts/bag/diag_bag_bay_breakaway.py RUN_DIR [RUN_DIR ...]
 """
 from __future__ import annotations
 

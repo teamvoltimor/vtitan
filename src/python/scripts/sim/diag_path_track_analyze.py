@@ -1,7 +1,8 @@
 """Analyze CSVs produced by ``diag_path_track.py``.
 
 Prints overall, post-convergence and per-lap statistics for the cross-track
-error against both the displayed (believed) path and the true path.
+error against both the displayed (believed) path and the true path. See
+``adr:0057-blind-corridor-follower-and-width``.
 
 Usage (from ``src``, with PYTHONPATH=".")::
 

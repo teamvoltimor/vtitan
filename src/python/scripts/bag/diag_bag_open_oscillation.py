@@ -1,11 +1,9 @@
 """Is the Open zig-zag a CONTROL limit cycle, a PATH that moves, or a corner the chassis runs wide?
 
-The 2026-09-12 Open rounds ran on a track whose inner walls formed a 1 m x 1 m
-square, so the corridor is ~1.00 m. The car finished 3/3 laps in every round and
-visibly snaked down the straights. This script characterises that snake and
-attributes it.
-
-SIX naive reads it exists to defeat -- each one was tried and failed first:
+The Open rounds run on a track with a ~1.00 m corridor and the car visibly
+snakes down the straights. This script characterises that snake and attributes
+it. It exists to defeat SIX naive reads, each of which was tried and failed
+first:
 
 1. "``crosstrack_error_m`` oscillates, count its zero crossings."  It has none,
    ever. ``track_geometry.cross_track_error`` returns
@@ -14,8 +12,8 @@ SIX naive reads it exists to defeat -- each one was tried and failed first:
    RECONSTRUCTED here (see 3) and the reconstruction is VALIDATED against the
    published magnitude before any of it is believed.
 
-2. "Mean |crosstrack| is 0.13-0.18 m, so it drifts."  A mean cannot separate a
-   steady bias (parked off-centre, harmless) from an oscillation (crossing the
+2. "Mean |crosstrack| is small, so it drifts."  A mean cannot separate a steady
+   bias (parked off-centre, harmless) from an oscillation (crossing the
    centreline repeatedly, expensive). The discriminating statistics are the
    ZERO-CROSSING RATE and the spatial WAVELENGTH, measured against PATH
    DISTANCE and not time -- a slower car oscillating at the same spatial
@@ -24,15 +22,14 @@ SIX naive reads it exists to defeat -- each one was tried and failed first:
    be reconciled instead of one silently standing in for the other.
 
 3. "Segment the straights with ``path_turn_ahead_rad < 0.10``."  That leaves
-   almost nothing: the corner preview is 0.80 m (``corner_preview_distance_m``)
-   and a straight on this track is barely longer, so the preview is armed over
-   most of the lap and the "straight" set collapses to a handful of ticks -- and
-   with it the travel axis, which then comes out of a garbage chord. Straights
-   are segmented on HEADING instead: contiguous ticks whose ``pose_yaw`` is
-   within 0.25 rad of an axis. The lateral coordinate is then a WORLD axis, and
-   the path's own lateral is the median of ``steer_target`` over the segment
-   (target points lie on the planned path; the Open Challenge has no sign
-   router, so no deformation can move them).
+   almost nothing: the corner preview is armed over most of the lap, so the
+   "straight" set collapses to a handful of ticks -- and with it the travel
+   axis, which then comes out of a garbage chord. Straights are segmented on
+   HEADING instead: contiguous ticks whose ``pose_yaw`` is within a tolerance
+   of an axis. The lateral coordinate is then a WORLD axis, and the path's own
+   lateral is the median of ``steer_target`` over the segment (target points lie
+   on the planned path; the Open Challenge has no sign router, so no deformation
+   can move them).
 
 4. "The car wobbles" does not say WHICH loop wobbles. The same projection
    separates them: on a straight the planned path's lateral coordinate is
@@ -44,14 +41,13 @@ SIX naive reads it exists to defeat -- each one was tried and failed first:
    ``angular_velocity`` is IDENTICALLY ZERO in these bags -- the BNO08x runs in
    UART-RVC mode, which publishes orientation only. A radius computed that way
    comes out infinite and nothing raises. Differentiating ``pose_yaw`` instead
-   does not rescue it either: per-tick pose yaw noise puts |yaw rate| at p50
-   0.35 rad/s on a STRAIGHT with the wheel centred, which does not separate from
-   0.42 rad/s in a corner. So the achieved radius is measured here over a WHOLE
-   CORNER instead: total heading change across the corner is ~1.57 rad, far
-   above the noise, and ``R_achieved = path_length / |total heading change|``.
-   That is a real measurement of what the chassis traced at race speed, and it
-   needs neither the gyro nor a per-tick derivative. It inherits the ~10%
-   over-read of bag pose path length, which is stated wherever it is printed.
+   does not rescue it either: per-tick pose yaw noise does not separate a
+   straight from a corner. So the achieved radius is measured here over a WHOLE
+   CORNER instead: total heading change across the corner is far above the
+   noise, and ``R_achieved = path_length / |total heading change|``. That is a
+   real measurement of what the chassis traced at race speed, and it needs
+   neither the gyro nor a per-tick derivative. It inherits the ~10% over-read
+   of bag pose path length, which is stated wherever it is printed.
 
 6. "``lookahead_distance_m`` is a constant", and "the speed ladder is
    ``motion/speed.toml``".  Neither holds.
@@ -61,22 +57,24 @@ SIX naive reads it exists to defeat -- each one was tried and failed first:
    ``path_turn_ahead_rad / corner_turn_threshold_rad``, where
    ``effective_transition`` is ``min(lookahead_transition, wall budget)`` and the
    budget is derived from the path's distance to the MAT EDGE -- a function of
-   corridor width, so a width change silently re-scales that ramp.
-   ``navigation/motion/speed.toml`` reads ``max_mps = 0.156``, but the motor
-   profile ``profiles/rev-hd-hex-motor-6000rpm/motion/speed.toml`` overrides the
-   whole Open ladder to 0.26/0.38/0.50 with a 0.55 cap. Occupancy of every rung
-   is counted so the report names the ladder in force rather than the file that
-   looks authoritative.
+   corridor width, so a width change silently re-scales that ramp. The motor
+   profile's ``motion/speed.toml`` overrides the whole Open ladder, so occupancy
+   of every rung is counted so the report names the ladder in force rather than
+   the file that looks authoritative.
 
 The planned corner radius is reconstructed too, by CIRCLE-FITTING the recorded
 ``steer_target`` points through each corner rather than trusting
-``waypoints.toml``'s ``arc_radius = 0.45``: ``corner_arc_radius`` returns
-``min(max_radius, max(w_entry, w_exit)/2 - center_bias_m)``, so on a 1.00 m
-corridor with ``wide_center_bias_m = 0.10`` the ceiling never binds.
+``waypoints.toml``'s ``arc_radius``: ``corner_arc_radius`` returns
+``min(max_radius, max(w_entry, w_exit)/2 - center_bias_m)``, so the ceiling
+binds only on a narrow corridor.
 
 ``R_min = 0.053 + 1.86 * v`` is also printed for reference, but it is an
 EXTRAPOLATED fit above Obstacles speeds and every figure derived from it is
 labelled as such. The achieved-radius measurement above is what carries weight.
+
+See adr:0049-corner-arcs-per-corridor-and-commit-distance for the Open zigzag
+chain (tighter arc, then the shortened straight) and adr:0052-pursuit-target-
+selection for the lookahead ramp and the target search.
 
 Usage:
     VTITAN_HARDWARE_PROFILE='270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm' PYTHONPATH=. \
@@ -106,12 +104,10 @@ LOOKAHEAD_LONG_OPEN = 0.24  # pursuit.toml open_lookahead_long (Open only)
 HEADING_TOLERANCE_RAD = 0.15
 """How far from an axis a tick may sit and still count as "on a straight".
 
-0.15 rad is 8.6 deg. Every tick inside the tolerance at either END of a corner
-arc is arc that leaks into the straight, so the tolerance sets how much curvature
-contaminates the straight statistics AND how much of the 90 deg sweep the corner
-window keeps -- measured here as a corner heading change of 1.27 rad against the
-geometric 1.57. Tighter is cleaner on both counts and costs only straight
-coverage; 0.25 rad was tried and left 28 deg of arc inside the straights."""
+Every tick inside the tolerance at either END of a corner arc is arc that leaks
+into the straight, so the tolerance sets how much curvature contaminates the
+straight statistics AND how much of the sweep the corner window keeps. Tighter is
+cleaner on both counts and costs only straight coverage."""
 
 MIN_STRAIGHT_M = 0.50
 
@@ -202,12 +198,11 @@ def load_ticks(bag_dir: Path) -> tuple[list[Tick], dict[str, object]]:
     The filter is the pose, NOT ``crosstrack_error_m``, and that distinction is
     load-bearing. ``crosstrack_error_m`` is published only on the
     ``normal_drive`` branch; the navigator drops to ``waypoint_reached`` for a
-    tick every time it retires a waypoint, which on this track is ~120 times a
-    round. Keying on the crosstrack therefore chops the run into ~120 fragments
-    of a few ticks each, every one of them too short to define a travel axis or
-    a wavelength -- measured here as 1 usable straight segment of 0.59 m out of
-    a 20 m round before the fix. Those ticks have a perfectly good pose, so they
-    are kept and only the per-branch fields go None.
+    tick every time it retires a waypoint, which on this track is many times a
+    round. Keying on the crosstrack therefore chops the run into fragments of a
+    few ticks each, every one of them too short to define a travel axis or a
+    wavelength. Those ticks have a perfectly good pose, so they are kept and
+    only the per-branch fields go None.
 
     A segment is broken on a TIME gap instead (``_GAP_S``), which is what a
     latched manoeuvre or an escape actually looks like, rather than on a
@@ -298,10 +293,10 @@ def _assign_axis(ticks: list[Tick], half_window: int = 3) -> None:
     Smoothed, because the axis assignment is a threshold on the heading and the
     raw ``pose_yaw`` crosses a quadrant boundary on single noisy ticks, which
     shatters a straight and randomises where a corner window starts. +/-3 ticks
-    is 0.3 s against a measured oscillation period of 4-6 s, so the snake this
-    script is measuring passes through untouched -- it is the per-tick localizer
-    jitter that does not. ``yaw`` itself is left RAW: the corner's total heading
-    change is a difference of endpoints, and smoothing endpoints would bias it.
+    is a short window against the oscillation period this script is measuring,
+    so the snake passes through untouched -- it is the per-tick localizer jitter
+    that does not. ``yaw`` itself is left RAW: the corner's total heading change
+    is a difference of endpoints, and smoothing endpoints would bias it.
     """
     for i, tk in enumerate(ticks):
         lo, hi = max(0, i - half_window), min(len(ticks), i + half_window + 1)
@@ -338,22 +333,20 @@ def planned_path_radius(ticks: list[Tick], span: int = 1) -> dict[str, float]:
     waypoints apart: near-infinite on a straight, the arc radius on a corner.
 
     ``span`` is 1, i.e. CONSECUTIVE waypoints, and that is not a detail.
-    ``waypoints.toml`` ships ``num_intermediate_arc_points = 3``, so a 90 deg
-    arc is a polyline of only five points about 22.5 deg apart. Three
-    consecutive points on a circle reproduce that circle exactly; reach three
-    waypoints either side (span 3, tried first) and the outer two land on the
-    adjoining straights, which inflated the answer to 0.45-0.49 m.
+    ``waypoints.toml`` ships ``num_intermediate_arc_points`` small, so an arc is
+    a coarse polyline. Three consecutive points on a circle reproduce that circle
+    exactly; reach three waypoints either side (span 3, tried first) and the
+    outer two land on the adjoining straights, which inflates the answer.
 
     This replaces fitting a circle to the targets inside a corner WINDOW, which
     was tried first and is biased: the window's first and last targets sit on
     the adjoining straights, and a circle through arc-plus-tails fits with a
-    small residual at a radius 25-45% too large (0.49-0.55 measured against a
-    0.38 geometric expectation). Ordering the ring removes the window from the
-    question entirely.
+    small residual at an inflated radius. Ordering the ring removes the window
+    from the question entirely.
 
     The reported corner radius is the 10th percentile of the local radius --
-    the arc is a minority of the ring (a 0.40 m arc is 0.63 m of a 1.63 m side),
-    so the low tail is the arc and the median would be the straight.
+    the arc is a minority of the ring, so the low tail is the arc and the median
+    would be the straight.
     """
     ordered: list[tuple[float, float]] = []
     for tk in ticks:
@@ -393,10 +386,9 @@ def straight_segments(ticks: list[Tick]) -> list[list[Tick]]:
 
     Trimming rather than filtering is deliberate: the snake itself swings the
     heading, and on these runs it exceeds the tolerance mid-straight often
-    enough that a plain filter shatters a 1 m straight into fragments too short
-    to carry a wavelength -- 4.5 m of usable straight out of 12 m driven, and 1
-    corner detected out of 12. An interior excursion is the SIGNAL, not a
-    segment boundary.
+    enough that a plain filter shatters a straight into fragments too short to
+    carry a wavelength. An interior excursion is the SIGNAL, not a segment
+    boundary.
     """
     out: list[list[Tick]] = []
     run: list[Tick] = []
@@ -619,11 +611,11 @@ def corner_windows(ticks: list[Tick], straights: list[list[Tick]]) -> dict[str, 
     A corner is the stretch between the end of one straight and the start of the
     next, when the axis quadrant advanced by one. The achieved radius is
     ``path_length / |total heading change|`` over that whole window: the heading
-    change is ~1.57 rad, orders above the per-tick pose-yaw noise that makes a
+    change is orders above the per-tick pose-yaw noise that makes a
     differentiated yaw rate useless here, so this is a real measurement rather
-    than a derivative of noise. It inherits the bag pose path length's ~10%
-    over-read, which biases it HIGH -- i.e. against the finding it is used to
-    test, so a positive result is conservative.
+    than a derivative of noise. It inherits the bag pose path length's over-read,
+    which biases it HIGH -- i.e. against the finding it is used to test, so a
+    positive result is conservative.
 
     The planned radius over the same window comes from circle-fitting the
     ``steer_target`` points, which are on the planned path.

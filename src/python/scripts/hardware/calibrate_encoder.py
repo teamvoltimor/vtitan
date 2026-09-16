@@ -8,17 +8,15 @@ exponential smoothing and the sampling interval, on top of the real error.
 ``get_drive_counts()`` is the hardware counter, with none of that.
 
 Why it matters: counts_per_rev/max_rpm are per-motor physical facts, not
-generic constants (see EncoderConfig's docstring). The shipped 676.0 was
-measured on hardware 2026-07-25 against the now-RETIRED drive motor (it
-itself replaced an earlier 194.0 that over-reported distance by ~3.5x) --
-after the 2026-08-27 motor swap it was not trustworthy for the new one.
-The current 86.0 (2026-08-28) is a PROVISIONAL re-derivation from bench
-timing data (test_motors.py drive holds + tape measurement, see
-encoder.toml's own comment), not from this script's raw counts -- running
-THIS script is exactly how to replace it with an authoritative number.
-Getting it wrong is not harmless: the drive loop closes on m/s through this
-same constant (run_drive_at_rpm() measures its feedback through it), so the
-loop converges to a speed wrong by the same factor as any stale calibration.
+generic constants (see EncoderConfig's docstring). The retired motor's value
+was invalidated by the motor swap, and the currently shipped value is a
+PROVISIONAL re-derivation from bench timing data (test_motors.py drive holds +
+tape measurement, see encoder.toml's own comment), not from this script's raw
+counts; see ``adr:0076-drivetrain-and-steering-hardware``. Running THIS script
+is exactly how to replace it with an authoritative number. Getting it wrong is
+not harmless: the drive loop closes on m/s through this same constant
+(run_drive_at_rpm() measures its feedback through it), so the loop converges to
+a speed wrong by the same factor as any stale calibration.
 
 Wheel slip is the one contaminant left, and it only ever inflates the count for
 a given distance -- so every reading is an UPPER bound on the true ratio, and
@@ -120,7 +118,7 @@ def main() -> int:
         default=0.05,
         help="Commanded m/s. Old default (3.0) was calibrated-era leftover, far above anything "
         "the new motor has been confirmed to track cleanly -- see encoder.toml's bench data "
-        "(2026-08-28) for the range that's actually been tested (0.015-0.1 m/s forward).",
+        "for the range that's actually been tested (0.015-0.1 m/s forward).",
     )
     parser.add_argument("--duration-s", type=float, default=5.0)
     parser.add_argument("--runs", type=int, default=2)

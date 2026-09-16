@@ -3,7 +3,8 @@
 Scores every sign from the TRUE layout against the TRUE trajectory, sharing
 nothing with what the robot believes, and reports it beside the router's own
 believed-frame record. The gap between the two is discovery error; the truth
-column is what a judge would call.
+column is what a judge would call. See
+``adr:0059-pass-side-travel-relative-and-scorer-independence``.
 
 Also carries the checks that qualify that number:
 
@@ -11,9 +12,9 @@ Also carries the checks that qualify that number:
   (``d > passed_dist``), unlike the candidate filter directly below it, which
   also requires the sign not to be behind the chassis -- so a robot that backs
   away from a sign should cross the same threshold as one that drove past.
-  REFUTED at 0 retreats in 181 retirements (4 in 1275 untruncated); every
-  retirement has the sign genuinely behind at median -1.2 m. Kept because it
-  is cheap and would catch the mechanism if escape behaviour ever changed.
+  REFUTED: retirements are passes, not retreats, in almost every case, with the
+  sign genuinely behind the chassis at retirement. Kept because it is cheap and
+  would catch the mechanism if escape behaviour ever changed.
 - **Verdict stability.** Whether a violation survives nudging the sign's
   corridor label -- see ``_verdict_is_ambiguous``.
 - **Escape attribution.** Whether the chassis was mid-escape at the closest
@@ -114,10 +115,10 @@ def _to_belief(sim: object, x: float, y: float, true_x: float, true_y: float, tr
     and the gap is METRES by construction rather than by drift.
 
     Gating those runs out was tried first and is not the answer: the pose-error
-    gate turned out to select the start section exactly (13 south in, all 31
-    non-south out), so every attribution it produced spoke for a quarter of the
-    corpus. Rotating instead of discarding keeps all four sections, because the
-    offset is a rigid transform and both sides of the comparison move together.
+    gate turned out to select the start section exactly, so every attribution it
+    produced spoke for a quarter of the corpus. Rotating instead of discarding
+    keeps all four sections, because the offset is a rigid transform and both
+    sides of the comparison move together.
     """
     believed = sim.gateway.get_current_pose()  # type: ignore[attr-defined]
     if believed is None:
@@ -618,7 +619,7 @@ _HOLD_M = NavigationTuning.load_default().sign_router.sign_lane_hold_m
 _LANE_SPEC_FAR_M = 0.2786
 """Lateral offset the lane planner asks for at the shipped config.
 
-Read back from ``NavigationTuning.load_default()`` on 2026-08-25 as
+Read back from ``NavigationTuning.load_default()`` as
 ``(chassis_half_diagonal + sign_width/2 + SIGN_CLEARANCE_MARGIN_M) *
 SIGN_LANE_OFFSET_FRAC`` with ``SIGN_LANE_PLANNER`` True -- restated here only as
 the denominator of the delivery ratio."""
@@ -627,11 +628,11 @@ the denominator of the delivery ratio."""
 def _verdict_is_ambiguous(sign: object, near_x: float, near_y: float, direction: Direction | None) -> bool:
     """Would nudging the sign's corridor label change the wrong-side VERDICT?
 
-    Label instability on its own means nothing: 94.9% of corpus signs sit
-    within 10 cm of some corridor boundary, so "is the label unstable" is not
-    a selective question and the first version of this check, which asked
-    exactly that, returned 100% for violations against a 94.9% base rate --
-    a control that was missing until it was measured.
+    Label instability on its own means nothing: almost every corpus sign sits
+    within 10 cm of some corridor boundary, so "is the label unstable" is not a
+    selective question and the first version of this check, which asked exactly
+    that, fired for every violation at the base rate -- a control that was
+    missing until it was measured.
 
     What matters is whether the instability reaches the answer. A south<->west
     flip also flips the comparison AXIS (``ROUTING_TABLE`` gives N/S the Y

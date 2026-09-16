@@ -209,3 +209,14 @@ mistake and it wrongly excluded the 0.10 arm.
   a wide corridor the robot starts 20 cm from truth by design before any
   `SensorErrors` is applied; a configured error of zero therefore reads as the
   localizer's residual rather than isolating the axis under test.
+- Without a 0.5 m corner exclusion, `actual`/`planned` read a spurious about
+  0.10 m inward bias on every corridor (`CORNER_PREVIEW_DISTANCE_M` 0.80 plus the
+  narrow corner arc radius 0.20-0.30 m); excluding it collapsed the bias to
+  within +/-0.02 m and stayed flat out to a 1.3 m margin.
+- Hardware stall: at the first corner of `run_20260830_013702` indices 8 and 9
+  held 2.10 s and 2.95 s against a 0.4-1.3 s norm, after a 1.3 m pose jump.
+- Dwell is about 26 ticks on a narrow-corridor index against about 9 on a wide
+  one; a flat 30-tick threshold reported 57 percent of ticks stalled in passing
+  runs, measuring speed rather than stalling.
+- A CW bag ran crosstrack 0.09 to 0.15 through the corner, never crossed the
+  0.30 `LOOKAHEAD_TRANSITION`, and the robot ended 0.10 m from the wall.

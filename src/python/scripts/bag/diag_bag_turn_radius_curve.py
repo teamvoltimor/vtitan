@@ -5,22 +5,21 @@ a speed curve `R = 0.053 + 1.86 v` from pocket/bay manoeuvres -- i.e. from
 data taken at 0.1-0.2 m/s and then EXTRAPOLATED across the whole Open ladder
 up to 0.55 m/s. Every "the path demands a radius the chassis lacks" claim in
 this project rests on that extrapolation, and nobody has checked it where it
-matters. The 2026-09-12 Open runs can: three clean laps each at the Open
-ladder, twelve corners per run.
+matters. Recorded Open runs at the Open ladder can (adr:0086-simulator-realism).
 
 Two traps found the hard way while writing this, both of which silently
 produce an empty or wrong answer rather than an error:
 
 1. `/imu/data` angular_velocity is IDENTICALLY ZERO in these bags -- the
    BNO08x runs in RVC mode and publishes orientation only. A gyro-based yaw
-   rate reads 0.000 rad/s on every one of 10855 samples and would report an
-   INFINITE turn radius at every speed. The yaw rate here is differentiated
-   from `pose_yaw` instead, and the raw-gyro check is kept as an assertion so
-   a future bag that does carry a gyro is not silently ignored.
+   rate would read zero and report an INFINITE turn radius at every speed. The
+   yaw rate here is differentiated from `pose_yaw` instead, and the raw-gyro
+   check is kept as an assertion so a future bag that does carry a gyro is not
+   silently ignored.
 
 2. Filtering to full-lock ticks finds nothing usable. The car only commands
-   |steering| >= 0.85 when it is nearly stopped (median speed on those ticks:
-   0.017 m/s). That is itself a finding -- the controller never asks for the
+   |steering| >= 0.85 when it is nearly stopped. That is itself a finding --
+   the controller never asks for the
    tightest circle at speed -- but it means the radius envelope has to be read
    from what was ACHIEVED per speed bin, not from what was commanded.
 

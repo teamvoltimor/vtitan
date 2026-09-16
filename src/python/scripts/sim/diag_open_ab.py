@@ -13,10 +13,11 @@ Overrides are applied to an in-memory ``NavigationTuning`` and handed to
 ``ScenarioSimulator``. Nothing on disk is touched, so this is safe to run while
 the checked-in TOML tree is being edited elsewhere.
 
-A verdict is the headline, but on a sweep that already passes 100% the verdicts
+A verdict is the headline, but on a sweep that already passes the verdicts
 cannot move and sim time is the only signal left. Read the mean delta, not the
 per-case spread: the arms differ by trajectory, so individual cases swing in
-both directions even when the change is neutral overall.
+both directions even when the change is neutral overall. See
+``adr:0087-test-methodology`` for the A/B protocol.
 
 Usage (from ``src``)::
 
@@ -355,8 +356,8 @@ def main() -> int:
     # --case comes from the shared sweep args, but this script seeds each case by
     # its POSITION IN THE RUN (see _run_case's `seed=index`), so honouring it
     # would run a different scenario than the number it names. Say so rather than
-    # accepting the flag and ignoring it, which is what happened until 2026-09-09
-    # and returned a plausible-looking sweep of the wrong corpus.
+    # accepting the flag and ignoring it, which silently returned a
+    # plausible-looking sweep of the wrong corpus before it was rejected.
     if getattr(args, "case", None):
         parser.error("--case is not supported here; use --wide-count, --sample or --all")
 

@@ -8,7 +8,8 @@ column per run, not five separate reports.
 Reports, per run: how the time was spent by phase, whether and when direction
 settled (with the gate verdict histogram when it did not), the speed profile,
 how much of the run was spent in recovery, path-following error, and where the
-start was measured.
+start was measured. See ``adr:0071-round-recording-mcap`` for the bag-analysis
+setting.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_fleet_compare.py \
@@ -43,14 +44,13 @@ renamed member breaks here instead of silently reporting 0% forever."""
 _CREEP_SPEED_MPS = 0.06
 """At or below this, the robot is creeping rather than racing.
 
-Sits just above the 0.05 creep setpoint so float noise doesn't split the
-bucket, and well below the 0.15 normal cruise.
+Sits just above the creep setpoint so float noise doesn't split the bucket, and
+well below normal cruise.
 
-Deliberately pinned to the PRE-2026-08-09 setpoint. The creep tier was raised
-to 0.075 m/s on that date (speed.CREEP_FRAC), so this threshold reads bags
-recorded before the change correctly and will report 0% creep for bags
-recorded after it. Raise it to ~0.09 when the older bags stop mattering --
-changing it now would silently reinterpret every historical run this script
+Deliberately pinned to the PRE-change setpoint. The creep tier was later raised,
+so this threshold reads bags recorded before the change correctly and will report
+0% creep for bags recorded after it. Raise it when the older bags stop mattering
+-- changing it now would silently reinterpret every historical run this script
 exists to compare.
 """
 

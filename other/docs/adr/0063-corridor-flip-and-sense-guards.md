@@ -114,3 +114,8 @@ collisions sighted but inverts blind.
   range is routine on a healthy round (12 percent of the clean control's
   right-sense ticks) and must not be flagged while the bearing still points along
   the path.
+- Tracks are born by corridor-gated split, position wander or first sighting. The
+  map believed 9 to 23 signs against a physical max of 8 and 56.3 percent of
+  positions matched no legal lattice point. The birth/flap coincidence lift is
+  about 1.0, refuting the corridor flap as the birth cause; path controls show 86
+  percent of ticks over the physical max.

@@ -6,9 +6,8 @@ territory, so it ends the round rather than costing time.
 
 Neither ``diag_bag_lap_flip_events.py`` nor ``diag_bag_direction_gate.py`` sees
 it, and both have the same blind spot: they read the DIRECTION ESTIMATOR. If
-the estimator is what went wrong -- and there is history for exactly that, see
-``direction_never_adopted_and_corridor_flap_2026_09_06`` -- then asking it
-whether the robot reversed is asking the suspect.
+the estimator is what went wrong -- and there is history for exactly that --
+then asking it whether the robot reversed is asking the suspect.
 
 This measures the trajectory instead, and never reads the estimator:
 
@@ -28,6 +27,9 @@ reversal counts only when it holds for ``MIN_REVERSAL_S`` AND sweeps at least
 
 Reported per run with the angle swept, so a genuine U-turn (a large negative
 sweep) reads differently from a wobble at a corner.
+
+See adr:0059-pass-side-travel-relative-and-scorer-independence for rule 9.21 and
+the travel-direction rule this watches.
 
 Usage::
 
@@ -120,7 +122,7 @@ def analyse(bag_dir: Path) -> bool:
     rows, skipped = _tolerant_rows(bag_dir)
     # bay_exit REVERSES BY DESIGN -- it is a ratchet of forward and backward
     # legs inside a pocket. Leaving those ticks in reports the manoeuvre
-    # working as a wrong-way lap, which is how run_20260908_012813 first read.
+    # working as a wrong-way lap.
     posed = [
         (t, s)
         for t, s in rows

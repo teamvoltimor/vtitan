@@ -1,10 +1,9 @@
 r"""Can the K-turn's pass-side override ever FIRE, or is its floor unreachable?
 
-Measured 2026-09-15 on the two rounds recorded that morning: the K-turn agrees
-with the router's committed pass side on **7 of 72 corner episodes (10%)**,
-mean alignment delta -0.049, the worst row in
-``diag_bag_escape_sign_agreement``. The side correction, on the same rounds,
-agrees 21 of 43 (49%).
+The K-turn agrees with the router's committed pass side far less often than the
+side correction does, and is the worst row in ``diag_bag_escape_sign_agreement``.
+See ``adr:0050-escape-steering-degrees-and-committed-side`` for the measured
+verdict.
 
 That 10% is easy to misread as "the K-turn picks the wrong side". Read
 ``_k_turn_steer_sign`` and a second reading appears. With
@@ -30,10 +29,9 @@ router wants, and the K-turn spends the corner reversing straight, gaining a
 couple of centimetres, and re-triggering. That is the limit cycle the operator
 describes as "the manoeuvres didn't help".
 
-The suspicion is quantitative: on the same rounds the escape trigger range from
-the chassis is p50 **0.091 m**, and the chassis half-width is 0.097 m. A
-manoeuvre that only starts once something is 9 cm away may never find 12 cm on
-either flank.
+The suspicion is quantitative: the escape trigger range from the chassis is
+comparable to the chassis half-width. A manoeuvre that only starts once
+something is that close may never find the override clearance on either flank.
 
 CONTROL: the sector clearances are recomputed with the SAME
 ``_sector_to_model`` and the same tuning the controller uses, so a difference

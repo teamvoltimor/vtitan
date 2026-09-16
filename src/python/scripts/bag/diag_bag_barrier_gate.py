@@ -1,17 +1,16 @@
 r"""How many wall-shaped RED detections still reach the sign map, and through which hole?
 
-The operator's report from the 2026-09-11 15:2x rounds: the robot approaches the
-parking lot "as if it thought it were a red block". ``MAX_PILLAR_ASPECT`` exists
-for exactly that -- the magenta barrier reads as RED under motion blur at p50
-confidence 0.79, so colour and confidence cannot reject it and shape must.
+The operator's report: the robot approaches the parking lot "as if it thought it
+were a red block". ``MAX_PILLAR_ASPECT`` exists for exactly that -- the magenta
+barrier reads as RED under motion blur, so colour and confidence cannot reject
+it and shape must.
 
 But the gate has two deliberate exemptions, and either one lets the barrier
 through:
 
 * CLIPPED. A box touching the frame edge skips the shape test, because a pillar
   the robot is closing on grows out of frame and its w/h crosses 1.0 with
-  nothing about the pillar having changed. Measured previously: 61% of the reds
-  this gate rejects are clipped.
+  nothing about the pillar having changed.
 * NOT BARRIER_POSSIBLE. The test only runs where the lot can BE -- the parking
   corridor or an unknown one. A wide red box seen from any other corridor is
   assumed to be a pillar. The camera's 102 deg HFOV does not respect corridor
@@ -20,19 +19,19 @@ through:
 So this replays every red detection through the gate and reports which ones are
 ADMITTED despite being wall-shaped, split by the exemption that admitted them.
 A leak concentrated in one exemption names the fix; one spread evenly says the
-shape test itself is the wrong instrument.
+shape test itself is the wrong instrument. See
+``adr:0058-sign-discovery-range-and-barrier-belief`` for the measured verdict.
 
 The parking corridor is DERIVED from the magenta detections rather than read
 from metadata, which the bag does not carry -- the barrier is the only magenta
 object on the track. Derived ONCE over every bag given, never per run: the lot
 does not move between rounds, while a single round's magenta lands in the
-neighbouring corridor often enough to name the wrong one. Measured 2026-09-11,
-three rounds of one session split 97% south, 67% south and 60% WEST.
+neighbouring corridor often enough to name the wrong one.
 
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_barrier_gate.py \
-        data/live/runs/run_20260911_1523* data/live/runs/run_20260911_1528*
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations
@@ -197,9 +196,8 @@ def main() -> int:
     frame = _frame_size([b for reds in per_bag.values() for b in reds])
     all_reds: list[RedBox] = [b for reds in per_bag.values() for b in reds]
     # Both rules, side by side, because the question is what the widening BUYS.
-    # The lot's corridor alone is what shipped before 2026-09-11; adding its
-    # neighbours is the repair, and the residue under the second rule is what
-    # neither reaches.
+    # The lot's corridor alone was the earlier rule; adding its neighbours is the
+    # repair, and the residue under the second rule is what neither reaches.
     for neighbours_count in (False, True):
         rule = "lot's corridor + NEIGHBOURS" if neighbours_count else "lot's corridor only (was shipped)"
         print("\n" + "=" * 70)

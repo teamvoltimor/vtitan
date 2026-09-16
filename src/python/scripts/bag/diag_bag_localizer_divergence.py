@@ -12,6 +12,9 @@ stream (phase, escape count, direction adoption, lap credit, corridor change,
 waypoint index) so a step in the metric can be lined up against what the
 navigator thought was happening.
 
+See adr:0084-localizer-divergence-and-relocalization for the divergence detector
+and the global rescue the metric feeds.
+
 Usage (from ``src/python``, with PYTHONPATH=.)::
 
     python scripts/bag/diag_bag_localizer_divergence.py data/live/runs/run_XXXX --bin 1.0

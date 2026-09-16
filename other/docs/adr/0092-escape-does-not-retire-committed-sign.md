@@ -37,6 +37,17 @@ it meant to go around, but that is an argument rather than a measurement.
   and 79 percent still held the same committed sign.
 - Off means the returned plan can still be the one that drove into the object,
   which is the failure this was written for.
+- Measured 2026-09-12 over three rounds: a sign is committed on 54.9 percent of
+  ticks, but `side_correction` runs on 0.8 percent of committed ticks against 22.6
+  percent of uncommitted ones (k_turn 0.7 against 24.3 percent), a 28-35x
+  separation. At manoeuvre onsets commitment is absent before 45 percent of onsets
+  against a 45 percent all-tick base rate, and the episodes that start committed
+  are short (60 percent committed, 87 percent survival), so the separation is about
+  episode length, not eviction.
+- The escape's reverse/forward pair gives back 80-86 percent of what it covers.
+  Only 25 of 321 manoeuvre ticks carried `forward_clearance_m` against 90 percent of
+  ticks overall, so the escape drives blind with respect to the very quantity it
+  exists to improve and the boundary readings must be sampled outside the episode.
 
 ## Cross-references
 

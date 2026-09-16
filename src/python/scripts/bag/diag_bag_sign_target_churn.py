@@ -1,11 +1,12 @@
 r"""Replay the real SignRouter over recorded detections: does the aim point sit still?
 
-The 09-07 track report was that the robot lined up correctly to pass a sign,
-kept correcting, and arrived badly placed. Measured on the bags, the controller
-was not hunting -- ZERO steering flips -- but the committed sign's believed
-position jumped a median 0.20-0.60 m (max 1.01 m) and the robot re-aimed at one
-physical pillar 4-14 times. A published track is refined in place every frame,
-so the target moved underneath a controller that tracked it faithfully.
+The track report was that the robot lined up correctly to pass a sign, kept
+correcting, and arrived badly placed. Measured on the bags, the controller was
+not hunting -- zero steering flips -- but the committed sign's believed position
+jumped repeatedly and the robot re-aimed at one physical pillar many times
+(adr:0045-sign-router-commit-hysteresis). A published track is refined in place
+every frame, so the target moved underneath a controller that tracked it
+faithfully.
 
 This drives the REAL ``SignRouter`` over the recorded ``/vision/detections`` and
 pose, with the position limits (``SIGN_POSITION_SLEW_M``,
@@ -79,8 +80,7 @@ def _replay(bag_dir: Path, *, limits: bool) -> tuple[list[float], float]:
     ``_settled_position`` -- rather than ``deform_waypoint``. The full deform
     path needs the navigator's planned waypoint, which the bag does not record,
     and reconstructing it from pose and heading does not reproduce the corridor
-    test (measured: 0 of 1384 ticks committed, against 37 real commitments in
-    the same bag). So the COMMITMENT is taken from what the robot actually
+    test. So the COMMITMENT is taken from what the robot actually
     committed to -- ``committed_sign_x_m``/``_y_m`` matched to the nearest
     published track -- and the shipped limiter is exercised against it. That
     measures the mechanism under test without faking the part around it.

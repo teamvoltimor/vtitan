@@ -48,13 +48,14 @@ TRIGGER PROVENANCE
 ``escape_trigger_angle_rad``/``_range_m`` are recorded from the MASKED scan
 (``navigator.py`` computes ``escape_trigger`` from ``escape_ranges``), so
 projecting that ray into the world and measuring its distance to the committed
-pillar is a direct test of the 2026-09-11 escape-mask repair (``4fc0fbab``). A
-trigger sitting ON the committed pillar means the mask did not withhold it.
+pillar is a direct test of the escape-mask repair (``4fc0fbab``). A trigger
+sitting ON the committed pillar means the mask did not withhold it. See
+``adr:0055-escape-maneuver-selection`` for the measured verdict.
 
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_contact_approach.py \
-        data/live/runs/run_2026091*
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations

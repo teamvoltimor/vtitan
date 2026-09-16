@@ -7,13 +7,12 @@ causes, and they want opposite fixes:
 * it is commanded a speed the drivetrain cannot deliver, and the wheel simply
   does not turn.
 
-The second is the live suspicion. ``diag_bag_drive_response.py`` measured 73.8%
-stall in the 0.09-0.11 m/s bin and 2.1% by 0.15-0.20, but binned nothing
-between 0.11 and 0.15 -- and the heading term's creep floor sits at **0.152
-m/s**, right against that unmeasured edge. The heading cut is what fires at a
-corner (``diag_bag_corner_speed.py``: heading binds 57.1% of ticks), so if the
-deadband reaches 0.152 then "slows for the corner" and "stops at the corner"
-are the same event.
+The second is the live suspicion. ``diag_bag_drive_response.py`` binned nothing
+between its low-speed bins, and the heading term's creep floor sits right
+against that unmeasured edge. The heading cut is what fires at a corner, so if
+the deadband reaches the creep floor then "slows for the corner" and "stops at
+the corner" are the same event. See
+``adr:0076-drivetrain-and-steering-hardware`` for the measured verdict.
 
 Three measurements:
 
@@ -76,9 +75,8 @@ STALL_DEG_S = 1.0
 _COAST_MIN_EPISODES = 30
 """Coast episodes below which the archive is reporting its own scarcity.
 
-Measured 2026-09-10: the whole 200-bag archive holds 15. The robot commands
-a new speed long before the wheel has stopped, so a stopping distance is
-simply not an event this data contains."""
+The robot commands a new speed long before the wheel has stopped, so a
+stopping distance is simply not an event this data contains."""
 """Below this the wheel is not turning. The estimator reads exact zeros."""
 
 MIN_EPISODE_TICKS = 2
@@ -133,11 +131,10 @@ def collect(
         if topic == Topics.MOTOR_DRIVE_SPEED:
             last_drive = float(deserialize_message(data, Float32).data)
             # COAST: how far the wheel keeps turning after the command
-            # goes to zero. `_guarded_command` budgets `v * tau` -- 35 mm
-            # at the shipped bay speed, 52 mm at 0.15 -- and refuses any
-            # leg it cannot stop inside that. But `tau` is a first-order
+            # goes to zero. `_guarded_command` budgets `v * tau` and refuses
+            # any leg it cannot stop inside that. But `tau` is a first-order
             # lag with NO stiction, and a drivetrain that delivers zero
-            # below 0.11 m/s does not coast like one. Measured here so
+            # below its deadband does not coast like one. Measured here so
             # the guard's budget can be argued with rather than assumed.
             now = _t * 1e-9
             enc_mps = deg_s_to_mps(abs(last_drive))
@@ -174,7 +171,7 @@ def collect(
         # A coast window is only evidence if the command STAYED at zero. A
         # command that returns before the wheel stops is the robot being
         # told to drive again, not a stopping distance -- unfiltered, every
-        # bin at 0.15 and above saturated at the 0.5 m cap because of it.
+        # high-speed bin saturated at the 0.5 m cap because of it.
         if coast[0] is not None:
             coast[0] = None
         last_cmd = abs(cmd)
@@ -244,8 +241,7 @@ def main() -> int:
         except (OSError, RuntimeError, ValueError) as exc:
             # The archive holds a handful of bags with a truncated or locked
             # metadata file. Every other diag here skips them and says so;
-            # this one aborted the whole sweep on the first, which is why a
-            # 200-bag question could not be asked of it at all.
+            # this one aborted the whole sweep on the first.
             print(f"!! {Path(bag).name}: {exc}", flush=True)
 
     print()

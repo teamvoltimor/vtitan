@@ -1,9 +1,10 @@
 r"""Can a RECOMPUTED assignment over the 24 legal cells replace the track map?
 
 The shipped ``ObservedSignMap`` is free-form clustering: every observation either
-joins a track or starts one, so the believed map holds 9-25 pillars on a track
-that admits at most 8, and ~50% of believed positions match no legal lattice
-point. Four dedup attempts AT PUBLICATION have been measured worse. This asks
+joins a track or starts one, so the believed map holds far more pillars than the
+track admits, and a large share of believed positions match no legal lattice
+point. Four dedup attempts AT PUBLICATION have been measured worse
+(adr:0058-sign-discovery-range-and-barrier-belief). This asks
 the other question: what if the map never invents a position at all, and instead
 ASSIGNS accumulated evidence to the 24 positions a pillar may legally stand at,
 at most 2 per section, recomputed every tick rather than committed incrementally?

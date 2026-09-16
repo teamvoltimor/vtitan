@@ -1,18 +1,18 @@
 r"""Is the INNER division line measurably worse, and at which step does it break?
 
-Reported from the track on 2026-09-11: *"le cuesta cuando tiene que esquivar por
-el lado interno"*. This splits the SHIPPED three-way verdict of
-``diag_bag_pass_side.py`` -- ``ROUTING`` / ``EXECUTION`` / ``ok`` -- by which
-division line the pillar stands on, using the lattice snap already written for
+Reported from the track: *"le cuesta cuando tiene que esquivar por el lado
+interno"*. This splits the SHIPPED three-way verdict of ``diag_bag_pass_side.py``
+-- ``ROUTING`` / ``EXECUTION`` / ``ok`` -- by which division line the pillar
+stands on, using the lattice snap already written for
 ``diag_bag_pass_geometry.classify_lattice``. Nothing about the classification is
 reinvented here; only the split is new.
 
 BOUND ON THE INPUT. The line a pillar is assigned to comes from the BELIEVED
-position, which on hardware sits 0.15-0.25 m from the real pillar while the two
-lines are only 0.20 m apart. So the inner/outer label is noisy by construction,
-and that noise is CONSERVATIVE: it mixes the two populations and can only pull
-their rates together, never apart. An effect that survives it is real; a null
-could be the mixing.
+position, which on hardware sits further from the real pillar than the two lines
+are apart. So the inner/outer label is noisy by construction, and that noise is
+CONSERVATIVE: it mixes the two populations and can only pull their rates
+together, never apart. An effect that survives it is real; a null could be the
+mixing.
 
 THE ROOM NUMBER. For an execution failure it matters whether the pass was badly
 steered or geometrically impossible, so the free lateral margin is computed from
@@ -21,10 +21,13 @@ the SNAPPED line (not the believed position, which carries the map error) as
     room = wall_gap - pillar_half - chassis_width
 
 with ``wall_gap`` the nominal distance from the division line to the wall on the
-side the rule demands: 0.40 m or 0.60 m in the 1.00 m corridor.
+side the rule demands.
 
 CONTROL. The pooled row must reproduce ``diag_bag_pass_side.py``'s own tally on
 the same bags; it is printed so a wrong path cannot masquerade as a null.
+
+See adr:0059-pass-side-travel-relative-and-scorer-independence for the
+travel-relative pass-side rule.
 
 Usage::
 

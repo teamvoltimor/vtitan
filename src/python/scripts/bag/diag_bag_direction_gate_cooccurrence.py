@@ -10,7 +10,8 @@ line up on the same scan?
 all true at once. This evaluates each independently over the recorded scans,
 then reports the pass rate of each and of the conjunction -- so a conjunction
 far below the product of the marginals says the conditions are anti-correlated,
-which is a different defect from any single threshold being wrong.
+which is a different defect from any single threshold being wrong. See
+``adr:0053-direction-inference-and-start-pose`` for the measured verdict.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_direction_gate_cooccurrence.py \

@@ -4,9 +4,9 @@
 ``MAX_STEERING_RATE`` ships at 1.2 rad/s and has never been measured. It is not
 cosmetic: ``bay_exit`` budgets its servo standstill from it as
 ``ceil(swing / (rate / CONTROL_HZ))``, which at 1.2 rad/s is 50 ticks of
-commanded ZERO after every leg change. Confirmed on track -- the commanded-zero
-runs in the bay last p50 2.551 / 2.556 / 2.552 s against the 2.50 s the constant
-predicts -- and at 8-14 reversals that is most of the manoeuvre.
+commanded ZERO after every leg change, and at several reversals that is most of
+the manoeuvre. On track the commanded-zero runs in the bay have matched the
+constant's prediction; see ``adr:0060-bay-exit-clearance-guard``.
 
     rate (rad/s)   ticks   per reversal   9 reversals
     1.2 (shipped)     50       2.50 s        22.2 s
@@ -14,11 +14,11 @@ predicts -- and at 8-14 reversals that is most of the manoeuvre.
     5.0               12       0.60 s         5.4 s
 
 **The bags cannot settle it.** ``/motor/steering_position`` is an ECHO of the
-command: fitted against ``/ackermann_cmd`` it gives slope 57.2958 (= 180/pi) at
-lag 0 with R^2 = 1.000000, and ``ServoDriver.get_steering_position`` says so in
-its own docstring. The gyro gives only a lower bound (>= ~1.27 rad/s at p90),
-because the lock-to-lock swings happen in the bay at ~0 speed where there is no
-yaw to read.
+command, not an independent measurement, and ``ServoDriver.get_steering_position``
+says so in its own docstring. The gyro gives only a lower bound, because the
+lock-to-lock swings happen in the bay at ~0 speed where there is no yaw to read.
+See ``adr:0076-drivetrain-and-steering-hardware`` for the fitted slope and the
+gyro bound.
 
 THE METHOD, and it needs no high-speed camera and no extra hardware. Drive the
 wheel to one lock, command the OTHER lock, hold for ``t``, then command the first
@@ -40,9 +40,10 @@ optimistic -- tyre scrub binds the linkage, and the bay's swings happen with the
 chassis's weight on the wheel.
 
 **Watch the ANGLE too.** ``robot.toml`` flags ``max_wheel_angle_deg = 85.0`` as
-NOT bench-verified, its predecessor was wrong by 1.28x, and it multiplies
-straight into the same budget. If the wheel visibly stops short of the commanded
-angle, say so -- that is the other measurement this trip is for.
+NOT bench-verified, and it multiplies straight into the same budget. If the
+wheel visibly stops short of the commanded angle, say so -- that is the other
+measurement this trip is for. See
+``adr:0076-drivetrain-and-steering-hardware``.
 
 Steering only. The drive motor is never touched, so this is safe with the robot
 sitting on the mat.
@@ -126,9 +127,8 @@ class _Servo:
 
         One message and a sleep is not how this topic is driven: the navigator
         republishes every control tick, and both the motor node's closed loop
-        and its watchdog are built for a stream. Sending a single command and
-        waiting produced "they barely moved at all" on the mat across every
-        trial of the first three attempts at this measurement.
+        and its watchdog are built for a stream. A single command and a wait
+        produced no visible motion on the mat.
         """
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
@@ -153,9 +153,8 @@ def _trial(servo: _Servo, angle_deg: float, hold_s: float) -> None:
     The dash must end in a REVERSAL, not in a move to centre. Centre lies ON the
     path of the dash, so a short hold makes the wheel continue in the SAME
     direction and simply stop at 0 -- one smooth crossing with nothing to see.
-    Reported from the mat: "around the seventh I saw it crossing again", which is
-    exactly that, and it is why the signal has to be the wheel turning BACK
-    toward the lock it came from.
+    The signal has to be the wheel turning BACK toward the lock it came from,
+    not that crossing.
 
     And trials must be separable, which parking at a lock destroys: every leg is
     then a 170 deg sweep and the timed dash looks like the return. So the trial

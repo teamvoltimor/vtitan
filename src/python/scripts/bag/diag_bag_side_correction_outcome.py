@@ -1,12 +1,12 @@
 """Does ``side_correction`` actually buy the pass it fires for?
 
-Reported from the track on 2026-09-12, watching three rounds: "many of the
-times it makes those corrections it still fails to pass on the correct side, or
-still fails to avoid a collision." That is a causal claim about ONE manoeuvre
-type, and the bag can test it -- but only against a control, because
-side_correction fires precisely where the pass is already hard. A high failure
-rate DURING correction proves nothing on its own; what matters is the rate
-against passes where it never fired.
+Reported from the track: "many of the times it makes those corrections it still
+fails to pass on the correct side, or still fails to avoid a collision." That
+is a causal claim about ONE manoeuvre type, and the bag can test it -- but only
+against a control, because side_correction fires precisely where the pass is
+already hard. A high failure rate DURING correction proves nothing on its own;
+what matters is the rate against passes where it never fired
+(adr:0059-pass-side-travel-relative-and-scorer-independence).
 
 So every reconstructed pass is split on whether side_correction held the wheel
 while the sign was committed, and each half is scored on the two outcomes the
@@ -47,8 +47,7 @@ from src.config.tuning_helpers import get_tuning  # noqa: E402
 
 GRAZE_M = 0.030
 """Below this the pillar is being touched, not passed. Chosen from the track
-report of pillars being MOVED, not from a tuning constant: the 2026-09-12 runs
-recorded passes at 5, 6 and 9 mm, which is contact."""
+report of pillars being MOVED, not from a tuning constant (adr:0059)."""
 
 SIDE_CORRECTION = "side_correction"
 

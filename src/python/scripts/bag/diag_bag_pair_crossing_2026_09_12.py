@@ -1,99 +1,56 @@
 r"""Which sign-PAIR cell across a corner actually cost the 2026-09-12 rounds?
 
-On 2026-09-12 the operator ran 31 OBSTACLES rounds on the competition track
-(1.00 m corridor) and NONE reached 3/3; the same car had reached 3/3 seventeen
-times that morning on the practice track. The operator named four geometries he
-believes carry the failures, all of them a PAIR of pillars straddling a corner
-with one on the INNER division line and one on the OUTER:
+The operator named four geometries he believes carry the Obstacles failures, all
+of them a PAIR of pillars straddling a corner with one on the INNER division
+line and one on the OUTER:
 
     green->red   CLOCKWISE          red->green  COUNTERCLOCKWISE
     green->green COUNTERCLOCKWISE   red->red    CLOCKWISE
 
-``diag_bag_pass_pairs.py`` already tests exactly that hypothesis and REFUTED it
-on the 2026-09-11 corpus. It is re-run alongside this script rather than
-rewritten; what this one adds is everything that verdict does not carry:
+``diag_bag_pass_pairs.py`` already tests exactly that hypothesis and refuted it.
+It is re-run alongside this script rather than rewritten; what this one adds is
+everything that verdict does not carry:
 
-* **corner vs straight PER PILLAR.** The sign grid rows sit at depth 1.0, 1.5
-  and 2.0 along a section whose straight spans exactly 1.0..2.0, so a pillar is
-  never *inside* a corner -- it is at the straight's ENTRY (just after a
-  corner), its MIDDLE, or its EXIT (just before the next one). Which of the
-  three it is depends on the travel sense, so the label is computed from the
-  direction and the section's own depth axis, not from the raw coordinate.
+* **corner vs straight PER PILLAR.** The sign grid rows sit at three depths along
+  a section whose straight spans a fixed range, so a pillar is never *inside* a
+  corner -- it is at the straight's ENTRY (just after a corner), its MIDDLE, or
+  its EXIT (just before the next one). Which of the three it is depends on the
+  travel sense, so the label is computed from the direction and the section's own
+  depth axis, not from the raw coordinate.
 * **the achieved CLEARANCE**, so a legal-but-touching pass is not scored the
   same as a clean one. ``clearance = |lateral| - pillar_half - chassis_half``;
-  under 0.030 m is the graze band settled on 2026-09-12, at or under zero is
-  contact.
+  under the graze band is a graze, at or under zero is contact.
 * **a pair-level GEOMETRIC demand.** For every kept pair the lane translation
   the rule asks for between A and B is computed from the SNAPPED lattice (the
   believed position carries the map error, the snap does not), together with
   the along-track distance the corner actually offers, and turned into a
   demanded radius ``R = L^2 / (4*dLat)`` for an S-curve. That is compared
   against the speed curve ``R = 0.053 + 1.86|v|`` the chassis really achieves.
-* **a matched CONTROL GROUP**, passed with ``--control``: the practice-track
-  rounds of the same morning that DID finish 3/3. Without it a failure rate has
-  nothing to be high relative to.
+* **a matched CONTROL GROUP**, passed with ``--control``: practice-track rounds
+  that finished 3/3. Without it a failure rate has nothing to be high relative
+  to.
 
 TRAPS OBSERVED, because each has bitten this repo:
-* ``wrong_side_pass_count`` is NOT read -- it judges from the believed layout
-  and has read 24 where the truth was 7.
+* ``wrong_side_pass_count`` is NOT read -- it judges from the believed layout.
 * ``sign_deform_magnitude_m`` is NOT read -- ``sign_lane_suppress_deform``
   ships TRUE, so the deformation is computed and discarded.
 * the verdict, the lattice snap and the router replay are imported from the
   scripts that ship them; only the joins are new.
 
-MEASURED 2026-09-12 over the 31 competition rounds (197 committed passes) with
-the 18 practice rounds of the same morning that finished 3/3 as control (90
-passes). The sign map is in far better shape than the 2026-09-11 corpus: 0.0% of
-believed positions are unplaceable on the lattice, against 56.3% then, and no run
-believes in more than the physical maximum of 8 pillars.
-
 THE HEADLINE IS A CORRECTION TO THE TOOL, not to the car. ``diag_bag_pass_side``
-keys its verdict on ``d.current_corridor`` -- the ROBOT's corridor -- which the
-fork here reproduces 197/197, while its own docstring says the SIGN's corridor is
-the one to use. The router's per-sign label agrees with the independent lattice
-section on 287/287 passes, so the arbiter is unambiguous, and under it:
-
-    routing errors, competition:  21  ->  1
-    routing errors, practice:     22  ->  0
-
-42 of 43 "the planner COMMANDED the illegal side" verdicts are the perpendicular
-axis, not a planner fault, and they land at the ENTRY row because that is where
-robot and pillar corridors differ. The 2026-09-12 note "5 of 24 passes commanded
-the WRONG side, 4 of 5 RED" is from the same substitution and does not survive.
-
-WHAT REMAINS, all on the corrected verdict:
-
-* THE PAIR HYPOTHESIS IS REFUTED AGAIN, and by the control's own sign: a B that
-  follows a pass across a corner fails 15.1% (n=73) against 30.6% (n=36) for a B
-  with no recent predecessor, and 8.0% for one preceded inside its own section.
-* the four named cells collapse to n=2, 3, 2 and 2 once the inner/outer
-  constraint the operator stated is applied, and carry 1, 0, 0 and 0 wrong-side
-  passes respectively. Only under the UNCORRECTED verdict do they read 100%.
-* the BAND CHANGE is not the discriminator either: CHANGE 13.5% (n=37) against
-  HOLD inner->inner 20.0% (n=30). The demanded S-curve radius across a corner is
-  2.76 m p50 against 0.35 m available -- comfortable by 8x. The corner shear is
-  real geometry and is NOT what these passes die of.
-* the one pass-level cell that leans is the SLOT: the first grid row AFTER a
-  corner fails 20.5% (n=73) against 10.0% (n=90) for the last row before one
-  (odds 2.33, p=0.076), and 36.1% vs 23.1% in the control. Same sign in both
-  groups, significant in neither. Its artefact control holds: keyed on the raw
-  coordinate with the direction dropped the same split reads odds 1.74, p=0.269.
-* THE LOCUS IS TRACKING. Commit range is 0.65 m on a lost pass against 0.82 m on
-  a clean one and the ENTRY row is detected no later than the EXIT row (0.75 vs
-  0.81), so it is not perception. The plan is the same either way -- asked 0.243
-  m on the lost passes against 0.236 m on the clean ones -- and the chassis
-  delivers 0.099 m against 0.243 m. 71.4% of lost passes ran under a latched
-  manoeuvre against 34.5% of clean ones.
-* THE CORRIDOR WIDTH SHOWS UP IN ONE PLACE: on the 1.00 m competition corridor
-  the chassis leaves a corner already 0.225 m into the WRONG band (p50) and owes
-  0.421 m against 0.350 m of arc; on the narrower practice corridor the same row
-  is entered at +0.149 m, on the legal side.
+keys its verdict on ``d.current_corridor`` -- the ROBOT's corridor -- while its
+own docstring says the SIGN's corridor is the one to use. The fork here
+reproduces the shipped verdict and re-judges every pass under both corridors and
+under the pillar's own LATTICE section as an independent arbiter, so the
+difference is auditable. The outcomes are scored on the arbiter verdict.
 
 NOT ESTABLISHED: "contact" here is a BELIEVED clearance against a believed pillar
-position carrying 0.15-0.25 m of error, so the 69/197 contact count is an
-over-read of unknown size and no bag says whether a pillar was displaced. Nor can
-a bag distinguish an operator stop from a failure, and most of these rounds were
-stopped by hand.
+position carrying map error, so the contact count is an over-read of unknown
+size and no bag says whether a pillar was displaced. Nor can a bag distinguish
+an operator stop from a failure, and most of these rounds were stopped by hand.
+
+See adr:0059-pass-side-travel-relative-and-scorer-independence for the
+travel-relative rule and the independence of the scorer.
 
 Usage::
 
@@ -129,8 +86,7 @@ from scripts.common.tables import print_table
 from src.config.tuning_helpers import get_tuning
 
 GRAZE_M = 0.030
-"""Clearance under this is a graze: settled 2026-09-12, all 8 sub-30 mm grazes
-were tracking failures rather than plan failures."""
+"""Clearance under this is a graze rather than a clean pass (adr:0059)."""
 
 PILLAR_HALF = TrafficSignSpecs.WIDTH / 2
 CHASSIS_HALF = RobotSpecs.WIDTH / 2
@@ -141,7 +97,7 @@ DEPTHS = (
 )
 CORNER_ARC_M = math.pi / 2 * (CorridorDimensions.OBSTACLES_WIDTH / 2)
 """Quarter turn on the corridor CENTRELINE, which sits half a corridor from
-each wall. 0.785 m at 1.00 m width."""
+each wall."""
 
 # Depth axis sense per section, travelling COUNTERCLOCKWISE. South is driven
 # +x and its depth IS x, east is driven +y and its depth is y; north and west

@@ -1,14 +1,14 @@
 """One row per bag: how a whole hardware session ended, not how one run did.
 
-A session of 27 short runs cannot be read one bag at a time -- the question
+A session of many short runs cannot be read one bag at a time -- the question
 "which of these actually raced, and what stopped the rest" is a property of
-the SET, and reading it run-by-run is where the 2026-09-08 first answer went
-wrong (the runs were there; the directory being read was not). This replays
-every bag under a directory and prints one row each: duration, final phase,
-laps, escapes, and the last /race_metrics payload.
+the SET, and reading it run-by-run can read the wrong directory entirely. This
+replays every bag under a directory and prints one row each: duration, final
+phase, laps, escapes, and the last /race_metrics payload
+(adr:0071-round-recording-mcap).
 
 Usage:
-    pixi run -e dev python scripts/bag/diag_bag_session_inventory.py data/live/runs --prefix run_20260908
+    pixi run -e dev python scripts/bag/diag_bag_session_inventory.py data/live/runs --prefix run_
 """
 
 from __future__ import annotations

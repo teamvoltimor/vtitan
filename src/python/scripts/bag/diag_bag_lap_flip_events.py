@@ -4,7 +4,8 @@ The detector needs the negative-to-non-negative flip and the start-section label
 to coincide on the same sample. This lists the flips for a given origin together
 with the section label the robot was carrying at that instant, which is what
 separates "the robot never crossed the line" from "it crossed it while the label
-said it was somewhere else".
+said it was somewhere else". See
+``adr:0053-direction-inference-and-start-pose`` for the start-pose decision.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_lap_flip_events.py \

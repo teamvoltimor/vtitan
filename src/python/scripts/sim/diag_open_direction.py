@@ -4,7 +4,8 @@ In blind mode the provisional direction is seeded from the fixture metadata
 (``scenario_simulator`` line 314), so the estimator only *replaces* it when it
 disagrees -- meaning every observed "flip" is a misinference, not a correction.
 This reports settled-vs-truth per fixture so the error rate is measured rather
-than inferred from the handful of fixtures that happened to misbehave.
+than inferred from the handful of fixtures that happened to misbehave. See
+``adr:0053-direction-inference-and-start-pose``.
 
 Only the creep matters here, so the run is cut short well before a full race.
 
@@ -28,8 +29,8 @@ _DEFAULT_CREEP_STEPS = 1400
 """Long enough for the slowest fixture to settle.
 
 Not a tuning knob -- a fixture that has not settled by here has not settled.
-Measured before the dropout filter, go_open_0021 needed past step 400, so a
-shorter budget reported it as "never settles" when it merely settles late.
+The budget must be long enough for the slowest fixture, or a late settler is
+misreported as never settling.
 """
 _VERDICT_WIDTH = 9
 

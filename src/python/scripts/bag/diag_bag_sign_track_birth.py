@@ -1,9 +1,10 @@
 r"""WHERE is a duplicate sign track BORN, and is the corridor flap the cause?
 
-The believed sign map invents pillars: 9-23 believed signs on a track holding at
-most 8, and 56% of believed positions matching no legal lattice point. Four
-attempts to deduplicate AT PUBLICATION have all been measured worse. The defect
-is upstream, so this instruments the TRACK LIFECYCLE instead of the output.
+The believed sign map invents pillars: far more believed signs than the track
+holds, and a large share of believed positions matching no legal lattice point.
+Four attempts to deduplicate AT PUBLICATION have all been measured worse. The
+defect is upstream, so this instruments the TRACK LIFECYCLE instead of the
+output (adr:0063-corridor-flip-and-sense-guards).
 
 With the shipped tuning (``snap_to_lattice_m = 0``, ``sign_lidar_propose =
 false``) a track can be born in exactly one place: ``ObservedSignMap._fold``,
@@ -34,8 +35,8 @@ within the same window of a flap -- is printed next to it, and the ratio of the
 two is the lift. A lift near 1.0 refutes the flap hypothesis.
 
 PATH CONTROLS, so a wrong path cannot masquerade as a null: the share of ticks
-believing more than 8 signs (independently measured at 86%) and the share of
-believed positions off the legal lattice (56.3%) are printed first.
+believing more than the physical maximum and the share of believed positions off
+the legal lattice are printed first and compared against the recorded controls.
 
 FIDELITY. Unlike ``diag_bag_pass_side.py``, this pairs each detection frame with
 the pose the CAMERA SAW FROM (``captured_at`` when the payload carries one,

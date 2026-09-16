@@ -1,10 +1,10 @@
 """Where did a run STALL in place, and what was it doing there?
 
-Reported from the track on 2026-09-12: a round was stopped by hand because the
-operator saw the car "in a loop". A loop and a slow lap look identical in the
-inventory row (both are ticks without laps), so this locates the loop
-geometrically instead: bucket every posed tick into a grid cell and rank cells
-by dwell time.
+Reported from the track: a round was stopped by hand because the operator saw
+the car "in a loop". A loop and a slow lap look identical in the inventory row
+(both are ticks without laps), so this locates the loop geometrically instead:
+bucket every posed tick into a grid cell and rank cells by dwell time. See
+``adr:0055-escape-maneuver-selection`` for the measured verdict.
 
 A high-dwell cell is only meaningful next to a control, because the START cell
 always dwells (the car sits there before the run begins) and so does the

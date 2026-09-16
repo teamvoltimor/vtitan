@@ -2,13 +2,14 @@
 
 Feasibility probe for blind navigation. The WRO rules fix each corridor to one
 of two widths (0.6 m or 1.0 m), so the robot does not need to *measure* the
-width so much as *classify* it — and the two classes are 0.4 m apart against a
+width so much as *classify* it - and the two classes are 0.4 m apart against a
 0.03 m LIDAR sigma.
 
 The measurement needs no map and no position estimate: the LIDAR sits at the
 chassis centre, so the range directly left plus the range directly right spans
 wall-to-wall through the robot. That is the corridor width, wherever in the
-corridor the robot happens to be.
+corridor the robot happens to be. See
+``adr:0057-blind-corridor-follower-and-width``.
 
 It is only valid while the robot is *beside* the inner block and roughly
 aligned with the corridor. At a corner the inward ray misses the block and runs
@@ -38,7 +39,7 @@ from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 _DECISION_BOUNDARY = (CorridorDimensions.NARROW + CorridorDimensions.WIDE) / 2.0
-"""0.8 m — halfway between the only two legal widths."""
+"""0.8 m - halfway between the only two legal widths."""
 
 _CORNER_MISS_MARGIN_M = 0.25
 _MAX_PLAUSIBLE_WIDTH = CorridorDimensions.WIDE + _CORNER_MISS_MARGIN_M

@@ -216,3 +216,16 @@ narrow prior could not fire before the wall arrived.
   seconds before the corner; `run_20260830_013702` previewed 0.197 rad.
 - The shortened straight of the Open zigzag chain leaves the short lookahead
   spanning 82 percent of straight ticks, a loop gain of x2.25.
+- Inside the known reversal windows target-behind-the-chassis rose from 0.0 to
+  35.4 percent as the span bound shipped, but crosstrack stays about 0.142 m p50,
+  so no crosstrack guard fires on the converted failure.
+- On the reversal rounds the target sits behind the chassis AND ahead along the
+  loop; the path's travel sign is read from index-advancing ticks, so an early
+  start manoeuvre cannot flip the measurement.
+- Steering effectiveness measured as wheel angle in, yaw rate out: a left/right
+  split is a steering trim, and it is why CCW drifted about 3x further outward
+  than CW. The 2026-08-09 bags first showed the chassis cornering wide with the
+  command obeyed.
+- `diag_bag_open_oscillation.py` counts per-rung speed occupancy and
+  lookahead-ramp occupancy to name the ladder in force; the motor profile
+  overrides the 0.24 m Open ladder.

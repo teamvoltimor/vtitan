@@ -127,3 +127,25 @@ less of hardware ticks, so it cannot move the alternation it was written for);
   and deadband; do not raise them while the law ships off.
 - `retrace_escape` shares its session and 640-case sweep with
   `steer_cap_from_commit_distance`, so that sweep is its evidence provenance.
+- `side_correction_blends` in the sighted sim corpus: `side_correction` ran 1.09
+  percent of 23,290 ticks and the blend gate (`speed >= 0`) was satisfied on ZERO of
+  them because every sim `side_correction` is in reverse, so the 256-run A/B was
+  void.
+- The flat 256-run A/B: in-time 98 against 98, laps>=3 99 against 99, collisions
+  16 against 15, pass-side violations 0 in both arms. Void, because the gated branch
+  is never reached in the corpus.
+- Do not read a non-zero gate as reachability: the first version of the check
+  counted 8 ticks in three rounds as REACHABLE; the verdict threshold must be a
+  share of the gated manoeuvre.
+- Reverse-to-buy-road, priced on 129 bags / 1113 passes: crossings fail 67.8
+  against 6.9 percent and are 215 of 248 EXECUTION failures; a failed crossing
+  drives 0.41 m against 0.92 m and under 0.25 m of road fails 89.5 percent. The
+  ship's trail gate vouches for the shortfall only on a subset of short passes, the
+  added time is about 2 legs per firing against the 180 s limit, and approaching at
+  0.15 m/s erases most shortfalls: the recommendation not to build it.
+- `aim_point_demands_an_impossible_radius`: 58 percent of ticks ask for 0.23 m
+  against the floor. The simulator also under-rotates 40-50 percent during
+  manoeuvres.
+- `sign_lidar_propose` A/B, 16 fixtures x 6 seeds x 2 arms, blind: off in-time 59 /
+  laps>=3 71 / collided 18 / pass-side 0; on 58 / 66 / 23 / 0. The off arm
+  reproduces the `VISION_RANGE_MODEL` sweep's on arm (59/71/18/0).

@@ -1,11 +1,11 @@
 r"""Does the drivetrain actually turn at the bay-exit commanded speed?
 
-``bay_exit_speed_mps`` was raised 0.067 -> 0.10 on 2026-09-06 because the
-motor was not moving at the inherited creep: commanded on 876 of 882 ticks
-while ``/motor/drive_speed`` read 0 deg/s on 92-97% of them. The TOML shipped
-that value with an explicit instruction -- "WATCH ON THE NEXT RUN:
+``bay_exit_speed_mps`` was raised above the inherited creep because the motor
+was not moving at it: the speed was commanded on nearly every tick while
+``/motor/drive_speed`` read 0 deg/s on most of them. The TOML shipped that
+value with an explicit instruction -- "WATCH ON THE NEXT RUN:
 /motor/drive_speed leaving zero (the point), and fin clearance holding (the
-risk)" -- and the 2026-09-08 session is the first bay corpus recorded since.
+risk)" -- and the first bay corpus recorded since is what this reads.
 
 This reads that watch. Per run, restricted to ticks in the ``bay_exit`` phase:
 
@@ -22,15 +22,17 @@ This reads that watch. Per run, restricted to ticks in the ``bay_exit`` phase:
   (``signed_wheel_odometry_cancels_under_a_ratchet``), which would report a
   working exit as motionless.
 
-The distinction that matters: if the encoder still reads zero, 0.10 m/s is
+The distinction that matters: if the encoder still reads zero, the speed is
 still under the floor and the number goes up. If the encoder turns and the
 chassis still does not rotate, the speed is NOT the constraint and the fault
 is in the leg bounds or the guard.
 
+See ``adr:0060-bay-exit-clearance-guard`` for the measured verdict.
+
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_bay_deadband.py \
-        data/live/runs/run_20260908_*
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations
@@ -120,8 +122,8 @@ def analyse(bag_dir: Path) -> dict[str, object] | None:
             dr_out.append(snap.bay_dr_out_m)
         if snap.pose_yaw is not None:
             # pose_yaw WRAPS at +-pi, so max-min over the run reads ~360 deg
-            # whenever the run crosses the wrap -- it reported a full circle
-            # inside a 0.065 m pocket. Accumulate wrapped DIFFERENCES instead.
+            # whenever the run crosses the wrap, reporting a full circle where
+            # none happened. Accumulate wrapped DIFFERENCES instead.
             if prev_yaw is not None:
                 d = math.atan2(math.sin(snap.pose_yaw - prev_yaw), math.cos(snap.pose_yaw - prev_yaw))
                 net_yaw += d
@@ -129,9 +131,8 @@ def analyse(bag_dir: Path) -> dict[str, object] | None:
             prev_yaw = snap.pose_yaw
             yaws.append(snap.pose_yaw)
         # Distance the WHEEL turned, integrated from the encoder. Pose travel
-        # is localizer output and jumps on a bad scan match (it reported 2.4 m
-        # of travel inside the bay), so it cannot measure whether the chassis
-        # actually moved.
+        # is localizer output and jumps on a bad scan match, so it cannot
+        # measure whether the chassis actually moved.
         if last_drive_deg_s is not None:
             if prev_enc_ts is not None:
                 enc_dist += abs(deg_s_to_mps(last_drive_deg_s)) * (ts - prev_enc_ts)

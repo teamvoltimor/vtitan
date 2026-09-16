@@ -43,8 +43,9 @@ class Verdict(StrEnum):
     of its lap target. Testing laps first labels every one of them
     ``incomplete``, which reads as "the robot could not get round" when what
     happened is "the robot was legally stopped" -- a different failure with a
-    different fix. Measured 2026-09-05: all four failures of one Open sweep
-    were rule 9.21 terminations reported under the ``incomplete`` label.
+    different fix. In one Open sweep every failure was a rule 9.21 termination
+    reported under the ``incomplete`` label; see
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
     """
 
     OK = "ok"

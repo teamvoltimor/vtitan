@@ -47,6 +47,11 @@ always follows the stick; drive speed is zero unless a dead-man button is held a
 the joystick link is fresh. Exactly one of navigation or controller mode may run,
 because both publish to `/ackermann_cmd` and nothing arbitrates between them.
 
+Open and Obstacles are also distinguishable offline from a bag: one whose
+`active_sign_count` is never positive and whose `/vision/detections` never carries
+a pillar is Open. The 2026-09-12 Open track used 1 m x 1 m inner walls (corridor
+1.00 m) instead of the narrow layout.
+
 ## Consequences
 
 - The robot cannot silently run the wrong challenge from a missing launch

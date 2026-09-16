@@ -114,9 +114,10 @@ def scan_to_ranges_angles(
     Mirrors ``ros2_hardware_gateway._lidar_callback``'s exact preprocessing:
     the raw Slamtec driver emits NaN/inf for no-return rays, and production
     replaces both with `LIDAR_MAX_RANGE` and clips before the localizer sees
-    the scan. Skipping that step leaves ~20% of rays reading literal inf and
-    inflates cost uniformly across every tick, which makes an ambiguity guard
-    look untrustworthy when the real problem is unfiltered input.
+    the scan. Skipping that step leaves a large share of rays reading literal
+    inf and inflates cost uniformly across every tick, which makes an ambiguity
+    guard look untrustworthy when the real problem is unfiltered input. See
+    ``adr:0084-localizer-divergence-and-relocalization``.
     """
     raw = np.asarray(msg.ranges, dtype=float)
     raw[~np.isfinite(raw)] = RobotSpecs.LIDAR_MAX_RANGE
@@ -178,8 +179,8 @@ def read_vision_rows(
     navigator snapshot, frames to the raw detection dicts a bag stores (pass
     them to :func:`decode_detections`, which response-frames lazily and skips
     malformed records). Scripts replaying the router over detections plus pose
-    need both in one pass; reading the bag twice costs a minute+ on the
-    hardware bags.
+    need both in one pass; reading the bag twice is costly on the hardware bags
+    (see ``adr:0071-round-recording-mcap``).
     """
     rows, frames, _ = read_vision_rows_and_scans(bag_dir, with_scans=False)
     return rows, frames
@@ -374,11 +375,12 @@ def quaternion_yaw(q) -> float:  # noqa: ANN001
     The gyro cannot be used: the robot runs ``bno08x_uart_rvc_node`` and BNO08x
     UART-RVC mode provides no angular velocity at all, so ``/imu/data``
     publishes ``angular_velocity`` as zeros with covariance -1 (the ROS
-    "unavailable" convention). Differentiating this quaternion at ~166 Hz is the
-    supported way to get a yaw rate, not a workaround.
+    "unavailable" convention). Differentiating this quaternion is the supported
+    way to get a yaw rate, not a workaround.
 
     ``pose_yaw`` is NOT a substitute -- it is localizer-fused and damped, and
-    differentiating it understates the achieved yaw rate by roughly half.
+    differentiating it understates the achieved yaw rate; see
+    ``adr:0084-localizer-divergence-and-relocalization``.
     """
     return quaternion_to_yaw(q.x, q.y, q.z, q.w)
 

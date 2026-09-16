@@ -4,23 +4,26 @@ reactive escape actually does.
 Two questions the corpus cannot answer, both settled from recorded hardware:
 
 1. **Does the bay exit get out?** The simulator at the measured minimum turn
-   radius says 0/32 -- never. The bags say usually. One of those is wrong, and
-   only the bags are evidence. "Got out" is defined POSITIONALLY, not by the
-   phase machine: the manoeuvre's own `rotation_complete` tests |rotation| and
-   so reports done on a wrong-way exit, which makes phase departure a
-   self-report rather than an observation. Here a run counts as out when it
-   reaches the `normal_drive` phase AND accumulates real travel afterwards.
+   radius says never. The bags say usually. One of those is wrong, and only the
+   bags are evidence. "Got out" is defined POSITIONALLY, not by the phase
+   machine: the manoeuvre's own `rotation_complete` tests |rotation| and so
+   reports done on a wrong-way exit, which makes phase departure a self-report
+   rather than an observation. Here a run counts as out when it reaches the
+   `normal_drive` phase AND accumulates real travel afterwards.
 
 2. **What does obstacle evasion do?** `escape_count` alone conflates a single
    long manoeuvre with many re-triggers, so this reports episodes (contiguous
    runs of a latched `active_maneuver_type`), their durations, the bearing and
    range that triggered them, and how often one fires again immediately -- the
-   re-trigger loop that costs both stacks ~20% of the corpus.
+   re-trigger loop.
+
+See ``adr:0060-bay-exit-clearance-guard`` and
+``adr:0055-escape-maneuver-selection`` for the measured verdicts.
 
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_bay_and_escape.py \
-        data/live/runs/run_2026090*
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations

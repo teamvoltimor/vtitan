@@ -1,19 +1,19 @@
 """Does the blind narrow prior drive the robot into the outer wall on a wide track?
 
-The 2026-08-06 hardware rounds all failed the same way: a corridor believed
-narrow (0.60) puts the planned path ~0.25-0.30 m from the outer wall, while
+The hardware rounds all failed the same way: a corridor believed narrow (0.60)
+puts the planned path ~0.25-0.30 m from the outer wall, while
 ``LOOKAHEAD_TRANSITION`` (0.30 m) is the crosstrack at which the corrective
-short lookahead engages. Subtract the chassis half-width and only 0.15-0.20 m
-of crosstrack is available before contact -- so the correction is armed to fire
-only after the wall has already been reached. Measured on the CW bag: crosstrack
-ran 0.09 -> 0.15 through the corner, never crossed 0.30, and the robot ended up
-0.10 m from the wall.
+short lookahead engages. Subtract the chassis half-width and only a thin band of
+crosstrack is available before contact -- so the correction is armed to fire only
+after the wall has already been reached. On the CW bag, crosstrack never crossed
+0.30 and the robot ended up close to the wall. See
+``adr:0057-blind-corridor-follower-and-width``.
 
 That is a geometric argument, so it should reproduce without any of the sensor
-noise the simulator is known not to model (see the 2026-08-03 findings, where
-sim could not reproduce the hardware control bugs). The condition it needs is a
-track that is genuinely WIDE while the blind prior says narrow -- a uniformly
-narrow track is not a reproduction, because there the prior is simply right.
+noise the simulator is known not to model (sim could not reproduce the hardware
+control bugs). The condition it needs is a track that is genuinely WIDE while the
+blind prior says narrow -- a uniformly narrow track is not a reproduction,
+because there the prior is simply right.
 
 Reports wall-contact episodes, not just pass/fail: a run that scrapes and
 recovers still demonstrates the mechanism, and ``contact_count`` is the only

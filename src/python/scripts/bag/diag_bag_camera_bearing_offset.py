@@ -1,12 +1,11 @@
 r"""Is the camera's BEARING off by a constant, and if so by how much?
 
 Range is not what limits a projected sign position. Cluster-gated LIDAR range
-fusion ships on (``sign_discovery.lidar_range_fusion``), and replaying the
-barrier belief with it fed in against the raw pinhole moves the believed lot by
-at most 0.17 m while the lot itself wanders 0.57 m across five rounds of ONE
-physical object. What is left is BEARING: ``_detection_to_world`` records a
-residual of about 12 deg, and 12 deg at 1.5 m is 0.31 m of lateral miss, which
-is the observed spread almost exactly.
+fusion ships on (``sign_discovery.lidar_range_fusion``), and feeding it in
+against the raw pinhole barely moves the believed lot against how far the lot
+itself wanders across rounds of ONE physical object. What is left is BEARING:
+``_detection_to_world`` records a residual, and at range that is a lateral miss
+of the observed size.
 
 That matters because of WHICH fixes it admits. The camera bearing is
 
@@ -42,35 +41,26 @@ TWO CONTROLS, because a crashed or mis-wired diagnostic exits 0.
   the shuffled row is what this estimator reports on noise. Read the measured
   row only against it.
 
-WHAT IT FOUND, 2026-09-15, three hardware rounds. Read the slope FIRST: it
-behaves as association quality, tending to 0 when association is perfect and to
-1 when it is random, so it says whether a row is worth reading at all.
+WHAT IT REPORTS. Read the slope FIRST: it behaves as association quality,
+tending to 0 when association is perfect and to 1 when it is random, so it says
+whether a row is worth reading at all. The measured residual, its IQR and the
+slope, measured against the shuffled control, are recorded in
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
-    bag       measured p50 / IQR / slope      shuffled p50 / IQR / slope
-    214021    +3.2  -7.7..+17.7   0.354       +1.5  -24.9..+23.1   1.021
-    214421    +0.4  -9.0..+14.9   0.341       +3.2  -23.4..+26.0   0.962
-    002408    +3.3 -18.5..+25.7   0.664       +4.1  -18.0..+32.5   0.865
-
-On 214021 and 214421 the association clearly works -- the IQR halves against
-chance and the slope falls to a third of it. On those two the median bearing
-residual is **+0.4 and +3.2 deg**, which is not a bias worth calibrating. What
-is large is the SCATTER: an IQR roughly +/-12 deg wide. 002408 separates far
-less and its numbers should not be leaned on.
-
-THE CONSEQUENCE, and it is the point of the script. The ~12 deg in
+THE CONSEQUENCE, and it is the point of the script. The residual in
 ``_detection_to_world`` is not an offset. It is zero-mean scatter, so **neither
 one-constant fix exists**: no mounting-yaw constant and no HFOV scale can
 remove a zero-mean spread. Anything that wants a better sign position has to
 average sightings (tracking) or carry the uncertainty into the planner.
 
 CAVEAT: the residual also absorbs pose error and any surviving mis-association,
-so +/-12 deg is an UPPER bound on the camera's own bearing scatter, not a clean
-measurement of it.
+so the measured scatter is an UPPER bound on the camera's own bearing scatter,
+not a clean measurement of it.
 
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_camera_bearing_offset.py \
-        data/live/runs/run_20260915_002408
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations

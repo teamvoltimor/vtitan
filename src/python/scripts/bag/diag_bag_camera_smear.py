@@ -33,18 +33,20 @@ Two traps this script exists to avoid:
   differentiating the orientation quaternion. The script PROVES this per-corpus
   rather than assuming it (see the IMU ANGULAR_VELOCITY CONTROL block).
 
-* The detection message lands ~0.85 s after the shutter (measured camera
-  pipeline lag). Blur is set by the yaw rate at CAPTURE, not at publish, so
+* The detection message lands after the shutter (the measured camera pipeline
+  lag, ``--lag-s``). Blur is set by the yaw rate at CAPTURE, not at publish, so
   every detection is matched to the yaw rate at ``t_msg - lag``. ``--lag-s 0``
   runs the un-shifted version for comparison.
 
 Controls carried, so a null is readable:
 
-* RANGE control -- confidence must fall monotonically with implied range
-  (known: 0.854 at <0.5 m down to 0.524 beyond 1.5 m). If this control does
-  not reproduce, the confidence plumbing is wrong and no yaw verdict is valid.
+* RANGE control -- confidence must fall monotonically with implied range. If
+  this control does not reproduce, the confidence plumbing is wrong and no yaw
+  verdict is valid.
 * YAW SPREAD control -- the yaw-rate distribution is printed. If the bins are
   degenerate there is nothing to correlate against.
+
+See ``adr:0078-camera-mount-and-focus`` for the measured verdict.
 
 Usage::
 

@@ -39,6 +39,15 @@ everything else combined). Retention prunes oldest-first before each new bag.
   not its code); `travelled_m` is signed and cancels on oscillation;
   `/motor/drive_speed` is in degrees per second; path length from pose
   overestimates about 10 percent.
+- A 27-run session cannot be read one bag at a time: which runs raced and what
+  stopped the rest is a property of the set, so session inventories are read
+  across bags rather than one at a time.
+- Across fifteen Obstacles rounds there were zero gaps over 0.5 s on `/scan`,
+  `/vision/detections`, `/imu/data` and `/motor/drive_speed`; only `/nav_debug`
+  froze, with 1.8 to 2.0 s gaps in the first about 30 s during the bay exit and up
+  to twelve per round: a hole in the evidence channel, not a sensor dropout.
+- Reading a hardware bag twice for detections and pose costs on the order of a
+  minute, so callers should read both in one pass.
 
 ## History
 

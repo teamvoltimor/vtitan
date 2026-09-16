@@ -1,11 +1,10 @@
 """Does the detector emit BOTH colours for one physical pillar?
 
-`diag_bag_vision.py` measured the symptom on 2026-09-10: greens exit the frame
-on the wrong side 9 of 13 times at median x_norm -0.43, deep on the RED side,
-while reds fail 8/17 but in the correct direction. A green routed as RED is
-exactly what produces that, and the documented mechanism is duplicate tracks
-splitting the colour vote (a 4-hit red fragment committed over a 40.8-hit green
-pillar, 2026-09-07).
+`diag_bag_vision.py` measured greens exiting the frame on the wrong side, deep
+on the RED side, while reds failed in the correct direction. A green routed as
+RED is exactly what produces that, and the documented mechanism is duplicate
+tracks splitting the colour vote (a small red fragment committed over a
+heavily-seen green pillar).
 
 That mechanism has never been measured directly. This does, from the frames
 alone, without replaying the router -- so it is independent of the routing
@@ -31,17 +30,14 @@ printed alongside. Two boxes of the SAME colour overlapping is ordinary (a
 pillar and a wall segment behind it), so if that number is also ~0 the frames
 simply contain no overlaps and the cross-colour zero means nothing.
 
-RESULT 2026-09-10, AND IT IS ABOUT THIS INSTRUMENT, NOT ABOUT THE HYPOTHESIS.
-Both tests came back VOID on run_20260910_135651 + _140059 (5551 frames, 1124
-with pillars), and their own controls are what said so:
+RESULT, AND IT IS ABOUT THIS INSTRUMENT, NOT ABOUT THE HYPOTHESIS.
+Both tests came back VOID, and their own controls are what said so:
 
-* Test 1 is dead: **2** same-colour overlapping pairs in 1124 pillar frames. The
-  detector emits at most one box per object and the objects are spatially
-  separate, so there are no overlaps of ANY kind and the cross-colour 0 measures
-  nothing.
-* Test 2 is dead: **5 associations against 1293 new tracks** at the defaults,
-  and still only **22 against 1276** at ``--assoc-gap 1.5 --assoc-x 0.30``. The
-  flip count is 0 BY CONSTRUCTION. Pillar frames arrive at ~2.7 Hz and a close
+* Test 1 is dead: the detector emits at most one box per object and the objects
+  are spatially separate, so there are no same-colour overlaps of ANY kind and
+  the cross-colour count measures nothing.
+* Test 2 is dead: too few frame-to-frame associations for the flip count to mean
+  anything; it is 0 BY CONSTRUCTION. Pillar frames arrive slowly and a close
   pillar's normalised x moves further than any usable gate between samples, so
   naive frame-to-frame association cannot work on this data at all.
 
@@ -51,12 +47,13 @@ extend the ``SignRouter`` replay in ``diag_bag_pass_side.py`` (which computes
 the believed colour) to also dump each committed track's per-frame class tally,
 and compare the committed colour against that tally. Kept here so nobody
 rebuilds the frame-level version, and because the two CONTROL lines are the
-only reason this was caught instead of reported as "colour split refuted".
+only reason this was caught instead of reported as "colour split refuted". See
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_colour_split.py \
-        ../../data/live/runs/run_20260910_135651
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations

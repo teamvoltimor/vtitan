@@ -2,36 +2,31 @@ r"""Does the LIDAR sign proposer buy anything once the camera is honestly blind?
 
 ``SIGN_LIDAR_PROPOSE`` lets a pillar-shaped LIDAR cluster settle a sign's
 POSITION for the camera to colour later. Its entire value is that the LIDAR
-spots a pillar at a median 1.31 m while the deployed detector stops resolving
-one at about 1.1 m, median 0.70 m.
+spots a pillar earlier than the deployed detector resolves one.
 
-It was A/B'd on 2026-09-07 and found to have NO measurable benefit -- but that
-sweep ran against an emulated camera that detected every sign out to 10 m. A
+It was A/B'd and found to have NO measurable benefit -- but that sweep ran
+against an emulated camera that detected every sign out to a long range. A
 feature whose value is seeing a pillar EARLY cannot show a benefit against a
-camera that already saw it fifteen metres of corridor ago; the sweep could only
-have priced its cost. That result is therefore VOID as evidence about benefit,
-and this script re-runs it now that ``VISION_RANGE_MODEL`` defaults on.
+camera that already saw it far up the corridor; the sweep could only have priced
+its cost. That result is therefore VOID as evidence about benefit, and this
+script re-runs it now that ``VISION_RANGE_MODEL`` defaults on. See
+``adr:0088-refuted-config-knobs``.
 
 This is the general trap worth remembering: an A/B is only evidence if the
 instrument can resolve the effect. Both arms were measured correctly and the
 conclusion still did not follow.
 
-MEASURED 2026-09-07 against the honest camera, 16 fixtures x 6 seeds x 2 arms:
-
-    SIGN_LIDAR_PROPOSE False   in_time 59   laps3 71   collided 18   pass_side 0
-    SIGN_LIDAR_PROPOSE True    in_time 58   laps3 66   collided 23   pass_side 0
-
-So the re-run does NOT rescue the feature -- it turns a void result into a
-negative one. Laps and collisions both move against it, further than this corpus
-moves under reseeding. The off arm reproduces the ``VISION_RANGE_MODEL`` sweep's
-on arm to the run (59/71/18/0/0), so the two are directly comparable.
+The re-run does NOT rescue the feature: it turns a void result into a negative
+one, with laps and collisions both moving against it by more than the corpus
+moves under reseeding. The off arm reproduces the ``VISION_RANGE_MODEL``
+sweep's on arm run for run, so the two are directly comparable.
 
 There is a mechanism that predicts this, and it is worth ruling out before the
 feature is abandoned: a proposal carries NO COLOUR, and while sign routing is
 colour-keyed end to end, the DEFORMATION step falls through to ``else
 green_mult``. Every colourless proposal is therefore deformed around as though
-it were green, and about half of them are red. That is wrong-side deformation on
-a real pillar, which is exactly the shape of a collision increase.
+it were green, and many of them are red. That is wrong-side deformation on a
+real pillar, which is exactly the shape of a collision increase.
 
 Run BLIND, which is what puts the camera in the loop at all: on Obstacles a
 blind run forces ``emit_vision_detections`` on and the router discovers signs

@@ -1,26 +1,21 @@
 r"""How long must an escape run to actually rotate the chassis out of a corner?
 
 An escape is terminated by ELAPSED TIME, and the shipped durations cannot deliver
-the rotation the manoeuvre exists to produce. `max_escape_s` 1.0 at `rev_speed`
-0.2 m/s buys 0.20 m of path, which at the chassis's MEASURED 0.29 m minimum turn
-radius is 40 deg -- against the 90 deg+ that clearing a corner needs. Hardware
-agrees: an escape episode achieves a median 27.4 deg, 39% under 20 deg, and
-re-triggers up to 50 times because the same corner is still there.
+the rotation the manoeuvre exists to produce: at the reverse speed and the
+chassis's measured minimum turn radius the elapsed budget buys a fraction of the
+90 deg+ that clearing a corner needs. Hardware agrees: an escape episode rotates
+well under that and re-triggers because the same corner is still there. See
+``adr:0055-escape-maneuver-selection``.
 
 **This sweep is only meaningful with ``MIN_TURN_RADIUS_M`` ON.** It ships at 0.0,
-where the model gives full lock a 1.5 cm radius, so every simulated escape
-pivots freely and works -- an arm run that way can refute a duration change but
-can never confirm one. The floor is forced on here for exactly that reason.
+where the model gives full lock a tiny radius, so every simulated escape pivots
+freely and works -- an arm run that way can refute a duration change but can
+never confirm one. The floor is forced on here for exactly that reason.
 
-Known result at the endpoints (16 scenarios x 3 seeds, floor 0.29):
-
-    max_escape_s 1.0   in-time 26   collided  8   stuck 1   timed 9
-    max_escape_s 2.3   in-time 31   collided 11   stuck 0   timed 0
-
-Timeouts go to ZERO, at a cost of 3 collisions. This sweep looks for a knee in
-between. Terminating on achieved YAW instead was implemented, measured and
-REFUTED -- a 60 deg target is byte-identical to off, because the escape never
-gets that far before the time cap binds.
+This sweep looks for a knee between the endpoints: too short and timeouts
+dominate, too long and collisions rise. Terminating on achieved YAW instead was
+implemented, measured and REFUTED -- the escape never gets that far before the
+time cap binds (see ``adr:0055-escape-maneuver-selection``).
 
 Usage::
 
@@ -52,7 +47,7 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 logging.disable(logging.CRITICAL)
 
 TURN_RADIUS_FLOOR_M = RobotSpecs.MIN_TURN_RADIUS_M
-"""The MEASURED chassis floor. Forced on -- see the module docstring."""
+"""The chassis turn-radius floor. Forced on -- see the module docstring."""
 
 # min_turn_radius_m lives in robot.toml and is read straight from RobotSpecs by
 # the simulator kinematics. Set it at module level so spawned workers inherit it.

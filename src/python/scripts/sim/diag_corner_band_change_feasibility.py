@@ -1,15 +1,14 @@
 r"""Can the chassis change BAND in a corner going forwards, and what does reversing buy?
 
-Operator proposal, 2026-09-15: *enter the corner aligned, and once the chassis
+Operator proposal: *enter the corner aligned, and once the chassis
 is fully inside the free 1 m x 1 m corner square, REVERSE with the opposite
 steering angle so it backs up and aligns -- useful for outer-lane to inner-lane
 and inner to outer.*
 
 This decides that with geometry rather than opinion, because the constraint it
-targets is already measured and hard:
-``aim_point_demands_an_impossible_radius`` has 58% of ticks asking for 0.23 m
-against the floor, and ``sign_pair_cells_and_corner_shear`` says every band
-change demands a radius the chassis lacks.
+targets is already measured and hard: every band change demands a radius the
+chassis lacks. See ``adr:0088-refuted-config-knobs`` for the priced conclusion
+against the reverse-to-buy-road manoeuvre.
 
 THE THREE FACTS IT RESTS ON, all from config rather than assumption:
 
@@ -37,10 +36,9 @@ The second table gives the proposal its due: a reverse segment of length L at
 radius R buys ``L/R`` radians of heading, and the corner square bounds L.
 
 CAVEAT, and it is the whole reason this is arithmetic and not a sim sweep. The
-simulator UNDER-ROTATES 40-50% during manoeuvres and runs this class of
-manoeuvre far less than hardware does, so it is biased AGAINST exactly this
-proposal. A sim A/B that says "no" would not be evidence. Geometry has no such
-bias.
+simulator UNDER-ROTATES during manoeuvres and runs this class of manoeuvre far
+less than hardware does, so it is biased AGAINST exactly this proposal. A sim
+A/B that says "no" would not be evidence. Geometry has no such bias.
 
 Usage::
 

@@ -1,19 +1,18 @@
 """Where does the PLANNED path run at each corner type, wall to wall?
 
 The blind Open Challenge fails in exactly one place: a wide->narrow first
-corner. Measured over the 128-scenario sweep, on both hardware builds and at
-two different centring authorities, every failure sits there -- 7/7 wedges on
-the slower build, 3/3 collisions on the faster one, 8/8 wedges at the lower
-centring cap -- against zero failures at W->W (47 runs), N->W (24) and N->N
-(21). This asks whether the PLAN is already wrong there, before any control or
-sensor error is involved.
+corner. A 128-scenario sweep, on both hardware builds and at two different
+centring authorities, put every failure there, against zero failures at W->W,
+N->W and N->N. This asks whether the PLAN is already wrong there, before any
+control or sensor error is involved. See
+``adr:0049-corner-arcs-per-corridor-and-commit-distance``.
 
 The suspicion is ``corner_arc_radius``:
 
     r = min(ARC_RADIUS, max(W_entry, W_exit) / 2 - center_bias_m)
 
 ``max`` is deliberate and correct for reaching the wider corridor's centreline
-(``min`` was measured to leave 0.05 m on a mixed corner). But a corner joining
+(``min`` leaves too little on a mixed corner). But a corner joining
 a 1.0 m corridor to a 0.6 m one has its two centrelines at DIFFERENT distances
 from the inner block -- 0.45 m and 0.25 m with the shipped 0.05 m bias -- and a
 single circle cannot be tangent to both. Sized to the wide side, the arc must

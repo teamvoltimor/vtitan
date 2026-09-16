@@ -1,13 +1,10 @@
 """Can the LIDAR PROPOSE sign positions for the camera to CONFIRM?
 
-The camera stops resolving signs past ~1.1 m (`diag_vision_range_ceiling.py`),
-while pillar-shaped LIDAR clusters first appear at a median 1.1-1.3 m. That gap
-is only useful if a proposal can be trusted, and the raw cluster detector emits
-30-196 persistent tracks against ~8 real signs -- so RANGE was never the open
-question, PRECISION is.
-
-This script measures precision directly instead of counting clusters. It scores
-every LIDAR track on two features a wall corner should not be able to fake:
+The open question is PRECISION, not range. The raw cluster detector emits many
+persistent tracks against a handful of real signs, so a proposal is only useful
+if it can be trusted. This script measures precision directly instead of counting
+clusters. It scores every LIDAR track on two features a wall corner should not be
+able to fake:
 
 * **world-position spread** -- a pillar is a physical object and holds still in
   world coordinates; a corner is an OCCLUSION EDGE that slides as the robot's
@@ -15,65 +12,37 @@ every LIDAR track on two features a wall corner should not be able to fake:
 * **chord stability** -- a ~0.05 m cylinder subtends the same chord from every
   angle and range; a corner's apparent chord should depend on approach angle.
 
-**BOTH ARE REFUTED, and the CONTROL line is what says so.** Over six 09-07 runs
-the filter discards 29% of tracks and moves the confirmation rate 47% -> 49%.
-It is INERT: geometric stability does not separate pillars from corners, because
-a corner viewed across a short arc of travel holds still too. Tightening these
-thresholds measures nothing, so the control is printed unconditionally -- an
-inert filter that looks effective is how this project has lost sweeps before.
+Both features are printed beside an unconditional CONTROL line, because an inert
+filter that looks effective is how this project has lost sweeps before: a
+stability filter is only meaningful when the filtered confirmation rate differs
+from the unfiltered one. Do not tune the shape thresholds from this script's
+output; the control is what says whether they measure anything.
 
 Neither feature needs a track map, so nothing here assumes the corridor geometry
 the robot is still inferring at the time the proposal would be made.
 
 The camera side is the confirmation anchor, decoded with the SAME pinhole model
 `sign_discovery.detection_to_observation` uses, including the RANGE_SCALE and
-the `captured_at`/VISION_LATENCY_S pose pairing -- pairing a detection with the
-pose at RECEIPT is what put the bearing residual at 20.2 deg. Camera tracks are
-an ANCHOR, NOT GROUND TRUTH: roughly half of hardware RED detections are
-wall-shaped, so a "confirmed" LIDAR track can still be a barrier both sensors
-agree on. Read the confirmation rate as an upper bound on precision.
+the `captured_at`/VISION_LATENCY_S pose pairing. Camera tracks are an ANCHOR,
+NOT GROUND TRUTH: hardware RED detections can be wall-shaped, so a "confirmed"
+LIDAR track can still be a barrier both sensors agree on. Read the confirmation
+rate as an upper bound on precision.
 
-Measured over the six 09-07 runs (525 persistent tracks, 244 camera tracks):
-
-    recall                   221/244 = 91%   camera objects already proposed
-    lead in first-see range  p50 0.59 m, p90 1.30 m   MATCHED, per object
-    precision (upper bound)  49%
-
-**THE LATTICE FILTER IS UNDECIDED, NOT REFUTED, AND THE INSTRUMENT CHECK IS WHY.**
-Signs stand on a 6-point lattice (0.4/0.6 m lateral, 1.0/1.5/2.0 m depth), so a
-sign is 0.4 m from its nearer lateral border and a corner is at ~0. Filtering on
-that keeps 33% of tracks and moves precision only 47% -> 52%, at a recall cost of
-91% -> 72%. But the check below says that number cannot be read as a verdict on
-the prior:
-
-    measured corridor width      p50 1.06 m   against a known 1.00 m -- SOUND
-    wall dist, camera-CONFIRMED  p50 0.27 m   the prior predicts ~0.40 m
-    wall dist, UNCONFIRMED       p50 0.25 m   ** THE SAME DISTRIBUTION **
-
-The wall estimator is fine, so the failure is the ANCHOR: if camera confirmation
-selected real signs, confirmed tracks would pile up at 0.4 m and unconfirmed ones
-would not. They are indistinguishable, which is what "half of hardware RED
-detections are wall-shaped" predicts. A 5-point precision move scored against an
-anchor that cannot separate signs from walls is noise.
-
-**Deciding the prior needs GROUND TRUTH, not a better filter.** That is now
-done, in `scripts/sim/diag_sim_lidar_proposer.py`, against the simulator's known
-`sign_positions`: the lattice filter takes precision 46% -> 84% while sign-level
-recall only falls 100% -> 85%. **The prior WORKS; this anchor simply cannot see
-it.** Do not tune `--lattice-tol-m` here.
-
-Worse, with `--corridor-width-m` gating the wall estimate (measured width 0.99 m
-against a true 1.00 m, so the instrument is sound), the hardware anchor is not
-merely weak but BIASED: camera-CONFIRMED tracks sit p50 0.22 m from a wall and
-unconfirmed ones 0.27 m, when a real sign must be at 0.40 m. The camera is
-preferentially confirming objects ON THE WALLS, which is why the lattice filter
-scores BELOW its own control here. That is a measurement of the camera, not of
-the LIDAR, and it is the same defect as the wall-shaped reds.
+The wall-distance and corridor-width columns below are an INSTRUMENT CHECK on
+that anchor: if camera confirmation selected real signs, confirmed tracks would
+pile up at the lattice offset and unconfirmed ones would not. When the two
+distributions coincide the anchor cannot separate signs from walls, and any
+precision move scored against it is noise. Deciding the prior needs GROUND TRUTH,
+not a better filter; that is done in `scripts/sim/diag_sim_lidar_proposer.py`.
+Do not tune `--lattice-tol-m` here.
 
 The lead is a MATCHED per-object comparison -- the same object seen by both
-sensors -- not the difference of two unpaired medians, which is what the
-earlier "0.4-0.6 m earlier" estimate was and which cannot support a claim
-about any individual sign.
+sensors -- not the difference of two unpaired medians, which cannot support a
+claim about any individual sign.
+
+See adr:0058-sign-discovery-range-and-barrier-belief for the sign discovery range
+and the LIDAR-proposes/camera-confirms decision, and adr:0072-vision-data-path
+for the camera side.
 
 Usage::
 

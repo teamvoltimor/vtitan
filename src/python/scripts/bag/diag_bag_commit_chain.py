@@ -1,11 +1,9 @@
 r"""Where does the sign lane lose its 1.4 m of anticipation?
 
 ``activation_dist_m`` is 1.40: the router is built to start deforming a metre
-and a half before the pillar. It does not get that. Measured 2026-09-11 over 78
-hardware bags, the commitment lands at p50 **0.43 m** on the passes that fail
-and 0.52 m on the ones that work, and a pass that must CROSS from the wrong
-side wins only 34% of the time -- the room to cross is what the missing metre
-would have bought.
+and a half before the pillar. It does not get that, and a pass that must CROSS
+from the wrong side needs the room the missing metre would have bought. See
+``adr:0051-sign-lane-planner`` for the measured verdict.
 
 "Commits late" is the symptom. This script asks WHERE the metre goes, because
 each stage loses it for a different reason and wants a different fix:

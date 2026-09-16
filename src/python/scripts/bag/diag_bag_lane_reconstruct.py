@@ -1,11 +1,10 @@
 r"""Re-run ``apply_sign_lanes`` offline and compare the lane it PLANS with the line the robot CHASED.
 
-``diag_bag_cross_attempt.py`` measured, over 129 bags, that on a CROSSING pass
-that failed the observed ``steer_target`` reached the legal side of the pillar
-on only 37.4% of passes and peaked at +0.130 m against an intended +0.28 m,
-while the already-legal control reached it 80.2% of the time at +0.316 m. That
-reading cannot say WHERE the 0.28 was lost, because it only ever saw the
-commanded line -- never the lane the planner built.
+``diag_bag_cross_attempt.py`` measured that on a CROSSING pass that failed the
+observed ``steer_target`` fell well short of the intended lane offset, while the
+already-legal control reached it. That reading cannot say WHERE the offset was
+lost, because it only ever saw the commanded line -- never the lane the planner
+built. See ``adr:0051-sign-lane-planner`` for the measured verdict.
 
 This script closes that gap. For every committed pillar it reconstructs the
 planner's own answer offline and prints it beside the bag's:
@@ -30,12 +29,12 @@ planner's own answer offline and prints it beside the bag's:
 
 The two hypotheses this separates, stated before the numbers:
 
-  A. PLANNER.  The reconstructed plateau is itself only ~+0.13 m. Then the
-     0.28 never existed and the cause is inside ``apply_sign_lanes`` --
-     ``clamp_lateral``, the ``indices`` selection, ``_interpolate``, or the
-     corridor label the sign was filed under.
-  B. TRACKER/CARROT.  The reconstruction is a full +0.28 while the bag's
-     ``steer_target`` reads +0.13. Then the lane is fine and the loss is in
+  A. PLANNER.  The reconstructed plateau is itself well below the intent. Then
+     the intended offset never existed and the cause is inside
+     ``apply_sign_lanes`` -- ``clamp_lateral``, the ``indices`` selection,
+     ``_interpolate``, or the corridor label the sign was filed under.
+  B. TRACKER/CARROT.  The reconstruction reaches the full offset while the
+     bag's ``steer_target`` reads short. Then the lane is fine and the loss is in
      ``select_target_point``: the lookahead carrot sits outside the
      +/-``hold_m`` plateau at closest approach and aims at a point on the RAMP.
      ``target depth offset`` prices exactly that -- the along-corridor distance

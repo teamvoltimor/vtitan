@@ -5,11 +5,12 @@ That branch, and only that branch, calls
 estimate -- and rebuilds the LapDetector at the measured start. The ``elif``
 branch leaves both alone. So a yaw discontinuity near pi at the moment the state
 leaves blind creep says the launch direction was overturned, which is what
-decides which origin the lap detector ended up anchored at.
+decides which origin the lap detector ended up anchored at. See
+``adr:0053-direction-inference-and-start-pose``.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_commit_branch.py \
-        data/live/runs/run_XXXXXXXX_XXXXXX
+        RUN_DIR
 """
 
 from __future__ import annotations

@@ -149,6 +149,17 @@ corpus cannot adjudicate it. Settle it on a counter-clockwise hardware round.
   the escape agreed with the router's needed side on only 3 of 12, the alignment
   delta was negative in every category, and range to the committed pillar moved
   just 0.497 to 0.526 m.
+- `min_lidar_range_m` is the RAW unmasked sweep minimum, i.e. the chassis; over
+  two rounds it spanned 0.006-0.018 m and sat below `min_valid_range_m` (0.044) on
+  100 percent of ticks, so it never carries obstacle range. The `escape_pendulum`
+  diagnostic's "closed on the threat" column built on it read 41-53 percent and
+  was removed.
+- On the 2026-09-15 morning rounds the K-turn agreed with the router's committed
+  pass side on 7 of 72 corner episodes (10 percent, mean alignment delta -0.049)
+  against 21 of 43 (49 percent) for the side correction. The escape trigger range
+  was p50 0.091 m against a chassis half-width of 0.097 m, so a K-turn that only
+  starts once something is that close may never find the 0.12 m override clearance
+  on either flank.
 
 ## Cross-references
 

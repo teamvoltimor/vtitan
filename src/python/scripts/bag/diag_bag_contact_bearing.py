@@ -16,7 +16,8 @@ beside the chassis is outside the lane BY CONSTRUCTION, however close it is.
 So this asks, of every tick where something is within touching distance, what
 BEARING it is at and whether that bearing falls inside the lane. A contact the
 lane cannot contain is one no escape can ever fire on, and the fix is then the
-sensing window rather than the manoeuvre.
+sensing window rather than the manoeuvre. See
+``adr:0056-raw-and-masked-scan`` for the measured verdict.
 
 Reads ``/scan`` directly with the gateway's own mount correction, not
 ``nav_debug.min_lidar_range_m`` -- that field bottoms out near 0.006 m on every
@@ -28,7 +29,7 @@ nose is 0.094 m of lateral clearance: beside the robot, not in front of it.
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_contact_bearing.py \
-        data/live/runs/run_20260908_0047*
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations
@@ -52,9 +53,7 @@ PATH_HALF_WIDTH_M = 0.197
 """``CollisionAvoidanceController.path_half_width`` -- the lane's half width."""
 
 CONTACT_M = 0.12
-"""A return this close is touching or about to. The measured escape trigger
-ceiling over the 2026-09-08 session was 0.128 m, so this is the regime every
-escape actually fired in."""
+"""A return this close is touching or about to, the regime the escape fired in."""
 
 MIN_VALID_M = 0.05
 """``min_valid_range_m``. Below it the sensor is not measuring anything."""
@@ -63,7 +62,7 @@ MIN_VALID_M = 0.05
 # centre on a 0.300 x 0.194 m body, so its rear edge is 0.2722 m behind the
 # sensor and its sides are 0.097 m away -- well inside the 0.12 m this script
 # calls contact. Returns landing in that box are the ROBOT, not an obstacle.
-# Without this filter 77.7% of "contacts" sat at 120-180 deg, which is the
+# Without this filter most "contacts" sat at 120-180 deg, which is the
 # self-return problem this project has already been bitten by once.
 SELF_X_MIN, SELF_X_MAX = -0.2722, 0.0278
 SELF_Y_ABS = 0.097
@@ -130,9 +129,9 @@ def analyse(bag_dir: Path) -> tuple[int, int, Counter, list[float]]:
             out_lane += 1
         # WRAP first. The gateway's mount correction is ADDED to the raw
         # sweep, so bearings run past pi and an unwrapped |angle| lands every
-        # rear return in a >180 deg bucket -- 921 of 1085 ticks vanished that
-        # way before this line existed. The lane test above uses sin/cos and is
-        # unaffected, which is exactly why the discrepancy was visible.
+        # rear return in a >180 deg bucket, making those ticks vanish. The lane
+        # test above uses sin/cos and is unaffected, which is exactly why the
+        # discrepancy was visible.
         wrapped = math.atan2(math.sin(best_a), math.cos(best_a))
         bands[_band(abs(math.degrees(wrapped)))] += 1
         if last_steer is not None:

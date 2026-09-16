@@ -1,8 +1,9 @@
 r"""Does the escape push toward the side the ROUTER wanted to pass on?
 
-Operator report 2026-09-12, after 32 Obstacles rounds on a 1.00 m track: *"the
-escape angle has the wrong sign -- when the car escapes next to a pillar it is
-trying to pass, the escape drives it away from the pass it needed."*
+Operator report, after Obstacles rounds on a 1.00 m track: *"the escape angle
+has the wrong sign -- when the car escapes next to a pillar it is trying to
+pass, the escape drives it away from the pass it needed."* See
+``adr:0050-escape-steering-degrees-and-committed-side`` for the measured verdict.
 
 ``diag_bag_escape_intent.py`` already answers the low-assumption half of this:
 it compares the escape's steering against what the robot was commanding one

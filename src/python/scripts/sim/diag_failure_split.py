@@ -2,7 +2,8 @@
 
 Both modes are diagnosed (see docs/sign-avoidance-investigation.md) but their
 SHARE is not, and that is what decides where the next fix goes. Fixing the
-geometry (Mode A) is worthless if most runs die with no deformation at all.
+geometry (Mode A) is worthless if most runs die with no deformation at all. See
+``adr:0051-sign-lane-planner``.
 
 At the tick the run ends, ask what the router was doing:
 
@@ -115,7 +116,8 @@ such a line is a heading failure, not a clamp failure.
 _DEFAULT_WORKERS = 8
 
 _YAW_BUCKETS_DEG = (10.0, 20.0, 28.0, 40.0)
-"""Histogram edges. 28 deg is the measured budget at the clamp's 0.181 m."""
+"""Histogram edges. 28 deg is the budget at the clamp's 0.181 m (see
+``adr:0051-sign-lane-planner``)."""
 
 
 _MOSTLY = 0.5
@@ -132,8 +134,8 @@ _MIN_PATH_WAYPOINTS = 2
 
 _SKEW_DEG = 20.0
 """Angle between the corridor axis and the path above which they are not the
-same measurement at all. Measured: on approaches the robot drove dead straight,
-skew above this separates every frame disagreement from every agreement."""
+same measurement at all. On approaches the robot drove dead straight, skew above
+this separates every frame disagreement from every agreement."""
 
 _STRAIGHT_TURN_DEG = 10.0
 """Path heading change over an approach below which it counts as a straight.
@@ -597,7 +599,7 @@ def _approach(
 
     Only the FINAL unbroken run counts. A sign can be engaged, dropped and
     re-engaged, and the earlier spells were not the approach that ended the run
-    — splicing them together would invent convergence that never happened.
+    - splicing them together would invent convergence that never happened.
     """
     if not history:
         return None
@@ -692,9 +694,10 @@ def _label(last: dict[str, Any]) -> str:
     # robot by a lookahead along the DEPTH axis -- so a Euclidean gap is inflated
     # by an along-track term that has nothing to do with clearing the sign. Using
     # it made ``A-clamped`` almost unreachable: a line clamped to 0.181 m of real
-    # clearance still measured >0.205 m once the lookahead was folded in, so
-    # every run classified as ``A-lag`` and the clamp looked exonerated when it
-    # is in fact saturated at half of all legal sign/colour combinations.
+    # clearance read as clear once the lookahead was folded in, so runs
+    # classified as ``A-lag`` and the clamp looked exonerated when it is in fact
+    # saturated at half of all legal sign/colour combinations. See
+    # ``adr:0051-sign-lane-planner``.
     routing = sign_router.ROUTING_TABLE.get((last["corridors"][committed], last["direction"]))  # noqa: SLF001
     if routing is None:
         return "A-other"

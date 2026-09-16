@@ -182,3 +182,35 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
 - SIDE_CORRECTION reverses on 99.4 percent of its ticks.
 - On 2026-08-05 four escalating escapes over 40 s rocked the yaw and translated
   the robot nowhere.
+- Escapes are counted as EPISODES (contiguous latched-manoeuvre runs separated by
+  a 1.0 s gap), not by `escape_count`: `escape_count` reads 1 on 96 percent of
+  triggers because it resets on the escape's own reverse, so it cannot segment
+  episodes.
+- Trigger bearings are published on a 0..2*pi convention and must be wrapped to
+  +/-180 deg before the front/rear split.
+- Rotation and duration transfer from the simulator almost exactly (sim 22.2 deg /
+  1.05 s against hardware 19.0 deg / 0.97 s), but the OUTCOME does not: raising
+  `max_escape_s` 1.0 to 1.8 made the simulator need FEWER escapes at flat total
+  cost and the robot need MORE, doubling time spent reversing to 31 percent of the
+  round.
+- Predicted from the pre-change bags: room for the 0.20 m reverse on 94 percent of
+  escape triggers, but for a 0.36 m reverse on only 73 percent. Reverse has never
+  been live-verified on this chassis.
+- Between two escapes the robot covered 2-7 cm on the 2026-09-10 evening runs,
+  with half a metre of clear space ahead, so the interval is the robot failing to
+  drive rather than a navigation failure.
+- Fifteen 2026-09-15 Obstacles rounds reported three laps often enough to look
+  healthy, but only one was scoreable inside the time limit; every overtime round
+  turned on a single 37-73 s wedge inside one lap, while a cruise lap costs 41-53 s.
+- On the 2026-09-11 Obstacles rounds two of three runs wedged at the same physical
+  point about 5 cm apart; the chassis commanded and the wheel turned on 97-100
+  percent of ticks, absolute wheel travel ran 3.7x the signed, and a sign was
+  committed on 62/67 percent of wedge ticks against 26/53 percent over the whole
+  run. The sign lane saw it, committed, commanded around it, and the chassis still
+  could not get past: an execution failure with the plan already in hand.
+- The bay exit wins a "held still longest" search and buries the wedge being looked
+  for (369 ticks, 41 percent of a run on run_20260911_110734).
+- Terminating on achieved yaw is refuted: a 60 deg target is byte-identical to off
+  because the time cap binds first.
+- A single k_turn burst reached about 275 deg of chassis yaw, so wrapping a
+  whole-escape delta reports the short way round.

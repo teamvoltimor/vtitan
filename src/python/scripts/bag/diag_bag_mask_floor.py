@@ -1,20 +1,22 @@
 r"""Does the escape mask's range floor blind it at the moment of contact?
 
-``ESCAPE_MASK_CLUSTER_MIN_RANGE_M`` ships at 0.15 m. It was chosen on
-run_20260911_110734 by measuring the robot-to-sign range over every COMMITTED
-tick of a wedge (p10 0.252, p50 0.363, p90 0.544 m) -- the wrong population.
-The mask exists to stop a contact recovery firing on the pillar the router is
-already passing, and those recoveries engage at a robot-to-pillar range of p50
-0.09-0.14 m, BELOW the floor. A floor picked on approach ranges switches the
-mask off exactly where the failures are.
+``ESCAPE_MASK_CLUSTER_MIN_RANGE_M`` is a scalar floor on the escape mask. It was
+chosen by measuring the robot-to-sign range over COMMITTED approach ticks -- the
+wrong population. The mask exists to stop a contact recovery firing on the pillar
+the router is already passing, and those recoveries engage BELOW any scalar floor
+high enough to keep the robot's own returns out; a floor picked on approach
+ranges switches the mask off exactly where the failures are.
 
 The obvious repair -- drop the floor -- reintroduces what the floor was for:
 the chassis's own returns become clusters, and a self-return taken for a pillar
 would mask a REAL obstacle. But a scalar was never the right instrument for
 that job either. ``collision_avoidance.sectors.chassis_exit_range_m`` already
 answers it per bearing: nothing outside the robot can return closer than the
-chassis boundary along that ray, which over the rear sector alone runs 0.137 to
-0.272 m. That is a geometric fact, not a tuned number.
+chassis boundary along that ray, over the rear sector a range of values rather
+than one. That is a geometric fact, not a tuned number.
+
+See adr:0056-raw-and-masked-scan for the escape mask decision and its
+per-bearing chassis geometry.
 
 So this compares four floors at the ENGAGEMENT ticks -- the instants a contact
 recovery latched -- and asks three things of each: does the committed belief

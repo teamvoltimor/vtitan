@@ -255,3 +255,26 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   chassis had already curved into the turn).
 - `lateral_offset` is 0.2786 at the current chassis, derived from the chassis
   half-diagonal.
+- The 1.4 m anticipation decays 0.824 to 0.791 to 0.748 to 0.469 m across
+  seen/ingested/published/committed over 78 hardware bags and 486 committed
+  pillars; 79 percent of the loss is inside the lane between publication and
+  commitment, and only 3.1 percent of pillars publish beyond `activation_dist_m`.
+  The router is busy 91 percent of ticks, usually with the pillar it is already
+  passing.
+- Commitment lands at p50 0.43 m on failing passes and 0.52 m on working ones; a
+  pass that must cross from the wrong side wins only 34 percent of the time, the
+  room the missing metre would have bought.
+- Over 129 bags the EXECUTION bucket was 31 percent of correctly-commanded passes
+  and 215 of its 248 members had to CROSS from the wrong side. Crossings failed
+  about 65 percent at every speed, commit range and geometrically available arc,
+  so the failure is not geometry.
+- The map publishes about 2.2 tracks per pillar and the router re-commits 4 to 14
+  times to one of them, so per-commitment contact rates count the same pass
+  several times.
+- The escape sees 87 percent of what it hits and fires at `CONTACT_DIST` by
+  design; the sign lane never gets its 1.4 m activation plus 0.9 m ramp because
+  detector reach and track formation lose the anticipation first.
+- The sign-alignment diagnostic splits a pass into best/final/given-back lateral
+  medians and steering flips: the robot can reach a contact-free offset and then
+  give it back into contact, which separates a hunting controller from one that
+  never got there.

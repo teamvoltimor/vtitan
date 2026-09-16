@@ -20,14 +20,15 @@ preview cap. Ticks are attributed to the LOWEST term, and the residual bucket
 is reported rather than hidden, because a large residual means the attribution
 is wrong and not that the cap is guilty.
 
-TRAP: ``current_corridor`` FLAPS -- 37-39 transitions in a 3-lap run that has
-12 real corners -- so the transition count is reported but is NOT usable to
-split corner ticks from straight ones, and no such split is attempted here.
+TRAP: ``current_corridor`` FLAPS, reporting many more transitions than there are
+real corners, so the transition count is reported but is NOT usable to split
+corner ticks from straight ones, and no such split is attempted here. See
+``adr:0085-speed-envelope`` for the measured verdict.
 
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_corner_speed.py \
-        data/live/runs/run_20260908_003520 data/live/runs/run_20260908_004023
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations
@@ -48,10 +49,10 @@ CRAWL_MARGIN = 1e-6
 """A tick is CRAWLING when the commanded speed matches the heading term's floor.
 
 Defining the slowdown relative to the run's own MEDIAN speed measured nothing:
-the crawl is the MAJORITY state (44-63% of a run), so the median IS the crawled
-value and the detector found zero dips in two runs that crawl for 96 s and 45 s.
-The floor is read from the data instead -- the heading term is binary, taking
-either ``creep_mps()`` or ``fast_mps()`` and nothing between."""
+the crawl is the MAJORITY state, so the median IS the crawled value and the
+detector found zero dips. The floor is read from the data instead -- the
+heading term is binary, taking either ``creep_mps()`` or ``fast_mps()`` and
+nothing between."""
 
 
 def rows_for(bag_dir: Path):

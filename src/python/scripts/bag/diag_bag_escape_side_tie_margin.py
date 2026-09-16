@@ -1,8 +1,9 @@
 r"""Is the K-turn's side a reading, or a coin flip on a near-tie?
 
 ``diag_bag_escape_sign_agreement.py`` measured that the escape's steering sign
-matches the side the router wanted on only 56% of episodes, and 48-49% in a
-corner. That script could not say WHY. This one can.
+matches the side the router wanted only about half the time, and less in a
+corner. That script could not say WHY. This one can. See
+``adr:0050-escape-steering-degrees-and-committed-side`` for the measured verdict.
 
 ``CollisionAvoidanceController._k_turn_steer_sign`` decides the side with::
 

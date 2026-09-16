@@ -1,12 +1,12 @@
 r"""How many ticks does the side-correction refusal actually decide?
 
-``obstacles_side_correction_follows_committed_sign`` costs the obstacles corpus
-12 -> 15, and all three formulations tried so far lose ``go_obstacles_0004``.
-Before that is read as "the mechanism fails", it is worth knowing how much
-evidence the number rests on, because ``escape.toml`` already records that this
-simulator exercises ``side_correction`` on **1.09% of ticks against hardware's
-19-25%**. A verdict resting on a handful of ticks in a regime the simulator
-renders 20x less often is weak evidence either way.
+``obstacles_side_correction_follows_committed_sign`` costs the obstacles corpus,
+and all three formulations tried so far lose one fixture. Before that is read as
+"the mechanism fails", it is worth knowing how much evidence the number rests
+on, because this simulator exercises ``side_correction`` on a tiny fraction of
+ticks against hardware's much larger share. A verdict resting on a handful of
+ticks in a regime the simulator renders far less often is weak evidence either
+way. See ``adr:0050-escape-steering-degrees-and-committed-side``.
 
 So this counts, per scenario and per arm:
 

@@ -272,7 +272,7 @@ def _effectiveness_samples(bag_dir: Path) -> list[tuple[float, float, float]]:
 
     Speed is the commanded value. ``/motor/drive_speed`` is now trustworthy
     (see ``diag_bag_sim_fidelity.py``) but commanded speed is kept here so the
-    trim figures stay comparable with the 2026-08-09 measurements this table
+    trim figures stay comparable with the earlier measurements this table
     was first read against.
     """
     streams = read_motion_streams(bag_dir)
@@ -317,15 +317,15 @@ def _print_effectiveness(bag_dirs: Sequence[Path]) -> None:
     """Does the chassis achieve the yaw its MEASURED steering angle implies?
 
     Pure pursuit can be commanding correctly and the servo obeying exactly while
-    the robot still corners wide -- that is what the 2026-08-09 bags showed. This
-    isolates the last link: actual wheel angle in, actual yaw rate out.
+    the robot still corners wide -- that is what the bags showed. This isolates
+    the last link: actual wheel angle in, actual yaw rate out
+    (adr:0052-pursuit-target-selection).
 
     A ratio near 1.0 means the kinematic model is right. A left/right split means
-    a steering trim offset, which shows up as a direction-dependent path error
-    (and is why CCW drifted ~3x further outward than CW). A symmetric shortfall
-    means a scale error -- REAR_STEER_RATIO or linkage_ratio -- which this cannot
-    tell apart, because both scale the prediction identically. That needs a
-    protractor, not a bag.
+    a steering trim offset, which shows up as a direction-dependent path error.
+    A symmetric shortfall means a scale error -- REAR_STEER_RATIO or
+    linkage_ratio -- which this cannot tell apart, because both scale the
+    prediction identically. That needs a protractor, not a bag.
     """
     samples: list[tuple[float, float, float]] = []
     for bag_dir in bag_dirs:

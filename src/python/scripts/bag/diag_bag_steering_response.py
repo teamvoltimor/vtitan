@@ -1,15 +1,16 @@
 r"""How long does the chassis actually take to turn after a steering step?
 
 The reactive escape commands `rev_steer_deg` 44 deg and lasts a median 0.49 s.
-At the shipped `MAX_STEERING_RATE` 1.2 rad/s, centre to 44 deg is 0.77 rad =
-**0.64 s** -- longer than the escape. If that constant is honest the escape can
-never reach the angle it asks for, which is why it extracts only 10.5 deg of
-rotation, leaves pointing where it entered, and re-approaches the same pillar
-after 2-8 cm ([[escape_loop_is_cleared_then_drove_back_in]]).
+At the shipped `MAX_STEERING_RATE` 1.2 rad/s, centre to 44 deg takes longer
+than the escape lasts. If that constant is honest the escape can never reach
+the angle it asks for, so it extracts little rotation, leaves pointing where it
+entered, and re-approaches the same pillar. The story is recorded in
+adr:0076-drivetrain-and-steering-hardware.
 
-`MAX_STEERING_RATE` 1.2 has NEVER been measured; a real 35 kg servo is ~5 rad/s.
-But the wheel angle has no sensor -- `get_steering_position()` returns the last
-COMMAND -- so the usual answer is a bench test with a high-speed camera.
+`MAX_STEERING_RATE` 1.2 has NEVER been measured; a real 35 kg servo is much
+faster. But the wheel angle has no sensor -- `get_steering_position()` returns
+the last COMMAND -- so the usual answer is a bench test with a high-speed
+camera.
 
 The gyro can answer it instead, and answers a BETTER question. Yaw rate is
 `v * tan(delta) * (1 + rear_ratio) * yaw_gain / wheelbase`, so with the chassis

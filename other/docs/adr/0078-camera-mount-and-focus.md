@@ -59,6 +59,16 @@ not natural daylight; testing near windows or outdoors needs re-tuned
   the mount is pitched 10 degrees down, an unmodeled foreshortening bias.
 - 1.43 D centres the window better and is the value to try only after the dioptre
   scale is bench-verified, which it is not.
+- Detection confidence falls with implied range from 0.854 below 0.5 m to 0.524
+  beyond 1.5 m; the smear script must reproduce this control or the confidence
+  plumbing is wrong.
+- The capture-to-use lag is about 0.85 s and blur is fixed at capture, so every
+  detection is matched to the yaw rate at `t_msg - lag`; `vision_latency_s`
+  carries the 0.85 s figure.
+- The green share of `/vision/detections` fell from 55.7 to 33.4 percent between
+  the 21:18 and 22:56 hardware rounds; the topic is camera plus Hailo, upstream of
+  the sign map and router, and the surviving green confidence pressed against the
+  detection floor, so the loss is censoring rather than a rescaled distribution.
 
 ## History
 

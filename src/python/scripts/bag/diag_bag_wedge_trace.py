@@ -1,10 +1,7 @@
 r"""Why did the robot stop making progress, at the one place it stopped?
 
-Measured on the 2026-09-11 Obstacles rounds, all of which ended 0 laps of 3:
-two of the three wedged at the SAME physical point, (2.52, 1.27) and
-(2.57, 1.27), five centimetres apart, and one of them spent every escape it
-ever fired inside a 0.19 m radius. A failure that repeats at one spot has a
-cause; a distribution over 78 bags only has a shape. This is for the cause.
+A failure that repeats at one spot has a cause; a distribution over many bags
+only has a shape. This is for the cause.
 
 It finds the longest window in which the chassis stayed inside
 ``WEDGE_RADIUS_M``, and then separates the three explanations that look
@@ -14,19 +11,18 @@ identical from the outside and want completely different fixes:
    zero. Motor deadband, stall under steering load, or a speed below the floor.
    Nothing in the sign lane or the escape logic can help.
 2. **MOVING AND COMING BACK.** Wheel travelling, pose not. The pendulum: legs
-   that cancel. ``escape_mirrors_reverse`` shipped for Obstacles today, so this
-   is also the check on whether that fix is reaching this case.
+   that cancel. ``escape_mirrors_reverse`` shipped for Obstacles, so this is
+   also the check on whether that fix is reaching this case.
 3. **NEVER COMMITTED TO THE SIGN.** The router held no claim through the
    wedge, so the chassis was reacting to an obstacle nothing had planned
    around. That points back at the anticipation budget rather than at control.
 
-MEASURED on the two runs that wedged at the same point, and it is (2): the
-chassis commands and the wheel turns on 97-100% of ticks, absolute wheel travel
-runs 3.7x the signed on both, and the ROUTER WAS ENGAGED THROUGHOUT -- a sign
-committed on 62% and 67% of the wedge's ticks against 26% and 53% over the
-whole run. So the sign lane saw it, committed to it, commanded around it, and
-the chassis still could not get past. An execution failure with the plan
-already in hand.
+Measured, the wedges are (2), and the router was engaged throughout: the chassis
+commands and the wheel turns on nearly every tick, absolute wheel travel runs
+well above the signed, and a sign was committed through most of the wedge. So
+the sign lane saw the point, committed to it, commanded around it, and the
+chassis still could not get past. An execution failure with the plan already in
+hand (adr:0055-escape-maneuver-selection).
 
 RETRACTION, kept because the mistake is the reusable part: this script first
 reported ZERO commitments through both wedges, which read as the router being
@@ -43,8 +39,8 @@ as stuck -- because the belief is what it acted on, right or wrong.
 
 TRAP this script exists to avoid: `travelled_m`-style signed odometry cancels
 under a ratchet, so ABSOLUTE wheel travel is integrated separately from signed.
-The ratio between them is the pendulum's signature (measured 3.6x on the open
-track) and neither number alone shows it.
+The ratio between them is the pendulum's signature and neither number alone
+shows it.
 
 Usage::
 
@@ -93,9 +89,8 @@ def find_wedge(rows) -> tuple[int, int] | None:  # noqa: ANN001
     """
     # The bay exit is EXCLUDED. It is a deliberately tight manoeuvre inside a
     # pocket, so it always wins a "held still longest" search and buries the
-    # thing being looked for -- on run_20260911_110734 it took the whole answer
-    # (369 ticks, 41% of the run, a 0.14 x 0.16 m box) while the escapes that
-    # actually ended the round clustered a metre and a half away.
+    # thing being looked for -- the bay exit can take the whole answer while the
+    # escapes that actually ended the round cluster somewhere else entirely.
     poses = [
         (i, d.pose_x, d.pose_y)
         for i, (_, d) in enumerate(rows)

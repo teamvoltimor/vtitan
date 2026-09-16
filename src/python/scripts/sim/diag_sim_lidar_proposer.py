@@ -3,9 +3,9 @@
 The hardware version of this question (`scripts/bag/diag_bag_lidar_proposer.py`)
 cannot be answered, and it says so: its only anchor is the camera, and on
 hardware the camera confirms wall-shaped objects about as readily as pillars, so
-a candidate's distance-to-nearer-wall comes out at p50 0.27 m for "confirmed"
-tracks and 0.25 m for unconfirmed -- the same distribution. Nothing scored
-against that anchor can separate a precision gain from noise.
+a candidate's distance-to-nearer-wall comes out the same for "confirmed" tracks
+as for unconfirmed. Nothing scored against that anchor can separate a precision
+gain from noise.
 
 Here the layout IS the ground truth. `sign_positions` in the scenario metadata
 gives every sign's exact world position, so a proposed track is right or wrong
@@ -15,27 +15,21 @@ with no appeal to the camera. That decides the two things the bag run left open:
 2. **Whether the LATTICE PRIOR earns its recall cost.** Signs stand on a 6-point
    lattice per section -- 0.4/0.6 m lateral, 1.0/1.5/2.0 m depth, at most 2
    occupied -- so a candidate 0.4 m from its nearer lateral border is plausible
-   and one at ~0 is a wall corner. Against the camera anchor that filter kept
-   33% of tracks to move precision 47% -> 52%, which was unreadable.
+   and one at ~0 is a wall corner. Against the camera anchor that filter was
+   unreadable.
 
-**How far this transfers to hardware -- MEASURED, not assumed.** Running this
-exact detector over both, with neither side needing ground truth:
+**How far this transfers to hardware is measured, not assumed.** Running this
+exact detector over both, with neither side needing ground truth: cluster yield
+matches, so the sim is a fair proxy for the detector itself; the sim spots a
+candidate earlier; and hardware's lattice-consistent population is thinner, so
+there is more clutter (or more position smear) to reject there. Both gaps make
+the sim precision an UPPER BOUND. See
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
-    clusters per scan        hardware 3.10   sim 2.95    -- the SAME detector
-    persistent tracks        hardware  204   sim  198
-    first-see range p50      hardware 1.33 m sim 1.77 m  -- sim sees EARLIER
-    share in the sign band   hardware  23%   sim  35%    -- (0.375-0.5 m)
-
-Cluster YIELD matches, so the sim is a fair proxy for the detector itself. Two
-gaps are real and both make the 84% an UPPER BOUND: the sim spots a candidate
-~0.44 m earlier, and hardware's lattice-consistent population is a third
-thinner, so there is more clutter (or more position smear) to reject there.
-
-NOT a reason, though the obvious guess: side-ray dropout. Measured on the 09-07
-runs, the -90 deg window has no valid return on 12-19% of ticks for the SINGLE
-nearest ray, but only 0.0-1.7% across the +/-20 deg window this uses. The 66%
-figure recorded on 09-03 is a single-ray number and does not apply here. The
-windowed median already absorbs it.
+NOT a reason, though the obvious guess: side-ray dropout. The single nearest ray
+has no valid return on a meaningful share of ticks, but only a far smaller share
+across the +/-20 deg window this uses, and the windowed median already absorbs
+it. The single-ray figure recorded on 09-03 does not apply here.
 
 The vision emulator still has PERFECT RANGE, so the camera-vs-LIDAR range
 comparison that motivated the idea cannot be reproduced in sim at all.

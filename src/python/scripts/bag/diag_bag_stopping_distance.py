@@ -1,30 +1,22 @@
 r"""How far does the chassis travel between the CRITICAL tick and standstill?
 
-STATUS: this answers a question `clearance.toml` records as blocked. Beside
-`obstacles_contact_dist` it says, in the shipped tree: "STILL UNRUN, and it is
-the only thing that can settle this: Session A's stopping-distance bench. Nobody
-has measured how far the chassis travels between the CRITICAL tick and
-standstill at Obstacles cruise. If that chain exceeds the value here, this
-threshold generates the collisions it exists to prevent -- and the sim cannot say
-so. If the bench shows standstill well inside 4 cm, take the corpus optimum and
-go to 0.04. If it shows 6-8 cm, 0.10 was accidentally right and the trigger
-needs rethinking rather than retuning."
+STATUS: this answers a question `clearance.toml` records as blocked, and it is
+the only thing that can settle whether the contact threshold generates the
+collisions it exists to prevent. The sim cannot say so, because contact is
+absorbing.
 
 A bench was never run. It does not have to be: every recorded Obstacles round
 contains the same experiment, once per escape. The escape's CRITICAL verdict is
 on the wire (`escape_risk`), the pose is on the wire, and what happens between
-them is the measurement.
+them is the measurement (adr:0061-contact-zone-per-challenge).
 
 WHY IT MATTERS. `obstacles_contact_dist` is the range at which the reactive
 layer declares an obstacle a threat, and it does three jobs at once:
 
 * it fires the escape, so too small means the escape fires too late to stop;
 * it is SUBTRACTED from the rear gap when a reverse escape is fitted, so too
-  LARGE starves the reverse -- measured in the corpus, 0.07 against a 0.078 m
-  bumper gap leaves 8 mm, one frame, one centimetre of travel, which cannot
-  clear a stuck detector that wants 2.7 cm;
-* the corpus optimum is 0.04, which wins 3 collisions against 28, but 0.04 sits
-  BELOW `min_valid_range_m` (0.044) so it is inert rather than good.
+  LARGE starves the reverse and may not clear a stuck detector;
+* a value below `min_valid_range_m` is inert rather than good.
 
 METHOD. From each tick where `escape_risk` first reads CRITICAL, accumulate
 pose-to-pose path length until the chassis is stationary -- `--stop-speed` for
@@ -39,9 +31,9 @@ CONTROLS, because a crashed diagnostic here exits 0:
 * The speed at the CRITICAL tick is reported alongside. A stopping distance
   measured from a chassis that was already crawling says nothing about cruise,
   and the Obstacles cruise figure is the one the TOML is asking about.
-* Pose path length is known to over-read by ~10% on this robot, so the numbers
-  here are a slight OVER-estimate of the true distance -- which is the safe
-  direction for a threshold that exists to prevent contact.
+* Pose path length can over-read on this robot, so the numbers here may be a
+  slight OVER-estimate of the true distance -- which is the safe direction for a
+  threshold that exists to prevent contact.
 
 Usage::
 

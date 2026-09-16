@@ -8,11 +8,12 @@ Compares the robot's ground-truth pose against both:
 Outputs one CSV per scenario with per-tick cross-track errors and the current
 belief/true corridor widths.
 
-Also instruments WAYPOINT INDEX ADVANCEMENT, added 2026-08-30 to chase a stall
-seen on hardware: at the first corner of ``run_20260830_013702`` indices 8 and 9
-held 2.10 s and 2.95 s against a 0.4-1.3 s norm, immediately after a 1.3 m pose
-jump. A frozen index means a stale lookahead target, which is a candidate cause
-of both the Obstacles sign cross-track error and the unexplained escape rate.
+Also instruments WAYPOINT INDEX ADVANCEMENT, to chase a stall seen on hardware:
+at the first corner an index can hold for seconds against a fraction-of-a-second
+norm, immediately after a pose jump. A frozen index means a stale lookahead
+target, which is a candidate cause of both the Obstacles sign cross-track error
+and the unexplained escape rate. See
+``adr:0057-blind-corridor-follower-and-width``.
 
 ``navigator.py`` has two ways past a waypoint and this script records whether
 each one is available on every tick:
@@ -241,13 +242,12 @@ def _batch_one(args: tuple[int, float, str]) -> dict:
     dwells = sorted(len(run.rows) for run in runs)
     # RELATIVE, not an absolute tick count. Runs differ two-fold in how long
     # they dwell per waypoint -- a narrow-corridor scenario creeps and spends
-    # ~26 ticks on an ordinary index where a wide one spends ~9 -- so a fixed
-    # threshold labels every index of a slow run a "stall" and then reports
-    # that stalls are everywhere. Measured against the run's OWN median, a
-    # stall means "this index held far longer than this run's normal", which is
-    # the thing worth comparing across the corpus. The first cut of this used
-    # 30 ticks flat and reported 57% of ticks stalled in PASSING runs, which is
-    # the signature of a threshold measuring speed rather than stalling.
+    # more ticks on an ordinary index than a wide one -- so a fixed threshold
+    # labels every index of a slow run a "stall" and then reports that stalls
+    # are everywhere. Measured against the run's OWN median, a stall means "this
+    # index held far longer than this run's normal", which is the thing worth
+    # comparing across the corpus. A flat tick threshold instead measures speed
+    # rather than stalling.
     median = dwells[len(dwells) // 2] if dwells else 0
     floor = max(median * stall_multiple, 1)
     stalls = [run for run in runs if len(run.rows) >= floor]
@@ -471,8 +471,8 @@ def run_scenario(
             # The ONLY per-tick attitude in this file. The believed_*/true_*
             # columns below are NOT poses -- see the comment on them -- so
             # without this a reader has no way to tell a corner from a straight,
-            # and a 2026-09-03 attempt to split cross-track error that way
-            # silently measured zero cornering ticks in every run.
+            # and an attempt to split cross-track error that way silently
+            # measured zero cornering ticks in every run.
             "yaw": state.yaw,
             # CONSTANT for the whole run: `belief_offset_poses` is the fixed
             # anchor PAIR defining the believed->true frame offset (the one

@@ -78,9 +78,10 @@ class Pass:
     """Latched-manoeuvre ticks while committed, BY TYPE. ``maneuver_during_pass``
     collapses every manoeuvre into one bit, and that cannot tell a k_turn (a
     deliberate re-orientation) apart from side_correction (the reactive layer
-    taking the wheel). Reported from the track on 2026-09-12: the corrections
-    themselves often fail to reach the legal side or to avoid contact, which is
-    a claim about ONE manoeuvre type and needs the type to test."""
+    taking the wheel). The corrections themselves often fail to reach the legal
+    side or to avoid contact, and that is a claim about ONE manoeuvre type and
+    needs the type to test; see
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``."""
 
     manoeuvre_agrees: int
     """Latched-manoeuvre ticks steering TOWARD the side the router asked for."""
@@ -184,11 +185,11 @@ def collect_passes(
         # itself keys the rule off (``router.py:528`` reads
         # ``self._sign_corridors[index]``). ``d.current_corridor`` is the
         # ROBOT's, and the two legitimately disagree at corners -- exactly where
-        # the failures live. Measured on the 2026-09-12 bags, the robot's
-        # corridor reports 21 routing errors in competition and 22 in practice
-        # where the sign's reports 1 and 0. The trap is stated at the top of
-        # diag_bag_pass_side's docstring and its verdict line used to commit it
-        # anyway.
+        # the failures live. The robot's corridor reports far more routing errors
+        # than the sign's; see
+        # ``adr:0064-corridor-by-depth-and-clearance-budget``. The trap is stated
+        # at the top of diag_bag_pass_side's docstring and its verdict line used
+        # to commit it anyway.
         colour, sign_corridor = next(
             (
                 (spec.color, section)

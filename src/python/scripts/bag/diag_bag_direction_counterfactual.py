@@ -3,7 +3,8 @@
 ``diag_bag_direction_gate.py`` says which gate refused each scan. This says
 whether relaxing a gate would have produced the RIGHT answer or merely a fast
 wrong one -- the only question that matters, since a confidently wrong direction
-is worse than never settling.
+is worse than never settling. See
+``adr:0053-direction-inference-and-start-pose`` for the measured verdict.
 
 It replays the side ranges the node already logged (``direction_left_range_m`` /
 ``direction_right_range_m``) plus ``pose_yaw`` through the same gate arithmetic

@@ -1,11 +1,11 @@
 r"""In a CROSSING pass, does the planner ever ask for the crossing?
 
 Background. ``diag_bag_pass_side.py`` splits sign passes into ROUTING (commanded
-the wrong side), EXECUTION (commanded right, chassis went wrong) and ok. Over
-129 bags the EXECUTION bucket is 31% of correctly-commanded passes, and 215 of
-its 248 members are passes that had to CROSS from the wrong side to the legal
-one. Crossings fail ~65% regardless of speed, commit range or the geometrically
-available arc -- that margin test is FLAT. So the failure is not geometry.
+the wrong side), EXECUTION (commanded right, chassis went wrong) and ok. The
+EXECUTION bucket is dominated by passes that had to CROSS from the wrong side to
+the legal one, and those crossings fail regardless of speed, commit range or the
+geometrically available arc -- that margin test is FLAT. So the failure is not
+geometry. See ``adr:0051-sign-lane-planner`` for the measured verdict.
 
 This script asks the next question: what did the wheel actually do, and did the
 planner ever ask for the crossing at all.

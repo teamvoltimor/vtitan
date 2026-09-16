@@ -14,38 +14,23 @@ base config no longer declares a motor or a servo:
     VTITAN_HARDWARE_PROFILE=270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm \
         python scripts/sim/diag_open_narrow.py
 
-Measured over the 8 narrow starts, 3 laps against the 180 s limit:
-
-==================================  ======  =========  =========
-speed ceiling                       pass    3 laps?    slowest
-==================================  ======  =========  =========
-0.156 (generic-motor-1500rpm)       0/8     no (2)     200.0 s
-0.170                               0/8     yes        194.8 s
-0.185                               8/8     yes        179.8 s
-0.234 (rev-hd-hex-motor-6000rpm)    8/8     yes        140.8 s
-==================================  ======  =========  =========
-
-The path is 26.07 m over 3 laps, so the limit demands a 0.145 m/s AVERAGE. The
-1500 rpm motor's 0.156 ceiling is only 7% above that average, and the car
-actually sustains ~79% of its ceiling once corners are priced in. **That motor
-cannot finish this course in time at any control quality**, and steering range
-does not enter into it: swapping only the servo (270deg-hiwonder-35kg on the
-slower motor) is indistinguishable from the slower build at 0/8 and 200.0 s.
-
-That last point was re-confirmed over the full 128-scenario blind sweep on
-2026-08-21, and it is stronger than it looks: the two arms are identical
-SCENARIO FOR SCENARIO, same verdicts and same times. Before the tuning moved to
-physical units the servo appeared to be a real lever -- it was only ever
-rescaling normalised steering constants by 85/55.
+Scored over the 8 narrow starts, 3 laps against ``ROUND_TIME_LIMIT_S``. The
+path is long enough over 3 laps that the limit demands an average well above the
+slowest profile's ceiling, and that motor cannot finish the course in time at
+any control quality. Steering range does not enter into it: swapping only the
+servo is indistinguishable from the slower build, confirmed scenario for
+scenario over the full 128-scenario blind sweep. Before the tuning moved to
+physical units the servo appeared to be a real lever; it was only ever rescaling
+normalised steering constants. See ``adr:0087-test-methodology``.
 
 History worth keeping, because it explains what this script does NOT measure:
 the original suspicion was a speed-dependent steering law, since
 ``MAX_STEERING_RATE`` is per *second*, so a slower car winds the steering
 further per metre and carves a tighter arc. That was root-caused and fixed
-structurally in ``2026-08-03`` -- ``WaypointController.compute_steering`` no
-longer reads ``steer_kp`` at all, having moved to curvature-based pure pursuit
-off the real chassis geometry (``adr:0052-pursuit-target-selection``).
-Any ``steer_kp`` value passed here is therefore inert.
+structurally -- ``WaypointController.compute_steering`` no longer reads
+``steer_kp`` at all, having moved to curvature-based pure pursuit off the real
+chassis geometry (``adr:0052-pursuit-target-selection``). Any ``steer_kp`` value
+passed here is therefore inert.
 
 That per-second rate limit is still live in the other direction, and is the
 thing to check first if a FASTER profile ever starts clipping walls: the same

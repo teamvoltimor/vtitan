@@ -1,10 +1,8 @@
 r"""Does the steer target point the WRONG WAY ROUND THE LOOP?
 
-The reversal that lost all three 2026-09-11 evening rounds and still cost one
-of three on 2026-09-12 ([[lap_reversal_survives_the_search_span_fix_2026_09_12]])
-is the car driving a quarter to two thirds of a lap backwards at POSITIVE
-commanded speed. ``target_search_span_cured_the_reversal_2026_09_11`` bounded
-the lookahead search to 1.0 m of path and it did not close.
+The reversal is the car driving a large fraction of a lap backwards at POSITIVE
+commanded speed. The span fix bounded the lookahead search to 1.0 m of path and
+it did not close (evidence in adr:0052-pursuit-target-selection).
 
 **Why a span bound cannot close it, which is the hypothesis under test.** The
 question already answered is "is the target BEHIND the chassis", and it reads
@@ -36,32 +34,13 @@ A POSITIVE CONTROL IS REQUIRED in the same invocation. A run known to have
 finished 3 clean laps must read near zero on all three; without it a low number
 cannot be told apart from a sign convention that came out backwards.
 
-WHAT IT MEASURED, 2026-09-12, and the hypothesis above came out INVERTED. Inside
-each known reversal window, against the clean 3-lap control of 2026-09-11:
-
-| run | target wrong | target behind | heading wrong |
-|---|---|---|---|
-| `152318` control, whole span | 0.7% | 0.0% | 0.0% |
-| `171915` pre-fix | 90.9% | **0.0%** | 98.5% |
-| `172543` pre-fix | 56.2% | **0.0%** | 99.6% |
-| `172334` pre-fix | 71.1% | **0.0%** | 100.0% |
-| `064539` POST-fix | **2.8%** | **35.4%** | 98.6% |
-
-Three exact zeros reproduce the recorded "the target is essentially never behind
-the chassis", which is what validates this reader against an independent result.
-
-**The span fix worked at what it aimed at and CONVERTED the failure.** Wrong-sense
-targets inside the window collapsed from 56-91% to 2.8%. The target now asks
-correctly for the way back -- and to ask it, it sits BEHIND the chassis on 35.4%
-of ticks, where before it was 0.0% exactly. The car still does not recover, so
-the defect moved DOWNSTREAM of selection: nothing turns a chassis round to chase
-a target behind it, and ``crosstrack_error_m`` stays at 0.142 m p50 throughout,
-so no guard fires.
-
-Selection is still the PRECURSOR, not the exonerated party. Splitting `064539`
-at its own window boundary: before it, target-wrong 23.0% with heading-wrong
-only 6.6% and behind 3.0%. The wrong-sense target still fires while the chassis
-is correctly oriented, and that is what rotates it.
+WHAT IT MEASURED, and the hypothesis above came out INVERTED. Inside the known
+reversal windows, against a clean 3-lap control, the span fix worked at what it
+aimed at and CONVERTED the failure: wrong-sense targets collapsed, and the
+target now asks correctly for the way back -- but to ask it, it sits BEHIND the
+chassis more often, and nothing turns a chassis round to chase a target behind
+it. The defect moved DOWNSTREAM of selection while selection stayed the
+PRECURSOR. The evidence is recorded in adr:0052-pursuit-target-selection.
 
 Usage::
 
@@ -107,14 +86,13 @@ MOTION_EPS_M = 0.002
 is meaningless. At 20 Hz and 0.25 m/s a real step is ~12 mm."""
 
 TARGET_WRONG_THRESHOLD = 0.05
-"""Calibrated on the control, not chosen: the clean 3-lap run of 2026-09-11
-reads 0.7% target-wrong, and every reversed run reads 16-36%. Anything in
-between is unobserved, so the threshold sits an order of magnitude above the
-control and well below every positive.
+"""Calibrated on the control, not chosen: the clean 3-lap control reads very
+little target-wrong, and every reversed run reads far more. Anything in between
+is unobserved, so the threshold sits an order of magnitude above the control and
+well below every positive (adr:0052-pursuit-target-selection).
 
-The MOTION column gets no threshold, because the control REFUTED one. That run
-reads 14.2% motion-wrong while reading 0.0% heading-wrong: a per-tick pose
-delta projected on the tangent is dominated by weaving, and on a 0.25 m/s
+The MOTION column gets no threshold, because the control REFUTED one: a per-tick
+pose delta projected on the tangent is dominated by weaving, and on a 0.25 m/s
 chassis at 20 Hz the lateral component of a weave routinely exceeds the
 tangential one. Motion-wrong is kept as context and must not be scored."""
 
@@ -183,7 +161,7 @@ class Senses:
     cannot answer either: whether wrong-sense ticks arrive in BURSTS or
     scattered. A burst holds the wheel one way long enough to rotate the
     chassis; scattered ticks average out and are the benign case. The clean
-    3-lap control has 18 of them and did not rotate."""
+    3-lap control shows a few and did not rotate."""
     deform_ratio: list[tuple[bool, float]] = field(default_factory=list)
     """`(is_wrong_sense, deform_magnitude / target_range)`.
 
@@ -216,13 +194,13 @@ class Senses:
     THE CONTROL ON THIS SCRIPT'S OWN METRIC. The tangent here is taken about
     the MAT CENTRE, which approximates a square track by a circle, and at a
     corner the true path tangent departs from the circular one by up to 45
-    deg. A wrong-sense reading of 106 deg p50 is within reach of that
-    artefact. If the wrong-sense ticks concentrate in one or two corridors the
-    metric is contaminated and the shares above cannot be read.
+    deg. A wrong-sense reading that large is within reach of that artefact. If
+    the wrong-sense ticks concentrate in one or two corridors the metric is
+    contaminated and the shares above cannot be read.
 
     The clean 3-lap control already argues against it -- it drives the same
-    square through the same corners and reads 0.7% -- but a per-corridor split
-    is the direct test rather than an argument."""
+    square through the same corners -- but a per-corridor split is the direct
+    test rather than an argument."""
     target_radius: list[tuple[bool, float]] = field(default_factory=list)
     """`(is_wrong_sense, required_pure_pursuit_radius_m)`.
 

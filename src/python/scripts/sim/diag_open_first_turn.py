@@ -30,7 +30,7 @@ direction-inference creep, and an exit corridor the robot has never driven.
 ``--told-direction`` removes the first and leaves the second, which is the one
 run that tells the two apart. It is a CONTROL, not a competition condition --
 the round's direction is drawn on the day, so a told run measures a robot with
-information no robot has.
+information no robot has. See ``adr:0053-direction-inference-and-start-pose``.
 """
 
 from __future__ import annotations
@@ -89,8 +89,8 @@ _TURN_START_DEG = 5.0
 """Heading change from the straight that counts as the turn having begun.
 
 Small enough to catch the entry speed before the corner has scrubbed any off,
-large enough not to trigger on the centring wander of a straight -- measured
-p90 steering flips on a straight leave heading well inside this."""
+large enough not to trigger on the centring wander of a straight: the steering
+flips on a straight leave heading well inside this."""
 
 
 class _YawTracer:

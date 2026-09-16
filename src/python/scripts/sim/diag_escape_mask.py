@@ -2,13 +2,14 @@
 
 The mapped/unmapped split withholds a routed sign's LIDAR returns from the
 CRITICAL escape trigger, which was measured to be the gate. If the offset knob
-is still inert afterwards, something else is holding the run — this reports the
-candidates per tick so the answer is measured rather than guessed:
+is still inert afterwards, something else is holding the run -- this reports the
+candidates per tick so the answer is measured rather than guessed (see
+``adr:0056-raw-and-masked-scan``):
 
 * ``raw`` / ``masked``: risk from the unmasked and masked scans. Ticks where
   they differ are the ones the split actually changed.
 * ``k_turn``: CRITICAL escapes begun (the path the split suppresses).
-* ``stuck``: escapes begun by ``StuckDetector`` instead — a completely separate
+* ``stuck``: escapes begun by ``StuckDetector`` instead - a completely separate
   trigger the split does not touch, and the obvious suspect if a masked robot
   merely creeps into the sign rather than reversing off it.
 * ``creep`` / ``slow``: ticks where raw forward clearance or raw risk capped the
@@ -17,10 +18,9 @@ candidates per tick so the answer is measured rather than guessed:
 
 ``--census`` answers a different question on the same hooks: not "what does the
 mask change" but "how often does the escape gate fire at all, and what does it
-cost the clock". Added 2026-08-22, when the LIDAR mount fix (``6c727c87``) took
-blind corpus collisions 195 -> 57 while leaving in-time flat at 27 -> 26 and
-timeouts 19 -> 132 -- the failure moved into escape thrash, and the gate's
-threshold is stated in a frame the fix changed under it.
+cost the clock". Added after the LIDAR mount fix moved the blind corpus failure
+into escape thrash, leaving the gate's threshold stated in a frame the fix
+changed under it (see ``adr:0056-raw-and-masked-scan``).
 
 Usage (from ``src``, PYTHONPATH=.)::
 
@@ -140,21 +140,21 @@ class _Census:
     """OBSTACLE ticks that would still be speed-capped in the body-centred frame.
 
     The counterfactual that matters once ``crit_ticks`` turns out to be zero.
-    The escape gate never fires, but the SLOW band does -- 27% of ticks in a
-    winning run and 50% in a failing one -- and it is read in the same shifted
-    frame: a 0.25 m threshold on readings that start ~12.2 cm further forward
-    caps the speed at what was ~0.37 m body-centred. If this is much smaller
-    than ``obstacle_ticks``, most of the clock cost is frame, not geometry.
+    The escape gate never fires, but the SLOW band does, and it is read in the
+    same shifted frame: a 0.25 m threshold on readings that start further
+    forward caps the speed at what was further out body-centred. If this is much
+    smaller than ``obstacle_ticks``, most of the clock cost is frame, not
+    geometry. See ``adr:0056-raw-and-masked-scan``.
     """
 
     would_fire_body_frame: int
     """Ticks that would still be CRITICAL if the gate were read in the OLD
     body-centred frame, i.e. ``min_range - LIDAR_MOUNT_X_OFFSET < contact``.
 
-    The fix moved forward readings ~12.2 cm closer without moving the
-    threshold. If this is ~0 while ``crit_ticks`` is large, then essentially
-    every front escape now firing is one the pre-fix stack could not fire, and
-    the ladder is being read in a frame it was never tuned for.
+    The fix moved forward readings closer without moving the threshold. If this
+    is ~0 while ``crit_ticks`` is large, then essentially every front escape now
+    firing is one the pre-fix stack could not fire, and the ladder is being read
+    in a frame it was never tuned for. See ``adr:0056-raw-and-masked-scan``.
     """
 
     min_range_p10: float
@@ -181,7 +181,7 @@ _EARLY_WINDOW_TICKS = 400
 
 Long enough to contain the first corner and the first sign encounters, short
 enough that even the runs which later stall are still driving normally through
-it -- the in-time median run is ~3300 ticks, so this is its opening ~12%.
+it: a small opening fraction of a completed run.
 """
 
 _EPISODE_GAP_TICKS = 20
@@ -348,8 +348,8 @@ def report_census(workers: int, scenarios_dir: str | None) -> None:
 
     # The causality control, printed as its own block so it is read against the
     # whole-run figures above rather than instead of them. If these columns are
-    # flat while the ones above fan out 12x, escape activity is a symptom of a
-    # run already going wrong and the trigger rate is the wrong lever.
+    # flat while the ones above fan out, escape activity is a symptom of a run
+    # already going wrong and the trigger rate is the wrong lever.
     print(f"EARLY  first {_EARLY_WINDOW_TICKS} ticks only (~{_EARLY_WINDOW_TICKS / 20:.0f}s)", flush=True)
     for label, group in groups:
         if not group:

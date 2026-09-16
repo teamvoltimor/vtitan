@@ -10,14 +10,15 @@ different causes, with two different fixes:
 * **Late.** A blind run starts believing every corridor is narrow and corrects
   from LIDAR as it drives, so the opening stretch is driven on a path built for
   a layout the robot is standing on but has not measured yet. If the first sign
-  arrives before convergence, the run is lost to timing, not accuracy — and the
+  arrives before convergence, the run is lost to timing, not accuracy - and the
   fix is about ordering (delay commitment, or route conservatively until
   settled), not about the estimator's precision.
 
 Reports, per fixture: the final belief vs truth, the step at which the belief
 last changed, and the step the run ended. A collision BEFORE the last belief
 change is a "late" failure; one after it with a correct belief is neither, and
-points back at the sign geometry itself.
+points back at the sign geometry itself. See
+``adr:0057-blind-corridor-follower-and-width``.
 
 Usage (from ``src``, PYTHONPATH=.)::
 
@@ -89,7 +90,7 @@ def probe(index: int) -> LayoutProbeResult:
 
     # Count how often a scan yields a usable width at all. A corridor that is
     # never measured is either short of time (few calls) or having its readings
-    # rejected (many calls, few valid) — different problems, different fixes.
+    # rejected (many calls, few valid) - different problems, different fixes.
     original_measure = corridor_estimator.measure_corridor_width
 
     def counted_measure(*a: Any, **kw: Any) -> Any:

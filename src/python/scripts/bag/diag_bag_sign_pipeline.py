@@ -1,10 +1,11 @@
 r"""Where the sign-avoidance pipeline loses its anticipation.
 
 Obstacles runs collide with pillars and rarely reach half a lap. The escape is
-not the culprit -- ``diag_bag_contact_bearing.py`` shows it sees 87% of what it
+not the culprit -- ``diag_bag_contact_bearing.py`` shows it sees most of what it
 hits and fires at ``CONTACT_DIST`` by design, so it is a backstop, not
 avoidance. Avoidance is the sign lane, which is built to activate at
-``ACTIVATION_DIST_M`` 1.4 m and ramp over ``SIGN_LANE_RAMP_M`` 0.9 m.
+``ACTIVATION_DIST_M`` 1.4 m and ramp over ``SIGN_LANE_RAMP_M`` 0.9 m
+(adr:0051-sign-lane-planner).
 
 It never gets that far. This measures the chain end to end on one set of runs
 so the loss can be attributed to a stage instead of guessed at:

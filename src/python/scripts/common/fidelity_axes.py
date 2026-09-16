@@ -3,11 +3,11 @@
 ``scripts/bag/diag_bag_fidelity_axes.py`` measures a recorded round and
 ``scripts/sim/diag_fidelity_axes.py`` measures a simulated one. The whole point
 of that pair is that their two outputs can be read side by side, and that only
-works if every axis is defined ONCE. The 2026-09-15 divergence audit ran them as
-two independent throwaway scripts and the LIDAR sector bands drifted apart
-between them -- the hardware side bucketed ``120-180`` and the sim side split it
-``120-160`` / ``160-180``, which is exactly the boundary the audit turned out to
-hinge on. A shared band table makes that class of mistake impossible.
+works if every axis is defined ONCE. Before the shared band table, the two
+sides disagreed on the LIDAR sector bands, which is exactly the boundary a
+sim-vs-hardware divergence audit hinges on; see
+``adr:0086-simulator-realism``. A shared band table makes that class of mistake
+impossible.
 
 Nothing here reads a bag or drives a simulator. It holds the definitions both
 sides must agree on:
@@ -51,9 +51,10 @@ SECTOR_BANDS: tuple[tuple[str, float, float], ...] = (
 
 Not arbitrary: ``120-160`` and ``160-180`` are split rather than lumped into one
 rear band because the occlusion the mount actually produces sits in the first
-and NOT the second -- measured 22-48 percent finite against 75-84 percent on the
-same bags. A single ``120-180`` band averages those two into a number that
-matches neither and hides the wedge.
+and NOT the second, so the two bands carry very different finite shares. A
+single ``120-180`` band averages those two into a number that matches neither
+and hides the wedge. See ``adr:0080-lidar-mount-and-scan-plane`` for the
+measured shares.
 """
 
 SUB_FLOOR_M = 0.044
@@ -61,8 +62,8 @@ SUB_FLOOR_M = 0.044
 
 A ray below this is dropped before navigation sees it, so counting it as a
 return overstates what the robot had to work with. Tracked separately rather
-than subtracted, because on hardware it is 7 percent of all rays and a share
-that large is itself a finding.
+than subtracted, because on hardware it is a share of all rays large enough to
+be a finding in itself; see ``adr:0086-simulator-realism``.
 """
 
 
@@ -71,10 +72,10 @@ def contiguous_episodes(flags: Sequence[bool]) -> list[tuple[int, int]]:
 
     One manoeuvre is one episode. Counting ticks instead inflates a slow escape
     over a fast one; counting transitions of a COUNTER instead is what
-    ``escape_count`` does, and that counter resets on the escape's own reverse
-    (measured 2026-09-15: it reads 1 on 96 percent of triggers), so it cannot be
-    used to segment episodes. Segment on the manoeuvre being active, which is a
-    state and not a tally.
+    ``escape_count`` does, and that counter resets on the escape's own reverse,
+    so it reads 1 on almost every trigger and cannot be used to segment episodes;
+    see ``adr:0055-escape-maneuver-selection``. Segment on the manoeuvre being
+    active, which is a state and not a tally.
     """
     episodes: list[tuple[int, int]] = []
     start: int | None = None
@@ -93,8 +94,8 @@ def signed_yaw_delta(later: float, earlier: float) -> float:
     """``later - earlier`` wrapped into ``(-pi, pi]``, for a single small step.
 
     Only valid between ADJACENT samples. Across a whole escape the chassis can
-    turn more than 180 degrees (measured: a k_turn burst reached 275), and
-    wrapping there silently reports the short way round. Unwrap the whole series
+    turn more than 180 degrees, and wrapping there silently reports the short way
+    round; see ``adr:0055-escape-maneuver-selection``. Unwrap the whole series
     with ``numpy.unwrap`` and subtract, which is what both probes do.
     """
     return (later - earlier + math.pi) % (2 * math.pi) - math.pi
@@ -195,8 +196,9 @@ def format_committed(
 
     Commanded and achieved are printed together because their RATIO is the
     finding. The simulator tracks its own command almost exactly; the chassis
-    delivers 0.43-0.84 of it at creep speeds, and a planner tuned against the
-    former plans distances the latter never covers.
+    delivers only a fraction of it at creep speeds, so a planner tuned against
+    the former plans distances the latter never covers. See
+    ``adr:0076-drivetrain-and-steering-hardware`` for the delivered fractions.
     """
     commanded = list(commanded_mps)
     achieved = list(achieved_mps)

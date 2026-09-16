@@ -1,8 +1,8 @@
 r"""Is the steering TARGET ahead of the robot along the loop, or behind it?
 
-The 2026-09-11 evening rounds all turned around mid-lap and drove back the way
-they came, at POSITIVE commanded speed, with ``waypoint_index`` frozen and
-every backward-index guard reading clean.
+Recorded evening rounds turned around mid-lap and drove back the way they came,
+at POSITIVE commanded speed, with ``waypoint_index`` frozen and every
+backward-index guard reading clean (adr:0052-pursuit-target-selection).
 
 Hypothesis under test: ``WaypointController.select_target_point`` searches
 FORWARD from ``waypoint_index`` around the whole closed loop and returns the
@@ -32,8 +32,7 @@ itself: the net bearing change accumulated across exactly those ticks where
 ``waypoint_index`` ADVANCED. It is never taken from the direction estimator
 (itself a suspect in this family of failures), and never from the early
 trajectory (a start manoeuvre can sweep the bearing the wrong way and flip the
-whole measurement -- it did, on run_20260911_172543, during development of this
-script). Index-advancing ticks are by construction the stretches where the
+whole measurement). Index-advancing ticks are by construction the stretches where the
 robot really was making along-path progress, so they define the intended
 direction even on a run that spends most of its time going the wrong way. The
 adopted ``direction`` is printed alongside purely as a cross-check.

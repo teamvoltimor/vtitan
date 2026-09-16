@@ -1,10 +1,11 @@
 r"""The router commanded the CORRECT side and the chassis did not get there.
 
 ``diag_bag_pass_side.py`` splits sign passes three ways -- routing error,
-execution error, correct -- and on the 78-bag corpus (2026-09-06 to 09-10) the
-execution bucket is **141 of 654 passes, 21.6%**, the same order as the routing
-bucket that has had every session's attention. Nothing had ever been said about
-what is inside it, so this script opens it.
+execution error, correct -- and the execution bucket is the same order as the
+routing bucket that has had every session's attention. Nothing had ever been said
+about what is inside it, so this script opens it. See
+``adr:0059-pass-side-travel-relative-and-scorer-independence`` for the measured
+verdict.
 
 The question is NOT "did the chassis miss", which is already the verdict. It is
 **whether the pass was still winnable at the moment the router committed to it**.
@@ -18,8 +19,8 @@ outcome:
   remaining distance to the pillar cannot buy the lateral displacement needed,
   at the turn radius that speed actually permits. The outcome was decided
   BEFORE the router engaged, and only earlier commitment can move it. This is
-  the 2026-09-07 run_234457 trace generalised: commanded correct on every tick,
-  wrong side throughout, committed at 0.57 m.
+  the run_234457 trace generalised: commanded correct on every tick, wrong side
+  throughout.
 * **HAD ROOM** -- the geometry allowed it and the chassis still did not go.
   Only this residue is a tracking/authority problem, and only this residue is
   what the known 35-40% lateral execution shortfall can be about.
@@ -38,9 +39,9 @@ hard to earn:
 * a SINGLE arc is allowed, not the S-curve a real pass needs, which roughly
   doubles the reachable offset;
 * the radius is the speed-dependent one (``R = intercept + slope*|v|``, capped),
-  measured 2026-09-10 over 33 bags, rather than the 0.29 m constant -- and at
-  the speeds a sign pass runs, that curve is SMALLER than the constant, so it
-  grants more room, not less.
+  measured over a bag corpus, rather than the constant -- and at the speeds a
+  sign pass runs, that curve is SMALLER than the constant, so it grants more
+  room, not less.
 
 Anything the model still calls impossible is impossible with room to spare.
 
@@ -75,21 +76,20 @@ def turn_radius_at(speed_mps: float | None) -> float:
     about 0.118 m/s. Using the curve rather than the constant is what keeps the
     bound honest at the speeds a sign pass runs.
 
-    HONEST ONLY BELOW ~0.17 m/s, flagged 2026-09-13. The curve was measured over
-    33 bay bags between 0.02 and 0.16 m/s. Above that the bins fall to n=20-37
-    and go non-monotonic, and ``robot.toml`` states outright that
-    ``MIN_TURN_RADIUS_CAP_M = 0.35`` is a carried bound and NOT a measurement:
-    at full lock the chassis is slow by definition, because it slows down to
-    turn, so the saturation cannot be read from those bags at all.
+    HONEST ONLY BELOW ~0.17 m/s. The curve was measured over bay bags at low
+    speed. Above that the bins thin out and go non-monotonic, and ``robot.toml``
+    states outright that ``MIN_TURN_RADIUS_CAP_M = 0.35`` is a carried bound and
+    NOT a measurement: at full lock the chassis is slow by definition, because it
+    slows down to turn, so the saturation cannot be read from those bags at all.
 
     The cap is also not a chassis limit in any geometric sense. This chassis is
     COUNTER-PHASE four-wheel steering (``rear_steer_ratio = 1.0``) with 85 deg
     of wheel travel per side, which halves the effective wheelbase to 0.095 m
-    and permits R = 0.095/tan(85 deg) = 0.008 m on paper. The measured 0.090 m
-    at creep is an 11x loss to slip and linkage compliance, real and confirmed
-    (the bay A/B reads 0.0093 m with the simulator's slide resolver and 0.0091
-    without it, so the 3.6x the curve buys over a constant floor is the
-    chassis). What is NOT known is where that loss lands at 0.26-0.50 m/s.
+    and permits R = 0.095/tan(85 deg) = 0.008 m on paper. The measured creep
+    radius is an order-of-magnitude loss to slip and linkage compliance, real and
+    confirmed (the bay A/B is essentially unchanged with the simulator's slide
+    resolver, so the gain the curve buys over a constant floor is the chassis).
+    What is NOT known is where that loss lands at race speeds.
     """
     if speed_mps is None:
         return RobotSpecs.MIN_TURN_RADIUS_M
@@ -120,10 +120,9 @@ def classify(p: Pass) -> tuple[str, float, float]:
     ``turn_radius_at``, whose cap is explicitly not measured above ~0.17 m/s
     (see that docstring). Obstacles commits run above it, so for those passes
     the verdict rests on an extrapolation plus a carried bound and is sound in
-    NEITHER direction. A 2026-09-13 reading of "the chassis leaves the corner
-    owing 0.421 m against 0.350 m available, impossible for the median" was
-    withdrawn for exactly this reason. Settling it needs a free-space radius
-    sweep at 0.26-0.50 m/s, which no bag in the corpus supplies.
+    NEITHER direction. A reading that called the median pass impossible for
+    exactly this reason was withdrawn. Settling it needs a free-space radius
+    sweep at race speeds, which no bag in the corpus supplies.
     """
     needed = max(0.0, -p.commit_lateral_m)
     radius = turn_radius_at(p.commit_speed_mps)
@@ -238,10 +237,10 @@ def main() -> int:
               f"({100 * won / len(members):.1f}%)")
     print()
 
-    # The operator's account from the track, 2026-09-11: "it went toward the
-    # obstacle, came back, tried to correct its position, but never got onto
-    # the correct side to pass it". That is a manoeuvre steering the wrong way,
-    # not a manoeuvre that fires too often -- so count the DIRECTION.
+    # The operator's account from the track: "it went toward the obstacle,
+    # came back, tried to correct its position, but never got onto the correct
+    # side to pass it". That is a manoeuvre steering the wrong way, not a
+    # manoeuvre that fires too often -- so count the DIRECTION.
     print("== WHEN A MANOEUVRE IS LATCHED, DOES IT STEER TOWARD THE COMMANDED SIDE?")
     rows_dir = []
     for label, members in (

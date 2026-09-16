@@ -1,10 +1,9 @@
 r"""Is a sign's pass outcome predicted by the PREVIOUS sign, across a corner?
 
-Claimed from the track on 2026-09-11: after evading one pillar, the NEXT pillar
-in the following section is sometimes very hard to reach a line for. The named
-geometries are green->green CCW both INNER, red->red CW both INNER,
-red->green CCW, green->red CW -- and the proposed remedy is a full-lock
-rotation at the corner.
+Claimed from the track: after evading one pillar, the NEXT pillar in the following
+section is sometimes very hard to reach a line for. The named geometries are
+green->green CCW both INNER, red->red CW both INNER, red->green CCW, green->red
+CW -- and the proposed remedy is a full-lock rotation at the corner.
 
 That claim is testable exactly one way: take the SHIPPED three-way verdict of
 ``diag_bag_pass_side.py`` (ROUTING / EXECUTION / ok) for pillar B, and split it
@@ -30,27 +29,12 @@ BOUNDS, stated because they decide what the n means:
   from the pair analysis (counted, never imputed) and kept only in the pooled
   control row, where they reproduce diag_bag_pass_side's own tally.
 
-MEASURED 2026-09-11 on the 2026-09-06..09-11 window (131 bags, 126 readable,
-68 carrying sign passes, 952 passes; 536 of them -- 56.3% -- unplaceable and
-dropped from the pairs). REFUTED, and refuted twice over:
+A POSITIVE CONTROL in the same query must separate (a pass that must cross wins
+far less often than one that only holds); if it does not, the null is a dead
+pipeline rather than a finding.
 
-* ``--skip-unplaceable``: 110 cross-corner followers fail 49.1% against 39.7%
-  for a clean control with no predecessor at all (Fisher p=0.235).
-* strict adjacency: 35 followers fail 28.6% against 49.0% (Fisher p=0.038) --
-  the OPPOSITE sign. An effect that flips sign with the pairing definition is
-  not an effect.
-* none of the four named pairs separates from its matched clean control; the
-  two with usable n (red->green CCW 65.0% vs 68.8%, green->red CW 43.5% vs
-  71.4%) are if anything BETTER, and the two the operator named most precisely
-  reach only n=4 and n=6.
-* the POSITIVE CONTROL in the same query does separate, hugely: a pass that
-  must cross wins 40.5% against 85.1% for one that only holds (odds 8.4,
-  p<0.001), reproducing diag_bag_exec_failures' 34.1% vs 91.3%. The null above
-  is therefore a null, not a dead pipeline.
-
-The one measure that leans the operator's way is UPSTREAM of the verdict:
-followers stand on the wrong side at commit 54.5% of the time against 39.7%
-(p=0.055). It does not carry through to the outcome at this n.
+See adr:0059-pass-side-travel-relative-and-scorer-independence for the
+travel-relative pass-side rule and the crossing-vs-holding result.
 
 Usage::
 

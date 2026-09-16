@@ -100,3 +100,6 @@ narrower chassis.
 - The depth-corridor fix is net, not universal: 28 scenarios regressed and 12 lost
   laps>=3 because the misfiled corridor was load-bearing for them; a documented
   reshuffle, not a new defect.
+- Judging by the robot's `current_corridor` instead of the sign's settled corridor
+  reported about 21 routing errors in competition and 22 in practice, where the
+  sign's corridor reported 1 and 0.

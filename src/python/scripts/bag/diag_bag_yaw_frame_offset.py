@@ -12,7 +12,8 @@ possible causes:
   the reference is established (or in how the robot is placed).
 
 A tight cluster away from zero is the signature of the second. This prints the
-distribution so the two can be told apart rather than guessed at.
+distribution so the two can be told apart rather than guessed at
+(adr:0054-absolute-heading-from-walls).
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_yaw_frame_offset.py \

@@ -1,15 +1,16 @@
 """Same sweep as diag_open_exhaustive.py, across every core instead of one.
 
 The headless simulator is pure computation -- the only ``time.sleep`` in
-``src/simulation`` is in the RViz visualiser -- so a case already runs about 4.6x
-faster than the race it simulates. It just runs one at a time: measured 2026-08-07,
-~39 s of wall clock per case on a 16-core machine with 15 cores idle.
+``src/simulation`` is in the RViz visualiser -- so a case already runs several
+times faster than the race it simulates. It just runs one at a time, leaving
+almost every core idle.
 
 Cases are independent draws and each is seeded by its own index, so running them
 concurrently changes nothing about what any single case does. Same seed, same
 sample, same per-case seed, same verdicts -- only sooner. That matters because a
 control change cannot be judged by the fast unit suite, and a validation loop
-measured in tens of minutes is one that gets skipped.
+measured in tens of minutes is one that gets skipped. See
+``adr:0087-test-methodology``.
 
 Usage (from ``src``)::
 

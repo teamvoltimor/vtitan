@@ -1,8 +1,7 @@
 """Would ``side_correction_blends`` fire on HARDWARE, or is it inert there too?
 
-The sim corpus cannot answer it: over 23,290 sighted ticks side_correction ran
-1.09% of the time and the blend gate was satisfied on ZERO of them, because
-every sim side_correction is in reverse. That made a 256-run A/B void.
+The sim corpus cannot answer it: every sim side_correction is in reverse, so
+the blend gate was never satisfied and the A/B was void.
 
 The gate is: manoeuvre type is SIDE_CORRECTION **and speed >= 0**. So before
 shipping the flag to the robot, the same question has to be asked of the bags,
@@ -11,9 +10,9 @@ gates on forward side_correction is worth deploying only if forward
 side_correction is what the robot actually does.
 
 Reports, over every side_correction tick in each bag, the split by commanded
-manoeuvre speed. The control is the sim number above: if hardware also comes
-back ~0% forward, the flag is inert on both and the whole lever is a dead end,
-which is a finding rather than a failure.
+manoeuvre speed. The control is the same gate in the sim corpus: if hardware
+also comes back inert, the whole lever is a dead end, which is a finding rather
+than a failure. See ``adr:0088-refuted-config-knobs`` for the measured verdict.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_blend_reachability.py BAG [BAG ...]

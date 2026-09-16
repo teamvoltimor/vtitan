@@ -11,7 +11,8 @@ branch rebuilds the detector at the measured start.
 CCW is the assumed default, so a CCW round takes the elif branch and a CW round
 takes the if branch. This script asks the only question that separates those two
 worlds: replayed over the same bag, does the assumed origin count laps that the
-measured origin counts?
+measured origin counts? See
+``adr:0053-direction-inference-and-start-pose`` for the start-pose decision.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_lap_origin.py \

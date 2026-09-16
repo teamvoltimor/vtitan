@@ -5,7 +5,7 @@ Builds the same path ``calculate_waypoints`` would have built for the race
 replays the real ``WaypointController.select_target_point`` against each
 bag tick's logged pose/waypoint_index and compares the result against what
 the robot actually logged as its steering target. Consolidates four one-off
-tmp scripts written during the 2026-08-08 path/index-mapping investigation:
+tmp scripts written during a path/index-mapping investigation:
 
   * default mode         -- tmp_replay_sel.py: build one path, replay
     ``select_target_point`` tick-by-tick, report match/mismatch.
@@ -20,6 +20,9 @@ The brute-force grid/rotation searches in ``--solve-rotation`` and the
 3-way path-variant search in ``--try-reversed`` are parallelized with
 ``ProcessPoolExecutor``, following the pattern in
 ``scripts/sim/diag_open_parallel.py``.
+
+See adr:0052-pursuit-target-selection for the target selection and waypoint
+index semantics this replays.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_path_replay.py RUN_DIR

@@ -1,16 +1,14 @@
-"""Why does the bay ratchet rotate 800 deg and keep 7?
+"""Why does the bay ratchet spend rotation and keep almost none of it?
 
-Four hardware configurations on 2026-09-10 -- the shipped 0.10, then 0.15, then
-0.15 with the guard's coast budgeted from measured speed, then that plus 15 mm
-of tolerated overlap -- moved the legs (324 -> 111), their length (0.06 ->
-0.20 s) and the veto rate, and left ONE thing untouched: the chassis turns
-240-870 deg in total and keeps 2-7 of it, with zero net travel. Three correct
-diagnoses, three wrong terms. That invariant is the question.
+Several hardware configurations moved the leg count, their length and the veto
+rate, and left ONE thing untouched: the chassis turns a great deal in total and
+keeps almost none of it, with zero net travel. Three correct diagnoses, three
+wrong terms. That invariant is the question.
 
 A ratchet accumulates only if the steering REVERSES with the direction: drive
 forward turning one way, back up turning the other, and both legs rotate the
 same way. Hold the steering across a reversal and the reverse undoes exactly
-what the forward leg did -- which is what 0.8% efficiency looks like.
+what the forward leg did.
 
 So this segments `bay_exit` into legs by the SIGN of `commanded_speed_mps` and
 reports, per leg, the commanded steering sign and the yaw it actually turned.
@@ -30,10 +28,12 @@ The controls, because a null here would otherwise be unreadable:
 * the same-sign and opposite-sign pair counts are printed separately rather
   than netted, so a wash of both is not mistaken for neither happening.
 
+See ``adr:0060-bay-exit-clearance-guard`` for the measured verdict.
+
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_bay_ratchet.py \
-        ../../data/live/runs/run_20260910_213746
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations

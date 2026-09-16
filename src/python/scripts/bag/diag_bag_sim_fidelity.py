@@ -25,8 +25,9 @@ command echoed back, not a position sensor, so a bag contains no evidence about
 how fast the wheels actually moved. That constant needs a bench test.
 
 Ground truth is the IMU quaternion, differentiated. Speed is the encoder, which
-became trustworthy once ``counts_per_rev`` was corrected on 2026-08-29 -- on
-older bags the drivetrain figures here read ~1.4x high.
+became trustworthy once ``counts_per_rev`` was corrected; on older bags the
+drivetrain figures here read high. The owning decisions are
+adr:0086-simulator-realism and adr:0012-yaw-gain-measured.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_sim_fidelity.py RUN_DIR

@@ -1,41 +1,34 @@
 r"""Did the chassis pass each pillar on the legal side, judged from GROUND TRUTH?
 
-STATUS: the instrument PASSES its control on THREE of the six 2026-09-15 runs
--- 140852, 141413 and 141832 all reconstruct the operator-stated layout of 5
-GREEN and 3 RED. Quote only those three. It still misreads 140014 (4G/3R, a
-full round) and the two rounds the operator aborted early, 140358 and 141230,
-where coverage is too short to pile up every pillar.
+The instrument PASSES its control where a run reconstructs the operator-stated
+layout, and misreads aborted rounds where coverage is too short to pile up every
+pillar. Validate against a full round before quoting a number.
 
 The COLOUR VOTE was the broken part and is no longer what decides colour: the
 operator's layout plus the pillar's SECTION does, and on a validated run the
-camera vote then AGREES with the layout on all eight signs. Two independent
-methods concur, which is why the control passes at all. The vote is still
-printed per pillar, as the strength of the camera's own call.
+camera vote then AGREES with the layout on every sign. Two independent methods
+concur, which is why the control passes at all. The vote is still printed per
+pillar, as the strength of the camera's own call.
 
-One leaked parking fin used to CASCADE into phantom violations: on 140358 the
-fin at (0.68,0.33) cleared the wall-distance band by 3 cm, was judged a red
-sign, displaced a real pillar into the wrong section under the two-per-section
-rule, and produced **two wrong-side passes out of eight** that never happened.
-A lattice-residual gate drops it and that round now reads 0 of 7, which is what
-the operator describes -- it wedged, it did not pass anything badly. The gate is
-inert on the three validated rounds.
+One leaked parking fin used to CASCADE into phantom violations: a fin cleared the
+wall-distance band, was judged a red sign, displaced a real pillar into the wrong
+section under the two-per-section rule, and produced wrong-side passes that never
+happened. A lattice-residual gate drops it. The gate is inert on the validated
+rounds.
 
 Fixing the vote itself still needs detection TRACKS associated to pillars over
 time rather than per-frame proximity: detections are attributed to the nearest
-pillar within 0.35 m while the camera bearing carries +/-12 deg of zero-mean
-scatter, which at 1.5 m is 0.31 m of lateral miss, so they land on the
+pillar while the camera bearing carries zero-mean scatter, so they land on the
 neighbour. Camera-bearing work reached the same conclusion separately.
 
-A wrong-side pass ENDS the round. Every hardware round of 2026-09-15 shows one
-to five of them by the robot's own count, with and without
-``barrier_span_along_wall``, and the lap counter hides all of it -- four rounds
-read 3/3 while the operator had mentally stopped them on lap 1.
+A wrong-side pass ENDS the round. Every hardware round shows wrong-side passes by
+the robot's own count, with and without ``barrier_span_along_wall``, and the lap
+counter hides all of it -- rounds read 3/3 while the operator had mentally
+stopped them on lap 1.
 
-GROUND TRUTH DISAGREES WITH THAT COUNT. On the three validated runs this judge
-reads 0, 2 and 2 wrong-side passes where the robot's own counter read 3, 3 and
-5. The counter is computed in the BELIEVED frame and over-reports; on 140852 it
-claimed three where the chassis committed none. Prefer this judge, and do not
-re-derive a round's fate from ``wrong_side_pass_count``.
+GROUND TRUTH DISAGREES WITH THAT COUNT: the robot's own counter is computed in
+the BELIEVED frame and over-reports. Prefer this judge, and do not re-derive a
+round's fate from ``wrong_side_pass_count``.
 
 Neither existing instrument can settle that:
 
@@ -43,7 +36,7 @@ Neither existing instrument can settle that:
   computed in the BELIEVED frame from discovered colours. It conflates where the
   chassis drove with what the robot thinks it saw.
 * ``diag_bag_pass_side.py`` judges with the ROBOT's corridor while the router
-  uses another (recorded 2026-09-12).
+  uses another.
 
 So this rebuilds the simulator's own judge -- ``scenario_simulator/scoring.py``
 -- against hardware truth:
@@ -54,8 +47,8 @@ So this rebuilds the simulator's own judge -- ``scenario_simulator/scoring.py``
   from camera bearings and would agree with any error they carry.
 * **Colour by VOTE** over every detection projected near each pillar. Colour is
   genuinely camera-only, so belief cannot be eliminated here -- but a majority
-  over hundreds of frames is a different thing from one frame, and the vote
-  margin is printed so a weak call is visible rather than silent.
+  over many frames is a different thing from one frame, and the vote margin is
+  printed so a weak call is visible rather than silent.
 * **The rule from production**: ``pass_side_lateral_axis`` with the round's
   settled direction, the same function the router uses.
 * **A FOOTPRINT crossing test**, like the simulator's: the pass is decided when
@@ -71,6 +64,9 @@ CONTROLS, because a crashed diagnostic here exits 0:
   reported as UNKNOWN and judged on nothing rather than guessed.
 * Signs the chassis never fully crossed are counted separately from signs it
   crossed correctly. Those are not passes and must not dilute the rate.
+
+See adr:0059-pass-side-travel-relative-and-scorer-independence for the
+travel-relative rule and the independent-scorer decision.
 
 Usage::
 
@@ -157,15 +153,13 @@ _FIN_BAND_M = 0.30
 _SOUTH_SPLIT_X = 1.22  # the in-bay start; the red lies west of it, the green east
 
 
-# A sign stands on a legal lattice cell; parking furniture does not. Measured
-# over the 2026-09-15 rounds, every genuine pillar lands 0.035-0.190 m from its
-# nearest legal cell while the fin that leaked past `_FIN_BAND_M` sat at 0.334.
-# 0.25 drops it with margin on both sides.
+# A sign stands on a legal lattice cell; parking furniture does not. Genuine
+# pillars land near their nearest legal cell while a leaked fin does not, so
+# this drops the fin with margin on both sides.
 #
 # This gate exists because ONE leaked fin CASCADES: `_assign_sections` forces
 # two objects per section, so an intruder displaces a real pillar into the wrong
-# section, which then reads the wrong colour off the layout. On 140358 that one
-# object was the whole reason the round failed its 5G/3R control.
+# section, which then reads the wrong colour off the layout.
 _LATTICE_RESIDUAL_M = 0.25
 
 
@@ -181,8 +175,8 @@ def _assign_sections(
     """Give each pillar a section, forcing the TWO-PER-SECTION the layout states.
 
     ``corridor_for_position`` answers for a CHASSIS, and at a corner a pillar
-    sits in the ambiguous wedge: measured, (0.53, 0.83) is called south while
-    113 detections against 0 say green, which only the west pair can be. The
+    sits in the ambiguous wedge: a raw position can be labelled a section the
+    detections contradict. The
     operator's layout fixes the cardinality at two per section, so the
     assignment is a constraint rather than a lookup: each pillar goes to the
     section whose BAND it sits deepest inside, and a section already holding two
@@ -345,8 +339,7 @@ def _judge(
     """CORRECT, WRONG or never-crossed, by the simulator's own footprint rule."""
     x, y = pillar
     # SNAP FIRST. Production never asks the corridor of a raw estimate: the slot
-    # map publishes legal cells and measured 0.0% off-lattice over 6,971
-    # committed positions. Asking `corridor_for_position` with a LIDAR position
+    # map publishes legal cells. Asking `corridor_for_position` with a LIDAR position
     # instead reads (0.53, 0.83) as SOUTH when its cell (0.6, 1.0) is WEST, and
     # the rule then judges the wrong AXIS entirely. That was a bug in THIS
     # SCRIPT, briefly mistaken for one in production -- all 24 legal cells label
@@ -373,9 +366,8 @@ def _judge(
             continue
         # ONCE PER LAP, mirroring the simulator's _pass_side_scored. Without
         # this a chassis pendulumming beside a pillar re-crosses the radius
-        # every few ticks and each crossing counts: the first version of this
-        # script reported 45 and 53 passes over 10 pillars and 3 laps, where 30
-        # is the ceiling, and it inflated exactly the wedged rounds.
+        # every few ticks and each crossing counts, which inflates exactly the
+        # wedged rounds.
         if lap in scored_lap:
             continue
         cs = _corners(p.x, p.y, p.yaw)

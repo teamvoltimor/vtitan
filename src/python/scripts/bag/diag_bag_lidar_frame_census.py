@@ -1,24 +1,16 @@
 r"""Which bearings does the LIDAR actually return from, and IN WHICH FRAME?
 
-STATUS: this script exists because the question was answered wrong once, and the
-wrong answer survived for a day and voided a night of simulator A/Bs.
-
-On 2026-09-14 a measurement of C1 dropouts concluded there were two blind
-wedges at roughly +-30-60 degrees, "ahead of the car", on the grounds that
-``robot.toml`` sets ``lidar.mount_yaw_offset_deg = 0.0`` and therefore "the
-sensor frame IS the robot frame". That is false. The offset production applies
-is ``RobotSpecs.lidar_yaw_offset_rad()``, which is the mount trim PLUS 180
-degrees whenever ``lidar.inverted = true`` -- and it is true on this chassis.
-The wedges are at +-120-160 in the robot frame: BEHIND the car, which is where
-``lidar_sectors.toml`` has always declared them. The simulator was then built
-with them in front, blinding the forward diagonals that the escape trigger, the
-front sector and the k_turn all read, and leaving the rear sector artificially
-clean.
+The sensor frame is NOT the robot frame. The offset production applies is
+``RobotSpecs.lidar_yaw_offset_rad()``: the mount trim PLUS 180 degrees whenever
+``lidar.inverted = true``, which it is on this chassis. A census read in one
+frame alone can mistake that rotation for a physical wedge, and a measurement
+only correct relative to an unstated frame is how the mistake happened.
 
 So this prints the census in BOTH frames, side by side, always. There is no flag
-to print only one. A number that is only correct relative to an unstated frame
-is how the mistake happened, and showing both makes the 180-degree rotation
-visible as a shift of the pattern rather than invisible as a plausible table.
+to print only one: showing both makes the 180-degree rotation visible as a shift
+of the pattern rather than invisible as a plausible table. Compare the
+ROBOT-frame row against ``lidar_sectors.toml``, which is stated in that frame.
+See adr:0080-lidar-mount-and-scan-plane for the mount and scan-plane decision.
 
 METHOD
 

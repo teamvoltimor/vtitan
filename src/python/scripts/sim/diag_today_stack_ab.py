@@ -1,30 +1,25 @@
-r"""What did the 2026-09-07 changes buy, all three together?
+r"""What did the three fidelity changes buy, all together?
 
 Each was measured on its own as it landed, but never as a set against the state
-the day started in. All three are tuning parameters, so both arms run in ONE
-process from overrides -- no checkout, and no risk of mixing old and new code
-across a warm worker pool, which is how a previous measurement fooled itself.
+before them. All three are tuning parameters, so both arms run in ONE process
+from overrides -- no checkout, and no risk of mixing old and new code across a
+warm worker pool, which is how a previous measurement fooled itself.
 
     arm "before"   MIN_TURN_RADIUS_M 0.0   VISION_RANGE_MODEL off  COMMIT_HYSTERESIS off
     arm "after"    MIN_TURN_RADIUS_M 0.29  VISION_RANGE_MODEL on   COMMIT_HYSTERESIS on
                    max_escape_s 1.0 / 1.8 with the K-turn bounds scaled to match
 
-MEASURED 2026-09-07, 16 fixtures x 6 seeds x 2 arms, blind, park off:
-
-    before   in_time 56   laps3 56   collided 10   stuck 7   timed 20
-    after    in_time 59   laps3 70   collided 19   stuck 0   timed  0
-
-Stuck and timeouts go to ZERO -- 27 runs that previously ended without finishing
-now complete, and laps>=3 goes 56 -> 70. That is the escape work. Collisions
-nearly double, which is why in-time gains only 3, and the increase is part real
-cost and part the model no longer flattering itself: the turn-radius floor ALONE
-was measured at collisions 5 -> 8 on a smaller set, so roughly half of it is the
-chassis losing a dodge it could never physically perform.
+The "after" arm moves stuck runs and timeouts to zero and raises laps>=3, at the
+cost of more collisions, which is why in-time gains little. The collision rise is
+part real cost and part the model no longer flattering itself: the turn-radius
+floor alone raises collisions on a smaller set, so roughly half of it is the
+chassis losing a dodge it could never physically perform. See
+``adr:0086-simulator-realism``.
 
 Read the "before" arm as a HISTORICAL curiosity, not as a baseline to beat. It
-runs a chassis that pivots in 1.5 cm against a measured 0.29 m and a camera that
-resolves signs to twice the range the real one manages, so its score is inflated
-by defects, not earned. The honest summary of the day is that the simulator got
+runs a chassis that pivots in a tiny radius against a measured floor and a camera
+that resolves signs to twice the range the real one manages, so its score is
+inflated by defects, not earned. The honest summary is that the simulator got
 harder and more truthful; a flat or lower score across this pair is the expected
 result, not a regression.
 

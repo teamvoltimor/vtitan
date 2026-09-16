@@ -32,6 +32,8 @@ linkage_ratio`` in degrees. The fit solves for the scale, so no conversion is
 assumed. ``/motor/drive_speed`` is DEG/S at the wheel, converted on the 7 cm
 wheel before the fit (``bag_drive_speed_is_deg_per_sec``).
 
+The owning decision is adr:0076-drivetrain-and-steering-hardware.
+
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_servo_echo.py \

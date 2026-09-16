@@ -25,7 +25,8 @@ drawn on the easy side of those assumptions was suspect.
 (b). `yaw_gain = 0.55` is a measured fraction of the kinematic yaw rate; the
 shortfall is flat (about 0.49) from 5 to 30 deg of commanded wheel angle, which is
 what makes it a scale rather than large-angle saturation, and it is a property of
-these tyres on this surface. The turn-radius floor is speed-dependent:
+these tyres on this surface. It is solved from an open-loop replay of the real
+command stream through `AckermannKinematics`. The turn-radius floor is speed-dependent:
 `min_turn_radius_m = 0.29` is the curve's value at one speed, and the floor is
 `min(cap, intercept + slope * |v|)` with `intercept 0.053`, `slope 1.86` and
 `cap 0.35` (a safety bound, not a measurement; the Open range is extrapolation).
@@ -135,3 +136,35 @@ deg approach.
   near 0 percent, one at 47 percent), so the marginal rate is honest but its
   structure is not; detections matching no pillar within 0.35 m are excluded, so
   the magenta barrier remains unscreenable.
+- The 2026-09-15 hardware-vs-sim audit found the vision frame-miss rate 2 to 4x
+  PESSIMISTIC in sim and the terminal-push rule pessimistic too, while the
+  occlusion band, escape rotation, creep gain, start pose and detection range were
+  all optimistic. A k_turn burst can exceed 180 deg in one episode (measured 275),
+  so escape yaw must be unwrapped over the whole run before differencing.
+- The occlusion band sat on the wrong side; correcting it moved the corpus 28 to
+  22, which is a new baseline rather than a fix.
+- `vision_frame_miss_rate = 0.79` is 2 to 4x pessimistic against the 21 to 50
+  percent of nav ticks that carry a fresh detection.
+- The simulator rotates about half as much per escape (`allowed_step` scales but
+  does not induce yaw) while the real chassis reverses as if on a 0.21 m radius.
+- Displacing a pillar is terminal in sim; on hardware one round scored three laps
+  with five pillars pushed 8 to 19 cm.
+- The three-change set (16 fixtures x 6 seeds x 2 arms, blind) moved before
+  56/56/10/7/20 (in_time/laps3/collided/stuck/timed) to 59/70/19/0/0: 27 runs that
+  previously failed to finish now complete. The turn-radius floor alone raised
+  collisions 5 to 8 on a smaller set, so roughly half the collision rise is the
+  chassis losing an impossible dodge.
+- The real detector's range distribution is p50 0.70 m and p90 1.06 to 1.31 m; the
+  emulated camera at `CAMERA_FAR_CLIP` sees roughly ten times further.
+- The vision-range A/B (16 fixtures x 6 seeds x 2 arms, blind) ran off
+  59/69/21/1 to on 59/71/18/0 (in_time/laps3/collided/pass_side): the cost is
+  absent, so it is free rather than a gain, likely because cross-corridor phantom
+  detections are the known about 2.7x track duplication.
+- The pocket adds 1.3 to 1.7x on top of the free-space radius, and summing |yaw| at
+  the raw IMU rate understates the radius by about 19 percent against the same
+  windows scored net.
+- A pre-shared-table sim-vs-hardware divergence audit failed on exactly the 120 to
+  160 / 160 to 180 boundary, because the hardware band table lumped them and the
+  sim split them.
+- The sim error budget still does not reach the chassis's about 1.42x understeer,
+  so those results stay incomparable.

@@ -1,16 +1,10 @@
 r"""What holds the router back once a sign EXISTS but is not yet committed?
 
-``diag_bag_commit_chain.py`` measured the anticipation budget over 78 hardware
-bags, 486 committed pillars:
-
-    seen       0.824 m
-    ingested   0.791 m   -0.033
-    published  0.748 m   -0.043
-    committed  0.469 m   -0.279   <- 79% of everything lost inside the lane
-
-and closed the obvious door: only 3.1% of pillars are published beyond
-``activation_dist_m`` (1.40), so raising it is inert for the other 97%. The
-router is not waiting to be allowed in -- it is allowed in and declines.
+``diag_bag_commit_chain.py`` measures the anticipation budget and closes the
+obvious door: almost every pillar is already published inside
+``activation_dist_m`` (1.40), so raising it is inert for them. The router is not
+waiting to be allowed in -- it is allowed in and declines. See
+``adr:0051-sign-lane-planner`` for the measured verdict.
 
 So this counts WHY it declines, over every tick where a published sign sits
 inside ``activation_dist`` and nothing is committed. The gates, in the order
@@ -111,11 +105,11 @@ def blockers_for_run(rows, frames, scans, tuning) -> dict[str, int]:  # noqa: AN
         router.deform_waypoint(
             waypoint, (d.pose_x, d.pose_y), d.pose_yaw, d.current_corridor, obs
         )
-        # The question is NOT "is the router busy" -- it is busy 91% of ticks,
+        # The question is NOT "is the router busy" -- it is busy most ticks,
         # usually with the pillar it is already passing. The budget being
-        # explained is the 0.28 m between a pillar being PUBLISHED and that
-        # same pillar being committed, so the subject is the nearest published
-        # sign that is NOT the current claim.
+        # explained is the gap between a pillar being PUBLISHED and that same
+        # pillar being committed, so the subject is the nearest published sign
+        # that is NOT the current claim.
         committed_idx = router._committed  # noqa: SLF001
         activation = router._config.activation_dist  # noqa: SLF001
         best: tuple[float, str] | None = None

@@ -113,3 +113,7 @@ of the K-turn reduction while keeping 7 cm of stopping room rather than 4 cm.
   and it measured +3 collisions on Go sighted. 0.04 also sits 5 mm below the C1's
   rated minimum, where a real sensor is least trustworthy; the simulator clips
   cleanly at 0.045 and cannot model that, so bench the sensor at close range first.
+- A recorded Obstacles round is the bench substitute, once per escape: from the
+  first CRITICAL tick, accumulate pose path length and the `forward_clearance_m`
+  gap consumed until standstill or reversal. The reverse gap leaves about 8 mm
+  against a 0.078 m bumper and cannot clear a 2.7 cm stuck detector.

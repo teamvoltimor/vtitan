@@ -5,7 +5,8 @@ while ``current_section`` equals the start section. The origin therefore has to
 sit somewhere the robot is still LABELLED as being in the start corridor when it
 gets there. An origin measured far down the corridor can land past the point
 where the section label has already flipped to the next corridor, which makes
-the gate unsatisfiable no matter how many laps are driven.
+the gate unsatisfiable no matter how many laps are driven. See
+``adr:0053-direction-inference-and-start-pose`` for the start-pose decision.
 
 This prints, per section, the along-normal extent the robot actually occupied
 while carrying that section's label -- so an origin can be checked against it.

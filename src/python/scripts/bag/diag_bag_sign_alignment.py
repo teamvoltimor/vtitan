@@ -1,9 +1,10 @@
 r"""Does the robot ACHIEVE a good sign offset and then correct it away?
 
-Reported from the track on 2026-09-07: the robot repeatedly lined up to pass a
-sign on the correct side, kept correcting, and arrived badly placed. That is a
-different failure from "never got there" -- and the two call for opposite fixes,
-so it is worth separating on recorded data before touching the controller.
+Reported from the track: the robot repeatedly lined up to pass a sign on the
+correct side, kept correcting, and arrived badly placed. That is a different
+failure from "never got there" -- and the two call for opposite fixes, so it is
+worth separating on recorded data before touching the controller
+(adr:0051-sign-lane-planner).
 
 For every commitment (`committed_sign_x_m`/`_y_m` held on a sign) this reports:
 
@@ -166,11 +167,11 @@ def main() -> int:
     print(f"  given back m:     p10 {pct(back, .1):.3f} / median {pct(back, .5):.3f} / p90 {pct(back, .9):.3f}")
 
     # PER PILLAR, not per commitment. A commitment is not an event on the
-    # track: the map publishes ~2.2 tracks per pillar and the router re-commits
-    # 4-14 times to one of them, so a per-commitment rate counts the same
-    # physical pass several times. Worse, anything that changes the CHURN moves
-    # that denominator on its own -- COMMIT_HYSTERESIS reduces commitments by
-    # design, so a per-commitment contact rate would appear to improve (or
+    # track: the map publishes several tracks per pillar and the router
+    # re-commits many times to one of them, so a per-commitment rate counts the
+    # same physical pass several times. Worse, anything that changes the CHURN
+    # moves that denominator on its own -- COMMIT_HYSTERESIS reduces commitments
+    # by design, so a per-commitment contact rate would appear to improve (or
     # degrade) with no change in how the robot actually drove. Cluster first.
     pillars: list[list[Approach]] = []
     for a in approaches:

@@ -143,3 +143,7 @@ state.)
   after 401 frames.
 - The degenerate entry cleared the markers until 2026-08-29 and now clips one in
   all four sections.
+- On run 140014 the operator's two green pillars and the second parking wall are
+  exactly the objects that stop returning after lap 0, and none disappear in the
+  round described as merely nudging a pillar. The surviving parking wall reads
+  1.9/2.2/2.5 returns per tick across the laps its partner reads 0.00.

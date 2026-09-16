@@ -4,11 +4,12 @@ A corner is taken as a ``current_corridor`` transition. Around each one this
 prints the crosstrack error, the selected lookahead and the commanded steering
 in the seconds before and after -- so "it turned too lazily and ran wide" shows
 up as steering that stays low while the lookahead stays long, followed by a
-crosstrack spike that only then pulls the lookahead short.
+crosstrack spike that only then pulls the lookahead short. See
+``adr:0052-pursuit-target-selection`` for the measured verdict.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_corner_overshoot.py \
-        data/live/runs/run_XXXXXXXX_XXXXXX
+        RUN_DIR
 """
 
 from __future__ import annotations
@@ -82,7 +83,7 @@ def main() -> int:
         if xt and st:
             print(f"   => peak xtrack in the 8s after: {max(xt):.2f} m; peak |steer| through: {max(st):.2f}")
 
-        # The question the 2026-08-06 fix exists to answer: did the short
+        # The question the short-lookahead fix exists to answer: did the short
         # lookahead arm on the way IN, or only once the corner had been run
         # wide of? Anything but "before" means the preview fired too late.
         armed = next(

@@ -3,12 +3,13 @@
 The bay is a POCKET, not a slot: each magenta block is a fin standing perpendicular to the
 outer wall spanning the full 0.20 m depth (verified: block at (1.50, 2.90) yaw pi/2 ->
 x in [1.49, 1.51], y in [2.80, 3.00]). So the only opening is the corridor side, and the
-entry has to be lateral -- i.e. a genuine parallel park, not a drive-through.
+entry has to be lateral -- i.e. a genuine parallel park, not a drive-through. See
+``adr:0062-sim-contact-model-and-parking``.
 
 Two reports:
 
-  analytic — containment budget as a function of chassis width and residual heading error.
-  search   — brute-force search over two-arc reverse parallel-park trajectories under real
+  analytic - containment budget as a function of chassis width and residual heading error.
+  search   - brute-force search over two-arc reverse parallel-park trajectories under real
              Ackermann physics, scoring collision-free runs by how far the footprint still
              protrudes from the bay.
 """
@@ -93,11 +94,10 @@ def report_analytic() -> None:
     rows = [(w, w, w + 0.02, w + 0.04) for w in (0.20, 0.18, 0.16, 0.14)]
     print_table(rows, ["width", "m=0", "m=1cm", "m=2cm"])
 
-    # Derived, not restated. These three numbers were literals until 2026-08-21
-    # and kept printing "mesh 0.18 vs visual 0.10 ... Contradiction" after the
-    # inflation had already been removed from track.toml -- a diagnostic
-    # reporting the bug it was written to expose, rather than the config it
-    # claimed to describe.
+    # Derived, not restated. These three numbers were literals that kept printing
+    # a contradiction after the inflation had already been removed from
+    # track.toml -- a diagnostic reporting the bug it was written to expose,
+    # rather than the config it claimed to describe.
     wall_margin = (WallSpecs.COLLISION_THICKNESS - WallSpecs.THICKNESS) / 2
     clear_of_wall = wall_margin + RobotSpecs.WIDTH / 2
     contained = ParkingLotSpecs.LENGTH / 2
@@ -204,9 +204,9 @@ def report_shuffle() -> None:
     blocks it or the real geometry does.
     """
     print("\n=== Incremental shuffle park ===\n")
-    # Derived from the shipped wall geometry rather than the 0.04 literal this
-    # carried until 2026-08-21 -- with the inflation removed the two arms are
-    # now the same run, which is itself the result worth seeing.
+    # Derived from the shipped wall geometry rather than a hardcoded literal:
+    # with the inflation removed the two arms become the same run, which is
+    # itself the result worth seeing.
     sim_margin = (WallSpecs.COLLISION_THICKNESS - WallSpecs.THICKNESS) / 2
     for wall_margin, label in ((sim_margin, "simulator collision mesh"), (0.0, "physical mat")):
         kin = AckermannKinematics()

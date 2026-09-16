@@ -115,3 +115,10 @@ per-bearing verified on this C1, which is why Dense is preferred.
 - The Go gateway repeated the Python mount bug: it cast rays from the body centre
   until 2026-09-06, biasing every return by the 12.2 cm mount offset, before moving
   to the 0.1222 m mount.
+- A C1-dropout census read in the SENSOR frame put the blind wedges at +-30 to
+  60 deg (ahead); the wedges are at +-120 to 160 deg in the ROBOT frame, where
+  `lidar_sectors.toml` states them, and building the simulator with the wedges in
+  front voided a night of A/Bs.
+- In the rear bands the mount occlusion puts finite shares around 22 to 48 percent
+  in 120 to 160 deg against 75 to 84 percent in 160 to 180 deg, which is why the
+  two are not lumped into one rear band.

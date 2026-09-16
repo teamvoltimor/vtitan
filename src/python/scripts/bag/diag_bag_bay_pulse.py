@@ -1,6 +1,6 @@
 r"""The bay exit's duty cycle: how much of it is a command, and how much is nothing.
 
-The operator reports the exit taking ~30 s where it once took 10, and the
+The operator reports the exit taking far longer than it once did, and the
 clockwise round "going backwards" near the start. Both are the same thing, and
 it is not a slow manoeuvre -- it is an INTERMITTENT one.
 
@@ -15,12 +15,13 @@ nowhere satisfies the healthy signature and is invisible to it.
 Reported per run: bay-exit wall time, the split of ticks into zero / forward /
 reverse, the net displacement and net rotation the phase achieved, and the gap
 between consecutive motion pulses with their signed speeds. A pendulum shows up
-as alternating signs at a fixed period.
+as alternating signs at a fixed period. See
+``adr:0060-bay-exit-clearance-guard`` for the measured verdict.
 
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_bay_pulse.py \
-        data/live/runs/run_20260911_1523* data/live/runs/run_20260911_1528*
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations

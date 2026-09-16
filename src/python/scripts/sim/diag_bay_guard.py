@@ -1,11 +1,12 @@
 """What number does the bay-exit guard actually veto on, at the first tick of each leg?
 
-The in-bay exit is at 0/16 and the ratchet burns hundreds of legs for
+The in-bay exit fails on the committed set and the ratchet burns many legs for
 millimetres of net progress, which says legs are dying almost as soon as they
 start. Three separate attempts to name the term responsible -- the leg speed,
 the inertia/coast term, the mirrored reverse lock -- were each refuted by an
 A/B, because each one guessed at which quantity in ``_guarded_command`` was
-binding instead of reading it. This prints it.
+binding instead of reading it. This prints it. See
+``adr:0060-bay-exit-clearance-guard``.
 
 The instrument deliberately duplicates NO geometry. ``_predicted_gap`` is
 wrapped on the live ``BayExit`` instance, and within one tick the guard calls it
@@ -235,8 +236,8 @@ def _run_one(
 
     result = sim.run(contact_grace_s=_CONTACT_GRACE_S if args.solid_walls else None, on_step=_observe)
     # The manoeuvre's OWN release test, in the units it releases on. Passing
-    # `yaw_rad` from the simulator makes this reachable at all -- it read 0 for
-    # every sim run before 2026-09-10 -- so whether the sim can reach
+    # `yaw_rad` from the simulator makes this reachable at all -- it previously
+    # read 0 for every sim run -- so whether the sim can reach
     # BAY_EXIT_TARGET_YAW_DEG is what says that plumbing is inert or not.
     print(
         f"  rotation reached {sim.bay_exit.rotation_deg:.2f} deg of "

@@ -1,15 +1,16 @@
 r"""Does the escape help the plan, or undo it?
 
-Operator report 2026-09-10: *"sometimes the escapes are not the right ones, or
-they leave the car in a difficult position to pass on the correct side, instead
-of helping."*
+Operator report: *"sometimes the escapes are not the right ones, or they leave
+the car in a difficult position to pass on the correct side, instead of
+helping."*
 
 That is falsifiable without any model of what the escape SHOULD do. Just before
 an escape latches, the navigator is steering somewhere on purpose -- the sign
 lane, or the pursuit, has a side it wants. If the escape then steers the OTHER
 way, it is not merely a backstop that costs time; it actively spends the
 positioning the plan had already bought, and the robot re-approaches the pillar
-worse placed than before.
+worse placed than before. See
+``adr:0050-escape-steering-degrees-and-committed-side`` for the measured verdict.
 
 So: for each escape episode, compare the sign of ``commanded_steering_norm`` in
 the ticks BEFORE the latch against the sign of ``maneuver_steering`` during it.

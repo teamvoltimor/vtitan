@@ -116,6 +116,13 @@ a missed one leaves the LIDAR collision controller active. This is carried into
   `ModuleNotFoundError` out of the callback and `_latest_detections` stayed empty;
   `node.py`'s top-level import had the same class of bug and crash-looped
   `vision_node`.
+- `/vision/detections` reports boxes in CAPTURE coordinates (1536x864) while
+  `camera/config.toml` `width = 640` is the MODEL INPUT; using the config centre
+  (320 against 768) inverts the pass-side sign, so the transform must come from the
+  capture frame.
+- Box shape separates pillars from walls: green width/height is p90 0.85 and only
+  0.6 percent exceed 1.0, so a red box wider than tall is wall rather than pillar;
+  22 of 800 detections in `run_20260905_214920` sit exactly on the 1536 frame edge.
 
 ## Cross-references
 

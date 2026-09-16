@@ -1,18 +1,18 @@
 """One row per bag: which CHALLENGE it was, and how wide the corridor it saw.
 
 `diag_bag_session_inventory.py` answers "how did this run end". It cannot
-answer "was this an Open run or an Obstacles run", and on a 55-run
-competition day that split is the first thing every later question needs.
-The discriminator is the sign router: a bag whose `active_sign_count` is
-never positive and whose /vision/detections never carries a pillar is Open.
+answer "was this an Open run or an Obstacles run", and that split is the first
+thing every later question needs. The discriminator is the sign router: a bag
+whose `active_sign_count` is never positive and whose /vision/detections never
+carries a pillar is Open.
 
-The corridor width is reported too, because the 2026-09-12 Open track used
-1 m x 1 m inner walls (corridor 1.00 m) instead of the narrow layout the
-tuning was fitted on, and every zig-zag question is conditional on which
-one the robot was actually driving.
+The corridor width is reported too, because a wide 1 m x 1 m internal-wall
+layout exists beside the narrow one the tuning was fitted on, and every
+zig-zag question is conditional on which one the robot was actually driving
+(adr:0073-challenge-mode-jumper-and-runtime).
 
 Usage:
-    pixi run -e dev python scripts/bag/diag_bag_session_classify.py data/live/runs --prefix run_20260912
+    pixi run -e dev python scripts/bag/diag_bag_session_classify.py data/live/runs --prefix run_
 """
 
 from __future__ import annotations

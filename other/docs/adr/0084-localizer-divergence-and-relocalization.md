@@ -156,3 +156,7 @@ the slowest feed's scan period (LIDAR at 10 Hz).
   NEW-1, 2026-07-05).
 - Symmetric uniform layout: the wrong-corridor pose predicted a cost of 0.017
   against the 0.03 threshold, so the detector correctly stayed silent.
+- Projecting scan returns into world coordinates with the believed pose identified
+  a wedge as the parking lot's west fin, and found a pillar 0.38 m from the wall in
+  one round and 0.53 m in its siblings: 15 cm of same-layout disagreement, an
+  object that moved or a pose bias that no clearance metric surfaces.

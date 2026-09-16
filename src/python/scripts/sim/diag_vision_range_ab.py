@@ -1,44 +1,36 @@
 r"""What does Obstacles score once the simulated camera goes blind with distance?
 
 ``VISION_RANGE_MODEL`` ships OFF, and off the emulated camera detects a sign out
-to ``CAMERA_FAR_CLIP`` -- **10 m** -- with no misses and fixed confidence. The
-real detector's measured distribution over the 09-07 runs is p50 **0.70 m**, p90
-1.06-1.31 m. The simulated camera therefore sees roughly TEN TIMES further than
-the one bolted to the robot, and every Obstacles baseline in the repo was scored
-with that advantage.
+to ``CAMERA_FAR_CLIP`` with no misses and fixed confidence. The real detector
+stops resolving a sign far nearer than that. The simulated camera therefore sees
+much further than the one bolted to the robot, and every Obstacles baseline in
+the repo was scored with that advantage. See ``adr:0086-simulator-realism``.
 
 This sweep prices honesty. Turning the model on is expected to COST score: the
 robot loses sign vision it was scored with and never had on the mat. The number
 that matters is how much, because the flag is a precondition for any sign
 experiment meaning anything -- ``SIGN_LIDAR_PROPOSE`` above all, whose whole
-value is the LIDAR spotting a pillar at a median 1.31 m. Against a camera that
-already saw it at 10 m, such a feature can only read as cost, which is exactly
-what its A/B did read.
+value is the LIDAR spotting a pillar earlier than the camera resolves it. Against
+a camera that already saw it at the far clip, such a feature can only read as
+cost, which is exactly what its A/B did read.
 
-MEASURED 2026-09-07, 16 fixtures x 6 seeds x 2 arms, blind, park off:
+The cost this sweep was written to price IS NOT THERE: in-time is unchanged and
+collisions move by the margin this corpus moves under reseeding, so read it as
+FREE rather than as a gain. The arms are not identical, so the flag is live
+rather than inert.
 
-    VISION_RANGE_MODEL False   in_time 59   laps3 69   collided 21   pass_side 1
-    VISION_RANGE_MODEL True    in_time 59   laps3 71   collided 18   pass_side 0
-
-The cost this sweep was written to price IS NOT THERE: in-time is identical and
-collisions move the favourable way by the same margin that other arms of this
-corpus move under reseeding, so read it as FREE rather than as a gain. The arms
-are not identical, so the flag is live rather than inert.
-
-The likely reason it is free: at 10 m the emulator was handing the router
+The likely reason it is free: at the far clip the emulator was handing the router
 detections from OTHER corridors, and sign tracks are keyed on the robot's own
-corridor -- the known ~2.7x track duplication. Blinding the camera to ~1 m
-removes cross-corridor phantoms about as fast as it removes real early
-sightings.
+corridor -- the known track duplication. Blinding the camera to ~1 m removes
+cross-corridor phantoms about as fast as it removes real early sightings.
 
 Run BLIND, which is what makes this measurable at all: on Obstacles a blind run
 forces ``emit_vision_detections`` on and the router discovers signs through the
 emulator rather than being handed the layout. With detections off the flag is
 inert.
 
-``MIN_TURN_RADIUS_M`` is left at its shipped 0.29 -- since ``72e7172b`` the
-measured floor IS the default, so this arm pair is a true before/after of the
-one flag.
+``MIN_TURN_RADIUS_M`` is left at its shipped 0.29; the measured floor IS the
+default, so this arm pair is a true before/after of the one flag.
 
 Usage::
 

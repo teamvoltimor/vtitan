@@ -29,6 +29,10 @@ So this reports, per manoeuvre episode:
 A latched, constant-steering episode is time during which no sign, waypoint or
 corridor input can influence the wheel, whatever the router remembers.
 
+See adr:0055-escape-maneuver-selection for the manoeuvre that holds the wheel, and
+adr:0052-pursuit-target-selection for why the planner's steering is not published
+during a manoeuvre.
+
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_planner_silence.py BAG [BAG ...]
 """

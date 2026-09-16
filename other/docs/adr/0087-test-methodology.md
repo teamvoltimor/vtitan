@@ -98,3 +98,15 @@ does not merge. Changes that break comparability carry `!` in the commit type.
   pose kick in about 184 steps and completed their laps.
 - The recovery envelope is worst narrow/clockwise: about 0.115 m lateral and about
   35 degrees heading.
+- The speed-ceiling table over the 8 narrow starts (3 laps against 180 s):
+  0.156 m/s gives 0/8 (200.0 s), 0.170 gives 0/8 (194.8 s), 0.185 gives 8/8
+  (179.8 s), and 0.234 gives 8/8 (140.8 s).
+- The 3-lap path is 26.07 m, so the limit needs a 0.145 m/s average; the 0.156
+  ceiling is 7 percent above it and the car sustains about 79 percent of its
+  ceiling with corners priced in.
+- A servo-only swap is indistinguishable from the slower build (0/8, 200.0 s),
+  identical scenario for scenario over the 128-sweep.
+- A sim case costs about 39 s of wall clock on a 16-core machine with 15 cores
+  idle, the source of the parallel harness's 5.6x on 24 cases.
+- The historical Open pass-rate chain of 96, 125 and 126 was all measured on the
+  single pinned `start_cell = 0` spawn that `balanced128` replaced.

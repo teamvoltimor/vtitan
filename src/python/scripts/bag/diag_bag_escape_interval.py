@@ -1,10 +1,11 @@
 """Between two escapes, is the robot BLOCKED, COMMANDED to stop, or STALLED?
 
 ``diag_bag_escape_aftermath.py`` shows the escape releasing with healthy room
-ahead and the next one firing seconds later, and on the 2026-09-10 evening runs
-the robot covers 2-7 cm in that gap. Half a metre of clear space and almost no
-motion is not a navigation failure; it is the robot failing to drive. Three
-causes produce that same symptom and want completely different fixes:
+ahead and the next one firing seconds later, and the robot covers only
+centimetres in that gap. Half a metre of clear space and almost no motion is not
+a navigation failure; it is the robot failing to drive. See
+``adr:0055-escape-maneuver-selection`` for the measured verdict. Three causes
+produce that same symptom and want completely different fixes:
 
 * **COMMANDED STOP** -- the speed controller itself asks for ~0 (a crawl cut, a
   sign-aware slowdown, a heading gate). Tell: |cmd_speed| at or near zero.
@@ -17,8 +18,7 @@ causes produce that same symptom and want completely different fixes:
   with no displacement.
 
 Reported per inter-escape interval, plus the steering held during it, since the
-measured stall floor rises steeply with steering load (0.2% straight against
-19.4% at full lock).
+stall floor rises steeply with steering load.
 
 Usage::
 

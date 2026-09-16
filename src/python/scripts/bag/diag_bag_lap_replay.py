@@ -8,7 +8,8 @@ which gate refused the one that was configured.
 
 This drives the real class -- normal from TRAVEL_DIRS, the negative-to-
 non-negative dot test, the current-section equality test and the
-waypoint-pending latch -- rather than reimplementing them.
+waypoint-pending latch -- rather than reimplementing them. See
+``adr:0053-direction-inference-and-start-pose`` for the start-pose decision.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_lap_replay.py \

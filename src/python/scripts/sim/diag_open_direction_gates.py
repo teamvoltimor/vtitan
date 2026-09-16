@@ -8,12 +8,13 @@ convincingly further than the closed one. Only a vote that clears all three
 counts.
 
 Which one is binding decides what is worth tuning, and guessing gets it wrong.
-On go_open_0000 the obvious suspect was asymmetry -- the one accepted vote
-cleared the old 0.30 threshold by a centimetre. This tracer showed the dominant
-refusal was *alignment* (axis error 0.64-0.74 rad, the robot mid-corner), and
-that asymmetry only bound inside the short window where the chassis is square
-to the corridor. Eight scans in that window all agreed on the direction and
-only one cleared 0.30, which is what set the threshold at 0.20.
+On one fixture the obvious suspect was asymmetry: the one accepted vote cleared
+the old threshold by a centimetre. This tracer showed the dominant refusal was
+*alignment* (the robot mid-corner), and that asymmetry only bound inside the
+short window where the chassis is square to the corridor: the scans in that
+window all agreed on the direction and only one cleared the old threshold, which
+is what lowered it to 0.20. See
+``adr:0053-direction-inference-and-start-pose``.
 
 ## Summary mode
 
@@ -25,10 +26,9 @@ pure pursuit, so a steering explanation for a settling failure has to name the
 branch that was actually driving.
 
 ``--yaw-gain`` re-runs the same fixtures against a different chassis yaw
-authority (see ``RobotSpecs.YAW_GAIN``, calibrated to 0.55 against a bag on
-2026-08-29). Pairing ``--summary`` with two gains is the A/B that says whether a
-settling failure is caused by the chassis turning more slowly than the creep
-controller assumes.
+authority (see ``RobotSpecs.YAW_GAIN``, calibrated to 0.55 against a bag). Pairing
+``--summary`` with two gains is the A/B that says whether a settling failure is
+caused by the chassis turning more slowly than the creep controller assumes.
 
 Usage (from ``src``, with PYTHONPATH=".;shared/src")::
 
@@ -126,8 +126,8 @@ class _GateTracer:
         self.settled_at: int | None = None
         # Weave accounting. The corner latch trades corner clearance against
         # how much of the lap sits on the short (hot) lookahead, and pass/fail
-        # cannot see that trade -- measured on hardware 2026-08-30 as short
-        # lookahead 39% -> 72% and steering sign flips 14/min -> 29/min.
+        # cannot see that trade: measured on hardware, the trade shows up as more
+        # short-lookahead ticks and more steering sign flips.
         self.drive_ticks = 0
         self.steer_flips = 0
         self.short_lookahead_ticks = 0
@@ -295,11 +295,11 @@ def _corpus(name: str, seed: int = 0) -> list[Any]:
     ``scripts.common.open_cases.balanced_128_cases``.
 
     ``committed`` is the 28-fixture unit-test battery. ``open128`` is the
-    LEGACY corpus: the same grid at ``start_cell == 0`` only. Every Open pass
-    rate in this project's history (96 -> 125 -> 126) was measured on it, so it
-    is kept for continuity with those figures -- but it never varies the lateral
-    start, and a blind robot's opening readings depend on exactly that. Prefer
-    ``balanced128`` for anything new. ``open640`` is every legal starting cell.
+    LEGACY corpus: the same grid at ``start_cell == 0`` only. The Open pass rates
+    in this project's history were measured on it, so it is kept for continuity
+    with those figures -- but it never varies the lateral start, and a blind
+    robot's opening readings depend on exactly that. Prefer ``balanced128`` for
+    anything new. ``open640`` is every legal starting cell.
     """
     if name == "committed":
         return all_test_scenarios()

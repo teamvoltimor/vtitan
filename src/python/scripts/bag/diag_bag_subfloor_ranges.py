@@ -1,10 +1,11 @@
 """Are the sub-floor LIDAR ranges real contact, or garbage firing phantom escapes?
 
-The 2026-09-12 rounds report ``min_lidar_range_m`` of 0.008-0.013 m. The C1
-cannot produce that: ``robot.toml`` sets ``lidar.min_range = 0.045`` and the
+Recorded rounds report ``min_lidar_range_m`` values below the sensor floor. The
+C1 cannot produce that: ``robot.toml`` sets ``lidar.min_range = 0.045`` and the
 sector filter keeps only ``r > min_valid_range_m = 0.044``, with the note that
-"the sensor REPORTS 0.045 for anything closer". A reading of 8 mm is therefore
-either a real value the filter never saw, or an artefact.
+"the sensor REPORTS 0.045 for anything closer". A sub-floor reading is therefore
+either a real value the filter never saw, or an artefact
+(adr:0056-raw-and-masked-scan).
 
 Which one it is decides completely different work, and the two are separable
 because the bag records both the filtered risk input and the ray the escape
@@ -15,7 +16,7 @@ verdict was actually minimised over:
                                   escape, with its bearing.
 
 If escapes fire on sub-floor ranges, the recovery is chasing readings the
-sensor cannot make, and 99.4%-reverse side_correction is a phantom. If the
+sensor cannot make, and any side_correction built on them is a phantom. If the
 triggers sit above the floor while only the reported minimum dips below it,
 then the minimum is a cosmetic reporting bug and the contact is real.
 

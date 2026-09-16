@@ -1,7 +1,7 @@
 r"""Which TRACK GEOMETRIES lose the pass side?
 
-Named from the track on 2026-09-11: the pass keeps going wrong in two specific
-layouts, and they want counting before they want fixing.
+The pass keeps going wrong in specific layouts, and they want counting before
+they want fixing:
 
 * **BOTH INNER** -- a section carrying two pillars, both on the INNER division
   line. Each has to be passed on its rule-mandated side with no room between
@@ -10,16 +10,13 @@ layouts, and they want counting before they want fixing.
 * **AT THE PARKING LOT** -- a pillar standing immediately in front of the
   parking lot, where the post-lap pursuit already has to be.
 
-Both are predictions that a CROSSING is what costs the pass, which is what
-``diag_bag_exec_failures.py`` measured on the same corpus: a pass that must
-cross ends on the legal side 34.1% of the time against 91.3% for one that only
-has to hold its own.
+Both are predictions that a CROSSING is what costs the pass: a pass that must
+cross fails far more often than one that only has to hold its own.
 
-THE CLASSIFICATION NEEDS NO GROUND TRUTH. A pillar may only stand on 24 legal
-positions -- three depth rows crossed with the two corridor division lines, in
-four sections -- so snapping the BELIEVED position to the nearest of them says
-which section it is in and whether it sits on the INNER or the OUTER line. The
-believed position is the right input regardless: it is what the pass was
+THE CLASSIFICATION NEEDS NO GROUND TRUTH. A pillar may only stand on a legal
+lattice of positions, so snapping the BELIEVED position to the nearest of them
+says which section it is in and whether it sits on the INNER or the OUTER line.
+The believed position is the right input regardless: it is what the pass was
 planned against.
 
 The parking lot is located from the detector's own MAGENTA class (the
@@ -30,6 +27,9 @@ READ THE BASELINE COLUMN FIRST. A geometry is only interesting if its pass rate
 is WORSE than the corpus as a whole; one that matches the baseline is a
 geometry the robot handles like any other, however uncomfortable it looks from
 the trackside.
+
+See adr:0059-pass-side-travel-relative-and-scorer-independence for the
+travel-relative pass-side rule and the crossing-vs-holding result.
 
 Usage::
 
@@ -61,9 +61,9 @@ NEAR_LOT_M = 0.50
 """How close a pillar must be to the lot to count as standing in front of it.
 
 Half a metre rather than a tighter number because the believed position carries
-the map's own error (p50 15.3 cm at best, and the lot is located from detections
-with the same error), and because the pass is planned from ~1.4 m out -- a
-pillar 40 cm from the lot is in the way of the same approach as one at 10 cm.
+the map's own error (and the lot is located from detections with the same
+error), and because the pass is planned from further out -- a pillar near the
+lot is in the way of the same approach as one touching it.
 """
 
 

@@ -1,8 +1,8 @@
 """Is ``side_correction_blends`` even REACHABLE in the sim corpus?
 
-A 256-run A/B of the flag came back flat (in_time 98 vs 98, laps>=3 99 vs 99,
-collisions 16 vs 15) with ``pass_side`` violations at 0 in BOTH arms. A flat
-result has two readings and only one of them is a decision:
+A flag A/B came back flat, with ``pass_side`` violations at 0 in BOTH arms. A
+flat result has two readings and only one of them is a decision (see
+``adr:0088-refuted-config-knobs``):
 
   * the flag genuinely does nothing, or
   * the code path it gates is never taken in the corpus, so the sweep compared
@@ -18,9 +18,8 @@ counts, per tick, how often the gate could fire at all:
                              the flag actually changes which branch runs.
 
 If BLENDABLE is ~0 the sweep is void and the question has to move to the bags,
-where side_correction holds the wheel for 19-25% of ticks. The control for that
-claim is the hardware number, which is why it is quoted here rather than left
-implicit.
+where side_correction holds the wheel for a substantial share of hardware ticks
+(the hardware number is the control; see ``adr:0088-refuted-config-knobs``).
 
 Usage::
 

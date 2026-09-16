@@ -1,10 +1,11 @@
 r"""What speed does the drivetrain actually deliver for a commanded speed?
 
-The bay exit commands 0.10 m/s and the encoder reads zero on a median 73% of
-its ticks (``diag_bag_bay_deadband``). That alone does not say the speed is
-too low -- a chassis wedged at full lock stalls at ANY commanded speed, and
-the two want opposite fixes: a deadband wants a higher number, a wedge wants
-a different manoeuvre.
+The bay exit commands a low speed and the encoder reads zero on many of its
+ticks (``diag_bag_bay_deadband``). That alone does not say the speed is too
+low -- a chassis wedged at full lock stalls at ANY commanded speed, and the two
+want opposite fixes: a deadband wants a higher number, a wedge wants a different
+manoeuvre. See ``adr:0076-drivetrain-and-steering-hardware`` for the measured
+verdict.
 
 The separator is whether the shortfall is specific to LOW commands. This bins
 every tick of a session by commanded speed and reports what

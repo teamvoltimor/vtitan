@@ -167,3 +167,13 @@ verdict.
 - The inversion is the first link in the Open zigzag chain: tighter arc, then a
   shorter straight, then the short lookahead spans 82 percent of straight ticks,
   for a loop gain of x2.25.
+- A 128-scenario sweep put every blind Open failure at the wide-to-narrow first
+  corner, across builds and centring authorities: 7/7 wedges on the slower build,
+  3/3 collisions on the faster and 8/8 wedges at the lower centring cap, against
+  zero at W->W (47 runs), N->W (24) and N->N (21).
+- Open zig-zag attribution is measured by `diag_bag_open_oscillation.py`: signed
+  crosstrack wavelength and zero-crossing rate against path distance, the
+  target-lateral-residual vs pose-residual split (path oscillation vs chassis
+  limit cycle) and the achieved corner radius (`path_length / |total heading
+  change|`) against the ring-reconstructed planned radius. No ADR yet owns the
+  oscillation attribution itself; it sits between 0049 and 0052.

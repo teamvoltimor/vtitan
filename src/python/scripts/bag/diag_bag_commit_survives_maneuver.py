@@ -1,10 +1,9 @@
 """When a manoeuvre starts, does the committed sign SURVIVE it?
 
-Measured on 2026-09-12: across three hardware rounds a sign is committed on
-54.9% of ticks, yet side_correction runs on 0.8% of committed ticks against
-22.6% of uncommitted ones (k_turn: 0.7% vs 24.3%). Manoeuvres and commitment
-are almost mutually exclusive, and the 28-35x separation has two readings that
-demand OPPOSITE fixes:
+A sign is committed on most ticks, yet side_correction runs on far fewer
+committed ticks than uncommitted ones (the same holds for k_turn). Manoeuvres
+and commitment are almost mutually exclusive, and that separation has two
+readings that demand OPPOSITE fixes:
 
   (a) SUPPRESSION -- the reactive layer is held off while a sign is being
       pursued. Healthy. The separation is the guard working.
@@ -20,8 +19,9 @@ committed after. Eviction looks like: committed before, gone at or just after
 onset. Suppression looks like: already uncommitted well before onset, because
 the manoeuvre was never allowed to start while committed.
 
-The control for both is the base rate: if commitment is absent before 45% of
-ONSETS and absent on 45% of ALL ticks, onsets are telling us nothing.
+The control for both is the base rate: if commitment is absent before onsets at
+the same rate it is absent on all ticks, onsets are telling us nothing. See
+``adr:0092-escape-does-not-retire-committed-sign`` for the measured verdict.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_commit_survives_maneuver.py BAG [BAG ...]
@@ -118,10 +118,10 @@ def main() -> int:
     )
 
     # Onsets counted per EPISODE cannot explain a per-TICK rate. If manoeuvres
-    # start while committed (60%) and commitment survives the onset (87%), the
-    # only way side_correction can still be 0.8% of committed ticks is that the
-    # episodes starting committed are SHORT and the long ones start free. That
-    # is a claim about episode LENGTH, so measure length.
+    # start while committed and commitment survives the onset, the only way
+    # side_correction can still be rare on committed ticks is that the episodes
+    # starting committed are SHORT and the long ones start free. That is a
+    # claim about episode LENGTH, so measure length.
     print("\n== EPISODE LENGTH, split by whether it started committed")
     buckets: dict[str, list[int]] = {"started committed": [], "started free": []}
     committed_share: dict[str, list[float]] = {"started committed": [], "started free": []}

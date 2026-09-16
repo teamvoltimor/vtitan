@@ -6,19 +6,19 @@ recorded hardware round. Both import their definitions from
 outputs diff cleanly and the diff is about the robot.
 
 WHAT THE PAIR IS FOR. Every tuning verdict here is scored in this simulator, so
-each of its idealisations silently weights every A/B. Measured 2026-09-15 on the
-afternoon rounds, worst first:
+each of its idealisations silently weights every A/B. The measured divergence,
+worst first (see ``adr:0086-simulator-realism``):
 
 * the LIDAR occlusion band sat on the WRONG SIDE of the car, blinding the
-  forward diagonals instead of the rear wedge (corpus 28 -> 22 once corrected --
-  a new baseline, not a fix);
-* ``vision_frame_miss_rate = 0.79`` is 2-4x pessimistic against the 21-50
-  percent of nav ticks that really carry a fresh detection;
-* the sim rotates about half as much per escape, because ``allowed_step``
-  scales yaw but never INDUCES it from contact, while the real chassis reverses
-  as if on a 0.21 m radius;
-* displacing a pillar 6 cm is terminal here, and on hardware a round scored
-  three laps with five pillars pushed 8-19 cm.
+  forward diagonals instead of the rear wedge (correcting it is a new baseline,
+  not a fix);
+* ``vision_frame_miss_rate = 0.79`` is pessimistic against the share of nav
+  ticks that really carry a fresh detection;
+* the sim rotates less per escape, because ``allowed_step`` scales yaw but never
+  INDUCES it from contact, while the real chassis reverses as if on a tight
+  radius;
+* displacing a pillar is terminal here, and on hardware a round can score its
+  laps with several pillars pushed.
 
 Two of those are pessimistic and the rest optimistic. That mix is the whole
 reason to measure rather than assume: an idealisation you assume is in your

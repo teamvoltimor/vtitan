@@ -1,16 +1,16 @@
-"""Probe the IN-BAY start — the legal start no corpus scenario exercises.
+"""Probe the IN-BAY start - the legal start no corpus scenario exercises.
 
 The rules allow two starts: inside the parking lot, or parallel to it in the
-same section. **Every one of the 256 corpus scenarios uses the second.** Verified
+same section. **Every one of the corpus scenarios uses the second.** Verified
 here as well as in the corpus: the along-corridor offset between start and bay is
-0.0 in every scenario, the start sits on the corridor centreline and the bay
+zero in every scenario, the start sits on the corridor centreline and the bay
 against the outer wall, so the two differ only in the across-corridor coordinate.
 
 That makes the in-bay start invisible to every sweep in the repo, which is why it
-went unnoticed that a robot placed there **never moves** (8/8 probed, dist=0.00m,
-stuck): forward reads 0.05-0.19m against a parking fin, below the gate that
-authorises the initial creep, and there is no rear sensing to reverse on
-(``compute_rear_clearance`` fails open, there is no rear slot).
+went unnoticed that a robot placed there **never moves**: forward reads a short
+distance against a parking fin, below the gate that authorises the initial creep,
+and there is no rear sensing to reverse on (``compute_rear_clearance`` fails
+open, there is no rear slot). See ``adr:0060-bay-exit-clearance-guard``.
 
 This script places the robot in the pocket and reports what it does. It ALWAYS
 runs the parallel start as a control on the same scenarios -- the in-bay
@@ -113,12 +113,12 @@ class BayStartRow:
     """Chassis yaw at the tick the manoeuvre HANDED OVER, against the start heading.
 
     The release pose, which is what the outcome actually turns on. Outward
-    displacement was excluded as the discriminator on 2026-09-04: every arc
-    releases at ~0.07 m out, and gating on that made the exit strictly worse
-    (7/8 -> 0/8, all stuck), because the ratchet cannot finish alone -- the
-    navigator drives the last of it. So what separates a run that laps from one
-    that dies inside 0.35 m has to be the rest of the pose, and heading is the
-    part the wall clip was holding.
+    displacement was excluded as the discriminator: every arc releases at a
+    similar small displacement, and gating on that made the exit strictly worse,
+    because the ratchet cannot finish alone -- the navigator drives the last of
+    it. So what separates a run that laps from one that dies inside the pocket
+    has to be the rest of the pose, and heading is the part the wall clip was
+    holding.
     """
     hand_out_m: float | None = None
     """Outward displacement at handover, on the bay's outward axis."""
@@ -127,12 +127,11 @@ class BayStartRow:
     """Colour of the first sign AHEAD of the chassis at handover, or "" if none is.
 
     The remaining discriminator, by elimination. The release pose is identical
-    in all 256 scenarios -- yaw 25.5-25.6 deg, displacement -0.200 m -- and the
-    bay sits at a fixed place on the mat, so the chassis is handed over in the
-    SAME position and heading every time. Nothing about the manoeuvre can
-    therefore explain why 44 runs die on a pass-side violation inside the first
-    metre and 210 do not. What differs between scenarios is the layout ahead,
-    and the first sign is what the router commits a lane for.
+    across scenarios and the bay sits at a fixed place on the mat, so the chassis
+    is handed over in the SAME position and heading every time. Nothing about the
+    manoeuvre can therefore explain why some runs die on a pass-side violation
+    inside the first metre and others do not. What differs between scenarios is
+    the layout ahead, and the first sign is what the router commits a lane for.
     """
     sign_range_m: float | None = None
     """Distance to that sign at handover. How much room the router had to work with."""
@@ -140,9 +139,10 @@ class BayStartRow:
     """Its lateral offset from the chassis's heading axis, POSITIVE TO THE LEFT.
 
     Colour alone cannot say whether the required side was the reachable one:
-    the rule is travel-relative (see the 2026-09-03 pass-side correction), so
-    what matters is the colour together with which side the sign already sits
-    on when the navigator takes over.
+    the rule is travel-relative (see
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``), so what
+    matters is the colour together with which side the sign already sits on when
+    the navigator takes over.
     """
 
     viol_sign: int | None = None
@@ -456,18 +456,17 @@ def _run_case(payload: tuple[str, bool, int, dict[str, float], bool, bool, bool,
         moved=moved,
         fx=fx,
         fy=fy,
-        # SIGNED, deliberately. This threw the sign away until 2026-09-07, which
-        # made the probe blind to the failure it most needs to catch: the exit's
+        # SIGNED, deliberately. Previously the sign was thrown away, which made
+        # the probe blind to the failure it most needs to catch: the exit's
         # rotation direction is EMERGENT, not commanded -- the ratchet alternates
         # forward and reverse legs at the same steering lock, so the net depends
         # on which leg accumulates more travel. `BayExit.rotation_complete` also
         # tests |rotation|, so an exit that turned the WRONG WAY still reports
         # done, and `direction_from_parking_bay` then commits a travel direction
-        # from `open_is_left` that the chassis is not pointing along. Measured on
-        # run_20260907_030519: open side correctly read LEFT (0.870 vs 0.082),
-        # correctly committed counterclockwise, and the robot drove CLOCKWISE for
-        # all 280 s. With the magnitude alone that run looks like a clean 77 deg
-        # exit.
+        # from `open_is_left` that the chassis is not pointing along. On a
+        # recorded run the open side read correctly and committed counterclockwise
+        # while the robot drove CLOCKWISE for the whole round; with the magnitude
+        # alone that run looks like a clean exit.
         dyaw_deg=math.degrees(wrap_angle(fyaw - start["yaw"])),
         net_m=math.hypot(fx - sx, fy - sy),
         exit_m=best_exit_m,

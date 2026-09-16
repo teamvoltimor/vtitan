@@ -169,3 +169,18 @@ wrong answer.
   rounds the commanded lane matched the CLOCKWISE row on 24 of 28 sign passes, and
   22 of the 28 illegal passes are that mirror (2 caused by phantom signs, 0 by
   colour errors); the one CW-inferred round passed 19 of 26 legally.
+- Two of four rounds on 2026-08-08 refused the start measurement and raced from
+  the assumed start while the real placement was 0.5 to 0.9 m away; whether the
+  refusal is transient (a hand in a ray for a second) or permanent is open.
+- `infer_direction` reads ONE beam at +/-90 deg, so a single dropout can turn a
+  2.5 m opening into a 12 m reading the estimator rejects; a windowed median
+  recovers in-track distances the single ray loses.
+- On one fixture the dominant refusal was alignment (axis error 0.64 to 0.74 rad,
+  robot mid-corner) while the asymmetry bound only sat in the square-to-corridor
+  window; every scan there agreed on direction.
+- Hardware weave trade, 2026-08-30: short lookahead rose 39 to 72 percent and
+  steering sign flips rose 14/min to 29/min.
+- The creep budget must exceed the slowest fixture: `go_open_0021` needed past step
+  400 to settle before the dropout filter, so a shorter budget misreports a late
+  settler as never settling.
+- p90 of the steering flips on a straight sit well inside the 5 deg turn start.

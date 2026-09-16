@@ -181,6 +181,28 @@ are one story.
   on the robot description.
 - `max_speed_mps` progressed 0.234, then an estimated 1.0, then 0.58 at the
   2026-08-30 bench.
+- Creep stall was fine-binned 0.10 to 0.22 m/s in 0.01 steps: stall was 73.8
+  percent in the 0.09 to 0.11 m/s bin and 2.1 percent by 0.15 to 0.20. The heading
+  limiter floors speed to the creep tier and binds on 57.1 percent of corner ticks,
+  so the corner slow-down and the corner stall are the same event at that floor.
+- The minimum deliverable speed rises with steering load: stall was 0.2 percent
+  straight against 19.4 percent at full lock, so a single creep floor overpays on a
+  straight and still stalls at lock.
+- At creep speeds the chassis delivers only 0.43 to 0.84 of the commanded speed
+  while the simulator tracks its command almost exactly.
+- `_guarded_command`'s `v * tau` stopping budget cannot be checked against bags:
+  the whole 200-bag archive (2026-09-10) held only 15 clean coast episodes, and the
+  budget saturates when the command returns before the wheel stops. This wants a
+  bench test, not more bags.
+- The escape commands 44 deg and lasts a median 0.49 s; the shipped 1.2 rad/s
+  predicts 0.64 s to reach it, so the escape extracts only 10.5 deg of rotation,
+  leaves pointing where it entered and re-approaches the same pillar after 2 to 8
+  cm. A real 35 kg servo is about 5 rad/s.
+- The predecessor wheel-angle constant was wrong by 1.28x.
+- The echoed-command test is to run the same step-response fit on
+  `/motor/steering_position` (candidate) and `/motor/drive_speed` (encoder
+  control): a lag-0, R^2 about 1, zero-residual candidate against a lagged control
+  proves the candidate is the command echoed back.
 
 ## Cross-references
 

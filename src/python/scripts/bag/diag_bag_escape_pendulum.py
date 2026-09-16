@@ -1,7 +1,7 @@
 r"""When the escape goes forward-back-forward, does it ACCUMULATE or cancel?
 
-Operator, 2026-09-15: *"when it evades an obstacle, sometimes it does a pendulum
-movement going and reversing back toward the obstacle."*
+Operator: *"when it evades an obstacle, sometimes it does a pendulum movement
+going and reversing back toward the obstacle."*
 
 ``diag_bag_bay_ratchet`` already states the mechanism for the bay, and it is
 the same physics here: a reversal accumulates only if the STEERING REVERSES
@@ -12,7 +12,8 @@ what a pendulum is.
 
 ``obstacles_escape_mirrors_reverse`` ships TRUE, so the mirroring is supposed to
 be happening. This asks whether it does, on the open track rather than in the
-bay, and what it buys when it does.
+bay, and what it buys when it does. See
+``adr:0050-escape-steering-degrees-and-committed-side`` for the measured verdict.
 
 Per adjacent leg PAIR (one reversal of commanded speed) it reports:
 
@@ -25,13 +26,12 @@ Per adjacent leg PAIR (one reversal of commanded speed) it reports:
   rotate the same way; 0.0 is a pendulum that gives back every degree. This is
   the better of the two axes: a pair can translate a little and still have
   wasted all its rotation.
-RETRACTED 2026-09-15: this reported a "closed on the threat" column built on
+RETRACTED: this reported a "closed on the threat" column built on
 ``min_lidar_range_m``, which is ``min(scan.ranges_m)`` -- the RAW, unmasked
-sweep minimum, i.e. the chassis. Measured over two rounds it spans 0.006-0.018 m
-and sits below ``min_valid_range_m`` (0.044) on 100% of ticks, so it never
-carries obstacle range at all. Comparing it across a pair was a coin flip, and
-it duly read 41-53%. The column is gone. Use the pose-based axes below; they
-measure what they claim.
+sweep minimum, i.e. the chassis. It sits below ``min_valid_range_m`` on
+effectively every tick, so it never carries obstacle range at all. Comparing it
+across a pair was a coin flip. The column is gone. Use the pose-based axes
+below; they measure what they claim.
 
 CONTROLS, because a crashed diagnostic in this repo exits 0:
 
@@ -39,10 +39,9 @@ CONTROLS, because a crashed diagnostic in this repo exits 0:
   from PWM noise is not a reversal, and counting it would invent pendulums.
 * A pair counts only if at least one of its two legs contains a latched
   manoeuvre, rather than requiring BOTH to. This matters and it was got wrong
-  first: 3,147 of 3,195 manoeuvre ticks on run_20260915_102714 are REVERSE, so
-  the escape is almost entirely the backward half. The forward half of the
-  pendulum is ORDINARY DRIVING. Filtering to manoeuvre ticks deletes it and
-  reports 4 reversals in a round that had 166 escapes.
+  first: the escape is almost entirely the backward half, so the forward half of
+  the pendulum is ORDINARY DRIVING. Filtering to manoeuvre ticks deletes it and
+  reports only a handful of reversals in a round that had many escapes.
 * The mirrored rate is reported beside the cancellation. If mirroring is high
   AND cancellation is low, the mirror is firing and not helping, which is a
   different bug from the mirror not firing.

@@ -9,19 +9,22 @@ of the two speed limiters (heading crawl vs clearance) was binding.
 
 The hypothesis under test: ``MIN_TURN_RADIUS_M`` is a speed curve
 R = 0.053 + 1.86 v, so the lateral displacement available over the commit range
-s is about s^2 / (2 R). At cruise (0.26 m/s) that is 0.206 m against a ~0.16 m
-cross; at 0.15 m/s it is 0.333 m. If the mechanism is real, execution failures
-concentrate at high commit speed.
+s is about s^2 / (2 R): slower commitments can buy more lateral. If the mechanism
+is real, execution failures concentrate at high commit speed.
 
 Controls carried, because a null is unreadable without them:
 
 * the pooled three-way tally is printed so it can be diffed against the shipped
   script's own output over the same bags;
 * the speed recovered through the tap is compared against ``Pass.commit_speed_mps``
-  which ``collect_passes`` recorded independently -- they must agree on ~100% of passes
+  which ``collect_passes`` recorded independently -- they must agree on every pass
   or the tap is mis-aligned and nothing downstream means anything;
 * the known-present crossing-vs-holding separation is recomputed, and printed
   first, so a pipeline that cannot see a real effect is visible as such.
+
+See adr:0059-pass-side-travel-relative-and-scorer-independence for the
+travel-relative pass-side rule, and adr:0086-simulator-realism for the
+speed-dependent turn-radius curve.
 
 Usage::
 

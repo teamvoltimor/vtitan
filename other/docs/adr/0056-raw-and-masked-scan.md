@@ -207,3 +207,25 @@ that removes reverse authorization rather than fixing it.
 - A forward cone against a wall read about 9.97 m for the rest of the run; the
   navigator held 0.24 m/s into the wall and `stuck_forward` stood down after six
   ticks.
+- The escape trigger ceiling over the 2026-09-08 session was 0.128 m; without the
+  self-return filter 77.7 percent of "contacts" sat at 120-180 deg, and unwrapped
+  rear bearings made 921 of 1085 ticks vanish.
+- `ESCAPE_MASK_CLUSTER_MIN_RANGE_M` was chosen from the wrong population:
+  robot-to-sign range over every COMMITTED tick of a wedge (p10 0.252 / p50 0.363
+  / p90 0.544 m), while the contact recoveries it must catch engage at p50 0.09-0.14
+  m, below any scalar floor that also keeps the robot's own returns out.
+- The surviving escape triggers sat p50 0.144 m (p10 0.120 m) from the committed
+  belief, truncated exactly at the 0.12 m radius, which is what first suggested the
+  pillar's own returns fall outside the mask.
+- Recorded rounds report `min_lidar_range_m` of 0.008-0.013 m, below what the C1
+  can produce; the escape trigger range must be read raw to say whether escapes
+  fire on impossible ranges. A 99.4 percent-reverse side correction is a phantom if
+  the triggers are sub-floor.
+- The LIDAR mount fix (`6c727c87`) took blind corpus collisions 195 to 57 while
+  leaving in-time flat at 27 to 26 and raising timeouts 19 to 132: the failure moved
+  into escape thrash.
+- The SLOW band capped 27 percent of a winning run's ticks and 50 percent of a
+  failing one, all read in the shifted frame.
+- Use an early-window control (`_EARLY_WINDOW_TICKS = 400`, about 20 s and 12
+  percent of a ~3300-tick in-time median run): whole-run columns fan out about 12x
+  while the early ones stay flat, so escape activity is a symptom, not a cause.

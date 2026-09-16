@@ -4,17 +4,17 @@
 a sign's centre. Whether the chassis ever gets there is a separate question:
 the deformation is applied to a lookahead target 0.24-0.40 m ahead and tracked
 by a P-controller on bearing error, which trails a step change in lateral
-demand rather than matching it.
+demand rather than matching it. See ``adr:0051-sign-lane-planner``.
 
 For every sign in every fixture this reports, at the tick of closest approach:
 
-* ``lat`` — separation between robot centre and sign centre across the
+* ``lat`` - separation between robot centre and sign centre across the
   corridor. This is the number that has to beat the chassis half-width
   (0.10 m) plus the sign half-width (0.025 m).
-* ``cmd`` — the lateral separation the router was asking for at that tick,
+* ``cmd`` - the lateral separation the router was asking for at that tick,
   i.e. how much of the commanded 0.20 m offset actually survived the wall
   clamp and the taper.
-* ``yaw_err`` — heading relative to the corridor axis. Near zero means the
+* ``yaw_err`` - heading relative to the corridor axis. Near zero means the
   chassis is square to the sign and presents its half-width; large means it is
   mid-turn and presents its half-diagonal (0.180 m) instead.
 

@@ -32,6 +32,9 @@ apart on the actual sensor -- landed in different bins (+180 and -180)
 instead of merging into one. Fixed here by wrapping the bin centre back into
 (-180, 180] before using it as a key.
 
+Owning decisions: adr:0053-direction-inference-and-start-pose and
+adr:0057-blind-corridor-follower-and-width.
+
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_side_ray_robustness.py \
         data/live/runs/run_XXXXXXXX_XXXXXX [--window-deg 5] [--near-histogram] [--dropout-symmetry]
@@ -95,16 +98,14 @@ corner-arc ticks through."""
 _MIN_CORNER_DISTANCE_M = 0.5
 """Reject ticks this close to either end of the corridor along the travel axis.
 
-Measured live on run_20260829_140424 (see memory
-narrow_corridor_bias_split_verified_centerline_2026_08_29.md): without this
-gate, ``actual``/``planned`` read a spurious ~0.10m inward bias on every
-corridor, because ``CORNER_PREVIEW_DISTANCE_M`` (0.80m) plus the narrow
-corner arc radius (~0.20-0.30m) let the pure-pursuit lookahead target sit on
-curved arc geometry while the chassis itself was still square enough to pass
-``_ALIGN_TOLERANCE_RAD``. Excluding ticks within 0.5m of a corner collapsed
-that to within +/-0.02m and stayed flat out to a 1.3m margin -- not a
-gradual effect, a hard corner-vs-straight split, so 0.5m is a real boundary
-rather than an arbitrary buffer."""
+Without this gate, ``actual``/``planned`` read a spurious inward bias on every
+corridor, because ``CORNER_PREVIEW_DISTANCE_M`` plus the narrow corner arc
+radius let the pure-pursuit lookahead target sit on curved arc geometry while
+the chassis itself was still square enough to pass ``_ALIGN_TOLERANCE_RAD``.
+Excluding ticks near a corner collapses the bias, and the effect is a hard
+corner-vs-straight split rather than a gradual one, so the margin is a real
+boundary rather than an arbitrary buffer
+(adr:0057-blind-corridor-follower-and-width)."""
 _MIN_PLAUSIBLE_WIDTH_M = 0.40
 _MAX_PLAUSIBLE_WIDTH_M = 1.30
 """The mat's corridors are 0.60 or 1.00 m. Anything outside this bracket is a
@@ -446,8 +447,8 @@ def _rear_occlusion(bag_dir: Path, bin_deg: float) -> None:
     Args:
         bag_dir: Bag to replay.
         bin_deg: Bearing bin width. Finer than ``_BEARING_BIN_DEG`` on purpose
-            -- the 2026-08-04 slot was ~25 deg wide and 15 deg bins would
-            straddle its edges.
+            -- the readable rear slot is narrower than 15 deg bins resolve
+            cleanly.
     """
     sectors = NavigationTuning.load_default().lidar_sectors
     tot: Counter[int] = Counter()

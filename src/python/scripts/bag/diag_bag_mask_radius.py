@@ -1,16 +1,13 @@
 r"""How large may ``escape_mask_radius_m`` grow before it starts eating walls?
 
-The radius ships at 0.12 m and decides which rays belong to the sign the router
-is already passing. Measured on the 2026-09-11 rounds, the surviving escape
-triggers sit p50 0.144 m from the committed belief with p10 0.120 -- truncated
-EXACTLY at the radius, which says the pillar's own returns are falling just
-outside it.
+The radius decides which rays belong to the sign the router is already passing.
+Surviving escape triggers sit just outside it, which says the pillar's own
+returns are falling outside the mask.
 
-Since ``4fc0fbab`` the anchor is the MEASURED cluster, not the belief, so the
-radius no longer has to cover map error -- only the pillar's extent plus range
-noise. The cost is named in ``mask_mapped_obstacles``'s own docstring: a wall
-behind a sign can be 0.15 m away, and masking a wall removes a guard nothing
-else replaces.
+The anchor is the MEASURED cluster, not the belief, so the radius no longer has
+to cover map error -- only the pillar's extent plus range noise. The cost is
+named in ``mask_mapped_obstacles``'s own docstring: a wall behind a sign can be
+very close, and masking a wall removes a guard nothing else replaces.
 
 So this sweeps the radius at the same contact-recovery engagements
 ``diag_bag_mask_floor`` scores, and reports for each value how many recoveries
@@ -24,6 +21,8 @@ Same two replay assumptions as ``diag_bag_mask_floor``: only the COMMITTED
 belief is masked, never the router's whole routed map, so suppression
 under-claims in every arm equally; and the belief's corridor is taken as the
 robot's own.
+
+See adr:0056-raw-and-masked-scan for the escape mask radius decision.
 """
 
 from __future__ import annotations

@@ -3,11 +3,10 @@
 The shipped trigger (``LidarLocalizer.estimate_position``) fires the global
 rescue when the mean CLIPPED squared residual exceeds
 ``RELOCALIZE_COST_THRESHOLD`` for ``RELOCALIZE_AFTER_SCANS`` consecutive
-scans. Every ray's contribution is capped at ``RESIDUAL_CLIP_M ** 2`` =
-0.0625 m^2, so a pose 3 m from the truth cannot score worse than one 30 cm
-off: the metric saturates, and the threshold (0.03) sits at less than half
-its own ceiling. run_20260907_205830 held a 1.5-3 m pose error for 48 s
-without the rescue ever recovering it.
+scans. Every ray's contribution is capped at ``RESIDUAL_CLIP_M ** 2``, so a pose
+far from the truth cannot score worse than one close in: the metric saturates,
+and the threshold sits below its own ceiling. A diverged run can hold a large
+pose error for a long stretch without the rescue ever recovering it.
 
 This script measures whether that is because the trigger never tripped, by
 replaying each tick's REPORTED pose (``/nav_debug``, i.e. the wrong one the
@@ -23,6 +22,9 @@ Both are evaluated per tick, plus the streak logic of the real trigger
 (``off_track OR cost > threshold``), so the output answers one question
 directly: during the divergence, did the shipped detector ever accumulate
 ``RELOCALIZE_AFTER_SCANS`` consecutive bad scans?
+
+See adr:0084-localizer-divergence-and-relocalization for the divergence detector
+and the global rescue.
 
 Usage (from ``src/python``, with PYTHONPATH=.)::
 
@@ -50,8 +52,8 @@ from src.navigation.localization import LidarLocalizer
 # How far back along a ray its endpoint is pulled before the free-space test.
 # A ray that correctly hits a wall lands exactly ON the boundary, where
 # point_in_free_space is a coin flip; pulling back by more than the LIDAR's
-# own range sigma (0.03 m, see corridor_estimator) makes a correct hit
-# unambiguously inside, so anything still outside went THROUGH a wall.
+# own range sigma makes a correct hit unambiguously inside, so anything still
+# outside went THROUGH a wall.
 _BEAM_PULLBACK_M = 0.05
 
 

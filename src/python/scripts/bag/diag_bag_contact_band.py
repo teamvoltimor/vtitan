@@ -2,11 +2,11 @@
 
 ``obstacles_contact_dist = 0.04`` is inert: the sector filter keeps only
 ``r > min_valid_range_m = 0.044``, so the side term of ``already_touching``
-can never fire (measured: 5200 of 5216 side sectors qualify unfiltered, 0
-filtered). It has to move up into the observable band, and the band is narrow
--- above ~0.045 to be visible, below ~0.10 because 0.10 fires on geometry the
-router chose on purpose: the planner routes PAST a pillar at roughly 0.175 m
-from its surface, and 0.10 produced ~180 escapes per run on subset128.
+can never fire. It has to move up into the observable band, and the band is
+narrow -- above the valid-range floor to be visible, below the distance at
+which the term fires on geometry the router chose on purpose, because the
+planner routes PAST a pillar at a bounded distance from its surface.
+See ``adr:0061-contact-zone-per-challenge`` for the measured verdict.
 
 Choosing the bottom edge of that band because it is the bottom edge is the same
 mistake that produced the inert value. So this prices every candidate instead.

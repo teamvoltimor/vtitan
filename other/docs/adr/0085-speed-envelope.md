@@ -140,3 +140,14 @@ hardware observation.
   the resting place, landing past the boundary.
 - The blind corridor-follow phase, before travel direction settles, actually ran
   at 0.150 m/s; the medium tier (0.1326) is its closest shipped match.
+- `angle_error_rad` read p50 65 deg on the 2026-09-08 hardware rounds with the
+  crawl cut binding 44 to 64 percent of an Open round, far above the 23 to 45 deg
+  ordinary cornering the threshold assumes; the field is recomputable from its own
+  inputs (pose plus `steer_target_x/y`) and near-target geometry inflates the
+  bearing, so a large bearing next to a small command means the field and
+  `pure_pursuit_steer` disagree about the geometry.
+- The heading crawl is the majority state at 44 to 63 percent of Open ticks, so a
+  run's own median speed IS the crawled value and a slowdown cannot be detected
+  against it; two inspected runs crawled for 96 s and 45 s.
+- `current_corridor` flapped 37 to 39 times against 12 real corners on a 3-lap
+  round, so the transition count cannot classify corners.

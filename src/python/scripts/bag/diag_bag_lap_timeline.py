@@ -1,12 +1,13 @@
 r"""What did each LAP cost, and which one lost the round?
 
 "Laps completed" is the wrong success metric and it hid the state of the car for
-a whole session. Fifteen 2026-09-15 Obstacles rounds reported three laps often
-enough to look healthy; exactly ONE of them was scoreable inside the time limit.
-A cruise lap costs 41-53 s, so three fit in about 150 s, and every round that
-ran over did so because of a SINGLE 37-73 s wedge inside one lap. Averaged over
-the round that wedge disappears into a slightly slow run. Split by lap, it is
-the whole finding, and it names the lap to go and look at.
+a whole session. Obstacles rounds reported three laps often enough to look
+healthy while almost none were scoreable inside the time limit: a cruise lap
+costs well under the round limit, so three fit, and every round that ran over did
+so because of a SINGLE long wedge inside one lap. Averaged over the round that
+wedge disappears into a slightly slow run. Split by lap, it is the whole finding,
+and it names the lap to go and look at. See
+``adr:0055-escape-maneuver-selection`` for the measured verdict.
 
 This prints one block per bag: a row per lap segment, bounded by the lap-credit
 ticks, carrying the things that separate a lap that was merely slow from a lap
@@ -16,13 +17,13 @@ that was stuck:
   manoeuvre being active. NOT ``escape_count``, which resets on the escape's own
   reverse and reads 1 on 96 percent of triggers.
 * **manTicks** -- ticks per manoeuvre type. A lap dominated by ``K_TURN`` and one
-  dominated by ``SIDE_CORRECTION`` are different failures; the k_turn is ~88
-  percent of manoeuvre time and half of Obstacles overtime.
+  dominated by ``SIDE_CORRECTION`` are different failures, and the k_turn is the
+  bulk of manoeuvre time and much of Obstacles overtime.
 * **stuckTicks** -- whether the stuck detector agreed with the escape count.
 * **near** and **subfloor** -- proximity ticks split at ``min_valid_range_m``.
-  They are printed apart because on these rounds ``min_lidar_range_m`` is BELOW
-  the filter floor on 100 percent of ticks, so a single "under 8 cm" column
-  reads full every lap and means nothing. ``near`` is the credible half.
+  They are printed apart because ``min_lidar_range_m`` sits BELOW the filter
+  floor on effectively every tick, so a single "under 8 cm" column reads full
+  every lap and means nothing. ``near`` is the credible half.
 * **phases** -- the top few navigator phases, which is where a lap that spent
   its time in ``BAY_EXIT`` rather than driving shows itself.
 
@@ -68,10 +69,9 @@ counter for reading a lap, and the contact instruments that adjudicate live in
 _SUB_FLOOR_M = 0.044
 """``min_valid_range_m``. Readings below it are counted SEPARATELY, not as contact.
 
-Measured on the 2026-09-15 rounds: ``min_lidar_range_m`` has a median of 0.009 m
-and sits below this floor on 100 percent of ticks. A naive "ticks under 8 cm"
-counter therefore reads 978/978 on every lap of every round and carries no
-information at all -- it is measuring the sub-floor artefact
+``min_lidar_range_m`` sits below this floor on effectively every tick. A naive
+"ticks under 8 cm" counter therefore reads full on every lap of every round and
+carries no information at all -- it is measuring the sub-floor artefact
 (``diag_bag_subfloor_ranges.py``), not proximity. Splitting the two is the
 difference between a column that says something and a column that always says
 everything.

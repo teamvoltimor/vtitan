@@ -1,10 +1,11 @@
 r"""How far does the detector actually reach, and what throws its boxes away?
 
-62% of the sign lane's missing anticipation is spent before the lane exists:
-`diag_bag_commit_chain.py` puts the first usable sighting at p50 **0.824 m**
-against an `activation_dist_m` of 1.40. Nothing downstream can recover distance
+Most of the sign lane's missing anticipation is spent before the lane exists:
+`diag_bag_commit_chain.py` puts the first usable sighting well short of the
+`activation_dist_m` the router wants. Nothing downstream can recover distance
 that was never perceived, so this asks whether the detector is the limit or
-whether a gate is throwing away boxes it did emit.
+whether a gate is throwing away boxes it did emit. See
+``adr:0058-sign-discovery-range-and-barrier-belief`` for the measured verdict.
 
 The arithmetic that makes this worth checking. The pinhole is
 ``d = f * H / h * RANGE_SCALE`` with f = 621.9 px, H = 0.10 m and RANGE_SCALE
@@ -14,10 +15,10 @@ The arithmetic that makes this worth checking. The pinhole is
     box  20 px ->  6.1 m       box 147 px -> 0.82 m
 
 `MIN_RELIABLE_BBOX_HEIGHT_PX` is 5, i.e. 24 m on a 3 m track -- it cannot be
-binding. And a first sighting at 0.824 m means the box was already ~147 px
-tall, 17% of the frame height. A detector that only fires on an object that
-large is leaving most of the track unused; a gate that discards the smaller
-boxes is a cheap fix. The two look identical from downstream, so count them.
+binding. A first sighting far down that table means the box was already large
+against the frame height, so a detector that only fires on an object that large
+is leaving most of the track unused while a gate that discards the smaller boxes
+is a cheap fix. The two look identical from downstream, so count them.
 
 Reports, over every RED/GREEN box in the bags:
 

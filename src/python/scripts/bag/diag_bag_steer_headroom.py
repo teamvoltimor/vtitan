@@ -4,7 +4,8 @@ The visual symptom is a robot that rounds a wide corner with a gentle arc when
 it had lock to spare. This prints, per lap and per corridor, how much of the
 steering range was actually commanded, which lookahead was selected, and what
 the corridor-width belief was at the time -- so a shallow arc can be traced to
-a long lookahead, to a rate limit, or to the plan itself asking for little.
+a long lookahead, to a rate limit, or to the plan itself asking for little
+(adr:0052-pursuit-target-selection).
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_steer_headroom.py \
@@ -151,9 +152,10 @@ def main() -> int:
             f"spd={g('commanded_speed_mps')}"
         )
 
-    # Which signal actually armed the short lookahead. Before 2026-08-06 only
-    # crosstrack could, and it cannot rise until the corner is already missed;
-    # a healthy run should show the turn preview arming most of them.
+    # Which signal actually armed the short lookahead. Formerly only crosstrack
+    # could, and it cannot rise until the corner is already missed; a healthy
+    # run should show the turn preview arming most of them
+    # (adr:0052-pursuit-target-selection).
     short = [
         (t, snap)
         for t, snap in rows

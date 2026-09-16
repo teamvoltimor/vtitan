@@ -311,3 +311,41 @@ cannot score it because it never emits a magenta detection.
 - Believing every barrier cluster over the threshold settled on six lots per
   counter-clockwise round (2026-09-14) and refused 42.2 percent of real pillars.
 - Green boxes wider than tall were 0.6 percent on `run_20260905_214920`.
+- One session's three rounds split the derived parking corridor 97, 67 and 60
+  percent across three different sides, so the corridor must be derived once over
+  the whole corpus, never per run.
+- The per-bag association slope that decided which rounds were trustworthy:
+  214021 +3.2 deg p50, IQR -7.7 to +17.7, slope 0.354; 214421 +0.4, IQR -9.0 to
+  +14.9, slope 0.341; 002408 +3.3, IQR -18.5 to +25.7, slope 0.664, against
+  shuffled rows at 0.865-1.021. 002408 separates too little and should not be
+  leaned on.
+- The frame-level colour-split test came back VOID on 2026-09-10 (run_20260910_135651
+  and _140059): 2 same-colour overlapping pairs in 1124 pillar frames, and 5
+  frame-to-frame associations against 1293 new tracks (22 against 1276 at widened
+  gates). Both controls are why it was reported void rather than refuted; the
+  colour-vote question needs the router's pose-based association.
+- First usable detection: `diag_bag_detection_reach.py` puts it at p50 0.824 m
+  against an `activation_dist_m` of 1.40, and the box there was already about
+  147 px, 17 percent of the frame height, so a detector that only fires on an
+  object that large leaves most of the track unused.
+- The lattice filter on hardware keeps 33 percent of persistent tracks, moving
+  precision 47 to 52 percent at a recall cost of 91 to 72 percent; against sim
+  ground truth it is 46 to 84 percent precision at 100 to 85 percent recall.
+- The camera confirmation anchor cannot separate signs from walls: camera-CONFIRMED
+  and UNCONFIRMED wall distances are the same distribution (p50 0.27 vs 0.25 m),
+  and the `--corridor-width-m` gated variant is biased to the walls (confirmed
+  0.22 vs unconfirmed 0.27 m), while a real sign must be at 0.40 m. The measured
+  corridor width itself is sound (p50 1.06 m against a known 1.00 m).
+- The assignment is 8-bounded by construction; the shipped map rewrites a
+  published position in place on every closer observation, and the shipped passes
+  the assignment fails to cover decompose into phantom, starved, outranked and
+  off-lattice.
+- Sim against hardware transfer, same detector both sides: clusters per scan 3.10
+  hardware against 2.95 sim; persistent tracks 204 against 198; first-see range
+  p50 1.33 against 1.77 m; share in the sign band 23 against 35 percent. This is
+  the basis of the "sim is an upper bound" claim.
+- Side-ray dropout: the single nearest ray has no valid return on 12 to 19 percent
+  of ticks, but only 0.0 to 1.7 percent across the +/-20 deg window; the 66
+  percent figure is a single-ray number.
+- The vision emulator still has perfect range, so the camera-vs-LIDAR range
+  comparison cannot be reproduced in sim; a known limit.

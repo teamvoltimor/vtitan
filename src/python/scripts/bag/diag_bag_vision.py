@@ -1,8 +1,8 @@
 """What the camera actually reported, and whether the robot could act on it.
 
-Written for four hardware observations from the 2026-09-05 runs that the sim
-cannot reproduce, because the simulated sign detector is exact and never blurs,
-mislabels, or arrives late:
+Written for four hardware observations that the sim cannot reproduce, because
+the simulated sign detector is exact and never blurs, mislabels, or arrives
+late (adr:0072-vision-data-path):
 
 * red pillars COLLIDED with rather than avoided;
 * green pillars passed on their RIGHT, which rule 9.24 scores as a round-ender;
@@ -57,19 +57,18 @@ _FALLBACK_FRAME_W = 1536.0
 
 DERIVED PER RUN, never taken from config: ``camera/config.toml`` carries
 ``width = 640``, which is the MODEL INPUT size, while ``/vision/detections``
-reports boxes in CAPTURE coordinates -- 1536x864 on the 2026-09-05 runs. Using
-the config number puts the image centre at 320 instead of 768, and since every
-pass-side verdict here is the SIGN of ``x - centre``, that silently inverts the
-verdict for any pillar between those two columns. It did: red read 1/2 wrong
-against a 640 frame and 2/2 correct against the real one."""
+reports boxes in CAPTURE coordinates (1536x864). Using the config number puts
+the image centre at 320 instead of 768, and since every pass-side verdict here
+is the SIGN of ``x - centre``, that silently inverts the verdict for any pillar
+between those two columns."""
 
 _PILLAR_MAX_ASPECT = 1.0
 """Width/height above which a box is not pillar-shaped.
 
 Calibrated against the run's own GREEN detections, which are the class with no
-magenta wall to be confused with: their w/h p90 is 0.85 and only 0.6% exceed
-1.0. A pillar is taller than it is wide by construction, so a box wider than
-tall is either two pillars merged or a stretch of wall."""
+magenta wall to be confused with. A pillar is taller than it is wide by
+construction, so a box wider than tall is either two pillars merged or a stretch
+of wall."""
 
 _MIN_TRACK_FRAMES = 3
 """Frames a track needs before its exit side is read.
@@ -384,9 +383,9 @@ def main() -> int:
         return 0
 
     # Widest box edge the run ever produced IS the frame edge, because boxes
-    # clip there: 22 of 800 detections in run_20260905_214920 land exactly on
-    # 1536.0. Rounded up to a multiple of 32 so a run that never quite touches
-    # the edge still lands on the real width rather than a few pixels short.
+    # clip there. Rounded up to a multiple of 32 so a run that never quite
+    # touches the edge still lands on the real width rather than a few pixels
+    # short.
     frame_w = 32.0 * math.ceil(max(box_right) / 32.0) if box_right else _FALLBACK_FRAME_W
     centre_x = frame_w / 2.0
     print(f"\nframe width derived from box extents: {frame_w:.0f}px (centre {centre_x:.0f})")

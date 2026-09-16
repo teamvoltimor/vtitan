@@ -19,6 +19,8 @@ Distances are robot-centre to sign-centre; subtract the chassis half-width
 (~0.097 m) and the sign half-width (~0.025 m) for a physical gap. A closest
 approach under ~0.122 m therefore means CONTACT, not a near miss.
 
+The owning decision is adr:0051-sign-lane-planner.
+
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_sign_approach.py \

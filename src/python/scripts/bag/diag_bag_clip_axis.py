@@ -14,7 +14,8 @@ units of 0.10 m -- the aspect test already IS a width test, and a lower bound
 on width is still sound evidence that an object is too wide to be a pillar.
 
 So the exemption only has to cover VERTICAL clipping. This measures how much of
-the current blanket exemption that would keep, on real bags.
+the current blanket exemption that would keep, on real bags. See
+``adr:0058-sign-discovery-range-and-barrier-belief`` for the measured verdict.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_clip_axis.py RUN_DIR [RUN_DIR ...]

@@ -1,15 +1,14 @@
 r"""Price the UNBUILT "reverse to buy road" manoeuvre on bags, before it is built.
 
-Context. Over 129 bags / 1113 passes, sign passes that must CROSS from the wrong
-side to the legal one fail 67.8% against 6.9% for passes already legal, and
-crossings are 215 of the 248 EXECUTION failures. The separator is ROAD, not
-speed and not commit range: a failed crossing drives 0.41 m, a successful one
-0.92 m, and under 0.25 m of road 89.5% fail.
+Context. Sign passes that must CROSS from the wrong side to the legal one fail
+far more often than passes already legal, and crossings dominate the EXECUTION
+failures. The separator is ROAD, not speed and not commit range: a failed
+crossing drives less far than a successful one, and a very short approach
+almost always fails.
 
 The arithmetic that motivates a reverse. The chassis' minimum turn radius is a
-SPEED CURVE, R(v) = 0.053 + 1.86 v (see
-``pocket_turn_radius_is_0075_not_029_2026_09_10``). An S-curve buys lateral
-about L^2 / 4R, so clearing ``y`` of lateral needs
+SPEED CURVE, R(v) = 0.053 + 1.86 v (adr:0086-simulator-realism). An S-curve buys
+lateral about L^2 / 4R, so clearing ``y`` of lateral needs
 
     L_min = sqrt(4 * R(v) * y)
 
@@ -43,6 +42,11 @@ crossing SUCCESS -- same geometry, opposite outcome -- and beside the
 already-legal population whose value is known. A metric that reads the same on
 all three is a null.
 
+See adr:0088-refuted-config-knobs for the decision not to build the
+reverse-to-buy-road manoeuvre, and
+adr:0059-pass-side-travel-relative-and-scorer-independence for the
+crossing-vs-holding evidence.
+
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_reverse_budget.py \
@@ -71,7 +75,7 @@ from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_router.routing import pass_side_lateral_axis  # noqa: E402
 from src.navigation.utils import _rear_clearance, trail_clearance_behind  # noqa: E402
 
-# R(v) = R0 + K v, measured on hardware 2026-09-10 (pocket turn radius note).
+# R(v) = R0 + K v, the measured speed-dependent turn radius (adr:0086).
 R0 = 0.053
 RK = 1.86
 

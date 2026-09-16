@@ -1,15 +1,13 @@
-"""Is the ~1.1 m sign-detection ceiling the MODEL, or just framing?
+"""Is the sign-detection range ceiling the MODEL, or just framing?
 
-Measured on hardware, the sign lane commits at a median 0.24 m against an
-``ACTIVATION_DIST_M`` of 1.40 m, and reaches its 0.9 m ramp on 2.5% of
-approaches. The cause is upstream: decoded detection range from the deployed
-Hailo HEF is p90 1.12 m, with only 3.6% of detections beyond 1.4 m. Two
-explanations survive that number and they need different fixes:
+The sign lane commits well short of its designed activation distance, and the
+cause is upstream: the decoded detection range from the deployed Hailo HEF is
+short. Two explanations survive that number and they need different fixes:
 
 * **framing** -- distant signs are not in the camera's cone at all, so no model
   could see them. Fixing that means optics or mounting.
 * **the model** -- distant signs ARE in frame and the deployed detector misses
-  them, plausibly because it was trained and quantized on 64 sharp, staged,
+  them, plausibly because it was trained and quantized on sharp, staged,
   close-range desk photos. Fixing that means retraining.
 
 This runs the tracked YOLO ONNX (``ml/weights/gmr/v1/best.onnx``) over the SAME
@@ -21,11 +19,14 @@ pixels, not two runs of a sweep.
 Preprocessing reuses the shipped ``letterbox()`` so the ONNX sees what the HEF
 saw; a plain square resize would distort every box's HEIGHT, which is the one
 quantity the range decode depends on. Boxes are mapped back to SOURCE frame
-coordinates before decoding, because ``_CAMERA_FOCAL_PX`` (621.9) is derived
-against the 1536 px frame width, not the 640 px model input.
+coordinates before decoding, because ``_CAMERA_FOCAL_PX`` is derived against the
+full frame width, not the model input width.
 
 If ONNX reaches materially further than the HEF, the ceiling is the deployed
 model. If both stop at the same range, it is framing.
+
+See adr:0072-vision-data-path for the camera data path and
+adr:0058-sign-discovery-range-and-barrier-belief for the discovery range bound.
 
 Usage::
 
@@ -164,7 +165,7 @@ def main() -> int:
     if hef_ranges and onnx_ranges:
         # Compare RATES, not maxima. The two backends saw a different number
         # of frames (--stride), and a max is ONE sample -- an earlier version
-        # of this script keyed the verdict on max and read a 3x rate
+        # of this script keyed the verdict on max and misread a rate
         # difference as 'framing'.
         n_hef_frames = len(hef_per_frame)
         hef_far = sum(1 for x in hef_ranges if x > 1.4) / n_hef_frames

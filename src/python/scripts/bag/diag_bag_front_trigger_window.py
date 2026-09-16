@@ -8,15 +8,15 @@ return inside a narrow band:
 
     live window = ( min_valid_range_m , contact_dist + LIDAR_TO_FRONT_BUMPER ]
 
-which is 24 mm wide at 0.04 and 84 mm at 0.10. Inside that band the sensor is
-at its least reliable -- measured on hardware, 25% of rays do not return at all
-and 6.9% come back BELOW the filter floor, where they are discarded as invalid.
+which is narrowest at the smallest threshold. Inside that band the sensor is at
+its least reliable: many rays do not return at all and some come back BELOW the
+filter floor, where they are discarded as invalid.
 
 The question this answers is not "is the threshold observable" (it is, for
-every candidate: the floor in gap terms is 0.045-0.0278 = 0.0172 m). It is
-whether a SMALLER threshold buys a narrower window than the sensor can
-reliably fill -- i.e. how often the robot is genuinely close to something and
-the trigger cannot see it because the return landed under the floor.
+every candidate). It is whether a SMALLER threshold buys a narrower window than
+the sensor can reliably fill -- i.e. how often the robot is genuinely close to
+something and the trigger cannot see it because the return landed under the
+floor. See ``adr:0056-raw-and-masked-scan`` for the measured verdict.
 
 Per bag it reports, over the forward threat cone:
 

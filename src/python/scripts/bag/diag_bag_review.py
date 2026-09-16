@@ -1,10 +1,9 @@
-"""Review a race bag against the three things the 2026-08-06 rounds raised.
+"""Review a race bag: start measurement, slowdowns, wall proximity, recovery.
 
 Prints, for one bag:
 
   * What the start measurement read, and how far it sat from the assumption it
-    replaced -- the fields added in 626a011, reported here for the first
-    hardware runs that carry them.
+    replaced.
   * Where the robot slowed and why, by attributing each commanded speed to the
     limiter that produced it (clearance vs heading), alongside the clearance
     and risk at that tick. The reported cause of a slowdown is the smaller of
@@ -12,15 +11,16 @@ Prints, for one bag:
   * How close it came to a wall, and what it was doing at the closest ticks.
 
 ``--stats`` adds a min_lidar_range histogram, steer sign-flip rate, crosstrack/
-angle_error percentiles and an open-path clearance-limiting check (folded in
-from a one-off tmp_speed_probe.py).
+angle_error percentiles and an open-path clearance-limiting check.
 
 ``--center-bias`` computes, per corridor, the lateral offset from the OUTER
 wall relative to the believed corridor width -- i.e. whether the path centres
-itself or drifts toward one wall (folded in from a one-off tmp_review4.py).
-It needs the per-corridor width belief the run used, passed via
-``--widths north=1.0,south=0.6,east=1.0,west=0.6`` (there is no run-agnostic
-default -- the belief is whatever that specific run settled on).
+itself or drifts toward one wall. It needs the per-corridor width belief the run
+used, passed via ``--widths north=1.0,south=0.6,east=1.0,west=0.6`` (there is no
+run-agnostic default -- the belief is whatever that specific run settled on).
+
+This tool is the offline half of the round-recording pipeline; see
+adr:0071-round-recording-mcap.
 
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_review.py data/live/runs/run_XXXXXXXX_XXXXXX
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 
 _MIN_LIDAR_RANGE_BUCKETS_M = (0.02, 0.05, 0.10, 0.20, 0.40)
 _OPEN_PATH_CLEARANCE_M = 0.8
-"""forward_clearance_m above which the path is considered open (tmp_speed_probe.py)."""
+"""forward_clearance_m above which the path is considered open."""
 _WIDE_CORRIDOR_THRESHOLD_M = 0.9
 """Width at/above which a corridor is tagged WIDE rather than narrow, for display only."""
 _TINY_LIDAR_RANGE_M = 0.10

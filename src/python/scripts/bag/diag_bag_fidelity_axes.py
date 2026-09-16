@@ -8,11 +8,10 @@ about the robot rather than about two authors' formatting.
 
 WHY a whole instrument for this. Every tuning verdict this project has shipped
 was scored in the simulator, and the simulator's idealisations are not uniformly
-optimistic -- which is the trap. The 2026-09-15 audit found the vision frame-miss
-rate 2-4x PESSIMISTIC and the terminal-push rule pessimistic too, while the
-occlusion band, the escape rotation, the creep gain, the start pose and the
-detection range were all optimistic. An idealisation you assume flatters you can
-be costing you laps, and the only way to know the sign is to measure it.
+optimistic -- which is the trap. The audit found some axes PESSIMISTIC and others
+optimistic, so an idealisation you assume flatters you can be costing you laps,
+and the only way to know the sign is to measure it. See
+``adr:0086-simulator-realism`` for the measured verdict.
 
 AXES, in the order they were worth modelling:
 
@@ -36,8 +35,8 @@ AXES, in the order they were worth modelling:
    ``measure_start_pose`` reported.
 
 TRAP: escape yaw is unwrapped over the WHOLE run before differencing, because a
-k_turn burst can exceed 180 degrees in one episode (measured: 275) and wrapping
-per-episode silently reports the short way round.
+k_turn burst can exceed 180 degrees in one episode and wrapping per-episode
+silently reports the short way round.
 
 Usage::
 

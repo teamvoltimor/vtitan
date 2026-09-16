@@ -6,11 +6,13 @@ and refuses to score the ones that fail it.
 
 THE QUESTION. A sign's colour decides which side of it the round must pass, and
 a wrong-side pass ends the round. Colour is decided by a vote over detections
-attributed to a track by PROXIMITY. Measured on 2026-09-15, the camera bearing
-carries +/-12 deg of zero-mean scatter, which at 1.5 m is 0.31 m of lateral
-miss, while ``sign_discovery.association_dist_m`` is 0.25 and the router's
-``detection_match_dist_m`` is 0.30. **The scatter is wider than the radius that
-is supposed to contain it**, so detections of one pillar land on its neighbour.
+attributed to a track by PROXIMITY. The camera bearing carries zero-mean
+scatter, which at range is a lateral miss wider than the radius
+``sign_discovery.association_dist_m`` and the router's
+``detection_match_dist_m`` allow. **The scatter is wider than the radius that is
+supposed to contain it**, so detections of one pillar land on its neighbour.
+See ``adr:0058-sign-discovery-range-and-barrier-belief`` for the measured
+verdict.
 
 That is a claim about geometry. This measures whether it actually costs a
 colour, which is the only thing that matters.

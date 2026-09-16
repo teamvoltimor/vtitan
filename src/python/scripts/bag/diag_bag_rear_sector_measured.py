@@ -1,18 +1,16 @@
 r"""Does the rear sector actually MEASURE anything on hardware?
 
-``k_turn_fit_rear_gap`` (shipped d2599906, ON for Obstacles) caps a reversing
-escape at the rear room the LIDAR reports. It is deliberately conservative
-about blindness: a sector that measured NOTHING is left alone rather than
-capped to zero, so the manoeuvre is never silently deleted on a mount with no
-rear slot.
+``k_turn_fit_rear_gap`` (ON for Obstacles) caps a reversing escape at the rear
+room the LIDAR reports. It is deliberately conservative about blindness: a
+sector that measured NOTHING is left alone rather than capped to zero, so the
+manoeuvre is never silently deleted on a mount with no rear slot.
 
 That safety property has a cost nobody has priced. Every scan where the rear
 sector is unmeasured is a scan where the cap does nothing, and if that is most
-of them, the fix is shipping as a no-op while being counted as a fix. The
-mount makes this a live worry rather than a hypothetical: the occlusion wedges
-leave only a ~25 deg slot straight back, the chassis rear face sits 0.2722 m
-behind the sensor, and on run_20260906_192424 the rear minimum was the CHASSIS
-on 100% of scans.
+of them, the fix is shipping as a no-op while being counted as a fix. The mount
+makes this a live worry rather than a hypothetical: the occlusion wedges leave
+only a narrow slot straight back and the chassis rear face sits well behind the
+sensor.
 
 So this replays ``CollisionAvoidanceController.rear_sector`` -- the shipped
 code, not a restatement of it -- over the recorded sweeps and counts.
@@ -26,6 +24,8 @@ TWO POPULATIONS, and only the second one decides anything:
 
 The reverse moments are found from ``/nav_debug``: the tick where
 ``active_maneuver_type`` becomes STUCK_REVERSE, matched to its nearest sweep.
+
+See adr:0056-raw-and-masked-scan for the rear sector and the reverse-gap gate.
 
 Usage::
 

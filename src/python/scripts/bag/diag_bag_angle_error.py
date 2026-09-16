@@ -1,19 +1,17 @@
 r"""Is ``angle_error_rad`` telling the truth, and if so what is it measuring?
 
 The heading term cuts speed to the creep floor whenever ``|angle_error_rad|``
-reaches ``HeadingErrorZones.crawl`` (1.0 rad, 57.3 deg), and that cut binds
-44-64% of an Open round. ``HeadingErrorZones`` justifies the threshold by
-asserting that normal cornering lives at 23-45 deg, so CRAWL only catches real
-saturation. The 2026-09-08 bags measure p50 = 65 deg, which is either
+reaches ``HeadingErrorZones.crawl`` (1.0 rad, 57.3 deg). ``HeadingErrorZones``
+justifies the threshold by asserting that normal cornering stays well below it,
+so CRAWL only catches real saturation. Bags can still read high, which is either
 
-* REAL -- the robot is genuinely pointed 65 deg away from its own target most
-  of the time, which is a planning failure and makes the speed cut a symptom,
-  or
+* REAL -- the robot is genuinely pointed away from its own target most of the
+  time, which is a planning failure and makes the speed cut a symptom, or
 * an ARTEFACT of how the field is computed, in which case the cut is a tax on
   a number that does not mean what the threshold assumes.
 
 Those want opposite fixes, so this script separates them instead of tuning on
-top of the number.
+top of the number. See ``adr:0085-speed-envelope`` for the measured verdict.
 
 ``angle_error_rad`` is ``atan2(y_local, x_local)`` for the steering target in
 the robot frame (``WaypointController.compute_steering``). The snapshot also
@@ -29,18 +27,17 @@ independent checks:
    target is CLOSE, not only when the robot is badly aimed. Report the distance
    to the target against ``lookahead_distance_m``: a target sitting far inside
    the lookahead inflates the bearing for a lateral offset that has not
-   changed, and 65 deg at 4.6 cm of crosstrack needs a forward distance of
-   about 2 cm.
+   changed.
 
 3. STEERING CONSISTENCY. The same ``x_local, y_local`` feed
-   ``pure_pursuit_steer``. If a 65 deg bearing is real and the target is
+   ``pure_pursuit_steer``. If a large bearing is real and the target is
    forward, the command should be near saturation on the same tick. A large
    bearing next to a small command means the two disagree about the geometry.
 
 Also counts the ticks whose target is BEHIND the robot (``x_local <= 0``),
 where ``compute_steering`` abandons the curvature formula and saturates by
 sign. Those ticks have ``|angle_error| > 90 deg`` by construction and are a
-different failure from being 65 deg off a forward target.
+different failure from a large bearing on a forward target.
 
 Pose note: ``pose_yaw`` is the localizer-fused, damped estimate rather than raw
 TF. That is DELIBERATE here -- the question is what the controller computed,
@@ -49,7 +46,7 @@ and the fused yaw is the input it actually used.
 Usage::
 
     pixi run -e dev python scripts/bag/diag_bag_angle_error.py \
-        data/live/runs/run_20260908_003520 data/live/runs/run_20260908_004023
+        RUN_DIR [RUN_DIR ...]
 """
 
 from __future__ import annotations

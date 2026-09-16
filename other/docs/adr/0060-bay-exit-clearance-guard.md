@@ -240,3 +240,30 @@ infraction. The exit must be evaluated against the default contact model.
 - The shipped margin frees the ratchet 7.35x the frozen displacement (asserted at
   5 in the test), against an old held-lock shape that measured 0.06 m of travel
   for no net gain.
+- The simulator at the measured minimum turn radius says 0/32 bay exits against
+  bags where the exit usually succeeds. A run counts out only positionally (reaches
+  `normal_drive` AND accumulates real travel), because the phase machine's own
+  `rotation_complete` is a self-report and must not be used as the success test.
+- Immediate escape re-triggering costs about 20 percent of the corpus on both
+  stacks.
+- The bay exit stalls 74 percent of its ticks while ordinary driving stalls under
+  2 percent; runs with 0.33-0.50 s legs got out, runs with 2-14 s legs never did.
+- Operator report: the bay exit rose from about 10 s to about 30 s, with the
+  clockwise round "going backwards" near the start.
+- Four 2026-09-10 configurations moved the leg count (324 to 111) and leg length
+  (0.06 to 0.20 s) without changing the invariant of 240-870 deg of total yaw kept
+  down to 2-7 deg at zero net travel, about 0.8 percent efficiency.
+- The in-bay start never moves: 8/8 probed, distance 0.00 m, stuck; forward reads
+  0.05-0.19 m against a fin, below the initial-creep gate.
+- Release pose is identical across all 256 scenarios: yaw 25.5-25.6 deg,
+  displacement -0.200 m; 44 runs die on a pass-side violation inside the first
+  metre against 210 that do not.
+- The exit's rotation direction is emergent; on `run_20260907_030519` the open
+  side correctly read LEFT (0.870 against 0.082) and committed counter-clockwise,
+  yet the robot drove clockwise for all 280 s. That is why the sign is retained.
+- In-bay exit is 0/16 on the committed set and the ratchet burns many legs for
+  millimetres; the clearance guard (leg max) ends 100 percent of legs.
+- The mirror story is recorded above; the other two named-term attempts (leg speed,
+  inertia/coast) were each refuted by A/B.
+- On three on-track runs the commanded-zero bay pauses measured p50 2.551 / 2.556 /
+  2.552 s, matching the 2.50 s the shipped 1.2 rad/s predicts.

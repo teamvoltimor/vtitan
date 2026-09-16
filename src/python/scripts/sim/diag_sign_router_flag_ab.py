@@ -8,16 +8,13 @@ to see what it does.
 For ``COMMIT_HYSTERESIS`` specifically it demonstrably cannot see the whole
 effect. The switch stops the router re-racing its commitment every tick, and
 what it saves is the aim point jumping between two tracks of the SAME pillar.
-Duplicate tracks exist in both worlds at the same rate (sim 2.0x, hardware 2.2x)
--- but their SEPARATION does not:
-
-    duplicate nearest-neighbour, p50:   sim 0.012 m    hardware 0.21 m
-
-So switching between duplicates moves the commanded line 1.2 cm in the corpus
-and 21 cm on the mat, a factor of 17. The corpus verdict (flat sighted,
-marginally worse blind) was taken where the defect is almost absent. Replayed
-over recorded detections, the flag cuts aim-point jumps 38 -> 21 with the
-committed-tick count unchanged.
+Duplicate tracks exist in both worlds at a similar rate, but their SEPARATION
+does not: switching between duplicates moves the commanded line centimetres in
+the corpus and tens of centimetres on the mat, an order of magnitude apart. The
+corpus verdict (flat sighted, marginally worse blind) was taken where the defect
+is almost absent. Replayed over recorded detections, the flag cuts aim-point
+jumps sharply with the committed-tick count unchanged. See
+``adr:0051-sign-lane-planner``.
 
 This script therefore prices the COST side only. The benefit lives in
 ``scripts/bag/diag_bag_sign_target_churn.py``, on the bags, which is the only

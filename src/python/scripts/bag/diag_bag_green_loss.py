@@ -1,10 +1,11 @@
 """Why GREEN detections collapsed between two hardware rounds ninety minutes apart.
 
-The operator watched the last round pass the first three RED pillars correctly
-on every lap and almost never pass a GREEN one correctly, and counting
-``/vision/detections`` found the green share had fallen from 55.7% to 33.4%
-between 21:18 and 22:56. That topic is camera + Hailo, upstream of the sign map
-and the router, so nothing downstream can explain it.
+The operator watched the last round pass the RED pillars correctly on every lap
+and almost never pass a GREEN one correctly, and counting ``/vision/detections``
+found the green share had fallen sharply between two rounds ninety minutes
+apart. That topic is camera + Hailo, upstream of the sign map and the router, so
+nothing downstream can explain it. See ``adr:0078-camera-mount-and-focus`` for
+the measured verdict.
 
 This script separates the four candidate causes that the raw counts cannot:
 
@@ -56,9 +57,8 @@ runs if the specs module moves."""
 _RANGE_BANDS = ((0.0, 0.3), (0.3, 0.5), (0.5, 0.8), (0.8, 99.0))
 """Range bands chosen around the DECISION window, not around the median box.
 
-``camera/config.toml`` records first-usable-detection at 0.824 m and router
-commitment at 0.469 m, so 0.5 and 0.8 are the two edges that matter; 0.3 splits
-the already-passing frames off the bottom."""
+The edges bracket first-usable-detection and router commitment, so 0.5 and 0.8
+are the two that matter; 0.3 splits the already-passing frames off the bottom."""
 
 _CAPTURE_WIDTHS = (640.0, 1280.0, 1536.0, 1920.0)
 """Known capture widths a run's boxes are snapped to.
@@ -180,8 +180,8 @@ sign, which a run full of escapes changes on its own."""
 def _tracks(frames: list[tuple[float, list[dict]]], focal_px: float) -> dict[str, list[dict]]:
     """Contiguous per-colour detection runs -- one ENCOUNTER each.
 
-    Tracks are what the router can act on: a 217-detection run and a
-    306-detection run can hold the same number of encounters, and the number of
+    Tracks are what the router can act on: two runs with very different
+    detection counts can hold the same number of encounters, and the number of
     encounters is what the pass-side verdict count has to be compared against."""
     open_t: dict[str, dict] = {}
     out: dict[str, list[dict]] = defaultdict(list)

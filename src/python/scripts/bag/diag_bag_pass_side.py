@@ -19,50 +19,36 @@ of this script is to tell them apart rather than to confirm the symptom:
 
 The believed sign colour is not in ``/nav_debug``, so the sign map is rebuilt by
 replaying the real router over the recorded detections -- the same approach as
-``diag_bag_sign_target_churn.py``, which reproduces the bag's own commitment
-churn (7.6x against 7.4x measured independently).
-
-MEASURED 2026-09-07 on run_233653 (clockwise) and run_234457 (counterclockwise),
-47 pillars:
-
-    commanded the WRONG side (routing):          11
-    commanded right, chassis went wrong (exec):  10
-    correct:                                     26
+``diag_bag_sign_target_churn.py``.
 
 DIRECTION IS NOT THE CAUSE -- a mirrored table would flip reds and greens alike,
 and reds are mostly legal. Both remaining causes are present in similar numbers.
 
 TRAP, and it moves the answer: judge with the SIGN's corridor, not the robot's.
 The router keys the deformation off the candidate sign's own corridor, and the
-two disagree on 22 of these 47 pillars (they legitimately differ at corners).
-Judging by the robot's corridor instead reports 17 routing / 6 execution -- a
-different conclusion from the same data.
+two legitimately differ at corners. Judging by the robot's corridor instead gives
+a different conclusion from the same data. This script's verdict line must read
+the SIGN's corridor; every "routing" count printed while it read
+``d.current_corridor`` is INFLATED.
 
-HONOURED SINCE 2026-09-13, and it had NOT been until then: the verdict line read
-``d.current_corridor`` while this docstring said not to. Every "routing" count
-this script printed before that date is INFLATED, including the ones quoted
-above. Re-measured on the 2026-09-12 bags, the robot's corridor gives 21 routing
-errors in competition and 22 in practice where the sign's corridor gives 1 and
-0 -- the router commands the legal side 196 times out of 197.
+WHAT THE TRACE FOUND, which the counts do not show. On a wrong-side pass the
+router can command the CORRECT side on every tick while the chassis is on the
+wrong side throughout, and it never crosses because the sign is not committed
+until too close for the measured turn radius. The outcome was decided before the
+router ever engaged, by the detector's range.
 
-WHAT THE TRACE FOUND, which the counts do not show. On the wrong-side pass
-reported from the track in run_234457, the router commanded the CORRECT side on
-every tick (+0.25 to +0.29) and the chassis was on the wrong side throughout
-(-0.32 closing to -0.16). It never crossed, because the sign was not committed
-until 0.57 m -- and crossing sides inside 0.57 m with the measured 0.29 m turn
-radius is geometrically impossible. The outcome was decided before the router
-ever engaged, by the detector's range (p50 0.70 m).
-
-And the colour was wrong for a structural reason: DUPLICATE TRACKS SPLIT THE
-COLOUR EVIDENCE. That pillar carried nine tracks within half a metre; the router
-committed to one with 4 hits and 2.29 of RED weight while its siblings held
-20-30 hits and 18-24 of GREEN. Pooling votes within 0.30 m calls it green 40.8
-to 11.2. Colour is resolved per FRAGMENT, but a fragment is not a physical
-object.
+And the colour can be wrong for a structural reason: DUPLICATE TRACKS SPLIT THE
+COLOUR EVIDENCE. One pillar carries many tracks within half a metre, so the
+router can commit to a fragment with little RED weight while its siblings hold
+most of the GREEN. Colour is resolved per FRAGMENT, but a fragment is not a
+physical object.
 
 TRAP: do NOT read ``wrong_side_pass_count`` for this. It judges from the
 router's own believed layout, which on hardware includes phantom pillars and
-positions off by half a metre; it has read 24 where the truth was 7.
+positions off by half a metre.
+
+See adr:0059-pass-side-travel-relative-and-scorer-independence for the
+travel-relative rule and the corridor-keying trap.
 
 Usage::
 

@@ -6,18 +6,18 @@ It is also the question most likely to be answered by assumption: the Pi
 throttles at 82.5 C with the fan maxed and ``vision_node`` eats a whole core, so
 "the camera must have dropped out" is an easy story to believe without checking.
 
-On the fifteen 2026-09-15 Obstacles rounds the answer was NO, uniformly: zero
-gaps over 0.5 s on ``/scan``, ``/vision/detections``, ``/imu/data`` and
-``/motor/drive_speed`` in every bag. That negative result is what let the whole
+On the recorded Obstacles rounds the answer was NO, uniformly: zero significant
+gaps on ``/scan``, ``/vision/detections``, ``/imu/data`` and
+``/motor/drive_speed`` in every bag
+(adr:0071-round-recording-mcap). That negative result is what let the whole
 session be attributed to geometry and tracking instead. Ruling the sensors out
 is worth one cheap pass over the bag.
 
-The one thing that DOES freeze is ``/nav_debug``, with 1.8-2.0 s gaps in the
-first ~30 s while the bay exit runs, up to twelve of them in a bad round. That
-is the navigator's own publishing stalling, not a sensor, and it matters chiefly
-because every other diagnostic in this folder samples the world through
-``/nav_debug`` -- a gap there is a hole in the EVIDENCE, not necessarily in the
-robot.
+The one thing that DOES freeze is ``/nav_debug``, in the first ~30 s while the
+bay exit runs. That is the navigator's own publishing stalling, not a sensor,
+and it matters chiefly because every other diagnostic in this folder samples the
+world through ``/nav_debug`` -- a gap there is a hole in the EVIDENCE, not
+necessarily in the robot.
 
 METHOD
 

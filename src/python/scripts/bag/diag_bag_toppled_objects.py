@@ -1,10 +1,9 @@
 r"""Which track objects did the car KNOCK DOWN, and on which lap?
 
 STATUS: passes its control on the one round with an independent eyewitness
-account. The operator says 140014 hit two green pillars on the first lap and
-collided with the second parking wall; this script finds exactly three objects
-that stop returning after lap 0 in that round, and none at all in the round the
-operator describes as merely nudging a pillar out of place.
+account. The objects the operator described as knocked down are exactly the ones
+that stop returning, and the round described as merely nudging a pillar out of
+place shows none (adr:0062-sim-contact-model-and-parking).
 
 A knocked-over block LEAVES THE LIDAR'S HORIZONTAL PLANE. That makes destruction
 directly observable without a clearance threshold, a contact model or a sensor
@@ -40,9 +39,9 @@ CONTROLS, because a crashed diagnostic here exits 0:
   would otherwise report every object on the mat as destroyed.
 * The NEIGHBOURS are the control for occlusion. A toppled call is only
   interesting when other objects keep returning over the same laps, and the
-  table prints all of them so that is checkable by eye. In the validated round
-  the surviving parking wall reads 1.9, 2.2 and 2.5 returns per tick across the
-  very laps its partner reads 0.00.
+  table prints all of them so that is checkable by eye: in the validated round
+  the surviving parking wall keeps returning across the very laps its partner
+  reads zero.
 * Per-lap centroids are printed for every object, so a "topple" that is really a
   slide shows up as the cluster reappearing a few centimetres away.
 
@@ -106,8 +105,8 @@ def _from_outer_wall(x: float, y: float) -> float:
 
     Deliberately NOT "distance to the nearest wall". The parking lot stands
     against the OUTER wall only, so a general wall distance calls every object
-    hugging the inner block parking furniture as well -- measured, that
-    mislabelled three legal signs per round as walls. A column whose name
+    hugging the inner block parking furniture as well, which mislabels legal
+    signs as walls. A column whose name
     promises one quantity and delivers another is the failure mode this repo
     keeps paying for; this one measures exactly what its name says.
     """

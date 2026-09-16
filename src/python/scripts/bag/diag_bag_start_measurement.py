@@ -2,9 +2,9 @@
 
 ``measure_start_pose`` runs exactly once per round, at the moment the travel
 direction is committed, and a refusal there costs the whole round: the node
-logs "falling back to the assumed start" and races from (1.50, 0.40) while the
-real placement is 0.5-0.9 m away. Two of the four rounds on 2026-08-08 failed
-that way.
+logs "falling back to the assumed start" and races from the assumed pose while
+the real placement is some distance away
+(adr:0053-direction-inference-and-start-pose).
 
 The question this answers is whether the refusal is *transient* -- an operator's
 hand standing in one of the four cardinal rays for a second -- or permanent. If

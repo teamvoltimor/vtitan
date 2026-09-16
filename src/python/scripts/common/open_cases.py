@@ -65,8 +65,9 @@ def balanced_128_cases(*, seed: int = 0) -> list[tuple[tuple[int, ...], Section,
     is the wrong constant to freeze: a blind robot's opening readings depend on
     where across the corridor it begins, and those readings are the input to
     corridor-width estimation and to the side ranges the direction estimator
-    votes on. Every Open pass rate in this project's history (96 -> 125 -> 126)
-    was measured against that single spawn.
+    votes on. Every Open pass rate recorded against the old ``open128`` corpus
+    was measured against that single spawn; see
+    ``adr:0087-test-methodology``.
 
     The full space is 640 because each combo admits **six** legal cells in a wide
     corridor and **four** in a narrow one. Sampling 128 uniformly from those 640
