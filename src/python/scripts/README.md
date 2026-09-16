@@ -36,13 +36,14 @@ not a summary of the code.
 | commitment | `diag_bag_commit_*.py` | when and why the router committed to a sign |
 | escape / stuck | `diag_bag_escape*.py`, `diag_bag_dwell_loop.py`, `diag_bag_creep_stall.py`, `diag_bag_blend_reachability.py` | the reactive layer: when it fires, which side, and what it buys |
 | bay / parking | `diag_bag_bay_*.py`, `diag_bag_barrier_gate.py`, `diag_bay_slip.py`, `diag_bag_parking_attempts.py` | the pocket and parking manoeuvres |
-| contact / clearance | `diag_bag_contact_*.py`, `diag_bag_proximity.py`, `diag_bag_side_ray_robustness.py`, `diag_bag_subfloor_ranges.py`, `diag_bag_wedge_trace.py` | how close contact came, and LIDAR dropouts under it |
-| localizer / LIDAR | `diag_localizer_*.py`, `diag_bag_localizer_divergence.py`, `diag_bag_lidar_proposer.py`, `diag_bag_mask_*.py`, `diag_bag_rear_sector_measured.py`, `diag_bag_yaw_frame_offset.py`, `diag_yaw_flip_replay.py` | pose and scan matching against the believed track |
-| lap / race | `diag_bag_lap_*.py` | lap counting and the start/finish line |
+| contact / clearance | `diag_bag_contact_*.py`, `diag_bag_proximity.py`, `diag_bag_side_ray_robustness.py`, `diag_bag_subfloor_ranges.py`, `diag_bag_wedge_trace.py`, `diag_bag_scan_occupancy.py` | how close contact came, and LIDAR dropouts under it |
+| localizer / LIDAR | `diag_localizer_*.py`, `diag_bag_localizer_divergence.py`, `diag_bag_lidar_proposer.py`, `diag_bag_mask_*.py`, `diag_bag_rear_sector_measured.py`, `diag_bag_lidar_frame_census.py`, `diag_bag_yaw_frame_offset.py`, `diag_yaw_flip_replay.py` | pose and scan matching against the believed track; the census prints BOTH frames, because the mount offset was read wrong once |
+| lap / race | `diag_bag_lap_*.py` | lap counting, the start/finish line, and what each lap cost (`diag_bag_lap_timeline.py`) |
 | direction | `diag_bag_direction_*.py` | direction inference gates and votes |
 | steering / motion | `diag_bag_steer*.py`, `diag_bag_steering_response.py`, `diag_bag_drive_response.py`, `diag_bag_servo_echo.py`, `diag_bag_turn_*.py`, `diag_bag_corner_*.py`, `diag_bag_angle_error.py` | actuator response and cornering |
 | vision | `diag_bag_vision.py`, `diag_bag_camera_smear.py`, `diag_bag_detection_reach.py`, `diag_vision_range_ceiling.py` | detection quality on recorded frames |
-| corpus / sessions | `diag_bag_session_*.py`, `diag_bag_fleet_compare.py`, `diag_bag_summary.py`, `diag_bag_review.py`, `diag_bag_sim_fidelity.py` | inventory and cross-run reports |
+| corpus / sessions | `diag_bag_session_*.py`, `diag_bag_fleet_compare.py`, `diag_bag_summary.py`, `diag_bag_review.py`, `diag_bag_sim_fidelity.py`, `diag_bag_topic_gaps.py` | inventory, cross-run reports, and whether a topic went silent |
+| sim fidelity | `diag_bag_fidelity_axes.py` | the HARDWARE half of the divergence audit -- pair it with `sim/diag_fidelity_axes.py` |
 
 Anything not matched above is a one-off trace (`diag_bag_state_timeline.py`,
 `diag_bag_imu_trace.py`, `diag_bag_path_replay.py`, ...); it still follows the
@@ -60,6 +61,7 @@ same one-script-one-question rule.
 | localizer / LIDAR | `diag_localization.py`, `diag_sim_lidar_proposer.py` | pose recovery and the LIDAR cluster proposer |
 | path / width / clearance | `diag_path_track*.py`, `diag_width_probe.py`, `diag_wide_wall_hug.py`, `diag_collision_margin.py` | path geometry and margins |
 | blind / failures | `diag_blind_layout.py`, `diag_failure_split.py`, `diag_obstacles_matrix.py` | blind-mode layout and failure attribution |
+| sim fidelity | `diag_fidelity_axes.py` | the SIM half of the divergence audit -- pair it with `bag/diag_bag_fidelity_axes.py` |
 | single runner | `run_scenario.py` | run one fixture, print its result as JSON, exit non-zero on a bad run |
 
 ### `hardware/` - talks to the real robot
@@ -77,6 +79,7 @@ same one-script-one-question rule.
 |---|---|
 | bag replay | `bag_io.py`, `scenarios.py`, `pass_side.py`, `cross_attempt.py`, `episodes.py`, `sign_router_capture.py` |
 | sim sweeps | `diag_base.py`, `sim_defaults.py`, `open_cases.py` |
+| hardware/sim comparison | `fidelity_axes.py` -- the axis definitions the two `*fidelity_axes.py` probes must share |
 | reporting | `tables.py`, `stats.py`, `formats.py`, `binning.py` |
 | environment | `provenance.py`, `sensor_errors.py`, `hardware_defaults.py` |
 | other | `lidar_clusters.py`, `motor_hold.py`, `analyze_rtps_pcap.py`, `check_imports.py` |
